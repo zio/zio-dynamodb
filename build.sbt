@@ -40,7 +40,7 @@ lazy val root =
     .settings(skip in publish := true)
     .aggregate(zioDynamodb, examples)
 
-lazy val zioDynamodb = module("zio-dynamodb", "zio-dynamodb")
+lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
   .enablePlugins(BuildInfoPlugin)
   .settings(buildInfoSettings("zio.dynamodb"))
   .settings(
