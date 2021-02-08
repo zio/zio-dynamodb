@@ -27,6 +27,13 @@ object DynamicDBQuery {
     projections: List[ProjectionExpression],
     capacity: ReturnConsumedCapacity
   )                                                                           extends DynamoDBQuery[Chunk[Byte]]
+  final case class PutItem(
+    item: Item,
+    capacity: ReturnConsumedCapacity,
+    itemMetrics: ReturnItemCollectionMetrics,
+    returnValues: ReturnValues,
+    tableName: TableName
+  )                                                                           extends DynamoDBQuery[Chunk[Byte]]
   final case class Zip[A, B](left: DynamoDBQuery[A], right: DynamoDBQuery[B]) extends DynamoDBQuery[(A, B)]
   final case class Map[A, B](query: DynamoDBQuery[A], mapper: A => B)         extends DynamoDBQuery[B]
 
