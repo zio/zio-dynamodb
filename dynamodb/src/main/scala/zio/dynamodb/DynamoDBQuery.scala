@@ -19,21 +19,38 @@ sealed trait DynamoDBQuery[+A] { self =>
 }
 
 object DynamicDBQuery {
-  final case class Succeed[A](value: () => A)                                 extends DynamoDBQuery[A]
+  type FilterExpression = ConditionExpression
+
+  final case class Succeed[A](value: () => A) extends DynamoDBQuery[A]
   final case class GetItem(
     key: PrimaryKey,
     tableName: TableName,
     readConsistency: ConsistencyMode,
     projections: List[ProjectionExpression],
     capacity: ReturnConsumedCapacity
-  )                                                                           extends DynamoDBQuery[Chunk[Byte]]
+  )                                           extends DynamoDBQuery[Chunk[Byte]]
   final case class PutItem(
+    conditionExpression: ConditionExpression,
     item: Item,
     capacity: ReturnConsumedCapacity,
     itemMetrics: ReturnItemCollectionMetrics,
     returnValues: ReturnValues,
     tableName: TableName
-  )                                                                           extends DynamoDBQuery[Chunk[Byte]]
+  )                                           extends DynamoDBQuery[Chunk[Byte]]
+  final case class Scan(
+    readConsistency: ConsistencyMode,
+    exclusiveStartKey: ExclusiveStartKey,
+    filterExpression: FilterExpression,
+    indexName: IndexName,
+    limit: Int,        // One based
+    projections: List[ProjectionExpression],
+    capacity: ReturnConsumedCapacity,
+    segment: Int,      // zero based
+    select: Select,
+    tableName: TableName,
+    totalSegments: Int // optional
+  ) extends DynamoDBQuery[Chunk[Byte]]
+
   final case class Zip[A, B](left: DynamoDBQuery[A], right: DynamoDBQuery[B]) extends DynamoDBQuery[(A, B)]
   final case class Map[A, B](query: DynamoDBQuery[A], mapper: A => B)         extends DynamoDBQuery[B]
 

@@ -2,10 +2,10 @@ package zio.dynamodb
 
 /*
 ~~GetItem~~
-WriteItem
+~~PutItem~~
+~~Scan~~
 UpdateItem
-Scan
-PutItem
+WriteItem ???
 Query
 ListTables
 DescribeTable
