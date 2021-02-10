@@ -29,14 +29,6 @@ object DynamicDBQuery {
     projections: List[ProjectionExpression],
     capacity: ReturnConsumedCapacity
   )                                           extends DynamoDBQuery[Chunk[Byte]]
-  final case class PutItem(
-    conditionExpression: ConditionExpression,
-    item: Item,
-    capacity: ReturnConsumedCapacity,
-    itemMetrics: ReturnItemCollectionMetrics,
-    returnValues: ReturnValues,
-    tableName: TableName
-  )                                           extends DynamoDBQuery[Chunk[Byte]]
   final case class Scan(
     readConsistency: ConsistencyMode,
     exclusiveStartKey: ExclusiveStartKey,
@@ -49,6 +41,23 @@ object DynamicDBQuery {
     select: Select,
     tableName: TableName,
     totalSegments: Int // optional
+  ) extends DynamoDBQuery[Chunk[Byte]]
+  final case class PutItem(
+    conditionExpression: ConditionExpression,
+    item: Item,
+    capacity: ReturnConsumedCapacity,
+    itemMetrics: ReturnItemCollectionMetrics,
+    returnValues: ReturnValues,
+    tableName: TableName
+  ) extends DynamoDBQuery[Chunk[Byte]]
+  final case class UpdateItem(
+    conditionExpression: ConditionExpression,
+    primaryKey: PrimaryKey,
+    capacity: ReturnConsumedCapacity,
+    itemMetrics: ReturnItemCollectionMetrics,
+    returnValues: ReturnValues,
+    tableName: TableName,
+    updateExpression: String // TODO
   ) extends DynamoDBQuery[Chunk[Byte]]
 
   final case class Zip[A, B](left: DynamoDBQuery[A], right: DynamoDBQuery[B]) extends DynamoDBQuery[(A, B)]

@@ -1,5 +1,7 @@
 package zio.dynamodb
 
+import zio.dynamodb.ProjectionExpression.TopLevel
+
 /* https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
 
 condition-expression ::=
@@ -42,7 +44,7 @@ object ConditionExpression       {
   type Path = ProjectionExpression
   final case class AttributeExists(path: Path)                                extends ConditionExpression
   final case class AttributeNotExists(path: Path)                             extends ConditionExpression
-  final case class AttributeType(path: Path, `type`: AttributeValue.type)     extends ConditionExpression
+  final case class AttributeType(path: Path, `type`: AttributeValueType)      extends ConditionExpression
   final case class Contains[T](path: Path, value: T)                          extends ConditionExpression
   final case class BeginsWith[T](path: Path, value: T)                        extends ConditionExpression
   // logical operators
@@ -53,13 +55,13 @@ object ConditionExpression       {
 sealed trait Operand             { self =>
   import Operand._
 
-  // can T be constrained further to AttributeValue.type ?
-  def `=`[T](that: Operand): ConditionExpression = Equals(self, that)
-  def <>[T](that: Operand): ConditionExpression  = NotEqual(self, that)
-  def <[T](that: Operand): ConditionExpression   = LessThan(self, that)
-  def <=[T](that: Operand): ConditionExpression  = LessThanOrEqual(self, that)
-  def >[T](that: Operand): ConditionExpression   = GreaterThanOrEqual(self, that)
-  def >=[T](that: Operand): ConditionExpression  = GreaterThanOrEqual(self, that)
+  // can T be constrained further to be subtypes of AttributeValue?
+  def ==[T](that: Operand): ConditionExpression = Equals(self, that)
+  def <>[T](that: Operand): ConditionExpression = NotEqual(self, that)
+  def <[T](that: Operand): ConditionExpression  = LessThan(self, that)
+  def <=[T](that: Operand): ConditionExpression = LessThanOrEqual(self, that)
+  def >[T](that: Operand): ConditionExpression  = GreaterThanOrEqual(self, that)
+  def >=[T](that: Operand): ConditionExpression = GreaterThanOrEqual(self, that)
 
 }
 object Operand                   {
@@ -78,4 +80,18 @@ object Operand                   {
   final case class Between[T](left: Operand, minValue: T, maxValue: T) extends ConditionExpression
   final case class In[T](left: Operand, values: T*)                    extends ConditionExpression
 
+}
+
+// TODO: remove
+object ConditionExpressionExamples {
+
+  import Operand._
+  import ConditionExpression._
+
+  val x: ConditionExpression = ValueOperand(1) == ValueOperand(1)
+  val y: ConditionExpression = x && x
+
+  val p: ConditionExpression = PathOperand(TopLevel("foo")(1)) > ValueOperand(1)
+
+  val c = AttributeType(TopLevel("foo")(1), AttributeValueType.Number) && p
 }
