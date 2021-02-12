@@ -37,10 +37,10 @@ sealed trait ConditionExpression { self =>
 
   def &&(that: ConditionExpression): ConditionExpression = And(self, that)
   def ||(that: ConditionExpression): ConditionExpression = Or(self, that)
+  // unary_! shamelessly copied from FD course example
   def unary_! : ConditionExpression                      = Not(self)
 }
 
-// TODO: could we use Phantom types here to constrain operand type to type of path attribute ?
 // BNF  https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
 object ConditionExpression {
   type Path = ProjectionExpression
@@ -103,5 +103,6 @@ object ConditionExpressionExamples {
 //  val p2: ConditionExpression =
 //    PathOperand[AttributeValue.Number](TopLevel("foo")(1)) > ValueOperand(AttributeValue.String("X"))
 
-  val c = AttributeType(TopLevel("foo")(1), AttributeValueType.Number) && p
+  val c    = AttributeType(TopLevel("foo")(1), AttributeValueType.Number) && p
+  val notC = !c
 }

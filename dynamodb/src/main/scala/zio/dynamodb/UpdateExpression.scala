@@ -5,6 +5,7 @@ import zio.dynamodb.UpdateExpression.Operand.ValueOperand
 
 /*
 TODO: Note each action keyword can appear only once - not sure how to encode this
+TODO: we need a way to combine clauses ideally ensuring there are no duplicates (ideally at compile time)
 -------------------------------------------------------------
 update-expression ::=
     [ SET action [, action] ... ]

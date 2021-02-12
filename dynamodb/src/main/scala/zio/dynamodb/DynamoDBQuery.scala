@@ -57,7 +57,7 @@ object DynamicDBQuery {
     itemMetrics: ReturnItemCollectionMetrics,
     returnValues: ReturnValues,
     tableName: TableName,
-    updateExpression: String // TODO
+    updateExpression: UpdateExpression
   ) extends DynamoDBQuery[Chunk[Byte]]
 
   final case class Zip[A, B](left: DynamoDBQuery[A], right: DynamoDBQuery[B]) extends DynamoDBQuery[(A, B)]
