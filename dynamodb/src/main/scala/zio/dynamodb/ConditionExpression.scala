@@ -12,7 +12,7 @@ condition-expression ::=
     | condition AND condition
     | condition OR condition
     | NOT condition
-    | ( condition )
+    | ( condition ) // TODO: forgot this one
 
 comparator ::=
     =
@@ -39,59 +39,69 @@ sealed trait ConditionExpression { self =>
   def ||(that: ConditionExpression): ConditionExpression = Or(self, that)
   def unary_! : ConditionExpression                      = Not(self)
 }
+
+// TODO: could we use Phantom types here to constrain operand type to type of path attribute ?
 // BNF  https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
-object ConditionExpression       {
+object ConditionExpression {
   type Path = ProjectionExpression
-  final case class AttributeExists(path: Path)                                extends ConditionExpression
-  final case class AttributeNotExists(path: Path)                             extends ConditionExpression
-  final case class AttributeType(path: Path, `type`: AttributeValueType)      extends ConditionExpression
-  final case class Contains[T](path: Path, value: T)                          extends ConditionExpression
-  final case class BeginsWith[T](path: Path, value: T)                        extends ConditionExpression
+
+  final case class Between[V <: AttributeValue](left: Operand[V], minValue: V, maxValue: V) extends ConditionExpression
+  final case class In[V <: AttributeValue](left: Operand[V], values: Set[V])                extends ConditionExpression
+
+  // functions
+  final case class AttributeExists(path: Path)                           extends ConditionExpression
+  final case class AttributeNotExists(path: Path)                        extends ConditionExpression
+  final case class AttributeType(path: Path, `type`: AttributeValueType) extends ConditionExpression
+  final case class Contains(path: Path, value: AttributeValue)           extends ConditionExpression
+  final case class BeginsWith(path: Path, value: AttributeValue)         extends ConditionExpression
+
   // logical operators
   final case class And(left: ConditionExpression, right: ConditionExpression) extends ConditionExpression
   final case class Or(left: ConditionExpression, right: ConditionExpression)  extends ConditionExpression
   final case class Not(exprn: ConditionExpression)                            extends ConditionExpression
-}
-sealed trait Operand             { self =>
-  import Operand._
 
-  // can T be constrained further to be subtypes of AttributeValue?
-  def ==[T](that: Operand): ConditionExpression = Equals(self, that)
-  def <>[T](that: Operand): ConditionExpression = NotEqual(self, that)
-  def <[T](that: Operand): ConditionExpression  = LessThan(self, that)
-  def <=[T](that: Operand): ConditionExpression = LessThanOrEqual(self, that)
-  def >[T](that: Operand): ConditionExpression  = GreaterThanOrEqual(self, that)
-  def >=[T](that: Operand): ConditionExpression = GreaterThanOrEqual(self, that)
+  // comparators
+  final case class Equals[V <: AttributeValue](left: Operand[V], right: Operand[V])          extends ConditionExpression
+  final case class NotEqual[V <: AttributeValue](left: Operand[V], right: Operand[V])        extends ConditionExpression
+  final case class LessThan[V <: AttributeValue](left: Operand[V], right: Operand[V])        extends ConditionExpression
+  final case class GreaterThan[V <: AttributeValue](left: Operand[V], right: Operand[V])     extends ConditionExpression
+  final case class LessThanOrEqual[V <: AttributeValue](left: Operand[V], right: Operand[V]) extends ConditionExpression
+  final case class GreaterThanOrEqual[V <: AttributeValue](left: Operand[V], right: Operand[V])
+      extends ConditionExpression
 
-}
-object Operand                   {
-  import ConditionExpression.Path
+  // Intention here is to track type so that later we can enforce 2 operands to be of same type
+  sealed trait Operand[V <: AttributeValue] { self =>
 
-  final case class ValueOperand[T](value: T) extends Operand
-  final case class PathOperand(path: Path)   extends Operand
-  final case class Size(path: Path)          extends Operand
+    def ==(that: Operand[V]): ConditionExpression = Equals(self, that)
+    def <>(that: Operand[V]): ConditionExpression = NotEqual(self, that)
+    def <(that: Operand[V]): ConditionExpression  = LessThan(self, that)
+    def <=(that: Operand[V]): ConditionExpression = LessThanOrEqual(self, that)
+    def >(that: Operand[V]): ConditionExpression  = GreaterThanOrEqual(self, that)
+    def >=(that: Operand[V]): ConditionExpression = GreaterThanOrEqual(self, that)
+  }
+  object Operand {
 
-  final case class Equals(left: Operand, right: Operand)               extends ConditionExpression
-  final case class NotEqual(left: Operand, right: Operand)             extends ConditionExpression
-  final case class LessThan(left: Operand, right: Operand)             extends ConditionExpression
-  final case class GreaterThan(left: Operand, right: Operand)          extends ConditionExpression
-  final case class LessThanOrEqual(left: Operand, right: Operand)      extends ConditionExpression
-  final case class GreaterThanOrEqual(left: Operand, right: Operand)   extends ConditionExpression
-  final case class Between[T](left: Operand, minValue: T, maxValue: T) extends ConditionExpression
-  final case class In[T](left: Operand, values: T*)                    extends ConditionExpression
-
+    final case class ValueOperand[V <: AttributeValue](value: V)  extends Operand[V]
+    final case class PathOperand[V <: AttributeValue](path: Path) extends Operand[V]
+    final case class Size[V <: AttributeValue](path: Path)        extends Operand[V]
+  }
 }
 
 // TODO: remove
 object ConditionExpressionExamples {
 
-  import Operand._
+  import ConditionExpression.Operand._
   import ConditionExpression._
 
-  val x: ConditionExpression = ValueOperand(1) == ValueOperand(1)
+  val x: ConditionExpression = ValueOperand(AttributeValue.String("")) == ValueOperand(AttributeValue.String(""))
   val y: ConditionExpression = x && x
 
-  val p: ConditionExpression = PathOperand(TopLevel("foo")(1)) > ValueOperand(1)
+  val p: ConditionExpression =
+    PathOperand[AttributeValue.Number](TopLevel("foo")(1)) > ValueOperand(AttributeValue.Number(1.0))
+
+// does not compile - forces LHS and RHS operand types to match
+//  val p2: ConditionExpression =
+//    PathOperand[AttributeValue.Number](TopLevel("foo")(1)) > ValueOperand(AttributeValue.String("X"))
 
   val c = AttributeType(TopLevel("foo")(1), AttributeValueType.Number) && p
 }
