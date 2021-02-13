@@ -45,8 +45,9 @@ sealed trait ConditionExpression { self =>
 object ConditionExpression {
   type Path = ProjectionExpression
 
-  final case class Between[V <: AttributeValue](left: Operand[V], minValue: V, maxValue: V) extends ConditionExpression
-  final case class In[V <: AttributeValue](left: Operand[V], values: Set[V])                extends ConditionExpression
+  final case class Between(left: Operand, minValue: AttributeValue, maxValue: AttributeValue)
+      extends ConditionExpression
+  final case class In(left: Operand, values: Set[AttributeValue]) extends ConditionExpression
 
   // functions
   final case class AttributeExists(path: Path)                           extends ConditionExpression
@@ -61,29 +62,28 @@ object ConditionExpression {
   final case class Not(exprn: ConditionExpression)                            extends ConditionExpression
 
   // comparators
-  final case class Equals[V <: AttributeValue](left: Operand[V], right: Operand[V])          extends ConditionExpression
-  final case class NotEqual[V <: AttributeValue](left: Operand[V], right: Operand[V])        extends ConditionExpression
-  final case class LessThan[V <: AttributeValue](left: Operand[V], right: Operand[V])        extends ConditionExpression
-  final case class GreaterThan[V <: AttributeValue](left: Operand[V], right: Operand[V])     extends ConditionExpression
-  final case class LessThanOrEqual[V <: AttributeValue](left: Operand[V], right: Operand[V]) extends ConditionExpression
-  final case class GreaterThanOrEqual[V <: AttributeValue](left: Operand[V], right: Operand[V])
-      extends ConditionExpression
+  final case class Equals(left: Operand, right: Operand)             extends ConditionExpression
+  final case class NotEqual(left: Operand, right: Operand)           extends ConditionExpression
+  final case class LessThan(left: Operand, right: Operand)           extends ConditionExpression
+  final case class GreaterThan(left: Operand, right: Operand)        extends ConditionExpression
+  final case class LessThanOrEqual(left: Operand, right: Operand)    extends ConditionExpression
+  final case class GreaterThanOrEqual(left: Operand, right: Operand) extends ConditionExpression
 
   // Intention here is to track type so that later we can enforce 2 operands to be of same type
-  sealed trait Operand[V <: AttributeValue] { self =>
+  sealed trait Operand { self =>
 
-    def ==(that: Operand[V]): ConditionExpression = Equals(self, that)
-    def <>(that: Operand[V]): ConditionExpression = NotEqual(self, that)
-    def <(that: Operand[V]): ConditionExpression  = LessThan(self, that)
-    def <=(that: Operand[V]): ConditionExpression = LessThanOrEqual(self, that)
-    def >(that: Operand[V]): ConditionExpression  = GreaterThanOrEqual(self, that)
-    def >=(that: Operand[V]): ConditionExpression = GreaterThanOrEqual(self, that)
+    def ==(that: Operand): ConditionExpression = Equals(self, that)
+    def <>(that: Operand): ConditionExpression = NotEqual(self, that)
+    def <(that: Operand): ConditionExpression  = LessThan(self, that)
+    def <=(that: Operand): ConditionExpression = LessThanOrEqual(self, that)
+    def >(that: Operand): ConditionExpression  = GreaterThanOrEqual(self, that)
+    def >=(that: Operand): ConditionExpression = GreaterThanOrEqual(self, that)
   }
   object Operand {
 
-    final case class ValueOperand[V <: AttributeValue](value: V)  extends Operand[V]
-    final case class PathOperand[V <: AttributeValue](path: Path) extends Operand[V]
-    final case class Size[V <: AttributeValue](path: Path)        extends Operand[V]
+    final case class ValueOperand(value: AttributeValue) extends Operand
+    final case class PathOperand(path: Path)             extends Operand
+    final case class Size(path: Path)                    extends Operand
   }
 }
 
@@ -97,7 +97,7 @@ object ConditionExpressionExamples {
   val y: ConditionExpression = x && x
 
   val p: ConditionExpression =
-    PathOperand[AttributeValue.Number](TopLevel("foo")(1)) > ValueOperand(AttributeValue.Number(1.0))
+    PathOperand(TopLevel("foo")(1)) > ValueOperand(AttributeValue.Number(1.0))
 
 // does not compile - forces LHS and RHS operand types to match
 //  val p2: ConditionExpression =

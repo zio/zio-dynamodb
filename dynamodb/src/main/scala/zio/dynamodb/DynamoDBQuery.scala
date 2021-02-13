@@ -41,7 +41,7 @@ object DynamicDBQuery {
     select: Select,
     tableName: TableName,
     totalSegments: Int // optional
-  ) extends DynamoDBQuery[Chunk[Byte]]
+  ) extends DynamoDBQuery[Chunk[Byte]] // Stream of stuff
   final case class PutItem(
     conditionExpression: ConditionExpression,
     item: Item,
