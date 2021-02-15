@@ -1,6 +1,7 @@
 package zio.dynamodb
 
 import zio.Chunk
+import zio.stream.ZStream
 
 sealed trait DynamoDBQuery[+A] { self =>
   final def <*[B](that: DynamoDBQuery[B]): DynamoDBQuery[A] = zipLeft(that)
@@ -25,23 +26,24 @@ object DynamicDBQuery {
   final case class GetItem(
     key: PrimaryKey,
     tableName: TableName,
+    readConsistency: ConsistencyMode = ConsistencyMode.Weak,
+    projections: List[ProjectionExpression] =
+      List.empty, // If no attribute names are specified, then all attributes are returned
+    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
+  ) extends DynamoDBQuery[Item]
+  final case class Scan[R, E](
     readConsistency: ConsistencyMode,
-    projections: List[ProjectionExpression],
-    capacity: ReturnConsumedCapacity
-  )                                           extends DynamoDBQuery[Chunk[Byte]]
-  final case class Scan(
-    readConsistency: ConsistencyMode,
-    exclusiveStartKey: ExclusiveStartKey,
+    exclusiveStartKey: ExclusiveStartKey, // should the library take care of token based pagination? if so then pagination details would not be exposed
     filterExpression: FilterExpression,
     indexName: IndexName,
-    limit: Int,        // One based
+    limit: Int,                           // One based
     projections: List[ProjectionExpression],
     capacity: ReturnConsumedCapacity,
-    segment: Int,      // zero based
+    segment: Int,                         // zero based. For a parallel Scan request, Segment identifies an individual segment to be scanned by an application worker.
     select: Select,
     tableName: TableName,
-    totalSegments: Int // optional
-  ) extends DynamoDBQuery[Chunk[Byte]] // Stream of stuff
+    totalSegments: Int                    // For a parallel Scan request, TotalSegments represents the total number of segments into which the Scan operation will be divided.
+  ) extends DynamoDBQuery[ZStream[R, E, Item]]
   final case class PutItem(
     conditionExpression: ConditionExpression,
     item: Item,
@@ -49,7 +51,7 @@ object DynamicDBQuery {
     itemMetrics: ReturnItemCollectionMetrics,
     returnValues: ReturnValues,
     tableName: TableName
-  ) extends DynamoDBQuery[Chunk[Byte]]
+  ) extends DynamoDBQuery[Chunk[Byte]] // TODO: how do we model responses to DB mutations? AWS has a rich response model
   final case class UpdateItem(
     conditionExpression: ConditionExpression,
     primaryKey: PrimaryKey,
@@ -58,7 +60,7 @@ object DynamicDBQuery {
     returnValues: ReturnValues,
     tableName: TableName,
     updateExpression: UpdateExpression
-  ) extends DynamoDBQuery[Chunk[Byte]]
+  ) extends DynamoDBQuery[Chunk[Byte]] // TODO: how do we model responses to DB mutations? AWS has a rich response model
 
   final case class Zip[A, B](left: DynamoDBQuery[A], right: DynamoDBQuery[B]) extends DynamoDBQuery[(A, B)]
   final case class Map[A, B](query: DynamoDBQuery[A], mapper: A => B)         extends DynamoDBQuery[B]

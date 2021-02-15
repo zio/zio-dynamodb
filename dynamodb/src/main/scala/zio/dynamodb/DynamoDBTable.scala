@@ -1,15 +1,13 @@
 package zio.dynamodb
 
-import zio.Chunk
-
 trait DynamoDBTable {
   def get(
     key: PrimaryKey,
     readConsistency: ConsistencyMode = ConsistencyMode.Weak,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
-  )(ps: ProjectionExpression*): DynamoDBQuery[Chunk[Byte]]
+  )(ps: ProjectionExpression*): DynamoDBQuery[Item]
 
-  def getAll(
+  def getAll( // TODO: how about `getAllAttributes` ? to be clear we are talking about the axis of attributes rather than axis of rows?
     key: PrimaryKey
-  ): DynamoDBQuery[Chunk[Byte]] = get(key)()
+  ): DynamoDBQuery[Item] = get(key)()
 }

@@ -46,6 +46,7 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio"       %% "zio"                 % zioVersion,
+      "dev.zio"       %% "zio-streams"         % zioVersion,
       "dev.zio"       %% "zio-test"            % zioVersion % "test",
       "dev.zio"       %% "zio-test-sbt"        % zioVersion % "test",
       "dev.zio"       %% "zio-config-typesafe" % zioConfigVersion,

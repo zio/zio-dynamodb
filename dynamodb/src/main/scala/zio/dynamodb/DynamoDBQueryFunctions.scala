@@ -1,7 +1,5 @@
 package zio.dynamodb
 
-import zio.Chunk
-
 trait DynamoDBQueryFunctions {
   def getTable(tableName: TableName): DynamoDBTable =
     new DynamoDBTable {
@@ -9,7 +7,7 @@ trait DynamoDBQueryFunctions {
         key: PrimaryKey,
         readConsistency: ConsistencyMode = ConsistencyMode.Weak,
         capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
-      )(projections: ProjectionExpression*): DynamoDBQuery[Chunk[Byte]] =
+      )(projections: ProjectionExpression*): DynamoDBQuery[Item] =
         DynamicDBQuery.GetItem(key, tableName, readConsistency, projections.toList, capacity)
 
     }
