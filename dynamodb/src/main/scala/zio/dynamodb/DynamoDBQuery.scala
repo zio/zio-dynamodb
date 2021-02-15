@@ -10,16 +10,16 @@ sealed trait DynamoDBQuery[+A] { self =>
 
   final def <*>[B](that: DynamoDBQuery[B]): DynamoDBQuery[(A, B)] = self zip that
 
-  final def map[B](f: A => B): DynamoDBQuery[B] = DynamicDBQuery.Map(self, f)
+  final def map[B](f: A => B): DynamoDBQuery[B] = DynamoDBQuery.Map(self, f)
 
-  final def zip[B](that: DynamoDBQuery[B]): DynamoDBQuery[(A, B)] = DynamicDBQuery.Zip(self, that)
+  final def zip[B](that: DynamoDBQuery[B]): DynamoDBQuery[(A, B)] = DynamoDBQuery.Zip(self, that)
 
   final def zipLeft[B](that: DynamoDBQuery[B]): DynamoDBQuery[A] = (self zip that).map(_._1)
 
   final def zipRight[B](that: DynamoDBQuery[B]): DynamoDBQuery[B] = (self zip that).map(_._2)
 }
 
-object DynamicDBQuery {
+object DynamoDBQuery {
   type FilterExpression = ConditionExpression
 
   final case class Succeed[A](value: () => A) extends DynamoDBQuery[A]
