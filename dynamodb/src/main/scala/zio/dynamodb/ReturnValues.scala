@@ -1,6 +1,7 @@
 package zio.dynamodb
 
 sealed trait ReturnValues
+
 object ReturnValues {
   case object None       extends ReturnValues
   case object AllOld     extends ReturnValues

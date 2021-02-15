@@ -39,7 +39,7 @@ object DynamoDBQuery {
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     segment: Option[ScanSegments] = None,
-    select: Option[Select],                               // ProjectExpression supplied then only valid value is SpecificAttributes
+    select: Option[Select],                               // if ProjectExpression supplied then only valid value is SpecificAttributes
     tableName: TableName
   ) extends DynamoDBQuery[ZStream[R, E, Item]]
   final case class PutItem(
