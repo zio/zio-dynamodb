@@ -32,22 +32,20 @@ object DynamicDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
   ) extends DynamoDBQuery[Item]
   final case class Scan[R, E](
-    readConsistency: ConsistencyMode,
-    exclusiveStartKey: ExclusiveStartKey, // should the library take care of token based pagination? if so then pagination details would not be exposed
-    filterExpression: FilterExpression,
+    readConsistency: ConsistencyMode = ConsistencyMode.Weak,
+    filterExpression: Option[FilterExpression] = None,    // TODO: should we push NONE into FilterExpression?
     indexName: IndexName,
-    limit: Int,                           // One based
-    projections: List[ProjectionExpression],
-    capacity: ReturnConsumedCapacity,
-    segment: Int,                         // zero based. For a parallel Scan request, Segment identifies an individual segment to be scanned by an application worker.
-    select: Select,
-    tableName: TableName,
-    totalSegments: Int                    // For a parallel Scan request, TotalSegments represents the total number of segments into which the Scan operation will be divided.
+    limit: Option[Int] = None,                            // One based
+    projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
+    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
+    segment: Option[ScanSegments] = None,
+    select: Option[Select],                               // ProjectExpression supplied then only valid value is SpecificAttributes
+    tableName: TableName
   ) extends DynamoDBQuery[ZStream[R, E, Item]]
   final case class PutItem(
     conditionExpression: ConditionExpression,
     item: Item,
-    capacity: ReturnConsumedCapacity,
+    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics,
     returnValues: ReturnValues,
     tableName: TableName
