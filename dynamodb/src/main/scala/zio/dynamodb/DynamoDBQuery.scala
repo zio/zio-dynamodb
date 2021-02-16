@@ -25,9 +25,10 @@ object DynamoDBQuery {
   final case class GetItem(
     key: PrimaryKey,
     tableName: TableName,
-    readConsistency: ConsistencyMode = ConsistencyMode.Weak,
+    readConsistency: ConsistencyMode =
+      ConsistencyMode.Weak, // use Option type or default like here? - not sure what is best - defaulting lets interpreter be more dumb
     projections: List[ProjectionExpression] =
-      List.empty, // If no attribute names are specified, then all attributes are returned
+      List.empty,           // If no attribute names are specified, then all attributes are returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
   ) extends DynamoDBQuery[Item]
   // Interestingly scan can be run in parallel using segment number and total segments fields
@@ -43,11 +44,11 @@ object DynamoDBQuery {
     tableName: TableName
   ) extends DynamoDBQuery[ZStream[R, E, Item]]
   final case class PutItem(
-    conditionExpression: ConditionExpression,
+    conditionExpression: Option[ConditionExpression] = None, // TODO: we could use a True constant ConditionExpression
     item: Item,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    itemMetrics: ReturnItemCollectionMetrics,
-    returnValues: ReturnValues,
+    itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
+    returnValues: ReturnValues = ReturnValues.None,          // PutItem does not recognize any values other than NONE or ALL_OLD.
     tableName: TableName
   ) extends DynamoDBQuery[Unit] // TODO: how do we model responses to DB mutations? AWS has a rich response model
   final case class UpdateItem(

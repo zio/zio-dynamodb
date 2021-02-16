@@ -37,7 +37,7 @@ sealed trait ConditionExpression { self =>
 
   def &&(that: ConditionExpression): ConditionExpression = And(self, that)
   def ||(that: ConditionExpression): ConditionExpression = Or(self, that)
-  // unary_! shamelessly copied from FD course example
+  // shamelessly copied from FD course example
   def unary_! : ConditionExpression                      = Not(self)
 }
 
@@ -98,10 +98,6 @@ object ConditionExpressionExamples {
 
   val p: ConditionExpression =
     PathOperand(TopLevel("foo")(1)) > ValueOperand(AttributeValue.Number(1.0))
-
-// does not compile - forces LHS and RHS operand types to match
-//  val p2: ConditionExpression =
-//    PathOperand[AttributeValue.Number](TopLevel("foo")(1)) > ValueOperand(AttributeValue.String("X"))
 
   val c    = AttributeType(TopLevel("foo")(1), AttributeValueType.Number) && p
   val notC = !c
