@@ -33,6 +33,7 @@ object DynamoDBQuery {
   ) extends DynamoDBQuery[Item]
   // Interestingly scan can be run in parallel using segment number and total segments fields
   // If running in parallel segment number must be used consistently with the paging token
+  // I have removed these fields on the assumption that the library will take care of these concerns
   final case class Scan[R, E](
     readConsistency: ConsistencyMode = ConsistencyMode.Weak,
     filterExpression: Option[FilterExpression] = None,    // TODO: should we push NONE into FilterExpression?
@@ -59,6 +60,15 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues = ReturnValues.None
+  ) extends DynamoDBQuery[Unit] // TODO: how do we model responses to DB mutations? AWS has a rich response model
+  final case class DeleteItem(
+    conditionExpression: Option[ConditionExpression] = None,
+    primaryKey: PrimaryKey,
+    tableName: TableName,
+    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
+    itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
+    returnValues: ReturnValues =
+      ReturnValues.None // DeleteItem does not recognize any values other than NONE or ALL_OLD.
   ) extends DynamoDBQuery[Unit] // TODO: how do we model responses to DB mutations? AWS has a rich response model
 
   final case class Zip[A, B](left: DynamoDBQuery[A], right: DynamoDBQuery[B]) extends DynamoDBQuery[(A, B)]
