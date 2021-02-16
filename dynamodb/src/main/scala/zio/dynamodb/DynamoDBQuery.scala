@@ -1,6 +1,5 @@
 package zio.dynamodb
 
-import zio.Chunk
 import zio.stream.ZStream
 
 sealed trait DynamoDBQuery[+A] { self =>
@@ -31,6 +30,8 @@ object DynamoDBQuery {
       List.empty, // If no attribute names are specified, then all attributes are returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
   ) extends DynamoDBQuery[Item]
+  // Interestingly scan can be run in parallel using segment number and total segments fields
+  // If running in parallel segment number must be used consistently with the paging token
   final case class Scan[R, E](
     readConsistency: ConsistencyMode = ConsistencyMode.Weak,
     filterExpression: Option[FilterExpression] = None,    // TODO: should we push NONE into FilterExpression?
@@ -38,7 +39,6 @@ object DynamoDBQuery {
     limit: Option[Int] = None,                            // One based
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    segment: Option[ScanSegments] = None,
     select: Option[Select],                               // if ProjectExpression supplied then only valid value is SpecificAttributes
     tableName: TableName
   ) extends DynamoDBQuery[ZStream[R, E, Item]]
@@ -49,7 +49,7 @@ object DynamoDBQuery {
     itemMetrics: ReturnItemCollectionMetrics,
     returnValues: ReturnValues,
     tableName: TableName
-  ) extends DynamoDBQuery[Chunk[Byte]] // TODO: how do we model responses to DB mutations? AWS has a rich response model
+  ) extends DynamoDBQuery[Unit] // TODO: how do we model responses to DB mutations? AWS has a rich response model
   final case class UpdateItem(
     conditionExpression: ConditionExpression,
     primaryKey: PrimaryKey,
@@ -58,7 +58,7 @@ object DynamoDBQuery {
     returnValues: ReturnValues,
     tableName: TableName,
     updateExpression: UpdateExpression
-  ) extends DynamoDBQuery[Chunk[Byte]] // TODO: how do we model responses to DB mutations? AWS has a rich response model
+  ) extends DynamoDBQuery[Unit] // TODO: how do we model responses to DB mutations? AWS has a rich response model
 
   final case class Zip[A, B](left: DynamoDBQuery[A], right: DynamoDBQuery[B]) extends DynamoDBQuery[(A, B)]
   final case class Map[A, B](query: DynamoDBQuery[A], mapper: A => B)         extends DynamoDBQuery[B]
