@@ -46,19 +46,19 @@ object DynamoDBQuery {
   final case class PutItem(
     conditionExpression: Option[ConditionExpression] = None, // TODO: we could use a True constant ConditionExpression
     item: Item,
+    tableName: TableName,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
-    returnValues: ReturnValues = ReturnValues.None,          // PutItem does not recognize any values other than NONE or ALL_OLD.
-    tableName: TableName
+    returnValues: ReturnValues = ReturnValues.None           // PutItem does not recognize any values other than NONE or ALL_OLD.
   ) extends DynamoDBQuery[Unit] // TODO: how do we model responses to DB mutations? AWS has a rich response model
   final case class UpdateItem(
-    conditionExpression: ConditionExpression,
+    conditionExpression: Option[ConditionExpression] = None,
     primaryKey: PrimaryKey,
-    capacity: ReturnConsumedCapacity,
-    itemMetrics: ReturnItemCollectionMetrics,
-    returnValues: ReturnValues,
     tableName: TableName,
-    updateExpression: UpdateExpression
+    updateExpression: Set[UpdateExpression] = Set.empty,
+    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
+    itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
+    returnValues: ReturnValues = ReturnValues.None
   ) extends DynamoDBQuery[Unit] // TODO: how do we model responses to DB mutations? AWS has a rich response model
 
   final case class Zip[A, B](left: DynamoDBQuery[A], right: DynamoDBQuery[B]) extends DynamoDBQuery[(A, B)]
