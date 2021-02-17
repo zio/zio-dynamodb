@@ -69,7 +69,6 @@ object ConditionExpression {
   final case class LessThanOrEqual(left: Operand, right: Operand)    extends ConditionExpression
   final case class GreaterThanOrEqual(left: Operand, right: Operand) extends ConditionExpression
 
-  // Intention here is to track type so that later we can enforce 2 operands to be of same type
   sealed trait Operand { self =>
 
     def ==(that: Operand): ConditionExpression = Equals(self, that)
@@ -97,7 +96,7 @@ object ConditionExpressionExamples {
   val y: ConditionExpression = x && x
 
   val p: ConditionExpression =
-    PathOperand(TopLevel("foo")(1)) > ValueOperand(AttributeValue.Number(1.0))
+    PathOperand(TopLevel("foo")(1)) > ValueOperand(AttributeValue.Number(1.0)) // TODO: infix ops require brackets
 
   val c    = AttributeType(TopLevel("foo")(1), AttributeValueType.Number) && p
   val notC = !c

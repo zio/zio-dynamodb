@@ -4,9 +4,9 @@ package zio.dynamodb
 ~~GetItem~~
 ~~PutItem~~
 ~~Scan~~
-UpdateItem
-WriteItem ???
-Query
+~~UpdateItem~~
+WriteItem ??? no WriteItem, only Update and Put
+~~Query~~
 ListTables
 DescribeTable
  */

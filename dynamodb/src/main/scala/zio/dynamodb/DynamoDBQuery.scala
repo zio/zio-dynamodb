@@ -19,6 +19,7 @@ sealed trait DynamoDBQuery[+A] { self =>
 }
 
 object DynamoDBQuery {
+  // Filter expression is the same as a ConditionExpression but when used with Query but does not allow key attributes
   type FilterExpression = ConditionExpression
 
   final case class Succeed[A](value: () => A) extends DynamoDBQuery[A]
@@ -38,6 +39,22 @@ object DynamoDBQuery {
     readConsistency: ConsistencyMode = ConsistencyMode.Weak,
     filterExpression: Option[FilterExpression] = None,    // TODO: should we push NONE into FilterExpression?
     indexName: IndexName,
+    limit: Option[Int] = None,                            // One based
+    projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
+    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
+    select: Option[Select],                               // if ProjectExpression supplied then only valid value is SpecificAttributes
+    tableName: TableName
+  ) extends DynamoDBQuery[ZStream[R, E, Item]]
+  // KeyCondition expression is aq restricted version of ConditionExpression where by
+  // - partition exprn is required
+  // - optionaly AND can be used sort key expression
+  // eg partitionKeyName = :partitionkeyval AND sortKeyName = :sortkeyval
+  // comparisons are the same as for Condition
+  final case class Query[R, E](
+    readConsistency: ConsistencyMode = ConsistencyMode.Weak,
+    filterExpression: Option[FilterExpression] = None,
+    indexName: IndexName,
+    keyConditionExpression: KeyConditionExpression,
     limit: Option[Int] = None,                            // One based
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
