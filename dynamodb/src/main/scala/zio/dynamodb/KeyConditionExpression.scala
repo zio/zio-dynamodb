@@ -1,21 +1,18 @@
 package zio.dynamodb
 
-import zio.dynamodb.KeyConditionExpression.ValueOperand
-
 /*
 KeyCondition expression is a restricted version of ConditionExpression where by
 - partition exprn is required and can only use "=" equals comparison
-- optionaly AND can be used to add a sort key expression
+- optionally AND can be used to add a sort key expression
 
 eg partitionKeyName = :partitionkeyval AND sortKeyName = :sortkeyval
-comparisons are the same as for Condition
+comparisons operators are the same as for Condition
 
  */
 
 sealed trait KeyConditionExpression
 object KeyConditionExpression {
   final case class And(left: PartitionKeyExpression, right: SortKeyExpression) extends KeyConditionExpression
-  final case class ValueOperand(value: AttributeValue)                         extends Operand
 
   sealed trait Operand
   object Operand {
@@ -33,12 +30,14 @@ sealed trait PartitionKeyExpression extends KeyConditionExpression { self =>
 }
 object PartitionKeyExpression       extends KeyConditionExpression {
   import KeyConditionExpression._
+
   final case class PartitionKeyOperand(keyName: String) { self =>
     def ==(that: Operand): PartitionKeyExpression = Equals(self, that)
   }
   final case class Equals(left: PartitionKeyOperand, right: Operand) extends PartitionKeyExpression
 }
-sealed trait SortKeyExpression      extends KeyConditionExpression
+
+sealed trait SortKeyExpression extends KeyConditionExpression
 
 object SortKeyExpression {
   import KeyConditionExpression._
@@ -58,15 +57,4 @@ object SortKeyExpression {
   final case class GreaterThan(left: SortKeyOperand, right: Operand)        extends SortKeyExpression
   final case class LessThanOrEqual(left: SortKeyOperand, right: Operand)    extends SortKeyExpression
   final case class GreaterThanOrEqual(left: SortKeyOperand, right: Operand) extends SortKeyExpression
-
-}
-
-object KeyConditionExpressionExamples {
-  import PartitionKeyExpression._
-  import SortKeyExpression._
-
-  val x = (PartitionKeyOperand("partitionKey1") == ValueOperand(
-    AttributeValue.String("")
-  )) // TODO: infix ops require brackets
-    .&&(SortKeyOperand("sortKey1").>(ValueOperand(AttributeValue.String(""))))
 }

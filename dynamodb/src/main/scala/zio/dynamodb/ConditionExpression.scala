@@ -1,7 +1,5 @@
 package zio.dynamodb
 
-import zio.dynamodb.ProjectionExpression.TopLevel
-
 /* https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
 
 condition-expression ::=
@@ -12,7 +10,7 @@ condition-expression ::=
     | condition AND condition
     | condition OR condition
     | NOT condition
-    | ( condition ) // TODO: forgot this one
+    | ( condition ) // TODO: do we need this one?
 
 comparator ::=
     =
@@ -50,11 +48,11 @@ object ConditionExpression {
   final case class In(left: Operand, values: Set[AttributeValue]) extends ConditionExpression
 
   // functions
-  final case class AttributeExists(path: Path)                           extends ConditionExpression
-  final case class AttributeNotExists(path: Path)                        extends ConditionExpression
-  final case class AttributeType(path: Path, `type`: AttributeValueType) extends ConditionExpression
-  final case class Contains(path: Path, value: AttributeValue)           extends ConditionExpression
-  final case class BeginsWith(path: Path, value: AttributeValue)         extends ConditionExpression
+  final case class AttributeExists(path: Path)                                  extends ConditionExpression
+  final case class AttributeNotExists(path: Path)                               extends ConditionExpression
+  final case class AttributeType(path: Path, attributeType: AttributeValueType) extends ConditionExpression
+  final case class Contains(path: Path, value: AttributeValue)                  extends ConditionExpression
+  final case class BeginsWith(path: Path, value: AttributeValue)                extends ConditionExpression
 
   // logical operators
   final case class And(left: ConditionExpression, right: ConditionExpression) extends ConditionExpression
@@ -84,20 +82,4 @@ object ConditionExpression {
     final case class PathOperand(path: Path)             extends Operand
     final case class Size(path: Path)                    extends Operand
   }
-}
-
-// TODO: remove
-object ConditionExpressionExamples {
-
-  import ConditionExpression.Operand._
-  import ConditionExpression._
-
-  val x: ConditionExpression = ValueOperand(AttributeValue.String("")) == ValueOperand(AttributeValue.String(""))
-  val y: ConditionExpression = x && x
-
-  val p: ConditionExpression =
-    PathOperand(TopLevel("foo")(1)) > ValueOperand(AttributeValue.Number(1.0)) // TODO: infix ops require brackets
-
-  val c    = AttributeType(TopLevel("foo")(1), AttributeValueType.Number) && p
-  val notC = !c
 }

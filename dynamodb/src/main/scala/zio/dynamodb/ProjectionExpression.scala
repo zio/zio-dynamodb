@@ -8,7 +8,7 @@ sealed trait ProjectionExpression { self =>
 }
 
 object ProjectionExpression {
-  // Note that you can only use a ProjectionExpression is the first character is a-z or A-Z and the second character
+  // Note that you can only use a ProjectionExpression if the first character is a-z or A-Z and the second character
   // (if present) is a-z, A-Z, or 0-9. Also key words are not allowed
   // If this is not the case then you must use the Expression Attribute Names facility to create an alias.
   // Attribute names containing a dot "." must also use the Expression Attribute Names
