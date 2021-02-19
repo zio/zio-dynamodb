@@ -23,6 +23,7 @@ object DynamoDBQuery {
   type FilterExpression = ConditionExpression
 
   final case class Succeed[A](value: () => A) extends DynamoDBQuery[A]
+
   final case class GetItem(
     key: PrimaryKey,
     tableName: TableName,
@@ -32,12 +33,13 @@ object DynamoDBQuery {
       List.empty,           // If no attribute names are specified, then all attributes are returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
   ) extends DynamoDBQuery[Item]
+
   // Interestingly scan can be run in parallel using segment number and total segments fields
   // If running in parallel segment number must be used consistently with the paging token
   // I have removed these fields on the assumption that the library will take care of these concerns
   final case class Scan[R, E](
     readConsistency: ConsistencyMode = ConsistencyMode.Weak,
-    filterExpression: Option[FilterExpression] = None,    // TODO: should we push NONE into FilterExpression?
+    filterExpression: Option[FilterExpression] = None,
     indexName: IndexName,
     limit: Option[Int] = None,                            // One based
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
@@ -45,6 +47,7 @@ object DynamoDBQuery {
     select: Option[Select],                               // if ProjectExpression supplied then only valid value is SpecificAttributes
     tableName: TableName
   ) extends DynamoDBQuery[ZStream[R, E, Item]]
+
   // KeyCondition expression is aq restricted version of ConditionExpression where by
   // - partition exprn is required
   // - optionaly AND can be used sort key expression
@@ -61,14 +64,16 @@ object DynamoDBQuery {
     select: Option[Select],                               // if ProjectExpression supplied then only valid value is SpecificAttributes
     tableName: TableName
   ) extends DynamoDBQuery[ZStream[R, E, Item]]
+
   final case class PutItem(
-    conditionExpression: Option[ConditionExpression] = None, // TODO: we could use a True constant ConditionExpression
+    conditionExpression: Option[ConditionExpression] = None,
     item: Item,
     tableName: TableName,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
-    returnValues: ReturnValues = ReturnValues.None           // PutItem does not recognize any values other than NONE or ALL_OLD.
+    returnValues: ReturnValues = ReturnValues.None // PutItem does not recognize any values other than NONE or ALL_OLD.
   ) extends DynamoDBQuery[Unit] // TODO: how do we model responses to DB mutations? AWS has a rich response model
+
   final case class UpdateItem(
     conditionExpression: Option[ConditionExpression] = None,
     primaryKey: PrimaryKey,
@@ -78,6 +83,7 @@ object DynamoDBQuery {
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues = ReturnValues.None
   ) extends DynamoDBQuery[Unit] // TODO: how do we model responses to DB mutations? AWS has a rich response model
+
   final case class DeleteItem(
     conditionExpression: Option[ConditionExpression] = None,
     primaryKey: PrimaryKey,

@@ -7,7 +7,8 @@ trait DynamoDBTable {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
   )(ps: ProjectionExpression*): DynamoDBQuery[Item]
 
-  def getAll( // TODO: how about `getAllAttributes` ? to be clear we are talking about the axis of attributes rather than axis of rows?
+  // TODO: how about `getAllAttributes`?
+  def getAll(
     key: PrimaryKey
   ): DynamoDBQuery[Item] = get(key)()
 }

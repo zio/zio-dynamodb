@@ -4,10 +4,8 @@ import zio.dynamodb.ProjectionExpression.TopLevel
 import zio.dynamodb.UpdateExpression.Operand.ValueOperand
 
 /*
-TODO: Note each action keyword can appear only once - not sure how to encode this
-TODO: we need a way to combine clauses ideally ensuring there are no duplicates (ideally at compile time)
 
-
+https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.UpdateExpressions.html
 -------------------------------------------------------------
 update-expression ::=
     [ SET action [, action] ... ]
@@ -47,15 +45,30 @@ trait UpdateExpression
 object UpdateExpression {
   type Path = ProjectionExpression
 
-  final case class Set(path: Path, operand: Operand) extends UpdateExpression
+  sealed trait Action[T] { self =>
+    import Action.ChildAction
 
-  trait Operand  { self =>
+    def ~(that: Action[T]): Action[T] = ChildAction(self, that)
+  }
+  object Action          {
+    private final case class RootAction[T](op: T)                             extends Action[T]
+    private final case class ChildAction[T](parent: Action[T], op: Action[T]) extends Action[T]
+  }
+
+  final case class UpdateExpressions(set: Set[Action[_]])
+
+  final case class SetAction(path: Path, operand: Operand)         extends Action[SetAction]
+  final case class RemoveAction(path: Path)                        extends Action[RemoveAction]
+  final case class AddAction(path: Path, value: AttributeValue)    extends Action[AddAction]
+  final case class DeleteAction(path: Path, value: AttributeValue) extends Action[DeleteAction]
+
+  sealed trait Operand { self =>
     import Operand._
 
     def +(that: Operand): Operand = Minus(self, that)
     def -(that: Operand): Operand = Plus(self, that)
   }
-  object Operand {
+  object Operand       {
     final case class Minus(left: Operand, right: Operand) extends Operand
     final case class Plus(left: Operand, right: Operand)  extends Operand
     final case class ValueOperand(value: AttributeValue)  extends Operand
@@ -67,8 +80,17 @@ object UpdateExpression {
   }
 }
 
-object UpdateExpressionExamples {
+object UpdateExpressionExamples extends App {
   import UpdateExpression._
 
-  Set(TopLevel("top")(1), ValueOperand(AttributeValue.Number(1.0)))
+  Set(SetAction(TopLevel("top")(1), ValueOperand(AttributeValue.Number(1.0))))
+
+  val setAction = SetAction(TopLevel("top")(1), ValueOperand(AttributeValue.Number(1.0)))
+
+  val x: Action[SetAction] = SetAction(TopLevel("top")(1), ValueOperand(AttributeValue.Number(1.0)))
+    .~(SetAction(TopLevel("top")(2), ValueOperand(AttributeValue.Number(2.0))))
+
+  println(x)
+
+  UpdateExpressions(Set(x))
 }
