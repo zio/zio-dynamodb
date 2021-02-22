@@ -1,8 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.ProjectionExpression.TopLevel
-import zio.dynamodb.UpdateExpression.Operand.ValueOperand
-
+import zio.dynamodb.UpdateExpression.Action
 /*
 
 https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.UpdateExpressions.html
@@ -39,58 +37,44 @@ delete-action ::=
 -------------------------------------------------------------
  */
 
-// there are functions that are valid only for a particular context and Data Type
+// Note this implementation does preserve the original order of actions ie after "Set field1 = 1, field1 = 2" what value is field1?
+// if this turns out to be a problem we could change the internal implementation
+final case class UpdateExpression(head: Action, tail: Set[Action] = Set.empty) { self =>
+  def ++(that: UpdateExpression) = UpdateExpression(self.head, self.tail ++ that.all)
+  def +(action: Action)          = UpdateExpression(action, self.all)
 
-trait UpdateExpression
+  def all: Set[Action] = tail + head
+
+  def grouped: Map[Class[_ <: Action], Set[Action]] = self.all.groupBy(a => a.getClass)
+}
+
 object UpdateExpression {
   type Path = ProjectionExpression
 
-  sealed trait Action[T] { self =>
-    import Action.ChildAction
+  def pure(action: Action) = UpdateExpression(action)
 
-    def ~(that: Action[T]): Action[T] = ChildAction(self, that)
+  sealed trait Action
+  object Action {
+    final case class SetAction(path: Path, operand: SetOperand)      extends Action
+    final case class RemoveAction(path: Path)                        extends Action
+    final case class AddAction(path: Path, value: AttributeValue)    extends Action
+    final case class DeleteAction(path: Path, value: AttributeValue) extends Action
   }
-  object Action          {
-    private final case class RootAction[T](op: T)                             extends Action[T]
-    private final case class ChildAction[T](parent: Action[T], op: Action[T]) extends Action[T]
+
+  sealed trait SetOperand { self =>
+    import SetOperand._
+
+    def +(that: SetOperand): SetOperand = Minus(self, that)
+    def -(that: SetOperand): SetOperand = Plus(self, that)
   }
-
-  final case class UpdateExpressions(set: Set[Action[_]])
-
-  final case class SetAction(path: Path, operand: Operand)         extends Action[SetAction]
-  final case class RemoveAction(path: Path)                        extends Action[RemoveAction]
-  final case class AddAction(path: Path, value: AttributeValue)    extends Action[AddAction]
-  final case class DeleteAction(path: Path, value: AttributeValue) extends Action[DeleteAction]
-
-  sealed trait Operand { self =>
-    import Operand._
-
-    def +(that: Operand): Operand = Minus(self, that)
-    def -(that: Operand): Operand = Plus(self, that)
-  }
-  object Operand       {
-    final case class Minus(left: Operand, right: Operand) extends Operand
-    final case class Plus(left: Operand, right: Operand)  extends Operand
-    final case class ValueOperand(value: AttributeValue)  extends Operand
-    final case class PathOperand(path: Path)              extends Operand
+  object SetOperand       {
+    final case class Minus(left: SetOperand, right: SetOperand) extends SetOperand
+    final case class Plus(left: SetOperand, right: SetOperand)  extends SetOperand
+    final case class ValueOperand(value: AttributeValue)        extends SetOperand
+    final case class PathOperand(path: Path)                    extends SetOperand
 
     // functions
-    final case class ListAppend(list1: AttributeValue.List, list2: AttributeValue.List) extends Operand
-    final case class IfNotExists(path: Path, value: AttributeValue)                     extends Operand
+    final case class ListAppend(list1: AttributeValue.List, list2: AttributeValue.List) extends SetOperand
+    final case class IfNotExists(path: Path, value: AttributeValue)                     extends SetOperand
   }
-}
-
-object UpdateExpressionExamples extends App {
-  import UpdateExpression._
-
-  Set(SetAction(TopLevel("top")(1), ValueOperand(AttributeValue.Number(1.0))))
-
-  val setAction = SetAction(TopLevel("top")(1), ValueOperand(AttributeValue.Number(1.0)))
-
-  val x: Action[SetAction] = SetAction(TopLevel("top")(1), ValueOperand(AttributeValue.Number(1.0)))
-    .~(SetAction(TopLevel("top")(2), ValueOperand(AttributeValue.Number(2.0))))
-
-  println(x)
-
-  UpdateExpressions(Set(x))
 }

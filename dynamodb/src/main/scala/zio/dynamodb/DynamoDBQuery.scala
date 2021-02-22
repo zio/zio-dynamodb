@@ -24,6 +24,7 @@ object DynamoDBQuery {
 
   final case class Succeed[A](value: () => A) extends DynamoDBQuery[A]
 
+  // move default params to end
   final case class GetItem(
     key: PrimaryKey,
     tableName: TableName,
@@ -48,7 +49,7 @@ object DynamoDBQuery {
     tableName: TableName
   ) extends DynamoDBQuery[ZStream[R, E, Item]]
 
-  // KeyCondition expression is aq restricted version of ConditionExpression where by
+  // KeyCondition expression is a restricted version of ConditionExpression where by
   // - partition exprn is required
   // - optionaly AND can be used sort key expression
   // eg partitionKeyName = :partitionkeyval AND sortKeyName = :sortkeyval
