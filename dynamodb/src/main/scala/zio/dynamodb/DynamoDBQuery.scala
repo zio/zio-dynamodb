@@ -39,14 +39,14 @@ object DynamoDBQuery {
   // If running in parallel segment number must be used consistently with the paging token
   // I have removed these fields on the assumption that the library will take care of these concerns
   final case class Scan[R, E](
+    tableName: TableName,
+    indexName: IndexName,
     readConsistency: ConsistencyMode = ConsistencyMode.Weak,
     filterExpression: Option[FilterExpression] = None,
-    indexName: IndexName,
     limit: Option[Int] = None,                            // One based
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    select: Option[Select],                               // if ProjectExpression supplied then only valid value is SpecificAttributes
-    tableName: TableName
+    select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
   ) extends DynamoDBQuery[ZStream[R, E, Item]]
 
   // KeyCondition expression is a restricted version of ConditionExpression where by
@@ -55,45 +55,45 @@ object DynamoDBQuery {
   // eg partitionKeyName = :partitionkeyval AND sortKeyName = :sortkeyval
   // comparisons are the same as for Condition
   final case class Query[R, E](
+    tableName: TableName,
+    indexName: IndexName,
     readConsistency: ConsistencyMode = ConsistencyMode.Weak,
     filterExpression: Option[FilterExpression] = None,
-    indexName: IndexName,
     keyConditionExpression: KeyConditionExpression,
     limit: Option[Int] = None,                            // One based
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    select: Option[Select],                               // if ProjectExpression supplied then only valid value is SpecificAttributes
-    tableName: TableName
+    select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
   ) extends DynamoDBQuery[ZStream[R, E, Item]]
 
   final case class PutItem(
-    conditionExpression: Option[ConditionExpression] = None,
-    item: Item,
     tableName: TableName,
+    item: Item,
+    conditionExpression: Option[ConditionExpression] = None,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues = ReturnValues.None // PutItem does not recognize any values other than NONE or ALL_OLD.
-  ) extends DynamoDBQuery[Unit] // TODO: how do we model responses to DB mutations? AWS has a rich response model
+  ) extends DynamoDBQuery[Unit] // TODO: model response
 
   final case class UpdateItem(
-    conditionExpression: Option[ConditionExpression] = None,
-    primaryKey: PrimaryKey,
     tableName: TableName,
+    primaryKey: PrimaryKey,
+    conditionExpression: Option[ConditionExpression] = None,
     updateExpression: Set[UpdateExpression] = Set.empty,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues = ReturnValues.None
-  ) extends DynamoDBQuery[Unit] // TODO: how do we model responses to DB mutations? AWS has a rich response model
+  ) extends DynamoDBQuery[Unit] // TODO: model response
 
   final case class DeleteItem(
-    conditionExpression: Option[ConditionExpression] = None,
-    primaryKey: PrimaryKey,
     tableName: TableName,
+    primaryKey: PrimaryKey,
+    conditionExpression: Option[ConditionExpression] = None,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues =
       ReturnValues.None // DeleteItem does not recognize any values other than NONE or ALL_OLD.
-  ) extends DynamoDBQuery[Unit] // TODO: how do we model responses to DB mutations? AWS has a rich response model
+  ) extends DynamoDBQuery[Unit] // TODO: model response
 
   final case class Zip[A, B](left: DynamoDBQuery[A], right: DynamoDBQuery[B]) extends DynamoDBQuery[(A, B)]
   final case class Map[A, B](query: DynamoDBQuery[A], mapper: A => B)         extends DynamoDBQuery[B]
