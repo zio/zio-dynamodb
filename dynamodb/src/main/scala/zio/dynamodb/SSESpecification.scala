@@ -9,6 +9,6 @@ final case class SSESpecification(
 )
 object SSESpecification {
   sealed trait SSEType
-  final case object AES256 extends SSEType
-  final case object KMS    extends SSEType
+  case object AES256 extends SSEType
+  case object KMS    extends SSEType
 }

@@ -6,15 +6,15 @@ sealed trait PrimitiveValueType extends AttributeValueType
 
 object AttributeValueType {
   // primitive types
-  final case object Binary    extends PrimitiveValueType
-  final case object Number    extends PrimitiveValueType
-  final case object String    extends PrimitiveValueType
+  case object Binary    extends PrimitiveValueType
+  case object Number    extends PrimitiveValueType
+  case object String    extends PrimitiveValueType
   // non primitive types
-  final case object Bool      extends AttributeValueType
-  final case object BinarySet extends AttributeValueType
-  final case object List      extends AttributeValueType
-  final case object Map       extends AttributeValueType
-  final case object NumberSet extends AttributeValueType
-  final case object Null      extends AttributeValueType
-  final case object StringSet extends AttributeValueType
+  case object Bool      extends AttributeValueType
+  case object BinarySet extends AttributeValueType
+  case object List      extends AttributeValueType
+  case object Map       extends AttributeValueType
+  case object NumberSet extends AttributeValueType
+  case object Null      extends AttributeValueType
+  case object StringSet extends AttributeValueType
 }
