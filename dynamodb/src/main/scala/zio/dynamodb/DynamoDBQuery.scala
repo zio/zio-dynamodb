@@ -19,6 +19,7 @@ sealed trait DynamoDBQuery[+A] { self =>
 }
 
 object DynamoDBQuery {
+  import scala.collection.{ Map => ScalaMap }
   // Filter expression is the same as a ConditionExpression but when used with Query but does not allow key attributes
   type FilterExpression = ConditionExpression
 
@@ -93,6 +94,18 @@ object DynamoDBQuery {
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues =
       ReturnValues.None // DeleteItem does not recognize any values other than NONE or ALL_OLD.
+  ) extends DynamoDBQuery[Unit] // TODO: model response
+
+  final case class CreateTable(
+    tableName: TableName,
+    keySchema: KeySchema,
+    attributeDefinitions: AttributeDefinitions,     // Non empty set
+    billingMode: BillingMode = BillingMode.Provisioned,
+    globalSecondaryIndexes: Set[GlobalSecondaryIndex] = Set.empty,
+    localSecondaryIndexes: Set[LocalSecondaryIndex] = Set.empty,
+    provisionedThroughput: Option[ProvisionedThroughput] = None,
+    sseSpecification: Option[SSESpecification] = None,
+    tags: ScalaMap[String, String] = ScalaMap.empty // you can have up to 50 tags
   ) extends DynamoDBQuery[Unit] // TODO: model response
 
   final case class Zip[A, B](left: DynamoDBQuery[A], right: DynamoDBQuery[B]) extends DynamoDBQuery[(A, B)]
