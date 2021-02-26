@@ -25,14 +25,12 @@ object DynamoDBQuery {
 
   final case class Succeed[A](value: () => A) extends DynamoDBQuery[A]
 
-  // move default params to end
   final case class GetItem(
     key: PrimaryKey,
     tableName: TableName,
-    readConsistency: ConsistencyMode =
-      ConsistencyMode.Weak, // use Option type or default like here? - not sure what is best - defaulting lets interpreter be more dumb
+    readConsistency: ConsistencyMode = ConsistencyMode.Weak,
     projections: List[ProjectionExpression] =
-      List.empty,           // If no attribute names are specified, then all attributes are returned
+      List.empty, // If no attribute names are specified, then all attributes are returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
   ) extends DynamoDBQuery[Item]
 
@@ -43,12 +41,24 @@ object DynamoDBQuery {
     tableName: TableName,
     indexName: IndexName,
     readConsistency: ConsistencyMode = ConsistencyMode.Weak,
+    exclusiveStartKey: Option[PrimaryKey] =
+      None,                                               // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
-    limit: Option[Int] = None,                            // One based
+    limit: Option[Int] = None,
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
-  ) extends DynamoDBQuery[ZStream[R, E, Item]]
+    // TODO - there are 2 modes of getting stuff back - not sure how to model this
+    // 1) client does not control paging so we can return a ZStream
+    // 2) client controls paging via ExclusiveStartKey so we return a list, together with the LastEvaluatedKey
+  ) extends DynamoDBQuery[QueryResult[R, E]]
+
+  sealed trait QueryResult[-R, +E]
+  object QueryResult {
+    final case class Items[R, E](items: ZStream[R, E, Item]) extends QueryResult[R, E]
+    final case class PagedResult(items: List[Item], lastEvaluatedKey: Option[PrimaryKey]) // assumes limit is used
+        extends QueryResult[Nothing, Nothing]
+  }
 
   // KeyCondition expression is a restricted version of ConditionExpression where by
   // - partition exprn is required
@@ -59,13 +69,18 @@ object DynamoDBQuery {
     tableName: TableName,
     indexName: IndexName,
     readConsistency: ConsistencyMode = ConsistencyMode.Weak,
+    exclusiveStartKey: Option[PrimaryKey] =
+      None,                                               // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
     keyConditionExpression: KeyConditionExpression,
-    limit: Option[Int] = None,                            // One based
+    limit: Option[Int] = None,
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
-  ) extends DynamoDBQuery[ZStream[R, E, Item]]
+    // TODO - there are 2 modes of getting stuff back - not sure how to model this
+    // 1) client does not control paging so we can return a ZStream
+    // 2) client controls paging via ExclusiveStartKey so we return a list, together with the LastEvaluatedKey
+  ) extends DynamoDBQuery[QueryResult[R, E]]
 
   final case class PutItem(
     tableName: TableName,

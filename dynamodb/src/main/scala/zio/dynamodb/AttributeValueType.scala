@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-// TODO: is there a better way to do this?
+// TODO: is there a better way to do this than subtyping like below?
 sealed trait AttributeValueType
 sealed trait PrimitiveValueType extends AttributeValueType
 

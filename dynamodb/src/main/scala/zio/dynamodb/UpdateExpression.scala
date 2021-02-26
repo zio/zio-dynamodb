@@ -38,7 +38,7 @@ delete-action ::=
 -------------------------------------------------------------
  */
 
-// Note this implementation does preserve the original order of actions ie after "Set field1 = 1, field1 = 2" what value is field1?
+// Note this implementation does not preserve the original order of actions ie after "Set field1 = 1, field1 = 2"
 // if this turns out to be a problem we could change the internal implementation
 final case class UpdateExpression private (actions: NonEmptySet[Action]) { self =>
   def +(action: Action) = UpdateExpression(self.actions + action)
