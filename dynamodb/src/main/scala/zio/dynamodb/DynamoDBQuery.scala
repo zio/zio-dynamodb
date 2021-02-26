@@ -1,7 +1,5 @@
 package zio.dynamodb
 
-import zio.stream.ZStream
-
 sealed trait DynamoDBQuery[+A] { self =>
   final def <*[B](that: DynamoDBQuery[B]): DynamoDBQuery[A] = zipLeft(that)
 
@@ -52,13 +50,6 @@ object DynamoDBQuery {
     // 1) client does not control paging so we can return a ZStream
     // 2) client controls paging via ExclusiveStartKey so we return a list, together with the LastEvaluatedKey
   ) extends DynamoDBQuery[QueryResult[R, E]]
-
-  sealed trait QueryResult[-R, +E]
-  object QueryResult {
-    final case class Items[R, E](items: ZStream[R, E, Item]) extends QueryResult[R, E]
-    final case class PagedResult(items: List[Item], lastEvaluatedKey: Option[PrimaryKey]) // assumes limit is used
-        extends QueryResult[Nothing, Nothing]
-  }
 
   // KeyCondition expression is a restricted version of ConditionExpression where by
   // - partition exprn is required
