@@ -17,6 +17,4 @@ object UpdateExpressionExamples extends App {
   val exprn3 = (exprn2 + sa2) + ra1
 
   println(exprn3)
-  private val x = exprn3.grouped
-  println(x)
 }

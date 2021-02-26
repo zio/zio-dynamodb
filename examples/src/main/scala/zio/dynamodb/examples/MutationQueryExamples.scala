@@ -1,17 +1,19 @@
 package zio.dynamodb.examples
 
 import zio.dynamodb.DynamoDBQuery.CreateTable
-import zio.dynamodb.{ AttributeDefinition, AttributeDefinitions, KeySchema, NonEmptySet, TableName }
-import zio.dynamodb.AttributeValueType._
+import zio.dynamodb.{ AttributeDefinition, AttributeValueType, KeySchema, NonEmptySet, TableName }
 
 object MutationQueryExamples extends App {
   val createTable = CreateTable(
     tableName = TableName("someTable"),
     keySchema = KeySchema("hashKey", "sortKey"),
-    attributeDefinitions = AttributeDefinitions(AttributeDefinition("attr1", String))
+    attributeDefinitions = NonEmptySet(AttributeDefinition("attr1", AttributeValueType.String)) + AttributeDefinition(
+      "attr2",
+      AttributeValueType.Number
+    )
   )
 
-  val x = NonEmptySet("1")
-  val y = x + "1"
+  val x = NonEmptySet("1") ++ NonEmptySet("2")
+  val y = x + "3"
   println(y.toSet)
 }

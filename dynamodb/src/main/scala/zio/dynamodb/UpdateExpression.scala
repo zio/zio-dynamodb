@@ -1,6 +1,7 @@
 package zio.dynamodb
 
 import zio.dynamodb.UpdateExpression.Action
+
 /*
 
 https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.UpdateExpressions.html
@@ -39,19 +40,14 @@ delete-action ::=
 
 // Note this implementation does preserve the original order of actions ie after "Set field1 = 1, field1 = 2" what value is field1?
 // if this turns out to be a problem we could change the internal implementation
-final case class UpdateExpression(head: Action, tail: Set[Action] = Set.empty) { self =>
-  def ++(that: UpdateExpression) = UpdateExpression(self.head, self.tail ++ that.all)
-  def +(action: Action)          = UpdateExpression(action, self.all)
-
-  def all: Set[Action] = tail + head
-
-  def grouped: Map[Class[_ <: Action], Set[Action]] = self.all.groupBy(a => a.getClass)
+final case class UpdateExpression private (actions: NonEmptySet[Action]) { self =>
+  def +(action: Action) = UpdateExpression(self.actions + action)
 }
 
 object UpdateExpression {
   type Path = ProjectionExpression
 
-  def pure(action: Action) = UpdateExpression(action)
+  def apply(action: Action): UpdateExpression = UpdateExpression(NonEmptySet(action))
 
   sealed trait Action
   object Action {

@@ -99,7 +99,7 @@ object DynamoDBQuery {
   final case class CreateTable(
     tableName: TableName,
     keySchema: KeySchema,
-    attributeDefinitions: AttributeDefinitions,     // Non empty set
+    attributeDefinitions: NonEmptySet[AttributeDefinition],
     billingMode: BillingMode = BillingMode.Provisioned,
     globalSecondaryIndexes: Set[GlobalSecondaryIndex] = Set.empty,
     localSecondaryIndexes: Set[LocalSecondaryIndex] = Set.empty,
