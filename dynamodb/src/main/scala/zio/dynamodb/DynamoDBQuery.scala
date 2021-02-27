@@ -12,7 +12,7 @@ sealed trait DynamoDBQuery[+A] { self =>
 
   /*
   trait {
-    def execute(q: DDBQuery): ZIO[Any, Exception, A]
+    def execute[A](q: DDBQuery): ZIO[Any, Exception, A]
   }
   - interface/service to execute - we delegate to
     - live // require AWS config
