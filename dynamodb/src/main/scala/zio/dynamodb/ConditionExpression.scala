@@ -41,7 +41,6 @@ sealed trait ConditionExpression { self =>
 
 // BNF  https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
 object ConditionExpression {
-  type Path = ProjectionExpression
 
   final case class Between(left: Operand, minValue: AttributeValue, maxValue: AttributeValue)
       extends ConditionExpression

@@ -32,9 +32,6 @@ sealed trait DynamoDBQuery[+A] { self =>
 
 object DynamoDBQuery {
   import scala.collection.{ Map => ScalaMap }
-  // Filter expression is the same as a ConditionExpression but when used with Query but does not allow key attributes
-  type FilterExpression = ConditionExpression
-  type LastEvaluatedKey = Option[PrimaryKey]
 
   final case class Succeed[A](value: () => A) extends DynamoDBQuery[A]
 

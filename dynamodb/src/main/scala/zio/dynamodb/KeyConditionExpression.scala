@@ -16,7 +16,6 @@ object KeyConditionExpression {
 
   sealed trait Operand
   object Operand {
-    type Path = ProjectionExpression
 
     final case class ValueOperand(value: AttributeValue) extends Operand
     final case class PathOperand(path: Path)             extends Operand
