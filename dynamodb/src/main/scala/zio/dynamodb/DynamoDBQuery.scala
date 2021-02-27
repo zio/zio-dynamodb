@@ -1,5 +1,6 @@
 package zio.dynamodb
 
+import zio.ZIO
 import zio.stream.ZStream
 
 sealed trait DynamoDBQuery[+A] { self =>
@@ -9,6 +10,16 @@ sealed trait DynamoDBQuery[+A] { self =>
 
   final def <*>[B](that: DynamoDBQuery[B]): DynamoDBQuery[(A, B)] = self zip that
 
+  /*
+  trait {
+    def execute(q: DDBQuery): ZIO[Any, Exception, A]
+  }
+  - interface/service to execute - we delegate to
+    - live // require AWS config
+    - testing // IN Mem store
+   */
+  def execute: ZIO[Any, Exception, A] = ???
+
   final def map[B](f: A => B): DynamoDBQuery[B] = DynamoDBQuery.Map(self, f)
 
   final def zip[B](that: DynamoDBQuery[B]): DynamoDBQuery[(A, B)] = DynamoDBQuery.Zip(self, that)
@@ -16,12 +27,14 @@ sealed trait DynamoDBQuery[+A] { self =>
   final def zipLeft[B](that: DynamoDBQuery[B]): DynamoDBQuery[A] = (self zip that).map(_._1)
 
   final def zipRight[B](that: DynamoDBQuery[B]): DynamoDBQuery[B] = (self zip that).map(_._2)
+
 }
 
 object DynamoDBQuery {
   import scala.collection.{ Map => ScalaMap }
   // Filter expression is the same as a ConditionExpression but when used with Query but does not allow key attributes
   type FilterExpression = ConditionExpression
+  type LastEvaluatedKey = Option[PrimaryKey]
 
   final case class Succeed[A](value: () => A) extends DynamoDBQuery[A]
 
@@ -41,28 +54,23 @@ object DynamoDBQuery {
     tableName: TableName,
     indexName: IndexName,
     readConsistency: ConsistencyMode = ConsistencyMode.Weak,
-    exclusiveStartKey: Option[PrimaryKey] =
+    exclusiveStartKey: LastEvaluatedKey =
       None,                                               // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
     limit: Option[Int] = None,
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
-    // TODO - there are 2 modes of getting stuff back - not sure how to model this
-    // 1) client does not control paging so we can return a ZStream
-    // 2) client controls paging via ExclusiveStartKey so we have to return the LastEvaluatedKey
-  ) extends DynamoDBQuery[ZStream[R, E, QueryItem]]
+    // there are 2 modes of getting stuff back
+    // 1) client does not control paging so we return a None for LastEvaluatedKey
+    // 2) client controls paging via Limit so we return the LastEvaluatedKey
+  ) extends DynamoDBQuery[(ZStream[R, E, Item], LastEvaluatedKey)]
 
-  // KeyCondition expression is a restricted version of ConditionExpression where by
-  // - partition exprn is required
-  // - optionaly AND can be used sort key expression
-  // eg partitionKeyName = :partitionkeyval AND sortKeyName = :sortkeyval
-  // comparisons are the same as for Condition
   final case class Query[R, E](
     tableName: TableName,
     indexName: IndexName,
     readConsistency: ConsistencyMode = ConsistencyMode.Weak,
-    exclusiveStartKey: Option[PrimaryKey] =
+    exclusiveStartKey: LastEvaluatedKey =
       None,                                               // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
     keyConditionExpression: KeyConditionExpression,
@@ -70,10 +78,10 @@ object DynamoDBQuery {
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
-    // TODO - there are 2 modes of getting stuff back - not sure how to model this
-    // 1) client does not control paging so we can return a ZStream
-    // 2) client controls paging via ExclusiveStartKey so we have to return the LastEvaluatedKey
-  ) extends DynamoDBQuery[ZStream[R, E, QueryItem]]
+    // there are 2 modes of getting stuff back
+    // 1) client does not control paging so we return a None for LastEvaluatedKey
+    // 2) client controls paging via Limit so we return the LastEvaluatedKey
+  ) extends DynamoDBQuery[(ZStream[R, E, Item], LastEvaluatedKey)]
 
   final case class PutItem(
     tableName: TableName,

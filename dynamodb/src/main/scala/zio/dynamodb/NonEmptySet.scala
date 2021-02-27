@@ -1,5 +1,6 @@
 package zio.dynamodb
 
+// TODO:  extends Iterable[A]
 // TODO: could we could introduce a MAX elements parameter?
 final case class NonEmptySet[A] private (head: A, tail: Set[A]) { self =>
   def +(a: A): NonEmptySet[A]                  = NonEmptySet(a, self.toSet)

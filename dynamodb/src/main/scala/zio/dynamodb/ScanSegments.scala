@@ -5,4 +5,5 @@ package zio.dynamodb
 
 // I have introduced ScanSegments model as both fields are required for Scan if any one is present
 // number is zero based must be >=0 and < totalSegments
+// TODO: use this in parallel scan operations
 final case class ScanSegments(number: Int, totalSegments: Int)
