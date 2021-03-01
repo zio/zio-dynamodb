@@ -9,8 +9,8 @@ object KeyConditionExpressionExamples extends App {
 
   val exprn: KeyConditionExpression =
     (PartitionKeyOperand("partitionKey1") == ValueOperand(
-      AttributeValue.String("")
-    )) // TODO: infix ops require brackets
+      AttributeValue.String("x")
+    ))
       .&&(SortKeyOperand("sortKey1").>(ValueOperand(AttributeValue.String("X"))))
 
   println(exprn)

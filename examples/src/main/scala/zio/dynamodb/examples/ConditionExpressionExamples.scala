@@ -11,7 +11,7 @@ object ConditionExpressionExamples {
   val y: ConditionExpression = x && x
 
   val p: ConditionExpression =
-    PathOperand(TopLevel("foo")(1)) > ValueOperand(AttributeValue.Number(1.0)) // TODO: infix ops require brackets
+    PathOperand(TopLevel("foo")(1)) > ValueOperand(AttributeValue.Number(1.0))
 
   val c    = AttributeType(TopLevel("foo")(1), AttributeValueType.Number) && p
   val notC = !c

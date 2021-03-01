@@ -35,7 +35,4 @@ object MutationQueryExamples extends App {
     localSecondaryIndexes = Set(LocalSecondaryIndex(IndexName("1"), KeySchema("hashKey", "sortKey"), projection = All))
   )
 
-  val x = NonEmptySet("1") ++ NonEmptySet("2")
-  val y = x + "3"
-  println(y.toSet)
 }

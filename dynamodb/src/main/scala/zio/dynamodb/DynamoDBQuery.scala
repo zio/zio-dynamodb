@@ -12,7 +12,7 @@ sealed trait DynamoDBQuery[+A] { self =>
 
   /*
   trait {
-    def execute[A](q: DDBQuery): ZIO[Any, Exception, A]
+    def execute[A](q: DynamoDBQuery): ZIO[Any, Exception, A]
   }
   - interface/service to execute - we delegate to
     - live // require AWS config
@@ -101,7 +101,7 @@ object DynamoDBQuery {
 
   final case class DeleteItem(
     tableName: TableName,
-    primaryKey: PrimaryKey,
+    key: PrimaryKey,
     conditionExpression: Option[ConditionExpression] = None,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,

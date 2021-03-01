@@ -35,7 +35,6 @@ sealed trait ConditionExpression { self =>
 
   def &&(that: ConditionExpression): ConditionExpression = And(self, that)
   def ||(that: ConditionExpression): ConditionExpression = Or(self, that)
-  // shamelessly copied from FD course example
   def unary_! : ConditionExpression                      = Not(self)
 }
 
