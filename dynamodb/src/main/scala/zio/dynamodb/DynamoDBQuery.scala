@@ -42,7 +42,7 @@ object DynamoDBQuery {
     projections: List[ProjectionExpression] =
       List.empty, // If no attribute names are specified, then all attributes are returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
-  ) extends DynamoDBQuery[Item]
+  ) extends DynamoDBQuery[Option[Item]]
 
   // Interestingly scan can be run in parallel using segment number and total segments fields
   // If running in parallel segment number must be used consistently with the paging token

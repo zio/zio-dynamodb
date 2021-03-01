@@ -5,9 +5,9 @@ trait DynamoDBTable {
     key: PrimaryKey,
     readConsistency: ConsistencyMode = ConsistencyMode.Weak,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
-  )(ps: ProjectionExpression*): DynamoDBQuery[Item]
+  )(ps: ProjectionExpression*): DynamoDBQuery[Option[Item]]
 
   def getAll(
     key: PrimaryKey
-  ): DynamoDBQuery[Item] = get(key)()
+  ): DynamoDBQuery[Option[Item]] = get(key)()
 }
