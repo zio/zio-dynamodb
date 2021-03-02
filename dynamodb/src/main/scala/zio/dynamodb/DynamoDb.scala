@@ -1,35 +1,18 @@
 package zio.dynamodb
 
-/*
-~~GetItem~~
-~~PutItem~~
-~~Scan~~
-~~UpdateItem~~
-WriteItem ??? no WriteItem, only Update and Put
-~~Query~~
-ListTables
-DescribeTable
- */
+import zio.{ Has, ZIO, ZLayer }
 
-/*
-POST UpdateItem request example
-{
-    "TableName": "Thread",
-    "Key": {
-        "ForumName": {
-            "S": "Amazon DynamoDB"
-        },
-        "Subject": {
-            "S": "Maximum number of items?"
-        }
-    },
-    "UpdateExpression": "set LastPostedBy = :val1",
-    "ConditionExpression": "LastPostedBy = :val2",
-    "ExpressionAttributeValues": {
-        ":val1": {"S": "alice@example.com"},
-        ":val2": {"S": "fred@example.com"}
-    },
-    "ReturnValues": "ALL_NEW"
+object DynamoDb {
+  type DynamoDb = Has[Service]
+
+  trait Service {
+    def executeQueryAgainstDdb[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A]
+  }
+
+  def test[A](returnVal: A) =
+    ZLayer.succeed(new Service {
+      override def executeQueryAgainstDdb[A2](atomicQuery: DynamoDBQuery[A2]): ZIO[Any, Exception, A2] =
+        ZIO.succeed(returnVal.asInstanceOf[A2])
+    })
+
 }
-
- */
