@@ -27,7 +27,7 @@ object MutationQueryExamples extends App {
     globalSecondaryIndexes = Set(
       GlobalSecondaryIndex(
         IndexName("1"),
-        keySchema = KeySchema("", Some("")),
+        keySchema = KeySchema("key2", "sortKey2"),
         projection = Include("3"),
         provisionedThroughput = Some(ProvisionedThroughput(10, 10))
       )

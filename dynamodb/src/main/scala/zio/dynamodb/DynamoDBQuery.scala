@@ -44,19 +44,36 @@ object DynamoDBQuery {
     final case class TableItem(
       key: PrimaryKey,
       projections: List[ProjectionExpression] =
-        List.empty // If no attribute names are specified, then all attributes are returned
+        List.empty                                   // If no attribute names are specified, then all attributes are returned
     )
     final case class TableResponse(
       readConsistency: ConsistencyMode,
-      expressionAttributeNames: Map[String, String],
+      expressionAttributeNames: Map[String, String], // for use with projections expression
       keys: PrimaryKey,
       projections: List[ProjectionExpression] =
-        List.empty // If no attribute names are specified, then all attributes are returned
+        List.empty                                   // If no attribute names are specified, then all attributes are returned
     )
     final case class Response(
       // TODO: return metadata
       responses: ScalaMap[TableName, Item],
       unprocessedKeys: Map[TableName, TableResponse]
+    )
+  }
+
+  final case class BatchWriteItem(
+    requestItems: ScalaMap[TableName, BatchWriteItem.Write],
+    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
+    itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None
+  ) extends DynamoDBQuery[BatchWriteItem.Response]
+  object BatchWriteItem {
+    sealed trait Write
+    final case class Delete(key: PrimaryKey) extends Write
+    final case class Put(item: Item)         extends Write
+
+    final case class Response(
+      // TODO: return metadata
+      responses: ScalaMap[TableName, Item],
+      unprocessedKeys: Map[TableName, BatchWriteItem.Write]
     )
   }
 
