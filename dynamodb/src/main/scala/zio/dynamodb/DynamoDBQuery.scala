@@ -10,14 +10,6 @@ sealed trait DynamoDBQuery[+A] { self =>
 
   final def <*>[B](that: DynamoDBQuery[B]): DynamoDBQuery[(A, B)] = self zip that
 
-  /*
-  trait {
-    def execute[A](q: DynamoDBQuery): ZIO[Any, Exception, A]
-  }
-  - interface/service to execute - we delegate to
-    - live // require AWS config
-    - testing // IN Mem store
-   */
   def execute: ZIO[Any, Exception, A] = ???
 
   final def map[B](f: A => B): DynamoDBQuery[B] = DynamoDBQuery.Map(self, f)
@@ -43,6 +35,30 @@ object DynamoDBQuery {
       List.empty, // If no attribute names are specified, then all attributes are returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
   ) extends DynamoDBQuery[Option[Item]]
+
+  final case class BatchGetItem(
+    requestItems: ScalaMap[TableName, BatchGetItem.TableItem], // TODO: use a non empty map
+    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
+  ) extends DynamoDBQuery[BatchGetItem.Response]
+  object BatchGetItem {
+    final case class TableItem(
+      key: PrimaryKey,
+      projections: List[ProjectionExpression] =
+        List.empty // If no attribute names are specified, then all attributes are returned
+    )
+    final case class TableResponse(
+      readConsistency: ConsistencyMode,
+      expressionAttributeNames: Map[String, String],
+      keys: PrimaryKey,
+      projections: List[ProjectionExpression] =
+        List.empty // If no attribute names are specified, then all attributes are returned
+    )
+    final case class Response(
+      // TODO: return metadata
+      responses: ScalaMap[TableName, Item],
+      unprocessedKeys: Map[TableName, TableResponse]
+    )
+  }
 
   // Interestingly scan can be run in parallel using segment number and total segments fields
   // If running in parallel segment number must be used consistently with the paging token
