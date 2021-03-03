@@ -1,6 +1,5 @@
 package zio.dynamodb
 
-// TODO: maybe we could introduce a MAX elements restriction at the type level?
 final case class NonEmptySet[A] private (override val head: A, override val tail: Set[A]) extends Iterable[A] {
   self =>
   def +(a: A): NonEmptySet[A]                  = NonEmptySet(a, self.toSet)
