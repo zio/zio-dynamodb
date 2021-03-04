@@ -23,7 +23,7 @@ sealed trait DynamoDBQuery[+A] { self =>
 }
 
 object DynamoDBQuery {
-  import scala.collection.{ Map => ScalaMap }
+  import scala.collection.immutable.{ Map => ScalaMap }
 
   final case class Succeed[A](value: () => A) extends DynamoDBQuery[A]
 
@@ -39,7 +39,10 @@ object DynamoDBQuery {
   final case class BatchGetItem(
     requestItems: ScalaMap[TableName, BatchGetItem.TableItem], // TODO: use a non empty map
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
-  ) extends DynamoDBQuery[BatchGetItem.Response]
+  ) extends DynamoDBQuery[BatchGetItem.Response] { self =>
+    def ++(that: BatchGetItem): BatchGetItem =
+      BatchGetItem(self.requestItems ++ that.requestItems, self.capacity)
+  }
   object BatchGetItem {
     final case class TableItem(
       key: PrimaryKey,
@@ -64,7 +67,10 @@ object DynamoDBQuery {
     requestItems: ScalaMap[TableName, BatchWriteItem.Write],
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None
-  ) extends DynamoDBQuery[BatchWriteItem.Response]
+  ) extends DynamoDBQuery[BatchWriteItem.Response] { self =>
+    def ++(that: BatchWriteItem): BatchWriteItem =
+      BatchWriteItem(self.requestItems ++ that.requestItems, self.capacity, self.itemMetrics)
+  }
   object BatchWriteItem {
     sealed trait Write
     final case class Delete(key: PrimaryKey) extends Write

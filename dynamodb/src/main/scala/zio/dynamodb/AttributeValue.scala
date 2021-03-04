@@ -5,7 +5,9 @@ import zio.Chunk
 sealed trait AttributeValue
 
 object AttributeValue {
-  import Predef.{ Map => ScalaMap, String => ScalaString }
+  import Predef.{ String => ScalaString }
+  import scala.collection.{ Map => ScalaMap }
+
   final case class Binary(value: Chunk[Byte])                   extends AttributeValue
   final case class Bool(value: Boolean)                         extends AttributeValue
   final case class BinarySet(value: Chunk[Chunk[Byte]])         extends AttributeValue
