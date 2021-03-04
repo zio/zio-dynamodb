@@ -1,10 +1,11 @@
 package zio.dynamodb
 
-import zio.dynamodb.DynamoDBQuery.{ DeleteItem, GetItem, Map, PutItem, Zip }
+import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem, DeleteItem, GetItem, Map, PutItem, Zip }
+import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableItem
 //import zio.dynamodb.DynamoDb.DynamoDb
 import zio.{ App, ExitCode, Has, URIO, ZIO, ZLayer }
 
-import Predef.{ println, Map => ScalaMap }
+import scala.collection.immutable.{ Map => ScalaMap }
 
 object DynamoDBExecutor {
   type DynamoDBExecutor = Has[Service]
@@ -12,6 +13,36 @@ object DynamoDBExecutor {
   trait Service {
     def execute[A](query: DynamoDBQuery[A]): ZIO[Any, Exception, A]
   }
+
+  final case class Aggregated(
+    batchGetItem: BatchGetItem = BatchGetItem(ScalaMap.empty),
+    batchWriteItem: BatchWriteItem = BatchWriteItem(ScalaMap.empty),
+    nonBatched: List[DynamoDBQuery[Any]] = List.empty
+  ) { self =>
+    def toBatchGetElement(bi: GetItem): (TableName, TableItem) =
+      (bi.tableName, TableItem(bi.key, bi.projections))
+
+    def addGetItem(gi: GetItem)      =
+      Aggregated(
+        BatchGetItem(self.batchGetItem.requestItems + toBatchGetElement(gi)),
+        self.batchWriteItem,
+        self.nonBatched
+      )
+    def +[A](that: DynamoDBQuery[A]) =
+      Aggregated(self.batchGetItem, self.batchWriteItem, self.nonBatched :+ that)
+    def ++(that: Aggregated)         =
+      Aggregated(self.batchGetItem ++ that.batchGetItem, self.batchWriteItem ++ that.batchWriteItem)
+  }
+
+  def loop2[A](query: DynamoDBQuery[A], acc: Aggregated): Aggregated =
+    query match {
+      case Zip(left, right)                 =>
+        loop2(left.asInstanceOf[DynamoDBQuery[A]], acc) ++ loop2(right.asInstanceOf[DynamoDBQuery[A]], acc)
+      case getItem @ GetItem(_, _, _, _, _) =>
+        acc.addGetItem(getItem)
+      case atomic                           =>
+        acc + atomic
+    }
 
   /*
   Assuming you can only zip together

@@ -5,7 +5,8 @@ import zio.dynamodb.DynamoDBQuery.{ DeleteItem, GetItem, PutItem }
 import zio.test.Assertion.equalTo
 import zio.test.{ assert, DefaultRunnableSpec }
 
-import scala.Predef.{ println, Map => ScalaMap }
+import scala.Predef.{ println }
+import scala.collection.immutable.{ Map => ScalaMap }
 
 object ExecutorSpec extends DefaultRunnableSpec {
 //  def target[A](in: A): ZIO[Any, Exception, A] =
