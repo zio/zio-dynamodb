@@ -16,7 +16,7 @@ object DynamoDBExecutor {
 
   final case class Aggregated(
     batchGetItem: BatchGetItem = BatchGetItem(ScalaMap.empty),
-    batchWriteItem: BatchWriteItem = BatchWriteItem(ScalaMap.empty),
+    batchWriteItem: BatchWriteItem = BatchWriteItem(WriteItemsMap.empty),
     nonBatched: List[DynamoDBQuery[Any]] = List.empty
   ) { self =>
     def toBatchGetElement(bi: GetItem): (TableName, TableItem)  =
@@ -25,6 +25,15 @@ object DynamoDBExecutor {
       (bi.tableName, Put(bi.item))
     def toBatchWriteElement(bi: DeleteItem): (TableName, Write) =
       (bi.tableName, Delete(bi.key))
+
+//    def putWriteItem(
+//      map: ScalaMap[TableName, Set[BatchWriteItem.Write]],
+//      entry: (TableName, BatchWriteItem.Write)
+//    ): ScalaMap[TableName, Set[BatchWriteItem.Write]] = {
+//      val newEntry: (TableName, Set[Write]) =
+//        map.get(entry._1).fold((entry._1, Set(entry._2)))(set => (entry._1, set + entry._2))
+//      map + newEntry
+//    }
 
     def addGetItem(gi: GetItem)       =
       Aggregated(

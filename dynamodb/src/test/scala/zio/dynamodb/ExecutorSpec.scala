@@ -19,14 +19,14 @@ object ExecutorSpec extends DefaultRunnableSpec {
         val zippedGets: DynamoDBQuery[(Option[Item], Option[Item])] = getItem1 zip getItem2
 
         val putItem1 = PutItem(tableName = TableName("T1"), item = Item(ScalaMap.empty))
-        val putItem2 = PutItem(tableName = TableName("T2"), item = Item(ScalaMap.empty))
+//        val putItem2 = PutItem(tableName = TableName("T2"), item = Item(ScalaMap.empty))
 
-        val deleteItem1 = DeleteItem(tableName = TableName("T3"), primaryKey)
+        val deleteItem1 = DeleteItem(tableName = TableName("T1"), primaryKey)
 
         println(s"$zippedGets")
 
         val batched2: Aggregated =
-          DynamoDBExecutor.loop2(deleteItem1 zip putItem1 zip getItem2 zip getItem1 zip putItem2, Aggregated())
+          DynamoDBExecutor.loop2(deleteItem1 zip putItem1 zip getItem2 zip getItem1, Aggregated())
 //        val batched1 = DynamoDBExecutor.loop(getItem1 zip putItem, List.empty)
 //        val xs       = DynamoDBExecutor.loop(getItem1 zip getItem2 zip putItem, List.empty)
 //        val batched3 = DynamoDBExecutor.aggregate(xs)
