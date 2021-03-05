@@ -1,7 +1,7 @@
 package zio.dynamodb
 
 import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem, DeleteItem, GetItem, Map, PutItem, Zip }
-import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableItem
+import zio.dynamodb.DynamoDBQuery.BatchGetItem.{ TableItem }
 import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put, Write, WriteItemsMap }
 import zio.{ App, ExitCode, Has, URIO, ZIO, ZLayer }
 
@@ -19,21 +19,12 @@ object DynamoDBExecutor {
     batchWriteItem: BatchWriteItem = BatchWriteItem(WriteItemsMap.empty),
     nonBatched: List[DynamoDBQuery[Any]] = List.empty
   ) { self =>
-    def toBatchGetElement(bi: GetItem): (TableName, TableItem)  =
+    private def toBatchGetElement(bi: GetItem): (TableName, TableItem)  =
       (bi.tableName, TableItem(bi.key, bi.projections))
-    def toBatchWriteElement(bi: PutItem): (TableName, Write)    =
-      (bi.tableName, Put(bi.item))
-    def toBatchWriteElement(bi: DeleteItem): (TableName, Write) =
-      (bi.tableName, Delete(bi.key))
-
-//    def putWriteItem(
-//      map: ScalaMap[TableName, Set[BatchWriteItem.Write]],
-//      entry: (TableName, BatchWriteItem.Write)
-//    ): ScalaMap[TableName, Set[BatchWriteItem.Write]] = {
-//      val newEntry: (TableName, Set[Write]) =
-//        map.get(entry._1).fold((entry._1, Set(entry._2)))(set => (entry._1, set + entry._2))
-//      map + newEntry
-//    }
+    private def toBatchWriteElement(bw: PutItem): (TableName, Write)    =
+      (bw.tableName, Put(bw.item))
+    private def toBatchWriteElement(bw: DeleteItem): (TableName, Write) =
+      (bw.tableName, Delete(bw.key))
 
     def addGetItem(gi: GetItem)       =
       Aggregated(
@@ -67,10 +58,11 @@ object DynamoDBExecutor {
       )
   }
 
-  def loop2[A](query: DynamoDBQuery[A], acc: Aggregated): Aggregated =
+  // aggregation using a custom Aggregated accumulator
+  def loop[A](query: DynamoDBQuery[A], acc: Aggregated): Aggregated =
     query match {
       case Zip(left, right)                          =>
-        loop2(left.asInstanceOf[DynamoDBQuery[A]], acc) ++ loop2(right.asInstanceOf[DynamoDBQuery[A]], acc)
+        loop(left.asInstanceOf[DynamoDBQuery[A]], acc) ++ loop(right.asInstanceOf[DynamoDBQuery[A]], acc)
       case deleteItem @ DeleteItem(_, _, _, _, _, _) =>
         acc.addDeleteItem(deleteItem)
       case putItem @ PutItem(_, _, _, _, _, _)       =>
@@ -81,10 +73,11 @@ object DynamoDBExecutor {
         acc + atomic
     }
 
-  def loop[A](query: DynamoDBQuery[A], acc: List[DynamoDBQuery[A]]): List[DynamoDBQuery[Any]] =
+  // simple aggregation using a List accumulator
+  def loop2[A](query: DynamoDBQuery[A], acc: List[DynamoDBQuery[A]]): List[DynamoDBQuery[Any]] =
     query match {
       case Zip(left, right) =>
-        loop(left.asInstanceOf[DynamoDBQuery[A]], acc) ++ loop(right.asInstanceOf[DynamoDBQuery[A]], acc)
+        loop2(left.asInstanceOf[DynamoDBQuery[A]], acc) ++ loop2(right.asInstanceOf[DynamoDBQuery[A]], acc)
       case q                =>
         acc :+ q
     }
@@ -103,7 +96,7 @@ object DynamoDBExecutor {
     ZLayer.fromService[DynamoDb.Service, DynamoDBExecutor.Service](dynamoDb =>
       new Service {
         override def execute[A](query: DynamoDBQuery[A]): ZIO[Any, Exception, A] = {
-          val queries = loop(query, List.empty)
+          val queries = loop2(query, List.empty)
 
           // for now we do not aggregate/batch queries
           val x = ZIO.foreachPar(queries)(dynamoDb.executeQueryAgainstDdb)
@@ -120,15 +113,26 @@ object DynamoDBExecutor {
         println(s"$query $mapper")
         ZIO.succeed(().asInstanceOf[A]) //.map(mapper)
 
+      case BatchGetItem(requestItems, capacity)                                                 =>
+        println(s"$requestItems $capacity")
+        ZIO.succeed(BatchGetItem.Response(ScalaMap.empty, ScalaMap.empty))
+
+      case BatchWriteItem(requestItems, capacity, metrics)                                      =>
+        println(s"$requestItems $capacity $metrics")
+        ZIO.succeed(BatchWriteItem.Response(ScalaMap.empty, null))
+
       case GetItem(key, tableName, readConsistency, projections, capacity)                      =>
         println(s"$key $tableName $readConsistency $projections $capacity")
         ZIO.succeed(Some(Item(ScalaMap.empty)))
+
       case PutItem(tableName, item, conditionExpression, capacity, itemMetrics, returnValues)   =>
         println(s"$tableName $item $conditionExpression $capacity $itemMetrics $returnValues")
         ZIO.succeed(())
+
       case DeleteItem(tableName, key, conditionExpression, capacity, itemMetrics, returnValues) =>
         println(s"$tableName $key $conditionExpression $capacity $itemMetrics $returnValues")
         ZIO.succeed(())
+
       case x                                                                                    =>
         ZIO.fail(new Exception(s"$x not implemented yet"))
     }
@@ -146,7 +150,7 @@ object DynamoDBExecutorExample extends App {
   val mixed: DynamoDBQuery[((Option[Item], Option[Item]), (Unit, Unit))] =
     zippedGets zip zippedWrites // should we even allow this?
 
-  val queries: List[DynamoDBQuery[Any]] = DynamoDBExecutor.loop(mixed, List.empty)
+  val queries: List[DynamoDBQuery[Any]] = DynamoDBExecutor.loop2(mixed, List.empty)
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
     val x: ZIO[Any, Exception, List[Any]] = ZIO.foreachPar(queries)(DynamoDBExecutor.executeQueryAgainstDdb)

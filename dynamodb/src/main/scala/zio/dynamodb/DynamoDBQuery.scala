@@ -60,7 +60,7 @@ object DynamoDBQuery {
     final case class Response(
       // TODO: return metadata
       responses: ScalaMap[TableName, Item],
-      unprocessedKeys: Map[TableName, TableResponse]
+      unprocessedKeys: ScalaMap[TableName, TableResponse]
     )
   }
 
