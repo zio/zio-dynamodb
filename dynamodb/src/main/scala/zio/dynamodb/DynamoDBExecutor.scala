@@ -2,7 +2,7 @@ package zio.dynamodb
 
 import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem, DeleteItem, GetItem, Map, PutItem, Zip }
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableItem
-import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put, Write }
+import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put, Write, WriteItemsMap }
 import zio.{ App, ExitCode, Has, URIO, ZIO, ZLayer }
 
 import scala.collection.immutable.{ Map => ScalaMap }
