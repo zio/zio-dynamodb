@@ -1,6 +1,7 @@
 package zio.dynamodb
 
 import zio.ZIO
+import zio.dynamodb.DynamoDBQuery.BatchWriteItem.WriteItemsMap
 import zio.stream.ZStream
 
 sealed trait DynamoDBQuery[+A] { self =>
@@ -37,7 +38,7 @@ object DynamoDBQuery {
   ) extends DynamoDBQuery[Option[Item]]
 
   final case class BatchGetItem(
-    requestItems: ScalaMap[TableName, BatchGetItem.TableItem], // TODO: use a non empty map
+    requestItems: ScalaMap[TableName, BatchGetItem.TableItem],
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
   ) extends DynamoDBQuery[BatchGetItem.Response] { self =>
     def ++(that: BatchGetItem): BatchGetItem =
@@ -64,7 +65,7 @@ object DynamoDBQuery {
   }
 
   final case class BatchWriteItem(
-    requestItems: ScalaMap[TableName, BatchWriteItem.Write],
+    requestItems: WriteItemsMap,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None
   ) extends DynamoDBQuery[BatchWriteItem.Response] { self =>
@@ -81,6 +82,27 @@ object DynamoDBQuery {
       responses: ScalaMap[TableName, Item],
       unprocessedKeys: Map[TableName, BatchWriteItem.Write]
     )
+
+    final case class WriteItemsMap(map: ScalaMap[TableName, Set[BatchWriteItem.Write]] = ScalaMap.empty) { self =>
+      def +(entry: (TableName, BatchWriteItem.Write)): WriteItemsMap = {
+        val newEntry =
+          map.get(entry._1).fold((entry._1, Set(entry._2)))(set => (entry._1, set + entry._2))
+        WriteItemsMap(map + newEntry)
+      }
+      def ++(that: WriteItemsMap): WriteItemsMap = {
+        val xs: Seq[(TableName, Set[BatchWriteItem.Write])]   = that.map.toList
+        val m: ScalaMap[TableName, Set[BatchWriteItem.Write]] = xs.foldRight(map) {
+          case ((tableName, set), map) =>
+            val newEntry: (TableName, Set[BatchWriteItem.Write]) =
+              map.get(tableName).fold((tableName, set))(s => (tableName, s ++ set))
+            map + newEntry
+        }
+        WriteItemsMap(m)
+      }
+    }
+    object WriteItemsMap                                                                                 {
+      def empty = WriteItemsMap(ScalaMap.empty)
+    }
   }
 
   // Interestingly scan can be run in parallel using segment number and total segments fields
