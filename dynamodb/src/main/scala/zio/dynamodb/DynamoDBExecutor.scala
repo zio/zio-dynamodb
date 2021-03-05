@@ -2,7 +2,7 @@ package zio.dynamodb
 
 import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem, DeleteItem, GetItem, Map, PutItem, Zip }
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableItem
-//import zio.dynamodb.DynamoDb.DynamoDb
+import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put, Write }
 import zio.{ App, ExitCode, Has, URIO, ZIO, ZLayer }
 
 import scala.collection.immutable.{ Map => ScalaMap }
@@ -19,48 +19,75 @@ object DynamoDBExecutor {
     batchWriteItem: BatchWriteItem = BatchWriteItem(ScalaMap.empty),
     nonBatched: List[DynamoDBQuery[Any]] = List.empty
   ) { self =>
-    def toBatchGetElement(bi: GetItem): (TableName, TableItem) =
+    def toBatchGetElement(bi: GetItem): (TableName, TableItem)  =
       (bi.tableName, TableItem(bi.key, bi.projections))
+    def toBatchWriteElement(bi: PutItem): (TableName, Write)    =
+      (bi.tableName, Put(bi.item))
+    def toBatchWriteElement(bi: DeleteItem): (TableName, Write) =
+      (bi.tableName, Delete(bi.key))
 
-    def addGetItem(gi: GetItem)      =
+    def addGetItem(gi: GetItem)       =
       Aggregated(
         BatchGetItem(self.batchGetItem.requestItems + toBatchGetElement(gi)),
         self.batchWriteItem,
         self.nonBatched
       )
-    def +[A](that: DynamoDBQuery[A]) =
-      Aggregated(self.batchGetItem, self.batchWriteItem, self.nonBatched :+ that)
-    def ++(that: Aggregated)         =
-      Aggregated(self.batchGetItem ++ that.batchGetItem, self.batchWriteItem ++ that.batchWriteItem)
+    def addPutItem(pi: PutItem)       =
+      Aggregated(
+        self.batchGetItem,
+        BatchWriteItem(self.batchWriteItem.requestItems + toBatchWriteElement(pi)),
+        self.nonBatched
+      )
+    def addDeleteItem(di: DeleteItem) =
+      Aggregated(
+        self.batchGetItem,
+        BatchWriteItem(self.batchWriteItem.requestItems + toBatchWriteElement(di)),
+        self.nonBatched
+      )
+
+    def +[A](that: DynamoDBQuery[A]) = {
+      val x = Aggregated(self.batchGetItem, self.batchWriteItem, self.nonBatched :+ that)
+      x
+    }
+
+    def ++(that: Aggregated) =
+      Aggregated(
+        self.batchGetItem ++ that.batchGetItem,
+        self.batchWriteItem ++ that.batchWriteItem,
+        self.nonBatched.appendedAll(that.nonBatched)
+      )
   }
 
   def loop2[A](query: DynamoDBQuery[A], acc: Aggregated): Aggregated =
     query match {
-      case Zip(left, right)                 =>
+      case Zip(left, right)                          =>
         loop2(left.asInstanceOf[DynamoDBQuery[A]], acc) ++ loop2(right.asInstanceOf[DynamoDBQuery[A]], acc)
-      case getItem @ GetItem(_, _, _, _, _) =>
+      case deleteItem @ DeleteItem(_, _, _, _, _, _) =>
+        acc.addDeleteItem(deleteItem)
+      case putItem @ PutItem(_, _, _, _, _, _)       =>
+        acc.addPutItem(putItem)
+      case getItem @ GetItem(_, _, _, _, _)          =>
         acc.addGetItem(getItem)
-      case atomic                           =>
+      case atomic                                    =>
         acc + atomic
     }
 
-  /*
-  Assuming you can only zip together
-  - GetItems with other GetItems
-  - PutItems/DeleteItems with other PutItems/DeleteItems
-
-  recurse query and breakdown into a List of atomic queries ie DynamoDBQuery[_]
-  that would be all
-  - GetItems - these would get folded over as a single BatchGetItem request
-  - DeleteItem OR PutRequest - these would get folded over as a single BatchWriteItem request
-  - for each atomic item in the list execute the query request and assemble the results
-   */
   def loop[A](query: DynamoDBQuery[A], acc: List[DynamoDBQuery[A]]): List[DynamoDBQuery[Any]] =
     query match {
       case Zip(left, right) =>
         loop(left.asInstanceOf[DynamoDBQuery[A]], acc) ++ loop(right.asInstanceOf[DynamoDBQuery[A]], acc)
       case q                =>
         acc :+ q
+    }
+
+  def aggregate(atomicItems: List[DynamoDBQuery[Any]]): Aggregated =
+    atomicItems.foldRight(Aggregated()) {
+      case (query, acc) =>
+        query match {
+          case getItem @ GetItem(_, _, _, _, _) =>
+            acc.addGetItem(getItem)
+          case q                                => acc + q
+        }
     }
 
   def live =

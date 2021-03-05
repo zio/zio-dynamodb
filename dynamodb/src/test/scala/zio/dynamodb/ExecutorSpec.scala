@@ -1,40 +1,41 @@
 package zio.dynamodb
 
-import zio.ZIO
+import zio.dynamodb.DynamoDBExecutor.Aggregated
 import zio.dynamodb.DynamoDBQuery.{ DeleteItem, GetItem, PutItem }
-import zio.test.Assertion.equalTo
-import zio.test.{ assert, DefaultRunnableSpec }
+import zio.test.{ assertCompletes, DefaultRunnableSpec }
 
-import scala.Predef.{ println }
 import scala.collection.immutable.{ Map => ScalaMap }
 
 object ExecutorSpec extends DefaultRunnableSpec {
-//  def target[A](in: A): ZIO[Any, Exception, A] =
-//    in match {
-//      case one   =>
-//      case (one) =>
-//    }
 
   val emptyItem: Item = Item(ScalaMap.empty)
 
   override def spec =
     suite(label = "Executor")(
-      testM(label = "should") {
+      test(label = "should aggregate stuff") {
         val primaryKey                                              = PrimaryKey(ScalaMap.empty)
         val getItem1: GetItem                                       = GetItem(key = primaryKey, tableName = TableName("T1"))
         val getItem2                                                = GetItem(key = primaryKey, tableName = TableName("T2"))
         val zippedGets: DynamoDBQuery[(Option[Item], Option[Item])] = getItem1 zip getItem2
 
-        val putItem                                   = PutItem(tableName = TableName("T1"), item = Item(ScalaMap.empty))
-        val deleteItem                                = DeleteItem(tableName = TableName("T2"), key = primaryKey)
-        val zippedWrites: DynamoDBQuery[(Unit, Unit)] = putItem zip deleteItem
+        val putItem1 = PutItem(tableName = TableName("T1"), item = Item(ScalaMap.empty))
+        val putItem2 = PutItem(tableName = TableName("T2"), item = Item(ScalaMap.empty))
 
-        println(s"$zippedGets $zippedWrites")
+        val deleteItem1 = DeleteItem(tableName = TableName("T3"), primaryKey)
 
-        for {
-          ddb  <- ZIO.service[DynamoDb.Service]
-          rtrn <- ddb.executeQueryAgainstDdb(getItem1)
-        } yield assert(rtrn)(equalTo(Some(emptyItem)))
+        println(s"$zippedGets")
+
+        val batched2: Aggregated =
+          DynamoDBExecutor.loop2(deleteItem1 zip putItem1 zip getItem2 zip getItem1 zip putItem2, Aggregated())
+//        val batched1 = DynamoDBExecutor.loop(getItem1 zip putItem, List.empty)
+//        val xs       = DynamoDBExecutor.loop(getItem1 zip getItem2 zip putItem, List.empty)
+//        val batched3 = DynamoDBExecutor.aggregate(xs)
+
+        println(s"loop2=$batched2")
+//        println(s"loop1=$batched1")
+//        println(s"loop1.aggregated=$batched3")
+
+        assertCompletes
       }.provideCustomLayer(DynamoDb.test(Some(emptyItem)))
     )
 }
