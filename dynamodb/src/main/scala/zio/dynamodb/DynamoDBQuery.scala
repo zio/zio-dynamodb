@@ -26,7 +26,9 @@ sealed trait DynamoDBQuery[+A] { self =>
 object DynamoDBQuery {
   import scala.collection.immutable.{ Map => ScalaMap }
 
-  final case class Succeed[A](value: () => A) extends DynamoDBQuery[A]
+  sealed trait Constructor[+A] extends DynamoDBQuery[A]
+
+  final case class Succeed[A](value: () => A) extends Constructor[A]
 
   final case class GetItem(
     key: PrimaryKey,
@@ -35,12 +37,13 @@ object DynamoDBQuery {
     projections: List[ProjectionExpression] =
       List.empty, // If no attribute names are specified, then all attributes are returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
-  ) extends DynamoDBQuery[Option[Item]]
+  ) extends Constructor[Option[Item]]
 
+  // TODO: move out from here - it should not be publicly visible
   final case class BatchGetItem(
     requestItems: ScalaMap[TableName, BatchGetItem.TableItem],
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
-  ) extends DynamoDBQuery[BatchGetItem.Response] { self =>
+  ) extends Constructor[BatchGetItem.Response] { self =>
     def ++(that: BatchGetItem): BatchGetItem =
       BatchGetItem(self.requestItems ++ that.requestItems, self.capacity)
   }
@@ -64,11 +67,12 @@ object DynamoDBQuery {
     )
   }
 
+  // TODO: move out from here - it should not be publicly visible
   final case class BatchWriteItem(
     requestItems: WriteItemsMap,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None
-  ) extends DynamoDBQuery[BatchWriteItem.Response] { self =>
+  ) extends Constructor[BatchWriteItem.Response] { self =>
     def ++(that: BatchWriteItem): BatchWriteItem =
       BatchWriteItem(self.requestItems ++ that.requestItems, self.capacity, self.itemMetrics)
   }
@@ -122,7 +126,7 @@ object DynamoDBQuery {
     // there are 2 modes of getting stuff back
     // 1) client does not control paging so we return a None for LastEvaluatedKey
     // 2) client controls paging via Limit so we return the LastEvaluatedKey
-  ) extends DynamoDBQuery[(ZStream[R, E, Item], LastEvaluatedKey)]
+  ) extends Constructor[(ZStream[R, E, Item], LastEvaluatedKey)]
 
   final case class Query[R, E](
     tableName: TableName,
@@ -139,7 +143,7 @@ object DynamoDBQuery {
     // there are 2 modes of getting stuff back
     // 1) client does not control paging so we return a None for LastEvaluatedKey
     // 2) client controls paging via Limit so we return the LastEvaluatedKey
-  ) extends DynamoDBQuery[(ZStream[R, E, Item], LastEvaluatedKey)]
+  ) extends Constructor[(ZStream[R, E, Item], LastEvaluatedKey)]
 
   final case class PutItem(
     tableName: TableName,
@@ -148,7 +152,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues = ReturnValues.None // PutItem does not recognize any values other than NONE or ALL_OLD.
-  ) extends DynamoDBQuery[Unit] // TODO: model response
+  ) extends Constructor[Unit] // TODO: model response
 
   final case class UpdateItem(
     tableName: TableName,
@@ -158,7 +162,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues = ReturnValues.None
-  ) extends DynamoDBQuery[Unit] // TODO: model response
+  ) extends Constructor[Unit] // TODO: model response
 
   final case class DeleteItem(
     tableName: TableName,
@@ -168,7 +172,7 @@ object DynamoDBQuery {
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues =
       ReturnValues.None // DeleteItem does not recognize any values other than NONE or ALL_OLD.
-  ) extends DynamoDBQuery[Unit] // TODO: model response
+  ) extends Constructor[Unit] // TODO: model response
 
   final case class CreateTable(
     tableName: TableName,
@@ -180,7 +184,7 @@ object DynamoDBQuery {
     provisionedThroughput: Option[ProvisionedThroughput] = None,
     sseSpecification: Option[SSESpecification] = None,
     tags: ScalaMap[String, String] = ScalaMap.empty // you can have up to 50 tags
-  ) extends DynamoDBQuery[Unit] // TODO: model response
+  ) extends Constructor[Unit] // TODO: model response
 
   final case class Zip[A, B](left: DynamoDBQuery[A], right: DynamoDBQuery[B]) extends DynamoDBQuery[(A, B)]
   final case class Map[A, B](query: DynamoDBQuery[A], mapper: A => B)         extends DynamoDBQuery[B]
