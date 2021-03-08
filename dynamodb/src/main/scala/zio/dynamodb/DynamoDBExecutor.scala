@@ -76,18 +76,16 @@ object DynamoDBExecutor {
         (Chunk.empty, _ => ().asInstanceOf[A]) //TODO: remove
     }
 
-  // TODO
   def live =
     ZLayer.fromService[DynamoDb.Service, DynamoDBExecutor.Service](dynamoDb =>
       new Service {
         override def execute[A](query: DynamoDBQuery[A]): ZIO[Any, Exception, A] = {
-          val queries: (Chunk[Constructor[Any]], Chunk[Any] => A) = parallelize(query)
+          val (constructors, assembler) = parallelize(query)
 
-          // for now we do not aggregate/batch queries
-          val x: ZIO[Any, Exception, Chunk[Any]] = ZIO.foreach(queries._1)(dynamoDb.execute)
-          println(x)
-          println(dynamoDb)
-          ZIO.succeed(().asInstanceOf[A]) // TODO
+          for {
+            chunks   <- ZIO.foreach(constructors)(dynamoDb.execute)
+            assembled = assembler(chunks)
+          } yield assembled
         }
       }
     )
