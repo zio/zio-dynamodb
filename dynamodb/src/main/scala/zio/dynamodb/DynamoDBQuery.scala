@@ -1,6 +1,7 @@
 package zio.dynamodb
 
 import zio.ZIO
+import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableItem
 import zio.dynamodb.DynamoDBQuery.BatchWriteItem.WriteItemsMap
 import zio.stream.ZStream
 
@@ -43,7 +44,14 @@ object DynamoDBQuery {
   final case class BatchGetItem(
     requestItems: ScalaMap[TableName, BatchGetItem.TableItem],
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
-  ) extends Constructor[BatchGetItem.Response] { self =>
+  ) extends DynamoDBQuery[BatchGetItem.Response] { self =>
+
+    def +(getItem: GetItem): BatchGetItem =
+      BatchGetItem(
+        self.requestItems + ((getItem.tableName, TableItem(getItem.key, getItem.projections))),
+        self.capacity
+      )
+
     def ++(that: BatchGetItem): BatchGetItem =
       BatchGetItem(self.requestItems ++ that.requestItems, self.capacity)
   }
@@ -72,7 +80,8 @@ object DynamoDBQuery {
     requestItems: WriteItemsMap,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None
-  ) extends Constructor[BatchWriteItem.Response] { self =>
+  ) extends DynamoDBQuery[BatchWriteItem.Response] { self =>
+
     def ++(that: BatchWriteItem): BatchWriteItem =
       BatchWriteItem(self.requestItems ++ that.requestItems, self.capacity, self.itemMetrics)
   }
@@ -105,7 +114,7 @@ object DynamoDBQuery {
       }
     }
     object WriteItemsMap                                                                                 {
-      def empty = WriteItemsMap(ScalaMap.empty)
+      def empty: WriteItemsMap = WriteItemsMap(ScalaMap.empty)
     }
   }
 

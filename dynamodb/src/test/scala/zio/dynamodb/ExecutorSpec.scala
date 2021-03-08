@@ -1,58 +1,54 @@
 package zio.dynamodb
 
 import zio.Chunk
-import zio.dynamodb.DynamoDBQuery.{ Constructor, DeleteItem, GetItem, Map, PutItem, Scan }
+import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, Constructor, DeleteItem, GetItem, Map, PutItem, Scan }
 import zio.stream.ZStream
 import zio.test.Assertion.equalTo
-import zio.test.{ assert, DefaultRunnableSpec }
+import zio.test.{ assert, assertCompletes, DefaultRunnableSpec }
 
 import scala.collection.immutable.{ Map => ScalaMap }
 
 object ExecutorSpec extends DefaultRunnableSpec {
 
-  val emptyItem                         = Item(ScalaMap.empty)
-  def someItem: Option[Item]            = Some(emptyItem)
-  def item(a: String): Item             = Item(ScalaMap(a -> AttributeValue.String(a)))
-  def someItem(a: String): Option[Item] = Some(item(a))
+  private val emptyItem                         = Item(ScalaMap.empty)
+  private def someItem: Option[Item]            = Some(emptyItem)
+  private def item(a: String): Item             = Item(ScalaMap(a -> AttributeValue.String(a)))
+  private def someItem(a: String): Option[Item] = Some(item(a))
 
-  val primaryKey                                              = PrimaryKey(ScalaMap.empty)
-  val tableName1                                              = TableName("T1")
-  val tableName2                                              = TableName("T2")
-  val indexName1                                              = IndexName("I1")
-  val getItem1                                                = GetItem(key = primaryKey, tableName = tableName1)
-  val getItem2                                                = GetItem(key = primaryKey, tableName = tableName2)
-  val zippedGets: DynamoDBQuery[(Option[Item], Option[Item])] = getItem1 zip getItem2
+  private val primaryKey                                              = PrimaryKey(ScalaMap.empty)
+  private val tableName1                                              = TableName("T1")
+  private val tableName2                                              = TableName("T2")
+  private val indexName1                                              = IndexName("I1")
+  private val getItem1                                                = GetItem(key = primaryKey, tableName = tableName1)
+  private val getItem2                                                = GetItem(key = primaryKey, tableName = tableName2)
+  private val zippedGets: DynamoDBQuery[(Option[Item], Option[Item])] = getItem1 zip getItem2
 
-  val putItem1    = PutItem(tableName = tableName1, item = Item(ScalaMap.empty))
-  val deleteItem1 = DeleteItem(tableName = tableName2, key = PrimaryKey(ScalaMap.empty))
-  val stream1     = ZStream(emptyItem)
-  val scan1       = Scan(tableName1, indexName1)
+  private val putItem1    = PutItem(tableName = tableName1, item = Item(ScalaMap.empty))
+  private val deleteItem1 = DeleteItem(tableName = tableName2, key = PrimaryKey(ScalaMap.empty))
+  private val stream1     = ZStream(emptyItem)
+  private val scan1       = Scan(tableName1, indexName1)
 
-  override def spec = suite("Executor")(parallelizeSuite, executeAgainstDbSuite)
+  override def spec = suite("Executor")(parallelizeSuite, executeSuite)
 
-  val executeAgainstDbSuite = suite("Execute against DDB")(
+  val executeSuite = suite("execute")(
     testM("should assemble response") {
       for {
         assembled <- execute(zippedGets)
       } yield assert(assembled)(equalTo((someItem, someItem)))
+    },
+    test("explore GetItem batching") {
+
+      val constructors = Chunk(getItem1, getItem2, putItem1)
+      val x            = constructors.foldLeft((List.empty[Constructor[Any]], BatchGetItem(ScalaMap.empty))) {
+        case ((xs, batch), constructor) =>
+          constructor match {
+            case getItem @ GetItem(_, _, _, _, _) => (xs, batch + getItem)
+            case el                               => (xs :+ el, batch)
+          }
+      }
+      println(x)
+      assertCompletes
     }
-//    testM("test2") {
-//      val constructors                        = Chunk(getItem1, getItem2, putItem1)
-//      val x                                   = constructors.foldRight((List.empty[Constructor[Any]], BatchWriteItem(WriteItemsMap()))) {
-//        case (cons, (xs, bwi)) =>
-//          cons match {
-//            case getItem @ GetItem(_, _, _, _, _) => (xs, bwi.+ getItem)
-//            case el                               => (xs :+ el, bwi)
-//          }
-//      }
-//      val xx: ZIO[Any, Exception, Chunk[Any]] = ZIO.foreach(tuple._1)(executeQueryAgainstDdb)
-//
-//      for {
-//        chunks   <- xx
-//        assembled = tuple._2(chunks)
-//        _        <- UIO(println(s"assembled=$assembled"))
-//      } yield assertCompletes
-//    }
   ).provideCustomLayer(DynamoDb.test >>> DynamoDBExecutor.live)
 
   val parallelizeSuite =
@@ -74,11 +70,11 @@ object ExecutorSpec extends DefaultRunnableSpec {
         assert(assembled)(equalTo(((), ())))
       },
       test("should process Map constructor") {
-        val map1                     = Map(
+        val map                      = Map(
           getItem1,
           (o: Option[Item]) => o.map(_ => Item(ScalaMap("1" -> AttributeValue.String("2"))))
         )
-        val (constructor, assembler) = DynamoDBExecutor.parallelize(map1)
+        val (constructor, assembler) = DynamoDBExecutor.parallelize(map)
         val assembled                = assembler(Chunk(someItem("1")))
 
         assert(constructor)(equalTo(Chunk(getItem1))) && assert(assembled)(

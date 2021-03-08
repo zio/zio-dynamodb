@@ -10,7 +10,7 @@ object DynamoDBExecutor {
     def execute[A](query: DynamoDBQuery[A]): ZIO[Any, Exception, A]
   }
 
-  def parallelize[A](query: DynamoDBQuery[A]): (Chunk[Constructor[Any]], Chunk[Any] => A) =
+  private[dynamodb] def parallelize[A](query: DynamoDBQuery[A]): (Chunk[Constructor[Any]], Chunk[Any] => A) =
     query match {
       case Map(query, mapper) =>
         parallelize(query) match {
