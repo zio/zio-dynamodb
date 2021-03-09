@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.ZIO
+import zio.{ Chunk, ZIO }
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableItem
 import zio.dynamodb.DynamoDBQuery.BatchWriteItem.WriteItemsMap
 import zio.stream.ZStream
@@ -52,6 +52,13 @@ object DynamoDBQuery {
         self.capacity
       )
 
+    // TODO: remove
+    def ++(getItems: Chunk[GetItem]): BatchGetItem =
+      getItems.foldRight(self) {
+        case (getItem, batch) => batch + getItem
+      }
+
+    // TODO: remove
     def ++(that: BatchGetItem): BatchGetItem =
       BatchGetItem(self.requestItems ++ that.requestItems, self.capacity)
   }
