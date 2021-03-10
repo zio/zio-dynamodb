@@ -2,7 +2,7 @@ package zio.dynamodb
 
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableItem
 import zio.dynamodb.DynamoDBQuery.parallelize
-import zio.dynamodb.DynamoDb.DynamoDb
+import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
 import zio.stream.ZStream
 import zio.{ Chunk, ZIO }
 
@@ -13,11 +13,11 @@ sealed trait DynamoDBQuery[+A] { self =>
 
   final def <*>[B](that: DynamoDBQuery[B]): DynamoDBQuery[(A, B)] = self zip that
 
-  def execute: ZIO[DynamoDb, Exception, A] = {
+  def execute: ZIO[DynamoDBExecutor, Exception, A] = {
     val (constructors, assembler) = parallelize(self)
 
     for {
-      dynamoDb <- ZIO.service[DynamoDb.Service]
+      dynamoDb <- ZIO.service[DynamoDBExecutor.Service]
       chunks   <- ZIO.foreach(constructors)(dynamoDb.execute)
       assembled = assembler(chunks)
     } yield assembled

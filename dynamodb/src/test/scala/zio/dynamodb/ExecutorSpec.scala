@@ -18,7 +18,7 @@ object ExecutorSpec extends DefaultRunnableSpec {
         assembled <- zippedGets.execute
       } yield assert(assembled)(equalTo((someItem, someItem)))
     }
-  ).provideCustomLayer(DynamoDb.test)
+  ).provideCustomLayer(DynamoDBExecutor.test)
 
   val parallelizeSuite =
     suite(label = "parallelize")(

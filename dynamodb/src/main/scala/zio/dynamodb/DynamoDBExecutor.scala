@@ -4,8 +4,8 @@ import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem, DeleteItem, Ge
 import zio.{ Has, ZIO, ZLayer }
 import scala.collection.immutable.{ Map => ScalaMap }
 
-object DynamoDb {
-  type DynamoDb = Has[Service]
+object DynamoDBExecutor {
+  type DynamoDBExecutor = Has[Service]
 
   trait Service {
     def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A]
