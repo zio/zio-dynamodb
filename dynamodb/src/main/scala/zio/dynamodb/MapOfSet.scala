@@ -4,8 +4,8 @@ import scala.collection.immutable.{ Map => ScalaMap }
 
 final case class MapOfSet[K, V](map: ScalaMap[K, Set[V]] = ScalaMap.empty) { self =>
   def +(entry: (K, V)): MapOfSet[K, V] = {
-    val newEntry =
-      map.get(entry._1).fold((entry._1, Set(entry._2)))(set => (entry._1, set + entry._2))
+    val (key, value) = entry
+    val newEntry     = map.get(key).fold((key, Set(value)))(set => (key, set + value))
     MapOfSet(map + newEntry)
   }
   def ++(that: MapOfSet[K, V]): MapOfSet[K, V] = {

@@ -10,7 +10,7 @@ object DynamoDBExecutor {
     def execute[A](query: DynamoDBQuery[A]): ZIO[Any, Exception, A]
   }
 
-  def batchGetItems[A](query: DynamoDBQuery[A]): DynamoDBQuery[A] =
+  private[dynamodb] def batchGetItems[A](query: DynamoDBQuery[A]): DynamoDBQuery[A] =
     query match {
       case Zip(left, right) =>
         (left, right) match {
