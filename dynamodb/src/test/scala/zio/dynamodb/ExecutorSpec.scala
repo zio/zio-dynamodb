@@ -1,36 +1,16 @@
 package zio.dynamodb
 
 import zio.Chunk
-import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, Constructor, DeleteItem, GetItem, Map, PutItem, Scan }
-import zio.stream.ZStream
+import zio.dynamodb.DynamoDBQuery.{ Constructor, Map }
+import zio.dynamodb.TestFixtures._
 import zio.test.Assertion.equalTo
-import zio.test.{ assert, assertCompletes, DefaultRunnableSpec, TestAspect }
+import zio.test.{ assert, DefaultRunnableSpec }
 
 import scala.collection.immutable.{ Map => ScalaMap }
 
 object ExecutorSpec extends DefaultRunnableSpec {
 
-  private val emptyItem                         = Item(ScalaMap.empty)
-  private def someItem: Option[Item]            = Some(emptyItem)
-  private def item(a: String): Item             = Item(ScalaMap(a -> AttributeValue.String(a)))
-  private def someItem(a: String): Option[Item] = Some(item(a))
-
-  private val primaryKey                                              = PrimaryKey(ScalaMap.empty)
-  private val tableName1                                              = TableName("T1")
-  private val tableName2                                              = TableName("T2")
-  private val tableName3                                              = TableName("T3")
-  private val indexName1                                              = IndexName("I1")
-  private val getItem1                                                = GetItem(key = primaryKey, tableName = tableName1)
-  private val getItem2                                                = GetItem(key = primaryKey, tableName = tableName2)
-  private val getItem3                                                = GetItem(key = primaryKey, tableName = tableName3)
-  private val zippedGets: DynamoDBQuery[(Option[Item], Option[Item])] = getItem1 zip getItem2
-
-  private val putItem1    = PutItem(tableName = tableName1, item = Item(ScalaMap.empty))
-  private val deleteItem1 = DeleteItem(tableName = tableName2, key = PrimaryKey(ScalaMap.empty))
-  private val stream1     = ZStream(emptyItem)
-  private val scan1       = Scan(tableName1, indexName1)
-
-  override def spec = suite("Executor")(parallelizeSuite, executeSuite, experimentalSuite)
+  override def spec = suite("Executor")(parallelizeSuite, executeSuite)
 
   val executeSuite = suite("execute")(
     testM("should assemble response") {
@@ -77,50 +57,5 @@ object ExecutorSpec extends DefaultRunnableSpec {
         assert(constructor)(equalTo(Chunk(scan1))) && assert(assembled)(equalTo((stream1, None)))
       }
     )
-
-  /*
-      override def execute[A](query: DynamoDBQuery[A]): ZIO[Any, Exception, A] = {
-        val (constructors, assembler) = parallelize(query)
-
-        for {
-          chunks   <- ZIO.foreach(constructors)(dynamoDb.execute)
-          assembled = assembler(chunks)
-        } yield assembled
-      }
-   */
-  val experimentalSuite = suite("explore batching")(
-    test("explore GetItem batching") {
-
-      val constructors = Chunk(getItem1, getItem2, putItem1)
-      val x            = constructors.foldLeft((List.empty[Constructor[Any]], BatchGetItem(MapOfSet.empty))) {
-        case ((xs, batch), constructor) =>
-          constructor match {
-            case getItem @ GetItem(_, _, _, _, _) => (xs, batch + getItem)
-            case el                               => (xs :+ el, batch)
-          }
-      }
-      println(x)
-      assertCompletes
-    },
-    test("explore GetItem batching2") {
-      val zipped1: DynamoDBQuery[(Option[Item], Option[Item])] = getItem1 zip getItem2
-      val batched: DynamoDBQuery[(Option[Item], Option[Item])] = DynamoDBExecutor.batchGetItems(zipped1)
-
-      println(s"$batched")
-      assertCompletes
-//      assert(batched)(equalTo(BatchGetItem(ScalaMap.empty)))
-    },
-    test("explore GetItem batching3") {
-      val zipped  = getItem1 zip getItem2 zip getItem3 zip putItem1
-      val wtf     = DynamoDBExecutor.batchGetItems(zipped)
-      val equal   = zipped == wtf
-      val zipped2 = putItem1 zip getItem1 zip getItem2 zip getItem3 zip putItem1
-      val wtf2    = DynamoDBExecutor.batchGetItems(zipped2)
-      val zipped3 = getItem1 zip getItem2 zip getItem3 zip putItem1 zip getItem1
-      val wtf3    = DynamoDBExecutor.batchGetItems(zipped3)
-      println(s"$equal $wtf2 $wtf3")
-      assertCompletes
-    } @@ TestAspect.ignore
-  ).provideCustomLayer(DynamoDb.test >>> DynamoDBExecutor.live)
 
 }

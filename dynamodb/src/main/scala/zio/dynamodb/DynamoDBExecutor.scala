@@ -10,27 +10,6 @@ object DynamoDBExecutor {
     def execute[A](query: DynamoDBQuery[A]): ZIO[Any, Exception, A]
   }
 
-  private[dynamodb] def batchGetItems[A](query: DynamoDBQuery[A]): DynamoDBQuery[A] =
-    query match {
-      case Zip(left, right) =>
-        (left, right) match {
-          case (getItemLeft @ GetItem(_, _, _, _, _), getItemRight @ GetItem(_, _, _, _, _))         =>
-            val batch = (BatchGetItem(MapOfSet.empty) + getItemLeft) + getItemRight
-            batchGetItems(batch.asInstanceOf[DynamoDBQuery[A]])
-          case (Zip(x, getItemLeft @ GetItem(_, _, _, _, _)), getItemRight @ GetItem(_, _, _, _, _)) =>
-            batchGetItems(Zip(x, (BatchGetItem(MapOfSet.empty) + getItemRight) + getItemLeft))
-          case (getItemLeft @ GetItem(_, _, _, _, _), batchRight @ BatchGetItem(_, _))               =>
-            (batchRight + getItemLeft).asInstanceOf[DynamoDBQuery[A]]
-          case (Zip(x, getItemLeft @ GetItem(_, _, _, _, _)), batchRight @ BatchGetItem(_, _))       =>
-            batchGetItems(Zip(x, batchRight + getItemLeft))
-          case _                                                                                     =>
-            Zip(batchGetItems(left), batchGetItems(right))
-        }
-      // TODO: create a MAP with function from BatchGetItem.Response => TupleN[Option[Item]]
-      case other            =>
-        other
-    }
-
   private[dynamodb] def parallelize[A](query: DynamoDBQuery[A]): (Chunk[Constructor[Any]], Chunk[Any] => A) =
     query match {
       case Map(query, mapper) =>
