@@ -73,6 +73,6 @@ object BatchingExperimentSpec extends DefaultRunnableSpec {
       println(s"$equal $wtf2 $wtf3")
       assertCompletes
     } @@ TestAspect.ignore
-  ).provideCustomLayer(DynamoDb.test >>> DynamoDBExecutor.live)
+  ).provideCustomLayer(DynamoDb.test)
 
 }

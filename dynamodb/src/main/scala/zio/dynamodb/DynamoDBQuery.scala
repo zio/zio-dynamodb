@@ -1,8 +1,10 @@
 package zio.dynamodb
 
-import zio.{ Chunk, ZIO }
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableItem
+import zio.dynamodb.DynamoDBQuery.parallelize
+import zio.dynamodb.DynamoDb.DynamoDb
 import zio.stream.ZStream
+import zio.{ Chunk, ZIO }
 
 sealed trait DynamoDBQuery[+A] { self =>
   final def <*[B](that: DynamoDBQuery[B]): DynamoDBQuery[A] = zipLeft(that)
@@ -11,7 +13,15 @@ sealed trait DynamoDBQuery[+A] { self =>
 
   final def <*>[B](that: DynamoDBQuery[B]): DynamoDBQuery[(A, B)] = self zip that
 
-  def execute: ZIO[Any, Exception, A] = ???
+  def execute: ZIO[DynamoDb, Exception, A] = {
+    val (constructors, assembler) = parallelize(self)
+
+    for {
+      dynamoDb <- ZIO.service[DynamoDb.Service]
+      chunks   <- ZIO.foreach(constructors)(dynamoDb.execute)
+      assembled = assembler(chunks)
+    } yield assembled
+  }
 
   final def map[B](f: A => B): DynamoDBQuery[B] = DynamoDBQuery.Map(self, f)
 
@@ -190,4 +200,71 @@ object DynamoDBQuery {
   final case class Map[A, B](query: DynamoDBQuery[A], mapper: A => B)         extends DynamoDBQuery[B]
 
   def apply[A](a: => A): DynamoDBQuery[A] = Succeed(() => a)
+
+  private[dynamodb] def parallelize[A](query: DynamoDBQuery[A]): (Chunk[Constructor[Any]], Chunk[Any] => A) =
+    query match {
+      case Map(query, mapper) =>
+        parallelize(query) match {
+          case (constructors, assembler) =>
+            (constructors, assembler.andThen(mapper))
+        }
+
+      case Zip(left, right)   =>
+        val (constructorsLeft, assemblerLeft)   = parallelize(left)
+        val (constructorsRight, assemblerRight) = parallelize(right)
+        (
+          constructorsLeft ++ constructorsRight,
+          (results: Chunk[Any]) => {
+            val (leftResults, rightResults) = results.splitAt(constructorsLeft.length)
+            val left                        = assemblerLeft(leftResults)
+            val right                       = assemblerRight(rightResults)
+            (left, right).asInstanceOf[A]
+          }
+        )
+
+      case Succeed(value)     => (Chunk.empty, _ => value.asInstanceOf[A])
+
+      case getItem @ GetItem(_, _, _, _, _)           =>
+        (
+          Chunk(getItem),
+          (results: Chunk[Any]) => {
+            println(s"GetItem results=$results")
+            results.head.asInstanceOf[A]
+          }
+        )
+
+      case putItem @ PutItem(_, _, _, _, _, _)        =>
+        (
+          Chunk(putItem),
+          (results: Chunk[Any]) => {
+            println(s"PutItem results=$results")
+            results.head.asInstanceOf[A]
+          }
+        )
+
+      case deleteItem @ DeleteItem(_, _, _, _, _, _)  =>
+        (
+          Chunk(deleteItem),
+          (results: Chunk[Any]) => {
+            println(s"DeleteItem results=$results")
+            results.head.asInstanceOf[A]
+          }
+        )
+
+      case scanItem @ Scan(_, _, _, _, _, _, _, _, _) =>
+        (
+          Chunk(scanItem),
+          (results: Chunk[Any]) => {
+            println(s"Scan results=$results")
+            results.head.asInstanceOf[A]
+          }
+        )
+
+      // TODO: put, delete
+      // TODO: scan, query
+
+      case _                                          =>
+        (Chunk.empty, _ => ().asInstanceOf[A]) //TODO: remove
+    }
+
 }

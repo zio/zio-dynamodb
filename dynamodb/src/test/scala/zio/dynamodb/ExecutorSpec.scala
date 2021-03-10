@@ -1,7 +1,7 @@
 package zio.dynamodb
 
 import zio.Chunk
-import zio.dynamodb.DynamoDBQuery.{ Constructor, Map }
+import zio.dynamodb.DynamoDBQuery.{ parallelize, Constructor, Map }
 import zio.dynamodb.TestFixtures._
 import zio.test.Assertion.equalTo
 import zio.test.{ assert, DefaultRunnableSpec }
@@ -15,16 +15,16 @@ object ExecutorSpec extends DefaultRunnableSpec {
   val executeSuite = suite("execute")(
     testM("should assemble response") {
       for {
-        assembled <- execute(zippedGets)
+        assembled <- zippedGets.execute
       } yield assert(assembled)(equalTo((someItem, someItem)))
     }
-  ).provideCustomLayer(DynamoDb.test >>> DynamoDBExecutor.live)
+  ).provideCustomLayer(DynamoDb.test)
 
   val parallelizeSuite =
     suite(label = "parallelize")(
       test(label = "should process Zipped GetItems") {
         val (constructor, assembler): (Chunk[Constructor[Any]], Chunk[Any] => (Option[Item], Option[Item])) =
-          DynamoDBExecutor.parallelize(zippedGets)
+          parallelize(zippedGets)
         val assembled                                                                                       = assembler(Chunk(someItem("1"), someItem("2")))
 
         assert(constructor)(equalTo(Chunk(getItem1, getItem2))) && assert(assembled)(
@@ -32,7 +32,7 @@ object ExecutorSpec extends DefaultRunnableSpec {
         )
       },
       test("should process Zipped writes") {
-        val (constructor, assembler) = DynamoDBExecutor.parallelize(putItem1 zip deleteItem1)
+        val (constructor, assembler) = parallelize(putItem1 zip deleteItem1)
         val assembled                = assembler(Chunk((), ()))
 
         assert(constructor)(equalTo(Chunk(putItem1, deleteItem1))) &&
@@ -43,7 +43,7 @@ object ExecutorSpec extends DefaultRunnableSpec {
           getItem1,
           (o: Option[Item]) => o.map(_ => Item(ScalaMap("1" -> AttributeValue.String("2"))))
         )
-        val (constructor, assembler) = DynamoDBExecutor.parallelize(map)
+        val (constructor, assembler) = parallelize(map)
         val assembled                = assembler(Chunk(someItem("1")))
 
         assert(constructor)(equalTo(Chunk(getItem1))) && assert(assembled)(
@@ -51,7 +51,7 @@ object ExecutorSpec extends DefaultRunnableSpec {
         )
       },
       test("should process Scan constructor") {
-        val (constructor, assembler) = DynamoDBExecutor.parallelize(scan1)
+        val (constructor, assembler) = parallelize(scan1)
         val assembled                = assembler(Chunk((stream1, None)))
 
         assert(constructor)(equalTo(Chunk(scan1))) && assert(assembled)(equalTo((stream1, None)))
