@@ -20,7 +20,7 @@ object DynamoDb {
           case BatchGetItem(requestItems, capacity)                                                 =>
             println(s"$requestItems $capacity")
             // TODO: we could execute in a loop
-            ZIO.succeed(BatchGetItem.Response(ScalaMap.empty, ScalaMap.empty))
+            ZIO.succeed(BatchGetItem.Response(MapOfSet.empty, ScalaMap.empty))
 
           case BatchWriteItem(requestItems, capacity, metrics)                                      =>
             println(s"$requestItems $capacity $metrics")

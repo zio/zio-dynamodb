@@ -2,7 +2,6 @@ package zio.dynamodb
 
 import zio.dynamodb.DynamoDBQuery._
 import zio.{ Chunk, Has, ZIO, ZLayer }
-import scala.collection.immutable.{ Map => ScalaMap }
 
 object DynamoDBExecutor {
   type DynamoDBExecutor = Has[Service]
@@ -16,10 +15,10 @@ object DynamoDBExecutor {
       case Zip(left, right) =>
         (left, right) match {
           case (getItemLeft @ GetItem(_, _, _, _, _), getItemRight @ GetItem(_, _, _, _, _))         =>
-            val batch = (BatchGetItem(ScalaMap.empty) + getItemLeft) + getItemRight
+            val batch = (BatchGetItem(MapOfSet.empty) + getItemLeft) + getItemRight
             batchGetItems(batch.asInstanceOf[DynamoDBQuery[A]])
           case (Zip(x, getItemLeft @ GetItem(_, _, _, _, _)), getItemRight @ GetItem(_, _, _, _, _)) =>
-            batchGetItems(Zip(x, (BatchGetItem(ScalaMap.empty) + getItemRight) + getItemLeft))
+            batchGetItems(Zip(x, (BatchGetItem(MapOfSet.empty) + getItemRight) + getItemLeft))
           case (getItemLeft @ GetItem(_, _, _, _, _), batchRight @ BatchGetItem(_, _))               =>
             (batchRight + getItemLeft).asInstanceOf[DynamoDBQuery[A]]
           case (Zip(x, getItemLeft @ GetItem(_, _, _, _, _)), batchRight @ BatchGetItem(_, _))       =>
@@ -27,6 +26,7 @@ object DynamoDBExecutor {
           case _                                                                                     =>
             Zip(batchGetItems(left), batchGetItems(right))
         }
+      // TODO: create a MAP with function from BatchGetItem.Response => TupleN[Option[Item]]
       case other            =>
         other
     }

@@ -1,7 +1,7 @@
 package zio.dynamodb
 
 import zio.Chunk
-import zio.dynamodb.DynamoDBQuery.{ Constructor, DeleteItem, GetItem, Map, PutItem, Scan }
+import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, Constructor, DeleteItem, GetItem, Map, PutItem, Scan }
 import zio.stream.ZStream
 import zio.test.Assertion.equalTo
 import zio.test.{ assert, assertCompletes, DefaultRunnableSpec, TestAspect }
@@ -88,7 +88,20 @@ object ExecutorSpec extends DefaultRunnableSpec {
         } yield assembled
       }
    */
-  val experimentalSuite = suite("random stuff")(
+  val experimentalSuite = suite("explore batching")(
+    test("explore GetItem batching") {
+
+      val constructors = Chunk(getItem1, getItem2, putItem1)
+      val x            = constructors.foldLeft((List.empty[Constructor[Any]], BatchGetItem(MapOfSet.empty))) {
+        case ((xs, batch), constructor) =>
+          constructor match {
+            case getItem @ GetItem(_, _, _, _, _) => (xs, batch + getItem)
+            case el                               => (xs :+ el, batch)
+          }
+      }
+      println(x)
+      assertCompletes
+    },
     test("explore GetItem batching2") {
       val zipped1: DynamoDBQuery[(Option[Item], Option[Item])] = getItem1 zip getItem2
       val batched: DynamoDBQuery[(Option[Item], Option[Item])] = DynamoDBExecutor.batchGetItems(zipped1)
@@ -97,7 +110,7 @@ object ExecutorSpec extends DefaultRunnableSpec {
       assertCompletes
 //      assert(batched)(equalTo(BatchGetItem(ScalaMap.empty)))
     },
-    test("explore GetItem batching") {
+    test("explore GetItem batching3") {
       val zipped  = getItem1 zip getItem2 zip getItem3 zip putItem1
       val wtf     = DynamoDBExecutor.batchGetItems(zipped)
       val equal   = zipped == wtf
