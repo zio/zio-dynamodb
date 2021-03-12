@@ -3,30 +3,54 @@ package zio.dynamodb
 import zio.Chunk
 import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, Constructor, GetItem, Zip }
 import zio.dynamodb.TestFixtures._
-import zio.test.{ assertCompletes, DefaultRunnableSpec, TestAspect }
+import zio.test.Assertion._
+import zio.test.{ assert, assertCompletes, DefaultRunnableSpec, TestAspect }
+
+import scala.collection.immutable.{ Map => ScalaMap }
 
 object BatchingExperimentSpec extends DefaultRunnableSpec {
 
-  override def spec = suite("Executor")(experimentalSuite)
+  override def spec = suite("Batch Experiment")(experimentalSuite)
 
-  def batchGetItems[A](query: DynamoDBQuery[A]): DynamoDBQuery[A] =
+  def batchGetItemResponseToGetItemResponses(
+    batchQuery: BatchGetItem,
+    batchResponse: BatchGetItem.Response
+  ): Chunk[Option[Item]] = {
+    /*
+     for each key, check it exists in the response and create a corresponding Optional Item value
+     */
+    val keySet: Iterable[TableName] = batchQuery.requestItems.map.keys
+    println(keySet)
+    println(batchResponse)
+
+    Chunk.empty
+  }
+
+  def batchAdjacentGetItems[A](query: DynamoDBQuery[A]): DynamoDBQuery[A] =
     query match {
-      case Zip(left, right) =>
+      case Zip(left, right)                     =>
         (left, right) match {
           case (getItemLeft @ GetItem(_, _, _, _, _), getItemRight @ GetItem(_, _, _, _, _))         =>
             val batch = (BatchGetItem(MapOfSet.empty) + getItemLeft) + getItemRight
-            batchGetItems(batch.asInstanceOf[DynamoDBQuery[A]])
+            batchAdjacentGetItems(batch.asInstanceOf[DynamoDBQuery[A]])
           case (Zip(x, getItemLeft @ GetItem(_, _, _, _, _)), getItemRight @ GetItem(_, _, _, _, _)) =>
-            batchGetItems(Zip(x, (BatchGetItem(MapOfSet.empty) + getItemRight) + getItemLeft))
-          case (getItemLeft @ GetItem(_, _, _, _, _), batchRight @ BatchGetItem(_, _))               =>
+            batchAdjacentGetItems(Zip(x, (BatchGetItem(MapOfSet.empty) + getItemRight) + getItemLeft))
+          case (getItemLeft @ GetItem(_, _, _, _, _), batchRight @ BatchGetItem(_, _, _))            =>
             (batchRight + getItemLeft).asInstanceOf[DynamoDBQuery[A]]
-          case (Zip(x, getItemLeft @ GetItem(_, _, _, _, _)), batchRight @ BatchGetItem(_, _))       =>
-            batchGetItems(Zip(x, batchRight + getItemLeft))
+          case (Zip(x, getItemLeft @ GetItem(_, _, _, _, _)), batchRight @ BatchGetItem(_, _, _))    =>
+            batchAdjacentGetItems(Zip(x, batchRight + getItemLeft))
           case _                                                                                     =>
-            Zip(batchGetItems(left), batchGetItems(right))
+            Zip(batchAdjacentGetItems(left), batchAdjacentGetItems(right))
         }
-      // TODO: create a MAP with function from BatchGetItem.Response => TupleN[Option[Item]]
-      case other            =>
+      // create a MAP with function from BatchGetItem.Response => TupleN[Option[Item]]
+      case batchGetItem @ BatchGetItem(_, _, _) =>
+        // for now uses a hard coded mapping of BatchGetItem.Response to Tuple2[Option[Item]]
+        // TODO: create real function from BatchGetItem.Response => TupleN[Option[Item]]
+        DynamoDBQuery.Map(
+          batchGetItem,
+          (_: BatchGetItem.Response) => (Some(Item(ScalaMap.empty)), Some(Item(ScalaMap.empty))).asInstanceOf[A]
+        )
+      case other                                =>
         other
     }
 
@@ -53,23 +77,41 @@ object BatchingExperimentSpec extends DefaultRunnableSpec {
       }
       println(x)
       assertCompletes
-    },
-    test("explore GetItem batching2") {
-      val zipped1: DynamoDBQuery[(Option[Item], Option[Item])] = getItem1 zip getItem2
-      val batched: DynamoDBQuery[(Option[Item], Option[Item])] = batchGetItems(zipped1)
+    } @@ TestAspect.ignore,
+    testM("explore getItem1 zip getItem2 zip putItem1") {
+      val zipped1: DynamoDBQuery[((Option[Item], Option[Item]), Unit)] = getItem1 zip getItem2 zip putItem1
+      val batched: DynamoDBQuery[((Option[Item], Option[Item]), Unit)] = batchAdjacentGetItems(zipped1)
 
       println(s"$batched")
-      assertCompletes
-//      assert(batched)(equalTo(BatchGetItem(ScalaMap.empty)))
-    },
+      for {
+        result  <- batched.execute
+        expected = ((Some(Item(ScalaMap.empty)), Some(Item(ScalaMap.empty))), ())
+      } yield (assert(result)(equalTo(expected)))
+    } @@ TestAspect.ignore,
+    testM("explore putItem1 zip getItem1 zip getItem2") {
+      val zipped1: DynamoDBQuery[((Unit, Option[Item]), Option[Item])] = putItem1 zip getItem1 zip getItem2
+      val batched: DynamoDBQuery[((Unit, Option[Item]), Option[Item])] = batchAdjacentGetItems(zipped1)
+
+      println(s"$batched")
+      for {
+        result  <- batched.execute
+        expected = (((), Some(Item(ScalaMap.empty))), Some(Item(ScalaMap.empty)))
+        /*
+ACTUAL
+((),(Some(Item(Map())),Some(Item(Map()))))
+EXPECTED
+(((),Some(Item(Map()))),Some(Item(Map())))
+         */
+      } yield (assert(result)(equalTo(expected)))
+    } @@ TestAspect.ignore,
     test("explore GetItem batching3") {
-      val zipped  = getItem1 zip getItem2 zip getItem3 zip putItem1
-      val wtf     = batchGetItems(zipped)
-      val equal   = zipped == wtf
-      val zipped2 = putItem1 zip getItem1 zip getItem2 zip getItem3 zip putItem1
-      val wtf2    = batchGetItems(zipped2)
-      val zipped3 = getItem1 zip getItem2 zip getItem3 zip putItem1 zip getItem1
-      val wtf3    = batchGetItems(zipped3)
+      val zipped                                                            = getItem1 zip getItem2 zip putItem1
+      val wtf: DynamoDBQuery[((Option[Item], Option[Item]), Unit)]          = batchAdjacentGetItems(zipped)
+      val equal                                                             = zipped == wtf
+      val zipped2                                                           = putItem1 zip getItem1 zip getItem2 zip putItem1
+      val wtf2: DynamoDBQuery[(((Unit, Option[Item]), Option[Item]), Unit)] = batchAdjacentGetItems(zipped2)
+      val zipped3                                                           = getItem1 zip getItem2 zip putItem1 zip getItem1
+      val wtf3                                                              = batchAdjacentGetItems(zipped3)
       println(s"$equal $wtf2 $wtf3")
       assertCompletes
     } @@ TestAspect.ignore

@@ -52,13 +52,15 @@ object DynamoDBQuery {
   // TODO: move out from here - it should not be publicly visible
   final case class BatchGetItem(
     requestItems: MapOfSet[TableName, BatchGetItem.TableItem],
-    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
-  ) extends DynamoDBQuery[BatchGetItem.Response] { self =>
+    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
+    addList: Chunk[PrimaryKey] = Chunk.empty // track order of added GetItems for later unpacking
+  ) extends Constructor[BatchGetItem.Response] { self =>
 
     def +(getItem: GetItem): BatchGetItem =
       BatchGetItem(
         self.requestItems + ((getItem.tableName, TableItem(getItem.key, getItem.projections))),
-        self.capacity
+        self.capacity,
+        self.addList :+ getItem.key
       )
 
     // TODO: remove
@@ -113,7 +115,6 @@ object DynamoDBQuery {
 
     final case class Response(
       // TODO: return metadata
-      responses: ScalaMap[TableName, Item],
       unprocessedKeys: Map[TableName, BatchWriteItem.Write]
     )
 
@@ -223,6 +224,15 @@ object DynamoDBQuery {
         )
 
       case Succeed(value)     => (Chunk.empty, _ => value.asInstanceOf[A])
+
+      case batchGetItem @ BatchGetItem(_, _, _)       =>
+        (
+          Chunk(batchGetItem),
+          (results: Chunk[Any]) => {
+            println(s"BatchGetItem results=$results")
+            results.head.asInstanceOf[A]
+          }
+        )
 
       case getItem @ GetItem(_, _, _, _, _)           =>
         (

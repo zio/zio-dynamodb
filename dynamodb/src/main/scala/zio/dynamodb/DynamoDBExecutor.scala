@@ -17,7 +17,7 @@ object DynamoDBExecutor {
       override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A] =
         atomicQuery match {
 
-          case BatchGetItem(requestItems, capacity)                                                 =>
+          case BatchGetItem(requestItems, capacity, _)                                              =>
             println(s"$requestItems $capacity")
             // TODO: we could execute in a loop
             ZIO.succeed(BatchGetItem.Response(MapOfSet.empty, ScalaMap.empty))
@@ -25,7 +25,7 @@ object DynamoDBExecutor {
           case BatchWriteItem(requestItems, capacity, metrics)                                      =>
             println(s"$requestItems $capacity $metrics")
             // TODO: we could execute in a loop
-            ZIO.succeed(BatchWriteItem.Response(ScalaMap.empty, null))
+            ZIO.succeed(BatchWriteItem.Response(null))
 
           case GetItem(key, tableName, readConsistency, projections, capacity)                      =>
             println(s"$key $tableName $readConsistency $projections $capacity")
