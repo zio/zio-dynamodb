@@ -54,7 +54,8 @@ BatchGetItem request
   }
 }
 
-BatchGetItem response
+BatchGetItem response - the request contained 3 keys but we got back only 1 item
+if we assume items always contain keys we can map the response back to all the requests
 {
   "UnprocessedKeys": {},
   "Responses": {

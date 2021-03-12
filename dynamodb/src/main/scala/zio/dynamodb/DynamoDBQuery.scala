@@ -49,7 +49,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
   ) extends Constructor[Option[Item]]
 
-  // TODO: move out from here - it should not be publicly visible
+  // TODO: should this be publicly visible?
   final case class BatchGetItem(
     requestItems: MapOfSet[TableName, BatchGetItem.TableItem],
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
@@ -98,7 +98,7 @@ object DynamoDBQuery {
     )
   }
 
-  // TODO: move out from here - it should not be publicly visible
+  // TODO: should this be publicly visible?
   final case class BatchWriteItem(
     requestItems: MapOfSet[TableName, BatchWriteItem.Write],
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
@@ -115,7 +115,7 @@ object DynamoDBQuery {
 
     final case class Response(
       // TODO: return metadata
-      unprocessedKeys: Map[TableName, BatchWriteItem.Write]
+      unprocessedKeys: MapOfSet[TableName, BatchWriteItem.Write]
     )
 
   }

@@ -67,17 +67,19 @@ object BatchingExperimentSpec extends DefaultRunnableSpec {
   val experimentalSuite = suite("explore batching")(
     test("explore GetItem batching") {
 
-      val constructors = Chunk(getItem1, getItem2, putItem1)
-      val x            = constructors.foldLeft((List.empty[Constructor[Any]], BatchGetItem(MapOfSet.empty))) {
-        case ((xs, batch), constructor) =>
-          constructor match {
-            case getItem @ GetItem(_, _, _, _, _) => (xs, batch + getItem)
-            case el                               => (xs :+ el, batch)
-          }
-      }
+      val (constructors, assembler)                 = DynamoDBQuery.parallelize(putItem1 zip getItem1 zip getItem2 zip deleteItem1)
+      println(assembler)
+      val x: (List[Constructor[Any]], BatchGetItem) =
+        constructors.foldLeft((List.empty[Constructor[Any]], BatchGetItem(MapOfSet.empty))) {
+          case ((xs, batch), constructor) =>
+            constructor match {
+              case getItem @ GetItem(_, _, _, _, _) => (xs, batch + getItem)
+              case el                               => (xs :+ el, batch)
+            }
+        }
       println(x)
       assertCompletes
-    } @@ TestAspect.ignore,
+    },
     testM("explore getItem1 zip getItem2 zip putItem1") {
       val zipped1: DynamoDBQuery[((Option[Item], Option[Item]), Unit)] = getItem1 zip getItem2 zip putItem1
       val batched: DynamoDBQuery[((Option[Item], Option[Item]), Unit)] = batchAdjacentGetItems(zipped1)
