@@ -65,7 +65,6 @@ object DynamoDBQuery {
     /*
      for each added GetItem, check it's key exists in the response and create a corresponding Optional Item value
      */
-    //TODO: move to companion object
     def toGetItemResponses(response: BatchGetItem.Response): Chunk[Option[Item]] = {
       val chunk: Chunk[Option[Item]] = addList.foldLeft[Chunk[Option[Item]]](Chunk.empty) {
         case (chunk, getItem) =>
@@ -99,7 +98,7 @@ object DynamoDBQuery {
     final case class TableResponse(
       readConsistency: ConsistencyMode,
       expressionAttributeNames: Map[String, String], // for use with projections expression
-      keys: PrimaryKey,
+      keys: Set[PrimaryKey] = Set.empty,
       projections: List[ProjectionExpression] =
         List.empty                                   // If no attribute names are specified, then all attributes are returned
     )
@@ -108,7 +107,7 @@ object DynamoDBQuery {
 
       // Note - if a requested item does not exist, it is not returned in the result
       responses: MapOfSet[TableName, Item] = MapOfSet.empty,
-      unprocessedKeys: ScalaMap[TableName, TableResponse] = ScalaMap.empty /// TODO: fix structure
+      unprocessedKeys: ScalaMap[TableName, TableResponse] = ScalaMap.empty
     )
   }
 
