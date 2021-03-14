@@ -1,7 +1,17 @@
 package zio.dynamodb
 
 import zio.{ Chunk, ZIO }
-import zio.dynamodb.DynamoDBQuery.{ parallelize, BatchGetItem, Constructor, GetItem, Zip }
+import zio.dynamodb.DynamoDBQuery.{
+  parallelize,
+  BatchGetItem,
+  BatchWriteItem,
+  Constructor,
+  DeleteItem,
+  GetItem,
+  PutItem,
+  Write,
+  Zip
+}
 import zio.dynamodb.TestFixtures._
 import zio.test.Assertion._
 import zio.test.{ assert, assertCompletes, DefaultRunnableSpec, TestAspect }
@@ -62,33 +72,49 @@ object BatchingExperimentSpec extends DefaultRunnableSpec {
 
   private def batchGets(
     constructors: Chunk[Constructor[Any]]
-  ): (Chunk[(Constructor[Any], Int)], (BatchGetItem, Chunk[Int])) = {
+  ): (Chunk[(Constructor[Any], Int)], (BatchGetItem, Chunk[Int]), (BatchWriteItem, Chunk[Int])) = {
     type IndexedConstructor = (Constructor[Any], Int)
     type IndexedGetItem     = (GetItem, Int)
+    type IndexedWriteItem   = (Write[Unit], Int)
 
-    // partition into gets/non gets
-    val (nonGets, gets) =
-      constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem])](
-        (Chunk.empty, Chunk.empty)
+    // partition into nonBatched/batched gets/batched writes
+    val (nonBatched, gets, writes) =
+      constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem], Chunk[IndexedWriteItem])](
+        (Chunk.empty, Chunk.empty, Chunk.empty)
       ) {
-        case ((nonGets, gets), (gi @ GetItem(_, _, _, _, _), index)) =>
-          (nonGets, gets :+ ((gi, index)))
-        case ((nonGets, gets), (nonGetItem, index))                  =>
-          (nonGets :+ ((nonGetItem, index)), gets)
+        case ((nonGets, gets, writes), (gi @ GetItem(_, _, _, _, _), index))       =>
+          (nonGets, gets :+ ((gi, index)), writes)
+        case ((nonGets, gets, writes), (pi @ PutItem(_, _, _, _, _, _), index))    =>
+          (nonGets, gets, writes :+ ((pi, index)))
+        case ((nonGets, gets, writes), (di @ DeleteItem(_, _, _, _, _, _), index)) =>
+          (nonGets, gets, writes :+ ((di, index)))
+        case ((nonGets, gets, writes), (nonGetItem, index))                        =>
+          (nonGets :+ ((nonGetItem, index)), gets, writes)
       }
 
-    val batchWithIndexes: (BatchGetItem, Chunk[Int]) = gets
+    val indexedBatchGetItem: (BatchGetItem, Chunk[Int]) = gets
       .foldLeft[(BatchGetItem, Chunk[Int])]((BatchGetItem(), Chunk.empty)) {
         case ((batchGetItem, indexes), (getItem, index)) => (batchGetItem + getItem, indexes :+ index)
       }
 
-    (nonGets, batchWithIndexes)
+    val indexedBatchWrite: (BatchWriteItem, Chunk[Int]) = writes
+      .foldLeft[(BatchWriteItem, Chunk[Int])]((BatchWriteItem(), Chunk.empty)) {
+        case ((batchWriteItem, indexes), (writeItem, index)) => (batchWriteItem + writeItem, indexes :+ index)
+      }
+
+    println(s"nonGets=$nonBatched")
+    println(s"indexedBatchGetItem=$indexedBatchGetItem")
+    println(s"indexedBatchWrite=$indexedBatchWrite")
+
+    (nonBatched, indexedBatchGetItem, indexedBatchWrite)
   }
 
   val experimentalSuite = suite("explore batching")(
-    testM("explore batchGets") {
-      val (constructors, assembler)                           = parallelize(putItem1 zip getItem1 zip getItem2 zip deleteItem1)
-      val (indexedConstructors, (batchGetItem, batchIndexes)) = batchGets(constructors)
+    testM("batch GetItem's and PutItem's and DeleteItem's") {
+      val (constructors, assembler)                                                                   =
+        parallelize(putItem1 zip getItem1 zip getItem2 zip deleteItem1)
+      val (indexedConstructors, (batchGetItem, batchGetIndexes), (batchWriteItem, batchWriteIndexes)) =
+        batchGets(constructors)
 
       for {
         indexedNonGetResponses <- ZIO.foreach(indexedConstructors) {
@@ -96,10 +122,14 @@ object BatchingExperimentSpec extends DefaultRunnableSpec {
                                       ddbExecute(constructor).map(result => (result, index))
                                   }
         indexedGetResponses    <-
-          ddbExecute(batchGetItem).map(resp => batchGetItem.toGetItemResponses(resp) zip batchIndexes)
-        combined                = (indexedNonGetResponses ++ indexedGetResponses).sortBy {
+          ddbExecute(batchGetItem).map(resp => batchGetItem.toGetItemResponses(resp) zip batchGetIndexes)
+        indexedWriteResponses  <-
+          // TODO: think about mapping return values from writes
+          ddbExecute(batchWriteItem).map(_ => batchWriteItem.addList.map(_ => ()) zip batchWriteIndexes)
+        combined                = (indexedNonGetResponses ++ indexedGetResponses ++ indexedWriteResponses).sortBy {
                                     case (_, index) => index
                                   }.map(_._1)
+        _                       = println(s"combined=$combined")
         result                  = assembler(combined)
         expected                = ((((), None), None), ())
       } yield assert(result)(equalTo(expected))

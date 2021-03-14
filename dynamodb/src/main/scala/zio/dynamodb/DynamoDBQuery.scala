@@ -37,6 +37,7 @@ object DynamoDBQuery {
   import scala.collection.immutable.{ Map => ScalaMap }
 
   sealed trait Constructor[+A] extends DynamoDBQuery[A]
+  sealed trait Write[+A]       extends Constructor[A]
 
   final case class Succeed[A](value: () => A) extends Constructor[A]
 
@@ -119,21 +120,23 @@ object DynamoDBQuery {
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     addList: Chunk[BatchWriteItem.Write] = Chunk.empty
   ) extends DynamoDBQuery[BatchWriteItem.Response] { self =>
-    def +(putItem: PutItem): BatchWriteItem =
-      BatchWriteItem(
-        self.requestItems + ((putItem.tableName, Put(putItem.item))),
-        self.capacity,
-        self.itemMetrics,
-        self.addList :+ Put(putItem.item)
-      )
-
-    def +(putItem: DeleteItem): BatchWriteItem =
-      BatchWriteItem(
-        self.requestItems + ((putItem.tableName, Delete(putItem.key))),
-        self.capacity,
-        self.itemMetrics,
-        self.addList :+ Delete(putItem.key)
-      )
+    def +[A](writeItem: Write[A]): BatchWriteItem =
+      writeItem match {
+        case putItem @ PutItem(_, _, _, _, _, _)       =>
+          BatchWriteItem(
+            self.requestItems + ((putItem.tableName, Put(putItem.item))),
+            self.capacity,
+            self.itemMetrics,
+            self.addList :+ Put(putItem.item)
+          )
+        case deleteItem @ DeleteItem(_, _, _, _, _, _) =>
+          BatchWriteItem(
+            self.requestItems + ((deleteItem.tableName, Delete(deleteItem.key))),
+            self.capacity,
+            self.itemMetrics,
+            self.addList :+ Delete(deleteItem.key)
+          )
+      }
 
     def ++(that: BatchWriteItem): BatchWriteItem =
       BatchWriteItem(self.requestItems ++ that.requestItems, self.capacity, self.itemMetrics)
@@ -193,7 +196,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues = ReturnValues.None // PutItem does not recognize any values other than NONE or ALL_OLD.
-  ) extends Constructor[Unit] // TODO: model response
+  ) extends Write[Unit] // TODO: model response
 
   final case class UpdateItem(
     tableName: TableName,
@@ -213,7 +216,7 @@ object DynamoDBQuery {
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues =
       ReturnValues.None // DeleteItem does not recognize any values other than NONE or ALL_OLD.
-  ) extends Constructor[Unit] // TODO: model response
+  ) extends Write[Unit] // TODO: model response
 
   final case class CreateTable(
     tableName: TableName,
