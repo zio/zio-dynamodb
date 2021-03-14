@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.Chunk
+import zio.{ Chunk, ZIO }
 import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, Constructor, GetItem, Zip }
 import zio.dynamodb.TestFixtures._
 import zio.test.Assertion._
@@ -11,20 +11,6 @@ import scala.collection.immutable.{ Map => ScalaMap }
 object BatchingExperimentSpec extends DefaultRunnableSpec {
 
   override def spec = suite("Batch Experiment")(experimentalSuite)
-
-  def batchGetItemResponseToGetItemResponses(
-    batchQuery: BatchGetItem,
-    batchResponse: BatchGetItem.Response
-  ): Chunk[Option[Item]] = {
-    /*
-     for each key, check it exists in the response and create a corresponding Optional Item value
-     */
-    val keySet: Iterable[TableName] = batchQuery.requestItems.map.keys
-    println(keySet)
-    println(batchResponse)
-
-    Chunk.empty
-  }
 
   def batchAdjacentGetItems[A](query: DynamoDBQuery[A]): DynamoDBQuery[A] =
     query match {
@@ -54,17 +40,70 @@ object BatchingExperimentSpec extends DefaultRunnableSpec {
         other
     }
 
-  /*
-      override def execute[A](query: DynamoDBQuery[A]): ZIO[Any, Exception, A] = {
-        val (constructors, assembler) = parallelize(query)
+//  private def batchGets(
+//    tuple: (Chunk[Constructor[Any]], Chunk[Any] => Any)
+//  ): (Chunk[Constructor[Any]], Chunk[Any] => Any) =
+//    tuple match {
+//      case (constructors, assembler) =>
+//        type IndexedConstructor = (Constructor[Any], Int)
+//        type IndexedGetItem     = (GetItem, Int)
+//        // partition into gets/non gets
+//        val (nonGets, gets) =
+//          constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem])](
+//            (Chunk.empty, Chunk.empty)
+//          ) {
+//            case ((nonGets, gets), (y: GetItem, index)) => (nonGets, gets :+ ((y, index)))
+//            case ((nonGets, gets), (y, index))          => (nonGets :+ ((y, index)), gets)
+//          }
+//      /*
+//        add gets to BatchGetItem
+//       */
+//    }
 
-        for {
-          chunks   <- ZIO.foreach(constructors)(dynamoDb.execute)
-          assembled = assembler(chunks)
-        } yield assembled
+  private def batchGets(
+    constructors: Chunk[Constructor[Any]]
+  ): (Chunk[(Constructor[Any], Int)], (BatchGetItem, Chunk[Int])) = {
+    type IndexedConstructor = (Constructor[Any], Int)
+    type IndexedGetItem     = (GetItem, Int)
+    // partition into gets/non gets
+    val (nonGets, gets) =
+      constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem])](
+        (Chunk.empty, Chunk.empty)
+      ) {
+        case ((nonGets, gets), (y: GetItem, index)) => (nonGets, gets :+ ((y, index)))
+        case ((nonGets, gets), (y, index))          => (nonGets :+ ((y, index)), gets)
       }
-   */
+
+    val batchWithIndexes: (BatchGetItem, Chunk[Int]) = gets
+      .foldLeft[(BatchGetItem, Chunk[Int])]((BatchGetItem(), Chunk.empty)) {
+        case ((batchGetItem, indexes), (getItem, index)) => (batchGetItem + getItem, indexes :+ index)
+      }
+
+    (nonGets, batchWithIndexes)
+  }
+
   val experimentalSuite = suite("explore batching")(
+    testM("explore batchGets") {
+      val constructors = Chunk(putItem1, getItem1, getItem2, deleteItem1)
+
+      println(s"$constructors")
+
+      val (indexedConstructors, (batchGetItem, batchIndexes)) = batchGets(constructors)
+      println(s"batchGetItem=$batchGetItem")
+      println(s"batchIndexes=$batchIndexes")
+
+      for {
+        indexedNonGetResponses <- ZIO.foreach(indexedConstructors) {
+                                    case (constructor, index) =>
+                                      ddbExecute(constructor).map(result => (result, index))
+                                  }
+        indexedGetResponses    <-
+          ddbExecute(batchGetItem).map(resp => (batchGetItem.toGetItemResponses(resp) zip batchIndexes))
+        combined                = (indexedNonGetResponses ++ indexedGetResponses).sortBy {
+                                    case (_, index) => index // TODO check sorting stuff
+                                  }.map(_._1)
+      } yield (assert(combined)(equalTo(Chunk((), None, None, ()))))
+    },
     test("explore GetItem batching") {
 
       val (constructors, assembler)                 = DynamoDBQuery.parallelize(putItem1 zip getItem1 zip getItem2 zip deleteItem1)
@@ -79,7 +118,7 @@ object BatchingExperimentSpec extends DefaultRunnableSpec {
         }
       println(x)
       assertCompletes
-    },
+    } @@ TestAspect.ignore,
     testM("explore getItem1 zip getItem2 zip putItem1") {
       val zipped1: DynamoDBQuery[((Option[Item], Option[Item]), Unit)] = getItem1 zip getItem2 zip putItem1
       val batched: DynamoDBQuery[((Option[Item], Option[Item]), Unit)] = batchAdjacentGetItems(zipped1)

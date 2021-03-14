@@ -1,8 +1,8 @@
 package zio.dynamodb
 
+import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableItem
 import zio.dynamodb.DynamoDBQuery.parallelize
-import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
 import zio.stream.ZStream
 import zio.{ Chunk, ZIO }
 
@@ -15,10 +15,20 @@ sealed trait DynamoDBQuery[+A] { self =>
 
   def execute: ZIO[DynamoDBExecutor, Exception, A] = {
     val (constructors, assembler) = parallelize(self)
+    println(s"constructors=$constructors")
+    // split constructors into batched and non batched
+
+    // execute non batched with index back into constructors chunks
+    // execute batched with index back into constructors chunks
+
+    // stitch original shaped chunks back together again
+    //   add both chunks together, sorted on original index
+    //   map over these chunks to return just values
+    // feed this to assembler
 
     for {
-      dynamoDb <- ZIO.service[DynamoDBExecutor.Service]
-      chunks   <- ZIO.foreach(constructors)(dynamoDb.execute)
+      chunks   <- ZIO.foreach(constructors)(ddbExecute)
+      _         = println(s"chunks=$chunks")
       assembled = assembler(chunks)
     } yield assembled
   }
@@ -51,17 +61,35 @@ object DynamoDBQuery {
 
   // TODO: should this be publicly visible?
   final case class BatchGetItem(
-    requestItems: MapOfSet[TableName, BatchGetItem.TableItem],
+    requestItems: MapOfSet[TableName, BatchGetItem.TableItem] = MapOfSet.empty,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    addList: Chunk[PrimaryKey] = Chunk.empty // track order of added GetItems for later unpacking
+    addList: Chunk[GetItem] = Chunk.empty // track order of added GetItems for later unpacking
   ) extends Constructor[BatchGetItem.Response] { self =>
 
     def +(getItem: GetItem): BatchGetItem =
       BatchGetItem(
         self.requestItems + ((getItem.tableName, TableItem(getItem.key, getItem.projections))),
         self.capacity,
-        self.addList :+ getItem.key
+        self.addList :+ getItem
       )
+
+    /*
+     for each added GetItem, check it's key exists in the response and create a corresponding Optional Item value
+     */
+    //TODO: move to companion object
+    def toGetItemResponses(response: BatchGetItem.Response): Chunk[Option[Item]] = {
+      val chunk: Chunk[Option[Item]] = addList.foldLeft[Chunk[Option[Item]]](Chunk.empty) {
+        case (chunk, getItem) =>
+          val responsesForTable: Set[Item] = response.responses.map.getOrElse(getItem.tableName, Set.empty[Item])
+          val found: Option[Item]          = responsesForTable.find { item =>
+            getItem.key.value.toSet.subsetOf(item.value.toSet)
+          }
+
+          found.fold(chunk :+ None)(item => chunk :+ Some(item))
+      }
+
+      chunk
+    }
 
     // TODO: remove
     def ++(getItems: Chunk[GetItem]): BatchGetItem =
@@ -90,17 +118,14 @@ object DynamoDBQuery {
       // TODO: return metadata
 
       // Note - if a requested item does not exist, it is not returned in the result
-      responses: MapOfSet[
-        TableName,
-        Item
-      ],
-      unprocessedKeys: ScalaMap[TableName, TableResponse]
+      responses: MapOfSet[TableName, Item] = MapOfSet.empty,
+      unprocessedKeys: ScalaMap[TableName, TableResponse] = ScalaMap.empty /// TODO: fix structure
     )
   }
 
   // TODO: should this be publicly visible?
   final case class BatchWriteItem(
-    requestItems: MapOfSet[TableName, BatchWriteItem.Write],
+    requestItems: MapOfSet[TableName, BatchWriteItem.Write] = MapOfSet.empty,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None
   ) extends DynamoDBQuery[BatchWriteItem.Response] { self =>
@@ -115,7 +140,7 @@ object DynamoDBQuery {
 
     final case class Response(
       // TODO: return metadata
-      unprocessedKeys: MapOfSet[TableName, BatchWriteItem.Write]
+      unprocessedKeys: MapOfSet[TableName, BatchWriteItem.Write] = MapOfSet.empty
     )
 
   }
@@ -201,6 +226,25 @@ object DynamoDBQuery {
   final case class Map[A, B](query: DynamoDBQuery[A], mapper: A => B)         extends DynamoDBQuery[B]
 
   def apply[A](a: => A): DynamoDBQuery[A] = Succeed(() => a)
+
+//  private def batchGets(
+//    tuple: (Chunk[Constructor[Any]], Chunk[Any] => Any)
+//  ): (Chunk[Constructor[Any]], Chunk[Any] => Any) =
+//    tuple match {
+//      case (constructors, assembler) =>
+//        type IndexedConstructor = (Constructor[Any], Int)
+//        type IndexedGetItem     = (GetItem, Int)
+//        // partion into gets/non gets
+//        val (nonGets, gets) =
+//          constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem])]((Chunk.empty, Chunk.empty)) {
+//            case ((nonGets, gets), (y: GetItem, index)) => (nonGets, gets :+ ((y, index)))
+//            case ((nonGets, gets), (y, index))          => (nonGets :+ ((y, index)), gets)
+//          }
+//        /*
+//
+//         */
+//        val x = BatchGetItem(MapOfSet.empty, )
+//    }
 
   private[dynamodb] def parallelize[A](query: DynamoDBQuery[A]): (Chunk[Constructor[Any]], Chunk[Any] => A) =
     query match {
