@@ -1,6 +1,7 @@
 package zio.dynamodb
 
 import zio.Chunk
+import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableItem
 import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem }
 import zio.dynamodb.TestFixtures._
 import zio.test.Assertion._
@@ -13,9 +14,20 @@ object BatchingModelSpec extends DefaultRunnableSpec {
 
   val batchGetItemSuite = suite("BatchGetItem")(
     test("should aggregate GetItems using +") {
-      val batch = (BatchGetItem(MapOfSet.empty) + getItem1) + getItem2
+      val batch = BatchGetItem(MapOfSet.empty) + getItem1
 
-      assert(batch.addList)(equalTo(Chunk(getItem1, getItem2)))
+      assert(batch.addList)(equalTo(Chunk(getItem1))) &&
+      assert(batch.requestItems)(
+        equalTo(
+          MapOfSet[TableName, TableItem](
+            ScalaMap(
+              tableName1 -> Set(
+                TableItem(getItem1.key, getItem1.projections)
+              )
+            )
+          )
+        )
+      )
     },
     test("with aggregate GetItems should return Some values back when keys are found") {
       val batch    = (BatchGetItem(MapOfSet.empty) + getItem1) + getItem2
@@ -36,7 +48,7 @@ object BatchingModelSpec extends DefaultRunnableSpec {
   )
 
   val batchWriteItemSuite = suite("BatchWriteItem")(
-    test("should aggregate PutItem's using +") {
+    test("should aggregate a PutItem and then a DeleteItem using +") {
       val batch: BatchWriteItem = (BatchWriteItem(MapOfSet.empty) + putItem1) + deleteItem1
 
       assert(batch.addList)(
