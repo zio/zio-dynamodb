@@ -2,6 +2,7 @@ package zio.dynamodb
 
 import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableItem
+import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put }
 import zio.dynamodb.DynamoDBQuery.parallelize
 import zio.stream.ZStream
 import zio.{ Chunk, ZIO }
@@ -115,8 +116,24 @@ object DynamoDBQuery {
   final case class BatchWriteItem(
     requestItems: MapOfSet[TableName, BatchWriteItem.Write] = MapOfSet.empty,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None
+    itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
+    addList: Chunk[BatchWriteItem.Write] = Chunk.empty
   ) extends DynamoDBQuery[BatchWriteItem.Response] { self =>
+    def +(putItem: PutItem): BatchWriteItem =
+      BatchWriteItem(
+        self.requestItems + ((putItem.tableName, Put(putItem.item))),
+        self.capacity,
+        self.itemMetrics,
+        self.addList :+ Put(putItem.item)
+      )
+
+    def +(putItem: DeleteItem): BatchWriteItem =
+      BatchWriteItem(
+        self.requestItems + ((putItem.tableName, Delete(putItem.key))),
+        self.capacity,
+        self.itemMetrics,
+        self.addList :+ Delete(putItem.key)
+      )
 
     def ++(that: BatchWriteItem): BatchWriteItem =
       BatchWriteItem(self.requestItems ++ that.requestItems, self.capacity, self.itemMetrics)

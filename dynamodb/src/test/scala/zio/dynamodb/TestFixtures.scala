@@ -22,8 +22,9 @@ object TestFixtures {
   val getItem3                                                = GetItem(key = primaryKey3, tableName = tableName3)
   val zippedGets: DynamoDBQuery[(Option[Item], Option[Item])] = getItem1 zip getItem2
 
-  val putItem1    = PutItem(tableName = tableName1, item = Item(ScalaMap.empty))
-  val deleteItem1 = DeleteItem(tableName = tableName2, key = PrimaryKey(ScalaMap.empty))
+  val putItem1    = PutItem(tableName = tableName1, item = Item(ScalaMap("k1" -> AttributeValue.String("k1"))))
+  val putItem2    = PutItem(tableName = tableName1, item = Item(ScalaMap("k2" -> AttributeValue.String("k2"))))
+  val deleteItem1 = DeleteItem(tableName = tableName1, key = PrimaryKey(ScalaMap.empty))
   val stream1     = ZStream(emptyItem)
   val scan1       = Scan(tableName1, indexName1)
 }

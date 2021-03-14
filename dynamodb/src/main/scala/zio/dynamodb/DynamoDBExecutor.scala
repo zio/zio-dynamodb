@@ -22,8 +22,8 @@ object DynamoDBExecutor {
             // TODO: we could execute in a loop
             ZIO.succeed(BatchGetItem.Response(MapOfSet.empty, ScalaMap.empty))
 
-          case BatchWriteItem(requestItems, capacity, metrics)                                      =>
-            println(s"$requestItems $capacity $metrics")
+          case BatchWriteItem(requestItems, capacity, metrics, addList)                             =>
+            println(s"$requestItems $capacity $metrics $addList")
             // TODO: we could execute in a loop
             ZIO.succeed(BatchWriteItem.Response(null))
 
