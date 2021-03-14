@@ -66,23 +66,16 @@ object BatchingExperimentSpec extends DefaultRunnableSpec {
     type IndexedConstructor = (Constructor[Any], Int)
     type IndexedGetItem     = (GetItem, Int)
 
-    val zipWithIndex = constructors.zipWithIndex
-    println(s"zipWithIndex=$zipWithIndex")
-
     // partition into gets/non gets
     val (nonGets, gets) =
       constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem])](
         (Chunk.empty, Chunk.empty)
       ) {
-        case ((nonGets, gets), (y: GetItem, index)) =>
-          (nonGets, gets :+ ((y, index)))
-        case ((nonGets, gets), (y, index))          =>
-          (nonGets :+ ((y, index)), gets)
+        case ((nonGets, gets), (gi @ GetItem(_, _, _, _, _), index)) =>
+          (nonGets, gets :+ ((gi, index)))
+        case ((nonGets, gets), (nonGetItem, index))                  =>
+          (nonGets :+ ((nonGetItem, index)), gets)
       }
-
-    println(s"constructors=$constructors")
-    println(s"nonGets=$nonGets")
-    println(s"gets=$gets")
 
     val batchWithIndexes: (BatchGetItem, Chunk[Int]) = gets
       .foldLeft[(BatchGetItem, Chunk[Int])]((BatchGetItem(), Chunk.empty)) {
@@ -94,18 +87,8 @@ object BatchingExperimentSpec extends DefaultRunnableSpec {
 
   val experimentalSuite = suite("explore batching")(
     testM("explore batchGets") {
-      val (constructors2, _)                    = parallelize(putItem1 zip getItem1 zip getItem2 zip deleteItem1)
-      val constructors: Chunk[Constructor[Any]] = Chunk[Constructor[Any]](putItem1, getItem1, getItem2, deleteItem1)
-
-      val b = constructors == constructors2
-
-      println(s"b=$b")
-      println(s"constructors =$constructors")
-      println(s"constructors2=$constructors2")
-
-      val (indexedConstructors, (batchGetItem, batchIndexes)) = batchGets(constructors2)
-      println(s"batchGetItem=$batchGetItem")
-      println(s"batchIndexes=$batchIndexes")
+      val (constructors, assembler)                           = parallelize(putItem1 zip getItem1 zip getItem2 zip deleteItem1)
+      val (indexedConstructors, (batchGetItem, batchIndexes)) = batchGets(constructors)
 
       for {
         indexedNonGetResponses <- ZIO.foreach(indexedConstructors) {
@@ -113,11 +96,13 @@ object BatchingExperimentSpec extends DefaultRunnableSpec {
                                       ddbExecute(constructor).map(result => (result, index))
                                   }
         indexedGetResponses    <-
-          ddbExecute(batchGetItem).map(resp => (batchGetItem.toGetItemResponses(resp) zip batchIndexes))
+          ddbExecute(batchGetItem).map(resp => batchGetItem.toGetItemResponses(resp) zip batchIndexes)
         combined                = (indexedNonGetResponses ++ indexedGetResponses).sortBy {
-                                    case (_, index) => index // TODO check sorting stuff
+                                    case (_, index) => index
                                   }.map(_._1)
-      } yield (assert(combined)(equalTo(Chunk((), None, None, ()))))
+        result                  = assembler(combined)
+        expected                = ((((), None), None), ())
+      } yield assert(result)(equalTo(expected))
     },
     test("explore GetItem batching") {
 

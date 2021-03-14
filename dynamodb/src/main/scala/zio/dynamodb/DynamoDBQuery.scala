@@ -15,20 +15,9 @@ sealed trait DynamoDBQuery[+A] { self =>
 
   def execute: ZIO[DynamoDBExecutor, Exception, A] = {
     val (constructors, assembler) = parallelize(self)
-    println(s"constructors=$constructors")
-    // split constructors into batched and non batched
-
-    // execute non batched with index back into constructors chunks
-    // execute batched with index back into constructors chunks
-
-    // stitch original shaped chunks back together again
-    //   add both chunks together, sorted on original index
-    //   map over these chunks to return just values
-    // feed this to assembler
 
     for {
       chunks   <- ZIO.foreach(constructors)(ddbExecute)
-      _         = println(s"chunks=$chunks")
       assembled = assembler(chunks)
     } yield assembled
   }
