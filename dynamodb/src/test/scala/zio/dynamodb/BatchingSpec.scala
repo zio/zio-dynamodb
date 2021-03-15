@@ -6,9 +6,9 @@ import zio.test.{ assert, DefaultRunnableSpec }
 
 object BatchingSpec extends DefaultRunnableSpec {
 
-  override def spec = suite("Batch Experiment")(experimentalSuite)
+  override def spec = suite("Batch Experiment")(batchingModelSuite)
 
-  val experimentalSuite = suite("batching should")(
+  val batchingModelSuite = suite("batching should")(
     testM("batch putItem1 zip getItem1 zip getItem2 zip deleteItem1") {
       for {
         result  <- (putItem1 zip getItem1 zip getItem2 zip deleteItem1).execute

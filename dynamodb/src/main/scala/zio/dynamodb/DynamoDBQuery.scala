@@ -3,7 +3,7 @@ package zio.dynamodb
 import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableItem
 import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put }
-import zio.dynamodb.DynamoDBQuery.{ batchGets, parallelize }
+import zio.dynamodb.DynamoDBQuery.{ batched, parallelize }
 import zio.stream.ZStream
 import zio.{ Chunk, ZIO }
 
@@ -17,7 +17,7 @@ sealed trait DynamoDBQuery[+A] { self =>
   def execute: ZIO[DynamoDBExecutor, Exception, A] = {
     val (constructors, assembler)                                                                   = parallelize(self)
     val (indexedConstructors, (batchGetItem, batchGetIndexes), (batchWriteItem, batchWriteIndexes)) =
-      batchGets(constructors)
+      batched(constructors)
 
     for {
       indexedNonGetResponses <- ZIO.foreach(indexedConstructors) {
@@ -268,7 +268,7 @@ object DynamoDBQuery {
 //        val x = BatchGetItem(MapOfSet.empty, )
 //    }
 
-  private[dynamodb] def batchGets(
+  private[dynamodb] def batched(
     constructors: Chunk[Constructor[Any]]
   ): (Chunk[(Constructor[Any], Int)], (BatchGetItem, Chunk[Int]), (BatchWriteItem, Chunk[Int])) = {
     type IndexedConstructor = (Constructor[Any], Int)
@@ -280,13 +280,13 @@ object DynamoDBQuery {
       constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem], Chunk[IndexedWriteItem])](
         (Chunk.empty, Chunk.empty, Chunk.empty)
       ) {
-        case ((nonGets, gets, writes), (gi @ GetItem(_, _, _, _, _), index))       =>
-          (nonGets, gets :+ ((gi, index)), writes)
-        case ((nonGets, gets, writes), (pi @ PutItem(_, _, _, _, _, _), index))    =>
-          (nonGets, gets, writes :+ ((pi, index)))
-        case ((nonGets, gets, writes), (di @ DeleteItem(_, _, _, _, _, _), index)) =>
-          (nonGets, gets, writes :+ ((di, index)))
-        case ((nonGets, gets, writes), (nonGetItem, index))                        =>
+        case ((nonGets, gets, writes), (get @ GetItem(_, _, _, _, _), index))          =>
+          (nonGets, gets :+ ((get, index)), writes)
+        case ((nonGets, gets, writes), (put @ PutItem(_, _, _, _, _, _), index))       =>
+          (nonGets, gets, writes :+ ((put, index)))
+        case ((nonGets, gets, writes), (delete @ DeleteItem(_, _, _, _, _, _), index)) =>
+          (nonGets, gets, writes :+ ((delete, index)))
+        case ((nonGets, gets, writes), (nonGetItem, index))                            =>
           (nonGets :+ ((nonGetItem, index)), gets, writes)
       }
 
