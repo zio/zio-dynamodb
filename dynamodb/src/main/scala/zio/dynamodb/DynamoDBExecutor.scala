@@ -26,7 +26,7 @@ object DynamoDBExecutor {
           case BatchWriteItem(requestItems, capacity, metrics, addList)                             =>
             println(s"$requestItems $capacity $metrics $addList")
             // TODO: we could execute in a loop
-            ZIO.succeed(BatchWriteItem.Response(null))
+            ZIO.succeed(BatchWriteItem.Response())
 
           case GetItem(key, tableName, readConsistency, projections, capacity)                      =>
             println(s"$key $tableName $readConsistency $projections $capacity")
@@ -43,8 +43,8 @@ object DynamoDBExecutor {
             println(s"$tableName $key $conditionExpression $capacity $itemMetrics $returnValues")
             ZIO.succeed(())
 
-          case x                                                                                    =>
-            ZIO.fail(new Exception(s"$x not implemented yet"))
+          case unknown                                                                              =>
+            ZIO.fail(new Exception(s"$unknown not implemented yet"))
         }
 
     })
