@@ -1,8 +1,7 @@
 package zio.dynamodb.examples
 
 import zio.dynamodb.DynamoDBQuery.BatchWriteItem
-import zio.dynamodb.DynamoDBQuery.BatchWriteItem.WriteItemsMap
-import zio.dynamodb.{ AttributeValue, Item, PrimaryKey, TableName }
+import zio.dynamodb._
 
 class BatchWriteItemExamples {
   val pk1    = PrimaryKey(Map("field1" -> AttributeValue.Number(1.0)))
@@ -11,7 +10,7 @@ class BatchWriteItemExamples {
   val table1 = TableName("T1")
   val table2 = TableName("T2")
   val batch  = BatchWriteItem(
-    WriteItemsMap(
+    MapOfSet(
       Map(
         table1 -> Set(BatchWriteItem.Put(item1)),
         table1 -> Set(BatchWriteItem.Put(item2)),
