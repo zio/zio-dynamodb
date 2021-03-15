@@ -16,7 +16,7 @@ object ExecutorSpec extends DefaultRunnableSpec {
     testM("should assemble response") {
       for {
         assembled <- zippedGets.execute
-      } yield assert(assembled)(equalTo((someItem, someItem)))
+      } yield assert(assembled)(equalTo((None, None)))
     }
   ).provideCustomLayer(DynamoDBExecutor.test)
 

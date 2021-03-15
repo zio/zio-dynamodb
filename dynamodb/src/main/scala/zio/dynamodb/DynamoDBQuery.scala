@@ -3,7 +3,7 @@ package zio.dynamodb
 import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableItem
 import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put }
-import zio.dynamodb.DynamoDBQuery.parallelize
+import zio.dynamodb.DynamoDBQuery.{ batchGets, parallelize }
 import zio.stream.ZStream
 import zio.{ Chunk, ZIO }
 
@@ -15,12 +15,26 @@ sealed trait DynamoDBQuery[+A] { self =>
   final def <*>[B](that: DynamoDBQuery[B]): DynamoDBQuery[(A, B)] = self zip that
 
   def execute: ZIO[DynamoDBExecutor, Exception, A] = {
-    val (constructors, assembler) = parallelize(self)
+    val (constructors, assembler)                                                                   = parallelize(self)
+    val (indexedConstructors, (batchGetItem, batchGetIndexes), (batchWriteItem, batchWriteIndexes)) =
+      batchGets(constructors)
 
     for {
-      chunks   <- ZIO.foreach(constructors)(ddbExecute)
-      assembled = assembler(chunks)
-    } yield assembled
+      indexedNonGetResponses <- ZIO.foreach(indexedConstructors) {
+                                  case (constructor, index) =>
+                                    ddbExecute(constructor).map(result => (result, index))
+                                }
+      indexedGetResponses    <-
+        ddbExecute(batchGetItem).map(resp => batchGetItem.toGetItemResponses(resp) zip batchGetIndexes)
+      indexedWriteResponses  <-
+        // TODO: think about mapping return values from writes
+        ddbExecute(batchWriteItem).map(_ => batchWriteItem.addList.map(_ => ()) zip batchWriteIndexes)
+      combined                = (indexedNonGetResponses ++ indexedGetResponses ++ indexedWriteResponses).sortBy {
+                                  case (_, index) => index
+                                }.map(_._1)
+      _                       = println(s"combined=$combined")
+      result                  = assembler(combined)
+    } yield result
   }
 
   final def map[B](f: A => B): DynamoDBQuery[B] = DynamoDBQuery.Map(self, f)
@@ -253,6 +267,45 @@ object DynamoDBQuery {
 //         */
 //        val x = BatchGetItem(MapOfSet.empty, )
 //    }
+
+  private[dynamodb] def batchGets(
+    constructors: Chunk[Constructor[Any]]
+  ): (Chunk[(Constructor[Any], Int)], (BatchGetItem, Chunk[Int]), (BatchWriteItem, Chunk[Int])) = {
+    type IndexedConstructor = (Constructor[Any], Int)
+    type IndexedGetItem     = (GetItem, Int)
+    type IndexedWriteItem   = (Write[Unit], Int)
+
+    // partition into nonBatched/batched gets/batched writes
+    val (nonBatched, gets, writes) =
+      constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem], Chunk[IndexedWriteItem])](
+        (Chunk.empty, Chunk.empty, Chunk.empty)
+      ) {
+        case ((nonGets, gets, writes), (gi @ GetItem(_, _, _, _, _), index))       =>
+          (nonGets, gets :+ ((gi, index)), writes)
+        case ((nonGets, gets, writes), (pi @ PutItem(_, _, _, _, _, _), index))    =>
+          (nonGets, gets, writes :+ ((pi, index)))
+        case ((nonGets, gets, writes), (di @ DeleteItem(_, _, _, _, _, _), index)) =>
+          (nonGets, gets, writes :+ ((di, index)))
+        case ((nonGets, gets, writes), (nonGetItem, index))                        =>
+          (nonGets :+ ((nonGetItem, index)), gets, writes)
+      }
+
+    val indexedBatchGetItem: (BatchGetItem, Chunk[Int]) = gets
+      .foldLeft[(BatchGetItem, Chunk[Int])]((BatchGetItem(), Chunk.empty)) {
+        case ((batchGetItem, indexes), (getItem, index)) => (batchGetItem + getItem, indexes :+ index)
+      }
+
+    val indexedBatchWrite: (BatchWriteItem, Chunk[Int]) = writes
+      .foldLeft[(BatchWriteItem, Chunk[Int])]((BatchWriteItem(), Chunk.empty)) {
+        case ((batchWriteItem, indexes), (writeItem, index)) => (batchWriteItem + writeItem, indexes :+ index)
+      }
+
+    println(s"nonGets=$nonBatched")
+    println(s"indexedBatchGetItem=$indexedBatchGetItem")
+    println(s"indexedBatchWrite=$indexedBatchWrite")
+
+    (nonBatched, indexedBatchGetItem, indexedBatchWrite)
+  }
 
   private[dynamodb] def parallelize[A](query: DynamoDBQuery[A]): (Chunk[Constructor[Any]], Chunk[Any] => A) =
     query match {
