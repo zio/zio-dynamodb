@@ -1,7 +1,8 @@
 package zio.dynamodb
 
-import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem, DeleteItem, GetItem, PutItem }
+import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem, DeleteItem, GetItem, PutItem, UpdateItem }
 import zio.{ Has, ZIO, ZLayer }
+
 import scala.collection.immutable.{ Map => ScalaMap }
 
 object DynamoDBExecutor {
@@ -33,6 +34,9 @@ object DynamoDBExecutor {
 
           case PutItem(tableName, item, conditionExpression, capacity, itemMetrics, returnValues)   =>
             println(s"$tableName $item $conditionExpression $capacity $itemMetrics $returnValues")
+            ZIO.succeed(())
+
+          case UpdateItem(_, _, _, _, _, _, _)                                                      =>
             ZIO.succeed(())
 
           case DeleteItem(tableName, key, conditionExpression, capacity, itemMetrics, returnValues) =>

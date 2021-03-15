@@ -1,7 +1,8 @@
 package zio.dynamodb
 
-import zio.dynamodb.DynamoDBQuery.{ DeleteItem, GetItem, PutItem, Scan }
+import zio.dynamodb.DynamoDBQuery.{ DeleteItem, GetItem, PutItem, Scan, UpdateItem }
 import zio.stream.ZStream
+
 import scala.collection.immutable.{ Map => ScalaMap }
 
 object TestFixtures {
@@ -24,6 +25,7 @@ object TestFixtures {
 
   val putItem1    = PutItem(tableName = tableName1, item = Item(ScalaMap("k1" -> AttributeValue.String("k1"))))
   val putItem2    = PutItem(tableName = tableName1, item = Item(ScalaMap("k2" -> AttributeValue.String("k2"))))
+  val updateItem1 = UpdateItem(tableName = tableName1, primaryKey1)
   val deleteItem1 = DeleteItem(tableName = tableName1, key = PrimaryKey(ScalaMap.empty))
   val stream1     = ZStream(emptyItem)
   val scan1       = Scan(tableName1, indexName1)
