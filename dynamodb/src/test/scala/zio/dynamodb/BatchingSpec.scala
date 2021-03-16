@@ -4,11 +4,12 @@ import zio.dynamodb.TestFixtures._
 import zio.test.Assertion._
 import zio.test.{ assert, DefaultRunnableSpec }
 
+//noinspection TypeAnnotation
 object BatchingSpec extends DefaultRunnableSpec {
 
-  override def spec = suite("Batch Experiment")(batchingModelSuite)
+  override def spec = suite("Batching")(batchingSuite)
 
-  val batchingModelSuite = suite("batching should")(
+  val batchingSuite = suite("batching should")(
     testM("batch putItem1 zip getItem1 zip getItem2 zip deleteItem1") {
       for {
         result  <- (putItem1 zip getItem1 zip getItem2 zip deleteItem1).execute

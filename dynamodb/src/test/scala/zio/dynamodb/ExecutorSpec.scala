@@ -8,6 +8,7 @@ import zio.test.{ assert, DefaultRunnableSpec }
 
 import scala.collection.immutable.{ Map => ScalaMap }
 
+//noinspection TypeAnnotation
 object ExecutorSpec extends DefaultRunnableSpec {
 
   override def spec = suite("Executor")(parallelizeSuite, executeSuite)
@@ -15,7 +16,7 @@ object ExecutorSpec extends DefaultRunnableSpec {
   val executeSuite = suite("execute")(
     testM("should assemble response") {
       for {
-        assembled <- zippedGets.execute
+        assembled <- (getItem1 zip getItem2).execute
       } yield assert(assembled)(equalTo((None, None)))
     }
   ).provideCustomLayer(DynamoDBExecutor.test)
@@ -24,7 +25,7 @@ object ExecutorSpec extends DefaultRunnableSpec {
     suite(label = "parallelize")(
       test(label = "should process Zipped GetItems") {
         val (constructor, assembler): (Chunk[Constructor[Any]], Chunk[Any] => (Option[Item], Option[Item])) =
-          parallelize(zippedGets)
+          parallelize(getItem1 zip getItem2)
         val assembled                                                                                       = assembler(Chunk(someItem("1"), someItem("2")))
 
         assert(constructor)(equalTo(Chunk(getItem1, getItem2))) && assert(assembled)(
