@@ -32,7 +32,6 @@ sealed trait DynamoDBQuery[+A] { self =>
       combined                = (indexedNonGetResponses ++ indexedGetResponses ++ indexedWriteResponses).sortBy {
                                   case (_, index) => index
                                 }.map(_._1)
-      _                       = println(s"combined=$combined")
       result                  = assembler(combined)
     } yield result
   }
@@ -95,15 +94,6 @@ object DynamoDBQuery {
       chunk
     }
 
-    // TODO: remove
-    def ++(getItems: Chunk[GetItem]): BatchGetItem =
-      getItems.foldRight(self) {
-        case (getItem, batch) => batch + getItem
-      }
-
-    // TODO: remove
-    def ++(that: BatchGetItem): BatchGetItem =
-      BatchGetItem(self.requestItems ++ that.requestItems, self.capacity)
   }
   object BatchGetItem {
     final case class TableItem(
@@ -133,7 +123,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     addList: Chunk[BatchWriteItem.Write] = Chunk.empty
-  ) extends DynamoDBQuery[BatchWriteItem.Response] { self =>
+  ) extends Constructor[BatchWriteItem.Response] { self =>
     def +[A](writeItem: Write[A]): BatchWriteItem =
       writeItem match {
         case putItem @ PutItem(_, _, _, _, _, _)       =>
@@ -300,10 +290,6 @@ object DynamoDBQuery {
         case ((batchWriteItem, indexes), (writeItem, index)) => (batchWriteItem + writeItem, indexes :+ index)
       }
 
-    println(s"nonGets=$nonBatched")
-    println(s"indexedBatchGetItem=$indexedBatchGetItem")
-    println(s"indexedBatchWrite=$indexedBatchWrite")
-
     (nonBatched, indexedBatchGetItem, indexedBatchWrite)
   }
 
@@ -330,7 +316,7 @@ object DynamoDBQuery {
 
       case Succeed(value)     => (Chunk.empty, _ => value.asInstanceOf[A])
 
-      case batchGetItem @ BatchGetItem(_, _, _)       =>
+      case batchGetItem @ BatchGetItem(_, _, _)                 =>
         (
           Chunk(batchGetItem),
           (results: Chunk[Any]) => {
@@ -339,7 +325,16 @@ object DynamoDBQuery {
           }
         )
 
-      case getItem @ GetItem(_, _, _, _, _)           =>
+      case batchWriteItem @ BatchWriteItem(_, _, _, _)          =>
+        (
+          Chunk(batchWriteItem),
+          (results: Chunk[Any]) => {
+            println(s"BatchWriteItem results=$results")
+            results.head.asInstanceOf[A]
+          }
+        )
+
+      case getItem @ GetItem(_, _, _, _, _)                     =>
         (
           Chunk(getItem),
           (results: Chunk[Any]) => {
@@ -348,7 +343,7 @@ object DynamoDBQuery {
           }
         )
 
-      case putItem @ PutItem(_, _, _, _, _, _)        =>
+      case putItem @ PutItem(_, _, _, _, _, _)                  =>
         (
           Chunk(putItem),
           (results: Chunk[Any]) => {
@@ -357,7 +352,16 @@ object DynamoDBQuery {
           }
         )
 
-      case deleteItem @ DeleteItem(_, _, _, _, _, _)  =>
+      case updateItem @ UpdateItem(_, _, _, _, _, _, _)         =>
+        (
+          Chunk(updateItem),
+          (results: Chunk[Any]) => {
+            println(s"UpdateItem results=$results")
+            results.head.asInstanceOf[A]
+          }
+        )
+
+      case deleteItem @ DeleteItem(_, _, _, _, _, _)            =>
         (
           Chunk(deleteItem),
           (results: Chunk[Any]) => {
@@ -366,20 +370,33 @@ object DynamoDBQuery {
           }
         )
 
-      case scanItem @ Scan(_, _, _, _, _, _, _, _, _) =>
+      case scan @ Scan(_, _, _, _, _, _, _, _, _)               =>
         (
-          Chunk(scanItem),
+          Chunk(scan),
           (results: Chunk[Any]) => {
             println(s"Scan results=$results")
             results.head.asInstanceOf[A]
           }
         )
 
-      // TODO: put, delete
-      // TODO: scan, query
+      case query @ Query(_, _, _, _, _, _, _, _, _, _)          =>
+        (
+          Chunk(query),
+          (results: Chunk[Any]) => {
+            println(s"Query results=$results")
+            results.head.asInstanceOf[A]
+          }
+        )
 
-      case _                                          =>
-        (Chunk.empty, _ => ().asInstanceOf[A]) //TODO: remove
+      case createTable @ CreateTable(_, _, _, _, _, _, _, _, _) =>
+        (
+          Chunk(createTable),
+          (results: Chunk[Any]) => {
+            println(s"Query results=$results")
+            results.head.asInstanceOf[A]
+          }
+        )
+
     }
 
 }
