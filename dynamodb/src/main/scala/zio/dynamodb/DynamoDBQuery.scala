@@ -270,14 +270,14 @@ object DynamoDBQuery {
       constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem], Chunk[IndexedWriteItem])](
         (Chunk.empty, Chunk.empty, Chunk.empty)
       ) {
-        case ((nonGets, gets, writes), (get @ GetItem(_, _, _, _, _), index))          =>
-          (nonGets, gets :+ ((get, index)), writes)
-        case ((nonGets, gets, writes), (put @ PutItem(_, _, _, _, _, _), index))       =>
-          (nonGets, gets, writes :+ ((put, index)))
-        case ((nonGets, gets, writes), (delete @ DeleteItem(_, _, _, _, _, _), index)) =>
-          (nonGets, gets, writes :+ ((delete, index)))
-        case ((nonGets, gets, writes), (nonGetItem, index))                            =>
-          (nonGets :+ ((nonGetItem, index)), gets, writes)
+        case ((nonBatched, gets, writes), (get @ GetItem(_, _, _, _, _), index))          =>
+          (nonBatched, gets :+ ((get, index)), writes)
+        case ((nonBatched, gets, writes), (put @ PutItem(_, _, _, _, _, _), index))       =>
+          (nonBatched, gets, writes :+ ((put, index)))
+        case ((nonBatched, gets, writes), (delete @ DeleteItem(_, _, _, _, _, _), index)) =>
+          (nonBatched, gets, writes :+ ((delete, index)))
+        case ((nonBatched, gets, writes), (nonGetItem, index))                            =>
+          (nonBatched :+ ((nonGetItem, index)), gets, writes)
       }
 
     val indexedBatchGetItem: (BatchGetItem, Chunk[Int]) = gets
