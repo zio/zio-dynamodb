@@ -265,7 +265,6 @@ object DynamoDBQuery {
     type IndexedGetItem     = (GetItem, Int)
     type IndexedWriteItem   = (Write[Unit], Int)
 
-    // partition into nonBatched/batched gets/batched writes
     val (nonBatched, gets, writes) =
       constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem], Chunk[IndexedWriteItem])](
         (Chunk.empty, Chunk.empty, Chunk.empty)

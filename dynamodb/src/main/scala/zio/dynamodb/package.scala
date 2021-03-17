@@ -8,9 +8,6 @@ package object dynamodb {
   type LastEvaluatedKey = Option[PrimaryKey]
   type Path             = ProjectionExpression
 
-//  private[dynamodb] def execute[A](query: DynamoDBQuery[A]): ZIO[DynamoDBExecutor, Exception, A] =
-//    ZIO.accessM[DynamoDBExecutor](_.get.execute(query))
-
   private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[A]): ZIO[DynamoDBExecutor, Exception, A] =
     ZIO.accessM[DynamoDBExecutor](_.get.execute(query))
 
