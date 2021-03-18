@@ -20,7 +20,7 @@ sealed trait DynamoDBQuery[+A] { self =>
       batched(constructors)
 
     for {
-      indexedNonGetResponses <- ZIO.foreach(indexedConstructors) {
+      indexedNonGetResponses <- ZIO.foreachPar(indexedConstructors) {
                                   case (constructor, index) =>
                                     ddbExecute(constructor).map(result => (result, index))
                                 }
