@@ -72,7 +72,7 @@ object DynamoDBQuery {
 
     def +(getItem: GetItem): BatchGetItem =
       BatchGetItem(
-        self.requestItems + ((getItem.tableName, TableItem(getItem.key, getItem.projections))),
+        self.requestItems + (getItem.tableName -> TableItem(getItem.key, getItem.projections)),
         self.capacity,
         self.addList :+ getItem
       )

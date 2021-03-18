@@ -3,7 +3,7 @@ package zio.dynamodb
 import zio.Chunk
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableItem
 import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem }
-import zio.dynamodb.TestFixtures._
+import zio.dynamodb.DynamoDBExecutor.TestData._
 import zio.test.Assertion._
 import zio.test.{ DefaultRunnableSpec, _ }
 
@@ -34,7 +34,7 @@ object BatchingModelSpec extends DefaultRunnableSpec {
     test("with aggregated GetItem's should return Some values back when keys are found") {
       val batch    = (BatchGetItem(MapOfSet.empty) + getItem1) + getItem2
       val response =
-        BatchGetItem.Response(MapOfSet(ScalaMap(tableName1 -> Set(item("k1")), tableName2 -> Set(item("k2")))))
+        BatchGetItem.Response((MapOfSet.empty + (tableName1 -> item("k1"))) + (tableName1 -> item("k2")))
 
       assert(batch.toGetItemResponses(response))(equalTo(Chunk(Some(item("k1")), Some(item("k2")))))
     },
@@ -42,7 +42,7 @@ object BatchingModelSpec extends DefaultRunnableSpec {
       val batch    = (BatchGetItem(MapOfSet.empty) + getItem1) + getItem2
       val response =
         BatchGetItem.Response(
-          MapOfSet(ScalaMap(tableName1 -> Set(item("NotAKey1")), tableName2 -> Set(item("NotAKey2"))))
+          (MapOfSet.empty + (tableName1 -> item("NotAKey1"))) + (tableName1 -> item("NotAKey2"))
         )
 
       assert(batch.toGetItemResponses(response))(equalTo(Chunk(None, None)))
