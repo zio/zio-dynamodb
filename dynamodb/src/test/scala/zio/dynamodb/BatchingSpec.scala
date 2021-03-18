@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.TestFixtures._
+import zio.dynamodb.DynamoDBExecutor.TestData._
 import zio.test.Assertion._
 import zio.test.{ assert, DefaultRunnableSpec }
 

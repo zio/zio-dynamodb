@@ -3,7 +3,7 @@ package zio.dynamodb
 import zio.Chunk
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableItem
 import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem }
-import zio.dynamodb.TestFixtures._
+import zio.dynamodb.DynamoDBExecutor.TestData._
 import zio.test.Assertion._
 import zio.test.{ DefaultRunnableSpec, _ }
 

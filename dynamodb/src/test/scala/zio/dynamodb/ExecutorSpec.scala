@@ -2,7 +2,7 @@ package zio.dynamodb
 
 import zio.Chunk
 import zio.dynamodb.DynamoDBQuery.{ parallelize, Constructor, Map }
-import zio.dynamodb.TestFixtures._
+import zio.dynamodb.DynamoDBExecutor.TestData._
 import zio.test.Assertion.equalTo
 import zio.test.{ assert, DefaultRunnableSpec }
 
