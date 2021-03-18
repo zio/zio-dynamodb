@@ -19,21 +19,27 @@ sealed trait DynamoDBQuery[+A] { self =>
     val (indexedConstructors, (batchGetItem, batchGetIndexes), (batchWriteItem, batchWriteIndexes)) =
       batched(constructors)
 
-    for {
-      indexedNonGetResponses <- ZIO.foreachPar(indexedConstructors) {
-                                  case (constructor, index) =>
-                                    ddbExecute(constructor).map(result => (result, index))
-                                }
-      indexedGetResponses    <-
-        ddbExecute(batchGetItem).map(resp => batchGetItem.toGetItemResponses(resp) zip batchGetIndexes)
-      indexedWriteResponses  <-
-        // TODO: think about mapping return values from writes
-        ddbExecute(batchWriteItem).map(_ => batchWriteItem.addList.map(_ => ()) zip batchWriteIndexes)
-      combined                = (indexedNonGetResponses ++ indexedGetResponses ++ indexedWriteResponses).sortBy {
-                                  case (_, index) => index
-                                }.map(_._1)
-      result                  = assembler(combined)
-    } yield result
+    val indexedNonBatchedResults =
+      ZIO.foreachPar(indexedConstructors) {
+        case (constructor, index) =>
+          ddbExecute(constructor).map(result => (result, index))
+      }
+
+    val indexedGetResults =
+      ddbExecute(batchGetItem).map(resp => batchGetItem.toGetItemResponses(resp) zip batchGetIndexes)
+
+    val indexedWriteResults =
+      // TODO: think about mapping return values from writes
+      ddbExecute(batchWriteItem).map(_ => batchWriteItem.addList.map(_ => ()) zip batchWriteIndexes)
+
+    (indexedNonBatchedResults zipPar indexedGetResults zipPar indexedWriteResults).map {
+      case ((nonBatched, batchedGets), batchedWrites) =>
+        val combined = (nonBatched ++ batchedGets ++ batchedWrites).sortBy {
+          case (_, index) => index
+        }.map(_._1)
+        assembler(combined)
+    }
+
   }
 
   final def map[B](f: A => B): DynamoDBQuery[B] = DynamoDBQuery.Map(self, f)
