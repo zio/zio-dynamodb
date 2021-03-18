@@ -17,12 +17,12 @@ object ExecutorSpec extends DefaultRunnableSpec {
     testM("should assemble response from getItem1 zip getItem2") {
       for {
         assembled <- (getItem1 zip getItem2).execute
-      } yield assert(assembled)(equalTo((getItemResult1, getItemResult2)))
+      } yield assert(assembled)(equalTo((Some(item1), Some(item2))))
     },
     testM("should assemble response from single GetItem - note these are still batched") {
       for {
         assembled <- getItem1.execute
-      } yield assert(assembled)(equalTo(getItemResult1))
+      } yield assert(assembled)(equalTo(Some(item1)))
     },
     testM("should assemble response from putItem1 zip deleteItem1") {
       for {

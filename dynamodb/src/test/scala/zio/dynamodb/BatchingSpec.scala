@@ -13,19 +13,19 @@ object BatchingSpec extends DefaultRunnableSpec {
     testM("batch putItem1 zip getItem1 zip getItem2 zip deleteItem1") {
       for {
         result  <- (putItem1 zip getItem1 zip getItem2 zip deleteItem1).execute
-        expected = ((((), getItemResult1), getItemResult2), ())
+        expected = ((((), Some(item1)), Some(item2)), ())
       } yield assert(result)(equalTo(expected))
     },
     testM("batch getItem1 zip getItem2") {
       for {
         result  <- (getItem1 zip getItem2).execute
-        expected = (getItemResult1, getItemResult2)
+        expected = (Some(item1), Some(item2))
       } yield assert(result)(equalTo(expected))
     },
     testM("batch updateItem1 zip getItem2") {
       for {
         result  <- (updateItem1 zip getItem2).execute
-        expected = ((), getItemResult2)
+        expected = ((), Some(item2))
       } yield assert(result)(equalTo(expected))
     },
     testM("batch updateItem1 zip updateItem1") {
