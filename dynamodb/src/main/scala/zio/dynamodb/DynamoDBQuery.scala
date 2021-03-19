@@ -148,6 +148,11 @@ object DynamoDBQuery {
           )
       }
 
+    def addAll[A](entries: Write[A]*) =
+      entries.foldLeft(self) {
+        case (map, write) => map + write
+      }
+
     def ++(that: BatchWriteItem): BatchWriteItem =
       BatchWriteItem(self.requestItems ++ that.requestItems, self.capacity, self.itemMetrics)
   }

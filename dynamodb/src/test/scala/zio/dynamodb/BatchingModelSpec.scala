@@ -51,7 +51,7 @@ object BatchingModelSpec extends DefaultRunnableSpec {
 
   val batchWriteItemSuite = suite("BatchWriteItem")(
     test("should aggregate a PutItem and then a DeleteItem for the same table using +") {
-      val batch: BatchWriteItem = (BatchWriteItem(MapOfSet.empty) + putItem1) + deleteItem1
+      val batch: BatchWriteItem = BatchWriteItem().addAll(putItem1, deleteItem1)
 
       assert(batch.addList)(
         equalTo(Chunk(BatchWriteItem.Put(putItem1.item), BatchWriteItem.Delete(deleteItem1.key)))
