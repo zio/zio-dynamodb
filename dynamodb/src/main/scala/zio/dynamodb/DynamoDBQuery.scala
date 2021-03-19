@@ -85,7 +85,7 @@ object DynamoDBQuery {
 
     def addAll(entries: GetItem*): BatchGetItem =
       entries.foldLeft(self) {
-        case (map, getItem) => map + getItem
+        case (batch, getItem) => batch + getItem
       }
 
     /*
@@ -153,9 +153,9 @@ object DynamoDBQuery {
           )
       }
 
-    def addAll[A](entries: Write[A]*) =
+    def addAll[A](entries: Write[A]*): BatchWriteItem =
       entries.foldLeft(self) {
-        case (map, write) => map + write
+        case (batch, write) => batch + write
       }
 
     def ++(that: BatchWriteItem): BatchWriteItem =
