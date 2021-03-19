@@ -83,6 +83,11 @@ object DynamoDBQuery {
         self.addList :+ getItem
       )
 
+    def addAll(entries: GetItem*): BatchGetItem =
+      entries.foldLeft(self) {
+        case (map, getItem) => map + getItem
+      }
+
     /*
      for each added GetItem, check it's key exists in the response and create a corresponding Optional Item value
      */
