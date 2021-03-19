@@ -158,8 +158,6 @@ object DynamoDBQuery {
         case (batch, write) => batch + write
       }
 
-    def ++(that: BatchWriteItem): BatchWriteItem =
-      BatchWriteItem(self.requestItems ++ that.requestItems, self.capacity, self.itemMetrics)
   }
   object BatchWriteItem {
     sealed trait Write
