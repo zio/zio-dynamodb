@@ -5,9 +5,14 @@ import scala.collection.immutable.{ Map => ScalaMap }
 final case class MapOfSet[K, V](map: ScalaMap[K, Set[V]] = ScalaMap.empty) { self =>
   def +(entry: (K, V)): MapOfSet[K, V] = {
     val (key, value) = entry
-    val newEntry     = map.get(key).fold((key, Set(value)))(set => (key, set + value))
-    MapOfSet(map + newEntry)
+    val newEntry     = self.map.get(key).fold((key, Set(value)))(set => (key, set + value))
+    MapOfSet(self.map + newEntry)
   }
+  def addAll(entries: (K, V)*): MapOfSet[K, V] =
+    entries.foldLeft(self) {
+      case (map, (k, v)) => map + (k -> v)
+    }
+
   def ++(that: MapOfSet[K, V]): MapOfSet[K, V] = {
     val xs: Seq[(K, Set[V])]   = that.map.toList
     val m: ScalaMap[K, Set[V]] = xs.foldRight(map) {

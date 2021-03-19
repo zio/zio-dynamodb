@@ -83,6 +83,11 @@ object DynamoDBQuery {
         self.addList :+ getItem
       )
 
+    def addAll(entries: GetItem*): BatchGetItem =
+      entries.foldLeft(self) {
+        case (batch, getItem) => batch + getItem
+      }
+
     /*
      for each added GetItem, check it's key exists in the response and create a corresponding Optional Item value
      */
@@ -148,8 +153,11 @@ object DynamoDBQuery {
           )
       }
 
-    def ++(that: BatchWriteItem): BatchWriteItem =
-      BatchWriteItem(self.requestItems ++ that.requestItems, self.capacity, self.itemMetrics)
+    def addAll[A](entries: Write[A]*): BatchWriteItem =
+      entries.foldLeft(self) {
+        case (batch, write) => batch + write
+      }
+
   }
   object BatchWriteItem {
     sealed trait Write
@@ -276,13 +284,13 @@ object DynamoDBQuery {
         (Chunk.empty, Chunk.empty, Chunk.empty)
       ) {
         case ((nonBatched, gets, writes), (get @ GetItem(_, _, _, _, _), index))          =>
-          (nonBatched, gets :+ ((get, index)), writes)
+          (nonBatched, gets :+ (get -> index), writes)
         case ((nonBatched, gets, writes), (put @ PutItem(_, _, _, _, _, _), index))       =>
-          (nonBatched, gets, writes :+ ((put, index)))
+          (nonBatched, gets, writes :+ (put -> index))
         case ((nonBatched, gets, writes), (delete @ DeleteItem(_, _, _, _, _, _), index)) =>
-          (nonBatched, gets, writes :+ ((delete, index)))
+          (nonBatched, gets, writes :+ (delete -> index))
         case ((nonBatched, gets, writes), (nonGetItem, index))                            =>
-          (nonBatched :+ ((nonGetItem, index)), gets, writes)
+          (nonBatched :+ (nonGetItem -> index), gets, writes)
       }
 
     val indexedBatchGetItem: (BatchGetItem, Chunk[Int]) = gets

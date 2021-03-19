@@ -54,7 +54,7 @@ object DynamoDBExecutor {
           case BatchGetItem(requestItems, capacity, _)                                              =>
             println(s"$requestItems $capacity")
             // TODO: we could execute in a loop
-            val responses = (MapOfSet.empty + (tableName1 -> item1)) + (tableName1 -> item2)
+            val responses = MapOfSet.empty.addAll(tableName1 -> item1, tableName1 -> item2)
             ZIO.succeed(BatchGetItem.Response(responses, ScalaMap.empty))
 
           case BatchWriteItem(requestItems, capacity, metrics, addList)                             =>
