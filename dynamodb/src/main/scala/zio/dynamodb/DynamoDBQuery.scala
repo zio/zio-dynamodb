@@ -197,7 +197,7 @@ object DynamoDBQuery {
     exclusiveStartKey: LastEvaluatedKey =
       None,                                               // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
-    keyConditionExpression: KeyConditionExpression,
+    keyConditionExpression: Option[KeyConditionExpression] = None,
     limit: Option[Int] = None,
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,

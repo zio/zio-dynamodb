@@ -14,20 +14,35 @@ object ExecutorSpec extends DefaultRunnableSpec {
   override def spec = suite("Executor")(parallelizeSuite, executeSuite)
 
   val executeSuite = suite("execute")(
-    testM("should assemble response from getItem1 zip getItem2") {
+    testM("should execute getItem1 zip getItem2") {
       for {
         assembled <- (getItem1 zip getItem2).execute
       } yield assert(assembled)(equalTo((Some(item1), Some(item2))))
     },
-    testM("should assemble response from single GetItem - note these are still batched") {
+    testM("should execute a single GetItem - note these are still batched") {
       for {
         assembled <- getItem1.execute
       } yield assert(assembled)(equalTo(Some(item1)))
     },
-    testM("should assemble response from putItem1 zip deleteItem1") {
+    testM("should execute putItem1 zip deleteItem1") {
       for {
         assembled <- (putItem1 zip deleteItem1).execute
       } yield assert(assembled)(equalTo(((), ())))
+    },
+    testM("should execute a scan") {
+      for {
+        assembled <- (scan1).execute
+      } yield assert(assembled)(equalTo((stream1, None)))
+    },
+    testM("should execute a query") {
+      for {
+        assembled <- (query1).execute
+      } yield assert(assembled)(equalTo((stream1, None)))
+    },
+    testM("should execute create table") {
+      for {
+        assembled <- (createTable1).execute
+      } yield assert(assembled)(equalTo(()))
     }
   ).provideCustomLayer(DynamoDBExecutor.test)
 
