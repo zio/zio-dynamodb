@@ -1,6 +1,16 @@
 package zio.dynamodb
 
-import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem, DeleteItem, GetItem, PutItem, Scan, UpdateItem }
+import zio.dynamodb.DynamoDBQuery.{
+  BatchGetItem,
+  BatchWriteItem,
+  CreateTable,
+  DeleteItem,
+  GetItem,
+  PutItem,
+  Query,
+  Scan,
+  UpdateItem
+}
 import zio.stream.ZStream
 import zio.{ Has, ZIO, ZLayer }
 
@@ -33,12 +43,21 @@ object DynamoDBExecutor {
     val item1       = Item(getItem1.key.value)
     val item2       = Item(getItem2.key.value)
 
-    val putItem1    = PutItem(tableName = tableName1, item = Item(ScalaMap("k1" -> AttributeValue.String("k1"))))
-    val putItem2    = PutItem(tableName = tableName1, item = Item(ScalaMap("k2" -> AttributeValue.String("k2"))))
-    val updateItem1 = UpdateItem(tableName = tableName1, primaryKey1)
-    val deleteItem1 = DeleteItem(tableName = tableName1, key = PrimaryKey(ScalaMap.empty))
-    val stream1     = ZStream(emptyItem)
-    val scan1       = Scan(tableName1, indexName1)
+    val putItem1     = PutItem(tableName = tableName1, item = Item(ScalaMap("k1" -> AttributeValue.String("k1"))))
+    val putItem2     = PutItem(tableName = tableName1, item = Item(ScalaMap("k2" -> AttributeValue.String("k2"))))
+    val updateItem1  = UpdateItem(tableName = tableName1, primaryKey1)
+    val deleteItem1  = DeleteItem(tableName = tableName1, key = PrimaryKey(ScalaMap.empty))
+    val stream1      = ZStream(emptyItem)
+    val scan1        = Scan(tableName1, indexName1)
+    val query1       = Query(tableName1, indexName1)
+    val createTable1 = CreateTable(
+      tableName1,
+      KeySchema("hashKey", "sortKey"),
+      attributeDefinitions = NonEmptySet(AttributeDefinition("attr1", AttributeValueType.String)) + AttributeDefinition(
+        "attr2",
+        AttributeValueType.Number
+      )
+    )
   }
 
   // returns hard coded responses for now
@@ -75,6 +94,55 @@ object DynamoDBExecutor {
 
           case DeleteItem(tableName, key, conditionExpression, capacity, itemMetrics, returnValues) =>
             println(s"$tableName $key $conditionExpression $capacity $itemMetrics $returnValues")
+            ZIO.succeed(())
+
+          case Scan(
+                tableName,
+                indexName,
+                readConsistency,
+                exclusiveStartKey,
+                filterExpression,
+                limit,
+                projections,
+                capacity,
+                select
+              ) =>
+            println(
+              s"$tableName, $indexName, $readConsistency, $exclusiveStartKey, $filterExpression, $limit, $projections, $capacity, $select"
+            )
+            ZIO.succeed((stream1, None))
+
+          case Query(
+                tableName,
+                indexName,
+                readConsistency,
+                exclusiveStartKey,
+                filterExpression,
+                keyConditionExpression,
+                limit,
+                projections,
+                capacity,
+                select
+              ) =>
+            println(
+              s"$tableName, $indexName, $readConsistency, $exclusiveStartKey, $filterExpression, $keyConditionExpression, $limit, $projections, $capacity, $select"
+            )
+            ZIO.succeed((stream1, None))
+
+          case CreateTable(
+                tableName,
+                keySchema,
+                attributeDefinitions,
+                billingMode,
+                globalSecondaryIndexes,
+                localSecondaryIndexes,
+                provisionedThroughput,
+                sseSpecification,
+                tags
+              ) =>
+            println(
+              s"$tableName, $keySchema, $attributeDefinitions, $billingMode, $globalSecondaryIndexes, $localSecondaryIndexes, $provisionedThroughput, $sseSpecification, $tags"
+            )
             ZIO.succeed(())
 
           case unknown                                                                              =>
