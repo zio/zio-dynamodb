@@ -3,11 +3,56 @@ package zio.dynamodb
 import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableItem
 import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put }
-import zio.dynamodb.DynamoDBQuery.{ batched, parallelize }
+import zio.dynamodb.DynamoDBQuery.{
+  batched,
+  parallelize,
+  BatchGetItem,
+  BatchWriteItem,
+  DeleteItem,
+  GetItem,
+  PutItem,
+  QueryAll,
+  QueryPage,
+  ScanAll,
+  ScanPage,
+  UpdateItem
+}
 import zio.stream.Stream
 import zio.{ Chunk, ZIO }
 
 sealed trait DynamoDBQuery[+A] { self =>
+  /*
+  pattern match over self
+  find all uses of ReturnConsumedCapacity and replace with specified
+  slight downside is that query may appear to have "capacity" when in fact it does not support it
+  could we use phantom types to help here?
+   */
+  def capacity(capacity: ReturnConsumedCapacity): DynamoDBQuery[A] =
+    self match {
+      case g: GetItem        =>
+        g.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
+      case b: BatchGetItem   =>
+        b.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
+      case b: BatchWriteItem =>
+        b.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
+      case q: ScanAll        =>
+        q.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
+      case q: ScanPage       =>
+        q.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
+      case q: QueryAll       =>
+        q.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
+      case q: QueryPage      =>
+        q.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
+      case m: PutItem        =>
+        m.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
+      case m: UpdateItem     =>
+        m.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
+      case m: DeleteItem     =>
+        m.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
+      case _                 => self
+    }
+
+  def consistency(consistency: ConsistencyMode): DynamoDBQuery[A] = ???
 
   final def <*[B](that: DynamoDBQuery[B]): DynamoDBQuery[A] = zipLeft(that)
 
@@ -60,6 +105,18 @@ object DynamoDBQuery {
   sealed trait Write[+A]       extends Constructor[A]
 
   final case class Succeed[A](value: () => A) extends Constructor[A]
+
+  /*
+   var args made possible by factoring out parameters
+   */
+  def getItem(
+    tableName: TableName,
+    key: PrimaryKey,
+    projections: ProjectionExpression*
+  ): DynamoDBQuery[Option[Item]] = {
+    println(projections)
+    GetItem(key, tableName)
+  }
 
   final case class GetItem(
     key: PrimaryKey,
