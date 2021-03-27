@@ -115,12 +115,12 @@ object DynamoDBQuery {
     projections: ProjectionExpression*
   ): DynamoDBQuery[Option[Item]] = {
     println(projections)
-    GetItem(key, tableName)
+    GetItem(tableName, key)
   }
 
   final case class GetItem(
-    key: PrimaryKey,
     tableName: TableName,
+    key: PrimaryKey,
     readConsistency: ConsistencyMode = ConsistencyMode.Weak,
     projections: List[ProjectionExpression] =
       List.empty, // If no attribute names are specified, then all attributes are returned

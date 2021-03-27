@@ -8,7 +8,7 @@ trait DynamoDBQueryFunctions {
         readConsistency: ConsistencyMode = ConsistencyMode.Weak,
         capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
       )(projections: ProjectionExpression*): DynamoDBQuery[Option[Item]] =
-        DynamoDBQuery.GetItem(key, tableName, readConsistency, projections.toList, capacity)
+        DynamoDBQuery.GetItem(tableName, key, readConsistency, projections.toList, capacity)
 
     }
 }
