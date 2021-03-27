@@ -8,13 +8,6 @@ import zio.stream.Stream
 import zio.{ Chunk, ZIO }
 
 sealed trait DynamoDBQuery[+A] { self =>
-  /*
-  pattern match over self
-  find all uses of ReturnConsumedCapacity and replace with specified
-   */
-  def capacity(capacity: ReturnConsumedCapacity): DynamoDBQuery[A] = ???
-
-  def consistency(consistency: ConsistencyMode): DynamoDBQuery[A] = ???
 
   final def <*[B](that: DynamoDBQuery[B]): DynamoDBQuery[A] = zipLeft(that)
 
@@ -67,18 +60,6 @@ object DynamoDBQuery {
   sealed trait Write[+A]       extends Constructor[A]
 
   final case class Succeed[A](value: () => A) extends Constructor[A]
-
-  /*
-   var args made possible by factoring out parameters
-   */
-  def getItem(
-    tableName: TableName,
-    key: PrimaryKey,
-    projections: ProjectionExpression*
-  ): DynamoDBQuery[Option[Item]] = {
-    println(projections)
-    GetItem(key = key, tableName = tableName)
-  }
 
   final case class GetItem(
     key: PrimaryKey,
@@ -303,25 +284,6 @@ object DynamoDBQuery {
   final case class Map[A, B](query: DynamoDBQuery[A], mapper: A => B)         extends DynamoDBQuery[B]
 
   def apply[A](a: => A): DynamoDBQuery[A] = Succeed(() => a)
-
-//  private def batchGets(
-//    tuple: (Chunk[Constructor[Any]], Chunk[Any] => Any)
-//  ): (Chunk[Constructor[Any]], Chunk[Any] => Any) =
-//    tuple match {
-//      case (constructors, assembler) =>
-//        type IndexedConstructor = (Constructor[Any], Int)
-//        type IndexedGetItem     = (GetItem, Int)
-//        // partion into gets/non gets
-//        val (nonGets, gets) =
-//          constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem])]((Chunk.empty, Chunk.empty)) {
-//            case ((nonGets, gets), (y: GetItem, index)) => (nonGets, gets :+ ((y, index)))
-//            case ((nonGets, gets), (y, index))          => (nonGets :+ ((y, index)), gets)
-//          }
-//        /*
-//
-//         */
-//        val x = BatchGetItem(MapOfSet.empty, )
-//    }
 
   private[dynamodb] def batched(
     constructors: Chunk[Constructor[Any]]
