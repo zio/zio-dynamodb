@@ -4,10 +4,18 @@ import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableItem
 import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put }
 import zio.dynamodb.DynamoDBQuery.{ batched, parallelize }
-import zio.stream.ZStream
+import zio.stream.Stream
 import zio.{ Chunk, ZIO }
 
 sealed trait DynamoDBQuery[+A] { self =>
+  /*
+  pattern match over self
+  find all uses of ReturnConsumedCapacity and replace with specified
+   */
+  def capacity(capacity: ReturnConsumedCapacity): DynamoDBQuery[A] = ???
+
+  def consistency(consistency: ConsistencyMode): DynamoDBQuery[A] = ???
+
   final def <*[B](that: DynamoDBQuery[B]): DynamoDBQuery[A] = zipLeft(that)
 
   final def *>[B](that: DynamoDBQuery[B]): DynamoDBQuery[B] = zipRight(that)
@@ -59,6 +67,18 @@ object DynamoDBQuery {
   sealed trait Write[+A]       extends Constructor[A]
 
   final case class Succeed[A](value: () => A) extends Constructor[A]
+
+  /*
+   var args made possible by factoring out parameters
+   */
+  def getItem(
+    tableName: TableName,
+    key: PrimaryKey,
+    projections: ProjectionExpression*
+  ): DynamoDBQuery[Option[Item]] = {
+    println(projections)
+    GetItem(key = key, tableName = tableName)
+  }
 
   final case class GetItem(
     key: PrimaryKey,
@@ -174,7 +194,7 @@ object DynamoDBQuery {
   // Interestingly scan can be run in parallel using segment number and total segments fields
   // If running in parallel segment number must be used consistently with the paging token
   // I have removed these fields on the assumption that the library will take care of these concerns
-  final case class Scan[R, E](
+  final case class ScanPage(
     tableName: TableName,
     indexName: IndexName,
     readConsistency: ConsistencyMode = ConsistencyMode.Weak,
@@ -188,9 +208,9 @@ object DynamoDBQuery {
     // there are 2 modes of getting stuff back
     // 1) client does not control paging so we return a None for LastEvaluatedKey
     // 2) client controls paging via Limit so we return the LastEvaluatedKey
-  ) extends Constructor[(ZStream[R, E, Item], LastEvaluatedKey)]
+  ) extends Constructor[(Chunk[Item], LastEvaluatedKey)]
 
-  final case class Query[R, E](
+  final case class QueryPage(
     tableName: TableName,
     indexName: IndexName,
     readConsistency: ConsistencyMode = ConsistencyMode.Weak,
@@ -205,7 +225,38 @@ object DynamoDBQuery {
     // there are 2 modes of getting stuff back
     // 1) client does not control paging so we return a None for LastEvaluatedKey
     // 2) client controls paging via Limit so we return the LastEvaluatedKey
-  ) extends Constructor[(ZStream[R, E, Item], LastEvaluatedKey)]
+  ) extends Constructor[(Chunk[Item], LastEvaluatedKey)]
+
+  final case class ScanAll(
+    tableName: TableName,
+    indexName: IndexName,
+    readConsistency: ConsistencyMode = ConsistencyMode.Weak,
+    exclusiveStartKey: LastEvaluatedKey =
+      None,                                               // allows client to control start position - eg for client managed paging
+    filterExpression: Option[FilterExpression] = None,
+    projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
+    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
+    select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
+    // there are 2 modes of getting stuff back
+    // 1) client does not control paging so we return a None for LastEvaluatedKey
+    // 2) client controls paging via Limit so we return the LastEvaluatedKey
+  ) extends Constructor[Stream[Exception, Item]]
+
+  final case class QueryAll(
+    tableName: TableName,
+    indexName: IndexName,
+    readConsistency: ConsistencyMode = ConsistencyMode.Weak,
+    exclusiveStartKey: LastEvaluatedKey =
+      None,                                               // allows client to control start position - eg for client managed paging
+    filterExpression: Option[FilterExpression] = None,
+    keyConditionExpression: Option[KeyConditionExpression] = None,
+    projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
+    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
+    select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
+    // there are 2 modes of getting stuff back
+    // 1) client does not control paging so we return a None for LastEvaluatedKey
+    // 2) client controls paging via Limit so we return the LastEvaluatedKey
+  ) extends Constructor[Stream[Exception, Item]]
 
   final case class PutItem(
     tableName: TableName,
@@ -383,20 +434,38 @@ object DynamoDBQuery {
           }
         )
 
-      case scan @ Scan(_, _, _, _, _, _, _, _, _)               =>
+      case scan @ ScanPage(_, _, _, _, _, _, _, _, _)           =>
         (
           Chunk(scan),
           (results: Chunk[Any]) => {
-            println(s"Scan results=$results")
+            println(s"ScanPage results=$results")
             results.head.asInstanceOf[A]
           }
         )
 
-      case query @ Query(_, _, _, _, _, _, _, _, _, _)          =>
+      case scan @ ScanAll(_, _, _, _, _, _, _, _)               =>
+        (
+          Chunk(scan),
+          (results: Chunk[Any]) => {
+            println(s"ScanAll results=$results")
+            results.head.asInstanceOf[A]
+          }
+        )
+
+      case query @ QueryPage(_, _, _, _, _, _, _, _, _, _)      =>
         (
           Chunk(query),
           (results: Chunk[Any]) => {
-            println(s"Query results=$results")
+            println(s"QueryPage results=$results")
+            results.head.asInstanceOf[A]
+          }
+        )
+
+      case query @ QueryAll(_, _, _, _, _, _, _, _, _)          =>
+        (
+          Chunk(query),
+          (results: Chunk[Any]) => {
+            println(s"QueryAll results=$results")
             results.head.asInstanceOf[A]
           }
         )
