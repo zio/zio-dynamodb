@@ -7,12 +7,14 @@ import zio.dynamodb.DynamoDBQuery.{
   DeleteItem,
   GetItem,
   PutItem,
-  Query,
-  Scan,
+  QueryAll,
+  QueryPage,
+  ScanAll,
+  ScanPage,
   UpdateItem
 }
 import zio.stream.ZStream
-import zio.{ Has, ZIO, ZLayer }
+import zio.{ Chunk, Has, ZIO, ZLayer }
 
 import scala.collection.immutable.{ Map => ScalaMap }
 
@@ -48,8 +50,10 @@ object DynamoDBExecutor {
     val updateItem1  = UpdateItem(tableName = tableName1, primaryKey1)
     val deleteItem1  = DeleteItem(tableName = tableName1, key = PrimaryKey(ScalaMap.empty))
     val stream1      = ZStream(emptyItem)
-    val scan1        = Scan(tableName1, indexName1)
-    val query1       = Query(tableName1, indexName1)
+    val scanPage1    = ScanPage(tableName1, indexName1)
+    val queryPage1   = QueryPage(tableName1, indexName1)
+    val scanAll1     = ScanAll(tableName1, indexName1)
+    val queryAll1    = QueryAll(tableName1, indexName1)
     val createTable1 = CreateTable(
       tableName1,
       KeySchema("hashKey", "sortKey"),
@@ -96,7 +100,7 @@ object DynamoDBExecutor {
             println(s"$tableName $key $conditionExpression $capacity $itemMetrics $returnValues")
             ZIO.succeed(())
 
-          case Scan(
+          case ScanPage(
                 tableName,
                 indexName,
                 readConsistency,
@@ -110,9 +114,9 @@ object DynamoDBExecutor {
             println(
               s"$tableName, $indexName, $readConsistency, $exclusiveStartKey, $filterExpression, $limit, $projections, $capacity, $select"
             )
-            ZIO.succeed((stream1, None))
+            ZIO.succeed((Chunk(emptyItem), None))
 
-          case Query(
+          case QueryPage(
                 tableName,
                 indexName,
                 readConsistency,
@@ -127,7 +131,38 @@ object DynamoDBExecutor {
             println(
               s"$tableName, $indexName, $readConsistency, $exclusiveStartKey, $filterExpression, $keyConditionExpression, $limit, $projections, $capacity, $select"
             )
-            ZIO.succeed((stream1, None))
+            ZIO.succeed((Chunk(emptyItem), None))
+
+          case ScanAll(
+                tableName,
+                indexName,
+                readConsistency,
+                exclusiveStartKey,
+                filterExpression,
+                projections,
+                capacity,
+                select
+              ) =>
+            println(
+              s"$tableName, $indexName, $readConsistency, $exclusiveStartKey, $filterExpression, $projections, $capacity, $select"
+            )
+            ZIO.succeed(stream1)
+
+          case QueryAll(
+                tableName,
+                indexName,
+                readConsistency,
+                exclusiveStartKey,
+                filterExpression,
+                keyConditionExpression,
+                projections,
+                capacity,
+                select
+              ) =>
+            println(
+              s"$tableName, $indexName, $readConsistency, $exclusiveStartKey, $filterExpression, $keyConditionExpression, $projections, $capacity, $select"
+            )
+            ZIO.succeed(stream1)
 
           case CreateTable(
                 tableName,
@@ -145,8 +180,9 @@ object DynamoDBExecutor {
             )
             ZIO.succeed(())
 
+          // TODO: remove
           case unknown                                                                              =>
-            ZIO.fail(new Exception(s"$unknown not implemented yet"))
+            ZIO.fail(new Exception(s"Constructor $unknown not implemented yet"))
         }
       }
 

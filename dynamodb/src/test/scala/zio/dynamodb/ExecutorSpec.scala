@@ -29,19 +29,29 @@ object ExecutorSpec extends DefaultRunnableSpec {
         assembled <- (putItem1 zip deleteItem1).execute
       } yield assert(assembled)(equalTo(((), ())))
     },
-    testM("should execute a scan") {
+    testM("should execute a ScanPage") {
       for {
-        assembled <- (scan1).execute
-      } yield assert(assembled)(equalTo((stream1, None)))
+        assembled <- scanPage1.execute
+      } yield assert(assembled)(equalTo((Chunk(emptyItem), None)))
     },
-    testM("should execute a query") {
+    testM("should execute a QueryPage") {
       for {
-        assembled <- (query1).execute
-      } yield assert(assembled)(equalTo((stream1, None)))
+        assembled <- queryPage1.execute
+      } yield assert(assembled)(equalTo((Chunk(emptyItem), None)))
+    },
+    testM("should execute a ScanAll") {
+      for {
+        assembled <- scanAll1.execute
+      } yield assert(assembled)(equalTo(stream1))
+    },
+    testM("should execute a QueryAll") {
+      for {
+        assembled <- queryAll1.execute
+      } yield assert(assembled)(equalTo(stream1))
     },
     testM("should execute create table") {
       for {
-        assembled <- (createTable1).execute
+        assembled <- createTable1.execute
       } yield assert(assembled)(equalTo(()))
     }
   ).provideCustomLayer(DynamoDBExecutor.test)
@@ -76,11 +86,11 @@ object ExecutorSpec extends DefaultRunnableSpec {
           equalTo(Some(Item(ScalaMap("1" -> AttributeValue.String("2")))))
         )
       },
-      test("should process Scan constructor") {
-        val (constructor, assembler) = parallelize(scan1)
-        val assembled                = assembler(Chunk((stream1, None)))
+      test("should process ScanPage constructor") {
+        val (constructor, assembler) = parallelize(scanPage1)
+        val assembled                = assembler(Chunk((Chunk(emptyItem), None)))
 
-        assert(constructor)(equalTo(Chunk(scan1))) && assert(assembled)(equalTo((stream1, None)))
+        assert(constructor)(equalTo(Chunk(scanPage1))) && assert(assembled)(equalTo((Chunk(emptyItem), None)))
       }
     )
 
