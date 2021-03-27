@@ -243,9 +243,6 @@ object DynamoDBQuery {
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
-    // there are 2 modes of getting stuff back
-    // 1) client does not control paging so we return a None for LastEvaluatedKey
-    // 2) client controls paging via Limit so we return the LastEvaluatedKey
   ) extends Constructor[(Chunk[Item], LastEvaluatedKey)]
 
   final case class QueryPage(
@@ -260,9 +257,6 @@ object DynamoDBQuery {
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
-    // there are 2 modes of getting stuff back
-    // 1) client does not control paging so we return a None for LastEvaluatedKey
-    // 2) client controls paging via Limit so we return the LastEvaluatedKey
   ) extends Constructor[(Chunk[Item], LastEvaluatedKey)]
 
   final case class ScanAll(
@@ -275,9 +269,6 @@ object DynamoDBQuery {
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
-    // there are 2 modes of getting stuff back
-    // 1) client does not control paging so we return a None for LastEvaluatedKey
-    // 2) client controls paging via Limit so we return the LastEvaluatedKey
   ) extends Constructor[Stream[Exception, Item]]
 
   final case class QueryAll(
@@ -291,9 +282,6 @@ object DynamoDBQuery {
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
-    // there are 2 modes of getting stuff back
-    // 1) client does not control paging so we return a None for LastEvaluatedKey
-    // 2) client controls paging via Limit so we return the LastEvaluatedKey
   ) extends Constructor[Stream[Exception, Item]]
 
   final case class PutItem(
