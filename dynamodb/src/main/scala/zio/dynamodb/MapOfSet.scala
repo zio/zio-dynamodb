@@ -3,6 +3,7 @@ package zio.dynamodb
 import scala.collection.immutable.{ Map => ScalaMap }
 
 final case class MapOfSet[K, V](map: ScalaMap[K, Set[V]] = ScalaMap.empty) { self =>
+
   def +(entry: (K, V)): MapOfSet[K, V] = {
     val (key, value) = entry
     val newEntry     = self.map.get(key).fold((key, Set(value)))(set => (key, set + value))
@@ -24,6 +25,6 @@ final case class MapOfSet[K, V](map: ScalaMap[K, Set[V]] = ScalaMap.empty) { sel
     MapOfSet(m)
   }
 }
-object MapOfSet                                                            {
+object MapOfSet {
   def empty[K, V]: MapOfSet[K, V] = MapOfSet(ScalaMap.empty)
 }

@@ -52,7 +52,20 @@ sealed trait DynamoDBQuery[+A] { self =>
       case _                 => self
     }
 
-  def consistency(consistency: ConsistencyMode): DynamoDBQuery[A] = ???
+  def consistency(consistency: ConsistencyMode): DynamoDBQuery[A] =
+    self match {
+      case g: GetItem   =>
+        g.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[A]]
+      case q: ScanAll   =>
+        q.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[A]]
+      case q: ScanPage  =>
+        q.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[A]]
+      case q: QueryAll  =>
+        q.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[A]]
+      case q: QueryPage =>
+        q.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[A]]
+      case _            => self
+    }
 
   final def <*[B](that: DynamoDBQuery[B]): DynamoDBQuery[A] = zipLeft(that)
 
@@ -121,7 +134,7 @@ object DynamoDBQuery {
   final case class GetItem(
     tableName: TableName,
     key: PrimaryKey,
-    readConsistency: ConsistencyMode = ConsistencyMode.Weak,
+    consistency: ConsistencyMode = ConsistencyMode.Weak,
     projections: List[ProjectionExpression] =
       List.empty, // If no attribute names are specified, then all attributes are returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
@@ -235,7 +248,7 @@ object DynamoDBQuery {
   final case class ScanPage(
     tableName: TableName,
     indexName: IndexName,
-    readConsistency: ConsistencyMode = ConsistencyMode.Weak,
+    consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
       None,                                               // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
@@ -248,7 +261,7 @@ object DynamoDBQuery {
   final case class QueryPage(
     tableName: TableName,
     indexName: IndexName,
-    readConsistency: ConsistencyMode = ConsistencyMode.Weak,
+    consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
       None,                                               // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
@@ -262,7 +275,7 @@ object DynamoDBQuery {
   final case class ScanAll(
     tableName: TableName,
     indexName: IndexName,
-    readConsistency: ConsistencyMode = ConsistencyMode.Weak,
+    consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
       None,                                               // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
@@ -274,7 +287,7 @@ object DynamoDBQuery {
   final case class QueryAll(
     tableName: TableName,
     indexName: IndexName,
-    readConsistency: ConsistencyMode = ConsistencyMode.Weak,
+    consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
       None,                                               // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
