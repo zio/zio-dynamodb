@@ -1,7 +1,7 @@
 package zio.dynamodb
 
 import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
-import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableItem
+import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put }
 import zio.dynamodb.DynamoDBQuery.{
   batched,
@@ -21,13 +21,9 @@ import zio.stream.Stream
 import zio.{ Chunk, ZIO }
 
 sealed trait DynamoDBQuery[+A] { self =>
-  /*
-  pattern match over self
-  find all uses of ReturnConsumedCapacity and replace with specified
-  slight downside is that query may appear to have "capacity" when in fact it does not support it
-  could we use phantom types to help here?
-   */
-  def capacity(capacity: ReturnConsumedCapacity): DynamoDBQuery[A] =
+
+  // if you subtype you avoid the cast
+  final def capacity(capacity: ReturnConsumedCapacity): DynamoDBQuery[A] =
     self match {
       case g: GetItem        =>
         g.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
@@ -52,7 +48,7 @@ sealed trait DynamoDBQuery[+A] { self =>
       case _                 => self
     }
 
-  def consistency(consistency: ConsistencyMode): DynamoDBQuery[A] =
+  final def consistency(consistency: ConsistencyMode): DynamoDBQuery[A] =
     self match {
       case g: GetItem   =>
         g.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[A]]
@@ -109,6 +105,9 @@ sealed trait DynamoDBQuery[+A] { self =>
 
   final def zipRight[B](that: DynamoDBQuery[B]): DynamoDBQuery[B] = (self zip that).map(_._2)
 
+  final def zipWith[B, C](that: DynamoDBQuery[B])(f: (A, B) => C): DynamoDBQuery[C] =
+    self.zip(that).map(f.tupled)
+
 }
 
 object DynamoDBQuery {
@@ -118,6 +117,8 @@ object DynamoDBQuery {
   sealed trait Write[+A]       extends Constructor[A]
 
   final case class Succeed[A](value: () => A) extends Constructor[A]
+
+  def succeed[A](a: => A): DynamoDBQuery[A] = Succeed(() => a)
 
   /*
    var args made possible by factoring out parameters
@@ -131,6 +132,31 @@ object DynamoDBQuery {
     GetItem(tableName, key)
   }
 
+  def forEach[A, B](values: Iterable[A])(body: A => DynamoDBQuery[B]): DynamoDBQuery[List[B]] =
+    values.foldRight[DynamoDBQuery[List[B]]](succeed(Nil)) {
+      // from each element
+      // start with accumulator succeed(Nil)
+      // 1. produce a query by passing the element to the function
+      // 2. produce a single query by cons list inside succeed with query
+      // 3. as this is a fold we end up with a single Query of list
+      case (a, query) => body(a).zipWith(query)(_ :: _)
+    }
+
+  def forEach2[A](values: Iterable[A])(body: A => DynamoDBQuery[Any]): DynamoDBQuery[Any] = {
+    val xs: Iterable[DynamoDBQuery[Any]] = values.map(body)
+    xs.reduceRight[DynamoDBQuery[Any]] {
+      case (q1, q2) => q1 zip q2
+    }
+  }
+
+  /*
+   for returnValues create def returns(returnValues: ReturnValues):
+   for conditionExpression create def where(conditionExpression: ConditionExpression):
+   for metrics create def where(conditionExpression: ConditionExpression):
+   */
+
+  def putItem(tableName: TableName, item: Item): DynamoDBQuery[Unit] = PutItem(tableName, item)
+
   final case class GetItem(
     tableName: TableName,
     key: PrimaryKey,
@@ -142,14 +168,14 @@ object DynamoDBQuery {
 
   // TODO: should this be publicly visible?
   final case class BatchGetItem(
-    requestItems: MapOfSet[TableName, BatchGetItem.TableItem] = MapOfSet.empty,
+    requestItems: MapOfSet[TableName, BatchGetItem.TableGet] = MapOfSet.empty,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     addList: Chunk[GetItem] = Chunk.empty // track order of added GetItems for later unpacking
   ) extends Constructor[BatchGetItem.Response] { self =>
 
     def +(getItem: GetItem): BatchGetItem =
       BatchGetItem(
-        self.requestItems + (getItem.tableName -> TableItem(getItem.key, getItem.projections)),
+        self.requestItems + (getItem.tableName -> TableGet(getItem.key, getItem.projections)),
         self.capacity,
         self.addList :+ getItem
       )
@@ -178,7 +204,7 @@ object DynamoDBQuery {
 
   }
   object BatchGetItem {
-    final case class TableItem(
+    final case class TableGet(
       key: PrimaryKey,
       projections: List[ProjectionExpression] =
         List.empty                                   // If no attribute names are specified, then all attributes are returned
@@ -308,7 +334,7 @@ object DynamoDBQuery {
 
   final case class UpdateItem(
     tableName: TableName,
-    primaryKey: PrimaryKey,
+    key: PrimaryKey,
     conditionExpression: Option[ConditionExpression] = None,
     updateExpression: Set[UpdateExpression] = Set.empty,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
@@ -386,14 +412,21 @@ object DynamoDBQuery {
         }
 
       case Zip(left, right)   =>
+        println(s"left=$left, right=$right")
+        println(s"query=$query")
         val (constructorsLeft, assemblerLeft)   = parallelize(left)
         val (constructorsRight, assemblerRight) = parallelize(right)
+        println(s"constructorsLeft=$constructorsLeft, constructorsRight=$constructorsRight")
         (
           constructorsLeft ++ constructorsRight,
           (results: Chunk[Any]) => {
+            println(s"results=$results")
             val (leftResults, rightResults) = results.splitAt(constructorsLeft.length)
+            println(s"leftResults=$leftResults, rightResults=$rightResults")
             val left                        = assemblerLeft(leftResults)
+            println(s"left=$left")
             val right                       = assemblerRight(rightResults)
+            println(s"right=$right")
             (left, right).asInstanceOf[A]
           }
         )

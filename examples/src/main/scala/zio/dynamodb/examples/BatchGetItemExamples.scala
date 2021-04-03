@@ -8,6 +8,6 @@ class BatchGetItemExamples {
   val table1 = TableName("T1")
   val table2 = TableName("T2")
   val batch  = BatchGetItem(
-    MapOfSet(Map(table1 -> Set(BatchGetItem.TableItem(pk1)), table2 -> Set(BatchGetItem.TableItem(pk1))))
+    MapOfSet(Map(table1 -> Set(BatchGetItem.TableGet(pk1)), table2 -> Set(BatchGetItem.TableGet(pk1))))
   )
 }

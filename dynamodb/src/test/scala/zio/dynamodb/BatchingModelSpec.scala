@@ -1,7 +1,7 @@
 package zio.dynamodb
 
 import zio.Chunk
-import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableItem
+import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem }
 import zio.dynamodb.DynamoDBExecutor.TestData._
 import zio.test.Assertion._
@@ -21,11 +21,11 @@ object BatchingModelSpec extends DefaultRunnableSpec {
       assert(batch.addList)(equalTo(Chunk(getItem1, getItem2))) &&
       assert(batch.requestItems)(
         equalTo(
-          MapOfSet[TableName, TableItem](
+          MapOfSet[TableName, TableGet](
             ScalaMap(
               tableName1 -> Set(
-                TableItem(getItem1.key, getItem1.projections),
-                TableItem(getItem2.key, getItem2.projections)
+                TableGet(getItem1.key, getItem1.projections),
+                TableGet(getItem2.key, getItem2.projections)
               )
             )
           )
