@@ -1,13 +1,14 @@
 package zio.dynamodb
 
-final case class NonEmptySet[A] private (override val head: A, override val tail: Set[A]) extends Iterable[A] {
+final class NonEmptySet[A] private (private val set: Set[A]) extends Iterable[A] {
   self =>
-  def +(a: A): NonEmptySet[A]                  = NonEmptySet(a, self.toSet)
-  def ++(that: NonEmptySet[A]): NonEmptySet[A] = NonEmptySet(that.head, self.toSet ++ that.tail)
+  def +(a: A): NonEmptySet[A]               = new NonEmptySet(set + a)
+  def ++(that: Iterable[A]): NonEmptySet[A] = new NonEmptySet(set ++ that)
 
-  override def iterator: Iterator[A] = (tail + head).iterator
+  override def iterator: Iterator[A] = set.iterator
 
 }
 object NonEmptySet {
-  def apply[A](head: A): NonEmptySet[A] = NonEmptySet(head, tail = Set.empty)
+  def apply[A](head: A, tail: Set[A]): NonEmptySet[A] = new NonEmptySet[A](tail + head)
+  def apply[A](head: A, tail: A*): NonEmptySet[A]     = apply(head, tail.toSet)
 }

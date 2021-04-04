@@ -1,13 +1,100 @@
 package zio.dynamodb
 
 import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
-import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableItem
+import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put }
-import zio.dynamodb.DynamoDBQuery.{ batched, parallelize }
+import zio.dynamodb.DynamoDBQuery.{
+  batched,
+  parallelize,
+  BatchGetItem,
+  BatchWriteItem,
+  DeleteItem,
+  GetItem,
+  PutItem,
+  QueryAll,
+  QueryPage,
+  ScanAll,
+  ScanPage,
+  UpdateItem
+}
+import zio.dynamodb.UpdateExpression.Action
 import zio.stream.Stream
 import zio.{ Chunk, ZIO }
 
 sealed trait DynamoDBQuery[+A] { self =>
+
+  final def capacity(capacity: ReturnConsumedCapacity): DynamoDBQuery[A] =
+    self match {
+      case g: GetItem        =>
+        g.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
+      case b: BatchGetItem   =>
+        b.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
+      case b: BatchWriteItem =>
+        b.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
+      case q: ScanAll        =>
+        q.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
+      case q: ScanPage       =>
+        q.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
+      case q: QueryAll       =>
+        q.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
+      case q: QueryPage      =>
+        q.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
+      case m: PutItem        =>
+        m.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
+      case m: UpdateItem     =>
+        m.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
+      case m: DeleteItem     =>
+        m.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
+      case _                 => self
+    }
+
+  final def consistency(consistency: ConsistencyMode): DynamoDBQuery[A] =
+    self match {
+      case g: GetItem   =>
+        g.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[A]]
+      case q: ScanAll   =>
+        q.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[A]]
+      case q: ScanPage  =>
+        q.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[A]]
+      case q: QueryAll  =>
+        q.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[A]]
+      case q: QueryPage =>
+        q.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[A]]
+      case _            => self
+    }
+
+  def returns(returnValues: ReturnValues): DynamoDBQuery[A] =
+    self match {
+      case p: PutItem    =>
+        p.copy(returnValues = returnValues).asInstanceOf[DynamoDBQuery[A]]
+      case u: UpdateItem =>
+        u.copy(returnValues = returnValues).asInstanceOf[DynamoDBQuery[A]]
+      case d: DeleteItem =>
+        d.copy(returnValues = returnValues).asInstanceOf[DynamoDBQuery[A]]
+      case _             => self
+    }
+
+  def where(conditionExpression: ConditionExpression): DynamoDBQuery[A] =
+    self match {
+      case p: PutItem    =>
+        p.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[A]]
+      case u: UpdateItem =>
+        u.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[A]]
+      case d: DeleteItem =>
+        d.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[A]]
+      case _             => self
+    }
+
+  def metrics(itemMetrics: ReturnItemCollectionMetrics): DynamoDBQuery[A] =
+    self match {
+      case p: PutItem    =>
+        p.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[A]]
+      case u: UpdateItem =>
+        u.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[A]]
+      case d: DeleteItem =>
+        d.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[A]]
+      case _             => self
+    }
 
   final def <*[B](that: DynamoDBQuery[B]): DynamoDBQuery[A] = zipLeft(that)
 
@@ -51,6 +138,9 @@ sealed trait DynamoDBQuery[+A] { self =>
 
   final def zipRight[B](that: DynamoDBQuery[B]): DynamoDBQuery[B] = (self zip that).map(_._2)
 
+  final def zipWith[B, C](that: DynamoDBQuery[B])(f: (A, B) => C): DynamoDBQuery[C] =
+    self.zip(that).map(f.tupled)
+
 }
 
 object DynamoDBQuery {
@@ -59,12 +149,35 @@ object DynamoDBQuery {
   sealed trait Constructor[+A] extends DynamoDBQuery[A]
   sealed trait Write[+A]       extends Constructor[A]
 
-  final case class Succeed[A](value: () => A) extends Constructor[A]
+  final case class Succeed[A](value: A) extends Constructor[A]
+
+  def succeed[A](a: A): DynamoDBQuery[A] = Succeed(a)
+
+  def getItem(
+    tableName: TableName,
+    key: PrimaryKey,
+    projections: ProjectionExpression*
+  ): DynamoDBQuery[Option[Item]] = {
+    println(projections)
+    GetItem(tableName, key)
+  }
+
+  def forEach[A, B](values: Iterable[A])(body: A => DynamoDBQuery[B]): DynamoDBQuery[List[B]] =
+    values.foldRight[DynamoDBQuery[List[B]]](succeed(Nil)) {
+      case (a, query) => body(a).zipWith(query)(_ :: _)
+    }
+
+  def putItem(tableName: TableName, item: Item): DynamoDBQuery[Unit] = PutItem(tableName, item)
+
+  def updateItem(tableName: TableName, key: PrimaryKey, action: Action, actions: Action*): DynamoDBQuery[Unit] =
+    UpdateItem(tableName, key, UpdateExpression(NonEmptySet(action, actions.toSet)))
+
+  def deleteItem(tableName: TableName, key: PrimaryKey): DynamoDBQuery[Unit] = DeleteItem(tableName, key)
 
   final case class GetItem(
-    key: PrimaryKey,
     tableName: TableName,
-    readConsistency: ConsistencyMode = ConsistencyMode.Weak,
+    key: PrimaryKey,
+    consistency: ConsistencyMode = ConsistencyMode.Weak,
     projections: List[ProjectionExpression] =
       List.empty, // If no attribute names are specified, then all attributes are returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
@@ -72,14 +185,14 @@ object DynamoDBQuery {
 
   // TODO: should this be publicly visible?
   final case class BatchGetItem(
-    requestItems: MapOfSet[TableName, BatchGetItem.TableItem] = MapOfSet.empty,
+    requestItems: MapOfSet[TableName, BatchGetItem.TableGet] = MapOfSet.empty,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     addList: Chunk[GetItem] = Chunk.empty // track order of added GetItems for later unpacking
   ) extends Constructor[BatchGetItem.Response] { self =>
 
     def +(getItem: GetItem): BatchGetItem =
       BatchGetItem(
-        self.requestItems + (getItem.tableName -> TableItem(getItem.key, getItem.projections)),
+        self.requestItems + (getItem.tableName -> TableGet(getItem.key, getItem.projections)),
         self.capacity,
         self.addList :+ getItem
       )
@@ -108,7 +221,7 @@ object DynamoDBQuery {
 
   }
   object BatchGetItem {
-    final case class TableItem(
+    final case class TableGet(
       key: PrimaryKey,
       projections: List[ProjectionExpression] =
         List.empty                                   // If no attribute names are specified, then all attributes are returned
@@ -178,7 +291,7 @@ object DynamoDBQuery {
   final case class ScanPage(
     tableName: TableName,
     indexName: IndexName,
-    readConsistency: ConsistencyMode = ConsistencyMode.Weak,
+    consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
       None,                                               // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
@@ -186,15 +299,12 @@ object DynamoDBQuery {
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
-    // there are 2 modes of getting stuff back
-    // 1) client does not control paging so we return a None for LastEvaluatedKey
-    // 2) client controls paging via Limit so we return the LastEvaluatedKey
   ) extends Constructor[(Chunk[Item], LastEvaluatedKey)]
 
   final case class QueryPage(
     tableName: TableName,
     indexName: IndexName,
-    readConsistency: ConsistencyMode = ConsistencyMode.Weak,
+    consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
       None,                                               // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
@@ -203,30 +313,24 @@ object DynamoDBQuery {
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
-    // there are 2 modes of getting stuff back
-    // 1) client does not control paging so we return a None for LastEvaluatedKey
-    // 2) client controls paging via Limit so we return the LastEvaluatedKey
   ) extends Constructor[(Chunk[Item], LastEvaluatedKey)]
 
   final case class ScanAll(
     tableName: TableName,
     indexName: IndexName,
-    readConsistency: ConsistencyMode = ConsistencyMode.Weak,
+    consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
       None,                                               // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
-    // there are 2 modes of getting stuff back
-    // 1) client does not control paging so we return a None for LastEvaluatedKey
-    // 2) client controls paging via Limit so we return the LastEvaluatedKey
   ) extends Constructor[Stream[Exception, Item]]
 
   final case class QueryAll(
     tableName: TableName,
     indexName: IndexName,
-    readConsistency: ConsistencyMode = ConsistencyMode.Weak,
+    consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
       None,                                               // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
@@ -234,9 +338,6 @@ object DynamoDBQuery {
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
-    // there are 2 modes of getting stuff back
-    // 1) client does not control paging so we return a None for LastEvaluatedKey
-    // 2) client controls paging via Limit so we return the LastEvaluatedKey
   ) extends Constructor[Stream[Exception, Item]]
 
   final case class PutItem(
@@ -250,9 +351,9 @@ object DynamoDBQuery {
 
   final case class UpdateItem(
     tableName: TableName,
-    primaryKey: PrimaryKey,
+    key: PrimaryKey,
+    updateExpression: UpdateExpression,
     conditionExpression: Option[ConditionExpression] = None,
-    updateExpression: Set[UpdateExpression] = Set.empty,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues = ReturnValues.None
@@ -283,7 +384,7 @@ object DynamoDBQuery {
   final case class Zip[A, B](left: DynamoDBQuery[A], right: DynamoDBQuery[B]) extends DynamoDBQuery[(A, B)]
   final case class Map[A, B](query: DynamoDBQuery[A], mapper: A => B)         extends DynamoDBQuery[B]
 
-  def apply[A](a: => A): DynamoDBQuery[A] = Succeed(() => a)
+  def apply[A](a: => A): DynamoDBQuery[A] = Succeed(a)
 
   private[dynamodb] def batched(
     constructors: Chunk[Constructor[Any]]
