@@ -116,9 +116,9 @@ object DynamoDBQuery {
   sealed trait Constructor[+A] extends DynamoDBQuery[A]
   sealed trait Write[+A]       extends Constructor[A]
 
-  final case class Succeed[A](value: () => A) extends Constructor[A]
+  final case class Succeed[A](value: A) extends Constructor[A]
 
-  def succeed[A](a: => A): DynamoDBQuery[A] = Succeed(() => a)
+  def succeed[A](a: A): DynamoDBQuery[A] = Succeed(a)
 
   /*
    var args made possible by factoring out parameters
@@ -141,13 +141,6 @@ object DynamoDBQuery {
       // 3. as this is a fold we end up with a single Query of list
       case (a, query) => body(a).zipWith(query)(_ :: _)
     }
-
-  def forEach2[A](values: Iterable[A])(body: A => DynamoDBQuery[Any]): DynamoDBQuery[Any] = {
-    val xs: Iterable[DynamoDBQuery[Any]] = values.map(body)
-    xs.reduceRight[DynamoDBQuery[Any]] {
-      case (q1, q2) => q1 zip q2
-    }
-  }
 
   /*
    for returnValues create def returns(returnValues: ReturnValues):
@@ -367,7 +360,7 @@ object DynamoDBQuery {
   final case class Zip[A, B](left: DynamoDBQuery[A], right: DynamoDBQuery[B]) extends DynamoDBQuery[(A, B)]
   final case class Map[A, B](query: DynamoDBQuery[A], mapper: A => B)         extends DynamoDBQuery[B]
 
-  def apply[A](a: => A): DynamoDBQuery[A] = Succeed(() => a)
+  def apply[A](a: => A): DynamoDBQuery[A] = Succeed(a)
 
   private[dynamodb] def batched(
     constructors: Chunk[Constructor[Any]]
@@ -412,21 +405,14 @@ object DynamoDBQuery {
         }
 
       case Zip(left, right)   =>
-        println(s"left=$left, right=$right")
-        println(s"query=$query")
         val (constructorsLeft, assemblerLeft)   = parallelize(left)
         val (constructorsRight, assemblerRight) = parallelize(right)
-        println(s"constructorsLeft=$constructorsLeft, constructorsRight=$constructorsRight")
         (
           constructorsLeft ++ constructorsRight,
           (results: Chunk[Any]) => {
-            println(s"results=$results")
             val (leftResults, rightResults) = results.splitAt(constructorsLeft.length)
-            println(s"leftResults=$leftResults, rightResults=$rightResults")
             val left                        = assemblerLeft(leftResults)
-            println(s"left=$left")
             val right                       = assemblerRight(rightResults)
-            println(s"right=$right")
             (left, right).asInstanceOf[A]
           }
         )
