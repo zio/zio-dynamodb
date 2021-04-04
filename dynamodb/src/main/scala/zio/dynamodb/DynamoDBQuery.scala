@@ -17,6 +17,7 @@ import zio.dynamodb.DynamoDBQuery.{
   ScanPage,
   UpdateItem
 }
+import zio.dynamodb.UpdateExpression.Action
 import zio.stream.Stream
 import zio.{ Chunk, ZIO }
 
@@ -169,8 +170,8 @@ object DynamoDBQuery {
 
   def putItem(tableName: TableName, item: Item): DynamoDBQuery[Unit] = PutItem(tableName, item)
 
-  def updateItem(tableName: TableName, key: PrimaryKey, updateExpression: UpdateExpression): DynamoDBQuery[Unit] =
-    UpdateItem(tableName, key, updateExpression)
+  def updateItem(tableName: TableName, key: PrimaryKey, action: Action, actions: Action*): DynamoDBQuery[Unit] =
+    UpdateItem(tableName, key, UpdateExpression(NonEmptySet(action, actions.toSet)))
 
   def deleteItem(tableName: TableName, key: PrimaryKey): DynamoDBQuery[Unit] = DeleteItem(tableName, key)
 
