@@ -23,7 +23,6 @@ import zio.{ Chunk, ZIO }
 
 sealed trait DynamoDBQuery[+A] { self =>
 
-  // if you subtype you avoid the cast
   final def capacity(capacity: ReturnConsumedCapacity): DynamoDBQuery[A] =
     self match {
       case g: GetItem        =>
