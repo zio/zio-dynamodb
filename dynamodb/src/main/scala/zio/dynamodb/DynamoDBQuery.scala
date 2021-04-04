@@ -120,9 +120,6 @@ object DynamoDBQuery {
 
   def succeed[A](a: A): DynamoDBQuery[A] = Succeed(a)
 
-  /*
-   var args made possible by factoring out parameters
-   */
   def getItem(
     tableName: TableName,
     key: PrimaryKey,
@@ -134,11 +131,6 @@ object DynamoDBQuery {
 
   def forEach[A, B](values: Iterable[A])(body: A => DynamoDBQuery[B]): DynamoDBQuery[List[B]] =
     values.foldRight[DynamoDBQuery[List[B]]](succeed(Nil)) {
-      // from each element
-      // start with accumulator succeed(Nil)
-      // 1. produce a query by passing the element to the function
-      // 2. produce a single query by cons list inside succeed with query
-      // 3. as this is a fold we end up with a single Query of list
       case (a, query) => body(a).zipWith(query)(_ :: _)
     }
 
