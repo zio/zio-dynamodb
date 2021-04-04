@@ -169,8 +169,8 @@ object DynamoDBQuery {
 
   def putItem(tableName: TableName, item: Item): DynamoDBQuery[Unit] = PutItem(tableName, item)
 
-  def updateItem(tableName: TableName, key: PrimaryKey, updateExpression: Set[UpdateExpression]): DynamoDBQuery[Unit] =
-    UpdateItem(tableName, key, updateExpression = updateExpression)
+  def updateItem(tableName: TableName, key: PrimaryKey, updateExpression: UpdateExpression): DynamoDBQuery[Unit] =
+    UpdateItem(tableName, key, updateExpression)
 
   def deleteItem(tableName: TableName, key: PrimaryKey): DynamoDBQuery[Unit] = DeleteItem(tableName, key)
 
@@ -352,8 +352,8 @@ object DynamoDBQuery {
   final case class UpdateItem(
     tableName: TableName,
     key: PrimaryKey,
+    updateExpression: UpdateExpression,
     conditionExpression: Option[ConditionExpression] = None,
-    updateExpression: Set[UpdateExpression] = Set.empty,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues = ReturnValues.None
