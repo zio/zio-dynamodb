@@ -63,6 +63,39 @@ sealed trait DynamoDBQuery[+A] { self =>
       case _            => self
     }
 
+  def returns(returnValues: ReturnValues): DynamoDBQuery[A] =
+    self match {
+      case p: PutItem    =>
+        p.copy(returnValues = returnValues).asInstanceOf[DynamoDBQuery[A]]
+      case u: UpdateItem =>
+        u.copy(returnValues = returnValues).asInstanceOf[DynamoDBQuery[A]]
+      case d: DeleteItem =>
+        d.copy(returnValues = returnValues).asInstanceOf[DynamoDBQuery[A]]
+      case _             => self
+    }
+
+  def where(conditionExpression: ConditionExpression): DynamoDBQuery[A] =
+    self match {
+      case p: PutItem    =>
+        p.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[A]]
+      case u: UpdateItem =>
+        u.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[A]]
+      case d: DeleteItem =>
+        d.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[A]]
+      case _             => self
+    }
+
+  def metrics(itemMetrics: ReturnItemCollectionMetrics): DynamoDBQuery[A] =
+    self match {
+      case p: PutItem    =>
+        p.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[A]]
+      case u: UpdateItem =>
+        u.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[A]]
+      case d: DeleteItem =>
+        d.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[A]]
+      case _             => self
+    }
+
   final def <*[B](that: DynamoDBQuery[B]): DynamoDBQuery[A] = zipLeft(that)
 
   final def *>[B](that: DynamoDBQuery[B]): DynamoDBQuery[B] = zipRight(that)
@@ -134,13 +167,12 @@ object DynamoDBQuery {
       case (a, query) => body(a).zipWith(query)(_ :: _)
     }
 
-  /*
-   for returnValues create def returns(returnValues: ReturnValues):
-   for conditionExpression create def where(conditionExpression: ConditionExpression):
-   for metrics create def where(conditionExpression: ConditionExpression):
-   */
-
   def putItem(tableName: TableName, item: Item): DynamoDBQuery[Unit] = PutItem(tableName, item)
+
+  def updateItem(tableName: TableName, key: PrimaryKey, updateExpression: Set[UpdateExpression]): DynamoDBQuery[Unit] =
+    UpdateItem(tableName, key, updateExpression = updateExpression)
+
+  def deleteItem(tableName: TableName, key: PrimaryKey): DynamoDBQuery[Unit] = DeleteItem(tableName, key)
 
   final case class GetItem(
     tableName: TableName,
