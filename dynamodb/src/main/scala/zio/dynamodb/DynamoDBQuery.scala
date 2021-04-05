@@ -188,12 +188,12 @@ object DynamoDBQuery {
   sealed trait Constructor[+A] extends DynamoDBQuery[A]
   sealed trait Write[+A]       extends Constructor[A]
 
-  final case class Succeed[A](value: A) extends Constructor[A]
+  final case class Succeed[A](value: () => A) extends Constructor[A]
 
   private def select(projections: Seq[ProjectionExpression]): Option[Select] =
     Some(if (projections.isEmpty) Select.AllAttributes else Select.SpecificAttributes)
 
-  def succeed[A](a: A): DynamoDBQuery[A] = Succeed(a)
+  def succeed[A](a: A): DynamoDBQuery[A] = Succeed(() => a)
 
   def forEach[A, B](values: Iterable[A])(body: A => DynamoDBQuery[B]): DynamoDBQuery[List[B]] =
     values.foldRight[DynamoDBQuery[List[B]]](succeed(Nil)) {
@@ -440,7 +440,7 @@ object DynamoDBQuery {
   final case class Zip[A, B](left: DynamoDBQuery[A], right: DynamoDBQuery[B]) extends DynamoDBQuery[(A, B)]
   final case class Map[A, B](query: DynamoDBQuery[A], mapper: A => B)         extends DynamoDBQuery[B]
 
-  def apply[A](a: => A): DynamoDBQuery[A] = Succeed(a)
+  def apply[A](a: => A): DynamoDBQuery[A] = Succeed(() => a)
 
   private[dynamodb] def batched(
     constructors: Chunk[Constructor[Any]]
@@ -497,7 +497,7 @@ object DynamoDBQuery {
           }
         )
 
-      case Succeed(value)     => (Chunk.empty, _ => value.asInstanceOf[A])
+      case Succeed(value)     => (Chunk.empty, _ => value())
 
       case batchGetItem @ BatchGetItem(_, _, _)                 =>
         (
