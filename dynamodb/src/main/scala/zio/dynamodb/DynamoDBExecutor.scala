@@ -59,8 +59,8 @@ object DynamoDBExecutor {
       )
     val deleteItem1  = DeleteItem(tableName = tableName1, key = PrimaryKey(ScalaMap.empty))
     val stream1      = ZStream(emptyItem)
-    val scanPage1    = ScanPage(tableName1, indexName1)
-    val queryPage1   = QueryPage(tableName1, indexName1)
+    val scanPage1    = ScanPage(tableName1, indexName1, limit = 10)
+    val queryPage1   = QueryPage(tableName1, indexName1, limit = 10)
     val scanAll1     = ScanAll(tableName1, indexName1)
     val queryAll1    = QueryAll(tableName1, indexName1)
     val createTable1 = CreateTable(
@@ -96,7 +96,7 @@ object DynamoDBExecutor {
 
           case GetItem(key, tableName, readConsistency, projections, capacity)                      =>
             println(s"$key $tableName $readConsistency $projections $capacity")
-            ZIO.succeed(Some(Item(ScalaMap.empty)))
+            ZIO.some(Item(ScalaMap.empty))
 
           case PutItem(tableName, item, conditionExpression, capacity, itemMetrics, returnValues)   =>
             println(s"$tableName $item $conditionExpression $capacity $itemMetrics $returnValues")
@@ -135,10 +135,11 @@ object DynamoDBExecutor {
                 limit,
                 projections,
                 capacity,
-                select
+                select,
+                scanIndexForward
               ) =>
             println(
-              s"$tableName, $indexName, $readConsistency, $exclusiveStartKey, $filterExpression, $keyConditionExpression, $limit, $projections, $capacity, $select"
+              s"$tableName, $indexName, $readConsistency, $exclusiveStartKey, $filterExpression, $keyConditionExpression, $limit, $projections, $capacity, $select, $scanIndexForward"
             )
             ZIO.succeed((Chunk(emptyItem), None))
 
@@ -166,10 +167,11 @@ object DynamoDBExecutor {
                 keyConditionExpression,
                 projections,
                 capacity,
-                select
+                select,
+                scanIndexForward
               ) =>
             println(
-              s"$tableName, $indexName, $readConsistency, $exclusiveStartKey, $filterExpression, $keyConditionExpression, $projections, $capacity, $select"
+              s"$tableName, $indexName, $readConsistency, $exclusiveStartKey, $filterExpression, $keyConditionExpression, $projections, $capacity, $select, $scanIndexForward"
             )
             ZIO.succeed(stream1)
 

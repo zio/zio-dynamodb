@@ -45,7 +45,7 @@ sealed trait DynamoDBQuery[+A] { self =>
         m.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
       case m: DeleteItem     =>
         m.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
-      case _                 => self
+      case _                 => self // TODO: log a warning
     }
 
   final def consistency(consistency: ConsistencyMode): DynamoDBQuery[A] =
@@ -60,7 +60,7 @@ sealed trait DynamoDBQuery[+A] { self =>
         q.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[A]]
       case q: QueryPage =>
         q.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[A]]
-      case _            => self
+      case _            => self // TODO: log a warning
     }
 
   def returns(returnValues: ReturnValues): DynamoDBQuery[A] =
@@ -71,7 +71,7 @@ sealed trait DynamoDBQuery[+A] { self =>
         u.copy(returnValues = returnValues).asInstanceOf[DynamoDBQuery[A]]
       case d: DeleteItem =>
         d.copy(returnValues = returnValues).asInstanceOf[DynamoDBQuery[A]]
-      case _             => self
+      case _             => self // TODO: log a warning
     }
 
   def where(conditionExpression: ConditionExpression): DynamoDBQuery[A] =
@@ -82,7 +82,7 @@ sealed trait DynamoDBQuery[+A] { self =>
         u.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[A]]
       case d: DeleteItem =>
         d.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[A]]
-      case _             => self
+      case _             => self // TODO: log a warning
     }
 
   def metrics(itemMetrics: ReturnItemCollectionMetrics): DynamoDBQuery[A] =
@@ -93,7 +93,46 @@ sealed trait DynamoDBQuery[+A] { self =>
         u.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[A]]
       case d: DeleteItem =>
         d.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[A]]
-      case _             => self
+      case _             => self // TODO: log a warning
+    }
+
+  def startKey(exclusiveStartKey: LastEvaluatedKey): DynamoDBQuery[A] =
+    self match {
+      case s: ScanPage  => s.copy(exclusiveStartKey = exclusiveStartKey).asInstanceOf[DynamoDBQuery[A]]
+      case s: ScanAll   => s.copy(exclusiveStartKey = exclusiveStartKey).asInstanceOf[DynamoDBQuery[A]]
+      case s: QueryPage => s.copy(exclusiveStartKey = exclusiveStartKey).asInstanceOf[DynamoDBQuery[A]]
+      case s: QueryAll  => s.copy(exclusiveStartKey = exclusiveStartKey).asInstanceOf[DynamoDBQuery[A]]
+      case _            => self // TODO: log a warning
+    }
+  def filter(filterExpression: FilterExpression): DynamoDBQuery[A]    =
+    self match {
+      case s: ScanPage  => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[A]]
+      case s: ScanAll   => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[A]]
+      case s: QueryPage => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[A]]
+      case s: QueryAll  => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[A]]
+      case _            => self // TODO: log a warning
+    }
+  def select(select: Select): DynamoDBQuery[A]                        =
+    self match {
+      case s: ScanPage  => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
+      case s: ScanAll   => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
+      case s: QueryPage => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
+      case s: QueryAll  => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
+      case _            => self // TODO: log a warning
+    }
+
+  def whereKey(keyConditionExpression: KeyConditionExpression): DynamoDBQuery[A] =
+    self match {
+      case s: QueryPage => s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[A]]
+      case s: QueryAll  => s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[A]]
+      case _            => self // TODO: log a warning
+    }
+
+  def sortOrder(ascending: Boolean): DynamoDBQuery[A] =
+    self match {
+      case s: QueryPage => s.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[A]]
+      case s: QueryAll  => s.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[A]]
+      case _            => self // TODO: log a warning
     }
 
   final def <*[B](that: DynamoDBQuery[B]): DynamoDBQuery[A] = zipLeft(that)
@@ -151,7 +190,15 @@ object DynamoDBQuery {
 
   final case class Succeed[A](value: A) extends Constructor[A]
 
+  private def select(projections: Seq[ProjectionExpression]): Option[Select] =
+    Some(if (projections.isEmpty) Select.AllAttributes else Select.SpecificAttributes)
+
   def succeed[A](a: A): DynamoDBQuery[A] = Succeed(a)
+
+  def forEach[A, B](values: Iterable[A])(body: A => DynamoDBQuery[B]): DynamoDBQuery[List[B]] =
+    values.foldRight[DynamoDBQuery[List[B]]](succeed(Nil)) {
+      case (a, query) => body(a).zipWith(query)(_ :: _)
+    }
 
   def getItem(
     tableName: TableName,
@@ -162,17 +209,24 @@ object DynamoDBQuery {
     GetItem(tableName, key)
   }
 
-  def forEach[A, B](values: Iterable[A])(body: A => DynamoDBQuery[B]): DynamoDBQuery[List[B]] =
-    values.foldRight[DynamoDBQuery[List[B]]](succeed(Nil)) {
-      case (a, query) => body(a).zipWith(query)(_ :: _)
-    }
-
   def putItem(tableName: TableName, item: Item): DynamoDBQuery[Unit] = PutItem(tableName, item)
 
   def updateItem(tableName: TableName, key: PrimaryKey, action: Action, actions: Action*): DynamoDBQuery[Unit] =
     UpdateItem(tableName, key, UpdateExpression(NonEmptySet(action, actions.toSet)))
 
   def deleteItem(tableName: TableName, key: PrimaryKey): DynamoDBQuery[Unit] = DeleteItem(tableName, key)
+
+  def scanPage(tableName: TableName, indexName: IndexName, limit: Int, projections: ProjectionExpression*): ScanPage =
+    ScanPage(tableName, indexName, limit, select = select(projections), projections = projections.toList)
+
+  def scanAll(tableName: TableName, indexName: IndexName, projections: ProjectionExpression*): ScanAll =
+    ScanAll(tableName, indexName, select = select(projections), projections = projections.toList)
+
+  def queryPage(tableName: TableName, indexName: IndexName, limit: Int, projections: ProjectionExpression*): QueryPage =
+    QueryPage(tableName, indexName, limit, select = select(projections), projections = projections.toList)
+
+  def queryAll(tableName: TableName, indexName: IndexName, projections: ProjectionExpression*): QueryAll =
+    QueryAll(tableName, indexName, select = select(projections), projections = projections.toList)
 
   final case class GetItem(
     tableName: TableName,
@@ -291,11 +345,11 @@ object DynamoDBQuery {
   final case class ScanPage(
     tableName: TableName,
     indexName: IndexName,
+    limit: Int,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
       None,                                               // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
-    limit: Option[Int] = None,
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
@@ -304,15 +358,16 @@ object DynamoDBQuery {
   final case class QueryPage(
     tableName: TableName,
     indexName: IndexName,
+    limit: Int,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
       None,                                               // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
     keyConditionExpression: Option[KeyConditionExpression] = None,
-    limit: Option[Int] = None,
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
+    select: Option[Select] = None,                        // if ProjectExpression supplied then only valid value is SpecificAttributes
+    ascending: Boolean = true
   ) extends Constructor[(Chunk[Item], LastEvaluatedKey)]
 
   final case class ScanAll(
@@ -337,7 +392,8 @@ object DynamoDBQuery {
     keyConditionExpression: Option[KeyConditionExpression] = None,
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
+    select: Option[Select] = None,                        // if ProjectExpression supplied then only valid value is SpecificAttributes
+    ascending: Boolean = true
   ) extends Constructor[Stream[Exception, Item]]
 
   final case class PutItem(
@@ -515,7 +571,7 @@ object DynamoDBQuery {
           }
         )
 
-      case query @ QueryPage(_, _, _, _, _, _, _, _, _, _)      =>
+      case query @ QueryPage(_, _, _, _, _, _, _, _, _, _, _)   =>
         (
           Chunk(query),
           (results: Chunk[Any]) => {
@@ -524,7 +580,7 @@ object DynamoDBQuery {
           }
         )
 
-      case query @ QueryAll(_, _, _, _, _, _, _, _, _)          =>
+      case query @ QueryAll(_, _, _, _, _, _, _, _, _, _)       =>
         (
           Chunk(query),
           (results: Chunk[Any]) => {
