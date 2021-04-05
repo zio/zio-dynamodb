@@ -23,7 +23,11 @@ object QueryAndScanExamples extends App {
   val scan1 = scanAll(tableName1, indexName1, fieldA, fieldB, fieldC).execute
   val scan2 = scanPage(tableName1, indexName1, limit, fieldA, fieldB, fieldC).execute
 
-  val query1 = queryAll(tableName1, indexName1, fieldA, fieldB, fieldC).whereKey(keyCondExprn).execute
-  val query2 = queryPage(tableName1, indexName1, limit, fieldA, fieldB, fieldC).whereKey(keyCondExprn).execute
+  val query1 =
+    queryAll(tableName1, indexName1, fieldA, fieldB, fieldC).whereKey(keyCondExprn).execute
+  val query2 = queryPage(tableName1, indexName1, limit, fieldA, fieldB, fieldC)
+    .sortOrder(ascending = false)
+    .whereKey(keyCondExprn)
+    .execute
 
 }

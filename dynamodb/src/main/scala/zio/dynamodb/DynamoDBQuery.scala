@@ -128,6 +128,13 @@ sealed trait DynamoDBQuery[+A] { self =>
       case _            => self // TODO: log a warning
     }
 
+  def sortOrder(ascending: Boolean): DynamoDBQuery[A] =
+    self match {
+      case s: QueryPage => s.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[A]]
+      case s: QueryAll  => s.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[A]]
+      case _            => self // TODO: log a warning
+    }
+
   final def <*[B](that: DynamoDBQuery[B]): DynamoDBQuery[A] = zipLeft(that)
 
   final def *>[B](that: DynamoDBQuery[B]): DynamoDBQuery[B] = zipRight(that)
@@ -359,7 +366,8 @@ object DynamoDBQuery {
     keyConditionExpression: Option[KeyConditionExpression] = None,
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
+    select: Option[Select] = None,                        // if ProjectExpression supplied then only valid value is SpecificAttributes
+    ascending: Boolean = true
   ) extends Constructor[(Chunk[Item], LastEvaluatedKey)]
 
   final case class ScanAll(
@@ -384,7 +392,8 @@ object DynamoDBQuery {
     keyConditionExpression: Option[KeyConditionExpression] = None,
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
+    select: Option[Select] = None,                        // if ProjectExpression supplied then only valid value is SpecificAttributes
+    ascending: Boolean = true
   ) extends Constructor[Stream[Exception, Item]]
 
   final case class PutItem(
@@ -562,7 +571,7 @@ object DynamoDBQuery {
           }
         )
 
-      case query @ QueryPage(_, _, _, _, _, _, _, _, _, _)      =>
+      case query @ QueryPage(_, _, _, _, _, _, _, _, _, _, _)   =>
         (
           Chunk(query),
           (results: Chunk[Any]) => {
@@ -571,7 +580,7 @@ object DynamoDBQuery {
           }
         )
 
-      case query @ QueryAll(_, _, _, _, _, _, _, _, _)          =>
+      case query @ QueryAll(_, _, _, _, _, _, _, _, _, _)       =>
         (
           Chunk(query),
           (results: Chunk[Any]) => {

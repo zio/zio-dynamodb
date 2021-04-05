@@ -135,10 +135,11 @@ object DynamoDBExecutor {
                 limit,
                 projections,
                 capacity,
-                select
+                select,
+                scanIndexForward
               ) =>
             println(
-              s"$tableName, $indexName, $readConsistency, $exclusiveStartKey, $filterExpression, $keyConditionExpression, $limit, $projections, $capacity, $select"
+              s"$tableName, $indexName, $readConsistency, $exclusiveStartKey, $filterExpression, $keyConditionExpression, $limit, $projections, $capacity, $select, $scanIndexForward"
             )
             ZIO.succeed((Chunk(emptyItem), None))
 
@@ -166,10 +167,11 @@ object DynamoDBExecutor {
                 keyConditionExpression,
                 projections,
                 capacity,
-                select
+                select,
+                scanIndexForward
               ) =>
             println(
-              s"$tableName, $indexName, $readConsistency, $exclusiveStartKey, $filterExpression, $keyConditionExpression, $projections, $capacity, $select"
+              s"$tableName, $indexName, $readConsistency, $exclusiveStartKey, $filterExpression, $keyConditionExpression, $projections, $capacity, $select, $scanIndexForward"
             )
             ZIO.succeed(stream1)
 
