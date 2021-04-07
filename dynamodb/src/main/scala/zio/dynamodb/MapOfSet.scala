@@ -2,7 +2,7 @@ package zio.dynamodb
 
 import scala.collection.immutable.{ Map => ScalaMap }
 
-final case class MapOfSet[K, V](private val map: ScalaMap[K, Set[V]]) extends Iterable[(K, Set[V])] { self =>
+final case class MapOfSet[K, V] private (private val map: ScalaMap[K, Set[V]]) extends Iterable[(K, Set[V])] { self =>
 
   def getOrElse(key: K, default: => Set[V]): Set[V] = map.getOrElse(key, default)
 
@@ -13,10 +13,6 @@ final case class MapOfSet[K, V](private val map: ScalaMap[K, Set[V]]) extends It
     val newEntry     = self.map.get(key).fold((key, Set(value)))(set => (key, set + value))
     new MapOfSet(self.map + newEntry)
   }
-  def addAll(entries: (K, V)*): MapOfSet[K, V] =
-    entries.foldLeft(self) {
-      case (map, (k, v)) => map + (k -> v)
-    }
 
   def ++(that: MapOfSet[K, V]): MapOfSet[K, V] = {
     val xs: Seq[(K, Set[V])]   = that.map.toList
@@ -28,6 +24,11 @@ final case class MapOfSet[K, V](private val map: ScalaMap[K, Set[V]]) extends It
     }
     new MapOfSet(m)
   }
+
+  def addAll(entries: (K, V)*): MapOfSet[K, V] =
+    entries.foldLeft(self) {
+      case (map, (k, v)) => map + (k -> v)
+    }
 
   override def iterator: Iterator[(K, Set[V])] = map.iterator
 }

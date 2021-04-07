@@ -8,15 +8,24 @@ object NonSetEmptySpec extends DefaultRunnableSpec {
 
   override def spec =
     suite("NonEmptySet")(
-      test("perform construction and + and ++") {
-        val set1 = NonEmptySet(1)
-        val set3 = (NonEmptySet(1) + 2) + 3
-        val set4 = NonEmptySet(4, 5, 6, 7)
-        val set7 = set3 ++ set4
-
-        assert(set1.toSet)(equalTo(Set(1))) && assert(set3.toSet)(equalTo(Set(1, 2, 3))) && assert(set4.toSet)(
-          equalTo(Set(4, 5, 6, 7))
-        ) && assert(set7.toSet)(equalTo(Set(1, 2, 3, 4, 5, 6, 7)))
+      test("construction single param") {
+        val actual = NonEmptySet(1)
+        assert(actual.toSet)(equalTo(Set(1)))
+      },
+      test("construction multiple params") {
+        val actual = NonEmptySet(1, 2)
+        assert(actual.toSet)(equalTo(Set(1, 2)))
+      },
+      test("+") {
+        val actual   = (NonEmptySet(1) + 2) + 3
+        val expected = Set(1, 2, 3)
+        assert(actual.toSet)(equalTo(expected))
+      },
+      test("++") {
+        val set1   = (NonEmptySet(1) + 2) + 3
+        val set2   = NonEmptySet(4, 5, 6, 7)
+        val actual = set1 ++ set2
+        assert(actual.toSet)(equalTo(Set(1, 2, 3, 4, 5, 6, 7)))
       }
     )
 
