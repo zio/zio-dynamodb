@@ -262,7 +262,7 @@ object DynamoDBQuery {
     def toGetItemResponses(response: BatchGetItem.Response): Chunk[Option[Item]] = {
       val chunk: Chunk[Option[Item]] = addList.foldLeft[Chunk[Option[Item]]](Chunk.empty) {
         case (chunk, getItem) =>
-          val responsesForTable: Set[Item] = response.responses.map.getOrElse(getItem.tableName, Set.empty[Item])
+          val responsesForTable: Set[Item] = response.responses.getOrElse(getItem.tableName, Set.empty[Item])
           val found: Option[Item]          = responsesForTable.find { item =>
             getItem.key.value.toSet.subsetOf(item.value.toSet)
           }

@@ -2,12 +2,16 @@ package zio.dynamodb
 
 import scala.collection.immutable.{ Map => ScalaMap }
 
-final case class MapOfSet[K, V](map: ScalaMap[K, Set[V]] = ScalaMap.empty) { self =>
+final case class MapOfSet[K, V](private val map: ScalaMap[K, Set[V]]) extends Iterable[(K, Set[V])] { self =>
+
+  def getOrElse(key: K, default: => Set[V]): Set[V] = map.getOrElse(key, default)
+
+  def get(key: K): Option[Set[V]] = map.get(key)
 
   def +(entry: (K, V)): MapOfSet[K, V] = {
     val (key, value) = entry
     val newEntry     = self.map.get(key).fold((key, Set(value)))(set => (key, set + value))
-    MapOfSet(self.map + newEntry)
+    new MapOfSet(self.map + newEntry)
   }
   def addAll(entries: (K, V)*): MapOfSet[K, V] =
     entries.foldLeft(self) {
@@ -22,9 +26,12 @@ final case class MapOfSet[K, V](map: ScalaMap[K, Set[V]] = ScalaMap.empty) { sel
           map.get(key).fold((key, set))(s => (key, s ++ set))
         map + newEntry
     }
-    MapOfSet(m)
+    new MapOfSet(m)
   }
+
+  override def iterator: Iterator[(K, Set[V])] = map.iterator
 }
 object MapOfSet {
-  def empty[K, V]: MapOfSet[K, V] = MapOfSet(ScalaMap.empty)
+  private def apply[K, V](map: ScalaMap[K, Set[V]]) = new MapOfSet(map)
+  def empty[K, V]: MapOfSet[K, V]                   = apply(ScalaMap.empty)
 }

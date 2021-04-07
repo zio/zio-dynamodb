@@ -1,13 +1,11 @@
 package zio.dynamodb
 
 import zio.Chunk
+import zio.dynamodb.DynamoDBExecutor.TestData._
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem }
-import zio.dynamodb.DynamoDBExecutor.TestData._
 import zio.test.Assertion._
 import zio.test.{ DefaultRunnableSpec, _ }
-
-import scala.collection.immutable.{ Map => ScalaMap }
 
 //noinspection TypeAnnotation
 object BatchingModelSpec extends DefaultRunnableSpec {
@@ -21,13 +19,9 @@ object BatchingModelSpec extends DefaultRunnableSpec {
       assert(batch.addList)(equalTo(Chunk(getItem1, getItem2))) &&
       assert(batch.requestItems)(
         equalTo(
-          MapOfSet[TableName, TableGet](
-            ScalaMap(
-              tableName1 -> Set(
-                TableGet(getItem1.key, getItem1.projections),
-                TableGet(getItem2.key, getItem2.projections)
-              )
-            )
+          MapOfSet.empty.addAll(
+            tableName1 -> TableGet(getItem1.key, getItem1.projections),
+            tableName1 -> TableGet(getItem2.key, getItem2.projections)
           )
         )
       )
@@ -43,10 +37,10 @@ object BatchingModelSpec extends DefaultRunnableSpec {
       val batch    = BatchGetItem().addAll(getItem1, getItem2)
       val response =
         BatchGetItem.Response(
-          MapOfSet.empty.addAll(tableName1 -> item("NotAKey1"), tableName1 -> item("NotAKey2"))
+          MapOfSet.empty.addAll(tableName1 -> item("NotAKey1"), tableName1 -> item("k2"))
         )
 
-      assert(batch.toGetItemResponses(response))(equalTo(Chunk(None, None)))
+      assert(batch.toGetItemResponses(response))(equalTo(Chunk(None, Some(item("k2")))))
     }
   )
 
@@ -59,11 +53,12 @@ object BatchingModelSpec extends DefaultRunnableSpec {
       ) &&
       assert(batch.requestItems)(
         equalTo(
-          MapOfSet[TableName, BatchWriteItem.Write](
-            ScalaMap(
-              tableName1 -> Set(BatchWriteItem.Put(putItem1.item), BatchWriteItem.Delete(deleteItem1.key))
+          MapOfSet
+            .empty[TableName, BatchWriteItem.Write]
+            .addAll(
+              tableName1 -> BatchWriteItem.Put(putItem1.item),
+              tableName1 -> BatchWriteItem.Delete(deleteItem1.key)
             )
-          )
         )
       )
     }
