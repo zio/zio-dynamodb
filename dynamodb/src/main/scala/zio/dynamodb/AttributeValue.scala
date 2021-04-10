@@ -2,7 +2,9 @@ package zio.dynamodb
 
 import zio.Chunk
 
-sealed trait AttributeValue
+sealed trait AttributeValue { self =>
+  def operand: ConditionExpression.Operand = ConditionExpression.Operand.ValueOperand(self)
+}
 
 object AttributeValue {
   import Predef.{ String => ScalaString }
@@ -19,3 +21,9 @@ object AttributeValue {
   final case class String(value: ScalaString)                   extends AttributeValue
   final case class StringSet(value: Set[ScalaString])           extends AttributeValue
 }
+
+/*
+TODO: implicit conversions: (may help)
+AV => Operand
+PE => Operand
+ */

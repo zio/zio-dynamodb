@@ -40,32 +40,10 @@ sealed trait ConditionExpression { self =>
 
 // BNF  https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
 object ConditionExpression {
-
-  final case class Between(left: Operand, minValue: AttributeValue, maxValue: AttributeValue)
-      extends ConditionExpression
-  final case class In(left: Operand, values: Set[AttributeValue]) extends ConditionExpression
-
-  // functions
-  final case class AttributeExists(path: Path)                                  extends ConditionExpression
-  final case class AttributeNotExists(path: Path)                               extends ConditionExpression
-  final case class AttributeType(path: Path, attributeType: AttributeValueType) extends ConditionExpression
-  final case class Contains(path: Path, value: AttributeValue)                  extends ConditionExpression
-  final case class BeginsWith(path: Path, value: AttributeValue)                extends ConditionExpression
-
-  // logical operators
-  final case class And(left: ConditionExpression, right: ConditionExpression) extends ConditionExpression
-  final case class Or(left: ConditionExpression, right: ConditionExpression)  extends ConditionExpression
-  final case class Not(exprn: ConditionExpression)                            extends ConditionExpression
-
-  // comparators
-  final case class Equals(left: Operand, right: Operand)             extends ConditionExpression
-  final case class NotEqual(left: Operand, right: Operand)           extends ConditionExpression
-  final case class LessThan(left: Operand, right: Operand)           extends ConditionExpression
-  final case class GreaterThan(left: Operand, right: Operand)        extends ConditionExpression
-  final case class LessThanOrEqual(left: Operand, right: Operand)    extends ConditionExpression
-  final case class GreaterThanOrEqual(left: Operand, right: Operand) extends ConditionExpression
-
   sealed trait Operand { self =>
+    def between(minValue: AttributeValue, maxValue: AttributeValue): ConditionExpression =
+      Between(self, minValue, maxValue)
+    def in(values: Set[AttributeValue]): ConditionExpression                             = In(self, values)
 
     def ==(that: Operand): ConditionExpression = Equals(self, that)
     def <>(that: Operand): ConditionExpression = NotEqual(self, that)
@@ -74,10 +52,38 @@ object ConditionExpression {
     def >(that: Operand): ConditionExpression  = GreaterThanOrEqual(self, that)
     def >=(that: Operand): ConditionExpression = GreaterThanOrEqual(self, that)
   }
-  object Operand {
+  object Operand       {
 
-    final case class ValueOperand(value: AttributeValue) extends Operand
-    final case class PathOperand(path: Path)             extends Operand
-    final case class Size(path: Path)                    extends Operand
+    private[dynamodb] final case class ValueOperand(value: AttributeValue) extends Operand
+    private[dynamodb] final case class Size(path: ProjectionExpression)    extends Operand
   }
+
+  private[dynamodb] final case class Between(left: Operand, minValue: AttributeValue, maxValue: AttributeValue)
+      extends ConditionExpression
+  private[dynamodb] final case class In(left: Operand, values: Set[AttributeValue]) extends ConditionExpression
+
+  // functions
+  private[dynamodb] final case class AttributeExists(path: ProjectionExpression)    extends ConditionExpression
+  private[dynamodb] final case class AttributeNotExists(path: ProjectionExpression) extends ConditionExpression
+  private[dynamodb] final case class AttributeType(path: ProjectionExpression, attributeType: AttributeValueType)
+      extends ConditionExpression
+  private[dynamodb] final case class Contains(path: ProjectionExpression, value: AttributeValue)
+      extends ConditionExpression
+  private[dynamodb] final case class BeginsWith(path: ProjectionExpression, value: AttributeValue)
+      extends ConditionExpression
+
+  // logical operators
+  private[dynamodb] final case class And(left: ConditionExpression, right: ConditionExpression)
+      extends ConditionExpression
+  private[dynamodb] final case class Or(left: ConditionExpression, right: ConditionExpression)
+      extends ConditionExpression
+  private[dynamodb] final case class Not(exprn: ConditionExpression) extends ConditionExpression
+
+  // comparators
+  private[dynamodb] final case class Equals(left: Operand, right: Operand)             extends ConditionExpression
+  private[dynamodb] final case class NotEqual(left: Operand, right: Operand)           extends ConditionExpression
+  private[dynamodb] final case class LessThan(left: Operand, right: Operand)           extends ConditionExpression
+  private[dynamodb] final case class GreaterThan(left: Operand, right: Operand)        extends ConditionExpression
+  private[dynamodb] final case class LessThanOrEqual(left: Operand, right: Operand)    extends ConditionExpression
+  private[dynamodb] final case class GreaterThanOrEqual(left: Operand, right: Operand) extends ConditionExpression
 }

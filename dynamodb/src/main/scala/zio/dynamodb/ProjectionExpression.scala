@@ -5,6 +5,15 @@ sealed trait ProjectionExpression { self =>
   def apply(index: Int): ProjectionExpression = ProjectionExpression.ListElement(self, index)
 
   def apply(key: String): ProjectionExpression = ProjectionExpression.MapElement(self, key)
+
+  def exists: ConditionExpression                                    = ConditionExpression.AttributeExists(self)
+  def notExists: ConditionExpression                                 = ConditionExpression.AttributeNotExists(self)
+  def contains(av: AttributeValue): ConditionExpression              = ConditionExpression.Contains(self, av)
+  def beginsWith(av: AttributeValue): ConditionExpression            = ConditionExpression.BeginsWith(self, av)
+  def isType(attributeType: AttributeValueType): ConditionExpression =
+    ConditionExpression.AttributeType(self, attributeType)
+
+  def size: ConditionExpression.Operand = ConditionExpression.Operand.Size(self)
 }
 
 object ProjectionExpression {

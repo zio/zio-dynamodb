@@ -23,6 +23,40 @@ import zio.{ Chunk, ZIO }
 
 sealed trait DynamoDBQuery[+A] { self =>
 
+  final def <*[B](that: DynamoDBQuery[B]): DynamoDBQuery[A] = zipLeft(that)
+
+  final def *>[B](that: DynamoDBQuery[B]): DynamoDBQuery[B] = zipRight(that)
+
+  final def <*>[B](that: DynamoDBQuery[B]): DynamoDBQuery[(A, B)] = self zip that
+
+  def execute: ZIO[DynamoDBExecutor, Exception, A] = {
+    val (constructors, assembler)                                                                   = parallelize(self)
+    val (indexedConstructors, (batchGetItem, batchGetIndexes), (batchWriteItem, batchWriteIndexes)) =
+      batched(constructors)
+
+    val indexedNonBatchedResults =
+      ZIO.foreachPar(indexedConstructors) {
+        case (constructor, index) =>
+          ddbExecute(constructor).map(result => (result, index))
+      }
+
+    val indexedGetResults =
+      ddbExecute(batchGetItem).map(resp => batchGetItem.toGetItemResponses(resp) zip batchGetIndexes)
+
+    val indexedWriteResults =
+      // TODO: think about mapping return values from writes
+      ddbExecute(batchWriteItem).map(_ => batchWriteItem.addList.map(_ => ()) zip batchWriteIndexes)
+
+    (indexedNonBatchedResults zipPar indexedGetResults zipPar indexedWriteResults).map {
+      case ((nonBatched, batchedGets), batchedWrites) =>
+        val combined = (nonBatched ++ batchedGets ++ batchedWrites).sortBy {
+          case (_, index) => index
+        }.map(_._1)
+        assembler(combined)
+    }
+
+  }
+
   final def capacity(capacity: ReturnConsumedCapacity): DynamoDBQuery[A] =
     self match {
       case g: GetItem        =>
@@ -104,7 +138,8 @@ sealed trait DynamoDBQuery[+A] { self =>
       case s: QueryAll  => s.copy(exclusiveStartKey = exclusiveStartKey).asInstanceOf[DynamoDBQuery[A]]
       case _            => self // TODO: log a warning
     }
-  def filter(filterExpression: FilterExpression): DynamoDBQuery[A]    =
+
+  def filter(filterExpression: FilterExpression): DynamoDBQuery[A] =
     self match {
       case s: ScanPage  => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[A]]
       case s: ScanAll   => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[A]]
@@ -112,7 +147,8 @@ sealed trait DynamoDBQuery[+A] { self =>
       case s: QueryAll  => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[A]]
       case _            => self // TODO: log a warning
     }
-  def select(select: Select): DynamoDBQuery[A]                        =
+
+  def select(select: Select): DynamoDBQuery[A] =
     self match {
       case s: ScanPage  => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
       case s: ScanAll   => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
@@ -135,40 +171,6 @@ sealed trait DynamoDBQuery[+A] { self =>
       case _            => self // TODO: log a warning
     }
 
-  final def <*[B](that: DynamoDBQuery[B]): DynamoDBQuery[A] = zipLeft(that)
-
-  final def *>[B](that: DynamoDBQuery[B]): DynamoDBQuery[B] = zipRight(that)
-
-  final def <*>[B](that: DynamoDBQuery[B]): DynamoDBQuery[(A, B)] = self zip that
-
-  def execute: ZIO[DynamoDBExecutor, Exception, A] = {
-    val (constructors, assembler)                                                                   = parallelize(self)
-    val (indexedConstructors, (batchGetItem, batchGetIndexes), (batchWriteItem, batchWriteIndexes)) =
-      batched(constructors)
-
-    val indexedNonBatchedResults =
-      ZIO.foreachPar(indexedConstructors) {
-        case (constructor, index) =>
-          ddbExecute(constructor).map(result => (result, index))
-      }
-
-    val indexedGetResults =
-      ddbExecute(batchGetItem).map(resp => batchGetItem.toGetItemResponses(resp) zip batchGetIndexes)
-
-    val indexedWriteResults =
-      // TODO: think about mapping return values from writes
-      ddbExecute(batchWriteItem).map(_ => batchWriteItem.addList.map(_ => ()) zip batchWriteIndexes)
-
-    (indexedNonBatchedResults zipPar indexedGetResults zipPar indexedWriteResults).map {
-      case ((nonBatched, batchedGets), batchedWrites) =>
-        val combined = (nonBatched ++ batchedGets ++ batchedWrites).sortBy {
-          case (_, index) => index
-        }.map(_._1)
-        assembler(combined)
-    }
-
-  }
-
   final def map[B](f: A => B): DynamoDBQuery[B] = DynamoDBQuery.Map(self, f)
 
   final def zip[B](that: DynamoDBQuery[B]): DynamoDBQuery[(A, B)] = DynamoDBQuery.Zip(self, that)
@@ -187,11 +189,6 @@ object DynamoDBQuery {
 
   sealed trait Constructor[+A] extends DynamoDBQuery[A]
   sealed trait Write[+A]       extends Constructor[A]
-
-  final case class Succeed[A](value: () => A) extends Constructor[A]
-
-  private def select(projections: Seq[ProjectionExpression]): Option[Select] =
-    Some(if (projections.isEmpty) Select.AllAttributes else Select.SpecificAttributes)
 
   def succeed[A](a: A): DynamoDBQuery[A] = Succeed(() => a)
 
@@ -216,19 +213,24 @@ object DynamoDBQuery {
 
   def deleteItem(tableName: TableName, key: PrimaryKey): DynamoDBQuery[Unit] = DeleteItem(tableName, key)
 
-  def scanPage(tableName: TableName, indexName: IndexName, limit: Int, projections: ProjectionExpression*): ScanPage =
+  def scanSome(tableName: TableName, indexName: IndexName, limit: Int, projections: ProjectionExpression*): ScanPage =
     ScanPage(tableName, indexName, limit, select = select(projections), projections = projections.toList)
 
   def scanAll(tableName: TableName, indexName: IndexName, projections: ProjectionExpression*): ScanAll =
     ScanAll(tableName, indexName, select = select(projections), projections = projections.toList)
 
-  def queryPage(tableName: TableName, indexName: IndexName, limit: Int, projections: ProjectionExpression*): QueryPage =
+  def querySome(tableName: TableName, indexName: IndexName, limit: Int, projections: ProjectionExpression*): QueryPage =
     QueryPage(tableName, indexName, limit, select = select(projections), projections = projections.toList)
 
   def queryAll(tableName: TableName, indexName: IndexName, projections: ProjectionExpression*): QueryAll =
     QueryAll(tableName, indexName, select = select(projections), projections = projections.toList)
 
-  final case class GetItem(
+  private def select(projections: Seq[ProjectionExpression]): Option[Select] =
+    Some(if (projections.isEmpty) Select.AllAttributes else Select.SpecificAttributes)
+
+  private[dynamodb] final case class Succeed[A](value: () => A) extends Constructor[A]
+
+  private[dynamodb] final case class GetItem(
     tableName: TableName,
     key: PrimaryKey,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
@@ -237,8 +239,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
   ) extends Constructor[Option[Item]]
 
-  // TODO: should this be publicly visible?
-  final case class BatchGetItem(
+  private[dynamodb] final case class BatchGetItem(
     requestItems: MapOfSet[TableName, BatchGetItem.TableGet] = MapOfSet.empty,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     addList: Chunk[GetItem] = Chunk.empty // track order of added GetItems for later unpacking
@@ -274,7 +275,7 @@ object DynamoDBQuery {
     }
 
   }
-  object BatchGetItem {
+  private[dynamodb] object BatchGetItem {
     final case class TableGet(
       key: PrimaryKey,
       projections: List[ProjectionExpression] =
@@ -296,8 +297,7 @@ object DynamoDBQuery {
     )
   }
 
-  // TODO: should this be publicly visible?
-  final case class BatchWriteItem(
+  private[dynamodb] final case class BatchWriteItem(
     requestItems: MapOfSet[TableName, BatchWriteItem.Write] = MapOfSet.empty,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
@@ -327,7 +327,7 @@ object DynamoDBQuery {
       }
 
   }
-  object BatchWriteItem {
+  private[dynamodb] object BatchWriteItem {
     sealed trait Write
     final case class Delete(key: PrimaryKey) extends Write
     final case class Put(item: Item)         extends Write
@@ -342,7 +342,7 @@ object DynamoDBQuery {
   // Interestingly scan can be run in parallel using segment number and total segments fields
   // If running in parallel segment number must be used consistently with the paging token
   // I have removed these fields on the assumption that the library will take care of these concerns
-  final case class ScanPage(
+  private[dynamodb] final case class ScanPage(
     tableName: TableName,
     indexName: IndexName,
     limit: Int,
@@ -355,7 +355,7 @@ object DynamoDBQuery {
     select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
   ) extends Constructor[(Chunk[Item], LastEvaluatedKey)]
 
-  final case class QueryPage(
+  private[dynamodb] final case class QueryPage(
     tableName: TableName,
     indexName: IndexName,
     limit: Int,
@@ -370,7 +370,7 @@ object DynamoDBQuery {
     ascending: Boolean = true
   ) extends Constructor[(Chunk[Item], LastEvaluatedKey)]
 
-  final case class ScanAll(
+  private[dynamodb] final case class ScanAll(
     tableName: TableName,
     indexName: IndexName,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
@@ -382,7 +382,7 @@ object DynamoDBQuery {
     select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
   ) extends Constructor[Stream[Exception, Item]]
 
-  final case class QueryAll(
+  private[dynamodb] final case class QueryAll(
     tableName: TableName,
     indexName: IndexName,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
@@ -396,7 +396,7 @@ object DynamoDBQuery {
     ascending: Boolean = true
   ) extends Constructor[Stream[Exception, Item]]
 
-  final case class PutItem(
+  private[dynamodb] final case class PutItem(
     tableName: TableName,
     item: Item,
     conditionExpression: Option[ConditionExpression] = None,
@@ -405,7 +405,7 @@ object DynamoDBQuery {
     returnValues: ReturnValues = ReturnValues.None // PutItem does not recognize any values other than NONE or ALL_OLD.
   ) extends Write[Unit] // TODO: model response
 
-  final case class UpdateItem(
+  private[dynamodb] final case class UpdateItem(
     tableName: TableName,
     key: PrimaryKey,
     updateExpression: UpdateExpression,
@@ -415,7 +415,7 @@ object DynamoDBQuery {
     returnValues: ReturnValues = ReturnValues.None
   ) extends Constructor[Unit] // TODO: model response
 
-  final case class DeleteItem(
+  private[dynamodb] final case class DeleteItem(
     tableName: TableName,
     key: PrimaryKey,
     conditionExpression: Option[ConditionExpression] = None,
@@ -425,7 +425,7 @@ object DynamoDBQuery {
       ReturnValues.None // DeleteItem does not recognize any values other than NONE or ALL_OLD.
   ) extends Write[Unit] // TODO: model response
 
-  final case class CreateTable(
+  private[dynamodb] final case class CreateTable(
     tableName: TableName,
     keySchema: KeySchema,
     attributeDefinitions: NonEmptySet[AttributeDefinition],
@@ -437,8 +437,9 @@ object DynamoDBQuery {
     tags: ScalaMap[String, String] = ScalaMap.empty // you can have up to 50 tags
   ) extends Constructor[Unit] // TODO: model response
 
-  final case class Zip[A, B](left: DynamoDBQuery[A], right: DynamoDBQuery[B]) extends DynamoDBQuery[(A, B)]
-  final case class Map[A, B](query: DynamoDBQuery[A], mapper: A => B)         extends DynamoDBQuery[B]
+  private[dynamodb] final case class Zip[A, B](left: DynamoDBQuery[A], right: DynamoDBQuery[B])
+      extends DynamoDBQuery[(A, B)]
+  private[dynamodb] final case class Map[A, B](query: DynamoDBQuery[A], mapper: A => B) extends DynamoDBQuery[B]
 
   def apply[A](a: => A): DynamoDBQuery[A] = Succeed(() => a)
 
