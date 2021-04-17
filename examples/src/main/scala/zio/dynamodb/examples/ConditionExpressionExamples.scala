@@ -16,10 +16,11 @@ object ConditionExpressionExamples {
   val notExists: ConditionExpression   = projectionCol1.notExists
   val beginsWith: ConditionExpression  = projectionCol1.beginsWith(str1)
   val contains: ConditionExpression    = projectionCol1.contains(str1)
-  val size: ConditionExpression        = projectionCol2.size > Number(1.0).operand
+  val sizeOnLhs: ConditionExpression   = projectionCol2.size > Number(1.0).operand
+  val sizeOnRhs: ConditionExpression   = str1 > projectionCol2.size
   val isType: ConditionExpression      = projectionCol1.isType(AttributeValueType.Number)
-  val expnAnd: ConditionExpression     = beginsWith && size
-  val expnOr: ConditionExpression      = beginsWith || size
+  val expnAnd: ConditionExpression     = beginsWith && sizeOnLhs
+  val expnOr: ConditionExpression      = beginsWith || sizeOnLhs
   val expnNot: ConditionExpression     = !beginsWith
 
 }

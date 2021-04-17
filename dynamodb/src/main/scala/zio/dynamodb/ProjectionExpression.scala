@@ -13,7 +13,7 @@ sealed trait ProjectionExpression { self =>
   def isType(attributeType: AttributeValueType): ConditionExpression =
     ConditionExpression.AttributeType(self, attributeType)
 
-  def size: ConditionExpression.Operand = ConditionExpression.Operand.Size(self)
+  def size: ConditionExpression.Operand.Size = ConditionExpression.Operand.Size(self)
 }
 
 object ProjectionExpression {

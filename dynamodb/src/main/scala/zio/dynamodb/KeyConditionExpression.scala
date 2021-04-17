@@ -13,13 +13,21 @@ comparisons operators are the same as for Condition
 sealed trait KeyConditionExpression
 object KeyConditionExpression {
   final case class And(left: PartitionKeyExpression, right: SortKeyExpression) extends KeyConditionExpression
+// KeyName wrapper class over KeyName with == method that accepts AV and PE
 
-  sealed trait Operand
-  object Operand {
+//  final case class KeyName(value: String) {
+//    def ==(that: AttributeValue): PartitionKeyExpression =
+//      PartitionKeyExpression.Equals(PartitionKeyOperand(value), that)
+//  }
 
-    final case class ValueOperand(value: AttributeValue)     extends Operand
-    final case class PathOperand(path: ProjectionExpression) extends Operand
-  }
+// TODO: delete as we only deal with AttributeValues on the RHS
+//  sealed trait Operand
+//  object Operand {
+//
+//    // adding value to AV and PE
+//    final case class ValueOperand(value: AttributeValue)     extends Operand
+//    final case class PathOperand(path: ProjectionExpression) extends Operand
+//  }
 }
 
 sealed trait PartitionKeyExpression extends KeyConditionExpression { self =>
@@ -28,32 +36,34 @@ sealed trait PartitionKeyExpression extends KeyConditionExpression { self =>
   def &&(that: SortKeyExpression): KeyConditionExpression = And(self, that)
 }
 object PartitionKeyExpression       extends KeyConditionExpression {
-  import KeyConditionExpression._
 
-  final case class PartitionKeyOperand(keyName: String) { self =>
-    def ==(that: Operand): PartitionKeyExpression = Equals(self, that)
+  final case class PartitionKey(keyName: String) { self =>
+    def ==(that: AttributeValue): PartitionKeyExpression = Equals(self, that)
   }
-  final case class Equals(left: PartitionKeyOperand, right: Operand) extends PartitionKeyExpression
+  final case class Equals(left: PartitionKey, right: AttributeValue) extends PartitionKeyExpression
 }
 
 sealed trait SortKeyExpression extends KeyConditionExpression
 
 object SortKeyExpression {
-  import KeyConditionExpression._
 
-  final case class SortKeyOperand(keyName: String) { self =>
-    def ==(that: Operand): SortKeyExpression = Equals(self, that)
-    def <>(that: Operand): SortKeyExpression = NotEqual(self, that)
-    def <(that: Operand): SortKeyExpression  = LessThan(self, that)
-    def <=(that: Operand): SortKeyExpression = LessThanOrEqual(self, that)
-    def >(that: Operand): SortKeyExpression  = GreaterThanOrEqual(self, that)
-    def >=(that: Operand): SortKeyExpression = GreaterThanOrEqual(self, that)
+  final case class SortKey(keyName: String) { self =>
+    def ==(that: AttributeValue): SortKeyExpression                          = Equals(self, that)
+    def <>(that: AttributeValue): SortKeyExpression                          = NotEqual(self, that)
+    def <(that: AttributeValue): SortKeyExpression                           = LessThan(self, that)
+    def <=(that: AttributeValue): SortKeyExpression                          = LessThanOrEqual(self, that)
+    def >(that: AttributeValue): SortKeyExpression                           = GreaterThanOrEqual(self, that)
+    def >=(that: AttributeValue): SortKeyExpression                          = GreaterThanOrEqual(self, that)
+    def between(min: AttributeValue, max: AttributeValue): SortKeyExpression = Between(self, min, max)
+    def beginsWith(value: AttributeValue): SortKeyExpression                 = BeginsWith(self, value)
   }
 
-  final case class Equals(left: SortKeyOperand, right: Operand)             extends SortKeyExpression
-  final case class NotEqual(left: SortKeyOperand, right: Operand)           extends SortKeyExpression
-  final case class LessThan(left: SortKeyOperand, right: Operand)           extends SortKeyExpression
-  final case class GreaterThan(left: SortKeyOperand, right: Operand)        extends SortKeyExpression
-  final case class LessThanOrEqual(left: SortKeyOperand, right: Operand)    extends SortKeyExpression
-  final case class GreaterThanOrEqual(left: SortKeyOperand, right: Operand) extends SortKeyExpression
+  final case class Equals(left: SortKey, right: AttributeValue)                     extends SortKeyExpression
+  final case class NotEqual(left: SortKey, right: AttributeValue)                   extends SortKeyExpression
+  final case class LessThan(left: SortKey, right: AttributeValue)                   extends SortKeyExpression
+  final case class GreaterThan(left: SortKey, right: AttributeValue)                extends SortKeyExpression
+  final case class LessThanOrEqual(left: SortKey, right: AttributeValue)            extends SortKeyExpression
+  final case class GreaterThanOrEqual(left: SortKey, right: AttributeValue)         extends SortKeyExpression
+  final case class Between(left: SortKey, min: AttributeValue, max: AttributeValue) extends SortKeyExpression
+  final case class BeginsWith(left: SortKey, value: AttributeValue)                 extends SortKeyExpression
 }
