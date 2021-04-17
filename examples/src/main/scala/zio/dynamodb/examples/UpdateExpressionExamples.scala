@@ -25,13 +25,11 @@ object UpdateExpressionExamples extends App {
     UpdateExpression(set1) + set2 + add + remove + delete
   )
 
-  val set5: SetAction = path1.set(AttributeValue.Number(1.0))
-  val set6: SetAction = path1.set(path2)
-  val set7: SetAction = path1.setIfNotExists(path2, AttributeValue.String("v2"))
-  val set8: SetAction = path1.setListAppend(list1, list2)
-  val add2            = path1.add(AttributeValue.Number(1.0))
-  val remove2         = path1.remove
-  val delete2         = path1.delete(AttributeValue.Number(1.0))
-
-  val ops = UpdateExpression(set5) + set6 + set7 + add2 + remove2 + delete2
+  val ops: UpdateExpression = UpdateExpression(path1.set(AttributeValue.Number(1.0))) +
+    path1.set(path2) +
+    path1.setIfNotExists(path2, AttributeValue.String("v2")) +
+    path1.setListAppend(list1, list2) +
+    path1.add(AttributeValue.Number(1.0)) +
+    path1.remove +
+    path1.delete(AttributeValue.Number(1.0))
 }
