@@ -1,5 +1,7 @@
 package zio.dynamodb
 
+import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, PathOperand }
+
 // The maximum depth for a document path is 32
 sealed trait ProjectionExpression { self =>
   def apply(index: Int): ProjectionExpression = ProjectionExpression.ListElement(self, index)
@@ -14,6 +16,22 @@ sealed trait ProjectionExpression { self =>
     ConditionExpression.AttributeType(self, attributeType)
 
   def size: ConditionExpression.Operand.Size = ConditionExpression.Operand.Size(self)
+
+  def set(av: AttributeValue): UpdateExpression.Action.SetAction                                           =
+    UpdateExpression.Action.SetAction(self, UpdateExpression.SetOperand.ValueOperand(av))
+  def set(pe: ProjectionExpression): UpdateExpression.Action.SetAction                                     =
+    UpdateExpression.Action.SetAction(self, PathOperand(pe))
+  def setIfNotExists(pe: ProjectionExpression, av: AttributeValue): UpdateExpression.Action.SetAction      =
+    UpdateExpression.Action.SetAction(self, IfNotExists(pe, av))
+  def setListAppend(xs1: AttributeValue.List, xs2: AttributeValue.List): UpdateExpression.Action.SetAction =
+    UpdateExpression.Action.SetAction(self, ListAppend(xs1, xs2))
+  def add(av: AttributeValue): UpdateExpression.Action.AddAction                                           =
+    UpdateExpression.Action.AddAction(self, av)
+  def remove: UpdateExpression.Action.RemoveAction                                                         =
+    UpdateExpression.Action.RemoveAction(self)
+  def delete(av: AttributeValue): UpdateExpression.Action.DeleteAction                                     =
+    UpdateExpression.Action.DeleteAction(self, av)
+
 }
 
 object ProjectionExpression {
