@@ -13,6 +13,21 @@ comparisons operators are the same as for Condition
 sealed trait KeyConditionExpression
 object KeyConditionExpression {
   final case class And(left: PartitionKeyExpression, right: SortKeyExpression) extends KeyConditionExpression
+// KeyName wrapper class over KeyName with == method that accepts AV and PE
+
+//  final case class KeyName(value: String) {
+//    def ==(that: AttributeValue): PartitionKeyExpression =
+//      PartitionKeyExpression.Equals(PartitionKeyOperand(value), that)
+//  }
+
+// TODO: delete as we only deal with AttributeValues on the RHS
+//  sealed trait Operand
+//  object Operand {
+//
+//    // adding value to AV and PE
+//    final case class ValueOperand(value: AttributeValue)     extends Operand
+//    final case class PathOperand(path: ProjectionExpression) extends Operand
+//  }
 }
 
 sealed trait PartitionKeyExpression extends KeyConditionExpression { self =>

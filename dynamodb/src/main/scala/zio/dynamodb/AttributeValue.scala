@@ -23,11 +23,12 @@ sealed trait AttributeValue { self =>
   def in(values: Set[AttributeValue]): ConditionExpression                             = In(ValueOperand(self), values)
 
   def ===(that: AttributeValue): ConditionExpression = Equals(ValueOperand(self), ValueOperand(that))
-  def <>(that: AttributeValue): ConditionExpression  = NotEqual(ValueOperand(self), ValueOperand(that))
-  def <(that: AttributeValue): ConditionExpression   = LessThan(ValueOperand(self), ValueOperand(that))
-  def <=(that: AttributeValue): ConditionExpression  = LessThanOrEqual(ValueOperand(self), ValueOperand(that))
-  def >(that: AttributeValue): ConditionExpression   = GreaterThanOrEqual(ValueOperand(self), ValueOperand(that))
-  def >=(that: AttributeValue): ConditionExpression  = GreaterThanOrEqual(ValueOperand(self), ValueOperand(that))
+
+  def <>(that: AttributeValue): ConditionExpression = NotEqual(ValueOperand(self), ValueOperand(that))
+  def <(that: AttributeValue): ConditionExpression  = LessThan(ValueOperand(self), ValueOperand(that))
+  def <=(that: AttributeValue): ConditionExpression = LessThanOrEqual(ValueOperand(self), ValueOperand(that))
+  def >(that: AttributeValue): ConditionExpression  = GreaterThanOrEqual(ValueOperand(self), ValueOperand(that))
+  def >=(that: AttributeValue): ConditionExpression = GreaterThanOrEqual(ValueOperand(self), ValueOperand(that))
 
   def ===(that: Operand.Size): ConditionExpression = Equals(ValueOperand(self), that)
   def <>(that: Operand.Size): ConditionExpression  = NotEqual(ValueOperand(self), that)
@@ -35,6 +36,12 @@ sealed trait AttributeValue { self =>
   def <=(that: Operand.Size): ConditionExpression  = LessThanOrEqual(ValueOperand(self), that)
   def >(that: Operand.Size): ConditionExpression   = GreaterThanOrEqual(ValueOperand(self), that)
   def >=(that: Operand.Size): ConditionExpression  = GreaterThanOrEqual(ValueOperand(self), that)
+
+  /*
+  x:ProjectionExpression = ???
+  v: AttributeValue = ???
+  v == x.size
+   */
 
 }
 
