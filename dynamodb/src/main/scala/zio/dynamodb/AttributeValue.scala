@@ -1,9 +1,41 @@
 package zio.dynamodb
 
 import zio.Chunk
+import zio.dynamodb.ConditionExpression.Operand._
+import zio.dynamodb.ConditionExpression.{
+  Between,
+  Equals,
+  GreaterThanOrEqual,
+  In,
+  LessThan,
+  LessThanOrEqual,
+  NotEqual,
+  Operand
+}
 
 sealed trait AttributeValue { self =>
+
+  // TODO: remove
   def operand: ConditionExpression.Operand = ConditionExpression.Operand.ValueOperand(self)
+
+  def between(minValue: AttributeValue, maxValue: AttributeValue): ConditionExpression =
+    Between(ValueOperand(self), minValue, maxValue)
+  def in(values: Set[AttributeValue]): ConditionExpression                             = In(ValueOperand(self), values)
+
+  def ===(that: AttributeValue): ConditionExpression = Equals(ValueOperand(self), ValueOperand(that))
+  def <>(that: AttributeValue): ConditionExpression  = NotEqual(ValueOperand(self), ValueOperand(that))
+  def <(that: AttributeValue): ConditionExpression   = LessThan(ValueOperand(self), ValueOperand(that))
+  def <=(that: AttributeValue): ConditionExpression  = LessThanOrEqual(ValueOperand(self), ValueOperand(that))
+  def >(that: AttributeValue): ConditionExpression   = GreaterThanOrEqual(ValueOperand(self), ValueOperand(that))
+  def >=(that: AttributeValue): ConditionExpression  = GreaterThanOrEqual(ValueOperand(self), ValueOperand(that))
+
+  def ===(that: Operand.Size): ConditionExpression = Equals(ValueOperand(self), that)
+  def <>(that: Operand.Size): ConditionExpression  = NotEqual(ValueOperand(self), that)
+  def <(that: Operand.Size): ConditionExpression   = LessThan(ValueOperand(self), that)
+  def <=(that: Operand.Size): ConditionExpression  = LessThanOrEqual(ValueOperand(self), that)
+  def >(that: Operand.Size): ConditionExpression   = GreaterThanOrEqual(ValueOperand(self), that)
+  def >=(that: Operand.Size): ConditionExpression  = GreaterThanOrEqual(ValueOperand(self), that)
+
 }
 
 object AttributeValue {

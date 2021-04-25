@@ -41,20 +41,34 @@ delete-action ::=
 // Note this implementation does not preserve the original order of actions ie after "Set field1 = 1, field1 = 2"
 // if this turns out to be a problem we could change the internal implementation
 final case class UpdateExpression private (actions: NonEmptySet[Action]) { self =>
-  def +(action: Action) = UpdateExpression(self.actions + action)
+  def +(action: Action): UpdateExpression = UpdateExpression(self.actions + action)
 }
 
 object UpdateExpression {
-  type Path = ProjectionExpression
-
   def apply(action: Action): UpdateExpression = UpdateExpression(NonEmptySet(action))
 
   sealed trait Action
   object Action {
-    final case class SetAction(path: Path, operand: SetOperand)      extends Action
-    final case class RemoveAction(path: Path)                        extends Action
-    final case class AddAction(path: Path, value: AttributeValue)    extends Action
-    final case class DeleteAction(path: Path, value: AttributeValue) extends Action
+
+    /**
+     * Modifying or Adding Item Attributes
+     */
+    final case class SetAction(path: ProjectionExpression, operand: SetOperand) extends Action
+
+    /**
+     * Removing Attributes from an Item
+     */
+    final case class RemoveAction(path: ProjectionExpression) extends Action
+
+    /**
+     * Updating Numbers and Sets
+     */
+    final case class AddAction(path: ProjectionExpression, value: AttributeValue) extends Action
+
+    /**
+     * Delete Elements from a Set
+     */
+    final case class DeleteAction(path: ProjectionExpression, value: AttributeValue) extends Action
   }
 
   sealed trait SetOperand { self =>
@@ -67,10 +81,10 @@ object UpdateExpression {
     final case class Minus(left: SetOperand, right: SetOperand) extends SetOperand
     final case class Plus(left: SetOperand, right: SetOperand)  extends SetOperand
     final case class ValueOperand(value: AttributeValue)        extends SetOperand
-    final case class PathOperand(path: Path)                    extends SetOperand
+    final case class PathOperand(path: ProjectionExpression)    extends SetOperand
 
     // functions
     final case class ListAppend(list1: AttributeValue.List, list2: AttributeValue.List) extends SetOperand
-    final case class IfNotExists(path: Path, value: AttributeValue)                     extends SetOperand
+    final case class IfNotExists(path: ProjectionExpression, value: AttributeValue)     extends SetOperand
   }
 }
