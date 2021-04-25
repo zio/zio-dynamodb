@@ -17,10 +17,11 @@ sealed trait ProjectionExpression { self =>
 
   def size: ConditionExpression.Operand.Size = ConditionExpression.Operand.Size(self)
 
-  def set(av: AttributeValue): UpdateExpression.Action.SetAction                                           =
-    UpdateExpression.Action.SetAction(self, UpdateExpression.SetOperand.ValueOperand(av))
+  def set[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction                     =
+    UpdateExpression.Action.SetAction(self, UpdateExpression.SetOperand.ValueOperand(t.toAttributeValue(a)))
   def set(pe: ProjectionExpression): UpdateExpression.Action.SetAction                                     =
     UpdateExpression.Action.SetAction(self, PathOperand(pe))
+  // TODO: propogate type classes with type parameters
   def setIfNotExists(pe: ProjectionExpression, av: AttributeValue): UpdateExpression.Action.SetAction      =
     UpdateExpression.Action.SetAction(self, IfNotExists(pe, av))
   def setListAppend(xs1: AttributeValue.List, xs2: AttributeValue.List): UpdateExpression.Action.SetAction =

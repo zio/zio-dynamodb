@@ -61,6 +61,42 @@ object AttributeValue {
   final case class StringSet(value: Set[ScalaString])           extends AttributeValue
 }
 
+trait ToAttributeValue[-A] {
+  def toAttributeValue(a: A): AttributeValue
+}
+
+/*
+  final case class List(value: Chunk[AttributeValue])           extends AttributeValue
+  final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue
+  object Null                                                   extends AttributeValue
+  DONE
+  final case class Binary(value: Chunk[Byte])                   extends AttributeValue
+  final case class BinarySet(value: Chunk[Chunk[Byte]])         extends AttributeValue
+  final case class Bool(value: Boolean)                         extends AttributeValue
+  final case class Number(value: BigDecimal)                    extends AttributeValue
+  final case class NumberSet(value: Set[BigDecimal])            extends AttributeValue
+  final case class String(value: ScalaString)                   extends AttributeValue
+  final case class StringSet(value: Set[ScalaString])           extends AttributeValue
+ */
+
+object ToAttributeValue {
+  import Predef.{ String => ScalaString }
+//  import scala.collection.{ Map => ScalaMap }
+
+  implicit val binaryToAttributeValue: ToAttributeValue[Chunk[Byte]]           = AttributeValue.Binary(_)
+  implicit val binarySetToAttributeValue: ToAttributeValue[Chunk[Chunk[Byte]]] = AttributeValue.BinarySet(_)
+  implicit val boolToAttributeValue: ToAttributeValue[Boolean]                 = AttributeValue.Bool(_)
+  implicit val boolSetToAttributeValue: ToAttributeValue[Boolean]              = AttributeValue.Bool(_)
+  implicit val listToAttributeValue: ToAttributeValue[Chunk[AttributeValue]]   =
+    AttributeValue.List(_) // TODO: improve
+  implicit val stringToAttributeValue: ToAttributeValue[String]              = AttributeValue.String(_) // single abstract method
+  implicit val stringSetToAttributeValue: ToAttributeValue[Set[ScalaString]] =
+    AttributeValue.StringSet(_)
+  implicit val numberToAttributeValue: ToAttributeValue[BigDecimal]          = AttributeValue.Number(_)
+  implicit val numberSetToAttributeValue: ToAttributeValue[Set[BigDecimal]]  = AttributeValue.NumberSet(_)
+  // list & map will be implicit defs - they will take implicit evidence of whatever is inside them has evidence of
+}
+
 /*
 TODO: implicit conversions: (may help)
 AV => Operand
