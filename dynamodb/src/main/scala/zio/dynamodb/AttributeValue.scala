@@ -89,6 +89,15 @@ object ToAttributeValue {
   implicit val boolToAttributeValue: ToAttributeValue[Boolean]                 = AttributeValue.Bool(_)
   implicit val boolSetToAttributeValue: ToAttributeValue[Boolean]              = AttributeValue.Bool(_)
 
+  /*
+  TODO: try to make this more general ie Iterable rather than Chunk
+  However when I do this I get a clash with StringSet which implements iterable
+    ambiguous implicit values:
+     both method listToAttributeValue in object ToAttributeValue of type [A](implicit element: zio.dynamodb.ToAttributeValue[A]): zio.dynamodb.ToAttributeValue[Iterable[A]]
+     and value stringSetToAttributeValue in object ToAttributeValue of type zio.dynamodb.ToAttributeValue[Set[String]]
+     match expected type zio.dynamodb.ToAttributeValue[scala.collection.immutable.Set[String]]
+      val pe2        = path1.set(Set("s"))
+   */
   implicit def listToAttributeValue[A](implicit element: ToAttributeValue[A]): ToAttributeValue[Chunk[A]] =
     new ToAttributeValue[Chunk[A]] { // TODO: convert to single abstract method
       override def toAttributeValue(xs: Chunk[A]): AttributeValue =
@@ -100,7 +109,6 @@ object ToAttributeValue {
     AttributeValue.StringSet(_)
   implicit val numberToAttributeValue: ToAttributeValue[BigDecimal]          = AttributeValue.Number(_)
   implicit val numberSetToAttributeValue: ToAttributeValue[Set[BigDecimal]]  = AttributeValue.NumberSet(_)
-  // list & map will be implicit defs - they will take implicit evidence of whatever is inside them has evidence of
 }
 
 /*
