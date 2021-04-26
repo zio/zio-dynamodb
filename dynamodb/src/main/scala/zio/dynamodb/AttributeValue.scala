@@ -2,16 +2,7 @@ package zio.dynamodb
 
 import zio.Chunk
 import zio.dynamodb.ConditionExpression.Operand._
-import zio.dynamodb.ConditionExpression.{
-  Between,
-  Equals,
-  GreaterThanOrEqual,
-  In,
-  LessThan,
-  LessThanOrEqual,
-  NotEqual,
-  Operand
-}
+import zio.dynamodb.ConditionExpression._
 
 sealed trait AttributeValue { self =>
 
@@ -66,10 +57,10 @@ trait ToAttributeValue[-A] {
 }
 
 /*
-  final case class List(value: Chunk[AttributeValue])           extends AttributeValue
   final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue
   object Null                                                   extends AttributeValue
   DONE
+  final case class List(value: Chunk[AttributeValue])           extends AttributeValue
   final case class Binary(value: Chunk[Byte])                   extends AttributeValue
   final case class BinarySet(value: Chunk[Chunk[Byte]])         extends AttributeValue
   final case class Bool(value: Boolean)                         extends AttributeValue
@@ -81,14 +72,29 @@ trait ToAttributeValue[-A] {
 
 object ToAttributeValue {
   import Predef.{ String => ScalaString }
-//  import scala.collection.{ Map => ScalaMap }
+
+//  implicit def mapToAttributeValue[A](implicit element: ToAttributeValue[A]): ToAttributeValue[Chunk[A]] =
+//    new ToAttributeValue[ScalaMap[String, A]] {
+//      override def toAttributeValue(map: ScalaMap[String, A]): AttributeValue =
+//        AttributeValue.Map {
+//          val x: ScalaMap[ScalaString, AttributeValue] = map.map {
+//            case (key, value) => (key, element.toAttributeValue(value))
+//          }
+//          x
+//        }
+//    }
 
   implicit val binaryToAttributeValue: ToAttributeValue[Chunk[Byte]]           = AttributeValue.Binary(_)
   implicit val binarySetToAttributeValue: ToAttributeValue[Chunk[Chunk[Byte]]] = AttributeValue.BinarySet(_)
   implicit val boolToAttributeValue: ToAttributeValue[Boolean]                 = AttributeValue.Bool(_)
   implicit val boolSetToAttributeValue: ToAttributeValue[Boolean]              = AttributeValue.Bool(_)
-  implicit val listToAttributeValue: ToAttributeValue[Chunk[AttributeValue]]   =
-    AttributeValue.List(_) // TODO: improve
+
+  implicit def listToAttributeValue[A](implicit element: ToAttributeValue[A]): ToAttributeValue[Chunk[A]] =
+    new ToAttributeValue[Chunk[A]] { // TODO: convert to single abstract method
+      override def toAttributeValue(xs: Chunk[A]): AttributeValue =
+        AttributeValue.List(xs.map(element.toAttributeValue))
+    }
+
   implicit val stringToAttributeValue: ToAttributeValue[String]              = AttributeValue.String(_) // single abstract method
   implicit val stringSetToAttributeValue: ToAttributeValue[Set[ScalaString]] =
     AttributeValue.StringSet(_)

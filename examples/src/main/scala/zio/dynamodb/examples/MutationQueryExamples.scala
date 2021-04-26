@@ -37,7 +37,7 @@ object MutationQueryExamples extends App {
   val pe4        = path1.set(Chunk(Chunk("s".toByte)))
   val pe5        = path1.set(BigDecimal(1.0))
   val pe6        = path1.set(Set(BigDecimal(1.0)))
-  val pe7        = path1.set(Chunk(AttributeValue.String(""))) // TODO
+  val pe7        = path1.set(Chunk("x")) // TODO
   val updateItem = DynamoDBQuery.updateItem(TableName("t1"), PrimaryKey(Map.empty), pe)
 
 }
