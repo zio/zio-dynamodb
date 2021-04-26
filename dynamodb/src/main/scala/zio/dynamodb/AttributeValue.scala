@@ -72,17 +72,7 @@ trait ToAttributeValue[-A] {
 
 object ToAttributeValue {
   import Predef.{ String => ScalaString }
-
-//  implicit def mapToAttributeValue[A](implicit element: ToAttributeValue[A]): ToAttributeValue[Chunk[A]] =
-//    new ToAttributeValue[ScalaMap[String, A]] {
-//      override def toAttributeValue(map: ScalaMap[String, A]): AttributeValue =
-//        AttributeValue.Map {
-//          val x: ScalaMap[ScalaString, AttributeValue] = map.map {
-//            case (key, value) => (key, element.toAttributeValue(value))
-//          }
-//          x
-//        }
-//    }
+  import Predef.{ Map => ScalaMap }
 
   implicit val binaryToAttributeValue: ToAttributeValue[Chunk[Byte]]           = AttributeValue.Binary(_)
   implicit val binarySetToAttributeValue: ToAttributeValue[Chunk[Chunk[Byte]]] = AttributeValue.BinarySet(_)
@@ -102,6 +92,19 @@ object ToAttributeValue {
     new ToAttributeValue[Chunk[A]] { // TODO: convert to single abstract method
       override def toAttributeValue(xs: Chunk[A]): AttributeValue =
         AttributeValue.List(xs.map(element.toAttributeValue))
+    }
+
+  implicit def mapToAttributeValue[A](implicit
+    element: ToAttributeValue[A]
+  ): ToAttributeValue[ScalaMap[ScalaString, A]] =
+    new ToAttributeValue[ScalaMap[ScalaString, A]] {
+      override def toAttributeValue(map: ScalaMap[ScalaString, A]): AttributeValue =
+        AttributeValue.Map {
+          val x: Map[AttributeValue.String, AttributeValue] = map.map {
+            case (key, value) => (AttributeValue.String(key), element.toAttributeValue(value))
+          }
+          x
+        }
     }
 
   implicit val stringToAttributeValue: ToAttributeValue[String]              = AttributeValue.String(_) // single abstract method
