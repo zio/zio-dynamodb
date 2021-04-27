@@ -57,9 +57,9 @@ trait ToAttributeValue[-A] {
 }
 
 /*
-  final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue
   object Null                                                   extends AttributeValue
   DONE
+  final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue
   final case class List(value: Chunk[AttributeValue])           extends AttributeValue
   final case class Binary(value: Chunk[Byte])                   extends AttributeValue
   final case class BinarySet(value: Chunk[Chunk[Byte]])         extends AttributeValue
@@ -77,7 +77,6 @@ object ToAttributeValue {
   implicit val binaryToAttributeValue: ToAttributeValue[Chunk[Byte]]           = AttributeValue.Binary(_)
   implicit val binarySetToAttributeValue: ToAttributeValue[Chunk[Chunk[Byte]]] = AttributeValue.BinarySet(_)
   implicit val boolToAttributeValue: ToAttributeValue[Boolean]                 = AttributeValue.Bool(_)
-  implicit val boolSetToAttributeValue: ToAttributeValue[Boolean]              = AttributeValue.Bool(_)
 
   /*
   TODO: try to make this more general ie Iterable rather than Chunk
@@ -89,25 +88,19 @@ object ToAttributeValue {
       val pe2        = path1.set(Set("s"))
    */
   implicit def listToAttributeValue[A](implicit element: ToAttributeValue[A]): ToAttributeValue[Chunk[A]] =
-    new ToAttributeValue[Chunk[A]] { // TODO: convert to single abstract method
-      override def toAttributeValue(xs: Chunk[A]): AttributeValue =
-        AttributeValue.List(xs.map(element.toAttributeValue))
-    }
+    (xs: Chunk[A]) => AttributeValue.List(xs.map(element.toAttributeValue))
 
   implicit def mapToAttributeValue[A](implicit
     element: ToAttributeValue[A]
   ): ToAttributeValue[ScalaMap[ScalaString, A]] =
-    new ToAttributeValue[ScalaMap[ScalaString, A]] {
-      override def toAttributeValue(map: ScalaMap[ScalaString, A]): AttributeValue =
-        AttributeValue.Map {
-          val x: Map[AttributeValue.String, AttributeValue] = map.map {
-            case (key, value) => (AttributeValue.String(key), element.toAttributeValue(value))
-          }
-          x
+    (map: ScalaMap[ScalaString, A]) =>
+      AttributeValue.Map {
+        map.map {
+          case (key, value) => (AttributeValue.String(key), element.toAttributeValue(value))
         }
-    }
+      }
 
-  implicit val stringToAttributeValue: ToAttributeValue[String]              = AttributeValue.String(_) // single abstract method
+  implicit val stringToAttributeValue: ToAttributeValue[String]              = AttributeValue.String(_)
   implicit val stringSetToAttributeValue: ToAttributeValue[Set[ScalaString]] =
     AttributeValue.StringSet(_)
   implicit val numberToAttributeValue: ToAttributeValue[BigDecimal]          = AttributeValue.Number(_)

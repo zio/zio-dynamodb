@@ -2,9 +2,10 @@ package zio.dynamodb.examples
 
 import zio.Chunk
 import zio.dynamodb.ProjectionExpression.TopLevel
+import zio.dynamodb.UpdateExpression.Action
 import zio.dynamodb.UpdateExpression.Action.{ AddAction, DeleteAction, RemoveAction, SetAction }
 import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, PathOperand, ValueOperand }
-import zio.dynamodb.{ AttributeValue, ToAttributeValue, UpdateExpression }
+import zio.dynamodb.{ AttributeValue, DynamoDBQuery, PrimaryKey, TableName, ToAttributeValue, UpdateExpression }
 
 object UpdateExpressionExamples extends App {
   val path1 = TopLevel("one")(2)
@@ -33,4 +34,21 @@ object UpdateExpressionExamples extends App {
       path1.add(AttributeValue.Number(1.0)) +
       path1.remove +
       path1.delete(AttributeValue.Number(1.0))
+
+  /*
+  $("one[2]")
+  $("foo.bar[9].baz")
+   */
+  val path3      = TopLevel("one")(2)
+  val pe         = path1.set("v2")
+  val pe2        = path1.set(Set("s"))
+  val pe3        = path1.set(Chunk("s".toByte))
+  val pe4        = path1.set(Chunk(Chunk("s".toByte)))
+  val pe5        = path1.set(BigDecimal(1.0))
+  val pe6        = path1.set(Set(BigDecimal(1.0)))
+  val pe7        = path1.set(Chunk("x")) // TODO
+  val updateItem = DynamoDBQuery.updateItem(TableName("t1"), PrimaryKey(Map.empty), pe)
+
+  val x                     = AttributeValue.Map(Map(AttributeValue.String("") -> AttributeValue.String("")))
+  val pe8: Action.SetAction = path1.set(Map("x" -> "x"))
 }
