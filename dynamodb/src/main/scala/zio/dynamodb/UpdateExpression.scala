@@ -84,6 +84,9 @@ object UpdateExpression {
     final case class PathOperand(path: ProjectionExpression)    extends SetOperand
 
     // functions
+    // TODO: I get the mapping of ListAppend to the AWS API wrong - one of the 2 arguments MUST be a PathExpression
+    // so we effectively have pe.listAppend(list) and pe.listPrepend(list)
+    // so we 2 case classes - `final case class ListAppend(list1: AttributeValue.List)` and `final case class ListPreAppend(list1: AttributeValue.List)`
     final case class ListAppend(list1: AttributeValue.List, list2: AttributeValue.List) extends SetOperand
     final case class IfNotExists(path: ProjectionExpression, value: AttributeValue)     extends SetOperand
   }

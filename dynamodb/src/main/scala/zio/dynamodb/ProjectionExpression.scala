@@ -21,17 +21,18 @@ sealed trait ProjectionExpression { self =>
     UpdateExpression.Action.SetAction(self, UpdateExpression.SetOperand.ValueOperand(t.toAttributeValue(a)))
   def set(pe: ProjectionExpression): UpdateExpression.Action.SetAction                                     =
     UpdateExpression.Action.SetAction(self, PathOperand(pe))
-  // TODO: propogate type classes with type parameters
-  def setIfNotExists(pe: ProjectionExpression, av: AttributeValue): UpdateExpression.Action.SetAction      =
-    UpdateExpression.Action.SetAction(self, IfNotExists(pe, av))
+  def setIfNotExists[A](pe: ProjectionExpression, a: A)(implicit
+    t: ToAttributeValue[A]
+  ): UpdateExpression.Action.SetAction                                                                     =
+    UpdateExpression.Action.SetAction(self, IfNotExists(pe, t.toAttributeValue(a)))
   def setListAppend(xs1: AttributeValue.List, xs2: AttributeValue.List): UpdateExpression.Action.SetAction =
     UpdateExpression.Action.SetAction(self, ListAppend(xs1, xs2))
-  def add(av: AttributeValue): UpdateExpression.Action.AddAction                                           =
-    UpdateExpression.Action.AddAction(self, av)
+  def add[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.AddAction                     =
+    UpdateExpression.Action.AddAction(self, t.toAttributeValue(a))
   def remove: UpdateExpression.Action.RemoveAction                                                         =
     UpdateExpression.Action.RemoveAction(self)
-  def delete(av: AttributeValue): UpdateExpression.Action.DeleteAction                                     =
-    UpdateExpression.Action.DeleteAction(self, av)
+  def delete[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.DeleteAction               =
+    UpdateExpression.Action.DeleteAction(self, t.toAttributeValue(a))
 
 }
 
