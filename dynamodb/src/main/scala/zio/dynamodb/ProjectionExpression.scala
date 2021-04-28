@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, PathOperand }
+import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand }
 
 // The maximum depth for a document path is 32
 sealed trait ProjectionExpression { self =>
@@ -17,21 +17,24 @@ sealed trait ProjectionExpression { self =>
 
   def size: ConditionExpression.Operand.Size = ConditionExpression.Operand.Size(self)
 
-  def set[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction                     =
+  def set[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction       =
     UpdateExpression.Action.SetAction(self, UpdateExpression.SetOperand.ValueOperand(t.toAttributeValue(a)))
-  def set(pe: ProjectionExpression): UpdateExpression.Action.SetAction                                     =
+  def set(pe: ProjectionExpression): UpdateExpression.Action.SetAction                       =
     UpdateExpression.Action.SetAction(self, PathOperand(pe))
   def setIfNotExists[A](pe: ProjectionExpression, a: A)(implicit
     t: ToAttributeValue[A]
-  ): UpdateExpression.Action.SetAction                                                                     =
+  ): UpdateExpression.Action.SetAction                                                       =
     UpdateExpression.Action.SetAction(self, IfNotExists(pe, t.toAttributeValue(a)))
-  def setListAppend(xs1: AttributeValue.List, xs2: AttributeValue.List): UpdateExpression.Action.SetAction =
-    UpdateExpression.Action.SetAction(self, ListAppend(xs1, xs2))
-  def add[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.AddAction                     =
+  // TODO: add implicit evidence. Maybe try Chunk[A]
+  def setListAppend(xs: AttributeValue.List): UpdateExpression.Action.SetAction              =
+    UpdateExpression.Action.SetAction(self, ListAppend(xs))
+  def setListPrepend(xs: AttributeValue.List): UpdateExpression.Action.SetAction             =
+    UpdateExpression.Action.SetAction(self, ListPrepend(xs))
+  def add[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.AddAction       =
     UpdateExpression.Action.AddAction(self, t.toAttributeValue(a))
-  def remove: UpdateExpression.Action.RemoveAction                                                         =
+  def remove: UpdateExpression.Action.RemoveAction                                           =
     UpdateExpression.Action.RemoveAction(self)
-  def delete[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.DeleteAction               =
+  def delete[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.DeleteAction =
     UpdateExpression.Action.DeleteAction(self, t.toAttributeValue(a))
 
 }

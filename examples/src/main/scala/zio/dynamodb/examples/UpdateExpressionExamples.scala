@@ -4,7 +4,7 @@ import zio.Chunk
 import zio.dynamodb.ProjectionExpression.TopLevel
 import zio.dynamodb.UpdateExpression.Action
 import zio.dynamodb.UpdateExpression.Action.{ AddAction, DeleteAction, RemoveAction, SetAction }
-import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, PathOperand, ValueOperand }
+import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand, ValueOperand }
 import zio.dynamodb._
 
 object UpdateExpressionExamples extends App {
@@ -17,7 +17,8 @@ object UpdateExpressionExamples extends App {
   val set2: SetAction      = SetAction(path1, PathOperand(TopLevel("root")))
   val set3: SetAction      =
     SetAction(path1, IfNotExists(path2, AttributeValue.String("v2")))
-  val set4: SetAction      = SetAction(path1, ListAppend(list1, list2))
+  val set4: SetAction      = SetAction(path1, ListAppend(list1))
+  val set5: SetAction      = SetAction(path1, ListPrepend(list2))
   val add: AddAction       = AddAction(path1, AttributeValue.String("v2"))
   val remove: RemoveAction = RemoveAction(path1)
   val delete: DeleteAction = DeleteAction(path1, AttributeValue.String("v2"))
@@ -30,7 +31,8 @@ object UpdateExpressionExamples extends App {
     UpdateExpression(path1.set(BigDecimal(1.0))) +
       path1.set(path2) +
       path1.setIfNotExists(path2, "v2") +
-      path1.setListAppend(list1, list2) + // TODO: check if List can refer to a PE in API docs
+      path1.setListAppend(list1) +
+      path1.setListPrepend(list2) +
       path1.add(BigDecimal(1.0)) +
       path1.remove +
       path1.delete(BigDecimal(1.0))
