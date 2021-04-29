@@ -31,8 +31,8 @@ object UpdateExpressionExamples extends App {
     UpdateExpression(path1.set(BigDecimal(1.0))) +
       path1.set(path2) +
       path1.setIfNotExists(path2, "v2") +
-      path1.setListAppend(list1) +
-      path1.setListPrepend(list2) +
+      path1.setListAppend(Chunk("x1", "x2")) +
+      path1.setListPrepend(Chunk("x", "x2")) +
       path1.add(BigDecimal(1.0)) +
       path1.remove +
       path1.delete(BigDecimal(1.0))
