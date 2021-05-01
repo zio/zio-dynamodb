@@ -6,7 +6,7 @@ import zio.dynamodb.ConditionExpression._
 
 sealed trait AttributeValue { self =>
 
-  // TODO: remove
+  // TODO: remove - maybe we could have this conversion as an implicit?
   def operand: ConditionExpression.Operand = ConditionExpression.Operand.ValueOperand(self)
 
   def between(minValue: AttributeValue, maxValue: AttributeValue): ConditionExpression =
@@ -55,40 +55,13 @@ object AttributeValue {
 trait ToAttributeValue[-A] {
   def toAttributeValue(a: A): AttributeValue
 }
-
-/*
-  object Null                                                   extends AttributeValue
-  DONE
-  final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue
-  final case class List(value: Chunk[AttributeValue])           extends AttributeValue
-  final case class Binary(value: Chunk[Byte])                   extends AttributeValue
-  final case class BinarySet(value: Chunk[Chunk[Byte]])         extends AttributeValue
-  final case class Bool(value: Boolean)                         extends AttributeValue
-  final case class Number(value: BigDecimal)                    extends AttributeValue
-  final case class NumberSet(value: Set[BigDecimal])            extends AttributeValue
-  final case class String(value: ScalaString)                   extends AttributeValue
-  final case class StringSet(value: Set[ScalaString])           extends AttributeValue
- */
-
-object ToAttributeValue {
+object ToAttributeValue extends ToAttributeValueLowPriorityImplicits {
   import Predef.{ String => ScalaString }
   import Predef.{ Map => ScalaMap }
 
   implicit val binaryToAttributeValue: ToAttributeValue[Chunk[Byte]]           = AttributeValue.Binary(_)
   implicit val binarySetToAttributeValue: ToAttributeValue[Chunk[Chunk[Byte]]] = AttributeValue.BinarySet(_)
   implicit val boolToAttributeValue: ToAttributeValue[Boolean]                 = AttributeValue.Bool(_)
-
-  /*
-  TODO: try to make this more general ie Iterable rather than Chunk
-  However when I do this I get a clash with StringSet which implements iterable
-    ambiguous implicit values:
-     both method listToAttributeValue in object ToAttributeValue of type [A](implicit element: zio.dynamodb.ToAttributeValue[A]): zio.dynamodb.ToAttributeValue[Iterable[A]]
-     and value stringSetToAttributeValue in object ToAttributeValue of type zio.dynamodb.ToAttributeValue[Set[String]]
-     match expected type zio.dynamodb.ToAttributeValue[scala.collection.immutable.Set[String]]
-      val pe2        = path1.set(Set("s"))
-   */
-  implicit def listToAttributeValue[A](implicit element: ToAttributeValue[A]): ToAttributeValue[Chunk[A]] =
-    (xs: Chunk[A]) => AttributeValue.List(xs.map(element.toAttributeValue))
 
   implicit def mapToAttributeValue[A](implicit
     element: ToAttributeValue[A]
@@ -105,6 +78,11 @@ object ToAttributeValue {
     AttributeValue.StringSet(_)
   implicit val numberToAttributeValue: ToAttributeValue[BigDecimal]          = AttributeValue.Number(_)
   implicit val numberSetToAttributeValue: ToAttributeValue[Set[BigDecimal]]  = AttributeValue.NumberSet(_)
+}
+
+trait ToAttributeValueLowPriorityImplicits {
+  implicit def listToAttributeValue[A](implicit element: ToAttributeValue[A]): ToAttributeValue[Iterable[A]] =
+    (xs: Iterable[A]) => AttributeValue.List(Chunk.fromIterable(xs.map(element.toAttributeValue)))
 }
 
 /*

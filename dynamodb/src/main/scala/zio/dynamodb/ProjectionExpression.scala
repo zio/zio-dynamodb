@@ -9,10 +9,25 @@ sealed trait ProjectionExpression { self =>
 
   def apply(key: String): ProjectionExpression = ProjectionExpression.MapElement(self, key)
 
-  def exists: ConditionExpression                                    = ConditionExpression.AttributeExists(self)
-  def notExists: ConditionExpression                                 = ConditionExpression.AttributeNotExists(self)
-  def contains(av: AttributeValue): ConditionExpression              = ConditionExpression.Contains(self, av)
-  def beginsWith(av: AttributeValue): ConditionExpression            = ConditionExpression.BeginsWith(self, av)
+  def exists: ConditionExpression    = ConditionExpression.AttributeExists(self)
+  def notExists: ConditionExpression = ConditionExpression.AttributeNotExists(self)
+
+  def contains[A](av: A)(implicit t: ToAttributeValue[A]): ConditionExpression   =
+    ConditionExpression.Contains(self, t.toAttributeValue(av))
+  def beginsWith[A](av: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
+    ConditionExpression.BeginsWith(self, t.toAttributeValue(av))
+
+  def isBinary: ConditionExpression    = isType(AttributeValueType.Binary)
+  def isNumber: ConditionExpression    = isType(AttributeValueType.Number)
+  def isString: ConditionExpression    = isType(AttributeValueType.String)
+  def isBool: ConditionExpression      = isType(AttributeValueType.Bool)
+  def isBinarySet: ConditionExpression = isType(AttributeValueType.BinarySet)
+  def isList: ConditionExpression      = isType(AttributeValueType.List)
+  def isMap: ConditionExpression       = isType(AttributeValueType.Map)
+  def isNumberSet: ConditionExpression = isType(AttributeValueType.NumberSet)
+  def isNull: ConditionExpression      = isType(AttributeValueType.Null)
+  def isStringSet: ConditionExpression = isType(AttributeValueType.StringSet)
+
   def isType(attributeType: AttributeValueType): ConditionExpression =
     ConditionExpression.AttributeType(self, attributeType)
 
@@ -44,9 +59,9 @@ object ProjectionExpression {
   // (if present) is a-z, A-Z, or 0-9. Also key words are not allowed
   // If this is not the case then you must use the Expression Attribute Names facility to create an alias.
   // Attribute names containing a dot "." must also use the Expression Attribute Names
-  def apply(name: String): ProjectionExpression = TopLevel(name)
+  def apply(name: String): ProjectionExpression = Root(name)
 
-  final case class TopLevel(name: String)                                extends ProjectionExpression
+  final case class Root(name: String)                                    extends ProjectionExpression
   final case class MapElement(parent: ProjectionExpression, key: String) extends ProjectionExpression
   // index must be non negative - we could use a new type here?
   final case class ListElement(parent: ProjectionExpression, index: Int) extends ProjectionExpression

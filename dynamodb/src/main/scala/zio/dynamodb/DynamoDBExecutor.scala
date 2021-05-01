@@ -13,7 +13,7 @@ import zio.dynamodb.DynamoDBQuery.{
   ScanPage,
   UpdateItem
 }
-import zio.dynamodb.ProjectionExpression.TopLevel
+import zio.dynamodb.ProjectionExpression.Root
 import zio.dynamodb.UpdateExpression.Action.RemoveAction
 import zio.stream.ZStream
 import zio.{ Chunk, Has, ZIO, ZLayer }
@@ -55,7 +55,7 @@ object DynamoDBExecutor {
       UpdateItem(
         tableName = tableName1,
         primaryKey1,
-        UpdateExpression(RemoveAction(TopLevel("top")(1)))
+        UpdateExpression(RemoveAction(Root("top")(1)))
       )
     val deleteItem1  = DeleteItem(tableName = tableName1, key = PrimaryKey(ScalaMap.empty))
     val stream1      = ZStream(emptyItem)
