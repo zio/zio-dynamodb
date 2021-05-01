@@ -84,7 +84,8 @@ object UpdateExpression {
     final case class PathOperand(path: ProjectionExpression)    extends SetOperand
 
     // functions
-    final case class ListAppend(list1: AttributeValue.List, list2: AttributeValue.List) extends SetOperand
-    final case class IfNotExists(path: ProjectionExpression, value: AttributeValue)     extends SetOperand
+    final case class ListAppend(list: AttributeValue.List)                          extends SetOperand
+    final case class ListPrepend(list: AttributeValue.List)                         extends SetOperand
+    final case class IfNotExists(path: ProjectionExpression, value: AttributeValue) extends SetOperand
   }
 }

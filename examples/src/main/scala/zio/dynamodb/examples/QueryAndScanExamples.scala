@@ -3,15 +3,15 @@ package zio.dynamodb.examples
 import zio.dynamodb.DynamoDBExecutor.TestData._
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.PartitionKeyExpression.PartitionKey
-import zio.dynamodb.ProjectionExpression.TopLevel
+import zio.dynamodb.ProjectionExpression.Root
 import zio.dynamodb.SortKeyExpression.SortKey
 import zio.dynamodb.{ AttributeValue, KeyConditionExpression }
 
 object QueryAndScanExamples extends App {
 
-  val fieldA                               = TopLevel("A")
-  val fieldB                               = TopLevel("B")
-  val fieldC                               = TopLevel("C")
+  val fieldA                               = Root("A")
+  val fieldB                               = Root("B")
+  val fieldC                               = Root("C")
   val limit                                = 10
   val keyCondExprn: KeyConditionExpression =
     PartitionKey("partitionKey1") == AttributeValue.String("x") &&

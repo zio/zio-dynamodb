@@ -2,18 +2,7 @@ package zio.dynamodb.examples
 
 import zio.dynamodb.DynamoDBQuery.CreateTable
 import zio.dynamodb.Projection.{ All, Include }
-import zio.dynamodb.{
-  AttributeDefinition,
-  AttributeValueType,
-  BillingMode,
-  GlobalSecondaryIndex,
-  IndexName,
-  KeySchema,
-  LocalSecondaryIndex,
-  NonEmptySet,
-  ProvisionedThroughput,
-  TableName
-}
+import zio.dynamodb._
 
 object MutationQueryExamples extends App {
   val createTable = CreateTable(
