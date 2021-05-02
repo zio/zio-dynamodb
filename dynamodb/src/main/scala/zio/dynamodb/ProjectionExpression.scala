@@ -10,25 +10,44 @@ sealed trait ProjectionExpression { self =>
 
   def apply(key: String): ProjectionExpression = ProjectionExpression.MapElement(self, key)
 
-  // ConditionExpression conversions
+  // ConditionExpression with another ProjectionExpression
 
-  def exists: ConditionExpression    = ConditionExpression.AttributeExists(self)
-  def notExists: ConditionExpression = ConditionExpression.AttributeNotExists(self)
+  def ===(that: ProjectionExpression): ConditionExpression =
+    ConditionExpression.Equals(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ProjectionExpressionOperand(that)
+    )
+  def <>(that: ProjectionExpression): ConditionExpression  =
+    ConditionExpression.NotEqual(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ProjectionExpressionOperand(that)
+    )
+  def <(that: ProjectionExpression): ConditionExpression   =
+    ConditionExpression.LessThan(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ProjectionExpressionOperand(that)
+    )
+  def <=(that: ProjectionExpression): ConditionExpression  =
+    ConditionExpression.LessThanOrEqual(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ProjectionExpressionOperand(that)
+    )
+  def >(that: ProjectionExpression): ConditionExpression   =
+    ConditionExpression.GreaterThanOrEqual(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ProjectionExpressionOperand(that)
+    )
+  def >=(that: ProjectionExpression): ConditionExpression  =
+    ConditionExpression.GreaterThanOrEqual(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ProjectionExpressionOperand(that)
+    )
 
-  def contains[A](av: A)(implicit t: ToAttributeValue[A]): ConditionExpression                   =
-    ConditionExpression.Contains(self, t.toAttributeValue(av))
-  def beginsWith[A](av: A)(implicit t: ToAttributeValue[A]): ConditionExpression                 =
-    ConditionExpression.BeginsWith(self, t.toAttributeValue(av))
-  def between[A](minValue: A, maxValue: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
-    ConditionExpression.Operand
-      .ProjectionExpressionOperand(self)
-      .between(t.toAttributeValue(minValue), t.toAttributeValue(maxValue))
-  def in[A](values: Set[A])(implicit t: ToAttributeValue[A]): ConditionExpression                =
-    ConditionExpression.Operand.ProjectionExpressionOperand(self).in(values.map(t.toAttributeValue))
-  def in[A](value: A, values: A*)(implicit t: ToAttributeValue[A]): ConditionExpression          =
-    ConditionExpression.Operand
-      .ProjectionExpressionOperand(self)
-      .in(values.map(t.toAttributeValue).toSet + t.toAttributeValue(value))
+  // unary ConditionExpressions
+
+  def exists: ConditionExpression            = ConditionExpression.AttributeExists(self)
+  def notExists: ConditionExpression         = ConditionExpression.AttributeNotExists(self)
+  def size: ConditionExpression.Operand.Size = ConditionExpression.Operand.Size(self)
 
   def isBinary: ConditionExpression    = isType(AttributeValueType.Binary)
   def isNumber: ConditionExpression    = isType(AttributeValueType.Number)
@@ -44,7 +63,22 @@ sealed trait ProjectionExpression { self =>
   def isType(attributeType: AttributeValueType): ConditionExpression =
     ConditionExpression.AttributeType(self, attributeType)
 
-  def size: ConditionExpression.Operand.Size = ConditionExpression.Operand.Size(self)
+  // ConditionExpression with AttributeValue's
+
+  def contains[A](av: A)(implicit t: ToAttributeValue[A]): ConditionExpression                   =
+    ConditionExpression.Contains(self, t.toAttributeValue(av))
+  def beginsWith[A](av: A)(implicit t: ToAttributeValue[A]): ConditionExpression                 =
+    ConditionExpression.BeginsWith(self, t.toAttributeValue(av))
+  def between[A](minValue: A, maxValue: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
+    ConditionExpression.Operand
+      .ProjectionExpressionOperand(self)
+      .between(t.toAttributeValue(minValue), t.toAttributeValue(maxValue))
+  def in[A](values: Set[A])(implicit t: ToAttributeValue[A]): ConditionExpression                =
+    ConditionExpression.Operand.ProjectionExpressionOperand(self).in(values.map(t.toAttributeValue))
+  def in[A](value: A, values: A*)(implicit t: ToAttributeValue[A]): ConditionExpression          =
+    ConditionExpression.Operand
+      .ProjectionExpressionOperand(self)
+      .in(values.map(t.toAttributeValue).toSet + t.toAttributeValue(value))
 
   def ===[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
     ConditionExpression.Equals(

@@ -38,6 +38,7 @@ sealed trait PartitionKeyExpression extends KeyConditionExpression { self =>
 object PartitionKeyExpression       extends KeyConditionExpression {
 
   final case class PartitionKey(keyName: String) { self =>
+    // TODO: lift using ToAttributeValue
     def ==(that: AttributeValue): PartitionKeyExpression = Equals(self, that)
   }
   final case class Equals(left: PartitionKey, right: AttributeValue) extends PartitionKeyExpression
@@ -48,6 +49,7 @@ sealed trait SortKeyExpression extends KeyConditionExpression
 object SortKeyExpression {
 
   final case class SortKey(keyName: String) { self =>
+    // TODO: lift using ToAttributeValue
     def ==(that: AttributeValue): SortKeyExpression                          = Equals(self, that)
     def <>(that: AttributeValue): SortKeyExpression                          = NotEqual(self, that)
     def <(that: AttributeValue): SortKeyExpression                           = LessThan(self, that)
