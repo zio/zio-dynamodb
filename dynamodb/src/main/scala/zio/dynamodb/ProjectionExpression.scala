@@ -1,6 +1,7 @@
 package zio.dynamodb
 
 import zio.Chunk
+import zio.dynamodb.ConditionExpression.Operand.ProjectionExpressionOperand
 import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand }
 
 // The maximum depth for a document path is 32
@@ -9,13 +10,25 @@ sealed trait ProjectionExpression { self =>
 
   def apply(key: String): ProjectionExpression = ProjectionExpression.MapElement(self, key)
 
+  // ConditionExpression conversions
+
   def exists: ConditionExpression    = ConditionExpression.AttributeExists(self)
   def notExists: ConditionExpression = ConditionExpression.AttributeNotExists(self)
 
-  def contains[A](av: A)(implicit t: ToAttributeValue[A]): ConditionExpression   =
+  def contains[A](av: A)(implicit t: ToAttributeValue[A]): ConditionExpression                   =
     ConditionExpression.Contains(self, t.toAttributeValue(av))
-  def beginsWith[A](av: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
+  def beginsWith[A](av: A)(implicit t: ToAttributeValue[A]): ConditionExpression                 =
     ConditionExpression.BeginsWith(self, t.toAttributeValue(av))
+  def between[A](minValue: A, maxValue: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
+    ConditionExpression.Operand
+      .ProjectionExpressionOperand(self)
+      .between(t.toAttributeValue(minValue), t.toAttributeValue(maxValue))
+  def in[A](values: Set[A])(implicit t: ToAttributeValue[A]): ConditionExpression                =
+    ConditionExpression.Operand.ProjectionExpressionOperand(self).in(values.map(t.toAttributeValue))
+  def in[A](value: A, values: A*)(implicit t: ToAttributeValue[A]): ConditionExpression          =
+    ConditionExpression.Operand
+      .ProjectionExpressionOperand(self)
+      .in(values.map(t.toAttributeValue).toSet + t.toAttributeValue(value))
 
   def isBinary: ConditionExpression    = isType(AttributeValueType.Binary)
   def isNumber: ConditionExpression    = isType(AttributeValueType.Number)
@@ -33,6 +46,39 @@ sealed trait ProjectionExpression { self =>
 
   def size: ConditionExpression.Operand.Size = ConditionExpression.Operand.Size(self)
 
+  def ===[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
+    ConditionExpression.Equals(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
+    )
+  def <>[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression  =
+    ConditionExpression.NotEqual(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
+    )
+  def <[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression   =
+    ConditionExpression.LessThan(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
+    )
+  def <=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression  =
+    ConditionExpression.LessThanOrEqual(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
+    )
+  def >[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression   =
+    ConditionExpression.GreaterThanOrEqual(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
+    )
+  def >=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression  =
+    ConditionExpression.GreaterThanOrEqual(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
+    )
+
+  // UpdateExpression conversions
+
   def set[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction                    =
     UpdateExpression.Action.SetAction(self, UpdateExpression.SetOperand.ValueOperand(t.toAttributeValue(a)))
   def set(pe: ProjectionExpression): UpdateExpression.Action.SetAction                                    =
@@ -41,6 +87,7 @@ sealed trait ProjectionExpression { self =>
     t: ToAttributeValue[A]
   ): UpdateExpression.Action.SetAction                                                                    =
     UpdateExpression.Action.SetAction(self, IfNotExists(pe, t.toAttributeValue(a)))
+  // TODO: convert Chunk[A] to Iterable [A]
   def setListAppend[A](xs: Chunk[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction  =
     UpdateExpression.Action.SetAction(self, ListAppend(AttributeValue.List(xs.map(t.toAttributeValue))))
   def setListPrepend[A](xs: Chunk[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
