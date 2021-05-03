@@ -53,22 +53,22 @@ object UpdateExpression {
     /**
      * Modifying or Adding Item Attributes
      */
-    final case class SetAction(path: ProjectionExpression, operand: SetOperand) extends Action
+    private[dynamodb] final case class SetAction(path: ProjectionExpression, operand: SetOperand) extends Action
 
     /**
      * Removing Attributes from an Item
      */
-    final case class RemoveAction(path: ProjectionExpression) extends Action
+    private[dynamodb] final case class RemoveAction(path: ProjectionExpression) extends Action
 
     /**
      * Updating Numbers and Sets
      */
-    final case class AddAction(path: ProjectionExpression, value: AttributeValue) extends Action
+    private[dynamodb] final case class AddAction(path: ProjectionExpression, value: AttributeValue) extends Action
 
     /**
      * Delete Elements from a Set
      */
-    final case class DeleteAction(path: ProjectionExpression, value: AttributeValue) extends Action
+    private[dynamodb] final case class DeleteAction(path: ProjectionExpression, value: AttributeValue) extends Action
   }
 
   sealed trait SetOperand { self =>
@@ -78,14 +78,14 @@ object UpdateExpression {
     def -(that: SetOperand): SetOperand = Plus(self, that)
   }
   object SetOperand       {
-    final case class Minus(left: SetOperand, right: SetOperand) extends SetOperand
-    final case class Plus(left: SetOperand, right: SetOperand)  extends SetOperand
-    final case class ValueOperand(value: AttributeValue)        extends SetOperand
-    final case class PathOperand(path: ProjectionExpression)    extends SetOperand
+    private[dynamodb] final case class Minus(left: SetOperand, right: SetOperand) extends SetOperand
+    private[dynamodb] final case class Plus(left: SetOperand, right: SetOperand)  extends SetOperand
+    private[dynamodb] final case class ValueOperand(value: AttributeValue)        extends SetOperand
+    private[dynamodb] final case class PathOperand(path: ProjectionExpression)    extends SetOperand
 
     // functions
-    final case class ListAppend(list: AttributeValue.List)                          extends SetOperand
-    final case class ListPrepend(list: AttributeValue.List)                         extends SetOperand
-    final case class IfNotExists(path: ProjectionExpression, value: AttributeValue) extends SetOperand
+    private[dynamodb] final case class ListAppend(list: AttributeValue.List)                          extends SetOperand
+    private[dynamodb] final case class ListPrepend(list: AttributeValue.List)                         extends SetOperand
+    private[dynamodb] final case class IfNotExists(path: ProjectionExpression, value: AttributeValue) extends SetOperand
   }
 }
