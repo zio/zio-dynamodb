@@ -1,6 +1,5 @@
 package zio.dynamodb
 
-import zio.Chunk
 import zio.dynamodb.ConditionExpression.Operand.ProjectionExpressionOperand
 import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand }
 
@@ -113,24 +112,23 @@ sealed trait ProjectionExpression { self =>
 
   // UpdateExpression conversions
 
-  def set[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction                    =
+  def set[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction                       =
     UpdateExpression.Action.SetAction(self, UpdateExpression.SetOperand.ValueOperand(t.toAttributeValue(a)))
-  def set(pe: ProjectionExpression): UpdateExpression.Action.SetAction                                    =
+  def set(pe: ProjectionExpression): UpdateExpression.Action.SetAction                                       =
     UpdateExpression.Action.SetAction(self, PathOperand(pe))
   def setIfNotExists[A](pe: ProjectionExpression, a: A)(implicit
     t: ToAttributeValue[A]
-  ): UpdateExpression.Action.SetAction                                                                    =
+  ): UpdateExpression.Action.SetAction                                                                       =
     UpdateExpression.Action.SetAction(self, IfNotExists(pe, t.toAttributeValue(a)))
-  // TODO: convert Chunk[A] to Iterable [A]
-  def setListAppend[A](xs: Chunk[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction  =
+  def setListAppend[A](xs: Iterable[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction  =
     UpdateExpression.Action.SetAction(self, ListAppend(AttributeValue.List(xs.map(t.toAttributeValue))))
-  def setListPrepend[A](xs: Chunk[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
+  def setListPrepend[A](xs: Iterable[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
     UpdateExpression.Action.SetAction(self, ListPrepend(AttributeValue.List(xs.map(t.toAttributeValue))))
-  def add[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.AddAction                    =
+  def add[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.AddAction                       =
     UpdateExpression.Action.AddAction(self, t.toAttributeValue(a))
-  def remove: UpdateExpression.Action.RemoveAction                                                        =
+  def remove: UpdateExpression.Action.RemoveAction                                                           =
     UpdateExpression.Action.RemoveAction(self)
-  def delete[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.DeleteAction              =
+  def delete[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.DeleteAction                 =
     UpdateExpression.Action.DeleteAction(self, t.toAttributeValue(a))
 
 }

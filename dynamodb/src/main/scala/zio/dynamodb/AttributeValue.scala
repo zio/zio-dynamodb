@@ -38,10 +38,10 @@ object AttributeValue {
   import Predef.{ String => ScalaString }
   import scala.collection.{ Map => ScalaMap }
 
-  final case class Binary(value: Chunk[Byte])                   extends AttributeValue
+  final case class Binary(value: Iterable[Byte])                extends AttributeValue
   final case class Bool(value: Boolean)                         extends AttributeValue
-  final case class BinarySet(value: Chunk[Chunk[Byte]])         extends AttributeValue
-  final case class List(value: Chunk[AttributeValue])           extends AttributeValue
+  final case class BinarySet(value: Iterable[Iterable[Byte]])   extends AttributeValue
+  final case class List(value: Iterable[AttributeValue])        extends AttributeValue
   final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue
   final case class Number(value: BigDecimal)                    extends AttributeValue
   final case class NumberSet(value: Set[BigDecimal])            extends AttributeValue
@@ -57,9 +57,9 @@ object ToAttributeValue extends ToAttributeValueLowPriorityImplicits {
   import Predef.{ String => ScalaString }
   import Predef.{ Map => ScalaMap }
 
-  implicit val binaryToAttributeValue: ToAttributeValue[Chunk[Byte]]           = AttributeValue.Binary(_)
-  implicit val binarySetToAttributeValue: ToAttributeValue[Chunk[Chunk[Byte]]] = AttributeValue.BinarySet(_)
-  implicit val boolToAttributeValue: ToAttributeValue[Boolean]                 = AttributeValue.Bool(_)
+  implicit val binaryToAttributeValue: ToAttributeValue[Iterable[Byte]]              = AttributeValue.Binary(_)
+  implicit val binarySetToAttributeValue: ToAttributeValue[Iterable[Iterable[Byte]]] = AttributeValue.BinarySet(_)
+  implicit val boolToAttributeValue: ToAttributeValue[Boolean]                       = AttributeValue.Bool(_)
 
   implicit def mapToAttributeValue[A](implicit
     element: ToAttributeValue[A]
