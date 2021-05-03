@@ -12,7 +12,8 @@ comparisons operators are the same as for Condition
 
 sealed trait KeyConditionExpression
 object KeyConditionExpression {
-  final case class And(left: PartitionKeyExpression, right: SortKeyExpression) extends KeyConditionExpression
+  private[dynamodb] final case class And(left: PartitionKeyExpression, right: SortKeyExpression)
+      extends KeyConditionExpression
 }
 
 sealed trait PartitionKeyExpression extends KeyConditionExpression { self =>
@@ -48,12 +49,13 @@ object SortKeyExpression {
       BeginsWith(self, t.toAttributeValue(value))
   }
 
-  final case class Equals(left: SortKey, right: AttributeValue)                     extends SortKeyExpression
-  final case class NotEqual(left: SortKey, right: AttributeValue)                   extends SortKeyExpression
-  final case class LessThan(left: SortKey, right: AttributeValue)                   extends SortKeyExpression
-  final case class GreaterThan(left: SortKey, right: AttributeValue)                extends SortKeyExpression
-  final case class LessThanOrEqual(left: SortKey, right: AttributeValue)            extends SortKeyExpression
-  final case class GreaterThanOrEqual(left: SortKey, right: AttributeValue)         extends SortKeyExpression
-  final case class Between(left: SortKey, min: AttributeValue, max: AttributeValue) extends SortKeyExpression
-  final case class BeginsWith(left: SortKey, value: AttributeValue)                 extends SortKeyExpression
+  private[dynamodb] final case class Equals(left: SortKey, right: AttributeValue)             extends SortKeyExpression
+  private[dynamodb] final case class NotEqual(left: SortKey, right: AttributeValue)           extends SortKeyExpression
+  private[dynamodb] final case class LessThan(left: SortKey, right: AttributeValue)           extends SortKeyExpression
+  private[dynamodb] final case class GreaterThan(left: SortKey, right: AttributeValue)        extends SortKeyExpression
+  private[dynamodb] final case class LessThanOrEqual(left: SortKey, right: AttributeValue)    extends SortKeyExpression
+  private[dynamodb] final case class GreaterThanOrEqual(left: SortKey, right: AttributeValue) extends SortKeyExpression
+  private[dynamodb] final case class Between(left: SortKey, min: AttributeValue, max: AttributeValue)
+      extends SortKeyExpression
+  private[dynamodb] final case class BeginsWith(left: SortKey, value: AttributeValue)         extends SortKeyExpression
 }
