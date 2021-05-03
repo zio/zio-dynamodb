@@ -2,10 +2,10 @@ package zio.dynamodb.examples
 
 import zio.dynamodb.DynamoDBExecutor.TestData._
 import zio.dynamodb.DynamoDBQuery._
+import zio.dynamodb.KeyConditionExpression
 import zio.dynamodb.PartitionKeyExpression.PartitionKey
 import zio.dynamodb.ProjectionExpression.Root
 import zio.dynamodb.SortKeyExpression.SortKey
-import zio.dynamodb.{ AttributeValue, KeyConditionExpression }
 
 object QueryAndScanExamples extends App {
 
@@ -14,8 +14,8 @@ object QueryAndScanExamples extends App {
   val fieldC                               = Root("C")
   val limit                                = 10
   val keyCondExprn: KeyConditionExpression =
-    PartitionKey("partitionKey1") == AttributeValue.String("x") &&
-      SortKey("sortKey1") > AttributeValue.String("X")
+    PartitionKey("partitionKey1") === "x" &&
+      SortKey("sortKey1") > "X"
 
   val scan1 = scanAll(tableName1, indexName1, fieldA, fieldB, fieldC).execute
   val scan2 = scanSome(tableName1, indexName1, limit, fieldA, fieldB, fieldC).execute
