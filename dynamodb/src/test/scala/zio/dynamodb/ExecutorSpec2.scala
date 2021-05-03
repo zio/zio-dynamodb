@@ -12,7 +12,7 @@ object ExecutorSpec2 extends DefaultRunnableSpec {
   override def spec = suite("Executor")(executeSuite)
 
   val executeSuite = suite("execute")(
-    testM("should execute forEach of GetItems") {
+    testM("should execute forEach of GetItems (resulting in a batched request)") {
       for {
         assembled <- forEach(1 to 2)(i => getItem(i)).execute
       } yield assert(assembled)(equalTo(List(someItem("k1"), someItem("k2"))))

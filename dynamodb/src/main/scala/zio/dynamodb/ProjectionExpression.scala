@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.Chunk
+import zio.dynamodb.ConditionExpression.Operand.ProjectionExpressionOperand
 import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand }
 
 // The maximum depth for a document path is 32
@@ -9,13 +9,44 @@ sealed trait ProjectionExpression { self =>
 
   def apply(key: String): ProjectionExpression = ProjectionExpression.MapElement(self, key)
 
-  def exists: ConditionExpression    = ConditionExpression.AttributeExists(self)
-  def notExists: ConditionExpression = ConditionExpression.AttributeNotExists(self)
+  // ConditionExpression with another ProjectionExpression
 
-  def contains[A](av: A)(implicit t: ToAttributeValue[A]): ConditionExpression   =
-    ConditionExpression.Contains(self, t.toAttributeValue(av))
-  def beginsWith[A](av: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
-    ConditionExpression.BeginsWith(self, t.toAttributeValue(av))
+  def ===(that: ProjectionExpression): ConditionExpression =
+    ConditionExpression.Equals(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ProjectionExpressionOperand(that)
+    )
+  def <>(that: ProjectionExpression): ConditionExpression  =
+    ConditionExpression.NotEqual(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ProjectionExpressionOperand(that)
+    )
+  def <(that: ProjectionExpression): ConditionExpression   =
+    ConditionExpression.LessThan(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ProjectionExpressionOperand(that)
+    )
+  def <=(that: ProjectionExpression): ConditionExpression  =
+    ConditionExpression.LessThanOrEqual(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ProjectionExpressionOperand(that)
+    )
+  def >(that: ProjectionExpression): ConditionExpression   =
+    ConditionExpression.GreaterThanOrEqual(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ProjectionExpressionOperand(that)
+    )
+  def >=(that: ProjectionExpression): ConditionExpression  =
+    ConditionExpression.GreaterThanOrEqual(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ProjectionExpressionOperand(that)
+    )
+
+  // unary ConditionExpressions
+
+  def exists: ConditionExpression            = ConditionExpression.AttributeExists(self)
+  def notExists: ConditionExpression         = ConditionExpression.AttributeNotExists(self)
+  def size: ConditionExpression.Operand.Size = ConditionExpression.Operand.Size(self)
 
   def isBinary: ConditionExpression    = isType(AttributeValueType.Binary)
   def isNumber: ConditionExpression    = isType(AttributeValueType.Number)
@@ -31,25 +62,73 @@ sealed trait ProjectionExpression { self =>
   def isType(attributeType: AttributeValueType): ConditionExpression =
     ConditionExpression.AttributeType(self, attributeType)
 
-  def size: ConditionExpression.Operand.Size = ConditionExpression.Operand.Size(self)
+  // ConditionExpression with AttributeValue's
 
-  def set[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction                    =
+  def contains[A](av: A)(implicit t: ToAttributeValue[A]): ConditionExpression                   =
+    ConditionExpression.Contains(self, t.toAttributeValue(av))
+  def beginsWith[A](av: A)(implicit t: ToAttributeValue[A]): ConditionExpression                 =
+    ConditionExpression.BeginsWith(self, t.toAttributeValue(av))
+  def between[A](minValue: A, maxValue: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
+    ConditionExpression.Operand
+      .ProjectionExpressionOperand(self)
+      .between(t.toAttributeValue(minValue), t.toAttributeValue(maxValue))
+  def in[A](values: Set[A])(implicit t: ToAttributeValue[A]): ConditionExpression                =
+    ConditionExpression.Operand.ProjectionExpressionOperand(self).in(values.map(t.toAttributeValue))
+  def in[A](value: A, values: A*)(implicit t: ToAttributeValue[A]): ConditionExpression          =
+    ConditionExpression.Operand
+      .ProjectionExpressionOperand(self)
+      .in(values.map(t.toAttributeValue).toSet + t.toAttributeValue(value))
+
+  def ===[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
+    ConditionExpression.Equals(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
+    )
+  def <>[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression  =
+    ConditionExpression.NotEqual(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
+    )
+  def <[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression   =
+    ConditionExpression.LessThan(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
+    )
+  def <=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression  =
+    ConditionExpression.LessThanOrEqual(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
+    )
+  def >[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression   =
+    ConditionExpression.GreaterThanOrEqual(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
+    )
+  def >=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression  =
+    ConditionExpression.GreaterThanOrEqual(
+      ProjectionExpressionOperand(self),
+      ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
+    )
+
+  // UpdateExpression conversions
+
+  def set[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction                       =
     UpdateExpression.Action.SetAction(self, UpdateExpression.SetOperand.ValueOperand(t.toAttributeValue(a)))
-  def set(pe: ProjectionExpression): UpdateExpression.Action.SetAction                                    =
+  def set(pe: ProjectionExpression): UpdateExpression.Action.SetAction                                       =
     UpdateExpression.Action.SetAction(self, PathOperand(pe))
   def setIfNotExists[A](pe: ProjectionExpression, a: A)(implicit
     t: ToAttributeValue[A]
-  ): UpdateExpression.Action.SetAction                                                                    =
+  ): UpdateExpression.Action.SetAction                                                                       =
     UpdateExpression.Action.SetAction(self, IfNotExists(pe, t.toAttributeValue(a)))
-  def setListAppend[A](xs: Chunk[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction  =
+  def setListAppend[A](xs: Iterable[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction  =
     UpdateExpression.Action.SetAction(self, ListAppend(AttributeValue.List(xs.map(t.toAttributeValue))))
-  def setListPrepend[A](xs: Chunk[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
+  def setListPrepend[A](xs: Iterable[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
     UpdateExpression.Action.SetAction(self, ListPrepend(AttributeValue.List(xs.map(t.toAttributeValue))))
-  def add[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.AddAction                    =
+  def add[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.AddAction                       =
     UpdateExpression.Action.AddAction(self, t.toAttributeValue(a))
-  def remove: UpdateExpression.Action.RemoveAction                                                        =
+  def remove: UpdateExpression.Action.RemoveAction                                                           =
     UpdateExpression.Action.RemoveAction(self)
-  def delete[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.DeleteAction              =
+  def delete[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.DeleteAction                 =
     UpdateExpression.Action.DeleteAction(self, t.toAttributeValue(a))
 
 }

@@ -2,6 +2,12 @@ package zio.dynamodb
 
 /* https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
 
+In the following syntax summary, an operand can be the following:
+1) A top-level attribute name, such as Id, Title, Description, or ProductCategory
+2) A document path that references a nested attribute
+ALso, my observation is that operand can be an AttributeValue
+
+
 condition-expression ::=
       operand comparator operand
     | operand BETWEEN operand AND operand
@@ -10,7 +16,7 @@ condition-expression ::=
     | condition AND condition
     | condition OR condition
     | NOT condition
-    | ( condition ) // TODO: do we need this one?
+    | ( condition ) // TODO: do we need this one - (ie Parenthesis) ?
 
 comparator ::=
     =
@@ -51,11 +57,25 @@ object ConditionExpression {
     def <=(that: Operand): ConditionExpression = LessThanOrEqual(self, that)
     def >(that: Operand): ConditionExpression  = GreaterThanOrEqual(self, that)
     def >=(that: Operand): ConditionExpression = GreaterThanOrEqual(self, that)
+
+    def ==[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
+      Equals(self, Operand.ValueOperand(t.toAttributeValue(that)))
+    def <>[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
+      NotEqual(self, Operand.ValueOperand(t.toAttributeValue(that)))
+    def <[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression  =
+      LessThan(self, Operand.ValueOperand(t.toAttributeValue(that)))
+    def <=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
+      LessThanOrEqual(self, Operand.ValueOperand(t.toAttributeValue(that)))
+    def >[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression  =
+      GreaterThanOrEqual(self, Operand.ValueOperand(t.toAttributeValue(that)))
+    def >=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
+      GreaterThanOrEqual(self, Operand.ValueOperand(t.toAttributeValue(that)))
   }
   object Operand       {
 
-    private[dynamodb] final case class ValueOperand(value: AttributeValue) extends Operand
-    private[dynamodb] final case class Size(path: ProjectionExpression)    extends Operand
+    private[dynamodb] final case class ProjectionExpressionOperand(pe: ProjectionExpression) extends Operand
+    private[dynamodb] final case class ValueOperand(value: AttributeValue)                   extends Operand
+    private[dynamodb] final case class Size(path: ProjectionExpression)                      extends Operand
   }
 
   private[dynamodb] final case class Between(left: Operand, minValue: AttributeValue, maxValue: AttributeValue)
