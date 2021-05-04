@@ -21,28 +21,24 @@ $("foo.bar[9].baz")
 
    */
 
-  class PEBuilder() {
-    var pe: ProjectionExpression = null
+  class PEBuilder() { self =>
+    var pe: Option[ProjectionExpression] = None
 
-    def addChildMap(s: String) =
-      if (pe == null)
-        pe = Root(s)
-      else
-        pe = pe(s)
-
-    def addChildArray(s: String, i: Int) = {
-      if (pe == null)
-        pe = Root(s)
-      else
-        pe = pe(s)
-      pe = pe(i)
+    def addChildMap(s: String): PEBuilder = {
+      pe = pe.fold[Option[ProjectionExpression]](Some(Root(s)))(pe => Some(pe(s)))
+      self
     }
 
-    def getPE: Option[ProjectionExpression] = if (pe == null) None else Some(pe)
+    def addChildArray(s: String, i: Int): PEBuilder = {
+      pe = pe.fold[Option[ProjectionExpression]](Some(Root(s)))(pe => Some(pe(s))).map(_(i))
+      self
+    }
+
+    def getPE: Option[ProjectionExpression] = pe
   }
 
-  val regexIndex = """(^[a-zA-Z_-_]+)\[([0-9]+)\]""".r
-  val regexMap   = """(^[a-zA-Z_-_]+)""".r
+  val regexIndex = """(^[a-zA-Z_]+)\[([0-9]+)]""".r
+  val regexMap   = """(^[a-zA-Z_]+)""".r
 
   def parse(s: String): Option[ProjectionExpression] = {
 
@@ -54,10 +50,8 @@ $("foo.bar[9].baz")
         s match {
           case regexIndex(name, index) =>
             pe.addChildArray(name, index.toInt)
-            pe
           case regexMap(name)          =>
             pe.addChildMap(name)
-            pe
           case _                       =>
             println("No match! TODO: error!")
             pe
