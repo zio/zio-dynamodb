@@ -1,5 +1,6 @@
 package zio.dynamodb
 
+import zio.Chunk
 import zio.dynamodb.ConditionExpression.Operand.ProjectionExpressionOperand
 import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand }
 
@@ -144,4 +145,72 @@ object ProjectionExpression {
   final case class MapElement(parent: ProjectionExpression, key: String) extends ProjectionExpression
   // index must be non negative - we could use a new type here?
   final case class ListElement(parent: ProjectionExpression, index: Int) extends ProjectionExpression
+
+  /**
+   * Parses a string into an ProjectionExpression
+   * eg
+   * {{{
+   * parse("foo.bar[9].baz"")
+   * // Right(MapElement(ListElement(MapElement(Root(bar),baz),9),baz))
+   * parse(fo$o.ba$r[9].ba$z)
+   * // Left("error with fo$o,error with ba$r[9],error with ba$z")
+   * }}}
+   * @param s Projection expression as a string
+   * @return either a `Right` of ProjectionExpression if successful, else a `Chunk` of error strings
+   */
+  def parse(s: String): Either[String, ProjectionExpression] = {
+
+    class Builder(pe: Option[Either[Chunk[String], ProjectionExpression]] = None) {
+
+      def addChildMap(s: String): Builder =
+        new Builder(pe match {
+          case None                     =>
+            Some(Right(Root(s)))
+          case Some(Right(pe))          =>
+            Some(Right(pe(s)))
+          case someLeft @ Some(Left(_)) =>
+            someLeft
+        })
+
+      def addChildArray(s: String, i: Int): Builder =
+        new Builder(pe match {
+          case None                     =>
+            Some(Right(Root(s)))
+          case Some(Right(pe))          =>
+            Some(Right(pe(s)(i)))
+          case someLeft @ Some(Left(_)) =>
+            someLeft
+        })
+
+      def addError(s: String): Builder =
+        new Builder(pe match {
+          case None | Some(Right(_)) =>
+            Some(Left(Chunk(s"error with '$s'")))
+          case Some(Left(chunk))     =>
+            Some(Left(chunk :+ s"error with '$s'"))
+        })
+
+      def get: Either[Chunk[String], ProjectionExpression] =
+        pe.getOrElse(Left(Chunk("error - at least one element must be specified")))
+    }
+
+    val regexIndex = """(^[a-zA-Z_]+)\[([0-9]+)]""".r
+    val regexMap   = """(^[a-zA-Z_]+)""".r
+
+    val elements: List[String] = s.split("\\.").toList
+
+    val pe: Builder = elements.foldLeft(new Builder()) {
+      case (pe, s) =>
+        s match {
+          case regexIndex(name, index) =>
+            pe.addChildArray(name, index.toInt)
+          case regexMap(name)          =>
+            pe.addChildMap(name)
+          case _                       =>
+            pe.addError(s)
+        }
+    }
+
+    pe.get.left.map(_.mkString(","))
+  }
 }
