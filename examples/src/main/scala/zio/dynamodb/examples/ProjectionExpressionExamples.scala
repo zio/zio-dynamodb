@@ -11,4 +11,7 @@ object ProjectionExpressionExamples extends App {
 
   println(list)
   println(map)
+
+  val parsed1 = parse("foo.bar.baz[9]")
+  println(parsed1)
 }
