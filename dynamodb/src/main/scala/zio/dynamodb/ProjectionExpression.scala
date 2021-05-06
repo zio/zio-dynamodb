@@ -153,12 +153,12 @@ object ProjectionExpression {
    * parse("foo.bar[9].baz"")
    * // Right(MapElement(ListElement(MapElement(Root(bar),baz),9),baz))
    * parse(fo$o.ba$r[9].ba$z)
-   * // Left(Chunk(error with fo$o,error with ba$r[9],error with ba$z))
+   * // Left("error with fo$o,error with ba$r[9],error with ba$z")
    * }}}
    * @param s Projection expression as a string
    * @return either a `Right` of ProjectionExpression if successful, else a `Chunk` of error strings
    */
-  def parse(s: String): Either[Chunk[String], ProjectionExpression] = {
+  def parse(s: String): Either[String, ProjectionExpression] = {
 
     class Builder(pe: Option[Either[Chunk[String], ProjectionExpression]] = None) {
 
@@ -211,6 +211,6 @@ object ProjectionExpression {
         }
     }
 
-    pe.get // TODO: .left.map(_.mkString(","))
+    pe.get.left.map(_.mkString(","))
   }
 }
