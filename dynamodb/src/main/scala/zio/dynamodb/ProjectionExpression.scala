@@ -60,7 +60,7 @@ sealed trait ProjectionExpression { self =>
   def isNull: ConditionExpression      = isType(AttributeValueType.Null)
   def isStringSet: ConditionExpression = isType(AttributeValueType.StringSet)
 
-  def isType(attributeType: AttributeValueType): ConditionExpression =
+  private def isType(attributeType: AttributeValueType): ConditionExpression =
     ConditionExpression.AttributeType(self, attributeType)
 
   // ConditionExpression with AttributeValue's
@@ -146,6 +146,15 @@ object ProjectionExpression {
   // index must be non negative - we could use a new type here?
   final case class ListElement(parent: ProjectionExpression, index: Int) extends ProjectionExpression
 
+  def $(s: String): ProjectionExpression =
+    parse(s) match {
+      case Right(a)  => a
+      case Left(msg) => throw new IllegalStateException(msg)
+    }
+
+  // TODO: Think about Expression Attribute Names for value substitution - do we need this?
+  // TODO: eg "foo.#key.baz"
+  // TODO: see https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ExpressionAttributeNames.html
   /**
    * Parses a string into an ProjectionExpression
    * eg
@@ -160,24 +169,24 @@ object ProjectionExpression {
    */
   def parse(s: String): Either[String, ProjectionExpression] = {
 
-    class Builder(pe: Option[Either[Chunk[String], ProjectionExpression]] = None) {
+    final case class Builder(pe: Option[Either[Chunk[String], ProjectionExpression]] = None) {
 
-      def addChildMap(s: String): Builder =
+      def mapElement(name: String): Builder =
         new Builder(pe match {
           case None                     =>
-            Some(Right(Root(s)))
+            Some(Right(Root(name)))
           case Some(Right(pe))          =>
-            Some(Right(pe(s)))
+            Some(Right(pe(name)))
           case someLeft @ Some(Left(_)) =>
             someLeft
         })
 
-      def addChildArray(s: String, i: Int): Builder =
+      def listElement(name: String, index: Int): Builder =
         new Builder(pe match {
           case None                     =>
-            Some(Right(Root(s)))
+            Some(Right(Root(name)))
           case Some(Right(pe))          =>
-            Some(Right(pe(s)(i)))
+            Some(Right(pe(name)(index)))
           case someLeft @ Some(Left(_)) =>
             someLeft
         })
@@ -190,27 +199,32 @@ object ProjectionExpression {
             Some(Left(chunk :+ s"error with '$s'"))
         })
 
-      def get: Either[Chunk[String], ProjectionExpression] =
+      def either: Either[Chunk[String], ProjectionExpression] =
         pe.getOrElse(Left(Chunk("error - at least one element must be specified")))
     }
 
     val regexIndex = """(^[a-zA-Z_]+)\[([0-9]+)]""".r
     val regexMap   = """(^[a-zA-Z_]+)""".r
 
-    val elements: List[String] = s.split("\\.").toList
+    if (s == null)
+      Left("error - input string is 'null'")
+    else {
 
-    val pe: Builder = elements.foldLeft(new Builder()) {
-      case (pe, s) =>
-        s match {
-          case regexIndex(name, index) =>
-            pe.addChildArray(name, index.toInt)
-          case regexMap(name)          =>
-            pe.addChildMap(name)
-          case _                       =>
-            pe.addError(s)
-        }
+      val elements: List[String] = s.split("\\.").toList
+
+      val builder = elements.foldLeft(Builder()) {
+        case (accBuilder, s) =>
+          s match {
+            case regexIndex(name, index) =>
+              accBuilder.listElement(name, index.toInt)
+            case regexMap(name)          =>
+              accBuilder.mapElement(name)
+            case _                       =>
+              accBuilder.addError(s)
+          }
+      }
+
+      builder.either.left.map(_.mkString(","))
     }
-
-    pe.get.left.map(_.mkString(","))
   }
 }
