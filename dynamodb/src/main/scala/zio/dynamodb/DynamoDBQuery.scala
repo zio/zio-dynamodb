@@ -206,7 +206,6 @@ object DynamoDBQuery {
     GetItem(tableName, key)
   }
 
-  // TODO: could we have Item as a var arg list of Tuples?
   def putItem(tableName: TableName, item: Item): DynamoDBQuery[Unit] = PutItem(tableName, item)
 
   def updateItem(tableName: TableName, key: PrimaryKey, action: Action, actions: Action*): DynamoDBQuery[Unit] =
