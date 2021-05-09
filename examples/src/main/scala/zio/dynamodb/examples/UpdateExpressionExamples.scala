@@ -22,7 +22,8 @@ object UpdateExpressionExamples extends App {
     UpdateExpression(set1) + set2 + add + remove + delete
   )
 
-  val ops: UpdateExpression =
+  val ops: UpdateExpression = {
+    // TODO: UpdateExpression(...) is awkward - Action itself should have +
     UpdateExpression(path1.set(BigDecimal(1.0))) +
       path1.set(path2) +
       path1.setIfNotExists(path2, "v2") +
@@ -31,16 +32,17 @@ object UpdateExpressionExamples extends App {
       path1.add(BigDecimal(1.0)) +
       path1.remove +
       path1.delete(BigDecimal(1.0))
+  }
 
-  val path3      = Root("one")(2)
-  val pe         = path1.set("v2")
-  val pe2        = path1.set(Set("s"))
-  val pe3        = path1.set(List("s".toByte))
-  val pe4        = path1.set(List(List("s".toByte)))
-  val pe5        = path1.set(BigDecimal(1.0))
-  val pe6        = path1.set(Set(BigDecimal(1.0)))
-  val pe7        = path1.set(List("x"))
-  val updateItem = DynamoDBQuery.updateItem(TableName("t1"), PrimaryKey(Map.empty), pe)
+  val path3       = Root("one")(2)
+  val pe          = path1.set("v2")
+  val pe2         = path1.set(Set("s"))
+  val pe3         = path1.set(List("s".toByte))
+  val pe4         = path1.set(List(List("s".toByte)))
+  val pe5         = path1.set(BigDecimal(1.0))
+  val pe6         = path1.set(Set(BigDecimal(1.0)))
+  val pe7         = path1.set(List("x"))
+  val updateItem1 = DynamoDBQuery.updateItem(TableName("t1"), PrimaryKey(Map.empty), pe)
 
   val x                     = AttributeValue.Map(Map(AttributeValue.String("") -> AttributeValue.String("")))
   val pe8: Action.SetAction = path1.set(Map("x" -> "x"))
