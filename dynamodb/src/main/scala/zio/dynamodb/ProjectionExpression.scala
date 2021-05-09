@@ -2,7 +2,10 @@ package zio.dynamodb
 
 import zio.Chunk
 import zio.dynamodb.ConditionExpression.Operand.ProjectionExpressionOperand
+import zio.dynamodb.ProjectionExpression.{ ListElement, MapElement, Root }
 import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand }
+
+import scala.annotation.tailrec
 
 // The maximum depth for a document path is 32
 sealed trait ProjectionExpression { self =>
@@ -132,6 +135,17 @@ sealed trait ProjectionExpression { self =>
   def delete[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.DeleteAction                 =
     UpdateExpression.Action.DeleteAction(self, t.toAttributeValue(a))
 
+  override def toString: String = {
+    @tailrec
+    def loop(pe: ProjectionExpression, acc: List[String]): List[String] =
+      pe match {
+        case Root(name)                 => acc :+ s"$name"
+        case MapElement(parent, key)    => loop(parent, acc :+ s".$key")
+        case ListElement(parent, index) => loop(parent, acc :+ s"[$index]")
+      }
+
+    loop(self, List.empty).reverse.mkString("")
+  }
 }
 
 object ProjectionExpression {
@@ -172,7 +186,7 @@ object ProjectionExpression {
     final case class Builder(pe: Option[Either[Chunk[String], ProjectionExpression]] = None) {
 
       def mapElement(name: String): Builder =
-        new Builder(pe match {
+        Builder(pe match {
           case None                     =>
             Some(Right(Root(name)))
           case Some(Right(pe))          =>
@@ -182,7 +196,7 @@ object ProjectionExpression {
         })
 
       def listElement(name: String, index: Int): Builder =
-        new Builder(pe match {
+        Builder(pe match {
           case None                     =>
             Some(Right(Root(name)))
           case Some(Right(pe))          =>
@@ -192,7 +206,7 @@ object ProjectionExpression {
         })
 
       def addError(s: String): Builder =
-        new Builder(pe match {
+        Builder(pe match {
           case None | Some(Right(_)) =>
             Some(Left(Chunk(s"error with '$s'")))
           case Some(Left(chunk))     =>

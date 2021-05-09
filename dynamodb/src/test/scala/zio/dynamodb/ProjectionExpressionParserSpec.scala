@@ -7,6 +7,10 @@ import zio.test.{ DefaultRunnableSpec, _ }
 object ProjectionExpressionParserSpec extends DefaultRunnableSpec {
   override def spec =
     suite("ProjectionExpression Parser")(
+      test("toString on a ProjectionExpression of foo.bar[9].baz") {
+        val pe = MapElement(ListElement(MapElement(Root("foo"), "bar"), 9), "baz")
+        assert(pe.toString)(equalTo("foo.bar[9].baz"))
+      },
       test("""'foo' returns Root("foo") """) {
         val actual   = parse("foo")
         val expected = Root("foo")
@@ -17,7 +21,7 @@ object ProjectionExpressionParserSpec extends DefaultRunnableSpec {
         val expected = MapElement(Root("foo"), "bar")
         assert(actual)(isRight(equalTo(expected)))
       },
-      test("""'foo.bar[9]' returns Right(ListElement(MapElement(Root("foo"), "bar")) """) {
+      test("""'foo.bar[9]' returns Right(ListElement(MapElement(Root("foo"), "bar"), 9)) """) {
         val actual   = parse("foo.bar[9]")
         val expected = ListElement(MapElement(Root("foo"), "bar"), 9)
         assert(actual)(isRight(equalTo(expected)))
