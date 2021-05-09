@@ -4,17 +4,6 @@ import zio.Chunk
 import zio.dynamodb.ConditionExpression.Operand._
 import zio.dynamodb.ConditionExpression._
 
-trait ToAttributeValueMap[Both[_, _]] {
-  def toAttributeValueMap[A: ToAttributeValue](both: Both[String, A]): Map[String, A]
-}
-/*
-TODO: implement for as implicit vars
-1. Tuple2
-2. Map
-
-then delete PK and Item, and replace with any type for which there is a ToAttributeValueMap
- */
-
 sealed trait AttributeValue { self =>
 
   def ===(that: Operand.Size): ConditionExpression = Equals(ValueOperand(self), that)
