@@ -1,6 +1,8 @@
 package zio.dynamodb
 
+import zio.Chunk
 import zio.dynamodb.UpdateExpression.Action
+import zio.dynamodb.UpdateExpression.Action.Actions
 
 /*
 
@@ -47,8 +49,14 @@ final case class UpdateExpression private (actions: NonEmptySet[Action]) { self 
 object UpdateExpression {
   def apply(action: Action): UpdateExpression = UpdateExpression(NonEmptySet(action))
 
-  sealed trait Action
-  object Action {
+  sealed trait Action { self =>
+    def +(that: Action): Action = Actions(Chunk(self) :+ that)
+  }
+  object Action       {
+
+    private[dynamodb] final case class Actions(actions: Chunk[Action]) extends Action { self =>
+      override def +(that: Action): Action = Actions(actions :+ that)
+    }
 
     /**
      * Modifying or Adding Item Attributes
