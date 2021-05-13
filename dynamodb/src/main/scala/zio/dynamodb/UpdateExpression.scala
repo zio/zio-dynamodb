@@ -42,12 +42,10 @@ delete-action ::=
 
 // Note this implementation does not preserve the original order of actions ie after "Set field1 = 1, field1 = 2"
 // if this turns out to be a problem we could change the internal implementation
-final case class UpdateExpression private (actions: NonEmptySet[Action]) { self =>
-  def +(action: Action): UpdateExpression = UpdateExpression(self.actions + action)
-}
+final case class UpdateExpression(action: Action)
 
 object UpdateExpression {
-  def apply(action: Action): UpdateExpression = UpdateExpression(NonEmptySet(action))
+//  def apply(action: Action): UpdateExpression = UpdateExpression(NonEmptySet(action))
 
   sealed trait Action { self =>
     def +(that: Action): Action = Actions(Chunk(self) :+ that)

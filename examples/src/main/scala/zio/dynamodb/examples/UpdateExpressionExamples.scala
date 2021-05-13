@@ -16,7 +16,7 @@ object UpdateExpressionExamples extends App {
   val set5: SetAction      = path1.setListPrepend(List("1"))
   val add: AddAction       = path1.add("V2")
   val remove: RemoveAction = path1.remove
-  val delete: DeleteAction = path1.delete("v2")
+  val delete: DeleteAction = path1.deleteFromSet("v2")
 
   println(
     UpdateExpression(set1 + set2 + add + remove + delete)
@@ -31,18 +31,18 @@ object UpdateExpressionExamples extends App {
         path1.setListPrepend(List("x", "x2")) +
         path1.add(BigDecimal(1.0)) +
         path1.remove +
-        path1.delete(BigDecimal(1.0))
+        path1.deleteFromSet(BigDecimal(1.0))
     )
 
-  val path3       = Root("one")(2)
-  val pe          = path1.set("v2")
-  val pe2         = path1.set(Set("s"))
-  val pe3         = path1.set(List("42".toByte))
-  val pe4         = path1.set(List(List("41".toByte)))
-  val pe5         = path1.set(BigDecimal(1.0))
-  val pe6         = path1.set(Set(BigDecimal(1.0)))
-  val pe7         = path1.set(List("x"))
-  val updateItem1 = DynamoDBQuery.updateItem(TableName("t1"), PrimaryKey(Map.empty), pe)
+  Root("one")(2)
+  path1.set("v2")
+  path1.set(Set("s"))
+  path1.set(List("42".toByte))
+  path1.set(List(List("41".toByte)))
+  path1.set(BigDecimal(1.0))
+  path1.set(Set(BigDecimal(1.0)))
+  path1.set(List("x"))
+  DynamoDBQuery.updateItem(TableName("t1"), PrimaryKey(Map.empty))(set1)
 
   val x                     = AttributeValue.Map(Map(AttributeValue.String("") -> AttributeValue.String("")))
   val pe8: Action.SetAction = path1.set(Map("x" -> "x"))
