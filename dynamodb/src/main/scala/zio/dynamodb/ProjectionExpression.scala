@@ -116,23 +116,55 @@ sealed trait ProjectionExpression { self =>
 
   // UpdateExpression conversions
 
-  def set[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction                       =
+  /**
+   * Modify or Add an Item Attribute
+   */
+  def set[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
     UpdateExpression.Action.SetAction(self, UpdateExpression.SetOperand.ValueOperand(t.toAttributeValue(a)))
-  def set(pe: ProjectionExpression): UpdateExpression.Action.SetAction                                       =
+
+  //TODO: is this even useful anymore?
+  /**
+   * Modify or Add an Item Attribute
+   */
+  def set(pe: ProjectionExpression): UpdateExpression.Action.SetAction =
     UpdateExpression.Action.SetAction(self, PathOperand(pe))
+
+  /**
+   * Modifying or Add Item Attributes if ProjectionExpression `pe` exists
+   */
   def setIfNotExists[A](pe: ProjectionExpression, a: A)(implicit
     t: ToAttributeValue[A]
-  ): UpdateExpression.Action.SetAction                                                                       =
+  ): UpdateExpression.Action.SetAction =
     UpdateExpression.Action.SetAction(self, IfNotExists(pe, t.toAttributeValue(a)))
-  def setListAppend[A](xs: Iterable[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction  =
+
+  /**
+   * Add list `xs` to the end of this PathExpression
+   */
+  def setListAppend[A](xs: Iterable[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
     UpdateExpression.Action.SetAction(self, ListAppend(AttributeValue.List(xs.map(t.toAttributeValue))))
+
+  /**
+   * Add list `xs` to the beginning of this PathExpression
+   */
   def setListPrepend[A](xs: Iterable[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
     UpdateExpression.Action.SetAction(self, ListPrepend(AttributeValue.List(xs.map(t.toAttributeValue))))
-  def add[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.AddAction                       =
+
+  /**
+   * Updating Numbers and Sets
+   */
+  def add[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.AddAction =
     UpdateExpression.Action.AddAction(self, t.toAttributeValue(a))
-  def remove: UpdateExpression.Action.RemoveAction                                                           =
+
+  /**
+   * Removes this PathExpression from an Item
+   */
+  def remove: UpdateExpression.Action.RemoveAction =
     UpdateExpression.Action.RemoveAction(self)
-  def delete[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.DeleteAction                 =
+
+  /**
+   * Delete Elements from a Set
+   */
+  def deleteFromSet[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.DeleteAction =
     UpdateExpression.Action.DeleteAction(self, t.toAttributeValue(a))
 
   override def toString: String = {
@@ -160,6 +192,10 @@ object ProjectionExpression {
   // index must be non negative - we could use a new type here?
   final case class ListElement(parent: ProjectionExpression, index: Int) extends ProjectionExpression
 
+  /**
+   * Unsafe version of `parse` that throws an exception rather than returning an Either
+   * @see [[parse]]
+   */
   def $(s: String): ProjectionExpression =
     parse(s) match {
       case Right(a)  => a

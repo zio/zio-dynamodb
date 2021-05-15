@@ -208,20 +208,32 @@ object DynamoDBQuery {
 
   def putItem(tableName: TableName, item: Item): DynamoDBQuery[Unit] = PutItem(tableName, item)
 
-  def updateItem(tableName: TableName, key: PrimaryKey, action: Action, actions: Action*): DynamoDBQuery[Unit] =
-    UpdateItem(tableName, key, UpdateExpression(NonEmptySet(action, actions.toSet)))
+  def updateItem(tableName: TableName, key: PrimaryKey)(action: Action): DynamoDBQuery[Unit] =
+    UpdateItem(tableName, key, UpdateExpression(action))
 
   def deleteItem(tableName: TableName, key: PrimaryKey): DynamoDBQuery[Unit] = DeleteItem(tableName, key)
 
+  /**
+   * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
+   */
   def scanSome(tableName: TableName, indexName: IndexName, limit: Int, projections: ProjectionExpression*): ScanPage =
     ScanPage(tableName, indexName, limit, select = select(projections), projections = projections.toList)
 
+  /**
+   * when executed will return a ZStream of Item
+   */
   def scanAll(tableName: TableName, indexName: IndexName, projections: ProjectionExpression*): ScanAll =
     ScanAll(tableName, indexName, select = select(projections), projections = projections.toList)
 
+  /**
+   * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
+   */
   def querySome(tableName: TableName, indexName: IndexName, limit: Int, projections: ProjectionExpression*): QueryPage =
     QueryPage(tableName, indexName, limit, select = select(projections), projections = projections.toList)
 
+  /**
+   * when executed will return a ZStream of Item
+   */
   def queryAll(tableName: TableName, indexName: IndexName, projections: ProjectionExpression*): QueryAll =
     QueryAll(tableName, indexName, select = select(projections), projections = projections.toList)
 
