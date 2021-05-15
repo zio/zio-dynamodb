@@ -45,7 +45,6 @@ delete-action ::=
 final case class UpdateExpression(action: Action)
 
 object UpdateExpression {
-//  def apply(action: Action): UpdateExpression = UpdateExpression(NonEmptySet(action))
 
   sealed trait Action { self =>
     def +(that: Action): Action = Actions(Chunk(self) :+ that)

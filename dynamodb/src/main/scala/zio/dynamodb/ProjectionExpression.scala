@@ -193,7 +193,7 @@ object ProjectionExpression {
   final case class ListElement(parent: ProjectionExpression, index: Int) extends ProjectionExpression
 
   /**
-   * Unsafe version of `parse` that throws an exception rather than return an Either
+   * Unsafe version of `parse` that throws an exception rather than returning an Either
    * @see [[parse]]
    */
   def $(s: String): ProjectionExpression =
