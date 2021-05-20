@@ -12,6 +12,6 @@ object ProjectionExpressionExamples extends App {
   println(list)
   println(map)
 
-  val parsed1 = parse("foo.bar.baz[9]")
-  println(parsed1)
+  val b = ListElement(MapElement(MapElement(Root("foo"), "bar"), "baz"), 9).toString == $("foo.bar.baz[9]").toString
+  println(b)
 }

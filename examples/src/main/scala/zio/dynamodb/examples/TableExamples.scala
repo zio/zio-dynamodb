@@ -4,7 +4,7 @@ import zio.dynamodb.DynamoDBQuery.CreateTable
 import zio.dynamodb.Projection.{ All, Include }
 import zio.dynamodb._
 
-object MutationQueryExamples extends App {
+object TableExamples extends App {
   val createTable = CreateTable(
     tableName = TableName("someTable"),
     keySchema = KeySchema("hashKey", "sortKey"),

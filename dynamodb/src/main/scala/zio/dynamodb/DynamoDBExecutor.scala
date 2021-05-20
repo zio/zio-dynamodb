@@ -94,8 +94,8 @@ object DynamoDBExecutor {
             // TODO: we could execute in a loop
             ZIO.succeed(BatchWriteItem.Response())
 
-          case GetItem(key, tableName, readConsistency, projections, capacity)                      =>
-            println(s"$key $tableName $readConsistency $projections $capacity")
+          case GetItem(key, tableName, projections, readConsistency, capacity)                      =>
+            println(s"$key $tableName $projections $readConsistency  $capacity")
             ZIO.some(Item(ScalaMap.empty))
 
           case PutItem(tableName, item, conditionExpression, capacity, itemMetrics, returnValues)   =>

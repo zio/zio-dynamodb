@@ -34,7 +34,6 @@ object UpdateExpressionExamples extends App {
         path1.deleteFromSet(BigDecimal(1.0))
     )
 
-  Root("one")(2)
   path1.set("v2")
   path1.set(Set("s"))
   path1.set(List("42".toByte))

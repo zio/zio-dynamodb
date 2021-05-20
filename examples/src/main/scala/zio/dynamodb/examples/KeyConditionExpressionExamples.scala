@@ -6,6 +6,9 @@ import zio.dynamodb._
 
 object KeyConditionExpressionExamples extends App {
 
+//  // TODO: KeyConditionExpression should allow just a PartitionKey
+//  val exprnPKOnly: PartitionKeyExpression = PartitionKey("partitionKey1")
+
   val exprn: KeyConditionExpression =
     PartitionKey("partitionKey1") === "x" &&
       SortKey("sortKey1") > "X"

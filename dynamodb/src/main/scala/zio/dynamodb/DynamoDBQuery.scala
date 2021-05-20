@@ -245,9 +245,9 @@ object DynamoDBQuery {
   private[dynamodb] final case class GetItem(
     tableName: TableName,
     key: PrimaryKey,
-    consistency: ConsistencyMode = ConsistencyMode.Weak,
     projections: List[ProjectionExpression] =
       List.empty, // If no attribute names are specified, then all attributes are returned
+    consistency: ConsistencyMode = ConsistencyMode.Weak,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
   ) extends Constructor[Option[Item]]
 

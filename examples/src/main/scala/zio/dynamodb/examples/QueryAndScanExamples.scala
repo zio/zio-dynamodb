@@ -23,11 +23,9 @@ object QueryAndScanExamples extends App {
   println(s"x=$x")
 
   val scanAll1: ZIO[DynamoDBExecutor, Exception, stream.Stream[Exception, Item]]   =
-    scanAll(tableName1, indexName1, fieldA, fieldB, fieldC).execute
+    scanAll(tableName1, indexName1, $("A"), $("B"), $("C")).execute
   val scanSome2: ZIO[DynamoDBExecutor, Exception, (Chunk[Item], LastEvaluatedKey)] =
     scanSome(tableName1, indexName1, limit, fieldA, fieldB, fieldC).execute
-  val scanAll3: ZIO[DynamoDBExecutor, Exception, stream.Stream[Exception, Item]]   =
-    scanAll(tableName1, indexName1, $("A"), $("B"), $("C")).execute
 
   val queryAll1: ZIO[DynamoDBExecutor, Exception, stream.Stream[Exception, Item]] =
     queryAll(tableName1, indexName1, fieldA, fieldB, fieldC).whereKey(keyCondExprn).execute

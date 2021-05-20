@@ -1,11 +1,37 @@
 package zio.dynamodb.examples
 
-import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, GetItem }
-import zio.dynamodb.{ AttributeValue, PrimaryKey, TableName }
+import zio.dynamodb.DynamoDBQuery.getItem
+import zio.dynamodb.ProjectionExpression.$
+import zio.dynamodb.{ AttributeValue, DynamoDBQuery, PrimaryKey, TableName }
 
 class BatchGetItemExamples {
-  val pk1    = PrimaryKey(Map("field1" -> AttributeValue.Number(1.0)))
-  val table1 = TableName("T1")
-  val table2 = TableName("T2")
-  val batch  = BatchGetItem().addAll(GetItem(table1, pk1), GetItem(table2, pk1))
+  val batchManual =
+    (getItem(TableName("T1"), PrimaryKey(Map("field1" -> AttributeValue.String("1"))), $("a.b"), $("c.b")) where $(
+      "a.b"
+    ) === "X") <*> (getItem(
+      TableName("T1"),
+      PrimaryKey(Map("field1" -> AttributeValue.String("2"))),
+      $("a.b"),
+      $("c.b")
+    ) where $(
+      "a.b"
+    ) === "X") <*> (getItem(
+      TableName("T1"),
+      PrimaryKey(Map("field1" -> AttributeValue.String("3"))),
+      $("a.b"),
+      $("c.b")
+    ) where $(
+      "a.b"
+    ) === "X")
+
+  val batchFromIterable = DynamoDBQuery.forEach(1 to 3) { i =>
+    getItem(
+      TableName("T1"),
+      PrimaryKey(Map("field1" -> AttributeValue.String(i.toString))),
+      $("a.b"),
+      $("c.b")
+    ) where $(
+      "a.b"
+    ) === "X"
+  }
 }
