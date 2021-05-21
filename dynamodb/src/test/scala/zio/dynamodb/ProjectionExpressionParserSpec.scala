@@ -5,10 +5,13 @@ import zio.random.Random
 import zio.test.Assertion._
 import zio.test.{ DefaultRunnableSpec, _ }
 
+import scala.annotation.tailrec
+
 object ProjectionExpressionParserSpec extends DefaultRunnableSpec {
   object Generators {
-    def fieldName                                                                                    = Gen.anyString
-    def index                                                                                        = Gen.anyInt
+    val validCharGens                                                                                = List(Gen.const('_'), Gen.char('a', 'z'), Gen.char('a', 'z'))
+    def fieldName                                                                                    = Gen.stringBounded(1, 10)(Gen.oneOf(validCharGens: _*))
+    def index                                                                                        = Gen.int(0, 10)
     def root: Gen[Random with Sized, Root]                                                           = fieldName.map(Root)
     def mapElement(parent: => ProjectionExpression)                                                  = fieldName.map(MapElement(parent, _))
     def listElement(parent: => ProjectionExpression)                                                 = index.map(ListElement(parent, _))
@@ -16,6 +19,7 @@ object ProjectionExpressionParserSpec extends DefaultRunnableSpec {
       Gen.oneOf(mapElement(parent))
 
     def projectionExpression: Gen[Random with Sized, ProjectionExpression] = {
+      @tailrec
       def loop(
         parentGen: Gen[Random with Sized, ProjectionExpression],
         counter: Int
@@ -25,8 +29,9 @@ object ProjectionExpressionParserSpec extends DefaultRunnableSpec {
         else
           loop(parentGen.flatMap(pe => mapOrListElement(pe)), counter - 1)
 
+      val maxFields = 20
       for {
-        count <- Gen.int(1, 20)
+        count <- Gen.int(1, maxFields)
         pe    <- loop(root, count)
       } yield pe
     }
@@ -35,18 +40,11 @@ object ProjectionExpressionParserSpec extends DefaultRunnableSpec {
 
   override def spec: ZSpec[Environment, Failure] =
     suite("ProjectionExpression Parser")(
-      // TODO
-      testM("should report syntax errors with non empty invalid ProjectionExpressions") {
+      testM("should parse valid expressions") {
         check(Generators.projectionExpression) { pe =>
           assert(
             parse(pe.toString)
-          ) {
-            isLeft(
-              startsWithString(
-                "error with"
-              )
-            )
-          }
+          )(isRight(equalTo(pe)))
         }
       },
       test("toString on a ProjectionExpression of foo.bar[9].baz") {
@@ -85,6 +83,8 @@ object ProjectionExpressionParserSpec extends DefaultRunnableSpec {
         val actual = parse(".")
         assert(actual)(isLeft(equalTo("error - at least one element must be specified")))
       },
+      // TODO: "returns error for for 'foo.'"
+      // TODO: "returns error for for 'foo..bar'"
       test("returns multiple errors - one for each element error") {
         val actual = parse("fo$o.ba$r[9].ba$z")
         assert(actual)(isLeft(equalTo("error with 'fo$o',error with 'ba$r[9]',error with 'ba$z'")))
