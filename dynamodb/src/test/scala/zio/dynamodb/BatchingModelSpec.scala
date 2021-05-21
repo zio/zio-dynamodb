@@ -7,12 +7,11 @@ import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem }
 import zio.test.Assertion._
 import zio.test.{ DefaultRunnableSpec, _ }
 
-//noinspection TypeAnnotation
 object BatchingModelSpec extends DefaultRunnableSpec {
 
-  override def spec = suite("Batch Model")(batchGetItemSuite, batchWriteItemSuite)
+  override def spec: ZSpec[Environment, Failure] = suite("Batch Model")(batchGetItemSuite, batchWriteItemSuite)
 
-  val batchGetItemSuite = suite("BatchGetItem")(
+  private val batchGetItemSuite = suite("BatchGetItem")(
     test("should aggregate GetItems using +") {
       val batch = BatchGetItem().addAll(getItem1, getItem2)
 
@@ -44,7 +43,7 @@ object BatchingModelSpec extends DefaultRunnableSpec {
     }
   )
 
-  val batchWriteItemSuite = suite("BatchWriteItem")(
+  private val batchWriteItemSuite = suite("BatchWriteItem")(
     test("should aggregate a PutItem and then a DeleteItem for the same table using +") {
       val batch: BatchWriteItem = BatchWriteItem().addAll(putItem1, deleteItem1)
 

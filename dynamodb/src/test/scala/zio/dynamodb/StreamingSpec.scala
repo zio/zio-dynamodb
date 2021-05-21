@@ -4,12 +4,11 @@ import zio.ZIO
 import zio.stream.ZStream
 import zio.test.{ DefaultRunnableSpec, _ }
 
-//noinspection TypeAnnotation
 object StreamingSpec extends DefaultRunnableSpec {
 
-  override def spec = streamingSuite
+  override def spec: ZSpec[Environment, Failure] = streamingSuite
 
-  val stream1 = ZStream.fromEffect(ZIO {
+  private val stream1 = ZStream.fromEffect(ZIO {
     println("inside stream")
     1
   })
@@ -18,7 +17,7 @@ object StreamingSpec extends DefaultRunnableSpec {
     ZIO.effect((stream1, Some(1)))
 
   // does this result in resource leaks for stream1 ?
-  val streamingSuite = suite("Streaming interface experiment")(
+  private val streamingSuite = suite("Streaming interface experiment")(
     testM("should access non stream tuple item without pulling on stream") {
       for {
         tuple <- execute

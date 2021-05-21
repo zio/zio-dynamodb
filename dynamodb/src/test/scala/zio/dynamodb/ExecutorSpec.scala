@@ -1,19 +1,18 @@
 package zio.dynamodb
 
 import zio.Chunk
-import zio.dynamodb.DynamoDBQuery.{ parallelize, Constructor, Map }
 import zio.dynamodb.DynamoDBExecutor.TestData._
+import zio.dynamodb.DynamoDBQuery.{ parallelize, Constructor, Map }
 import zio.test.Assertion.equalTo
-import zio.test.{ assert, DefaultRunnableSpec }
+import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
 
 import scala.collection.immutable.{ Map => ScalaMap }
 
-//noinspection TypeAnnotation
 object ExecutorSpec extends DefaultRunnableSpec {
 
-  override def spec = suite("Executor")(parallelizeSuite, executeSuite)
+  override def spec: ZSpec[Environment, Failure] = suite("Executor")(parallelizeSuite, executeSuite)
 
-  val executeSuite = suite("execute")(
+  private val executeSuite = suite("execute")(
     testM("should execute getItem1 zip getItem2") {
       for {
         assembled <- (getItem1 zip getItem2).execute
@@ -56,7 +55,7 @@ object ExecutorSpec extends DefaultRunnableSpec {
     }
   ).provideCustomLayer(DynamoDBExecutor.test)
 
-  val parallelizeSuite =
+  private val parallelizeSuite =
     suite(label = "parallelize")(
       test(label = "should process Zipped GetItems") {
         val (constructor, assembler): (Chunk[Constructor[Any]], Chunk[Any] => (Option[Item], Option[Item])) =

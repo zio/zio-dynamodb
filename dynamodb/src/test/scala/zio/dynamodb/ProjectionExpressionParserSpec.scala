@@ -5,7 +5,7 @@ import zio.test.Assertion.{ equalTo, isLeft, isRight }
 import zio.test.{ DefaultRunnableSpec, _ }
 
 object ProjectionExpressionParserSpec extends DefaultRunnableSpec {
-  override def spec =
+  override def spec: ZSpec[Environment, Failure] =
     suite("ProjectionExpression Parser")(
       test("toString on a ProjectionExpression of foo.bar[9].baz") {
         val pe = MapElement(ListElement(MapElement(Root("foo"), "bar"), 9), "baz")

@@ -4,14 +4,13 @@ import zio.Chunk
 import zio.dynamodb.DynamoDBExecutor.TestData._
 import zio.dynamodb.DynamoDBQuery.{ forEach, parallelize }
 import zio.test.Assertion.equalTo
-import zio.test.{ assert, DefaultRunnableSpec }
+import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
 
-//noinspection TypeAnnotation
 object ExecutorSpec2 extends DefaultRunnableSpec {
 
-  override def spec = suite("Executor")(executeSuite)
+  override def spec: ZSpec[Environment, Failure] = suite("Executor")(executeSuite)
 
-  val executeSuite = suite("execute")(
+  private val executeSuite = suite("execute")(
     testM("should execute forEach of GetItems (resulting in a batched request)") {
       for {
         assembled <- forEach(1 to 2)(i => getItem(i)).execute

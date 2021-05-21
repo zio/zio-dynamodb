@@ -3,10 +3,9 @@ package zio.dynamodb
 import zio.test.Assertion._
 import zio.test.{ DefaultRunnableSpec, _ }
 
-//noinspection TypeAnnotation
 object NonSetEmptySpec extends DefaultRunnableSpec {
 
-  override def spec =
+  override def spec: ZSpec[Environment, Failure] =
     suite("NonEmptySet")(
       test("construction single param") {
         val actual = NonEmptySet(1)
