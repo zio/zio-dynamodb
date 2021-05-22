@@ -23,9 +23,7 @@ class BatchWriteItemExamples {
   }
 
   val batchDeleteFromIterable = DynamoDBQuery.forEach(1 to 3) { i =>
-    deleteItem(tableName1, AttrMap("pk" -> i.toString)) where $("foo.bar") > "1" && !($(
-      "foo.bar"
-    ) < "5")
+    deleteItem(tableName1, AttrMap("pk" -> i.toString)) where $("foo.bar") > "1" && !($("foo.bar") < "5")
   }
 
 }
