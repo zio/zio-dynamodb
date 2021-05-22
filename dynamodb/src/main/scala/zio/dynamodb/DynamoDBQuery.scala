@@ -296,7 +296,7 @@ object DynamoDBQuery {
     final case class TableResponse(
       readConsistency: ConsistencyMode,
       expressionAttributeNames: Map[String, String], // for use with projections expression
-      keys: Set[PrimaryKey] = Set.empty,
+      keys: Set[AttrMap] = Set.empty,
       projections: List[ProjectionExpression] =
         List.empty                                   // If no attribute names are specified, then all attributes are returned
     )
