@@ -6,8 +6,6 @@ import zio.dynamodb.DynamoDBQuery.{ parallelize, Constructor, Map }
 import zio.test.Assertion.equalTo
 import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
 
-import scala.collection.immutable.{ Map => ScalaMap }
-
 object ExecutorSpec extends DefaultRunnableSpec {
 
   override def spec: ZSpec[Environment, Failure] = suite("Executor")(parallelizeSuite, executeSuite)
@@ -58,9 +56,9 @@ object ExecutorSpec extends DefaultRunnableSpec {
   private val parallelizeSuite =
     suite(label = "parallelize")(
       test(label = "should process Zipped GetItems") {
-        val (constructor, assembler): (Chunk[Constructor[Any]], Chunk[Any] => (Option[Item], Option[Item])) =
+        val (constructor, assembler): (Chunk[Constructor[Any]], Chunk[Any] => (Option[AttrMap], Option[AttrMap])) =
           parallelize(getItem1 zip getItem2)
-        val assembled                                                                                       = assembler(Chunk(someItem("1"), someItem("2")))
+        val assembled                                                                                             = assembler(Chunk(someItem("1"), someItem("2")))
 
         assert(constructor)(equalTo(Chunk(getItem1, getItem2))) && assert(assembled)(
           equalTo((someItem("1"), someItem("2")))
@@ -76,13 +74,13 @@ object ExecutorSpec extends DefaultRunnableSpec {
       test("should process Map constructor") {
         val map                      = Map(
           getItem1,
-          (o: Option[Item]) => o.map(_ => Item(ScalaMap("1" -> AttributeValue.String("2"))))
+          (o: Option[AttrMap]) => o.map(_ => AttrMap("1" -> "2"))
         )
         val (constructor, assembler) = parallelize(map)
         val assembled                = assembler(Chunk(someItem("1")))
 
         assert(constructor)(equalTo(Chunk(getItem1))) && assert(assembled)(
-          equalTo(Some(Item(ScalaMap("1" -> AttributeValue.String("2")))))
+          equalTo(Some(AttrMap("1" -> "2")))
         )
       },
       test("should process ScanPage constructor") {
