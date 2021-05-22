@@ -48,8 +48,10 @@ object AttributeValue {
   object Null                                                   extends AttributeValue
   final case class String(value: ScalaString)                   extends AttributeValue
   final case class StringSet(value: Set[ScalaString])           extends AttributeValue
+
 }
 
+// TODO move to own file
 trait ToAttributeValue[-A] {
   def toAttributeValue(a: A): AttributeValue
 }
