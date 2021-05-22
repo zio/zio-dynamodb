@@ -211,7 +211,7 @@ object DynamoDBQuery {
   def updateItem(tableName: TableName, key: AttrMap)(action: Action): DynamoDBQuery[Unit] =
     UpdateItem(tableName, key, UpdateExpression(action))
 
-  def deleteItem(tableName: TableName, key: PrimaryKey): DynamoDBQuery[Unit] = DeleteItem(tableName, key)
+  def deleteItem(tableName: TableName, key: AttrMap): DynamoDBQuery[Unit] = DeleteItem(tableName, key)
 
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
@@ -341,8 +341,8 @@ object DynamoDBQuery {
   }
   private[dynamodb] object BatchWriteItem {
     sealed trait Write
-    final case class Delete(key: PrimaryKey) extends Write
-    final case class Put(item: Item)         extends Write
+    final case class Delete(key: AttrMap) extends Write
+    final case class Put(item: Item)      extends Write
 
     final case class Response(
       // TODO: return metadata
@@ -429,7 +429,7 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class DeleteItem(
     tableName: TableName,
-    key: PrimaryKey,
+    key: AttrMap,
     conditionExpression: Option[ConditionExpression] = None,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,

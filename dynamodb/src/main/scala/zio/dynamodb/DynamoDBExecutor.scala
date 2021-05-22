@@ -57,7 +57,7 @@ object DynamoDBExecutor {
         primaryKey1,
         UpdateExpression(RemoveAction(Root("top")(1)))
       )
-    val deleteItem1  = DeleteItem(tableName = tableName1, key = PrimaryKey(ScalaMap.empty))
+    val deleteItem1  = DeleteItem(tableName = tableName1, key = AttrMap.empty)
     val stream1      = ZStream(emptyItem)
     val scanPage1    = ScanPage(tableName1, indexName1, limit = 10)
     val queryPage1   = QueryPage(tableName1, indexName1, limit = 10)

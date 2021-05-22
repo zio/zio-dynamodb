@@ -6,7 +6,7 @@ import zio.dynamodb.ProjectionExpression.$
 import zio.dynamodb._
 
 class BatchWriteItemExamples {
-  val pk1    = PrimaryKey(Map("field1" -> AttributeValue.Number(1.0)))
+  val pk1    = AttrMap("field1" -> BigDecimal(1.0))
   val item1  = Item(Map("field1" -> AttributeValue.Number(1.0)))
   val item2  = Item(Map("field2" -> AttributeValue.Number(2.0)))
   val table1 = TableName("T1")
@@ -23,7 +23,7 @@ class BatchWriteItemExamples {
   }
 
   val batchDeleteFromIterable = DynamoDBQuery.forEach(1 to 3) { i =>
-    deleteItem(tableName1, PrimaryKey(Map("pk" -> AttributeValue.String(i.toString)))) where $("foo.bar") > "1" && !($(
+    deleteItem(tableName1, AttrMap("pk" -> i.toString)) where $("foo.bar") > "1" && !($(
       "foo.bar"
     ) < "5")
   }
