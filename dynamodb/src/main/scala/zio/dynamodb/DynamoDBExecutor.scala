@@ -29,35 +29,35 @@ object DynamoDBExecutor {
 
   //noinspection TypeAnnotation
   object TestData {
-    val emptyItem                         = Item(ScalaMap.empty)
-    def someItem: Option[Item]            = Some(emptyItem)
-    def item(a: String): Item             = Item(ScalaMap(a -> AttributeValue.String(a)))
-    def someItem(a: String): Option[Item] = Some(item(a))
-    def primaryKey(s: String)             = PrimaryKey(ScalaMap(s -> AttributeValue.String(s)))
-    def primaryKey(i: Int)                = PrimaryKey(ScalaMap(s"$i" -> AttributeValue.String(s"$i")))
-    val primaryKey1                       = PrimaryKey(ScalaMap("k1" -> AttributeValue.String("k1")))
-    val primaryKey2                       = PrimaryKey(ScalaMap("k2" -> AttributeValue.String("k2")))
-    val primaryKey3                       = PrimaryKey(ScalaMap("k3" -> AttributeValue.String("k3")))
-    val tableName1                        = TableName("T1")
-    val tableName2                        = TableName("T2")
-    val tableName3                        = TableName("T3")
-    val indexName1                        = IndexName("I1")
-    def getItem(i: Int)                   = GetItem(key = primaryKey(s"k$i"), tableName = tableName1)
-    val getItem1                          = GetItem(key = primaryKey1, tableName = tableName1)
-    val getItem2                          = GetItem(key = primaryKey2, tableName = tableName1)
-    val getItem3                          = GetItem(key = primaryKey3, tableName = tableName3)
-    val item1                             = Item(getItem1.key.value)
-    val item2                             = Item(getItem2.key.value)
+    val emptyItem                            = AttrMap.empty
+    def someItem: Option[AttrMap]            = Some(emptyItem)
+    def item(a: String): AttrMap             = AttrMap(a -> a)
+    def someItem(a: String): Option[AttrMap] = Some(item(a))
+    def primaryKey(s: String)                = AttrMap(s -> s)
+    def primaryKey(i: Int)                   = AttrMap(s"$i" -> s"$i")
+    val primaryKey1                          = AttrMap("k1" -> "k1")
+    val primaryKey2                          = AttrMap("k2" -> "k2")
+    val primaryKey3                          = AttrMap("k3" -> "k3")
+    val tableName1                           = TableName("T1")
+    val tableName2                           = TableName("T2")
+    val tableName3                           = TableName("T3")
+    val indexName1                           = IndexName("I1")
+    def getItem(i: Int)                      = GetItem(key = primaryKey(s"k$i"), tableName = tableName1)
+    val getItem1                             = GetItem(key = primaryKey1, tableName = tableName1)
+    val getItem2                             = GetItem(key = primaryKey2, tableName = tableName1)
+    val getItem3                             = GetItem(key = primaryKey3, tableName = tableName3)
+    val item1: AttrMap                       = getItem1.key
+    val item2: AttrMap                       = getItem2.key
 
-    val putItem1     = PutItem(tableName = tableName1, item = Item(ScalaMap("k1" -> AttributeValue.String("k1"))))
-    val putItem2     = PutItem(tableName = tableName1, item = Item(ScalaMap("k2" -> AttributeValue.String("k2"))))
+    val putItem1     = PutItem(tableName = tableName1, item = AttrMap("k1" -> "k1"))
+    val putItem2     = PutItem(tableName = tableName1, item = AttrMap("k2" -> "k2"))
     val updateItem1  =
       UpdateItem(
         tableName = tableName1,
         primaryKey1,
         UpdateExpression(RemoveAction(Root("top")(1)))
       )
-    val deleteItem1  = DeleteItem(tableName = tableName1, key = PrimaryKey(ScalaMap.empty))
+    val deleteItem1  = DeleteItem(tableName = tableName1, key = AttrMap.empty)
     val stream1      = ZStream(emptyItem)
     val scanPage1    = ScanPage(tableName1, indexName1, limit = 10)
     val queryPage1   = QueryPage(tableName1, indexName1, limit = 10)
@@ -96,7 +96,7 @@ object DynamoDBExecutor {
 
           case GetItem(key, tableName, projections, readConsistency, capacity)                      =>
             println(s"$key $tableName $projections $readConsistency  $capacity")
-            ZIO.some(Item(ScalaMap.empty))
+            ZIO.some(AttrMap.empty)
 
           case PutItem(tableName, item, conditionExpression, capacity, itemMetrics, returnValues)   =>
             println(s"$tableName $item $conditionExpression $capacity $itemMetrics $returnValues")

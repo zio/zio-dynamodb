@@ -199,19 +199,19 @@ object DynamoDBQuery {
 
   def getItem(
     tableName: TableName,
-    key: PrimaryKey,
+    key: AttrMap,
     projections: ProjectionExpression*
-  ): DynamoDBQuery[Option[Item]] = {
+  ): DynamoDBQuery[Option[AttrMap]] = {
     println(projections)
     GetItem(tableName, key)
   }
 
-  def putItem(tableName: TableName, item: Item): DynamoDBQuery[Unit] = PutItem(tableName, item)
+  def putItem(tableName: TableName, item: AttrMap): DynamoDBQuery[Unit] = PutItem(tableName, item)
 
-  def updateItem(tableName: TableName, key: PrimaryKey)(action: Action): DynamoDBQuery[Unit] =
+  def updateItem(tableName: TableName, key: AttrMap)(action: Action): DynamoDBQuery[Unit] =
     UpdateItem(tableName, key, UpdateExpression(action))
 
-  def deleteItem(tableName: TableName, key: PrimaryKey): DynamoDBQuery[Unit] = DeleteItem(tableName, key)
+  def deleteItem(tableName: TableName, key: AttrMap): DynamoDBQuery[Unit] = DeleteItem(tableName, key)
 
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
@@ -244,12 +244,12 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class GetItem(
     tableName: TableName,
-    key: PrimaryKey,
+    key: AttrMap,
     projections: List[ProjectionExpression] =
       List.empty, // If no attribute names are specified, then all attributes are returned
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
-  ) extends Constructor[Option[Item]]
+  ) extends Constructor[Option[AttrMap]]
 
   private[dynamodb] final case class BatchGetItem(
     requestItems: MapOfSet[TableName, BatchGetItem.TableGet] = MapOfSet.empty,
@@ -272,12 +272,12 @@ object DynamoDBQuery {
     /*
      for each added GetItem, check it's key exists in the response and create a corresponding Optional Item value
      */
-    def toGetItemResponses(response: BatchGetItem.Response): Chunk[Option[Item]] = {
-      val chunk: Chunk[Option[Item]] = addList.foldLeft[Chunk[Option[Item]]](Chunk.empty) {
+    def toGetItemResponses(response: BatchGetItem.Response): Chunk[Option[AttrMap]] = {
+      val chunk: Chunk[Option[AttrMap]] = addList.foldLeft[Chunk[Option[AttrMap]]](Chunk.empty) {
         case (chunk, getItem) =>
-          val responsesForTable: Set[Item] = response.responses.getOrElse(getItem.tableName, Set.empty[Item])
-          val found: Option[Item]          = responsesForTable.find { item =>
-            getItem.key.value.toSet.subsetOf(item.value.toSet)
+          val responsesForTable: Set[AttrMap] = response.responses.getOrElse(getItem.tableName, Set.empty[AttrMap])
+          val found: Option[AttrMap]          = responsesForTable.find { item =>
+            getItem.key.map.toSet.subsetOf(item.map.toSet)
           }
 
           found.fold(chunk :+ None)(item => chunk :+ Some(item))
@@ -289,14 +289,14 @@ object DynamoDBQuery {
   }
   private[dynamodb] object BatchGetItem {
     final case class TableGet(
-      key: PrimaryKey,
+      key: AttrMap,
       projections: List[ProjectionExpression] =
         List.empty                                   // If no attribute names are specified, then all attributes are returned
     )
     final case class TableResponse(
       readConsistency: ConsistencyMode,
       expressionAttributeNames: Map[String, String], // for use with projections expression
-      keys: Set[PrimaryKey] = Set.empty,
+      keys: Set[AttrMap] = Set.empty,
       projections: List[ProjectionExpression] =
         List.empty                                   // If no attribute names are specified, then all attributes are returned
     )
@@ -304,7 +304,7 @@ object DynamoDBQuery {
       // TODO: return metadata
 
       // Note - if a requested item does not exist, it is not returned in the result
-      responses: MapOfSet[TableName, Item] = MapOfSet.empty,
+      responses: MapOfSet[TableName, AttrMap] = MapOfSet.empty,
       unprocessedKeys: ScalaMap[TableName, TableResponse] = ScalaMap.empty
     )
   }
@@ -341,8 +341,8 @@ object DynamoDBQuery {
   }
   private[dynamodb] object BatchWriteItem {
     sealed trait Write
-    final case class Delete(key: PrimaryKey) extends Write
-    final case class Put(item: Item)         extends Write
+    final case class Delete(key: AttrMap) extends Write
+    final case class Put(item: AttrMap)   extends Write
 
     final case class Response(
       // TODO: return metadata
@@ -365,7 +365,7 @@ object DynamoDBQuery {
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
-  ) extends Constructor[(Chunk[Item], LastEvaluatedKey)]
+  ) extends Constructor[(Chunk[AttrMap], LastEvaluatedKey)]
 
   private[dynamodb] final case class QueryPage(
     tableName: TableName,
@@ -380,7 +380,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None,                        // if ProjectExpression supplied then only valid value is SpecificAttributes
     ascending: Boolean = true
-  ) extends Constructor[(Chunk[Item], LastEvaluatedKey)]
+  ) extends Constructor[(Chunk[AttrMap], LastEvaluatedKey)]
 
   private[dynamodb] final case class ScanAll(
     tableName: TableName,
@@ -392,7 +392,7 @@ object DynamoDBQuery {
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
-  ) extends Constructor[Stream[Exception, Item]]
+  ) extends Constructor[Stream[Exception, AttrMap]]
 
   private[dynamodb] final case class QueryAll(
     tableName: TableName,
@@ -406,11 +406,11 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None,                        // if ProjectExpression supplied then only valid value is SpecificAttributes
     ascending: Boolean = true
-  ) extends Constructor[Stream[Exception, Item]]
+  ) extends Constructor[Stream[Exception, AttrMap]]
 
   private[dynamodb] final case class PutItem(
     tableName: TableName,
-    item: Item,
+    item: AttrMap,
     conditionExpression: Option[ConditionExpression] = None,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
@@ -419,7 +419,7 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class UpdateItem(
     tableName: TableName,
-    key: PrimaryKey,
+    key: AttrMap,
     updateExpression: UpdateExpression,
     conditionExpression: Option[ConditionExpression] = None,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
@@ -429,7 +429,7 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class DeleteItem(
     tableName: TableName,
-    key: PrimaryKey,
+    key: AttrMap,
     conditionExpression: Option[ConditionExpression] = None,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
