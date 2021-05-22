@@ -199,7 +199,7 @@ object DynamoDBQuery {
 
   def getItem(
     tableName: TableName,
-    key: PrimaryKey,
+    key: AttrMap,
     projections: ProjectionExpression*
   ): DynamoDBQuery[Option[Item]] = {
     println(projections)
@@ -208,7 +208,7 @@ object DynamoDBQuery {
 
   def putItem(tableName: TableName, item: Item): DynamoDBQuery[Unit] = PutItem(tableName, item)
 
-  def updateItem(tableName: TableName, key: PrimaryKey)(action: Action): DynamoDBQuery[Unit] =
+  def updateItem(tableName: TableName, key: AttrMap)(action: Action): DynamoDBQuery[Unit] =
     UpdateItem(tableName, key, UpdateExpression(action))
 
   def deleteItem(tableName: TableName, key: PrimaryKey): DynamoDBQuery[Unit] = DeleteItem(tableName, key)
@@ -244,7 +244,7 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class GetItem(
     tableName: TableName,
-    key: PrimaryKey,
+    key: AttrMap,
     projections: List[ProjectionExpression] =
       List.empty, // If no attribute names are specified, then all attributes are returned
     consistency: ConsistencyMode = ConsistencyMode.Weak,
@@ -277,7 +277,7 @@ object DynamoDBQuery {
         case (chunk, getItem) =>
           val responsesForTable: Set[Item] = response.responses.getOrElse(getItem.tableName, Set.empty[Item])
           val found: Option[Item]          = responsesForTable.find { item =>
-            getItem.key.value.toSet.subsetOf(item.value.toSet)
+            getItem.key.map.toSet.subsetOf(item.value.toSet)
           }
 
           found.fold(chunk :+ None)(item => chunk :+ Some(item))
@@ -289,7 +289,7 @@ object DynamoDBQuery {
   }
   private[dynamodb] object BatchGetItem {
     final case class TableGet(
-      key: PrimaryKey,
+      key: AttrMap,
       projections: List[ProjectionExpression] =
         List.empty                                   // If no attribute names are specified, then all attributes are returned
     )
@@ -419,7 +419,7 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class UpdateItem(
     tableName: TableName,
-    key: PrimaryKey,
+    key: AttrMap,
     updateExpression: UpdateExpression,
     conditionExpression: Option[ConditionExpression] = None,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,

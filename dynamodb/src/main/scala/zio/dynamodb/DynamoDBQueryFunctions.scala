@@ -4,7 +4,7 @@ trait DynamoDBQueryFunctions {
   def getTable(tableName: TableName): DynamoDBTable =
     new DynamoDBTable {
       def get(
-        key: PrimaryKey,
+        key: AttrMap,
         readConsistency: ConsistencyMode = ConsistencyMode.Weak,
         capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
       )(projections: ProjectionExpression*): DynamoDBQuery[Option[Item]] =

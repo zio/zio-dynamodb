@@ -41,7 +41,7 @@ object UpdateExpressionExamples extends App {
   path1.set(BigDecimal(1.0))
   path1.set(Set(BigDecimal(1.0)))
   path1.set(List("x"))
-  DynamoDBQuery.updateItem(TableName("t1"), PrimaryKey(Map.empty))(set1)
+  DynamoDBQuery.updateItem(TableName("t1"), AttrMap.empty)(set1)
 
   val x                     = AttributeValue.Map(Map(AttributeValue.String("") -> AttributeValue.String("")))
   val pe8: Action.SetAction = path1.set(Map("x" -> "x"))
