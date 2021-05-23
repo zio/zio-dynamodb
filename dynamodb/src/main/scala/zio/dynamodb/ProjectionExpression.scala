@@ -117,20 +117,20 @@ sealed trait ProjectionExpression { self =>
   // UpdateExpression conversions
 
   /**
-   * Modify or Add an Item Attribute
+   * Modify or Add an item Attribute
    */
   def set[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
     UpdateExpression.Action.SetAction(self, UpdateExpression.SetOperand.ValueOperand(t.toAttributeValue(a)))
 
   //TODO: is this even useful anymore?
   /**
-   * Modify or Add an Item Attribute
+   * Modify or Add an item Attribute
    */
   def set(pe: ProjectionExpression): UpdateExpression.Action.SetAction =
     UpdateExpression.Action.SetAction(self, PathOperand(pe))
 
   /**
-   * Modifying or Add Item Attributes if ProjectionExpression `pe` exists
+   * Modifying or Add item Attributes if ProjectionExpression `pe` exists
    */
   def setIfNotExists[A](pe: ProjectionExpression, a: A)(implicit
     t: ToAttributeValue[A]
@@ -156,7 +156,7 @@ sealed trait ProjectionExpression { self =>
     UpdateExpression.Action.AddAction(self, t.toAttributeValue(a))
 
   /**
-   * Removes this PathExpression from an Item
+   * Removes this PathExpression from an item
    */
   def remove: UpdateExpression.Action.RemoveAction =
     UpdateExpression.Action.RemoveAction(self)

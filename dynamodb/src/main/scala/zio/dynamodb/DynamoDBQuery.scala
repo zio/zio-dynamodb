@@ -220,7 +220,7 @@ object DynamoDBQuery {
     ScanPage(tableName, indexName, limit, select = select(projections), projections = projections.toList)
 
   /**
-   * when executed will return a ZStream of Item
+   * when executed will return a ZStream of AttrMap
    */
   def scanAll(tableName: TableName, indexName: IndexName, projections: ProjectionExpression*): ScanAll =
     ScanAll(tableName, indexName, select = select(projections), projections = projections.toList)
@@ -232,7 +232,7 @@ object DynamoDBQuery {
     QueryPage(tableName, indexName, limit, select = select(projections), projections = projections.toList)
 
   /**
-   * when executed will return a ZStream of Item
+   * when executed will return a ZStream of AttrMap
    */
   def queryAll(tableName: TableName, indexName: IndexName, projections: ProjectionExpression*): QueryAll =
     QueryAll(tableName, indexName, select = select(projections), projections = projections.toList)
