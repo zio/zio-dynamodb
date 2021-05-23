@@ -56,12 +56,12 @@ object UpdateExpression {
     }
 
     /**
-     * Modifying or Adding Item Attributes
+     * Modifying or Adding item Attributes
      */
     private[dynamodb] final case class SetAction(path: ProjectionExpression, operand: SetOperand) extends Action
 
     /**
-     * Removing Attributes from an Item
+     * Removing Attributes from an item
      */
     private[dynamodb] final case class RemoveAction(path: ProjectionExpression) extends Action
 
