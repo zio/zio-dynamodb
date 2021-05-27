@@ -1,20 +1,20 @@
 package zio.dynamodb.examples
 
 import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
-import zio.dynamodb.DynamoDBExecutor.TestData._
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.PartitionKeyExpression.PartitionKey
 import zio.dynamodb.ProjectionExpression.$
 import zio.dynamodb.SortKeyExpression.SortKey
-import zio.dynamodb.{ AttrMap, KeyConditionExpression, LastEvaluatedKey }
-import zio.{ Chunk, ZIO }
+import zio.dynamodb._
 import zio.stream.Stream
+import zio.{ Chunk, ZIO }
 
 object QueryAndScanExamples extends App {
 
-  val fieldA                               = $("A")
-  val fieldB                               = $("B")
-  val fieldC                               = $("C")
+  val tableName1: TableName = TableName("T1")
+  val tableName2: TableName = TableName("T2")
+  val indexName1            = IndexName("I1")
+
   val limit                                = 10
   val keyCondExprn: KeyConditionExpression =
     PartitionKey("partitionKey1") === "x" &&
@@ -23,16 +23,16 @@ object QueryAndScanExamples extends App {
   val x = $("foo.bar") > $("B")
   println(s"x=$x")
 
-  val scanAll1: ZIO[DynamoDBExecutor, Exception, Stream[Exception, AttrMap]]          =
+  val scanAll1: ZIO[DynamoDBExecutor, Exception, Stream[Exception, Item]]          =
     scanAll(tableName1, indexName1, $("A"), $("B"), $("C")).execute
-  val scanSome2: ZIO[DynamoDBExecutor, Exception, (Chunk[AttrMap], LastEvaluatedKey)] =
-    scanSome(tableName1, indexName1, limit, fieldA, fieldB, fieldC).execute
+  val scanSome2: ZIO[DynamoDBExecutor, Exception, (Chunk[Item], LastEvaluatedKey)] =
+    scanSome(tableName1, indexName1, limit, $("A"), $("B"), $("C")).execute
 
-  val queryAll1: ZIO[DynamoDBExecutor, Exception, Stream[Exception, AttrMap]] =
-    queryAll(tableName1, indexName1, fieldA, fieldB, fieldC).whereKey(keyCondExprn).execute
+  val queryAll1: ZIO[DynamoDBExecutor, Exception, Stream[Exception, Item]] =
+    queryAll(tableName1, indexName1, $("A"), $("B"), $("C")).whereKey(keyCondExprn).execute
 
-  val querySome2: ZIO[DynamoDBExecutor, Exception, (Chunk[AttrMap], LastEvaluatedKey)] =
-    querySome(tableName1, indexName1, limit, fieldA, fieldB, fieldC)
+  val querySome2: ZIO[DynamoDBExecutor, Exception, (Chunk[Item], LastEvaluatedKey)] =
+    querySome(tableName1, indexName1, limit, $("A"), $("B"), $("C"))
       .sortOrder(ascending = false)
       .whereKey(PartitionKey("partitionKey1") === "x" && SortKey("sortKey1") > "X")
       .execute

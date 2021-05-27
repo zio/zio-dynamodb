@@ -2,12 +2,12 @@ package zio.dynamodb
 
 trait DynamoDBTable {
   def get(
-    key: AttrMap,
+    key: PrimaryKey,
     readConsistency: ConsistencyMode = ConsistencyMode.Weak,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
-  )(ps: ProjectionExpression*): DynamoDBQuery[Option[AttrMap]]
+  )(ps: ProjectionExpression*): DynamoDBQuery[Option[Item]]
 
   def getAll(
-    key: AttrMap
-  ): DynamoDBQuery[Option[AttrMap]] = get(key)()
+    key: PrimaryKey
+  ): DynamoDBQuery[Option[Item]] = get(key)()
 }
