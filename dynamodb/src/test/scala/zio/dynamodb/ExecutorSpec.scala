@@ -2,7 +2,7 @@ package zio.dynamodb
 
 import zio.Chunk
 import zio.dynamodb.DynamoDBExecutor.TestData._
-import zio.dynamodb.DynamoDBQuery.{ parallelize, Constructor, Map }
+import zio.dynamodb.DynamoDBQuery.{ forEach, parallelize, Constructor, Map }
 import zio.test.Assertion.equalTo
 import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
 
@@ -11,6 +11,11 @@ object ExecutorSpec extends DefaultRunnableSpec {
   override def spec: ZSpec[Environment, Failure] = suite("Executor")(parallelizeSuite, executeSuite)
 
   private val executeSuite = suite("execute")(
+    testM("should execute forEach of GetItems (resulting in a batched request)") {
+      for {
+        assembled <- forEach(1 to 2)(i => getItem(i)).execute
+      } yield assert(assembled)(equalTo(List(someItem("k1"), someItem("k2"))))
+    },
     testM("should execute getItem1 zip getItem2") {
       for {
         assembled <- (getItem1 zip getItem2).execute
@@ -55,6 +60,15 @@ object ExecutorSpec extends DefaultRunnableSpec {
 
   private val parallelizeSuite =
     suite(label = "parallelize")(
+      test("should parallelize forEach of GetItems") {
+        val foreach                  = forEach(1 to 3)(i => getItem(i))
+        val (constructor, assembler) = parallelize(foreach)
+        val assembled                = assembler(Chunk(someItem("1"), someItem("2"), someItem("3")))
+
+        assert(constructor)(equalTo(Chunk(getItem(1), getItem(2), getItem(3)))) && assert(assembled)(
+          equalTo(List(someItem("1"), someItem("2"), someItem("3")))
+        )
+      },
       test(label = "should process Zipped GetItems") {
         val (constructor, assembler): (Chunk[Constructor[Any]], Chunk[Any] => (Option[AttrMap], Option[AttrMap])) =
           parallelize(getItem1 zip getItem2)
