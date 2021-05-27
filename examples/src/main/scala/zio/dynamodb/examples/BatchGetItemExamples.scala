@@ -2,32 +2,45 @@ package zio.dynamodb.examples
 
 import zio.dynamodb.DynamoDBQuery.getItem
 import zio.dynamodb.ProjectionExpression.$
-import zio.dynamodb.{ AttrMap, DynamoDBQuery, TableName }
+import zio.dynamodb.{ DynamoDBQuery, Item, PrimaryKey, TableName }
 
 class BatchGetItemExamples {
-  val batchManual =
-    (getItem(TableName("T1"), AttrMap("field1" -> "1"), $("a.b"), $("c.b")) where $(
+
+  val tableName1: TableName = TableName("T1")
+  val tableName2: TableName = TableName("T2")
+
+  // Queries that are zipped together become eligible for auto-batching in `execute`
+  val batchWithZip =
+    (getItem(tableName1, PrimaryKey("field1" -> "1"), $("a.b"), $("c.b")) where $(
       "a.b"
     ) === "X") <*> (getItem(
-      TableName("T1"),
-      AttrMap("field1" -> "2"),
+      tableName1,
+      PrimaryKey("field1" -> "2"),
       $("a.b"),
       $("c.b")
     ) where $(
       "a.b"
     ) === "X") <*> (getItem(
-      TableName("T1"),
-      AttrMap("field1" -> "3"),
+      tableName1,
+      PrimaryKey("field1" -> "3"),
       $("a.b"),
       $("c.b")
     ) where $(
       "a.b"
     ) === "X")
 
-  val batchFromIterable = DynamoDBQuery.forEach(1 to 3) { i =>
+  // We can use ZipRight `*>` and ZipLeft `<*` if we wish to ignore the result
+  val excludeFromBatchWithZipRight: DynamoDBQuery[(Option[Item], Option[Item])] =
+    getItem(tableName1, PrimaryKey("primaryKey" -> "1"), $("a.b"), $("c.b")) *>
+      getItem(tableName2, PrimaryKey("primaryKey" -> "2"), $("a.b"), $("c.b")) <*>
+      getItem(tableName2, PrimaryKey("primaryKey" -> "3"), $("a.b"), $("c.b"))
+
+  // If we have an Iterable of data from which we wish to create a batch query from we can use `DynamoDBQuery.forEach`
+  // The below example will create 10 BatchGetItem request
+  val batchFromIterable                                                         = DynamoDBQuery.forEach(1 to 10) { i =>
     getItem(
-      TableName("T1"),
-      AttrMap("field1" -> i.toString),
+      tableName1,
+      PrimaryKey("field1" -> i.toString),
       $("a.b"),
       $("c.b")
     ) where $(

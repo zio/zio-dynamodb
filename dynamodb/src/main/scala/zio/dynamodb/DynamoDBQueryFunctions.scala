@@ -4,10 +4,10 @@ trait DynamoDBQueryFunctions {
   def getTable(tableName: TableName): DynamoDBTable =
     new DynamoDBTable {
       def get(
-        key: AttrMap,
+        key: PrimaryKey,
         readConsistency: ConsistencyMode = ConsistencyMode.Weak,
         capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
-      )(projections: ProjectionExpression*): DynamoDBQuery[Option[AttrMap]] =
+      )(projections: ProjectionExpression*): DynamoDBQuery[Option[Item]] =
         DynamoDBQuery.GetItem(tableName, key, projections.toList, readConsistency, capacity)
 
     }
