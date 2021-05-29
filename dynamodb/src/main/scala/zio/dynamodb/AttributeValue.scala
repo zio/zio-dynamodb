@@ -26,12 +26,6 @@ sealed trait AttributeValue { self =>
   def >=(that: ProjectionExpression): ConditionExpression  =
     GreaterThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))
 
-  /*
-  x:ProjectionExpression = ???
-  v: AttributeValue = ???
-  v == x.size
-   */
-
 }
 
 object AttributeValue {
@@ -49,6 +43,7 @@ object AttributeValue {
   final case class String(value: ScalaString)                   extends AttributeValue
   final case class StringSet(value: Set[ScalaString])           extends AttributeValue
 
+  def apply[A](a: A)(implicit ev: ToAttributeValue[A]): AttributeValue = ev.toAttributeValue(a)
 }
 
 trait ToAttributeValueLowPriorityImplicits {
