@@ -249,6 +249,29 @@ object DynamoDBQuery {
   def queryAll(tableName: String, indexName: String, projections: ProjectionExpression*): QueryAll =
     QueryAll(TableName(tableName), IndexName(indexName), select = select(projections), projections = projections.toList)
 
+  def createTable(
+    tableName: String,
+    keySchema: KeySchema,
+    attributeDefinitions: NonEmptySet[AttributeDefinition],
+    billingMode: BillingMode = BillingMode.Provisioned,
+    globalSecondaryIndexes: Set[GlobalSecondaryIndex] = Set.empty,
+    localSecondaryIndexes: Set[LocalSecondaryIndex] = Set.empty,
+    provisionedThroughput: Option[ProvisionedThroughput] = None,
+    sseSpecification: Option[SSESpecification] = None,
+    tags: ScalaMap[String, String] = ScalaMap.empty
+  ): CreateTable =
+    CreateTable(
+      TableName(tableName),
+      keySchema,
+      attributeDefinitions,
+      billingMode,
+      globalSecondaryIndexes,
+      localSecondaryIndexes,
+      provisionedThroughput,
+      sseSpecification,
+      tags
+    )
+
   private def select(projections: Seq[ProjectionExpression]): Option[Select] =
     Some(if (projections.isEmpty) Select.AllAttributes else Select.SpecificAttributes)
 

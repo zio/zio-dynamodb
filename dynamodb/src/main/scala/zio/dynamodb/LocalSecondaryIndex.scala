@@ -1,7 +1,7 @@
 package zio.dynamodb
 
 final case class LocalSecondaryIndex(
-  indexName: IndexName,
+  indexName: String,
   keySchema: KeySchema,
   projection: ProjectionType
 )
