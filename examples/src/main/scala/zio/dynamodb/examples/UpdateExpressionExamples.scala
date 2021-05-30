@@ -35,6 +35,6 @@ object UpdateExpressionExamples extends App {
   $("one[2]").set(Set(1))
   $("one[2]").set(List("x"))
 
-  DynamoDBQuery.updateItem(TableName("t1"), PrimaryKey("id" -> 1))($("foo.bar").set(2))
+  DynamoDBQuery.updateItem("tableName1", PrimaryKey("id" -> 1))($("foo.bar").set(2))
 
 }
