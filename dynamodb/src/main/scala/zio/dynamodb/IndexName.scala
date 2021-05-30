@@ -1,3 +1,3 @@
 package zio.dynamodb
 
-final case class IndexName(value: String)
+private[dynamodb] final case class IndexName(value: String)

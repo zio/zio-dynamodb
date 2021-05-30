@@ -216,26 +216,38 @@ object DynamoDBQuery {
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
    */
-  def scanSome(tableName: String, indexName: IndexName, limit: Int, projections: ProjectionExpression*): ScanPage =
-    ScanPage(TableName(tableName), indexName, limit, select = select(projections), projections = projections.toList)
+  def scanSome(tableName: String, indexName: String, limit: Int, projections: ProjectionExpression*): ScanPage =
+    ScanPage(
+      TableName(tableName),
+      IndexName(indexName),
+      limit,
+      select = select(projections),
+      projections = projections.toList
+    )
 
   /**
    * when executed will return a ZStream of Item
    */
-  def scanAll(tableName: String, indexName: IndexName, projections: ProjectionExpression*): ScanAll =
-    ScanAll(TableName(tableName), indexName, select = select(projections), projections = projections.toList)
+  def scanAll(tableName: String, indexName: String, projections: ProjectionExpression*): ScanAll =
+    ScanAll(TableName(tableName), IndexName(indexName), select = select(projections), projections = projections.toList)
 
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
    */
-  def querySome(tableName: String, indexName: IndexName, limit: Int, projections: ProjectionExpression*): QueryPage =
-    QueryPage(TableName(tableName), indexName, limit, select = select(projections), projections = projections.toList)
+  def querySome(tableName: String, indexName: String, limit: Int, projections: ProjectionExpression*): QueryPage =
+    QueryPage(
+      TableName(tableName),
+      IndexName(indexName),
+      limit,
+      select = select(projections),
+      projections = projections.toList
+    )
 
   /**
    * when executed will return a ZStream of Item
    */
-  def queryAll(tableName: String, indexName: IndexName, projections: ProjectionExpression*): QueryAll =
-    QueryAll(TableName(tableName), indexName, select = select(projections), projections = projections.toList)
+  def queryAll(tableName: String, indexName: String, projections: ProjectionExpression*): QueryAll =
+    QueryAll(TableName(tableName), IndexName(indexName), select = select(projections), projections = projections.toList)
 
   private def select(projections: Seq[ProjectionExpression]): Option[Select] =
     Some(if (projections.isEmpty) Select.AllAttributes else Select.SpecificAttributes)
