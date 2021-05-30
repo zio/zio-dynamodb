@@ -206,36 +206,71 @@ object DynamoDBQuery {
     GetItem(tableName, key)
   }
 
-  def putItem(tableName: TableName, item: Item): DynamoDBQuery[Unit] = PutItem(tableName, item)
+  def putItem(tableName: String, item: Item): DynamoDBQuery[Unit] = PutItem(TableName(tableName), item)
 
-  def updateItem(tableName: TableName, key: PrimaryKey)(action: Action): DynamoDBQuery[Unit] =
-    UpdateItem(tableName, key, UpdateExpression(action))
+  def updateItem(tableName: String, key: PrimaryKey)(action: Action): DynamoDBQuery[Unit] =
+    UpdateItem(TableName(tableName), key, UpdateExpression(action))
 
-  def deleteItem(tableName: TableName, key: PrimaryKey): DynamoDBQuery[Unit] = DeleteItem(tableName, key)
-
-  /**
-   * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
-   */
-  def scanSome(tableName: TableName, indexName: IndexName, limit: Int, projections: ProjectionExpression*): ScanPage =
-    ScanPage(tableName, indexName, limit, select = select(projections), projections = projections.toList)
-
-  /**
-   * when executed will return a ZStream of Item
-   */
-  def scanAll(tableName: TableName, indexName: IndexName, projections: ProjectionExpression*): ScanAll =
-    ScanAll(tableName, indexName, select = select(projections), projections = projections.toList)
+  def deleteItem(tableName: String, key: PrimaryKey): DynamoDBQuery[Unit] = DeleteItem(TableName(tableName), key)
 
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
    */
-  def querySome(tableName: TableName, indexName: IndexName, limit: Int, projections: ProjectionExpression*): QueryPage =
-    QueryPage(tableName, indexName, limit, select = select(projections), projections = projections.toList)
+  def scanSome(tableName: String, indexName: String, limit: Int, projections: ProjectionExpression*): ScanPage =
+    ScanPage(
+      TableName(tableName),
+      IndexName(indexName),
+      limit,
+      select = select(projections),
+      projections = projections.toList
+    )
 
   /**
    * when executed will return a ZStream of Item
    */
-  def queryAll(tableName: TableName, indexName: IndexName, projections: ProjectionExpression*): QueryAll =
-    QueryAll(tableName, indexName, select = select(projections), projections = projections.toList)
+  def scanAll(tableName: String, indexName: String, projections: ProjectionExpression*): ScanAll =
+    ScanAll(TableName(tableName), IndexName(indexName), select = select(projections), projections = projections.toList)
+
+  /**
+   * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
+   */
+  def querySome(tableName: String, indexName: String, limit: Int, projections: ProjectionExpression*): QueryPage =
+    QueryPage(
+      TableName(tableName),
+      IndexName(indexName),
+      limit,
+      select = select(projections),
+      projections = projections.toList
+    )
+
+  /**
+   * when executed will return a ZStream of Item
+   */
+  def queryAll(tableName: String, indexName: String, projections: ProjectionExpression*): QueryAll =
+    QueryAll(TableName(tableName), IndexName(indexName), select = select(projections), projections = projections.toList)
+
+  def createTable(
+    tableName: String,
+    keySchema: KeySchema,
+    attributeDefinitions: NonEmptySet[AttributeDefinition],
+    billingMode: BillingMode = BillingMode.Provisioned,
+    globalSecondaryIndexes: Set[GlobalSecondaryIndex] = Set.empty,
+    localSecondaryIndexes: Set[LocalSecondaryIndex] = Set.empty,
+    provisionedThroughput: Option[ProvisionedThroughput] = None,
+    sseSpecification: Option[SSESpecification] = None,
+    tags: ScalaMap[String, String] = ScalaMap.empty
+  ): CreateTable =
+    CreateTable(
+      TableName(tableName),
+      keySchema,
+      attributeDefinitions,
+      billingMode,
+      globalSecondaryIndexes,
+      localSecondaryIndexes,
+      provisionedThroughput,
+      sseSpecification,
+      tags
+    )
 
   private def select(projections: Seq[ProjectionExpression]): Option[Select] =
     Some(if (projections.isEmpty) Select.AllAttributes else Select.SpecificAttributes)

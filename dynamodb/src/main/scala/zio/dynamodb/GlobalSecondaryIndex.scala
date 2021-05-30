@@ -1,7 +1,7 @@
 package zio.dynamodb
 
 final case class GlobalSecondaryIndex(
-  indexName: IndexName,
+  indexName: String,
   keySchema: KeySchema,
   projection: ProjectionType,
   provisionedThroughput: Option[ProvisionedThroughput] = None
