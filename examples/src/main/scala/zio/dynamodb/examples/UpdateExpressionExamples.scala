@@ -8,8 +8,8 @@ object UpdateExpressionExamples extends App {
   val set1: SetAction      = $("one[2]").set(1)
   val set2: SetAction      = $("one[2]").set($("two"))
   val set3: SetAction      = $("one[2]").setIfNotExists($("two"), "v2")
-  val set4: SetAction      = $("one[2]").setListAppend(List("1"))
-  val set5: SetAction      = $("one[2]").setListPrepend(List("1"))
+  val set4: SetAction      = $("one[2]").appendList(List("1"))
+  val set5: SetAction      = $("one[2]").prependList(List("1"))
   val add: AddAction       = $("one[2]").add("V2")
   val remove: RemoveAction = $("one[2]").remove
   val delete: DeleteAction = $("one[2]").deleteFromSet("v2")
@@ -20,8 +20,8 @@ object UpdateExpressionExamples extends App {
       $("one[2]").set(1) +
         $("one[2]").set($("two")) +
         $("one[2]").setIfNotExists($("two"), "v2") +
-        $("one[2]").setListAppend(List("x1", "x2")) +
-        $("one[2]").setListPrepend(List("x", "x2")) +
+        $("one[2]").appendList(List("x1", "x2")) +
+        $("one[2]").prependList(List("x", "x2")) +
         $("one[2]").add(1) +
         $("one[2]").remove +
         $("one[2]").deleteFromSet(1)
