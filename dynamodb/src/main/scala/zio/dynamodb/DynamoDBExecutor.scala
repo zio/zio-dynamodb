@@ -8,9 +8,9 @@ import zio.dynamodb.DynamoDBQuery.{
   GetItem,
   PutItem,
   QueryAll,
-  QueryPage,
+  QuerySome,
   ScanAll,
-  ScanPage,
+  ScanSome,
   UpdateItem
 }
 import zio.dynamodb.ProjectionExpression.Root
@@ -59,8 +59,8 @@ object DynamoDBExecutor {
       )
     val deleteItem1  = DeleteItem(tableName = tableName1, key = PrimaryKey.empty)
     val stream1      = ZStream(emptyItem)
-    val scanPage1    = ScanPage(tableName1, indexName1, limit = 10)
-    val queryPage1   = QueryPage(tableName1, indexName1, limit = 10)
+    val scanPage1    = ScanSome(tableName1, indexName1, limit = 10)
+    val queryPage1   = QuerySome(tableName1, indexName1, limit = 10)
     val scanAll1     = ScanAll(tableName1, indexName1)
     val queryAll1    = QueryAll(tableName1, indexName1)
     val createTable1 = CreateTable(
@@ -109,7 +109,7 @@ object DynamoDBExecutor {
             println(s"$tableName $key $conditionExpression $capacity $itemMetrics $returnValues")
             ZIO.succeed(())
 
-          case ScanPage(
+          case ScanSome(
                 tableName,
                 indexName,
                 readConsistency,
@@ -125,7 +125,7 @@ object DynamoDBExecutor {
             )
             ZIO.succeed((Chunk(emptyItem), None))
 
-          case QueryPage(
+          case QuerySome(
                 tableName,
                 indexName,
                 readConsistency,

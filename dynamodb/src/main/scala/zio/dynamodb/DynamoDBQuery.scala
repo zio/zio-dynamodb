@@ -12,9 +12,9 @@ import zio.dynamodb.DynamoDBQuery.{
   GetItem,
   PutItem,
   QueryAll,
-  QueryPage,
+  QuerySome,
   ScanAll,
-  ScanPage,
+  ScanSome,
   UpdateItem
 }
 import zio.dynamodb.UpdateExpression.Action
@@ -67,11 +67,11 @@ sealed trait DynamoDBQuery[+A] { self =>
         b.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
       case q: ScanAll        =>
         q.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
-      case q: ScanPage       =>
+      case q: ScanSome       =>
         q.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
       case q: QueryAll       =>
         q.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
-      case q: QueryPage      =>
+      case q: QuerySome      =>
         q.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
       case m: PutItem        =>
         m.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
@@ -88,11 +88,11 @@ sealed trait DynamoDBQuery[+A] { self =>
         g.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[A]]
       case q: ScanAll   =>
         q.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[A]]
-      case q: ScanPage  =>
+      case q: ScanSome  =>
         q.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[A]]
       case q: QueryAll  =>
         q.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[A]]
-      case q: QueryPage =>
+      case q: QuerySome =>
         q.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[A]]
       case _            => self // TODO: log a warning
     }
@@ -132,41 +132,41 @@ sealed trait DynamoDBQuery[+A] { self =>
 
   def startKey(exclusiveStartKey: LastEvaluatedKey): DynamoDBQuery[A] =
     self match {
-      case s: ScanPage  => s.copy(exclusiveStartKey = exclusiveStartKey).asInstanceOf[DynamoDBQuery[A]]
+      case s: ScanSome  => s.copy(exclusiveStartKey = exclusiveStartKey).asInstanceOf[DynamoDBQuery[A]]
       case s: ScanAll   => s.copy(exclusiveStartKey = exclusiveStartKey).asInstanceOf[DynamoDBQuery[A]]
-      case s: QueryPage => s.copy(exclusiveStartKey = exclusiveStartKey).asInstanceOf[DynamoDBQuery[A]]
+      case s: QuerySome => s.copy(exclusiveStartKey = exclusiveStartKey).asInstanceOf[DynamoDBQuery[A]]
       case s: QueryAll  => s.copy(exclusiveStartKey = exclusiveStartKey).asInstanceOf[DynamoDBQuery[A]]
       case _            => self // TODO: log a warning
     }
 
   def filter(filterExpression: FilterExpression): DynamoDBQuery[A] =
     self match {
-      case s: ScanPage  => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[A]]
+      case s: ScanSome  => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[A]]
       case s: ScanAll   => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[A]]
-      case s: QueryPage => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[A]]
+      case s: QuerySome => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[A]]
       case s: QueryAll  => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[A]]
       case _            => self // TODO: log a warning
     }
 
   def select(select: Select): DynamoDBQuery[A] =
     self match {
-      case s: ScanPage  => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
+      case s: ScanSome  => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
       case s: ScanAll   => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
-      case s: QueryPage => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
+      case s: QuerySome => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
       case s: QueryAll  => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
       case _            => self // TODO: log a warning
     }
 
   def whereKey(keyConditionExpression: KeyConditionExpression): DynamoDBQuery[A] =
     self match {
-      case s: QueryPage => s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[A]]
+      case s: QuerySome => s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[A]]
       case s: QueryAll  => s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[A]]
       case _            => self // TODO: log a warning
     }
 
   def sortOrder(ascending: Boolean): DynamoDBQuery[A] =
     self match {
-      case s: QueryPage => s.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[A]]
+      case s: QuerySome => s.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[A]]
       case s: QueryAll  => s.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[A]]
       case _            => self // TODO: log a warning
     }
@@ -216,8 +216,8 @@ object DynamoDBQuery {
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
    */
-  def scanSome(tableName: String, indexName: String, limit: Int, projections: ProjectionExpression*): ScanPage =
-    ScanPage(
+  def scanSome(tableName: String, indexName: String, limit: Int, projections: ProjectionExpression*): ScanSome =
+    ScanSome(
       TableName(tableName),
       IndexName(indexName),
       limit,
@@ -234,8 +234,8 @@ object DynamoDBQuery {
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
    */
-  def querySome(tableName: String, indexName: String, limit: Int, projections: ProjectionExpression*): QueryPage =
-    QueryPage(
+  def querySome(tableName: String, indexName: String, limit: Int, projections: ProjectionExpression*): QuerySome =
+    QuerySome(
       TableName(tableName),
       IndexName(indexName),
       limit,
@@ -389,7 +389,7 @@ object DynamoDBQuery {
   // Interestingly scan can be run in parallel using segment number and total segments fields
   // If running in parallel segment number must be used consistently with the paging token
   // I have removed these fields on the assumption that the library will take care of these concerns
-  private[dynamodb] final case class ScanPage(
+  private[dynamodb] final case class ScanSome(
     tableName: TableName,
     indexName: IndexName,
     limit: Int,
@@ -402,7 +402,7 @@ object DynamoDBQuery {
     select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
   ) extends Constructor[(Chunk[Item], LastEvaluatedKey)]
 
-  private[dynamodb] final case class QueryPage(
+  private[dynamodb] final case class QuerySome(
     tableName: TableName,
     indexName: IndexName,
     limit: Int,
@@ -601,11 +601,11 @@ object DynamoDBQuery {
           }
         )
 
-      case scan @ ScanPage(_, _, _, _, _, _, _, _, _)           =>
+      case scan @ ScanSome(_, _, _, _, _, _, _, _, _)           =>
         (
           Chunk(scan),
           (results: Chunk[Any]) => {
-            println(s"ScanPage results=$results")
+            println(s"ScanSome results=$results")
             results.head.asInstanceOf[A]
           }
         )
@@ -619,11 +619,11 @@ object DynamoDBQuery {
           }
         )
 
-      case query @ QueryPage(_, _, _, _, _, _, _, _, _, _, _)   =>
+      case query @ QuerySome(_, _, _, _, _, _, _, _, _, _, _)   =>
         (
           Chunk(query),
           (results: Chunk[Any]) => {
-            println(s"QueryPage results=$results")
+            println(s"QuerySome results=$results")
             results.head.asInstanceOf[A]
           }
         )
