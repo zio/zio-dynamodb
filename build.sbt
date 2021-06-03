@@ -55,7 +55,7 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework")),
     Compile / sourceGenerators += Def.task {
       val dir                      = (Compile / sourceManaged).value
-      val file                     = dir / "zio" / "dynamodb" / "AttrMap.scala"
+      val file                     = dir / "zio" / "dynamodb" / "GeneratedAttrMapApplies.scala"
       def upperAlpha(i: Int): Char = (('A'.toInt - 1) + i).toChar
       def lowerAlpha(i: Int): Char = (('a'.toInt - 1) + i).toChar
       val applyMethods             = (1 to 22).map {
@@ -74,10 +74,7 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
         file,
         s"""package zio.dynamodb
            |
-           |final case class AttrMap(map: Map[String, AttributeValue])
-           |
-           |object AttrMap {
-           |  val empty = new AttrMap(Map.empty)
+           |private[dynamodb] trait GeneratedAttrMapApplies {
            |  
            |  ${applyMethods.mkString("\n\n  ")}
            |}""".stripMargin
