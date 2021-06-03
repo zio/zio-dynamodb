@@ -199,12 +199,12 @@ object DynamoDBQuery {
     }
 
   def getItem(
-    tableName: TableName,
+    tableName: String,
     key: PrimaryKey,
     projections: ProjectionExpression*
-  ): DynamoDBQuery[Option[Item]] = {
+  ): Constructor[Option[Item]] = {
     println(projections)
-    GetItem(tableName, key)
+    GetItem(TableName(tableName), key)
   }
 
   def putItem(tableName: String, item: Item): DynamoDBQuery[Unit] = PutItem(TableName(tableName), item)
