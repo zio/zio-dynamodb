@@ -65,7 +65,7 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
           val implicits = (1 to i).map(p => s"${lowerAlpha(p)}: ToAttributeValue[${upperAlpha(p)}]").mkString(", ")
           val tentries  = (1 to i).map(p => s"t$p._1 -> ${lowerAlpha(p)}.toAttributeValue(t$p._2)").mkString(", ")
 
-          s"""def apply[$types]($tparams)(implicit $implicits): AttrMap =
+          s"""private[dynamodb] def apply[$types]($tparams)(implicit $implicits): AttrMap =
              |    AttrMap(
              |      Map($tentries)
              |    )""".stripMargin
