@@ -148,6 +148,7 @@ sealed trait DynamoDBQuery[+A] { self =>
       case _            => self // TODO: log a warning
     }
 
+  // TODO: add convenience methods eg `def selectAll: DynamoDBQuery[A]` etc etc
   def select(select: Select): DynamoDBQuery[A] =
     self match {
       case s: ScanSome  => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
