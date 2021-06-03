@@ -3,7 +3,7 @@ package zio.dynamodb
 import zio.test.Assertion._
 import zio.test.{ DefaultRunnableSpec, _ }
 
-object NonSetEmptySpec extends DefaultRunnableSpec {
+object NonEmptySetSpec extends DefaultRunnableSpec {
 
   override def spec: ZSpec[Environment, Failure] =
     suite("NonEmptySet")(
