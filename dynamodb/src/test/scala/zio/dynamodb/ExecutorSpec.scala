@@ -10,9 +10,6 @@ object ExecutorSpec extends DefaultRunnableSpec {
 
   override def spec: ZSpec[Environment, Failure] = suite("Executor")(parallelizeSuite, executeSuite)
 
-  private val putItem1    = putItem("T1", item = Item("k1" -> "k1"))
-  private val deleteItem1 = deleteItem("T1", key = PrimaryKey.empty)
-
   private val executeSuite = suite("execute")(
     testM("should execute forEach of GetItems (resulting in a batched request)") {
       for {
