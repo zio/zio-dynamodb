@@ -222,7 +222,7 @@ object DynamoDBQuery {
       TableName(tableName),
       IndexName(indexName),
       limit,
-      select = select(projections),
+      select = selectOrAll(projections),
       projections = projections.toList
     )
 
@@ -230,7 +230,12 @@ object DynamoDBQuery {
    * when executed will return a ZStream of Item
    */
   def scanAll(tableName: String, indexName: String, projections: ProjectionExpression*): ScanAll =
-    ScanAll(TableName(tableName), IndexName(indexName), select = select(projections), projections = projections.toList)
+    ScanAll(
+      TableName(tableName),
+      IndexName(indexName),
+      select = selectOrAll(projections),
+      projections = projections.toList
+    )
 
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
@@ -240,7 +245,7 @@ object DynamoDBQuery {
       TableName(tableName),
       IndexName(indexName),
       limit,
-      select = select(projections),
+      select = selectOrAll(projections),
       projections = projections.toList
     )
 
@@ -248,7 +253,12 @@ object DynamoDBQuery {
    * when executed will return a ZStream of Item
    */
   def queryAll(tableName: String, indexName: String, projections: ProjectionExpression*): QueryAll =
-    QueryAll(TableName(tableName), IndexName(indexName), select = select(projections), projections = projections.toList)
+    QueryAll(
+      TableName(tableName),
+      IndexName(indexName),
+      select = selectOrAll(projections),
+      projections = projections.toList
+    )
 
   def createTable(
     tableName: String,
@@ -273,7 +283,7 @@ object DynamoDBQuery {
       tags
     )
 
-  private def select(projections: Seq[ProjectionExpression]): Option[Select] =
+  private def selectOrAll(projections: Seq[ProjectionExpression]): Option[Select] =
     Some(if (projections.isEmpty) Select.AllAttributes else Select.SpecificAttributes)
 
   private[dynamodb] final case class Succeed[A](value: () => A) extends Constructor[A]
