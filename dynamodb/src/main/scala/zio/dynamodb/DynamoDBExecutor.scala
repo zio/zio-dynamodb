@@ -1,6 +1,15 @@
 package zio.dynamodb
 
 import zio.dynamodb.DynamoDBQuery.{
+  createTable,
+  deleteItem,
+  getItem,
+  putItem,
+  queryAll,
+  querySome,
+  scanAll,
+  scanSome,
+  updateItem,
   BatchGetItem,
   BatchWriteItem,
   CreateTable,
@@ -13,8 +22,7 @@ import zio.dynamodb.DynamoDBQuery.{
   ScanSome,
   UpdateItem
 }
-import zio.dynamodb.ProjectionExpression.Root
-import zio.dynamodb.UpdateExpression.Action.RemoveAction
+import zio.dynamodb.ProjectionExpression.$
 import zio.stream.ZStream
 import zio.{ Chunk, Has, ZIO, ZLayer }
 
@@ -38,33 +46,28 @@ object DynamoDBExecutor {
     val primaryKey1                       = PrimaryKey("k1" -> "k1")
     val primaryKey2                       = PrimaryKey("k2" -> "k2")
     val primaryKey3                       = PrimaryKey("k3" -> "k3")
-    val tableName1                        = TableName("T1")
-    val tableName2                        = TableName("T2")
-    val tableName3                        = TableName("T3")
-    val indexName1                        = IndexName("I1")
-    def getItem(i: Int)                   = GetItem(key = primaryKey(s"k$i"), tableName = tableName1)
-    val getItem1                          = GetItem(key = primaryKey1, tableName = tableName1)
-    val getItem2                          = GetItem(key = primaryKey2, tableName = tableName1)
-    val getItem3                          = GetItem(key = primaryKey3, tableName = tableName3)
-    val item1: Item                       = getItem1.key
-    val item2: Item                       = getItem2.key
 
-    val putItem1     = PutItem(tableName = tableName1, item = Item("k1" -> "k1"))
-    val putItem2     = PutItem(tableName = tableName1, item = Item("k2" -> "k2"))
+    def createGetItem(i: Int) = getItem("T1", primaryKey(s"k$i"))
+    val getItem1              = getItem("T1", primaryKey1)
+    val getItem2              = getItem("T1", primaryKey2)
+    val getItem3              = getItem("T3", primaryKey3)
+    val item1: Item           = primaryKey1
+    val item2: Item           = primaryKey2
+
+    val putItem1     = putItem("T1", item = Item("k1" -> "k1"))
+    val putItem2     = putItem("T1", item = Item("k2" -> "k2"))
     val updateItem1  =
-      UpdateItem(
-        tableName = tableName1,
-        primaryKey1,
-        UpdateExpression(RemoveAction(Root("top")(1)))
+      updateItem("T1", PrimaryKey("k1" -> "k1"))(
+        $("top[1]").remove
       )
-    val deleteItem1  = DeleteItem(tableName = tableName1, key = PrimaryKey.empty)
+    val deleteItem1  = deleteItem("T1", key = PrimaryKey.empty)
     val stream1      = ZStream(emptyItem)
-    val scanPage1    = ScanSome(tableName1, indexName1, limit = 10)
-    val queryPage1   = QuerySome(tableName1, indexName1, limit = 10)
-    val scanAll1     = ScanAll(tableName1, indexName1)
-    val queryAll1    = QueryAll(tableName1, indexName1)
-    val createTable1 = CreateTable(
-      tableName1,
+    val scanPage1    = scanSome("T1", "I1", limit = 10)
+    val queryPage1   = querySome("T1", "I1", limit = 10)
+    val scanAll1     = scanAll("T1", "I1")
+    val queryAll1    = queryAll("T1", "I1")
+    val createTable1 = createTable(
+      "T1",
       KeySchema("hashKey", "sortKey"),
       attributeDefinitions = NonEmptySet(AttributeDefinition("attr1", AttributeValueType.String)) + AttributeDefinition(
         "attr2",

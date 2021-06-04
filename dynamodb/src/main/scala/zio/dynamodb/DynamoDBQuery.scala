@@ -148,6 +148,7 @@ sealed trait DynamoDBQuery[+A] { self =>
       case _            => self // TODO: log a warning
     }
 
+  // TODO: add convenience methods eg `def selectAll: DynamoDBQuery[A]` etc etc
   def select(select: Select): DynamoDBQuery[A] =
     self match {
       case s: ScanSome  => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
@@ -198,20 +199,20 @@ object DynamoDBQuery {
     }
 
   def getItem(
-    tableName: TableName,
+    tableName: String,
     key: PrimaryKey,
     projections: ProjectionExpression*
-  ): DynamoDBQuery[Option[Item]] = {
+  ): Constructor[Option[Item]] = {
     println(projections)
-    GetItem(tableName, key)
+    GetItem(TableName(tableName), key)
   }
 
-  def putItem(tableName: String, item: Item): DynamoDBQuery[Unit] = PutItem(TableName(tableName), item)
+  def putItem(tableName: String, item: Item): Write[Unit] = PutItem(TableName(tableName), item)
 
   def updateItem(tableName: String, key: PrimaryKey)(action: Action): DynamoDBQuery[Unit] =
     UpdateItem(TableName(tableName), key, UpdateExpression(action))
 
-  def deleteItem(tableName: String, key: PrimaryKey): DynamoDBQuery[Unit] = DeleteItem(TableName(tableName), key)
+  def deleteItem(tableName: String, key: PrimaryKey): Write[Unit] = DeleteItem(TableName(tableName), key)
 
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
@@ -221,7 +222,7 @@ object DynamoDBQuery {
       TableName(tableName),
       IndexName(indexName),
       limit,
-      select = select(projections),
+      select = selectOrAll(projections),
       projections = projections.toList
     )
 
@@ -229,7 +230,12 @@ object DynamoDBQuery {
    * when executed will return a ZStream of Item
    */
   def scanAll(tableName: String, indexName: String, projections: ProjectionExpression*): ScanAll =
-    ScanAll(TableName(tableName), IndexName(indexName), select = select(projections), projections = projections.toList)
+    ScanAll(
+      TableName(tableName),
+      IndexName(indexName),
+      select = selectOrAll(projections),
+      projections = projections.toList
+    )
 
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
@@ -239,7 +245,7 @@ object DynamoDBQuery {
       TableName(tableName),
       IndexName(indexName),
       limit,
-      select = select(projections),
+      select = selectOrAll(projections),
       projections = projections.toList
     )
 
@@ -247,7 +253,12 @@ object DynamoDBQuery {
    * when executed will return a ZStream of Item
    */
   def queryAll(tableName: String, indexName: String, projections: ProjectionExpression*): QueryAll =
-    QueryAll(TableName(tableName), IndexName(indexName), select = select(projections), projections = projections.toList)
+    QueryAll(
+      TableName(tableName),
+      IndexName(indexName),
+      select = selectOrAll(projections),
+      projections = projections.toList
+    )
 
   def createTable(
     tableName: String,
@@ -272,7 +283,7 @@ object DynamoDBQuery {
       tags
     )
 
-  private def select(projections: Seq[ProjectionExpression]): Option[Select] =
+  private def selectOrAll(projections: Seq[ProjectionExpression]): Option[Select] =
     Some(if (projections.isEmpty) Select.AllAttributes else Select.SpecificAttributes)
 
   private[dynamodb] final case class Succeed[A](value: () => A) extends Constructor[A]

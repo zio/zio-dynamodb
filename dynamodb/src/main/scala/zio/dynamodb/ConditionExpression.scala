@@ -46,7 +46,7 @@ sealed trait ConditionExpression { self =>
 
 // BNF  https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
 object ConditionExpression {
-  sealed trait Operand { self =>
+  private[dynamodb] sealed trait Operand { self =>
     def between(minValue: AttributeValue, maxValue: AttributeValue): ConditionExpression =
       Between(self, minValue, maxValue)
     def in(values: Set[AttributeValue]): ConditionExpression                             = In(self, values)
@@ -71,7 +71,7 @@ object ConditionExpression {
     def >=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
       GreaterThanOrEqual(self, Operand.ValueOperand(t.toAttributeValue(that)))
   }
-  object Operand       {
+  object Operand                         {
 
     private[dynamodb] final case class ProjectionExpressionOperand(pe: ProjectionExpression) extends Operand
     private[dynamodb] final case class ValueOperand(value: AttributeValue)                   extends Operand
