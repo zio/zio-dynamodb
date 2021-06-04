@@ -4,7 +4,7 @@ import zio.dynamodb.DynamoDBExecutor.TestData._
 import zio.test.Assertion._
 import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
 
-object BatchingSpec extends DefaultRunnableSpec {
+object BatchingSpec extends DefaultRunnableSpec with BatchingFixtures {
 
   override def spec: ZSpec[Environment, Failure] = suite("Batching")(batchingSuite)
 

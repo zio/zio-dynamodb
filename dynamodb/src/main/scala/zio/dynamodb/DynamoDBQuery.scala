@@ -207,12 +207,12 @@ object DynamoDBQuery {
     GetItem(TableName(tableName), key)
   }
 
-  def putItem(tableName: String, item: Item): DynamoDBQuery[Unit] = PutItem(TableName(tableName), item)
+  def putItem(tableName: String, item: Item): Write[Unit] = PutItem(TableName(tableName), item)
 
   def updateItem(tableName: String, key: PrimaryKey)(action: Action): DynamoDBQuery[Unit] =
     UpdateItem(TableName(tableName), key, UpdateExpression(action))
 
-  def deleteItem(tableName: String, key: PrimaryKey): DynamoDBQuery[Unit] = DeleteItem(TableName(tableName), key)
+  def deleteItem(tableName: String, key: PrimaryKey): Write[Unit] = DeleteItem(TableName(tableName), key)
 
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
