@@ -18,7 +18,6 @@ import zio.dynamodb.DynamoDBQuery.{
   UpdateItem
 }
 import zio.dynamodb.UpdateExpression.Action
-import zio.dynamodb.Zipped.Zippable
 import zio.stream.Stream
 import zio.{ Chunk, ZIO }
 

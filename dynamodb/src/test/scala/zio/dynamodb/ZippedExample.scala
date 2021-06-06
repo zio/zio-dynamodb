@@ -1,7 +1,5 @@
 package zio.dynamodb
 
-import zio.dynamodb.Zipped.Zippable
-
 object ZippedExample extends App {
 
   final case class Task[+A](unsafeRun: () => A) { self =>
