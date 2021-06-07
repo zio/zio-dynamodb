@@ -499,7 +499,7 @@ object DynamoDBQuery {
   private[dynamodb] final case class Zip[A, B, C](
     left: DynamoDBQuery[A],
     right: DynamoDBQuery[B],
-    z: Zippable.Out[A, B, C]
+    zippable: Zippable.Out[A, B, C]
   )                                                                                     extends DynamoDBQuery[C]
   private[dynamodb] final case class Map[A, B](query: DynamoDBQuery[A], mapper: A => B) extends DynamoDBQuery[B]
 
@@ -556,7 +556,7 @@ object DynamoDBQuery {
             val (leftResults, rightResults) = results.splitAt(constructorsLeft.length)
             val left                        = assemblerLeft(leftResults)
             val right                       = assemblerRight(rightResults)
-            zip.z.zip(left, right)
+            zip.zippable.zip(left, right)
           }
         )
 
