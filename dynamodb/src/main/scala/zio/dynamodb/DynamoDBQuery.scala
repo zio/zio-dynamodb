@@ -45,7 +45,7 @@ sealed trait DynamoDBQuery[+A] { self =>
 
     val indexedWriteResults =
       // TODO: think about mapping return values from writes
-      ddbExecute(batchWriteItem).map(_ => batchWriteItem.addList.map(_ => ()) zip batchWriteIndexes)
+      ddbExecute(batchWriteItem).as(batchWriteItem.addList.map(_ => ()) zip batchWriteIndexes)
 
     (indexedNonBatchedResults zipPar indexedGetResults zipPar indexedWriteResults).map {
       case ((nonBatched, batchedGets), batchedWrites) =>
@@ -174,7 +174,8 @@ sealed trait DynamoDBQuery[+A] { self =>
 
   final def map[B](f: A => B): DynamoDBQuery[B] = DynamoDBQuery.Map(self, f)
 
-  final def zip[B](that: DynamoDBQuery[B]): DynamoDBQuery[(A, B)] = DynamoDBQuery.Zip(self, that)
+  final def zip[B](that: DynamoDBQuery[B])(implicit z: Zippable[A, B]): DynamoDBQuery[z.Out] =
+    DynamoDBQuery.Zip[A, B, z.Out](self, that, z)
 
   final def zipLeft[B](that: DynamoDBQuery[B]): DynamoDBQuery[A] = (self zip that).map(_._1)
 
@@ -495,8 +496,11 @@ object DynamoDBQuery {
     tags: ScalaMap[String, String] = ScalaMap.empty // you can have up to 50 tags
   ) extends Constructor[Unit] // TODO: model response
 
-  private[dynamodb] final case class Zip[A, B](left: DynamoDBQuery[A], right: DynamoDBQuery[B])
-      extends DynamoDBQuery[(A, B)]
+  private[dynamodb] final case class Zip[A, B, C](
+    left: DynamoDBQuery[A],
+    right: DynamoDBQuery[B],
+    zippable: Zippable.Out[A, B, C]
+  )                                                                                     extends DynamoDBQuery[C]
   private[dynamodb] final case class Map[A, B](query: DynamoDBQuery[A], mapper: A => B) extends DynamoDBQuery[B]
 
   def apply[A](a: => A): DynamoDBQuery[A] = Succeed(() => a)
@@ -543,16 +547,16 @@ object DynamoDBQuery {
             (constructors, assembler.andThen(mapper))
         }
 
-      case Zip(left, right)   =>
-        val (constructorsLeft, assemblerLeft)   = parallelize(left)
-        val (constructorsRight, assemblerRight) = parallelize(right)
+      case zip @ Zip(_, _, _) =>
+        val (constructorsLeft, assemblerLeft)   = parallelize(zip.left)
+        val (constructorsRight, assemblerRight) = parallelize(zip.right)
         (
           constructorsLeft ++ constructorsRight,
           (results: Chunk[Any]) => {
             val (leftResults, rightResults) = results.splitAt(constructorsLeft.length)
             val left                        = assemblerLeft(leftResults)
             val right                       = assemblerRight(rightResults)
-            (left, right).asInstanceOf[A]
+            zip.zippable.zip(left, right)
           }
         )
 

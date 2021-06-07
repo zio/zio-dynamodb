@@ -80,6 +80,48 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
            |}""".stripMargin
       )
       Seq(file)
+    }.taskValue,
+    Compile / sourceGenerators += Def.task {
+      val dir                      = (Compile / sourceManaged).value
+      val file                     = dir / "zio" / "dynamodb" / "Zippable.scala"
+      def upperAlpha(i: Int): Char = (('A'.toInt - 1) + i).toChar
+      val implicitZippables        = (3 to 22).map {
+        i =>
+          val types      = (1 to i - 1).map(upperAlpha).mkString(", ")
+          val leftTuples = (1 to i - 1).map(i => s"left._$i").mkString(", ")
+
+          s"""private[dynamodb] implicit def Zippable$i[$types, Z]: Zippable.Out[($types), Z, ($types, Z)] =
+             |    new Zippable[($types), Z] {
+             |      type Out = ($types, Z)
+             |
+             |      def zip(left: ($types), right: Z): Out = ($leftTuples, right)
+             |    }
+             |""".stripMargin
+      }
+      IO.write(
+        file,
+        s"""package zio.dynamodb
+           |
+           |sealed trait Zippable[-A, -B] {
+           |  type Out
+           |
+           |  def zip(left: A, right: B): Out
+           |}
+           |object Zippable extends ZippableLowPriority2 {
+           |  type Out[-A, -B, C] = Zippable[A, B] { type Out = C }
+           |
+           |  ${implicitZippables.mkString("\n  ")}
+           |}
+           |trait ZippableLowPriority2 {
+           |  implicit def Zippable2[A, B]: Zippable.Out[A, B, (A, B)] =
+           |    new Zippable[A, B] {
+           |      type Out = (A, B)
+           |
+           |      def zip(left: A, right: B): Out = (left, right)
+           |    }
+           |}""".stripMargin
+      )
+      Seq(file)
     }.taskValue
   )
   .settings(

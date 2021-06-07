@@ -16,7 +16,7 @@ condition-expression ::=
     | condition AND condition
     | condition OR condition
     | NOT condition
-    | ( condition ) // TODO: do we need this one - (ie Parenthesis) ?
+    | ( condition )
 
 comparator ::=
     =
@@ -35,7 +35,6 @@ function ::=
     | size (path)
  */
 
-// ConditionExpression is implicitly Boolean
 sealed trait ConditionExpression { self =>
   import ConditionExpression._
 
