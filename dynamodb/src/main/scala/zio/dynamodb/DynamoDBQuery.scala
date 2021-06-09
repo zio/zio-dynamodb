@@ -148,15 +148,10 @@ sealed trait DynamoDBQuery[+A] { self =>
       case _            => self // TODO: log a warning
     }
 
-  // TODO: add convenience methods eg `def selectAll: DynamoDBQuery[A]` etc etc
-  def select(select: Select): DynamoDBQuery[A] =
-    self match {
-      case s: ScanSome  => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
-      case s: ScanAll   => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
-      case s: QuerySome => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
-      case s: QueryAll  => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
-      case _            => self // TODO: log a warning
-    }
+  def selectAllAttributes: DynamoDBQuery[A]          = select(Select.AllAttributes)
+  def selectAllProjectedAttributes: DynamoDBQuery[A] = select(Select.AllProjectedAttributes)
+  def selectSpecificAttributes: DynamoDBQuery[A]     = select(Select.SpecificAttributes)
+  def selectCount: DynamoDBQuery[A]                  = select(Select.Count)
 
   def whereKey(keyConditionExpression: KeyConditionExpression): DynamoDBQuery[A] =
     self match {
@@ -184,6 +179,14 @@ sealed trait DynamoDBQuery[+A] { self =>
   final def zipWith[B, C](that: DynamoDBQuery[B])(f: (A, B) => C): DynamoDBQuery[C] =
     self.zip(that).map(f.tupled)
 
+  private def select(select: Select): DynamoDBQuery[A] =
+    self match {
+      case s: ScanSome  => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
+      case s: ScanAll   => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
+      case s: QuerySome => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
+      case s: QueryAll  => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
+      case _            => self // TODO: log a warning
+    }
 }
 
 object DynamoDBQuery {

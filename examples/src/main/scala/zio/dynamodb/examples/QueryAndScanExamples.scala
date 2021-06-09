@@ -28,7 +28,7 @@ object QueryAndScanExamples extends App {
     querySome("tableName1", "indexName1", limit = 10, $("A"), $("B"), $("C"))
       .sortOrder(ascending = false)
       .whereKey(PartitionKey("partitionKey1") === "x" && SortKey("sortKey1") > "X")
-      .select(Select.Count) // TODO: add convenience methods for this
+      .selectCount
       .execute
 
 }
