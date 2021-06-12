@@ -87,8 +87,8 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
       def upperAlpha(i: Int): Char = (('A'.toInt - 1) + i).toChar
       val implicitZippables        = (3 to 22).map {
         i =>
-          val types      = (1 to i - 1).map(upperAlpha).mkString(", ")
-          val leftTuples = (1 to i - 1).map(i => s"left._$i").mkString(", ")
+          val types      = (1 until i).map(upperAlpha).mkString(", ")
+          val leftTuples = (1 until i).map(i => s"left._$i").mkString(", ")
 
           s"""private[dynamodb] implicit def Zippable$i[$types, Z]: Zippable.Out[($types), Z, ($types, Z)] =
              |    new Zippable[($types), Z] {
@@ -107,12 +107,41 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
            |
            |  def zip(left: A, right: B): Out
            |}
-           |object Zippable extends ZippableLowPriority2 {
+           |object Zippable extends ZippableLowPriority1 {
            |  type Out[-A, -B, C] = Zippable[A, B] { type Out = C }
            |
-           |  ${implicitZippables.mkString("\n  ")}
+           |  private[dynamodb] implicit def ZippableUnit[A]: Zippable.Out[A, Unit, A] =
+           |    new Zippable[A, Unit] {
+           |      type Out = A
+           |
+           |      def zip(left: A, right: Unit): Out = left
+           |    }
+           |
            |}
-           |trait ZippableLowPriority2 {
+           |trait ZippableLowPriority1 extends ZippableLowPriority2 {
+           |  ${implicitZippables.mkString("\n  ")}
+           |
+           |}
+           |trait ZippableLowPriority2 extends ZippableLowPriority3 {
+           |
+           |  implicit def Zippable2Right[B]: Zippable.Out[Unit, B, B] =
+           |    new Zippable[Unit, B] {
+           |      type Out = B
+           |
+           |      def zip(left: Unit, right: B): Out = right
+           |    }
+           |}
+           |trait ZippableLowPriority3 extends ZippableLowPriority4 {
+           |  implicit def Zippable2Left[A]: Zippable.Out[A, Unit, A] =
+           |    new Zippable[A, Unit] {
+           |      type Out = A
+           |
+           |      def zip(left: A, right: Unit): Out = left
+           |    }
+           |
+           |}
+           |
+           |trait ZippableLowPriority4 {
            |  implicit def Zippable2[A, B]: Zippable.Out[A, B, (A, B)] =
            |    new Zippable[A, B] {
            |      type Out = (A, B)
