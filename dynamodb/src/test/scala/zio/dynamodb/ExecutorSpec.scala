@@ -29,7 +29,7 @@ object ExecutorSpec extends DefaultRunnableSpec {
     testM("should execute putItem1 zip deleteItem1") {
       for {
         assembled <- (putItem1 zip deleteItem1).execute
-      } yield assert(assembled)(equalTo(((), ())))
+      } yield assert(assembled)(equalTo(()))
     },
     testM("should execute a ScanSome") {
       for {
@@ -80,10 +80,10 @@ object ExecutorSpec extends DefaultRunnableSpec {
       },
       test("should process Zipped writes") {
         val (constructors, assembler) = parallelize(putItem1 zip deleteItem1)
-        val assembled                 = assembler(Chunk((), ()))
+        val assembled                 = assembler(Chunk())
 
         assert(constructors)(equalTo(Chunk(putItem1, deleteItem1))) &&
-        assert(assembled)(equalTo(((), ())))
+        assert(assembled)(equalTo(()))
       },
       test("should process Map constructor") {
         val map                       = Map(

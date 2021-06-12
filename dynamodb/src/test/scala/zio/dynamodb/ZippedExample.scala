@@ -20,11 +20,17 @@ object ZippedExample extends App {
 
   val result1: Task[(String, String)] = task.zip(task)
 
-  val result2: Task[(String, String, String, String, String)] =
-    task.zip(task).zip(task).zip(task).zip(task)
+//  val result2: Task[(String, String, String, String, String)] =
+//    task.zip(task).zip(task).zip(task).zip(task)
 
-  val result3: Task[(String, String, String, String, String)] =
-    task ~ task ~ task ~ task ~ task
+  val result2: Task[(String, String, String)] =
+    task.zip(task).zip(task)
+
+//  val result3: Task[(String, String, String, String, String)] =
+//    task ~ task ~ task ~ task ~ task
+
+  val result3: Task[(String, String, String, String)] =
+    task ~ task ~ task ~ task
 
   def myZip[A, B](t1: Task[A], t2: Task[B]) =
     t1.zip(t2)

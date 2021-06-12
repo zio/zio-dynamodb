@@ -12,7 +12,7 @@ object BatchingSpec extends DefaultRunnableSpec with BatchingFixtures {
     testM("batch putItem1 zip getItem1 zip getItem2 zip deleteItem1") {
       for {
         result  <- (putItem1 zip getItem1 zip getItem2 zip deleteItem1).execute
-        expected = ((), Some(item1), Some(item2), ())
+        expected = (Some(item1), Some(item2))
       } yield assert(result)(equalTo(expected))
     },
     testM("batch getItem1 zip getItem2 zip getItem3") {
@@ -24,13 +24,13 @@ object BatchingSpec extends DefaultRunnableSpec with BatchingFixtures {
     testM("batch updateItem1 zip getItem2") {
       for {
         result  <- (updateItem1 zip getItem2).execute
-        expected = ((), Some(item2))
+        expected = Some(item2)
       } yield assert(result)(equalTo(expected))
     },
     testM("batch updateItem1 zip updateItem1 zip updateItem1") {
       for {
         result  <- (updateItem1 zip updateItem1 zip updateItem1).execute
-        expected = ((), (), ())
+        expected = ()
       } yield assert(result)(equalTo(expected))
     }
   ).provideCustomLayer(DynamoDBExecutor.test)

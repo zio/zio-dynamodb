@@ -597,7 +597,7 @@ object DynamoDBQuery {
           Chunk(putItem),
           (results: Chunk[Any]) => {
             println(s"PutItem results=$results")
-            results.head.asInstanceOf[A]
+            if (results.isEmpty) ().asInstanceOf[A] else results.head.asInstanceOf[A]
           }
         )
 
@@ -615,7 +615,7 @@ object DynamoDBQuery {
           Chunk(deleteItem),
           (results: Chunk[Any]) => {
             println(s"DeleteItem results=$results")
-            results.head.asInstanceOf[A]
+            if (results.isEmpty) ().asInstanceOf[A] else results.head.asInstanceOf[A]
           }
         )
 
