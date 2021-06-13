@@ -181,6 +181,10 @@ sealed trait ProjectionExpression { self =>
 }
 
 object ProjectionExpression {
+  private val regexMapElement     = """(^[a-zA-Z_]+)""".r
+  private val regexIndexedElement = """(^[a-zA-Z_]+)(\[[0-9]+])+""".r
+  private val regexGroupedIndexes = """(\[([0-9]+)])""".r
+
   // Note that you can only use a ProjectionExpression if the first character is a-z or A-Z and the second character
   // (if present) is a-z, A-Z, or 0-9. Also key words are not allowed
   // If this is not the case then you must use the Expression Attribute Names facility to create an alias.
@@ -219,10 +223,10 @@ object ProjectionExpression {
    */
   def parse(s: String): Either[String, ProjectionExpression] = {
 
-    final case class Builder(pe: Option[Either[Chunk[String], ProjectionExpression]] = None) {
+    final case class Builder(pe: Option[Either[Chunk[String], ProjectionExpression]] = None) { self =>
 
       def mapElement(name: String): Builder =
-        Builder(pe match {
+        Builder(self.pe match {
           case None                     =>
             Some(Right(Root(name)))
           case Some(Right(pe))          =>
@@ -231,18 +235,26 @@ object ProjectionExpression {
             someLeft
         })
 
-      def listElement(name: String, index: Int): Builder =
-        Builder(pe match {
+      def listElement(name: String, indexes: List[Int]): Builder = {
+        @tailrec
+        def multiDimPe(pe: ProjectionExpression, indexes: List[Int]): ProjectionExpression =
+          if (indexes == Nil)
+            pe
+          else
+            multiDimPe(pe(indexes.head), indexes.tail)
+
+        Builder(self.pe match {
           case None                     =>
-            Some(Right(Root(name)))
+            Some(Right(multiDimPe(Root(name), indexes)))
           case Some(Right(pe))          =>
-            Some(Right(pe(name)(index)))
+            Some(Right(multiDimPe(MapElement(pe, name), indexes)))
           case someLeft @ Some(Left(_)) =>
             someLeft
         })
+      }
 
       def addError(s: String): Builder =
-        Builder(pe match {
+        Builder(self.pe match {
           case None | Some(Right(_)) =>
             Some(Left(Chunk(s"error with '$s'")))
           case Some(Left(chunk))     =>
@@ -250,14 +262,13 @@ object ProjectionExpression {
         })
 
       def either: Either[Chunk[String], ProjectionExpression] =
-        pe.getOrElse(Left(Chunk("error - at least one element must be specified")))
+        self.pe.getOrElse(Left(Chunk("error - at least one element must be specified")))
     }
-
-    val regexIndex = """(^[a-zA-Z_]+)\[([0-9]+)]""".r
-    val regexMap   = """(^[a-zA-Z_]+)""".r
 
     if (s == null)
       Left("error - input string is 'null'")
+    else if (s.startsWith(".") || s.endsWith("."))
+      Left(s"error - input string '$s' is invalid")
     else {
 
       val elements: List[String] = s.split("\\.").toList
@@ -265,11 +276,13 @@ object ProjectionExpression {
       val builder = elements.foldLeft(Builder()) {
         case (accBuilder, s) =>
           s match {
-            case regexIndex(name, index) =>
-              accBuilder.listElement(name, index.toInt)
-            case regexMap(name)          =>
+            case regexIndexedElement(name, _) =>
+              val indexesString = s.substring(s.indexOf('['))
+              val indexes       = regexGroupedIndexes.findAllMatchIn(indexesString).map(_.group(2).toInt).toList
+              accBuilder.listElement(name, indexes)
+            case regexMapElement(name)        =>
               accBuilder.mapElement(name)
-            case _                       =>
+            case _                            =>
               accBuilder.addError(s)
           }
       }
