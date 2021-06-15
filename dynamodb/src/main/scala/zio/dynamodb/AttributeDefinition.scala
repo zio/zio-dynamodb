@@ -5,7 +5,7 @@ private[dynamodb] final case class AttributeDefinition(
   attributeType: PrimitiveValueType
 )
 object AttributeDefinition {
-  def binaryAttrDefn(name: String): AttributeDefinition = AttributeDefinition(name, AttributeValueType.Binary)
-  def numberAttrDefn(name: String): AttributeDefinition = AttributeDefinition(name, AttributeValueType.Number)
-  def stringAttrDefn(name: String): AttributeDefinition = AttributeDefinition(name, AttributeValueType.String)
+  def attrDefnBinary(name: String): AttributeDefinition = AttributeDefinition(name, AttributeValueType.Binary)
+  def attrDefnNumber(name: String): AttributeDefinition = AttributeDefinition(name, AttributeValueType.Number)
+  def attrDefnString(name: String): AttributeDefinition = AttributeDefinition(name, AttributeValueType.String)
 }
