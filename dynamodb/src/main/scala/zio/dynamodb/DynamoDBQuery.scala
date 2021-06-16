@@ -152,8 +152,9 @@ sealed trait DynamoDBQuery[+A] { self =>
   def gsi(
     indexName: String,
     keySchema: KeySchema,
-    projection: ProjectionType = ProjectionType.All,
-    provisionedThroughput: Option[ProvisionedThroughput] = None
+    projection: ProjectionType,
+    readCapacityUnit: Int,
+    writeCapacityUnit: Int
   ): DynamoDBQuery[A] =
     self match {
       case s: CreateTable =>
@@ -162,7 +163,25 @@ sealed trait DynamoDBQuery[+A] { self =>
             indexName,
             keySchema,
             projection,
-            provisionedThroughput
+            Some(ProvisionedThroughput(readCapacityUnit, writeCapacityUnit))
+          )
+        ).asInstanceOf[DynamoDBQuery[A]]
+      case _              => self // TODO: log a warning
+    }
+
+  def gsi(
+    indexName: String,
+    keySchema: KeySchema,
+    projection: ProjectionType
+  ): DynamoDBQuery[A] =
+    self match {
+      case s: CreateTable =>
+        s.copy(globalSecondaryIndexes =
+          s.globalSecondaryIndexes + GlobalSecondaryIndex(
+            indexName,
+            keySchema,
+            projection,
+            None
           )
         ).asInstanceOf[DynamoDBQuery[A]]
       case _              => self // TODO: log a warning

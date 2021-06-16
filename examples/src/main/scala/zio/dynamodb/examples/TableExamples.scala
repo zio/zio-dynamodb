@@ -18,12 +18,13 @@ object TableExamples extends App {
         "indexName",
         KeySchema("key2", "sortKey2"),
         ProjectionType.Include("nonKeyField1", "nonKeyField2"),
-        Some(ProvisionedThroughput(readCapacityUnit = 10, writeCapacityUnit = 10))
+        readCapacityUnit = 10,
+        writeCapacityUnit = 10
       )
       .gsi(
         "indexName2",
-        KeySchema("key2", "sortKey2"),
-        ProjectionType.Include("nonKeyField1", "nonKeyField2")
+        KeySchema("key2"),
+        ProjectionType.All
       )
       .lsi("indexName3", KeySchema("hashKey", "sortKey"))
       .lsi("indexName4", KeySchema("hashKey"))
