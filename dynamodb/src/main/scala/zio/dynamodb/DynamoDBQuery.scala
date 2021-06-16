@@ -8,6 +8,7 @@ import zio.dynamodb.DynamoDBQuery.{
   parallelize,
   BatchGetItem,
   BatchWriteItem,
+  CreateTable,
   DeleteItem,
   GetItem,
   PutItem,
@@ -148,6 +149,61 @@ sealed trait DynamoDBQuery[+A] { self =>
       case _            => self // TODO: log a warning
     }
 
+  def gsi(
+    indexName: String,
+    keySchema: KeySchema,
+    projection: ProjectionType,
+    readCapacityUnit: Int,
+    writeCapacityUnit: Int
+  ): DynamoDBQuery[A] =
+    self match {
+      case s: CreateTable =>
+        s.copy(globalSecondaryIndexes =
+          s.globalSecondaryIndexes + GlobalSecondaryIndex(
+            indexName,
+            keySchema,
+            projection,
+            Some(ProvisionedThroughput(readCapacityUnit, writeCapacityUnit))
+          )
+        ).asInstanceOf[DynamoDBQuery[A]]
+      case _              => self // TODO: log a warning
+    }
+
+  def gsi(
+    indexName: String,
+    keySchema: KeySchema,
+    projection: ProjectionType
+  ): DynamoDBQuery[A] =
+    self match {
+      case s: CreateTable =>
+        s.copy(globalSecondaryIndexes =
+          s.globalSecondaryIndexes + GlobalSecondaryIndex(
+            indexName,
+            keySchema,
+            projection,
+            None
+          )
+        ).asInstanceOf[DynamoDBQuery[A]]
+      case _              => self // TODO: log a warning
+    }
+
+  def lsi(
+    indexName: String,
+    keySchema: KeySchema,
+    projection: ProjectionType = ProjectionType.All
+  ): DynamoDBQuery[A] =
+    self match {
+      case s: CreateTable =>
+        s.copy(localSecondaryIndexes =
+          s.localSecondaryIndexes + LocalSecondaryIndex(
+            indexName,
+            keySchema,
+            projection
+          )
+        ).asInstanceOf[DynamoDBQuery[A]]
+      case _              => self // TODO: log a warning
+    }
+
   def selectAllAttributes: DynamoDBQuery[A]          = select(Select.AllAttributes)
   def selectAllProjectedAttributes: DynamoDBQuery[A] = select(Select.AllProjectedAttributes)
   def selectSpecificAttributes: DynamoDBQuery[A]     = select(Select.SpecificAttributes)
@@ -267,24 +323,17 @@ object DynamoDBQuery {
   def createTable(
     tableName: String,
     keySchema: KeySchema,
-    attributeDefinitions: NonEmptySet[AttributeDefinition],
-    billingMode: BillingMode = BillingMode.Provisioned,
-    globalSecondaryIndexes: Set[GlobalSecondaryIndex] = Set.empty,
-    localSecondaryIndexes: Set[LocalSecondaryIndex] = Set.empty,
-    provisionedThroughput: Option[ProvisionedThroughput] = None,
+    billingMode: BillingMode,
     sseSpecification: Option[SSESpecification] = None,
     tags: ScalaMap[String, String] = ScalaMap.empty
-  ): CreateTable =
+  )(attributeDefinition: AttributeDefinition, attributeDefinitions: AttributeDefinition*): CreateTable =
     CreateTable(
-      TableName(tableName),
-      keySchema,
-      attributeDefinitions,
-      billingMode,
-      globalSecondaryIndexes,
-      localSecondaryIndexes,
-      provisionedThroughput,
-      sseSpecification,
-      tags
+      tableName = TableName(tableName),
+      keySchema = keySchema,
+      attributeDefinitions = NonEmptySet(attributeDefinition, attributeDefinitions: _*),
+      billingMode = billingMode,
+      sseSpecification = sseSpecification,
+      tags = tags
     )
 
   private def selectOrAll(projections: Seq[ProjectionExpression]): Option[Select] =
@@ -491,10 +540,9 @@ object DynamoDBQuery {
     tableName: TableName,
     keySchema: KeySchema,
     attributeDefinitions: NonEmptySet[AttributeDefinition],
-    billingMode: BillingMode = BillingMode.Provisioned,
+    billingMode: BillingMode,
     globalSecondaryIndexes: Set[GlobalSecondaryIndex] = Set.empty,
     localSecondaryIndexes: Set[LocalSecondaryIndex] = Set.empty,
-    provisionedThroughput: Option[ProvisionedThroughput] = None,
     sseSpecification: Option[SSESpecification] = None,
     tags: ScalaMap[String, String] = ScalaMap.empty // you can have up to 50 tags
   ) extends Constructor[Unit] // TODO: model response
@@ -565,7 +613,7 @@ object DynamoDBQuery {
 
       case Succeed(value)     => (Chunk.empty, _ => value())
 
-      case batchGetItem @ BatchGetItem(_, _, _)                 =>
+      case batchGetItem @ BatchGetItem(_, _, _)               =>
         (
           Chunk(batchGetItem),
           (results: Chunk[Any]) => {
@@ -574,7 +622,7 @@ object DynamoDBQuery {
           }
         )
 
-      case batchWriteItem @ BatchWriteItem(_, _, _, _)          =>
+      case batchWriteItem @ BatchWriteItem(_, _, _, _)        =>
         (
           Chunk(batchWriteItem),
           (results: Chunk[Any]) => {
@@ -583,7 +631,7 @@ object DynamoDBQuery {
           }
         )
 
-      case getItem @ GetItem(_, _, _, _, _)                     =>
+      case getItem @ GetItem(_, _, _, _, _)                   =>
         (
           Chunk(getItem),
           (results: Chunk[Any]) => {
@@ -592,7 +640,7 @@ object DynamoDBQuery {
           }
         )
 
-      case putItem @ PutItem(_, _, _, _, _, _)                  =>
+      case putItem @ PutItem(_, _, _, _, _, _)                =>
         (
           Chunk(putItem),
           (results: Chunk[Any]) => {
@@ -601,7 +649,7 @@ object DynamoDBQuery {
           }
         )
 
-      case updateItem @ UpdateItem(_, _, _, _, _, _, _)         =>
+      case updateItem @ UpdateItem(_, _, _, _, _, _, _)       =>
         (
           Chunk(updateItem),
           (results: Chunk[Any]) => {
@@ -610,7 +658,7 @@ object DynamoDBQuery {
           }
         )
 
-      case deleteItem @ DeleteItem(_, _, _, _, _, _)            =>
+      case deleteItem @ DeleteItem(_, _, _, _, _, _)          =>
         (
           Chunk(deleteItem),
           (results: Chunk[Any]) => {
@@ -619,7 +667,7 @@ object DynamoDBQuery {
           }
         )
 
-      case scan @ ScanSome(_, _, _, _, _, _, _, _, _)           =>
+      case scan @ ScanSome(_, _, _, _, _, _, _, _, _)         =>
         (
           Chunk(scan),
           (results: Chunk[Any]) => {
@@ -628,7 +676,7 @@ object DynamoDBQuery {
           }
         )
 
-      case scan @ ScanAll(_, _, _, _, _, _, _, _)               =>
+      case scan @ ScanAll(_, _, _, _, _, _, _, _)             =>
         (
           Chunk(scan),
           (results: Chunk[Any]) => {
@@ -637,7 +685,7 @@ object DynamoDBQuery {
           }
         )
 
-      case query @ QuerySome(_, _, _, _, _, _, _, _, _, _, _)   =>
+      case query @ QuerySome(_, _, _, _, _, _, _, _, _, _, _) =>
         (
           Chunk(query),
           (results: Chunk[Any]) => {
@@ -646,7 +694,7 @@ object DynamoDBQuery {
           }
         )
 
-      case query @ QueryAll(_, _, _, _, _, _, _, _, _, _)       =>
+      case query @ QueryAll(_, _, _, _, _, _, _, _, _, _)     =>
         (
           Chunk(query),
           (results: Chunk[Any]) => {
@@ -655,7 +703,7 @@ object DynamoDBQuery {
           }
         )
 
-      case createTable @ CreateTable(_, _, _, _, _, _, _, _, _) =>
+      case createTable @ CreateTable(_, _, _, _, _, _, _, _)  =>
         (
           Chunk(createTable),
           (results: Chunk[Any]) => {

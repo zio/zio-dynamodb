@@ -1,5 +1,6 @@
 package zio.dynamodb
 
+import zio.dynamodb.AttributeDefinition.{ attrDefnNumber, attrDefnString }
 import zio.dynamodb.DynamoDBQuery.{
   createTable,
   deleteItem,
@@ -69,11 +70,8 @@ object DynamoDBExecutor {
     val createTable1 = createTable(
       "T1",
       KeySchema("hashKey", "sortKey"),
-      attributeDefinitions = NonEmptySet(AttributeDefinition("attr1", AttributeValueType.String)) + AttributeDefinition(
-        "attr2",
-        AttributeValueType.Number
-      )
-    )
+      BillingMode.provisioned(readCapacityUnit = 10, writeCapacityUnit = 10)
+    )(attrDefnString("attr1"), attrDefnNumber("attr2"))
   }
 
   // returns hard coded responses for now
@@ -185,12 +183,11 @@ object DynamoDBExecutor {
                 billingMode,
                 globalSecondaryIndexes,
                 localSecondaryIndexes,
-                provisionedThroughput,
                 sseSpecification,
                 tags
               ) =>
             println(
-              s"$tableName, $keySchema, $attributeDefinitions, $billingMode, $globalSecondaryIndexes, $localSecondaryIndexes, $provisionedThroughput, $sseSpecification, $tags"
+              s"$tableName, $keySchema, $attributeDefinitions, $billingMode, $globalSecondaryIndexes, $localSecondaryIndexes, $sseSpecification, $tags"
             )
             ZIO.succeed(())
 

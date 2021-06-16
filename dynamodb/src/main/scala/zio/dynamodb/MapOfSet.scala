@@ -2,7 +2,8 @@ package zio.dynamodb
 
 import scala.collection.immutable.{ Map => ScalaMap }
 
-final case class MapOfSet[K, V] private (private val map: ScalaMap[K, Set[V]]) extends Iterable[(K, Set[V])] { self =>
+private[dynamodb] final case class MapOfSet[K, V] private (private val map: ScalaMap[K, Set[V]])
+    extends Iterable[(K, Set[V])] { self =>
 
   def getOrElse(key: K, default: => Set[V]): Set[V] = map.getOrElse(key, default)
 
@@ -32,7 +33,7 @@ final case class MapOfSet[K, V] private (private val map: ScalaMap[K, Set[V]]) e
 
   override def iterator: Iterator[(K, Set[V])] = map.iterator
 }
-object MapOfSet {
+private[dynamodb] object MapOfSet {
   private def apply[K, V](map: ScalaMap[K, Set[V]]) = new MapOfSet(map)
   def empty[K, V]: MapOfSet[K, V]                   = apply(ScalaMap.empty)
 }

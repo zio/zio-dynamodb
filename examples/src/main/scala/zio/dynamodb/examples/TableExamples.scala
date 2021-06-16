@@ -2,25 +2,31 @@ package zio.dynamodb.examples
 
 import zio.dynamodb.AttributeDefinition._
 import zio.dynamodb.DynamoDBQuery.createTable
-import zio.dynamodb.Projection.All
 import zio.dynamodb._
 
 object TableExamples extends App {
-  val createTableExample = createTable(
-    tableName = "someTable",
-    keySchema = KeySchema("hashKey", "sortKey"),
-    attributeDefinitions =
-      NonEmptySet(stringAttrDefn("attr1"), numberAttrDefn("attr2")), // TODO: this still seems clunky
-    billingMode = BillingMode.PayPerRequest,
-    globalSecondaryIndexes = Set(
-      GlobalSecondaryIndex(
+  val createTableExample =
+    createTable(
+      tableName = "someTable",
+      KeySchema("hashKey", "sortKey"),
+      BillingMode.provisioned(readCapacityUnit = 10, writeCapacityUnit = 10)
+    )(
+      attrDefnString("attr1"),
+      attrDefnNumber("attr2")
+    )
+      .gsi(
         "indexName",
-        keySchema = KeySchema("key2", "sortKey2"),
-        projection = Projection.Include("3"),
-        provisionedThroughput = Some(ProvisionedThroughput(10, 10))
+        KeySchema("key2", "sortKey2"),
+        ProjectionType.Include("nonKeyField1", "nonKeyField2"),
+        readCapacityUnit = 10,
+        writeCapacityUnit = 10
       )
-    ),
-    localSecondaryIndexes = Set(LocalSecondaryIndex("indexName2", KeySchema("hashKey", "sortKey"), projection = All))
-  )
+      .gsi(
+        "indexName2",
+        KeySchema("key2"),
+        ProjectionType.All
+      )
+      .lsi("indexName3", KeySchema("hashKey", "sortKey"))
+      .lsi("indexName4", KeySchema("hashKey"))
 
 }

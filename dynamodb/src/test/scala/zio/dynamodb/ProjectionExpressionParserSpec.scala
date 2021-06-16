@@ -9,6 +9,7 @@ import scala.annotation.tailrec
 
 object ProjectionExpressionParserSpec extends DefaultRunnableSpec {
   object Generators {
+    private val maxFields                                                                                    = 20
     private val validCharGens                                                                                = List(Gen.const('_'), Gen.char('a', 'z'), Gen.char('a', 'z'))
     private def fieldName                                                                                    = Gen.stringBounded(0, 10)(Gen.oneOf(validCharGens: _*))
     private def index                                                                                        = Gen.int(0, 10)
@@ -29,7 +30,6 @@ object ProjectionExpressionParserSpec extends DefaultRunnableSpec {
         else
           loop(parentGen.flatMap(pe => mapOrListElement(pe)), counter - 1)
 
-      val maxFields = 20
       for {
         count <- Gen.int(1, maxFields)
         pe    <- loop(root, count)
@@ -42,13 +42,10 @@ object ProjectionExpressionParserSpec extends DefaultRunnableSpec {
 
   private val mainSuite =
     suite("ProjectionExpression Parser")(
-      testM("should parse valid expressions") {
+      testM("should parse valid expressions and return a Left for any invalid expressions") {
         check(Generators.projectionExpression) { pe =>
-          val s = pe.toString
-          assert(
-            parse(s)
-          )(
-            if (findEmptyNames(pe)) isLeft
+          assert(parse(pe.toString))(
+            if (anyEmptyName(pe)) isLeft
             else isRight(equalTo(pe))
           )
         }
@@ -88,14 +85,14 @@ object ProjectionExpressionParserSpec extends DefaultRunnableSpec {
     )
 
   @tailrec
-  private def findEmptyNames(pe: ProjectionExpression): Boolean =
+  private def anyEmptyName(pe: ProjectionExpression): Boolean =
     pe match {
       case Root(name)              =>
         name.isEmpty
       case MapElement(parent, key) =>
-        key.isEmpty || findEmptyNames(parent)
+        key.isEmpty || anyEmptyName(parent)
       case ListElement(parent, _)  =>
-        findEmptyNames(parent)
+        anyEmptyName(parent)
     }
 
 }
