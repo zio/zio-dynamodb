@@ -153,8 +153,7 @@ sealed trait DynamoDBQuery[+A] { self =>
     indexName: String,
     keySchema: KeySchema,
     projection: ProjectionType = ProjectionType.All,
-    readCapacityUnit: Int,
-    writeCapacityUnit: Int
+    provisionedThroughput: Option[ProvisionedThroughput] = None
   ): DynamoDBQuery[A] =
     self match {
       case s: CreateTable =>
@@ -163,7 +162,7 @@ sealed trait DynamoDBQuery[+A] { self =>
             indexName,
             keySchema,
             projection,
-            Some(ProvisionedThroughput(readCapacityUnit, writeCapacityUnit))
+            provisionedThroughput
           )
         ).asInstanceOf[DynamoDBQuery[A]]
       case _              => self // TODO: log a warning
