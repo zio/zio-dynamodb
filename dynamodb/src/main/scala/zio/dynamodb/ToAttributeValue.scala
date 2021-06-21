@@ -5,21 +5,22 @@ trait ToAttributeValue[-A] {
 }
 
 object ToAttributeValue extends ToAttributeValueLowPriorityImplicits {
-  import Predef.{ Map => ScalaMap, String => ScalaString }
+  import Predef.{ String => ScalaString }
 
   implicit val binaryToAttributeValue: ToAttributeValue[Iterable[Byte]]              = AttributeValue.Binary(_)
   implicit val binarySetToAttributeValue: ToAttributeValue[Iterable[Iterable[Byte]]] = AttributeValue.BinarySet(_)
   implicit val boolToAttributeValue: ToAttributeValue[Boolean]                       = AttributeValue.Bool(_)
 
-  implicit def mapToAttributeValue[A](implicit
-    element: ToAttributeValue[A]
-  ): ToAttributeValue[ScalaMap[ScalaString, A]] =
-    (map: ScalaMap[ScalaString, A]) =>
+  implicit val attrMapToAttributeValue: ToAttributeValue[AttrMap] =
+    (attrMap: AttrMap) =>
       AttributeValue.Map {
-        map.map {
-          case (key, value) => (AttributeValue.String(key), element.toAttributeValue(value))
+        attrMap.map.map {
+          case (key, value) => (AttributeValue.String(key), value)
         }
       }
+
+//TODO
+//  implicit def nullToAttributeValue: ToAttributeValue[Null] = _ => AttributeValue.Null
 
   implicit val stringToAttributeValue: ToAttributeValue[String]                 = AttributeValue.String(_)
   implicit val stringSetToAttributeValue: ToAttributeValue[Set[ScalaString]]    =

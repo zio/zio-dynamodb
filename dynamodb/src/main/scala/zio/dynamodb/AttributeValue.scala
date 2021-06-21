@@ -49,4 +49,5 @@ private[dynamodb] object AttributeValue {
 trait ToAttributeValueLowPriorityImplicits {
   implicit def listToAttributeValue[A](implicit element: ToAttributeValue[A]): ToAttributeValue[Iterable[A]] =
     (xs: Iterable[A]) => AttributeValue.List(Chunk.fromIterable(xs.map(element.toAttributeValue)))
+
 }
