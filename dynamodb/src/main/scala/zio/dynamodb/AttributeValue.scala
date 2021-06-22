@@ -39,7 +39,7 @@ private[dynamodb] object AttributeValue {
   private[dynamodb] final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue
   private[dynamodb] final case class Number(value: BigDecimal)                    extends AttributeValue
   private[dynamodb] final case class NumberSet(value: Set[BigDecimal])            extends AttributeValue
-  private[dynamodb] object Null                                                   extends AttributeValue
+  private[dynamodb] final case class Null()                                       extends AttributeValue
   private[dynamodb] final case class String(value: ScalaString)                   extends AttributeValue
   private[dynamodb] final case class StringSet(value: Set[ScalaString])           extends AttributeValue
 

@@ -19,8 +19,7 @@ object ToAttributeValue extends ToAttributeValueLowPriorityImplicits {
         }
       }
 
-//TODO
-//  implicit def nullToAttributeValue: ToAttributeValue[Null] = _ => AttributeValue.Null
+  implicit def nullToAttributeValue: ToAttributeValue[AttributeValue.Null] = _ => AttributeValue.Null()
 
   implicit val stringToAttributeValue: ToAttributeValue[String]                 = AttributeValue.String(_)
   implicit val stringSetToAttributeValue: ToAttributeValue[Set[ScalaString]]    =
@@ -44,6 +43,6 @@ object ToAttributeValue extends ToAttributeValueLowPriorityImplicits {
   implicit val floatToAttributeValue: ToAttributeValue[Float]                   = (a: Float) =>
     AttributeValue.Number(BigDecimal.decimal(a))
   implicit val floatSetToAttributeValue: ToAttributeValue[Set[Float]]           = (a: Set[Float]) =>
-    AttributeValue.NumberSet(a.map(BigDecimal.decimal(_)))
+    AttributeValue.NumberSet(a.map(BigDecimal.decimal))
 
 }
