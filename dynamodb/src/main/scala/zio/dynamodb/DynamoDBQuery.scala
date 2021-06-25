@@ -213,6 +213,9 @@ sealed trait DynamoDBQuery[+A] { self =>
 
   def whereKey(keyConditionExpression: KeyConditionExpression): DynamoDBQuery[A] =
     self match {
+//      case Zip(left, right, zippable) =>
+//        Zip(left.whereKey(keyConditionExpression), right.whereKey(keyConditionExpression), zippable)
+//      case Map(query, mapper)         => Map(query.whereKey(keyConditionExpression), mapper)
       case s: QuerySome => s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[A]]
       case s: QueryAll  => s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[A]]
       case _            => self // TODO: log a warning

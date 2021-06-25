@@ -4,9 +4,9 @@ import zio.Chunk
 import zio.test.{ DefaultRunnableSpec, _ }
 
 object ToAttributeValueSpec extends DefaultRunnableSpec {
-  val ScalaMap = scala.collection.immutable.Map
+  private val ScalaMap = scala.collection.immutable.Map
 
-  override def spec =
+  override def spec: ZSpec[Environment, Failure] =
     suite("AttrMap suite")(
       test("AttrMap.empty.map equals empty map") {
         val attrMap = AttrMap.empty
@@ -65,8 +65,8 @@ object ToAttributeValueSpec extends DefaultRunnableSpec {
         assert(attrMap.map)(Assertion.equalTo(ScalaMap("f1" -> AttributeValue.NumberSet(Set(BigDecimal(1.0))))))
       },
       test("AttrMap of a null field values equals a Map of AttributeValue.Null") {
-        val attrMap = Item("f1" -> AttributeValue.Null())
-        assert(attrMap.map)(Assertion.equalTo(ScalaMap("f1" -> AttributeValue.Null())))
+        val attrMap = Item("f1" -> AttributeValue.Null)
+        assert(attrMap.map)(Assertion.equalTo(ScalaMap("f1" -> AttributeValue.Null)))
       },
       test("AttrMap of a String field values equals a Map of AttributeValue.String") {
         val attrMap = Item("f1" -> "s")

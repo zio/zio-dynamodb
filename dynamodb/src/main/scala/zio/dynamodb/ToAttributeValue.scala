@@ -19,7 +19,7 @@ object ToAttributeValue extends ToAttributeValueLowPriorityImplicits {
         }
       }
 
-  implicit def nullToAttributeValue: ToAttributeValue[AttributeValue.Null] = _ => AttributeValue.Null()
+  implicit val nullToAttributeValue: ToAttributeValue[AttributeValue.Null.type] = _ => AttributeValue.Null
 
   implicit val stringToAttributeValue: ToAttributeValue[String]                 = AttributeValue.String(_)
   implicit val stringSetToAttributeValue: ToAttributeValue[Set[ScalaString]]    =
