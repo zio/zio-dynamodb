@@ -1,6 +1,5 @@
 package zio.dynamodb
 
-import zio.Chunk
 import zio.dynamodb.ConditionExpression.Operand._
 import zio.dynamodb.ConditionExpression._
 
@@ -28,7 +27,7 @@ sealed trait AttributeValue { self =>
 
 }
 
-private[dynamodb] object AttributeValue {
+object AttributeValue {
   import Predef.{ String => ScalaString }
   import scala.collection.{ Map => ScalaMap }
 
@@ -43,11 +42,7 @@ private[dynamodb] object AttributeValue {
   private[dynamodb] final case class String(value: ScalaString)                   extends AttributeValue
   private[dynamodb] final case class StringSet(value: Set[ScalaString])           extends AttributeValue
 
-  private[dynamodb] def apply[A](a: A)(implicit ev: ToAttributeValue[A]): AttributeValue = ev.toAttributeValue(a)
-}
+  def apply[A](a: A)(implicit ev: ToAttributeValue[A]): AttributeValue = ev.toAttributeValue(a)
 
-trait ToAttributeValueLowPriorityImplicits {
-  implicit def listToAttributeValue[A](implicit element: ToAttributeValue[A]): ToAttributeValue[Iterable[A]] =
-    (xs: Iterable[A]) => AttributeValue.List(Chunk.fromIterable(xs.map(element.toAttributeValue)))
-
+  implicit val attributeValueToAttributeValue: ToAttributeValue[AttributeValue] = identity(_)
 }

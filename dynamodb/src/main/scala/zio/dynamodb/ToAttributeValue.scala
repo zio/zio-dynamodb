@@ -1,15 +1,18 @@
 package zio.dynamodb
 
-trait ToAttributeValue[-A] {
+import zio.Chunk
+
+trait ToAttributeValue[A] {
   def toAttributeValue(a: A): AttributeValue
 }
 
-object ToAttributeValue extends ToAttributeValueLowPriorityImplicits {
+object ToAttributeValue extends ToAttributeValueLowPriorityImplicits0 {
   import Predef.{ String => ScalaString }
 
-  implicit val binaryToAttributeValue: ToAttributeValue[Iterable[Byte]]              = AttributeValue.Binary(_)
-  implicit val binarySetToAttributeValue: ToAttributeValue[Iterable[Iterable[Byte]]] = AttributeValue.BinarySet(_)
-  implicit val boolToAttributeValue: ToAttributeValue[Boolean]                       = AttributeValue.Bool(_)
+  implicit def binaryToAttributeValue[Col[A] <: Iterable[A]]: ToAttributeValue[Col[Byte]] = AttributeValue.Binary(_)
+  implicit def binarySetToAttributeValue[Col1[A] <: Iterable[A], Col2[B] <: Iterable[B]]
+    : ToAttributeValue[Col1[Col2[Byte]]]                                                  = AttributeValue.BinarySet(_)
+  implicit val boolToAttributeValue: ToAttributeValue[Boolean]                            = AttributeValue.Bool(_)
 
   implicit val attrMapToAttributeValue: ToAttributeValue[AttrMap] =
     (attrMap: AttrMap) =>
@@ -18,8 +21,6 @@ object ToAttributeValue extends ToAttributeValueLowPriorityImplicits {
           case (key, value) => (AttributeValue.String(key), value)
         }
       }
-
-  implicit val nullToAttributeValue: ToAttributeValue[AttributeValue.Null.type] = _ => AttributeValue.Null
 
   implicit val stringToAttributeValue: ToAttributeValue[String]                 = AttributeValue.String(_)
   implicit val stringSetToAttributeValue: ToAttributeValue[Set[ScalaString]]    =
@@ -45,4 +46,24 @@ object ToAttributeValue extends ToAttributeValueLowPriorityImplicits {
   implicit val floatSetToAttributeValue: ToAttributeValue[Set[Float]]           = (a: Set[Float]) =>
     AttributeValue.NumberSet(a.map(BigDecimal.decimal))
 
+}
+
+trait ToAttributeValueLowPriorityImplicits0 extends ToAttributeValueLowPriorityImplicits1 {
+  implicit def listToAttributeValue[A](implicit element: ToAttributeValue[A]): ToAttributeValue[List[A]] =
+    (xs: List[A]) => AttributeValue.List(Chunk.fromIterable(xs.map(element.toAttributeValue)))
+
+  implicit def vectorToAttributeValue[A](implicit element: ToAttributeValue[A]): ToAttributeValue[Vector[A]] =
+    (xs: Vector[A]) => AttributeValue.List(Chunk.fromIterable(xs.map(element.toAttributeValue)))
+
+  implicit def chunkToAttributeValue[A](implicit element: ToAttributeValue[A]): ToAttributeValue[Chunk[A]] =
+    (xs: Chunk[A]) => AttributeValue.List(Chunk.fromIterable(xs.map(element.toAttributeValue)))
+}
+
+trait ToAttributeValueLowPriorityImplicits1 extends ToAttributeValueLowPriorityImplicits2 {
+  implicit def iterableToAttributeValue[A](implicit element: ToAttributeValue[A]): ToAttributeValue[Iterable[A]] =
+    (xs: Iterable[A]) => AttributeValue.List(Chunk.fromIterable(xs.map(element.toAttributeValue)))
+}
+
+trait ToAttributeValueLowPriorityImplicits2 {
+  implicit val nullToAttributeValue: ToAttributeValue[Null] = (_: Null) => AttributeValue.Null
 }

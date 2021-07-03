@@ -41,7 +41,7 @@ class BatchGetItemExamples {
     getItem(
       "T1",
       PrimaryKey("field1" -> i),
-      $("field1"),
+      $("field1"), // TODO: should projections have its own param list
       $("field2")
     ) where $(
       "field1"

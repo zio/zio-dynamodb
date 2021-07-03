@@ -65,15 +65,15 @@ object ToAttributeValueSpec extends DefaultRunnableSpec {
         assert(attrMap.map)(Assertion.equalTo(ScalaMap("f1" -> AttributeValue.NumberSet(Set(BigDecimal(1.0))))))
       },
       test("AttrMap of a null field values equals a Map of AttributeValue.Null") {
-        val attrMap = Item("f1" -> AttributeValue.Null)
+        val attrMap = AttrMap("f1" -> null)
         assert(attrMap.map)(Assertion.equalTo(ScalaMap("f1" -> AttributeValue.Null)))
       },
       test("AttrMap of a String field values equals a Map of AttributeValue.String") {
-        val attrMap = Item("f1" -> "s")
+        val attrMap = AttrMap("f1" -> "s")
         assert(attrMap.map)(Assertion.equalTo(ScalaMap("f1" -> AttributeValue.String("s"))))
       },
       test("AttrMap of a String Set field values equals a Map of AttributeValue.StringSet") {
-        val attrMap = Item("f1" -> Set("s"))
+        val attrMap = AttrMap("f1" -> Set("s"))
         assert(attrMap.map)(Assertion.equalTo(ScalaMap("f1" -> AttributeValue.StringSet(Set("s")))))
       }
     )
