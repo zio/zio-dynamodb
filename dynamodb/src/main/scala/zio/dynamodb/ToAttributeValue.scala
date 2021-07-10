@@ -49,21 +49,13 @@ object ToAttributeValue extends ToAttributeValueLowPriorityImplicits0 {
 }
 
 trait ToAttributeValueLowPriorityImplicits0 extends ToAttributeValueLowPriorityImplicits1 {
-  implicit def listToAttributeValue[A](implicit element: ToAttributeValue[A]): ToAttributeValue[List[A]] =
-    (xs: List[A]) => AttributeValue.List(Chunk.fromIterable(xs.map(element.toAttributeValue)))
+  implicit def collectionToAttributeValue[Col[X] <: Iterable[X], A](implicit
+    element: ToAttributeValue[A]
+  ): ToAttributeValue[Col[A]] =
+    (xs: Col[A]) => AttributeValue.List(Chunk.fromIterable(xs.map(element.toAttributeValue)))
 
-  implicit def vectorToAttributeValue[A](implicit element: ToAttributeValue[A]): ToAttributeValue[Vector[A]] =
-    (xs: Vector[A]) => AttributeValue.List(Chunk.fromIterable(xs.map(element.toAttributeValue)))
-
-  implicit def chunkToAttributeValue[A](implicit element: ToAttributeValue[A]): ToAttributeValue[Chunk[A]] =
-    (xs: Chunk[A]) => AttributeValue.List(Chunk.fromIterable(xs.map(element.toAttributeValue)))
 }
 
-trait ToAttributeValueLowPriorityImplicits1 extends ToAttributeValueLowPriorityImplicits2 {
-  implicit def iterableToAttributeValue[A](implicit element: ToAttributeValue[A]): ToAttributeValue[Iterable[A]] =
-    (xs: Iterable[A]) => AttributeValue.List(Chunk.fromIterable(xs.map(element.toAttributeValue)))
-}
-
-trait ToAttributeValueLowPriorityImplicits2 {
+trait ToAttributeValueLowPriorityImplicits1 {
   implicit val nullToAttributeValue: ToAttributeValue[Null] = (_: Null) => AttributeValue.Null
 }
