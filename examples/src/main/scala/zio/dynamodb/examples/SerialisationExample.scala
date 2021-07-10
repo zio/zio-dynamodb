@@ -69,7 +69,7 @@ object SerialisationExample extends App {
                          country <- m.get[String]("country")
                        } yield Address(line1, line2, country)
                      )
-      lineItems <- m.get[Iterable[AttrMap]]("lineItems")
+      lineItems <- m.get[Iterable[Item]]("lineItems")
                      .map(_.map { m =>
                        (for {
                          itemId <- m.get[String]("itemId")
