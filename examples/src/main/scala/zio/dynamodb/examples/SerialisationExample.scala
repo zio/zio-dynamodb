@@ -1,4 +1,6 @@
-package zio.dynamodb
+package zio.dynamodb.examples
+
+import zio.dynamodb.{ AttrMap, Item }
 
 import java.time.{ Instant, ZoneOffset }
 
