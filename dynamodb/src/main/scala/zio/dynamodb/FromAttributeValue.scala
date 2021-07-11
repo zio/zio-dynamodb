@@ -30,13 +30,22 @@ object FromAttributeValue {
       case _                         => None
     }
 
-//  // TODO: test ordinary Maps that are not AttrMaps
-//  implicit def mapFromAttributeValue[K, V]: FromAttributeValue[Map[K, V]] =
-//    (av: AttributeValue) =>
-//      av match {
-//        case map @ AttributeValue.Map(_) => Some(map)
-//        case _                           => None
-//      }
+  implicit def mapFromAttributeValue[A](implicit ev: FromAttributeValue[A]): FromAttributeValue[Map[String, A]] =
+    (av: AttributeValue) =>
+      av match {
+        case AttributeValue.Map(map) =>
+          Some(map.toMap.map {
+            case (avK, avV) => avK.value -> ev.fromAttributeValue(avV).get
+          }) // TODO: test this is safe
+        case _                       => None
+      }
+
+  implicit def stringSetFromAttributeValue: FromAttributeValue[Set[String]] =
+    (av: AttributeValue) =>
+      av match {
+        case AttributeValue.StringSet(set) => Some(set)
+        case _                             => None
+      }
 
   implicit val attrMapFromAttributeValue: FromAttributeValue[AttrMap] = (av: AttributeValue) => {
     av match {

@@ -13,6 +13,8 @@ object SerialisationExample extends App {
     dueDate: Instant,
     total: BigDecimal,
     isTest: Boolean,
+    categoryMap: Map[String, String],
+    categorySet: Set[String],
     address: Option[Address],
     lineItems: Seq[LineItem]
   )
@@ -23,6 +25,8 @@ object SerialisationExample extends App {
     Instant.now(),
     BigDecimal(10.0),
     false,
+    Map("a" -> "1", "b" -> "2"),
+    Set("a", "b"),
     Some(Address("line1", Some("line2"), "UK")),
     List(LineItem("lineItem1", BigDecimal(1.0)), LineItem("lineItem2", BigDecimal(2.0)))
 //    List.empty
@@ -33,19 +37,21 @@ object SerialisationExample extends App {
 
   def invoiceToAttrMap(i: Invoice): Item =
     Item(
-      "id"        -> i.id,
-      "sequence"  -> i.sequence,
-      "dueDate"   -> dateToString(i.dueDate),
-      "total"     -> i.total,
-      "isTest"    -> i.isTest,
-      "address"   -> i.address.map { addr =>
+      "id"          -> i.id,
+      "sequence"    -> i.sequence,
+      "dueDate"     -> dateToString(i.dueDate),
+      "total"       -> i.total,
+      "isTest"      -> i.isTest,
+      "categoryMap" -> i.categoryMap,
+      "categorySet" -> i.categorySet,
+      "address"     -> i.address.map { addr =>
         Item(
           "line1"   -> addr.line1,
           "line2"   -> addr.line2.orNull,
           "country" -> addr.country
         )
       }.orNull,
-      "lineItems" -> i.lineItems.map(li =>
+      "lineItems"   -> i.lineItems.map(li =>
         Item(
           "itemId" -> li.itemId,
           "price"  -> li.price
@@ -57,32 +63,36 @@ object SerialisationExample extends App {
 
   def attrMapToInvoice(m: AttrMap): Option[Invoice] =
     for {
-      id        <- m.get[String]("id")
-      sequence  <- m.get[Int]("sequence")
-      dueDate   <- m.get[String]("dueDate")
-      total     <- m.get[BigDecimal]("total")
-      isTest    <- m.get[Boolean]("isTest")
-      address   <- m.get[Item]("address")
-                     .map(m =>
-                       for {
-                         line1   <- m.get[String]("line1")
-                         line2   <- m.getOpt[String]("line2")
-                         country <- m.get[String]("country")
-                       } yield Address(line1, line2, country)
-                     )
-      lineItems <- m.get[Iterable[Item]]("lineItems")
-                     .map(_.map { m =>
-                       (for {
-                         itemId <- m.get[String]("itemId")
-                         price  <- m.get[BigDecimal]("price")
-                       } yield LineItem(itemId, price)).get // TODO: is this sound?
-                     })
+      id          <- m.get[String]("id")
+      sequence    <- m.get[Int]("sequence")
+      dueDate     <- m.get[String]("dueDate")
+      total       <- m.get[BigDecimal]("total")
+      isTest      <- m.get[Boolean]("isTest")
+      categoryMap <- m.get[Map[String, String]]("categoryMap")
+      categorySet <- m.get[Set[String]]("categorySet")
+      address     <- m.get[Item]("address")
+                       .map(m =>
+                         for {
+                           line1   <- m.get[String]("line1")
+                           line2   <- m.getOpt[String]("line2")
+                           country <- m.get[String]("country")
+                         } yield Address(line1, line2, country)
+                       )
+      lineItems   <- m.get[Iterable[Item]]("lineItems")
+                       .map(_.map { m =>
+                         (for {
+                           itemId <- m.get[String]("itemId")
+                           price  <- m.get[BigDecimal]("price")
+                         } yield LineItem(itemId, price)).get // TODO: is this sound?
+                       })
     } yield Invoice(
       id,
       sequence,
       stringToDate(dueDate),
       total,
       isTest,
+      categoryMap,
+      categorySet,
       address,
       lineItems.toSeq
     )

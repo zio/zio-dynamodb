@@ -77,7 +77,7 @@ object ToAttributeValueSpec extends DefaultRunnableSpec {
       val attrMap = AttrMap("f1" -> BigDecimal(1.0))
       assert(attrMap.map)(Assertion.equalTo(ScalaMap("f1" -> AttributeValue.Number(BigDecimal(1.0)))))
     },
-    test("AttrMap of a number set field value equals a Map of AttributeValue.NumberSet") {
+    test("AttrMap of an Int Set field value equals a Map of AttributeValue.NumberSet") {
       val attrMap = AttrMap("f1" -> Set(1))
       assert(attrMap.map)(Assertion.equalTo(ScalaMap("f1" -> AttributeValue.NumberSet(Set(BigDecimal(1.0))))))
     },
