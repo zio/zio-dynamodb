@@ -1,23 +1,24 @@
 package zio.dynamodb
 
-trait ToAttributeValue[-A] {
+import zio.Chunk
+
+trait ToAttributeValue[A] {
   def toAttributeValue(a: A): AttributeValue
 }
 
-object ToAttributeValue extends ToAttributeValueLowPriorityImplicits {
-  import Predef.{ Map => ScalaMap, String => ScalaString }
+object ToAttributeValue extends ToAttributeValueLowPriorityImplicits0 {
+  import Predef.{ String => ScalaString }
 
-  implicit val binaryToAttributeValue: ToAttributeValue[Iterable[Byte]]              = AttributeValue.Binary(_)
-  implicit val binarySetToAttributeValue: ToAttributeValue[Iterable[Iterable[Byte]]] = AttributeValue.BinarySet(_)
-  implicit val boolToAttributeValue: ToAttributeValue[Boolean]                       = AttributeValue.Bool(_)
+  implicit def binaryToAttributeValue[Col[A] <: Iterable[A]]: ToAttributeValue[Col[Byte]] = AttributeValue.Binary(_)
+  implicit def binarySetToAttributeValue[Col1[A] <: Iterable[A], Col2[B] <: Iterable[B]]
+    : ToAttributeValue[Col1[Col2[Byte]]]                                                  = AttributeValue.BinarySet(_)
+  implicit val boolToAttributeValue: ToAttributeValue[Boolean]                            = AttributeValue.Bool(_)
 
-  implicit def mapToAttributeValue[A](implicit
-    element: ToAttributeValue[A]
-  ): ToAttributeValue[ScalaMap[ScalaString, A]] =
-    (map: ScalaMap[ScalaString, A]) =>
+  implicit val attrMapToAttributeValue: ToAttributeValue[AttrMap] =
+    (attrMap: AttrMap) =>
       AttributeValue.Map {
-        map.map {
-          case (key, value) => (AttributeValue.String(key), element.toAttributeValue(value))
+        attrMap.map.map {
+          case (key, value) => (AttributeValue.String(key), value)
         }
       }
 
@@ -43,6 +44,18 @@ object ToAttributeValue extends ToAttributeValueLowPriorityImplicits {
   implicit val floatToAttributeValue: ToAttributeValue[Float]                   = (a: Float) =>
     AttributeValue.Number(BigDecimal.decimal(a))
   implicit val floatSetToAttributeValue: ToAttributeValue[Set[Float]]           = (a: Set[Float]) =>
-    AttributeValue.NumberSet(a.map(BigDecimal.decimal(_)))
+    AttributeValue.NumberSet(a.map(BigDecimal.decimal))
 
+}
+
+trait ToAttributeValueLowPriorityImplicits0 extends ToAttributeValueLowPriorityImplicits1 {
+  implicit def collectionToAttributeValue[Col[X] <: Iterable[X], A](implicit
+    element: ToAttributeValue[A]
+  ): ToAttributeValue[Col[A]] =
+    (xs: Col[A]) => AttributeValue.List(Chunk.fromIterable(xs.map(element.toAttributeValue)))
+
+}
+
+trait ToAttributeValueLowPriorityImplicits1 {
+  implicit val nullToAttributeValue: ToAttributeValue[Null] = (_: Null) => AttributeValue.Null
 }

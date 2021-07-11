@@ -11,12 +11,14 @@ import zio.dynamodb.DynamoDBQuery.{
   CreateTable,
   DeleteItem,
   GetItem,
+  Map,
   PutItem,
   QueryAll,
   QuerySome,
   ScanAll,
   ScanSome,
-  UpdateItem
+  UpdateItem,
+  Zip
 }
 import zio.dynamodb.UpdateExpression.Action
 import zio.stream.Stream
@@ -211,16 +213,25 @@ sealed trait DynamoDBQuery[+A] { self =>
 
   def whereKey(keyConditionExpression: KeyConditionExpression): DynamoDBQuery[A] =
     self match {
+//      case Zip(left, right, zippable) =>
+//        Zip(left.whereKey(keyConditionExpression), right.whereKey(keyConditionExpression), zippable)
+//      case Map(query, mapper)         => Map(query.whereKey(keyConditionExpression), mapper)
       case s: QuerySome => s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[A]]
       case s: QueryAll  => s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[A]]
       case _            => self // TODO: log a warning
     }
 
+  /*
+  TODO make all functions recursive for Map and Zip
+   */
+
   def sortOrder(ascending: Boolean): DynamoDBQuery[A] =
     self match {
-      case s: QuerySome => s.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[A]]
-      case s: QueryAll  => s.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[A]]
-      case _            => self // TODO: log a warning
+      case Zip(left, right, zippable) => Zip(left.sortOrder(ascending), right.sortOrder(ascending), zippable)
+      case Map(query, mapper)         => Map(query.sortOrder(ascending), mapper)
+      case s: QuerySome               => s.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[A]]
+      case s: QueryAll                => s.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[A]]
+      case _                          => self // TODO: log a warning
     }
 
   final def map[B](f: A => B): DynamoDBQuery[B] = DynamoDBQuery.Map(self, f)
@@ -262,10 +273,8 @@ object DynamoDBQuery {
     tableName: String,
     key: PrimaryKey,
     projections: ProjectionExpression*
-  ): Constructor[Option[Item]] = {
-    println(projections)
-    GetItem(TableName(tableName), key)
-  }
+  ): Constructor[Option[Item]] =
+    GetItem(TableName(tableName), key, projections.toList)
 
   def putItem(tableName: String, item: Item): Write[Unit] = PutItem(TableName(tableName), item)
 
