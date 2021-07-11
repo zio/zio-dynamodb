@@ -8,10 +8,10 @@ final case class AttrMap(map: Map[String, AttributeValue]) {
   def getOpt[A](field: String)(implicit ev: FromAttributeValue[A]): Option[A] =
     map.get(field).map(ev.fromAttributeValue).flatten
 
-//  def getOptAttrMap[A, B](
-//    field: String
-//  )(f: AttrMap => Either[String, Option[B]])(implicit ev: FromAttributeValue[A]): Option[A] =
-//    getOpt[A](field).fold[Either[String, Option[B]]](Right(None))(f)
+  def getOptItem[B](
+    field: String
+  )(f: AttrMap => Either[String, Option[B]]): Either[String, Option[B]] =
+    getOpt[Item](field).fold[Either[String, Option[B]]](Right(None))(f)
 }
 
 object AttrMap extends GeneratedAttrMapApplies {

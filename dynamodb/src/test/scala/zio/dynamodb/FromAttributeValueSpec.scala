@@ -45,6 +45,18 @@ object FromAttributeValueSpec extends DefaultRunnableSpec {
                    }
       } yield maybe
       assert(either)(isRight(equalTo(Some(Foo("a")))))
+    },
+    test("getOptItem should return a Right of Some(Foo) when it exists") {
+      final case class Foo(s: String)
+      val attrMap                             = AttrMap("f1" -> AttrMap("f2" -> "a"))
+      val either: Either[String, Option[Foo]] = for {
+        maybe <- attrMap.getOptItem("f1") { m =>
+                   for {
+                     s <- m.get[String]("f2")
+                   } yield Some(Foo(s))
+                 }
+      } yield maybe
+      assert(either)(isRight(equalTo(Some(Foo("a")))))
     }
   )
 }
