@@ -25,6 +25,7 @@ object SerialisationExample extends App {
     false,
     Some(Address("line1", Some("line2"), "UK")),
     List(LineItem("lineItem1", BigDecimal(1.0)), LineItem("lineItem2", BigDecimal(2.0)))
+//    List.empty
   )
 
   def dateToString(d: Instant): String = d.atOffset(ZoneOffset.UTC).toString
@@ -40,10 +41,10 @@ object SerialisationExample extends App {
       "address"   -> i.address.map { addr =>
         Item(
           "line1"   -> addr.line1,
-          "line2"   -> addr.line2.getOrElse(null),
+          "line2"   -> addr.line2.orNull,
           "country" -> addr.country
         )
-      }.getOrElse(null),
+      }.orNull,
       "lineItems" -> i.lineItems.map(li =>
         Item(
           "itemId" -> li.itemId,

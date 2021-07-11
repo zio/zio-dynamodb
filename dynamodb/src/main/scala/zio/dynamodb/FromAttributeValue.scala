@@ -30,12 +30,13 @@ object FromAttributeValue {
       case _                         => None
     }
 
-  // TODO: test ordinary Maps that are not AttrMaps
-  implicit val mapFromAttributeValue: FromAttributeValue[AttributeValue.Map] = (av: AttributeValue) =>
-    av match {
-      case map @ AttributeValue.Map(_) => Some(map)
-      case _                           => None
-    }
+//  // TODO: test ordinary Maps that are not AttrMaps
+//  implicit def mapFromAttributeValue[K, V]: FromAttributeValue[Map[K, V]] =
+//    (av: AttributeValue) =>
+//      av match {
+//        case map @ AttributeValue.Map(_) => Some(map)
+//        case _                           => None
+//      }
 
   implicit val attrMapFromAttributeValue: FromAttributeValue[AttrMap] = (av: AttributeValue) => {
     av match {
