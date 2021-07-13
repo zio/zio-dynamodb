@@ -74,7 +74,7 @@ object SerialisationExample extends App {
                          line1   <- m.get[String]("line1")
                          line2   <- m.getOpt[String]("line2")
                          country <- m.get[String]("country")
-                       } yield Some(Address(line1, line2, country))
+                       } yield Address(line1, line2, country)
                      }
 
       lineItems   <- m.getIterableItem[LineItem]("lineItems") { m =>

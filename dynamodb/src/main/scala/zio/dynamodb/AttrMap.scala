@@ -13,8 +13,8 @@ final case class AttrMap(map: Map[String, AttributeValue]) {
   // convenience method so that user does not have to transform between an Option and an Either
   def getOptionalItem[A](
     field: String
-  )(f: AttrMap => Either[String, Option[A]]): Either[String, Option[A]] =
-    getOpt[Item](field).flatMap(_.fold[Either[String, Option[A]]](Right(None))(f))
+  )(f: AttrMap => Either[String, A]): Either[String, Option[A]] =
+    getOpt[Item](field).flatMap(_.fold[Either[String, Option[A]]](Right(None))(item => f(item).map(Some(_))))
 
   // convenience method so that user does not have to transform between a List and an Either
   def getIterableItem[A](field: String)(f: AttrMap => Either[String, A]): Either[String, Iterable[A]] =

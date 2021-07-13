@@ -40,7 +40,7 @@ object FromAttributeValueSpec extends DefaultRunnableSpec {
                    for {
                      s <- m.get[String]("f2")
                      o <- m.getOpt[String]("f3")
-                   } yield Some(Foo(s, o))
+                   } yield Foo(s, o)
                  }
       } yield maybe
       assert(either)(isRight(equalTo(Some(Foo("a", Some("b"))))))
