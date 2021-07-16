@@ -10,6 +10,9 @@ final case class AttrMap(map: Map[String, AttributeValue]) {
   def getOpt[A](field: String)(implicit ev: FromAttributeValue[A]): Either[Nothing, Option[A]] =
     Right(map.get(field).flatMap(ev.fromAttributeValue))
 
+  def getItem[A](field: String)(f: AttrMap => Either[String, A]): Either[String, A] =
+    get[Item](field).flatMap(item => f(item))
+
   // convenience method so that user does not have to transform between an Option and an Either
   def getOptionalItem[A](
     field: String

@@ -5,7 +5,9 @@ import zio.dynamodb.{ AttrMap, Item }
 import java.time.{ Instant, ZoneOffset }
 
 object SerialisationExample extends App {
-  final case class LineItem(itemId: String, price: BigDecimal)
+
+  final case class LineItem(itemId: String, price: BigDecimal, product: Product)
+  final case class Product(sku: String, name: String)
   final case class Address(line1: String, line2: Option[String], country: String)
   final case class Invoice(
     id: String,
@@ -15,6 +17,7 @@ object SerialisationExample extends App {
     isTest: Boolean,
     categoryMap: Map[String, String],
     categorySet: Set[String],
+    optSet: Option[Set[String]],
     address: Option[Address],
     lineItems: Seq[LineItem]
   )
@@ -27,8 +30,12 @@ object SerialisationExample extends App {
     isTest = false,
     categoryMap = Map("a" -> "1", "b" -> "2"),
     categorySet = Set("a", "b"),
+    optSet = Some(Set("a", "b")),
     address = Some(Address("line1", Some("line2"), "UK")),
-    lineItems = List(LineItem("lineItem1", BigDecimal(1.0)), LineItem("lineItem2", BigDecimal(2.0)))
+    lineItems = List(
+      LineItem("lineItem1", BigDecimal(1.0), Product("sku1", "a")),
+      LineItem("lineItem2", BigDecimal(2.0), Product("sku2", "b"))
+    )
   )
 
   def dateToString(d: Instant): String = d.atOffset(ZoneOffset.UTC).toString
@@ -43,6 +50,7 @@ object SerialisationExample extends App {
       "isTest"      -> i.isTest,
       "categoryMap" -> i.categoryMap,
       "categorySet" -> i.categorySet,
+      "optSet"      -> i.optSet.orNull,
       "address"     -> i.address.map { addr =>
         Item(
           "line1"   -> addr.line1,
@@ -52,8 +60,12 @@ object SerialisationExample extends App {
       }.orNull,
       "lineItems"   -> i.lineItems.map(li =>
         Item(
-          "itemId" -> li.itemId,
-          "price"  -> li.price
+          "itemId"  -> li.itemId,
+          "price"   -> li.price,
+          "product" -> Item(
+            "sku"  -> li.product.sku,
+            "name" -> li.product.name
+          )
         )
       )
     )
@@ -69,6 +81,7 @@ object SerialisationExample extends App {
       isTest      <- m.get[Boolean]("isTest")
       categoryMap <- m.get[Map[String, String]]("categoryMap")
       categorySet <- m.get[Set[String]]("categorySet")
+      optSet      <- m.getOpt[Set[String]]("optSet")
       address     <- m.getOptionalItem("address") { m =>
                        for {
                          line1   <- m.get[String]("line1")
@@ -76,12 +89,17 @@ object SerialisationExample extends App {
                          country <- m.get[String]("country")
                        } yield Address(line1, line2, country)
                      }
-
       lineItems   <- m.getIterableItem[LineItem]("lineItems") { m =>
                        for {
-                         itemId <- m.get[String]("itemId")
-                         price  <- m.get[BigDecimal]("price")
-                       } yield LineItem(itemId, price)
+                         itemId  <- m.get[String]("itemId")
+                         price   <- m.get[BigDecimal]("price")
+                         product <- m.getItem[Product]("product") { m =>
+                                      for {
+                                        sku  <- m.get[String]("sku")
+                                        name <- m.get[String]("name")
+                                      } yield Product(sku, name)
+                                    }
+                       } yield LineItem(itemId, price, product)
                      }
     } yield Invoice(
       id,
@@ -91,6 +109,7 @@ object SerialisationExample extends App {
       isTest,
       categoryMap,
       categorySet,
+      optSet,
       address,
       lineItems.toSeq
     )

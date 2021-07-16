@@ -35,8 +35,11 @@ object FromAttributeValue {
       av match {
         case AttributeValue.Map(map) =>
           Some(map.toMap.map {
-            case (avK, avV) => avK.value -> ev.fromAttributeValue(avV).get
-          }) // TODO: test this is safe
+            case (avK, avV) =>
+              avK.value -> ev
+                .fromAttributeValue(avV)
+                .get // this is safe as we should have implicits for all possible AttributeValue types
+          })
         case _                       => None
       }
 
