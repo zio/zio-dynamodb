@@ -454,7 +454,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     addList: Chunk[BatchWriteItem.Write] = Chunk.empty
-  ) extends Constructor[BatchWriteItem.Response] { self =>
+  ) extends Constructor[Unit] { self =>
     def +[A](writeItem: Write[A]): BatchWriteItem =
       writeItem match {
         case putItem @ PutItem(_, _, _, _, _, _)       =>
@@ -483,11 +483,6 @@ object DynamoDBQuery {
     sealed trait Write
     final case class Delete(key: PrimaryKey) extends Write
     final case class Put(item: Item)         extends Write
-
-    final case class Response(
-      // TODO: return metadata
-      unprocessedKeys: MapOfSet[TableName, BatchWriteItem.Write] = MapOfSet.empty
-    )
 
   }
 

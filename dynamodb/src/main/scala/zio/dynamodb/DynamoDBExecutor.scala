@@ -29,6 +29,11 @@ import zio.{ Chunk, Has, ZIO, ZLayer }
 
 import scala.collection.immutable.{ Map => ScalaMap }
 
+//TODO: remove
+//object Foo {
+//  val m: Map[Item, Item] = Map.empty + (PrimaryKey("a" -> "b") -> Item("a" -> "b"))
+//}
+
 object DynamoDBExecutor {
   type DynamoDBExecutor = Has[Service]
 
@@ -93,7 +98,7 @@ object DynamoDBExecutor {
           case BatchWriteItem(requestItems, capacity, metrics, addList)                             =>
             println(s"$requestItems $capacity $metrics $addList")
             // TODO: we could execute in a loop
-            ZIO.succeed(BatchWriteItem.Response())
+            ZIO.succeed(())
 
           case GetItem(key, tableName, projections, readConsistency, capacity)                      =>
             println(s"$key $tableName $projections $readConsistency  $capacity")
