@@ -4,7 +4,7 @@ import zio.dynamodb.DynamoDBQuery.getItem
 import zio.dynamodb.ProjectionExpression.$
 import zio.dynamodb.{ DynamoDBQuery, Item, PrimaryKey, TableName }
 
-class BatchGetItemExamples {
+object BatchGetItemExamples {
 
   val tableName1: TableName = TableName("T1")
   val tableName2: TableName = TableName("T2")
