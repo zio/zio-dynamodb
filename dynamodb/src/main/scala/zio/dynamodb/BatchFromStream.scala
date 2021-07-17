@@ -6,22 +6,6 @@ import zio.stream.ZStream
 
 object BatchFromStream {
 
-  def batchPutFromStream[R, A](
-    tableName: String,
-    mPar: Int,
-    stream: ZStream[R, Exception, A]
-  )(f: A => Item): ZStream[DynamoDBExecutor with R, Exception, Unit] =
-    stream.grouped(25).mapMPar(mPar) { chunk =>
-      val zio = DynamoDBQuery
-        .forEach(chunk) { a =>
-          DynamoDBQuery.putItem(tableName, f(a))
-        }
-      for {
-        r <- ZIO.environment[DynamoDBExecutor]
-        _ <- zio.execute.provide(r)
-      } yield ()
-    }
-
   def batchWriteFromStream[R, A](
     mPar: Int,
     stream: ZStream[R, Exception, A]
