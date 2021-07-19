@@ -25,14 +25,9 @@ import zio.dynamodb.DynamoDBQuery.{
 }
 import zio.dynamodb.ProjectionExpression.$
 import zio.stream.ZStream
-import zio.{ Chunk, Has, ZIO, ZLayer }
+import zio.{ Chunk, Has, ULayer, ZIO, ZLayer }
 
 import scala.collection.immutable.{ Map => ScalaMap }
-
-//TODO: remove
-//object Foo {
-//  val m: Map[Item, Item] = Map.empty + (PrimaryKey("a" -> "b") -> Item("a" -> "b"))
-//}
 
 object DynamoDBExecutor {
   type DynamoDBExecutor = Has[Service]
@@ -80,7 +75,7 @@ object DynamoDBExecutor {
   }
 
   // returns hard coded responses for now
-  val test = {
+  val test: ULayer[Has[Service]] = {
     import TestData._
 
     ZLayer.succeed(new Service {
