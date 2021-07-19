@@ -7,18 +7,17 @@ import zio.{ Ref, ULayer, ZIO }
 
 object FakeDynamoDBExecutor {
 
-  // TODO: use a Set[String] for external PK representation?
-  def fake(map: Map[Item, Item] = Map.empty[Item, Item], pk: Item => PrimaryKey): ULayer[DynamoDBExecutor] =
+  def apply(map: Map[Item, Item] = Map.empty[Item, Item])(
+    pkFields: String*
+  ): ULayer[DynamoDBExecutor] =
     (for {
       ref <- Ref.make(map)
-    } yield new Fake(ref, pk)).toLayer
+    } yield new Fake(ref, pkFields.toSet)).toLayer
 
-  class Fake(mapRef: Ref[Map[Item, Item]], pk: Item => PrimaryKey) extends DynamoDBExecutor.Service {
-    println(pk)
+  class Fake(mapRef: Ref[Map[Item, Item]], pkFields: Set[String]) extends DynamoDBExecutor.Service {
     override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A] =
       atomicQuery match {
-        case BatchGetItem(requestItems, capacity, _)                                            =>
-          println(s"$requestItems $capacity")
+        case BatchGetItem(requestItems, _, _)                                                   =>
           val xs: Seq[(TableName, Set[TableGet])] = requestItems.toList
 
           val zioPairs: Seq[ZIO[Any, Nothing, (TableName, Option[Item])]] = xs.toList.map {
@@ -50,11 +49,14 @@ object FakeDynamoDBExecutor {
 
         case PutItem(tableName, item, conditionExpression, capacity, itemMetrics, returnValues) =>
           println(s"$tableName $item $conditionExpression $capacity $itemMetrics $returnValues")
-          mapRef.update(map => map + (pk(item) -> item)).unit
+          mapRef.update(map => map + (primaryKey(item) -> item)).unit
 
         // TODO: remove
         case unknown                                                                            =>
           ZIO.fail(new Exception(s"Constructor $unknown not implemented yet"))
       }
+
+    def primaryKey: Item => PrimaryKey =
+      item => Item(item.map.filter { case (key, _) => pkFields.contains(key) })
   }
 }

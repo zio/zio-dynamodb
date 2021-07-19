@@ -22,7 +22,7 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
       } yield assert(assembled)(equalTo((Some(item1), Some(item2))))
     }
   ).provideCustomLayer(
-    FakeDynamoDBExecutor.fake(map, pk = item => Item(item.map.filter { case (key, _) => key == "a" }))
+    FakeDynamoDBExecutor(map)("a")
   )
 
 }
