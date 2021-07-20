@@ -9,21 +9,24 @@ import zio.{ Ref, ULayer, ZIO }
 TODO
 - multi table
 val ddb = Database()
-              .table("T1", "K1")(primaryKey1 -> item1, primaryKey2 -> item2)
-              .table("T2", "K2")(primaryKey1 -> item1, primaryKey2 -> item2)
+              .table("table1", "k1")(primaryKey1 -> item1, primaryKey2 -> item2)
+              .table("table2", "k2")(primaryKey1 -> item1, primaryKey2 -> item2)
 test(...).provideLayer(FakeDynamoDBExecutor(ddb))
  */
 object FakeDynamoDBExecutor {
 
-  def apply(map: Map[Item, Item] = Map.empty[Item, Item])(
+  def apply(map: Map[String, Map[Item, Item]] = Map.empty[String, Map[Item, Item]])(
     pkFields: String*
   ): ULayer[DynamoDBExecutor] =
     (for {
       ref <- Ref.make(map)
     } yield new Fake(ref, pkFields.toSet)).toLayer
 
-  class Fake(mapRef: Ref[Map[Item, Item]], pkFields: Set[String]) extends DynamoDBExecutor.Service {
-    override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A] =
+  class Fake(mapRef: Ref[Map[String, Map[Item, Item]]], pkFields: Set[String]) extends DynamoDBExecutor.Service {
+    override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A] = {
+      def getItem(map: Map[String, Map[Item, Item]], tableName: TableName, pk: PrimaryKey) =
+        map.get(tableName.value).flatMap(_.get(pk))
+
       atomicQuery match {
         case BatchGetItem(requestItems, _, _)                                                   =>
           println(s"BatchGetItem $requestItems")
@@ -32,7 +35,7 @@ object FakeDynamoDBExecutor {
           val zioPairs: Seq[ZIO[Any, Nothing, (TableName, Option[Item])]] = xs.toList.map {
             case (tableName, setOfTableGet) =>
               val set: Set[ZIO[Any, Nothing, (TableName, Option[Item])]] =
-                setOfTableGet.map(tableGet => mapRef.get.map(m => (tableName, m.get(tableGet.key))))
+                setOfTableGet.map(tableGet => mapRef.get.map(m => (tableName, getItem(m, tableName, tableGet.key))))
               set
           }.flatten
 
@@ -54,16 +57,17 @@ object FakeDynamoDBExecutor {
 
         case GetItem(tableName, key, projections, readConsistency, capacity)                    =>
           println(s"GetItem $key $tableName $projections $readConsistency  $capacity")
-          mapRef.get.map(_.get(key))
+          mapRef.get.map( /*_.get(key)*/ getItem(_, tableName, key))
 
         case PutItem(tableName, item, conditionExpression, capacity, itemMetrics, returnValues) =>
           println(s"PutItemX $tableName $item $conditionExpression $capacity $itemMetrics $returnValues")
-          mapRef.update(map => map + (primaryKey(item) -> item)).unit
+          mapRef.update(map => map + (tableName.value -> Map(primaryKey(item) -> item))).unit
 
         // TODO: remove
         case unknown                                                                            =>
           ZIO.fail(new Exception(s"Constructor $unknown not implemented yet"))
       }
+    }
 
     def primaryKey: Item => PrimaryKey =
       item => Item(item.map.filter { case (key, _) => pkFields.contains(key) })

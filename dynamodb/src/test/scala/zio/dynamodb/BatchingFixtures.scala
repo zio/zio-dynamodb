@@ -14,6 +14,7 @@ trait BatchingFixtures {
   val getItem3    = GetItem(key = primaryKey3, tableName = tableName3)
   val item1: Item = getItem1.key
   val item2: Item = getItem2.key
+  val item3: Item = getItem3.key
 
   val putItem1    = PutItem(tableName = tableName1, item = Item("k1" -> "k1"))
   val putItem2    = PutItem(tableName = tableName1, item = Item("k2" -> "k2"))

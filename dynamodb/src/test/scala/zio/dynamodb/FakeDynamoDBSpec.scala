@@ -7,7 +7,10 @@ import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
 object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
 
   override def spec: ZSpec[Environment, Failure] = suite("Batching")(batchingSuite)
-  private val map                                = Map(primaryKey1 -> item1, primaryKey2 -> item2)
+  private val map                                = Map(
+    tableName1.value -> Map(primaryKey1 -> item1, primaryKey2 -> item2),
+    tableName3.value -> Map(primaryKey3 -> item3)
+  )
 
   private val batchingSuite = suite("FakeDynamoDB suite")(
     testM("getItem") {
@@ -23,10 +26,10 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
 //        expected = Some(item1)
 //      } yield assert(result)(equalTo(expected))
 //    }.provideLayer(FakeDynamoDBExecutor()("k1")),
-    testM("should execute getItem1 zip getItem2") {
+    testM("should execute getItem1 zip getItem2 zip getItem3") {
       for {
-        assembled <- (getItem1 zip getItem2).execute
-      } yield assert(assembled)(equalTo((Some(item1), Some(item2))))
+        assembled <- (getItem1 zip getItem2 zip getItem3).execute
+      } yield assert(assembled)(equalTo((Some(item1), Some(item2), Some(item3))))
     }.provideLayer(FakeDynamoDBExecutor(map)("k1"))
   )
 
