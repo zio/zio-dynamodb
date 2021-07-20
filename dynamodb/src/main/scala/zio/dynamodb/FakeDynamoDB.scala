@@ -1,8 +1,8 @@
 package zio.dynamodb
 
 import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
-import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem, GetItem, PutItem }
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
+import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem, GetItem, PutItem }
 import zio.{ Ref, ULayer, ZIO }
 
 /*
@@ -11,8 +11,30 @@ TODO
 val ddb = Database()
               .table("table1", "k1")(primaryKey1 -> item1, primaryKey2 -> item2)
               .table("table2", "k2")(primaryKey1 -> item1, primaryKey2 -> item2)
+
 test(...).provideLayer(FakeDynamoDBExecutor(ddb))
  */
+class Database(
+  map: Map[String, Map[PrimaryKey, Item]] = Map.empty,
+  tablePkMap: Map[String, String] = Map.empty
+)               { self =>
+  def getItem(tableName: String, pk: PrimaryKey): Option[Item] =
+    self.map.get(tableName).flatMap(_.get(pk))
+
+  def table(tableName: String, pkFieldName: String)(entries: (PrimaryKey, Item)*): Database =
+    new Database(self.map + (tableName -> entries.toMap), self.tablePkMap + (tableName -> pkFieldName))
+
+  def put(tableName: String, entry: (PrimaryKey, Item)): Option[Database]                   =
+    self.map.get(tableName).map(m => new Database(self.map + (tableName -> (m + entry)), self.tablePkMap))
+
+  def remove(tableName: String, pk: PrimaryKey): Option[Database]                           =
+    self.map.get(tableName).map(m => new Database(self.map + (tableName -> (m - pk)), self.tablePkMap))
+
+}
+object Database {
+  def apply() = new Database()
+}
+
 object FakeDynamoDBExecutor {
 
   def apply(map: Map[String, Map[Item, Item]] = Map.empty[String, Map[Item, Item]])(
@@ -32,12 +54,12 @@ object FakeDynamoDBExecutor {
           println(s"BatchGetItem $requestItems")
           val xs: Seq[(TableName, Set[TableGet])] = requestItems.toList
 
-          val zioPairs: Seq[ZIO[Any, Nothing, (TableName, Option[Item])]] = xs.toList.map {
+          val zioPairs: Seq[ZIO[Any, Nothing, (TableName, Option[Item])]] = xs.toList.flatMap {
             case (tableName, setOfTableGet) =>
               val set: Set[ZIO[Any, Nothing, (TableName, Option[Item])]] =
                 setOfTableGet.map(tableGet => mapRef.get.map(m => (tableName, getItem(m, tableName, tableGet.key))))
               set
-          }.flatten
+          }
 
           val response: ZIO[Any, Nothing, BatchGetItem.Response] = for {
             pairs       <- ZIO.collectAll(zioPairs)
@@ -52,6 +74,11 @@ object FakeDynamoDBExecutor {
         // TODO: implement - dummy for now
         case BatchWriteItem(requestItems, capacity, metrics, addList)                           =>
           println(s"BatchWriteItem $requestItems $capacity $metrics $addList")
+//          val xs: Seq[(TableName, Set[BatchWriteItem.Write])] = requestItems.toList
+//          val tableName                                       = TableName("tableName")
+//          val tableWrite = Put(Item("" -> ""))
+//          val x                                               = mapRef.update(m => m + )
+
           // TODO: we could execute in a loop
           ZIO.succeed(())
 
