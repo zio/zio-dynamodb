@@ -5,15 +5,6 @@ import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem, GetItem, PutItem }
 import zio.{ Ref, ULayer, ZIO }
 
-/*
-TODO
-- multi table
-val ddb = Database()
-              .table("table1", "k1")(primaryKey1 -> item1, primaryKey2 -> item2)
-              .table("table2", "k2")(primaryKey1 -> item1, primaryKey2 -> item2)
-
-test(...).provideLayer(FakeDynamoDBExecutor(ddb))
- */
 class Database(
   map: Map[String, Map[PrimaryKey, Item]] = Map.empty,
   tablePkMap: Map[String, String] = Map.empty
@@ -30,6 +21,7 @@ class Database(
   def remove(tableName: String, pk: PrimaryKey): Option[Database]                           =
     self.map.get(tableName).map(m => new Database(self.map + (tableName -> (m - pk)), self.tablePkMap))
 
+  def pkMap: Map[String, String]                                                            = self.tablePkMap
 }
 object Database {
   def apply() = new Database()
@@ -37,18 +29,13 @@ object Database {
 
 object FakeDynamoDBExecutor {
 
-  def apply(map: Map[String, Map[Item, Item]] = Map.empty[String, Map[Item, Item]])(
-    pkFields: String*
-  ): ULayer[DynamoDBExecutor] =
+  def apply(db: Database = Database()): ULayer[DynamoDBExecutor] =
     (for {
-      ref <- Ref.make(map)
-    } yield new Fake(ref, pkFields.toSet)).toLayer
+      ref <- Ref.make(db)
+    } yield new Fake(ref)).toLayer
 
-  class Fake(mapRef: Ref[Map[String, Map[Item, Item]]], pkFields: Set[String]) extends DynamoDBExecutor.Service {
-    override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A] = {
-      def getItem(map: Map[String, Map[Item, Item]], tableName: TableName, pk: PrimaryKey) =
-        map.get(tableName.value).flatMap(_.get(pk))
-
+  private[dynamodb] class Fake(mapRef: Ref[Database]) extends DynamoDBExecutor.Service { self =>
+    override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A] =
       atomicQuery match {
         case BatchGetItem(requestItems, _, _)                                                   =>
           println(s"BatchGetItem $requestItems")
@@ -57,7 +44,9 @@ object FakeDynamoDBExecutor {
           val zioPairs: Seq[ZIO[Any, Nothing, (TableName, Option[Item])]] = xs.toList.flatMap {
             case (tableName, setOfTableGet) =>
               val set: Set[ZIO[Any, Nothing, (TableName, Option[Item])]] =
-                setOfTableGet.map(tableGet => mapRef.get.map(m => (tableName, getItem(m, tableName, tableGet.key))))
+                setOfTableGet.map(tableGet =>
+                  mapRef.get.map(db => (tableName, db.getItem(tableName.value, tableGet.key)))
+                )
               set
           }
 
@@ -74,29 +63,23 @@ object FakeDynamoDBExecutor {
         // TODO: implement - dummy for now
         case BatchWriteItem(requestItems, capacity, metrics, addList)                           =>
           println(s"BatchWriteItem $requestItems $capacity $metrics $addList")
-//          val xs: Seq[(TableName, Set[BatchWriteItem.Write])] = requestItems.toList
-//          val tableName                                       = TableName("tableName")
-//          val tableWrite = Put(Item("" -> ""))
-//          val x                                               = mapRef.update(m => m + )
-
           // TODO: we could execute in a loop
           ZIO.succeed(())
 
         case GetItem(tableName, key, projections, readConsistency, capacity)                    =>
           println(s"GetItem $key $tableName $projections $readConsistency  $capacity")
-          mapRef.get.map( /*_.get(key)*/ getItem(_, tableName, key))
+          mapRef.get.map(_.getItem(tableName.value, key))
 
         case PutItem(tableName, item, conditionExpression, capacity, itemMetrics, returnValues) =>
           println(s"PutItemX $tableName $item $conditionExpression $capacity $itemMetrics $returnValues")
-          mapRef.update(map => map + (tableName.value -> Map(primaryKey(item) -> item))).unit
+          mapRef.update(db => db.put(tableName.value, primaryKey(db.pkMap)(item) -> item).getOrElse(db)).unit
 
         // TODO: remove
         case unknown                                                                            =>
           ZIO.fail(new Exception(s"Constructor $unknown not implemented yet"))
       }
-    }
 
-    def primaryKey: Item => PrimaryKey =
-      item => Item(item.map.filter { case (key, _) => pkFields.contains(key) })
+    def primaryKey(pkMap: Map[String, String]): Item => PrimaryKey =
+      item => Item(item.map.filter { case (key, _) => pkMap.isDefinedAt(key) })
   }
 }

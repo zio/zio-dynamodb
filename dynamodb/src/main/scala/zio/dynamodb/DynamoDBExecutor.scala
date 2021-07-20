@@ -45,6 +45,7 @@ object DynamoDBExecutor {
     def primaryKey(s: String)             = PrimaryKey(s -> s)
     def primaryKey(i: Int)                = PrimaryKey(s"$i" -> s"$i")
     val primaryKey1                       = PrimaryKey("k1" -> "k1")
+    val primaryKey1_2                     = PrimaryKey("k1" -> "k2")
     val primaryKey2                       = PrimaryKey("k2" -> "k2")
     val primaryKey3                       = PrimaryKey("k3" -> "k3")
 

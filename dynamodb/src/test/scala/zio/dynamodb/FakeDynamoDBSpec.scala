@@ -7,11 +7,12 @@ import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
 object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
 
   override def spec: ZSpec[Environment, Failure] = suite("FakeDynamoDB")(fakeDynamoDbSuite, fakeDatabaseSuite)
-  private val map                                = Map(
-    tableName1.value -> Map(primaryKey1 -> item1, primaryKey2 -> item2),
-    tableName3.value -> Map(primaryKey3 -> item3)
-  )
-  private val fakeDatabaseSuite                  = suite("FakeDatabase suite")(
+
+  private val db                = Database()
+    .table(tableName1.value, "k1")(primaryKey1 -> item1, primaryKey1_2 -> item1_2)
+    .table(tableName3.value, "k3")(primaryKey3 -> item3)
+
+  private val fakeDatabaseSuite = suite("FakeDatabase suite")(
     test("getItem returns Some item when created using table()") {
       val db = Database().table("t1", "k1")(primaryKey1 -> item1)
       assert(db.getItem("t1", primaryKey1))(equalTo(Some(item1)))
@@ -23,7 +24,7 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
     test("getItem returns Some item from correct table when there are multiple tables") {
       val db = Database()
         .table("t1", "k1")(primaryKey1 -> item1)
-        .table("t2", "k1")(primaryKey2 -> item2)
+        .table("t2", "k2")(primaryKey2 -> item2)
       assert(db.getItem("t1", primaryKey1))(equalTo(Some(item1))) && assert(db.getItem("t2", primaryKey2))(
         equalTo(Some(item2))
       )
@@ -47,13 +48,13 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
       )
     }
   )
-  private val fakeDynamoDbSuite                  = suite("FakeDynamoDB suite")(
+  private val fakeDynamoDbSuite = suite("FakeDynamoDB suite")(
     testM("getItem") {
       for {
         result  <- getItem1.execute
         expected = Some(item1)
       } yield assert(result)(equalTo(expected))
-    }.provideLayer(FakeDynamoDBExecutor(map)("k1")),
+    }.provideLayer(FakeDynamoDBExecutor(db)),
 //    testM("putItem then getItem") {
 //      for {
 //        _       <- putItem1.execute
@@ -63,9 +64,9 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
 //    }.provideLayer(FakeDynamoDBExecutor()("k1")),
     testM("should execute getItem1 zip getItem2 zip getItem3") {
       for {
-        assembled <- (getItem1 zip getItem2 zip getItem3).execute
-      } yield assert(assembled)(equalTo((Some(item1), Some(item2), Some(item3))))
-    }.provideLayer(FakeDynamoDBExecutor(map)("k1"))
+        assembled <- (getItem1 zip getItem1_2 zip getItem3).execute
+      } yield assert(assembled)(equalTo((Some(item1), Some(item1_2), Some(item3))))
+    }.provideLayer(FakeDynamoDBExecutor(db))
   )
 
 }
