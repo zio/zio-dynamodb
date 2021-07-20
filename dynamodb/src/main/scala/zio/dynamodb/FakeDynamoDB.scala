@@ -5,6 +5,14 @@ import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem, GetItem, PutIt
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.{ Ref, ULayer, ZIO }
 
+/*
+TODO
+- multi table
+val ddb = Database()
+              .table("T1", "K1")(primaryKey1 -> item1, primaryKey2 -> item2)
+              .table("T2", "K2")(primaryKey1 -> item1, primaryKey2 -> item2)
+test(...).provideLayer(FakeDynamoDBExecutor(ddb))
+ */
 object FakeDynamoDBExecutor {
 
   def apply(map: Map[Item, Item] = Map.empty[Item, Item])(
@@ -18,6 +26,7 @@ object FakeDynamoDBExecutor {
     override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A] =
       atomicQuery match {
         case BatchGetItem(requestItems, _, _)                                                   =>
+          println(s"BatchGetItem $requestItems")
           val xs: Seq[(TableName, Set[TableGet])] = requestItems.toList
 
           val zioPairs: Seq[ZIO[Any, Nothing, (TableName, Option[Item])]] = xs.toList.map {
@@ -39,16 +48,16 @@ object FakeDynamoDBExecutor {
 
         // TODO: implement - dummy for now
         case BatchWriteItem(requestItems, capacity, metrics, addList)                           =>
-          println(s"$requestItems $capacity $metrics $addList")
+          println(s"BatchWriteItem $requestItems $capacity $metrics $addList")
           // TODO: we could execute in a loop
           ZIO.succeed(())
 
         case GetItem(tableName, key, projections, readConsistency, capacity)                    =>
-          println(s"$key $tableName $projections $readConsistency  $capacity")
+          println(s"GetItem $key $tableName $projections $readConsistency  $capacity")
           mapRef.get.map(_.get(key))
 
         case PutItem(tableName, item, conditionExpression, capacity, itemMetrics, returnValues) =>
-          println(s"$tableName $item $conditionExpression $capacity $itemMetrics $returnValues")
+          println(s"PutItemX $tableName $item $conditionExpression $capacity $itemMetrics $returnValues")
           mapRef.update(map => map + (primaryKey(item) -> item)).unit
 
         // TODO: remove

@@ -15,14 +15,19 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
         result  <- getItem1.execute
         expected = Some(item1)
       } yield assert(result)(equalTo(expected))
-    },
+    }.provideLayer(FakeDynamoDBExecutor(map)("k1")),
+//    testM("putItem then getItem") {
+//      for {
+//        _       <- putItem1.execute
+//        result  <- getItem1.execute
+//        expected = Some(item1)
+//      } yield assert(result)(equalTo(expected))
+//    }.provideLayer(FakeDynamoDBExecutor()("k1")),
     testM("should execute getItem1 zip getItem2") {
       for {
         assembled <- (getItem1 zip getItem2).execute
       } yield assert(assembled)(equalTo((Some(item1), Some(item2))))
-    }
-  ).provideCustomLayer(
-    FakeDynamoDBExecutor(map)("a")
+    }.provideLayer(FakeDynamoDBExecutor(map)("k1"))
   )
 
 }
