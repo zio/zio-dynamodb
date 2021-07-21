@@ -6,7 +6,8 @@ import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
 
 object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
 
-  override def spec: ZSpec[Environment, Failure] = suite("FakeDynamoDB")(fakeDynamoDbSuite, fakeDatabaseSuite)
+  override def spec: ZSpec[Environment, Failure] =
+    suite("FakeDynamoDB")(fakeDynamoDbSuite, fakeDatabaseSuite)
 
   private val db                = Database()
     .table(tableName1.value, "k1")(primaryKey1 -> item1, primaryKey1_2 -> item1_2)
@@ -14,40 +15,41 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
 
   private val fakeDatabaseSuite = suite("FakeDatabase suite")(
     test("getItem returns Some item when created using table()") {
-      val db = Database().table("t1", "k1")(primaryKey1 -> item1)
-      assert(db.getItem("t1", primaryKey1))(equalTo(Some(item1)))
+      val db = Database().table("T1", "k1")(primaryKey1 -> item1)
+      assert(db.getItem("T1", primaryKey1))(equalTo(Some(item1)))
     },
     test("getItem returns None when primary key does not exist") {
-      val db = Database().table("t1", "k1")(primaryKey1 -> item1)
-      assert(db.getItem("t1", primaryKey2))(equalTo(None))
+      val db = Database().table("T1", "k1")(primaryKey1 -> item1)
+      assert(db.getItem("T1", primaryKey2))(equalTo(None))
     },
     test("getItem returns Some item from correct table when there are multiple tables") {
       val db = Database()
-        .table("t1", "k1")(primaryKey1 -> item1)
+        .table("T1", "k1")(primaryKey1 -> item1)
         .table("t2", "k2")(primaryKey2 -> item2)
-      assert(db.getItem("t1", primaryKey1))(equalTo(Some(item1))) && assert(db.getItem("t2", primaryKey2))(
+      assert(db.getItem("T1", primaryKey1))(equalTo(Some(item1))) && assert(db.getItem("t2", primaryKey2))(
         equalTo(Some(item2))
       )
     },
     test("put() updates a table created using table()") {
-      val db            = Database().table("t1", "k1")()
-      val maybeDatabase = db.put("t1", primaryKey1 -> item1)
-      assert(db.getItem("t1", primaryKey1))(equalTo(None)) && assert(
-        maybeDatabase.map(_.getItem("t1", primaryKey1)).flatten
+      val db            = Database().table("T1", "k1")()
+      val maybeDatabase = db.put("T1", item1)
+      assert(db.getItem("T1", primaryKey1))(equalTo(None)) && assert(
+        maybeDatabase.map(_.getItem("T1", primaryKey1)).flatten
       )(
         equalTo(Some(item1))
       )
     },
     test("remove() removes an entry created using table()") {
-      val db            = Database().table("t1", "k1")(primaryKey1 -> item1)
-      val maybeDatabase = db.remove("t1", primaryKey1)
-      assert(db.getItem("t1", primaryKey1))(equalTo(Some(item1))) && assert(
-        maybeDatabase.map(_.getItem("t1", primaryKey1)).flatten
+      val db            = Database().table("T1", "k1")(primaryKey1 -> item1)
+      val maybeDatabase = db.remove("T1", primaryKey1)
+      assert(db.getItem("T1", primaryKey1))(equalTo(Some(item1))) && assert(
+        maybeDatabase.map(_.getItem("T1", primaryKey1)).flatten
       )(
         equalTo(None)
       )
     }
   )
+
   private val fakeDynamoDbSuite = suite("FakeDynamoDB suite")(
     testM("getItem") {
       for {
@@ -55,13 +57,15 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
         expected = Some(item1)
       } yield assert(result)(equalTo(expected))
     }.provideLayer(FakeDynamoDBExecutor(db)),
-//    testM("putItem then getItem") {
-//      for {
-//        _       <- putItem1.execute
-//        result  <- getItem1.execute
-//        expected = Some(item1)
-//      } yield assert(result)(equalTo(expected))
-//    }.provideLayer(FakeDynamoDBExecutor()("k1")),
+    testM("should execute putItem then getItem when sequenced in a ZIO") {
+      for {
+        _       <- putItem1.execute
+        result  <- getItem1.execute
+        expected = Some(item1)
+      } yield assert(result)(equalTo(expected))
+    }.provideLayer(
+      FakeDynamoDBExecutor(Database().table(tableName1.value, "k1")())
+    ),
     testM("should execute getItem1 zip getItem2 zip getItem3") {
       for {
         assembled <- (getItem1 zip getItem1_2 zip getItem3).execute

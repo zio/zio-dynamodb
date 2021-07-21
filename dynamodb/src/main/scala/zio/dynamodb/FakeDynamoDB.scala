@@ -3,28 +3,31 @@ package zio.dynamodb
 import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem, GetItem, PutItem }
-import zio.{ Ref, ULayer, ZIO }
+import zio.{ Ref, UIO, ULayer, ZIO }
 
-class Database(
+case class Database(
   map: Map[String, Map[PrimaryKey, Item]] = Map.empty,
   tablePkMap: Map[String, String] = Map.empty
-)               { self =>
+) { self =>
   def getItem(tableName: String, pk: PrimaryKey): Option[Item] =
     self.map.get(tableName).flatMap(_.get(pk))
 
+  // TODO: have just one param list to prevent () in the empty table case
   def table(tableName: String, pkFieldName: String)(entries: (PrimaryKey, Item)*): Database =
-    new Database(self.map + (tableName -> entries.toMap), self.tablePkMap + (tableName -> pkFieldName))
+    Database(self.map + (tableName -> entries.toMap), self.tablePkMap + (tableName -> pkFieldName))
 
-  def put(tableName: String, entry: (PrimaryKey, Item)): Option[Database]                   =
-    self.map.get(tableName).map(m => new Database(self.map + (tableName -> (m + entry)), self.tablePkMap))
+  // TODO: consider returning just Database
+  def put(tableName: String, item: Item): Option[Database]                                  =
+    tablePkMap.get(tableName).flatMap { pkName =>
+      val pk    = Item(item.map.filter { case (key, _) => key == pkName })
+      val entry = pk -> item
+      println(s"put2 entry=$entry")
+      self.map.get(tableName).map(m => Database(self.map + (tableName -> (m + entry)), self.tablePkMap))
+    }
 
-  def remove(tableName: String, pk: PrimaryKey): Option[Database]                           =
-    self.map.get(tableName).map(m => new Database(self.map + (tableName -> (m - pk)), self.tablePkMap))
-
-  def pkMap: Map[String, String]                                                            = self.tablePkMap
-}
-object Database {
-  def apply() = new Database()
+  // TODO: consider returning just Database
+  def remove(tableName: String, pk: PrimaryKey): Option[Database] =
+    self.map.get(tableName).map(m => Database(self.map + (tableName -> (m - pk)), self.tablePkMap))
 }
 
 object FakeDynamoDBExecutor {
@@ -34,7 +37,7 @@ object FakeDynamoDBExecutor {
       ref <- Ref.make(db)
     } yield new Fake(ref)).toLayer
 
-  private[dynamodb] class Fake(mapRef: Ref[Database]) extends DynamoDBExecutor.Service { self =>
+  private[dynamodb] class Fake(dbRef: Ref[Database]) extends DynamoDBExecutor.Service { self =>
     override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A] =
       atomicQuery match {
         case BatchGetItem(requestItems, _, _)                                                   =>
@@ -43,11 +46,7 @@ object FakeDynamoDBExecutor {
 
           val zioPairs: Seq[ZIO[Any, Nothing, (TableName, Option[Item])]] = xs.toList.flatMap {
             case (tableName, setOfTableGet) =>
-              val set: Set[ZIO[Any, Nothing, (TableName, Option[Item])]] =
-                setOfTableGet.map(tableGet =>
-                  mapRef.get.map(db => (tableName, db.getItem(tableName.value, tableGet.key)))
-                )
-              set
+              setOfTableGet.map(tableGet => dbRef.get.map(db => (tableName, db.getItem(tableName.value, tableGet.key))))
           }
 
           val response: ZIO[Any, Nothing, BatchGetItem.Response] = for {
@@ -60,26 +59,43 @@ object FakeDynamoDBExecutor {
 
           response
 
-        // TODO: implement - dummy for now
         case BatchWriteItem(requestItems, capacity, metrics, addList)                           =>
           println(s"BatchWriteItem $requestItems $capacity $metrics $addList")
+          val xs: Seq[(TableName, Set[BatchWriteItem.Write])] = requestItems.toList
+          val results: Seq[UIO[Unit]]                         = xs.flatMap {
+            case (tableName, setOfWrite) =>
+              setOfWrite.map { write =>
+                dbRef.update { db =>
+                  write match {
+                    case BatchWriteItem.Put(item)  =>
+                      val maybeDatabase = db.put(tableName.value, item)
+                      maybeDatabase.getOrElse(db)
+                    case BatchWriteItem.Delete(pk) =>
+                      db.remove(tableName.value, pk).getOrElse(db)
+                  }
+                }
+              }
+
+          }
           // TODO: we could execute in a loop
-          ZIO.succeed(())
+          ZIO.collectAll_(results)
 
         case GetItem(tableName, key, projections, readConsistency, capacity)                    =>
-          println(s"GetItem $key $tableName $projections $readConsistency  $capacity")
-          mapRef.get.map(_.getItem(tableName.value, key))
+          println(s"FakeDynamoDBExecutor GetItem $key $tableName $projections $readConsistency  $capacity")
+          dbRef.get.map(_.getItem(tableName.value, key))
 
         case PutItem(tableName, item, conditionExpression, capacity, itemMetrics, returnValues) =>
-          println(s"PutItemX $tableName $item $conditionExpression $capacity $itemMetrics $returnValues")
-          mapRef.update(db => db.put(tableName.value, primaryKey(db.pkMap)(item) -> item).getOrElse(db)).unit
+          println(
+            s"FakeDynamoDBExecutor PutItem $tableName $item $conditionExpression $capacity $itemMetrics $returnValues"
+          )
+          dbRef.update(db => db.put(tableName.value, item).getOrElse(db)).unit
+
+        // TODO: implement remaining constructors
 
         // TODO: remove
         case unknown                                                                            =>
           ZIO.fail(new Exception(s"Constructor $unknown not implemented yet"))
       }
 
-    def primaryKey(pkMap: Map[String, String]): Item => PrimaryKey =
-      item => Item(item.map.filter { case (key, _) => pkMap.isDefinedAt(key) })
   }
 }
