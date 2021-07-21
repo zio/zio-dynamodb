@@ -2,7 +2,7 @@ package zio.dynamodb
 
 import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
-import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem, GetItem, PutItem }
+import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem, DeleteItem, GetItem, PutItem, UpdateItem }
 import zio.{ Ref, UIO, ULayer, ZIO }
 
 case class Database(
@@ -40,7 +40,7 @@ object FakeDynamoDBExecutor {
   private[dynamodb] class Fake(dbRef: Ref[Database]) extends DynamoDBExecutor.Service { self =>
     override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A] =
       atomicQuery match {
-        case BatchGetItem(requestItems, _, _)                                                   =>
+        case BatchGetItem(requestItems, _, _)                                                     =>
           println(s"BatchGetItem $requestItems")
           val xs: Seq[(TableName, Set[TableGet])] = requestItems.toList
 
@@ -59,7 +59,7 @@ object FakeDynamoDBExecutor {
 
           response
 
-        case BatchWriteItem(requestItems, capacity, metrics, addList)                           =>
+        case BatchWriteItem(requestItems, capacity, metrics, addList)                             =>
           println(s"BatchWriteItem $requestItems $capacity $metrics $addList")
           val xs: Seq[(TableName, Set[BatchWriteItem.Write])] = requestItems.toList
           val results: Seq[UIO[Unit]]                         = xs.flatMap {
@@ -80,20 +80,28 @@ object FakeDynamoDBExecutor {
           // TODO: we could execute in a loop
           ZIO.collectAll_(results)
 
-        case GetItem(tableName, key, projections, readConsistency, capacity)                    =>
+        case GetItem(tableName, key, projections, readConsistency, capacity)                      =>
           println(s"FakeDynamoDBExecutor GetItem $key $tableName $projections $readConsistency  $capacity")
           dbRef.get.map(_.getItem(tableName.value, key))
 
-        case PutItem(tableName, item, conditionExpression, capacity, itemMetrics, returnValues) =>
+        case PutItem(tableName, item, conditionExpression, capacity, itemMetrics, returnValues)   =>
           println(
             s"FakeDynamoDBExecutor PutItem $tableName $item $conditionExpression $capacity $itemMetrics $returnValues"
           )
           dbRef.update(db => db.put(tableName.value, item).getOrElse(db)).unit
 
+        // TODO Note UpdateItem is not supported as it uses an UpdateExpression
+        case UpdateItem(_, _, _, _, _, _, _)                                                      =>
+          ZIO.succeed(())
+
+        case DeleteItem(tableName, key, conditionExpression, capacity, itemMetrics, returnValues) =>
+          println(s"$tableName $key $conditionExpression $capacity $itemMetrics $returnValues")
+          dbRef.update(db => db.remove(tableName.value, key).getOrElse(db)).unit
+
         // TODO: implement remaining constructors
 
         // TODO: remove
-        case unknown                                                                            =>
+        case unknown                                                                              =>
           ZIO.fail(new Exception(s"Constructor $unknown not implemented yet"))
       }
 
