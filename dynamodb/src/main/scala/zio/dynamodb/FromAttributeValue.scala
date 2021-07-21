@@ -7,6 +7,9 @@ trait FromAttributeValue[+A] {
 
 object FromAttributeValue {
 
+  // TODO:
+  implicit def optionFromAttributeValue2[A](implicit ev: FromAttributeValue[A]): FromAttributeValue[Option[A]] = ???
+
   implicit val stringFromAttributeValue2: FromAttributeValue[String] = {
     case AttributeValue.String(s) => Some(s)
     case _                        => None

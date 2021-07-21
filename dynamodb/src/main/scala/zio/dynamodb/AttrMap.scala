@@ -4,6 +4,18 @@ import scala.annotation.tailrec
 
 final case class AttrMap(map: Map[String, AttributeValue]) {
 
+  // overload get
+  def as[A: FromAttributeValue, B: FromAttributeValue, C: FromAttributeValue, D](f: (A, B, C) => D)(
+    field1: String,
+    field2: String,
+    field3: String
+  ): Either[String, D] =
+    for {
+      a <- get[A](field1)
+      b <- get[B](field2)
+      c <- get[C](field3)
+    } yield f(a, b, c)
+
   def get[A](field: String)(implicit ev: FromAttributeValue[A]): Either[String, A] =
     map.get(field).flatMap(ev.fromAttributeValue).toRight(s"field '$field' not found")
 

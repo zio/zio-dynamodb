@@ -83,11 +83,7 @@ object SerialisationExample extends App {
       categorySet <- m.get[Set[String]]("categorySet")
       optSet      <- m.getOpt[Set[String]]("optSet")
       address     <- m.getOptionalItem("address") { m =>
-                       for {
-                         line1   <- m.get[String]("line1")
-                         line2   <- m.getOpt[String]("line2")
-                         country <- m.get[String]("country")
-                       } yield Address(line1, line2, country)
+                       m.as(Address(_, _, _))("line1", "line2", "country")
                      }
       lineItems   <- m.getIterableItem[LineItem]("lineItems") { m =>
                        for {
