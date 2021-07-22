@@ -1,7 +1,7 @@
 package zio.dynamodb.fake
 
 import zio.dynamodb.DynamoDBExecutor.TestData._
-import zio.dynamodb.DynamoDBQuery.DeleteItem
+import zio.dynamodb.DynamoDBQuery.{ scanSome, DeleteItem }
 import zio.dynamodb.{ BatchingFixtures, PrimaryKey }
 import zio.test.Assertion._
 import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
@@ -45,6 +45,17 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
       } yield assert(result1)(equalTo(expected)) && assert(result2)(equalTo(None))
     }.provideLayer(
       FakeDynamoDBExecutor(dbWithTwoTables)
+    ),
+    testM("should scan all items in a table") {
+      for {
+        t           <- scanSome(tableName1.value, "k1", 10).execute
+        (chunk, lek) = t
+      } yield assert(chunk.length)(equalTo(5)) && assert(lek)(equalTo(None))
+    }.provideLayer(
+      FakeDynamoDBExecutor(
+        Database()
+          .table(tableName1.value, "k1")(tableEntries(1 to 5, "k1"): _*)
+      )
     )
   )
 

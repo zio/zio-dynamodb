@@ -9,6 +9,8 @@ object DatabaseSpec extends DefaultRunnableSpec with BatchingFixtures {
   override def spec: ZSpec[Environment, Failure] =
     suite("FakeDynamoDB")(fakeDatabaseSuite)
 
+  private val dbWithEmptyTable = Database().table(tableName1.value, "k1")()
+
   private val dbWithFiveItems = Database()
     .table(tableName1.value, "k1")(tableEntries(1 to 5, "k1"): _*)
 
@@ -40,12 +42,27 @@ object DatabaseSpec extends DefaultRunnableSpec with BatchingFixtures {
     },
     test("remove() removes an entry created using table()") {
       val db            = Database().table("T1", "k1")(primaryKey1 -> item1)
-      val maybeDatabase = db.remove("T1", primaryKey1)
+      val maybeDatabase = db.delete("T1", primaryKey1)
       assert(db.getItem("T1", primaryKey1))(equalTo(Some(item1))) && assert(
         maybeDatabase.map(_.getItem("T1", primaryKey1)).flatten
       )(
         equalTo(None)
       )
+    },
+    test("""scanSome("T1", None, 2) on an empty table""") {
+      val db           = dbWithEmptyTable
+      val (chunk, lek) = db.scanSome("T1", None, 2)
+      assert(chunk.length)(equalTo(0)) && assert(lek)(equalTo(None))
+    },
+    test("""scanSome("T1", Some(PrimaryKey("k1" -> 1)), 2) on an empty table""") {
+      val db           = dbWithEmptyTable
+      val (chunk, lek) = db.scanSome("T1", Some(PrimaryKey("k1" -> 1)), 2)
+      assert(chunk.length)(equalTo(0)) && assert(lek)(equalTo(None))
+    },
+    test("""scanSome("T1", None, 10) on 5 Items""") {
+      val db           = dbWithFiveItems
+      val (chunk, lek) = db.scanSome("T1", None, 10)
+      assert(chunk)(equalToItems(1 to 5)) && assert(lek)(equalTo(None))
     },
     test("""scanSome("T1", None, 2) on 5 Items""") {
       val db           = dbWithFiveItems
@@ -69,8 +86,6 @@ object DatabaseSpec extends DefaultRunnableSpec with BatchingFixtures {
     }
   )
 
-  private def tableEntries(r: Range, pkFieldName: String)                      =
-    r.map(i => (PrimaryKey(pkFieldName -> i), Item(pkFieldName -> i, "k2" -> (i + 1)))).toList
   private def equalToLastEvaluatedKey(value: Int): Assertion[LastEvaluatedKey] =
     equalTo(Some(PrimaryKey("k1" -> value)))
   private def equalToItems(range: Range): Assertion[Seq[Item]] = {

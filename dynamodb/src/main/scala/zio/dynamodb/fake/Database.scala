@@ -24,7 +24,7 @@ case class Database(
     }
 
   // TODO: consider returning just Database
-  def remove(tableName: String, pk: PrimaryKey): Option[Database] =
+  def delete(tableName: String, pk: PrimaryKey): Option[Database] =
     self.map.get(tableName).map(m => Database(self.map + (tableName -> (m - pk)), self.tablePkMap))
 
   def scanSome(tableName: String, exclusiveStartKey: LastEvaluatedKey, limit: Int): (Chunk[Item], LastEvaluatedKey) = {

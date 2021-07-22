@@ -24,4 +24,7 @@ trait BatchingFixtures {
   // TODO: replace this with putItem1_2
   val putItem2    = PutItem(tableName = tableName1, item = Item("k2" -> "k2"))
   val deleteItem1 = DeleteItem(tableName = tableName1, key = PrimaryKey.empty)
+
+  def tableEntries(r: Range, pkFieldName: String) =
+    r.map(i => (PrimaryKey(pkFieldName -> i), Item(pkFieldName -> i, "k2" -> (i + 1)))).toList
 }

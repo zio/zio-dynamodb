@@ -1,12 +1,10 @@
 package zio.dynamodb.fake
 
 import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
-import zio.dynamodb._
-import zio.dynamodb.DynamoDBExecutor.TestData.emptyItem
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
-import zio.dynamodb.DynamoDBQuery
 import zio.dynamodb.DynamoDBQuery._
-import zio.{ Chunk, Ref, UIO, ULayer, ZIO }
+import zio.dynamodb.{ DynamoDBQuery, _ }
+import zio.{ Ref, UIO, ULayer, ZIO }
 
 object FakeDynamoDBExecutor {
 
@@ -50,7 +48,7 @@ object FakeDynamoDBExecutor {
                       val maybeDatabase = db.put(tableName.value, item)
                       maybeDatabase.getOrElse(db)
                     case BatchWriteItem.Delete(pk) =>
-                      db.remove(tableName.value, pk).getOrElse(db)
+                      db.delete(tableName.value, pk).getOrElse(db)
                   }
                 }
               }
@@ -75,25 +73,23 @@ object FakeDynamoDBExecutor {
 
         case DeleteItem(tableName, key, conditionExpression, capacity, itemMetrics, returnValues) =>
           println(s"$tableName $key $conditionExpression $capacity $itemMetrics $returnValues")
-          dbRef.update(db => db.remove(tableName.value, key).getOrElse(db)).unit
+          dbRef.update(db => db.delete(tableName.value, key).getOrElse(db)).unit
 
-        case QuerySome(
+        case ScanSome(
               tableName,
-              indexName,
-              _,
-              exclusiveStartKey,
-              _,
               _,
               limit,
+              _,
+              exclusiveStartKey,
               _,
               _,
               _,
               _
             ) =>
           println(
-            s"$tableName, $indexName, $exclusiveStartKey, $limit"
+            s"FakeDynamoDBExecutor $tableName, $limit, $exclusiveStartKey"
           )
-          ZIO.succeed((Chunk(emptyItem), None))
+          dbRef.get.map(_.scanSome(tableName.value, exclusiveStartKey, limit))
 
         // TODO: implement remaining constructors
 
