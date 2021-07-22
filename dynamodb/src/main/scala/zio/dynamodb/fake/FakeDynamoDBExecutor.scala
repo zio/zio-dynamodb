@@ -15,7 +15,8 @@ object FakeDynamoDBExecutor {
       ref <- Ref.make(db)
     } yield new Fake(ref)).toLayer
 
-  private[dynamodb] class Fake(dbRef: Ref[Database]) extends DynamoDBExecutor.Service { self =>
+  private[fake] class Fake(dbRef: Ref[Database]) extends DynamoDBExecutor.Service { self =>
+
     override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A] =
       atomicQuery match {
         case BatchGetItem(requestItems, _, _)                                                     =>

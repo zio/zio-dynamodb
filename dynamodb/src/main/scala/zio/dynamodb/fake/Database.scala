@@ -32,7 +32,7 @@ case class Database(
     val items: (Chunk[Item], LastEvaluatedKey) = (for {
       itemMap <- self.map.get(tableName)
       pkName  <- tablePkMap.get(tableName)
-      xs      <- Some(range(sort(itemMap.toList, pkName), exclusiveStartKey, limit))
+      xs      <- Some(slice(sort(itemMap.toList, pkName), exclusiveStartKey, limit))
     } yield xs).getOrElse((Chunk.empty, None))
     items
   }
@@ -46,33 +46,28 @@ case class Database(
         }
     }
 
-  private def range(
+  private def slice(
     xs: Seq[TableEntry],
     exclusiveStartKey: LastEvaluatedKey,
     limit: Int
-  ): (Chunk[Item], LastEvaluatedKey) = {
-    val index = nextIndex(xs, exclusiveStartKey)
-    if (index > -1) {
+  ): (Chunk[Item], LastEvaluatedKey) =
+    maybeNextIndex(xs, exclusiveStartKey).map { index =>
       val subset         = xs.slice(index, index + limit)
       val x: Chunk[Item] = Chunk.fromIterable(subset.map(_._2))
       val lek            = if (index + limit >= xs.length) None else Some(subset.last._1)
       (x, lek)
-    } else
-      (Chunk.empty, None)
-  }
+    }.getOrElse((Chunk.empty, None))
 
-  // TODO: make return type Option
-  // returns -1 if is exclusiveStartKey is not found, else next index
-  private def nextIndex(xs: Seq[TableEntry], exclusiveStartKey: LastEvaluatedKey): Int =
-    exclusiveStartKey.fold(0) { pk =>
+  private def maybeNextIndex(xs: Seq[TableEntry], exclusiveStartKey: LastEvaluatedKey): Option[Int] =
+    exclusiveStartKey.fold[Option[Int]](Some(0)) { pk =>
       val foundIndex      = xs.indexWhere { case (pk2, _) => pk2 == pk }
       val afterFoundIndex =
-        if (foundIndex == -1) -1
-        else math.min(foundIndex + 1, xs.length)
+        if (foundIndex == -1) None
+        else Some(math.min(foundIndex + 1, xs.length))
       afterFoundIndex
     }
 
-  // TODO: I lost the will to live here. TODO come up with a correct ordering scheme
+  // TODO come up with a correct ordering scheme - for now orderings are only correct for scalar types
   private def attributeValueOrdering(left: AttributeValue, right: AttributeValue): Boolean =
     (left, right) match {
       case (AttributeValue.Binary(valueL), AttributeValue.Binary(valueR))       =>
