@@ -1,7 +1,8 @@
-package zio.dynamodb
+package zio.dynamodb.fake
 
 import zio.dynamodb.DynamoDBExecutor.TestData._
 import zio.dynamodb.DynamoDBQuery.DeleteItem
+import zio.dynamodb.{ BatchingFixtures, Item, LastEvaluatedKey, PrimaryKey }
 import zio.test.Assertion._
 import zio.test.{ assert, Assertion, DefaultRunnableSpec, ZSpec }
 
