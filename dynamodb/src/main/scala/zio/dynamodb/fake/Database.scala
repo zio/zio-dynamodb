@@ -20,7 +20,6 @@ case class Database(
     tablePkMap.get(tableName).flatMap { pkName =>
       val pk    = Item(item.map.filter { case (key, _) => key == pkName })
       val entry = pk -> item
-      println(s"put2 entry=$entry")
       self.map.get(tableName).map(m => Database(self.map + (tableName -> (m + entry)), self.tablePkMap))
     }
 
@@ -52,10 +51,10 @@ case class Database(
     limit: Int
   ): (Chunk[Item], LastEvaluatedKey) =
     maybeNextIndex(xs, exclusiveStartKey).map { index =>
-      val subset         = xs.slice(index, index + limit)
-      val x: Chunk[Item] = Chunk.fromIterable(subset.map(_._2))
-      val lek            = if (index + limit >= xs.length) None else Some(subset.last._1)
-      (x, lek)
+      val slice              = xs.slice(index, index + limit)
+      val chunk: Chunk[Item] = Chunk.fromIterable(slice.map(_._2))
+      val lek                = if (index + limit >= xs.length) None else Some(slice.last._1)
+      (chunk, lek)
     }.getOrElse((Chunk.empty, None))
 
   private def maybeNextIndex(xs: Seq[TableEntry], exclusiveStartKey: LastEvaluatedKey): Option[Int] =
