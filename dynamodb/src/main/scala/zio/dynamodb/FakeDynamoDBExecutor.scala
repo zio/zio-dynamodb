@@ -6,19 +6,22 @@ import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem, DeleteItem, GetItem, PutItem, QuerySome, UpdateItem }
 import zio.{ Chunk, Ref, UIO, ULayer, ZIO }
 
+// TODO: move to own fake package
 case class Database(
   map: Map[String, Map[PrimaryKey, Item]] = Map.empty,
   tablePkMap: Map[String, String] = Map.empty
-) { self =>
+)               { self =>
+  import Database._
+
   def getItem(tableName: String, pk: PrimaryKey): Option[Item] =
     self.map.get(tableName).flatMap(_.get(pk))
 
   // TODO: have just one param list to prevent () in the empty table case
-  def table(tableName: String, pkFieldName: String)(entries: (PrimaryKey, Item)*): Database =
+  def table(tableName: String, pkFieldName: String)(entries: TableEntry*): Database =
     Database(self.map + (tableName -> entries.toMap), self.tablePkMap + (tableName -> pkFieldName))
 
   // TODO: consider returning just Database
-  def put(tableName: String, item: Item): Option[Database]                                  =
+  def put(tableName: String, item: Item): Option[Database]                          =
     tablePkMap.get(tableName).flatMap { pkName =>
       val pk    = Item(item.map.filter { case (key, _) => key == pkName })
       val entry = pk -> item
@@ -39,7 +42,7 @@ case class Database(
     items
   }
 
-  private def sort(xs: Seq[(PrimaryKey, Item)], pkName: String): Seq[(PrimaryKey, Item)] =
+  private def sort(xs: Seq[TableEntry], pkName: String): Seq[TableEntry] =
     xs.toList.sortWith {
       case ((pkL, _), (pkR, _)) =>
         (pkL.map.get(pkName), pkR.map.get(pkName)) match {
@@ -49,7 +52,7 @@ case class Database(
     }
 
   private def range(
-    xs: Seq[(PrimaryKey, Item)],
+    xs: Seq[TableEntry],
     exclusiveStartKey: LastEvaluatedKey,
     limit: Int
   ): (Chunk[Item], LastEvaluatedKey) = {
@@ -57,14 +60,15 @@ case class Database(
     if (index > -1) {
       val subset         = xs.slice(index, index + limit)
       val x: Chunk[Item] = Chunk.fromIterable(subset.map(_._2))
-      (x, Some(subset.last._1))
+      val lek            = if (index + limit >= xs.length) None else Some(subset.last._1)
+      (x, lek)
     } else
       (Chunk.empty, None)
   }
 
-  // TODO: signal last record read somehow, and feed that back as a None upstream
+  // TODO: make return type Option
   // returns -1 if is exclusiveStartKey is not found, else next index
-  private def nextIndex(xs: Seq[(PrimaryKey, Item)], exclusiveStartKey: LastEvaluatedKey): Int =
+  private def nextIndex(xs: Seq[TableEntry], exclusiveStartKey: LastEvaluatedKey): Int =
     exclusiveStartKey.fold(0) { pk =>
       val foundIndex      = xs.indexWhere { case (pk2, _) => pk2 == pk }
       val afterFoundIndex =
@@ -94,6 +98,9 @@ case class Database(
         valueL.toString.compareTo(valueR.toString) < 0
       case _                                                                    => false
     }
+}
+object Database {
+  type TableEntry = (PrimaryKey, Item)
 }
 
 object FakeDynamoDBExecutor {
