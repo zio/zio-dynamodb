@@ -83,6 +83,11 @@ object DatabaseSpec extends DefaultRunnableSpec with BatchingFixtures {
       val db           = dbWithFiveItems
       val (chunk, lek) = db.scanSome("T1", Some(PrimaryKey("k1" -> 4)), 2)
       assert(chunk)(equalToItems(5 to 5)) && assert(lek)(isNone)
+    },
+    test("""scanAll("T1") on 5 Items""") {
+      val db    = dbWithFiveItems
+      val chunk = db.scanAll("T1")
+      assert(chunk)(equalToItems(1 to 5))
     }
   )
 

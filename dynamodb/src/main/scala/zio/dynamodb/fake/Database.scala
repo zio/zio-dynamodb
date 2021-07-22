@@ -36,6 +36,13 @@ case class Database(
     items
   }
 
+  def scanAll(tableName: String): Chunk[Item] =
+    (for {
+      itemMap <- self.map.get(tableName)
+      pkName  <- tablePkMap.get(tableName)
+      xs      <- Some(sort(itemMap.toList, pkName).map(_._2))
+    } yield Chunk.fromIterable(xs)).getOrElse(Chunk.empty)
+
   private def sort(xs: Seq[TableEntry], pkName: String): Seq[TableEntry] =
     xs.toList.sortWith {
       case ((pkL, _), (pkR, _)) =>
