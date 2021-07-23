@@ -21,13 +21,20 @@ object FakeDynamoDBExecutor {
           println(s"BatchGetItem $requestItems")
           val xs: Seq[(TableName, Set[TableGet])] = requestItems.toList
 
-          val zioPairs: Seq[ZIO[Any, Nothing, (TableName, Option[Item])]] = xs.toList.flatMap {
-            case (tableName, setOfTableGet) =>
-              setOfTableGet.map(tableGet => dbRef.get.map(db => (tableName, db.getItem(tableName.value, tableGet.key))))
-          }
+          val zioPairs: ZIO[Any, DatabaseError, Seq[(TableName, Option[Item])]] =
+            ZIO
+              .foreach(xs) {
+                case (tableName, setOfTableGet) =>
+                  ZIO.foreach(setOfTableGet) { tableGet =>
+                    dbRef.get.flatMap { db =>
+                      ZIO.fromEither(db.getItem2(tableName.value, tableGet.key)).map((tableName, _))
+                    }
+                  }
+              }
+              .map(_.flatten)
 
-          val response: ZIO[Any, Nothing, BatchGetItem.Response] = for {
-            pairs       <- ZIO.collectAll(zioPairs)
+          val response: ZIO[Any, DatabaseError, BatchGetItem.Response] = for {
+            pairs       <- zioPairs
             pairFiltered = pairs.collect { case (tableName, Some(item)) => (tableName, item) }
             mapOfSet     = pairFiltered.foldLeft[MapOfSet[TableName, Item]](MapOfSet.empty) {
                              case (acc, (tableName, listOfItems)) => acc + (tableName -> listOfItems)

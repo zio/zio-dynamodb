@@ -3,10 +3,16 @@ package zio.dynamodb.fake
 import zio.Chunk
 import zio.dynamodb.{ AttributeValue, Item, LastEvaluatedKey, PrimaryKey }
 
-case class Database(
+trait DatabaseError                                    extends Exception
+final case class TableDoesNotExists(tableName: String) extends DatabaseError
+
+final case class Database(
   map: Map[String, Map[PrimaryKey, Item]] = Map.empty,
   tablePkMap: Map[String, String] = Map.empty
 ) { self =>
+
+  def getItem2(tableName: String, pk: PrimaryKey): Either[DatabaseError, Option[Item]] =
+    self.map.get(tableName).map(_.get(pk)).toRight(TableDoesNotExists(tableName))
 
   def getItem(tableName: String, pk: PrimaryKey): Option[Item] =
     self.map.get(tableName).flatMap(_.get(pk))
