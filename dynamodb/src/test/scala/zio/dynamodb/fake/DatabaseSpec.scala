@@ -17,36 +17,36 @@ object DatabaseSpec extends DefaultRunnableSpec with BatchingFixtures {
   private val fakeDatabaseSuite = suite("FakeDatabase suite")(
     test("getItem returns Some item when created using table()") {
       val db = Database().table("T1", "k1")(primaryKey1 -> item1)
-      assert(db.getItem("T1", primaryKey1))(equalTo(Some(item1)))
+      assert(db.getItem2("T1", primaryKey1))(equalTo(Right(Some(item1))))
     },
     test("getItem returns None when primary key does not exist") {
       val db = Database().table("T1", "k1")(primaryKey1 -> item1)
-      assert(db.getItem("T1", primaryKey2))(equalTo(None))
+      assert(db.getItem2("T1", primaryKey2))(equalTo(Right(None)))
     },
     test("getItem returns Some item from correct table when there are multiple tables") {
       val db = Database()
         .table("T1", "k1")(primaryKey1 -> item1)
         .table("t2", "k2")(primaryKey2 -> item2)
-      assert(db.getItem("T1", primaryKey1))(equalTo(Some(item1))) && assert(db.getItem("t2", primaryKey2))(
+      assert(db.getItem2("T1", primaryKey1))(equalTo(Right(Some(item1)))) && assert(db.getItem("t2", primaryKey2))(
         equalTo(Some(item2))
       )
     },
     test("put() updates a table created using table()") {
-      val db            = Database().table("T1", "k1")()
-      val maybeDatabase = db.put("T1", item1)
+      val db              = Database().table("T1", "k1")()
+      val errorOrDatabase = db.put("T1", item1)
       assert(db.getItem("T1", primaryKey1))(equalTo(None)) && assert(
-        maybeDatabase.map(_.getItem("T1", primaryKey1)).flatten
+        errorOrDatabase.flatMap(_.getItem2("T1", primaryKey1))
       )(
-        equalTo(Some(item1))
+        equalTo(Right(Some(item1)))
       )
     },
     test("remove() removes an entry created using table()") {
-      val db            = Database().table("T1", "k1")(primaryKey1 -> item1)
-      val maybeDatabase = db.delete("T1", primaryKey1)
-      assert(db.getItem("T1", primaryKey1))(equalTo(Some(item1))) && assert(
-        maybeDatabase.map(_.getItem("T1", primaryKey1)).flatten
+      val db        = Database().table("T1", "k1")(primaryKey1 -> item1)
+      val errorOrDb = db.delete("T1", primaryKey1)
+      assert(db.getItem2("T1", primaryKey1))(equalTo(Right(Some(item1)))) && assert(
+        errorOrDb.flatMap(_.getItem2("T1", primaryKey1))
       )(
-        equalTo(None)
+        equalTo(Right(None))
       )
     },
     test("""scanSome("T1", None, 2) on an empty table""") {

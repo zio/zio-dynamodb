@@ -22,16 +22,22 @@ final case class Database(
     Database(self.map + (tableName -> entries.toMap), self.tablePkMap + (tableName -> pkFieldName))
 
   // TODO: consider returning just Database
-  def put(tableName: String, item: Item): Option[Database]                          =
-    tablePkMap.get(tableName).flatMap { pkName =>
+  def put(tableName: String, item: Item): Either[DatabaseError, Database]           =
+    tablePkMap.get(tableName).toRight(TableDoesNotExists(tableName)).flatMap { pkName =>
       val pk    = Item(item.map.filter { case (key, _) => key == pkName })
       val entry = pk -> item
-      self.map.get(tableName).map(m => Database(self.map + (tableName -> (m + entry)), self.tablePkMap))
+      self.map
+        .get(tableName)
+        .toRight(TableDoesNotExists(tableName))
+        .map(m => Database(self.map + (tableName -> (m + entry)), self.tablePkMap))
     }
 
   // TODO: consider returning just Database
-  def delete(tableName: String, pk: PrimaryKey): Option[Database] =
-    self.map.get(tableName).map(m => Database(self.map + (tableName -> (m - pk)), self.tablePkMap))
+  def delete(tableName: String, pk: PrimaryKey): Either[DatabaseError, Database] =
+    self.map
+      .get(tableName)
+      .toRight(TableDoesNotExists(tableName))
+      .map(m => Database(self.map + (tableName -> (m - pk)), self.tablePkMap))
 
   def scanSome(tableName: String, exclusiveStartKey: LastEvaluatedKey, limit: Int): (Chunk[Item], LastEvaluatedKey) = {
     val items: (Chunk[Item], LastEvaluatedKey) = (for {

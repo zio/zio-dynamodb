@@ -4,7 +4,7 @@ import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.{ DynamoDBQuery, _ }
-import zio.{ Ref, UIO, ULayer, ZIO }
+import zio.{ IO, Ref, ULayer, ZIO }
 
 object FakeDynamoDBExecutor {
 
@@ -46,27 +46,35 @@ object FakeDynamoDBExecutor {
         case BatchWriteItem(requestItems, capacity, metrics, addList)                             =>
           println(s"BatchWriteItem $requestItems $capacity $metrics $addList")
           val xs: Seq[(TableName, Set[BatchWriteItem.Write])] = requestItems.toList
-          val results: Seq[UIO[Unit]]                         = xs.flatMap {
+          val results: ZIO[Any, DatabaseError, Unit]          = ZIO.foreach_(xs) {
             case (tableName, setOfWrite) =>
-              setOfWrite.map { write =>
-                dbRef.update { db =>
+              ZIO.foreach_(setOfWrite) { write =>
+                val value: IO[Nothing, Either[DatabaseError, Database]] = dbRef.modify { db =>
                   write match {
                     case BatchWriteItem.Put(item)  =>
-                      val maybeDatabase = db.put(tableName.value, item)
-                      maybeDatabase.getOrElse(db)
+                      db.put(tableName.value, item)
+                        .fold(
+                          _ => (db.put(tableName.value, item), db),
+                          updatedDB => (db.put(tableName.value, item), updatedDB)
+                        )
                     case BatchWriteItem.Delete(pk) =>
-                      db.delete(tableName.value, pk).getOrElse(db)
+                      db.delete(tableName.value, pk)
+                        .fold(
+                          _ => (db.delete(tableName.value, pk), db),
+                          updatedDB => (db.delete(tableName.value, pk), updatedDB)
+                        )
                   }
                 }
+                value.absolve.unit
               }
 
           }
           // TODO: we could execute in a loop
-          ZIO.collectAll_(results)
+          results
 
         case GetItem(tableName, key, projections, readConsistency, capacity)                      =>
           println(s"FakeDynamoDBExecutor GetItem $key $tableName $projections $readConsistency  $capacity")
-          dbRef.get.map(_.getItem(tableName.value, key))
+          dbRef.get.flatMap(db => ZIO.fromEither(db.getItem2(tableName.value, key)))
 
         case PutItem(tableName, item, conditionExpression, capacity, itemMetrics, returnValues)   =>
           println(
