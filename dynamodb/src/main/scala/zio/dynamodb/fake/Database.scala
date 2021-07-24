@@ -11,18 +11,15 @@ final case class Database(
   tablePkMap: Map[String, String] = Map.empty
 ) { self =>
 
-  def getItem2(tableName: String, pk: PrimaryKey): Either[DatabaseError, Option[Item]] =
-    self.map.get(tableName).map(_.get(pk)).toRight(TableDoesNotExists(tableName))
-
-  def getItem(tableName: String, pk: PrimaryKey): Option[Item] =
-    self.map.get(tableName).flatMap(_.get(pk))
-
   // TODO: have just one param list to prevent () in the empty table case
-  def table(tableName: String, pkFieldName: String)(entries: TableEntry*): Database =
+  def table(tableName: String, pkFieldName: String)(entries: TableEntry*): Database   =
     Database(self.map + (tableName -> entries.toMap), self.tablePkMap + (tableName -> pkFieldName))
 
+  def getItem(tableName: String, pk: PrimaryKey): Either[DatabaseError, Option[Item]] =
+    self.map.get(tableName).map(_.get(pk)).toRight(TableDoesNotExists(tableName))
+
   // TODO: consider returning just Database
-  def put(tableName: String, item: Item): Either[DatabaseError, Database]           =
+  def put(tableName: String, item: Item): Either[DatabaseError, Database] =
     tablePkMap.get(tableName).toRight(TableDoesNotExists(tableName)).flatMap { pkName =>
       val pk    = Item(item.map.filter { case (key, _) => key == pkName })
       val entry = pk -> item
@@ -106,4 +103,10 @@ final case class Database(
         valueL.toString.compareTo(valueR.toString) < 0
       case _                                                                    => false
     }
+}
+
+object Database {
+
+  def tableEntries(r: Range, pkFieldName: String): Seq[(PrimaryKey, Item)] =
+    r.map(i => (PrimaryKey(pkFieldName -> i), Item(pkFieldName -> i, "k2" -> (i + 1)))).toList
 }

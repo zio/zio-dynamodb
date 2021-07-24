@@ -2,6 +2,7 @@ package zio.dynamodb.fake
 
 import zio.dynamodb.DynamoDBExecutor.TestData._
 import zio.dynamodb.DynamoDBQuery.{ scanSome, DeleteItem }
+import zio.dynamodb.fake.Database.tableEntries
 import zio.dynamodb.{ BatchingFixtures, PrimaryKey }
 import zio.test.Assertion._
 import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
