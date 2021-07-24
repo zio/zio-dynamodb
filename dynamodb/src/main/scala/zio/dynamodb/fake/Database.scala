@@ -18,7 +18,6 @@ final case class Database(
   def getItem(tableName: String, pk: PrimaryKey): Either[DatabaseError, Option[Item]] =
     self.map.get(tableName).map(_.get(pk)).toRight(TableDoesNotExists(tableName))
 
-  // TODO: consider returning just Database
   def put(tableName: String, item: Item): Either[DatabaseError, Database] =
     tablePkMap.get(tableName).toRight(TableDoesNotExists(tableName)).flatMap { pkName =>
       val pk    = Item(item.map.filter { case (key, _) => key == pkName })
@@ -29,22 +28,26 @@ final case class Database(
         .map(m => Database(self.map + (tableName -> (m + entry)), self.tablePkMap))
     }
 
-  // TODO: consider returning just Database
   def delete(tableName: String, pk: PrimaryKey): Either[DatabaseError, Database] =
     self.map
       .get(tableName)
       .toRight(TableDoesNotExists(tableName))
       .map(m => Database(self.map + (tableName -> (m - pk)), self.tablePkMap))
 
-  def scanSome(tableName: String, exclusiveStartKey: LastEvaluatedKey, limit: Int): (Chunk[Item], LastEvaluatedKey) = {
-    val items: (Chunk[Item], LastEvaluatedKey) = (for {
-      itemMap <- self.map.get(tableName)
-      pkName  <- tablePkMap.get(tableName)
-      xs      <- Some(slice(sort(itemMap.toList, pkName), exclusiveStartKey, limit))
-    } yield xs).getOrElse((Chunk.empty, None))
+  def scanSome(
+    tableName: String,
+    exclusiveStartKey: LastEvaluatedKey,
+    limit: Int
+  ): Either[DatabaseError, (Chunk[Item], LastEvaluatedKey)] = {
+    val items = for {
+      itemMap <- self.map.get(tableName).toRight(TableDoesNotExists(tableName))
+      pkName  <- tablePkMap.get(tableName).toRight(TableDoesNotExists(tableName))
+      xs      <- Right(slice(sort(itemMap.toList, pkName), exclusiveStartKey, limit))
+    } yield xs
     items
   }
 
+  // TODO: use ZStream paging with scanSome to return a ZStream
   def scanAll(tableName: String): Chunk[Item] =
     (for {
       itemMap <- self.map.get(tableName)
@@ -107,6 +110,6 @@ final case class Database(
 
 object Database {
 
-  def tableEntries(r: Range, pkFieldName: String): Seq[(PrimaryKey, Item)] =
-    r.map(i => (PrimaryKey(pkFieldName -> i), Item(pkFieldName -> i, "k2" -> (i + 1)))).toList
+  def tableEntries(r: Range, pkFieldName: String): Chunk[(PrimaryKey, Item)] =
+    Chunk.fromIterable(r.map(i => (PrimaryKey(pkFieldName -> i), Item(pkFieldName -> i, "k2" -> (i + 1)))).toList)
 }

@@ -1,12 +1,16 @@
 package zio.dynamodb.fake
 
+import zio.Chunk
 import zio.dynamodb.DynamoDBExecutor.TestData._
 import zio.dynamodb.fake.Database.tableEntries
-import zio.dynamodb.{ BatchingFixtures, Item, LastEvaluatedKey, PrimaryKey }
+import zio.dynamodb.{ BatchingFixtures, Item, PrimaryKey }
 import zio.test.Assertion._
 import zio.test.{ assert, Assertion, DefaultRunnableSpec, ZSpec }
 
 object DatabaseSpec extends DefaultRunnableSpec with BatchingFixtures {
+
+  private val noLastEvaluatedKey = None
+
   override def spec: ZSpec[Environment, Failure] =
     suite("FakeDynamoDB")(fakeDatabaseSuite)
 
@@ -64,40 +68,55 @@ object DatabaseSpec extends DefaultRunnableSpec with BatchingFixtures {
         equalTo(Right(None))
       )
     },
+    test("""scanSome with a table that does not exists results in an error""") {
+      val db            = dbWithEmptyTable
+      val errorOrResult = db.scanSome("TABLE_DOES_NOT_EXISTS", noLastEvaluatedKey, 2)
+      assert(errorOrResult)(isLeft)
+    },
     test("""scanSome("T1", None, 2) on an empty table""") {
-      val db           = dbWithEmptyTable
-      val (chunk, lek) = db.scanSome("T1", None, 2)
-      assert(chunk.length)(equalTo(0)) && assert(lek)(equalTo(None))
+      val db            = dbWithEmptyTable
+      val errorOrResult = db.scanSome("T1", noLastEvaluatedKey, 2)
+      assert(errorOrResult)(isRight(equalTo((Chunk.empty, None))))
     },
     test("""scanSome("T1", Some(PrimaryKey("k1" -> 1)), 2) on an empty table""") {
-      val db           = dbWithEmptyTable
-      val (chunk, lek) = db.scanSome("T1", Some(PrimaryKey("k1" -> 1)), 2)
-      assert(chunk.length)(equalTo(0)) && assert(lek)(equalTo(None))
+      val db            = dbWithEmptyTable
+      val errorOrResult = db.scanSome("T1", Some(PrimaryKey("k1" -> 1)), 2)
+      assert(errorOrResult)(isRight(equalTo((Chunk.empty, None))))
     },
     test("""scanSome("T1", None, 10) on 5 Items""") {
-      val db           = dbWithFiveItems
-      val (chunk, lek) = db.scanSome("T1", None, 10)
-      assert(chunk)(equalToItems(1 to 5)) && assert(lek)(equalTo(None))
+      val db            = dbWithFiveItems
+      val errorOrResult = db.scanSome("T1", noLastEvaluatedKey, 10)
+      assert(errorOrResult)(
+        isRight(equalTo((resultItems(1 to 5), None)))
+      )
     },
     test("""scanSome("T1", None, 2) on 5 Items""") {
-      val db           = dbWithFiveItems
-      val (chunk, lek) = db.scanSome("T1", None, 2)
-      assert(chunk)(equalToItems(1 to 2)) && assert(lek)(equalToLastEvaluatedKey(2))
+      val db            = dbWithFiveItems
+      val errorOrResult = db.scanSome("T1", noLastEvaluatedKey, 2)
+      assert(errorOrResult)(
+        isRight(equalTo((resultItems(1 to 2), lastEvaluatedKey(2))))
+      )
     },
     test("""scanSome("T1", Some(PrimaryKey("k1" -> 1)), 2) on 5 Items""") {
-      val db           = dbWithFiveItems
-      val (chunk, lek) = db.scanSome("T1", Some(PrimaryKey("k1" -> 1)), 2)
-      assert(chunk)(equalToItems(2 to 3)) && assert(lek)(equalToLastEvaluatedKey(3))
+      val db            = dbWithFiveItems
+      val errorOrResult = db.scanSome("T1", Some(PrimaryKey("k1" -> 1)), 2)
+      assert(errorOrResult)(
+        isRight(equalTo((resultItems(2 to 3), lastEvaluatedKey(3))))
+      )
     },
     test("""scanSome("T1", Some(PrimaryKey("k1" -> 3)), 2) on 5 Items""") {
-      val db           = dbWithFiveItems
-      val (chunk, lek) = db.scanSome("T1", Some(PrimaryKey("k1" -> 3)), 2)
-      assert(chunk)(equalToItems(4 to 5)) && assert(lek)(isNone)
+      val db            = dbWithFiveItems
+      val errorOrResult = db.scanSome("T1", Some(PrimaryKey("k1" -> 3)), 2)
+      assert(errorOrResult)(
+        isRight(equalTo((resultItems(4 to 5), None)))
+      )
     },
     test("""scanSome("T1", Some(PrimaryKey("k1" -> 4)), 2) on 5 Items""") {
-      val db           = dbWithFiveItems
-      val (chunk, lek) = db.scanSome("T1", Some(PrimaryKey("k1" -> 4)), 2)
-      assert(chunk)(equalToItems(5 to 5)) && assert(lek)(isNone)
+      val db            = dbWithFiveItems
+      val errorOrResult = db.scanSome("T1", Some(PrimaryKey("k1" -> 4)), 2)
+      assert(errorOrResult)(
+        isRight(equalTo((resultItems(5 to 5), None)))
+      )
     },
     test("""scanAll("T1") on 5 Items""") {
       val db    = dbWithFiveItems
@@ -106,11 +125,10 @@ object DatabaseSpec extends DefaultRunnableSpec with BatchingFixtures {
     }
   )
 
-  private def equalToLastEvaluatedKey(value: Int): Assertion[LastEvaluatedKey] =
-    equalTo(Some(PrimaryKey("k1" -> value)))
-  private def equalToItems(range: Range): Assertion[Seq[Item]] = {
-    val value: Seq[Item] = tableEntries(range, "k1").map { case (_, v) => v }
-    equalTo(value)
-  }
+  private def lastEvaluatedKey(value: Int): Option[Item] = Some(PrimaryKey("k1" -> value))
+
+  private def equalToItems(range: Range): Assertion[Seq[Item]] = equalTo(resultItems(range))
+
+  private def resultItems(range: Range): Chunk[Item] = tableEntries(range, "k1").map { case (_, v) => v }
 
 }

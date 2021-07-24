@@ -129,7 +129,7 @@ object FakeDynamoDBExecutor {
           println(
             s"FakeDynamoDBExecutor $tableName, $limit, $exclusiveStartKey"
           )
-          dbRef.get.map(_.scanSome(tableName.value, exclusiveStartKey, limit))
+          dbRef.get.flatMap(db => ZIO.fromEither(db.scanSome(tableName.value, exclusiveStartKey, limit)))
 
         // TODO: implement remaining constructors
 
