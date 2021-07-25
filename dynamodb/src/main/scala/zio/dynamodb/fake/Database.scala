@@ -47,13 +47,18 @@ final case class Database(
     items
   }
 
-  // TODO: use ZStream paging with scanSome to return a ZStream
-  def scanAll(tableName: String): Chunk[Item] =
-    (for {
-      itemMap <- self.map.get(tableName)
-      pkName  <- tablePkMap.get(tableName)
-      xs      <- Some(sort(itemMap.toList, pkName).map(_._2))
-    } yield Chunk.fromIterable(xs)).getOrElse(Chunk.empty)
+  def scanAll(tableName: String): Either[DatabaseError, Chunk[Item]] =
+    for {
+      t                <- mapAndPk(tableName)
+      (itemMap, pkName) = t
+      xs               <- Right(sort(itemMap.toList, pkName).map(_._2))
+    } yield Chunk.fromIterable(xs)
+
+  private def mapAndPk(tableName: String): Either[DatabaseError, (Map[PrimaryKey, Item], String)] =
+    for {
+      itemMap <- self.map.get(tableName).toRight(TableDoesNotExists(tableName))
+      pkName  <- tablePkMap.get(tableName).toRight(TableDoesNotExists(tableName))
+    } yield (itemMap, pkName)
 
   private def sort(xs: Seq[TableEntry], pkName: String): Seq[TableEntry] =
     xs.toList.sortWith {

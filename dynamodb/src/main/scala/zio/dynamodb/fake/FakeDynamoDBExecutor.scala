@@ -1,6 +1,7 @@
 package zio.dynamodb.fake
 
 import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
+import zio.dynamodb.DynamoDBExecutor.TestData.stream1
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.{ DynamoDBQuery, _ }
@@ -130,6 +131,18 @@ object FakeDynamoDBExecutor {
             s"FakeDynamoDBExecutor $tableName, $limit, $exclusiveStartKey"
           )
           dbRef.get.flatMap(db => ZIO.fromEither(db.scanSome(tableName.value, exclusiveStartKey, limit)))
+
+        case ScanAll(tableName, _, _, _, _, _, _, _)                                              =>
+          println(
+            s"$tableName"
+          )
+//          val emptyLastEvaluatedKey = None
+//          val limit                 = 100
+//          val stream                = ZStream.paginateM(emptyLastEvaluatedKey) {}
+
+//          ZStream.unwrap()
+//          val x: ZIO[Any, DatabaseError, Chunk[Item]] = dbRef.get.flatMap(db => ZIO.fromEither(db.scanAll(tableName.value)))
+          ZIO.succeed(stream1)
 
         // TODO: implement remaining constructors
 

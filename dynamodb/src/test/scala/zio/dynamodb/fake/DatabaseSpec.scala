@@ -5,7 +5,7 @@ import zio.dynamodb.DynamoDBExecutor.TestData._
 import zio.dynamodb.fake.Database.tableEntries
 import zio.dynamodb.{ BatchingFixtures, Item, PrimaryKey }
 import zio.test.Assertion._
-import zio.test.{ assert, Assertion, DefaultRunnableSpec, ZSpec }
+import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
 
 object DatabaseSpec extends DefaultRunnableSpec with BatchingFixtures {
 
@@ -121,13 +121,13 @@ object DatabaseSpec extends DefaultRunnableSpec with BatchingFixtures {
     test("""scanAll("T1") on 5 Items""") {
       val db    = dbWithFiveItems
       val chunk = db.scanAll("T1")
-      assert(chunk)(equalToItems(1 to 5))
+      assert(chunk)(isRight(equalTo(resultItems(1 to 5))))
     }
   )
 
   private def lastEvaluatedKey(value: Int): Option[Item] = Some(PrimaryKey("k1" -> value))
 
-  private def equalToItems(range: Range): Assertion[Seq[Item]] = equalTo(resultItems(range))
+//  private def equalToItems(range: Range): Assertion[Seq[Item]] = equalTo(resultItems(range))
 
   private def resultItems(range: Range): Chunk[Item] = tableEntries(range, "k1").map { case (_, v) => v }
 
