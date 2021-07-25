@@ -1,10 +1,10 @@
 package zio.dynamodb.fake
 
 import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
-import zio.dynamodb.DynamoDBExecutor.TestData.stream1
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.{ DynamoDBQuery, _ }
+import zio.stream.ZStream
 import zio.{ IO, Ref, UIO, ULayer, ZIO }
 
 object FakeDynamoDBExecutor {
@@ -142,7 +142,12 @@ object FakeDynamoDBExecutor {
 
 //          ZStream.unwrap()
 //          val x: ZIO[Any, DatabaseError, Chunk[Item]] = dbRef.get.flatMap(db => ZIO.fromEither(db.scanAll(tableName.value)))
-          ZIO.succeed(stream1)
+
+          val value: IO[Nothing, Database]                             = dbRef.get
+          //          ZIO.succeed(stream1)
+//          val x: ZStream[Any, Exception, Item]                         = ZStream.fromEffect(value).map(_.scanAll(tableName.value)).flatten
+          val x2: ZIO[Any, Nothing, ZStream[Any, DatabaseError, Item]] = value.map(_.scanAll(tableName.value))
+          x2
 
         // TODO: implement remaining constructors
 
