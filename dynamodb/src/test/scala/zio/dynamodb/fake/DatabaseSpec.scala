@@ -121,7 +121,7 @@ object DatabaseSpec extends DefaultRunnableSpec with BatchingFixtures {
     testM("""scanAll("T1") on 5 Items""") {
       val db = dbWithFiveItems
       for {
-        chunk <- db.scanAll("T1").runCollect.orDie
+        chunk <- db.scanAll("T1", limit = 2).runCollect.orDie
       } yield assert(chunk)(equalTo(resultItems(1 to 5)))
     }
   )

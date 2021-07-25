@@ -135,7 +135,7 @@ object FakeDynamoDBExecutor {
           println(
             s"$tableName"
           )
-          val zioOfStream = dbRef.get.map(_.scanAll(tableName.value))
+          val zioOfStream = dbRef.get.map(_.scanAll(tableName.value, limit = 100))
           zioOfStream
 
         // TODO: implement remaining constructors

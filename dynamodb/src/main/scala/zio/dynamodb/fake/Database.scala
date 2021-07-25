@@ -48,19 +48,17 @@ final case class Database(
     items
   }
 
-  def scanAll[R](tableName: String): ZStream[R, DatabaseError, Item] = {
+  def scanAll[R](tableName: String, limit: Int): ZStream[R, DatabaseError, Item] = {
     val start: LastEvaluatedKey = None
-    val limit                   = 2
     ZStream
-      .paginateM(start) {
-        case lek =>
-          ZIO.fromEither(scanSome(tableName, lek, limit)).map {
-            case (chunk, lek) =>
-              lek match {
-                case None => (chunk, None)
-                case lek  => (chunk, Some(lek))
-              }
-          }
+      .paginateM(start) { lek =>
+        ZIO.fromEither(scanSome(tableName, lek, limit)).map {
+          case (chunk, lek) =>
+            lek match {
+              case None => (chunk, None)
+              case lek  => (chunk, Some(lek))
+            }
+        }
       }
       .flattenChunks
   }
