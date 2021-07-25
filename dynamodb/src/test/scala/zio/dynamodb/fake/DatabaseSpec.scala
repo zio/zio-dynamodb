@@ -2,7 +2,7 @@ package zio.dynamodb.fake
 
 import zio.Chunk
 import zio.dynamodb.DynamoDBExecutor.TestData._
-import zio.dynamodb.fake.Database.tableEntries
+import zio.dynamodb.fake.Database.{ resultItems, tableEntries }
 import zio.dynamodb.{ BatchingFixtures, Item, PrimaryKey }
 import zio.test.Assertion._
 import zio.test._
@@ -127,9 +127,5 @@ object DatabaseSpec extends DefaultRunnableSpec with BatchingFixtures {
   )
 
   private def lastEvaluatedKey(value: Int): Option[Item] = Some(PrimaryKey("k1" -> value))
-
-//  private def equalToItems(range: Range): Assertion[Seq[Item]] = equalTo(resultItems(range))
-
-  private def resultItems(range: Range): Chunk[Item] = tableEntries(range, "k1").map { case (_, v) => v }
 
 }

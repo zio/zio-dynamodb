@@ -2,7 +2,7 @@ package zio.dynamodb.fake
 
 import zio.dynamodb.DynamoDBExecutor.TestData._
 import zio.dynamodb.DynamoDBQuery.{ scanAll, scanSome, DeleteItem }
-import zio.dynamodb.fake.Database.tableEntries
+import zio.dynamodb.fake.Database.{ resultItems, tableEntries }
 import zio.dynamodb.{ BatchingFixtures, PrimaryKey }
 import zio.test.Assertion._
 import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
@@ -51,7 +51,7 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
       for {
         t           <- scanSome(tableName1.value, "k1", 10).execute
         (chunk, lek) = t
-      } yield assert(chunk.length)(equalTo(5)) && assert(lek)(equalTo(None))
+      } yield assert(chunk)(equalTo(resultItems(1 to 5))) && assert(lek)(equalTo(None))
     }.provideLayer(
       FakeDynamoDBExecutor(
         Database()
@@ -62,7 +62,7 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
       for {
         stream <- scanAll(tableName1.value, "indexNameIgnored").execute
         chunk  <- stream.runCollect
-      } yield assert(chunk.length)(equalTo(5))
+      } yield assert(chunk)(equalTo(resultItems(1 to 5)))
     }.provideLayer(
       FakeDynamoDBExecutor(
         Database()

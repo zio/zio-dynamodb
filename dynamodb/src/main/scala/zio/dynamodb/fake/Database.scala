@@ -123,4 +123,6 @@ object Database {
   def tableEntries(r: Range, pkFieldName: String): Chunk[(PrimaryKey, Item)] =
     Chunk.fromIterable(r.map(i => (PrimaryKey(pkFieldName -> i), Item(pkFieldName -> i, "k2" -> (i + 1)))).toList)
 
+  def resultItems(range: Range): Chunk[Item]                                 = tableEntries(range, "k1").map { case (_, v) => v }
+
 }
