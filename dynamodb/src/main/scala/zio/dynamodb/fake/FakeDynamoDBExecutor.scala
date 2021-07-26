@@ -18,8 +18,9 @@ object FakeDynamoDBExecutor {
    *  - Limited support
    *    - Primary Keys - only one primary key can be specified and it can have only one attribute which is only checked for equality
    *  - Not supported
-   *    - Create table, Delete table
    *    - Expressions - these include Condition Expressions, Projection Expressions, UpdateExpressions, Filter Expressions
+   *    - Create table, Delete table
+   *    - UpdateItem - as this uses an expression to specify the update
    *
    * '''Usage''': The schema has to be predefined using the `Database` class which has a builder style `table` method to specify a table,
    * a single primary and a var arg list of primary key/item pairs:
@@ -107,7 +108,7 @@ object FakeDynamoDBExecutor {
           )
           dbRef.update(db => db.put(tableName.value, item).getOrElse(db)).unit
 
-        // TODO Note UpdateItem is not supported as it uses an UpdateExpression
+        // TODO Note UpdateItem is not currently supported as it uses an UpdateExpression
         case UpdateItem(_, _, _, _, _, _, _)                                                      =>
           ZIO.succeed(())
 
@@ -115,17 +116,7 @@ object FakeDynamoDBExecutor {
           println(s"$tableName $key $conditionExpression $capacity $itemMetrics $returnValues")
           dbRef.update(db => db.delete(tableName.value, key).getOrElse(db)).unit
 
-        case ScanSome(
-              tableName,
-              _,
-              limit,
-              _,
-              exclusiveStartKey,
-              _,
-              _,
-              _,
-              _
-            ) =>
+        case ScanSome(tableName, _, limit, _, exclusiveStartKey, _, _, _, _)                      =>
           println(
             s"FakeDynamoDBExecutor $tableName, $limit, $exclusiveStartKey"
           )
@@ -134,6 +125,17 @@ object FakeDynamoDBExecutor {
         case ScanAll(tableName, _, _, _, _, _, _, _)                                              =>
           println(
             s"$tableName"
+          )
+          val zioOfStream = dbRef.get.map(_.scanAll(tableName.value, limit = 100))
+          zioOfStream
+
+        case QuerySome(tableName, _, limit, _, exclusiveStartKey, _, _, _, _, _, _)               =>
+          println(s"$tableName, $exclusiveStartKey,$limit")
+          dbRef.get.flatMap(db => ZIO.fromEither(db.scanSome(tableName.value, exclusiveStartKey, limit)))
+
+        case QueryAll(tableName, _, _, exclusiveStartKey, _, _, _, _, _, _)                       =>
+          println(
+            s"$tableName, $exclusiveStartKey"
           )
           val zioOfStream = dbRef.get.map(_.scanAll(tableName.value, limit = 100))
           zioOfStream

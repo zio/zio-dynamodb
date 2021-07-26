@@ -1,7 +1,7 @@
 package zio.dynamodb.fake
 
 import zio.dynamodb.DynamoDBExecutor.TestData._
-import zio.dynamodb.DynamoDBQuery.{ scanAll, scanSome, DeleteItem }
+import zio.dynamodb.DynamoDBQuery.{ queryAll, querySome, scanAll, scanSome, DeleteItem }
 import zio.dynamodb.fake.Database.{ resultItems, tableEntries }
 import zio.dynamodb.{ BatchingFixtures, PrimaryKey }
 import zio.test.Assertion._
@@ -61,6 +61,28 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
     testM("scanAll should scan all items in a table") {
       for {
         stream <- scanAll(tableName1.value, "indexNameIgnored").execute
+        chunk  <- stream.runCollect
+      } yield assert(chunk)(equalTo(resultItems(1 to 5)))
+    }.provideLayer(
+      FakeDynamoDBExecutor(
+        Database()
+          .table(tableName1.value, "k1")(tableEntries(1 to 5, "k1"): _*)
+      )
+    ),
+    testM("querySome with limit greater than table size should scan all items in a table") {
+      for {
+        t           <- querySome(tableName1.value, "k1", 10).execute
+        (chunk, lek) = t
+      } yield assert(chunk)(equalTo(resultItems(1 to 5))) && assert(lek)(equalTo(None))
+    }.provideLayer(
+      FakeDynamoDBExecutor(
+        Database()
+          .table(tableName1.value, "k1")(tableEntries(1 to 5, "k1"): _*)
+      )
+    ),
+    testM("queryAll should scan all items in a table") {
+      for {
+        stream <- queryAll(tableName1.value, "indexNameIgnored").execute
         chunk  <- stream.runCollect
       } yield assert(chunk)(equalTo(resultItems(1 to 5)))
     }.provideLayer(
