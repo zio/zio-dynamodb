@@ -31,7 +31,7 @@ object SerialisationExample extends App {
     categoryMap = Map("a" -> "1", "b" -> "2"),
     categorySet = Set("a", "b"),
     optSet = Some(Set("a", "b")),
-    address = Some(Address("line1", Some("line2"), "UK")),
+    address = Some(Address("line1", /*Some("line2")*/ None, "UK")),
     lineItems = List(
       LineItem("lineItem1", BigDecimal(1.0), Product("sku1", "a")),
       LineItem("lineItem2", BigDecimal(2.0), Product("sku2", "b"))
@@ -50,11 +50,11 @@ object SerialisationExample extends App {
       "isTest"      -> i.isTest,
       "categoryMap" -> i.categoryMap,
       "categorySet" -> i.categorySet,
-      "optSet"      -> i.optSet.orNull,
+      "optSet"      -> i.optSet.orNull, // Scala Null is used to encode None for Option fields
       "address"     -> i.address.map { addr =>
         Item(
           "line1"   -> addr.line1,
-          "line2"   -> addr.line2.orNull,
+          "line2"   -> addr.line2.orNull, // addr.line2.orNull results in Some(null) as Option based type class is invoked rather than Null one
           "country" -> addr.country
         )
       }.orNull,
@@ -76,24 +76,22 @@ object SerialisationExample extends App {
     for {
       id          <- m.get[String]("id")
       sequence    <- m.get[Int]("sequence")
+      // TODO: getItem example
       dueDate     <- m.get[String]("dueDate")
       total       <- m.get[BigDecimal]("total")
       isTest      <- m.get[Boolean]("isTest")
       categoryMap <- m.get[Map[String, String]]("categoryMap")
       categorySet <- m.get[Set[String]]("categorySet")
-      optSet      <- m.getOpt[Set[String]]("optSet")
-      address     <- m.getOptionalItem("address") { m =>
-                       m.as(Address(_, _, _))("line1", "line2", "country")
+      optSet      <- m.getOptional[Set[String]]("optSet")
+      address     <- m.getOptionalItem("address") { m2 =>
+                       m2.as(Address)("line1", "line2", "country")
                      }
-      lineItems   <- m.getIterableItem[LineItem]("lineItems") { m =>
+      lineItems   <- m.getIterableItem[LineItem]("lineItems") { m2 =>
                        for {
-                         itemId  <- m.get[String]("itemId")
-                         price   <- m.get[BigDecimal]("price")
-                         product <- m.getItem[Product]("product") { m =>
-                                      for {
-                                        sku  <- m.get[String]("sku")
-                                        name <- m.get[String]("name")
-                                      } yield Product(sku, name)
+                         itemId  <- m2.get[String]("itemId")
+                         price   <- m2.get[BigDecimal]("price")
+                         product <- m2.getItem[Product]("product") { m =>
+                                      m.as(Product)("sku", "name")
                                     }
                        } yield LineItem(itemId, price, product)
                      }
@@ -109,6 +107,13 @@ object SerialisationExample extends App {
       address,
       lineItems.toSeq
     )
+
+  // I think problem is Null is bottom type of most things
+  def foo[A](a: Option[A]): Option[Any] =
+    a match {
+      case Some(a) => Some(a)
+      case _       => null
+    }
 
   println("attrMapToInvoice: " + attrMapToInvoice(invoiceToAttrMap(invoice1)))
 

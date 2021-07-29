@@ -7,10 +7,27 @@ trait FromAttributeValue[+A] {
 
 object FromAttributeValue {
 
-  // TODO:
-  implicit def optionFromAttributeValue2[A](implicit ev: FromAttributeValue[A]): FromAttributeValue[Option[A]] = ???
+  /*
+  private[dynamodb] final case class Binary(value: Iterable[Byte])                extends AttributeValue
+  private[dynamodb] final case class Bool(value: Boolean)                         extends AttributeValue
+  private[dynamodb] final case class BinarySet(value: Iterable[Iterable[Byte]])   extends AttributeValue
+  private[dynamodb] final case class List(value: Iterable[AttributeValue])        extends AttributeValue
+  private[dynamodb] final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue
+  private[dynamodb] final case class Number(value: BigDecimal)                    extends AttributeValue
+  private[dynamodb] final case class NumberSet(value: Set[BigDecimal])            extends AttributeValue
+  private[dynamodb] case object Null                                              extends AttributeValue
+  private[dynamodb] final case class String(value: ScalaString)                   extends AttributeValue
+  private[dynamodb] final case class StringSet(value: Set[ScalaString])           extends AttributeValue
+   */
 
-  implicit val stringFromAttributeValue2: FromAttributeValue[String] = {
+  implicit def optionFromAttributeValue[A](implicit ev: FromAttributeValue[A]): FromAttributeValue[Option[A]] = {
+    case AttributeValue.Null =>
+      Some(None)
+    case av: AttributeValue  =>
+      Some(ev.fromAttributeValue(av))
+  }
+
+  implicit val stringFromAttributeValue: FromAttributeValue[String] = {
     case AttributeValue.String(s) => Some(s)
     case _                        => None
   }
