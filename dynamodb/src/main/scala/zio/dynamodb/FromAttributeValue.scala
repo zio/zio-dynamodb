@@ -24,7 +24,8 @@ object FromAttributeValue {
     case AttributeValue.Null =>
       Some(None)
     case av: AttributeValue  =>
-      Some(ev.fromAttributeValue(av))
+      val a = ev.fromAttributeValue(av)
+      Option(a)
   }
 
   implicit val stringFromAttributeValue: FromAttributeValue[String] = {

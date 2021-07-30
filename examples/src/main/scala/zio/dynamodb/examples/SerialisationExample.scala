@@ -54,7 +54,7 @@ object SerialisationExample extends App {
       "address"     -> i.address.map { addr =>
         Item(
           "line1"   -> addr.line1,
-          "line2"   -> addr.line2.orNull, // addr.line2.orNull results in Some(null) as Option based type class is invoked rather than Null one
+          "line2"   -> addr.line2, // addr.line2.orNull results in Some(null) as Option based type class is invoked rather than Null one
           "country" -> addr.country
         )
       }.orNull,

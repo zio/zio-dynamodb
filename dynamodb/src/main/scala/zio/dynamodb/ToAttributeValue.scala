@@ -9,6 +9,13 @@ trait ToAttributeValue[A] {
 object ToAttributeValue extends ToAttributeValueLowPriorityImplicits0 {
   import Predef.{ String => ScalaString }
 
+  implicit def optionToAttributeValue[A](implicit ev: ToAttributeValue[A]): ToAttributeValue[Option[A]] =
+    (o: Option[A]) =>
+      o match {
+        case None    => AttributeValue.Null
+        case Some(a) => ev.toAttributeValue(a)
+      }
+
   implicit def binaryToAttributeValue[Col[A] <: Iterable[A]]: ToAttributeValue[Col[Byte]] = AttributeValue.Binary(_)
   implicit def binarySetToAttributeValue[Col1[A] <: Iterable[A], Col2[B] <: Iterable[B]]
     : ToAttributeValue[Col1[Col2[Byte]]]                                                  = AttributeValue.BinarySet(_)
