@@ -20,7 +20,7 @@ object BatchFromStreamExamples extends App {
   private val batchWriteProgram: ZIO[Console with DynamoDBExecutor, Exception, Unit] =
     for {
       _      <- BatchFromStream
-                  .batchWriteFromStream(4, personStream) { person =>
+                  .batchWriteFromStream(personStream) { person =>
                     putItem("table1", Item("id" -> person.id, "name" -> person.name))
                   }
       stream <- scanAll("table1", "id").execute
@@ -31,7 +31,7 @@ object BatchFromStreamExamples extends App {
   private val batchReadProgram: ZIO[Console with DynamoDBExecutor, Exception, Unit] =
     for {
       // TODO: why does batchReadFromStream not infer automatically?
-      _ <- BatchFromStream.batchReadFromStream[Console, Person]("table1", stream = personStream)(person =>
+      _ <- BatchFromStream.batchReadFromStream[Console, Person]("table1", personStream)(person =>
              PrimaryKey("id" -> person.id)
            ) { xs =>
              val value: ZIO[Console, Exception, Unit] =
