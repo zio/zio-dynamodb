@@ -34,7 +34,7 @@ object FakeDynamoDBExecutor {
    *   .table("tableName3", pkFieldName = "k3")(primaryKey3 -> item3)))}}}
    * @param db
    */
-  def apply(db: Database = Database()): ULayer[DynamoDBExecutor] =
+  def layer(db: Database = Database()): ULayer[DynamoDBExecutor] =
     (for {
       ref <- Ref.make(db)
     } yield new Fake(ref)).toLayer

@@ -9,7 +9,7 @@ import zio.stream.ZStream
 import zio.{ App, ExitCode, URIO, ZIO }
 
 object BatchFromStreamExamples extends App {
-  private val executorLayer = FakeDynamoDBExecutor(Database().table("table1", "id")())
+  private val executorLayer = FakeDynamoDBExecutor.layer(Database().table("table1", "id")())
 
   final case class Person(id: Int, name: String)
 

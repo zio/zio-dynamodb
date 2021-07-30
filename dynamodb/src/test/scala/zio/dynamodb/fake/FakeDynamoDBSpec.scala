@@ -22,7 +22,7 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
         result  <- getItem1.execute
         expected = Some(item1)
       } yield assert(result)(equalTo(expected))
-    }.provideLayer(FakeDynamoDBExecutor(dbWithTwoTables)),
+    }.provideLayer(FakeDynamoDBExecutor.layer(dbWithTwoTables)),
     testM("should execute putItem then getItem when sequenced in a ZIO") {
       for {
         _       <- putItem1.execute
@@ -30,13 +30,13 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
         expected = Some(item1)
       } yield assert(result)(equalTo(expected))
     }.provideLayer(
-      FakeDynamoDBExecutor(Database().table(tableName1.value, "k1")())
+      FakeDynamoDBExecutor.layer(Database().table(tableName1.value, "k1")())
     ),
     testM("should execute getItem1 zip getItem2 zip getItem3") {
       for {
         assembled <- (getItem1 zip getItem1_2 zip getItem3).execute
       } yield assert(assembled)(equalTo((Some(item1), Some(item1_2), Some(item3))))
-    }.provideLayer(FakeDynamoDBExecutor(dbWithTwoTables)),
+    }.provideLayer(FakeDynamoDBExecutor.layer(dbWithTwoTables)),
     testM("should remove an item") {
       for {
         result1 <- getItem1.execute
@@ -45,7 +45,7 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
         expected = Some(item1)
       } yield assert(result1)(equalTo(expected)) && assert(result2)(equalTo(None))
     }.provideLayer(
-      FakeDynamoDBExecutor(dbWithTwoTables)
+      FakeDynamoDBExecutor.layer(dbWithTwoTables)
     ),
     testM("scanSome with limit greater than table size should scan all items in a table") {
       for {
@@ -53,7 +53,7 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
         (chunk, lek) = t
       } yield assert(chunk)(equalTo(resultItems(1 to 5))) && assert(lek)(equalTo(None))
     }.provideLayer(
-      FakeDynamoDBExecutor(
+      FakeDynamoDBExecutor.layer(
         Database()
           .table(tableName1.value, "k1")(tableEntries(1 to 5, "k1"): _*)
       )
@@ -64,7 +64,7 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
         chunk  <- stream.runCollect
       } yield assert(chunk)(equalTo(resultItems(1 to 5)))
     }.provideLayer(
-      FakeDynamoDBExecutor(
+      FakeDynamoDBExecutor.layer(
         Database()
           .table(tableName1.value, "k1")(tableEntries(1 to 5, "k1"): _*)
       )
@@ -75,7 +75,7 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
         (chunk, lek) = t
       } yield assert(chunk)(equalTo(resultItems(1 to 5))) && assert(lek)(equalTo(None))
     }.provideLayer(
-      FakeDynamoDBExecutor(
+      FakeDynamoDBExecutor.layer(
         Database()
           .table(tableName1.value, "k1")(tableEntries(1 to 5, "k1"): _*)
       )
@@ -86,7 +86,7 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
         chunk  <- stream.runCollect
       } yield assert(chunk)(equalTo(resultItems(1 to 5)))
     }.provideLayer(
-      FakeDynamoDBExecutor(
+      FakeDynamoDBExecutor.layer(
         Database()
           .table(tableName1.value, "k1")(tableEntries(1 to 5, "k1"): _*)
       )

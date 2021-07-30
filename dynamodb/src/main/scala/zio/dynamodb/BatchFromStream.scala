@@ -16,6 +16,7 @@ object BatchFromStream {
    * @tparam A
    * @return
    */
+  // capture unit as B type parameter
   def batchWriteFromStream[R, A](
     stream: ZStream[R, Exception, A],
     mPar: Int = 10
