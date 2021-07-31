@@ -84,14 +84,14 @@ object SerialisationExample extends App {
       categorySet <- m.get[Set[String]]("categorySet")
       optSet      <- m.getOptional[Set[String]]("optSet")
       address     <- m.getOptionalItem("address") { m2 =>
-                       m2.as(Address)("line1", "line2", "country")
+                       m2.as("line1", "line2", "country")(Address)
                      }
       lineItems   <- m.getIterableItem[LineItem]("lineItems") { m2 =>
                        for {
                          itemId  <- m2.get[String]("itemId")
                          price   <- m2.get[BigDecimal]("price")
                          product <- m2.getItem[Product]("product") { m =>
-                                      m.as(Product)("sku", "name")
+                                      m.as("sku", "name")(Product)
                                     }
                        } yield LineItem(itemId, price, product)
                      }
@@ -107,13 +107,6 @@ object SerialisationExample extends App {
       address,
       lineItems.toSeq
     )
-
-  // I think problem is Null is bottom type of most things
-  def foo[A](a: Option[A]): Option[Any] =
-    a match {
-      case Some(a) => Some(a)
-      case _       => null
-    }
 
   println("attrMapToInvoice: " + attrMapToInvoice(invoiceToAttrMap(invoice1)))
 

@@ -4,20 +4,20 @@ import scala.annotation.tailrec
 
 final case class AttrMap(map: Map[String, AttributeValue]) {
 
-  def as[A: FromAttributeValue, B: FromAttributeValue, C](f: (A, B) => C)(
+  def as[A: FromAttributeValue, B: FromAttributeValue, C](
     field1: String,
     field2: String
-  ): Either[String, C] =
+  )(f: (A, B) => C): Either[String, C] =
     for {
       a <- get[A](field1)
       b <- get[B](field2)
     } yield f(a, b)
 
-  def as[A: FromAttributeValue, B: FromAttributeValue, C: FromAttributeValue, D](f: (A, B, C) => D)(
+  def as[A: FromAttributeValue, B: FromAttributeValue, C: FromAttributeValue, D](
     field1: String,
     field2: String,
     field3: String
-  ): Either[String, D] =
+  )(f: (A, B, C) => D): Either[String, D] =
     for {
       a <- get[A](field1)
       b <- get[B](field2)

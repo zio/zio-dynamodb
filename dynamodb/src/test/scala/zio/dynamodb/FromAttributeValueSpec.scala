@@ -79,8 +79,8 @@ object FromAttributeValueSpec extends DefaultRunnableSpec {
       final case class Address(line1: String, line2: Option[String])
       val item   = Item("address" -> Item("line1" -> "line1", "line2" -> "line2"))
       val actual = for {
-        address <- item.getItem("address")(m => m.as(Address)("line1", "line2"))
-      } yield (Person(address))
+        address <- item.getItem("address")(m => m.as("line1", "line2")(Address))
+      } yield Person(address)
       assert(actual)(isRight(equalTo(Person(Address("line1", Some("line2"))))))
     },
     test("as with an optional field that is NOT present") {
@@ -88,8 +88,8 @@ object FromAttributeValueSpec extends DefaultRunnableSpec {
       final case class Address(line1: String, line2: Option[String])
       val item   = Item("address" -> Item("line1" -> "line1", "line2" -> null))
       val actual = for {
-        address <- item.getItem("address")(m => m.as(Address)("line1", "line2"))
-      } yield (Person(address))
+        address <- item.getItem("address")(m => m.as("line1", "line2")(Address))
+      } yield Person(address)
       assert(actual)(isRight(equalTo(Person(Address("line1", None)))))
     }
   )
