@@ -23,6 +23,7 @@ object BatchFromStreamExamples extends App {
                   .batchWriteFromStream(personStream) { person =>
                     putItem("table1", Item("id" -> person.id, "name" -> person.name))
                   }
+                  .runDrain
       stream <- scanAll("table1", "id").execute
       _      <- stream.tap(person => putStrLn(s"person=$person")).runDrain
     } yield ()
@@ -31,13 +32,10 @@ object BatchFromStreamExamples extends App {
   private val batchReadProgram: ZIO[Console with DynamoDBExecutor, Exception, Unit] =
     for {
       // TODO: why does batchReadFromStream not infer automatically?
-      _ <- BatchFromStream.batchReadFromStream[Console, Person]("table1", personStream)(person =>
-             PrimaryKey("id" -> person.id)
-           ) { xs =>
-             val value: ZIO[Console, Exception, Unit] =
-               putStrLn(s"list=${xs.mkString("\n")}")
-             value
-           }
+      _ <- BatchFromStream
+             .batchReadFromStream[Console, Person]("table1", personStream)(person => PrimaryKey("id" -> person.id))
+             .mapMPar(4)(item => putStrLn(s"item=$item"))
+             .runDrain
     } yield ()
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] =
