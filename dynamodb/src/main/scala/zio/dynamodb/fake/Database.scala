@@ -7,7 +7,7 @@ import zio.{ Chunk, ZIO }
 trait DatabaseError                                    extends Exception
 final case class TableDoesNotExists(tableName: String) extends DatabaseError
 
-final case class Database(
+private[fake] final case class Database(
   map: Map[String, Map[PrimaryKey, Item]] = Map.empty,
   tablePkMap: Map[String, String] = Map.empty
 ) { self =>

@@ -2,13 +2,13 @@ package zio.dynamodb.examples
 
 import zio.console.{ putStrLn, Console }
 import zio.dynamodb.DynamoDBQuery.putItem
-import zio.dynamodb.fake.{ Database, FakeDynamoDBExecutor }
+import zio.dynamodb.fake.FakeDynamoDBExecutor
 import zio.dynamodb.{ BatchFromStream, Item, PrimaryKey }
 import zio.stream.ZStream
 import zio.{ App, ExitCode, URIO }
 
 object BatchFromStreamExamples extends App {
-  private val executorLayer = FakeDynamoDBExecutor.layer(Database().table("table1", "id")())
+  private val executorLayer = FakeDynamoDBExecutor.table("table1", "id")().layer
 
   final case class Person(id: Int, name: String)
 
