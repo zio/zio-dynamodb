@@ -3,7 +3,6 @@ package zio.dynamodb
 import zio.dynamodb.DynamoDBExecutor.TestData.{ primaryKey1, primaryKey1_2, primaryKey2, primaryKey3 }
 import zio.dynamodb.DynamoDBQuery.{ DeleteItem, GetItem, PutItem }
 
-//TODO: come up with more logical naming for row data get xxxxT1K1
 //noinspection TypeAnnotation
 trait BatchingFixtures {
   // TODO: I think TableName's can be just Strings now

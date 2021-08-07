@@ -8,7 +8,7 @@ object BatchFromStream {
 
   /**
    * Processes `stream` with side effecting function `f`. Stream is batched into groups of 25 items in a BatchWriteItem
-   * and executed using the provided `DynamoDBExecutor` service
+   * and executed using the `DynamoDBExecutor` service provided in the environment.
    * @param stream
    * @param mPar Level of parllelism for the stream processing
    * @param f Function that takes an `A` and returns a `DynamoDBQuery.Write` which are used internally to populate a BatchWriteItem request

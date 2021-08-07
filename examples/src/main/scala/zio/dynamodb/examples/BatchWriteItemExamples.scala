@@ -13,7 +13,7 @@ object BatchWriteItemExamples extends App {
     ) where $("c.b") === "2"
   println(batchManual)
 
-  val batchPutFromIterable: DynamoDBQuery[List[Unit]] = DynamoDBQuery
+  val batchPutFromIterable = DynamoDBQuery
     .forEach(1 to 3) { i =>
       putItem("table1", Item("field1" -> i.toString))
     }

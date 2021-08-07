@@ -48,8 +48,7 @@ private[fake] class FakeDynamoDBExecutorImpl(dbRef: Ref[Database]) extends Dynam
 
       case BatchWriteItem(requestItems, capacity, metrics, addList)                             =>
         println(s"BatchWriteItem $requestItems $capacity $metrics $addList")
-        val xs: Seq[(TableName, Set[BatchWriteItem.Write])] = requestItems.toList
-        val results: ZIO[Any, DatabaseError, Unit]          = ZIO.foreach_(xs) {
+        val results: ZIO[Any, DatabaseError, Unit] = ZIO.foreach_(requestItems.toList) {
           case (tableName, setOfWrite) =>
             ZIO.foreach_(setOfWrite) { write =>
               val value: UIO[Either[DatabaseError, Database]] = dbRef.modify { db =>
@@ -72,7 +71,6 @@ private[fake] class FakeDynamoDBExecutorImpl(dbRef: Ref[Database]) extends Dynam
             }
 
         }
-        // TODO: we could execute in a loop
         results
 
       case GetItem(tableName, key, projections, readConsistency, capacity)                      =>
@@ -117,9 +115,8 @@ private[fake] class FakeDynamoDBExecutorImpl(dbRef: Ref[Database]) extends Dynam
         val zioOfStream = dbRef.get.map(_.scanAll(tableName.value, limit = 100))
         zioOfStream
 
-      // TODO: implement remaining constructors
+      // TODO: implement CreateTable
 
-      // TODO: remove
       case unknown                                                                              =>
         ZIO.fail(new Exception(s"Constructor $unknown not implemented yet"))
     }
