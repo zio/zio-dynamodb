@@ -5,7 +5,6 @@ import zio.dynamodb.DynamoDBQuery.{ DeleteItem, GetItem, PutItem }
 
 //noinspection TypeAnnotation
 trait BatchingFixtures {
-  // TODO: I think TableName's can be just Strings now
   val tableName1    = TableName("T1")
   val tableName2    = TableName("T2")
   val tableName3    = TableName("T3")
@@ -20,8 +19,6 @@ trait BatchingFixtures {
   val item3: Item   = getItem3.key
 
   val putItem1    = PutItem(tableName = tableName1, item = Item("k1" -> "k1"))
-  // TODO: replace this with putItem1_2
-  val putItem2    = PutItem(tableName = tableName1, item = Item("k2" -> "k2"))
   val deleteItem1 = DeleteItem(tableName = tableName1, key = PrimaryKey.empty)
 
 }

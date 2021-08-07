@@ -2,7 +2,7 @@ package zio.dynamodb.fake
 
 import zio.Chunk
 import zio.dynamodb.DynamoDBExecutor.TestData._
-import zio.dynamodb.fake.Database.{ resultItems, tableEntries }
+import zio.dynamodb.fake.Database.{ chunkOfPrimaryKeyAndItem, resultItems }
 import zio.dynamodb.{ BatchingFixtures, Item, PrimaryKey }
 import zio.test.Assertion._
 import zio.test._
@@ -17,7 +17,7 @@ object DatabaseSpec extends DefaultRunnableSpec with BatchingFixtures {
   private val dbWithEmptyTable = Database().table(tableName1.value, "k1")()
 
   private val dbWithFiveItems = Database()
-    .table(tableName1.value, "k1")(tableEntries(1 to 5, "k1"): _*)
+    .table(tableName1.value, "k1")(chunkOfPrimaryKeyAndItem(1 to 5, "k1"): _*)
 
   private val fakeDatabaseSuite = suite("FakeDatabase suite")(
     test("getItem returns an error when table does not exists") {

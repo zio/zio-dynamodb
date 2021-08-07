@@ -653,7 +653,6 @@ object DynamoDBQuery {
         (
           Chunk(batchGetItem),
           (results: Chunk[Any]) => {
-            println(s"parallelize BatchGetItem results=$results")
             results.head.asInstanceOf[A]
           }
         )
@@ -662,7 +661,6 @@ object DynamoDBQuery {
         (
           Chunk(batchWriteItem),
           (results: Chunk[Any]) => {
-            println(s"parallelize BatchWriteItem results=$results")
             results.head.asInstanceOf[A]
           }
         )
@@ -671,7 +669,6 @@ object DynamoDBQuery {
         (
           Chunk(getItem),
           (results: Chunk[Any]) => {
-            println(s"parallelize GetItem results=$results")
             results.head.asInstanceOf[A]
           }
         )
@@ -680,7 +677,6 @@ object DynamoDBQuery {
         (
           Chunk(putItem),
           (results: Chunk[Any]) => {
-            println(s"parallelize PutItem results=$results")
             if (results.isEmpty) ().asInstanceOf[A] else results.head.asInstanceOf[A]
           }
         )
@@ -689,7 +685,6 @@ object DynamoDBQuery {
         (
           Chunk(updateItem),
           (results: Chunk[Any]) => {
-            println(s"parallelize UpdateItem results=$results")
             results.head.asInstanceOf[A]
           }
         )
@@ -698,7 +693,6 @@ object DynamoDBQuery {
         (
           Chunk(deleteItem),
           (results: Chunk[Any]) => {
-            println(s"parallelize DeleteItem results=$results")
             if (results.isEmpty) ().asInstanceOf[A] else results.head.asInstanceOf[A]
           }
         )
@@ -707,7 +701,6 @@ object DynamoDBQuery {
         (
           Chunk(scan),
           (results: Chunk[Any]) => {
-            println(s"parallelize ScanSome results=$results")
             results.head.asInstanceOf[A]
           }
         )
@@ -716,7 +709,6 @@ object DynamoDBQuery {
         (
           Chunk(scan),
           (results: Chunk[Any]) => {
-            println(s"parallelize ScanAll results=$results")
             results.head.asInstanceOf[A]
           }
         )
@@ -725,7 +717,6 @@ object DynamoDBQuery {
         (
           Chunk(query),
           (results: Chunk[Any]) => {
-            println(s"parallelize QuerySome results=$results")
             results.head.asInstanceOf[A]
           }
         )
@@ -734,7 +725,6 @@ object DynamoDBQuery {
         (
           Chunk(query),
           (results: Chunk[Any]) => {
-            println(s"parallelize QueryAll results=$results")
             results.head.asInstanceOf[A]
           }
         )
@@ -743,7 +733,6 @@ object DynamoDBQuery {
         (
           Chunk(createTable),
           (results: Chunk[Any]) => {
-            println(s"parallelize Query results=$results")
             results.head.asInstanceOf[A]
           }
         )

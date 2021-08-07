@@ -117,10 +117,11 @@ private[fake] final case class Database(
 }
 
 object Database {
+  // Test data generation functions
 
-  def tableEntries(r: Range, pkFieldName: String): Chunk[(PrimaryKey, Item)] =
+  def chunkOfPrimaryKeyAndItem(r: Range, pkFieldName: String): Chunk[(PrimaryKey, Item)] =
     Chunk.fromIterable(r.map(i => (PrimaryKey(pkFieldName -> i), Item(pkFieldName -> i, "k2" -> (i + 1)))).toList)
 
-  def resultItems(range: Range): Chunk[Item]                                 = tableEntries(range, "k1").map { case (_, v) => v }
+  def resultItems(range: Range): Chunk[Item]                                             = chunkOfPrimaryKeyAndItem(range, "k1").map { case (_, v) => v }
 
 }

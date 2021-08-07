@@ -2,7 +2,7 @@ package zio.dynamodb.fake
 
 import zio.dynamodb.DynamoDBExecutor.TestData._
 import zio.dynamodb.DynamoDBQuery.{ queryAll, querySome, scanAll, scanSome, DeleteItem }
-import zio.dynamodb.fake.Database.{ resultItems, tableEntries }
+import zio.dynamodb.fake.Database.{ chunkOfPrimaryKeyAndItem, resultItems }
 import zio.dynamodb.{ BatchingFixtures, PrimaryKey }
 import zio.test.Assertion._
 import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
@@ -50,7 +50,7 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
         (chunk, lek) = t
       } yield assert(chunk)(equalTo(resultItems(1 to 5))) && assert(lek)(equalTo(None))
     }.provideLayer(
-      FakeDynamoDBExecutor.table(tableName1.value, "k1")(tableEntries(1 to 5, "k1"): _*).layer
+      FakeDynamoDBExecutor.table(tableName1.value, "k1")(chunkOfPrimaryKeyAndItem(1 to 5, "k1"): _*).layer
     ),
     testM("scanAll should scan all items in a table") {
       for {
@@ -58,20 +58,22 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
         chunk  <- stream.runCollect
       } yield assert(chunk)(equalTo(resultItems(1 to 5)))
     }.provideLayer(
-      FakeDynamoDBExecutor.table(tableName1.value, "k1")(tableEntries(1 to 5, "k1"): _*).layer
+      FakeDynamoDBExecutor.table(tableName1.value, "k1")(chunkOfPrimaryKeyAndItem(1 to 5, "k1"): _*).layer
     ),
     testM("querySome with limit greater than table size should scan all items in a table") {
       for {
         t           <- querySome(tableName1.value, "k1", 10).execute
         (chunk, lek) = t
       } yield assert(chunk)(equalTo(resultItems(1 to 5))) && assert(lek)(equalTo(None))
-    }.provideLayer(FakeDynamoDBExecutor.table(tableName1.value, "k1")(tableEntries(1 to 5, "k1"): _*).layer),
+    }.provideLayer(
+      FakeDynamoDBExecutor.table(tableName1.value, "k1")(chunkOfPrimaryKeyAndItem(1 to 5, "k1"): _*).layer
+    ),
     testM("queryAll should scan all items in a table") {
       for {
         stream <- queryAll(tableName1.value, "indexNameIgnored").execute
         chunk  <- stream.runCollect
       } yield assert(chunk)(equalTo(resultItems(1 to 5)))
-    }.provideLayer(FakeDynamoDBExecutor.table(tableName1.value, "k1")(tableEntries(1 to 5, "k1"): _*).layer)
+    }.provideLayer(FakeDynamoDBExecutor.table(tableName1.value, "k1")(chunkOfPrimaryKeyAndItem(1 to 5, "k1"): _*).layer)
   )
 
 }
