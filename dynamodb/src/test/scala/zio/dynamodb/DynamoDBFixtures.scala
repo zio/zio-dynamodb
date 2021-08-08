@@ -33,7 +33,7 @@ trait DynamoDBFixtures {
   val putItem1     = PutItem(tableName = tableName1, item = primaryKeyT1)
   val putItem1_2   = PutItem(tableName = tableName1, item = primaryKeyT1_2)
   val putItem3_2   = PutItem(tableName = tableName3, item = primaryKeyT3_2)
-  val deleteItem1  = DeleteItem(tableName = tableName1, key = PrimaryKey.empty)
+  val deleteItemT1 = DeleteItem(tableName = tableName1, key = primaryKeyT1)
   val deleteItemT3 = DeleteItem(tableName = tableName3, key = primaryKeyT3)
 
 }
