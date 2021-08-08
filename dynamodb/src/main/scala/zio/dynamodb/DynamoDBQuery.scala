@@ -454,7 +454,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     addList: Chunk[BatchWriteItem.Write] = Chunk.empty
-  ) extends Constructor[BatchWriteItem.Response] { self =>
+  ) extends Constructor[Unit] { self =>
     def +[A](writeItem: Write[A]): BatchWriteItem =
       writeItem match {
         case putItem @ PutItem(_, _, _, _, _, _)       =>
@@ -483,11 +483,6 @@ object DynamoDBQuery {
     sealed trait Write
     final case class Delete(key: PrimaryKey) extends Write
     final case class Put(item: Item)         extends Write
-
-    final case class Response(
-      // TODO: return metadata
-      unprocessedKeys: MapOfSet[TableName, BatchWriteItem.Write] = MapOfSet.empty
-    )
 
   }
 
@@ -658,7 +653,6 @@ object DynamoDBQuery {
         (
           Chunk(batchGetItem),
           (results: Chunk[Any]) => {
-            println(s"BatchGetItem results=$results")
             results.head.asInstanceOf[A]
           }
         )
@@ -667,7 +661,6 @@ object DynamoDBQuery {
         (
           Chunk(batchWriteItem),
           (results: Chunk[Any]) => {
-            println(s"BatchWriteItem results=$results")
             results.head.asInstanceOf[A]
           }
         )
@@ -676,7 +669,6 @@ object DynamoDBQuery {
         (
           Chunk(getItem),
           (results: Chunk[Any]) => {
-            println(s"GetItem results=$results")
             results.head.asInstanceOf[A]
           }
         )
@@ -685,7 +677,6 @@ object DynamoDBQuery {
         (
           Chunk(putItem),
           (results: Chunk[Any]) => {
-            println(s"PutItem results=$results")
             if (results.isEmpty) ().asInstanceOf[A] else results.head.asInstanceOf[A]
           }
         )
@@ -694,7 +685,6 @@ object DynamoDBQuery {
         (
           Chunk(updateItem),
           (results: Chunk[Any]) => {
-            println(s"UpdateItem results=$results")
             results.head.asInstanceOf[A]
           }
         )
@@ -703,7 +693,6 @@ object DynamoDBQuery {
         (
           Chunk(deleteItem),
           (results: Chunk[Any]) => {
-            println(s"DeleteItem results=$results")
             if (results.isEmpty) ().asInstanceOf[A] else results.head.asInstanceOf[A]
           }
         )
@@ -712,7 +701,6 @@ object DynamoDBQuery {
         (
           Chunk(scan),
           (results: Chunk[Any]) => {
-            println(s"ScanSome results=$results")
             results.head.asInstanceOf[A]
           }
         )
@@ -721,7 +709,6 @@ object DynamoDBQuery {
         (
           Chunk(scan),
           (results: Chunk[Any]) => {
-            println(s"ScanAll results=$results")
             results.head.asInstanceOf[A]
           }
         )
@@ -730,7 +717,6 @@ object DynamoDBQuery {
         (
           Chunk(query),
           (results: Chunk[Any]) => {
-            println(s"QuerySome results=$results")
             results.head.asInstanceOf[A]
           }
         )
@@ -739,7 +725,6 @@ object DynamoDBQuery {
         (
           Chunk(query),
           (results: Chunk[Any]) => {
-            println(s"QueryAll results=$results")
             results.head.asInstanceOf[A]
           }
         )
@@ -748,7 +733,6 @@ object DynamoDBQuery {
         (
           Chunk(createTable),
           (results: Chunk[Any]) => {
-            println(s"Query results=$results")
             results.head.asInstanceOf[A]
           }
         )
