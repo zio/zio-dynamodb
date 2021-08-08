@@ -1,6 +1,7 @@
 package zio.dynamodb
 
 import zio.dynamodb.DynamoDBExecutor.TestData._
+import zio.dynamodb.DynamoDBQuery.{ forEach, getItem }
 import zio.dynamodb.fake.FakeDynamoDBExecutor
 import zio.test.Assertion._
 import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
@@ -43,6 +44,13 @@ object BatchingSpec extends DefaultRunnableSpec with BatchingFixtures {
         expected     = (Some(item1), Some(item1_2))
         table3Items <- (getItem3 zip getItem3_2).execute
       } yield assert(result)(equalTo(expected)) && assert(table3Items)(equalTo((None, Some(item3_2))))
+    }.provideLayer(executorWithTwoTables),
+    testM("should execute forEach of GetItems (resulting in a batched request)") {
+      for {
+        result <- forEach(1 to 2) { i =>
+                    getItem(tableName1.value, PrimaryKey("k1" -> s"k$i"))
+                  }.execute
+      } yield assert(result)(equalTo(List(Some(item1), Some(item1_2))))
     }.provideLayer(executorWithTwoTables)
   )
 

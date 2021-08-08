@@ -7,56 +7,7 @@ import zio.test.Assertion.equalTo
 import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
 
 object ExecutorSpec extends DefaultRunnableSpec {
-
-  override def spec: ZSpec[Environment, Failure] = suite("Executor")(parallelizeSuite, executeSuite)
-
-  private val executeSuite = suite("execute")(
-    testM("should execute forEach of GetItems (resulting in a batched request)") {
-      for {
-        assembled <- forEach(1 to 2)(i => createGetItem(i)).execute
-      } yield assert(assembled)(equalTo(List(someItem("k1"), someItem("k2"))))
-    },
-    testM("should execute getItem1 zip getItem2") {
-      for {
-        assembled <- (getItem1 zip getItem2).execute
-      } yield assert(assembled)(equalTo((Some(item1), Some(item2))))
-    },
-    testM("should execute a single GetItem - note these are still batched") {
-      for {
-        assembled <- getItem1.execute
-      } yield assert(assembled)(equalTo(Some(item1)))
-    },
-    testM("should execute putItem1 zip deleteItem1") {
-      for {
-        assembled <- (putItem1 zip deleteItem1).execute
-      } yield assert(assembled)(equalTo(()))
-    },
-    testM("should execute a ScanSome") {
-      for {
-        assembled <- scanPage1.execute
-      } yield assert(assembled)(equalTo((Chunk(emptyItem), None)))
-    },
-    testM("should execute a QuerySome") {
-      for {
-        assembled <- queryPage1.execute
-      } yield assert(assembled)(equalTo((Chunk(emptyItem), None)))
-    },
-    testM("should execute a ScanAll") {
-      for {
-        assembled <- scanAll1.execute
-      } yield assert(assembled)(equalTo(stream1))
-    },
-    testM("should execute a QueryAll") {
-      for {
-        assembled <- queryAll1.execute
-      } yield assert(assembled)(equalTo(stream1))
-    },
-    testM("should execute create table") {
-      for {
-        assembled <- createTable1.execute
-      } yield assert(assembled)(equalTo(()))
-    }
-  ).provideCustomLayer(DynamoDBExecutor.test)
+  override def spec: ZSpec[Environment, Failure] = suite("Executor")(parallelizeSuite)
 
   private val parallelizeSuite =
     suite(label = "parallelize")(
