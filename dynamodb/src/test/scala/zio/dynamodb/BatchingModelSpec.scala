@@ -12,33 +12,33 @@ object BatchingModelSpec extends DefaultRunnableSpec with DynamoDBFixtures {
 
   private val batchGetItemSuite = suite("BatchGetItem")(
     test("should aggregate GetItems using +") {
-      val batch = BatchGetItem().addAll(getItemT1, getItemT2)
+      val batch = BatchGetItem().addAll(getItemT1, getItemT1_2)
 
-      assert(batch.addList)(equalTo(Chunk(getItemT1, getItemT2))) &&
+      assert(batch.addList)(equalTo(Chunk(getItemT1, getItemT1_2))) &&
       assert(batch.requestItems)(
         equalTo(
           MapOfSet.empty.addAll(
             tableName1 -> TableGet(getItemT1.key, getItemT1.projections),
-            tableName1 -> TableGet(getItemT2.key, getItemT2.projections)
+            tableName1 -> TableGet(getItemT1_2.key, getItemT1_2.projections)
           )
         )
       )
     },
     test("with aggregated GetItem's should return Some values back when keys are found") {
-      val batch    = BatchGetItem().addAll(getItemT1, getItemT2)
+      val batch    = BatchGetItem().addAll(getItemT1, getItemT1_2)
       val response =
-        BatchGetItem.Response(MapOfSet.empty.addAll(tableName1 -> itemT1, tableName1 -> itemT2))
+        BatchGetItem.Response(MapOfSet.empty.addAll(tableName1 -> itemT1, tableName1 -> itemT1_2))
 
-      assert(batch.toGetItemResponses(response))(equalTo(Chunk(Some(itemT1), Some(itemT2))))
+      assert(batch.toGetItemResponses(response))(equalTo(Chunk(Some(itemT1), Some(itemT1_2))))
     },
     test("with aggregated GetItem's should return None back for keys that are not found") {
-      val batch    = BatchGetItem().addAll(getItemT1, getItemT2)
+      val batch    = BatchGetItem().addAll(getItemT1, getItemT1_2)
       val response =
         BatchGetItem.Response(
-          MapOfSet.empty.addAll(tableName1 -> item("NotAKey1"), tableName1 -> itemT2)
+          MapOfSet.empty.addAll(tableName1 -> item("NotAKey1"), tableName1 -> itemT1_2)
         )
 
-      assert(batch.toGetItemResponses(response))(equalTo(Chunk(None, Some(itemT2))))
+      assert(batch.toGetItemResponses(response))(equalTo(Chunk(None, Some(itemT1_2))))
     }
   )
 

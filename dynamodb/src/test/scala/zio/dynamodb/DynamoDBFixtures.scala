@@ -4,12 +4,11 @@ import zio.dynamodb.DynamoDBQuery.{ getItem, DeleteItem, GetItem, PutItem }
 
 //noinspection TypeAnnotation
 trait DynamoDBFixtures {
-  val tableName1                        = TableName("T1")
-  val tableName2                        = TableName("T2")
-  val tableName3                        = TableName("T3")
-  def item(a: String): Item             = Item(a -> a)
-  def someItem(a: String): Option[Item] = Some(item(a))
-  def createGetItem(i: Int)             = getItem("T1", PrimaryKey(s"k$i" -> s"v$i"))
+  val tableName1            = TableName("T1")
+  val tableName2            = TableName("T2")
+  val tableName3            = TableName("T3")
+  def item(a: String): Item = Item(a -> a)
+  def createGetItem(i: Int) = getItem("T1", PrimaryKey(s"k$i" -> s"v$i"))
 
   val primaryKeyT1   = PrimaryKey("k1" -> "v1")
   val primaryKeyT1_2 = PrimaryKey("k1" -> "v2")
@@ -21,12 +20,10 @@ trait DynamoDBFixtures {
     GetItem(key = primaryKeyT1, tableName = tableName1)
   val getItemT1_2         = GetItem(key = primaryKeyT1_2, tableName = tableName1)
   val getItemT1_NotExists = GetItem(key = PrimaryKey("k1" -> "NOT_EXISTS"), tableName = tableName1)
-  val getItemT2           = GetItem(key = primaryKeyT2, tableName = tableName1)
   val getItemT3           = GetItem(key = primaryKeyT3, tableName = tableName3)
   val getItemT3_2         = GetItem(key = primaryKeyT3_2, tableName = tableName3)
   val itemT1: Item        = getItemT1.key
   val itemT1_2: Item      = getItemT1_2.key
-  val itemT2: Item        = getItemT2.key
   val itemT3: Item        = getItemT3.key
   val itemT3_2: Item      = getItemT3_2.key
 

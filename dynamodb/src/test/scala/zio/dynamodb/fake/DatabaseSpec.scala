@@ -34,9 +34,9 @@ object DatabaseSpec extends DefaultRunnableSpec with DynamoDBFixtures {
     test("getItem returns Some item from correct table when there are multiple tables") {
       val db = Database()
         .table("T1", "k1")(primaryKeyT1 -> itemT1)
-        .table("t2", "k2")(primaryKeyT2 -> itemT2)
+        .table("t2", "k2")(primaryKeyT2 -> itemT1_2)
       assert(db.getItem("T1", primaryKeyT1))(equalTo(Right(Some(itemT1)))) && assert(db.getItem("t2", primaryKeyT2))(
-        equalTo(Right(Some(itemT2)))
+        equalTo(Right(Some(itemT1_2)))
       )
     },
     test("put() returns an error when table does not exists") {
