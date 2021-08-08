@@ -12,7 +12,6 @@ private[fake] final case class Database(
   tablePkMap: Map[String, String] = Map.empty
 ) { self =>
 
-  // TODO: have just one param list to prevent () in the empty table case
   def table(tableName: String, pkFieldName: String)(entries: TableEntry*): Database   =
     Database(self.map + (tableName -> entries.toMap), self.tablePkMap + (tableName -> pkFieldName))
 

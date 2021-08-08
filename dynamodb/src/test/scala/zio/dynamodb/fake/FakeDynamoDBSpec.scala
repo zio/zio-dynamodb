@@ -12,7 +12,7 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
   override def spec: ZSpec[Environment, Failure] =
     suite("FakeDynamoDB")(fakeDynamoDbSuite)
 
-  private val dbWithTwoTables = FakeDynamoDBExecutor
+  private val executorWithTwoTables = FakeDynamoDBExecutor
     .table(tableName1.value, "k1")(primaryKey1 -> item1, primaryKey1_2 -> item1_2)
     .table(tableName3.value, "k3")(primaryKey3 -> item3)
     .layer
@@ -23,7 +23,7 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
         result  <- getItem1.execute
         expected = Some(item1)
       } yield assert(result)(equalTo(expected))
-    }.provideLayer(dbWithTwoTables),
+    }.provideLayer(executorWithTwoTables),
     testM("should execute putItem then getItem when sequenced in a ZIO") {
       for {
         _       <- putItem1.execute
@@ -35,7 +35,7 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
       for {
         assembled <- (getItem1 zip getItem1_2 zip getItem3).execute
       } yield assert(assembled)(equalTo((Some(item1), Some(item1_2), Some(item3))))
-    }.provideLayer(dbWithTwoTables),
+    }.provideLayer(executorWithTwoTables),
     testM("should remove an item") {
       for {
         result1 <- getItem1.execute
@@ -43,7 +43,7 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
         result2 <- getItem1.execute
         expected = Some(item1)
       } yield assert(result1)(equalTo(expected)) && assert(result2)(equalTo(None))
-    }.provideLayer(dbWithTwoTables),
+    }.provideLayer(executorWithTwoTables),
     testM("scanSome with limit greater than table size should scan all items in a table") {
       for {
         t           <- scanSome(tableName1.value, "k1", 10).execute

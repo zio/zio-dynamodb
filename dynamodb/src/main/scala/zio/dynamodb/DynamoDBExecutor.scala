@@ -48,6 +48,7 @@ object DynamoDBExecutor {
     val primaryKey1_2                     = PrimaryKey("k1" -> "k2")
     val primaryKey2                       = PrimaryKey("k2" -> "k2")
     val primaryKey3                       = PrimaryKey("k3" -> "k3")
+    val primaryKey3_2                     = PrimaryKey("k3" -> "k4")
 
     def createGetItem(i: Int) = getItem("T1", primaryKey(s"k$i"))
     val getItem1              = getItem("T1", primaryKey1)
