@@ -1,7 +1,6 @@
 package zio.dynamodb.fake
 
 import zio.Chunk
-import zio.dynamodb.DynamoDBExecutor.TestData._
 import zio.dynamodb.fake.Database.{ chunkOfPrimaryKeyAndItem, resultItems }
 import zio.dynamodb.{ BatchingFixtures, Item, PrimaryKey }
 import zio.test.Assertion._

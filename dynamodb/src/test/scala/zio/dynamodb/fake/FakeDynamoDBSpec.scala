@@ -1,7 +1,6 @@
 package zio.dynamodb.fake
 
-import zio.dynamodb.DynamoDBExecutor.TestData._
-import zio.dynamodb.DynamoDBQuery.{ queryAll, querySome, scanAll, scanSome, DeleteItem }
+import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.fake.Database.{ chunkOfPrimaryKeyAndItem, resultItems }
 import zio.dynamodb.{ BatchingFixtures, PrimaryKey }
 import zio.test.Assertion._

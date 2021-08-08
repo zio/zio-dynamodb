@@ -1,6 +1,5 @@
 package zio.dynamodb
 
-import zio.dynamodb.DynamoDBExecutor.TestData.{ primaryKey1, primaryKey1_2, primaryKey2, primaryKey3, primaryKey3_2 }
 import zio.dynamodb.DynamoDBQuery.{ getItem, DeleteItem, GetItem, PutItem }
 
 //noinspection TypeAnnotation
@@ -13,6 +12,12 @@ trait BatchingFixtures {
   def someItem(a: String): Option[Item] = Some(item(a))
   def primaryKey(s: String)             = PrimaryKey(s -> s)
   def createGetItem(i: Int)             = getItem("T1", primaryKey(s"k$i"))
+
+  val primaryKey1   = PrimaryKey("k1" -> "k1")
+  val primaryKey1_2 = PrimaryKey("k1" -> "k2")
+  val primaryKey2   = PrimaryKey("k2" -> "k2")
+  val primaryKey3   = PrimaryKey("k3" -> "k3")
+  val primaryKey3_2 = PrimaryKey("k3" -> "k4")
 
   val getItem1 =
     GetItem(key = primaryKey1, tableName = tableName1) // TODO: replace "K2" with "V2" when in value position

@@ -1,6 +1,5 @@
 package zio.dynamodb
 
-import zio.dynamodb.DynamoDBExecutor.TestData._
 import zio.dynamodb.DynamoDBQuery.{ forEach, getItem }
 import zio.dynamodb.fake.FakeDynamoDBExecutor
 import zio.test.Assertion._

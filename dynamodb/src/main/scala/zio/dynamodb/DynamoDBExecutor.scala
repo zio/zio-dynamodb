@@ -15,19 +15,6 @@ object DynamoDBExecutor {
 
   //noinspection TypeAnnotation
   object TestData {
-    def primaryKey(i: Int) = PrimaryKey(s"$i" -> s"$i")
-    val primaryKey1        = PrimaryKey("k1" -> "k1")
-    val primaryKey1_2      = PrimaryKey("k1" -> "k2")
-    val primaryKey2        = PrimaryKey("k2" -> "k2")
-    val primaryKey3        = PrimaryKey("k3" -> "k3")
-    val primaryKey3_2      = PrimaryKey("k3" -> "k4")
-
-    val getItem1    = getItem("T1", primaryKey1)
-    val getItem2    = getItem("T1", primaryKey2)
-    val getItem3    = getItem("T3", primaryKey3)
-    val item1: Item = primaryKey1
-    val item2: Item = primaryKey2
-    val item3: Item = primaryKey3
 
     val putItem1     = putItem("T1", item = Item("k1" -> "k1"))
     val putItem2     = putItem("T1", item = Item("k2" -> "k2"))
