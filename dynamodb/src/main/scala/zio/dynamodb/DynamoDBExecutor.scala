@@ -15,25 +15,19 @@ object DynamoDBExecutor {
 
   //noinspection TypeAnnotation
   object TestData {
-    val emptyItem                         = Item.empty
-    def someItem: Option[Item]            = Some(emptyItem)
-    def item(a: String): Item             = Item(a -> a)
-    def someItem(a: String): Option[Item] = Some(item(a))
-    def primaryKey(s: String)             = PrimaryKey(s -> s)
-    def primaryKey(i: Int)                = PrimaryKey(s"$i" -> s"$i")
-    val primaryKey1                       = PrimaryKey("k1" -> "k1")
-    val primaryKey1_2                     = PrimaryKey("k1" -> "k2")
-    val primaryKey2                       = PrimaryKey("k2" -> "k2")
-    val primaryKey3                       = PrimaryKey("k3" -> "k3")
-    val primaryKey3_2                     = PrimaryKey("k3" -> "k4")
+    def primaryKey(i: Int) = PrimaryKey(s"$i" -> s"$i")
+    val primaryKey1        = PrimaryKey("k1" -> "k1")
+    val primaryKey1_2      = PrimaryKey("k1" -> "k2")
+    val primaryKey2        = PrimaryKey("k2" -> "k2")
+    val primaryKey3        = PrimaryKey("k3" -> "k3")
+    val primaryKey3_2      = PrimaryKey("k3" -> "k4")
 
-    def createGetItem(i: Int) = getItem("T1", primaryKey(s"k$i"))
-    val getItem1              = getItem("T1", primaryKey1)
-    val getItem2              = getItem("T1", primaryKey2)
-    val getItem3              = getItem("T3", primaryKey3)
-    val item1: Item           = primaryKey1
-    val item2: Item           = primaryKey2
-    val item3: Item           = primaryKey3
+    val getItem1    = getItem("T1", primaryKey1)
+    val getItem2    = getItem("T1", primaryKey2)
+    val getItem3    = getItem("T3", primaryKey3)
+    val item1: Item = primaryKey1
+    val item2: Item = primaryKey2
+    val item3: Item = primaryKey3
 
     val putItem1     = putItem("T1", item = Item("k1" -> "k1"))
     val putItem2     = putItem("T1", item = Item("k2" -> "k2"))
@@ -42,7 +36,7 @@ object DynamoDBExecutor {
         $("top[1]").remove
       )
     val deleteItem1  = deleteItem("T1", key = PrimaryKey.empty)
-    val stream1      = ZStream(emptyItem)
+    val stream1      = ZStream(Item.empty)
     val scanPage1    = scanSome("T1", "I1", limit = 10)
     val queryPage1   = querySome("T1", "I1", limit = 10)
     val scanAll1     = scanAll("T1", "I1")

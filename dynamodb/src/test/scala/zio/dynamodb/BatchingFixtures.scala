@@ -1,15 +1,20 @@
 package zio.dynamodb
 
 import zio.dynamodb.DynamoDBExecutor.TestData.{ primaryKey1, primaryKey1_2, primaryKey2, primaryKey3, primaryKey3_2 }
-import zio.dynamodb.DynamoDBQuery.{ DeleteItem, GetItem, PutItem }
+import zio.dynamodb.DynamoDBQuery.{ getItem, DeleteItem, GetItem, PutItem }
 
 //noinspection TypeAnnotation
 trait BatchingFixtures {
-  val tableName1 = TableName("T1")
-  val tableName2 = TableName("T2")
-  val tableName3 = TableName("T3")
-  val indexName1 = IndexName("I1")
-  val getItem1   =
+  val tableName1                        = TableName("T1")
+  val tableName2                        = TableName("T2")
+  val tableName3                        = TableName("T3")
+  val indexName1                        = IndexName("I1")
+  def item(a: String): Item             = Item(a -> a)
+  def someItem(a: String): Option[Item] = Some(item(a))
+  def primaryKey(s: String)             = PrimaryKey(s -> s)
+  def createGetItem(i: Int)             = getItem("T1", primaryKey(s"k$i"))
+
+  val getItem1 =
     GetItem(key = primaryKey1, tableName = tableName1) // TODO: replace "K2" with "V2" when in value position
   val getItem1_2         = GetItem(key = primaryKey1_2, tableName = tableName1)
   val getItem1_NotExists = GetItem(key = PrimaryKey("k1" -> "NOT_EXISTS"), tableName = tableName1)

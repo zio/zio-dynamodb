@@ -1,7 +1,6 @@
 package zio.dynamodb
 
 import zio.Chunk
-import zio.dynamodb.DynamoDBExecutor.TestData._
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem }
 import zio.test.Assertion._
