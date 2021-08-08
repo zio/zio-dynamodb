@@ -21,48 +21,48 @@ object DatabaseSpec extends DefaultRunnableSpec with DynamoDBFixtures {
   private val fakeDatabaseSuite = suite("FakeDatabase suite")(
     test("getItem returns an error when table does not exists") {
       val db = Database()
-      assert(db.getItem("T1", primaryKey1))(isLeft)
+      assert(db.getItem("T1", primaryKeyT1))(isLeft)
     },
     test("getItem returns Some item when created using table()") {
-      val db = Database().table("T1", "k1")(primaryKey1 -> item1)
-      assert(db.getItem("T1", primaryKey1))(equalTo(Right(Some(item1))))
+      val db = Database().table("T1", "k1")(primaryKeyT1 -> itemT1)
+      assert(db.getItem("T1", primaryKeyT1))(equalTo(Right(Some(itemT1))))
     },
     test("getItem returns None when primary key does not exist") {
-      val db = Database().table("T1", "k1")(primaryKey1 -> item1)
-      assert(db.getItem("T1", primaryKey2))(equalTo(Right(None)))
+      val db = Database().table("T1", "k1")(primaryKeyT1 -> itemT1)
+      assert(db.getItem("T1", primaryKeyT2))(equalTo(Right(None)))
     },
     test("getItem returns Some item from correct table when there are multiple tables") {
       val db = Database()
-        .table("T1", "k1")(primaryKey1 -> item1)
-        .table("t2", "k2")(primaryKey2 -> item2)
-      assert(db.getItem("T1", primaryKey1))(equalTo(Right(Some(item1)))) && assert(db.getItem("t2", primaryKey2))(
-        equalTo(Right(Some(item2)))
+        .table("T1", "k1")(primaryKeyT1 -> itemT1)
+        .table("t2", "k2")(primaryKeyT2 -> itemT2)
+      assert(db.getItem("T1", primaryKeyT1))(equalTo(Right(Some(itemT1)))) && assert(db.getItem("t2", primaryKeyT2))(
+        equalTo(Right(Some(itemT2)))
       )
     },
     test("put() returns an error when table does not exists") {
       val db              = Database()
-      val errorOrDatabase = db.put("T1", item1)
+      val errorOrDatabase = db.put("T1", itemT1)
       assert(errorOrDatabase)(isLeft)
     },
     test("put() updates a table created using table()") {
       val db              = Database().table("T1", "k1")()
-      val errorOrDatabase = db.put("T1", item1)
-      assert(db.getItem("T1", primaryKey1))(isRight(equalTo(None))) && assert(
-        errorOrDatabase.flatMap(_.getItem("T1", primaryKey1))
+      val errorOrDatabase = db.put("T1", itemT1)
+      assert(db.getItem("T1", primaryKeyT1))(isRight(equalTo(None))) && assert(
+        errorOrDatabase.flatMap(_.getItem("T1", primaryKeyT1))
       )(
-        equalTo(Right(Some(item1)))
+        equalTo(Right(Some(itemT1)))
       )
     },
     test("delete() returns a Left of error when table does not exists") {
       val db        = Database()
-      val errorOrDb = db.delete("T1", primaryKey1)
+      val errorOrDb = db.delete("T1", primaryKeyT1)
       assert(errorOrDb)(isLeft)
     },
     test("delete() removes an entry created using table()") {
-      val db        = Database().table("T1", "k1")(primaryKey1 -> item1)
-      val errorOrDb = db.delete("T1", primaryKey1)
-      assert(db.getItem("T1", primaryKey1))(equalTo(Right(Some(item1)))) && assert(
-        errorOrDb.flatMap(_.getItem("T1", primaryKey1))
+      val db        = Database().table("T1", "k1")(primaryKeyT1 -> itemT1)
+      val errorOrDb = db.delete("T1", primaryKeyT1)
+      assert(db.getItem("T1", primaryKeyT1))(equalTo(Right(Some(itemT1)))) && assert(
+        errorOrDb.flatMap(_.getItem("T1", primaryKeyT1))
       )(
         equalTo(Right(None))
       )

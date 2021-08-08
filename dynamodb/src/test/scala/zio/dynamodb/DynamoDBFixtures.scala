@@ -11,29 +11,29 @@ trait DynamoDBFixtures {
   def someItem(a: String): Option[Item] = Some(item(a))
   def createGetItem(i: Int)             = getItem("T1", PrimaryKey(s"k$i" -> s"v$i"))
 
-  val primaryKey1   = PrimaryKey("k1" -> "v1")
-  val primaryKey1_2 = PrimaryKey("k1" -> "v2")
-  val primaryKey2   = PrimaryKey("k2" -> "v2")
-  val primaryKey3   = PrimaryKey("k3" -> "v3")
-  val primaryKey3_2 = PrimaryKey("k3" -> "v4")
+  val primaryKeyT1   = PrimaryKey("k1" -> "v1")
+  val primaryKeyT1_2 = PrimaryKey("k1" -> "v2")
+  val primaryKeyT2   = PrimaryKey("k2" -> "v2")
+  val primaryKeyT3   = PrimaryKey("k3" -> "v3")
+  val primaryKeyT3_2 = PrimaryKey("k3" -> "v4")
 
-  val getItem1           =
-    GetItem(key = primaryKey1, tableName = tableName1)
-  val getItem1_2         = GetItem(key = primaryKey1_2, tableName = tableName1)
-  val getItem1_NotExists = GetItem(key = PrimaryKey("k1" -> "NOT_EXISTS"), tableName = tableName1)
-  val getItem2           = GetItem(key = primaryKey2, tableName = tableName1)
-  val getItem3           = GetItem(key = primaryKey3, tableName = tableName3)
-  val getItem3_2         = GetItem(key = primaryKey3_2, tableName = tableName3)
-  val item1: Item        = getItem1.key
-  val item1_2: Item      = getItem1_2.key
-  val item2: Item        = getItem2.key
-  val item3: Item        = getItem3.key
-  val item3_2: Item      = getItem3_2.key
+  val getItemT1           =
+    GetItem(key = primaryKeyT1, tableName = tableName1)
+  val getItemT1_2         = GetItem(key = primaryKeyT1_2, tableName = tableName1)
+  val getItemT1_NotExists = GetItem(key = PrimaryKey("k1" -> "NOT_EXISTS"), tableName = tableName1)
+  val getItemT2           = GetItem(key = primaryKeyT2, tableName = tableName1)
+  val getItemT3           = GetItem(key = primaryKeyT3, tableName = tableName3)
+  val getItemT3_2         = GetItem(key = primaryKeyT3_2, tableName = tableName3)
+  val itemT1: Item        = getItemT1.key
+  val itemT1_2: Item      = getItemT1_2.key
+  val itemT2: Item        = getItemT2.key
+  val itemT3: Item        = getItemT3.key
+  val itemT3_2: Item      = getItemT3_2.key
 
-  val putItem1    = PutItem(tableName = tableName1, item = primaryKey1)
-  val putItem1_2  = PutItem(tableName = tableName1, item = primaryKey1_2)
-  val putItem3_2  = PutItem(tableName = tableName3, item = primaryKey3_2)
-  val deleteItem1 = DeleteItem(tableName = tableName1, key = PrimaryKey.empty)
-  val deleteItem3 = DeleteItem(tableName = tableName3, key = primaryKey3)
+  val putItem1     = PutItem(tableName = tableName1, item = primaryKeyT1)
+  val putItem1_2   = PutItem(tableName = tableName1, item = primaryKeyT1_2)
+  val putItem3_2   = PutItem(tableName = tableName3, item = primaryKeyT3_2)
+  val deleteItem1  = DeleteItem(tableName = tableName1, key = PrimaryKey.empty)
+  val deleteItemT3 = DeleteItem(tableName = tableName3, key = primaryKeyT3)
 
 }

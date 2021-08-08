@@ -21,10 +21,10 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
       },
       test(label = "should process Zipped GetItems") {
         val (constructors, assembler): (Chunk[Constructor[Any]], Chunk[Any] => (Option[AttrMap], Option[AttrMap])) =
-          parallelize(getItem1 zip getItem2)
+          parallelize(getItemT1 zip getItemT2)
         val assembled                                                                                              = assembler(Chunk(someItem("1"), someItem("2")))
 
-        assert(constructors)(equalTo(Chunk(getItem1, getItem2))) && assert(assembled)(
+        assert(constructors)(equalTo(Chunk(getItemT1, getItemT2))) && assert(assembled)(
           equalTo((someItem("1"), someItem("2")))
         )
       },
@@ -37,13 +37,13 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
       },
       test("should process Map constructor") {
         val map                       = Map(
-          getItem1,
+          getItemT1,
           (o: Option[AttrMap]) => o.map(_ => AttrMap("1" -> "2"))
         )
         val (constructors, assembler) = parallelize(map)
         val assembled                 = assembler(Chunk(someItem("1")))
 
-        assert(constructors)(equalTo(Chunk(getItem1))) && assert(assembled)(
+        assert(constructors)(equalTo(Chunk(getItemT1))) && assert(assembled)(
           equalTo(Some(AttrMap("1" -> "2")))
         )
       },

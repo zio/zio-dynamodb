@@ -12,35 +12,35 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with DynamoDBFixtures {
     suite("FakeDynamoDB")(fakeDynamoDbSuite)
 
   private val executorWithTwoTables = FakeDynamoDBExecutor
-    .table(tableName1.value, "k1")(primaryKey1 -> item1, primaryKey1_2 -> item1_2)
-    .table(tableName3.value, "k3")(primaryKey3 -> item3)
+    .table(tableName1.value, "k1")(primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
+    .table(tableName3.value, "k3")(primaryKeyT3 -> itemT3)
     .layer
 
   private val fakeDynamoDbSuite = suite("FakeDynamoDB suite")(
     testM("getItem") {
       for {
-        result  <- getItem1.execute
-        expected = Some(item1)
+        result  <- getItemT1.execute
+        expected = Some(itemT1)
       } yield assert(result)(equalTo(expected))
     }.provideLayer(executorWithTwoTables),
     testM("should execute putItem then getItem when sequenced in a ZIO") {
       for {
         _       <- putItem1.execute
-        result  <- getItem1.execute
-        expected = Some(item1)
+        result  <- getItemT1.execute
+        expected = Some(itemT1)
       } yield assert(result)(equalTo(expected))
     }.provideLayer(FakeDynamoDBExecutor.table(tableName1.value, "k1")().layer),
     testM("should execute getItem1 zip getItem2 zip getItem3") {
       for {
-        assembled <- (getItem1 zip getItem1_2 zip getItem3).execute
-      } yield assert(assembled)(equalTo((Some(item1), Some(item1_2), Some(item3))))
+        assembled <- (getItemT1 zip getItemT1_2 zip getItemT3).execute
+      } yield assert(assembled)(equalTo((Some(itemT1), Some(itemT1_2), Some(itemT3))))
     }.provideLayer(executorWithTwoTables),
     testM("should remove an item") {
       for {
-        result1 <- getItem1.execute
-        _       <- DeleteItem(tableName1, primaryKey1).execute
-        result2 <- getItem1.execute
-        expected = Some(item1)
+        result1 <- getItemT1.execute
+        _       <- DeleteItem(tableName1, primaryKeyT1).execute
+        result2 <- getItemT1.execute
+        expected = Some(itemT1)
       } yield assert(result1)(equalTo(expected)) && assert(result2)(equalTo(None))
     }.provideLayer(executorWithTwoTables),
     testM("scanSome with limit greater than table size should scan all items in a table") {
