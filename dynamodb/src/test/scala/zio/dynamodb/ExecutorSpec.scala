@@ -1,7 +1,6 @@
 package zio.dynamodb
 
 import zio.Chunk
-import zio.dynamodb.DynamoDBExecutor.TestData._
 import zio.dynamodb.DynamoDBQuery._
 import zio.test.Assertion.equalTo
 import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
@@ -49,10 +48,11 @@ object ExecutorSpec extends DefaultRunnableSpec with BatchingFixtures {
         )
       },
       test("should process ScanSome constructor") {
-        val (constructors, assembler) = parallelize(scanPage1)
+        val scanPage                  = scanSome("T1", "I1", limit = 10)
+        val (constructors, assembler) = parallelize(scanPage)
         val assembled                 = assembler(Chunk((Chunk(Item.empty), None)))
 
-        assert(constructors)(equalTo(Chunk(scanPage1))) && assert(assembled)(equalTo((Chunk(Item.empty), None)))
+        assert(constructors)(equalTo(Chunk(scanPage))) && assert(assembled)(equalTo((Chunk(Item.empty), None)))
       }
     )
 
