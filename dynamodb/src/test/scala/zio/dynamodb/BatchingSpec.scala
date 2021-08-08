@@ -47,7 +47,7 @@ object BatchingSpec extends DefaultRunnableSpec with DynamoDBFixtures {
     testM("should execute forEach of GetItems (resulting in a batched request)") {
       for {
         result <- forEach(1 to 2) { i =>
-                    getItem(tableName1.value, PrimaryKey("k1" -> s"k$i"))
+                    getItem(tableName1.value, PrimaryKey("k1" -> s"v$i"))
                   }.execute
       } yield assert(result)(equalTo(List(Some(item1), Some(item1_2))))
     }.provideLayer(executorWithTwoTables)

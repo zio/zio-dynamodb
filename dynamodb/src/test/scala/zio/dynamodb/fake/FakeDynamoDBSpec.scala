@@ -1,8 +1,8 @@
 package zio.dynamodb.fake
 
+import zio.dynamodb.DynamoDBFixtures
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.fake.Database.{ chunkOfPrimaryKeyAndItem, resultItems }
-import zio.dynamodb.{ DynamoDBFixtures, PrimaryKey }
 import zio.test.Assertion._
 import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
 
@@ -38,7 +38,7 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with DynamoDBFixtures {
     testM("should remove an item") {
       for {
         result1 <- getItem1.execute
-        _       <- DeleteItem(tableName1, PrimaryKey("k1" -> "k1")).execute
+        _       <- DeleteItem(tableName1, primaryKey1).execute
         result2 <- getItem1.execute
         expected = Some(item1)
       } yield assert(result1)(equalTo(expected)) && assert(result2)(equalTo(None))
