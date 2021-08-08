@@ -35,7 +35,7 @@ object BatchingModelSpec extends DefaultRunnableSpec with DynamoDBFixtures {
       val batch    = BatchGetItem().addAll(getItemT1, getItemT1_2)
       val response =
         BatchGetItem.Response(
-          MapOfSet.empty.addAll(tableName1 -> item("NotAKey1"), tableName1 -> itemT1_2)
+          MapOfSet.empty.addAll(tableName1 -> itemT1_NotExists, tableName1 -> itemT1_2)
         )
 
       assert(batch.toGetItemResponses(response))(equalTo(Chunk(None, Some(itemT1_2))))
