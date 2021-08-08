@@ -3,11 +3,10 @@ package zio.dynamodb
 import zio.dynamodb.DynamoDBQuery.{ getItem, DeleteItem, GetItem, PutItem }
 
 //noinspection TypeAnnotation
-trait BatchingFixtures {
+trait DynamoDBFixtures {
   val tableName1                        = TableName("T1")
   val tableName2                        = TableName("T2")
   val tableName3                        = TableName("T3")
-  val indexName1                        = IndexName("I1")
   def item(a: String): Item             = Item(a -> a)
   def someItem(a: String): Option[Item] = Some(item(a))
   def primaryKey(s: String)             = PrimaryKey(s -> s)
@@ -34,7 +33,6 @@ trait BatchingFixtures {
 
   val putItem1    = PutItem(tableName = tableName1, item = Item("k1" -> "k1"))
   val putItem1_2  = PutItem(tableName = tableName1, item = primaryKey1_2)
-  val putItem3    = PutItem(tableName = tableName3, item = primaryKey3)
   val putItem3_2  = PutItem(tableName = tableName3, item = primaryKey3_2)
   val deleteItem1 = DeleteItem(tableName = tableName1, key = PrimaryKey.empty)
   val deleteItem3 = DeleteItem(tableName = tableName3, key = primaryKey3)

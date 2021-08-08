@@ -5,7 +5,7 @@ import zio.dynamodb.fake.FakeDynamoDBExecutor
 import zio.test.Assertion._
 import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
 
-object BatchingSpec extends DefaultRunnableSpec with BatchingFixtures {
+object BatchingSpec extends DefaultRunnableSpec with DynamoDBFixtures {
 
   private val executorWithOneTable = FakeDynamoDBExecutor
     .table(tableName1.value, "k1")(primaryKey1 -> item1, primaryKey1_2 -> item1_2)

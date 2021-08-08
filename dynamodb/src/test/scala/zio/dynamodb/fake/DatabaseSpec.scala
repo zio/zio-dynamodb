@@ -2,11 +2,11 @@ package zio.dynamodb.fake
 
 import zio.Chunk
 import zio.dynamodb.fake.Database.{ chunkOfPrimaryKeyAndItem, resultItems }
-import zio.dynamodb.{ BatchingFixtures, Item, PrimaryKey }
+import zio.dynamodb.{ DynamoDBFixtures, Item, PrimaryKey }
 import zio.test.Assertion._
 import zio.test._
 
-object DatabaseSpec extends DefaultRunnableSpec with BatchingFixtures {
+object DatabaseSpec extends DefaultRunnableSpec with DynamoDBFixtures {
 
   private val noLastEvaluatedKey = None
 

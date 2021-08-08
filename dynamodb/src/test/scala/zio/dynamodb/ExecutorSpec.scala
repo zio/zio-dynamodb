@@ -5,7 +5,7 @@ import zio.dynamodb.DynamoDBQuery._
 import zio.test.Assertion.equalTo
 import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
 
-object ExecutorSpec extends DefaultRunnableSpec with BatchingFixtures {
+object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
   override def spec: ZSpec[Environment, Failure] = suite("Executor")(parallelizeSuite)
 
   private val parallelizeSuite =

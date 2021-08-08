@@ -6,7 +6,7 @@ import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem }
 import zio.test.Assertion._
 import zio.test.{ DefaultRunnableSpec, _ }
 
-object BatchingModelSpec extends DefaultRunnableSpec with BatchingFixtures {
+object BatchingModelSpec extends DefaultRunnableSpec with DynamoDBFixtures {
 
   override def spec: ZSpec[Environment, Failure] = suite("Batch Model")(batchGetItemSuite, batchWriteItemSuite)
 

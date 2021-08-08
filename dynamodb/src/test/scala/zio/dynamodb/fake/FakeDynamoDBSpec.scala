@@ -2,11 +2,11 @@ package zio.dynamodb.fake
 
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.fake.Database.{ chunkOfPrimaryKeyAndItem, resultItems }
-import zio.dynamodb.{ BatchingFixtures, PrimaryKey }
+import zio.dynamodb.{ DynamoDBFixtures, PrimaryKey }
 import zio.test.Assertion._
 import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
 
-object FakeDynamoDBSpec extends DefaultRunnableSpec with BatchingFixtures {
+object FakeDynamoDBSpec extends DefaultRunnableSpec with DynamoDBFixtures {
 
   override def spec: ZSpec[Environment, Failure] =
     suite("FakeDynamoDB")(fakeDynamoDbSuite)
