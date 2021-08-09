@@ -16,7 +16,7 @@ import zio.dynamodb.DynamoDBQuery.{
 }
 import zio.dynamodb.{ DynamoDBExecutor, DynamoDBQuery, Item, MapOfSet, TableName }
 
-private[fake] class FakeDynamoDBExecutorImpl(dbRef: Ref[Database]) extends DynamoDBExecutor.Service {
+private[fake] class FakeDynamoDBExecutorImpl(private val dbRef: Ref[Database]) extends DynamoDBExecutor.Service {
 
   override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A] =
     atomicQuery match {
