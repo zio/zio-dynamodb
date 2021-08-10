@@ -1,93 +1,75 @@
 package zio.dynamodb.fake
 
 import zio.dynamodb.{ AttributeValue, Item, LastEvaluatedKey, PrimaryKey }
-import zio.stm.{ STM, TMap, USTM }
+import zio.stm.{ STM, TMap, ZSTM }
 import zio.stream.ZStream
-import zio.{ Chunk, Has, IO, UIO, ULayer, ZIO, ZLayer }
+import zio.{ Chunk, Has, IO, UIO, ULayer }
 
 private[fake] final case class Database2(
-  map: Map[String, Map[PrimaryKey, Item]] = Map.empty,
-  tablePkMap: Map[String, String] = Map.empty,
-  dbMap: TMap[String, TMap[PrimaryKey, Item]] = null, // TODO: remove null defaults
-  tablePkMap2: TMap[String, String] = null
+  tableMap: TMap[String, TMap[PrimaryKey, Item]],
+  tablePkNameMap: TMap[String, String]
 ) {
   self =>
 
-  //  val tfoo: USTM[TMap[PrimaryKey, Item]] = TMap.empty[PrimaryKey, Item]
-  //  for {
-  //    x <- tfoo
-  //  y <- x.put()
-  //  } yield ()
+  def tableMapAndPkName(tableName: String): ZSTM[Any, DatabaseError, (TMap[PrimaryKey, Item], String)] =
+    for {
+      tableMap <- for {
+                    maybeTableMap <- self.tableMap.get(tableName)
+                    tableMap      <- maybeTableMap.fold[STM[DatabaseError, TMap[PrimaryKey, Item]]](
+                                       STM.fail[DatabaseError](TableDoesNotExists(tableName))
+                                     )(
+                                       STM.succeed(_)
+                                     )
+                  } yield tableMap
+      pkName   <- self.tablePkNameMap
+                    .get(tableName)
+                    .flatMap(_.fold[STM[DatabaseError, String]](STM.fail(TableDoesNotExists(tableName)))(STM.succeed(_)))
+    } yield (tableMap, pkName)
 
-  def table(tableName: String, pkFieldName: String)(entries: TableEntry*): Database2  =
-    Database2(self.map + (tableName -> entries.toMap), self.tablePkMap + (tableName -> pkFieldName))
+  def pkForItem(item: Item, pkName: String): PrimaryKey = Item(item.map.filter { case (key, _) => key == pkName })
 
-  def table2(tableName: String, pkFieldName: String)(entries: TableEntry*): UIO[Unit] =
+  def table(tableName: String, pkFieldName: String)(entries: TableEntry*): UIO[Unit] =
     (for {
-      _        <- self.tablePkMap2.put(tableName, pkFieldName)
+      _        <- self.tablePkNameMap.put(tableName, pkFieldName)
       innerMap <- TMap.fromIterable[PrimaryKey, Item](entries)
-      _        <- self.dbMap.put(tableName, innerMap)
+      _        <- self.tableMap.put(tableName, innerMap)
     } yield ()).commit
 
-  def getItem(tableName: String, pk: PrimaryKey): Either[DatabaseError, Option[Item]] =
-    self.map.get(tableName).map(_.get(pk)).toRight(TableDoesNotExists(tableName))
-
-  def getItem2(tableName: String, pk: PrimaryKey): IO[DatabaseError, Option[Item]] =
+  def getItem(tableName: String, pk: PrimaryKey): IO[DatabaseError, Option[Item]] =
     (for {
-      o         <- self.dbMap.get(tableName)
-      maybeItem <- o.fold[STM[DatabaseError, Option[Item]]](STM.fail[DatabaseError](TableDoesNotExists(tableName)))(
-                     tmap => tmap.get(pk)
-                   )
+      (tableMap, _) <- tableMapAndPkName(tableName)
+      maybeItem     <- tableMap.get(pk)
     } yield maybeItem).commit
 
-  def put(tableName: String, item: Item): Either[DatabaseError, Database2] =
-    tablePkMap.get(tableName).toRight(TableDoesNotExists(tableName)).flatMap { pkName =>
-      val pk    = Item(item.map.filter { case (key, _) => key == pkName })
-      val entry = pk -> item
-      self.map
-        .get(tableName)
-        .toRight(TableDoesNotExists(tableName))
-        .map(m => Database2(self.map + (tableName -> (m + entry)), self.tablePkMap))
-    }
+  def put(tableName: String, item: Item): IO[DatabaseError, Unit] =
+    (for {
+      (tableMap, pkName) <- tableMapAndPkName(tableName)
+      pk                  = pkForItem(item, pkName)
+      result             <- tableMap.put(pk, item)
+    } yield result).commit
 
-//  def put2(tableName: String, item: Item): IO[DatabaseError, Unit] =
-//    (for {
-//      o         <- self.dbMap.get(tableName)
-//      innerTMap <-
-//        o.fold[STM[DatabaseError, TMap[PrimaryKey, Item]]](STM.fail[DatabaseError](TableDoesNotExists(tableName)))(
-//          STM.succeed(_)
-//        )
-//      pk        <- self.tablePkMap2
-//                     .get(tableName)
-//                     .fold[STM[DatabaseError, PrimaryKey]](STM.fail[DatabaseError](TableDoesNotExists(tableName))) { pkName =>
-//                       STM.succeed(pkName)
-//                     }
-//    } yield ())
-
-  def delete(tableName: String, pk: PrimaryKey): Either[DatabaseError, Database2] =
-    self.map
-      .get(tableName)
-      .toRight(TableDoesNotExists(tableName))
-      .map(m => Database2(self.map + (tableName -> (m - pk)), self.tablePkMap))
+  def delete(tableName: String, pk: PrimaryKey): IO[DatabaseError, Unit] =
+    (for {
+      (tableMap, _) <- tableMapAndPkName(tableName)
+      result        <- tableMap.delete(pk)
+    } yield result).commit
 
   def scanSome(
     tableName: String,
     exclusiveStartKey: LastEvaluatedKey,
     limit: Int
-  ): Either[DatabaseError, (Chunk[Item], LastEvaluatedKey)] = {
-    val items = for {
-      itemMap <- self.map.get(tableName).toRight(TableDoesNotExists(tableName))
-      pkName  <- tablePkMap.get(tableName).toRight(TableDoesNotExists(tableName))
-      xs      <- Right(slice(sort(itemMap.toList, pkName), exclusiveStartKey, limit))
-    } yield xs
-    items
-  }
+  ): IO[DatabaseError, (Chunk[Item], LastEvaluatedKey)] =
+    (for {
+      (itemMap, pkName) <- tableMapAndPkName(tableName)
+      xs                <- itemMap.toList
+      result            <- STM.succeed(slice(sort(xs, pkName), exclusiveStartKey, limit))
+    } yield result).commit
 
   def scanAll[R](tableName: String, limit: Int): ZStream[R, DatabaseError, Item] = {
     val start: LastEvaluatedKey = None
     ZStream
       .paginateM(start) { lek =>
-        ZIO.fromEither(scanSome(tableName, lek, limit)).map {
+        scanSome(tableName, lek, limit).map {
           case (chunk, lek) =>
             lek match {
               case None => (chunk, None)
@@ -153,11 +135,11 @@ private[fake] final case class Database2(
 
 object Database2 {
   lazy val live: ULayer[Has[Database2]] = {
-    val x = for {
-      dbMap      <- TMap.empty[String, TMap[PrimaryKey, Item]].commit
-      tablePkMap <- TMap.empty[String, String].commit
-    } yield Database2(dbMap = dbMap, tablePkMap2 = tablePkMap)
+    val database = for {
+      tableMap       <- TMap.empty[String, TMap[PrimaryKey, Item]].commit
+      tablePkNameMap <- TMap.empty[String, String].commit
+    } yield Database2(tableMap, tablePkNameMap)
 
-    x.toLayer
+    database.toLayer
   }
 }
