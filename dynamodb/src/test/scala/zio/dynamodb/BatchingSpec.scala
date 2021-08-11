@@ -8,12 +8,12 @@ import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
 object BatchingSpec extends DefaultRunnableSpec with DynamoDBFixtures {
 
   private val executorWithOneTable = FakeDynamoDBExecutor
-    .table(tableName1.value, "k1")(primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
+    .table2(tableName1.value, "k1")(primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
     .layer
 
   private val executorWithTwoTables = FakeDynamoDBExecutor
-    .table(tableName1.value, "k1")(primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
-    .table(tableName3.value, "k3")(primaryKeyT3 -> itemT3)
+    .table2(tableName1.value, "k1")(primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
+    .table2(tableName3.value, "k3")(primaryKeyT3 -> itemT3)
     .layer
 
   override def spec: ZSpec[Environment, Failure] = suite("Batching")(batchingSuite)
@@ -24,7 +24,7 @@ object BatchingSpec extends DefaultRunnableSpec with DynamoDBFixtures {
         result      <- (putItem1 zip putItem1_2).execute
         table1Items <- (getItemT1 zip getItemT1_2).execute
       } yield assert(result)(equalTo(())) && assert(table1Items)(equalTo((Some(itemT1), Some(itemT1_2))))
-    }.provideLayer(FakeDynamoDBExecutor.table(tableName1.value, "k1")().layer),
+    }.provideLayer(FakeDynamoDBExecutor.table2(tableName1.value, "k1")().layer),
     testM("batch getItem1 zip getItem2 zip getItem3 returns 3 items that are found") {
       for {
         result  <- (getItemT1 zip getItemT1_2 zip getItemT3).execute
