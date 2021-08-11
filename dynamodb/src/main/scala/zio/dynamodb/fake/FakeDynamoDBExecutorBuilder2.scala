@@ -11,7 +11,7 @@ private[fake] final case class FakeDynamoDBExecutorBuilder2 private (
   private val tableInfos: List[TableInfo] = List.empty
 ) {
   self =>
-  def table2(tableName: String, pkFieldName: String)(entries: TableEntry*): FakeDynamoDBExecutorBuilder2 = {
+  def table(tableName: String, pkFieldName: String)(entries: TableEntry*): FakeDynamoDBExecutorBuilder2 = {
 
     val list: List[(PrimaryKey, Item)] = entries.toList
     FakeDynamoDBExecutorBuilder2(self.tableInfos :+ TableInfo(tableName, pkFieldName, list))

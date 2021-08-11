@@ -12,8 +12,8 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with DynamoDBFixtures {
     suite("FakeDynamoDB")(fakeDynamoDbSuite)
 
   private val executorWithTwoTables = FakeDynamoDBExecutor
-    .table2(tableName1.value, "k1")(primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
-    .table2(tableName3.value, "k3")(primaryKeyT3 -> itemT3)
+    .table(tableName1.value, "k1")(primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
+    .table(tableName3.value, "k3")(primaryKeyT3 -> itemT3)
     .layer
 
   private val fakeDynamoDbSuite = suite("FakeDynamoDB suite")(
@@ -29,7 +29,7 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with DynamoDBFixtures {
         result  <- getItemT1.execute
         expected = Some(itemT1)
       } yield assert(result)(equalTo(expected))
-    }.provideLayer(FakeDynamoDBExecutor.table2(tableName1.value, "k1")().layer),
+    }.provideLayer(FakeDynamoDBExecutor.table(tableName1.value, "k1")().layer),
     testM("should execute getItem1 zip getItem2 zip getItem3") {
       for {
         assembled <- (getItemT1 zip getItemT1_2 zip getItemT3).execute
@@ -49,7 +49,7 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with DynamoDBFixtures {
         (chunk, lek) = t
       } yield assert(chunk)(equalTo(resultItems(1 to 5))) && assert(lek)(equalTo(None))
     }.provideLayer(
-      FakeDynamoDBExecutor.table2(tableName1.value, "k1")(chunkOfPrimaryKeyAndItem(1 to 5, "k1"): _*).layer
+      FakeDynamoDBExecutor.table(tableName1.value, "k1")(chunkOfPrimaryKeyAndItem(1 to 5, "k1"): _*).layer
     ),
     testM("scanAll should scan all items in a table") {
       for {
@@ -57,7 +57,7 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with DynamoDBFixtures {
         chunk  <- stream.runCollect
       } yield assert(chunk)(equalTo(resultItems(1 to 5)))
     }.provideLayer(
-      FakeDynamoDBExecutor.table2(tableName1.value, "k1")(chunkOfPrimaryKeyAndItem(1 to 5, "k1"): _*).layer
+      FakeDynamoDBExecutor.table(tableName1.value, "k1")(chunkOfPrimaryKeyAndItem(1 to 5, "k1"): _*).layer
     ),
     testM("querySome with limit greater than table size should scan all items in a table") {
       for {
@@ -65,7 +65,7 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with DynamoDBFixtures {
         (chunk, lek) = t
       } yield assert(chunk)(equalTo(resultItems(1 to 5))) && assert(lek)(equalTo(None))
     }.provideLayer(
-      FakeDynamoDBExecutor.table2(tableName1.value, "k1")(chunkOfPrimaryKeyAndItem(1 to 5, "k1"): _*).layer
+      FakeDynamoDBExecutor.table(tableName1.value, "k1")(chunkOfPrimaryKeyAndItem(1 to 5, "k1"): _*).layer
     ),
     testM("queryAll should scan all items in a table") {
       for {
@@ -73,7 +73,7 @@ object FakeDynamoDBSpec extends DefaultRunnableSpec with DynamoDBFixtures {
         chunk  <- stream.runCollect
       } yield assert(chunk)(equalTo(resultItems(1 to 5)))
     }.provideLayer(
-      FakeDynamoDBExecutor.table2(tableName1.value, "k1")(chunkOfPrimaryKeyAndItem(1 to 5, "k1"): _*).layer
+      FakeDynamoDBExecutor.table(tableName1.value, "k1")(chunkOfPrimaryKeyAndItem(1 to 5, "k1"): _*).layer
     )
   )
 
