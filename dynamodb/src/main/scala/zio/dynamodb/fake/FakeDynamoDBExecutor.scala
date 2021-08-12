@@ -30,7 +30,7 @@ object FakeDynamoDBExecutor {
    * }}}
    * @param db
    */
-  def table(tableName: String, pkFieldName: String)(entries: TableEntry*): FakeDynamoDBExecutorBuilder2 =
-    FakeDynamoDBExecutorBuilder2().table(tableName, pkFieldName)(entries: _*)
+  def table(tableName: String, pkFieldName: String)(entries: TableEntry*): FakeDynamoDBExecutorBuilder =
+    FakeDynamoDBExecutorBuilder().table(tableName, pkFieldName)(entries: _*)
 
 }

@@ -1,65 +1,170 @@
 package zio.dynamodb.fake
 
-import zio.dynamodb.{ AttributeValue, Item, LastEvaluatedKey, PrimaryKey }
+import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
+import zio.dynamodb.DynamoDBQuery._
+import zio.dynamodb._
+import zio.stm.{ STM, TMap, ZSTM }
 import zio.stream.ZStream
-import zio.{ Chunk, ZIO }
-
-trait DatabaseError                                    extends Exception
-final case class TableDoesNotExists(tableName: String) extends DatabaseError
+import zio.{ Chunk, IO, UIO, ZIO }
 
 private[fake] final case class Database(
-  map: Map[String, Map[PrimaryKey, Item]] = Map.empty,
-  tablePkMap: Map[String, String] = Map.empty
-) { self =>
+  tableMap: TMap[String, TMap[PrimaryKey, Item]],
+  tablePkNameMap: TMap[String, String]
+) extends DynamoDBExecutor.Service {
+  self =>
 
-  def table(tableName: String, pkFieldName: String)(entries: TableEntry*): Database   =
-    Database(self.map + (tableName -> entries.toMap), self.tablePkMap + (tableName -> pkFieldName))
+  override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A] =
+    atomicQuery match {
+      case BatchGetItem(requestItemsMap, _, _)                                                  =>
+        println(s"BatchGetItem $requestItemsMap")
+        val requestItems: Seq[(TableName, Set[TableGet])] = requestItemsMap.toList
 
-  def getItem(tableName: String, pk: PrimaryKey): Either[DatabaseError, Option[Item]] =
-    self.map.get(tableName).map(_.get(pk)).toRight(TableDoesNotExists(tableName))
+        val zioPairs: IO[DatabaseError, Seq[(TableName, Option[Item])]] =
+          ZIO
+            .foreach(requestItems) {
+              case (tableName, setOfTableGet) =>
+                ZIO.foreach(setOfTableGet) { tableGet =>
+                  getItem(tableName.value, tableGet.key).map((tableName, _))
+                }
+            }
+            .map(_.flatten)
 
-  def put(tableName: String, item: Item): Either[DatabaseError, Database] =
-    tablePkMap.get(tableName).toRight(TableDoesNotExists(tableName)).flatMap { pkName =>
-      val pk    = Item(item.map.filter { case (key, _) => key == pkName })
-      val entry = pk -> item
-      self.map
-        .get(tableName)
-        .toRight(TableDoesNotExists(tableName))
-        .map(m => Database(self.map + (tableName -> (m + entry)), self.tablePkMap))
+        val response: IO[DatabaseError, BatchGetItem.Response] = for {
+          pairs       <- zioPairs
+          pairFiltered = pairs.collect { case (tableName, Some(item)) => (tableName, item) }
+          mapOfSet     = pairFiltered.foldLeft[MapOfSet[TableName, Item]](MapOfSet.empty) {
+                           case (acc, (tableName, listOfItems)) => acc + (tableName -> listOfItems)
+                         }
+        } yield BatchGetItem.Response(mapOfSet)
+
+        response
+
+      case BatchWriteItem(requestItems, capacity, metrics, addList)                             =>
+        println(s"BatchWriteItem $requestItems $capacity $metrics $addList")
+        val results: ZIO[Any, DatabaseError, Unit] = ZIO.foreach_(requestItems.toList) {
+          case (tableName, setOfWrite) =>
+            ZIO.foreach_(setOfWrite) { write =>
+              write match {
+                case BatchWriteItem.Put(item)  =>
+                  put(tableName.value, item)
+                case BatchWriteItem.Delete(pk) =>
+                  delete(tableName.value, pk)
+              }
+            }
+
+        }
+        results
+
+      case GetItem(tableName, key, projections, readConsistency, capacity)                      =>
+        println(s"FakeDynamoDBExecutor GetItem $key $tableName $projections $readConsistency  $capacity")
+        getItem(tableName.value, key)
+
+      case PutItem(tableName, item, conditionExpression, capacity, itemMetrics, returnValues)   =>
+        println(
+          s"FakeDynamoDBExecutor PutItem $tableName $item $conditionExpression $capacity $itemMetrics $returnValues"
+        )
+        put(tableName.value, item)
+
+      // TODO Note UpdateItem is not currently supported as it uses an UpdateExpression
+      case UpdateItem(_, _, _, _, _, _, _)                                                      =>
+        ZIO.succeed(())
+
+      case DeleteItem(tableName, key, conditionExpression, capacity, itemMetrics, returnValues) =>
+        println(s"$tableName $key $conditionExpression $capacity $itemMetrics $returnValues")
+        delete(tableName.value, key)
+
+      case ScanSome(tableName, _, limit, _, exclusiveStartKey, _, _, _, _)                      =>
+        println(
+          s"FakeDynamoDBExecutor $tableName, $limit, $exclusiveStartKey"
+        )
+        scanSome(tableName.value, exclusiveStartKey, limit)
+
+      case ScanAll(tableName, _, _, _, _, _, _, _)                                              =>
+        println(
+          s"$tableName"
+        )
+        scanAll(tableName.value, limit = 100)
+
+      case QuerySome(tableName, _, limit, _, exclusiveStartKey, _, _, _, _, _, _)               =>
+        println(s"$tableName, $exclusiveStartKey,$limit")
+        scanSome(tableName.value, exclusiveStartKey, limit)
+
+      case QueryAll(tableName, _, _, exclusiveStartKey, _, _, _, _, _, _)                       =>
+        println(
+          s"$tableName, $exclusiveStartKey"
+        )
+        scanAll(tableName.value, limit = 100)
+
+      // TODO: implement CreateTable
+
+      case unknown                                                                              =>
+        ZIO.fail(new Exception(s"Constructor $unknown not implemented yet"))
     }
 
-  def delete(tableName: String, pk: PrimaryKey): Either[DatabaseError, Database] =
-    self.map
-      .get(tableName)
-      .toRight(TableDoesNotExists(tableName))
-      .map(m => Database(self.map + (tableName -> (m - pk)), self.tablePkMap))
+  private def tableMapAndPkName(tableName: String): ZSTM[Any, DatabaseError, (TMap[PrimaryKey, Item], String)] =
+    for {
+      tableMap <- for {
+                    maybeTableMap <- self.tableMap.get(tableName)
+                    tableMap      <- maybeTableMap.fold[STM[DatabaseError, TMap[PrimaryKey, Item]]](
+                                       STM.fail[DatabaseError](TableDoesNotExists(tableName))
+                                     )(
+                                       STM.succeed(_)
+                                     )
+                  } yield tableMap
+      pkName   <- self.tablePkNameMap
+                    .get(tableName)
+                    .flatMap(_.fold[STM[DatabaseError, String]](STM.fail(TableDoesNotExists(tableName)))(STM.succeed(_)))
+    } yield (tableMap, pkName)
 
-  def scanSome(
+  private def pkForItem(item: Item, pkName: String): PrimaryKey                           =
+    Item(item.map.filter { case (key, _) => key == pkName })
+
+  private def getItem(tableName: String, pk: PrimaryKey): IO[DatabaseError, Option[Item]] =
+    (for {
+      (tableMap, _) <- tableMapAndPkName(tableName)
+      maybeItem     <- tableMap.get(pk)
+    } yield maybeItem).commit
+
+  private def put(tableName: String, item: Item): IO[DatabaseError, Unit] =
+    (for {
+      (tableMap, pkName) <- tableMapAndPkName(tableName)
+      pk                  = pkForItem(item, pkName)
+      result             <- tableMap.put(pk, item)
+    } yield result).commit
+
+  private def delete(tableName: String, pk: PrimaryKey): IO[DatabaseError, Unit] =
+    (for {
+      (tableMap, _) <- tableMapAndPkName(tableName)
+      result        <- tableMap.delete(pk)
+    } yield result).commit
+
+  private def scanSome(
     tableName: String,
     exclusiveStartKey: LastEvaluatedKey,
     limit: Int
-  ): Either[DatabaseError, (Chunk[Item], LastEvaluatedKey)] = {
-    val items = for {
-      itemMap <- self.map.get(tableName).toRight(TableDoesNotExists(tableName))
-      pkName  <- tablePkMap.get(tableName).toRight(TableDoesNotExists(tableName))
-      xs      <- Right(slice(sort(itemMap.toList, pkName), exclusiveStartKey, limit))
-    } yield xs
-    items
-  }
+  ): IO[DatabaseError, (Chunk[Item], LastEvaluatedKey)] =
+    (for {
+      (itemMap, pkName) <- tableMapAndPkName(tableName)
+      xs                <- itemMap.toList
+      result            <- STM.succeed(slice(sort(xs, pkName), exclusiveStartKey, limit))
+    } yield result).commit
 
-  def scanAll[R](tableName: String, limit: Int): ZStream[R, DatabaseError, Item] = {
+  private def scanAll[R](tableName: String, limit: Int): UIO[ZStream[Any, DatabaseError, Item]] = {
     val start: LastEvaluatedKey = None
-    ZStream
-      .paginateM(start) { lek =>
-        ZIO.fromEither(scanSome(tableName, lek, limit)).map {
-          case (chunk, lek) =>
-            lek match {
-              case None => (chunk, None)
-              case lek  => (chunk, Some(lek))
-            }
+    ZIO.succeed(
+      ZStream
+        .paginateM(start) { lek =>
+          scanSome(tableName, lek, limit).map {
+            case (chunk, lek) =>
+              lek match {
+                case None => (chunk, None)
+                case lek  => (chunk, Some(lek))
+              }
+          }
         }
-      }
-      .flattenChunks
+        .flattenChunks
+    )
+
   }
 
   private def sort(xs: Seq[TableEntry], pkName: String): Seq[TableEntry] =
@@ -113,14 +218,5 @@ private[fake] final case class Database(
         valueL.toString.compareTo(valueR.toString) < 0
       case _                                                                    => false
     }
-}
-
-object Database {
-  // Test data generation functions
-
-  def chunkOfPrimaryKeyAndItem(r: Range, pkFieldName: String): Chunk[(PrimaryKey, Item)] =
-    Chunk.fromIterable(r.map(i => (PrimaryKey(pkFieldName -> i), Item(pkFieldName -> i, "k2" -> (i + 1)))).toList)
-
-  def resultItems(range: Range): Chunk[Item]                                             = chunkOfPrimaryKeyAndItem(range, "k1").map { case (_, v) => v }
 
 }
