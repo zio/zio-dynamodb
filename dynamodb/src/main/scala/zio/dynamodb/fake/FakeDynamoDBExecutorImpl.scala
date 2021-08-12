@@ -7,7 +7,7 @@ import zio.stm.{ STM, TMap, ZSTM }
 import zio.stream.ZStream
 import zio.{ Chunk, IO, UIO, ZIO }
 
-private[fake] final case class Database(
+private[fake] final case class FakeDynamoDBExecutorImpl(
   tableMap: TMap[String, TMap[PrimaryKey, Item]],
   tablePkNameMap: TMap[String, String]
 ) extends DynamoDBExecutor.Service {
@@ -15,8 +15,7 @@ private[fake] final case class Database(
 
   override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A] =
     atomicQuery match {
-      case BatchGetItem(requestItemsMap, _, _)                                                  =>
-        println(s"BatchGetItem $requestItemsMap")
+      case BatchGetItem(requestItemsMap, _, _)                                    =>
         val requestItems: Seq[(TableName, Set[TableGet])] = requestItemsMap.toList
 
         val zioPairs: IO[DatabaseError, Seq[(TableName, Option[Item])]] =
@@ -39,8 +38,7 @@ private[fake] final case class Database(
 
         response
 
-      case BatchWriteItem(requestItems, capacity, metrics, addList)                             =>
-        println(s"BatchWriteItem $requestItems $capacity $metrics $addList")
+      case BatchWriteItem(requestItems, _, _, _)                                  =>
         val results: ZIO[Any, DatabaseError, Unit] = ZIO.foreach_(requestItems.toList) {
           case (tableName, setOfWrite) =>
             ZIO.foreach_(setOfWrite) { write =>
@@ -55,49 +53,34 @@ private[fake] final case class Database(
         }
         results
 
-      case GetItem(tableName, key, projections, readConsistency, capacity)                      =>
-        println(s"FakeDynamoDBExecutor GetItem $key $tableName $projections $readConsistency  $capacity")
+      case GetItem(tableName, key, _, _, _)                                       =>
         getItem(tableName.value, key)
 
-      case PutItem(tableName, item, conditionExpression, capacity, itemMetrics, returnValues)   =>
-        println(
-          s"FakeDynamoDBExecutor PutItem $tableName $item $conditionExpression $capacity $itemMetrics $returnValues"
-        )
+      case PutItem(tableName, item, _, _, _, _)                                   =>
         put(tableName.value, item)
 
       // TODO Note UpdateItem is not currently supported as it uses an UpdateExpression
-      case UpdateItem(_, _, _, _, _, _, _)                                                      =>
+      case UpdateItem(_, _, _, _, _, _, _)                                        =>
         ZIO.succeed(())
 
-      case DeleteItem(tableName, key, conditionExpression, capacity, itemMetrics, returnValues) =>
-        println(s"$tableName $key $conditionExpression $capacity $itemMetrics $returnValues")
+      case DeleteItem(tableName, key, _, _, _, _)                                 =>
         delete(tableName.value, key)
 
-      case ScanSome(tableName, _, limit, _, exclusiveStartKey, _, _, _, _)                      =>
-        println(
-          s"FakeDynamoDBExecutor $tableName, $limit, $exclusiveStartKey"
-        )
+      case ScanSome(tableName, _, limit, _, exclusiveStartKey, _, _, _, _)        =>
         scanSome(tableName.value, exclusiveStartKey, limit)
 
-      case ScanAll(tableName, _, _, _, _, _, _, _)                                              =>
-        println(
-          s"$tableName"
-        )
+      case ScanAll(tableName, _, _, _, _, _, _, _)                                =>
         scanAll(tableName.value, limit = 100)
 
-      case QuerySome(tableName, _, limit, _, exclusiveStartKey, _, _, _, _, _, _)               =>
-        println(s"$tableName, $exclusiveStartKey,$limit")
+      case QuerySome(tableName, _, limit, _, exclusiveStartKey, _, _, _, _, _, _) =>
         scanSome(tableName.value, exclusiveStartKey, limit)
 
-      case QueryAll(tableName, _, _, exclusiveStartKey, _, _, _, _, _, _)                       =>
-        println(
-          s"$tableName, $exclusiveStartKey"
-        )
+      case QueryAll(tableName, _, _, _, _, _, _, _, _, _)                         =>
         scanAll(tableName.value, limit = 100)
 
       // TODO: implement CreateTable
 
-      case unknown                                                                              =>
+      case unknown                                                                =>
         ZIO.fail(new Exception(s"Constructor $unknown not implemented yet"))
     }
 

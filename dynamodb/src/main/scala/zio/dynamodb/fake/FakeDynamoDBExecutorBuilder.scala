@@ -29,6 +29,6 @@ private[fake] final case class FakeDynamoDBExecutorBuilder private (
                             _    <- tableMap.put(tableInfo.tableName, tmap)
                           } yield ()
                         }
-    } yield Database(tableMap, tablePkNameMap)).commit.toLayer
+    } yield FakeDynamoDBExecutorImpl(tableMap, tablePkNameMap)).commit.toLayer
 
 }
