@@ -5,17 +5,12 @@ import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
 import zio.dynamodb.{ Item, PrimaryKey }
 import zio.stm.{ STM, TMap }
 
-private[fake] final case class TableSchemaAndData(tableName: String, pkName: String, entries: List[TableEntry])
-
 private[fake] final case class FakeDynamoDBExecutorBuilder private (
   private val tableInfos: List[TableSchemaAndData] = List.empty
 ) {
   self =>
-  def table(tableName: String, pkFieldName: String)(entries: TableEntry*): FakeDynamoDBExecutorBuilder = {
-
-    val list: List[(PrimaryKey, Item)] = entries.toList
-    FakeDynamoDBExecutorBuilder(self.tableInfos :+ TableSchemaAndData(tableName, pkFieldName, list))
-  }
+  def table(tableName: String, pkFieldName: String)(entries: TableEntry*): FakeDynamoDBExecutorBuilder =
+    FakeDynamoDBExecutorBuilder(self.tableInfos :+ TableSchemaAndData(tableName, pkFieldName, entries.toList))
 
   def layer: ULayer[DynamoDBExecutor] =
     (for {
