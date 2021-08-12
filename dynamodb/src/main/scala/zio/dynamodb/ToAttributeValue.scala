@@ -9,6 +9,8 @@ trait ToAttributeValue[A] {
 object ToAttributeValue extends ToAttributeValueLowPriorityImplicits0 {
   import Predef.{ String => ScalaString }
 
+  def apply[A](implicit to: ToAttributeValue[A]): ToAttributeValue[A] = to
+
   implicit def optionToAttributeValue[A](implicit ev: ToAttributeValue[A]): ToAttributeValue[Option[A]] =
     (o: Option[A]) =>
       o match {

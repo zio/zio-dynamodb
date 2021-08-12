@@ -7,6 +7,8 @@ trait FromAttributeValue[+A] {
 
 object FromAttributeValue {
 
+  def apply[A](implicit from: FromAttributeValue[A]): FromAttributeValue[A] = from
+
   /*
   private[dynamodb] final case class Binary(value: Iterable[Byte])                extends AttributeValue
   private[dynamodb] final case class Bool(value: Boolean)                         extends AttributeValue

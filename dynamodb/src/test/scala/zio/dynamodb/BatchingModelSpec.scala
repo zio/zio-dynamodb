@@ -10,7 +10,7 @@ object BatchingModelSpec extends DefaultRunnableSpec with DynamoDBFixtures {
 
   override def spec: ZSpec[Environment, Failure] = suite("Batch Model")(batchGetItemSuite, batchWriteItemSuite)
 
-  private val batchGetItemSuite = suite("BatchGetItem")(
+  private val batchGetItemSuite: Spec[Any, TestFailure[Nothing], TestSuccess] = suite("BatchGetItem")(
     test("should aggregate GetItems using +") {
       val batch = BatchGetItem().addAll(getItemT1, getItemT1_2)
 

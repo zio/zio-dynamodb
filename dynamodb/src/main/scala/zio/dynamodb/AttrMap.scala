@@ -2,7 +2,9 @@ package zio.dynamodb
 
 import scala.annotation.tailrec
 
-final case class AttrMap(map: Map[String, AttributeValue]) {
+final case class AttrMap(map: Map[String, AttributeValue]) { self =>
+
+  def ++(that: AttrMap): AttrMap = AttrMap(self.map ++ that.map)
 
   def as[A: FromAttributeValue, B: FromAttributeValue, C](
     field1: String,
