@@ -3,7 +3,7 @@ package zio.dynamodb.fake
 object FakeDynamoDBExecutor {
 
   /**
-   * A Fake implementation of `DynamoDBExecutor.Service` with the very modest aspiration of providing bare minimum
+   * A Fake implementation of `DynamoDBExecutor.Service` that currently has the very modest aspiration of providing bare minimum
    * functionality to enable internal unit tests and to enable simple end to end examples that can serve as documentation.
    * Limited CRUD functionality is supported hence some features are currently not supported or have restrictions.
    *  - Supported

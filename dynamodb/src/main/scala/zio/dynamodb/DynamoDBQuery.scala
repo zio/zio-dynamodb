@@ -520,6 +520,7 @@ object DynamoDBQuery {
   private[dynamodb] final case class ScanAll(
     tableName: TableName,
     indexName: IndexName,
+    limit: Option[Int] = None,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
       None,                                               // allows client to control start position - eg for client managed paging
@@ -532,6 +533,7 @@ object DynamoDBQuery {
   private[dynamodb] final case class QueryAll(
     tableName: TableName,
     indexName: IndexName,
+    limit: Option[Int] = None,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
       None,                                               // allows client to control start position - eg for client managed paging
@@ -705,7 +707,7 @@ object DynamoDBQuery {
           }
         )
 
-      case scan @ ScanAll(_, _, _, _, _, _, _, _)             =>
+      case scan @ ScanAll(_, _, _, _, _, _, _, _, _)          =>
         (
           Chunk(scan),
           (results: Chunk[Any]) => {
@@ -721,7 +723,7 @@ object DynamoDBQuery {
           }
         )
 
-      case query @ QueryAll(_, _, _, _, _, _, _, _, _, _)     =>
+      case query @ QueryAll(_, _, _, _, _, _, _, _, _, _, _)  =>
         (
           Chunk(query),
           (results: Chunk[Any]) => {
