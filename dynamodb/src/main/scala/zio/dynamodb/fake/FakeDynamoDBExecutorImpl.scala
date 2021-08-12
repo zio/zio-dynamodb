@@ -7,7 +7,7 @@ import zio.stm.{ STM, TMap, ZSTM }
 import zio.stream.ZStream
 import zio.{ Chunk, IO, UIO, ZIO }
 
-private[fake] final case class FakeDynamoDBExecutorImpl(
+private[fake] final case class FakeDynamoDBExecutorImpl private (
   tableMap: TMap[String, TMap[PrimaryKey, Item]],
   tablePkNameMap: TMap[String, String]
 ) extends DynamoDBExecutor.Service {
@@ -203,4 +203,20 @@ private[fake] final case class FakeDynamoDBExecutorImpl(
       case _                                                                    => false
     }
 
+}
+
+object FakeDynamoDBExecutorImpl {
+  def make(tableInfos: List[TableSchemaAndData]): UIO[FakeDynamoDBExecutorImpl] =
+    (for {
+      tableMap       <- TMap.empty[String, TMap[PrimaryKey, Item]]
+      tablePkNameMap <- TMap.empty[String, String]
+      _              <- STM.foreach(tableInfos) { tableInfo =>
+                          for {
+                            _    <- tablePkNameMap.put(tableInfo.tableName, tableInfo.pkName)
+                            tmap <- TMap.empty[PrimaryKey, Item]
+                            _    <- STM.foreach(tableInfo.entries)(entry => tmap.put(entry._1, entry._2))
+                            _    <- tableMap.put(tableInfo.tableName, tmap)
+                          } yield ()
+                        }
+    } yield FakeDynamoDBExecutorImpl(tableMap, tablePkNameMap)).commit
 }
