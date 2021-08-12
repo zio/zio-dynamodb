@@ -1,5 +1,6 @@
 package zio.dynamodb
 
+import zio.Chunk
 import zio.dynamodb.DynamoDBQuery.{ getItem, DeleteItem, GetItem, PutItem }
 
 //noinspection TypeAnnotation
@@ -32,5 +33,10 @@ trait DynamoDBFixtures {
   val putItem3_2   = PutItem(tableName = tableName3, item = primaryKeyT3_2)
   val deleteItemT1 = DeleteItem(tableName = tableName1, key = primaryKeyT1)
   val deleteItemT3 = DeleteItem(tableName = tableName3, key = primaryKeyT3)
+
+  def chunkOfPrimaryKeyAndItem(r: Range, pkFieldName: String): Chunk[(PrimaryKey, Item)] =
+    Chunk.fromIterable(r.map(i => (PrimaryKey(pkFieldName -> i), Item(pkFieldName -> i, "k2" -> (i + 1)))).toList)
+
+  def resultItems(range: Range): Chunk[Item]                                             = chunkOfPrimaryKeyAndItem(range, "k1").map { case (_, v) => v }
 
 }
