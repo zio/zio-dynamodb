@@ -67,16 +67,16 @@ private[fake] final case class FakeDynamoDBExecutorImpl(
         delete(tableName.value, key)
 
       case ScanSome(tableName, _, limit, _, exclusiveStartKey, _, _, _, _)        =>
-        scanSome(tableName.value, exclusiveStartKey, limit)
+        scanSome(tableName.value, exclusiveStartKey, Some(limit))
 
-      case ScanAll(tableName, _, _, _, _, _, _, _)                                =>
-        scanAll(tableName.value, limit = 100)
+      case ScanAll(tableName, _, maybeLimit, _, _, _, _, _, _)                    =>
+        scanAll(tableName.value, maybeLimit)
 
       case QuerySome(tableName, _, limit, _, exclusiveStartKey, _, _, _, _, _, _) =>
-        scanSome(tableName.value, exclusiveStartKey, limit)
+        scanSome(tableName.value, exclusiveStartKey, Some(limit))
 
-      case QueryAll(tableName, _, _, _, _, _, _, _, _, _)                         =>
-        scanAll(tableName.value, limit = 100)
+      case QueryAll(tableName, _, maybeLimit, _, _, _, _, _, _, _, _)             =>
+        scanAll(tableName.value, maybeLimit)
 
       // TODO: implement CreateTable
 
@@ -124,20 +124,20 @@ private[fake] final case class FakeDynamoDBExecutorImpl(
   private def scanSome(
     tableName: String,
     exclusiveStartKey: LastEvaluatedKey,
-    limit: Int
+    maybeLimit: Option[Int]
   ): IO[DatabaseError, (Chunk[Item], LastEvaluatedKey)] =
     (for {
       (itemMap, pkName) <- tableMapAndPkName(tableName)
       xs                <- itemMap.toList
-      result            <- STM.succeed(slice(sort(xs, pkName), exclusiveStartKey, limit))
+      result            <- STM.succeed(slice(sort(xs, pkName), exclusiveStartKey, maybeLimit))
     } yield result).commit
 
-  private def scanAll[R](tableName: String, limit: Int): UIO[ZStream[Any, DatabaseError, Item]] = {
+  private def scanAll[R](tableName: String, maybeLimit: Option[Int]): UIO[ZStream[Any, DatabaseError, Item]] = {
     val start: LastEvaluatedKey = None
     ZIO.succeed(
       ZStream
         .paginateM(start) { lek =>
-          scanSome(tableName, lek, limit).map {
+          scanSome(tableName, lek, maybeLimit).map {
             case (chunk, lek) =>
               lek match {
                 case None => (chunk, None)
@@ -162,9 +162,10 @@ private[fake] final case class FakeDynamoDBExecutorImpl(
   private def slice(
     xs: Seq[TableEntry],
     exclusiveStartKey: LastEvaluatedKey,
-    limit: Int
+    maybeLimit: Option[Int]
   ): (Chunk[Item], LastEvaluatedKey) =
     maybeNextIndex(xs, exclusiveStartKey).map { index =>
+      val limit              = maybeLimit.getOrElse(xs.length)
       val slice              = xs.slice(index, index + limit)
       val chunk: Chunk[Item] = Chunk.fromIterable(slice.map(_._2))
       val lek                = if (index + limit >= xs.length) None else Some(slice.last._1)
