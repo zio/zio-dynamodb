@@ -1,5 +1,6 @@
 package zio.dynamodb.fake
 
+import zio.dynamodb.DatabaseError.TableDoesNotExists
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb._
