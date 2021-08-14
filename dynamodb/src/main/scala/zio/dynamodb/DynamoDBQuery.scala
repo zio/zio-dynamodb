@@ -53,7 +53,7 @@ sealed trait DynamoDBQuery[+A] { self =>
       case ((nonBatched, batchedGets), batchedWrites) =>
         val combined = (nonBatched ++ batchedGets ++ batchedWrites).sortBy {
           case (_, index) => index
-        }.map(_._1)
+        }.map { case (value, _) => value }
         assembler(combined)
     }
 

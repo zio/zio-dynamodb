@@ -168,8 +168,13 @@ private[fake] final case class FakeDynamoDBExecutorImpl private (
     maybeNextIndex(xs, exclusiveStartKey).map { index =>
       val limit              = maybeLimit.getOrElse(xs.length)
       val slice              = xs.slice(index, index + limit)
-      val chunk: Chunk[Item] = Chunk.fromIterable(slice.map(_._2))
-      val lek                = if (index + limit >= xs.length) None else Some(slice.last._1)
+      val chunk: Chunk[Item] = Chunk.fromIterable(slice.map { case (_, item) => item })
+      val lek                =
+        if (index + limit >= xs.length) None
+        else {
+          val (pk, _) = slice.last
+          Some(pk)
+        }
       (chunk, lek)
     }.getOrElse((Chunk.empty, None))
 
