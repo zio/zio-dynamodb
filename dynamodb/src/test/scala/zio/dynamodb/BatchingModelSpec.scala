@@ -44,17 +44,17 @@ object BatchingModelSpec extends DefaultRunnableSpec with DynamoDBFixtures {
 
   private val batchWriteItemSuite = suite("BatchWriteItem")(
     test("should aggregate a PutItem and then a DeleteItem for the same table using +") {
-      val batch: BatchWriteItem = BatchWriteItem().addAll(putItem1, deleteItemT1)
+      val batch: BatchWriteItem = BatchWriteItem().addAll(putItemT1, deleteItemT1)
 
       assert(batch.addList)(
-        equalTo(Chunk(BatchWriteItem.Put(putItem1.item), BatchWriteItem.Delete(deleteItemT1.key)))
+        equalTo(Chunk(BatchWriteItem.Put(putItemT1.item), BatchWriteItem.Delete(deleteItemT1.key)))
       ) &&
       assert(batch.requestItems)(
         equalTo(
           MapOfSet
             .empty[TableName, BatchWriteItem.Write]
             .addAll(
-              tableName1 -> BatchWriteItem.Put(putItem1.item),
+              tableName1 -> BatchWriteItem.Put(putItemT1.item),
               tableName1 -> BatchWriteItem.Delete(deleteItemT1.key)
             )
         )

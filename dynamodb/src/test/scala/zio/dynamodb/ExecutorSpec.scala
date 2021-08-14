@@ -31,7 +31,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
     }.provideLayer(executorWithOneTable),
     testM("should execute putItem then getItem when sequenced in a ZIO") {
       for {
-        _       <- putItem1.execute
+        _       <- putItemT1.execute
         result  <- getItemT1.execute
         expected = Some(itemT1)
       } yield assert(result)(equalTo(expected))
@@ -111,7 +111,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
   private val batchingSuite                      = suite("batching should")(
     testM("batch putItem1 zip putItem1_2") {
       for {
-        result      <- (putItem1 zip putItem1_2).execute
+        result      <- (putItemT1 zip putItemT1_2).execute
         table1Items <- (getItemT1 zip getItemT1_2).execute
       } yield assert(result)(equalTo(())) && assert(table1Items)(equalTo((Some(itemT1), Some(itemT1_2))))
     }.provideLayer(FakeDynamoDBExecutor.table(tableName1.value, "k1")().layer),
@@ -129,7 +129,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
     }.provideLayer(executorWithOneTable),
     testM("batch putItem1 zip getItem1 zip getItem2 zip deleteItem1") {
       for {
-        result      <- (putItem3_2 zip getItemT1 zip getItemT1_2 zip deleteItemT3).execute
+        result      <- (putItemT3_2 zip getItemT1 zip getItemT1_2 zip deleteItemT3).execute
         expected     = (Some(itemT1), Some(itemT1_2))
         table3Items <- (getItemT3 zip getItemT3_2).execute
       } yield assert(result)(equalTo(expected)) && assert(table3Items)(equalTo((None, Some(itemT3_2))))
