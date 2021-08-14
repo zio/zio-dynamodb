@@ -28,9 +28,9 @@ trait DynamoDBFixtures {
   val itemT3: Item           = getItemT3.key
   val itemT3_2: Item         = getItemT3_2.key
 
-  val putItem1     = PutItem(tableName = tableName1, item = primaryKeyT1)
-  val putItem1_2   = PutItem(tableName = tableName1, item = primaryKeyT1_2)
-  val putItem3_2   = PutItem(tableName = tableName3, item = primaryKeyT3_2)
+  val putItemT1    = PutItem(tableName = tableName1, item = primaryKeyT1)
+  val putItemT1_2  = PutItem(tableName = tableName1, item = primaryKeyT1_2)
+  val putItemT3_2  = PutItem(tableName = tableName3, item = primaryKeyT3_2)
   val deleteItemT1 = DeleteItem(tableName = tableName1, key = primaryKeyT1)
   val deleteItemT3 = DeleteItem(tableName = tableName3, key = primaryKeyT3)
 

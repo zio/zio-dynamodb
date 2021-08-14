@@ -16,8 +16,8 @@ package object dynamodb {
     ZIO.accessM[DynamoDBExecutor](_.get.execute(query))
 
   /**
-   * Processes `stream` with side effecting function `f`. Stream is batched into groups of 25 items in a BatchWriteItem
-   * and executed using the `DynamoDBExecutor` service provided in the environment.
+   * Reads `stream` and uses function `f` for creating a BatchWrite request that is executes for side effects. Stream is batched into groups
+   * of 25 items in a BatchWriteItem and executed using the `DynamoDBExecutor` service provided in the environment.
    * @param stream
    * @param mPar Level of parllelism for the stream processing
    * @param f Function that takes an `A` and returns a `DynamoDBQuery.Write` which are used internally to populate a BatchWriteItem request
@@ -33,22 +33,22 @@ package object dynamodb {
     stream
       .grouped(25)
       .mapMPar(mPar) { chunk =>
-        val zio = DynamoDBQuery
+        val batchWriteItem = DynamoDBQuery
           .forEach(chunk)(a => f(a))
           .map(Chunk.fromIterable)
         for {
           r <- ZIO.environment[DynamoDBExecutor]
-          b <- zio.execute.provide(r)
+          b <- batchWriteItem.execute.provide(r)
         } yield b
       }
       .flattenChunks
 
   /**
-   * Processes `stream` with `BatchGetItem` requests using function `pk` to determine the primary key.
-   * Stream is batched into groups of 100 items in a BatchWriteItem and executed using the provided `DynamoDBExecutor` service
+   * Reads `stream` using function `pk` to determine the primary key which is then used to create a BatchGetItem request.
+   * Stream is batched into groups of 100 items in a BatchGetItem and executed using the provided `DynamoDBExecutor` service
    * @param tableName
    * @param stream
-   * @param mPar Level of parllelism for the stream processing
+   * @param mPar Level of parallelism for the stream processing
    * @param pk Function to determine the primary key
    * @tparam R Environment
    * @tparam A
@@ -64,12 +64,12 @@ package object dynamodb {
     stream
       .grouped(100)
       .mapMPar(mPar) { chunk =>
-        val zio: DynamoDBQuery[Chunk[Option[Item]]] = DynamoDBQuery
+        val batchGetItem: DynamoDBQuery[Chunk[Option[Item]]] = DynamoDBQuery
           .forEach(chunk)(a => DynamoDBQuery.getItem(tableName, pk(a)))
           .map(Chunk.fromIterable)
         for {
           r    <- ZIO.environment[DynamoDBExecutor]
-          list <- zio.execute.provide(r)
+          list <- batchGetItem.execute.provide(r)
         } yield list
       }
       .flattenChunks
