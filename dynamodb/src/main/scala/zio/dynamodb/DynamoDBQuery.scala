@@ -430,19 +430,11 @@ object DynamoDBQuery {
     final case class TableGet(
       key: PrimaryKey,
       projections: List[ProjectionExpression] =
-        List.empty                                   // If no attribute names are specified, then all attributes are returned
-    )
-    final case class TableResponse(
-      readConsistency: ConsistencyMode,
-      expressionAttributeNames: Map[String, String], // for use with projections expression
-      keys: Set[PrimaryKey] = Set.empty,
-      projections: List[ProjectionExpression] =
-        List.empty                                   // If no attribute names are specified, then all attributes are returned
+        List.empty // If no attribute names are specified, then all attributes are returned
     )
     final case class Response(
       // Note - if a requested item does not exist, it is not returned in the result
-      responses: MapOfSet[TableName, Item] = MapOfSet.empty,
-      unprocessedKeys: ScalaMap[TableName, TableResponse] = ScalaMap.empty
+      responses: MapOfSet[TableName, Item] = MapOfSet.empty
     )
   }
 
