@@ -1,5 +1,6 @@
 package zio.dynamodb
 
+import zio.Chunk
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.fake.FakeDynamoDBExecutor
 import zio.test.Assertion._
@@ -20,9 +21,8 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
   private val crudSuite                          = suite("single Item CRUD suite")(
     testM("getItem") {
       for {
-        result  <- getItemT1.execute
-        expected = Some(itemT1)
-      } yield assert(result)(equalTo(expected))
+        result <- getItemT1.execute
+      } yield assert(result)(equalTo(Some(itemT1)))
     }.provideLayer(executorWithTwoTables),
     testM("getItem returns an error when table does not exist") {
       for {
@@ -31,10 +31,9 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
     }.provideLayer(executorWithOneTable),
     testM("should execute putItem then getItem when sequenced in a ZIO") {
       for {
-        _       <- putItemT1.execute
-        result  <- getItemT1.execute
-        expected = Some(itemT1)
-      } yield assert(result)(equalTo(expected))
+        _      <- putItemT1.execute
+        result <- getItemT1.execute
+      } yield assert(result)(equalTo(Some(itemT1)))
     }.provideLayer(FakeDynamoDBExecutor.table(tableName1.value, "k1")().layer),
     testM("putItem returns an error when table does not exist") {
       for {
@@ -46,8 +45,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
         result1 <- getItemT1.execute
         _       <- deleteItem(tableName1.value, primaryKeyT1).execute
         result2 <- getItemT1.execute
-        expected = Some(itemT1)
-      } yield assert(result1)(equalTo(expected)) && assert(result2)(equalTo(None))
+      } yield assert(result1)(equalTo(Some(itemT1))) && assert(result2)(equalTo(None))
     }.provideLayer(executorWithTwoTables),
     testM("deleteItem returns an error when table does not exist") {
       for {
@@ -63,10 +61,14 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
         errorOrResult <- scanSome("TABLE_DOES_NOT_EXISTS", "k1", 3).execute.either
       } yield assert(errorOrResult)(isLeft)
     },
+    testM("scanSome on an empty table returns empty results and a LEK of None") {
+      for {
+        (chunk, lek) <- scanSome(tableName2.value, "k2", 10).execute
+      } yield assert(chunk)(equalTo(Chunk.empty)) && assert(lek)(equalTo(None))
+    },
     testM("scanSome with limit greater than table size should scan all items in a table and return a LEK of None") {
       for {
-        t           <- scanSome(tableName1.value, "k1", 10).execute
-        (chunk, lek) = t
+        (chunk, lek) <- scanSome(tableName1.value, "k1", 10).execute
       } yield assert(chunk)(equalTo(resultItems(1 to 5))) && assert(lek)(equalTo(None))
     },
     testM(
@@ -76,12 +78,16 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
         errorOrResult <- querySome("TABLE_DOES_NOT_EXISTS", "k1", 3).execute.either
       } yield assert(errorOrResult)(isLeft)
     },
+    testM("querySome on an empty table returns empty results and a LEK of None") {
+      for {
+        (chunk, lek) <- querySome(tableName2.value, "k2", 10).execute
+      } yield assert(chunk)(equalTo(Chunk.empty)) && assert(lek)(equalTo(None))
+    },
     testM(
       "querySome with limit less than table size should return partial result chunk and return a LEK of last read Item"
     ) {
       for {
-        t           <- querySome(tableName1.value, "k1", 3).execute
-        (chunk, lek) = t
+        (chunk, lek) <- querySome(tableName1.value, "k1", 3).execute
       } yield {
         val item3 = Item("k1" -> 3)
         assert(chunk)(equalTo(resultItems(1 to 3))) && assert(lek)(equalTo(Some(item3)))
@@ -89,8 +95,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
     },
     testM("querySome with limit greater than table size should scan all items in a table and return a LEK of None") {
       for {
-        t           <- querySome(tableName1.value, "k1", 10).execute
-        (chunk, lek) = t
+        (chunk, lek) <- querySome(tableName1.value, "k1", 10).execute
       } yield assert(chunk)(equalTo(resultItems(1 to 5))) && assert(lek)(equalTo(None))
     },
     testM("scanAll should scan all items in a table") {
@@ -106,7 +111,10 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
       } yield assert(chunk)(equalTo(resultItems(1 to 5)))
     }
   ).provideLayer(
-    FakeDynamoDBExecutor.table(tableName1.value, "k1")(chunkOfPrimaryKeyAndItem(1 to 5, "k1"): _*).layer
+    FakeDynamoDBExecutor
+      .table(tableName1.value, "k1")(chunkOfPrimaryKeyAndItem(1 to 5, "k1"): _*)
+      .table(tableName2.value, "k2")()
+      .layer
   )
   private val batchingSuite                      = suite("batching should")(
     testM("batch putItem1 zip putItem1_2") {
