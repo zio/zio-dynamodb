@@ -47,7 +47,6 @@ sealed trait DynamoDBQuery[+A] { self =>
       ddbExecute(batchGetItem).map(resp => batchGetItem.toGetItemResponses(resp) zip batchGetIndexes)
 
     val indexedWriteResults =
-      // TODO: think about mapping return values from writes
       ddbExecute(batchWriteItem).as(batchWriteItem.addList.map(_ => ()) zip batchWriteIndexes)
 
     (indexedNonBatchedResults zipPar indexedGetResults zipPar indexedWriteResults).map {
@@ -441,8 +440,6 @@ object DynamoDBQuery {
         List.empty                                   // If no attribute names are specified, then all attributes are returned
     )
     final case class Response(
-      // TODO: return metadata
-
       // Note - if a requested item does not exist, it is not returned in the result
       responses: MapOfSet[TableName, Item] = MapOfSet.empty,
       unprocessedKeys: ScalaMap[TableName, TableResponse] = ScalaMap.empty

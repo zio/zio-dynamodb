@@ -122,7 +122,6 @@ sealed trait ProjectionExpression { self =>
   def set[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
     UpdateExpression.Action.SetAction(self, UpdateExpression.SetOperand.ValueOperand(t.toAttributeValue(a)))
 
-  //TODO: is this even useful anymore?
   /**
    * Modify or Add an item Attribute
    */
