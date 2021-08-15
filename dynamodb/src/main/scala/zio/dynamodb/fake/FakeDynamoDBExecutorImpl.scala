@@ -5,7 +5,7 @@ import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb._
 import zio.stm.{ STM, TMap, ZSTM }
-import zio.stream.ZStream
+import zio.stream.{ Stream, ZStream }
 import zio.{ Chunk, IO, UIO, ZIO }
 
 private[fake] final case class FakeDynamoDBExecutorImpl private (
@@ -131,7 +131,7 @@ private[fake] final case class FakeDynamoDBExecutorImpl private (
       result            <- STM.succeed(slice(sort(xs, pkName), exclusiveStartKey, maybeLimit))
     } yield result).commit
 
-  private def fakeScanAll[R](tableName: String, maybeLimit: Option[Int]): UIO[ZStream[Any, DatabaseError, Item]] = {
+  private def fakeScanAll[R](tableName: String, maybeLimit: Option[Int]): UIO[Stream[DatabaseError, Item]] = {
     val start: LastEvaluatedKey = None
     ZIO.succeed(
       ZStream
