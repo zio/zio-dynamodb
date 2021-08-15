@@ -24,7 +24,7 @@ private[fake] final case class FakeDynamoDBExecutorImpl private (
             .foreach(requestItems) {
               case (tableName, setOfTableGet) =>
                 ZIO.foreach(setOfTableGet) { tableGet =>
-                  getItem(tableName.value, tableGet.key).map((tableName, _))
+                  fakeGetItem(tableName.value, tableGet.key).map((tableName, _))
                 }
             }
             .map(_.flatten)
@@ -45,9 +45,9 @@ private[fake] final case class FakeDynamoDBExecutorImpl private (
             ZIO.foreach_(setOfWrite) { write =>
               write match {
                 case BatchWriteItem.Put(item)  =>
-                  put(tableName.value, item)
+                  fakePut(tableName.value, item)
                 case BatchWriteItem.Delete(pk) =>
-                  delete(tableName.value, pk)
+                  fakeDelete(tableName.value, pk)
               }
             }
 
@@ -55,29 +55,27 @@ private[fake] final case class FakeDynamoDBExecutorImpl private (
         results
 
       case GetItem(tableName, key, _, _, _)                                       =>
-        getItem(tableName.value, key)
+        fakeGetItem(tableName.value, key)
 
       case PutItem(tableName, item, _, _, _, _)                                   =>
-        put(tableName.value, item)
+        fakePut(tableName.value, item)
 
       // TODO Note UpdateItem is not currently supported as it uses an UpdateExpression
-      case UpdateItem(_, _, _, _, _, _, _)                                        =>
-        ZIO.succeed(())
 
       case DeleteItem(tableName, key, _, _, _, _)                                 =>
-        delete(tableName.value, key)
+        fakeDelete(tableName.value, key)
 
       case ScanSome(tableName, _, limit, _, exclusiveStartKey, _, _, _, _)        =>
-        scanSome(tableName.value, exclusiveStartKey, Some(limit))
+        fakeScanSome(tableName.value, exclusiveStartKey, Some(limit))
 
       case ScanAll(tableName, _, maybeLimit, _, _, _, _, _, _)                    =>
-        scanAll(tableName.value, maybeLimit)
+        fakeScanAll(tableName.value, maybeLimit)
 
       case QuerySome(tableName, _, limit, _, exclusiveStartKey, _, _, _, _, _, _) =>
-        scanSome(tableName.value, exclusiveStartKey, Some(limit))
+        fakeScanSome(tableName.value, exclusiveStartKey, Some(limit))
 
       case QueryAll(tableName, _, maybeLimit, _, _, _, _, _, _, _, _)             =>
-        scanAll(tableName.value, maybeLimit)
+        fakeScanAll(tableName.value, maybeLimit)
 
       // TODO: implement CreateTable
 
@@ -100,29 +98,29 @@ private[fake] final case class FakeDynamoDBExecutorImpl private (
                     .flatMap(_.fold[STM[DatabaseError, String]](STM.fail(TableDoesNotExists(tableName)))(STM.succeed(_)))
     } yield (tableMap, pkName)
 
-  private def pkForItem(item: Item, pkName: String): PrimaryKey                           =
+  private def pkForItem(item: Item, pkName: String): PrimaryKey                               =
     Item(item.map.filter { case (key, _) => key == pkName })
 
-  private def getItem(tableName: String, pk: PrimaryKey): IO[DatabaseError, Option[Item]] =
+  private def fakeGetItem(tableName: String, pk: PrimaryKey): IO[DatabaseError, Option[Item]] =
     (for {
       (tableMap, _) <- tableMapAndPkName(tableName)
       maybeItem     <- tableMap.get(pk)
     } yield maybeItem).commit
 
-  private def put(tableName: String, item: Item): IO[DatabaseError, Unit] =
+  private def fakePut(tableName: String, item: Item): IO[DatabaseError, Unit] =
     (for {
       (tableMap, pkName) <- tableMapAndPkName(tableName)
       pk                  = pkForItem(item, pkName)
       result             <- tableMap.put(pk, item)
     } yield result).commit
 
-  private def delete(tableName: String, pk: PrimaryKey): IO[DatabaseError, Unit] =
+  private def fakeDelete(tableName: String, pk: PrimaryKey): IO[DatabaseError, Unit] =
     (for {
       (tableMap, _) <- tableMapAndPkName(tableName)
       result        <- tableMap.delete(pk)
     } yield result).commit
 
-  private def scanSome(
+  private def fakeScanSome(
     tableName: String,
     exclusiveStartKey: LastEvaluatedKey,
     maybeLimit: Option[Int]
@@ -133,12 +131,12 @@ private[fake] final case class FakeDynamoDBExecutorImpl private (
       result            <- STM.succeed(slice(sort(xs, pkName), exclusiveStartKey, maybeLimit))
     } yield result).commit
 
-  private def scanAll[R](tableName: String, maybeLimit: Option[Int]): UIO[ZStream[Any, DatabaseError, Item]] = {
+  private def fakeScanAll[R](tableName: String, maybeLimit: Option[Int]): UIO[ZStream[Any, DatabaseError, Item]] = {
     val start: LastEvaluatedKey = None
     ZIO.succeed(
       ZStream
         .paginateM(start) { lek =>
-          scanSome(tableName, lek, maybeLimit).map {
+          fakeScanSome(tableName, lek, maybeLimit).map {
             case (chunk, lek) =>
               lek match {
                 case None => (chunk, None)
