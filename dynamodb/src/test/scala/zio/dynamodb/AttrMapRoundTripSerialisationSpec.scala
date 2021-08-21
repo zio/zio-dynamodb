@@ -1,6 +1,7 @@
 package zio.dynamodb
 
 import zio.random.Random
+import zio.test.Assertion.{ equalTo, isSome }
 import zio.test.{ DefaultRunnableSpec, _ }
 
 /*
@@ -20,60 +21,57 @@ AttrMap("f1", 1)
  */
 
 object AttrMapRoundTripSerialisationSpec extends DefaultRunnableSpec {
-  object Generators {
-    val maxFields                                     = 5
-//    val binaryGen: Gen[Any, List[Byte]]       = Gen.const(List(Byte.MinValue))
-    val fieldNameGen                                  = Gen.anyString
-    val binaryGen: Gen[Random with Sized, List[Byte]] = Gen.listOf(Gen.byte(Byte.MinValue, Byte.MaxValue))
-    val binarySetGen                                  = Gen.setOf(binaryGen).map(AttributeValue.BinarySet)
-    val bigDecimalGen                                 = Gen.bigDecimal(BigDecimal("0.0"), BigDecimal("10.0"))
-    val anyNumberGen: Gen[Random, Any]                =
-      Gen.oneOf(Gen.anyInt, Gen.anyDouble, Gen.anyLong, Gen.anyFloat, /* TODO Gen.anyShort ,*/ bigDecimalGen)
-    val nullGen                                       = Gen.const(null)
-    val stringGen                                     = Gen.anyString
-    val stringSetGen                                  = Gen.setOf(stringGen)
 
-    val binaryAttrGen: Gen[Random with Sized, AttributeValue.Binary] = binaryGen.map(AttributeValue.Binary)
-    val boolAttrGen: Gen[Random, AttributeValue.Bool]                = Gen.boolean.map(AttributeValue.Bool(_))
-    val numberAttrGen: Gen[Random with Sized, AttributeValue.Number] =
-      anyNumberGen.map(n => AttributeValue.Number(BigDecimal(n.toString)))
-    val stringAttrGen: Gen[Random with Sized, AttributeValue.String] = stringGen.map(AttributeValue.String)
-
-    val anyScalarAttrGen: Gen[Random with Sized, AttributeValue] = Gen.oneOf(binaryAttrGen, boolAttrGen, stringAttrGen)
-
-    def root: Gen[Random with Sized, AttrMap] = ???
+  trait Serializable  {
+    def genA: Gen[Random with Sized, Element]
+    def to: ToAttributeValue[Element]
+    def from: FromAttributeValue[Element]
+    type Element
+  }
+  object Serializable {
+    def apply[A](
+      genA0: Gen[Random with Sized, A],
+      to0: ToAttributeValue[A],
+      from0: FromAttributeValue[A]
+    ): Serializable {
+      type Element = A
+    } =
+      new Serializable {
+        override def genA: Gen[Random with Sized, Element] = genA0
+        override def to: ToAttributeValue[Element]         = to0
+        override def from: FromAttributeValue[Element]     = from0
+        override type Element = A
+      }
   }
 
-  final case class Serializable[A](
-    genA: Gen[Random with Sized, A],
-    to: ToAttributeValue[A],
-    from: FromAttributeValue[A]
-  )
-
-  val serializableBool: Serializable[Boolean] =
+  private val serializableBool: Serializable =
     Serializable(Gen.boolean, ToAttributeValue[Boolean], FromAttributeValue[Boolean])
 
-  val serializableString: Serializable[String] =
+  private val serializableString: Serializable =
     Serializable(Gen.anyString, ToAttributeValue[String], FromAttributeValue[String])
 
-  def serializableMap[V: ToAttributeValue: FromAttributeValue](
+  // do for other container types like List, NumberSet etc etc
+  private def serializableMap[V: ToAttributeValue: FromAttributeValue](
     genV: Gen[Random with Sized, V]
-  ): Serializable[Map[String, V]] =
+  ): Serializable =
     Serializable(Gen.mapOf(Gen.anyString, genV), ToAttributeValue[Map[String, V]], FromAttributeValue[Map[String, V]])
 
-  val genSerializable: Gen[Random with Sized, Serializable[_]] =
-    Gen.oneOf(Gen.const(serializableBool), Gen.const(serializableString))
+  private val genSerializable: Gen[Random with Sized, Serializable] =
+    Gen.oneOf(
+      Gen.const(serializableBool),
+      Gen.const(serializableString),
+      Gen.const(serializableMap[Int](Gen.anyInt))
+    )
 
-//  override def spec: ZSpec[Environment, Failure] = suite("AttrMapRoundTripSerialisationSpec suite")(fooSuite)
+  private val serialisationSuite = suite("Serialisation suite")(testM("round trip serialisation") {
+    checkM(genSerializable) { s =>
+      check(s.genA) { (a: s.Element) =>
+        val av: AttributeValue   = s.to.toAttributeValue(a)
+        val v: Option[s.Element] = s.from.fromAttributeValue(av)
+        assert(v)(isSome(equalTo(a)))
+      }
+    }
+  })
 
-//  val fooSuite = suite("Foo suite")(testM("foo") {
-//    check(Generators.anyNumberGen) { n =>
-//      val av1 = Generators.attrMap("f2", List(""))
-//      val av2 = Generators.attrMap("f1", n)
-//      println(s"av1=${av1} av2=${av2}")
-//      assertCompletes
-//    }
-//  })
-
-  override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] = ???
+  override def spec: ZSpec[Environment, Failure] = serialisationSuite
 }
