@@ -56,11 +56,15 @@ object AttrMapRoundTripSerialisationSpec extends DefaultRunnableSpec {
   ): Serializable =
     Serializable(Gen.mapOf(Gen.anyString, genV), ToAttributeValue[Map[String, V]], FromAttributeValue[Map[String, V]])
 
+  private val serializableStringSet: Serializable =
+    Serializable(Gen.setOf(Gen.anyString), ToAttributeValue[Set[String]], FromAttributeValue[Set[String]])
+
   private val genSerializable: Gen[Random with Sized, Serializable] =
     Gen.oneOf(
       Gen.const(serializableBool),
       Gen.const(serializableString),
-      Gen.const(serializableMap[Int](Gen.anyInt))
+      Gen.const(serializableMap[Int](Gen.anyInt)),
+      Gen.const(serializableStringSet)
     )
 
   private val serialisationSuite = suite("Serialisation suite")(testM("round trip serialisation") {
