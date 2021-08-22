@@ -21,6 +21,7 @@ AttrMap("f1", 1)
  */
 
 object AttrMapRoundTripSerialisationSpec extends DefaultRunnableSpec {
+  private val bigDecimalGen = Gen.bigDecimal(BigDecimal("0.0"), BigDecimal("10.0"))
 
   trait Serializable  {
     def genA: Gen[Random with Sized, Element]
@@ -50,10 +51,16 @@ object AttrMapRoundTripSerialisationSpec extends DefaultRunnableSpec {
   private val serializableString: Serializable =
     Serializable(Gen.anyString, ToAttributeValue[String], FromAttributeValue[String])
 
-  private val serializableInt: Serializable   =
-    Serializable(Gen.anyInt, ToAttributeValue[Int], FromAttributeValue[Int])
-  private val serializableShort: Serializable =
+  private val serializableShort: Serializable      =
     Serializable(Gen.anyShort, ToAttributeValue[Short], FromAttributeValue[Short])
+  private val serializableInt: Serializable        =
+    Serializable(Gen.anyInt, ToAttributeValue[Int], FromAttributeValue[Int])
+  private val serializableFloat: Serializable      =
+    Serializable(Gen.anyFloat, ToAttributeValue[Float], FromAttributeValue[Float])
+  private val serializableDouble: Serializable     =
+    Serializable(Gen.anyDouble, ToAttributeValue[Double], FromAttributeValue[Double])
+  private val serializableBigDecimal: Serializable =
+    Serializable(bigDecimalGen, ToAttributeValue[BigDecimal], FromAttributeValue[BigDecimal])
 
   // do for other container types like List, NumberSet etc etc
   private def serializableMap[V: ToAttributeValue: FromAttributeValue](
@@ -64,13 +71,26 @@ object AttrMapRoundTripSerialisationSpec extends DefaultRunnableSpec {
   private val serializableStringSet: Serializable =
     Serializable(Gen.setOf(Gen.anyString), ToAttributeValue[Set[String]], FromAttributeValue[Set[String]])
 
+  private val anyMapGen = Gen.oneOf(
+    Gen.const(serializableMap[Boolean](Gen.boolean)),
+    Gen.const(serializableMap[String](Gen.anyString)),
+    Gen.const(serializableMap[Short](Gen.anyShort)),
+    Gen.const(serializableMap[Int](Gen.anyInt)),
+    Gen.const(serializableMap[Float](Gen.anyFloat)),
+    Gen.const(serializableMap[Double](Gen.anyDouble)),
+    Gen.const(serializableMap[BigDecimal](bigDecimalGen))
+  )
+
   private val genSerializable: Gen[Random with Sized, Serializable] =
     Gen.oneOf(
       Gen.const(serializableBool),
       Gen.const(serializableString),
       Gen.const(serializableInt),
       Gen.const(serializableShort),
-      Gen.const(serializableMap[Int](Gen.anyInt)),
+      Gen.const(serializableFloat),
+      Gen.const(serializableDouble),
+      Gen.const(serializableBigDecimal),
+      anyMapGen,
       Gen.const(serializableStringSet)
     )
 
