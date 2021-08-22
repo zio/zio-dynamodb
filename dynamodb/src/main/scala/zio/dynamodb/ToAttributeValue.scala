@@ -39,22 +39,28 @@ object ToAttributeValue extends ToAttributeValueLowPriorityImplicits0 {
   // BigDecimal support
   implicit val bigDecimalToAttributeValue: ToAttributeValue[BigDecimal]                                        = AttributeValue.Number(_)
   implicit val bigDecimalSetToAttributeValue: ToAttributeValue[Set[BigDecimal]]                                = AttributeValue.NumberSet(_)
+  // short support
+  implicit val shortToAttributeValue: ToAttributeValue[Short]                                                  = (a: Short) =>
+    AttributeValue.Number(BigDecimal(a.toString))
+  implicit val shortSetToAttributeValue: ToAttributeValue[Set[Short]]                                          = (a: Set[Short]) =>
+    AttributeValue.NumberSet(a.map(s => BigDecimal(s.toString)))
+
   // Int support
-  implicit val intToAttributeValue: ToAttributeValue[Int]                                                      = (a: Int) => AttributeValue.Number(BigDecimal(a))
-  implicit val intSetToAttributeValue: ToAttributeValue[Set[Int]]                                              = (a: Set[Int]) =>
+  implicit val intToAttributeValue: ToAttributeValue[Int]               = (a: Int) => AttributeValue.Number(BigDecimal(a))
+  implicit val intSetToAttributeValue: ToAttributeValue[Set[Int]]       = (a: Set[Int]) =>
     AttributeValue.NumberSet(a.map(BigDecimal.apply))
   // Long support
-  implicit val longToAttributeValue: ToAttributeValue[Long]                                                    = (a: Long) => AttributeValue.Number(BigDecimal(a))
-  implicit val longSetToAttributeValue: ToAttributeValue[Set[Long]]                                            = (a: Set[Long]) =>
+  implicit val longToAttributeValue: ToAttributeValue[Long]             = (a: Long) => AttributeValue.Number(BigDecimal(a))
+  implicit val longSetToAttributeValue: ToAttributeValue[Set[Long]]     = (a: Set[Long]) =>
     AttributeValue.NumberSet(a.map(BigDecimal.apply))
   // Double support
-  implicit val doubleToAttributeValue: ToAttributeValue[Double]                                                = (a: Double) => AttributeValue.Number(BigDecimal(a))
-  implicit val doubleSetToAttributeValue: ToAttributeValue[Set[Double]]                                        = (a: Set[Double]) =>
+  implicit val doubleToAttributeValue: ToAttributeValue[Double]         = (a: Double) => AttributeValue.Number(BigDecimal(a))
+  implicit val doubleSetToAttributeValue: ToAttributeValue[Set[Double]] = (a: Set[Double]) =>
     AttributeValue.NumberSet(a.map(BigDecimal.apply))
   // Float support
-  implicit val floatToAttributeValue: ToAttributeValue[Float]                                                  = (a: Float) =>
+  implicit val floatToAttributeValue: ToAttributeValue[Float]           = (a: Float) =>
     AttributeValue.Number(BigDecimal.decimal(a))
-  implicit val floatSetToAttributeValue: ToAttributeValue[Set[Float]]                                          = (a: Set[Float]) =>
+  implicit val floatSetToAttributeValue: ToAttributeValue[Set[Float]]   = (a: Set[Float]) =>
     AttributeValue.NumberSet(a.map(BigDecimal.decimal))
 
 }

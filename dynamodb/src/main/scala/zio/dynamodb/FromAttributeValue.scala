@@ -35,8 +35,12 @@ object FromAttributeValue {
     case _                        => None
   }
 
-  implicit val intFromAttributeValue: FromAttributeValue[Int] = {
+  implicit val intFromAttributeValue: FromAttributeValue[Int]     = {
     case AttributeValue.Number(bd) => Some(bd.intValue)
+    case _                         => None
+  }
+  implicit val shortFromAttributeValue: FromAttributeValue[Short] = {
+    case AttributeValue.Number(bd) => Some(bd.shortValue)
     case _                         => None
   }
 
