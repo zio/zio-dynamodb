@@ -54,6 +54,7 @@ object AttributeValueRoundTripSerialisationSpec extends DefaultRunnableSpec {
   private val anyNumberGen = Gen.oneOf(
     Gen.const(Serializable(Gen.anyShort, ToAttributeValue[Short], FromAttributeValue[Short])),
     Gen.const(Serializable(Gen.anyInt, ToAttributeValue[Int], FromAttributeValue[Int])),
+    Gen.const(Serializable(Gen.anyLong, ToAttributeValue[Long], FromAttributeValue[Long])),
     Gen.const(Serializable(Gen.anyFloat, ToAttributeValue[Float], FromAttributeValue[Float])),
     Gen.const(Serializable(Gen.anyDouble, ToAttributeValue[Double], FromAttributeValue[Double])),
     Gen.const(Serializable(bigDecimalGen, ToAttributeValue[BigDecimal], FromAttributeValue[BigDecimal]))

@@ -51,6 +51,14 @@ object FromAttributeValue {
     case _                        => None
   }
 
+  implicit val shortFromAttributeValue: FromAttributeValue[Short]                   = {
+    case AttributeValue.Number(bd) => Some(bd.shortValue)
+    case _                         => None
+  }
+  implicit val shortSetFromAttributeValue: FromAttributeValue[Set[Short]]           = {
+    case AttributeValue.NumberSet(bdSet) => Some(bdSet.map(_.shortValue))
+    case _                               => None
+  }
   implicit val intFromAttributeValue: FromAttributeValue[Int]                       = {
     case AttributeValue.Number(bd) => Some(bd.intValue)
     case _                         => None
@@ -59,12 +67,12 @@ object FromAttributeValue {
     case AttributeValue.NumberSet(bdSet) => Some(bdSet.map(_.intValue))
     case _                               => None
   }
-  implicit val shortFromAttributeValue: FromAttributeValue[Short]                   = {
-    case AttributeValue.Number(bd) => Some(bd.shortValue)
+  implicit val longFromAttributeValue: FromAttributeValue[Long]                     = {
+    case AttributeValue.Number(bd) => Some(bd.longValue)
     case _                         => None
   }
-  implicit val shortSetFromAttributeValue: FromAttributeValue[Set[Short]]           = {
-    case AttributeValue.NumberSet(bdSet) => Some(bdSet.map(_.shortValue))
+  implicit val longSetFromAttributeValue: FromAttributeValue[Set[Long]]             = {
+    case AttributeValue.NumberSet(bdSet) => Some(bdSet.map(_.longValue))
     case _                               => None
   }
   implicit val floatFromAttributeValue: FromAttributeValue[Float]                   = {
