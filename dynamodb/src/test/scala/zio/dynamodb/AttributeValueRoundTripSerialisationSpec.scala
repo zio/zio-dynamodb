@@ -4,19 +4,6 @@ import zio.random.Random
 import zio.test.Assertion.{ equalTo, isSome }
 import zio.test.{ DefaultRunnableSpec, _ }
 
-/*
-  private[dynamodb] final case class Binary(value: Iterable[Byte])                extends AttributeValue
-  private[dynamodb] final case class BinarySet(value: Iterable[Iterable[Byte]])   extends AttributeValue
-  private[dynamodb] final case class Bool(value: Boolean)                         extends AttributeValue
-  private[dynamodb] final case class List(value: Iterable[AttributeValue])        extends AttributeValue
-  private[dynamodb] final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue
-  private[dynamodb] final case class Number(value: BigDecimal)                    extends AttributeValue
-  private[dynamodb] final case class NumberSet(value: Set[BigDecimal])            extends AttributeValue
-  private[dynamodb] case object Null                                              extends AttributeValue
-  private[dynamodb] final case class String(value: ScalaString)                   extends AttributeValue
-  private[dynamodb] final case class StringSet(value: Set[ScalaString])           extends AttributeValue
- */
-
 object AttributeValueRoundTripSerialisationSpec extends DefaultRunnableSpec {
   private val bigDecimalGen = Gen.bigDecimal(BigDecimal("0.0"), BigDecimal("10.0"))
 
@@ -83,6 +70,7 @@ object AttributeValueRoundTripSerialisationSpec extends DefaultRunnableSpec {
   private val anyNumberSetGen = Gen.oneOf(
     Gen.const(Serializable(Gen.setOf(Gen.anyShort), ToAttributeValue[Set[Short]], FromAttributeValue[Set[Short]])),
     Gen.const(Serializable(Gen.setOf(Gen.anyInt), ToAttributeValue[Set[Int]], FromAttributeValue[Set[Int]])),
+    Gen.const(Serializable(Gen.setOf(Gen.anyLong), ToAttributeValue[Set[Long]], FromAttributeValue[Set[Long]])),
     Gen.const(Serializable(Gen.setOf(Gen.anyFloat), ToAttributeValue[Set[Float]], FromAttributeValue[Set[Float]])),
     Gen.const(Serializable(Gen.setOf(Gen.anyDouble), ToAttributeValue[Set[Double]], FromAttributeValue[Set[Double]])),
     Gen.const(
