@@ -51,16 +51,13 @@ object AttributeValueRoundTripSerialisationSpec extends DefaultRunnableSpec {
   private val serializableString: Serializable =
     Serializable(Gen.anyString, ToAttributeValue[String], FromAttributeValue[String])
 
-  private val serializableShort: Serializable      =
-    Serializable(Gen.anyShort, ToAttributeValue[Short], FromAttributeValue[Short])
-  private val serializableInt: Serializable        =
-    Serializable(Gen.anyInt, ToAttributeValue[Int], FromAttributeValue[Int])
-  private val serializableFloat: Serializable      =
-    Serializable(Gen.anyFloat, ToAttributeValue[Float], FromAttributeValue[Float])
-  private val serializableDouble: Serializable     =
-    Serializable(Gen.anyDouble, ToAttributeValue[Double], FromAttributeValue[Double])
-  private val serializableBigDecimal: Serializable =
-    Serializable(bigDecimalGen, ToAttributeValue[BigDecimal], FromAttributeValue[BigDecimal])
+  private val anyNumberGen = Gen.oneOf(
+    Gen.const(Serializable(Gen.anyShort, ToAttributeValue[Short], FromAttributeValue[Short])),
+    Gen.const(Serializable(Gen.anyInt, ToAttributeValue[Int], FromAttributeValue[Int])),
+    Gen.const(Serializable(Gen.anyFloat, ToAttributeValue[Float], FromAttributeValue[Float])),
+    Gen.const(Serializable(Gen.anyDouble, ToAttributeValue[Double], FromAttributeValue[Double])),
+    Gen.const(Serializable(bigDecimalGen, ToAttributeValue[BigDecimal], FromAttributeValue[BigDecimal]))
+  )
 
   private def serializableMap[V: ToAttributeValue: FromAttributeValue](
     genV: Gen[Random with Sized, V]
@@ -119,11 +116,7 @@ object AttributeValueRoundTripSerialisationSpec extends DefaultRunnableSpec {
       Gen.const(serializableBool),
       Gen.const(serializableString),
       Gen.const(serializableStringSet),
-      Gen.const(serializableInt),
-      Gen.const(serializableShort),
-      Gen.const(serializableFloat),
-      Gen.const(serializableDouble),
-      Gen.const(serializableBigDecimal),
+      anyNumberGen,
       anyNumberSetGen,
       anyMapGen,
       anyListGen
