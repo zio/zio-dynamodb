@@ -5,9 +5,6 @@ import zio.test.Assertion.{ equalTo, isSome }
 import zio.test.{ DefaultRunnableSpec, _ }
 
 /*
-AttrMap("f1", "")
-AttrMap("f1", 1)
-
   private[dynamodb] final case class Binary(value: Iterable[Byte])                extends AttributeValue
   private[dynamodb] final case class BinarySet(value: Iterable[Iterable[Byte]])   extends AttributeValue
   private[dynamodb] final case class Bool(value: Boolean)                         extends AttributeValue
@@ -20,7 +17,7 @@ AttrMap("f1", 1)
   private[dynamodb] final case class StringSet(value: Set[ScalaString])           extends AttributeValue
  */
 
-object AttrMapRoundTripSerialisationSpec extends DefaultRunnableSpec {
+object AttributeValueRoundTripSerialisationSpec extends DefaultRunnableSpec {
   private val bigDecimalGen = Gen.bigDecimal(BigDecimal("0.0"), BigDecimal("10.0"))
 
   trait Serializable  {
@@ -62,7 +59,6 @@ object AttrMapRoundTripSerialisationSpec extends DefaultRunnableSpec {
   private val serializableBigDecimal: Serializable =
     Serializable(bigDecimalGen, ToAttributeValue[BigDecimal], FromAttributeValue[BigDecimal])
 
-  // do for other container types like List, NumberSet etc etc
   private def serializableMap[V: ToAttributeValue: FromAttributeValue](
     genV: Gen[Random with Sized, V]
   ): Serializable =
@@ -70,6 +66,16 @@ object AttrMapRoundTripSerialisationSpec extends DefaultRunnableSpec {
 
   private val serializableStringSet: Serializable =
     Serializable(Gen.setOf(Gen.anyString), ToAttributeValue[Set[String]], FromAttributeValue[Set[String]])
+
+  private val anyNumberSetGen = Gen.oneOf(
+    Gen.const(Serializable(Gen.setOf(Gen.anyShort), ToAttributeValue[Set[Short]], FromAttributeValue[Set[Short]])),
+    Gen.const(Serializable(Gen.setOf(Gen.anyInt), ToAttributeValue[Set[Int]], FromAttributeValue[Set[Int]])),
+    Gen.const(Serializable(Gen.setOf(Gen.anyFloat), ToAttributeValue[Set[Float]], FromAttributeValue[Set[Float]])),
+    Gen.const(Serializable(Gen.setOf(Gen.anyDouble), ToAttributeValue[Set[Double]], FromAttributeValue[Set[Double]])),
+    Gen.const(
+      Serializable(Gen.setOf(bigDecimalGen), ToAttributeValue[Set[BigDecimal]], FromAttributeValue[Set[BigDecimal]])
+    )
+  )
 
   private val anyMapGen = Gen.oneOf(
     Gen.const(serializableMap[Boolean](Gen.boolean)),
@@ -90,11 +96,12 @@ object AttrMapRoundTripSerialisationSpec extends DefaultRunnableSpec {
       Gen.const(serializableFloat),
       Gen.const(serializableDouble),
       Gen.const(serializableBigDecimal),
+      anyNumberSetGen,
       anyMapGen,
       Gen.const(serializableStringSet)
     )
 
-  private val serialisationSuite = suite("Serialisation suite")(testM("round trip serialisation") {
+  private val serialisationSuite = suite("AttributeValue Serialisation suite")(testM("round trip serialisation") {
     checkM(genSerializable) { s =>
       check(s.genA) { (a: s.Element) =>
         val av: AttributeValue   = s.to.toAttributeValue(a)

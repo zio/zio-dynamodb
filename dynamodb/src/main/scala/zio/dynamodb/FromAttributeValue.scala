@@ -13,10 +13,10 @@ object FromAttributeValue {
   private[dynamodb] final case class BinarySet(value: Iterable[Iterable[Byte]])   extends AttributeValue
   private[dynamodb] final case class NumberSet(value: Set[BigDecimal])            extends AttributeValue
   private[dynamodb] case object Null                                              extends AttributeValue
+  private[dynamodb] final case class List(value: Iterable[AttributeValue])        extends AttributeValue
 
   private[dynamodb] final case class Binary(value: Iterable[Byte])                extends AttributeValue
   private[dynamodb] final case class Bool(value: Boolean)                         extends AttributeValue
-  private[dynamodb] final case class List(value: Iterable[AttributeValue])        extends AttributeValue
   private[dynamodb] final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue
   private[dynamodb] final case class Number(value: BigDecimal)                    extends AttributeValue
   private[dynamodb] final case class String(value: ScalaString)                   extends AttributeValue
@@ -41,25 +41,45 @@ object FromAttributeValue {
     case _                        => None
   }
 
-  implicit val intFromAttributeValue: FromAttributeValue[Int]               = {
+  implicit val intFromAttributeValue: FromAttributeValue[Int]                       = {
     case AttributeValue.Number(bd) => Some(bd.intValue)
     case _                         => None
   }
-  implicit val shortFromAttributeValue: FromAttributeValue[Short]           = {
+  implicit val intSetFromAttributeValue: FromAttributeValue[Set[Int]]               = {
+    case AttributeValue.NumberSet(bdSet) => Some(bdSet.map(_.intValue))
+    case _                               => None
+  }
+  implicit val shortFromAttributeValue: FromAttributeValue[Short]                   = {
     case AttributeValue.Number(bd) => Some(bd.shortValue)
     case _                         => None
   }
-  implicit val floatFromAttributeValue: FromAttributeValue[Float]           = {
+  implicit val shortSetFromAttributeValue: FromAttributeValue[Set[Short]]           = {
+    case AttributeValue.NumberSet(bdSet) => Some(bdSet.map(_.shortValue))
+    case _                               => None
+  }
+  implicit val floatFromAttributeValue: FromAttributeValue[Float]                   = {
     case AttributeValue.Number(bd) => Some(bd.floatValue)
     case _                         => None
   }
-  implicit val doubleFromAttributeValue: FromAttributeValue[Double]         = {
+  implicit val floatSetFromAttributeValue: FromAttributeValue[Set[Float]]           = {
+    case AttributeValue.NumberSet(bdSet) => Some(bdSet.map(_.floatValue))
+    case _                               => None
+  }
+  implicit val doubleFromAttributeValue: FromAttributeValue[Double]                 = {
     case AttributeValue.Number(bd) => Some(bd.doubleValue)
     case _                         => None
   }
-  implicit val bigDecimalFromAttributeValue: FromAttributeValue[BigDecimal] = {
+  implicit val doubleSetFromAttributeValue: FromAttributeValue[Set[Double]]         = {
+    case AttributeValue.NumberSet(bdSet) => Some(bdSet.map(_.doubleValue))
+    case _                               => None
+  }
+  implicit val bigDecimalFromAttributeValue: FromAttributeValue[BigDecimal]         = {
     case AttributeValue.Number(bd) => Some(bd)
     case _                         => None
+  }
+  implicit val bigDecimalSetFromAttributeValue: FromAttributeValue[Set[BigDecimal]] = {
+    case AttributeValue.NumberSet(bdSet) => Some(bdSet.map(_.bigDecimal))
+    case _                               => None
   }
 
   implicit def mapFromAttributeValue[A](implicit ev: FromAttributeValue[A]): FromAttributeValue[Map[String, A]] = {
