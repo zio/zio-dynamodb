@@ -71,9 +71,6 @@ object FromAttributeValueSpec extends DefaultRunnableSpec {
       } yield xs
       assert(either)(isRight(equalTo(Some(List(Foo("a", Some("b")), Foo("c", Some("d")))))))
     },
-    // ======================================================================================
-    // experiment with `as`
-    // ======================================================================================
     test("as with an optional field that is present") {
       final case class Person(address: Address)
       final case class Address(line1: String, line2: Option[String])

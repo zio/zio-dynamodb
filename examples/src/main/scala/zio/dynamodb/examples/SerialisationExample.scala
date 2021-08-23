@@ -31,7 +31,7 @@ object SerialisationExample extends App {
     categoryMap = Map("a" -> "1", "b" -> "2"),
     categorySet = Set("a", "b"),
     optSet = Some(Set("a", "b")),
-    address = Some(Address("line1", /*Some("line2")*/ None, "UK")),
+    address = Some(Address("line1", None, "UK")),
     lineItems = List(
       LineItem("lineItem1", BigDecimal(1.0), Product("sku1", "a")),
       LineItem("lineItem2", BigDecimal(2.0), Product("sku2", "b"))
@@ -50,11 +50,11 @@ object SerialisationExample extends App {
       "isTest"      -> i.isTest,
       "categoryMap" -> i.categoryMap,
       "categorySet" -> i.categorySet,
-      "optSet"      -> i.optSet.orNull, // Scala Null is used to encode None for Option fields
+      "optSet"      -> i.optSet,
       "address"     -> i.address.map { addr =>
         Item(
           "line1"   -> addr.line1,
-          "line2"   -> addr.line2, // addr.line2.orNull results in Some(null) as Option based type class is invoked rather than Null one
+          "line2"   -> addr.line2,
           "country" -> addr.country
         )
       }.orNull,
@@ -76,7 +76,6 @@ object SerialisationExample extends App {
     for {
       id          <- m.get[String]("id")
       sequence    <- m.get[Int]("sequence")
-      // TODO: getItem example
       dueDate     <- m.get[String]("dueDate")
       total       <- m.get[BigDecimal]("total")
       isTest      <- m.get[Boolean]("isTest")
