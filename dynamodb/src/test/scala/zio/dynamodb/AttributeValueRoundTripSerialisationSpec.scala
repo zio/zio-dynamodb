@@ -64,6 +64,11 @@ object AttributeValueRoundTripSerialisationSpec extends DefaultRunnableSpec {
   ): Serializable =
     Serializable(Gen.mapOf(Gen.anyString, genV), ToAttributeValue[Map[String, V]], FromAttributeValue[Map[String, V]])
 
+  private def serializableList[V: ToAttributeValue: FromAttributeValue](
+    genV: Gen[Random with Sized, V]
+  ): Serializable =
+    Serializable(Gen.listOf(genV), ToAttributeValue[Iterable[V]], FromAttributeValue[Iterable[V]])
+
   private val serializableStringSet: Serializable =
     Serializable(Gen.setOf(Gen.anyString), ToAttributeValue[Set[String]], FromAttributeValue[Set[String]])
 
@@ -87,6 +92,16 @@ object AttributeValueRoundTripSerialisationSpec extends DefaultRunnableSpec {
     Gen.const(serializableMap[BigDecimal](bigDecimalGen))
   )
 
+  private val anyListGen = Gen.oneOf(
+    Gen.const(serializableList[Boolean](Gen.boolean)),
+    Gen.const(serializableList[String](Gen.anyString)),
+    Gen.const(serializableList[Short](Gen.anyShort)),
+    Gen.const(serializableList[Int](Gen.anyInt)),
+    Gen.const(serializableList[Float](Gen.anyFloat)),
+    Gen.const(serializableList[Double](Gen.anyDouble)),
+    Gen.const(serializableList[BigDecimal](bigDecimalGen))
+  )
+
   private val genSerializable: Gen[Random with Sized, Serializable] =
     Gen.oneOf(
       Gen.const(serializableBool),
@@ -98,6 +113,7 @@ object AttributeValueRoundTripSerialisationSpec extends DefaultRunnableSpec {
       Gen.const(serializableBigDecimal),
       anyNumberSetGen,
       anyMapGen,
+      anyListGen,
       Gen.const(serializableStringSet)
     )
 
