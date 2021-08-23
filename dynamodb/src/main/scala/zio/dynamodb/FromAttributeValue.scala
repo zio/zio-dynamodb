@@ -36,6 +36,11 @@ object FromAttributeValue {
     case _                        => None
   }
 
+  implicit def binarySetFromAttributeValue: FromAttributeValue[Iterable[Iterable[Byte]]] = {
+    case AttributeValue.BinarySet(set) => Some(set)
+    case _                             => None
+  }
+
   implicit val booleanFromAttributeValue: FromAttributeValue[Boolean] = {
     case AttributeValue.Bool(b) => Some(b)
     case _                      => None
