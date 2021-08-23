@@ -2,35 +2,12 @@ package zio.dynamodb
 
 import scala.annotation.tailrec
 
-final case class AttrMap(map: Map[String, AttributeValue]) { self =>
-
-  def as[A: FromAttributeValue, B: FromAttributeValue, C](
-    field1: String,
-    field2: String
-  )(f: (A, B) => C): Either[String, C] =
-    for {
-      a <- get[A](field1)
-      b <- get[B](field2)
-    } yield f(a, b)
-
-  def as[A: FromAttributeValue, B: FromAttributeValue, C: FromAttributeValue, D](
-    field1: String,
-    field2: String,
-    field3: String
-  )(f: (A, B, C) => D): Either[String, D] =
-    for {
-      a <- get[A](field1)
-      b <- get[B](field2)
-      c <- get[C](field3)
-    } yield f(a, b, c)
+final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFromAttributeValueAs { self =>
 
   def get[A](field: String)(implicit ev: FromAttributeValue[A]): Either[String, A] =
     map
       .get(field)
-      .flatMap { av =>
-        val x = ev.fromAttributeValue(av)
-        x // Some(Some(line2))
-      }
+      .flatMap(ev.fromAttributeValue)
       .toRight(s"field '$field' not found")
 
   def getOptional[A](field: String)(implicit ev: FromAttributeValue[A]): Either[Nothing, Option[A]] =

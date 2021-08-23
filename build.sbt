@@ -151,6 +151,37 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
            |}""".stripMargin
       )
       Seq(file)
+    }.taskValue,
+    Compile / sourceGenerators += Def.task {
+      val dir                      = (Compile / sourceManaged).value
+      val file                     = dir / "zio" / "dynamodb" / "GeneratedFromAttributeValueAs.scala"
+      def upperAlpha(i: Int): Char = (('A'.toInt - 1) + i).toChar
+      def lowerAlpha(i: Int): Char = (('a'.toInt - 1) + i).toChar
+      val applyMethods             = (2 to 22).map {
+        i =>
+          val returnType = upperAlpha(i + 1)
+          val tparams    = (1 to i).map(p => s"${upperAlpha(p)}: FromAttributeValue").mkString(", ")
+          val params     = (1 to i).map(p => s"field$p: String").mkString(",\n    ")
+          val ftypes     = (1 to i).map(p => s"${upperAlpha(p)}").mkString(", ")
+          val fparams    = (1 to i).map(p => s"${lowerAlpha(p)}").mkString(", ")
+          val gets       = (1 to i).map(p => s"${lowerAlpha(p)} <- get[${upperAlpha(p)}](field$p)").mkString("\n      ")
+          s"""def as[$tparams, $returnType](
+             |    $params
+             |  )(fn: ($ftypes) => $returnType): Either[String, $returnType] =
+             |    for {
+             |      $gets
+             |    } yield fn($fparams)""".stripMargin
+      }
+      IO.write(
+        file,
+        s"""package zio.dynamodb
+           |
+           |private[dynamodb] trait GeneratedFromAttributeValueAs { this: AttrMap =>
+           |
+           |  ${applyMethods.mkString("\n\n  ")}
+           |}""".stripMargin
+      )
+      Seq(file)
     }.taskValue
   )
   .settings(
