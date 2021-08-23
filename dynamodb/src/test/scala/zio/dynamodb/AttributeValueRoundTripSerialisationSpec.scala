@@ -42,6 +42,9 @@ object AttributeValueRoundTripSerialisationSpec extends DefaultRunnableSpec {
       }
   }
 
+  private val serializableBinary: Serializable =
+    Serializable(Gen.listOf(Gen.anyByte), ToAttributeValue[Iterable[Byte]], FromAttributeValue[Iterable[Byte]])
+
   private val serializableBool: Serializable =
     Serializable(Gen.boolean, ToAttributeValue[Boolean], FromAttributeValue[Boolean])
 
@@ -71,6 +74,9 @@ object AttributeValueRoundTripSerialisationSpec extends DefaultRunnableSpec {
 
   private val serializableStringSet: Serializable =
     Serializable(Gen.setOf(Gen.anyString), ToAttributeValue[Set[String]], FromAttributeValue[Set[String]])
+
+//  private val serializableBinarySet: Serializable =
+//    Serializable(Gen.setOf(Gen.boolean), ToAttributeValue[Set[String]], FromAttributeValue[Set[String]])
 
   private val anyNumberSetGen = Gen.oneOf(
     Gen.const(Serializable(Gen.setOf(Gen.anyShort), ToAttributeValue[Set[Short]], FromAttributeValue[Set[Short]])),
@@ -104,6 +110,7 @@ object AttributeValueRoundTripSerialisationSpec extends DefaultRunnableSpec {
 
   private val genSerializable: Gen[Random with Sized, Serializable] =
     Gen.oneOf(
+      Gen.const(serializableBinary),
       Gen.const(serializableBool),
       Gen.const(serializableString),
       Gen.const(serializableInt),

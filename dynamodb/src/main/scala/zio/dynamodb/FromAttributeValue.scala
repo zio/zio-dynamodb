@@ -31,7 +31,12 @@ object FromAttributeValue {
       Option(a)
   }
 
-  implicit val booleanDecimalFromAttributeValue: FromAttributeValue[Boolean] = {
+  implicit val binaryFromAttributeValue: FromAttributeValue[Iterable[Byte]] = {
+    case AttributeValue.Binary(b) => Some(b)
+    case _                        => None
+  }
+
+  implicit val booleanFromAttributeValue: FromAttributeValue[Boolean] = {
     case AttributeValue.Bool(b) => Some(b)
     case _                      => None
   }
