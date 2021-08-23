@@ -32,8 +32,8 @@ object AttributeValue {
   import scala.collection.{ Map => ScalaMap }
 
   private[dynamodb] final case class Binary(value: Iterable[Byte])                extends AttributeValue
-  private[dynamodb] final case class Bool(value: Boolean)                         extends AttributeValue
   private[dynamodb] final case class BinarySet(value: Iterable[Iterable[Byte]])   extends AttributeValue
+  private[dynamodb] final case class Bool(value: Boolean)                         extends AttributeValue
   private[dynamodb] final case class List(value: Iterable[AttributeValue])        extends AttributeValue
   private[dynamodb] final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue
   private[dynamodb] final case class Number(value: BigDecimal)                    extends AttributeValue
