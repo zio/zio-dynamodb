@@ -3,8 +3,9 @@ package zio.dynamodb.examples
 import zio.dynamodb.{ AttrMap, Item }
 
 import java.time.{ Instant, ZoneOffset }
+import scala.util.Try
 
-object SerialisationExample extends App {
+object RoundTripSerialisationExample extends App {
 
   final case class LineItem(itemId: String, price: BigDecimal, product: Product)
   final case class Product(sku: String, name: String)
@@ -38,8 +39,8 @@ object SerialisationExample extends App {
     )
   )
 
-  def dateToString(d: Instant): String = d.atOffset(ZoneOffset.UTC).toString
-  def stringToDate(d: String): Instant = Instant.parse(d)
+  def dateToString(d: Instant): String                 = d.atOffset(ZoneOffset.UTC).toString
+  def stringToDate(d: String): Either[String, Instant] = Try(Instant.parse(d)).toEither.left.map(_.getMessage)
 
   def invoiceToAttrMap(i: Invoice): Item =
     Item(
@@ -74,30 +75,31 @@ object SerialisationExample extends App {
 
   def attrMapToInvoice(m: AttrMap): Either[String, Invoice] =
     for {
-      id          <- m.get[String]("id")
-      sequence    <- m.get[Int]("sequence")
-      dueDate     <- m.get[String]("dueDate")
-      total       <- m.get[BigDecimal]("total")
-      isTest      <- m.get[Boolean]("isTest")
-      categoryMap <- m.get[Map[String, String]]("categoryMap")
-      categorySet <- m.get[Set[String]]("categorySet")
-      optSet      <- m.getOptional[Set[String]]("optSet")
-      address     <- m.getOptionalItem("address") { m2 =>
-                       m2.as("line1", "line2", "country")(Address)
-                     }
-      lineItems   <- m.getIterableItem[LineItem]("lineItems") { m2 =>
-                       for {
-                         itemId  <- m2.get[String]("itemId")
-                         price   <- m2.get[BigDecimal]("price")
-                         product <- m2.getItem[Product]("product") { m =>
-                                      m.as("sku", "name")(Product)
-                                    }
-                       } yield LineItem(itemId, price, product)
-                     }
+      id            <- m.get[String]("id")
+      sequence      <- m.get[Int]("sequence")
+      dueDateString <- m.get[String]("dueDate")
+      dueDate       <- stringToDate(dueDateString)
+      total         <- m.get[BigDecimal]("total")
+      isTest        <- m.get[Boolean]("isTest")
+      categoryMap   <- m.get[Map[String, String]]("categoryMap")
+      categorySet   <- m.get[Set[String]]("categorySet")
+      optSet        <- m.getOptional[Set[String]]("optSet")
+      address       <- m.getOptionalItem("address") { m2 =>
+                         m2.as("line1", "line2", "country")(Address)
+                       }
+      lineItems     <- m.getIterableItem[LineItem]("lineItems") { m2 =>
+                         for {
+                           itemId  <- m2.get[String]("itemId")
+                           price   <- m2.get[BigDecimal]("price")
+                           product <- m2.getItem[Product]("product") { m =>
+                                        m.as("sku", "name")(Product)
+                                      }
+                         } yield LineItem(itemId, price, product)
+                       }
     } yield Invoice(
       id,
       sequence,
-      stringToDate(dueDate),
+      dueDate,
       total,
       isTest,
       categoryMap,
@@ -107,6 +109,6 @@ object SerialisationExample extends App {
       lineItems.toSeq
     )
 
-  println("attrMapToInvoice: " + attrMapToInvoice(invoiceToAttrMap(invoice1)))
+  println(s"round trip result: ${Right(invoice1) == attrMapToInvoice(invoiceToAttrMap(invoice1))}") // true
 
 }
