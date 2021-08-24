@@ -78,7 +78,7 @@ object ProjectionExpressionParserSpec extends DefaultRunnableSpec {
         val actual = parse("fo$o.ba$r[9].ba$z")
         assert(actual)(isLeft(equalTo("error with 'fo$o',error with 'ba$r[9]',error with 'ba$z'")))
       },
-      test("""'foo[X]' returns Left("error with 'foo[X]'")""") {
+      test("Non number index returns an error") {
         val actual = parse("foo[X]")
         assert(actual)(isLeft(equalTo("error with 'foo[X]'")))
       }
