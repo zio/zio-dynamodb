@@ -5,7 +5,7 @@
 | [![Project stage][Stage]][Stage-Page] | ![CI][Badge-CI] | [![Release Artifacts][Badge-SonatypeReleases]][Link-SonatypeReleases] | [![Snapshot Artifacts][Badge-SonatypeSnapshots]][Link-SonatypeSnapshots] | [![Badge-Discord]][Link-Discord] |
 
 # Summary
-TODO
+Simple, type-safe, and efficient access to DynamoDB
 
 # Documentation
 [ZIO DynamoDB Microsite](https://zio.github.io/zio-dynamodb/)

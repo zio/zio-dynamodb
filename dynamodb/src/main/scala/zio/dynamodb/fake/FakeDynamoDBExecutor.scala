@@ -11,9 +11,11 @@ object FakeDynamoDBExecutor {
    *  - Limited support
    *    - Primary Keys - only one primary key can be specified and it can have only one attribute which is only checked for equality
    *  - Not currently supported
-   *    - Expressions - these include Condition Expressions, Projection Expressions, UpdateExpressions, Filter Expressions
+   *    - Projections - all fields are returned for all queries
+   *    - Expressions - these include `KeyConditionExpression`'s, `ConditionExpression`'s, `ProjectionExpression`'s, `UpdateExpression`'s
    *    - Create table, Delete table
    *    - UpdateItem - this is a more complex case as it uses an expression to specify the update
+   *    - Indexes in ScanSome, ScanAll, QuerySome, QueryAll
    *
    * '''Usage''': The schema has to be predefined using a builder style `table` method to specify a table, a single primary
    * and a var arg list of primary key/item pairs. Finally the `layer` method is used to return the layer.
@@ -28,7 +30,6 @@ object FakeDynamoDBExecutor {
    *   .table("tableName3", pkFieldName = "k3")(primaryKey3 -> item3)))
    *   .layer
    * }}}
-   * @param db
    */
   def table(tableName: String, pkFieldName: String)(entries: TableEntry*): FakeDynamoDBExecutorBuilder =
     FakeDynamoDBExecutorBuilder().table(tableName, pkFieldName)(entries: _*)
