@@ -7,21 +7,12 @@ import zio.schema.{ Schema, StandardType }
 object CodecGeneratorExperiment extends App {
   type AVEncoder[A]      = A => AttributeValue
   type AttrMapEncoder[A] = A => AttrMap
-  def foo[A](f: AVEncoder[A], key: String): AttrMapEncoder[A] = (a: A) => AttrMap(key -> f(a))
+  def toAvEncoder[A](f: AVEncoder[A], key: String): AttrMapEncoder[A] = (a: A) => AttrMap(key -> f(a))
 
-  final case class SimpleCaseClass2(id: Int, name: String)
+  final case class NestedCaseClass2(id: Int, nested: SimpleCaseClass3)
   final case class SimpleCaseClass3(id: Int, name: String, flag: Boolean)
 
-  val simpleCaseClass2Schema = Schema.CaseClass2[Int, String, SimpleCaseClass2](
-    Chunk.empty,
-    Schema.Field("id", Schema[Int]),
-    Schema.Field("name", Schema[String]),
-    SimpleCaseClass2,
-    _.id,
-    _.name
-  )
-
-  val simpleCaseClass3Schema = Schema.CaseClass3[Int, String, Boolean, SimpleCaseClass3](
+  implicit val simpleCaseClass3Schema = Schema.CaseClass3[Int, String, Boolean, SimpleCaseClass3](
     Chunk.empty,
     Schema.Field("id", Schema[Int]),
     Schema.Field("name", Schema[String]),
@@ -32,11 +23,23 @@ object CodecGeneratorExperiment extends App {
     _.flag
   )
 
+  val simpleCaseClass2Schema = Schema.CaseClass2[Int, SimpleCaseClass3, NestedCaseClass2](
+    Chunk.empty,
+    Schema.Field("id", Schema[Int]),
+    Schema.Field("nested", Schema[SimpleCaseClass3]),
+    NestedCaseClass2,
+    _.id,
+    _.nested
+  )
+
   def schemaEncoder[A](schema: Schema[A], key: String): Option[AttrMapEncoder[A]] =
     schema match {
-      case ProductEncoder(encoder)        => Some(encoder)
-      case Schema.Primitive(standardType) => primitiveEncoder(standardType).map(foo(_, key))
-      case _                              => None
+      case ProductEncoder(encoder)        =>
+        Some(encoder)
+      case Schema.Primitive(standardType) =>
+        primitiveEncoder(standardType).map(toAvEncoder(_, key))
+      case _                              =>
+        None
     }
 
   object ProductEncoder {
@@ -46,7 +49,8 @@ object CodecGeneratorExperiment extends App {
           caseClassEncoder(field1 -> extractField1, field2 -> extractField2)
         case Schema.CaseClass3(_, field1, field2, field3, _, extractField1, extractField2, extractField3) =>
           caseClassEncoder(field1 -> extractField1, field2 -> extractField2, field3 -> extractField3)
-        case _                                                                                            => None
+        case _                                                                                            =>
+          None
       }
   }
 
@@ -62,7 +66,12 @@ object CodecGeneratorExperiment extends App {
           // TODO: for now ignore errors
           val attrMap = maybeAttrMap.getOrElse(AttrMap.empty)
 
-          acc ++ attrMap
+          schema match {
+            case ProductEncoder(_) =>
+              acc ++ AttrMap(key -> attrMap)
+            case _                 =>
+              acc ++ attrMap
+          }
       }
 
       attrMap
@@ -78,9 +87,11 @@ object CodecGeneratorExperiment extends App {
       case _                       => None
     }
 
-  val x: Option[AttrMap] = schemaEncoder(simpleCaseClass2Schema, "parent").map(_(SimpleCaseClass2(42, "Avi")))
-  println(x)
-
   val x2: Option[AttrMap] = schemaEncoder(simpleCaseClass3Schema, "parent").map(_(SimpleCaseClass3(42, "Avi", true)))
   println(x2)
+
+  val x: Option[AttrMap] =
+    schemaEncoder(simpleCaseClass2Schema, "parent").map(_(NestedCaseClass2(42, SimpleCaseClass3(1, "Avi", true))))
+  println(x)
+
 }
