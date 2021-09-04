@@ -7,6 +7,7 @@ import zio.schema.{ Schema, StandardType }
 object CodecGeneratorExperiment extends App {
   type AVEncoder[A]      = A => AttributeValue
   type AttrMapEncoder[A] = A => AttrMap
+  def foo[A](f: AVEncoder[A], key: String): AttrMapEncoder[A] = (a: A) => AttrMap(key -> f(a))
 
   final case class SimpleCaseClass2(id: Int, name: String)
   final case class SimpleCaseClass3(id: Int, name: String, flag: Boolean)
@@ -31,10 +32,11 @@ object CodecGeneratorExperiment extends App {
     _.flag
   )
 
-  def attrMapEncoder[A](schema: Schema[A]): Option[AttrMapEncoder[A]] =
+  def schemaEncoder[A](schema: Schema[A], key: String): Option[AttrMapEncoder[A]] =
     schema match {
-      case ProductEncoder(encoder) => Some(encoder)
-      case _                       => None
+      case ProductEncoder(encoder)        => Some(encoder)
+      case Schema.Primitive(standardType) => primitiveEncoder(standardType).map(foo(_, key))
+      case _                              => None
     }
 
   object ProductEncoder {
@@ -47,28 +49,23 @@ object CodecGeneratorExperiment extends App {
         case _                                                                                            => None
       }
   }
+
   def caseClassEncoder[Z](fields: (Schema.Field[_], Z => Any)*): Option[AttrMapEncoder[Z]] =
     Some { (z: Z) =>
       val attrMap: AttrMap = fields.foldRight[AttrMap](AttrMap.empty) {
         case ((Schema.Field(key, schema, _), ext), acc) =>
-          val enc: Option[AVEncoder[Any]] = schemaEncoder(schema)
-          val extractedFieldValue         = ext(z)
-          val maybeAttributeValue         = enc.map(_(extractedFieldValue))
-          println(s"$key $schema $ext $maybeAttributeValue")
+          val enc: Option[AttrMapEncoder[Any]] = schemaEncoder(schema, key)
+          val extractedFieldValue              = ext(z)
+          val maybeAttrMap: Option[AttrMap]    = enc.map(_(extractedFieldValue))
+          println(s"$key $schema $ext $maybeAttrMap")
 
           // TODO: for now ignore errors
-          val attrMap = maybeAttributeValue.fold(AttrMap.empty)(av => AttrMap(key -> av))
+          val attrMap = maybeAttrMap.getOrElse(AttrMap.empty)
 
           acc ++ attrMap
       }
 
       attrMap
-    }
-
-  def schemaEncoder[A](schema: Schema[A]): Option[AVEncoder[A]] =
-    schema match {
-      case Schema.Primitive(standardType) => primitiveEncoder(standardType)
-      case _                              => None
     }
 
   def primitiveEncoder[A](standardType: StandardType[A]): Option[AVEncoder[A]] =
@@ -81,9 +78,9 @@ object CodecGeneratorExperiment extends App {
       case _                       => None
     }
 
-  val x: Option[AttrMap] = attrMapEncoder(simpleCaseClass2Schema).map(_(SimpleCaseClass2(42, "Avi")))
+  val x: Option[AttrMap] = schemaEncoder(simpleCaseClass2Schema, "parent").map(_(SimpleCaseClass2(42, "Avi")))
   println(x)
 
-  val x2: Option[AttrMap] = attrMapEncoder(simpleCaseClass3Schema).map(_(SimpleCaseClass3(42, "Avi", true)))
+  val x2: Option[AttrMap] = schemaEncoder(simpleCaseClass3Schema, "parent").map(_(SimpleCaseClass3(42, "Avi", true)))
   println(x2)
 }
