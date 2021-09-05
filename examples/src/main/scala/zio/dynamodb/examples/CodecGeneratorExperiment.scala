@@ -4,10 +4,19 @@ import zio.Chunk
 import zio.dynamodb.{ AttrMap, AttributeValue }
 import zio.schema.{ Schema, StandardType }
 
+final case class Encoder[A](encode: A => AttrMap) extends Function[A, AttrMap] { self =>
+
+  def apply(a: A): AttrMap = encode(a)
+}
+object Encoder {
+  def fromAvEncoder[A](key: String, f: A => AttributeValue): Encoder[A] =
+    Encoder(encode = (a: A) => AttrMap(key -> f(a)))
+}
+
 object CodecGeneratorExperiment extends App {
-  type AVEncoder[A]      = A => AttributeValue
-  type AttrMapEncoder[A] = A => AttrMap
-  def toAvEncoder[A](f: AVEncoder[A], key: String): AttrMapEncoder[A] = (a: A) => AttrMap(key -> f(a))
+  type AVEncoder[A] = A => AttributeValue
+//  type AttrMapEncoder[A] = A => AttrMap
+//  def toAvEncoder[A](f: AVEncoder[A], key: String): AttrMapEncoder[A] = (a: A) => AttrMap(key -> f(a))
 
   final case class NestedCaseClass2(id: Int, nested: SimpleCaseClass3)
   final case class SimpleCaseClass3(id: Int, name: String, flag: Boolean)
@@ -32,18 +41,19 @@ object CodecGeneratorExperiment extends App {
     _.nested
   )
 
-  def schemaEncoder[A](schema: Schema[A], key: String): Option[AttrMapEncoder[A]] =
+  // TODO: remove Option on return type when all encodings are implemented
+  def schemaEncoder[A](schema: Schema[A], key: String): Option[Encoder[A]] =
     schema match {
       case ProductEncoder(encoder)        =>
         Some(encoder)
       case Schema.Primitive(standardType) =>
-        primitiveEncoder(standardType).map(toAvEncoder(_, key))
+        primitiveEncoder(standardType).map(Encoder.fromAvEncoder(key, _))
       case _                              =>
         None
     }
 
   object ProductEncoder {
-    def unapply[A](schema: Schema[A]): Option[AttrMapEncoder[A]] =
+    def unapply[A](schema: Schema[A]): Option[Encoder[A]] =
       schema match {
         case Schema.CaseClass2(_, field1, field2, _, extractField1, extractField2)                        =>
           caseClassEncoder(field1 -> extractField1, field2 -> extractField2)
@@ -54,13 +64,13 @@ object CodecGeneratorExperiment extends App {
       }
   }
 
-  def caseClassEncoder[Z](fields: (Schema.Field[_], Z => Any)*): Option[AttrMapEncoder[Z]] =
-    Some { (z: Z) =>
+  def caseClassEncoder[Z](fields: (Schema.Field[_], Z => Any)*): Option[Encoder[Z]] =
+    Some(Encoder { (z: Z) =>
       val attrMap: AttrMap = fields.foldRight[AttrMap](AttrMap.empty) {
         case ((Schema.Field(key, schema, _), ext), acc) =>
-          val enc: Option[AttrMapEncoder[Any]] = schemaEncoder(schema, key)
-          val extractedFieldValue              = ext(z)
-          val maybeAttrMap: Option[AttrMap]    = enc.map(_(extractedFieldValue))
+          val enc: Option[Encoder[Any]]     = schemaEncoder(schema, key)
+          val extractedFieldValue           = ext(z)
+          val maybeAttrMap: Option[AttrMap] = enc.map(_(extractedFieldValue))
           println(s"$key $schema $ext $maybeAttrMap")
 
           // TODO: for now ignore errors
@@ -75,7 +85,7 @@ object CodecGeneratorExperiment extends App {
       }
 
       attrMap
-    }
+    })
 
   def primitiveEncoder[A](standardType: StandardType[A]): Option[AVEncoder[A]] =
     standardType match {
