@@ -2,7 +2,7 @@ package zio.dynamodb
 
 import zio.Chunk
 
-trait ToAttributeValue[A] {
+trait ToAttributeValue[A] { // TODO: try to make A contavariant
   def toAttributeValue(a: A): AttributeValue
 }
 

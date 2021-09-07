@@ -1,27 +1,26 @@
-package zio.dynamodb.examples
+package zio.dynamodb.examples.codec
 
 import zio.Chunk
-import zio.dynamodb.{ AttrMap, AttributeValue }
+import zio.dynamodb.{ AttrMap, AttributeValue, ToAttributeValue }
 import zio.schema.{ Schema, StandardType }
 
-final case class Encoder[A](encode: A => AttrMap) extends Function[A, AttrMap] { self =>
+final case class AttrMapEncoder[A](encode: A => AttrMap) extends Function[A, AttrMap] { self =>
 
   def apply(a: A): AttrMap = encode(a)
 }
-object Encoder {
-  def fromAvEncoder[A](key: String, f: A => AttributeValue): Encoder[A] =
-    Encoder(encode = (a: A) => AttrMap(key -> f(a)))
+object AttrMapEncoder {
+  def fromAvEncoder[A](key: String, f: ToAttributeValue[A]): AttrMapEncoder[A] =
+    AttrMapEncoder(encode = (a: A) => AttrMap(key -> f.toAttributeValue(a)))
 }
 
-object CodecGeneratorExperiment extends App {
-  type AVEncoder[A] = A => AttributeValue
+object EncoderExperiment extends App {
 //  type AttrMapEncoder[A] = A => AttrMap
 //  def toAvEncoder[A](f: AVEncoder[A], key: String): AttrMapEncoder[A] = (a: A) => AttrMap(key -> f(a))
 
   final case class NestedCaseClass2(id: Int, nested: SimpleCaseClass3)
   final case class SimpleCaseClass3(id: Int, name: String, flag: Boolean)
 
-  implicit val simpleCaseClass3Schema = Schema.CaseClass3[Int, String, Boolean, SimpleCaseClass3](
+  lazy implicit val simpleCaseClass3Schema = Schema.CaseClass3[Int, String, Boolean, SimpleCaseClass3](
     Chunk.empty,
     Schema.Field("id", Schema[Int]),
     Schema.Field("name", Schema[String]),
@@ -42,18 +41,18 @@ object CodecGeneratorExperiment extends App {
   )
 
   // TODO: remove Option on return type when all encodings are implemented
-  def schemaEncoder[A](schema: Schema[A], key: String): Option[Encoder[A]] =
+  def schemaEncoder[A](schema: Schema[A], key: String): Option[AttrMapEncoder[A]] =
     schema match {
       case ProductEncoder(encoder)        =>
         Some(encoder)
       case Schema.Primitive(standardType) =>
-        primitiveEncoder(standardType).map(Encoder.fromAvEncoder(key, _))
+        primitiveEncoder(standardType).map(AttrMapEncoder.fromAvEncoder(key, _))
       case _                              =>
         None
     }
 
   object ProductEncoder {
-    def unapply[A](schema: Schema[A]): Option[Encoder[A]] =
+    def unapply[A](schema: Schema[A]): Option[AttrMapEncoder[A]] =
       schema match {
         case Schema.CaseClass2(_, field1, field2, _, extractField1, extractField2)                        =>
           caseClassEncoder(field1 -> extractField1, field2 -> extractField2)
@@ -64,13 +63,13 @@ object CodecGeneratorExperiment extends App {
       }
   }
 
-  def caseClassEncoder[Z](fields: (Schema.Field[_], Z => Any)*): Option[Encoder[Z]] =
-    Some(Encoder { (z: Z) =>
+  def caseClassEncoder[Z](fields: (Schema.Field[_], Z => Any)*): Option[AttrMapEncoder[Z]] =
+    Some(AttrMapEncoder { (z: Z) =>
       val attrMap: AttrMap = fields.foldRight[AttrMap](AttrMap.empty) {
         case ((Schema.Field(key, schema, _), ext), acc) =>
-          val enc: Option[Encoder[Any]]     = schemaEncoder(schema, key)
-          val extractedFieldValue           = ext(z)
-          val maybeAttrMap: Option[AttrMap] = enc.map(_(extractedFieldValue))
+          val enc: Option[AttrMapEncoder[Any]] = schemaEncoder(schema, key)
+          val extractedFieldValue              = ext(z)
+          val maybeAttrMap: Option[AttrMap]    = enc.map(_(extractedFieldValue))
           println(s"$key $schema $ext $maybeAttrMap")
 
           // TODO: for now ignore errors
@@ -87,9 +86,10 @@ object CodecGeneratorExperiment extends App {
       attrMap
     })
 
-  def primitiveEncoder[A](standardType: StandardType[A]): Option[AVEncoder[A]] =
+  def primitiveEncoder[A](standardType: StandardType[A]): Option[ToAttributeValue[A]] =
     standardType match {
-      case StandardType.BoolType   => Some((a: A) => AttributeValue.Bool(a.asInstanceOf[Boolean]))
+      case StandardType.BoolType   =>
+        Some((a: A) => AttributeValue.Bool(a.asInstanceOf[Boolean])) // TODO: try to use ToAttributeValue machinery
       case StandardType.StringType => Some((a: A) => AttributeValue.String(a.toString))
       case StandardType.ShortType | StandardType.IntType | StandardType.LongType | StandardType.FloatType |
           StandardType.DoubleType =>
