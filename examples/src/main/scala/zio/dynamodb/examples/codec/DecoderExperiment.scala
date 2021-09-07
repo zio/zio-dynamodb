@@ -1,11 +1,16 @@
 package zio.dynamodb.examples.codec
 
+import zio.dynamodb.examples.codec.Models._
 import zio.dynamodb.{ AttrMap, FromAttributeValue, Item }
 import zio.schema.{ Schema, StandardType }
 
 object DecoderExperiment extends App {
 
   type AttrMapDecoder[A] = AttrMap => Either[String, A]
+  def foo[A](key: String, f: FromAttributeValue[A]): AttrMapDecoder[A] =
+    (am: AttrMap) => {
+      am.get(key)(f)
+    }
 
   def schemaDecoderAttrMap[A](schema: Schema[A], key: String): Option[AttrMapDecoder[A]] =
     schema match {
@@ -86,8 +91,8 @@ object DecoderExperiment extends App {
 
   val item = Item("id" -> 1, "name" -> "Avi", "flag" -> true)
 
-  val decoder: Option[AttrMapDecoder[EncoderExperiment.SimpleCaseClass3]] =
-    schemaDecoderAttrMap(EncoderExperiment.simpleCaseClass3Schema, "parent")
-  val value                                                               = decoder.map(_(item))
+  val decoder: Option[AttrMapDecoder[SimpleCaseClass3]] =
+    schemaDecoderAttrMap(simpleCaseClass3Schema, "parent")
+  val value                                             = decoder.map(_(item))
   println(value)
 }
