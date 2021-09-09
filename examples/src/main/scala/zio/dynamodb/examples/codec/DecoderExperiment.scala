@@ -5,6 +5,15 @@ import zio.dynamodb.{ AttrMap, FromAttributeValue, Item }
 import zio.schema.{ Schema, StandardType }
 
 object DecoderExperiment extends App {
+  val nestedItem       = Item("id" -> 1, "name" -> "Avi", "flag" -> true)
+  val parentItem: Item = Item("id" -> 1, "nested" -> nestedItem)
+  val xxx              = for {
+    id     <- parentItem.get[Int]("id") // scalar
+    nested <- parentItem.getItem[SimpleCaseClass3]("nested") { m => // composite case
+                m.as("id", "name", "flag")(SimpleCaseClass3) // recurse until all fields of case class are primitive
+              }
+  } yield NestedCaseClass2(id, nested)
+  println(xxx)
 
   type AttrMapDecoder[A] = AttrMap => Either[String, A]
   def foo[A](key: String, f: FromAttributeValue[A]): AttrMapDecoder[A] =
@@ -95,4 +104,5 @@ object DecoderExperiment extends App {
     schemaDecoderAttrMap(simpleCaseClass3Schema, "parent")
   val value                                             = decoder.map(_(item))
   println(value)
+
 }
