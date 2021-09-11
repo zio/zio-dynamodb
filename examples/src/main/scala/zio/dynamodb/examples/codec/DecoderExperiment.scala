@@ -4,6 +4,8 @@ import zio.dynamodb.examples.codec.Models._
 import zio.dynamodb.{ AttrMap, FromAttributeValue, Item }
 import zio.schema.{ Schema, StandardType }
 
+import scala.annotation.tailrec
+
 object DecoderExperiment extends App {
   val nestedItem       = Item("id" -> 1, "name" -> "Avi", "flag" -> true)
   val parentItem: Item = Item("id" -> 1, "nested" -> nestedItem)
@@ -21,20 +23,28 @@ object DecoderExperiment extends App {
       am.get(key)(f)
     }
 
+  @tailrec
   def schemaDecoderAttrMap[A](schema: Schema[A], key: String): Option[AttrMapDecoder[A]] =
     schema match {
       case ProductDecoder(decoder)        =>
         Some(decoder)
       case Schema.Primitive(standardType) =>
         primitiveDecoder(standardType).map(f => (am: AttrMap) => am.get(key)(f)).toOption
+      // TODO: why do we need this?
+      case l @ Schema.Lazy(_)             =>
+        schemaDecoderAttrMap(l.schema, key)
       case _                              => None
     }
 
+  @tailrec
   def schemaDecoderPrimitive[A](schema: Schema[A]): Either[String, FromAttributeValue[A]] =
     schema match {
       case Schema.Primitive(standardType) =>
         primitiveDecoder(standardType)
-      case _                              => Left("Boom!")
+      case l @ Schema.Lazy(_)             =>
+        schemaDecoderPrimitive(l.schema)
+      case _                              =>
+        Left("Boom!")
     }
 
   // TODO: get rid of Either in return type when all StandardType's are implemented
@@ -66,6 +76,8 @@ object DecoderExperiment extends App {
       } yield am.as(schema.field1.label, schema.field2.label)(schema.construct)(from1, from2)
       option.flatten
     }
+
+  def unsafeDecodeFields(fields: Schema.Field[_]*): List[Any] = ???
 
   def caseClass3Decoder[A1, A2, A3, Z](schema: Schema.CaseClass3[A1, A2, A3, Z]): AttrMapDecoder[Z] =
     (am: AttrMap) => {

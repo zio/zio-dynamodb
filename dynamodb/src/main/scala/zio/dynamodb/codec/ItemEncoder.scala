@@ -1,7 +1,6 @@
-package zio.dynamodb.examples.codec
+package zio.dynamodb.codec
 
-import zio.dynamodb.examples.codec.Models._
-import zio.dynamodb.{ AttrMap, AttributeValue, ToAttributeValue }
+import zio.dynamodb.{ AttrMap, AttributeValue, Item, ToAttributeValue }
 import zio.schema.{ Schema, StandardType }
 
 import scala.annotation.tailrec
@@ -15,9 +14,12 @@ object AttrMapEncoder {
     AttrMapEncoder(encode = (a: A) => AttrMap(key -> f.toAttributeValue(a)))
 }
 
-object EncoderExperiment extends App {
-//  type AttrMapEncoder[A] = A => AttrMap
-//  def toAvEncoder[A](f: AVEncoder[A], key: String): AttrMapEncoder[A] = (a: A) => AttrMap(key -> f(a))
+object ItemEncoder {
+  def toItem[A](a: A)(implicit schema: Schema[A]): Item = unsafeSchemaEncoder(schema, a)
+
+  // temp function until all attribute mappings are done
+  def unsafeSchemaEncoder[A](schema: Schema[A], a: A): Item =
+    schemaEncoder(schema, "top_level_key_ignored").getOrElse(throw new Exception(s"problems encoding $a"))(a)
 
   // TODO: remove Option on return type when all encodings are implemented
   @tailrec
@@ -27,8 +29,11 @@ object EncoderExperiment extends App {
         Some(encoder)
       case Schema.Primitive(standardType) =>
         primitiveEncoder(standardType).map(AttrMapEncoder.fromAvEncoder(key, _))
-      case l @ Schema.Lazy(_)             => schemaEncoder(l.schema, key) // TODO: wht do we need this?
-      case _                              =>
+
+      // TODO: why do we need this?
+      case l @ Schema.Lazy(_)             => schemaEncoder(l.schema, key)
+
+      case _ =>
         None
     }
 
@@ -51,23 +56,22 @@ object EncoderExperiment extends App {
           val enc: Option[AttrMapEncoder[Any]] = schemaEncoder(schema, key)
           val extractedFieldValue              = ext(z)
           val maybeAttrMap: Option[AttrMap]    = enc.map(_(extractedFieldValue))
-          println(s"$key $schema $ext $maybeAttrMap")
 
           // TODO: for now ignore errors
           val attrMap = maybeAttrMap.getOrElse(AttrMap.empty)
 
           @tailrec
-          def foo[A](schema: Schema[A]): AttrMap =
+          def combineAttrMaps[A](schema: Schema[A]): AttrMap =
             schema match {
               case l @ Schema.Lazy(_) =>
-                foo(l.schema)
+                combineAttrMaps(l.schema)
               case ProductEncoder(_)  =>
                 acc ++ AttrMap(key -> attrMap)
               case _                  =>
                 acc ++ attrMap
             }
 
-          foo(schema)
+          combineAttrMaps(schema)
       }
 
       attrMap
@@ -84,15 +88,4 @@ object EncoderExperiment extends App {
       case _                       => None
     }
 
-  val x2: Option[AttrMap] = schemaEncoder(simpleCaseClass3Schema, "parent").map(_(SimpleCaseClass3(42, "Avi", true)))
-  println(x2)
-
-  val x: Option[AttrMap] =
-    schemaEncoder(simpleCaseClass2Schema, "parent").map(_(NestedCaseClass2(42, SimpleCaseClass3(1, "Avi", true))))
-  println(x)
-
 }
-/*
-    def toItem(a: A)(implicit schema: Schema[A]): Item = ???
-    def fromItem(item: Item)(implicit schema: Schema[A]): Either[String, A] = ???
- */
