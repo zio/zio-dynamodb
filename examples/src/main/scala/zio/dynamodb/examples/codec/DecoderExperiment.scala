@@ -18,29 +18,30 @@ object DecoderExperiment extends App {
   println(xxx)
 
   type AttrMapDecoder[A] = AttrMap => Either[String, A]
-  def foo[A](key: String, f: FromAttributeValue[A]): AttrMapDecoder[A] =
-    (am: AttrMap) => {
-      am.get(key)(f)
-    }
+//  def foo[A](key: String, f: FromAttributeValue[A]): AttrMapDecoder[A] =
+//    (am: AttrMap) => {
+//      am.get(key)(f)
+//    }
 
   @tailrec
-  def schemaDecoderAttrMap[A](schema: Schema[A], key: String): Option[AttrMapDecoder[A]] =
+  def schemaDecoderAttrMap[A](schema: Schema[A], key: String): AttrMapDecoder[A] =
     schema match {
       case ProductDecoder(decoder)        =>
-        Some(decoder)
+        decoder
       case Schema.Primitive(standardType) =>
-        primitiveDecoder(standardType).map(f => (am: AttrMap) => am.get(key)(f)).toOption
+        (am: AttrMap) => am.get(key)(primitiveDecoder(standardType))
       // TODO: why do we need this?
       case l @ Schema.Lazy(_)             =>
         schemaDecoderAttrMap(l.schema, key)
-      case _                              => None
+      case _                              =>
+        throw new UnsupportedOperationException(s"schema $schema not yet supported")
     }
 
   @tailrec
   def schemaDecoderPrimitive[A](schema: Schema[A]): Either[String, FromAttributeValue[A]] =
     schema match {
       case Schema.Primitive(standardType) =>
-        primitiveDecoder(standardType)
+        Right(primitiveDecoder(standardType))
       case l @ Schema.Lazy(_)             =>
         schemaDecoderPrimitive(l.schema)
       case _                              =>
@@ -48,12 +49,13 @@ object DecoderExperiment extends App {
     }
 
   // TODO: get rid of Either in return type when all StandardType's are implemented
-  def primitiveDecoder[A](standardType: StandardType[A]): Either[String, FromAttributeValue[A]] =
+  def primitiveDecoder[A](standardType: StandardType[A]): FromAttributeValue[A] =
     standardType match {
-      case StandardType.BoolType   => Right(FromAttributeValue[Boolean].asInstanceOf[FromAttributeValue[A]])
-      case StandardType.StringType => Right(FromAttributeValue[String].asInstanceOf[FromAttributeValue[A]])
-      case StandardType.IntType    => Right(FromAttributeValue[Int].asInstanceOf[FromAttributeValue[A]])
-      case _                       => Left("Boom!")
+      case StandardType.BoolType   => FromAttributeValue[Boolean].asInstanceOf[FromAttributeValue[A]]
+      case StandardType.StringType => FromAttributeValue[String].asInstanceOf[FromAttributeValue[A]]
+      case StandardType.IntType    => FromAttributeValue[Int].asInstanceOf[FromAttributeValue[A]]
+      case _                       => throw new UnsupportedOperationException(s"standardType $standardType not yet supported")
+
     }
 
   object ProductDecoder {
@@ -77,7 +79,7 @@ object DecoderExperiment extends App {
       option.flatten
     }
 
-  def unsafeDecodeFields(fields: Schema.Field[_]*): List[Any] = ???
+//  def unsafeDecodeFields(fields: Schema.Field[_]*): List[Any] = ???
 
   def caseClass3Decoder[A1, A2, A3, Z](schema: Schema.CaseClass3[A1, A2, A3, Z]): AttrMapDecoder[Z] =
     (am: AttrMap) => {
@@ -93,11 +95,11 @@ object DecoderExperiment extends App {
       option.flatten
     }
 
-  def extract[A](schema: Schema.Field[A], am: AttrMap)(implicit from: FromAttributeValue[A]): Either[String, A] =
-    schema match {
-      case Schema.Field(key, _, _) =>
-        am.get(key)
-    }
+//  def extract[A](schema: Schema.Field[A], am: AttrMap)(implicit from: FromAttributeValue[A]): Either[String, A] =
+//    schema match {
+//      case Schema.Field(key, _, _) =>
+//        am.get(key)
+//    }
 
   /*
   AttrMap refresher
@@ -112,9 +114,9 @@ object DecoderExperiment extends App {
 
   val item = Item("id" -> 1, "name" -> "Avi", "flag" -> true)
 
-  val decoder: Option[AttrMapDecoder[SimpleCaseClass3]] =
+  val decoder =
     schemaDecoderAttrMap(simpleCaseClass3Schema, "parent")
-  val value                                             = decoder.map(_(item))
+  val value   = decoder(item)
   println(value)
 
 }
