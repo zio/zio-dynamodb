@@ -20,7 +20,7 @@ import zio.dynamodb.DynamoDBQuery.{
   Zip
 }
 import zio.dynamodb.UpdateExpression.Action
-import zio.dynamodb.codec.ItemEncoder
+import zio.dynamodb.codec.{ ItemDecoder, ItemEncoder }
 import zio.schema.Schema
 import zio.stream.Stream
 import zio.{ Chunk, Has, ZIO }
@@ -312,13 +312,12 @@ object DynamoDBQuery {
     tableName: String,
     key: PrimaryKey,
     projections: ProjectionExpression*
-  ): DynamoDBQuery[Either[String, A]] = {
-    def fromItem(item: Item)(implicit schema: Schema[A]): Either[String, A] = ???
+  ): DynamoDBQuery[Either[String, A]] =
+//    def fromItem(item: Item)(implicit schema: Schema[A]): Either[String, A] = ???
     getItem(tableName, key, projections: _*).map {
-      case Some(item) => fromItem(item)
+      case Some(item) => ItemDecoder.fromItem[A](item)
       case None       => Left(s"value with key $key not found")
     }
-  }
 
   def putItem(tableName: String, item: Item): Write[Unit] = PutItem(TableName(tableName), item)
 

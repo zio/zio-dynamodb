@@ -21,9 +21,9 @@ object SimpleExample2 extends App {
   private val executorLayer = FakeDynamoDBExecutor.table("table1", pkFieldName = "id")().layer
 
   private val program: ZIO[Console with DynamoDBExecutor, Exception, Unit] = for {
-    _    <- put("table1", NestedCaseClass2(1, SimpleCaseClass3(2, "Avi", true))).execute
+    _    <- put("table1", NestedCaseClass2(1, SimpleCaseClass3(2, "Avi", flag = true))).execute
 //    _    <- putItem("table1", parentItem).execute
-    item <- getItem("table1", PrimaryKey("id" -> 1)).execute
+    item <- get[NestedCaseClass2]("table1", PrimaryKey("id" -> 1)).execute
     _    <- putStrLn(s"found $item")
   } yield ()
 
