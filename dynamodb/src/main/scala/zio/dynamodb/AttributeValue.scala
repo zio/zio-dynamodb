@@ -29,7 +29,7 @@ sealed trait AttributeValue { self =>
 
 object AttributeValue {
   import Predef.{ String => ScalaString }
-  import scala.collection.{ Map => ScalaMap }
+  import scala.collection.immutable.{ Map => ScalaMap }
 
   private[dynamodb] final case class Binary(value: Iterable[Byte])                extends AttributeValue
   private[dynamodb] final case class BinarySet(value: Iterable[Iterable[Byte]])   extends AttributeValue
