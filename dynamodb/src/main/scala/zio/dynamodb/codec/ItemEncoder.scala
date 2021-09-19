@@ -13,7 +13,6 @@ object ItemEncoder {
       .fromAttributeValue(encoder(schema)(a))
       .getOrElse(throw new Exception(s"error encoding $a"))
 
-  // TODO: remove unsafe prefix when all encodings are implemented
   @tailrec
   def encoder[A](schema: Schema[A]): Encoder[A] =
     schema match {
@@ -29,6 +28,8 @@ object ItemEncoder {
   object ProductEncoder {
     def unapply[A](schema: Schema[A]): Option[Encoder[A]] =
       schema match {
+        case Schema.CaseClass1(_, field1, _, extractField1)                                               =>
+          Some(caseClassEncoder(field1 -> extractField1))
         case Schema.CaseClass2(_, field1, field2, _, extractField1, extractField2)                        =>
           Some(caseClassEncoder(field1 -> extractField1, field2 -> extractField2))
         case Schema.CaseClass3(_, field1, field2, field3, _, extractField1, extractField2, extractField3) =>
@@ -38,16 +39,16 @@ object ItemEncoder {
       }
   }
 
-  def caseClassEncoder[Z](fields: (Schema.Field[_], Z => Any)*): Encoder[Z] =
-    (z: Z) => {
+  def caseClassEncoder[A](fields: (Schema.Field[_], A => Any)*): Encoder[A] =
+    (a: A) => {
       val avMap: AttributeValue.Map = fields.foldRight[AttributeValue.Map](AttributeValue.Map(Map.empty)) {
         case ((Schema.Field(key, schema, _), ext), acc) =>
           val enc                 = encoder(schema)
-          val extractedFieldValue = ext(z)
+          val extractedFieldValue = ext(a)
           val av                  = enc(extractedFieldValue)
 
           @tailrec
-          def appendToMap[A](schema: Schema[A]): AttributeValue.Map =
+          def appendToMap[B](schema: Schema[B]): AttributeValue.Map =
             schema match {
               case l @ Schema.Lazy(_) =>
                 appendToMap(l.schema)

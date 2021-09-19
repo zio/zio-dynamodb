@@ -8,13 +8,12 @@ import scala.annotation.tailrec
 
 object ItemDecoder {
 
+  type Decoder[+A] = AttributeValue => Either[String, A]
+
   def fromItem[A](item: Item)(implicit schema: Schema[A]): Either[String, A] = {
     val av = ToAttributeValue.attrMapToAttributeValue.toAttributeValue(item)
     decoder(schema)(av)
   }
-
-  // when this is for a Product we can require AttributeValue to be an AttributeValue.Map, else we return an error
-  type Decoder[+A] = AttributeValue => Either[String, A] // can do this in other one
 
   @tailrec
   def decoder[A](schema: Schema[A]): Decoder[A] =
@@ -29,6 +28,8 @@ object ItemDecoder {
   object ProductDecoder {
     def unapply[A](schema: Schema[A]): Option[Decoder[A]] =
       schema match {
+        case s @ Schema.CaseClass1(_, _, _, _)             =>
+          Some(caseClass1Decoder(s))
         case s @ Schema.CaseClass2(_, _, _, _, _, _)       =>
           Some(caseClass2Decoder(s))
         case s @ Schema.CaseClass3(_, _, _, _, _, _, _, _) =>
@@ -36,6 +37,12 @@ object ItemDecoder {
         case _                                             =>
           None
       }
+  }
+
+  private def caseClass1Decoder[A1, Z](schema: Schema.CaseClass1[A1, Z]): Decoder[Z] = { (av: AttributeValue) =>
+    decodeFields(av, schema.field).map { xs =>
+      schema.construct(xs(0).asInstanceOf[A1])
+    }
   }
 
   private def caseClass2Decoder[A1, A2, Z](schema: Schema.CaseClass2[A1, A2, Z]): Decoder[Z] = { (av: AttributeValue) =>
