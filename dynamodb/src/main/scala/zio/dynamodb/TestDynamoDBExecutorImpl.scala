@@ -22,18 +22,17 @@ import zio.{ Chunk, IO, UIO, ZIO }
  *    - UpdateItem - this is a more complex case as it uses an expression to specify the update
  *    - Indexes in ScanSome, ScanAll, QuerySome, QueryAll
  *
- * '''Usage''': The schema has to be predefined using a builder style `table` method to specify a table, a single primary
- * and a var arg list of primary key/item pairs. Finally the `layer` method is used to return the layer.
+ * '''Usage''': `DynamoDBExecutor.test` provides you the test DB instance in a `ZLayer`.
+ * Tables are created using the `addTable` method in the test controller service `TestDynamoDBExecutor`. You specify
+ * a table, a single primary and a var arg list of primary key/item pairs.
  * {{{
  * testM("getItem") {
  *   for {
+ *     _ <- TestDynamoDBExecutor.addTable("tableName1", pkFieldName = "k1")(primaryKey1 -> item1, primaryKey1_2 -> item1_2)
  *     result  <- GetItem(key = primaryKey1, tableName = tableName1).execute
  *     expected = Some(item1)
  *   } yield assert(result)(equalTo(expected))
- * }.provideLayer(FakeDynamoDBExecutor
- *   .table("tableName1", pkFieldName = "k1")(primaryKey1 -> item1, primaryKey1_2 -> item1_2)
- *   .table("tableName3", pkFieldName = "k3")(primaryKey3 -> item3)))
- *   .layer
+ * }.provideLayer(DynamoDBExecutor.test)
  * }}}
  */
 private[dynamodb] final case class TestDynamoDBExecutorImpl private (
