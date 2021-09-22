@@ -2,7 +2,6 @@ package zio.dynamodb
 
 import zio.Chunk
 import zio.dynamodb.DynamoDBQuery._
-import zio.dynamodb.fake.TestDynamoDBExecutor
 import zio.test.Assertion._
 import zio.test.{ assert, DefaultRunnableSpec, TestAspect, ZSpec }
 
@@ -19,7 +18,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
   )
 
   override def spec: ZSpec[Environment, Failure] =
-    suite("Batching")(crudSuite, scanAndQuerySuite, batchingSuite).provideLayer(TestDynamoDBExecutor.test)
+    suite("Batching")(crudSuite, scanAndQuerySuite, batchingSuite).provideLayer(DynamoDBExecutor.test)
 
   private val crudSuite = suite("single Item CRUD suite")(
     testM("getItem") {

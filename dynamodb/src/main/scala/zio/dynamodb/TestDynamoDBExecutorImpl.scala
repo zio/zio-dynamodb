@@ -1,9 +1,8 @@
-package zio.dynamodb.fake
+package zio.dynamodb
 
 import zio.dynamodb.DatabaseError.TableDoesNotExists
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery._
-import zio.dynamodb._
 import zio.stm.{ STM, TMap, ZSTM }
 import zio.stream.{ Stream, ZStream }
 import zio.{ Chunk, IO, UIO, ZIO }
@@ -37,7 +36,7 @@ import zio.{ Chunk, IO, UIO, ZIO }
  *   .layer
  * }}}
  */
-private[fake] final case class FakeDynamoDBExecutorImpl private (
+private[dynamodb] final case class TestDynamoDBExecutorImpl private (
   tableMap: TMap[String, TMap[PrimaryKey, Item]],
   tablePkNameMap: TMap[String, String]
 ) extends DynamoDBExecutor.Service
@@ -237,7 +236,7 @@ private[fake] final case class FakeDynamoDBExecutorImpl private (
       case _                                                                    => false
     }
 
-  override def addTable(tableName: String, pkFieldName: String)(entries: (PrimaryKey, Item)*): UIO[Unit] =
+  override def addTable(tableName: String, pkFieldName: String)(entries: TableEntry*): UIO[Unit] =
     (for {
       _    <- tablePkNameMap.put(tableName, pkFieldName)
       tmap <- TMap.empty[PrimaryKey, Item]

@@ -1,6 +1,7 @@
 package zio
 
 import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
+import zio.dynamodb.TestDynamoDBExecutor.Service
 import zio.stream.ZStream
 
 package object dynamodb {
@@ -11,6 +12,9 @@ package object dynamodb {
   val PrimaryKey = AttrMap
   type Item = AttrMap
   val Item = AttrMap
+
+  type TestDynamoDBExecutor = Has[Service]
+  type TableEntry           = (PrimaryKey, Item)
 
   private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[A]): ZIO[DynamoDBExecutor, Exception, A] =
     ZIO.accessM[DynamoDBExecutor](_.get.execute(query))
