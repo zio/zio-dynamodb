@@ -1,6 +1,5 @@
 package zio.dynamodb.fake
 
-import zio.dynamodb.fake.TestDynamoDBExecutor
 import zio.dynamodb.DatabaseError.TableDoesNotExists
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery._
@@ -9,6 +8,35 @@ import zio.stm.{ STM, TMap, ZSTM }
 import zio.stream.{ Stream, ZStream }
 import zio.{ Chunk, IO, UIO, ZIO }
 
+/**
+ * A Fake implementation of `DynamoDBExecutor.Service` that currently has the very modest aspiration of providing bare minimum
+ * functionality to enable internal unit tests and to enable simple end to end examples that can serve as documentation.
+ * Limited CRUD functionality is supported hence some features are currently not supported or have restrictions.
+ *  - Supported
+ *    - CRUD operations GetItem, PutItem, DeleteItem, BatchGetItem, BatchWriteItem
+ *  - Limited support
+ *    - Primary Keys - only one primary key can be specified and it can have only one attribute which is only checked for equality
+ *  - Not currently supported
+ *    - Projections - all fields are returned for all queries
+ *    - Expressions - these include `KeyConditionExpression`'s, `ConditionExpression`'s, `ProjectionExpression`'s, `UpdateExpression`'s
+ *    - Create table, Delete table
+ *    - UpdateItem - this is a more complex case as it uses an expression to specify the update
+ *    - Indexes in ScanSome, ScanAll, QuerySome, QueryAll
+ *
+ * '''Usage''': The schema has to be predefined using a builder style `table` method to specify a table, a single primary
+ * and a var arg list of primary key/item pairs. Finally the `layer` method is used to return the layer.
+ * {{{
+ * testM("getItem") {
+ *   for {
+ *     result  <- GetItem(key = primaryKey1, tableName = tableName1).execute
+ *     expected = Some(item1)
+ *   } yield assert(result)(equalTo(expected))
+ * }.provideLayer(FakeDynamoDBExecutor
+ *   .table("tableName1", pkFieldName = "k1")(primaryKey1 -> item1, primaryKey1_2 -> item1_2)
+ *   .table("tableName3", pkFieldName = "k3")(primaryKey3 -> item3)))
+ *   .layer
+ * }}}
+ */
 private[fake] final case class FakeDynamoDBExecutorImpl private (
   tableMap: TMap[String, TMap[PrimaryKey, Item]],
   tablePkNameMap: TMap[String, String]
@@ -209,15 +237,6 @@ private[fake] final case class FakeDynamoDBExecutorImpl private (
       case _                                                                    => false
     }
 
-  /*
-private[fake] final case class FakeDynamoDBExecutorImpl private (
-  tableMap: TMap[String, TMap[PrimaryKey, Item]],
-  tablePkNameMap: TMap[String, String]
-) extends DynamoDBExecutor.Service
-    with TestDynamoDBExecutor.Service {
-  self =>
-   */
-
   override def addTable(tableName: String, pkFieldName: String)(entries: (PrimaryKey, Item)*): UIO[Unit] =
     (for {
       _    <- tablePkNameMap.put(tableName, pkFieldName)
@@ -226,20 +245,4 @@ private[fake] final case class FakeDynamoDBExecutorImpl private (
       _    <- tableMap.put(tableName, tmap)
     } yield ()).commit
 
-}
-
-object FakeDynamoDBExecutorImpl {
-  def make(tableInfos: List[TableSchemaAndData]): UIO[FakeDynamoDBExecutorImpl] =
-    (for {
-      tableMap       <- TMap.empty[String, TMap[PrimaryKey, Item]]
-      tablePkNameMap <- TMap.empty[String, String]
-      _              <- STM.foreach(tableInfos) { tableInfo =>
-                          for {
-                            _    <- tablePkNameMap.put(tableInfo.tableName, tableInfo.pkName)
-                            tmap <- TMap.empty[PrimaryKey, Item]
-                            _    <- STM.foreach(tableInfo.entries)(entry => tmap.put(entry._1, entry._2))
-                            _    <- tableMap.put(tableInfo.tableName, tmap)
-                          } yield ()
-                        }
-    } yield FakeDynamoDBExecutorImpl(tableMap, tablePkNameMap)).commit
 }
