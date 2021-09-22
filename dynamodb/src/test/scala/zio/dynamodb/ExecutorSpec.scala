@@ -2,56 +2,68 @@ package zio.dynamodb
 
 import zio.Chunk
 import zio.dynamodb.DynamoDBQuery._
-import zio.dynamodb.fake.FakeDynamoDBExecutor
+import zio.dynamodb.fake.TestDynamoDBExecutor
 import zio.test.Assertion._
-import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
+import zio.test.{ assert, DefaultRunnableSpec, TestAspect, ZSpec }
 
 object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
 
-  private val executorWithOneTable = FakeDynamoDBExecutor
-    .table(tableName1.value, "k1")(primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
-    .layer
+  private val beforeAddTable1          = TestAspect.before(
+    TestDynamoDBExecutor
+      .addTable(tableName1.value, "k1")(primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
+  )
+  private val beforeAddTable1AndTable2 = TestAspect.before(
+    TestDynamoDBExecutor
+      .addTable(tableName1.value, "k1")(primaryKeyT1                     -> itemT1, primaryKeyT1_2 -> itemT1_2) *>
+      TestDynamoDBExecutor.addTable(tableName3.value, "k3")(primaryKeyT3 -> itemT3)
+  )
 
-  private val executorWithTwoTables = FakeDynamoDBExecutor
-    .table(tableName1.value, "k1")(primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
-    .table(tableName3.value, "k3")(primaryKeyT3 -> itemT3)
-    .layer
-
-  override def spec: ZSpec[Environment, Failure] = suite("Batching")(crudSuite, scanAndQuerySuite, batchingSuite)
+  override def spec: ZSpec[Environment, Failure] =
+    suite("Batching")(
+      crudSuite,
+      scanAndQuerySuite.provideLayer(
+        TestDynamoDBExecutor.test
+      ),
+      batchingSuite
+    )
   private val crudSuite                          = suite("single Item CRUD suite")(
     testM("getItem") {
       for {
+        _      <- TestDynamoDBExecutor.addTable(tableName1.value, "k1")(primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
         result <- getItemT1.execute
       } yield assert(result)(equalTo(Some(itemT1)))
-    }.provideLayer(executorWithTwoTables),
+    }.provideLayer(TestDynamoDBExecutor.test),
     testM("getItem returns an error when table does not exist") {
       for {
         result <- getItem("TABLE_DOES_NOT_EXISTS", primaryKeyT1).execute.either
       } yield assert(result)(isLeft)
-    }.provideLayer(executorWithOneTable),
+    }.provideLayer(TestDynamoDBExecutor.test),
     testM("should execute putItem then getItem when sequenced in a ZIO") {
       for {
+        _      <- TestDynamoDBExecutor.addTable(tableName1.value, "k1")()
         _      <- putItemT1.execute
         result <- getItemT1.execute
       } yield assert(result)(equalTo(Some(itemT1)))
-    }.provideLayer(FakeDynamoDBExecutor.table(tableName1.value, "k1")().layer),
+    }.provideLayer(TestDynamoDBExecutor.test),
     testM("putItem returns an error when table does not exist") {
       for {
         result <- putItem("TABLE_DOES_NOT_EXISTS", itemT1).execute.either
       } yield assert(result)(isLeft)
-    }.provideLayer(executorWithOneTable),
+    }.provideLayer(TestDynamoDBExecutor.test),
     testM("should delete an item") {
       for {
+        _       <- TestDynamoDBExecutor.addTable(tableName1.value, "k1")(primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
+        _       <- TestDynamoDBExecutor.addTable(tableName3.value, "k3")(primaryKeyT3 -> itemT3)
         result1 <- getItemT1.execute
         _       <- deleteItem(tableName1.value, primaryKeyT1).execute
         result2 <- getItemT1.execute
       } yield assert(result1)(equalTo(Some(itemT1))) && assert(result2)(equalTo(None))
-    }.provideLayer(executorWithTwoTables),
+    }.provideLayer(TestDynamoDBExecutor.test),
     testM("deleteItem returns an error when table does not exist") {
       for {
         result <- deleteItem("TABLE_DOES_NOT_EXISTS", primaryKeyT1).execute.either
       } yield assert(result)(isLeft)
-    }.provideLayer(executorWithOneTable)
+    }.provideLayer(TestDynamoDBExecutor.test)
   )
   private val scanAndQuerySuite                  = suite("Scan and Query suite")(
     testM(
@@ -110,45 +122,45 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
         chunk  <- stream.runCollect
       } yield assert(chunk)(equalTo(resultItems(1 to 5)))
     }
-  ).provideLayer(
-    FakeDynamoDBExecutor
-      .table(tableName1.value, "k1")(chunkOfPrimaryKeyAndItem(1 to 5, "k1"): _*)
-      .table(tableName2.value, "k2")()
-      .layer
+  ) @@ TestAspect.before(
+    TestDynamoDBExecutor.addTable(tableName1.value, "k1")(
+      chunkOfPrimaryKeyAndItem(1 to 5, "k1"): _*
+    ) *> TestDynamoDBExecutor.addTable(tableName2.value, "k2")()
   )
   private val batchingSuite                      = suite("batching should")(
     testM("batch putItem1 zip putItem1_2") {
       for {
+        _           <- TestDynamoDBExecutor.addTable(tableName1.value, "k1")()
         result      <- (putItemT1 zip putItemT1_2).execute
         table1Items <- (getItemT1 zip getItemT1_2).execute
       } yield assert(result)(equalTo(())) && assert(table1Items)(equalTo((Some(itemT1), Some(itemT1_2))))
-    }.provideLayer(FakeDynamoDBExecutor.table(tableName1.value, "k1")().layer),
-    testM("batch getItem1 zip getItem2 zip getItem3 returns 3 items that are found") {
+    }.provideLayer(TestDynamoDBExecutor.test),
+    (testM("batch getItem1 zip getItem2 zip getItem3 returns 3 items that are found") {
       for {
         result  <- (getItemT1 zip getItemT1_2 zip getItemT3).execute
         expected = (Some(itemT1), Some(itemT1_2), Some(itemT3))
       } yield assert(result)(equalTo(expected))
-    }.provideLayer(executorWithTwoTables),
-    testM("batch getItem1 zip getItem2 zip getItem3 returns 2 items that are found") {
+    } @@ beforeAddTable1AndTable2).provideLayer(TestDynamoDBExecutor.test),
+    (testM("batch getItem1 zip getItem2 zip getItem3 returns 2 items that are found") {
       for {
         result  <- (getItemT1 zip getItemT1_2 zip getItemT1_NotExists).execute
         expected = (Some(itemT1), Some(itemT1_2), None)
       } yield assert(result)(equalTo(expected))
-    }.provideLayer(executorWithOneTable),
-    testM("batch putItem1 zip getItem1 zip getItem2 zip deleteItem1") {
+    } @@ beforeAddTable1).provideLayer(TestDynamoDBExecutor.test),
+    (testM("batch putItem1 zip getItem1 zip getItem2 zip deleteItem1") {
       for {
         result      <- (putItemT3_2 zip getItemT1 zip getItemT1_2 zip deleteItemT3).execute
         expected     = (Some(itemT1), Some(itemT1_2))
         table3Items <- (getItemT3 zip getItemT3_2).execute
       } yield assert(result)(equalTo(expected)) && assert(table3Items)(equalTo((None, Some(itemT3_2))))
-    }.provideLayer(executorWithTwoTables),
-    testM("should execute forEach of GetItems (resulting in a batched request)") {
+    } @@ beforeAddTable1AndTable2).provideLayer(TestDynamoDBExecutor.test),
+    (testM("should execute forEach of GetItems (resulting in a batched request)") {
       for {
         result <- forEach(1 to 2) { i =>
                     getItem(tableName1.value, PrimaryKey("k1" -> s"v$i"))
                   }.execute
       } yield assert(result)(equalTo(List(Some(itemT1), Some(itemT1_2))))
-    }.provideLayer(executorWithTwoTables)
+    } @@ beforeAddTable1AndTable2).provideLayer(TestDynamoDBExecutor.test)
   )
 
 }

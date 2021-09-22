@@ -1,5 +1,6 @@
 package zio.dynamodb.fake
 
+import zio.dynamodb.fake.TestDynamoDBExecutor
 import zio.dynamodb.DatabaseError.TableDoesNotExists
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery._
@@ -11,7 +12,8 @@ import zio.{ Chunk, IO, UIO, ZIO }
 private[fake] final case class FakeDynamoDBExecutorImpl private (
   tableMap: TMap[String, TMap[PrimaryKey, Item]],
   tablePkNameMap: TMap[String, String]
-) extends DynamoDBExecutor.Service {
+) extends DynamoDBExecutor.Service
+    with TestDynamoDBExecutor.Service {
   self =>
 
   override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A] =
@@ -206,6 +208,23 @@ private[fake] final case class FakeDynamoDBExecutorImpl private (
         valueL.toString.compareTo(valueR.toString) < 0
       case _                                                                    => false
     }
+
+  /*
+private[fake] final case class FakeDynamoDBExecutorImpl private (
+  tableMap: TMap[String, TMap[PrimaryKey, Item]],
+  tablePkNameMap: TMap[String, String]
+) extends DynamoDBExecutor.Service
+    with TestDynamoDBExecutor.Service {
+  self =>
+   */
+
+  override def addTable(tableName: String, pkFieldName: String)(entries: (PrimaryKey, Item)*): UIO[Unit] =
+    (for {
+      _    <- tablePkNameMap.put(tableName, pkFieldName)
+      tmap <- TMap.empty[PrimaryKey, Item]
+      _    <- STM.foreach(entries)(entry => tmap.put(entry._1, entry._2))
+      _    <- tableMap.put(tableName, tmap)
+    } yield ()).commit
 
 }
 
