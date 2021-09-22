@@ -46,12 +46,11 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
     },
     testM("should delete an item") {
       for {
-        _       <- TestDynamoDBExecutor.addTable(tableName1.value, "k1")(primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
-        _       <- TestDynamoDBExecutor.addTable(tableName3.value, "k3")(primaryKeyT3 -> itemT3)
-        result1 <- getItemT1.execute
-        _       <- deleteItem(tableName1.value, primaryKeyT1).execute
-        result2 <- getItemT1.execute
-      } yield assert(result1)(equalTo(Some(itemT1))) && assert(result2)(equalTo(None))
+        _            <- TestDynamoDBExecutor.addTable(tableName1.value, "k1")(primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
+        beforeDelete <- getItemT1.execute
+        _            <- deleteItem(tableName1.value, primaryKeyT1).execute
+        afterDelete  <- getItemT1.execute
+      } yield assert(beforeDelete)(equalTo(Some(itemT1))) && assert(afterDelete)(equalTo(None))
     },
     testM("deleteItem returns an error when table does not exist") {
       for {
