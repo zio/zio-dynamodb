@@ -1,10 +1,19 @@
 package zio.dynamodb.codec
 
+import zio.Chunk
 import zio.dynamodb.{ AttributeValue, FromAttributeValue, Item }
 import zio.schema.{ Schema, StandardType }
 
 import scala.annotation.tailrec
 
+/*
+TODO:
+put in AttributeValue trait
+def decode(implicit schema: Schema[A]): Either[String, A]
+
+in companion object
+  def apply/fromValue/encode
+ */
 object ItemEncoder {
   type Encoder[A] = A => AttributeValue
 
@@ -13,11 +22,12 @@ object ItemEncoder {
       .fromAttributeValue(encoder(schema)(a))
       .getOrElse(throw new Exception(s"error encoding $a"))
 
-  @tailrec
-  def encoder[A](schema: Schema[A]): Encoder[A] =
+  private def encoder[A](schema: Schema[A]): Encoder[A] =
     schema match {
       case ProductEncoder(encoder)        =>
         encoder
+      case s: Schema.Optional[a]          => optionalEncoder[a](encoder(s.codec))
+      case s: Schema.Sequence[col, a]     => sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
       case Schema.Primitive(standardType) =>
         primitiveEncoder(standardType)
       case l @ Schema.Lazy(_)             => encoder(l.schema)
@@ -25,7 +35,7 @@ object ItemEncoder {
         throw new UnsupportedOperationException(s"schema $schema not yet supported")
     }
 
-  object ProductEncoder {
+  private object ProductEncoder {
     def unapply[A](schema: Schema[A]): Option[Encoder[A]] =
       schema match {
         case Schema.CaseClass1(_, field1, _, extractField1)                                               =>
@@ -39,7 +49,7 @@ object ItemEncoder {
       }
   }
 
-  def caseClassEncoder[A](fields: (Schema.Field[_], A => Any)*): Encoder[A] =
+  private def caseClassEncoder[A](fields: (Schema.Field[_], A => Any)*): Encoder[A] =
     (a: A) => {
       val avMap: AttributeValue.Map = fields.foldRight[AttributeValue.Map](AttributeValue.Map(Map.empty)) {
         case ((Schema.Field(key, schema, _), ext), acc) =>
@@ -61,7 +71,7 @@ object ItemEncoder {
       avMap
     }
 
-  def primitiveEncoder[A](standardType: StandardType[A]): Encoder[A] = { (a: A) =>
+  private def primitiveEncoder[A](standardType: StandardType[A]): Encoder[A] = { (a: A) =>
     standardType match {
       case StandardType.BoolType   =>
         AttributeValue.Bool(a.asInstanceOf[Boolean])
@@ -73,5 +83,13 @@ object ItemEncoder {
         throw new UnsupportedOperationException(s"StandardType $standardType not yet supported")
     }
   }
+
+  private def optionalEncoder[A](encoder: Encoder[A]): Encoder[Option[A]] = {
+    case None        => AttributeValue.Null
+    case Some(value) => encoder(value)
+  }
+
+  private def sequenceEncoder[Col[_], A](encoder: Encoder[A], from: Col[A] => Chunk[A]): Encoder[Col[A]] =
+    (col: Col[A]) => AttributeValue.List(from(col).map(encoder))
 
 }

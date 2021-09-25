@@ -8,6 +8,27 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
   override def spec: ZSpec[Environment, Failure] = suite("ItemDecoder Suite")(mainSuite)
 
   val mainSuite: ZSpec[Environment, Failure] = suite("Decoder Suite")(
+    test("decoded list") {
+      val expected = CaseClassOfList(List(1, 2))
+
+      val actual = ItemDecoder.fromItem[CaseClassOfList](Item("nums" -> List(1, 2)))
+
+      assert(actual)(isRight(equalTo(expected)))
+    },
+    test("decoded option of Some") {
+      val expected = CaseClassOfOption(Some(42))
+
+      val actual = ItemDecoder.fromItem[CaseClassOfOption](Item("opt" -> 42))
+
+      assert(actual)(isRight(equalTo(expected)))
+    },
+    test("decoded option of None") {
+      val expected = CaseClassOfOption(None)
+
+      val actual = ItemDecoder.fromItem[CaseClassOfOption](Item("opt" -> null))
+
+      assert(actual)(isRight(equalTo(expected)))
+    },
     test("decoded simple case class") {
       val expected = SimpleCaseClass3(2, "Avi", flag = true)
 
