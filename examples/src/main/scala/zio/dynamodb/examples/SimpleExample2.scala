@@ -1,12 +1,10 @@
 package zio.dynamodb.examples
 
-import zio.console.{ putStrLn, Console }
-import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
+import zio.console.putStrLn
 import zio.dynamodb.DynamoDBQuery._
-import zio.dynamodb.{ Item, PrimaryKey }
-import zio.dynamodb.fake.FakeDynamoDBExecutor
+import zio.dynamodb.{ DynamoDBExecutor, Item, PrimaryKey, TestDynamoDBExecutor }
 import zio.schema.{ DeriveSchema, Schema }
-import zio.{ App, ExitCode, URIO, ZIO }
+import zio.{ App, ExitCode, URIO }
 
 object SimpleExample2 extends App {
   val nestedItem       = Item("id" -> 2, "name" -> "Avi", "flag" -> true)
@@ -18,14 +16,14 @@ object SimpleExample2 extends App {
   final case class SimpleCaseClass3(id: Int, name: String, flag: Boolean)
   implicit lazy val simpleCaseClass3: Schema[SimpleCaseClass3] = DeriveSchema.gen[SimpleCaseClass3]
 
-  private val executorLayer = FakeDynamoDBExecutor.table("table1", pkFieldName = "id")().layer
-
-  private val program: ZIO[Console with DynamoDBExecutor, Exception, Unit] = for {
+  private val program = for {
+    _    <- TestDynamoDBExecutor.addTable("table1", pkFieldName = "id")()
     _    <- put("table1", NestedCaseClass2(1, SimpleCaseClass3(2, "Avi", flag = true))).execute
 //    _    <- putItem("table1", parentItem).execute
     item <- get[NestedCaseClass2]("table1", PrimaryKey("id" -> 1)).execute
     _    <- putStrLn(s"found $item")
   } yield ()
 
-  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = program.provideCustomLayer(executorLayer).exitCode
+  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] =
+    program.provideCustomLayer(DynamoDBExecutor.test).exitCode
 }
