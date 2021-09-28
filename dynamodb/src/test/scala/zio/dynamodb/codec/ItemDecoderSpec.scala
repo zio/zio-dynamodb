@@ -4,6 +4,8 @@ import zio.dynamodb.Item
 import zio.test.Assertion._
 import zio.test.{ DefaultRunnableSpec, ZSpec, _ }
 
+import java.time.Instant
+
 object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
   override def spec: ZSpec[Environment, Failure] = suite("ItemDecoder Suite")(mainSuite)
 
@@ -29,8 +31,22 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(expected)))
     },
+    test("decoded nested option of Some") {
+      val expected = CaseClassOfNestedOption(Some(Some(42)))
+
+      val actual = ItemDecoder.fromItem[CaseClassOfNestedOption](Item("opt" -> 42))
+
+      assert(actual)(isRight(equalTo(expected)))
+    },
+    test("decoded nested option of None") {
+      val expected = CaseClassOfNestedOption(None)
+
+      val actual = ItemDecoder.fromItem[CaseClassOfNestedOption](Item("opt" -> null))
+
+      assert(actual)(isRight(equalTo(expected)))
+    },
     test("decoded simple case class") {
-      val expected = SimpleCaseClass3(2, "Avi", flag = true)
+      implicit val expected = SimpleCaseClass3(2, "Avi", flag = true)
 
       val actual = ItemDecoder.fromItem[SimpleCaseClass3](Item("id" -> 2, "name" -> "Avi", "flag" -> true))
 
@@ -42,6 +58,13 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
       val actual = ItemDecoder.fromItem[NestedCaseClass2](
         Item("id" -> 1, "nested" -> Item("id" -> 2, "name" -> "Avi", "flag" -> true))
       )
+
+      assert(actual)(isRight(equalTo(expected)))
+    },
+    test("decodes Instant") {
+      val expected = CaseClassOfInstant(Instant.parse("2021-09-28T00:00:00Z"))
+
+      val actual = ItemDecoder.fromItem[CaseClassOfInstant](Item("instant" -> "2021-09-28T00:00:00Z"))
 
       assert(actual)(isRight(equalTo(expected)))
     }

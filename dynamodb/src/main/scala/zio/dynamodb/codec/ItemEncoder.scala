@@ -4,6 +4,7 @@ import zio.Chunk
 import zio.dynamodb.{ AttributeValue, FromAttributeValue, Item }
 import zio.schema.{ Schema, StandardType }
 
+import java.time.temporal.TemporalAccessor
 import scala.annotation.tailrec
 
 /*
@@ -73,13 +74,15 @@ object ItemEncoder {
 
   private def primitiveEncoder[A](standardType: StandardType[A]): Encoder[A] = { (a: A) =>
     standardType match {
-      case StandardType.BoolType   =>
+      case StandardType.BoolType           =>
         AttributeValue.Bool(a.asInstanceOf[Boolean])
-      case StandardType.StringType => AttributeValue.String(a.toString)
+      case StandardType.StringType         => AttributeValue.String(a.toString)
       case StandardType.ShortType | StandardType.IntType | StandardType.LongType | StandardType.FloatType |
           StandardType.DoubleType =>
         AttributeValue.Number(BigDecimal(a.toString))
-      case _                       =>
+      case StandardType.Instant(formatter) =>
+        AttributeValue.String(formatter.format(a.asInstanceOf[TemporalAccessor]))
+      case _                               =>
         throw new UnsupportedOperationException(s"StandardType $standardType not yet supported")
     }
   }

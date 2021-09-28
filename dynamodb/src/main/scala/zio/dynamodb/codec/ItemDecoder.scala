@@ -5,6 +5,9 @@ import zio.dynamodb.{ AttributeValue, FromAttributeValue, Item, ToAttributeValue
 import zio.schema.Schema.{ Optional, Primitive }
 import zio.schema.{ Schema, StandardType }
 
+import java.time.Instant
+import scala.util.Try
+
 object ItemDecoder {
 
   type Decoder[+A] = AttributeValue => Either[String, A]
@@ -73,20 +76,24 @@ object ItemDecoder {
     }
 
   def primitiveDecoder[A](standardType: StandardType[A]): Decoder[A] = { (av: AttributeValue) =>
-    standardType match {
-      case StandardType.BoolType   =>
+    (standardType, av) match {
+      case (StandardType.BoolType, _)                                  =>
         FromAttributeValue[Boolean]
           .asInstanceOf[FromAttributeValue[A]]
           .fromAttributeValue(av)
           .toRight("error getting boolean")
-      case StandardType.StringType =>
+      case (StandardType.StringType, _)                                =>
         FromAttributeValue[String]
           .asInstanceOf[FromAttributeValue[A]]
           .fromAttributeValue(av)
           .toRight("error getting string")
-      case StandardType.IntType    =>
+      case (StandardType.IntType, _)                                   =>
         FromAttributeValue[Int].asInstanceOf[FromAttributeValue[A]].fromAttributeValue(av).toRight("error getting Int")
-      case _                       => throw new UnsupportedOperationException(s"standardType $standardType not yet supported")
+      case (StandardType.Instant(formatter), AttributeValue.String(s)) =>
+        Try(formatter.parse(s, Instant.from(_))).toEither.left
+          .map(e => s"error parsing '$s': ${e.getMessage}")
+          .map(_.asInstanceOf[A])
+      case _                                                           => throw new UnsupportedOperationException(s"standardType $standardType not yet supported")
 
     }
   }
