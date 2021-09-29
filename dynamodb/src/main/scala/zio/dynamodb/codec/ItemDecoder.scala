@@ -23,6 +23,8 @@ object ItemDecoder {
         decoder
       case s: Optional[a]             =>
         optionalDecoder[a](decoder(s.codec))
+//      case Schema.Transform(codec, f, _) =>
+//        (a: AttributeValue) => (decoder(codec)(a)).flatMap(f)
       case s: Schema.Sequence[col, a] =>
         sequenceDecoder[col, a](decoder(s.schemaA), s.fromChunk)
       case Primitive(standardType)    =>

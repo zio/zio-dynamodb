@@ -30,7 +30,12 @@ object CodecRoundTripSpec extends App with CodecTestFixtures {
 
   // ADT
   // {"Ok":{"response":["1","2"]}} => Item("Ok" -> Item("response" -> List(1, 2))) ????
-//  val json4 = new String(JsonCodec.encode(statusSchema)(Status.Ok(List("1", "2"))).toArray)
-//  println(json4)
+  val json4 = new String(JsonCodec.encode(statusSchema)(Ok(List("1", "2"))).toArray)
+  println(json4)
+
+  // ADT
+  // {"Pending":{}} => Item("Pending" -> null)
+  val json5 = new String(JsonCodec.encode(statusSchema)(Pending).toArray)
+  println(json5)
 
 }

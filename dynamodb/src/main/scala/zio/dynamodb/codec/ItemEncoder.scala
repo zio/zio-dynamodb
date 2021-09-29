@@ -29,9 +29,13 @@ object ItemEncoder {
         encoder
       case s: Schema.Optional[a]          => optionalEncoder[a](encoder(s.codec))
       case s: Schema.Sequence[col, a]     => sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
+      case Schema.Transform(c, _, g)      => transformEncoder(c, g)
       case Schema.Primitive(standardType) =>
         primitiveEncoder(standardType)
       case l @ Schema.Lazy(_)             => encoder(l.schema)
+      case Schema.Enum1(c)                => enumEncoder(c)
+      case Schema.Enum2(c1, c2)           => enumEncoder(c1, c2)
+      case Schema.Enum3(c1, c2, c3)       => enumEncoder(c1, c2, c3)
       case _                              =>
         throw new UnsupportedOperationException(s"schema $schema not yet supported")
     }
@@ -80,10 +84,19 @@ object ItemEncoder {
       case StandardType.ShortType | StandardType.IntType | StandardType.LongType | StandardType.FloatType |
           StandardType.DoubleType =>
         AttributeValue.Number(BigDecimal(a.toString))
+      case StandardType.UnitType           =>
+        AttributeValue.Null
       case StandardType.Instant(formatter) =>
         AttributeValue.String(formatter.format(a.asInstanceOf[TemporalAccessor]))
       case _                               =>
         throw new UnsupportedOperationException(s"StandardType $standardType not yet supported")
+    }
+  }
+
+  private def transformEncoder[A, B](schema: Schema[A], g: B => Either[String, A]): Encoder[B] = { (b: B) =>
+    g(b) match {
+      case Right(a) => encoder(schema)(a)
+      case _        => AttributeValue.Null
     }
   }
 
@@ -95,4 +108,20 @@ object ItemEncoder {
   private def sequenceEncoder[Col[_], A](encoder: Encoder[A], from: Col[A] => Chunk[A]): Encoder[Col[A]] =
     (col: Col[A]) => AttributeValue.List(from(col).map(encoder))
 
+  /*
+  given ADT of Ok(response = List("1", "2")) we want Item("Ok" -> Item("response" -> List("1", "2")))
+  we want to create a new Item and add ID as the key, then encode
+  find Case that deconstructs to A
+   */
+  private def enumEncoder[A](cases: Schema.Case[_, A]*): Encoder[A] =
+    (a: A) => {
+      val fieldIndex = cases.indexWhere(c => c.deconstruct(a).isDefined)
+      if (fieldIndex > -1) {
+        val case_ = cases(fieldIndex)
+        val enc   = encoder(case_.codec.asInstanceOf[Schema[Any]])
+        val av    = enc(a)
+        AttributeValue.Map(Map.empty + (AttributeValue.String(case_.id) -> av))
+      } else
+        AttributeValue.Null // or should this be an empty AttributeValue.Map?
+    }
 }
