@@ -67,6 +67,14 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
       val actual = ItemDecoder.fromItem[CaseClassOfInstant](Item("instant" -> "2021-09-28T00:00:00Z"))
 
       assert(actual)(isRight(equalTo(expected)))
+    },
+    test("decodes ADT") {
+      val expected = CaseClassOfStatus(Ok(List("1", "2")))
+
+      val actual =
+        ItemDecoder.fromItem[CaseClassOfStatus](Item("status" -> Item("Ok" -> Item("response" -> List("1", "2")))))
+
+      assert(actual)(isRight(equalTo(expected)))
     }
   )
 }

@@ -1,6 +1,5 @@
 package zio.dynamodb.codec
 
-import zio.schema.DeriveSchema
 import zio.schema.codec.JsonCodec
 
 /*
@@ -8,32 +7,11 @@ import zio.schema.codec.JsonCodec
   type Decoder[+A] = AttributeValue => Either[String, A]
  */
 
-// ADT example
-sealed trait Status
-object Status {
-
-  final case class Ok(response: List[String]) extends Status
-
-  final case class Failed(code: Int, reason: String, additionalExplanation: Option[String], remark: String = "oops")
-      extends Status
-
-  final case object Pending extends Status
-}
-
 object CodecRoundTripSpec extends App with CodecTestFixtures {
   /*
   QUESTIONS:
   - what is GenericRecord? do we have to provide a direct mapping for it?
    */
-
-  /*
-  Enum3(
-    Case(Failed,CaseClass4(Field(code,Lazy(lambda)),Field(reason,Lazy(lambda)),Field(additionalExplanation,Lazy(lambda)),Field(remark,Lazy(lambda)))),
-    Case(Ok,CaseClass1(Field(response,Lazy(lambda)))),
-    Case(Pending,Transform(Primitive(unit)))
-  )
-   */
-  val statusSchema = DeriveSchema.gen[Status]
 
   // Either
   // {"aOrb":{"Right":1}} => Item("aOrb" -> Item("Right" -> 1))
@@ -52,7 +30,7 @@ object CodecRoundTripSpec extends App with CodecTestFixtures {
 
   // ADT
   // {"Ok":{"response":["1","2"]}} => Item("Ok" -> Item("response" -> List(1, 2))) ????
-  val json4 = new String(JsonCodec.encode(statusSchema)(Status.Ok(List("1", "2"))).toArray)
-  println(json4)
+//  val json4 = new String(JsonCodec.encode(statusSchema)(Status.Ok(List("1", "2"))).toArray)
+//  println(json4)
 
 }

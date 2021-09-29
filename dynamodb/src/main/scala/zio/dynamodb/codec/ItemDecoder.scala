@@ -19,11 +19,22 @@ object ItemDecoder {
 
   def decoder[A](schema: Schema[A]): Decoder[A] =
     schema match {
-      case ProductDecoder(decoder)    => decoder
-      case s: Optional[a]             => optionalDecoder[a](decoder(s.codec))
-      case s: Schema.Sequence[col, a] => sequenceDecoder[col, a](decoder(s.schemaA), s.fromChunk)
-      case Primitive(standardType)    => primitiveDecoder(standardType)
-      case l @ Schema.Lazy(_)         => decoder(l.schema)
+      case ProductDecoder(decoder)    =>
+        decoder
+      case s: Optional[a]             =>
+        optionalDecoder[a](decoder(s.codec))
+      case s: Schema.Sequence[col, a] =>
+        sequenceDecoder[col, a](decoder(s.schemaA), s.fromChunk)
+      case Primitive(standardType)    =>
+        primitiveDecoder(standardType)
+      case l @ Schema.Lazy(_)         =>
+        decoder(l.schema)
+      case Schema.Enum1(c)            =>
+        enumDecoder(c)
+      case Schema.Enum2(c1, c2)       =>
+        enumDecoder(c1, c2)
+      case Schema.Enum3(c1, c2, c3)   =>
+        enumDecoder(c1, c2, c3)
       case _                          =>
         throw new UnsupportedOperationException(s"schema $schema not yet supported")
     }
@@ -72,7 +83,8 @@ object ItemDecoder {
               maybeValue.map(dec).toRight(s"field '$key' not found in $av").flatten
           }
           .map(_.toList)
-      case _                       => Left(s"$av is not an AttributeValue.Map")
+      case _                       =>
+        Left(s"$av is not an AttributeValue.Map")
     }
 
   def primitiveDecoder[A](standardType: StandardType[A]): Decoder[A] = { (av: AttributeValue) =>
@@ -93,7 +105,8 @@ object ItemDecoder {
         Try(formatter.parse(s, Instant.from(_))).toEither.left
           .map(e => s"error parsing '$s': ${e.getMessage}")
           .map(_.asInstanceOf[A])
-      case _                                                           => throw new UnsupportedOperationException(s"standardType $standardType not yet supported")
+      case _                                                           =>
+        throw new UnsupportedOperationException(s"standardType $standardType not yet supported")
 
     }
   }
@@ -111,5 +124,28 @@ object ItemDecoder {
       zio.dynamodb.foreach(list)(decoder(_)).map(xs => to(Chunk.fromIterable(xs)))
     case av                        => Left(s"unable to decode $av as a list")
   }
+
+  /*
+  1st field is subtype label eg Item("Ok" -> Item("response" -> List("1", "2")))
+  lookup subtype label in list of cases
+  pattern match to extract case of schema
+  use schema codec to pass into encode to get AttributeValue
+   */
+  private def enumDecoder[A](cases: Schema.Case[_, A]*): Decoder[A] =
+    (av: AttributeValue) =>
+      av match {
+        case AttributeValue.Map(map) => // TODO: assume Map is ListMap for now
+          map.toList.headOption.fold[Either[String, A]](Left(s"map $av is empty")) {
+            case (AttributeValue.String(subtype), av) =>
+              cases.find(_.id == subtype) match {
+                case Some(c) =>
+                  decoder(c.codec)(av).map(_.asInstanceOf[A])
+                case None    =>
+                  Left(s"subtype $subtype not found")
+              }
+          }
+        case _                       =>
+          Left(s"invalid AttributeValue $av")
+      }
 
 }
