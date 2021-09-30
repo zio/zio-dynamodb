@@ -19,25 +19,25 @@ object ItemDecoder {
 
   def decoder[A](schema: Schema[A]): Decoder[A] =
     schema match {
-      case ProductDecoder(decoder)    =>
+      case ProductDecoder(decoder)       =>
         decoder
-      case s: Optional[a]             =>
+      case s: Optional[a]                =>
         optionalDecoder[a](decoder(s.codec))
-//      case Schema.Transform(codec, f, _) =>
-//        (a: AttributeValue) => (decoder(codec)(a)).flatMap(f)
-      case s: Schema.Sequence[col, a] =>
+      case Schema.Transform(codec, f, _) =>
+        transformDecoder(codec, f)
+      case s: Schema.Sequence[col, a]    =>
         sequenceDecoder[col, a](decoder(s.schemaA), s.fromChunk)
-      case Primitive(standardType)    =>
+      case Primitive(standardType)       =>
         primitiveDecoder(standardType)
-      case l @ Schema.Lazy(_)         =>
+      case l @ Schema.Lazy(_)            =>
         decoder(l.schema)
-      case Schema.Enum1(c)            =>
+      case Schema.Enum1(c)               =>
         enumDecoder(c)
-      case Schema.Enum2(c1, c2)       =>
+      case Schema.Enum2(c1, c2)          =>
         enumDecoder(c1, c2)
-      case Schema.Enum3(c1, c2, c3)   =>
+      case Schema.Enum3(c1, c2, c3)      =>
         enumDecoder(c1, c2, c3)
-      case _                          =>
+      case _                             =>
         throw new UnsupportedOperationException(s"schema $schema not yet supported")
     }
 
@@ -89,6 +89,9 @@ object ItemDecoder {
         Left(s"$av is not an AttributeValue.Map")
     }
 
+  // TODO:
+  // single item match needed for exhaustive check
+  // create function on the inside to reduce amount of pattern matching
   def primitiveDecoder[A](standardType: StandardType[A]): Decoder[A] = { (av: AttributeValue) =>
     (standardType, av) match {
       case (StandardType.BoolType, _)                                  =>
@@ -107,15 +110,18 @@ object ItemDecoder {
         Try(formatter.parse(s, Instant.from(_))).toEither.left
           .map(e => s"error parsing '$s': ${e.getMessage}")
           .map(_.asInstanceOf[A])
+      case (StandardType.UnitType, AttributeValue.Null)                => Right(())
       case _                                                           =>
         throw new UnsupportedOperationException(s"standardType $standardType not yet supported")
 
     }
   }
 
-  /*
-  Note nested options are not allowed for now
-   */
+  def transformDecoder[A, B](codec: Schema[A], f: A => Either[String, B]): Decoder[B] = {
+    val dec = decoder(codec)
+    (a: AttributeValue) => dec(a).flatMap(f)
+  }
+
   def optionalDecoder[A](decoder: Decoder[A]): Decoder[Option[A]] = {
     case AttributeValue.Null => Right(None)
     case av                  => decoder(av).map(Some(_))
@@ -127,12 +133,6 @@ object ItemDecoder {
     case av                        => Left(s"unable to decode $av as a list")
   }
 
-  /*
-  1st field is subtype label eg Item("Ok" -> Item("response" -> List("1", "2")))
-  lookup subtype label in list of cases
-  pattern match to extract case of schema
-  use schema codec to pass into encode to get AttributeValue
-   */
   private def enumDecoder[A](cases: Schema.Case[_, A]*): Decoder[A] =
     (av: AttributeValue) =>
       av match {

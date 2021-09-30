@@ -83,6 +83,6 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
         ItemDecoder.fromItem[CaseClassOfStatus](Item("status" -> Item("Pending" -> null)))
 
       assert(actual)(isRight(equalTo(expected)))
-    } @@ TestAspect.ignore
+    }
   )
 }
