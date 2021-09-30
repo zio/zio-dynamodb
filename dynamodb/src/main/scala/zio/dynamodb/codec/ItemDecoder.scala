@@ -89,33 +89,38 @@ object ItemDecoder {
         Left(s"$av is not an AttributeValue.Map")
     }
 
-  // TODO:
-  // single item match needed for exhaustive check
-  // create function on the inside to reduce amount of pattern matching
-  def primitiveDecoder[A](standardType: StandardType[A]): Decoder[A] = { (av: AttributeValue) =>
-    (standardType, av) match {
-      case (StandardType.BoolType, _)                                  =>
-        FromAttributeValue[Boolean]
-          .asInstanceOf[FromAttributeValue[A]]
-          .fromAttributeValue(av)
-          .toRight("error getting boolean")
-      case (StandardType.StringType, _)                                =>
-        FromAttributeValue[String]
-          .asInstanceOf[FromAttributeValue[A]]
-          .fromAttributeValue(av)
-          .toRight("error getting string")
-      case (StandardType.IntType, _)                                   =>
-        FromAttributeValue[Int].asInstanceOf[FromAttributeValue[A]].fromAttributeValue(av).toRight("error getting Int")
-      case (StandardType.Instant(formatter), AttributeValue.String(s)) =>
-        Try(formatter.parse(s, Instant.from(_))).toEither.left
-          .map(e => s"error parsing '$s': ${e.getMessage}")
-          .map(_.asInstanceOf[A])
-      case (StandardType.UnitType, AttributeValue.Null)                => Right(())
-      case _                                                           =>
+  def primitiveDecoder[A](standardType: StandardType[A]): Decoder[A] =
+    standardType match {
+      case StandardType.BoolType           =>
+        (av: AttributeValue) =>
+          FromAttributeValue[Boolean]
+            .fromAttributeValue(av)
+            .toRight("error getting boolean")
+      case StandardType.StringType         =>
+        (av: AttributeValue) =>
+          FromAttributeValue[String]
+            .fromAttributeValue(av)
+            .toRight("error getting string")
+      case StandardType.IntType            =>
+        (av: AttributeValue) =>
+          FromAttributeValue[Int]
+            .fromAttributeValue(av)
+            .toRight("error getting Int")
+      case StandardType.Instant(formatter) =>
+        (av: AttributeValue) =>
+          val either: Either[String, Instant] = av match {
+            case AttributeValue.String(s) =>
+              Try(formatter.parse(s, Instant.from(_))).toEither.left
+                .map(e => s"error parsing '$s': ${e.getMessage}")
+            case av                       =>
+              Left[String, Instant](s"Expected an AttributeValue.String, found $av")
+          }
+          either
+      case StandardType.UnitType           => _ => Right(())
+      case _                               => // TODO: remove after full implementation
         throw new UnsupportedOperationException(s"standardType $standardType not yet supported")
 
     }
-  }
 
   def transformDecoder[A, B](codec: Schema[A], f: A => Either[String, B]): Decoder[B] = {
     val dec = decoder(codec)
