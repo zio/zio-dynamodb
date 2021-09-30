@@ -105,11 +105,6 @@ object ItemEncoder {
   private def sequenceEncoder[Col[_], A](encoder: Encoder[A], from: Col[A] => Chunk[A]): Encoder[Col[A]] =
     (col: Col[A]) => AttributeValue.List(from(col).map(encoder))
 
-  /*
-  given ADT of Ok(response = List("1", "2")) we want Item("Ok" -> Item("response" -> List("1", "2")))
-  we want to create a new Item and add ID as the key, then encode
-  find Case that deconstructs to A
-   */
   private def enumEncoder[A](cases: Schema.Case[_, A]*): Encoder[A] =
     (a: A) => {
       val fieldIndex = cases.indexWhere(c => c.deconstruct(a).isDefined)
@@ -119,6 +114,6 @@ object ItemEncoder {
         val av    = enc(a)
         AttributeValue.Map(Map.empty + (AttributeValue.String(case_.id) -> av))
       } else
-        AttributeValue.Null // or should this be an empty AttributeValue.Map?
+        AttributeValue.Null
     }
 }
