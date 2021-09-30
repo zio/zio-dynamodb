@@ -76,22 +76,19 @@ object ItemEncoder {
       avMap
     }
 
-  private def primitiveEncoder[A](standardType: StandardType[A]): Encoder[A] = { (a: A) =>
+  private def primitiveEncoder[A](standardType: StandardType[A]): Encoder[A] =
     standardType match {
-      case StandardType.BoolType           =>
-        AttributeValue.Bool(a.asInstanceOf[Boolean])
-      case StandardType.StringType         => AttributeValue.String(a.toString)
+      case StandardType.BoolType           => (a: A) => AttributeValue.Bool(a.asInstanceOf[Boolean])
+      case StandardType.StringType         => (a: A) => AttributeValue.String(a.toString)
       case StandardType.ShortType | StandardType.IntType | StandardType.LongType | StandardType.FloatType |
           StandardType.DoubleType =>
-        AttributeValue.Number(BigDecimal(a.toString))
-      case StandardType.UnitType           =>
-        AttributeValue.Null
+        (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+      case StandardType.UnitType           => _ => AttributeValue.Null
       case StandardType.Instant(formatter) =>
-        AttributeValue.String(formatter.format(a.asInstanceOf[TemporalAccessor]))
+        (a: A) => AttributeValue.String(formatter.format(a.asInstanceOf[TemporalAccessor]))
       case _                               =>
         throw new UnsupportedOperationException(s"StandardType $standardType not yet supported")
     }
-  }
 
   private def transformEncoder[A, B](schema: Schema[A], g: B => Either[String, A]): Encoder[B] = { (b: B) =>
     g(b) match {

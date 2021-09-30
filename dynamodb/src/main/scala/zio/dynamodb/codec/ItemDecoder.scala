@@ -92,20 +92,11 @@ object ItemDecoder {
   def primitiveDecoder[A](standardType: StandardType[A]): Decoder[A] =
     standardType match {
       case StandardType.BoolType           =>
-        (av: AttributeValue) =>
-          FromAttributeValue[Boolean]
-            .fromAttributeValue(av)
-            .toRight("error getting boolean")
+        (av: AttributeValue) => FromAttributeValue[Boolean].fromAttributeValue(av).toRight("error getting boolean")
       case StandardType.StringType         =>
-        (av: AttributeValue) =>
-          FromAttributeValue[String]
-            .fromAttributeValue(av)
-            .toRight("error getting string")
+        (av: AttributeValue) => FromAttributeValue[String].fromAttributeValue(av).toRight("error getting string")
       case StandardType.IntType            =>
-        (av: AttributeValue) =>
-          FromAttributeValue[Int]
-            .fromAttributeValue(av)
-            .toRight("error getting Int")
+        (av: AttributeValue) => FromAttributeValue[Int].fromAttributeValue(av).toRight("error getting Int")
       case StandardType.Instant(formatter) =>
         (av: AttributeValue) =>
           val either: Either[String, Instant] = av match {
