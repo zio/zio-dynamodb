@@ -1,5 +1,7 @@
 package zio.dynamodb.codec
 
+import zio.Chunk
+import zio.schema.Schema.chunk
 import zio.schema.{ DeriveSchema, Schema, StandardType }
 
 import java.time.format.DateTimeFormatter
@@ -18,6 +20,14 @@ trait CodecTestFixtures {
   lazy implicit val instantSchema                                                  = Schema.Primitive(StandardType.Instant(DateTimeFormatter.ISO_INSTANT))
   lazy implicit val caseClassOfInstant: Schema[CaseClassOfInstant]                 = DeriveSchema.gen[CaseClassOfInstant]
   lazy implicit val caseClassOfStatus: Schema[CaseClassOfStatus]                   = DeriveSchema.gen[CaseClassOfStatus]
+
+  implicit def myDodgyMap[String, V](implicit element: Schema[(String, V)]): Schema[Map[String, V]] = {
+    val value: Schema[Chunk[(String, V)]] = chunk(element)
+    value.transform(_.toMap[String, V], Chunk.fromIterable(_))
+  }
+  lazy implicit val caseClassOfMapOfInt: Schema[CaseClassOfMapOfInt] = DeriveSchema.gen[CaseClassOfMapOfInt]
+
+  implicit val caseClassOfListOfTuple2: Schema[CaseClassOfListOfTuple2] = DeriveSchema.gen[CaseClassOfListOfTuple2]
 
   implicit val statusSchema = DeriveSchema.gen[Status]
 

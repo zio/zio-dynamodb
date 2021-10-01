@@ -23,7 +23,7 @@ object CodecRoundTripSpec extends App with CodecTestFixtures {
   val json2 = new String(JsonCodec.encode(caseClassOfNestedOption)(CaseClassOfNestedOption(Some(Some(1)))).toArray)
   println(json2)
 
-  // Tuple
+  // Tuple3
   // {"tuple":[[1,2],3]} => Item("tuple" -> List(List(1,2),3))
   val json3 = new String(JsonCodec.encode(caseClassOfTuple3)(CaseClassOfTuple3((1, 2, 3))).toArray)
   println(json3)
@@ -37,5 +37,12 @@ object CodecRoundTripSpec extends App with CodecTestFixtures {
   // {"Pending":{}} => Item("Pending" -> null)
   val json5 = new String(JsonCodec.encode(statusSchema)(Pending).toArray)
   println(json5)
+
+  // List of Tuple2
+  // {"tuple":[["one",1],["two",2]]}
+  val json6 = new String(
+    JsonCodec.encode(caseClassOfListOfTuple2)(CaseClassOfListOfTuple2(List("one" -> 1, "two" -> 2))).toArray
+  )
+  println(json6)
 
 }

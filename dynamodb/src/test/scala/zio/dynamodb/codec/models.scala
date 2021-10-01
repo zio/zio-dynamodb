@@ -24,6 +24,12 @@ final case class CaseClassOfEither(opt: Either[String, Int])
 
 final case class CaseClassOfTuple3(tuple: (Int, Int, Int))
 
+final case class CaseClassOfListOfTuple2(tuple: List[(String, Int)])
+
 final case class CaseClassOfInstant(instant: Instant)
 
 final case class CaseClassOfStatus(status: Status)
+
+final case class CaseClassOfMapOfInt(map: Map[String, Int])
+
+final case class CaseClassOfTuple2(tuple2: (String, Int))

@@ -1,6 +1,6 @@
 package zio.dynamodb.codec
 
-import zio.dynamodb.Item
+import zio.dynamodb.{ AttrMap, AttributeValue, Item, ToAttributeValue }
 import zio.test.Assertion._
 import zio.test.{ DefaultRunnableSpec, ZSpec, _ }
 
@@ -8,7 +8,7 @@ import java.time.Instant
 
 object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
   override def spec: ZSpec[Environment, Failure] =
-    suite("ItemEncoder Suite")(mainSuite @@ TestAspect.ignore, isolationSuite)
+    suite("ItemEncoder Suite")(mainSuite, isolationSuite)
 
   val mainSuite: ZSpec[Environment, Failure]      = suite("Main Suite")(
     test("encodes List") {
@@ -53,9 +53,7 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
         ItemEncoder.toItem(CaseClassOfInstant(Instant.parse("2021-09-28T00:00:00Z")))
 
       assert(item)(equalTo(expectedItem))
-    }
-  )
-  val isolationSuite: ZSpec[Environment, Failure] = suite("Isolation Suite")(
+    },
     test("encodes Ok ADT") {
       val expectedItem: Item = Item("status" -> Item("Ok" -> Item("response" -> List("1", "2"))))
 
@@ -63,7 +61,6 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     },
-    // case3 = {EnumSchemas$Case@959} "Case(Pending,Transform(Primitive(unit)))"
     test("encodes Pending case object ADT") {
       val expectedItem: Item = Item("status" -> Item("Pending" -> null))
 
@@ -72,4 +69,26 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
       assert(item)(equalTo(expectedItem))
     }
   )
+  val isolationSuite: ZSpec[Environment, Failure] = suite("Isolation Suite")(
+    test("encodes map") {
+      val expectedItem: Item = AttrMap(Map("map" -> toList(toTuple("One", 1), toTuple("Two", 2))))
+
+      val item = ItemEncoder.toItem(CaseClassOfMapOfInt(Map("One" -> 1, "Two" -> 2)))
+
+      assert(item)(equalTo(expectedItem))
+    },
+    test("encodes tuple3") {
+      val expected: Item = new AttrMap(Map("tuple" -> toList(toTuple(1, 2), toNum(3))))
+
+      val item = ItemEncoder.toItem(CaseClassOfTuple3((1, 2, 3)))
+
+      assert(item)(equalTo(expected))
+    }
+  )
+
+  private def toNum(i: Int)                                                 = AttributeValue.Number(BigDecimal(i))
+//  private def string(s: String)                                                                    = AttributeValue.String(s)
+  private def toList(xs: AttributeValue*)                                   = AttributeValue.List(xs)
+  private def toTuple[A: ToAttributeValue, B: ToAttributeValue](a: A, b: B) =
+    toList(ToAttributeValue[A].toAttributeValue(a), ToAttributeValue[B].toAttributeValue(b))
 }
