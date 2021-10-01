@@ -1,6 +1,6 @@
 package zio.dynamodb.codec
 
-import zio.dynamodb.{ AttrMap, AttributeValue, Item, ToAttributeValue }
+import zio.dynamodb.{ AttrMap, Item }
 import zio.test.Assertion._
 import zio.test.{ DefaultRunnableSpec, ZSpec, _ }
 
@@ -8,9 +8,9 @@ import java.time.Instant
 
 object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
   override def spec: ZSpec[Environment, Failure] =
-    suite("ItemEncoder Suite")(mainSuite, isolationSuite)
+    suite("ItemEncoder Suite")(mainSuite)
 
-  val mainSuite: ZSpec[Environment, Failure]      = suite("Main Suite")(
+  val mainSuite: ZSpec[Environment, Failure] = suite("Main Suite")(
     test("encodes List") {
       val expectedItem: Item = Item("nums" -> List(1, 2, 3))
 
@@ -67,9 +67,7 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
       val item = ItemEncoder.toItem(CaseClassOfStatus(Pending))
 
       assert(item)(equalTo(expectedItem))
-    }
-  )
-  val isolationSuite: ZSpec[Environment, Failure] = suite("Isolation Suite")(
+    },
     test("encodes map") {
       val expectedItem: Item = AttrMap(Map("map" -> toList(toTuple("One", 1), toTuple("Two", 2))))
 
@@ -86,9 +84,4 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
     }
   )
 
-  private def toNum(i: Int)                                                 = AttributeValue.Number(BigDecimal(i))
-//  private def string(s: String)                                                                    = AttributeValue.String(s)
-  private def toList(xs: AttributeValue*)                                   = AttributeValue.List(xs)
-  private def toTuple[A: ToAttributeValue, B: ToAttributeValue](a: A, b: B) =
-    toList(ToAttributeValue[A].toAttributeValue(a), ToAttributeValue[B].toAttributeValue(b))
 }

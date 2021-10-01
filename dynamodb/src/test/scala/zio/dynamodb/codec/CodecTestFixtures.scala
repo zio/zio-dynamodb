@@ -1,9 +1,11 @@
 package zio.dynamodb.codec
 
 import zio.Chunk
+import zio.dynamodb.{ AttributeValue, ToAttributeValue }
 import zio.schema.Schema.chunk
 import zio.schema.{ DeriveSchema, Schema, StandardType }
 
+import java.time.Instant
 import java.time.format.DateTimeFormatter
 
 trait CodecTestFixtures {
@@ -17,7 +19,8 @@ trait CodecTestFixtures {
   lazy implicit val caseClassOfNestedOption: Schema[CaseClassOfNestedOption]       = DeriveSchema.gen[CaseClassOfNestedOption]
   lazy implicit val caseClassOfEither: Schema[CaseClassOfEither]                   = DeriveSchema.gen[CaseClassOfEither]
   lazy implicit val caseClassOfTuple3: Schema[CaseClassOfTuple3]                   = DeriveSchema.gen[CaseClassOfTuple3]
-  lazy implicit val instantSchema                                                  = Schema.Primitive(StandardType.Instant(DateTimeFormatter.ISO_INSTANT))
+  lazy implicit val instantSchema: Schema.Primitive[Instant]                       =
+    Schema.Primitive(StandardType.Instant(DateTimeFormatter.ISO_INSTANT))
   lazy implicit val caseClassOfInstant: Schema[CaseClassOfInstant]                 = DeriveSchema.gen[CaseClassOfInstant]
   lazy implicit val caseClassOfStatus: Schema[CaseClassOfStatus]                   = DeriveSchema.gen[CaseClassOfStatus]
 
@@ -29,6 +32,10 @@ trait CodecTestFixtures {
 
   implicit val caseClassOfListOfTuple2: Schema[CaseClassOfListOfTuple2] = DeriveSchema.gen[CaseClassOfListOfTuple2]
 
-  implicit val statusSchema = DeriveSchema.gen[Status]
+  implicit val statusSchema: Schema[Status] = DeriveSchema.gen[Status]
 
+  def toNum(i: Int): AttributeValue.Number                                               = AttributeValue.Number(BigDecimal(i))
+  def toList(xs: AttributeValue*): AttributeValue.List                                   = AttributeValue.List(xs.toList)
+  def toTuple[A: ToAttributeValue, B: ToAttributeValue](a: A, b: B): AttributeValue.List =
+    toList(ToAttributeValue[A].toAttributeValue(a), ToAttributeValue[B].toAttributeValue(b))
 }

@@ -17,12 +17,29 @@ object ItemDecoder {
     decoder(schema)(av)
   }
 
+  def tupleDecoder[A, B](decL: Decoder[A], decR: Decoder[B]): Decoder[(A, B)] = {
+    println("in tupleDecoder")
+
+    {
+
+      case AttributeValue.List(avA :: avB :: Nil) =>
+        for {
+          a <- decL(avA)
+          b <- decR(avB)
+        } yield (a, b)
+      case av                                     =>
+        Left(s"Expected an AttributeValue.List of two elements but found $av")
+    }
+  }
+
   def decoder[A](schema: Schema[A]): Decoder[A] =
     schema match {
       case ProductDecoder(decoder)       =>
         decoder
       case s: Optional[a]                =>
         optionalDecoder[a](decoder(s.codec))
+      case Schema.Tuple(l, r)            =>
+        tupleDecoder(decoder(l), decoder(r))
       case Schema.Transform(codec, f, _) =>
         transformDecoder(codec, f)
       case s: Schema.Sequence[col, a]    =>
