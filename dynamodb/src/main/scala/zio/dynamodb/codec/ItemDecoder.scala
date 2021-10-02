@@ -29,6 +29,8 @@ object ItemDecoder {
         transformDecoder(codec, f)
       case s: Schema.Sequence[col, a]    =>
         sequenceDecoder[col, a](decoder(s.schemaA), s.fromChunk)
+      case Schema.EitherSchema(l, r)     =>
+        eitherDecoder(decoder(l), decoder(r))
       case Primitive(standardType)       =>
         primitiveDecoder(standardType)
       case l @ Schema.Lazy(_)            =>
@@ -123,6 +125,19 @@ object ItemDecoder {
   private def optionalDecoder[A](decoder: Decoder[A]): Decoder[Option[A]] = {
     case AttributeValue.Null => Right(None)
     case av                  => decoder(av).map(Some(_))
+  }
+
+  private def eitherDecoder[A, B](decL: Decoder[A], decR: Decoder[B]): Decoder[Either[A, B]] = {
+    case AttributeValue.Map(map) =>
+      map.toList match {
+        case (AttributeValue.String("Left"), a) :: Nil  =>
+          decL(a).map(Left(_))
+        case (AttributeValue.String("Right"), b) :: Nil =>
+          decR(b).map(Right(_))
+        case av                                         =>
+          Left(s"AttributeValue.Map map element $av not expected.")
+      }
+    case av                      => Left(s"Expected AttributeValue.Map but found $av")
   }
 
   private def tupleDecoder[A, B](decL: Decoder[A], decR: Decoder[B]): Decoder[(A, B)] = {

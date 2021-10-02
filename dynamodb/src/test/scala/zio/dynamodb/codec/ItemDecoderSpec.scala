@@ -100,6 +100,22 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
       val actual = ItemDecoder.fromItem[CaseClassOfMapOfInt](item)
 
       assert(actual)(isRight(equalTo(expected)))
+    },
+    test("decodes Either Right") {
+      val item     = Item("either" -> Item("Right" -> 1))
+      val expected = CaseClassOfEither(Right(1))
+
+      val actual = ItemDecoder.fromItem[CaseClassOfEither](item)
+
+      assert(actual)(isRight(equalTo(expected)))
+    },
+    test("decodes Either Left") {
+      val item     = Item("either" -> Item("Left" -> "boom"))
+      val expected = CaseClassOfEither(Left("boom"))
+
+      val actual = ItemDecoder.fromItem[CaseClassOfEither](item)
+
+      assert(actual)(isRight(equalTo(expected)))
     }
   )
 
