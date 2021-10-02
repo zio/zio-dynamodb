@@ -45,4 +45,10 @@ object CodecRoundTripSpec extends App with CodecTestFixtures {
   )
   println(json6)
 
+  val json7 = new String(
+    JsonCodec
+      .encode(caseClassOfListOfCaseClass)(CaseClassOfListOfCaseClass(List(SimpleCaseClass3(1, "Avi", flag = true))))
+      .toArray
+  )
+  println(json7)
 }

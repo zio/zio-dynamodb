@@ -11,7 +11,7 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
     suite("ItemEncoder Suite")(mainSuite)
 
   val mainSuite: ZSpec[Environment, Failure] = suite("Main Suite")(
-    test("encodes List") {
+    test("encodes List of Int") {
       val expectedItem: Item = Item("nums" -> List(1, 2, 3))
 
       val item = ItemEncoder.toItem(CaseClassOfList(List(1, 2, 3)))
@@ -93,6 +93,13 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
       val expectedItem: Item = Item("either" -> Item("Left" -> "boom"))
 
       val item = ItemEncoder.toItem(CaseClassOfEither(Left("boom")))
+
+      assert(item)(equalTo(expectedItem))
+    },
+    test("encodes List of case class") {
+      val expectedItem: Item = Item("elements" -> List(Item("id" -> 1, "name" -> "Avi", "flag" -> true)))
+
+      val item = ItemEncoder.toItem(CaseClassOfListOfCaseClass(List(SimpleCaseClass3(1, "Avi", flag = true))))
 
       assert(item)(equalTo(expectedItem))
     }
