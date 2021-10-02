@@ -20,7 +20,7 @@ final case class CaseClassOfOption(opt: Option[Int])
 
 final case class CaseClassOfNestedOption(opt: Option[Option[Int]])
 
-final case class CaseClassOfEither(opt: Either[String, Int])
+final case class CaseClassOfEither(either: Either[String, Int])
 
 final case class CaseClassOfTuple3(tuple: (Int, Int, Int))
 

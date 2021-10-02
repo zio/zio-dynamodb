@@ -17,11 +17,11 @@ object SimpleExample2 extends App {
   implicit lazy val simpleCaseClass3: Schema[SimpleCaseClass3] = DeriveSchema.gen[SimpleCaseClass3]
 
   private val program = for {
-    _    <- TestDynamoDBExecutor.addTable("table1", pkFieldName = "id")()
-    _    <- put("table1", NestedCaseClass2(1, SimpleCaseClass3(2, "Avi", flag = true))).execute
-//    _    <- putItem("table1", parentItem).execute
-    item <- get[NestedCaseClass2]("table1", PrimaryKey("id" -> 1)).execute
-    _    <- putStrLn(s"found $item")
+    _         <- TestDynamoDBExecutor.addTable("table1", pkFieldName = "id")()
+    _         <-
+      put("table1", NestedCaseClass2(id = 1, SimpleCaseClass3(2, "Avi", flag = true))).execute // Save case class to DB
+    caseClass <- get[NestedCaseClass2]("table1", PrimaryKey("id" -> 1)).execute // read case class from DB
+    _         <- putStrLn(s"found $caseClass")
   } yield ()
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] =

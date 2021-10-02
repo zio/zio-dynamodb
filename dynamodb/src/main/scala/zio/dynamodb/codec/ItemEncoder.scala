@@ -34,6 +34,7 @@ object ItemEncoder {
       case Schema.Transform(c, _, g)      => transformEncoder(c, g)
       case Schema.Primitive(standardType) =>
         primitiveEncoder(standardType)
+      case Schema.EitherSchema(l, r)      => eitherEncoder(encoder(l), encoder(r))
       case l @ Schema.Lazy(_)             => encoder(l.schema)
       case Schema.Enum1(c)                => enumEncoder(c)
       case Schema.Enum2(c1, c2)           => enumEncoder(c1, c2)
@@ -102,6 +103,12 @@ object ItemEncoder {
   private def optionalEncoder[A](encoder: Encoder[A]): Encoder[Option[A]] = {
     case None        => AttributeValue.Null
     case Some(value) => encoder(value)
+  }
+
+  // {"aOrb":{"Right":1}} => Item("aOrb" -> Item("Right" -> 1))
+  private def eitherEncoder[A, B](encL: Encoder[A], encR: Encoder[B]): Encoder[Either[A, B]] = {
+    case Left(a)  => AttributeValue.Map(Map.empty + (AttributeValue.String("Left") -> encL(a)))
+    case Right(b) => AttributeValue.Map(Map.empty + (AttributeValue.String("Right") -> encR(b)))
   }
 
   private def tupleEncoder[A, B](encL: Encoder[A], encR: Encoder[B]): Encoder[(A, B)] = {

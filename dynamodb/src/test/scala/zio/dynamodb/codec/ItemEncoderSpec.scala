@@ -68,6 +68,13 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     },
+    test("encodes tuple3") {
+      val expected: Item = new AttrMap(Map("tuple" -> toList(toTuple(1, 2), toNum(3))))
+
+      val item = ItemEncoder.toItem(CaseClassOfTuple3((1, 2, 3)))
+
+      assert(item)(equalTo(expected))
+    },
     test("encodes map") {
       val expectedItem: Item = AttrMap(Map("map" -> toList(toTuple("One", 1), toTuple("Two", 2))))
 
@@ -75,12 +82,19 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes tuple3") {
-      val expected: Item = new AttrMap(Map("tuple" -> toList(toTuple(1, 2), toNum(3))))
+    test("encodes Either Right") {
+      val expectedItem: Item = Item("either" -> Item("Right" -> 1))
 
-      val item = ItemEncoder.toItem(CaseClassOfTuple3((1, 2, 3)))
+      val item = ItemEncoder.toItem(CaseClassOfEither(Right(1)))
 
-      assert(item)(equalTo(expected))
+      assert(item)(equalTo(expectedItem))
+    },
+    test("encodes Either Left") {
+      val expectedItem: Item = Item("either" -> Item("Left" -> "boom"))
+
+      val item = ItemEncoder.toItem(CaseClassOfEither(Left("boom")))
+
+      assert(item)(equalTo(expectedItem))
     }
   )
 
