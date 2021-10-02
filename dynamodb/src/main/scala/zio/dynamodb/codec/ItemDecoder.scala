@@ -17,21 +17,6 @@ object ItemDecoder {
     decoder(schema)(av)
   }
 
-  def tupleDecoder[A, B](decL: Decoder[A], decR: Decoder[B]): Decoder[(A, B)] = {
-    println("in tupleDecoder")
-
-    {
-
-      case AttributeValue.List(avA :: avB :: Nil) =>
-        for {
-          a <- decL(avA)
-          b <- decR(avB)
-        } yield (a, b)
-      case av                                     =>
-        Left(s"Expected an AttributeValue.List of two elements but found $av")
-    }
-  }
-
   def decoder[A](schema: Schema[A]): Decoder[A] =
     schema match {
       case ProductDecoder(decoder)       =>
@@ -91,7 +76,7 @@ object ItemDecoder {
       }
   }
 
-  def decodeFields(av: AttributeValue, fields: Schema.Field[_]*): Either[String, List[Any]] =
+  private def decodeFields(av: AttributeValue, fields: Schema.Field[_]*): Either[String, List[Any]] =
     av match {
       case AttributeValue.Map(map) =>
         zio.dynamodb
@@ -106,7 +91,7 @@ object ItemDecoder {
         Left(s"$av is not an AttributeValue.Map")
     }
 
-  def primitiveDecoder[A](standardType: StandardType[A]): Decoder[A] =
+  private def primitiveDecoder[A](standardType: StandardType[A]): Decoder[A] =
     standardType match {
       case StandardType.BoolType           =>
         (av: AttributeValue) => FromAttributeValue[Boolean].fromAttributeValue(av).toRight("error getting boolean")
@@ -130,17 +115,28 @@ object ItemDecoder {
 
     }
 
-  def transformDecoder[A, B](codec: Schema[A], f: A => Either[String, B]): Decoder[B] = {
+  private def transformDecoder[A, B](codec: Schema[A], f: A => Either[String, B]): Decoder[B] = {
     val dec = decoder(codec)
     (a: AttributeValue) => dec(a).flatMap(f)
   }
 
-  def optionalDecoder[A](decoder: Decoder[A]): Decoder[Option[A]] = {
+  private def optionalDecoder[A](decoder: Decoder[A]): Decoder[Option[A]] = {
     case AttributeValue.Null => Right(None)
     case av                  => decoder(av).map(Some(_))
   }
 
-  def sequenceDecoder[Col[_], A](decoder: Decoder[A], to: Chunk[A] => Col[A]): Decoder[Col[A]] = {
+  private def tupleDecoder[A, B](decL: Decoder[A], decR: Decoder[B]): Decoder[(A, B)] = {
+
+    case AttributeValue.List(avA :: avB :: Nil) =>
+      for {
+        a <- decL(avA)
+        b <- decR(avB)
+      } yield (a, b)
+    case av                                     =>
+      Left(s"Expected an AttributeValue.List of two elements but found $av")
+  }
+
+  private def sequenceDecoder[Col[_], A](decoder: Decoder[A], to: Chunk[A] => Col[A]): Decoder[Col[A]] = {
     case AttributeValue.List(list) =>
       zio.dynamodb.foreach(list)(decoder(_)).map(xs => to(Chunk.fromIterable(xs)))
     case av                        => Left(s"unable to decode $av as a list")

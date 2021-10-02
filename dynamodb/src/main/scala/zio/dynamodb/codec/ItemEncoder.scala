@@ -23,12 +23,13 @@ object ItemEncoder {
       .fromAttributeValue(encoder(schema)(a))
       .getOrElse(throw new Exception(s"error encoding $a"))
 
-  private def encoder[A](schema: Schema[A]): Encoder[A] =
+  def encoder[A](schema: Schema[A]): Encoder[A] =
     schema match {
       case ProductEncoder(encoder)        =>
         encoder
       case s: Schema.Optional[a]          => optionalEncoder[a](encoder(s.codec))
-      case Schema.Tuple(l, r)             => tupleEncoder(encoder(l), encoder(r))
+      case Schema.Tuple(l, r)             =>
+        tupleEncoder(encoder(l), encoder(r))
       case s: Schema.Sequence[col, a]     => sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
       case Schema.Transform(c, _, g)      => transformEncoder(c, g)
       case Schema.Primitive(standardType) =>
@@ -103,8 +104,9 @@ object ItemEncoder {
     case Some(value) => encoder(value)
   }
 
-  def tupleEncoder[A, B](encL: Encoder[A], encR: Encoder[B]): Encoder[(A, B)] = {
-    case (a, b) => AttributeValue.List(Chunk(encL(a), encR(b)))
+  private def tupleEncoder[A, B](encL: Encoder[A], encR: Encoder[B]): Encoder[(A, B)] = {
+    case (a, b) =>
+      AttributeValue.List(Chunk(encL(a), encR(b)))
   }
 
   private def sequenceEncoder[Col[_], A](encoder: Encoder[A], from: Col[A] => Chunk[A]): Encoder[Col[A]] =
