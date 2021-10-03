@@ -7,7 +7,7 @@ import zio.schema.codec.JsonCodec
   type Decoder[+A] = AttributeValue => Either[String, A]
  */
 
-object CodecRoundTripSpec extends App with CodecTestFixtures {
+object CodecExperimentSpec extends App with CodecTestFixtures {
   /*
   QUESTIONS:
   - what is GenericRecord? do we have to provide a direct mapping for it?

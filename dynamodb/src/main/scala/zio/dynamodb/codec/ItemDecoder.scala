@@ -96,11 +96,54 @@ object ItemDecoder {
   private def primitiveDecoder[A](standardType: StandardType[A]): Decoder[A] =
     standardType match {
       case StandardType.BoolType           =>
-        (av: AttributeValue) => FromAttributeValue[Boolean].fromAttributeValue(av).toRight("error getting boolean")
+        (av: AttributeValue) =>
+          FromAttributeValue.booleanFromAttributeValue.fromAttributeValue(av).toRight("error getting boolean")
       case StandardType.StringType         =>
-        (av: AttributeValue) => FromAttributeValue[String].fromAttributeValue(av).toRight("error getting string")
+        (av: AttributeValue) =>
+          FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av).toRight("error getting string")
+      case StandardType.ShortType          =>
+        (av: AttributeValue) =>
+          FromAttributeValue.shortFromAttributeValue.fromAttributeValue(av).toRight("error getting short")
       case StandardType.IntType            =>
-        (av: AttributeValue) => FromAttributeValue[Int].fromAttributeValue(av).toRight("error getting Int")
+        (av: AttributeValue) =>
+          FromAttributeValue.intFromAttributeValue.fromAttributeValue(av).toRight("error getting int")
+      case StandardType.LongType           =>
+        (av: AttributeValue) =>
+          FromAttributeValue.longFromAttributeValue.fromAttributeValue(av).toRight("error getting long")
+      case StandardType.FloatType          =>
+        (av: AttributeValue) =>
+          FromAttributeValue.floatFromAttributeValue.fromAttributeValue(av).toRight("error getting float")
+      case StandardType.DoubleType         =>
+        (av: AttributeValue) =>
+          FromAttributeValue.doubleFromAttributeValue.fromAttributeValue(av).toRight("error getting double")
+      case StandardType.BigDecimalType     =>
+        (av: AttributeValue) =>
+          FromAttributeValue.bigDecimalFromAttributeValue
+            .fromAttributeValue(av)
+            .toRight("error getting big decimal")
+            .map(_.bigDecimal)
+      case StandardType.BigIntegerType     =>
+        (av: AttributeValue) =>
+          FromAttributeValue.bigDecimalFromAttributeValue
+            .fromAttributeValue(av)
+            .toRight("error getting big integer")
+            .map(_.toBigInt.bigInteger)
+      case StandardType.BinaryType         =>
+        (av: AttributeValue) =>
+          FromAttributeValue.binaryFromAttributeValue
+            .fromAttributeValue(av)
+            .toRight("error getting iterable of byte")
+            .map(Chunk.fromIterable(_))
+      case StandardType.CharType           =>
+        (av: AttributeValue) =>
+          FromAttributeValue.stringFromAttributeValue
+            .fromAttributeValue(av)
+            .toRight("error getting iterable of byte")
+            .map { s =>
+              val array = s.toCharArray
+              array(0)
+            }
+
       case StandardType.Instant(formatter) =>
         (av: AttributeValue) =>
           val either: Either[String, Instant] = av match {
