@@ -7,7 +7,6 @@ import zio.schema.{ Schema, StandardType }
 import java.time.Year
 import java.time.format.{ DateTimeFormatterBuilder, SignStyle }
 import java.time.temporal.ChronoField.YEAR
-import java.time.temporal.TemporalAccessor
 import scala.annotation.tailrec
 
 /*
@@ -102,21 +101,21 @@ object ItemEncoder {
       case StandardType.Duration(_)               =>
         (a: A) => AttributeValue.String(a.toString)
       case StandardType.Instant(formatter)        =>
-        (a: A) => AttributeValue.String(formatter.format(a.asInstanceOf[TemporalAccessor]))
+        (a: A) => AttributeValue.String(formatter.format(a))
       case StandardType.LocalDate(formatter)      =>
-        (a: A) => AttributeValue.String(formatter.format(a.asInstanceOf[TemporalAccessor]))
+        (a: A) => AttributeValue.String(formatter.format(a))
       case StandardType.LocalDateTime(formatter)  =>
-        (a: A) => AttributeValue.String(formatter.format(a.asInstanceOf[TemporalAccessor]))
+        (a: A) => AttributeValue.String(formatter.format(a))
       case StandardType.LocalTime(formatter)      =>
-        (a: A) => AttributeValue.String(formatter.format(a.asInstanceOf[TemporalAccessor]))
+        (a: A) => AttributeValue.String(formatter.format(a))
       case StandardType.Month                     =>
         (a: A) => AttributeValue.String(a.toString)
       case StandardType.MonthDay                  =>
         (a: A) => AttributeValue.String(a.toString)
       case StandardType.OffsetDateTime(formatter) =>
-        (a: A) => AttributeValue.String(formatter.format(a.asInstanceOf[TemporalAccessor]))
+        (a: A) => AttributeValue.String(formatter.format(a))
       case StandardType.OffsetTime(formatter)     =>
-        (a: A) => AttributeValue.String(formatter.format(a.asInstanceOf[TemporalAccessor]))
+        (a: A) => AttributeValue.String(formatter.format(a))
       case StandardType.Period                    =>
         (a: A) => AttributeValue.String(a.toString)
       case StandardType.Year                      =>
@@ -127,7 +126,7 @@ object ItemEncoder {
       case StandardType.YearMonth                 =>
         (a: A) => AttributeValue.String(a.toString)
       case StandardType.ZonedDateTime(formatter)  =>
-        (a: A) => AttributeValue.String(formatter.format(a.asInstanceOf[TemporalAccessor]))
+        (a: A) => AttributeValue.String(formatter.format(a))
       case StandardType.ZoneId                    =>
         (a: A) => AttributeValue.String(a.toString)
       case StandardType.ZoneOffset                =>

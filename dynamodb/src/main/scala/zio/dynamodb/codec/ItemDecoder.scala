@@ -144,41 +144,41 @@ object ItemDecoder {
               array(0)
             }
       case StandardType.DayOfWeekType             =>
-        (av: AttributeValue) => avStringParser(av)(DayOfWeek.valueOf(_))
+        (av: AttributeValue) => javaTimeStringParser(av)(DayOfWeek.valueOf(_))
       case StandardType.Duration(_)               =>
-        (av: AttributeValue) => avStringParser(av)(Duration.parse(_))
+        (av: AttributeValue) => javaTimeStringParser(av)(Duration.parse(_))
       case StandardType.Instant(formatter)        =>
-        (av: AttributeValue) => avStringParser(av)(formatter.parse(_, Instant.from(_)))
+        (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, Instant.from(_)))
       case StandardType.LocalDate(formatter)      =>
-        (av: AttributeValue) => avStringParser(av)(formatter.parse(_, LocalDate.from(_)))
+        (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, LocalDate.from(_)))
       case StandardType.LocalDateTime(formatter)  =>
-        (av: AttributeValue) => avStringParser(av)(formatter.parse(_, LocalDateTime.from(_)))
+        (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, LocalDateTime.from(_)))
       case StandardType.LocalTime(formatter)      =>
-        (av: AttributeValue) => avStringParser(av)(formatter.parse(_, LocalTime.from(_)))
+        (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, LocalTime.from(_)))
       case StandardType.Month                     =>
-        (av: AttributeValue) => avStringParser(av)(Month.valueOf(_))
+        (av: AttributeValue) => javaTimeStringParser(av)(Month.valueOf(_))
       case StandardType.MonthDay                  =>
-        (av: AttributeValue) => avStringParser(av)(MonthDay.parse(_))
+        (av: AttributeValue) => javaTimeStringParser(av)(MonthDay.parse(_))
       case StandardType.OffsetDateTime(formatter) =>
-        (av: AttributeValue) => avStringParser(av)(formatter.parse(_, OffsetDateTime.from(_)))
+        (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, OffsetDateTime.from(_)))
       case StandardType.OffsetTime(formatter)     =>
-        (av: AttributeValue) => avStringParser(av)(formatter.parse(_, OffsetTime.from(_)))
+        (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, OffsetTime.from(_)))
       case StandardType.Period                    =>
-        (av: AttributeValue) => avStringParser(av)(Period.parse(_))
+        (av: AttributeValue) => javaTimeStringParser(av)(Period.parse(_))
       case StandardType.Year                      =>
-        (av: AttributeValue) => avStringParser(av)(Year.parse(_))
+        (av: AttributeValue) => javaTimeStringParser(av)(Year.parse(_))
       case StandardType.YearMonth                 =>
-        (av: AttributeValue) => avStringParser(av)(YearMonth.parse(_))
+        (av: AttributeValue) => javaTimeStringParser(av)(YearMonth.parse(_))
       case StandardType.UnitType                  => _ => Right(())
       case StandardType.ZonedDateTime(formatter)  =>
-        (av: AttributeValue) => avStringParser(av)(formatter.parse(_, ZonedDateTime.from(_)))
+        (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, ZonedDateTime.from(_)))
       case StandardType.ZoneId                    =>
-        (av: AttributeValue) => avStringParser(av)(ZoneId.of(_))
+        (av: AttributeValue) => javaTimeStringParser(av)(ZoneId.of(_))
       case StandardType.ZoneOffset                =>
-        (av: AttributeValue) => avStringParser(av)(ZoneOffset.of(_))
+        (av: AttributeValue) => javaTimeStringParser(av)(ZoneOffset.of(_))
     }
 
-  private def avStringParser[A](av: AttributeValue)(unsafeParse: String => A): Either[String, A] =
+  private def javaTimeStringParser[A](av: AttributeValue)(unsafeParse: String => A): Either[String, A] =
     FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av).toRight("error getting string").flatMap { s =>
       val stringOrA = Try(unsafeParse(s)).toEither.left
         .map(e => s"error parsing string '$s': ${e.getMessage}")
