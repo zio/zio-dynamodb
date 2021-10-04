@@ -23,10 +23,10 @@ object StandardTypeGen {
       (StandardType.CharType),
       (StandardType.DayOfWeekType),
       (StandardType.Duration(ChronoUnit.SECONDS)),
-      (StandardType.Instant(DateTimeFormatter.ISO_INSTANT))
-//      (StandardType.LocalDate(DateTimeFormatter.ISO_DATE)),
-//      (StandardType.LocalDateTime(DateTimeFormatter.ISO_LOCAL_DATE_TIME)),
-//      (StandardType.LocalTime(DateTimeFormatter.ISO_LOCAL_TIME)),
+      (StandardType.Instant(DateTimeFormatter.ISO_INSTANT)),
+      (StandardType.LocalDate(DateTimeFormatter.ISO_DATE)),
+      (StandardType.LocalDateTime(DateTimeFormatter.ISO_LOCAL_DATE_TIME)),
+      (StandardType.LocalTime(DateTimeFormatter.ISO_LOCAL_TIME))
 //      (StandardType.Month),
 //      (StandardType.MonthDay),
 //      (StandardType.OffsetDateTime(DateTimeFormatter.ISO_OFFSET_DATE_TIME)),
@@ -59,9 +59,9 @@ object StandardTypeGen {
       case typ: StandardType.DayOfWeekType.type  => typ -> JavaTimeGen.anyDayOfWeek
       case typ: StandardType.Duration            => typ -> JavaTimeGen.anyDuration
       case typ: StandardType.Instant             => typ -> JavaTimeGen.anyInstant
-//      case typ: StandardType.LocalDate           => typ -> JavaTimeGen.anyLocalDate
-//      case typ: StandardType.LocalDateTime       => typ -> JavaTimeGen.anyLocalDateTime
-//      case typ: StandardType.LocalTime           => typ -> JavaTimeGen.anyLocalTime
+      case typ: StandardType.LocalDate           => typ -> JavaTimeGen.anyLocalDate
+      case typ: StandardType.LocalDateTime       => typ -> JavaTimeGen.anyLocalDateTime
+      case typ: StandardType.LocalTime           => typ -> JavaTimeGen.anyLocalTime
 //      case typ: StandardType.Month.type          => typ -> JavaTimeGen.anyMonth
 //      case typ: StandardType.MonthDay.type       => typ -> JavaTimeGen.anyMonthDay
 //      case typ: StandardType.OffsetDateTime      => typ -> JavaTimeGen.anyOffsetDateTime
@@ -72,7 +72,8 @@ object StandardTypeGen {
 //      case typ: StandardType.ZonedDateTime       => typ -> JavaTimeGen.anyZonedDateTime
 //      case typ: StandardType.ZoneId.type         => typ -> JavaTimeGen.anyZoneId
 //      case typ: StandardType.ZoneOffset.type     => typ -> JavaTimeGen.anyZoneOffset
-      case _                                     =>
+      case stdType                               =>
+        println(s"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX Standard type $stdType not matched")
         StandardType.UnitType -> Gen.unit: StandardTypeAndGen[_]
     }
 

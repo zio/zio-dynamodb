@@ -5,7 +5,7 @@ import zio.dynamodb.{ AttributeValue, FromAttributeValue, Item, ToAttributeValue
 import zio.schema.Schema.{ Optional, Primitive }
 import zio.schema.{ Schema, StandardType }
 
-import java.time.{ DayOfWeek, Duration, Instant }
+import java.time.{ DayOfWeek, Duration, Instant, LocalDate, LocalDateTime, LocalTime }
 import scala.util.Try
 
 object ItemDecoder {
@@ -95,46 +95,46 @@ object ItemDecoder {
 
   private def primitiveDecoder[A](standardType: StandardType[A]): Decoder[A] =
     standardType match {
-      case StandardType.BoolType           =>
+      case StandardType.BoolType                 =>
         (av: AttributeValue) =>
           FromAttributeValue.booleanFromAttributeValue.fromAttributeValue(av).toRight("error getting boolean")
-      case StandardType.StringType         =>
+      case StandardType.StringType               =>
         (av: AttributeValue) =>
           FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av).toRight("error getting string")
-      case StandardType.ShortType          =>
+      case StandardType.ShortType                =>
         (av: AttributeValue) =>
           FromAttributeValue.shortFromAttributeValue.fromAttributeValue(av).toRight("error getting short")
-      case StandardType.IntType            =>
+      case StandardType.IntType                  =>
         (av: AttributeValue) =>
           FromAttributeValue.intFromAttributeValue.fromAttributeValue(av).toRight("error getting int")
-      case StandardType.LongType           =>
+      case StandardType.LongType                 =>
         (av: AttributeValue) =>
           FromAttributeValue.longFromAttributeValue.fromAttributeValue(av).toRight("error getting long")
-      case StandardType.FloatType          =>
+      case StandardType.FloatType                =>
         (av: AttributeValue) =>
           FromAttributeValue.floatFromAttributeValue.fromAttributeValue(av).toRight("error getting float")
-      case StandardType.DoubleType         =>
+      case StandardType.DoubleType               =>
         (av: AttributeValue) =>
           FromAttributeValue.doubleFromAttributeValue.fromAttributeValue(av).toRight("error getting double")
-      case StandardType.BigDecimalType     =>
+      case StandardType.BigDecimalType           =>
         (av: AttributeValue) =>
           FromAttributeValue.bigDecimalFromAttributeValue
             .fromAttributeValue(av)
             .toRight("error getting big decimal")
             .map(_.bigDecimal)
-      case StandardType.BigIntegerType     =>
+      case StandardType.BigIntegerType           =>
         (av: AttributeValue) =>
           FromAttributeValue.bigDecimalFromAttributeValue
             .fromAttributeValue(av)
             .toRight("error getting big integer")
             .map(_.toBigInt.bigInteger)
-      case StandardType.BinaryType         =>
+      case StandardType.BinaryType               =>
         (av: AttributeValue) =>
           FromAttributeValue.binaryFromAttributeValue
             .fromAttributeValue(av)
             .toRight("error getting iterable of byte")
             .map(Chunk.fromIterable(_))
-      case StandardType.CharType           =>
+      case StandardType.CharType                 =>
         (av: AttributeValue) =>
           FromAttributeValue.stringFromAttributeValue
             .fromAttributeValue(av)
@@ -143,23 +143,20 @@ object ItemDecoder {
               val array = s.toCharArray
               array(0)
             }
-      case StandardType.DayOfWeekType      =>
+      case StandardType.DayOfWeekType            =>
         (av: AttributeValue) => avStringParser(av)(DayOfWeek.valueOf(_))
-      case StandardType.Duration(_)        =>
+      case StandardType.Duration(_)              =>
         (av: AttributeValue) => avStringParser(av)(Duration.parse(_))
-
-      case StandardType.Instant(formatter) =>
-        (av: AttributeValue) =>
-          val either: Either[String, Instant] = av match {
-            case AttributeValue.String(s) =>
-              Try(formatter.parse(s, Instant.from(_))).toEither.left
-                .map(e => s"error parsing '$s': ${e.getMessage}")
-            case av                       =>
-              Left[String, Instant](s"Expected an AttributeValue.String, found $av")
-          }
-          either
-      case StandardType.UnitType           => _ => Right(())
-      case _                               => // TODO: remove after full implementation
+      case StandardType.Instant(formatter)       =>
+        (av: AttributeValue) => avStringParser(av)(formatter.parse(_, Instant.from(_)))
+      case StandardType.LocalDate(formatter)     =>
+        (av: AttributeValue) => avStringParser(av)(formatter.parse(_, LocalDate.from(_)))
+      case StandardType.LocalDateTime(formatter) =>
+        (av: AttributeValue) => avStringParser(av)(formatter.parse(_, LocalDateTime.from(_)))
+      case StandardType.LocalTime(formatter)     =>
+        (av: AttributeValue) => avStringParser(av)(formatter.parse(_, LocalTime.from(_)))
+      case StandardType.UnitType                 => _ => Right(())
+      case _                                     => // TODO: remove after full implementation
         throw new UnsupportedOperationException(s"standardType $standardType not yet supported")
 
     }

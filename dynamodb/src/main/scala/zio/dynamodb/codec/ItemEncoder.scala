@@ -81,23 +81,29 @@ object ItemEncoder {
 
   private def primitiveEncoder[A](standardType: StandardType[A]): Encoder[A] =
     standardType match {
-      case StandardType.UnitType           => _ => AttributeValue.Null
-      case StandardType.StringType         => (a: A) => AttributeValue.String(a.toString)
-      case StandardType.BoolType           => (a: A) => AttributeValue.Bool(a.asInstanceOf[Boolean])
+      case StandardType.UnitType                 => _ => AttributeValue.Null
+      case StandardType.StringType               => (a: A) => AttributeValue.String(a.toString)
+      case StandardType.BoolType                 => (a: A) => AttributeValue.Bool(a.asInstanceOf[Boolean])
       case StandardType.ShortType | StandardType.IntType | StandardType.LongType | StandardType.FloatType |
           StandardType.DoubleType | StandardType.BigDecimalType | StandardType.BigIntegerType =>
         (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-      case StandardType.BinaryType         =>
+      case StandardType.BinaryType               =>
         (a: A) => AttributeValue.Binary(a)
-      case StandardType.CharType           =>
+      case StandardType.CharType                 =>
         (a: A) => AttributeValue.String(Character.toString(a))
-      case StandardType.DayOfWeekType      =>
+      case StandardType.DayOfWeekType            =>
         (a: A) => AttributeValue.String(a.toString)
-      case StandardType.Duration(_)        =>
+      case StandardType.Duration(_)              =>
         (a: A) => AttributeValue.String(a.toString)
-      case StandardType.Instant(formatter) =>
+      case StandardType.Instant(formatter)       =>
         (a: A) => AttributeValue.String(formatter.format(a.asInstanceOf[TemporalAccessor]))
-      case _                               =>
+      case StandardType.LocalDate(formatter)     =>
+        (a: A) => AttributeValue.String(formatter.format(a.asInstanceOf[TemporalAccessor]))
+      case StandardType.LocalDateTime(formatter) =>
+        (a: A) => AttributeValue.String(formatter.format(a.asInstanceOf[TemporalAccessor]))
+      case StandardType.LocalTime(formatter)     =>
+        (a: A) => AttributeValue.String(formatter.format(a.asInstanceOf[TemporalAccessor]))
+      case _                                     =>
         throw new UnsupportedOperationException(s"StandardType $standardType not yet supported")
     }
 
