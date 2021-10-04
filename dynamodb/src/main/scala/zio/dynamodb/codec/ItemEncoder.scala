@@ -4,6 +4,9 @@ import zio.Chunk
 import zio.dynamodb.{ AttributeValue, FromAttributeValue, Item }
 import zio.schema.{ Schema, StandardType }
 
+import java.time.Year
+import java.time.format.{ DateTimeFormatterBuilder, SignStyle }
+import java.time.temporal.ChronoField.YEAR
 import java.time.temporal.TemporalAccessor
 import scala.annotation.tailrec
 
@@ -22,6 +25,9 @@ object ItemEncoder {
     FromAttributeValue.attrMapFromAttributeValue
       .fromAttributeValue(encoder(schema)(a))
       .getOrElse(throw new Exception(s"error encoding $a"))
+
+  private val yearFormatter =
+    new DateTimeFormatterBuilder().appendValue(YEAR, 4, 10, SignStyle.EXCEEDS_PAD).toFormatter
 
   def encoder[A](schema: Schema[A]): Encoder[A] =
     schema match {
@@ -115,9 +121,9 @@ object ItemEncoder {
         (a: A) => AttributeValue.String(a.toString)
       case StandardType.Year                      =>
         (a: A) =>
-          val s      = a.toString
-          val padded = (1 to 4 - s.length).foldLeft(s) { case (acc, _) => "0" + acc }
-          AttributeValue.String(padded)
+          val year      = a.asInstanceOf[Year]
+          val formatted = year.format(yearFormatter)
+          AttributeValue.String(formatted)
       case StandardType.YearMonth                 =>
         (a: A) => AttributeValue.String(a.toString)
       case StandardType.ZonedDateTime(formatter)  =>
