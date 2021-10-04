@@ -118,6 +118,12 @@ object ItemEncoder {
           val s      = a.toString
           val padded = (1 to 4 - s.length).foldLeft(s) { case (acc, _) => "0" + acc }
           AttributeValue.String(padded)
+      case StandardType.YearMonth                 =>
+        (a: A) => AttributeValue.String(a.toString)
+      case StandardType.ZonedDateTime(formatter)  =>
+        (a: A) => AttributeValue.String(formatter.format(a.asInstanceOf[TemporalAccessor]))
+      case StandardType.ZoneId                    =>
+        (a: A) => AttributeValue.String(a.toString)
       case _                                      =>
         throw new UnsupportedOperationException(s"StandardType $standardType not yet supported")
     }

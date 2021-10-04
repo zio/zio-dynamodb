@@ -32,10 +32,10 @@ object StandardTypeGen {
       (StandardType.OffsetDateTime(DateTimeFormatter.ISO_OFFSET_DATE_TIME)),
       (StandardType.OffsetTime(DateTimeFormatter.ISO_OFFSET_TIME)),
       (StandardType.Period),
-      (StandardType.Year)
-//      (StandardType.YearMonth),
-//      (StandardType.ZonedDateTime(DateTimeFormatter.ISO_ZONED_DATE_TIME)),
-//      (StandardType.ZoneId)
+      (StandardType.Year),
+      (StandardType.YearMonth),
+      (StandardType.ZonedDateTime(DateTimeFormatter.ISO_ZONED_DATE_TIME)),
+      (StandardType.ZoneId)
     )
     //FIXME For some reason adding this causes other unrelated tests to break.
     //    Gen.const(StandardType.ZoneOffset)
@@ -68,9 +68,9 @@ object StandardTypeGen {
       case typ: StandardType.OffsetTime          => typ -> JavaTimeGen.anyOffsetTime
       case typ: StandardType.Period.type         => typ -> JavaTimeGen.anyPeriod
       case typ: StandardType.Year.type           => typ -> JavaTimeGen.anyYear
-//      case typ: StandardType.YearMonth.type      => typ -> JavaTimeGen.anyYearMonth
-//      case typ: StandardType.ZonedDateTime       => typ -> JavaTimeGen.anyZonedDateTime
-//      case typ: StandardType.ZoneId.type         => typ -> JavaTimeGen.anyZoneId
+      case typ: StandardType.YearMonth.type      => typ -> JavaTimeGen.anyYearMonth
+      case typ: StandardType.ZonedDateTime       => typ -> JavaTimeGen.anyZonedDateTime
+      case typ: StandardType.ZoneId.type         => typ -> JavaTimeGen.anyZoneId
 //      case typ: StandardType.ZoneOffset.type     => typ -> JavaTimeGen.anyZoneOffset
       case stdType                               =>
         println(s"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX Standard type $stdType not matched")
