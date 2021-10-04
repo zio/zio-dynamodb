@@ -124,8 +124,8 @@ object ItemEncoder {
         (a: A) => AttributeValue.String(formatter.format(a.asInstanceOf[TemporalAccessor]))
       case StandardType.ZoneId                    =>
         (a: A) => AttributeValue.String(a.toString)
-      case _                                      =>
-        throw new UnsupportedOperationException(s"StandardType $standardType not yet supported")
+      case StandardType.ZoneOffset                =>
+        (a: A) => AttributeValue.String(a.toString)
     }
 
   private def transformEncoder[A, B](schema: Schema[A], g: B => Either[String, A]): Encoder[B] = { (b: B) =>

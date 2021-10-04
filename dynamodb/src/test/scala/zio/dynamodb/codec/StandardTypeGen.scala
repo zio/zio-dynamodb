@@ -35,10 +35,9 @@ object StandardTypeGen {
       (StandardType.Year),
       (StandardType.YearMonth),
       (StandardType.ZonedDateTime(DateTimeFormatter.ISO_ZONED_DATE_TIME)),
-      (StandardType.ZoneId)
+      (StandardType.ZoneId),
+      (StandardType.ZoneOffset)
     )
-    //FIXME For some reason adding this causes other unrelated tests to break.
-    //    Gen.const(StandardType.ZoneOffset)
   )
 
   type StandardTypeAndGen[A] = (StandardType[A], Gen[Random with Sized, A])
@@ -71,7 +70,7 @@ object StandardTypeGen {
       case typ: StandardType.YearMonth.type      => typ -> JavaTimeGen.anyYearMonth
       case typ: StandardType.ZonedDateTime       => typ -> JavaTimeGen.anyZonedDateTime
       case typ: StandardType.ZoneId.type         => typ -> JavaTimeGen.anyZoneId
-//      case typ: StandardType.ZoneOffset.type     => typ -> JavaTimeGen.anyZoneOffset
+      case typ: StandardType.ZoneOffset.type     => typ -> JavaTimeGen.anyZoneOffset
       case stdType                               =>
         println(s"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX Standard type $stdType not matched")
         StandardType.UnitType -> Gen.unit: StandardTypeAndGen[_]

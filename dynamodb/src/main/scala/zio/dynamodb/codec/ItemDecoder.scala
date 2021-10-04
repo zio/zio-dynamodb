@@ -174,9 +174,8 @@ object ItemDecoder {
         (av: AttributeValue) => avStringParser(av)(formatter.parse(_, ZonedDateTime.from(_)))
       case StandardType.ZoneId                    =>
         (av: AttributeValue) => avStringParser(av)(ZoneId.of(_))
-      case _                                      => // TODO: remove after full implementation
-        throw new UnsupportedOperationException(s"standardType $standardType not yet supported")
-
+      case StandardType.ZoneOffset                =>
+        (av: AttributeValue) => avStringParser(av)(ZoneOffset.of(_))
     }
 
   private def avStringParser[A](av: AttributeValue)(unsafeParse: String => A): Either[String, A] =
