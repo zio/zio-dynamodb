@@ -5,7 +5,7 @@ import zio.dynamodb.{ AttributeValue, FromAttributeValue, Item, ToAttributeValue
 import zio.schema.Schema.{ Optional, Primitive }
 import zio.schema.{ Schema, StandardType }
 
-import java.time.Instant
+import java.time.{ DayOfWeek, Duration, Instant }
 import scala.util.Try
 
 object ItemDecoder {
@@ -143,6 +143,10 @@ object ItemDecoder {
               val array = s.toCharArray
               array(0)
             }
+      case StandardType.DayOfWeekType      =>
+        (av: AttributeValue) => avStringParser(av)(DayOfWeek.valueOf(_))
+      case StandardType.Duration(_)        =>
+        (av: AttributeValue) => avStringParser(av)(Duration.parse(_))
 
       case StandardType.Instant(formatter) =>
         (av: AttributeValue) =>
@@ -158,6 +162,12 @@ object ItemDecoder {
       case _                               => // TODO: remove after full implementation
         throw new UnsupportedOperationException(s"standardType $standardType not yet supported")
 
+    }
+
+  private def avStringParser[A](av: AttributeValue)(unsafeParse: String => A): Either[String, A] =
+    FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av).toRight("error getting string").flatMap { s =>
+      Try(unsafeParse(s)).toEither.left
+        .map(e => s"error parsing string '$s': ${e.getMessage}")
     }
 
   private def transformDecoder[A, B](codec: Schema[A], f: A => Either[String, B]): Decoder[B] = {

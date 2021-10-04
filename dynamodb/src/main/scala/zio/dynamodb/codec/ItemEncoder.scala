@@ -87,8 +87,14 @@ object ItemEncoder {
       case StandardType.ShortType | StandardType.IntType | StandardType.LongType | StandardType.FloatType |
           StandardType.DoubleType | StandardType.BigDecimalType | StandardType.BigIntegerType =>
         (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-      case StandardType.BinaryType         => (a: A) => AttributeValue.Binary(a)
-      case StandardType.CharType           => (a: A) => AttributeValue.String(Character.toString(a))
+      case StandardType.BinaryType         =>
+        (a: A) => AttributeValue.Binary(a)
+      case StandardType.CharType           =>
+        (a: A) => AttributeValue.String(Character.toString(a))
+      case StandardType.DayOfWeekType      =>
+        (a: A) => AttributeValue.String(a.toString)
+      case StandardType.Duration(_)        =>
+        (a: A) => AttributeValue.String(a.toString)
       case StandardType.Instant(formatter) =>
         (a: A) => AttributeValue.String(formatter.format(a.asInstanceOf[TemporalAccessor]))
       case _                               =>

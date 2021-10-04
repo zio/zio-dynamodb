@@ -5,6 +5,7 @@ import zio.schema.StandardType
 import zio.test.{ Gen, Sized }
 
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 
 object StandardTypeGen {
   val anyStandardType: Gen[Random, StandardType[_]] = Gen.fromIterable(
@@ -20,8 +21,8 @@ object StandardTypeGen {
       (StandardType.BigDecimalType),
       (StandardType.BigIntegerType),
       (StandardType.CharType),
-//      (StandardType.DayOfWeekType),
-//      (StandardType.Duration(ChronoUnit.SECONDS)),
+      (StandardType.DayOfWeekType),
+      (StandardType.Duration(ChronoUnit.SECONDS)),
       (StandardType.Instant(DateTimeFormatter.ISO_INSTANT))
 //      (StandardType.LocalDate(DateTimeFormatter.ISO_DATE)),
 //      (StandardType.LocalDateTime(DateTimeFormatter.ISO_LOCAL_DATE_TIME)),
@@ -55,8 +56,8 @@ object StandardTypeGen {
       case typ: StandardType.CharType.type       => typ -> Gen.anyASCIIChar
       case typ: StandardType.BigDecimalType.type => typ -> Gen.anyDouble.map(d => java.math.BigDecimal.valueOf(d))
       case typ: StandardType.BigIntegerType.type => typ -> Gen.anyLong.map(n => java.math.BigInteger.valueOf(n))
-//      case typ: StandardType.DayOfWeekType.type  => typ -> JavaTimeGen.anyDayOfWeek
-//      case typ: StandardType.Duration            => typ -> JavaTimeGen.anyDuration
+      case typ: StandardType.DayOfWeekType.type  => typ -> JavaTimeGen.anyDayOfWeek
+      case typ: StandardType.Duration            => typ -> JavaTimeGen.anyDuration
       case typ: StandardType.Instant             => typ -> JavaTimeGen.anyInstant
 //      case typ: StandardType.LocalDate           => typ -> JavaTimeGen.anyLocalDate
 //      case typ: StandardType.LocalDateTime       => typ -> JavaTimeGen.anyLocalDateTime
@@ -71,7 +72,8 @@ object StandardTypeGen {
 //      case typ: StandardType.ZonedDateTime       => typ -> JavaTimeGen.anyZonedDateTime
 //      case typ: StandardType.ZoneId.type         => typ -> JavaTimeGen.anyZoneId
 //      case typ: StandardType.ZoneOffset.type     => typ -> JavaTimeGen.anyZoneOffset
-      case _                                     => StandardType.UnitType -> Gen.unit: StandardTypeAndGen[_]
+      case _                                     =>
+        StandardType.UnitType -> Gen.unit: StandardTypeAndGen[_]
     }
 
 }
