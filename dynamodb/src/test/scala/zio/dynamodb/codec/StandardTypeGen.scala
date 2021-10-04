@@ -26,9 +26,9 @@ object StandardTypeGen {
       (StandardType.Instant(DateTimeFormatter.ISO_INSTANT)),
       (StandardType.LocalDate(DateTimeFormatter.ISO_DATE)),
       (StandardType.LocalDateTime(DateTimeFormatter.ISO_LOCAL_DATE_TIME)),
-      (StandardType.LocalTime(DateTimeFormatter.ISO_LOCAL_TIME))
-//      (StandardType.Month),
-//      (StandardType.MonthDay),
+      (StandardType.LocalTime(DateTimeFormatter.ISO_LOCAL_TIME)),
+      (StandardType.Month),
+      (StandardType.MonthDay)
 //      (StandardType.OffsetDateTime(DateTimeFormatter.ISO_OFFSET_DATE_TIME)),
 //      (StandardType.OffsetTime(DateTimeFormatter.ISO_OFFSET_TIME)),
 //      (StandardType.Period),
@@ -62,8 +62,8 @@ object StandardTypeGen {
       case typ: StandardType.LocalDate           => typ -> JavaTimeGen.anyLocalDate
       case typ: StandardType.LocalDateTime       => typ -> JavaTimeGen.anyLocalDateTime
       case typ: StandardType.LocalTime           => typ -> JavaTimeGen.anyLocalTime
-//      case typ: StandardType.Month.type          => typ -> JavaTimeGen.anyMonth
-//      case typ: StandardType.MonthDay.type       => typ -> JavaTimeGen.anyMonthDay
+      case typ: StandardType.Month.type          => typ -> JavaTimeGen.anyMonth
+      case typ: StandardType.MonthDay.type       => typ -> JavaTimeGen.anyMonthDay
 //      case typ: StandardType.OffsetDateTime      => typ -> JavaTimeGen.anyOffsetDateTime
 //      case typ: StandardType.OffsetTime          => typ -> JavaTimeGen.anyOffsetTime
 //      case typ: StandardType.Period.type         => typ -> JavaTimeGen.anyPeriod

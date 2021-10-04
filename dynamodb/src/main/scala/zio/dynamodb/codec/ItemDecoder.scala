@@ -5,7 +5,7 @@ import zio.dynamodb.{ AttributeValue, FromAttributeValue, Item, ToAttributeValue
 import zio.schema.Schema.{ Optional, Primitive }
 import zio.schema.{ Schema, StandardType }
 
-import java.time.{ DayOfWeek, Duration, Instant, LocalDate, LocalDateTime, LocalTime }
+import java.time._
 import scala.util.Try
 
 object ItemDecoder {
@@ -155,6 +155,13 @@ object ItemDecoder {
         (av: AttributeValue) => avStringParser(av)(formatter.parse(_, LocalDateTime.from(_)))
       case StandardType.LocalTime(formatter)     =>
         (av: AttributeValue) => avStringParser(av)(formatter.parse(_, LocalTime.from(_)))
+      case StandardType.Month                    =>
+        (av: AttributeValue) => avStringParser(av)(Month.valueOf(_))
+      case StandardType.MonthDay                 =>
+        (av: AttributeValue) =>
+          avStringParser(av)(MonthDay.parse(_))
+//      case StandardType.OffsetDateTime(formatter) =>
+//        (av: AttributeValue) => avStringParser(av)(formatter.parse(_, OffsetDateTime.(_)))
       case StandardType.UnitType                 => _ => Right(())
       case _                                     => // TODO: remove after full implementation
         throw new UnsupportedOperationException(s"standardType $standardType not yet supported")

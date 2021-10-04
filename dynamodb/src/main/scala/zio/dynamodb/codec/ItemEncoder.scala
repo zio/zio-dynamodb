@@ -103,6 +103,13 @@ object ItemEncoder {
         (a: A) => AttributeValue.String(formatter.format(a.asInstanceOf[TemporalAccessor]))
       case StandardType.LocalTime(formatter)     =>
         (a: A) => AttributeValue.String(formatter.format(a.asInstanceOf[TemporalAccessor]))
+      case StandardType.Month                    =>
+        (a: A) => AttributeValue.String(a.toString)
+      case StandardType.MonthDay                 =>
+        (a: A) =>
+          AttributeValue.String(a.toString)
+//      case StandardType.OffsetDateTime(formatter) =>
+//        (a: A) => AttributeValue.String(formatter.format(a.asInstanceOf[TemporalAccessor]))
       case _                                     =>
         throw new UnsupportedOperationException(s"StandardType $standardType not yet supported")
     }
