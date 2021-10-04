@@ -24,7 +24,7 @@ object RoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
     check(genA) { a =>
       val encValue = enc(a)
-      val decValue = dec(enc(a))
+      val decValue = dec(encValue)
       decValue match {
         case Left(x) => println(s"XXXXXXXXXX err=$x a=$a enc=$encValue")
         case _       => ()

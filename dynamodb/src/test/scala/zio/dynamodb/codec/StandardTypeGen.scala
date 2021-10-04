@@ -28,11 +28,11 @@ object StandardTypeGen {
       (StandardType.LocalDateTime(DateTimeFormatter.ISO_LOCAL_DATE_TIME)),
       (StandardType.LocalTime(DateTimeFormatter.ISO_LOCAL_TIME)),
       (StandardType.Month),
-      (StandardType.MonthDay)
-//      (StandardType.OffsetDateTime(DateTimeFormatter.ISO_OFFSET_DATE_TIME)),
-//      (StandardType.OffsetTime(DateTimeFormatter.ISO_OFFSET_TIME)),
-//      (StandardType.Period),
-//      (StandardType.Year),
+      (StandardType.MonthDay),
+      (StandardType.OffsetDateTime(DateTimeFormatter.ISO_OFFSET_DATE_TIME)),
+      (StandardType.OffsetTime(DateTimeFormatter.ISO_OFFSET_TIME)),
+      (StandardType.Period),
+      (StandardType.Year)
 //      (StandardType.YearMonth),
 //      (StandardType.ZonedDateTime(DateTimeFormatter.ISO_ZONED_DATE_TIME)),
 //      (StandardType.ZoneId)
@@ -64,10 +64,10 @@ object StandardTypeGen {
       case typ: StandardType.LocalTime           => typ -> JavaTimeGen.anyLocalTime
       case typ: StandardType.Month.type          => typ -> JavaTimeGen.anyMonth
       case typ: StandardType.MonthDay.type       => typ -> JavaTimeGen.anyMonthDay
-//      case typ: StandardType.OffsetDateTime      => typ -> JavaTimeGen.anyOffsetDateTime
-//      case typ: StandardType.OffsetTime          => typ -> JavaTimeGen.anyOffsetTime
-//      case typ: StandardType.Period.type         => typ -> JavaTimeGen.anyPeriod
-//      case typ: StandardType.Year.type           => typ -> JavaTimeGen.anyYear
+      case typ: StandardType.OffsetDateTime      => typ -> JavaTimeGen.anyOffsetDateTime
+      case typ: StandardType.OffsetTime          => typ -> JavaTimeGen.anyOffsetTime
+      case typ: StandardType.Period.type         => typ -> JavaTimeGen.anyPeriod
+      case typ: StandardType.Year.type           => typ -> JavaTimeGen.anyYear
 //      case typ: StandardType.YearMonth.type      => typ -> JavaTimeGen.anyYearMonth
 //      case typ: StandardType.ZonedDateTime       => typ -> JavaTimeGen.anyZonedDateTime
 //      case typ: StandardType.ZoneId.type         => typ -> JavaTimeGen.anyZoneId

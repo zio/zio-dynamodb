@@ -51,4 +51,5 @@ object CodecExperimentSpec extends App with CodecTestFixtures {
       .toArray
   )
   println(json7)
+
 }
