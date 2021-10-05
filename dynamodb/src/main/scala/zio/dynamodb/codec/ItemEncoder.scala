@@ -87,50 +87,40 @@ object ItemEncoder {
   private def primitiveEncoder[A](standardType: StandardType[A]): Encoder[A] =
     standardType match {
       case StandardType.UnitType                  => _ => AttributeValue.Null
+      case StandardType.CharType                  => (a: A) => AttributeValue.String(Character.toString(a))
       case StandardType.StringType                => (a: A) => AttributeValue.String(a.toString)
       case StandardType.BoolType                  => (a: A) => AttributeValue.Bool(a.asInstanceOf[Boolean])
-      case StandardType.ShortType | StandardType.IntType | StandardType.LongType | StandardType.FloatType |
-          StandardType.DoubleType | StandardType.BigDecimalType | StandardType.BigIntegerType =>
-        (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-      case StandardType.BinaryType                =>
-        (a: A) => AttributeValue.Binary(a)
-      case StandardType.CharType                  =>
-        (a: A) => AttributeValue.String(Character.toString(a))
-      case StandardType.DayOfWeekType             =>
-        (a: A) => AttributeValue.String(a.toString)
-      case StandardType.Duration(_)               =>
-        (a: A) => AttributeValue.String(a.toString)
-      case StandardType.Instant(formatter)        =>
-        (a: A) => AttributeValue.String(formatter.format(a))
-      case StandardType.LocalDate(formatter)      =>
-        (a: A) => AttributeValue.String(formatter.format(a))
-      case StandardType.LocalDateTime(formatter)  =>
-        (a: A) => AttributeValue.String(formatter.format(a))
-      case StandardType.LocalTime(formatter)      =>
-        (a: A) => AttributeValue.String(formatter.format(a))
-      case StandardType.Month                     =>
-        (a: A) => AttributeValue.String(a.toString)
-      case StandardType.MonthDay                  =>
-        (a: A) => AttributeValue.String(a.toString)
-      case StandardType.OffsetDateTime(formatter) =>
-        (a: A) => AttributeValue.String(formatter.format(a))
-      case StandardType.OffsetTime(formatter)     =>
-        (a: A) => AttributeValue.String(formatter.format(a))
-      case StandardType.Period                    =>
-        (a: A) => AttributeValue.String(a.toString)
-      case StandardType.Year                      =>
-        (a: A) =>
-          val year      = a.asInstanceOf[Year]
-          val formatted = year.format(yearFormatter)
-          AttributeValue.String(formatted)
-      case StandardType.YearMonth                 =>
-        (a: A) => AttributeValue.String(a.toString)
-      case StandardType.ZonedDateTime(formatter)  =>
-        (a: A) => AttributeValue.String(formatter.format(a))
-      case StandardType.ZoneId                    =>
-        (a: A) => AttributeValue.String(a.toString)
-      case StandardType.ZoneOffset                =>
-        (a: A) => AttributeValue.String(a.toString)
+      case StandardType.BinaryType                => (a: A) => AttributeValue.Binary(a)
+      case StandardType.ShortType                 => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+      case StandardType.IntType                   => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+      case StandardType.LongType                  => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+      case StandardType.FloatType                 => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+      case StandardType.DoubleType                => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+      case StandardType.BigDecimalType            => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+      case StandardType.BigIntegerType            => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+      case StandardType.DayOfWeekType             => (a: A) => AttributeValue.String(a.toString)
+      case StandardType.Duration(_)               => (a: A) => AttributeValue.String(a.toString)
+      case StandardType.Instant(formatter)        => (a: A) => AttributeValue.String(formatter.format(a))
+      case StandardType.LocalDate(formatter)      => (a: A) => AttributeValue.String(formatter.format(a))
+      case StandardType.LocalDateTime(formatter)  => (a: A) => AttributeValue.String(formatter.format(a))
+      case StandardType.LocalTime(formatter)      => (a: A) => AttributeValue.String(formatter.format(a))
+      case StandardType.Month                     => (a: A) => AttributeValue.String(a.toString)
+      case StandardType.MonthDay                  => (a: A) => AttributeValue.String(a.toString)
+      case StandardType.OffsetDateTime(formatter) => (a: A) => AttributeValue.String(formatter.format(a))
+      case StandardType.OffsetTime(formatter)     => (a: A) => AttributeValue.String(formatter.format(a))
+      case StandardType.Period                    => (a: A) => AttributeValue.String(a.toString)
+      case StandardType.Year                      => yearEncoder
+      case StandardType.YearMonth                 => (a: A) => AttributeValue.String(a.toString)
+      case StandardType.ZonedDateTime(formatter)  => (a: A) => AttributeValue.String(formatter.format(a))
+      case StandardType.ZoneId                    => (a: A) => AttributeValue.String(a.toString)
+      case StandardType.ZoneOffset                => (a: A) => AttributeValue.String(a.toString)
+    }
+
+  private def yearEncoder[A]: Encoder[A] =
+    (a: A) => {
+      val year      = a.asInstanceOf[Year]
+      val formatted = year.format(yearFormatter)
+      AttributeValue.String(formatted)
     }
 
   private def transformEncoder[A, B](schema: Schema[A], g: B => Either[String, A]): Encoder[B] = { (b: B) =>
@@ -145,7 +135,6 @@ object ItemEncoder {
     case Some(value) => encoder(value)
   }
 
-  // {"aOrb":{"Right":1}} => Item("aOrb" -> Item("Right" -> 1))
   private def eitherEncoder[A, B](encL: Encoder[A], encR: Encoder[B]): Encoder[Either[A, B]] = {
     case Left(a)  => AttributeValue.Map(Map.empty + (AttributeValue.String("Left") -> encL(a)))
     case Right(b) => AttributeValue.Map(Map.empty + (AttributeValue.String("Right") -> encR(b)))

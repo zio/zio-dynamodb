@@ -95,12 +95,13 @@ object ItemDecoder {
 
   private def primitiveDecoder[A](standardType: StandardType[A]): Decoder[A] =
     standardType match {
-      case StandardType.BoolType                  =>
-        (av: AttributeValue) =>
-          FromAttributeValue.booleanFromAttributeValue.fromAttributeValue(av).toRight("error getting boolean")
+      case StandardType.UnitType                  => _ => Right(())
       case StandardType.StringType                =>
         (av: AttributeValue) =>
           FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av).toRight("error getting string")
+      case StandardType.BoolType                  =>
+        (av: AttributeValue) =>
+          FromAttributeValue.booleanFromAttributeValue.fromAttributeValue(av).toRight("error getting boolean")
       case StandardType.ShortType                 =>
         (av: AttributeValue) =>
           FromAttributeValue.shortFromAttributeValue.fromAttributeValue(av).toRight("error getting short")
@@ -169,7 +170,6 @@ object ItemDecoder {
         (av: AttributeValue) => javaTimeStringParser(av)(Year.parse(_))
       case StandardType.YearMonth                 =>
         (av: AttributeValue) => javaTimeStringParser(av)(YearMonth.parse(_))
-      case StandardType.UnitType                  => _ => Right(())
       case StandardType.ZonedDateTime(formatter)  =>
         (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, ZonedDateTime.from(_)))
       case StandardType.ZoneId                    =>

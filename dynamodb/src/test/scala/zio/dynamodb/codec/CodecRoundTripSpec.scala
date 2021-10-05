@@ -5,13 +5,19 @@ import zio.schema.Schema
 import zio.test.Assertion.{ equalTo, isRight }
 import zio.test.{ ZSpec, _ }
 
-object RoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
+object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
   override def spec: ZSpec[Environment, Failure] = mainSuite
 
-  val mainSuite = suite("main suite")(
-    testM("encodes a primitive") {
+  val mainSuite = suite("encode and decode round trip suite")(
+    testM("a primitive") {
       checkM(SchemaGen.anyPrimitiveAndGen) {
+        case (schema, gen) =>
+          assertEncodes(schema, gen)
+      }
+    },
+    testM("either of primitive") {
+      checkM(SchemaGen.anyEitherAndGen) {
         case (schema, gen) =>
           assertEncodes(schema, gen)
       }
@@ -23,12 +29,6 @@ object RoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
     val dec = ItemDecoder.decoder(schema)
 
     check(genA) { a =>
-      val encValue = enc(a)
-      val decValue = dec(encValue)
-      decValue match {
-        case Left(x) => println(s"XXXXXXXXXX err=$x a=$a enc=$encValue")
-        case _       => ()
-      }
       assert(dec(enc(a)))(isRight(equalTo(a)))
     }
 

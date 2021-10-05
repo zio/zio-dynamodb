@@ -14,4 +14,12 @@ object SchemaGen {
     StandardTypeGen.anyStandardTypeAndGen.map {
       case (standardType, gen) => Schema.Primitive(standardType) -> gen
     }
+
+  type EitherAndGen[A, B] = (Schema.EitherSchema[A, B], Gen[Random with Sized, Either[A, B]])
+
+  val anyEitherAndGen: Gen[Random with Sized, EitherAndGen[_, _]] =
+    for {
+      (leftSchema, leftGen)   <- anyPrimitiveAndGen
+      (rightSchema, rightGen) <- anyPrimitiveAndGen
+    } yield (Schema.EitherSchema(leftSchema, rightSchema), Gen.either(leftGen, rightGen))
 }
