@@ -1,6 +1,6 @@
 package zio.dynamodb.codec
 
-import zio.Chunk
+import zio.{ schema, Chunk }
 import zio.dynamodb.{ AttributeValue, FromAttributeValue, Item }
 import zio.schema.{ Schema, StandardType }
 
@@ -8,6 +8,7 @@ import java.time.Year
 import java.time.format.{ DateTimeFormatterBuilder, SignStyle }
 import java.time.temporal.ChronoField.YEAR
 import scala.annotation.tailrec
+import scala.collection.immutable.ListMap
 
 /*
 TODO:
@@ -30,22 +31,34 @@ object ItemEncoder {
 
   def encoder[A](schema: Schema[A]): Encoder[A] =
     schema match {
-      case ProductEncoder(encoder)        =>
+      case ProductEncoder(encoder)         =>
         encoder
-      case s: Schema.Optional[a]          => optionalEncoder[a](encoder(s.codec))
-      case Schema.Tuple(l, r)             =>
+      case s: Schema.Optional[a]           => optionalEncoder[a](encoder(s.codec))
+      case Schema.Tuple(l, r)              =>
         tupleEncoder(encoder(l), encoder(r))
-      case s: Schema.Sequence[col, a]     => sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
-      case Schema.Transform(c, _, g)      => transformEncoder(c, g)
-      case Schema.Primitive(standardType) =>
+      case s: Schema.Sequence[col, a]      => sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
+      case Schema.Transform(c, _, g)       => transformEncoder(c, g)
+      case Schema.Primitive(standardType)  =>
         primitiveEncoder(standardType)
-      case Schema.EitherSchema(l, r)      => eitherEncoder(encoder(l), encoder(r))
-      case l @ Schema.Lazy(_)             => encoder(l.schema)
-      case Schema.Enum1(c)                => enumEncoder(c)
-      case Schema.Enum2(c1, c2)           => enumEncoder(c1, c2)
-      case Schema.Enum3(c1, c2, c3)       => enumEncoder(c1, c2, c3)
-      case _                              =>
+      case Schema.GenericRecord(structure) => genericRecordEncoder(structure)
+      case Schema.EitherSchema(l, r)       => eitherEncoder(encoder(l), encoder(r))
+      case l @ Schema.Lazy(_)              => encoder(l.schema)
+      case Schema.Enum1(c)                 => enumEncoder(c)
+      case Schema.Enum2(c1, c2)            => enumEncoder(c1, c2)
+      case Schema.Enum3(c1, c2, c3)        => enumEncoder(c1, c2, c3)
+      case _                               =>
         throw new UnsupportedOperationException(s"schema $schema not yet supported")
+    }
+
+  private def genericRecordEncoder(structure: Chunk[schema.Schema.Field[_]]): Encoder[ListMap[String, _]] =
+    (valuesMap: ListMap[String, _]) => {
+      structure.foldRight(AttributeValue.Map(Map.empty)) {
+        case (Schema.Field(key, schema: Schema[a], _), avMap) =>
+          val value              = valuesMap(key)
+          val enc                = encoder[a](schema)
+          val av: AttributeValue = enc(value.asInstanceOf[a])
+          AttributeValue.Map(avMap.value + (AttributeValue.String(key) -> av))
+      }
     }
 
   private object ProductEncoder {

@@ -1,16 +1,27 @@
 package zio.dynamodb.codec
 
-import zio.dynamodb.{ AttrMap, Item }
+import zio.dynamodb.{ AttrMap, AttributeValue, Item }
+import zio.test.assertTrue
 import zio.test.Assertion._
 import zio.test.{ DefaultRunnableSpec, ZSpec, _ }
 
 import java.time.Instant
+import scala.collection.immutable.ListMap
 
 object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
   override def spec: ZSpec[Environment, Failure] =
     suite("ItemDecoder Suite")(mainSuite)
 
   val mainSuite: ZSpec[Environment, Failure] = suite("Decoder Suite")(
+    test("decodes generic record") {
+      val expected: Map[String, Any] = ListMap("foo" -> "FOO", "bar" -> 1)
+
+      val av: Either[String, Map[String, Any]] = ItemDecoder.decoder(recordSchema)(
+        AttributeValue.Map(Map(toAvString("foo") -> toAvString("FOO"), toAvString("bar") -> toAvNum(1)))
+      )
+
+      assertTrue(av == Right(expected))
+    },
     test("decoded list") {
       val expected = CaseClassOfList(List(1, 2))
 
@@ -86,7 +97,7 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
       assert(actual)(isRight(equalTo(expected)))
     },
     test("decode tuple3") {
-      val item     = new AttrMap(Map("tuple" -> toList(toTuple(1, 2), toNum(3))))
+      val item     = new AttrMap(Map("tuple" -> toAvList(toAvTuple(1, 2), toAvNum(3))))
       val expected = CaseClassOfTuple3((1, 2, 3))
 
       val actual = ItemDecoder.fromItem[CaseClassOfTuple3](item)
@@ -94,7 +105,7 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
       assert(actual)(isRight(equalTo(expected)))
     },
     test("decodes map") {
-      val item     = AttrMap(Map("map" -> toList(toTuple("One", 1), toTuple("Two", 2))))
+      val item     = AttrMap(Map("map" -> toAvList(toAvTuple("One", 1), toAvTuple("Two", 2))))
       val expected = CaseClassOfMapOfInt(Map("One" -> 1, "Two" -> 2))
 
       val actual = ItemDecoder.fromItem[CaseClassOfMapOfInt](item)

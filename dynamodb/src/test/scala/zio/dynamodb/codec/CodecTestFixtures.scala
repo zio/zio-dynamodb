@@ -7,8 +7,14 @@ import zio.schema.{ DeriveSchema, Schema, StandardType }
 
 import java.time.Instant
 import java.time.format.DateTimeFormatter
+import scala.collection.immutable.ListMap
 
 trait CodecTestFixtures {
+
+  val recordSchema: Schema[ListMap[String, _]] = Schema.record(
+    Schema.Field("foo", Schema.Primitive(StandardType.StringType)),
+    Schema.Field("bar", Schema.Primitive(StandardType.IntType))
+  )
 
   lazy implicit val nestedCaseClass2Schema: Schema[NestedCaseClass2]               = DeriveSchema.gen[NestedCaseClass2]
   lazy implicit val simpleCaseClass3Schema: Schema[SimpleCaseClass3]               = DeriveSchema.gen[SimpleCaseClass3]
@@ -31,18 +37,15 @@ trait CodecTestFixtures {
     value.transform(_.toMap[String, V], Chunk.fromIterable(_))
   }
 
-//  implicit def myDodgyMap2[String, V](implicit element: Schema[(String, V)]): Schema[Map[String, V]] = {
-//    val value: Schema[Chunk[(String, V)]] = record(element)
-//    value.transform(_.toMap[String, V], Chunk.fromIterable(_))
-//  }
   lazy implicit val caseClassOfMapOfInt: Schema[CaseClassOfMapOfInt] = DeriveSchema.gen[CaseClassOfMapOfInt]
 
   implicit val caseClassOfListOfTuple2: Schema[CaseClassOfListOfTuple2] = DeriveSchema.gen[CaseClassOfListOfTuple2]
 
   implicit val statusSchema: Schema[Status] = DeriveSchema.gen[Status]
 
-  def toNum(i: Int): AttributeValue.Number                                               = AttributeValue.Number(BigDecimal(i))
-  def toList(xs: AttributeValue*): AttributeValue.List                                   = AttributeValue.List(xs.toList)
-  def toTuple[A: ToAttributeValue, B: ToAttributeValue](a: A, b: B): AttributeValue.List =
-    toList(ToAttributeValue[A].toAttributeValue(a), ToAttributeValue[B].toAttributeValue(b))
+  def toAvString(s: String): AttributeValue.String                                         = AttributeValue.String(s)
+  def toAvNum(i: Int): AttributeValue.Number                                               = AttributeValue.Number(BigDecimal(i))
+  def toAvList(xs: AttributeValue*): AttributeValue.List                                   = AttributeValue.List(xs.toList)
+  def toAvTuple[A: ToAttributeValue, B: ToAttributeValue](a: A, b: B): AttributeValue.List =
+    toAvList(ToAttributeValue[A].toAttributeValue(a), ToAttributeValue[B].toAttributeValue(b))
 }

@@ -1,9 +1,9 @@
 package zio.dynamodb.codec
 
-import zio.Chunk
 import zio.dynamodb.{ AttributeValue, FromAttributeValue, Item, ToAttributeValue }
 import zio.schema.Schema.{ Optional, Primitive }
 import zio.schema.{ Schema, StandardType }
+import zio.{ schema, Chunk }
 
 import java.time.{ ZoneId, _ }
 import scala.util.Try
@@ -19,31 +19,46 @@ object ItemDecoder {
 
   def decoder[A](schema: Schema[A]): Decoder[A] =
     schema match {
-      case ProductDecoder(decoder)       =>
-        decoder
-      case s: Optional[a]                =>
-        optionalDecoder[a](decoder(s.codec))
-      case Schema.Tuple(l, r)            =>
-        tupleDecoder(decoder(l), decoder(r))
-      case Schema.Transform(codec, f, _) =>
-        transformDecoder(codec, f)
-      case s: Schema.Sequence[col, a]    =>
+      case ProductDecoder(decoder)         => decoder
+      case s: Optional[a]                  => optionalDecoder[a](decoder(s.codec))
+      case Schema.GenericRecord(structure) => genericRecordDecoder(structure).asInstanceOf[Decoder[A]]
+      case Schema.Tuple(l, r)              => tupleDecoder(decoder(l), decoder(r))
+      case Schema.Transform(codec, f, _)   => transformDecoder(codec, f)
+      case s: Schema.Sequence[col, a]      =>
         sequenceDecoder[col, a](decoder(s.schemaA), s.fromChunk)
-      case Schema.EitherSchema(l, r)     =>
+      case Schema.EitherSchema(l, r)       =>
         eitherDecoder(decoder(l), decoder(r))
-      case Primitive(standardType)       =>
+      case Primitive(standardType)         =>
         primitiveDecoder(standardType)
-      case l @ Schema.Lazy(_)            =>
+      case l @ Schema.Lazy(_)              =>
         decoder(l.schema)
-      case Schema.Enum1(c)               =>
+      case Schema.Enum1(c)                 =>
         enumDecoder(c)
-      case Schema.Enum2(c1, c2)          =>
+      case Schema.Enum2(c1, c2)            =>
         enumDecoder(c1, c2)
-      case Schema.Enum3(c1, c2, c3)      =>
+      case Schema.Enum3(c1, c2, c3)        =>
         enumDecoder(c1, c2, c3)
-      case _                             =>
+      case _                               =>
         throw new UnsupportedOperationException(s"schema $schema not yet supported")
     }
+
+  private def genericRecordDecoder(structure: Chunk[schema.Schema.Field[_]]): Decoder[Any] =
+    (av: AttributeValue) =>
+      av match {
+        case AttributeValue.Map(map) =>
+          zio.dynamodb
+            .foreach[schema.Schema.Field[_], (String, Any)](structure) {
+              case Schema.Field(key, schema: Schema[a], _) =>
+                val av  = map(AttributeValue.String(key))
+                val dec = decoder(schema)
+                dec(av) match {
+                  case Right(value) => Right(key -> value)
+                  case Left(s)      => Left(s)
+                }
+            }
+            .map(_.toMap)
+        case av                      => Left(s"Expected AttributeValue.Map but found $av")
+      }
 
   object ProductDecoder {
     def unapply[A](schema: Schema[A]): Option[Decoder[A]] =
