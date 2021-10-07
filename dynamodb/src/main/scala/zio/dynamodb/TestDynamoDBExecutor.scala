@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.{ UIO, ZIO }
+import zio.{ Has, UIO, ZIO }
 
 /**
  * A Fake implementation of `DynamoDBExecutor.Service` that currently has the very modest aspiration of providing bare minimum
@@ -30,14 +30,14 @@ import zio.{ UIO, ZIO }
  * }.provideLayer(DynamoDBExecutor.test)
  * }}}
  */
-object TestDynamoDBExecutor {
+trait TestDynamoDBExecutor {
+  def addTable(tableName: String, pkFieldName: String)(entries: TableEntry*): UIO[Unit]
+}
 
-  trait Service {
-    def addTable(tableName: String, pkFieldName: String)(entries: TableEntry*): UIO[Unit]
-  }
+object TestDynamoDBExecutor {
 
   def addTable(tableName: String, pkFieldName: String)(
     entries: TableEntry*
-  ): ZIO[TestDynamoDBExecutor, Nothing, Unit] =
-    ZIO.accessM[TestDynamoDBExecutor](_.get.addTable(tableName, pkFieldName)(entries: _*))
+  ): ZIO[Has[TestDynamoDBExecutor], Nothing, Unit] =
+    ZIO.serviceWith[TestDynamoDBExecutor](_.addTable(tableName, pkFieldName)(entries: _*))
 }

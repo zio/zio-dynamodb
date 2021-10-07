@@ -1,7 +1,5 @@
 package zio
 
-import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
-import zio.dynamodb.TestDynamoDBExecutor.Service
 import zio.stream.ZStream
 
 import scala.annotation.tailrec
@@ -15,11 +13,10 @@ package object dynamodb {
   type Item = AttrMap
   val Item = AttrMap
 
-  type TestDynamoDBExecutor = Has[Service]
-  type TableEntry           = (PrimaryKey, Item)
+  type TableEntry = (PrimaryKey, Item)
 
-  private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[A]): ZIO[DynamoDBExecutor, Exception, A] =
-    ZIO.accessM[DynamoDBExecutor](_.get.execute(query))
+  private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[A]): ZIO[Has[DynamoDBExecutor], Exception, A] =
+    ZIO.serviceWith[DynamoDBExecutor](_.execute(query))
 
   /**
    * Reads `stream` and uses function `f` for creating a BatchWrite request that is executes for side effects. Stream is batched into groups
@@ -35,7 +32,7 @@ package object dynamodb {
   def batchWriteFromStream[R, A, B](
     stream: ZStream[R, Exception, A],
     mPar: Int = 10
-  )(f: A => DynamoDBQuery.Write[B]): ZStream[DynamoDBExecutor with R, Exception, B] =
+  )(f: A => DynamoDBQuery.Write[B]): ZStream[Has[DynamoDBExecutor] with R, Exception, B] =
     stream
       .grouped(25)
       .mapMPar(mPar) { chunk =>
@@ -43,7 +40,7 @@ package object dynamodb {
           .forEach(chunk)(a => f(a))
           .map(Chunk.fromIterable)
         for {
-          r <- ZIO.environment[DynamoDBExecutor]
+          r <- ZIO.environment[Has[DynamoDBExecutor]]
           b <- batchWriteItem.execute.provide(r)
         } yield b
       }
@@ -66,7 +63,7 @@ package object dynamodb {
     mPar: Int = 10
   )(
     pk: A => PrimaryKey
-  ): ZStream[R with DynamoDBExecutor, Exception, Item] =
+  ): ZStream[R with Has[DynamoDBExecutor], Exception, Item] =
     stream
       .grouped(100)
       .mapMPar(mPar) { chunk =>
@@ -74,7 +71,7 @@ package object dynamodb {
           .forEach(chunk)(a => DynamoDBQuery.getItem(tableName, pk(a)))
           .map(Chunk.fromIterable)
         for {
-          r    <- ZIO.environment[DynamoDBExecutor]
+          r    <- ZIO.environment[Has[DynamoDBExecutor]]
           list <- batchGetItem.execute.provide(r)
         } yield list
       }

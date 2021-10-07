@@ -10,8 +10,8 @@ import zio.{ Chunk, IO, UIO, ZIO }
 private[dynamodb] final case class TestDynamoDBExecutorImpl private (
   tableMap: TMap[String, TMap[PrimaryKey, Item]],
   tablePkNameMap: TMap[String, String]
-) extends DynamoDBExecutor.Service
-    with TestDynamoDBExecutor.Service {
+) extends DynamoDBExecutor
+    with TestDynamoDBExecutor {
   self =>
 
   override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A] =
