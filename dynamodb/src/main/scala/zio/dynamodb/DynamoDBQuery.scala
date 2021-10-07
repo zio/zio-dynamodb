@@ -1,6 +1,5 @@
 package zio.dynamodb
 
-import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put }
 import zio.dynamodb.DynamoDBQuery.{
@@ -22,7 +21,7 @@ import zio.dynamodb.DynamoDBQuery.{
 }
 import zio.dynamodb.UpdateExpression.Action
 import zio.stream.Stream
-import zio.{ Chunk, ZIO }
+import zio.{ Chunk, Has, ZIO }
 
 sealed trait DynamoDBQuery[+A] { self =>
 
@@ -32,7 +31,7 @@ sealed trait DynamoDBQuery[+A] { self =>
 
   final def <*>[B](that: DynamoDBQuery[B]): DynamoDBQuery[(A, B)] = self zip that
 
-  def execute: ZIO[DynamoDBExecutor, Exception, A] = {
+  def execute: ZIO[Has[DynamoDBExecutor], Exception, A] = {
     val (constructors, assembler)                                                                   = parallelize(self)
     val (indexedConstructors, (batchGetItem, batchGetIndexes), (batchWriteItem, batchWriteIndexes)) =
       batched(constructors)
