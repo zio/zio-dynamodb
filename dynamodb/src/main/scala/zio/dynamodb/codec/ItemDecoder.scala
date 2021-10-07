@@ -112,49 +112,38 @@ object ItemDecoder {
     standardType match {
       case StandardType.UnitType                  => _ => Right(())
       case StandardType.StringType                =>
-        (av: AttributeValue) =>
-          FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av).toRight("error getting string")
+        (av: AttributeValue) => FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av)
       case StandardType.BoolType                  =>
-        (av: AttributeValue) =>
-          FromAttributeValue.booleanFromAttributeValue.fromAttributeValue(av).toRight("error getting boolean")
+        (av: AttributeValue) => FromAttributeValue.booleanFromAttributeValue.fromAttributeValue(av)
       case StandardType.ShortType                 =>
-        (av: AttributeValue) =>
-          FromAttributeValue.shortFromAttributeValue.fromAttributeValue(av).toRight("error getting short")
+        (av: AttributeValue) => FromAttributeValue.shortFromAttributeValue.fromAttributeValue(av)
       case StandardType.IntType                   =>
-        (av: AttributeValue) =>
-          FromAttributeValue.intFromAttributeValue.fromAttributeValue(av).toRight("error getting int")
+        (av: AttributeValue) => FromAttributeValue.intFromAttributeValue.fromAttributeValue(av)
       case StandardType.LongType                  =>
-        (av: AttributeValue) =>
-          FromAttributeValue.longFromAttributeValue.fromAttributeValue(av).toRight("error getting long")
+        (av: AttributeValue) => FromAttributeValue.longFromAttributeValue.fromAttributeValue(av)
       case StandardType.FloatType                 =>
-        (av: AttributeValue) =>
-          FromAttributeValue.floatFromAttributeValue.fromAttributeValue(av).toRight("error getting float")
+        (av: AttributeValue) => FromAttributeValue.floatFromAttributeValue.fromAttributeValue(av)
       case StandardType.DoubleType                =>
-        (av: AttributeValue) =>
-          FromAttributeValue.doubleFromAttributeValue.fromAttributeValue(av).toRight("error getting double")
+        (av: AttributeValue) => FromAttributeValue.doubleFromAttributeValue.fromAttributeValue(av)
       case StandardType.BigDecimalType            =>
         (av: AttributeValue) =>
           FromAttributeValue.bigDecimalFromAttributeValue
             .fromAttributeValue(av)
-            .toRight("error getting big decimal")
             .map(_.bigDecimal)
       case StandardType.BigIntegerType            =>
         (av: AttributeValue) =>
           FromAttributeValue.bigDecimalFromAttributeValue
             .fromAttributeValue(av)
-            .toRight("error getting big integer")
             .map(_.toBigInt.bigInteger)
       case StandardType.BinaryType                =>
         (av: AttributeValue) =>
           FromAttributeValue.binaryFromAttributeValue
             .fromAttributeValue(av)
-            .toRight("error getting iterable of byte")
             .map(Chunk.fromIterable(_))
       case StandardType.CharType                  =>
         (av: AttributeValue) =>
           FromAttributeValue.stringFromAttributeValue
             .fromAttributeValue(av)
-            .toRight("error getting iterable of byte")
             .map { s =>
               val array = s.toCharArray
               array(0)
@@ -194,7 +183,7 @@ object ItemDecoder {
     }
 
   private def javaTimeStringParser[A](av: AttributeValue)(unsafeParse: String => A): Either[String, A] =
-    FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av).toRight("error getting string").flatMap { s =>
+    FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av).flatMap { s =>
       val stringOrA = Try(unsafeParse(s)).toEither.left
         .map(e => s"error parsing string '$s': ${e.getMessage}")
       if (stringOrA.isLeft)
