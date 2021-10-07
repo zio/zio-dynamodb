@@ -7,11 +7,14 @@ final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFrom
   def get[A](field: String)(implicit ev: FromAttributeValue[A]): Either[String, A] =
     map
       .get(field)
-      .flatMap(ev.fromAttributeValue)
       .toRight(s"field '$field' not found")
+      .flatMap(ev.fromAttributeValue)
 
   def getOptional[A](field: String)(implicit ev: FromAttributeValue[A]): Either[Nothing, Option[A]] =
-    Right(map.get(field).flatMap(ev.fromAttributeValue))
+    get(field) match {
+      case Right(value) => Right(Some(value))
+      case _            => Right(None)
+    }
 
   def getItem[A](field: String)(f: AttrMap => Either[String, A]): Either[String, A] =
     get[Item](field).flatMap(item => f(item))

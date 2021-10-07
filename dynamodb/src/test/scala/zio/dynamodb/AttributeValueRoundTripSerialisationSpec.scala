@@ -1,16 +1,16 @@
 package zio.dynamodb
 
 import zio.random.Random
-import zio.test.Assertion.{ equalTo, isSome }
+import zio.test.Assertion.{ equalTo, isRight }
 import zio.test.{ DefaultRunnableSpec, _ }
 
 object AttributeValueRoundTripSerialisationSpec extends DefaultRunnableSpec {
   private val serialisationSuite = suite("AttributeValue Serialisation suite")(testM("round trip serialisation") {
     checkM(genSerializable) { s =>
       check(s.genA) { (a: s.Element) =>
-        val av: AttributeValue   = s.to.toAttributeValue(a)
-        val v: Option[s.Element] = s.from.fromAttributeValue(av)
-        assert(v)(isSome(equalTo(a)))
+        val av: AttributeValue           = s.to.toAttributeValue(a)
+        val v: Either[String, s.Element] = s.from.fromAttributeValue(av)
+        assert(v)(isRight(equalTo(a)))
       }
     }
   })

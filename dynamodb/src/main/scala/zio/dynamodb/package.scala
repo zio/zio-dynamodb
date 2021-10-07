@@ -4,6 +4,8 @@ import zio.dynamodb.DynamoDBExecutor.DynamoDBExecutor
 import zio.dynamodb.TestDynamoDBExecutor.Service
 import zio.stream.ZStream
 
+import scala.annotation.tailrec
+
 package object dynamodb {
   // Filter expression is the same as a ConditionExpression but when used with Query but does not allow key attributes
   type FilterExpression = ConditionExpression
@@ -79,4 +81,18 @@ package object dynamodb {
       .flattenChunks
       .collectSome
 
+  def foreach[A, B](list: Iterable[A])(f: A => Either[String, B]): Either[String, Iterable[B]] = {
+    @tailrec
+    def loop[A2, B2](xs: Iterable[A2], acc: List[B2])(f: A2 => Either[String, B2]): Either[String, Iterable[B2]] =
+      xs match {
+        case head :: tail =>
+          f(head) match {
+            case Left(e)  => Left(e)
+            case Right(a) => loop(tail, a :: acc)(f)
+          }
+        case Nil          => Right(acc.reverse)
+      }
+
+    loop(list.toList, List.empty)(f)
+  }
 }

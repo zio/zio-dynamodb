@@ -16,19 +16,19 @@ object FromAttributeValueSpec extends DefaultRunnableSpec {
       val attrMap = AttrMap.empty
       assert(attrMap.get[String]("f1"))(isLeft(equalTo("field 'f1' not found")))
     },
-    test("getOpt[String] should return a Right of Some String when it exists") {
+    test("getOptional[String] should return a Right of Some String when it exists") {
       val attrMap = AttrMap("f1" -> "a")
       assert(attrMap.getOptional[String]("f1"))(isRight(equalTo(Some("a"))))
     },
-    test("getOpt[String] should return a Right of None when it does not exists") {
+    test("getOptional[String] should return a Right of None when it does not exists") {
       val attrMap = AttrMap.empty
       assert(attrMap.getOptional[String]("f1"))(isRight(isNone))
     },
-    test("getOpt[Item] should return a Right of Some Item when it exists") {
+    test("getOptional[Item] should return a Right of Some Item when it exists") {
       val attrMap = AttrMap("f1" -> AttrMap("f2" -> "a"))
       assert(attrMap.getOptional[Item]("f1"))(isRight(isSome(equalTo(Item("f2" -> "a")))))
     },
-    test("getOpt[Item] should return a Right of None when it does not exists") {
+    test("getOptional[Item] should return a Right of None when it does not exists") {
       val attrMap = AttrMap.empty
       assert(attrMap.getOptional[Item]("f1"))(isRight(isNone))
     },
