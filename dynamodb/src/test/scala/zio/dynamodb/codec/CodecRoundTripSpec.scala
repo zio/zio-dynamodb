@@ -13,18 +13,18 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
     testM("a primitive") {
       checkM(SchemaGen.anyPrimitiveAndGen) {
         case (schema, gen) =>
-          assertEncodes(schema, gen)
+          assertEncodesThenDecodes(schema, gen)
       }
     },
     testM("either of primitive") {
       checkM(SchemaGen.anyEitherAndGen) {
         case (schema, gen) =>
-          assertEncodes(schema, gen)
+          assertEncodesThenDecodes(schema, gen)
       }
     }
   )
 
-  private def assertEncodes[A](schema: Schema[A], genA: Gen[Random with Sized, A]) = {
+  private def assertEncodesThenDecodes[A](schema: Schema[A], genA: Gen[Random with Sized, A]) = {
     val enc = ItemEncoder.encoder(schema)
     val dec = ItemDecoder.decoder(schema)
 
