@@ -34,6 +34,7 @@ object ItemEncoder {
       case ProductEncoder(encoder)         =>
         encoder
       case s: Schema.Optional[a]           => optionalEncoder[a](encoder(s.codec))
+      case Schema.Fail(_)                  => _ => AttributeValue.Null
       case Schema.Tuple(l, r)              =>
         tupleEncoder(encoder(l), encoder(r))
       case s: Schema.Sequence[col, a]      => sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
@@ -46,6 +47,11 @@ object ItemEncoder {
       case Schema.Enum1(c)                 => enumEncoder(c)
       case Schema.Enum2(c1, c2)            => enumEncoder(c1, c2)
       case Schema.Enum3(c1, c2, c3)        => enumEncoder(c1, c2, c3)
+      /*
+      TODO:
+      case Schema.EnumN(cs)
+      case Schema.Meta(_)
+       */
       case _                               =>
         throw new UnsupportedOperationException(s"schema $schema not yet supported")
     }

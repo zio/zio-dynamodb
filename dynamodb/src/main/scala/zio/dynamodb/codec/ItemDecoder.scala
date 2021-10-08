@@ -21,6 +21,7 @@ object ItemDecoder {
     schema match {
       case ProductDecoder(decoder)         => decoder
       case s: Optional[a]                  => optionalDecoder[a](decoder(s.codec))
+      case Schema.Fail(s)                  => _ => Left(s)
       case Schema.GenericRecord(structure) => genericRecordDecoder(structure).asInstanceOf[Decoder[A]]
       case Schema.Tuple(l, r)              => tupleDecoder(decoder(l), decoder(r))
       case Schema.Transform(codec, f, _)   => transformDecoder(codec, f)
