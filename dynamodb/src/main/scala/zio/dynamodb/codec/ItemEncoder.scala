@@ -2,7 +2,7 @@ package zio.dynamodb.codec
 
 import zio.{ schema, Chunk }
 import zio.dynamodb.{ AttributeValue, FromAttributeValue, Item }
-import zio.schema.{ Schema, StandardType }
+import zio.schema.{ Schema, SchemaAst, StandardType }
 
 import java.time.Year
 import java.time.format.{ DateTimeFormatterBuilder, SignStyle }
@@ -44,6 +44,7 @@ object ItemEncoder {
       case Schema.GenericRecord(structure) => genericRecordEncoder(structure)
       case Schema.EitherSchema(l, r)       => eitherEncoder(encoder(l), encoder(r))
       case l @ Schema.Lazy(_)              => encoder(l.schema)
+      case Schema.Meta(_)                  => astEncoder
       case Schema.Enum1(c)                 => enumEncoder(c)
       case Schema.Enum2(c1, c2)            => enumEncoder(c1, c2)
       case Schema.Enum3(c1, c2, c3)        => enumEncoder(c1, c2, c3)
@@ -55,6 +56,9 @@ object ItemEncoder {
       case _                               =>
         throw new UnsupportedOperationException(s"schema $schema not yet supported")
     }
+
+  private val astEncoder: Encoder[Schema[_]] =
+    (schema: Schema[_]) => encoder(Schema[SchemaAst])(SchemaAst.fromSchema(schema))
 
   private def genericRecordEncoder(structure: Chunk[schema.Schema.Field[_]]): Encoder[ListMap[String, _]] =
     (valuesMap: ListMap[String, _]) => {

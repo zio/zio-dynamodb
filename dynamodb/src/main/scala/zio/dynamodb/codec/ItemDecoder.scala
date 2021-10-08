@@ -2,7 +2,7 @@ package zio.dynamodb.codec
 
 import zio.dynamodb.{ AttributeValue, FromAttributeValue, Item, ToAttributeValue }
 import zio.schema.Schema.{ Optional, Primitive }
-import zio.schema.{ Schema, StandardType }
+import zio.schema.{ Schema, SchemaAst, StandardType }
 import zio.{ schema, Chunk }
 
 import java.time.{ ZoneId, _ }
@@ -33,6 +33,7 @@ object ItemDecoder {
         primitiveDecoder(standardType)
       case l @ Schema.Lazy(_)              =>
         decoder(l.schema)
+      case Schema.Meta(_)                  => astDecoder
       case Schema.Enum1(c)                 =>
         enumDecoder(c)
       case Schema.Enum2(c1, c2)            =>
@@ -42,6 +43,9 @@ object ItemDecoder {
       case _                               =>
         throw new UnsupportedOperationException(s"schema $schema not yet supported")
     }
+
+  private val astDecoder: Decoder[Schema[_]] =
+    (av: AttributeValue) => decoder(Schema[SchemaAst])(av).map(_.toSchema)
 
   private def genericRecordDecoder(structure: Chunk[schema.Schema.Field[_]]): Decoder[Any] =
     (av: AttributeValue) =>
