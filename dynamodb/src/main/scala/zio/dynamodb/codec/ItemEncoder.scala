@@ -31,34 +31,35 @@ object ItemEncoder {
 
   def encoder[A](schema: Schema[A]): Encoder[A] =
     schema match {
-      case ProductEncoder(encoder)         =>
-        encoder
+      case ProductEncoder(encoder)         => encoder
       case s: Schema.Optional[a]           => optionalEncoder[a](encoder(s.codec))
       case Schema.Fail(_)                  => _ => AttributeValue.Null
-      case Schema.Tuple(l, r)              =>
-        tupleEncoder(encoder(l), encoder(r))
+      case Schema.Tuple(l, r)              => tupleEncoder(encoder(l), encoder(r))
       case s: Schema.Sequence[col, a]      => sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
       case Schema.Transform(c, _, g)       => transformEncoder(c, g)
-      case Schema.Primitive(standardType)  =>
-        primitiveEncoder(standardType)
+      case Schema.Primitive(standardType)  => primitiveEncoder(standardType)
       case Schema.GenericRecord(structure) => genericRecordEncoder(structure)
+      case Schema.Enumeration(structure)   => enumerationEncoder(structure)
       case Schema.EitherSchema(l, r)       => eitherEncoder(encoder(l), encoder(r))
       case l @ Schema.Lazy(_)              => encoder(l.schema)
       case Schema.Meta(_)                  => astEncoder
       case Schema.Enum1(c)                 => enumEncoder(c)
       case Schema.Enum2(c1, c2)            => enumEncoder(c1, c2)
       case Schema.Enum3(c1, c2, c3)        => enumEncoder(c1, c2, c3)
-      /*
-      TODO:
-      case Schema.EnumN(cs)
-      case Schema.Meta(_)
-       */
-      case _                               =>
-        throw new UnsupportedOperationException(s"schema $schema not yet supported")
+      case Schema.EnumN(cs)                => enumEncoder(cs: _*)
     }
 
   private val astEncoder: Encoder[Schema[_]] =
     (schema: Schema[_]) => encoder(Schema[SchemaAst])(SchemaAst.fromSchema(schema))
+
+  private def enumerationEncoder(structure: Map[String, Schema[_]]): Encoder[(String, _)] =
+    (value: (String, _)) => {
+      val (k, v)                  = value
+      val s                       = structure(k).asInstanceOf[Schema[Any]]
+      val enc                     = encoder(s)
+      val encoded: AttributeValue = enc(v)
+      AttributeValue.List(List(AttributeValue.String(k), encoded))
+    }
 
   private def genericRecordEncoder(structure: Chunk[schema.Schema.Field[_]]): Encoder[ListMap[String, _]] =
     (valuesMap: ListMap[String, _]) => {

@@ -23,6 +23,7 @@ object ItemDecoder {
       case s: Optional[a]                  => optionalDecoder[a](decoder(s.codec))
       case Schema.Fail(s)                  => _ => Left(s)
       case Schema.GenericRecord(structure) => genericRecordDecoder(structure).asInstanceOf[Decoder[A]]
+      case Schema.Enumeration(structure)   => enumerationDecoder(structure)
       case Schema.Tuple(l, r)              => tupleDecoder(decoder(l), decoder(r))
       case Schema.Transform(codec, f, _)   => transformDecoder(codec, f)
       case s: Schema.Sequence[col, a]      =>
@@ -40,12 +41,17 @@ object ItemDecoder {
         enumDecoder(c1, c2)
       case Schema.Enum3(c1, c2, c3)        =>
         enumDecoder(c1, c2, c3)
-      case _                               =>
-        throw new UnsupportedOperationException(s"schema $schema not yet supported")
+      case Schema.EnumN(cs)                => enumDecoder(cs: _*)
     }
 
   private val astDecoder: Decoder[Schema[_]] =
     (av: AttributeValue) => decoder(Schema[SchemaAst])(av).map(_.toSchema)
+
+  private def enumerationDecoder(structure: Map[String, Schema[_]]): Decoder[(String, Any)] = {
+    case AttributeValue.List(AttributeValue.String(s) :: av :: Nil) =>
+      decoder(structure(s))(av).map((s, _))
+    case av                                                         => Left(s"Unexpected AttributeValue type $av")
+  }
 
   private def genericRecordDecoder(structure: Chunk[schema.Schema.Field[_]]): Decoder[Any] =
     (av: AttributeValue) =>

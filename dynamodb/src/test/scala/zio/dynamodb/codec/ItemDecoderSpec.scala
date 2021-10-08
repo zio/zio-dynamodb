@@ -16,11 +16,17 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
     test("decodes generic record") {
       val expected: Map[String, Any] = ListMap("foo" -> "FOO", "bar" -> 1)
 
-      val av: Either[String, Map[String, Any]] = ItemDecoder.decoder(recordSchema)(
+      val actual: Either[String, Map[String, Any]] = ItemDecoder.decoder(recordSchema)(
         AttributeValue.Map(Map(toAvString("foo") -> toAvString("FOO"), toAvString("bar") -> toAvNum(1)))
       )
 
-      assertTrue(av == Right(expected))
+      assertTrue(actual == Right(expected))
+    },
+    test("encodes enumeration") {
+
+      val actual = ItemDecoder.decoder(enumSchema)(AttributeValue.List(List(toAvString("string"), toAvString("FOO"))))
+
+      assertTrue(actual == Right("string" -> "FOO"))
     },
     test("decoded list") {
       val expected = CaseClassOfList(List(1, 2))

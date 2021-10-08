@@ -20,6 +20,14 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
         equalTo(AttributeValue.Map(Map(toAvString("foo") -> toAvString("FOO"), toAvString("bar") -> toAvNum(1))))
       )
     },
+    test("encodes enumeration") {
+
+      val av = ItemEncoder.encoder(enumSchema)(("string" -> "FOO"))
+
+      assert(av)(
+        equalTo(AttributeValue.List(List(toAvString("string"), toAvString("FOO"))))
+      )
+    },
     test("encodes List of Int") {
       val expectedItem: Item = Item("nums" -> List(1, 2, 3))
 
