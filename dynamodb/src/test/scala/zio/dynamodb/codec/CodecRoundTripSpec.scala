@@ -21,6 +21,24 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
         case (schema, gen) =>
           assertEncodesThenDecodes(schema, gen)
       }
+    },
+    testM("optional of primitive") {
+      checkM(SchemaGen.anyOptionalAndGen) {
+        case (schema, gen) =>
+          assertEncodesThenDecodes(schema, gen)
+      }
+    },
+    testM("tuple of primitive") {
+      checkM(SchemaGen.anyTupleAndGen) {
+        case (schema, gen) =>
+          assertEncodesThenDecodes(schema, gen)
+      }
+    },
+    testM("sequence of primitive") {
+      checkM(SchemaGen.anySequenceAndGen) {
+        case (schema, gen) =>
+          assertEncodesThenDecodes(schema, gen)
+      }
     }
   )
 
@@ -29,7 +47,9 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
     val dec = ItemDecoder.decoder(schema)
 
     check(genA) { a =>
-      assert(dec(enc(a)))(isRight(equalTo(a)))
+      val encoded = enc(a)
+      val decoded = dec(encoded)
+      assert(decoded)(isRight(equalTo(a)))
     }
 
   }

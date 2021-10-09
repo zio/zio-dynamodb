@@ -225,16 +225,19 @@ object ItemDecoder {
     case av                      => Left(s"Expected AttributeValue.Map but found $av")
   }
 
-  private def tupleDecoder[A, B](decL: Decoder[A], decR: Decoder[B]): Decoder[(A, B)] = {
-
-    case AttributeValue.List(avA :: avB :: Nil) =>
-      for {
-        a <- decL(avA)
-        b <- decR(avB)
-      } yield (a, b)
-    case av                                     =>
-      Left(s"Expected an AttributeValue.List of two elements but found $av")
-  }
+  private def tupleDecoder[A, B](decL: Decoder[A], decR: Decoder[B]): Decoder[(A, B)] =
+    (av: AttributeValue) =>
+      av match {
+        case AttributeValue.List(list: Seq[AttributeValue]) if list.size == 2 =>
+          val avA = list(0)
+          val avB = list(1)
+          for {
+            a <- decL(avA)
+            b <- decR(avB)
+          } yield (a, b)
+        case av                                                               =>
+          Left(s"Expected an AttributeValue.List of two elements but found $av")
+      }
 
   private def sequenceDecoder[Col[_], A](decoder: Decoder[A], to: Chunk[A] => Col[A]): Decoder[Col[A]] = {
     case AttributeValue.List(list) =>

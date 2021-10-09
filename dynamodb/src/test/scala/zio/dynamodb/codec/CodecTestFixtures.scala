@@ -34,6 +34,7 @@ trait CodecTestFixtures {
   lazy implicit val caseClassOfOption: Schema[CaseClassOfOption]                   = DeriveSchema.gen[CaseClassOfOption]
   lazy implicit val caseClassOfNestedOption: Schema[CaseClassOfNestedOption]       = DeriveSchema.gen[CaseClassOfNestedOption]
   lazy implicit val caseClassOfEither: Schema[CaseClassOfEither]                   = DeriveSchema.gen[CaseClassOfEither]
+  lazy implicit val caseClassOfTuple2: Schema[CaseClassOfTuple2]                   = DeriveSchema.gen[CaseClassOfTuple2]
   lazy implicit val caseClassOfTuple3: Schema[CaseClassOfTuple3]                   = DeriveSchema.gen[CaseClassOfTuple3]
   lazy implicit val instantSchema: Schema.Primitive[Instant]                       =
     Schema.Primitive(StandardType.Instant(DateTimeFormatter.ISO_INSTANT))
