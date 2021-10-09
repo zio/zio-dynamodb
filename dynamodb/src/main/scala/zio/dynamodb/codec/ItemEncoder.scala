@@ -1,8 +1,8 @@
 package zio.dynamodb.codec
 
-import zio.{ schema, Chunk }
-import zio.dynamodb.{ AttributeValue, FromAttributeValue, Item }
+import zio.dynamodb.AttributeValue
 import zio.schema.{ Schema, SchemaAst, StandardType }
+import zio.{ schema, Chunk }
 
 import java.time.Year
 import java.time.format.{ DateTimeFormatterBuilder, SignStyle }
@@ -20,11 +20,6 @@ in companion object
  */
 object ItemEncoder {
   type Encoder[A] = A => AttributeValue
-
-  def toItem[A](a: A)(implicit schema: Schema[A]): Item =
-    FromAttributeValue.attrMapFromAttributeValue
-      .fromAttributeValue(encoder(schema)(a))
-      .getOrElse(throw new Exception(s"error encoding $a"))
 
   private val yearFormatter =
     new DateTimeFormatterBuilder().appendValue(YEAR, 4, 10, SignStyle.EXCEEDS_PAD).toFormatter

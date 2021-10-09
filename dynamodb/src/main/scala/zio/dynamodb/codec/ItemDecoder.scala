@@ -1,6 +1,6 @@
 package zio.dynamodb.codec
 
-import zio.dynamodb.{ AttributeValue, FromAttributeValue, Item, ToAttributeValue }
+import zio.dynamodb.{ AttributeValue, FromAttributeValue }
 import zio.schema.Schema.{ Optional, Primitive }
 import zio.schema.{ Schema, SchemaAst, StandardType }
 import zio.{ schema, Chunk }
@@ -11,11 +11,6 @@ import scala.util.Try
 object ItemDecoder {
 
   type Decoder[+A] = AttributeValue => Either[String, A]
-
-  def fromItem[A](item: Item)(implicit schema: Schema[A]): Either[String, A] = {
-    val av = ToAttributeValue.attrMapToAttributeValue.toAttributeValue(item)
-    decoder(schema)(av)
-  }
 
   def decoder[A](schema: Schema[A]): Decoder[A] =
     schema match {

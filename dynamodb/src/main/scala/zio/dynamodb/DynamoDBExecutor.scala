@@ -9,6 +9,8 @@ trait DynamoDBExecutor {
 
 object DynamoDBExecutor {
 
+//  val live: ULayer[Has[DynamoDBExecutor]] = ???
+
   val test: ULayer[Has[DynamoDBExecutor] with Has[TestDynamoDBExecutor]] =
     (for {
       test <- (for {

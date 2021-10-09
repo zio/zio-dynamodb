@@ -20,7 +20,8 @@ import zio.dynamodb.DynamoDBQuery.{
   Zip
 }
 import zio.dynamodb.UpdateExpression.Action
-import zio.dynamodb.codec.{ ItemDecoder, ItemEncoder }
+import zio.dynamodb.codec.ItemDecoder.decoder
+import zio.dynamodb.codec.ItemEncoder.encoder
 import zio.schema.Schema
 import zio.stream.Stream
 import zio.{ Chunk, Has, ZIO }
@@ -315,16 +316,26 @@ object DynamoDBQuery {
   ): DynamoDBQuery[Either[String, A]] =
 //    def fromItem(item: Item)(implicit schema: Schema[A]): Either[String, A] = ???
     getItem(tableName, key, projections: _*).map {
-      case Some(item) => ItemDecoder.fromItem[A](item)
+      case Some(item) => fromItem[A](item)
       case None       => Left(s"value with key $key not found")
     }
+
+  private[dynamodb] def fromItem[A](item: Item)(implicit schema: Schema[A]): Either[String, A] = {
+    val av = ToAttributeValue.attrMapToAttributeValue.toAttributeValue(item)
+    decoder(schema)(av)
+  }
 
   def putItem(tableName: String, item: Item): Write[Unit] = PutItem(TableName(tableName), item)
 
   // TODO: I think we will still need a Write rather than DynamoDBQuery as Write is used by batching ops
   def put[A: Schema](tableName: String, a: A): DynamoDBQuery[Unit] =
 //    def toItem(a: A)(implicit schema: Schema[A]): Item = ???
-    putItem(tableName, ItemEncoder.toItem(a))
+    putItem(tableName, toItem(a))
+
+  private[dynamodb] def toItem[A](a: A)(implicit schema: Schema[A]): Item =
+    FromAttributeValue.attrMapFromAttributeValue
+      .fromAttributeValue(encoder(schema)(a))
+      .getOrElse(throw new Exception(s"error encoding $a"))
 
   def updateItem(tableName: String, key: PrimaryKey)(action: Action): DynamoDBQuery[Unit] =
     UpdateItem(TableName(tableName), key, UpdateExpression(action))
