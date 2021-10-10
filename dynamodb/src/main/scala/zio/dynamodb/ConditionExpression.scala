@@ -41,6 +41,27 @@ sealed trait ConditionExpression { self =>
   def &&(that: ConditionExpression): ConditionExpression = And(self, that)
   def ||(that: ConditionExpression): ConditionExpression = Or(self, that)
   def unary_! : ConditionExpression                      = Not(self)
+
+  override def toString: String =
+    self match {
+      case Between(left, minValue, maxValue)  => s"$left BETWEEN $minValue AND $maxValue"
+      case In(left, values)                   => ??? //TODO(adam): This one is funky
+      case AttributeExists(path)              => s"attribute_exists($path})"
+      case AttributeNotExists(path)           => s"attribute_not_exists($path)"
+      case AttributeType(path, attributeType) => s"attribute_type($path, $attributeType)"
+      case Contains(path, value)              => s"contains($path, $value)"
+      case BeginsWith(path, value)            => s"begins_with($path, ${value})"
+      case And(left, right)                   => s"($left) AND ($right)"
+      case Or(left, right)                    => s"($left) OR ($right)"
+      case Not(exprn)                         => s"NOT ($exprn)"
+      case Equals(left, right)                => s"($left) = ($right)"
+      case NotEqual(left, right)              => s"($left) <> ($right)"
+      case LessThan(left, right)              => s"($left) < ($right)"
+      case GreaterThan(left, right)           => s"($left) > ($right)"
+      case LessThanOrEqual(left, right)       => s"($left) <= ($right)"
+      case GreaterThanOrEqual(left, right)    => s"($left) >= ($right)"
+    }
+
 }
 
 // BNF  https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
@@ -69,12 +90,21 @@ object ConditionExpression {
       GreaterThanOrEqual(self, Operand.ValueOperand(t.toAttributeValue(that)))
     def >=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
       GreaterThanOrEqual(self, Operand.ValueOperand(t.toAttributeValue(that)))
+
+    override def toString: String =
+      self match {
+        case Operand.ProjectionExpressionOperand(pe) => pe.toString
+        case Operand.ValueOperand(value)             => value.toString
+        case Operand.Size(path)                      => s"size($path)"
+      }
   }
-  object Operand                         {
+
+  object Operand {
 
     private[dynamodb] final case class ProjectionExpressionOperand(pe: ProjectionExpression) extends Operand
     private[dynamodb] final case class ValueOperand(value: AttributeValue)                   extends Operand
     private[dynamodb] final case class Size(path: ProjectionExpression)                      extends Operand
+
   }
 
   private[dynamodb] final case class Between(left: Operand, minValue: AttributeValue, maxValue: AttributeValue)

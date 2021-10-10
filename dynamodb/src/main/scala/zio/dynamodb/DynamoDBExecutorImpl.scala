@@ -1,13 +1,8 @@
 package zio.dynamodb
-import zio.{ Chunk, ZIO }
+import zio.{Chunk, ZIO}
 import zio.dynamodb.DynamoDBQuery._
 import io.github.vigoo.zioaws.dynamodb.DynamoDb
-import io.github.vigoo.zioaws.dynamodb.model.{
-  GetItemRequest,
-  GetItemResponse,
-  AttributeValue => ZIOAwsAttributeValue,
-  ReturnConsumedCapacity => ZIOAwsReturnConsumedCapacity
-}
+import io.github.vigoo.zioaws.dynamodb.model.{GetItemRequest, GetItemResponse, PutItemRequest, AttributeValue => ZIOAwsAttributeValue, ReturnConsumedCapacity => ZIOAwsReturnConsumedCapacity}
 
 private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: DynamoDb.Service)
     extends DynamoDBExecutor.Service {
@@ -23,8 +18,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   //    Is this just a problem with IntelliJ not knowing about the types?
   def executeConstructor[A](constructor: Constructor[A]): ZIO[Any, Exception, A] =
     constructor match {
-      case getItem @ GetItem(_, _, _, _, _) => doGetItem(getItem)
-      case _                                => ???
+      case getItem @ GetItem(_, _, _, _, _)    => doGetItem(getItem)
+      case putItem @ PutItem(_, _, _, _, _, _) => doPutItem(putItem)
+      case _                                   => ???
     }
 
   override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A] =
@@ -34,15 +30,53 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case map @ Map(_, _)             => executeMap(map)
     }
 
+  private def doPutItem(putItem: PutItem): ZIO[Any, Exception, Unit] =
+    for {
+      a <- dynamoDb.putItem()
+    }
+
   private def doGetItem(getItem: GetItem): ZIO[Any, Exception, Option[Item]] =
     for {
-      a <- dynamoDb.getItem(generateGetItemRequest(getItem)).mapError(_ => new Exception(""))
+      a <- dynamoDb
+             .getItem(generateGetItemRequest(getItem))
+             .mapError(_ => new Exception("")) // TODO(adam): This is not an appropriate exception
       c  = toDynamoItem(a)
-      // TODO(adam): I get a map of string -> AttributeValues, what do I do with this to convert it to an A?
     } yield c
 
   private def toDynamoItem(getItemResponse: GetItemResponse.ReadOnly): Option[Item] =
     getItemResponse.itemValue.map(a => Item(a.view.mapValues(awsAttrValToAttrVal).toMap))
+
+  private def generatePutItemRequest(putItem: PutItem): PutItemRequest =
+    PutItemRequest(
+      tableName = putItem.tableName.value,
+      item = putItem.item.map.view.mapValues(buildAwsAttributeValue).toMap,
+      expected = ???,
+      returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(putItem.capacity)),
+      returnItemCollectionMetrics = Some(ReturnItemCollectionMetrics.toZioAws(putItem.itemMetrics)),
+      conditionalOperator = ???,
+      conditionExpression = putItem.conditionExpression.map(ConditionExpression.toString),
+      expressionAttributeNames = ???,
+      expressionAttributeValues = ???
+    )
+
+  private def conditionalToAwsConditional(conditionExpression: ConditionExpression): (io.github.vigoo.zioaws.dynamodb.model.ConditionalOperator, String) = conditionExpression match {
+    case ConditionExpression.Between(left, minValue, maxValue) =>
+    case ConditionExpression.In(left, values) =>
+    case ConditionExpression.AttributeExists(path) =>
+    case ConditionExpression.AttributeNotExists(path) =>
+    case ConditionExpression.AttributeType(path, attributeType) =>
+    case ConditionExpression.Contains(path, value) =>
+    case ConditionExpression.BeginsWith(path, value) =>
+    case ConditionExpression.And(left, right) =>
+    case ConditionExpression.Or(left, right) =>
+    case ConditionExpression.Not(exprn) =>
+    case ConditionExpression.Equals(left, right) =>
+    case ConditionExpression.NotEqual(left, right) =>
+    case ConditionExpression.LessThan(left, right) =>
+    case ConditionExpression.GreaterThan(left, right) =>
+    case ConditionExpression.LessThanOrEqual(left, right) =>
+    case ConditionExpression.GreaterThanOrEqual(left, right) =>
+  }
 
   private def generateGetItemRequest(getItem: GetItem): GetItemRequest =
     // What is the get everything case?

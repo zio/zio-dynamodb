@@ -25,6 +25,9 @@ sealed trait AttributeValue { self =>
   def >=(that: ProjectionExpression): ConditionExpression  =
     GreaterThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))
 
+  // TODO(adam): Implement
+  override def toString: String = ???
+
 }
 
 object AttributeValue {
