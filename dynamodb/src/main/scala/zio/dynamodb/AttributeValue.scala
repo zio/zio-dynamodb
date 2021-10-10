@@ -46,7 +46,7 @@ object AttributeValue {
 
   def apply[A](a: A)(implicit ev: ToAttributeValue[A]): AttributeValue = ev.toAttributeValue(a)
 
-  def encode[A](a: A)(implicit schema: Schema[A]): AttributeValue = Encoder.encoder(schema)(a)
+  def encode[A](a: A)(implicit schema: Schema[A]): AttributeValue = Encoder(schema)(a)
 
   implicit val attributeValueToAttributeValue: ToAttributeValue[AttributeValue] = identity(_)
 }

@@ -14,7 +14,9 @@ private[dynamodb] object Encoder {
   private val yearFormatter =
     new DateTimeFormatterBuilder().appendValue(YEAR, 4, 10, SignStyle.EXCEEDS_PAD).toFormatter
 
-  def encoder[A](schema: Schema[A]): Encoder[A] =
+  def apply[A](schema: Schema[A]): Encoder[A] = encoder(schema)
+
+  private def encoder[A](schema: Schema[A]): Encoder[A] =
     schema match {
       case ProductEncoder(encoder)         => encoder
       case s: Schema.Optional[a]           => optionalEncoder[a](encoder(s.codec))

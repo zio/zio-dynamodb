@@ -44,7 +44,7 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
   )
 
   private def assertEncodesThenDecodes[A](schema: Schema[A], genA: Gen[Random with Sized, A]) = {
-    val enc = Encoder.encoder(schema)
+    val enc = Encoder(schema)
     val dec = Decoder.decoder(schema)
 
     check(genA) { a =>
