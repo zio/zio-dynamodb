@@ -5,7 +5,7 @@ import zio.dynamodb.ConditionExpression._
 import zio.schema.Schema
 
 sealed trait AttributeValue { self =>
-  def decode[A](implicit schema: Schema[A]): Either[String, A] = ???
+  def decode[A](implicit schema: Schema[A]): Decoder[A] = Decoder.decoder(schema)
 
   def ===(that: Operand.Size): ConditionExpression = Equals(ValueOperand(self), that)
   def <>(that: Operand.Size): ConditionExpression  = NotEqual(ValueOperand(self), that)
@@ -46,7 +46,7 @@ object AttributeValue {
 
   def apply[A](a: A)(implicit ev: ToAttributeValue[A]): AttributeValue = ev.toAttributeValue(a)
 
-  def encode[A](a: A): AttributeValue = ???
+  def encode[A](a: A)(implicit schema: Schema[A]): AttributeValue = Encoder.encoder(schema)(a)
 
   implicit val attributeValueToAttributeValue: ToAttributeValue[AttributeValue] = identity(_)
 }

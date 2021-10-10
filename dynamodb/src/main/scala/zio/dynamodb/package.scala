@@ -15,6 +15,9 @@ package object dynamodb {
 
   type TableEntry = (PrimaryKey, Item)
 
+  type Encoder[A]  = A => AttributeValue
+  type Decoder[+A] = AttributeValue => Either[String, A]
+
   private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[A]): ZIO[Has[DynamoDBExecutor], Exception, A] =
     ZIO.serviceWith[DynamoDBExecutor](_.execute(query))
 

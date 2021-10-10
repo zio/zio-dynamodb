@@ -20,8 +20,6 @@ import zio.dynamodb.DynamoDBQuery.{
   Zip
 }
 import zio.dynamodb.UpdateExpression.Action
-import ItemDecoder.decoder
-import ItemEncoder.encoder
 import zio.schema.Schema
 import zio.stream.Stream
 import zio.{ Chunk, Has, ZIO }
@@ -316,13 +314,14 @@ object DynamoDBQuery {
   ): DynamoDBQuery[Either[String, A]] =
 //    def fromItem(item: Item)(implicit schema: Schema[A]): Either[String, A] = ???
     getItem(tableName, key, projections: _*).map {
-      case Some(item) => fromItem[A](item)
+      case Some(item) =>
+        fromItem(item)
       case None       => Left(s"value with key $key not found")
     }
 
-  private[dynamodb] def fromItem[A](item: Item)(implicit schema: Schema[A]): Either[String, A] = {
+  private[dynamodb] def fromItem[A: Schema](item: Item): Either[String, A] = {
     val av = ToAttributeValue.attrMapToAttributeValue.toAttributeValue(item)
-    decoder(schema)(av)
+    av.decode(Schema[A])(av)
   }
 
   def putItem(tableName: String, item: Item): Write[Unit] = PutItem(TableName(tableName), item)
@@ -334,7 +333,7 @@ object DynamoDBQuery {
 
   private[dynamodb] def toItem[A](a: A)(implicit schema: Schema[A]): Item =
     FromAttributeValue.attrMapFromAttributeValue
-      .fromAttributeValue(encoder(schema)(a))
+      .fromAttributeValue(AttributeValue.encode(a)(schema))
       .getOrElse(throw new Exception(s"error encoding $a"))
 
   def updateItem(tableName: String, key: PrimaryKey)(action: Action): DynamoDBQuery[Unit] =

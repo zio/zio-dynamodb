@@ -1,6 +1,6 @@
 package zio.dynamodb.codec
 
-import zio.dynamodb.{ ItemDecoder, ItemEncoder }
+import zio.dynamodb.{ Decoder, Encoder }
 import zio.random.Random
 import zio.schema.Schema
 import zio.test.Assertion.{ equalTo, isRight }
@@ -44,8 +44,8 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
   )
 
   private def assertEncodesThenDecodes[A](schema: Schema[A], genA: Gen[Random with Sized, A]) = {
-    val enc = ItemEncoder.encoder(schema)
-    val dec = ItemDecoder.decoder(schema)
+    val enc = Encoder.encoder(schema)
+    val dec = Decoder.decoder(schema)
 
     check(genA) { a =>
       val encoded = enc(a)

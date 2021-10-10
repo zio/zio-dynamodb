@@ -9,16 +9,7 @@ import java.time.temporal.ChronoField.YEAR
 import scala.annotation.tailrec
 import scala.collection.immutable.ListMap
 
-/*
-TODO:
-put in AttributeValue trait
-def decode(implicit schema: Schema[A]): Either[String, A]
-
-in companion object
-  def apply/fromValue/encode
- */
-object ItemEncoder {
-  type Encoder[A] = A => AttributeValue
+private[dynamodb] object Encoder {
 
   private val yearFormatter =
     new DateTimeFormatterBuilder().appendValue(YEAR, 4, 10, SignStyle.EXCEEDS_PAD).toFormatter

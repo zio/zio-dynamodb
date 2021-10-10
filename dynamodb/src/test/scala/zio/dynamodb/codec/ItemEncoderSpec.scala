@@ -1,6 +1,6 @@
 package zio.dynamodb.codec
 
-import zio.dynamodb.{ AttrMap, AttributeValue, DynamoDBQuery, Item, ItemEncoder }
+import zio.dynamodb.{ AttrMap, AttributeValue, DynamoDBQuery, Encoder, Item }
 import zio.test.Assertion._
 import zio.test.{ DefaultRunnableSpec, ZSpec, _ }
 
@@ -14,7 +14,7 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
   val mainSuite: ZSpec[Environment, Failure] = suite("Main Suite")(
     test("encodes generic record") {
 
-      val av = ItemEncoder.encoder(recordSchema)(ListMap("foo" -> "FOO", "bar" -> 1))
+      val av = Encoder.encoder(recordSchema)(ListMap("foo" -> "FOO", "bar" -> 1))
 
       assert(av)(
         equalTo(AttributeValue.Map(Map(toAvString("foo") -> toAvString("FOO"), toAvString("bar") -> toAvNum(1))))
@@ -22,7 +22,7 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
     },
     test("encodes enumeration") {
 
-      val av = ItemEncoder.encoder(enumSchema)("string" -> "FOO")
+      val av = Encoder.encoder(enumSchema)("string" -> "FOO")
 
       assert(av)(
         equalTo(AttributeValue.List(List(toAvString("string"), toAvString("FOO"))))

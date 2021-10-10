@@ -7,9 +7,7 @@ import zio.{ schema, Chunk }
 import java.time.{ ZoneId, _ }
 import scala.util.Try
 
-object ItemDecoder {
-
-  type Decoder[+A] = AttributeValue => Either[String, A]
+private[dynamodb] object Decoder {
 
   def decoder[A](schema: Schema[A]): Decoder[A] =
     schema match {
