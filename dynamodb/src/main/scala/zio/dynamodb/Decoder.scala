@@ -9,7 +9,9 @@ import scala.util.Try
 
 private[dynamodb] object Decoder {
 
-  def decoder[A](schema: Schema[A]): Decoder[A] =
+  def apply[A](schema: Schema[A]): Decoder[A] = decoder(schema)
+
+  private def decoder[A](schema: Schema[A]): Decoder[A] =
     schema match {
       case ProductDecoder(decoder)         => decoder
       case s: Optional[a]                  => optionalDecoder[a](decoder(s.codec))
