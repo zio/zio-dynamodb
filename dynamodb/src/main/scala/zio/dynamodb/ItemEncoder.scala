@@ -1,6 +1,5 @@
-package zio.dynamodb.codec
+package zio.dynamodb
 
-import zio.dynamodb.AttributeValue
 import zio.schema.{ Schema, SchemaAst, StandardType }
 import zio.{ schema, Chunk }
 

@@ -20,8 +20,8 @@ import zio.dynamodb.DynamoDBQuery.{
   Zip
 }
 import zio.dynamodb.UpdateExpression.Action
-import zio.dynamodb.codec.ItemDecoder.decoder
-import zio.dynamodb.codec.ItemEncoder.encoder
+import ItemDecoder.decoder
+import ItemEncoder.encoder
 import zio.schema.Schema
 import zio.stream.Stream
 import zio.{ Chunk, Has, ZIO }

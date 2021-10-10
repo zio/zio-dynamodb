@@ -1,5 +1,6 @@
 package zio.dynamodb.codec
 
+import zio.dynamodb.{ ItemDecoder, ItemEncoder }
 import zio.random.Random
 import zio.schema.Schema
 import zio.test.Assertion.{ equalTo, isRight }

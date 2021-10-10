@@ -1,6 +1,6 @@
 package zio.dynamodb.codec
 
-import zio.dynamodb.{ AttrMap, AttributeValue, DynamoDBQuery, Item }
+import zio.dynamodb.{ AttrMap, AttributeValue, DynamoDBQuery, Item, ItemDecoder }
 import zio.test.assertTrue
 import zio.test.Assertion._
 import zio.test.{ DefaultRunnableSpec, ZSpec, _ }
