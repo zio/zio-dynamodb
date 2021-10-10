@@ -409,7 +409,7 @@ object DynamoDBQuery {
       }
 
     /*
-     for each added GetItem, check it's key exists in the response and create a corresponding Optional Item value
+     for each added GetItem, check if it's key exists in the response and create a corresponding Optional Item value
      */
     def toGetItemResponses(response: BatchGetItem.Response): Chunk[Option[Item]] = {
       val chunk: Chunk[Option[Item]] = addList.foldLeft[Chunk[Option[Item]]](Chunk.empty) {
