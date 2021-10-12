@@ -13,15 +13,15 @@ private[dynamodb] final case class MapOfSet[K, V] private (private val map: Scal
     val (key, value) = entry
     val newEntry     = self.map.get(key).fold((key, Set(value)))(set => (key, set + value))
     new MapOfSet(self.map + newEntry)
-    https://open.spotify.com/playlist/37i9dQZEVXcKWlYx9CS8vh    https://open.spotify.com/playlist/37i9dQZEVXcKWlYx9CS8vh}
+  }
 
   def ++(that: MapOfSet[K, V]): MapOfSet[K, V] = {
     val xs: Seq[(K, Set[V])]   = that.map.toList
     val m: ScalaMap[K, Set[V]] = xs.foldRight(map) {
       case ((key, set), map) =>
-        https://open.spotify.com/playlist/37i9dQZEVXcKWlYx9CS8vh        val newEntry: (K, Set[V]) =
+        val newEntry: (K, Set[V]) =
           map.get(key).fold((key, set))(s => (key, s ++ set))
-        https://open.spotify.com/playlist/4Qe22vSENx4iBtADoapPRZ        map + newEntry
+        map + newEntry
     }
     new MapOfSet(m)
   }
