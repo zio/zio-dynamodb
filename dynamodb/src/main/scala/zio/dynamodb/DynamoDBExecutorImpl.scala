@@ -1,8 +1,19 @@
 package zio.dynamodb
-import zio.{Chunk, ZIO}
+import zio.{ Chunk, ZIO }
 import zio.dynamodb.DynamoDBQuery._
 import io.github.vigoo.zioaws.dynamodb.DynamoDb
-import io.github.vigoo.zioaws.dynamodb.model.{GetItemRequest, GetItemResponse, PutItemRequest, AttributeValue => ZIOAwsAttributeValue, ReturnConsumedCapacity => ZIOAwsReturnConsumedCapacity}
+import io.github.vigoo.zioaws.dynamodb.model.{
+  BatchGetItemRequest,
+  GetItemRequest,
+  GetItemResponse,
+  KeysAndAttributes,
+  PutItemRequest,
+  ReturnValue,
+  AttributeValue => ZIOAwsAttributeValue,
+  ReturnConsumedCapacity => ZIOAwsReturnConsumedCapacity
+}
+import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
+import scala.collection.immutable.{ Map => ScalaMap }
 
 private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: DynamoDb.Service)
     extends DynamoDBExecutor.Service {
@@ -18,9 +29,10 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   //    Is this just a problem with IntelliJ not knowing about the types?
   def executeConstructor[A](constructor: Constructor[A]): ZIO[Any, Exception, A] =
     constructor match {
-      case getItem @ GetItem(_, _, _, _, _)    => doGetItem(getItem)
-      case putItem @ PutItem(_, _, _, _, _, _) => doPutItem(putItem)
-      case _                                   => ???
+      case getItem @ GetItem(_, _, _, _, _)     => doGetItem(getItem)
+      case putItem @ PutItem(_, _, _, _, _, _)  => doPutItem(putItem)
+      case batchGetItem @ BatchGetItem(_, _, _) => doBatchGetItem(batchGetItem)
+      case _                                    => ???
     }
 
   override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A] =
@@ -30,65 +42,68 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case map @ Map(_, _)             => executeMap(map)
     }
 
-  private def doPutItem(putItem: PutItem): ZIO[Any, Exception, Unit] =
+  private def doBatchGetItem(batchGetItem: BatchGetItem): ZIO[Any, Exception, BatchGetItem.Response] =
     for {
-      a <- dynamoDb.putItem()
-    }
+      a <- dynamoDb.batchGetItem(generateBatchGetItemRequest(batchGetItem)).mapError(_ => new Exception("boooo"))
+      b <- a.responses.mapError(_ => new Exception("boooo"))
+    } yield BatchGetItem.Response(MapOfSet(b.view.mapValues(a => a.map(toDynamoItem).toSet).toMap))
+
+  private def doPutItem(putItem: PutItem): ZIO[Any, Exception, Unit] =
+    dynamoDb.putItem(generatePutItemRequest(putItem)).unit.mapError(e => new Exception("abc"))
 
   private def doGetItem(getItem: GetItem): ZIO[Any, Exception, Option[Item]] =
     for {
       a <- dynamoDb
              .getItem(generateGetItemRequest(getItem))
              .mapError(_ => new Exception("")) // TODO(adam): This is not an appropriate exception
-      c  = toDynamoItem(a)
+      c  = a.itemValue.map(toDynamoItem)
     } yield c
 
-  private def toDynamoItem(getItemResponse: GetItemResponse.ReadOnly): Option[Item] =
-    getItemResponse.itemValue.map(a => Item(a.view.mapValues(awsAttrValToAttrVal).toMap))
+  private def toDynamoItem(attrMap: ScalaMap[String, ZIOAwsAttributeValue.ReadOnly]): Item =
+    Item(attrMap.view.mapValues(awsAttrValToAttrVal).toMap)
+
+  private def generateBatchGetItemRequest(batchGetItem: BatchGetItem): BatchGetItemRequest =
+    BatchGetItemRequest(
+      requestItems = batchGetItem.requestItems.map {
+        case (tableName, tableGet) =>
+          (tableName.value, generateKeysAndAttributes(tableGet))
+      }.toMap,
+      returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(batchGetItem.capacity))
+    )
+
+  private def generateKeysAndAttributes(tableGets: Set[TableGet]): KeysAndAttributes =
+    KeysAndAttributes(
+      keys = tableGets.map(_.key.map.view.mapValues(buildAwsAttributeValue).toMap),
+      attributesToGet = ??? // TODO(adam): It looks like here we have an issue with the types not aligning
+      /* Our TableGet has a projections (attributesToGet) but the KeysAndAttributes expects one projection rather than one per
+       *
+       */
+    )
 
   private def generatePutItemRequest(putItem: PutItem): PutItemRequest =
     PutItemRequest(
       tableName = putItem.tableName.value,
       item = putItem.item.map.view.mapValues(buildAwsAttributeValue).toMap,
-      expected = ???,
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(putItem.capacity)),
       returnItemCollectionMetrics = Some(ReturnItemCollectionMetrics.toZioAws(putItem.itemMetrics)),
-      conditionalOperator = ???,
-      conditionExpression = putItem.conditionExpression.map(ConditionExpression.toString),
-      expressionAttributeNames = ???,
-      expressionAttributeValues = ???
+      conditionExpression = putItem.conditionExpression.map(_.toString),
+      returnValues = Some(buildAwsPutRequestReturnValue(putItem.returnValues))
     )
 
-  private def conditionalToAwsConditional(conditionExpression: ConditionExpression): (io.github.vigoo.zioaws.dynamodb.model.ConditionalOperator, String) = conditionExpression match {
-    case ConditionExpression.Between(left, minValue, maxValue) =>
-    case ConditionExpression.In(left, values) =>
-    case ConditionExpression.AttributeExists(path) =>
-    case ConditionExpression.AttributeNotExists(path) =>
-    case ConditionExpression.AttributeType(path, attributeType) =>
-    case ConditionExpression.Contains(path, value) =>
-    case ConditionExpression.BeginsWith(path, value) =>
-    case ConditionExpression.And(left, right) =>
-    case ConditionExpression.Or(left, right) =>
-    case ConditionExpression.Not(exprn) =>
-    case ConditionExpression.Equals(left, right) =>
-    case ConditionExpression.NotEqual(left, right) =>
-    case ConditionExpression.LessThan(left, right) =>
-    case ConditionExpression.GreaterThan(left, right) =>
-    case ConditionExpression.LessThanOrEqual(left, right) =>
-    case ConditionExpression.GreaterThanOrEqual(left, right) =>
-  }
-
   private def generateGetItemRequest(getItem: GetItem): GetItemRequest =
-    // What is the get everything case?
     GetItemRequest(
       tableName = getItem.tableName.value,
-      key =
-        getItem.key.map.view.mapValues(buildAwsAttributeValue).toMap, // TODO: cleanup, just following the types for now
-      // TODO: What is the difference between attributes to get and ProjectionExpression?
-      attributesToGet = toOption(getItem.projections.map(_.toString)),
+      key = getItem.key.map.view
+        .mapValues(buildAwsAttributeValue)
+        .toMap, // TODO(adam): cleanup, just following the types for now
+
+      // attributesToGet is legacy, use projection expression instead
       consistentRead = Some(ConsistencyMode.toBoolean(getItem.consistency)),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(getItem.capacity)),
-      projectionExpression = None,
+      projectionExpression = toOption(getItem.projections).map(
+        _.mkString(", ") // TODO(adam): Not sure if this is the best way to combine projection expressions
+      ),
+      // Do we have support for this?
       expressionAttributeNames = None
     )
 
@@ -114,6 +129,17 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     list match {
       case Nil          => None
       case head :: tail => Some(::(head, tail))
+    }
+
+  private def buildAwsPutRequestReturnValue(
+    returnValues: ReturnValues
+  ): ReturnValue =
+    returnValues match {
+      case ReturnValues.None       => ReturnValue.NONE
+      case ReturnValues.AllOld     => ReturnValue.ALL_OLD
+      case ReturnValues.UpdatedOld => ReturnValue.UPDATED_OLD
+      case ReturnValues.AllNew     => ReturnValue.ALL_NEW
+      case ReturnValues.UpdatedNew => ReturnValue.UPDATED_NEW
     }
 
   private def buildAwsAttributeValue(
