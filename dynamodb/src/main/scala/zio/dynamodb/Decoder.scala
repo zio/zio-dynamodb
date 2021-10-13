@@ -1,7 +1,8 @@
 package zio.dynamodb
 
 import zio.schema.Schema.{ Optional, Primitive }
-import zio.schema.{ Schema, SchemaAst, StandardType }
+import zio.schema.{ Schema, StandardType }
+import zio.schema.ast.SchemaAst
 import zio.{ schema, Chunk }
 
 import java.time.{ ZoneId, _ }
