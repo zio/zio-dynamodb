@@ -23,6 +23,12 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
           assertEncodesThenDecodes(schema, gen)
       }
     },
+    testM("of enumeration") {
+      checkM(SchemaGen.anyEnumerationAndGen) {
+        case (schema, gen) =>
+          assertEncodesThenDecodes(schema, gen)
+      }
+    },
     testM("optional of primitive") {
       checkM(SchemaGen.anyOptionalAndGen) {
         case (schema, gen) =>

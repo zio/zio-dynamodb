@@ -5,7 +5,10 @@ import zio.random.Random
 import zio.schema.Schema
 import zio.test.{ Gen, Sized }
 
+import scala.collection.immutable.ListMap
+
 object SchemaGen {
+
   val anyPrimitive: Gen[Random, Schema.Primitive[_]] =
     StandardTypeGen.anyStandardType.map(Schema.Primitive(_))
 
@@ -14,6 +17,21 @@ object SchemaGen {
   val anyPrimitiveAndGen: Gen[Random, PrimitiveAndGen[_]] =
     StandardTypeGen.anyStandardTypeAndGen.map {
       case (standardType, gen) => Schema.Primitive(standardType) -> gen
+    }
+
+  def anyEnumeration[A](schema: Schema[A]): Gen[Random with Sized, ListMap[String, Schema[A]]] =
+    Gen.listOfBounded(1, 10)(Gen.anyString.map(_ -> schema)).map(ListMap.empty ++ _)
+
+  type EnumerationAndGen = (Schema[(String, _)], Gen[Random with Sized, (String, _)])
+
+  val anyEnumerationAndGen: Gen[Random with Sized, EnumerationAndGen] =
+    for {
+      primitiveAndGen <- anyPrimitiveAndGen
+      structure       <- anyEnumeration(primitiveAndGen._1)
+      primitiveValue  <- primitiveAndGen._2
+    } yield {
+      val gen = Gen.oneOf(structure.keys.map(Gen.const(_)).toSeq: _*).map(l => l -> primitiveValue)
+      Schema.enumeration(structure) -> gen
     }
 
   type EitherAndGen[A, B] = (Schema.EitherSchema[A, B], Gen[Random with Sized, Either[A, B]])
