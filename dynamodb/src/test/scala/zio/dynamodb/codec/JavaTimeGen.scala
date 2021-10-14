@@ -3,27 +3,11 @@ package zio.dynamodb.codec
 import zio.random.Random
 import zio.test.Gen
 
+import java.time._
 import java.time.temporal.ChronoField
-import java.time.{
-  DayOfWeek,
-  Duration,
-  Instant,
-  LocalDate,
-  LocalDateTime,
-  LocalTime,
-  Month,
-  MonthDay,
-  OffsetDateTime,
-  OffsetTime,
-  Period,
-  Year,
-  YearMonth,
-  ZoneId,
-  ZoneOffset,
-  ZonedDateTime
-}
 
 object JavaTimeGen {
+
   val anyDayOfWeek: Gen[Random, DayOfWeek] = Gen.oneOf(
     Gen.const(DayOfWeek.MONDAY),
     Gen.const(DayOfWeek.TUESDAY),
@@ -109,13 +93,13 @@ object JavaTimeGen {
     Gen.int(ZoneOffset.MIN.getTotalSeconds, ZoneOffset.MAX.getTotalSeconds).map(ZoneOffset.ofTotalSeconds)
 
   // This uses ZoneRulesProvider which has an effectful static initializer.
-  //  private val regionZoneIds =
-  //    ZIO.succeed(ZoneId.getAvailableZoneIds.asScala.toSet.map(ZoneId.of))
-  //
-  //  private val zoneOffsets =
-  //    (ZoneOffset.MIN.getTotalSeconds to ZoneOffset.MAX.getTotalSeconds).map(ZoneOffset.ofTotalSeconds)
+//  private val regionZoneIds =
+//    ZIO.succeed(ZoneId.getAvailableZoneIds.asScala.toSet.map(ZoneId.of))
+//
+//  private val zoneOffsets =
+//    (ZoneOffset.MIN.getTotalSeconds to ZoneOffset.MAX.getTotalSeconds).map(ZoneOffset.ofTotalSeconds)
 
-  //  private val zoneIds = regionZoneIds.map(_.toList ++ zoneOffsets)
+//  private val zoneIds = regionZoneIds.map(_.toList ++ zoneOffsets)
 
   // FIXME: Shuffle is really slow.
   //private val zoneIds =
@@ -128,14 +112,14 @@ object JavaTimeGen {
 
   //FIXME Sampling causes some sort of pathological performance issue.
   val anyZoneId: Gen[Random, ZoneId] = Gen.const(ZoneId.systemDefault())
-  //    Gen(ZStream.fromIterableM(zoneIds).map {
-  //      case offset: ZoneOffset => Sample.noShrink(offset)
-  //      // FIXME: This is really slow even when it isn't shrinking.
-  //      //Sample.shrinkIntegral(ZoneOffset.UTC.getTotalSeconds)(offset.getTotalSeconds).map { seconds =>
-  //      //  ZoneOffset.ofTotalSeconds(seconds)
-  //      //}
-  //      case zone => Sample.noShrink(zone)
-  //    })
+//    Gen(ZStream.fromIterableM(zoneIds).map {
+//      case offset: ZoneOffset => Sample.noShrink(offset)
+//      // FIXME: This is really slow even when it isn't shrinking.
+//      //Sample.shrinkIntegral(ZoneOffset.UTC.getTotalSeconds)(offset.getTotalSeconds).map { seconds =>
+//      //  ZoneOffset.ofTotalSeconds(seconds)
+//      //}
+//      case zone => Sample.noShrink(zone)
+//    })
 
   // TODO: This needs to be double checked. I have encountered problems generating these in the past.
   //  See https://github.com/BotTech/scala-hedgehog-spines/blob/master/core/src/main/scala/com/lightbend/hedgehog/generators/time/TimeGenerators.scala
@@ -150,5 +134,4 @@ object JavaTimeGen {
   val anyOffsetDateTime: Gen[Random, OffsetDateTime] = anyLocalDateTime.zipWith(anyZoneOffset) { (dateTime, offset) =>
     OffsetDateTime.of(dateTime, offset)
   }
-
 }
