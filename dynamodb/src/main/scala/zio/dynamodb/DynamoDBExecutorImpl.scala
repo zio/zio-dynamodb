@@ -41,12 +41,12 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case map @ Map(_, _)             => executeMap(map)
     }
 
-  private def doScanAll(scanAll: ScanAll): ZIO[Any, Exception, Stream[Throwable, Item]] =
+  private def doScanAll(scanAll: ScanAll): ZIO[Any, Throwable, Stream[Throwable, Item]] =
     ZIO.succeed(
       dynamoDb
         .scan(generateScanRequest(scanAll))
         .mapBoth(
-          _ => new Exception("boooo"),
+          awsError => awsError.toThrowable,
           item => toDynamoItem(item)
         )
     )
@@ -86,12 +86,12 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     for {
       a <- dynamoDb
              .getItem(generateGetItemRequest(getItem))
-             .mapError(_ => new Exception("")) // TODO(adam): This is not an appropriate exception
+             .mapError(_.toThrowable)
       c  = a.itemValue.map(toDynamoItem)
     } yield c
 
   private def toDynamoItem(attrMap: ScalaMap[String, ZIOAwsAttributeValue.ReadOnly]): Item =
-    Item(attrMap.view.mapValues(awsAttrValToAttrVal).toMap)
+    Item(attrMap.map { case (k, v) => (k, awsAttrValToAttrVal(v)) })
 
   /*
     let's just combine all of the sets of project expressions for a table to get all of them
@@ -111,40 +111,38 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     )
 
   // TODO(adam): Ask John for assistance on this one?
-  private def generateKeysAndAttributes(tableGets: Set[TableGet]): KeysAndAttributes =
+  private def generateKeysAndAttributes(tableGets: Set[TableGet]): KeysAndAttributes = {
+    val setOfProjectionExpressions = tableGets.flatMap(_.projections.toSet)
     KeysAndAttributes(
       // just end up mapping the (k, v) => (identity, v => v2)
-      keys = tableGets.map(_.key.map.view.mapValues(buildAwsAttributeValue).toMap),
+      keys = tableGets.map(_.key.map.map { case (k, v) => (k, buildAwsAttributeValue(v)) }),
       // projectionExpression is really just Option[String]
-      projectionExpression = Some(???)
+      projectionExpression = Some(setOfProjectionExpressions.mkString(", "))
     )
+  }
 
   private def generatePutItemRequest(putItem: PutItem): PutItemRequest =
     PutItemRequest(
       tableName = putItem.tableName.value,
-      item = putItem.item.map.view.mapValues(buildAwsAttributeValue).toMap,
+      item = attrMapToAwsAttrMap(putItem.item.map),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(putItem.capacity)),
       returnItemCollectionMetrics = Some(ReturnItemCollectionMetrics.toZioAws(putItem.itemMetrics)),
       conditionExpression = putItem.conditionExpression.map(_.toString),
       returnValues = Some(buildAwsPutRequestReturnValue(putItem.returnValues))
     )
 
-  private def generateGetItemRequest(getItem: GetItem): GetItemRequest =
+  private def attrMapToAwsAttrMap(attrMap: ScalaMap[String, AttributeValue]): Map[String, ZIOAwsAttributeValue] =
+    attrMap.map { case (k, v) => (k, buildAwsAttributeValue(v)) }
+
+  private def generateGetItemRequest(getItem: GetItem): GetItemRequest                                          =
     GetItemRequest(
       tableName = getItem.tableName.value,
-      key = getItem.key.map.view
-        .mapValues(buildAwsAttributeValue)
-        .toMap, // TODO(adam): cleanup, just following the types for now
-
-      // attributesToGet is legacy, use projection expression instead
+      key = getItem.key.map.map { case (k, v) => (k, buildAwsAttributeValue(v)) },
       consistentRead = Some(ConsistencyMode.toBoolean(getItem.consistency)),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(getItem.capacity)),
       projectionExpression = toOption(getItem.projections).map(
         _.mkString(", ") // TODO(adam): Not sure if this is the best way to combine projection expressions
-      ),
-      // Do we have support for this?
-      // we're going to skip past this for a little while for now and come back to it later
-      expressionAttributeNames = None
+      )
     )
 
   // the ZIOAwsAttrVal is just a product encoding of a sum type
@@ -193,15 +191,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case AttributeValue.Bool(value)      => ZIOAwsAttributeValue(bool = Some(value))
       case AttributeValue.List(value)      => ZIOAwsAttributeValue(l = Some(value.map(buildAwsAttributeValue)))
       case AttributeValue.Map(value)       =>
-        ZIOAwsAttributeValue(m =
-          Some(
-            value.view.map {
-              case (k, v) =>
-                (k.value, buildAwsAttributeValue(v))
-            }.toMap
-          )
-        )
-
+        ZIOAwsAttributeValue(m = Some(value.map {
+          case (k, v) => (k.value, buildAwsAttributeValue(v))
+        }.toMap)) // TODO(adam): Why does this require a toMap?
       case AttributeValue.Number(value)    => ZIOAwsAttributeValue(n = Some(value.toString()))
       case AttributeValue.NumberSet(value) => ZIOAwsAttributeValue(ns = Some(value.map(_.toString())))
       case AttributeValue.Null             => ZIOAwsAttributeValue(nul = Some(true))
