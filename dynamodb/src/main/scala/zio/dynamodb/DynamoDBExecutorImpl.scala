@@ -17,8 +17,7 @@ import zio.stream.Stream
 
 import scala.collection.immutable.{ Map => ScalaMap }
 
-private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: DynamoDb.Service)
-    extends DynamoDBExecutor.Service {
+private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: DynamoDb.Service) extends DynamoDBExecutor {
 
   def executeMap[A, B](map: Map[A, B]): ZIO[Any, Exception, B] =
     execute(map.query).map(map.mapper)

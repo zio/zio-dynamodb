@@ -31,10 +31,9 @@ inThisBuild(
 addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
 
-val zioVersion        = "1.0.10"
-val zioConfigVersion  = "1.0.6"
-val zioAwsVersion     = "3.17.42.5"
-val sttpClientVersion = "3.3.14"
+val zioVersion       = "1.0.12"
+val zioConfigVersion = "1.0.6"
+val zioAwsVersion    = "3.17.42.5"
 
 lazy val root =
   project
@@ -47,18 +46,15 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
   .settings(buildInfoSettings("zio.dynamodb"))
   .settings(
     libraryDependencies ++= Seq(
-//      "com.softwaremill.sttp.client3" %% "core"                          % sttpClientVersion,
-//      "com.softwaremill.sttp.client3" %% "zio-json"                      % sttpClientVersion,
-      "com.softwaremill.sttp.client3" %% "async-http-client-backend-zio" % sttpClientVersion,
-      "dev.zio"                       %% "zio"                           % zioVersion,
-      "dev.zio"                       %% "zio-streams"                   % zioVersion,
-      "dev.zio"                       %% "zio-test"                      % zioVersion % "test",
-      "dev.zio"                       %% "zio-test-sbt"                  % zioVersion % "test",
-      "dev.zio"                       %% "zio-config-typesafe"           % zioConfigVersion,
-      "io.github.vigoo"               %% "zio-aws-http4s"                % zioAwsVersion,
-      "io.github.vigoo"               %% "zio-aws-dynamodb"              % zioAwsVersion,
-      "io.github.vigoo"               %% "zio-aws-dynamodbstreams"       % zioAwsVersion,
-      "org.scala-lang"                 % "scala-reflect"                 % scalaVersion.value
+      "dev.zio"         %% "zio"                     % zioVersion,
+      "dev.zio"         %% "zio-streams"             % zioVersion,
+      "dev.zio"         %% "zio-test"                % zioVersion % "test",
+      "dev.zio"         %% "zio-test-sbt"            % zioVersion % "test",
+      "dev.zio"         %% "zio-config-typesafe"     % zioConfigVersion,
+      "io.github.vigoo" %% "zio-aws-http4s"          % zioAwsVersion,
+      "io.github.vigoo" %% "zio-aws-dynamodb"        % zioAwsVersion,
+      "io.github.vigoo" %% "zio-aws-dynamodbstreams" % zioAwsVersion,
+      "org.scala-lang"   % "scala-reflect"           % scalaVersion.value
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework")),
     Compile / sourceGenerators += Def.task {
