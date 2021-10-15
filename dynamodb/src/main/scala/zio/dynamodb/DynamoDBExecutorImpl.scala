@@ -76,11 +76,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     } yield BatchGetItem.Response(
       // TODO(adam): Should we add a + operator to MapOfSet that takes (K, Set[V]) -- yes let's do this
       b.foldLeft(MapOfSet.empty[TableName, Item]) {
-        case (acc, (tableName, list)) =>
-          list.map(l => (TableName(tableName), toDynamoItem(l))).foldLeft(acc) {
-            case (acc, (tableName, item)) =>
-              acc + ((tableName, item))
-          }
+        case (acc, (tableName, list)) => acc ++ ((TableName(tableName), list.map(toDynamoItem)))
       }
     )).mapError(_ => new Exception("boooo"))
 
