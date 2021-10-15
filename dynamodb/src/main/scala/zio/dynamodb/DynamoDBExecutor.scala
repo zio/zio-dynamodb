@@ -5,7 +5,7 @@ import zio.{ Has, ULayer, URLayer, ZIO, ZLayer }
 import io.github.vigoo.zioaws.dynamodb.DynamoDb
 
 trait DynamoDBExecutor {
-  def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A]
+  def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Throwable, A]
 }
 
 object DynamoDBExecutor {

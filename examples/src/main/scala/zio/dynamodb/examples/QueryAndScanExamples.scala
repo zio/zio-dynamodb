@@ -10,12 +10,12 @@ import zio.{ Chunk, Has, ZIO }
 
 object QueryAndScanExamples extends App {
 
-  val scanAll1: ZIO[Has[DynamoDBExecutor], Exception, Stream[Exception, Item]]          =
+  val scanAll1: ZIO[Has[DynamoDBExecutor], Throwable, Stream[Throwable, Item]]          =
     scanAll("tableName1", "indexName1", $("A"), $("B"), $("C")).execute
-  val scanSome2: ZIO[Has[DynamoDBExecutor], Exception, (Chunk[Item], LastEvaluatedKey)] =
+  val scanSome2: ZIO[Has[DynamoDBExecutor], Throwable, (Chunk[Item], LastEvaluatedKey)] =
     scanSome("tableName1", "indexName1", limit = 10, $("A"), $("B"), $("C")).execute
 
-  val queryAll1: ZIO[Has[DynamoDBExecutor], Exception, Stream[Exception, Item]] =
+  val queryAll1: ZIO[Has[DynamoDBExecutor], Throwable, Stream[Throwable, Item]] =
     queryAll("tableName1", "indexName1", $("A"), $("B"), $("C"))
       .whereKey(
         PartitionKey("partitionKey1") === "x" &&
@@ -23,7 +23,7 @@ object QueryAndScanExamples extends App {
       )
       .execute
 
-  val querySome2: ZIO[Has[DynamoDBExecutor], Exception, (Chunk[Item], LastEvaluatedKey)] =
+  val querySome2: ZIO[Has[DynamoDBExecutor], Throwable, (Chunk[Item], LastEvaluatedKey)] =
     querySome("tableName1", "indexName1", limit = 10, $("A"), $("B"), $("C"))
       .sortOrder(ascending = false)
       .whereKey(PartitionKey("partitionKey1") === "x" && SortKey("sortKey1") > "X")

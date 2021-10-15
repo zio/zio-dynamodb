@@ -15,7 +15,7 @@ package object dynamodb {
 
   type TableEntry = (PrimaryKey, Item)
 
-  private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[A]): ZIO[Has[DynamoDBExecutor], Exception, A] =
+  private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[A]): ZIO[Has[DynamoDBExecutor], Throwable, A] =
     ZIO.serviceWith[DynamoDBExecutor](_.execute(query))
 
   /**
@@ -30,9 +30,9 @@ package object dynamodb {
    * @return A stream of results from the `DynamoDBQuery.Write`'s
    */
   def batchWriteFromStream[R, A, B](
-    stream: ZStream[R, Exception, A],
+    stream: ZStream[R, Throwable, A],
     mPar: Int = 10
-  )(f: A => DynamoDBQuery.Write[B]): ZStream[Has[DynamoDBExecutor] with R, Exception, B] =
+  )(f: A => DynamoDBQuery.Write[B]): ZStream[Has[DynamoDBExecutor] with R, Throwable, B] =
     stream
       .grouped(25)
       .mapMPar(mPar) { chunk =>
@@ -59,11 +59,11 @@ package object dynamodb {
    */
   def batchReadFromStream[R, A](
     tableName: String,
-    stream: ZStream[R, Exception, A],
+    stream: ZStream[R, Throwable, A],
     mPar: Int = 10
   )(
     pk: A => PrimaryKey
-  ): ZStream[R with Has[DynamoDBExecutor], Exception, Item] =
+  ): ZStream[R with Has[DynamoDBExecutor], Throwable, Item] =
     stream
       .grouped(100)
       .mapMPar(mPar) { chunk =>

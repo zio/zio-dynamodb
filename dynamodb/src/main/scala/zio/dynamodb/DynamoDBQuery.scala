@@ -31,7 +31,7 @@ sealed trait DynamoDBQuery[+A] { self =>
 
   final def <*>[B](that: DynamoDBQuery[B]): DynamoDBQuery[(A, B)] = self zip that
 
-  def execute: ZIO[Has[DynamoDBExecutor], Exception, A] = {
+  def execute: ZIO[Has[DynamoDBExecutor], Throwable, A] = {
     val (constructors, assembler)                                                                   = parallelize(self)
     val (indexedConstructors, (batchGetItem, batchGetIndexes), (batchWriteItem, batchWriteIndexes)) =
       batched(constructors)
@@ -516,7 +516,7 @@ object DynamoDBQuery {
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
-  ) extends Constructor[Stream[Exception, Item]]
+  ) extends Constructor[Stream[Throwable, Item]]
 
   private[dynamodb] final case class QueryAll(
     tableName: TableName,
@@ -531,7 +531,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None,                        // if ProjectExpression supplied then only valid value is SpecificAttributes
     ascending: Boolean = true
-  ) extends Constructor[Stream[Exception, Item]]
+  ) extends Constructor[Stream[Throwable, Item]]
 
   private[dynamodb] final case class PutItem(
     tableName: TableName,

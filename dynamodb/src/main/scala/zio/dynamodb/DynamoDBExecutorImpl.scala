@@ -19,13 +19,13 @@ import scala.collection.immutable.{ Map => ScalaMap }
 
 private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: DynamoDb.Service) extends DynamoDBExecutor {
 
-  def executeMap[A, B](map: Map[A, B]): ZIO[Any, Exception, B] =
+  def executeMap[A, B](map: Map[A, B]): ZIO[Any, Throwable, B] =
     execute(map.query).map(map.mapper)
 
-  def executeZip[A, B, C](zip: Zip[A, B, C]): ZIO[Any, Exception, C] =
+  def executeZip[A, B, C](zip: Zip[A, B, C]): ZIO[Any, Throwable, C] =
     execute(zip.left).zipWith(execute(zip.right))(zip.zippable.zip)
 
-  def executeConstructor[A](constructor: Constructor[A]): ZIO[Any, Exception, A] =
+  def executeConstructor[A](constructor: Constructor[A]): ZIO[Any, Throwable, A] =
     constructor match {
       case getItem @ GetItem(_, _, _, _, _)             => doGetItem(getItem)
       case putItem @ PutItem(_, _, _, _, _, _)          => doPutItem(putItem)
@@ -34,14 +34,14 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case _                                            => ???
     }
 
-  override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A] =
+  override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Throwable, A] =
     atomicQuery match {
       case constructor: Constructor[_] => executeConstructor(constructor)
       case zip @ Zip(_, _, _)          => executeZip(zip)
       case map @ Map(_, _)             => executeMap(map)
     }
 
-  private def doScanAll(scanAll: ScanAll): ZIO[Any, Exception, Stream[Exception, Item]] =
+  private def doScanAll(scanAll: ScanAll): ZIO[Any, Exception, Stream[Throwable, Item]] =
     ZIO.succeed(
       dynamoDb
         .scan(generateScanRequest(scanAll))
@@ -68,22 +68,21 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       consistentRead = ???
     )
 
-  private def doBatchGetItem(batchGetItem: BatchGetItem): ZIO[Any, Exception, BatchGetItem.Response] =
+  private def doBatchGetItem(batchGetItem: BatchGetItem): ZIO[Any, Throwable, BatchGetItem.Response] =
     (for {
       a <- dynamoDb.batchGetItem(generateBatchGetItemRequest(batchGetItem))
       b <- a.responses
     } yield BatchGetItem.Response(
-      // TODO(adam): Should we add a + operator to MapOfSet that takes (K, Set[V]) -- yes let's do this
       b.foldLeft(MapOfSet.empty[TableName, Item]) {
         case (acc, (tableName, list)) => acc ++ ((TableName(tableName), list.map(toDynamoItem)))
       }
     )).mapError(_ => new Exception("boooo"))
 
   // TODO(adam): Change our Exception => Throwable and then call toThrowable on the AwsError
-  private def doPutItem(putItem: PutItem): ZIO[Any, Exception, Unit] =
+  private def doPutItem(putItem: PutItem): ZIO[Any, Throwable, Unit] =
     dynamoDb.putItem(generatePutItemRequest(putItem)).unit.mapError(_ => new Exception("abc")) // TODO(adam): Cleanup
 
-  private def doGetItem(getItem: GetItem): ZIO[Any, Exception, Option[Item]] =
+  private def doGetItem(getItem: GetItem): ZIO[Any, Throwable, Option[Item]] =
     for {
       a <- dynamoDb
              .getItem(generateGetItemRequest(getItem))
