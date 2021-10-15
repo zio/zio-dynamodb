@@ -5,14 +5,16 @@ import io.github.vigoo.zioaws.dynamodb.DynamoDb
 import io.github.vigoo.zioaws.dynamodb.model.{
   BatchGetItemRequest,
   GetItemRequest,
-  GetItemResponse,
   KeysAndAttributes,
   PutItemRequest,
   ReturnValue,
+  ScanRequest,
   AttributeValue => ZIOAwsAttributeValue,
   ReturnConsumedCapacity => ZIOAwsReturnConsumedCapacity
 }
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
+import zio.stream.Stream
+
 import scala.collection.immutable.{ Map => ScalaMap }
 
 private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: DynamoDb.Service)
@@ -24,15 +26,13 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   def executeZip[A, B, C](zip: Zip[A, B, C]): ZIO[Any, Exception, C] =
     execute(zip.left).zipWith(execute(zip.right))(zip.zippable.zip)
 
-  // TODO(adam): I'm confused about this. A `GetItem` extends a `Constructor[Option[Item]]`.
-  //    Should the getItem match not return an Option[Item]???
-  //    Is this just a problem with IntelliJ not knowing about the types?
   def executeConstructor[A](constructor: Constructor[A]): ZIO[Any, Exception, A] =
     constructor match {
-      case getItem @ GetItem(_, _, _, _, _)     => doGetItem(getItem)
-      case putItem @ PutItem(_, _, _, _, _, _)  => doPutItem(putItem)
-      case batchGetItem @ BatchGetItem(_, _, _) => doBatchGetItem(batchGetItem)
-      case _                                    => ???
+      case getItem @ GetItem(_, _, _, _, _)             => doGetItem(getItem)
+      case putItem @ PutItem(_, _, _, _, _, _)          => doPutItem(putItem)
+      case batchGetItem @ BatchGetItem(_, _, _)         => doBatchGetItem(batchGetItem)
+      case scanAll @ ScanAll(_, _, _, _, _, _, _, _, _) => doScanAll(scanAll)
+      case _                                            => ???
     }
 
   override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A] =
@@ -42,14 +42,51 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case map @ Map(_, _)             => executeMap(map)
     }
 
-  private def doBatchGetItem(batchGetItem: BatchGetItem): ZIO[Any, Exception, BatchGetItem.Response] =
-    for {
-      a <- dynamoDb.batchGetItem(generateBatchGetItemRequest(batchGetItem)).mapError(_ => new Exception("boooo"))
-      b <- a.responses.mapError(_ => new Exception("boooo"))
-    } yield BatchGetItem.Response(MapOfSet(b.view.mapValues(a => a.map(toDynamoItem).toSet).toMap))
+  private def doScanAll(scanAll: ScanAll): ZIO[Any, Exception, Stream[Exception, Item]] =
+    ZIO.succeed(
+      dynamoDb
+        .scan(generateScanRequest(scanAll))
+        .mapBoth(
+          _ => new Exception("boooo"),
+          item => toDynamoItem(item)
+        )
+    )
 
+  private def generateScanRequest(scanAll: ScanAll): ScanRequest =
+    ScanRequest(
+      tableName = scanAll.tableName.value,
+      indexName = ???,
+      select = ???,
+      scanFilter = ???,
+      exclusiveStartKey = ???,
+      returnConsumedCapacity = ???,
+      totalSegments = ???,
+      segment = ???,
+      projectionExpression = ???,
+      filterExpression = ???,
+      expressionAttributeNames = ???,
+      expressionAttributeValues = ???,
+      consistentRead = ???
+    )
+
+  private def doBatchGetItem(batchGetItem: BatchGetItem): ZIO[Any, Exception, BatchGetItem.Response] =
+    (for {
+      a <- dynamoDb.batchGetItem(generateBatchGetItemRequest(batchGetItem))
+      b <- a.responses
+    } yield BatchGetItem.Response(
+      // TODO(adam): Should we add a + operator to MapOfSet that takes (K, Set[V]) -- yes let's do this
+      b.foldLeft(MapOfSet.empty[TableName, Item]) {
+        case (acc, (tableName, list)) =>
+          list.map(l => (TableName(tableName), toDynamoItem(l))).foldLeft(acc) {
+            case (acc, (tableName, item)) =>
+              acc + ((tableName, item))
+          }
+      }
+    )).mapError(_ => new Exception("boooo"))
+
+  // TODO(adam): Change our Exception => Throwable and then call toThrowable on the AwsError
   private def doPutItem(putItem: PutItem): ZIO[Any, Exception, Unit] =
-    dynamoDb.putItem(generatePutItemRequest(putItem)).unit.mapError(e => new Exception("abc"))
+    dynamoDb.putItem(generatePutItemRequest(putItem)).unit.mapError(_ => new Exception("abc")) // TODO(adam): Cleanup
 
   private def doGetItem(getItem: GetItem): ZIO[Any, Exception, Option[Item]] =
     for {
@@ -62,6 +99,14 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   private def toDynamoItem(attrMap: ScalaMap[String, ZIOAwsAttributeValue.ReadOnly]): Item =
     Item(attrMap.view.mapValues(awsAttrValToAttrVal).toMap)
 
+  /*
+    let's just combine all of the sets of project expressions for a table to get all of them
+    we want this to continue to be a single batch request, we should not be making multiple batch calls
+
+    we'll be returning a little more data possibly -- users may end up just getting the same columns
+
+
+   */
   private def generateBatchGetItemRequest(batchGetItem: BatchGetItem): BatchGetItemRequest =
     BatchGetItemRequest(
       requestItems = batchGetItem.requestItems.map {
@@ -71,13 +116,13 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(batchGetItem.capacity))
     )
 
+  // TODO(adam): Ask John for assistance on this one?
   private def generateKeysAndAttributes(tableGets: Set[TableGet]): KeysAndAttributes =
     KeysAndAttributes(
+      // just end up mapping the (k, v) => (identity, v => v2)
       keys = tableGets.map(_.key.map.view.mapValues(buildAwsAttributeValue).toMap),
-      attributesToGet = ??? // TODO(adam): It looks like here we have an issue with the types not aligning
-      /* Our TableGet has a projections (attributesToGet) but the KeysAndAttributes expects one projection rather than one per
-       *
-       */
+      // projectionExpression is really just Option[String]
+      projectionExpression = Some(???)
     )
 
   private def generatePutItemRequest(putItem: PutItem): PutItemRequest =
@@ -104,9 +149,12 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
         _.mkString(", ") // TODO(adam): Not sure if this is the best way to combine projection expressions
       ),
       // Do we have support for this?
+      // we're going to skip past this for a little while for now and come back to it later
       expressionAttributeNames = None
     )
 
+  // the ZIOAwsAttrVal is just a product encoding of a sum type
+  // map the options into something and orElse them
   private def awsAttrValToAttrVal(attributeValue: ZIOAwsAttributeValue.ReadOnly): AttributeValue =
     ???
 

@@ -42,10 +42,11 @@ sealed trait ConditionExpression { self =>
   def ||(that: ConditionExpression): ConditionExpression = Or(self, that)
   def unary_! : ConditionExpression                      = Not(self)
 
+  // TODO(adam): call render or toAws
   override def toString: String =
     self match {
       case Between(left, minValue, maxValue)  => s"$left BETWEEN $minValue AND $maxValue"
-      case In(left, values)                   => ??? //TODO(adam): This one is funky
+      case In(_, _)                           => ??? //TODO(adam): This one is funky
       case AttributeExists(path)              => s"attribute_exists($path})"
       case AttributeNotExists(path)           => s"attribute_not_exists($path)"
       case AttributeType(path, attributeType) => s"attribute_type($path, $attributeType)"

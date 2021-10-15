@@ -26,6 +26,14 @@ private[dynamodb] final case class MapOfSet[K, V] private (private val map: Scal
     new MapOfSet(m)
   }
 
+  def ++(entries: (K, Set[V])): MapOfSet[K, V] = {
+    val (key, values) = entries
+    values.foldLeft(self) {
+      case (acc, value) =>
+        acc + ((key, value))
+    }
+  }
+
   def addAll(entries: (K, V)*): MapOfSet[K, V] =
     entries.foldLeft(self) {
       case (map, (k, v)) => map + (k -> v)
