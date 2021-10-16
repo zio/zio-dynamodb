@@ -41,7 +41,7 @@ trait CodecTestFixtures {
   lazy implicit val caseClassOfInstant: Schema[CaseClassOfInstant]                 = DeriveSchema.gen[CaseClassOfInstant]
   lazy implicit val caseClassOfStatus: Schema[CaseClassOfStatus]                   = DeriveSchema.gen[CaseClassOfStatus]
 
-  implicit def myDodgyMap[String, V](implicit element: Schema[(String, V)]): Schema[Map[String, V]] = {
+  implicit def mapSchema[String, V](implicit element: Schema[(String, V)]): Schema[Map[String, V]] = {
     val value: Schema[Chunk[(String, V)]] = chunk(element)
     value.transform(_.toMap[String, V], Chunk.fromIterable(_))
   }
