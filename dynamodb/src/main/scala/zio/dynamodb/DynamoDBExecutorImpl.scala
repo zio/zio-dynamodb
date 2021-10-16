@@ -131,10 +131,10 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       returnValues = Some(buildAwsPutRequestReturnValue(putItem.returnValues))
     )
 
-  private def attrMapToAwsAttrMap(attrMap: ScalaMap[String, AttributeValue]): Map[String, ZIOAwsAttributeValue] =
+  private def attrMapToAwsAttrMap(attrMap: ScalaMap[String, AttributeValue]): ScalaMap[String, ZIOAwsAttributeValue] =
     attrMap.map { case (k, v) => (k, buildAwsAttributeValue(v)) }
 
-  private def generateGetItemRequest(getItem: GetItem): GetItemRequest                                          =
+  private def generateGetItemRequest(getItem: GetItem): GetItemRequest                                               =
     GetItemRequest(
       tableName = getItem.tableName.value,
       key = getItem.key.map.map { case (k, v) => (k, buildAwsAttributeValue(v)) },
