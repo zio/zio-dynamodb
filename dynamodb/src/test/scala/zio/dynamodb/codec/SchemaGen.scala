@@ -414,8 +414,8 @@ object SchemaGen {
     Gen.oneOf(
       Gen.const(Schema[Arity1]),
       Gen.const(Schema[Arity2]),
-      Gen.const(Schema[Arity3]),
-      Gen.const(Schema[Arity24])
+      Gen.const(Schema[Arity3])
+//      Gen.const(Schema[Arity24])
     )
 
   val anyCaseClassAndGen: Gen[Random with Sized, CaseClassAndGen[_]] =

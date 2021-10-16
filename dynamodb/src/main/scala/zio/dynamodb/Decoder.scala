@@ -14,7 +14,7 @@ private[dynamodb] object Decoder {
 
   private def decoder[A](schema: Schema[A]): Decoder[A] =
     schema match {
-      case ProductDecoder(decoder)         => decoder
+      case ProductDecoder(decoder)         => decoder // TODO: inline for exhaustive matching
       case s: Optional[a]                  => optionalDecoder[a](decoder(s.codec))
       case Schema.Fail(s)                  => _ => Left(s)
       case Schema.GenericRecord(structure) => genericRecordDecoder(structure).asInstanceOf[Decoder[A]]
@@ -28,7 +28,8 @@ private[dynamodb] object Decoder {
       case Primitive(standardType)         =>
         primitiveDecoder(standardType)
       case l @ Schema.Lazy(_)              =>
-        decoder(l.schema)
+        lazy val dec = decoder(l.schema)
+        (av: AttributeValue) => dec(av)
       case Schema.Meta(_)                  => astDecoder
       case Schema.Enum1(c)                 =>
         enumDecoder(c)

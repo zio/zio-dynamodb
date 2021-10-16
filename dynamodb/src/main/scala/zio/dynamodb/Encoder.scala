@@ -19,7 +19,7 @@ private[dynamodb] object Encoder {
 
   private def encoder[A](schema: Schema[A]): Encoder[A] =
     schema match {
-      case ProductEncoder(encoder)         => encoder
+      case ProductEncoder(encoder)         => encoder // TODO: inline for exhaustive matching
       case s: Schema.Optional[a]           => optionalEncoder[a](encoder(s.codec))
       case Schema.Fail(_)                  => _ => AttributeValue.Null
       case Schema.Tuple(l, r)              => tupleEncoder(encoder(l), encoder(r))
@@ -29,7 +29,9 @@ private[dynamodb] object Encoder {
       case Schema.GenericRecord(structure) => genericRecordEncoder(structure)
       case Schema.Enumeration(structure)   => enumerationEncoder(structure)
       case Schema.EitherSchema(l, r)       => eitherEncoder(encoder(l), encoder(r))
-      case l @ Schema.Lazy(_)              => encoder(l.schema)
+      case l @ Schema.Lazy(_)              =>
+        lazy val enc = encoder(l.schema)
+        (a: A) => enc(a)
       case Schema.Meta(_)                  => astEncoder
       case Schema.Enum1(c)                 => enumEncoder(c)
       case Schema.Enum2(c1, c2)            => enumEncoder(c1, c2)

@@ -5,7 +5,7 @@ import zio.dynamodb.ConditionExpression._
 import zio.schema.Schema
 
 sealed trait AttributeValue { self =>
-  def decode[A](implicit schema: Schema[A]): Decoder[A] = Decoder(schema)
+  def decode[A](implicit schema: Schema[A]): Either[String, A] = Decoder(schema)(self)
 
   def ===(that: Operand.Size): ConditionExpression = Equals(ValueOperand(self), that)
   def <>(that: Operand.Size): ConditionExpression  = NotEqual(ValueOperand(self), that)

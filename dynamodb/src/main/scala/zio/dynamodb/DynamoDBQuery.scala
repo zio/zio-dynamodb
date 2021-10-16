@@ -312,7 +312,6 @@ object DynamoDBQuery {
     key: PrimaryKey,
     projections: ProjectionExpression*
   ): DynamoDBQuery[Either[String, A]] =
-//    def fromItem(item: Item)(implicit schema: Schema[A]): Either[String, A] = ???
     getItem(tableName, key, projections: _*).map {
       case Some(item) =>
         fromItem(item)
@@ -321,14 +320,13 @@ object DynamoDBQuery {
 
   private[dynamodb] def fromItem[A: Schema](item: Item): Either[String, A] = {
     val av = ToAttributeValue.attrMapToAttributeValue.toAttributeValue(item)
-    av.decode(Schema[A])(av)
+    av.decode(Schema[A])
   }
 
   def putItem(tableName: String, item: Item): Write[Unit] = PutItem(TableName(tableName), item)
 
   // TODO: I think we will still need a Write rather than DynamoDBQuery as Write is used by batching ops
   def put[A: Schema](tableName: String, a: A): DynamoDBQuery[Unit] =
-//    def toItem(a: A)(implicit schema: Schema[A]): Item = ???
     putItem(tableName, toItem(a))
 
   private[dynamodb] def toItem[A](a: A)(implicit schema: Schema[A]): Item =
@@ -354,12 +352,15 @@ object DynamoDBQuery {
       projections = projections.toList
     )
 
-//  def scanSome[A: Schema](
+  // implement in terms of other one
+  // for generic methods use scanXXXXItem
+  // take same approach for other Scan
+//  def scanSome2[A: Schema](
 //    tableName: String,
 //    indexName: String,
 //    limit: Int,
 //    projections: ProjectionExpression*
-//  ): ScanSome[A] = ???
+//  ): DynamoDBQuery[(Chunk[A], LastEvaluatedKey)] = ???
 
   /**
    * when executed will return a ZStream of Item
