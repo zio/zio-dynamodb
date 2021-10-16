@@ -6,7 +6,7 @@ import zio.dynamodb.{ DynamoDBExecutor, Item, PrimaryKey, TestDynamoDBExecutor }
 import zio.schema.{ DeriveSchema, Schema }
 import zio.{ App, ExitCode, URIO }
 
-object SimpleExample2 extends App {
+object SimpleDecodedExample extends App {
   val nestedItem       = Item("id" -> 2, "name" -> "Avi", "flag" -> true)
   val parentItem: Item = Item("id" -> 1, "nested" -> nestedItem)
 
@@ -26,7 +26,14 @@ object SimpleExample2 extends App {
     _            <- putStrLn(s"scanSome: found chunk $chunk and lek = $lek")
     stream       <- scanAll[NestedCaseClass2]("table1", "indexNameIgnored").execute
     xs           <- stream.runCollect
-    _            <- putStrLn(s"scanAll: found stream ${xs}")
+    _            <- putStrLn(s"scanAll: found stream $xs")
+
+    (chunk2, lek2) <- querySome[NestedCaseClass2]("table1", "indexNameIgnored", 10).execute
+    _              <- putStrLn(s"querySome: found chunk $chunk2 and lek = $lek2")
+    stream2        <- queryAll[NestedCaseClass2]("table1", "indexNameIgnored").execute
+    xs2            <- stream2.runCollect
+    _              <- putStrLn(s"queryAll: found stream $xs2")
+
   } yield ()
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] =

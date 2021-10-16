@@ -388,16 +388,16 @@ object DynamoDBQuery {
     indexName: String,
     projections: ProjectionExpression*
   ): DynamoDBQuery[Stream[Exception, A]] =
-    scanAllItem(tableName, indexName, projections: _*).map { itemStream =>
-      itemStream.mapM(item =>
+    scanAllItem(tableName, indexName, projections: _*).map(
+      _.mapM(item =>
         ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_))
       ) // TODO: Create a custom error model
-    }
+    )
 
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
    */
-  def querySome(tableName: String, indexName: String, limit: Int, projections: ProjectionExpression*): QuerySome =
+  def querySomeItem(tableName: String, indexName: String, limit: Int, projections: ProjectionExpression*): QuerySome =
     QuerySome(
       TableName(tableName),
       IndexName(indexName),
@@ -407,14 +407,46 @@ object DynamoDBQuery {
     )
 
   /**
+   * when executed will return a Tuple of {{{(Chunk[A], LastEvaluatedKey)}}}
+   */
+  def querySome[A: Schema](
+    tableName: String,
+    indexName: String,
+    limit: Int,
+    projections: ProjectionExpression*
+  ): DynamoDBQuery[(Chunk[A], LastEvaluatedKey)] =
+    querySomeItem(tableName, indexName, limit, projections: _*).map {
+      case (itemsChunk, lek) =>
+        foreach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
+          case Right(chunk) => (chunk, lek)
+          // TODO: should we return an Either?
+          case Left(error)  => throw new IllegalStateException(s"Error decoding item: $error")
+        }
+    }
+
+  /**
    * when executed will return a ZStream of Item
    */
-  def queryAll(tableName: String, indexName: String, projections: ProjectionExpression*): QueryAll =
+  def queryAllItem(tableName: String, indexName: String, projections: ProjectionExpression*): QueryAll =
     QueryAll(
       TableName(tableName),
       IndexName(indexName),
       select = selectOrAll(projections),
       projections = projections.toList
+    )
+
+  /**
+   * when executed will return a ZStream of A
+   */
+  def queryAll[A: Schema](
+    tableName: String,
+    indexName: String,
+    projections: ProjectionExpression*
+  ): DynamoDBQuery[Stream[Exception, A]] =
+    queryAllItem(tableName, indexName, projections: _*).map(
+      _.mapM(item =>
+        ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_))
+      ) // TODO: Create a custom error model
     )
 
   def createTable(
@@ -535,9 +567,6 @@ object DynamoDBQuery {
   // Interestingly scan can be run in parallel using segment number and total segments fields
   // If running in parallel segment number must be used consistently with the paging token
   // I have removed these fields on the assumption that the library will take care of these concerns
-  // TODO: store Schema[A]
-  // TODO: derive schema of Item and expose as implicit in companion object
-  // TODO: temp remove [A] in ScanXXXX[A] to allow code to compile, then restore later on
   private[dynamodb] final case class ScanSome(
     tableName: TableName,
     indexName: IndexName,
@@ -550,9 +579,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
   ) extends Constructor[(Chunk[Item], LastEvaluatedKey)]
-  // TODO: restore Constructor[(Chunk[A], LastEvaluatedKey)]
 
-  // TODO: restor   private[dynamodb] final case class QuerySome[A](
   private[dynamodb] final case class QuerySome(
     tableName: TableName,
     indexName: IndexName,
@@ -567,9 +594,7 @@ object DynamoDBQuery {
     select: Option[Select] = None,                        // if ProjectExpression supplied then only valid value is SpecificAttributes
     ascending: Boolean = true
   ) extends Constructor[(Chunk[Item], LastEvaluatedKey)]
-  // TODO: retsore   extends Constructor[(Chunk[A], LastEvaluatedKey)]
 
-  // TODO: restore   private[dynamodb] final case class ScanAll[A](
   private[dynamodb] final case class ScanAll(
     tableName: TableName,
     indexName: IndexName,
@@ -582,9 +607,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
   ) extends Constructor[Stream[Exception, Item]]
-  // TODO: restore  extends Constructor[Stream[Exception, A]]
 
-  // TODO: restore   private[dynamodb] final case class QueryAll[A](
   private[dynamodb] final case class QueryAll(
     tableName: TableName,
     indexName: IndexName,
@@ -599,7 +622,6 @@ object DynamoDBQuery {
     select: Option[Select] = None,                        // if ProjectExpression supplied then only valid value is SpecificAttributes
     ascending: Boolean = true
   ) extends Constructor[Stream[Exception, Item]]
-  // TODO:   extends Constructor[Stream[Exception, A]]
 
   private[dynamodb] final case class PutItem(
     tableName: TableName,
