@@ -15,6 +15,9 @@ package object dynamodb {
 
   type TableEntry = (PrimaryKey, Item)
 
+  type Encoder[A]  = A => AttributeValue
+  type Decoder[+A] = AttributeValue => Either[String, A]
+
   private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[A]): ZIO[Has[DynamoDBExecutor], Exception, A] =
     ZIO.serviceWith[DynamoDBExecutor](_.execute(query))
 
@@ -22,7 +25,7 @@ package object dynamodb {
    * Reads `stream` and uses function `f` for creating a BatchWrite request that is executes for side effects. Stream is batched into groups
    * of 25 items in a BatchWriteItem and executed using the `DynamoDBExecutor` service provided in the environment.
    * @param stream
-   * @param mPar Level of parllelism for the stream processing
+   * @param mPar Level of parallelism for the stream processing
    * @param f Function that takes an `A` and returns a `DynamoDBQuery.Write` which are used internally to populate a BatchWriteItem request
    * @tparam R Environment
    * @tparam A
