@@ -352,20 +352,19 @@ object DynamoDBQuery {
     )
 
   /**
-   * when executed will return a Tuple of {{{(Chunk[A], LastEvaluatedKey)}}}
+   * when executed will return a Tuple of {{{Either[String,(Chunk[A], LastEvaluatedKey)]}}}
    */
   def scanSome[A: Schema](
     tableName: String,
     indexName: String,
     limit: Int,
     projections: ProjectionExpression*
-  ): DynamoDBQuery[(Chunk[A], LastEvaluatedKey)] =
+  ): DynamoDBQuery[Either[String, (Chunk[A], LastEvaluatedKey)]] =
     scanSomeItem(tableName, indexName, limit, projections: _*).map {
       case (itemsChunk, lek) =>
         foreach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
-          case Right(chunk) => (chunk, lek)
-          // TODO: should we return an Either?
-          case Left(error)  => throw new IllegalStateException(s"Error decoding item: $error")
+          case Right(chunk) => Right((chunk, lek))
+          case Left(error)  => Left(error)
         }
     }
 
@@ -407,20 +406,19 @@ object DynamoDBQuery {
     )
 
   /**
-   * when executed will return a Tuple of {{{(Chunk[A], LastEvaluatedKey)}}}
+   * when executed will return a Tuple of {{{Either[String,(Chunk[A], LastEvaluatedKey)]}}}
    */
   def querySome[A: Schema](
     tableName: String,
     indexName: String,
     limit: Int,
     projections: ProjectionExpression*
-  ): DynamoDBQuery[(Chunk[A], LastEvaluatedKey)] =
+  ): DynamoDBQuery[Either[String, (Chunk[A], LastEvaluatedKey)]] =
     querySomeItem(tableName, indexName, limit, projections: _*).map {
       case (itemsChunk, lek) =>
         foreach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
-          case Right(chunk) => (chunk, lek)
-          // TODO: should we return an Either?
-          case Left(error)  => throw new IllegalStateException(s"Error decoding item: $error")
+          case Right(chunk) => Right((chunk, lek))
+          case Left(error)  => Left(error)
         }
     }
 
