@@ -13,18 +13,19 @@ import scala.collection.immutable.ListMap
 object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
   override def spec: ZSpec[Environment, Failure] =
-    suite("")(
-      mainSuite,
+    suite("encode then decode suite")(
+      simpleSuite,
       eitherSuite,
       optionalSuite,
       caseClassSuite,
       recordSuite,
       sequenceSuite,
       enumerationSuite,
-      transformSuite
+      transformSuite,
+      anySchemaSuite @@ TestAspect.ignore // TODO: fix
     )
 
-  val eitherSuite = suite("either suite")(
+  private val eitherSuite = suite("either suite")(
     testM("a primitive") {
       checkM(SchemaGen.anyEitherAndGen) {
         case (schema, gen) =>
@@ -84,7 +85,7 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
     }
   )
 
-  val optionalSuite = suite("optional suite")(
+  private val optionalSuite = suite("optional suite")(
     testM("of primitive") {
       checkM(SchemaGen.anyOptionalAndValue) {
         case (schema, value) => assertEncodesThenDecodes(schema, value)
@@ -120,7 +121,7 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
     }
   )
 
-  val sequenceSuite = suite("sequence")(
+  private val sequenceSuite = suite("sequence")(
     testM("of primitives") {
       checkM(SchemaGen.anySequenceAndValue) {
         case (schema, value) => assertEncodesThenDecodes(schema, value)
@@ -143,7 +144,7 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
     }
   )
 
-  val caseClassSuite = suite("case class")(
+  private val caseClassSuite = suite("case class")(
     testM("basic") {
       checkM(searchRequestGen) { value =>
         assertEncodesThenDecodes(searchRequestSchema, value)
@@ -154,7 +155,7 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
     }
   )
 
-  val recordSuite = suite("record")(
+  private val recordSuite = suite("record")(
     testM("any") {
       checkM(SchemaGen.anyRecordAndValue) {
         case (schema, value) => assertEncodesThenDecodes(schema, value)
@@ -196,7 +197,7 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
     }
   )
 
-  val enumerationSuite = suite("enumeration")(
+  private val enumerationSuite = suite("enumeration")(
     testM("of primitives") {
       assertEncodesThenDecodes(
         enumSchema,
@@ -214,7 +215,7 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
     }
   )
 
-  val transformSuite = suite("transform")(
+  private val transformSuite = suite("transform")(
     testM("any") {
       checkM(SchemaGen.anyTransformAndValue) {
         case (schema, value) =>
@@ -223,7 +224,7 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
     }
   )
 
-  val mainSuite = suite("encode and decode round trip suite")(
+  private val simpleSuite = suite("simple suite")(
     test("unit") {
       assertEncodesThenDecodesPure(Schema[Unit], ())
     },
@@ -261,6 +262,35 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
       checkM(SchemaGen.anySequenceAndGen) {
         case (schema, gen) =>
           assertEncodesThenDecodesWithGen(schema, gen)
+      }
+    }
+  )
+
+  private val anySchemaSuite = suite("any schema")(
+    testM("leaf") {
+      checkM(SchemaGen.anyLeafAndValue) {
+        case (schema, value) =>
+          assertEncodesThenDecodes(schema, value)
+      }
+    },
+    /*
+    TODO: fix:
+    - recursive schema
+      Test failed after 115 iterations with input: (Optional(Optional(Primitive(bigDecimal))),Some(None))
+      None did not satisfy equalTo(Some(None))
+      `decoded` = Right(None) did not satisfy isRight(equalTo(Some(None)))
+      ☛ /home/avinder/Workspaces/git/zio-dynamodb/dynamodb/src/test/scala/zio/dynamodb/codec/CodecRoundTripSpec.scala:301
+     */
+    testM("recursive schema") {
+      checkM(SchemaGen.anyTreeAndValue) {
+        case (schema, value) =>
+          assertEncodesThenDecodes(schema, value)
+      }
+    },
+    testM("recursive data type") {
+      checkM(SchemaGen.anyRecursiveTypeAndValue) {
+        case (schema, value) =>
+          assertEncodesThenDecodes(schema, value)
       }
     }
   )
