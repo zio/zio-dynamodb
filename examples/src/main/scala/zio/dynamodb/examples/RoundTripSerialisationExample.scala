@@ -52,16 +52,13 @@ object RoundTripSerialisationExample extends App {
       "categoryMap" -> i.categoryMap,
       "categorySet" -> i.categorySet,
       "optSet"      -> i.optSet,
-      "address"     -> {
-        val x: Item = i.address.map { addr =>
-          Item(
-            "line1"   -> addr.line1,
-            "line2"   -> addr.line2,
-            "country" -> addr.country
-          )
-        }.orNull
-        x
-      },
+      "address"     -> i.address.map { addr =>
+        Item(
+          "line1"   -> addr.line1,
+          "line2"   -> addr.line2,
+          "country" -> addr.country
+        )
+      }.orNull,
       "lineItems"   -> i.lineItems.map(li =>
         Item(
           "itemId"  -> li.itemId,

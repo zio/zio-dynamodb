@@ -2,8 +2,6 @@ package zio.dynamodb
 
 final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFromAttributeValueAs { self =>
 
-  def ++(that: AttrMap): AttrMap = AttrMap(self.map ++ that.map)
-
   def get[A](field: String)(implicit ev: FromAttributeValue[A]): Either[String, A] =
     map
       .get(field)
