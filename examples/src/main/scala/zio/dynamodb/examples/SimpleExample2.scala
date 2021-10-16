@@ -17,11 +17,16 @@ object SimpleExample2 extends App {
   implicit lazy val simpleCaseClass3: Schema[SimpleCaseClass3] = DeriveSchema.gen[SimpleCaseClass3]
 
   private val program = for {
-    _         <- TestDynamoDBExecutor.addTable("table1", pkFieldName = "id")()
-    _         <-
+    _            <- TestDynamoDBExecutor.addTable("table1", pkFieldName = "id")()
+    _            <-
       put("table1", NestedCaseClass2(id = 1, SimpleCaseClass3(2, "Avi", flag = true))).execute // Save case class to DB
-    caseClass <- get[NestedCaseClass2]("table1", PrimaryKey("id" -> 1)).execute // read case class from DB
-    _         <- putStrLn(s"found $caseClass")
+    caseClass    <- get[NestedCaseClass2]("table1", PrimaryKey("id" -> 1)).execute // read case class from DB
+    _            <- putStrLn(s"get: found $caseClass")
+    (chunk, lek) <- scanSome[NestedCaseClass2]("table1", "indexNameIgnored", 10).execute
+    _            <- putStrLn(s"scanSome: found chunk $chunk and lek = $lek")
+    stream       <- scanAll[NestedCaseClass2]("table1", "indexNameIgnored").execute
+    xs           <- stream.runCollect
+    _            <- putStrLn(s"scanAll: found stream ${xs}")
   } yield ()
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] =

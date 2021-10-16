@@ -342,8 +342,7 @@ object DynamoDBQuery {
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
    */
-  // TODO: restore to def scanSomeItem(tableName: String, indexName: String, limit: Int, projections: ProjectionExpression*): ScanSome[Item]
-  def scanSome(tableName: String, indexName: String, limit: Int, projections: ProjectionExpression*): ScanSome =
+  def scanSomeItem(tableName: String, indexName: String, limit: Int, projections: ProjectionExpression*): ScanSome =
     ScanSome(
       TableName(tableName),
       IndexName(indexName),
@@ -352,26 +351,48 @@ object DynamoDBQuery {
       projections = projections.toList
     )
 
-  // implement in terms of other one
-  // for generic methods use scanXXXXItem
-  // take same approach for other Scan
-//  def scanSome2[A: Schema](
-//    tableName: String,
-//    indexName: String,
-//    limit: Int,
-//    projections: ProjectionExpression*
-//  ): DynamoDBQuery[(Chunk[A], LastEvaluatedKey)] = ???
+  /**
+   * when executed will return a Tuple of {{{(Chunk[A], LastEvaluatedKey)}}}
+   */
+  def scanSome[A: Schema](
+    tableName: String,
+    indexName: String,
+    limit: Int,
+    projections: ProjectionExpression*
+  ): DynamoDBQuery[(Chunk[A], LastEvaluatedKey)] =
+    scanSomeItem(tableName, indexName, limit, projections: _*).map {
+      case (itemsChunk, lek) =>
+        foreach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
+          case Right(chunk) => (chunk, lek)
+          // TODO: should we return an Either?
+          case Left(error)  => throw new IllegalStateException(s"Error decoding item: $error")
+        }
+    }
 
   /**
    * when executed will return a ZStream of Item
    */
-  def scanAll(tableName: String, indexName: String, projections: ProjectionExpression*): ScanAll =
+  def scanAllItem(tableName: String, indexName: String, projections: ProjectionExpression*): ScanAll =
     ScanAll(
       TableName(tableName),
       IndexName(indexName),
       select = selectOrAll(projections),
       projections = projections.toList
     )
+
+  /**
+   * when executed will return a ZStream of A
+   */
+  def scanAll[A: Schema](
+    tableName: String,
+    indexName: String,
+    projections: ProjectionExpression*
+  ): DynamoDBQuery[Stream[Exception, A]] =
+    scanAllItem(tableName, indexName, projections: _*).map { itemStream =>
+      itemStream.mapM(item =>
+        ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_))
+      ) // TODO: Create a custom error model
+    }
 
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}

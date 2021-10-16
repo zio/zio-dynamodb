@@ -11,9 +11,9 @@ import zio.{ Chunk, Has, ZIO }
 object QueryAndScanExamples extends App {
 
   val scanAll1: ZIO[Has[DynamoDBExecutor], Exception, Stream[Exception, Item]]          =
-    scanAll("tableName1", "indexName1", $("A"), $("B"), $("C")).execute
+    scanAllItem("tableName1", "indexName1", $("A"), $("B"), $("C")).execute
   val scanSome2: ZIO[Has[DynamoDBExecutor], Exception, (Chunk[Item], LastEvaluatedKey)] =
-    scanSome("tableName1", "indexName1", limit = 10, $("A"), $("B"), $("C")).execute
+    scanSomeItem("tableName1", "indexName1", limit = 10, $("A"), $("B"), $("C")).execute
 
   val queryAll1: ZIO[Has[DynamoDBExecutor], Exception, Stream[Exception, Item]] =
     queryAll("tableName1", "indexName1", $("A"), $("B"), $("C"))
@@ -30,7 +30,7 @@ object QueryAndScanExamples extends App {
       .selectCount
       .execute
 
-  val zippedAndSorted = (scanSome("tableName1", "indexName1", limit = 10, $("A"), $("B"), $("C"))
+  val zippedAndSorted = (scanSomeItem("tableName1", "indexName1", limit = 10, $("A"), $("B"), $("C"))
     zip
       querySome(
         "tableName1",
