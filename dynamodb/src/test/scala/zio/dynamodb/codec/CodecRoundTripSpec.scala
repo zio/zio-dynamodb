@@ -13,7 +13,16 @@ import scala.collection.immutable.ListMap
 object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
   override def spec: ZSpec[Environment, Failure] =
-    suite("")(mainSuite, eitherSuite, optionalSuite, caseClassSuite, recordSuite)
+    suite("")(
+      mainSuite,
+      eitherSuite,
+      optionalSuite,
+      caseClassSuite,
+      recordSuite,
+      sequenceSuite,
+      enumerationSuite,
+      transformSuite
+    )
 
   val eitherSuite = suite("either suite")(
     testM("a primitive") {
@@ -111,12 +120,6 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
     }
   )
 
-  /*
-      An unchecked error was produced.
-      java.lang.ClassCastException: scala.collection.immutable.HashMap cannot be cast to scala.collection.immutable.ListMap
-      	at scala.util.Either.flatMap(Either.scala:352)
-      	at zio.dynamodb.Decoder$.$anonfun$transformDecoder$1(De
-   */
   val sequenceSuite = suite("sequence")(
     testM("of primitives") {
       checkM(SchemaGen.anySequenceAndValue) {
@@ -126,7 +129,6 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
     testM("of records") {
       checkM(SchemaGen.anyCaseClassAndValue) {
         case (schema, value) =>
-          println(s"XXXXXXXXXX value=$value")
           assertEncodesThenDecodes(Schema.chunk(schema), Chunk.fill(3)(value))
       }
     },
@@ -209,6 +211,15 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
         Schema[Enumeration],
         Enumeration(BooleanValue(false))
       )
+    }
+  )
+
+  val transformSuite = suite("transform")(
+    testM("any") {
+      checkM(SchemaGen.anyTransformAndValue) {
+        case (schema, value) =>
+          assertEncodesThenDecodes(schema, value)
+      }
     }
   )
 
