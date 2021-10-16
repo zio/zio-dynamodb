@@ -387,7 +387,7 @@ object DynamoDBQuery {
     tableName: String,
     indexName: String,
     projections: ProjectionExpression*
-  ): DynamoDBQuery[Stream[Exception, A]] =
+  ): DynamoDBQuery[Stream[Throwable, A]] =
     scanAllItem(tableName, indexName, projections: _*).map(
       _.mapM(item =>
         ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_))
@@ -442,7 +442,7 @@ object DynamoDBQuery {
     tableName: String,
     indexName: String,
     projections: ProjectionExpression*
-  ): DynamoDBQuery[Stream[Exception, A]] =
+  ): DynamoDBQuery[Stream[Throwable, A]] =
     queryAllItem(tableName, indexName, projections: _*).map(
       _.mapM(item =>
         ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_))
