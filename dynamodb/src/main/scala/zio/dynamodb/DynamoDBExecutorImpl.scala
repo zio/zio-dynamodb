@@ -76,11 +76,10 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       b.foldLeft(MapOfSet.empty[TableName, Item]) {
         case (acc, (tableName, list)) => acc ++ ((TableName(tableName), list.map(toDynamoItem)))
       }
-    )).mapError(_ => new Exception("boooo"))
+    )).mapError(_.toThrowable)
 
-  // TODO(adam): Change our Exception => Throwable and then call toThrowable on the AwsError
   private def doPutItem(putItem: PutItem): ZIO[Any, Throwable, Unit] =
-    dynamoDb.putItem(generatePutItemRequest(putItem)).unit.mapError(_ => new Exception("abc")) // TODO(adam): Cleanup
+    dynamoDb.putItem(generatePutItemRequest(putItem)).unit.mapError(_.toThrowable)
 
   private def doGetItem(getItem: GetItem): ZIO[Any, Throwable, Option[Item]] =
     for {
@@ -91,7 +90,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     } yield c
 
   private def toDynamoItem(attrMap: ScalaMap[String, ZIOAwsAttributeValue.ReadOnly]): Item =
-    Item(attrMap.map { case (k, v) => (k, awsAttrValToAttrVal(v)) })
+    Item(attrMap.flatMap { case (k, v) => awsAttrValToAttrVal(v).map(attrVal => (k, attrVal)) })
 
   /*
     let's just combine all of the sets of project expressions for a table to get all of them
@@ -114,9 +113,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   private def generateKeysAndAttributes(tableGets: Set[TableGet]): KeysAndAttributes = {
     val setOfProjectionExpressions = tableGets.flatMap(_.projections.toSet)
     KeysAndAttributes(
-      // just end up mapping the (k, v) => (identity, v => v2)
       keys = tableGets.map(_.key.map.map { case (k, v) => (k, buildAwsAttributeValue(v)) }),
-      // projectionExpression is really just Option[String]
       projectionExpression = Some(setOfProjectionExpressions.mkString(", "))
     )
   }
@@ -145,15 +142,63 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       )
     )
 
-  // the ZIOAwsAttrVal is just a product encoding of a sum type
-  // map the options into something and orElse them
-  private def awsAttrValToAttrVal(attributeValue: ZIOAwsAttributeValue.ReadOnly): AttributeValue =
-    ???
+//  private def awsAttrValToZioAttrVal(
+//    attributeValue: ZIOAwsAttributeValue.ReadOnly
+//  ): ZIO[Any, Throwable, AttributeValue] =
+//    attributeValue.s
+//      .map(AttributeValue.String)
+//      .orElse(attributeValue.n.map(n => AttributeValue.Number(BigDecimal(n))))
+//      .orElse(attributeValue.b.map(AttributeValue.Binary))
+//      .orElse(attributeValue.ss.map(ss => AttributeValue.StringSet(ss.toSet)))
+//      .orElse(attributeValue.ns.map(ns => AttributeValue.NumberSet(ns.map(BigDecimal(_)).toSet)))
+//      .orElse(attributeValue.bs.map(bs => AttributeValue.BinarySet(bs.toSet)))
+//      .orElse(
+//        attributeValue.m.map(m =>
+//          AttributeValue.Map(
+//            m.flatMap { case (k, v) => awsAttrValToAttrVal(v).map(attrVal => (AttributeValue.String(k), attrVal)) }
+//          )
+//        )
+//      )
+//      .orElse(attributeValue.l.map(l => AttributeValue.List(l.flatMap(awsAttrValToAttrVal))))
+//      .orElse(attributeValue.nul.map(_ => AttributeValue.Null))
+//      .orElse(attributeValue.bool.map(AttributeValue.Bool))
+//      .mapError(_.toThrowable)
 
-//  private def buildAwsAttributeMap(getItemResponse: GetItemResponse): Option[AttrMap] =
-//    getItemResponse.item.map { i =>
-//      AttrMap(i.view.mapValues(aV => awsAttrValToAttrVal(aV)).toMap)
-//    }
+  private def awsAttrValToAttrVal(attributeValue: ZIOAwsAttributeValue.ReadOnly): Option[AttributeValue] =
+    attributeValue.sValue
+      .map(AttributeValue.String)
+      .orElse(
+        attributeValue.nValue.map(n => AttributeValue.Number(BigDecimal(n)))
+      )   // TODO(adam): Does the BigDecimal need a try wrapper?
+      .orElse(
+        attributeValue.bValue.map(b => AttributeValue.Binary(b))
+      )
+      .orElse(
+        attributeValue.ssValue.map(s =>
+          AttributeValue.StringSet(s.toSet)
+        ) // TODO(adam): Is this `toSet` actually safe to do?
+      )
+      .orElse(
+        attributeValue.nsValue.map(ns =>
+          AttributeValue.NumberSet(ns.map(BigDecimal(_)).toSet)
+        ) // TODO(adam): Wrap in try?
+      )
+      .orElse(
+        attributeValue.bsValue.map(bs => AttributeValue.BinarySet(bs.toSet))
+      )
+      .orElse(
+        attributeValue.mValue.map(m =>
+          AttributeValue.Map(
+            m.flatMap {
+              case (k, v) =>
+                awsAttrValToAttrVal(v).map(attrVal => (AttributeValue.String(k), attrVal))
+            }
+          )
+        )
+      )
+      .orElse(attributeValue.lValue.map(l => AttributeValue.List(l.flatMap(awsAttrValToAttrVal))))
+      .orElse(attributeValue.nulValue.map(_ => AttributeValue.Null))
+      .orElse(attributeValue.boolValue.map(AttributeValue.Bool))
 
   private def buildAwsReturnConsumedCapacity(
     returnConsumedCapacity: ReturnConsumedCapacity
