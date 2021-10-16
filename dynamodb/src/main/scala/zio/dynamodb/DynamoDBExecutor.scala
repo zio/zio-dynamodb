@@ -11,6 +11,8 @@ trait DynamoDBExecutor {
 object DynamoDBExecutor {
   val live: URLayer[DynamoDb, Has[DynamoDBExecutor]] = ZLayer.succeed(DynamoDBExecutorImpl(???))
 
+//  val live: ULayer[Has[DynamoDBExecutor]] = ???
+
   val test: ULayer[Has[DynamoDBExecutor] with Has[TestDynamoDBExecutor]] =
     (for {
       test <- (for {

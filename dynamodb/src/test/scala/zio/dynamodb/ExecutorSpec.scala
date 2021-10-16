@@ -64,36 +64,36 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
       "scanSome returns an error when table does not exist"
     ) {
       for {
-        errorOrResult <- scanSome("TABLE_DOES_NOT_EXISTS", "k1", 3).execute.either
+        errorOrResult <- scanSomeItem("TABLE_DOES_NOT_EXISTS", "k1", 3).execute.either
       } yield assert(errorOrResult)(isLeft)
     },
     testM("scanSome on an empty table returns empty results and a LEK of None") {
       for {
-        (chunk, lek) <- scanSome(tableName2.value, "k2", 10).execute
+        (chunk, lek) <- scanSomeItem(tableName2.value, "k2", 10).execute
       } yield assert(chunk)(equalTo(Chunk.empty)) && assert(lek)(equalTo(None))
     },
     testM("scanSome with limit greater than table size should scan all items in a table and return a LEK of None") {
       for {
-        (chunk, lek) <- scanSome(tableName1.value, "k1", 10).execute
+        (chunk, lek) <- scanSomeItem(tableName1.value, "k1", 10).execute
       } yield assert(chunk)(equalTo(resultItems(1 to 5))) && assert(lek)(equalTo(None))
     },
     testM(
       "querySome returns an error when table does not exist"
     ) {
       for {
-        errorOrResult <- querySome("TABLE_DOES_NOT_EXISTS", "k1", 3).execute.either
+        errorOrResult <- querySomeItem("TABLE_DOES_NOT_EXISTS", "k1", 3).execute.either
       } yield assert(errorOrResult)(isLeft)
     },
     testM("querySome on an empty table returns empty results and a LEK of None") {
       for {
-        (chunk, lek) <- querySome(tableName2.value, "k2", 10).execute
+        (chunk, lek) <- querySomeItem(tableName2.value, "k2", 10).execute
       } yield assert(chunk)(equalTo(Chunk.empty)) && assert(lek)(equalTo(None))
     },
     testM(
       "querySome with limit less than table size should return partial result chunk and return a LEK of last read Item"
     ) {
       for {
-        (chunk, lek) <- querySome(tableName1.value, "k1", 3).execute
+        (chunk, lek) <- querySomeItem(tableName1.value, "k1", 3).execute
       } yield {
         val item3 = Item("k1" -> 3)
         assert(chunk)(equalTo(resultItems(1 to 3))) && assert(lek)(equalTo(Some(item3)))
@@ -101,18 +101,18 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
     },
     testM("querySome with limit greater than table size should scan all items in a table and return a LEK of None") {
       for {
-        (chunk, lek) <- querySome(tableName1.value, "k1", 10).execute
+        (chunk, lek) <- querySomeItem(tableName1.value, "k1", 10).execute
       } yield assert(chunk)(equalTo(resultItems(1 to 5))) && assert(lek)(equalTo(None))
     },
     testM("scanAll should scan all items in a table") {
       for {
-        stream <- scanAll(tableName1.value, "indexNameIgnored").execute
+        stream <- scanAllItem(tableName1.value, "indexNameIgnored").execute
         chunk  <- stream.runCollect
       } yield assert(chunk)(equalTo(resultItems(1 to 5)))
     },
     testM("queryAll should scan all items in a table") {
       for {
-        stream <- queryAll(tableName1.value, "indexNameIgnored").execute
+        stream <- queryAllItem(tableName1.value, "indexNameIgnored").execute
         chunk  <- stream.runCollect
       } yield assert(chunk)(equalTo(resultItems(1 to 5)))
     }

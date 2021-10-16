@@ -20,6 +20,7 @@ import zio.dynamodb.DynamoDBQuery.{
   Zip
 }
 import zio.dynamodb.UpdateExpression.Action
+import zio.schema.Schema
 import zio.stream.Stream
 import zio.{ Chunk, Has, ZIO }
 
@@ -306,7 +307,32 @@ object DynamoDBQuery {
   ): Constructor[Option[Item]] =
     GetItem(TableName(tableName), key, projections.toList)
 
+  def get[A: Schema](
+    tableName: String,
+    key: PrimaryKey,
+    projections: ProjectionExpression*
+  ): DynamoDBQuery[Either[String, A]] =
+    getItem(tableName, key, projections: _*).map {
+      case Some(item) =>
+        fromItem(item)
+      case None       => Left(s"value with key $key not found")
+    }
+
+  private[dynamodb] def fromItem[A: Schema](item: Item): Either[String, A] = {
+    val av = ToAttributeValue.attrMapToAttributeValue.toAttributeValue(item)
+    av.decode(Schema[A])
+  }
+
   def putItem(tableName: String, item: Item): Write[Unit] = PutItem(TableName(tableName), item)
+
+  // TODO: I think we will still need a Write rather than DynamoDBQuery as Write is used by batching ops
+  def put[A: Schema](tableName: String, a: A): DynamoDBQuery[Unit] =
+    putItem(tableName, toItem(a))
+
+  private[dynamodb] def toItem[A](a: A)(implicit schema: Schema[A]): Item =
+    FromAttributeValue.attrMapFromAttributeValue
+      .fromAttributeValue(AttributeValue.encode(a)(schema))
+      .getOrElse(throw new Exception(s"error encoding $a"))
 
   def updateItem(tableName: String, key: PrimaryKey)(action: Action): DynamoDBQuery[Unit] =
     UpdateItem(TableName(tableName), key, UpdateExpression(action))
@@ -316,7 +342,7 @@ object DynamoDBQuery {
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
    */
-  def scanSome(tableName: String, indexName: String, limit: Int, projections: ProjectionExpression*): ScanSome =
+  def scanSomeItem(tableName: String, indexName: String, limit: Int, projections: ProjectionExpression*): ScanSome =
     ScanSome(
       TableName(tableName),
       IndexName(indexName),
@@ -326,9 +352,27 @@ object DynamoDBQuery {
     )
 
   /**
+   * when executed will return a Tuple of {{{(Chunk[A], LastEvaluatedKey)}}}
+   */
+  def scanSome[A: Schema](
+    tableName: String,
+    indexName: String,
+    limit: Int,
+    projections: ProjectionExpression*
+  ): DynamoDBQuery[(Chunk[A], LastEvaluatedKey)] =
+    scanSomeItem(tableName, indexName, limit, projections: _*).map {
+      case (itemsChunk, lek) =>
+        foreach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
+          case Right(chunk) => (chunk, lek)
+          // TODO: should we return an Either?
+          case Left(error)  => throw new IllegalStateException(s"Error decoding item: $error")
+        }
+    }
+
+  /**
    * when executed will return a ZStream of Item
    */
-  def scanAll(tableName: String, indexName: String, projections: ProjectionExpression*): ScanAll =
+  def scanAllItem(tableName: String, indexName: String, projections: ProjectionExpression*): ScanAll =
     ScanAll(
       TableName(tableName),
       IndexName(indexName),
@@ -337,9 +381,23 @@ object DynamoDBQuery {
     )
 
   /**
+   * when executed will return a ZStream of A
+   */
+  def scanAll[A: Schema](
+    tableName: String,
+    indexName: String,
+    projections: ProjectionExpression*
+  ): DynamoDBQuery[Stream[Exception, A]] =
+    scanAllItem(tableName, indexName, projections: _*).map(
+      _.mapM(item =>
+        ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_))
+      ) // TODO: Create a custom error model
+    )
+
+  /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
    */
-  def querySome(tableName: String, indexName: String, limit: Int, projections: ProjectionExpression*): QuerySome =
+  def querySomeItem(tableName: String, indexName: String, limit: Int, projections: ProjectionExpression*): QuerySome =
     QuerySome(
       TableName(tableName),
       IndexName(indexName),
@@ -349,14 +407,46 @@ object DynamoDBQuery {
     )
 
   /**
+   * when executed will return a Tuple of {{{(Chunk[A], LastEvaluatedKey)}}}
+   */
+  def querySome[A: Schema](
+    tableName: String,
+    indexName: String,
+    limit: Int,
+    projections: ProjectionExpression*
+  ): DynamoDBQuery[(Chunk[A], LastEvaluatedKey)] =
+    querySomeItem(tableName, indexName, limit, projections: _*).map {
+      case (itemsChunk, lek) =>
+        foreach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
+          case Right(chunk) => (chunk, lek)
+          // TODO: should we return an Either?
+          case Left(error)  => throw new IllegalStateException(s"Error decoding item: $error")
+        }
+    }
+
+  /**
    * when executed will return a ZStream of Item
    */
-  def queryAll(tableName: String, indexName: String, projections: ProjectionExpression*): QueryAll =
+  def queryAllItem(tableName: String, indexName: String, projections: ProjectionExpression*): QueryAll =
     QueryAll(
       TableName(tableName),
       IndexName(indexName),
       select = selectOrAll(projections),
       projections = projections.toList
+    )
+
+  /**
+   * when executed will return a ZStream of A
+   */
+  def queryAll[A: Schema](
+    tableName: String,
+    indexName: String,
+    projections: ProjectionExpression*
+  ): DynamoDBQuery[Stream[Exception, A]] =
+    queryAllItem(tableName, indexName, projections: _*).map(
+      _.mapM(item =>
+        ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_))
+      ) // TODO: Create a custom error model
     )
 
   def createTable(
@@ -479,7 +569,7 @@ object DynamoDBQuery {
   // I have removed these fields on the assumption that the library will take care of these concerns
   private[dynamodb] final case class ScanSome(
     tableName: TableName,
-    indexName: IndexName,
+    indexName: IndexName,                                 // TODO: make this optional
     limit: Int,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
@@ -492,7 +582,7 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class QuerySome(
     tableName: TableName,
-    indexName: IndexName,
+    indexName: IndexName,                                 // TODO: make this optional
     limit: Int,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
@@ -507,7 +597,7 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class ScanAll(
     tableName: TableName,
-    indexName: IndexName,
+    indexName: IndexName,                                 // TODO: make this optional
     limit: Option[Int] = None,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
@@ -520,7 +610,7 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class QueryAll(
     tableName: TableName,
-    indexName: IndexName,
+    indexName: IndexName,                                 // TODO: make this optional
     limit: Option[Int] = None,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =

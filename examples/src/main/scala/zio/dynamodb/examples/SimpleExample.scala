@@ -14,11 +14,11 @@ object SimpleExample extends App {
                  )).execute
     tuple   <- (getItem("table1", PrimaryKey("id" -> 1)) zip getItem("table1", PrimaryKey("id" -> 2))).execute
     _       <- putStrLn(s"found $tuple")
-    stream1 <- scanAll("table1", indexName = "ignoredByFakeDb").execute
+    stream1 <- scanAllItem("table1", indexName = "ignoredByFakeDb").execute
     xs      <- stream1.runCollect
     _       <- putStrLn(s"table scan results after 2 PutItems's: $xs")
     _       <- (deleteItem("table1", PrimaryKey("id" -> 1)) zip deleteItem("table1", PrimaryKey("id" -> 2))).execute
-    stream2 <- scanAll("table1", indexName = "ignoredByFakeDb").execute
+    stream2 <- scanAllItem("table1", indexName = "ignoredByFakeDb").execute
     xs2     <- stream2.runCollect
     _       <- putStrLn(s"table scan results after 2 DeleteItems's: $xs2")
   } yield ()

@@ -2,8 +2,10 @@ package zio.dynamodb
 
 import zio.dynamodb.ConditionExpression.Operand._
 import zio.dynamodb.ConditionExpression._
+import zio.schema.Schema
 
 sealed trait AttributeValue { self =>
+  def decode[A](implicit schema: Schema[A]): Either[String, A] = Decoder(schema)(self)
 
   def ===(that: Operand.Size): ConditionExpression = Equals(ValueOperand(self), that)
   def <>(that: Operand.Size): ConditionExpression  = NotEqual(ValueOperand(self), that)
@@ -32,7 +34,7 @@ sealed trait AttributeValue { self =>
 
 object AttributeValue {
   import Predef.{ String => ScalaString }
-  import scala.collection.{ Map => ScalaMap }
+  import scala.collection.immutable.{ Map => ScalaMap }
 
   private[dynamodb] final case class Binary(value: Iterable[Byte])                extends AttributeValue
   private[dynamodb] final case class BinarySet(value: Iterable[Iterable[Byte]])   extends AttributeValue
@@ -46,6 +48,8 @@ object AttributeValue {
   private[dynamodb] final case class StringSet(value: Set[ScalaString])           extends AttributeValue
 
   def apply[A](a: A)(implicit ev: ToAttributeValue[A]): AttributeValue = ev.toAttributeValue(a)
+
+  def encode[A](a: A)(implicit schema: Schema[A]): AttributeValue = Encoder(schema)(a)
 
   implicit val attributeValueToAttributeValue: ToAttributeValue[AttributeValue] = identity(_)
 }
