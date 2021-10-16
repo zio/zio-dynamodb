@@ -569,7 +569,7 @@ object DynamoDBQuery {
   // I have removed these fields on the assumption that the library will take care of these concerns
   private[dynamodb] final case class ScanSome(
     tableName: TableName,
-    indexName: IndexName,
+    indexName: IndexName,                                 // TODO: make this optional
     limit: Int,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
@@ -582,7 +582,7 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class QuerySome(
     tableName: TableName,
-    indexName: IndexName,
+    indexName: IndexName,                                 // TODO: make this optional
     limit: Int,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
@@ -597,7 +597,7 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class ScanAll(
     tableName: TableName,
-    indexName: IndexName,
+    indexName: IndexName,                                 // TODO: make this optional
     limit: Option[Int] = None,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
@@ -610,7 +610,7 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class QueryAll(
     tableName: TableName,
-    indexName: IndexName,
+    indexName: IndexName,                                 // TODO: make this optional
     limit: Option[Int] = None,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
