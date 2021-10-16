@@ -10,8 +10,10 @@ import io.github.vigoo.zioaws.dynamodb.model.{
   ReturnValue,
   ScanRequest,
   AttributeValue => ZIOAwsAttributeValue,
-  ReturnConsumedCapacity => ZIOAwsReturnConsumedCapacity
+  ReturnConsumedCapacity => ZIOAwsReturnConsumedCapacity,
+  Select => ZIOAwsSelect
 }
+import zio.dynamodb.ConsistencyMode.toBoolean
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.stream.Stream
 
@@ -51,21 +53,28 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
         )
     )
 
+  private def selectToZioAwsSelect(select: Select): ZIOAwsSelect =
+    select match {
+      case Select.Count                  => ZIOAwsSelect.COUNT
+      case Select.AllAttributes          => ZIOAwsSelect.ALL_ATTRIBUTES
+      case Select.AllProjectedAttributes => ZIOAwsSelect.ALL_PROJECTED_ATTRIBUTES
+      case Select.SpecificAttributes     => ZIOAwsSelect.SPECIFIC_ATTRIBUTES
+    }
+
   private def generateScanRequest(scanAll: ScanAll): ScanRequest =
     ScanRequest(
       tableName = scanAll.tableName.value,
-      indexName = ???,
-      select = ???,
-      scanFilter = ???,
-      exclusiveStartKey = ???,
-      returnConsumedCapacity = ???,
-      totalSegments = ???,
-      segment = ???,
-      projectionExpression = ???,
-      filterExpression = ???,
-      expressionAttributeNames = ???,
-      expressionAttributeValues = ???,
-      consistentRead = ???
+      indexName = Some(scanAll.indexName.value),
+      select = scanAll.select.map(selectToZioAwsSelect),
+      exclusiveStartKey = scanAll.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
+      returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(scanAll.capacity)),
+      // Looks like we're not currently supporting segments?
+      totalSegments = None,
+      segment = None,
+      limit = scanAll.limit,
+      projectionExpression = toOption(scanAll.projections).map(_.mkString(", ")),
+      filterExpression = scanAll.filterExpression.map(filterExpression => filterExpression.render()),
+      consistentRead = Some(toBoolean(scanAll.consistency))
     )
 
   private def doBatchGetItem(batchGetItem: BatchGetItem): ZIO[Any, Throwable, BatchGetItem.Response] =
@@ -92,14 +101,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   private def toDynamoItem(attrMap: ScalaMap[String, ZIOAwsAttributeValue.ReadOnly]): Item =
     Item(attrMap.flatMap { case (k, v) => awsAttrValToAttrVal(v).map(attrVal => (k, attrVal)) })
 
-  /*
-    let's just combine all of the sets of project expressions for a table to get all of them
-    we want this to continue to be a single batch request, we should not be making multiple batch calls
-
-    we'll be returning a little more data possibly -- users may end up just getting the same columns
-
-
-   */
   private def generateBatchGetItemRequest(batchGetItem: BatchGetItem): BatchGetItemRequest =
     BatchGetItemRequest(
       requestItems = batchGetItem.requestItems.map {
@@ -109,7 +110,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(batchGetItem.capacity))
     )
 
-  // TODO(adam): Ask John for assistance on this one?
+  // Our TableGet is more powerful than zio-aws's batchGet. We can get different projections for the same table where zio-aws cannot
+  //    We're going to combine all projection expressions for a table and possibly return more data than the user is requesting
+  //      but at the benefit of not doing multiple batches
   private def generateKeysAndAttributes(tableGets: Set[TableGet]): KeysAndAttributes = {
     val setOfProjectionExpressions = tableGets.flatMap(_.projections.toSet)
     KeysAndAttributes(
