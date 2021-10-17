@@ -9,6 +9,8 @@ import io.github.vigoo.zioaws.dynamodb.model.{
   PutItemRequest,
   ReturnValue,
   ScanRequest,
+  UpdateItemRequest,
+  ReturnItemCollectionMetrics => ZIOAwsReturnItemCollectionMetrics,
   AttributeValue => ZIOAwsAttributeValue,
   ReturnConsumedCapacity => ZIOAwsReturnConsumedCapacity,
   Select => ZIOAwsSelect
@@ -29,11 +31,12 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
 
   def executeConstructor[A](constructor: Constructor[A]): ZIO[Any, Throwable, A] =
     constructor match {
-      case getItem @ GetItem(_, _, _, _, _)             => doGetItem(getItem)
-      case putItem @ PutItem(_, _, _, _, _, _)          => doPutItem(putItem)
-      case batchGetItem @ BatchGetItem(_, _, _)         => doBatchGetItem(batchGetItem)
-      case scanAll @ ScanAll(_, _, _, _, _, _, _, _, _) => doScanAll(scanAll)
-      case _                                            => ???
+      case getItem: GetItem           => doGetItem(getItem)
+      case putItem: PutItem           => doPutItem(putItem)
+      case batchGetItem: BatchGetItem => doBatchGetItem(batchGetItem)
+      case scanAll: ScanAll           => doScanAll(scanAll)
+      case updateItem: UpdateItem     => doUpdateItem(updateItem)
+      case _                          => ???
     }
 
   override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Throwable, A] =
@@ -42,6 +45,20 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case zip @ Zip(_, _, _)          => executeZip(zip)
       case map @ Map(_, _)             => executeMap(map)
     }
+
+  private def doUpdateItem(updateItem: UpdateItem): ZIO[Any, Throwable, Unit] =
+    dynamoDb.updateItem(generateUpdateItemRequest(updateItem)).mapError(_.toThrowable).unit
+
+  private def generateUpdateItemRequest(updateItem: UpdateItem): UpdateItemRequest =
+    UpdateItemRequest(
+      tableName = updateItem.tableName.value,
+      key = updateItem.key.map.map { case (k, v) => (k, buildAwsAttributeValue(v)) },
+      returnValues = Some(buildAwsReturnValue(updateItem.returnValues)),
+      returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(updateItem.capacity)),
+      returnItemCollectionMetrics = Some(buildAwsItemMetrics(updateItem.itemMetrics)),
+      updateExpression = Some(updateItem.updateExpression.render()),
+      conditionExpression = updateItem.conditionExpression.map(_.toString)
+    )
 
   private def doScanAll(scanAll: ScanAll): ZIO[Any, Throwable, Stream[Throwable, Item]] =
     ZIO.succeed(
@@ -128,7 +145,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(putItem.capacity)),
       returnItemCollectionMetrics = Some(ReturnItemCollectionMetrics.toZioAws(putItem.itemMetrics)),
       conditionExpression = putItem.conditionExpression.map(_.toString),
-      returnValues = Some(buildAwsPutRequestReturnValue(putItem.returnValues))
+      returnValues = Some(buildAwsReturnValue(putItem.returnValues))
     )
 
   private def attrMapToAwsAttrMap(attrMap: ScalaMap[String, AttributeValue]): ScalaMap[String, ZIOAwsAttributeValue] =
@@ -203,6 +220,12 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       .orElse(attributeValue.nulValue.map(_ => AttributeValue.Null))
       .orElse(attributeValue.boolValue.map(AttributeValue.Bool))
 
+  private def buildAwsItemMetrics(metrics: ReturnItemCollectionMetrics): ZIOAwsReturnItemCollectionMetrics =
+    metrics match {
+      case ReturnItemCollectionMetrics.None => ZIOAwsReturnItemCollectionMetrics.NONE
+      case ReturnItemCollectionMetrics.Size => ZIOAwsReturnItemCollectionMetrics.SIZE
+    }
+
   private def buildAwsReturnConsumedCapacity(
     returnConsumedCapacity: ReturnConsumedCapacity
   ): ZIOAwsReturnConsumedCapacity =
@@ -219,7 +242,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case head :: tail => Some(::(head, tail))
     }
 
-  private def buildAwsPutRequestReturnValue(
+  private def buildAwsReturnValue(
     returnValues: ReturnValues
   ): ReturnValue =
     returnValues match {
