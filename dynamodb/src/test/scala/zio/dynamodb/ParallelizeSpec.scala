@@ -39,7 +39,7 @@ object ParallelizeSpec extends DefaultRunnableSpec with DynamoDBFixtures {
         )
       },
       test("should process ScanSome constructor") {
-        val scanPage                  = scanSomeItem("T1", "I1", limit = 10)
+        val scanPage                  = scanSomeItem("T1", limit = 10)
         val (constructors, assembler) = parallelize(scanPage)
         val assembled                 = assembler(Chunk((Chunk(Item.empty), None)))
 

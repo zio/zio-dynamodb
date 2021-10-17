@@ -22,15 +22,15 @@ object SimpleDecodedExample extends App {
       put("table1", NestedCaseClass2(id = 1, SimpleCaseClass3(2, "Avi", flag = true))).execute // Save case class to DB
     caseClass <- get[NestedCaseClass2]("table1", PrimaryKey("id" -> 1)).execute // read case class from DB
     _         <- putStrLn(s"get: found $caseClass")
-    either    <- scanSome[NestedCaseClass2]("table1", "indexNameIgnored", 10).execute
+    either    <- scanSome[NestedCaseClass2]("table1", 10).execute
     _         <- putStrLn(s"scanSome: found $either")
-    stream    <- scanAll[NestedCaseClass2]("table1", "indexNameIgnored").execute
+    stream    <- scanAll[NestedCaseClass2]("table1").execute
     xs        <- stream.runCollect
     _         <- putStrLn(s"scanAll: found stream $xs")
 
-    either2 <- querySome[NestedCaseClass2]("table1", "indexNameIgnored", 10).execute
+    either2 <- querySome[NestedCaseClass2]("table1", 10).execute
     _       <- putStrLn(s"querySome: found $either2")
-    stream2 <- queryAll[NestedCaseClass2]("table1", "indexNameIgnored").execute
+    stream2 <- queryAll[NestedCaseClass2]("table1").execute
     xs2     <- stream2.runCollect
     _       <- putStrLn(s"queryAll: found stream $xs2")
 

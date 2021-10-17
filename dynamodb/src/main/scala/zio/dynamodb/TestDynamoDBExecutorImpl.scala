@@ -65,13 +65,13 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private (
       case DeleteItem(tableName, key, _, _, _, _)                                 =>
         fakeDelete(tableName.value, key)
 
-      case ScanSome(tableName, _, limit, _, exclusiveStartKey, _, _, _, _)        =>
+      case ScanSome(tableName, limit, _, _, exclusiveStartKey, _, _, _, _)        =>
         fakeScanSome(tableName.value, exclusiveStartKey, Some(limit))
 
       case ScanAll(tableName, _, maybeLimit, _, _, _, _, _, _)                    =>
         fakeScanAll(tableName.value, maybeLimit)
 
-      case QuerySome(tableName, _, limit, _, exclusiveStartKey, _, _, _, _, _, _) =>
+      case QuerySome(tableName, limit, _, _, exclusiveStartKey, _, _, _, _, _, _) =>
         fakeScanSome(tableName.value, exclusiveStartKey, Some(limit))
 
       case QueryAll(tableName, _, maybeLimit, _, _, _, _, _, _, _, _)             =>
