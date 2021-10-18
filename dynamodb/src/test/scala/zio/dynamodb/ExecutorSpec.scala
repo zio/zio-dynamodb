@@ -9,12 +9,12 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
 
   private val beforeAddTable1          = TestAspect.before(
     TestDynamoDBExecutor
-      .addTable(tableName1.value, "k1")(primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
+      .addTable(tableName1.value, "k1", primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
   )
   private val beforeAddTable1AndTable2 = TestAspect.before(
     TestDynamoDBExecutor
-      .addTable(tableName1.value, "k1")(primaryKeyT1                     -> itemT1, primaryKeyT1_2 -> itemT1_2) *>
-      TestDynamoDBExecutor.addTable(tableName3.value, "k3")(primaryKeyT3 -> itemT3)
+      .addTable(tableName1.value, "k1", primaryKeyT1                     -> itemT1, primaryKeyT1_2 -> itemT1_2) *>
+      TestDynamoDBExecutor.addTable(tableName3.value, "k3", primaryKeyT3 -> itemT3)
   )
 
   override def spec: ZSpec[Environment, Failure] =
@@ -23,7 +23,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
   private val crudSuite = suite("single Item CRUD suite")(
     testM("getItem") {
       for {
-        _      <- TestDynamoDBExecutor.addTable(tableName1.value, "k1")(primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
+        _      <- TestDynamoDBExecutor.addTable(tableName1.value, "k1", primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
         result <- getItemT1.execute
       } yield assert(result)(equalTo(Some(itemT1)))
     },
@@ -34,7 +34,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
     },
     testM("should execute putItem then getItem when sequenced in a ZIO") {
       for {
-        _      <- TestDynamoDBExecutor.addTable(tableName1.value, "k1")()
+        _      <- TestDynamoDBExecutor.addTable(tableName1.value, "k1")
         _      <- putItemT1.execute
         result <- getItemT1.execute
       } yield assert(result)(equalTo(Some(itemT1)))
@@ -46,7 +46,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
     },
     testM("should delete an item") {
       for {
-        _            <- TestDynamoDBExecutor.addTable(tableName1.value, "k1")(primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
+        _            <- TestDynamoDBExecutor.addTable(tableName1.value, "k1", primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
         beforeDelete <- getItemT1.execute
         _            <- deleteItem(tableName1.value, primaryKeyT1).execute
         afterDelete  <- getItemT1.execute
@@ -117,15 +117,17 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
       } yield assert(chunk)(equalTo(resultItems(1 to 5)))
     }
   ) @@ TestAspect.before(
-    TestDynamoDBExecutor.addTable(tableName1.value, "k1")(
+    TestDynamoDBExecutor.addTable(
+      tableName1.value,
+      "k1",
       chunkOfPrimaryKeyAndItem(1 to 5, "k1"): _*
-    ) *> TestDynamoDBExecutor.addTable(tableName2.value, "k2")()
+    ) *> TestDynamoDBExecutor.addTable(tableName2.value, "k2")
   )
 
   private val batchingSuite = suite("batching should")(
     testM("batch putItem1 zip putItem1_2") {
       for {
-        _           <- TestDynamoDBExecutor.addTable(tableName1.value, "k1")()
+        _           <- TestDynamoDBExecutor.addTable(tableName1.value, "k1")
         result      <- (putItemT1 zip putItemT1_2).execute
         table1Items <- (getItemT1 zip getItemT1_2).execute
       } yield assert(result)(equalTo(())) && assert(table1Items)(equalTo((Some(itemT1), Some(itemT1_2))))
