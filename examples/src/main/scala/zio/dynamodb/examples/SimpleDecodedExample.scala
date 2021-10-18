@@ -17,7 +17,7 @@ object SimpleDecodedExample extends App {
   implicit lazy val simpleCaseClass3: Schema[SimpleCaseClass3] = DeriveSchema.gen[SimpleCaseClass3]
 
   private val program = for {
-    _         <- TestDynamoDBExecutor.addTable("table1", pkFieldName = "id")()
+    _         <- TestDynamoDBExecutor.addTable("table1", primaryKeyFieldName = "id")
     _         <-
       put("table1", NestedCaseClass2(id = 1, SimpleCaseClass3(2, "Avi", flag = true))).execute // Save case class to DB
     caseClass <- get[NestedCaseClass2]("table1", PrimaryKey("id" -> 1)).execute // read case class from DB

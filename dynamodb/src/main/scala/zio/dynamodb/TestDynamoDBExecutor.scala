@@ -23,7 +23,7 @@ import zio.{ Has, UIO, ZIO }
  * {{{
  * testM("getItem") {
  *   for {
- *     _ <- TestDynamoDBExecutor.addTable("tableName1", pkFieldName = "k1")(primaryKey1 -> item1, primaryKey1_2 -> item1_2)
+ *     _ <- TestDynamoDBExecutor.addTable("tableName1", primaryKeyFieldName = "k1", primaryKey1 -> item1, primaryKey1_2 -> item1_2)
  *     result  <- GetItem(key = primaryKey1, tableName = tableName1).execute
  *     expected = Some(item1)
  *   } yield assert(result)(equalTo(expected))
@@ -31,13 +31,15 @@ import zio.{ Has, UIO, ZIO }
  * }}}
  */
 trait TestDynamoDBExecutor {
-  def addTable(tableName: String, pkFieldName: String)(entries: TableEntry*): UIO[Unit]
+  def addTable(tableName: String, pkFieldName: String, entries: TableEntry*): UIO[Unit]
 }
 
 object TestDynamoDBExecutor {
 
-  def addTable(tableName: String, pkFieldName: String)(
+  def addTable(
+    tableName: String,
+    primaryKeyFieldName: String,
     entries: TableEntry*
   ): ZIO[Has[TestDynamoDBExecutor], Nothing, Unit] =
-    ZIO.serviceWith[TestDynamoDBExecutor](_.addTable(tableName, pkFieldName)(entries: _*))
+    ZIO.serviceWith[TestDynamoDBExecutor](_.addTable(tableName, primaryKeyFieldName, entries: _*))
 }

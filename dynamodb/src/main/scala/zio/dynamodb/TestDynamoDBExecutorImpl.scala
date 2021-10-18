@@ -207,7 +207,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private (
       case _                                                                    => false
     }
 
-  override def addTable(tableName: String, pkFieldName: String)(entries: TableEntry*): UIO[Unit] =
+  override def addTable(tableName: String, pkFieldName: String, entries: TableEntry*): UIO[Unit] =
     (for {
       _    <- tablePkNameMap.put(tableName, pkFieldName)
       tmap <- TMap.empty[PrimaryKey, Item]
