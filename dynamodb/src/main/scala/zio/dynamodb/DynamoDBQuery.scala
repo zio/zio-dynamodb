@@ -59,6 +59,21 @@ sealed trait DynamoDBQuery[+A] { self =>
 
   }
 
+  final def indexName(indexName: String): DynamoDBQuery[A] =
+    self match {
+      case Zip(left, right, zippable) => Zip(left.indexName(indexName), right.indexName(indexName), zippable)
+      case Map(query, mapper)         => Map(query.indexName(indexName), mapper)
+      case q: ScanAll                 =>
+        q.copy(indexName = Some(IndexName(indexName))).asInstanceOf[DynamoDBQuery[A]]
+      case q: ScanSome                =>
+        q.copy(indexName = Some(IndexName(indexName))).asInstanceOf[DynamoDBQuery[A]]
+      case q: QueryAll                =>
+        q.copy(indexName = Some(IndexName(indexName))).asInstanceOf[DynamoDBQuery[A]]
+      case q: QuerySome               =>
+        q.copy(indexName = Some(IndexName(indexName))).asInstanceOf[DynamoDBQuery[A]]
+      case _                          => self
+    }
+
   final def capacity(capacity: ReturnConsumedCapacity): DynamoDBQuery[A] =
     self match {
       case Zip(left, right, zippable) => Zip(left.capacity(capacity), right.capacity(capacity), zippable)
@@ -342,10 +357,9 @@ object DynamoDBQuery {
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
    */
-  def scanSomeItem(tableName: String, indexName: String, limit: Int, projections: ProjectionExpression*): ScanSome =
+  def scanSomeItem(tableName: String, limit: Int, projections: ProjectionExpression*): ScanSome =
     ScanSome(
       TableName(tableName),
-      IndexName(indexName),
       limit,
       select = selectOrAll(projections),
       projections = projections.toList
@@ -356,11 +370,10 @@ object DynamoDBQuery {
    */
   def scanSome[A: Schema](
     tableName: String,
-    indexName: String,
     limit: Int,
     projections: ProjectionExpression*
   ): DynamoDBQuery[Either[String, (Chunk[A], LastEvaluatedKey)]] =
-    scanSomeItem(tableName, indexName, limit, projections: _*).map {
+    scanSomeItem(tableName, limit, projections: _*).map {
       case (itemsChunk, lek) =>
         foreach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
           case Right(chunk) => Right((chunk, lek))
@@ -371,10 +384,9 @@ object DynamoDBQuery {
   /**
    * when executed will return a ZStream of Item
    */
-  def scanAllItem(tableName: String, indexName: String, projections: ProjectionExpression*): ScanAll =
+  def scanAllItem(tableName: String, projections: ProjectionExpression*): ScanAll =
     ScanAll(
       TableName(tableName),
-      IndexName(indexName),
       select = selectOrAll(projections),
       projections = projections.toList
     )
@@ -384,10 +396,9 @@ object DynamoDBQuery {
    */
   def scanAll[A: Schema](
     tableName: String,
-    indexName: String,
     projections: ProjectionExpression*
   ): DynamoDBQuery[Stream[Exception, A]] =
-    scanAllItem(tableName, indexName, projections: _*).map(
+    scanAllItem(tableName, projections: _*).map(
       _.mapM(item =>
         ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_))
       ) // TODO: Create a custom error model
@@ -396,10 +407,9 @@ object DynamoDBQuery {
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
    */
-  def querySomeItem(tableName: String, indexName: String, limit: Int, projections: ProjectionExpression*): QuerySome =
+  def querySomeItem(tableName: String, limit: Int, projections: ProjectionExpression*): QuerySome =
     QuerySome(
       TableName(tableName),
-      IndexName(indexName),
       limit,
       select = selectOrAll(projections),
       projections = projections.toList
@@ -410,11 +420,10 @@ object DynamoDBQuery {
    */
   def querySome[A: Schema](
     tableName: String,
-    indexName: String,
     limit: Int,
     projections: ProjectionExpression*
   ): DynamoDBQuery[Either[String, (Chunk[A], LastEvaluatedKey)]] =
-    querySomeItem(tableName, indexName, limit, projections: _*).map {
+    querySomeItem(tableName, limit, projections: _*).map {
       case (itemsChunk, lek) =>
         foreach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
           case Right(chunk) => Right((chunk, lek))
@@ -425,10 +434,9 @@ object DynamoDBQuery {
   /**
    * when executed will return a ZStream of Item
    */
-  def queryAllItem(tableName: String, indexName: String, projections: ProjectionExpression*): QueryAll =
+  def queryAllItem(tableName: String, projections: ProjectionExpression*): QueryAll =
     QueryAll(
       TableName(tableName),
-      IndexName(indexName),
       select = selectOrAll(projections),
       projections = projections.toList
     )
@@ -438,10 +446,9 @@ object DynamoDBQuery {
    */
   def queryAll[A: Schema](
     tableName: String,
-    indexName: String,
     projections: ProjectionExpression*
   ): DynamoDBQuery[Stream[Exception, A]] =
-    queryAllItem(tableName, indexName, projections: _*).map(
+    queryAllItem(tableName, projections: _*).map(
       _.mapM(item =>
         ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_))
       ) // TODO: Create a custom error model
@@ -567,8 +574,8 @@ object DynamoDBQuery {
   // I have removed these fields on the assumption that the library will take care of these concerns
   private[dynamodb] final case class ScanSome(
     tableName: TableName,
-    indexName: IndexName,                                 // TODO: make this optional
     limit: Int,
+    indexName: Option[IndexName] = None,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
       None,                                               // allows client to control start position - eg for client managed paging
@@ -580,8 +587,8 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class QuerySome(
     tableName: TableName,
-    indexName: IndexName,                                 // TODO: make this optional
     limit: Int,
+    indexName: Option[IndexName] = None,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
       None,                                               // allows client to control start position - eg for client managed paging
@@ -595,7 +602,7 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class ScanAll(
     tableName: TableName,
-    indexName: IndexName,                                 // TODO: make this optional
+    indexName: Option[IndexName] = None,
     limit: Option[Int] = None,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
@@ -608,7 +615,7 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class QueryAll(
     tableName: TableName,
-    indexName: IndexName,                                 // TODO: make this optional
+    indexName: Option[IndexName] = None,
     limit: Option[Int] = None,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
