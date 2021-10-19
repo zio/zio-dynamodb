@@ -4,22 +4,35 @@ import zio.dynamodb.DynamoDBQuery._
 import io.github.vigoo.zioaws.dynamodb.DynamoDb
 import io.github.vigoo.zioaws.dynamodb.model.{
   BatchGetItemRequest,
+  BatchWriteItemRequest,
+  CreateTableRequest,
+  DeleteRequest,
   GetItemRequest,
+  KeySchemaElement,
   KeysAndAttributes,
   PutItemRequest,
+  PutRequest,
   ReturnValue,
   ScanRequest,
+  Tag,
   UpdateItemRequest,
-  ReturnItemCollectionMetrics => ZIOAwsReturnItemCollectionMetrics,
+  WriteRequest,
+  AttributeDefinition => ZIOAwsAttributeDefinition,
+  ProvisionedThroughput => ZIOAwsProvisionedThroughput,
   AttributeValue => ZIOAwsAttributeValue,
+  BillingMode => ZIOAwsBillingMode,
+  GlobalSecondaryIndex => ZIOAwsGlobalSecondaryIndex,
+  LocalSecondaryIndex => ZIOAwsLocalSecondaryIndex,
   ReturnConsumedCapacity => ZIOAwsReturnConsumedCapacity,
+  ReturnItemCollectionMetrics => ZIOAwsReturnItemCollectionMetrics,
+  SSESpecification => ZIOAwsSSESpecification,
   Select => ZIOAwsSelect
 }
 import zio.dynamodb.ConsistencyMode.toBoolean
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.stream.Stream
 
-import scala.collection.immutable.{ Map => ScalaMap }
+import scala.collection.immutable.{ AbstractSet, SortedSet, Map => ScalaMap }
 
 private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: DynamoDb.Service) extends DynamoDBExecutor {
 
@@ -31,12 +44,15 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
 
   def executeConstructor[A](constructor: Constructor[A]): ZIO[Any, Throwable, A] =
     constructor match {
-      case getItem: GetItem           => doGetItem(getItem)
-      case putItem: PutItem           => doPutItem(putItem)
-      case batchGetItem: BatchGetItem => doBatchGetItem(batchGetItem)
-      case scanAll: ScanAll           => doScanAll(scanAll)
-      case updateItem: UpdateItem     => doUpdateItem(updateItem)
-      case _                          => ???
+      case getItem: GetItem               => doGetItem(getItem)
+      case putItem: PutItem               => doPutItem(putItem)
+      case batchGetItem: BatchGetItem     => doBatchGetItem(batchGetItem)
+      case batchWriteItem: BatchWriteItem => doBatchWriteItem(batchWriteItem)
+      case scanAll: ScanAll               => doScanAll(scanAll)
+      case scanSome: ScanSome             => doScanSome(scanSome)
+      case updateItem: UpdateItem         => doUpdateItem(updateItem)
+      case createTable: CreateTable       => doCreateTable(createTable)
+      case _                              => ???
     }
 
   override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Throwable, A] =
@@ -46,8 +62,64 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case map @ Map(_, _)             => executeMap(map)
     }
 
+  private def doCreateTable(createTable: CreateTable): ZIO[Any, Throwable, Unit] =
+    dynamoDb.createTable(generateCreateTableRequest(createTable)).mapError(_.toThrowable).unit
+
+  private def generateCreateTableRequest(createTable: CreateTable): CreateTableRequest =
+    CreateTableRequest(
+      attributeDefinitions = createTable.attributeDefinitions.map(buildAwsAttributeDefinition),
+      tableName = createTable.tableName.value,
+      keySchema = ???,
+      localSecondaryIndexes = toOption(createTable.localSecondaryIndexes.map(buildAwsLocalSecondaryIndex)),
+      globalSecondaryIndexes = toOption(createTable.globalSecondaryIndexes.map(buildAwsGlobalSecondaryIndex)),
+      billingMode = Some(buildAwsBillingMode(createTable.billingMode)),
+      provisionedThroughput = createTable.billingMode match {
+        case BillingMode.Provisioned(pt) =>
+          Some(
+            ZIOAwsProvisionedThroughput(
+              readCapacityUnits = pt.readCapacityUnit,
+              writeCapacityUnits = pt.writeCapacityUnit
+            )
+          )
+        case BillingMode.PayPerRequest   => None
+      },
+      streamSpecification = ???,
+      sseSpecification = createTable.sseSpecification.map(buildAwsSSESpecification),
+      tags = Some(createTable.tags.map { case (k, v) => Tag(k, v) })
+    )
+
+  private def doBatchWriteItem(batchWriteItem: BatchWriteItem): ZIO[Any, Throwable, Unit] =
+    dynamoDb.batchWriteItem(generateBatchWriteItem(batchWriteItem)).mapError(_.toThrowable).unit
+
+  private def generateBatchWriteItem(batchWriteItem: BatchWriteItem): BatchWriteItemRequest =
+    BatchWriteItemRequest(
+      requestItems = batchWriteItem.requestItems.map {
+        case (tableName, items) =>
+          (tableName.value, items.map(batchItemWriteToZIOAwsWriteRequest))
+      }.toMap, // TODO(adam): MapOfSet uses iterable, maybe we should add a mapKeyValues?
+      returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(batchWriteItem.capacity)),
+      returnItemCollectionMetrics = Some(buildAwsItemMetrics(batchWriteItem.itemMetrics))
+    )
+
+  private def batchItemWriteToZIOAwsWriteRequest(write: BatchWriteItem.Write): WriteRequest =
+    write match {
+      case BatchWriteItem.Delete(key) =>
+        WriteRequest(None, Some(DeleteRequest(key.map.map { case (k, v) => (k, buildAwsAttributeValue(v)) })))
+      case BatchWriteItem.Put(item)   =>
+        WriteRequest(Some(PutRequest(item.map.map { case (k, v) => (k, buildAwsAttributeValue(v)) })), None)
+    }
+
   private def doUpdateItem(updateItem: UpdateItem): ZIO[Any, Throwable, Unit] =
     dynamoDb.updateItem(generateUpdateItemRequest(updateItem)).mapError(_.toThrowable).unit
+
+  private def doScanSome(scanSome: ScanSome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] =
+    // TODO(adam): how do I get the LastEvaluatedKey? It doesn't look like zio-aws returns
+    //    I believe this is just the PrimaryKey of the last Item in the chunk
+    //    How do I collect the chunk? Should this be a chunk or a stream?
+    {
+      val a = dynamoDb.scan(generateScanRequest(scanSome)).mapError(_.toThrowable)
+      return ???
+    }
 
   private def generateUpdateItemRequest(updateItem: UpdateItem): UpdateItemRequest =
     UpdateItemRequest(
@@ -77,6 +149,22 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case Select.AllProjectedAttributes => ZIOAwsSelect.ALL_PROJECTED_ATTRIBUTES
       case Select.SpecificAttributes     => ZIOAwsSelect.SPECIFIC_ATTRIBUTES
     }
+
+  private def generateScanRequest(scanAll: ScanSome): ScanRequest =
+    ScanRequest(
+      tableName = scanAll.tableName.value,
+      indexName = Some(scanAll.indexName.value),
+      select = scanAll.select.map(selectToZioAwsSelect),
+      exclusiveStartKey = scanAll.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
+      returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(scanAll.capacity)),
+      // Looks like we're not currently supporting segments?
+      totalSegments = None,
+      segment = None,
+      limit = Some(scanAll.limit),
+      projectionExpression = toOption(scanAll.projections).map(_.mkString(", ")),
+      filterExpression = scanAll.filterExpression.map(filterExpression => filterExpression.render()),
+      consistentRead = Some(toBoolean(scanAll.consistency))
+    )
 
   private def generateScanRequest(scanAll: ScanAll): ScanRequest =
     ScanRequest(
@@ -242,6 +330,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case head :: tail => Some(::(head, tail))
     }
 
+  private def toOption[A](set: Set[A]): Option[Set[A]] =
+    if (set.isEmpty) None else Some(set)
+
   private def buildAwsReturnValue(
     returnValues: ReturnValues
   ): ReturnValue =
@@ -252,6 +343,24 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case ReturnValues.AllNew     => ReturnValue.ALL_NEW
       case ReturnValues.UpdatedNew => ReturnValue.UPDATED_NEW
     }
+
+  private def buildAwsBillingMode(
+    billingMode: BillingMode
+  ): ZIOAwsBillingMode =
+    billingMode match {
+      case BillingMode.Provisioned(_) => ZIOAwsBillingMode.PROVISIONED
+      case BillingMode.PayPerRequest  => ZIOAwsBillingMode.PAY_PER_REQUEST
+    }
+
+  private def buildAwsAttributeDefinition(attributeDefinition: AttributeDefinition): ZIOAwsAttributeDefinition = ???
+
+  private def buildAwsGlobalSecondaryIndex(globalSecondaryIndex: GlobalSecondaryIndex): ZIOAwsGlobalSecondaryIndex = ???
+
+  private def buildAwsLocalSecondaryIndex(localSecondaryIndex: LocalSecondaryIndex): ZIOAwsLocalSecondaryIndex = ???
+
+  private def buildAwsSSESpecification(sseSpecification: SSESpecification): ZIOAwsSSESpecification = ???
+
+  private def buildAwsKeySchema(keySchema: KeySchema): KeySchemaElement = ???
 
   private def buildAwsAttributeValue(
     attributeVal: AttributeValue
