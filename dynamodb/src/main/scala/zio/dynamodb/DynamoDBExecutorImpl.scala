@@ -9,30 +9,36 @@ import io.github.vigoo.zioaws.dynamodb.model.{
   DeleteRequest,
   GetItemRequest,
   KeySchemaElement,
+  KeyType,
   KeysAndAttributes,
   PutItemRequest,
   PutRequest,
   ReturnValue,
+  ScalarAttributeType,
   ScanRequest,
   Tag,
   UpdateItemRequest,
   WriteRequest,
   AttributeDefinition => ZIOAwsAttributeDefinition,
-  ProvisionedThroughput => ZIOAwsProvisionedThroughput,
   AttributeValue => ZIOAwsAttributeValue,
   BillingMode => ZIOAwsBillingMode,
   GlobalSecondaryIndex => ZIOAwsGlobalSecondaryIndex,
   LocalSecondaryIndex => ZIOAwsLocalSecondaryIndex,
+  Projection => ZIOAwsProjection,
+  ProjectionType => ZIOAwsProjectionType,
+  ProvisionedThroughput => ZIOAwsProvisionedThroughput,
   ReturnConsumedCapacity => ZIOAwsReturnConsumedCapacity,
   ReturnItemCollectionMetrics => ZIOAwsReturnItemCollectionMetrics,
   SSESpecification => ZIOAwsSSESpecification,
+  SSEType => ZIOAwsSSEType,
   Select => ZIOAwsSelect
 }
 import zio.dynamodb.ConsistencyMode.toBoolean
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
+import zio.dynamodb.SSESpecification.SSEType
 import zio.stream.Stream
 
-import scala.collection.immutable.{ AbstractSet, SortedSet, Map => ScalaMap }
+import scala.collection.immutable.{ Map => ScalaMap }
 
 private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: DynamoDb.Service) extends DynamoDBExecutor {
 
@@ -69,7 +75,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     CreateTableRequest(
       attributeDefinitions = createTable.attributeDefinitions.map(buildAwsAttributeDefinition),
       tableName = createTable.tableName.value,
-      keySchema = ???,
+      keySchema = buildAwsKeySchema(createTable.keySchema),
       localSecondaryIndexes = toOption(createTable.localSecondaryIndexes.map(buildAwsLocalSecondaryIndex)),
       globalSecondaryIndexes = toOption(createTable.globalSecondaryIndexes.map(buildAwsGlobalSecondaryIndex)),
       billingMode = Some(buildAwsBillingMode(createTable.billingMode)),
@@ -77,13 +83,14 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
         case BillingMode.Provisioned(pt) =>
           Some(
             ZIOAwsProvisionedThroughput(
-              readCapacityUnits = pt.readCapacityUnit,
-              writeCapacityUnits = pt.writeCapacityUnit
+              readCapacityUnits = pt.readCapacityUnit.toLong, // REVIEW(john) should we just make these fields longs?
+              writeCapacityUnits = pt.writeCapacityUnit.toLong
             )
           )
         case BillingMode.PayPerRequest   => None
       },
-      streamSpecification = ???,
+      // looks like we don't support stream specs?
+//      streamSpecification = ???,
       sseSpecification = createTable.sseSpecification.map(buildAwsSSESpecification),
       tags = Some(createTable.tags.map { case (k, v) => Tag(k, v) })
     )
@@ -117,7 +124,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     //    I believe this is just the PrimaryKey of the last Item in the chunk
     //    How do I collect the chunk? Should this be a chunk or a stream?
     {
-      val a = dynamoDb.scan(generateScanRequest(scanSome)).mapError(_.toThrowable)
+      val _ = dynamoDb.scan(generateScanRequest(scanSome)).mapError(_.toThrowable)
       return ???
     }
 
@@ -352,15 +359,72 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case BillingMode.PayPerRequest  => ZIOAwsBillingMode.PAY_PER_REQUEST
     }
 
-  private def buildAwsAttributeDefinition(attributeDefinition: AttributeDefinition): ZIOAwsAttributeDefinition = ???
+  private def buildAwsAttributeDefinition(attributeDefinition: AttributeDefinition): ZIOAwsAttributeDefinition =
+    ZIOAwsAttributeDefinition(
+      attributeName = attributeDefinition.name,
+      attributeType = attributeDefinition.attributeType match {
+        case AttributeValueType.Binary => ScalarAttributeType.B
+        case AttributeValueType.Number => ScalarAttributeType.N
+        case AttributeValueType.String => ScalarAttributeType.S
+      }
+    )
 
-  private def buildAwsGlobalSecondaryIndex(globalSecondaryIndex: GlobalSecondaryIndex): ZIOAwsGlobalSecondaryIndex = ???
+  private def buildAwsGlobalSecondaryIndex(globalSecondaryIndex: GlobalSecondaryIndex): ZIOAwsGlobalSecondaryIndex =
+    ZIOAwsGlobalSecondaryIndex(
+      indexName = globalSecondaryIndex.indexName,
+      keySchema = buildAwsKeySchema(globalSecondaryIndex.keySchema),
+      projection = buildAwsProjectionType(globalSecondaryIndex.projection),
+      provisionedThroughput = globalSecondaryIndex.provisionedThroughput.map(provisionedThroughput =>
+        ZIOAwsProvisionedThroughput(
+          readCapacityUnits = provisionedThroughput.readCapacityUnit.toLong,
+          writeCapacityUnits = provisionedThroughput.writeCapacityUnit.toLong
+        )
+      )
+    )
 
-  private def buildAwsLocalSecondaryIndex(localSecondaryIndex: LocalSecondaryIndex): ZIOAwsLocalSecondaryIndex = ???
+  private def buildAwsLocalSecondaryIndex(localSecondaryIndex: LocalSecondaryIndex): ZIOAwsLocalSecondaryIndex =
+    ZIOAwsLocalSecondaryIndex(
+      indexName = localSecondaryIndex.indexName,
+      keySchema = buildAwsKeySchema(localSecondaryIndex.keySchema),
+      projection = buildAwsProjectionType(localSecondaryIndex.projection)
+    )
 
-  private def buildAwsSSESpecification(sseSpecification: SSESpecification): ZIOAwsSSESpecification = ???
+  private def buildAwsProjectionType(projectionType: ProjectionType): ZIOAwsProjection =
+    projectionType match {
+      case ProjectionType.KeysOnly                  =>
+        ZIOAwsProjection(projectionType = Some(ZIOAwsProjectionType.KEYS_ONLY), nonKeyAttributes = None)
+      case ProjectionType.Include(nonKeyAttributes) =>
+        ZIOAwsProjection(projectionType = Some(ZIOAwsProjectionType.INCLUDE), nonKeyAttributes = Some(nonKeyAttributes))
+      case ProjectionType.All                       => ZIOAwsProjection(projectionType = Some(ZIOAwsProjectionType.ALL), None)
+    }
 
-  private def buildAwsKeySchema(keySchema: KeySchema): KeySchemaElement = ???
+  private def buildAwsSSESpecification(sseSpecification: SSESpecification): ZIOAwsSSESpecification =
+    ZIOAwsSSESpecification(
+      enabled = Some(sseSpecification.enable),
+      sseType = Some(buildAwsSSEType(sseSpecification.sseType)),
+      kmsMasterKeyId = sseSpecification.kmsMasterKeyId
+    )
+
+  private def buildAwsSSEType(sseType: SSEType): ZIOAwsSSEType =
+    sseType match {
+      case SSESpecification.AES256 => ZIOAwsSSEType.AES256
+      case SSESpecification.KMS    => ZIOAwsSSEType.KMS
+    }
+
+  // REVIEW(john)
+  // I believe this is the encoding we were going for here
+  // AWS docs: https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_CreateTable.html
+  private def buildAwsKeySchema(keySchema: KeySchema): List[KeySchemaElement] = {
+    val hashKeyElement = List(
+      KeySchemaElement(
+        attributeName = keySchema.hashKey,
+        keyType = KeyType.HASH
+      )
+    )
+    keySchema.sortKey.fold(hashKeyElement)(sortKey =>
+      hashKeyElement.appended(KeySchemaElement(attributeName = sortKey, keyType = KeyType.RANGE))
+    )
+  }
 
   private def buildAwsAttributeValue(
     attributeVal: AttributeValue
