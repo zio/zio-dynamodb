@@ -58,7 +58,10 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case scanSome: ScanSome             => doScanSome(scanSome)
       case updateItem: UpdateItem         => doUpdateItem(updateItem)
       case createTable: CreateTable       => doCreateTable(createTable)
-      case _                              => ???
+      case deleteItem: DeleteItem         => doDeleteItem(deleteItem)
+      case querySome: QuerySome           => doQuerySome(querySome)
+      case queryAll: QueryAll             => doQueryAll(queryAll)
+      case Succeed(thunk)                 => ZIO.succeed(thunk())
     }
 
   override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Throwable, A] =
@@ -70,6 +73,21 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
 
   private def doCreateTable(createTable: CreateTable): ZIO[Any, Throwable, Unit] =
     dynamoDb.createTable(generateCreateTableRequest(createTable)).mapError(_.toThrowable).unit
+
+  private def doDeleteItem(deleteItem: DeleteItem): ZIO[Any, Throwable, Unit] = {
+    println(deleteItem)
+    ???
+  }
+
+  private def doQuerySome(querySome: QuerySome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] = {
+    println(querySome)
+    ???
+  }
+
+  private def doQueryAll(queryAll: QueryAll): ZIO[Any, Throwable, Stream[Throwable, Item]] = {
+    println(queryAll)
+    ???
+  }
 
   private def generateCreateTableRequest(createTable: CreateTable): CreateTableRequest =
     CreateTableRequest(
@@ -90,7 +108,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
         case BillingMode.PayPerRequest   => None
       },
       // looks like we don't support stream specs?
-//      streamSpecification = ???,
+      // streamSpecification = ???,
       sseSpecification = createTable.sseSpecification.map(buildAwsSSESpecification),
       tags = Some(createTable.tags.map { case (k, v) => Tag(k, v) })
     )
