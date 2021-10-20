@@ -6,13 +6,16 @@ import io.github.vigoo.zioaws.dynamodb.model.{
   BatchGetItemRequest,
   BatchWriteItemRequest,
   CreateTableRequest,
+  DeleteItemRequest,
   DeleteRequest,
   GetItemRequest,
   KeySchemaElement,
   KeyType,
   KeysAndAttributes,
   PutItemRequest,
+  Select => ZIOAwsSelect,
   PutRequest,
+  QueryRequest,
   ReturnValue,
   ScalarAttributeType,
   ScanRequest,
@@ -30,8 +33,7 @@ import io.github.vigoo.zioaws.dynamodb.model.{
   ReturnConsumedCapacity => ZIOAwsReturnConsumedCapacity,
   ReturnItemCollectionMetrics => ZIOAwsReturnItemCollectionMetrics,
   SSESpecification => ZIOAwsSSESpecification,
-  SSEType => ZIOAwsSSEType,
-  Select => ZIOAwsSelect
+  SSEType => ZIOAwsSSEType
 }
 import zio.dynamodb.ConsistencyMode.toBoolean
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
@@ -74,20 +76,48 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   private def doCreateTable(createTable: CreateTable): ZIO[Any, Throwable, Unit] =
     dynamoDb.createTable(generateCreateTableRequest(createTable)).mapError(_.toThrowable).unit
 
-  private def doDeleteItem(deleteItem: DeleteItem): ZIO[Any, Throwable, Unit] = {
-    println(deleteItem)
-    ???
-  }
+  private def doDeleteItem(deleteItem: DeleteItem): ZIO[Any, Throwable, Unit] =
+    dynamoDb.deleteItem(generateDeleteItemRequest(deleteItem)).mapError(_.toThrowable).unit
+
+  private def generateDeleteItemRequest(deleteItem: DeleteItem): DeleteItemRequest =
+    DeleteItemRequest(
+      tableName = deleteItem.tableName.value,
+      key = deleteItem.key.map.map { case (k, v) => (k, buildAwsAttributeValue(v)) },
+      conditionExpression = deleteItem.conditionExpression.map(_.toString),
+      returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(deleteItem.capacity)),
+      returnItemCollectionMetrics = Some(buildAwsItemMetrics(deleteItem.itemMetrics)),
+      returnValues = Some(buildAwsReturnValue(deleteItem.returnValues))
+    )
 
   private def doQuerySome(querySome: QuerySome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] = {
     println(querySome)
     ???
   }
 
-  private def doQueryAll(queryAll: QueryAll): ZIO[Any, Throwable, Stream[Throwable, Item]] = {
-    println(queryAll)
-    ???
-  }
+  private def doQueryAll(queryAll: QueryAll): ZIO[Any, Throwable, Stream[Throwable, Item]] =
+    ZIO.succeed(
+      dynamoDb
+        .query(generateQueryRequest(queryAll))
+        .mapBoth(
+          awsErr => awsErr.toThrowable,
+          item => toDynamoItem(item)
+        )
+    )
+
+  private def generateQueryRequest(queryAll: QueryAll): QueryRequest =
+    QueryRequest(
+      tableName = queryAll.tableName.value,
+      indexName = Some(queryAll.indexName.value),
+      select = queryAll.select.map(buildAwsSelect),
+      limit = queryAll.limit,
+      consistentRead = Some(toBoolean(queryAll.consistency)),
+      scanIndexForward = Some(queryAll.ascending),
+      exclusiveStartKey = queryAll.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
+      returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(queryAll.capacity)),
+      projectionExpression = toOption(queryAll.projections).map(_.mkString(", ")),
+      filterExpression = queryAll.filterExpression.map(filterExpression => filterExpression.render()),
+      keyConditionExpression = ???
+    )
 
   private def generateCreateTableRequest(createTable: CreateTable): CreateTableRequest =
     CreateTableRequest(
@@ -167,19 +197,11 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
         )
     )
 
-  private def selectToZioAwsSelect(select: Select): ZIOAwsSelect =
-    select match {
-      case Select.Count                  => ZIOAwsSelect.COUNT
-      case Select.AllAttributes          => ZIOAwsSelect.ALL_ATTRIBUTES
-      case Select.AllProjectedAttributes => ZIOAwsSelect.ALL_PROJECTED_ATTRIBUTES
-      case Select.SpecificAttributes     => ZIOAwsSelect.SPECIFIC_ATTRIBUTES
-    }
-
   private def generateScanRequest(scanAll: ScanSome): ScanRequest =
     ScanRequest(
       tableName = scanAll.tableName.value,
       indexName = Some(scanAll.indexName.value),
-      select = scanAll.select.map(selectToZioAwsSelect),
+      select = scanAll.select.map(buildAwsSelect),
       exclusiveStartKey = scanAll.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(scanAll.capacity)),
       // Looks like we're not currently supporting segments?
@@ -195,7 +217,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     ScanRequest(
       tableName = scanAll.tableName.value,
       indexName = Some(scanAll.indexName.value),
-      select = scanAll.select.map(selectToZioAwsSelect),
+      select = scanAll.select.map(buildAwsSelect),
       exclusiveStartKey = scanAll.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(scanAll.capacity)),
       // Looks like we're not currently supporting segments?
@@ -367,6 +389,16 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case ReturnValues.UpdatedOld => ReturnValue.UPDATED_OLD
       case ReturnValues.AllNew     => ReturnValue.ALL_NEW
       case ReturnValues.UpdatedNew => ReturnValue.UPDATED_NEW
+    }
+
+  private def buildAwsSelect(
+    select: Select
+  ): ZIOAwsSelect =
+    select match {
+      case Select.AllAttributes          => ZIOAwsSelect.ALL_ATTRIBUTES
+      case Select.AllProjectedAttributes => ZIOAwsSelect.ALL_PROJECTED_ATTRIBUTES
+      case Select.SpecificAttributes     => ZIOAwsSelect.SPECIFIC_ATTRIBUTES
+      case Select.Count                  => ZIOAwsSelect.COUNT
     }
 
   private def buildAwsBillingMode(
