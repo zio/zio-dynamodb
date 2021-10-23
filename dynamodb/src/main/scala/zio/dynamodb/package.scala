@@ -27,11 +27,11 @@ package object dynamodb {
    * of 25 items in a BatchWriteItem and executed using the `DynamoDBExecutor` service provided in the environment.
    * @param stream
    * @param mPar Level of parallelism for the stream processing
-   * @param f Function that takes an `A` and returns a `DynamoDBQuery.Write` which are used internally to populate a BatchWriteItem request
+   * @param f Function that takes an `A` and returns a PutItem or WriteItem
    * @tparam R Environment
    * @tparam A
-   * @tparam B Type of DynamoDBQuery.Write
-   * @return A stream of results from the `DynamoDBQuery.Write`'s
+   * @tparam B Type of DynamoDBQuery returned by `f`
+   * @return A stream of results from the `DynamoDBQuery` write's
    */
   def batchWriteFromStream[R, A, B](
     stream: ZStream[R, Exception, A],
