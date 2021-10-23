@@ -319,7 +319,7 @@ object DynamoDBQuery {
     tableName: String,
     key: PrimaryKey,
     projections: ProjectionExpression*
-  ): Constructor[Option[Item]] =
+  ): DynamoDBQuery[Option[Item]] =
     GetItem(TableName(tableName), key, projections.toList)
 
   def get[A: Schema](
@@ -340,8 +340,7 @@ object DynamoDBQuery {
 
   def putItem(tableName: String, item: Item): Write[Unit] = PutItem(TableName(tableName), item)
 
-  // TODO: I think we will still need a Write rather than DynamoDBQuery as Write is used by batching ops
-  def put[A: Schema](tableName: String, a: A): DynamoDBQuery[Unit] =
+  def put[A: Schema](tableName: String, a: A): Write[Unit] =
     putItem(tableName, toItem(a))
 
   private[dynamodb] def toItem[A](a: A)(implicit schema: Schema[A]): Item =
@@ -399,10 +398,8 @@ object DynamoDBQuery {
     projections: ProjectionExpression*
   ): DynamoDBQuery[Stream[Exception, A]] =
     scanAllItem(tableName, projections: _*).map(
-      _.mapM(item =>
-        ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_))
-      ) // TODO: Create a custom error model
-    )
+      _.mapM(item => ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_)))
+    ) // TODO: think about error model
 
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
@@ -449,10 +446,8 @@ object DynamoDBQuery {
     projections: ProjectionExpression*
   ): DynamoDBQuery[Stream[Exception, A]] =
     queryAllItem(tableName, projections: _*).map(
-      _.mapM(item =>
-        ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_))
-      ) // TODO: Create a custom error model
-    )
+      _.mapM(item => ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_)))
+    ) // TODO: think about error model
 
   def createTable(
     tableName: String,
