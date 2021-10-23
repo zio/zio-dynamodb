@@ -304,6 +304,7 @@ sealed trait DynamoDBQuery[+A] { self =>
 
 object DynamoDBQuery {
   import scala.collection.immutable.{ Map => ScalaMap }
+  import scala.collection.immutable.{ Set => ScalaSet }
 
   sealed trait Constructor[+A] extends DynamoDBQuery[A]
   sealed trait Write[+A]       extends Constructor[A]
@@ -480,17 +481,30 @@ object DynamoDBQuery {
   ) extends Constructor[Option[Item]]
 
   private[dynamodb] final case class BatchGetItem(
-    requestItems: MapOfSet[TableName, BatchGetItem.TableGet] = MapOfSet.empty,
+    requestItems: ScalaMap[TableName, BatchGetItem.TableGet] = ScalaMap.empty,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    addList: Chunk[GetItem] = Chunk.empty // track order of added GetItems for later unpacking
+    private[dynamodb] val addList: Chunk[GetItem] = Chunk.empty // track order of added GetItems for later unpacking
   ) extends Constructor[BatchGetItem.Response] { self =>
 
-    def +(getItem: GetItem): BatchGetItem =
+    def +(getItem: GetItem): BatchGetItem = {
+      val tableName                                               = getItem.tableName
+      val key                                                     = getItem.key
+      val projectionExpressionSet: ScalaSet[ProjectionExpression] = getItem.projections.toSet
+      val newEntry: (TableName, TableGet)                         =
+        self.requestItems
+          .get(tableName)
+          .fold((tableName, BatchGetItem.TableGet(ScalaSet(key), getItem.projections.toSet)))(t =>
+            (
+              tableName,
+              BatchGetItem.TableGet(t.keysSet + key, t.projectionExpressionSet ++ projectionExpressionSet)
+            )
+          )
       BatchGetItem(
-        self.requestItems + (getItem.tableName -> TableGet(getItem.key, getItem.projections)),
+        self.requestItems + newEntry,
         self.capacity,
         self.addList :+ getItem
       )
+    }
 
     def addAll(entries: GetItem*): BatchGetItem =
       entries.foldLeft(self) {
@@ -517,9 +531,8 @@ object DynamoDBQuery {
   }
   private[dynamodb] object BatchGetItem {
     final case class TableGet(
-      key: PrimaryKey,
-      projections: List[ProjectionExpression] =
-        List.empty // If no attribute names are specified, then all attributes are returned
+      keysSet: ScalaSet[PrimaryKey],
+      projectionExpressionSet: ScalaSet[ProjectionExpression]
     )
     final case class Response(
       // Note - if a requested item does not exist, it is not returned in the result
