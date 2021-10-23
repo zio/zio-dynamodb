@@ -1,6 +1,7 @@
 package zio
 
-import zio.stream.ZStream
+import zio.clock.Clock
+import zio.stream.{ Transducer, ZStream }
 
 import scala.annotation.tailrec
 
@@ -35,9 +36,9 @@ package object dynamodb {
   def batchWriteFromStream[R, A, B](
     stream: ZStream[R, Exception, A],
     mPar: Int = 10
-  )(f: A => DynamoDBQuery[B]): ZStream[Has[DynamoDBExecutor] with R, Exception, B] =
+  )(f: A => DynamoDBQuery[B]): ZStream[Has[DynamoDBExecutor] with R with Clock, Exception, B] =
     stream
-      .grouped(25)
+      .aggregateAsync(Transducer.collectAllN(25))
       .mapMPar(mPar) { chunk =>
         val batchWriteItem = DynamoDBQuery
           .forEach(chunk)(a => f(a))
@@ -66,9 +67,9 @@ package object dynamodb {
     mPar: Int = 10
   )(
     pk: A => PrimaryKey
-  ): ZStream[R with Has[DynamoDBExecutor], Exception, Item] =
+  ): ZStream[R with Has[DynamoDBExecutor] with Clock, Exception, Item] =
     stream
-      .grouped(100)
+      .aggregateAsync(Transducer.collectAllN(100))
       .mapMPar(mPar) { chunk =>
         val batchGetItem: DynamoDBQuery[Chunk[Option[Item]]] = DynamoDBQuery
           .forEach(chunk)(a => DynamoDBQuery.getItem(tableName, pk(a)))
