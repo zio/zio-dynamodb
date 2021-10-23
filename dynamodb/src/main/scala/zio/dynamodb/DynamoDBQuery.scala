@@ -338,9 +338,9 @@ object DynamoDBQuery {
     av.decode(Schema[A])
   }
 
-  def putItem(tableName: String, item: Item): Write[Unit] = PutItem(TableName(tableName), item)
+  def putItem(tableName: String, item: Item): DynamoDBQuery[Unit] = PutItem(TableName(tableName), item)
 
-  def put[A: Schema](tableName: String, a: A): Write[Unit] =
+  def put[A: Schema](tableName: String, a: A): DynamoDBQuery[Unit] =
     putItem(tableName, toItem(a))
 
   private[dynamodb] def toItem[A](a: A)(implicit schema: Schema[A]): Item =

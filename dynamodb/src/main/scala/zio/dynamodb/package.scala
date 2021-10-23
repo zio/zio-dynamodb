@@ -35,7 +35,7 @@ package object dynamodb {
   def batchWriteFromStream[R, A, B](
     stream: ZStream[R, Exception, A],
     mPar: Int = 10
-  )(f: A => DynamoDBQuery.Write[B]): ZStream[Has[DynamoDBExecutor] with R, Exception, B] =
+  )(f: A => DynamoDBQuery[B]): ZStream[Has[DynamoDBExecutor] with R, Exception, B] =
     stream
       .grouped(25)
       .mapMPar(mPar) { chunk =>
