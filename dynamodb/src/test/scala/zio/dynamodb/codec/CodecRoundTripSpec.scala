@@ -22,7 +22,7 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
       sequenceSuite,
       enumerationSuite,
       transformSuite,
-      anySchemaSuite @@ TestAspect.ignore // TODO: fix
+      anySchemaSuite
     )
 
   private val eitherSuite = suite("either suite")(
@@ -273,20 +273,12 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
           assertEncodesThenDecodes(schema, value)
       }
     },
-    /*
-    TODO: fix:
-    - recursive schema
-      Test failed after 115 iterations with input: (Optional(Optional(Primitive(bigDecimal))),Some(None))
-      None did not satisfy equalTo(Some(None))
-      `decoded` = Right(None) did not satisfy isRight(equalTo(Some(None)))
-      ☛ /home/avinder/Workspaces/git/zio-dynamodb/dynamodb/src/test/scala/zio/dynamodb/codec/CodecRoundTripSpec.scala:301
-     */
     testM("recursive schema") {
       checkM(SchemaGen.anyTreeAndValue) {
         case (schema, value) =>
           assertEncodesThenDecodes(schema, value)
       }
-    },
+    } @@ TestAspect.ignore,
     testM("recursive data type") {
       checkM(SchemaGen.anyRecursiveTypeAndValue) {
         case (schema, value) =>
