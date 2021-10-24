@@ -483,7 +483,8 @@ object DynamoDBQuery {
   private[dynamodb] final case class BatchGetItem(
     requestItems: ScalaMap[TableName, BatchGetItem.TableGet] = ScalaMap.empty,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    private[dynamodb] val addList: Chunk[GetItem] = Chunk.empty // track order of added GetItems for later unpacking
+    private[dynamodb] val orderedGetItems: Chunk[GetItem] =
+      Chunk.empty // track order of added GetItems for later unpacking
   ) extends Constructor[BatchGetItem.Response] { self =>
 
     def +(getItem: GetItem): BatchGetItem = {
@@ -502,7 +503,7 @@ object DynamoDBQuery {
       BatchGetItem(
         self.requestItems + newEntry,
         self.capacity,
-        self.addList :+ getItem
+        self.orderedGetItems :+ getItem
       )
     }
 
@@ -515,7 +516,7 @@ object DynamoDBQuery {
      for each added GetItem, check it's key exists in the response and create a corresponding Optional Item value
      */
     def toGetItemResponses(response: BatchGetItem.Response): Chunk[Option[Item]] = {
-      val chunk: Chunk[Option[Item]] = addList.foldLeft[Chunk[Option[Item]]](Chunk.empty) {
+      val chunk: Chunk[Option[Item]] = orderedGetItems.foldLeft[Chunk[Option[Item]]](Chunk.empty) {
         case (chunk, getItem) =>
           val responsesForTable: Set[Item] = response.responses.getOrElse(getItem.tableName, Set.empty[Item])
           val found: Option[Item]          = responsesForTable.find { item =>

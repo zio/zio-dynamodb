@@ -20,7 +20,7 @@ object BatchingModelSpec extends DefaultRunnableSpec with DynamoDBFixtures {
       )
       val batch             = BatchGetItem().addAll(itemT1, itemT1_2)
 
-      assert(batch.addList)(equalTo(Chunk(itemT1, itemT1_2))) &&
+      assert(batch.orderedGetItems)(equalTo(Chunk(itemT1, itemT1_2))) &&
       assert(batch.requestItems)(
         equalTo(
           Map(

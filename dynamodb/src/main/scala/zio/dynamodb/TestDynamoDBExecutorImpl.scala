@@ -19,7 +19,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private (
       case BatchGetItem(requestItemsMap, _, _)                                    =>
         val requestItems: Seq[(TableName, TableGet)] = requestItemsMap.toList
 
-        val zioPairs: IO[DatabaseError, Seq[(TableName, Option[Item])]] =
+        val foundItems: IO[DatabaseError, Seq[(TableName, Option[Item])]] =
           ZIO
             .foreach(requestItems) {
               case (tableName, tableGet) =>
@@ -30,7 +30,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private (
             .map(_.flatten)
 
         val response: IO[DatabaseError, BatchGetItem.Response] = for {
-          pairs       <- zioPairs
+          pairs       <- foundItems
           pairFiltered = pairs.collect { case (tableName, Some(item)) => (tableName, item) }
           mapOfSet     = pairFiltered.foldLeft[MapOfSet[TableName, Item]](MapOfSet.empty) {
                            case (acc, (tableName, listOfItems)) => acc + (tableName -> listOfItems)
