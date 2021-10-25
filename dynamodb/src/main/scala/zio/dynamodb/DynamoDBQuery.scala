@@ -170,8 +170,8 @@ sealed trait DynamoDBQuery[+A] { self =>
     indexName: String,
     keySchema: KeySchema,
     projection: ProjectionType,
-    readCapacityUnit: Int,
-    writeCapacityUnit: Int
+    readCapacityUnit: Long,
+    writeCapacityUnit: Long
   ): DynamoDBQuery[A] =
     self match {
       case Zip(left, right, zippable) =>

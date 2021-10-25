@@ -13,7 +13,6 @@ import io.github.vigoo.zioaws.dynamodb.model.{
   KeyType,
   KeysAndAttributes,
   PutItemRequest,
-  Select => ZIOAwsSelect,
   PutRequest,
   QueryRequest,
   ReturnValue,
@@ -33,12 +32,13 @@ import io.github.vigoo.zioaws.dynamodb.model.{
   ReturnConsumedCapacity => ZIOAwsReturnConsumedCapacity,
   ReturnItemCollectionMetrics => ZIOAwsReturnItemCollectionMetrics,
   SSESpecification => ZIOAwsSSESpecification,
-  SSEType => ZIOAwsSSEType
+  SSEType => ZIOAwsSSEType,
+  Select => ZIOAwsSelect
 }
 import zio.dynamodb.ConsistencyMode.toBoolean
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.SSESpecification.SSEType
-import zio.stream.Stream
+import zio.stream.{ Stream, ZSink }
 
 import scala.collection.immutable.{ Map => ScalaMap }
 
@@ -90,8 +90,12 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     )
 
   private def doQuerySome(querySome: QuerySome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] = {
-    println(querySome)
-    ???
+    val stream =
+      dynamoDb
+        .query(generateQueryRequest(querySome))
+        .mapBoth(_.toThrowable, toDynamoItem)
+    val sink   = ZSink.collectAll[Item]
+    stream.run(sink).map(chunk => (chunk, Some(chunk.last)))
   }
 
   private def doQueryAll(queryAll: QueryAll): ZIO[Any, Throwable, Stream[Throwable, Item]] =
@@ -116,7 +120,22 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(queryAll.capacity)),
       projectionExpression = toOption(queryAll.projections).map(_.mkString(", ")),
       filterExpression = queryAll.filterExpression.map(filterExpression => filterExpression.render()),
-      keyConditionExpression = ???
+      keyConditionExpression = queryAll.keyConditionExpression.map(_.render())
+    )
+
+  private def generateQueryRequest(querySome: QuerySome): QueryRequest =
+    QueryRequest(
+      tableName = querySome.tableName.value,
+      indexName = Some(querySome.indexName.value),
+      select = querySome.select.map(buildAwsSelect),
+      limit = Some(querySome.limit),
+      consistentRead = Some(toBoolean(querySome.consistency)),
+      scanIndexForward = Some(querySome.ascending),
+      exclusiveStartKey = querySome.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
+      returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(querySome.capacity)),
+      projectionExpression = toOption(querySome.projections).map(_.mkString(", ")),
+      filterExpression = querySome.filterExpression.map(filterExpression => filterExpression.render()),
+      keyConditionExpression = querySome.keyConditionExpression.map(_.render())
     )
 
   private def generateCreateTableRequest(createTable: CreateTable): CreateTableRequest =
@@ -131,8 +150,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
         case BillingMode.Provisioned(pt) =>
           Some(
             ZIOAwsProvisionedThroughput(
-              readCapacityUnits = pt.readCapacityUnit.toLong, // REVIEW(john) should we just make these fields longs?
-              writeCapacityUnits = pt.writeCapacityUnit.toLong
+              readCapacityUnits = pt.readCapacityUnit,
+              writeCapacityUnits = pt.writeCapacityUnit
             )
           )
         case BillingMode.PayPerRequest   => None
@@ -167,14 +186,14 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   private def doUpdateItem(updateItem: UpdateItem): ZIO[Any, Throwable, Unit] =
     dynamoDb.updateItem(generateUpdateItemRequest(updateItem)).mapError(_.toThrowable).unit
 
-  private def doScanSome(scanSome: ScanSome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] =
-    // TODO(adam): how do I get the LastEvaluatedKey? It doesn't look like zio-aws returns
-    //    I believe this is just the PrimaryKey of the last Item in the chunk
-    //    How do I collect the chunk? Should this be a chunk or a stream?
-    {
-      val _ = dynamoDb.scan(generateScanRequest(scanSome)).mapError(_.toThrowable)
-      return ???
-    }
+  private def doScanSome(scanSome: ScanSome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] = {
+    val stream =
+      dynamoDb
+        .scan(generateScanRequest(scanSome))
+        .mapBoth(_.toThrowable, toDynamoItem)
+    val sink   = ZSink.collectAll[Item]
+    stream.run(sink).map(chunk => (chunk, Some(chunk.last)))
+  }
 
   private def generateUpdateItemRequest(updateItem: UpdateItem): UpdateItemRequest =
     UpdateItemRequest(
@@ -364,7 +383,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   private def buildAwsReturnConsumedCapacity(
     returnConsumedCapacity: ReturnConsumedCapacity
   ): ZIOAwsReturnConsumedCapacity =
-    // TODO: There is a fourth option for `unknownToSdkVersion`
     returnConsumedCapacity match {
       case ReturnConsumedCapacity.Indexes => ZIOAwsReturnConsumedCapacity.INDEXES
       case ReturnConsumedCapacity.Total   => ZIOAwsReturnConsumedCapacity.TOTAL
@@ -426,8 +444,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       projection = buildAwsProjectionType(globalSecondaryIndex.projection),
       provisionedThroughput = globalSecondaryIndex.provisionedThroughput.map(provisionedThroughput =>
         ZIOAwsProvisionedThroughput(
-          readCapacityUnits = provisionedThroughput.readCapacityUnit.toLong,
-          writeCapacityUnits = provisionedThroughput.writeCapacityUnit.toLong
+          readCapacityUnits = provisionedThroughput.readCapacityUnit,
+          writeCapacityUnits = provisionedThroughput.writeCapacityUnit
         )
       )
     )
@@ -461,9 +479,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case SSESpecification.KMS    => ZIOAwsSSEType.KMS
     }
 
-  // REVIEW(john)
-  // I believe this is the encoding we were going for here
-  // AWS docs: https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_CreateTable.html
   private def buildAwsKeySchema(keySchema: KeySchema): List[KeySchemaElement] = {
     val hashKeyElement = List(
       KeySchemaElement(

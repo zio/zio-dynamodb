@@ -10,7 +10,10 @@ comparisons operators are the same as for Condition
 
  */
 
-sealed trait KeyConditionExpression
+sealed trait KeyConditionExpression {
+  def render(): String = ???
+}
+
 object KeyConditionExpression {
   private[dynamodb] final case class And(left: PartitionKeyExpression, right: SortKeyExpression)
       extends KeyConditionExpression
