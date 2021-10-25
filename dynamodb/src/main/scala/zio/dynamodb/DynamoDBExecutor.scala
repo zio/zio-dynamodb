@@ -1,7 +1,7 @@
 package zio.dynamodb
 
 import zio.stm.TMap
-import zio.{ Has, ULayer, URLayer, ZIO, ZLayer }
+import zio.{ Has, ULayer, URLayer, ZIO }
 import io.github.vigoo.zioaws.dynamodb.DynamoDb
 
 trait DynamoDBExecutor {
@@ -9,7 +9,8 @@ trait DynamoDBExecutor {
 }
 
 object DynamoDBExecutor {
-  def live(): URLayer[DynamoDb, Has[DynamoDBExecutor]] = ZLayer.succeed(DynamoDBExecutorImpl(???))
+  val live: URLayer[DynamoDb, Has[DynamoDBExecutor]] =
+    ZIO.service[DynamoDb.Service].map(dynamo => DynamoDBExecutorImpl(dynamo)).toLayer
 
   val test: ULayer[Has[DynamoDBExecutor] with Has[TestDynamoDBExecutor]] =
     (for {
