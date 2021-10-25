@@ -9,32 +9,32 @@ import zio.stream.Stream
 import zio.{ Chunk, Has, ZIO }
 
 object QueryAndScanExamples extends App {
+  val scanAll: ZIO[Has[DynamoDBExecutor], Throwable, Stream[Throwable, Item]]                   =
+    scanAllItem("tableName1", $("A"), $("B"), $("C")).execute
+  val scanAllWithSecondaryIndex: ZIO[Has[DynamoDBExecutor], Throwable, Stream[Throwable, Item]] =
+    scanAllItem("tableName1", $("A"), $("B"), $("C")).indexName("secondaryIndex").execute
+  val scanSome: ZIO[Has[DynamoDBExecutor], Throwable, (Chunk[Item], LastEvaluatedKey)]          =
+    scanSomeItem("tableName1", limit = 10, $("A"), $("B"), $("C")).execute
 
-  val scanAll1: ZIO[Has[DynamoDBExecutor], Throwable, Stream[Throwable, Item]]          =
-    scanAllItem("tableName1", "indexName1", $("A"), $("B"), $("C")).execute
-  val scanSome2: ZIO[Has[DynamoDBExecutor], Throwable, (Chunk[Item], LastEvaluatedKey)] =
-    scanSomeItem("tableName1", "indexName1", limit = 10, $("A"), $("B"), $("C")).execute
-
-  val queryAll1: ZIO[Has[DynamoDBExecutor], Throwable, Stream[Throwable, Item]] =
-    queryAllItem("tableName1", "indexName1", $("A"), $("B"), $("C"))
+  val queryAll: ZIO[Has[DynamoDBExecutor], Throwable, Stream[Throwable, Item]] =
+    queryAllItem("tableName1", $("A"), $("B"), $("C"))
       .whereKey(
         PartitionKey("partitionKey1") === "x" &&
           SortKey("sortKey1") > "X"
       )
       .execute
 
-  val querySome2: ZIO[Has[DynamoDBExecutor], Throwable, (Chunk[Item], LastEvaluatedKey)] =
-    querySomeItem("tableName1", "indexName1", limit = 10, $("A"), $("B"), $("C"))
+  val querySome: ZIO[Has[DynamoDBExecutor], Throwable, (Chunk[Item], LastEvaluatedKey)] =
+    querySomeItem("tableName1", limit = 10, $("A"), $("B"), $("C"))
       .sortOrder(ascending = false)
       .whereKey(PartitionKey("partitionKey1") === "x" && SortKey("sortKey1") > "X")
       .selectCount
       .execute
 
-  val zippedAndSorted = (scanSomeItem("tableName1", "indexName1", limit = 10, $("A"), $("B"), $("C"))
+  val zippedAndSorted = (scanSomeItem("tableName1", limit = 10, $("A"), $("B"), $("C"))
     zip
       querySomeItem(
         "tableName1",
-        "indexName1",
         limit = 10,
         $("A"),
         $("B"),

@@ -24,7 +24,7 @@ object BatchFromStreamExamples extends App {
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] =
     (for {
-      _ <- TestDynamoDBExecutor.addTable("table1", "id")()
+      _ <- TestDynamoDBExecutor.addTable("table1", "id")
       // write to DB using the stream as the source of the data to write
       // write queries will automatically be batched using BatchWriteItem when calling DynamoDB
       _ <- batchWriteFromStream(personStream) { person =>

@@ -1,6 +1,7 @@
 package zio
 
-import zio.stream.ZStream
+import zio.clock.Clock
+import zio.stream.{ Transducer, ZStream }
 
 import scala.annotation.tailrec
 
@@ -26,18 +27,18 @@ package object dynamodb {
    * of 25 items in a BatchWriteItem and executed using the `DynamoDBExecutor` service provided in the environment.
    * @param stream
    * @param mPar Level of parallelism for the stream processing
-   * @param f Function that takes an `A` and returns a `DynamoDBQuery.Write` which are used internally to populate a BatchWriteItem request
+   * @param f Function that takes an `A` and returns a PutItem or WriteItem
    * @tparam R Environment
    * @tparam A
-   * @tparam B Type of DynamoDBQuery.Write
-   * @return A stream of results from the `DynamoDBQuery.Write`'s
+   * @tparam B Type of DynamoDBQuery returned by `f`
+   * @return A stream of results from the `DynamoDBQuery` write's
    */
   def batchWriteFromStream[R, A, B](
     stream: ZStream[R, Throwable, A],
     mPar: Int = 10
-  )(f: A => DynamoDBQuery.Write[B]): ZStream[Has[DynamoDBExecutor] with R, Throwable, B] =
+  )(f: A => DynamoDBQuery[B]): ZStream[Has[DynamoDBExecutor] with R with Clock, Throwable, B] =
     stream
-      .grouped(25)
+      .aggregateAsync(Transducer.collectAllN(25))
       .mapMPar(mPar) { chunk =>
         val batchWriteItem = DynamoDBQuery
           .forEach(chunk)(a => f(a))
@@ -66,9 +67,9 @@ package object dynamodb {
     mPar: Int = 10
   )(
     pk: A => PrimaryKey
-  ): ZStream[R with Has[DynamoDBExecutor], Throwable, Item] =
+  ): ZStream[R with Has[DynamoDBExecutor] with Clock, Throwable, Item] =
     stream
-      .grouped(100)
+      .aggregateAsync(Transducer.collectAllN(100))
       .mapMPar(mPar) { chunk =>
         val batchGetItem: DynamoDBQuery[Chunk[Option[Item]]] = DynamoDBQuery
           .forEach(chunk)(a => DynamoDBQuery.getItem(tableName, pk(a)))

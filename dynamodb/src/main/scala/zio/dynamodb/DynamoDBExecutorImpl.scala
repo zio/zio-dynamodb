@@ -111,7 +111,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   private def generateQueryRequest(queryAll: QueryAll): QueryRequest =
     QueryRequest(
       tableName = queryAll.tableName.value,
-      indexName = Some(queryAll.indexName.value),
+      indexName = queryAll.indexName.map(_.value),
       select = queryAll.select.map(buildAwsSelect),
       limit = queryAll.limit,
       consistentRead = Some(toBoolean(queryAll.consistency)),
@@ -126,7 +126,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   private def generateQueryRequest(querySome: QuerySome): QueryRequest =
     QueryRequest(
       tableName = querySome.tableName.value,
-      indexName = Some(querySome.indexName.value),
+      indexName = querySome.indexName.map(_.value),
       select = querySome.select.map(buildAwsSelect),
       limit = Some(querySome.limit),
       consistentRead = Some(toBoolean(querySome.consistency)),
@@ -219,7 +219,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   private def generateScanRequest(scanAll: ScanSome): ScanRequest =
     ScanRequest(
       tableName = scanAll.tableName.value,
-      indexName = Some(scanAll.indexName.value),
+      indexName = scanAll.indexName.map(_.value),
       select = scanAll.select.map(buildAwsSelect),
       exclusiveStartKey = scanAll.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(scanAll.capacity)),
@@ -235,7 +235,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   private def generateScanRequest(scanAll: ScanAll): ScanRequest =
     ScanRequest(
       tableName = scanAll.tableName.value,
-      indexName = Some(scanAll.indexName.value),
+      indexName = scanAll.indexName.map(_.value),
       select = scanAll.select.map(buildAwsSelect),
       exclusiveStartKey = scanAll.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(scanAll.capacity)),
