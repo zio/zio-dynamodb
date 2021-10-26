@@ -2,7 +2,7 @@ package zio.dynamodb
 
 sealed trait AttributeValueType {
   // TODO(adam): Implement
-  override def toString: String = ???
+  def render(): String = ???
 }
 sealed trait PrimitiveValueType extends AttributeValueType
 

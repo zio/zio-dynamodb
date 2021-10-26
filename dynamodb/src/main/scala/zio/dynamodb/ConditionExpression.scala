@@ -44,7 +44,8 @@ sealed trait ConditionExpression { self =>
 
   def render(): String =
     self match {
-      case Between(left, minValue, maxValue)  => s"$left BETWEEN $minValue AND $maxValue"
+      case Between(left, minValue, maxValue)  =>
+        s"${left.render()} BETWEEN ${minValue.render()} AND ${maxValue.render()}"
       case In(_, _)                           => ??? //TODO(adam): This one is funky
       case AttributeExists(path)              => s"attribute_exists($path})"
       case AttributeNotExists(path)           => s"attribute_not_exists($path)"
@@ -91,7 +92,7 @@ object ConditionExpression {
     def >=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
       GreaterThanOrEqual(self, Operand.ValueOperand(t.toAttributeValue(that)))
 
-    override def toString: String =
+    def render(): String =
       self match {
         case Operand.ProjectionExpressionOperand(pe) => pe.toString
         case Operand.ValueOperand(value)             => value.toString
