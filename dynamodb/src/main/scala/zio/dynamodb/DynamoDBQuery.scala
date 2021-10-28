@@ -33,6 +33,7 @@ sealed trait DynamoDBQuery[+A] { self =>
   final def <*>[B](that: DynamoDBQuery[B]): DynamoDBQuery[(A, B)] = self zip that
 
   def execute: ZIO[Has[DynamoDBExecutor], Throwable, A] = {
+    println("================ EXECUTING")
     val (constructors, assembler)                                                                   = parallelize(self)
     val (indexedConstructors, (batchGetItem, batchGetIndexes), (batchWriteItem, batchWriteIndexes)) =
       batched(constructors)

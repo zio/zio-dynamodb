@@ -249,4 +249,4 @@ lazy val docs = project
   )
   .enablePlugins(MdocPlugin, DocusaurusPlugin, ScalaUnidocPlugin)
 
-(compile in Compile) := (compile in Compile).dependsOn(copyJars).value
+//(compile in Compile) := (compile in Compile).dependsOn(copyJars).value

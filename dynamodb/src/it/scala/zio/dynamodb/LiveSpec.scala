@@ -1,6 +1,8 @@
 package zio.dynamodb
 
-import zio._
+import io.github.vigoo.zioaws.core.config
+import io.github.vigoo.zioaws.{ dynamodb, http4s }
+import zio.dynamodb.DynamoDBQuery.putItem
 import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
 import zio.test.Assertion._
 
@@ -10,13 +12,15 @@ object LiveSpec extends DefaultRunnableSpec {
   override def spec: ZSpec[_root_.zio.dynamodb.LiveSpec.Environment, _root_.zio.dynamodb.LiveSpec.Failure] =
     suite("LiveTest")(
       testM("something something") {
-        for {
-          a <- ZIO.succeed(true)
-        } yield assert(a)(isTrue)
+        (for {
+          _ <- program
+        } yield assert(true)(isTrue)).provideCustomLayer(layer)
       }
     )
 
-//  def something() =
-//    ZManaged.fromEffect(DynamoDBLocal.randomPort)
+  private val program =
+    putItem("zio-dynamodb-test", Item("id" -> "first", "firstName" -> "adam")).execute
+
+  val layer           = http4s.default >>> config.default >>> dynamodb.live >>> DynamoDBExecutor.live
 
 }
