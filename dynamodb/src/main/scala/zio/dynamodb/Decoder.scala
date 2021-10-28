@@ -8,11 +8,11 @@ import zio.{ schema, Chunk }
 import java.time.{ ZoneId, _ }
 import scala.util.Try
 
-private[dynamodb] object Decoder {
+private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
 
   def apply[A](schema: Schema[A]): Decoder[A] = decoder(schema)
 
-  private def decoder[A](schema: Schema[A]): Decoder[A] =
+  private[dynamodb] def decoder[A](schema: Schema[A]): Decoder[A] =
     schema match {
       case ProductDecoder(decoder)         => decoder // TODO: inline for exhaustive matching
       case s: Optional[a]                  => optionalDecoder[a](decoder(s.codec))
@@ -81,40 +81,6 @@ private[dynamodb] object Decoder {
           None
       }
   }
-
-  private def caseClass1Decoder[A1, Z](schema: Schema.CaseClass1[A1, Z]): Decoder[Z] = { (av: AttributeValue) =>
-    decodeFields(av, schema.field).map { xs =>
-      schema.construct(xs(0).asInstanceOf[A1])
-    }
-  }
-
-  private def caseClass2Decoder[A1, A2, Z](schema: Schema.CaseClass2[A1, A2, Z]): Decoder[Z] = { (av: AttributeValue) =>
-    decodeFields(av, schema.field1, schema.field2).map { xs =>
-      schema.construct(xs(0).asInstanceOf[A1], xs(1).asInstanceOf[A2])
-    }
-  }
-
-  private def caseClass3Decoder[A1, A2, A3, Z](schema: Schema.CaseClass3[A1, A2, A3, Z]): Decoder[Z] = {
-    (av: AttributeValue) =>
-      decodeFields(av, schema.field1, schema.field2, schema.field3).map { xs =>
-        schema.construct(xs(0).asInstanceOf[A1], xs(1).asInstanceOf[A2], xs(2).asInstanceOf[A3])
-      }
-  }
-
-  private def decodeFields(av: AttributeValue, fields: Schema.Field[_]*): Either[String, List[Any]] =
-    av match {
-      case AttributeValue.Map(map) =>
-        zio.dynamodb
-          .foreach(fields) {
-            case Schema.Field(key, schema, _) =>
-              val dec        = decoder(schema)
-              val maybeValue = map.get(AttributeValue.String(key))
-              maybeValue.map(dec).toRight(s"field '$key' not found in $av").flatten
-          }
-          .map(_.toList)
-      case _                       =>
-        Left(s"$av is not an AttributeValue.Map")
-    }
 
   private def primitiveDecoder[A](standardType: StandardType[A]): Decoder[A] =
     standardType match {
