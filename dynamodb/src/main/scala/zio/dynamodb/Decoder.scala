@@ -76,6 +76,7 @@ private[dynamodb] object Decoder {
           Some(caseClass2Decoder(s))
         case s @ Schema.CaseClass3(_, _, _, _, _, _, _, _) =>
           Some(caseClass3Decoder(s))
+        // TODO: expand to CaseClass22 and inline
         case _                                             =>
           None
       }
