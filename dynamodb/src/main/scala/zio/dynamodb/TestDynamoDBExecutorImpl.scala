@@ -17,20 +17,20 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private (
   override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A] =
     atomicQuery match {
       case BatchGetItem(requestItemsMap, _, _)                                    =>
-        val requestItems: Seq[(TableName, Set[TableGet])] = requestItemsMap.toList
+        val requestItems: Seq[(TableName, TableGet)] = requestItemsMap.toList
 
-        val zioPairs: IO[DatabaseError, Seq[(TableName, Option[Item])]] =
+        val foundItems: IO[DatabaseError, Seq[(TableName, Option[Item])]] =
           ZIO
             .foreach(requestItems) {
-              case (tableName, setOfTableGet) =>
-                ZIO.foreach(setOfTableGet) { tableGet =>
-                  fakeGetItem(tableName.value, tableGet.key).map((tableName, _))
+              case (tableName, tableGet) =>
+                ZIO.foreach(tableGet.keysSet) { key =>
+                  fakeGetItem(tableName.value, key).map((tableName, _))
                 }
             }
             .map(_.flatten)
 
         val response: IO[DatabaseError, BatchGetItem.Response] = for {
-          pairs       <- zioPairs
+          pairs       <- foundItems
           pairFiltered = pairs.collect { case (tableName, Some(item)) => (tableName, item) }
           mapOfSet     = pairFiltered.foldLeft[MapOfSet[TableName, Item]](MapOfSet.empty) {
                            case (acc, (tableName, listOfItems)) => acc + (tableName -> listOfItems)

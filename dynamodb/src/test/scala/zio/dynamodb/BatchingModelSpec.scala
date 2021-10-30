@@ -2,7 +2,7 @@ package zio.dynamodb
 
 import zio.Chunk
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
-import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem }
+import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem, GetItem }
 import zio.test.Assertion._
 import zio.test.{ DefaultRunnableSpec, _ }
 
@@ -12,14 +12,22 @@ object BatchingModelSpec extends DefaultRunnableSpec with DynamoDBFixtures {
 
   private val batchGetItemSuite = suite("BatchGetItem")(
     test("should aggregate GetItems using +") {
-      val batch = BatchGetItem().addAll(getItemT1, getItemT1_2)
+      val itemT1: GetItem   = GetItem(tableName1, primaryKeyT1, List(ProjectionExpression.Root("field1")))
+      val itemT1_2: GetItem = GetItem(
+        tableName1,
+        primaryKeyT2,
+        List(ProjectionExpression.Root("field2"))
+      )
+      val batch             = BatchGetItem().addAll(itemT1, itemT1_2)
 
-      assert(batch.addList)(equalTo(Chunk(getItemT1, getItemT1_2))) &&
+      assert(batch.orderedGetItems)(equalTo(Chunk(itemT1, itemT1_2))) &&
       assert(batch.requestItems)(
         equalTo(
-          MapOfSet.empty.addAll(
-            tableName1 -> TableGet(getItemT1.key, getItemT1.projections),
-            tableName1 -> TableGet(getItemT1_2.key, getItemT1_2.projections)
+          Map(
+            tableName1 -> TableGet(
+              Set(itemT1.key, itemT1_2.key),
+              Set(ProjectionExpression.Root("field1"), ProjectionExpression.Root("field2"))
+            )
           )
         )
       )

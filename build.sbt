@@ -203,6 +203,83 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
            |}""".stripMargin
       )
       Seq(file)
+    }.taskValue,
+    Compile / sourceGenerators += Def.task {
+      val dir                      = (Compile / sourceManaged).value
+      val file                     = dir / "zio" / "dynamodb" / "GeneratedFromAttributeValueAs.scala"
+      def upperAlpha(i: Int): Char = (('A'.toInt - 1) + i).toChar
+      def lowerAlpha(i: Int): Char = (('a'.toInt - 1) + i).toChar
+      val applyMethods             = (2 to 22).map {
+        i =>
+          val returnType = upperAlpha(i + 1)
+          val tparams    = (1 to i).map(p => s"${upperAlpha(p)}: FromAttributeValue").mkString(", ")
+          val params     = (1 to i).map(p => s"field$p: String").mkString(",\n    ")
+          val ftypes     = (1 to i).map(p => s"${upperAlpha(p)}").mkString(", ")
+          val fparams    = (1 to i).map(p => s"${lowerAlpha(p)}").mkString(", ")
+          val gets       = (1 to i).map(p => s"${lowerAlpha(p)} <- get[${upperAlpha(p)}](field$p)").mkString("\n      ")
+          s"""def as[$tparams, $returnType](
+             |    $params
+             |  )(fn: ($ftypes) => $returnType): Either[String, $returnType] =
+             |    for {
+             |      $gets
+             |    } yield fn($fparams)""".stripMargin
+      }
+      IO.write(
+        file,
+        s"""package zio.dynamodb
+           |
+           |private[dynamodb] trait GeneratedFromAttributeValueAs { this: AttrMap =>
+           |
+           |  ${applyMethods.mkString("\n\n  ")}
+           |}""".stripMargin
+      )
+      Seq(file)
+    }.taskValue,
+    Compile / sourceGenerators += Def.task {
+      val dir                      = (Compile / sourceManaged).value
+      val file                     = dir / "zio" / "dynamodb" / "GeneratedCaseClassDecoders.scala"
+      def upperAlpha(i: Int): Char = (('A'.toInt - 1) + i).toChar
+      val applyMethods             = (1 to 22).map {
+        i =>
+          val constructorParams = (1 to i)
+            .map(p => s"xs(${p - 1}).asInstanceOf[${upperAlpha(p)}]")
+            .mkString(", ")
+          val fieldParams       = (1 to i).map(p => s"schema.field${if (i == 1) "" else p.toString}").mkString(",")
+          val fieldTypes        = (1 to i).map(p => s"${upperAlpha(p)}").mkString(", ")
+          s"""def caseClass${i}Decoder[$fieldTypes, Z](schema: Schema.CaseClass${i}[$fieldTypes, Z]): Decoder[Z] =  { (av: AttributeValue) =>
+             |    decodeFields(av, $fieldParams).map { xs =>
+             |      schema.construct($constructorParams)
+             |    }
+             |  }""".stripMargin
+      }
+      IO.write(
+        file,
+        s"""package zio.dynamodb
+           |
+           |import zio.dynamodb.Decoder.decoder
+           |import zio.schema.Schema
+           |
+           |private[dynamodb] trait GeneratedCaseClassDecoders {
+           |
+           |  ${applyMethods.mkString("\n\n  ")}
+           |
+           |private def decodeFields(av: AttributeValue, fields: Schema.Field[_]*): Either[String, List[Any]] =
+           |  av match {
+           |    case AttributeValue.Map(map) =>
+           |      zio.dynamodb
+           |        .foreach(fields) {
+           |          case Schema.Field(key, schema, _) =>
+           |            val dec        = decoder(schema)
+           |            val maybeValue = map.get(AttributeValue.String(key))
+           |            maybeValue.map(dec).toRight(s"field '$$key' not found in $$av").flatten
+           |        }
+           |        .map(_.toList)
+           |    case _                       =>
+           |      Left(s"$$av is not an AttributeValue.Map")
+           |  }
+           |}""".stripMargin
+      )
+      Seq(file)
     }.taskValue
   )
   .settings(
