@@ -190,7 +190,11 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
 
   private def doBatchWriteItem(batchWriteItem: BatchWriteItem): ZIO[Any, Throwable, Unit] = {
     println(s"========== BATCH WRITE ITEM: $batchWriteItem")
-    dynamoDb.batchWriteItem(generateBatchWriteItem(batchWriteItem)).mapError(_.toThrowable).unit
+    dynamoDb
+      .batchWriteItem(generateBatchWriteItem(batchWriteItem))
+      .mapError(_.toThrowable)
+      .unit
+      .unless(batchWriteItem.requestItems.isEmpty)
   }
 
   private def generateBatchWriteItem(batchWriteItem: BatchWriteItem): BatchWriteItemRequest = {
