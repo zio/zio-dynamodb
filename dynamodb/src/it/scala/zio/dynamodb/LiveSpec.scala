@@ -2,7 +2,7 @@ package zio.dynamodb
 
 import io.github.vigoo.zioaws.core.config
 import io.github.vigoo.zioaws.{ dynamodb, http4s }
-import zio.dynamodb.DynamoDBQuery.{ getItem, putItem }
+import zio.dynamodb.DynamoDBQuery._
 import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
 import zio.test.Assertion._
 //import zio._
@@ -19,8 +19,8 @@ object LiveSpec extends DefaultRunnableSpec {
 //          _      <- createTable(tableName, KeySchema("id"), BillingMode.PayPerRequest)(
 //                      AttributeDefinition.attrDefnString("id")
 //                    ).execute
-//          _      <- ZIO.effect(ZIO.succeed(Thread.sleep(5000)))
-          _      <- putItem(tableName, Item("id" -> "first", "firstName" -> "adam")).execute
+          // Would like to sleep here for a few seconds???
+//          _      <- putItem(tableName, Item("id" -> "first", "firstName" -> "adam")).execute
           result <- getItem(tableName, PrimaryKey("id" -> "first")).execute
         } yield assert(result)(equalTo(Some(Item("id" -> "first", "firstName" -> "adam")))))
           .provideCustomLayer(layer ++ TestEnvironment.live)

@@ -333,7 +333,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
             (k, buildAwsAttributeValue(v))
         }
       ),
-      projectionExpression = Some(tableGet.projectionExpressionSet.mkString(", "))
+      projectionExpression = toOption(tableGet.projectionExpressionSet).map(_.mkString(", "))
     )
 
   private def generatePutItemRequest(putItem: PutItem): PutItemRequest =
@@ -360,7 +360,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       )
     )
 
-//  private def awsAttrValToZioAttrVal(
+  //  private def awsAttrValToZioAttrVal(
 //    attributeValue: ZIOAwsAttributeValue.ReadOnly
 //  ): ZIO[Any, Throwable, AttributeValue] =
 //    attributeValue.s
