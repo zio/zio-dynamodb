@@ -325,16 +325,16 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     )
   }
 
-  // Our TableGet is more powerful than zio-aws's batchGet. We can get different projections for the same table where zio-aws cannot
-  //    We're going to combine all projection expressions for a table and possibly return more data than the user is requesting
-  //      but at the benefit of not doing multiple batches
-  private def generateKeysAndAttributes(tableGets: Set[TableGet]): KeysAndAttributes = {
-    val setOfProjectionExpressions = tableGets.flatMap(_.projections.toSet)
+  private def generateKeysAndAttributes(tableGet: TableGet): KeysAndAttributes =
     KeysAndAttributes(
-      keys = tableGets.map(_.key.map.map { case (k, v) => (k, buildAwsAttributeValue(v)) }),
-      projectionExpression = Some(setOfProjectionExpressions.mkString(", "))
+      keys = tableGet.keysSet.map(set => // So many maps
+        set.map.map {
+          case (k, v) =>
+            (k, buildAwsAttributeValue(v))
+        }
+      ),
+      projectionExpression = Some(tableGet.projectionExpressionSet.mkString(", "))
     )
-  }
 
   private def generatePutItemRequest(putItem: PutItem): PutItemRequest =
     PutItemRequest(
