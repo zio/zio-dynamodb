@@ -10,8 +10,29 @@ comparisons operators are the same as for Condition
 
  */
 
-sealed trait KeyConditionExpression {
-  def render(): String = ???
+// introduce a case class called variable aliases
+final case class AliasMap(map: Map[String, String], index: Int = 0)
+
+final case class AliasMapRender[+A](
+  render: (AliasMap) => (AliasMap, A)
+) // add map, flatmap, succeed and necessary monads
+// All renders can just return an AliasMapRender of string
+
+sealed trait KeyConditionExpression { self =>
+  /*
+  render will make new variables if it doesn't see an alias for a variable
+  v0, v1, v2, v3, ....
+  starting off with AliasMap.empty
+  we're going to return the String for the KeyConditionExpression
+
+  ExpressionAttributeMap will be generated based on the final AliasMap that render returns
+
+   */
+  def render(aliasMap: AliasMap): (AliasMap, String) =
+    self match {
+      case KeyConditionExpression.And(left, right) => s"${left.render()} AND ${right.render()}"
+      case expression: PartitionKeyExpression      => expression.render()
+    }
 }
 
 object KeyConditionExpression {
@@ -23,6 +44,11 @@ sealed trait PartitionKeyExpression extends KeyConditionExpression { self =>
   import KeyConditionExpression.And
 
   def &&(that: SortKeyExpression): KeyConditionExpression = And(self, that)
+
+  override def render(): String =
+    self match {
+      case PartitionKeyExpression.Equals(left, right) => s"${left.keyName} = :${right.render()}"
+    }
 }
 object PartitionKeyExpression {
   final case class PartitionKey(keyName: String) { self =>
@@ -32,7 +58,21 @@ object PartitionKeyExpression {
   final case class Equals(left: PartitionKey, right: AttributeValue) extends PartitionKeyExpression
 }
 
-sealed trait SortKeyExpression
+// These `:`s in the string appear to be needed -- should they be rendered by the AttributeValue?
+sealed trait SortKeyExpression { self =>
+  def render(): String =
+    self match {
+      case SortKeyExpression.Equals(left, right)             => s"${left.keyName} = :${right.render()}"
+      // is there really a not equal?
+      case SortKeyExpression.NotEqual(left, right)           => s"${left.keyName} != :${right.render()}"
+      case SortKeyExpression.LessThan(left, right)           => s"${left.keyName} < :${right.render()}"
+      case SortKeyExpression.GreaterThan(left, right)        => s"${left.keyName} > :${right.render()}"
+      case SortKeyExpression.LessThanOrEqual(left, right)    => s"${left.keyName} <= :${right.render()}"
+      case SortKeyExpression.GreaterThanOrEqual(left, right) => s"${left.keyName} >= :${right.render()}"
+      case SortKeyExpression.Between(left, min, max)         => s"${left.keyName} BETWEEN :${min.render()} AND :${max.render()}"
+      case SortKeyExpression.BeginsWith(left, value)         => s"begins_with ( ${left.keyName}, :${value.render()})"
+    }
+}
 
 object SortKeyExpression {
 

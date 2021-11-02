@@ -149,7 +149,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       keyConditionExpression = queryAll.keyConditionExpression.map(_.render())
     )
 
-  private def generateQueryRequest(querySome: QuerySome): QueryRequest =
+  private def generateQueryRequest(querySome: QuerySome): QueryRequest = {
+    println(s"========= query keyCondition: ${querySome.keyConditionExpression.map(_.render())}")
     QueryRequest(
       tableName = querySome.tableName.value,
       indexName = querySome.indexName.map(_.value),
@@ -163,6 +164,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       filterExpression = querySome.filterExpression.map(filterExpression => filterExpression.render()),
       keyConditionExpression = querySome.keyConditionExpression.map(_.render())
     )
+  }
 
   private def generateCreateTableRequest(createTable: CreateTable): CreateTableRequest =
     CreateTableRequest(

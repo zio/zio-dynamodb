@@ -3,6 +3,7 @@ package zio.dynamodb
 import zio.dynamodb.ConditionExpression.Operand._
 import zio.dynamodb.ConditionExpression._
 import zio.schema.Schema
+import java.util.Base64
 
 sealed trait AttributeValue { self =>
   def decode[A](implicit schema: Schema[A]): Either[String, A] = Decoder(schema)(self)
@@ -28,7 +29,21 @@ sealed trait AttributeValue { self =>
     GreaterThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))
 
   // TODO(adam): Implement
-  def render(): String = ???
+  def render(): String =
+    self match {
+      case AttributeValue.Binary(value)    =>
+        s""""B": "${Base64.getEncoder.encodeToString(value.toArray)}"""" // is base64 encoded when sent to AWS
+      case AttributeValue.BinarySet(value) => value.toString()
+      case AttributeValue.Bool(value)      =>
+        value.toString // REVIEW(john) -- does this make sense? -- expected to be lowercase by AWS
+      case AttributeValue.List(value)      => value.map(_.render()).mkString("[", ",", "]")
+      case AttributeValue.Map(value)       => value.toString()
+      case AttributeValue.Number(value)    => value.toString()
+      case AttributeValue.NumberSet(value) => value.toString()
+      case AttributeValue.Null             => "null"
+      case AttributeValue.String(value)    => value
+      case AttributeValue.StringSet(value) => value.toString()
+    }
 
 }
 
