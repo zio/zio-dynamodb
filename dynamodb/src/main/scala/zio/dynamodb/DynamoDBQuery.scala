@@ -579,6 +579,28 @@ object DynamoDBQuery {
 
   }
 
+  // TODO: Implement these
+  /*
+  private[dynamodb] final case class DeleteTable(
+    tableName: TableName
+  ) extends Constructor[Unit]
+
+  private[dynamodb] final case class DescribeTable(
+    tableName: TableName
+  ) extends Constructor[TableResponse]
+
+  final case class TableResponse(
+    tableName: TableName,
+    keySchema: KeySchema,
+    attributeDefinitions: NonEmptySet[AttributeDefinition],
+    billingMode: BillingMode,
+    globalSecondaryIndexes: Set[GlobalSecondaryIndex] = Set.empty,
+    localSecondaryIndexes: Set[LocalSecondaryIndex] = Set.empty,
+    sseSpecification: Option[SSESpecification] = None,
+    tags: ScalaMap[String, String] = ScalaMap.empty // you can have up to 50 tags
+  )
+   */
+
   // Interestingly scan can be run in parallel using segment number and total segments fields
   // If running in parallel segment number must be used consistently with the paging token
   // I have removed these fields on the assumption that the library will take care of these concerns

@@ -14,7 +14,7 @@ comparisons operators are the same as for Condition
 final case class AliasMap(map: Map[String, String], index: Int = 0)
 
 final case class AliasMapRender[+A](
-  render: (AliasMap) => (AliasMap, A)
+  render: AliasMap => (AliasMap, A)
 ) // add map, flatmap, succeed and necessary monads
 // All renders can just return an AliasMapRender of string
 
@@ -28,11 +28,12 @@ sealed trait KeyConditionExpression { self =>
   ExpressionAttributeMap will be generated based on the final AliasMap that render returns
 
    */
-  def render(aliasMap: AliasMap): (AliasMap, String) =
-    self match {
-      case KeyConditionExpression.And(left, right) => s"${left.render()} AND ${right.render()}"
-      case expression: PartitionKeyExpression      => expression.render()
-    }
+  def render(): String = ???
+//  def render(aliasMap: AliasMap): (AliasMap, String) =
+//    self match {
+//      case KeyConditionExpression.And(left, right) => s"${left.render()} AND ${right.render()}"
+//      case expression: PartitionKeyExpression      => expression.render()
+//    }
 }
 
 object KeyConditionExpression {
