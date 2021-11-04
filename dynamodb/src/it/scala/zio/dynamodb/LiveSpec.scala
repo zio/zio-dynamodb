@@ -55,11 +55,11 @@ object LiveSpec extends DefaultRunnableSpec {
       testM("query table") {
         (for {
           _          <- putItem(tableName, Item("id" -> "third1", "firstName" -> "avi")).execute
-          (chunk, _) <- querySomeItem(tableName, 10, $("A"))
+          (chunk, _) <- querySomeItem(tableName, 10, $("firstName"))
                           .whereKey(PartitionKey("id") === "third1")
                           .execute
 
-        } yield assert(chunk)(equalTo(Chunk(Item("id" -> "third1", "firstName" -> "avi")))))
+        } yield assert(chunk)(equalTo(Chunk(Item("firstName" -> "avi")))))
           .provideCustomLayer(layer ++ TestEnvironment.live)
       }
     )

@@ -125,7 +125,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(queryAll.capacity)),
       filterExpression = queryAll.filterExpression.map(filterExpression => filterExpression.render()),
       expressionAttributeValues = keyConditionExpr.map(_._1.map.map {
-        case (attrVal, str) => (s":$str", buildAwsAttributeValue(attrVal))
+        case (attrVal, str) => (str, buildAwsAttributeValue(attrVal))
       }),
       keyConditionExpression = keyConditionExpr.map(_._2) //queryAll.keyConditionExpression.map(_.render())
     )
@@ -146,7 +146,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       projectionExpression = toOption(querySome.projections).map(_.mkString(", ")),
       filterExpression = querySome.filterExpression.map(filterExpression => filterExpression.render()),
       expressionAttributeValues = keyConditionExpr.map(_._1.map.map {
-        case (attrVal, str) => (s":$str", buildAwsAttributeValue(attrVal))
+        case (attrVal, str) => (str, buildAwsAttributeValue(attrVal))
       }),
       keyConditionExpression = keyConditionExpr.map(_._2) //querySome.keyConditionExpression.map(_.render())
     )

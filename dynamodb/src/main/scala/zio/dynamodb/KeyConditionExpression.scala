@@ -14,7 +14,8 @@ comparisons operators are the same as for Condition
 final case class AliasMap private (map: Map[AttributeValue, String], index: Int = 0) { self =>
   // REVIEW: Is this a reasonable interface?
   def +(entry: AttributeValue): (AliasMap, String) = {
-    val nextVariable = s"v${self.index}"
+    // AWS expects variables to all start with `:`, and have their keys in the expressionAttributesValues map start with it as well
+    val nextVariable = s":v${self.index}"
     (AliasMap(self.map + ((entry, nextVariable)), self.index + 1), nextVariable)
   }
 
@@ -62,10 +63,10 @@ sealed trait PartitionKeyExpression extends KeyConditionExpression { self =>
       case PartitionKeyExpression.Equals(left, right) =>
         aliasMap.map
           .get(right)
-          .map(value => (aliasMap, s"${left.keyName} = :$value"))
+          .map(value => (aliasMap, s"${left.keyName} = $value"))
           .getOrElse({
             val (nextMap, variableName) = aliasMap + right
-            (nextMap, s"${left.keyName} = :$variableName")
+            (nextMap, s"${left.keyName} = $variableName")
           })
     }
 }
@@ -83,10 +84,10 @@ sealed trait SortKeyExpression { self =>
       case SortKeyExpression.Equals(left, right) =>
         aliasMap.map
           .get(right)
-          .map(value => (aliasMap, s"${left.keyName} = :$value"))
+          .map(value => (aliasMap, s"${left.keyName} = $value"))
           .getOrElse {
             val (nextMap, variableName) = aliasMap + right
-            (nextMap, s"${left.keyName} = :$variableName")
+            (nextMap, s"${left.keyName} = $variableName")
           }
       case _                                     => ???
 //      case SortKeyExpression.NotEqual(left, right)           => ??? //s"${left.keyName} != :${right.render()}"
