@@ -108,7 +108,11 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
         )
     )
 
-  private def generateQueryRequest(queryAll: QueryAll): QueryRequest =
+  private def generateQueryRequest(queryAll: QueryAll): QueryRequest = {
+    val keyConditionExpr = queryAll.keyConditionExpression.map(_.render(AliasMap.empty))
+
+    println(s"==== $keyConditionExpr")
+
     QueryRequest(
       tableName = queryAll.tableName.value,
       indexName = queryAll.indexName.map(_.value),
@@ -117,13 +121,19 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       consistentRead = Some(toBoolean(queryAll.consistency)),
       scanIndexForward = Some(queryAll.ascending),
       exclusiveStartKey = queryAll.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
-      returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(queryAll.capacity)),
       projectionExpression = toOption(queryAll.projections).map(_.mkString(", ")),
+      returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(queryAll.capacity)),
       filterExpression = queryAll.filterExpression.map(filterExpression => filterExpression.render()),
-      keyConditionExpression = queryAll.keyConditionExpression.map(_.render())
+      expressionAttributeValues = keyConditionExpr.map(_._1.map.map {
+        case (attrVal, str) => (s":$str", buildAwsAttributeValue(attrVal))
+      }),
+      keyConditionExpression = keyConditionExpr.map(_._2) //queryAll.keyConditionExpression.map(_.render())
     )
+  }
 
-  private def generateQueryRequest(querySome: QuerySome): QueryRequest =
+  private def generateQueryRequest(querySome: QuerySome): QueryRequest = {
+    val keyConditionExpr = querySome.keyConditionExpression.map(_.render(AliasMap.empty))
+    println(s"==== $keyConditionExpr")
     QueryRequest(
       tableName = querySome.tableName.value,
       indexName = querySome.indexName.map(_.value),
@@ -135,8 +145,12 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(querySome.capacity)),
       projectionExpression = toOption(querySome.projections).map(_.mkString(", ")),
       filterExpression = querySome.filterExpression.map(filterExpression => filterExpression.render()),
-      keyConditionExpression = querySome.keyConditionExpression.map(_.render())
+      expressionAttributeValues = keyConditionExpr.map(_._1.map.map {
+        case (attrVal, str) => (s":$str", buildAwsAttributeValue(attrVal))
+      }),
+      keyConditionExpression = keyConditionExpr.map(_._2) //querySome.keyConditionExpression.map(_.render())
     )
+  }
 
   private def generateCreateTableRequest(createTable: CreateTable): CreateTableRequest =
     CreateTableRequest(
