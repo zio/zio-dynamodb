@@ -50,47 +50,21 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   def executeZip[A, B, C](zip: Zip[A, B, C]): ZIO[Any, Throwable, C] =
     execute(zip.left).zipWith(execute(zip.right))(zip.zippable.zip)
 
-  def executeConstructor[A](constructor: Constructor[A]): ZIO[Any, Throwable, A] = {
-    println("============= EXECUTING CONSTRUCTOR")
+  def executeConstructor[A](constructor: Constructor[A]): ZIO[Any, Throwable, A] =
     constructor match {
-      case getItem: GetItem               =>
-        println("======= GET ITEM")
-        doGetItem(getItem)
-      case putItem: PutItem               =>
-        println("======= PUT ITEM")
-        doPutItem(putItem)
-      case batchGetItem: BatchGetItem     =>
-        println("====== BATCH GET ITEM")
-        doBatchGetItem(batchGetItem)
-      case batchWriteItem: BatchWriteItem =>
-        println("======= BATCH WRITE ITEM")
-        doBatchWriteItem(batchWriteItem)
-      case scanAll: ScanAll               =>
-        println("========= SCAN ALL")
-        doScanAll(scanAll)
-      case scanSome: ScanSome             =>
-        println("======= SCAN SOME")
-        doScanSome(scanSome)
-      case updateItem: UpdateItem         =>
-        println("===== UPDATE ITEM")
-        doUpdateItem(updateItem)
-      case createTable: CreateTable       =>
-        println("====== CREATE TABLE")
-        doCreateTable(createTable)
-      case deleteItem: DeleteItem         =>
-        println("======== DELETE ITEM")
-        doDeleteItem(deleteItem)
-      case querySome: QuerySome           =>
-        println("====== QUERY SOME")
-        doQuerySome(querySome)
-      case queryAll: QueryAll             =>
-        println("======== QUERY ALL")
-        doQueryAll(queryAll)
-      case Succeed(thunk)                 =>
-        println("========= THUNK")
-        ZIO.succeed(thunk())
+      case getItem: GetItem               => doGetItem(getItem)
+      case putItem: PutItem               => doPutItem(putItem)
+      case batchGetItem: BatchGetItem     => doBatchGetItem(batchGetItem)
+      case batchWriteItem: BatchWriteItem => doBatchWriteItem(batchWriteItem)
+      case scanAll: ScanAll               => doScanAll(scanAll)
+      case scanSome: ScanSome             => doScanSome(scanSome)
+      case updateItem: UpdateItem         => doUpdateItem(updateItem)
+      case createTable: CreateTable       => doCreateTable(createTable)
+      case deleteItem: DeleteItem         => doDeleteItem(deleteItem)
+      case querySome: QuerySome           => doQuerySome(querySome)
+      case queryAll: QueryAll             => doQueryAll(queryAll)
+      case Succeed(thunk)                 => ZIO.succeed(thunk())
     }
-  }
 
   override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Throwable, A] =
     atomicQuery match {
@@ -149,8 +123,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       keyConditionExpression = queryAll.keyConditionExpression.map(_.render())
     )
 
-  private def generateQueryRequest(querySome: QuerySome): QueryRequest = {
-    println(s"========= query keyCondition: ${querySome.keyConditionExpression.map(_.render())}")
+  private def generateQueryRequest(querySome: QuerySome): QueryRequest =
     QueryRequest(
       tableName = querySome.tableName.value,
       indexName = querySome.indexName.map(_.value),
@@ -164,7 +137,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       filterExpression = querySome.filterExpression.map(filterExpression => filterExpression.render()),
       keyConditionExpression = querySome.keyConditionExpression.map(_.render())
     )
-  }
 
   private def generateCreateTableRequest(createTable: CreateTable): CreateTableRequest =
     CreateTableRequest(
@@ -190,14 +162,12 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       tags = Some(createTable.tags.map { case (k, v) => Tag(k, v) })
     )
 
-  private def doBatchWriteItem(batchWriteItem: BatchWriteItem): ZIO[Any, Throwable, Unit] = {
-    println(s"========== BATCH WRITE ITEM: $batchWriteItem")
+  private def doBatchWriteItem(batchWriteItem: BatchWriteItem): ZIO[Any, Throwable, Unit] =
     dynamoDb
       .batchWriteItem(generateBatchWriteItem(batchWriteItem))
       .mapError(_.toThrowable)
       .unit
       .unless(batchWriteItem.requestItems.isEmpty)
-  }
 
   private def generateBatchWriteItem(batchWriteItem: BatchWriteItem): BatchWriteItemRequest = {
     val reqItems = batchWriteItem.requestItems.map {
@@ -205,7 +175,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
         (tableName.value, items.map(batchItemWriteToZIOAwsWriteRequest))
     }.toMap
 
-    println(s"====== requestItems: $reqItems")
     BatchWriteItemRequest(
       requestItems = reqItems, // TODO(adam): MapOfSet uses iterable, maybe we should add a mapKeyValues?
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(batchWriteItem.capacity)),
@@ -298,10 +267,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
         }
       )).mapError(_.toThrowable)
 
-  private def doPutItem(putItem: PutItem): ZIO[Any, Throwable, Unit] = {
-    println(s"========== PUT ITEM: $putItem")
+  private def doPutItem(putItem: PutItem): ZIO[Any, Throwable, Unit] =
     dynamoDb.putItem(generatePutItemRequest(putItem)).unit.mapError(_.toThrowable)
-  }
 
   private def doGetItem(getItem: GetItem): ZIO[Any, Throwable, Option[Item]] =
     for {
@@ -318,8 +285,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     val a = batchGetItem.requestItems.map {
       case (tableName, tableGet) =>
         (tableName.value, generateKeysAndAttributes(tableGet))
-    }.toMap
-    println(s"====== BATCH GET REQUEST ITEMS: $a")
+    }
 
     BatchGetItemRequest(
       requestItems = a,
@@ -548,7 +514,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case AttributeValue.Map(value)       =>
         ZIOAwsAttributeValue(m = Some(value.map {
           case (k, v) => (k.value, buildAwsAttributeValue(v))
-        }.toMap)) // TODO(adam): Why does this require a toMap?
+        }))
       case AttributeValue.Number(value)    => ZIOAwsAttributeValue(n = Some(value.toString()))
       case AttributeValue.NumberSet(value) => ZIOAwsAttributeValue(ns = Some(value.map(_.toString())))
       case AttributeValue.Null             => ZIOAwsAttributeValue(nul = Some(true))
