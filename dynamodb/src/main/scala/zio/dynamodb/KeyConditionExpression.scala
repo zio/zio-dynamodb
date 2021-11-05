@@ -10,27 +10,43 @@ comparisons operators are the same as for Condition
 
  */
 
-// introduce a case class called variable aliases
+// This is a state monad, I think it needs a map/flatmap?
 final case class AliasMap private (map: Map[AttributeValue, String], index: Int = 0) { self =>
   // REVIEW: Is this a reasonable interface?
   def +(entry: AttributeValue): (AliasMap, String) = {
     // AWS expects variables to all start with `:`, and have their keys in the expressionAttributesValues map start with it as well
-    val nextVariable = s":v${self.index}"
-    (AliasMap(self.map + ((entry, nextVariable)), self.index + 1), nextVariable)
+    val variableAlias = s":v${self.index}"
+    (AliasMap(self.map + ((entry, variableAlias)), self.index + 1), variableAlias)
   }
 
 }
 
 object AliasMap {
   def empty: AliasMap = AliasMap(Map.empty, 0)
-
 }
 
+// REVIEW(john) why use a case class instead of a type like in the red book RNG example?
+//    type AliasMapRender[+A] = AliasMap => (AliasMap, A)
 final case class AliasMapRender[+A](
   render: AliasMap => (AliasMap, A)
 ) // add map, flatmap, succeed and necessary monads
 // All renders can just return an AliasMapRender of string
+{ self =>
 
+  def map[B](f: A => B): AliasMapRender[B] =
+    AliasMapRender { aliasMap =>
+      val (am, a) = self.render(aliasMap)
+      (am, f(a))
+    }
+
+  def flatMap[B](f: A => AliasMapRender[B]): AliasMapRender[B] =
+    AliasMapRender { aliasMap =>
+      val (am, a) = self.render(aliasMap)
+      f(a).render(am)
+//      f(self.render(aliasMap)._2).render(aliasMap)
+    }
+
+}
 sealed trait KeyConditionExpression { self =>
   /*
   render will make new variables if it doesn't see an alias for a variable
@@ -41,10 +57,25 @@ sealed trait KeyConditionExpression { self =>
   ExpressionAttributeMap will be generated based on the final AliasMap that render returns
 
    */
-  def render(aliasMap: AliasMap): (AliasMap, String) =
-    self match {
-      case KeyConditionExpression.And(_, _)   => ???
-      case expression: PartitionKeyExpression => expression.render(aliasMap)
+  // REVIEW: should render take an AliasMap or does that not make sense?
+  def render(): AliasMapRender[String] =
+    AliasMapRender { aliasMap =>
+      self match {
+        case KeyConditionExpression.And(left, right) =>
+          // REVIEW: does this make sense?
+          left
+            .render()
+            .flatMap { leftRender =>
+              right.render().map(rightRender => s"$leftRender AND $rightRender")
+            }
+            .render(aliasMap)
+
+        // REVIEW: This looks like it should be monadic?
+//          val (newMap, leftRender)   = left.render().render(aliasMap)
+//          val (lastMap, rightRender) = right.render().render(newMap)
+//          (lastMap, s"$leftRender AND $rightRender")
+        case expression: PartitionKeyExpression      => expression.render().render(aliasMap)
+      }
     }
 }
 
@@ -58,16 +89,18 @@ sealed trait PartitionKeyExpression extends KeyConditionExpression { self =>
 
   def &&(that: SortKeyExpression): KeyConditionExpression = And(self, that)
 
-  override def render(aliasMap: AliasMap): (AliasMap, String) =
-    self match {
-      case PartitionKeyExpression.Equals(left, right) =>
-        aliasMap.map
-          .get(right)
-          .map(value => (aliasMap, s"${left.keyName} = $value"))
-          .getOrElse({
-            val (nextMap, variableName) = aliasMap + right
-            (nextMap, s"${left.keyName} = $variableName")
-          })
+  override def render(): AliasMapRender[String] =
+    AliasMapRender { aliasMap =>
+      self match {
+        case PartitionKeyExpression.Equals(left, right) =>
+          aliasMap.map
+            .get(right)
+            .map(value => (aliasMap, s"${left.keyName} = $value"))
+            .getOrElse({
+              val (nextMap, variableName) = aliasMap + right
+              (nextMap, s"${left.keyName} = $variableName")
+            })
+      }
     }
 }
 object PartitionKeyExpression {
@@ -79,25 +112,34 @@ object PartitionKeyExpression {
 }
 
 sealed trait SortKeyExpression { self =>
-  def render(aliasMap: AliasMap): (AliasMap, String) =
-    self match {
-      case SortKeyExpression.Equals(left, right) =>
-        aliasMap.map
-          .get(right)
-          .map(value => (aliasMap, s"${left.keyName} = $value"))
-          .getOrElse {
-            val (nextMap, variableName) = aliasMap + right
-            (nextMap, s"${left.keyName} = $variableName")
-          }
-      case _                                     => ???
-//      case SortKeyExpression.NotEqual(left, right)           => ??? //s"${left.keyName} != :${right.render()}"
-//      case SortKeyExpression.LessThan(left, right)           => ??? //s"${left.keyName} < :${right.render()}"
-//      case SortKeyExpression.GreaterThan(left, right)        => ??? //s"${left.keyName} > :${right.render()}"
-//      case SortKeyExpression.LessThanOrEqual(left, right)    => ??? //s"${left.keyName} <= :${right.render()}"
-//      case SortKeyExpression.GreaterThanOrEqual(left, right) => ??? //s"${left.keyName} >= :${right.render()}"
-//      case SortKeyExpression.Between(left, min, max)         =>
-//        ??? //s"${left.keyName} BETWEEN :${min.render()} AND :${max.render()}"
-//      case SortKeyExpression.BeginsWith(left, value)         => ??? //s"begins_with ( ${left.keyName}, :${value.render()})"
+  def render(): AliasMapRender[String] =
+    AliasMapRender { aliasMap =>
+      self match {
+        case SortKeyExpression.Equals(left, right)   =>
+          aliasMap.map
+            .get(right)
+            .map(value => (aliasMap, s"${left.keyName} = $value"))
+            .getOrElse {
+              val (nextMap, variableName) = aliasMap + right
+              (nextMap, s"${left.keyName} = $variableName")
+            }
+        case SortKeyExpression.LessThan(left, right) =>
+          aliasMap.map
+            .get(right)
+            .map(value => (aliasMap, s"${left.keyName} = $value"))
+            .getOrElse {
+              val (nextMap, variableName) = aliasMap + right
+              (nextMap, s"${left.keyName} < $variableName")
+            }
+        case _                                       => ???
+        //      case SortKeyExpression.NotEqual(left, right)           => ??? //s"${left.keyName} != :${right.render()}"
+        //      case SortKeyExpression.GreaterThan(left, right)        => ??? //s"${left.keyName} > :${right.render()}"
+        //      case SortKeyExpression.LessThanOrEqual(left, right)    => ??? //s"${left.keyName} <= :${right.render()}"
+        //      case SortKeyExpression.GreaterThanOrEqual(left, right) => ??? //s"${left.keyName} >= :${right.render()}"
+        //      case SortKeyExpression.Between(left, min, max)         =>
+        //        ??? //s"${left.keyName} BETWEEN :${min.render()} AND :${max.render()}"
+        //      case SortKeyExpression.BeginsWith(left, value)         => ??? //s"begins_with ( ${left.keyName}, :${value.render()})"
+      }
     }
 }
 
