@@ -28,6 +28,7 @@ final case class AliasMap private (map: Map[AttributeValue, String], index: Int 
 
 object AliasMap {
   def empty: AliasMap = AliasMap(Map.empty, 0)
+
 }
 
 // REVIEW(john) why use a case class instead of a type like in the red book RNG example?
@@ -52,6 +53,16 @@ final case class AliasMapRender[+A](
     }
 
 }
+
+object AliasMapRender {
+  def getOrInsert(entry: AttributeValue): AliasMapRender[String] =
+    AliasMapRender { aliasMap =>
+      aliasMap.map.get(entry).map(varName => (aliasMap, varName)).getOrElse {
+        aliasMap + entry
+      }
+    }
+}
+
 sealed trait KeyConditionExpression { self =>
   /*
   render will make new variables if it doesn't see an alias for a variable
@@ -118,28 +129,57 @@ object PartitionKeyExpression {
 
 sealed trait SortKeyExpression { self =>
   def render(): AliasMapRender[String] =
-    AliasMapRender { aliasMap =>
-      self match {
-        case SortKeyExpression.Equals(left, right)   =>
-          aliasMap.map
-            .get(right)
-            .map(value => (aliasMap, s"${left.keyName} = $value"))
-            .getOrElse {
-              val (nextMap, variableName) = aliasMap + right
-              (nextMap, s"${left.keyName} = $variableName")
+    self match {
+      case SortKeyExpression.Equals(left, right)             =>
+        AliasMapRender
+          .getOrInsert(right)
+          .map { v =>
+            s"${left.keyName} = $v"
+          }
+      case SortKeyExpression.LessThan(left, right)           =>
+        AliasMapRender
+          .getOrInsert(right)
+          .map { v =>
+            s"${left.keyName} < $v"
+          }
+      case SortKeyExpression.NotEqual(left, right)           =>
+        AliasMapRender
+          .getOrInsert(right)
+          .map { v =>
+            s"${left.keyName} <> $v"
+          }
+      case SortKeyExpression.GreaterThan(left, right)        =>
+        AliasMapRender
+          .getOrInsert(right)
+          .map { v =>
+            s"${left.keyName} > $v"
+          }
+      case SortKeyExpression.LessThanOrEqual(left, right)    =>
+        AliasMapRender
+          .getOrInsert(right)
+          .map { v =>
+            s"${left.keyName} <= $v"
+          }
+      case SortKeyExpression.GreaterThanOrEqual(left, right) =>
+        AliasMapRender
+          .getOrInsert(right)
+          .map { v =>
+            s"${left.keyName} >= $v"
+          }
+      case SortKeyExpression.Between(left, min, max)         =>
+        AliasMapRender
+          .getOrInsert(min)
+          .flatMap(min =>
+            AliasMapRender.getOrInsert(max).map { max =>
+              s"${left.keyName} BETWEEN $min AND $max"
             }
-        case SortKeyExpression.LessThan(left, right) =>
-          val (am, varName) = aliasMap.getOrInsert(right)
-          (am, s"${left.keyName} < $varName")
-        case _                                       => ???
-        //      case SortKeyExpression.NotEqual(left, right)           => ??? //s"${left.keyName} != :${right.render()}"
-        //      case SortKeyExpression.GreaterThan(left, right)        => ??? //s"${left.keyName} > :${right.render()}"
-        //      case SortKeyExpression.LessThanOrEqual(left, right)    => ??? //s"${left.keyName} <= :${right.render()}"
-        //      case SortKeyExpression.GreaterThanOrEqual(left, right) => ??? //s"${left.keyName} >= :${right.render()}"
-        //      case SortKeyExpression.Between(left, min, max)         =>
-        //        ??? //s"${left.keyName} BETWEEN :${min.render()} AND :${max.render()}"
-        //      case SortKeyExpression.BeginsWith(left, value)         => ??? //s"begins_with ( ${left.keyName}, :${value.render()})"
-      }
+          )
+      case SortKeyExpression.BeginsWith(left, value)         =>
+        AliasMapRender
+          .getOrInsert(value)
+          .map { v =>
+            s"begins_with ( ${left.keyName} , $v )"
+          }
     }
 }
 
