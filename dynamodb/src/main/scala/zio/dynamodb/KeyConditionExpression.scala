@@ -1,20 +1,8 @@
 package zio.dynamodb
 
-/*
-KeyCondition expression is a restricted version of ConditionExpression where by
-- partition exprn is required and can only use "=" equals comparison
-- optionally AND can be used to add a sort key expression
-
-eg partitionKeyName = :partitionkeyval AND sortKeyName = :sortkeyval
-comparisons operators are the same as for Condition
-
- */
-
-// This is a state monad, I think it needs a map/flatmap?
 final case class AliasMap private (map: Map[AttributeValue, String], index: Int = 0) { self =>
   // REVIEW: Is this a reasonable interface?
   def +(entry: AttributeValue): (AliasMap, String) = {
-    // AWS expects variables to all start with `:`, and have their keys in the expressionAttributesValues map start with it as well
     val variableAlias = s":v${self.index}"
     (AliasMap(self.map + ((entry, variableAlias)), self.index + 1), variableAlias)
   }
@@ -35,9 +23,7 @@ object AliasMap {
 //    type AliasMapRender[+A] = AliasMap => (AliasMap, A)
 final case class AliasMapRender[+A](
   render: AliasMap => (AliasMap, A)
-) // add map, flatmap, succeed and necessary monads
-// All renders can just return an AliasMapRender of string
-{ self =>
+) { self =>
 
   def map[B](f: A => B): AliasMapRender[B] =
     AliasMapRender { aliasMap =>
@@ -49,7 +35,6 @@ final case class AliasMapRender[+A](
     AliasMapRender { aliasMap =>
       val (am, a) = self.render(aliasMap)
       f(a).render(am)
-//      f(self.render(aliasMap)._2).render(aliasMap)
     }
 
 }
@@ -64,15 +49,6 @@ object AliasMapRender {
 }
 
 sealed trait KeyConditionExpression { self =>
-  /*
-  render will make new variables if it doesn't see an alias for a variable
-  v0, v1, v2, v3, ....
-  starting off with AliasMap.empty
-  we're going to return the String for the KeyConditionExpression
-
-  ExpressionAttributeMap will be generated based on the final AliasMap that render returns
-
-   */
   // REVIEW: should render take an AliasMap or does that not make sense?
   def render(): AliasMapRender[String] =
     AliasMapRender { aliasMap =>
@@ -85,11 +61,6 @@ sealed trait KeyConditionExpression { self =>
               right.render().map(rightRender => s"$leftRender AND $rightRender")
             }
             .render(aliasMap)
-
-        // REVIEW: This looks like it should be monadic?
-//          val (newMap, leftRender)   = left.render().render(aliasMap)
-//          val (lastMap, rightRender) = right.render().render(newMap)
-//          (lastMap, s"$leftRender AND $rightRender")
         case expression: PartitionKeyExpression      => expression.render().render(aliasMap)
       }
     }
