@@ -58,7 +58,7 @@ object LiveSpec extends DefaultRunnableSpec {
         (for {
           _          <- putItem(queryTableName, Item("id" -> "third1", "age" -> 20, "firstName" -> "avi")).execute
           (chunk, _) <- querySomeItem(queryTableName, 10, $("firstName"))
-                          .whereKey(PartitionKey("id") === "third1" && SortKey("age") === 200)
+                          .whereKey(PartitionKey("id") === "third1" && SortKey("age") < 200)
                           .execute
 
 //        } yield assert(chunk)(equalTo(Chunk(Item("firstName" -> "avi")))))

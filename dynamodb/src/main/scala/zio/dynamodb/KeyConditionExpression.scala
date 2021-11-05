@@ -19,6 +19,11 @@ final case class AliasMap private (map: Map[AttributeValue, String], index: Int 
     (AliasMap(self.map + ((entry, variableAlias)), self.index + 1), variableAlias)
   }
 
+  def getOrInsert(entry: AttributeValue): (AliasMap, String) =
+    self.map.get(entry).map(varName => (self, varName)).getOrElse {
+      self + entry
+    }
+
 }
 
 object AliasMap {
@@ -124,13 +129,8 @@ sealed trait SortKeyExpression { self =>
               (nextMap, s"${left.keyName} = $variableName")
             }
         case SortKeyExpression.LessThan(left, right) =>
-          aliasMap.map
-            .get(right)
-            .map(value => (aliasMap, s"${left.keyName} = $value"))
-            .getOrElse {
-              val (nextMap, variableName) = aliasMap + right
-              (nextMap, s"${left.keyName} < $variableName")
-            }
+          val (am, varName) = aliasMap.getOrInsert(right)
+          (am, s"${left.keyName} < $varName")
         case _                                       => ???
         //      case SortKeyExpression.NotEqual(left, right)           => ??? //s"${left.keyName} != :${right.render()}"
         //      case SortKeyExpression.GreaterThan(left, right)        => ??? //s"${left.keyName} > :${right.render()}"
