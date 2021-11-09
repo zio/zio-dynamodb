@@ -11,7 +11,6 @@ final case class AliasMap private (map: Map[AttributeValue, String], index: Int 
     self.map.get(entry).map(varName => (self, varName)).getOrElse {
       self + entry
     }
-
 }
 
 object AliasMap {
