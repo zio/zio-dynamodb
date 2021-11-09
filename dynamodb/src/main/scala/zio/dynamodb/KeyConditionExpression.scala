@@ -16,7 +16,6 @@ final case class AliasMap private (map: Map[AttributeValue, String], index: Int 
 
 object AliasMap {
   def empty: AliasMap = AliasMap(Map.empty, 0)
-
 }
 
 // REVIEW(john) why use a case class instead of a type like in the red book RNG example?
@@ -77,17 +76,9 @@ sealed trait PartitionKeyExpression extends KeyConditionExpression { self =>
   def &&(that: SortKeyExpression): KeyConditionExpression = And(self, that)
 
   override def render(): AliasMapRender[String] =
-    AliasMapRender { aliasMap =>
-      self match {
-        case PartitionKeyExpression.Equals(left, right) =>
-          aliasMap.map
-            .get(right)
-            .map(value => (aliasMap, s"${left.keyName} = $value"))
-            .getOrElse({
-              val (nextMap, variableName) = aliasMap + right
-              (nextMap, s"${left.keyName} = $variableName")
-            })
-      }
+    self match {
+      case PartitionKeyExpression.Equals(left, right) =>
+        AliasMapRender.getOrInsert(right).map(v => s"${left.keyName} = $v")
     }
 }
 object PartitionKeyExpression {

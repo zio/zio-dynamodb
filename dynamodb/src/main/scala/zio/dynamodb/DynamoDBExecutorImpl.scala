@@ -94,8 +94,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       dynamoDb
         .query(generateQueryRequest(querySome))
         .mapBoth(_.toThrowable, toDynamoItem)
-    val sink   = ZSink.collectAll[Item]
-    stream.run(sink).map(chunk => (chunk, Some(chunk.last)))
+    stream.run(ZSink.collectAll[Item]).map(chunk => (chunk, Some(chunk.last)))
   }
 
   private def doQueryAll(queryAll: QueryAll): ZIO[Any, Throwable, Stream[Throwable, Item]] =
@@ -125,7 +124,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       expressionAttributeValues = keyConditionExpr.map(_._1.map.map {
         case (attrVal, str) => (str, buildAwsAttributeValue(attrVal))
       }),
-      keyConditionExpression = keyConditionExpr.map(_._2) //queryAll.keyConditionExpression.map(_.render())
+      keyConditionExpression = keyConditionExpr.map(_._2)
     )
   }
 
@@ -167,8 +166,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
           )
         case BillingMode.PayPerRequest   => None
       },
-      // looks like we don't support stream specs?
-      // streamSpecification = ???,
       sseSpecification = createTable.sseSpecification.map(buildAwsSSESpecification),
       tags = Some(createTable.tags.map { case (k, v) => Tag(k, v) })
     )
@@ -180,18 +177,15 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       .unit
       .unless(batchWriteItem.requestItems.isEmpty)
 
-  private def generateBatchWriteItem(batchWriteItem: BatchWriteItem): BatchWriteItemRequest = {
-    val reqItems = batchWriteItem.requestItems.map {
-      case (tableName, items) =>
-        (tableName.value, items.map(batchItemWriteToZIOAwsWriteRequest))
-    }.toMap
-
+  private def generateBatchWriteItem(batchWriteItem: BatchWriteItem): BatchWriteItemRequest =
     BatchWriteItemRequest(
-      requestItems = reqItems, // TODO(adam): MapOfSet uses iterable, maybe we should add a mapKeyValues?
+      requestItems = batchWriteItem.requestItems.map {
+        case (tableName, items) =>
+          (tableName.value, items.map(batchItemWriteToZIOAwsWriteRequest))
+      }.toMap, // TODO(adam): MapOfSet uses iterable, maybe we should add a mapKeyValues?
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(batchWriteItem.capacity)),
       returnItemCollectionMetrics = Some(buildAwsItemMetrics(batchWriteItem.itemMetrics))
     )
-  }
 
   private def batchItemWriteToZIOAwsWriteRequest(write: BatchWriteItem.Write): WriteRequest =
     write match {
@@ -209,8 +203,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       dynamoDb
         .scan(generateScanRequest(scanSome))
         .mapBoth(_.toThrowable, toDynamoItem)
-    val sink   = ZSink.collectAll[Item]
-    stream.run(sink).map(chunk => (chunk, Some(chunk.last)))
+    stream.run(ZSink.collectAll[Item]).map(chunk => (chunk, Some(chunk.last)))
   }
 
   private def generateUpdateItemRequest(updateItem: UpdateItem): UpdateItemRequest =
@@ -234,20 +227,21 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
         )
     )
 
-  private def generateScanRequest(scanAll: ScanSome): ScanRequest =
+  // TODO(adam): Missing expression attribute fields
+  private def generateScanRequest(scanSome: ScanSome): ScanRequest =
     ScanRequest(
-      tableName = scanAll.tableName.value,
-      indexName = scanAll.indexName.map(_.value),
-      select = scanAll.select.map(buildAwsSelect),
-      exclusiveStartKey = scanAll.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
-      returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(scanAll.capacity)),
+      tableName = scanSome.tableName.value,
+      indexName = scanSome.indexName.map(_.value),
+      select = scanSome.select.map(buildAwsSelect),
+      exclusiveStartKey = scanSome.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
+      returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(scanSome.capacity)),
       // Looks like we're not currently supporting segments?
       totalSegments = None,
       segment = None,
-      limit = Some(scanAll.limit),
-      projectionExpression = toOption(scanAll.projections).map(_.mkString(", ")),
-      filterExpression = scanAll.filterExpression.map(filterExpression => filterExpression.render()),
-      consistentRead = Some(toBoolean(scanAll.consistency))
+      limit = Some(scanSome.limit),
+      projectionExpression = toOption(scanSome.projections).map(_.mkString(", ")),
+      filterExpression = scanSome.filterExpression.map(filterExpression => filterExpression.render()),
+      consistentRead = Some(toBoolean(scanSome.consistency))
     )
 
   private def generateScanRequest(scanAll: ScanAll): ScanRequest =
@@ -306,7 +300,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
 
   private def generateKeysAndAttributes(tableGet: TableGet): KeysAndAttributes =
     KeysAndAttributes(
-      keys = tableGet.keysSet.map(set => // So many maps
+      keys = tableGet.keysSet.map(set =>
         set.map.map {
           case (k, v) =>
             (k, buildAwsAttributeValue(v))
@@ -335,31 +329,11 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       consistentRead = Some(ConsistencyMode.toBoolean(getItem.consistency)),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(getItem.capacity)),
       projectionExpression = toOption(getItem.projections).map(
-        _.mkString(", ") // TODO(adam): Not sure if this is the best way to combine projection expressions
+        _.mkString(
+          ", "
+        ) // TODO(adam): Not sure if this is the best way to combine projection expressions??? -- Feels like this should be a part of the projection expression trait?
       )
     )
-
-  //  private def awsAttrValToZioAttrVal(
-//    attributeValue: ZIOAwsAttributeValue.ReadOnly
-//  ): ZIO[Any, Throwable, AttributeValue] =
-//    attributeValue.s
-//      .map(AttributeValue.String)
-//      .orElse(attributeValue.n.map(n => AttributeValue.Number(BigDecimal(n))))
-//      .orElse(attributeValue.b.map(AttributeValue.Binary))
-//      .orElse(attributeValue.ss.map(ss => AttributeValue.StringSet(ss.toSet)))
-//      .orElse(attributeValue.ns.map(ns => AttributeValue.NumberSet(ns.map(BigDecimal(_)).toSet)))
-//      .orElse(attributeValue.bs.map(bs => AttributeValue.BinarySet(bs.toSet)))
-//      .orElse(
-//        attributeValue.m.map(m =>
-//          AttributeValue.Map(
-//            m.flatMap { case (k, v) => awsAttrValToAttrVal(v).map(attrVal => (AttributeValue.String(k), attrVal)) }
-//          )
-//        )
-//      )
-//      .orElse(attributeValue.l.map(l => AttributeValue.List(l.flatMap(awsAttrValToAttrVal))))
-//      .orElse(attributeValue.nul.map(_ => AttributeValue.Null))
-//      .orElse(attributeValue.bool.map(AttributeValue.Bool))
-//      .mapError(_.toThrowable)
 
   private def awsAttrValToAttrVal(attributeValue: ZIOAwsAttributeValue.ReadOnly): Option[AttributeValue] =
     attributeValue.sValue

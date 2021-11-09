@@ -57,7 +57,6 @@ object LiveSpec extends DefaultRunnableSpec {
       suite("query tables")(
         testM("query table") {
           (for {
-            _          <- putItem(queryTableName, Item("id" -> "third1", "age" -> 20, "firstName" -> "avi")).execute
             (chunk, _) <- querySomeItem(queryTableName, 10, $("firstName"))
                             .whereKey(PartitionKey("id") === "third1" && SortKey("age") < 200)
                             .execute
@@ -69,9 +68,6 @@ object LiveSpec extends DefaultRunnableSpec {
         },
         testM("query table greater than") {
           (for {
-            _          <- (putItem(queryTableName, Item("id" -> "second1", "firstName" -> "avi", "age" -> 20)) *>
-                              putItem(queryTableName, Item("id" -> "second1", "firstName" -> "adam", "age" -> 28)) *>
-                              putItem(queryTableName, Item("id" -> "second1", "firstName" -> "john", "age" -> 30))).execute
             (chunk, _) <- querySomeItem(queryTableName, 10, $("firstName"))
                             .whereKey(PartitionKey("id") === "second1" && SortKey("age") > 0)
                             .execute
