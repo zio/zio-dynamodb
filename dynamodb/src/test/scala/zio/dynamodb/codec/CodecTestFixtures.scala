@@ -17,13 +17,6 @@ trait CodecTestFixtures {
     Schema.Field("bar", Schema.Primitive(StandardType.IntType))
   )
 
-//  val enumSchema: Schema[(String, _)] = Schema.enumeration(
-//    ListMap(
-//      "string"  -> Schema.Primitive(StandardType.StringType),
-//      "int"     -> Schema.Primitive(StandardType.IntType),
-//      "boolean" -> Schema.Primitive(StandardType.BoolType)
-//    )
-//  )
   val enumSchema: Schema[Any] = Schema.enumeration[Any, CaseSet.Aux[Any]](
     caseOf[String, Any]("string")(_.asInstanceOf[String]) ++ caseOf[Int, Any]("int")(_.asInstanceOf[Int]) ++ caseOf[
       Boolean,

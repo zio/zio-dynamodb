@@ -19,36 +19,23 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
       case s: Optional[a]                     => optionalDecoder[a](decoder(s.codec))
       case Schema.Fail(s, _)                  => _ => Left(s)
       case Schema.GenericRecord(structure, _) => genericRecordDecoder(structure).asInstanceOf[Decoder[A]]
-//      case Schema.Enumeration(structure)      => enumerationDecoder(structure)
       case Schema.Tuple(l, r, _)              => tupleDecoder(decoder(l), decoder(r))
       case Schema.Transform(codec, f, _, _)   => transformDecoder(codec, f)
-      case s: Schema.Sequence[col, a]         =>
-        sequenceDecoder[col, a](decoder(s.schemaA), s.fromChunk)
-      case Schema.EitherSchema(l, r, _)       =>
-        eitherDecoder(decoder(l), decoder(r))
-      case Primitive(standardType, _)         =>
-        primitiveDecoder(standardType)
+      case s: Schema.Sequence[col, a]         => sequenceDecoder[col, a](decoder(s.schemaA), s.fromChunk)
+      case Schema.EitherSchema(l, r, _)       => eitherDecoder(decoder(l), decoder(r))
+      case Primitive(standardType, _)         => primitiveDecoder(standardType)
       case l @ Schema.Lazy(_)                 =>
         lazy val dec = decoder(l.schema)
         (av: AttributeValue) => dec(av)
       case Schema.Meta(_, _)                  => astDecoder
-      case Schema.Enum1(c, _)                 =>
-        enumDecoder(c)
-      case Schema.Enum2(c1, c2, _)            =>
-        enumDecoder(c1, c2)
-      case Schema.Enum3(c1, c2, c3, _)        =>
-        enumDecoder(c1, c2, c3)
+      case Schema.Enum1(c, _)                 => enumDecoder(c)
+      case Schema.Enum2(c1, c2, _)            => enumDecoder(c1, c2)
+      case Schema.Enum3(c1, c2, c3, _)        => enumDecoder(c1, c2, c3)
       case Schema.EnumN(cs, _)                => enumDecoder(cs.toSeq: _*)
     }
 
   private val astDecoder: Decoder[Schema[_]] =
     (av: AttributeValue) => decoder(Schema[SchemaAst])(av).map(_.toSchema)
-
-//  private def enumerationDecoder(structure: Map[String, Schema[_]]): Decoder[(String, Any)] = {
-//    case AttributeValue.List(AttributeValue.String(s) :: av :: Nil) =>
-//      decoder(structure(s))(av).map((s, _))
-//    case av                                                         => Left(s"Unexpected AttributeValue type $av")
-//  }
 
   private def genericRecordDecoder(structure: FieldSet): Decoder[Any] =
     (av: AttributeValue) =>

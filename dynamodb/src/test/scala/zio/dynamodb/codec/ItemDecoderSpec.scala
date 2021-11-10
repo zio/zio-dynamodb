@@ -24,7 +24,6 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
     },
     test("encodes enumeration") {
 
-//      val actual = Decoder(enumSchema)(AttributeValue.List(List(toAvString("string"), toAvString("FOO"))))
       val actual = Decoder(enumSchema)(AttributeValue.Map(Map(toAvString("string") -> toAvString("FOO"))))
 
       assertTrue(actual == Right("FOO"))

@@ -25,7 +25,6 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
       val av = Encoder(enumSchema)("FOO")
 
       assert(av)(
-        //      equalTo(AttributeValue.List(List(toAvString("string"), toAvString("FOO"))))
         equalTo(AttributeValue.Map(Map(toAvString("string") -> toAvString("FOO"))))
       )
     },

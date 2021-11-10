@@ -127,6 +127,4 @@ object SchemaAssertions {
   private def hasSameFields(left: Chunk[Schema.Field[_]], right: Chunk[Schema.Field[_]]): Boolean =
     left.map(_.label) == right.map(_.label)
 
-//  private def hasSameKeys[K, V](map1: Map[K, V], map2: Map[K, V]): Boolean =
-//    map1.keySet.diff(map2.keySet).isEmpty
 }

@@ -28,7 +28,6 @@ private[dynamodb] object Encoder {
       case Schema.Transform(c, _, g, _)       => transformEncoder(c, g)
       case Schema.Primitive(standardType, _)  => primitiveEncoder(standardType)
       case Schema.GenericRecord(structure, _) => genericRecordEncoder(structure)
-//      case Schema.Enumeration(structure)   => enumerationEncoder(structure)
       case Schema.EitherSchema(l, r, _)       => eitherEncoder(encoder(l), encoder(r))
       case l @ Schema.Lazy(_)                 =>
         lazy val enc = encoder(l.schema)
@@ -44,15 +43,6 @@ private[dynamodb] object Encoder {
 
   private val astEncoder: Encoder[Schema[_]] =
     (schema: Schema[_]) => encoder(Schema[SchemaAst])(SchemaAst.fromSchema(schema))
-
-//  private def enumerationEncoder(structure: Map[String, Schema[_]]): Encoder[(String, _)] =
-//    (value: (String, _)) => {
-//      val (k, v)                  = value
-//      val s                       = structure(k).asInstanceOf[Schema[Any]]
-//      val enc                     = encoder(s)
-//      val encoded: AttributeValue = enc(v)
-//      AttributeValue.List(List(AttributeValue.String(k), encoded))
-//    }
 
   private def genericRecordEncoder(structure: FieldSet): Encoder[ListMap[String, _]] =
     (valuesMap: ListMap[String, _]) => {

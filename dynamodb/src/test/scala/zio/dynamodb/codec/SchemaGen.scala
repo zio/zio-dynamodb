@@ -143,8 +143,6 @@ object SchemaGen {
         CaseSet.Cons(_case, acc)
     }
 
-//  val anyEnumeration: Gen[Random with Sized, Schema[(String, _)]]      =
-//    anyEnumeration(anySchema).map(Schema.enumeration)
   val anyEnumeration: Gen[Random with Sized, Schema[Any]] =
     anyEnumeration(anySchema).map(toCaseSet).map(Schema.enumeration[Any, CaseSet.Aux[Any]](_))
 
@@ -475,7 +473,6 @@ object SchemaGen {
       anyPrimitive.zip(anyPrimitive).map { case (l, r) => Schema.tuple2(l, r) },
       anyStructure(anyPrimitive).map(fields => Schema.record(fields: _*)),
       Gen.const(Schema[Json]),
-      //      anyEnumeration(anyPrimitive).map(toCaseSet).map(Schema.enumeration[Any, CaseSet.Aux[Any]](_)),
       anyCaseClassSchema,
       anyEnumSchema
     )
@@ -495,7 +492,6 @@ object SchemaGen {
         anyTree(depth - 1).zip(anyTree(depth - 1)).map { case (l, r) => Schema.tuple2(l, r) },
         anyStructure(anyTree(depth - 1)).map(fields => Schema.record(fields: _*)),
         Gen.const(Schema[Json])
-        //        anyEnumeration(anyTree(depth - 1)).map(toCaseSet).map(Schema.enumeration[Any, CaseSet.Aux[Any]](_))
       )
 
   type SchemaAndDerivedValue[A] = (Schema[A], Either[String, A])
