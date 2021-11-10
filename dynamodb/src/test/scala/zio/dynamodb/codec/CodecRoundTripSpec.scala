@@ -2,7 +2,7 @@ package zio.dynamodb.codec
 
 import zio.{ Chunk, ZIO }
 import zio.dynamodb.{ Decoder, Encoder }
-import zio.json.{ DeriveJsonEncoder, JsonEncoder }
+//import zio.json.{ DeriveJsonEncoder, JsonEncoder }
 import zio.random.Random
 import zio.schema.{ DeriveSchema, Schema, StandardType }
 import zio.test.Assertion.{ equalTo, isRight }
@@ -145,11 +145,11 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
   )
 
   private val caseClassSuite = suite("case class")(
-    testM("basic") {
-      checkM(searchRequestGen) { value =>
-        assertEncodesThenDecodes(searchRequestSchema, value)
-      }
-    },
+//    testM("basic") {
+//      checkM(searchRequestGen) { value =>
+//        assertEncodesThenDecodes(searchRequestSchema, value)
+//      }
+//    },
     testM("object") {
       assertEncodesThenDecodes(schemaObject, Singleton)
     }
@@ -201,7 +201,7 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
     testM("of primitives") {
       assertEncodesThenDecodes(
         enumSchema,
-        "string" -> "foo"
+        "foo"
       )
     },
     testM("ADT") {
@@ -278,7 +278,7 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
         case (schema, value) =>
           assertEncodesThenDecodes(schema, value)
       }
-    } @@ TestAspect.ignore,
+    },
     testM("recursive data type") {
       checkM(SchemaGen.anyRecursiveTypeAndValue) {
         case (schema, value) =>
@@ -306,18 +306,18 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
   case class SearchRequest(query: String, pageNumber: Int, resultPerPage: Int)
 
-  object SearchRequest {
-    implicit val encoder: JsonEncoder[SearchRequest] = DeriveJsonEncoder.gen[SearchRequest]
-  }
-
-  val searchRequestGen: Gen[Random with Sized, SearchRequest] =
-    for {
-      query      <- Gen.anyString
-      pageNumber <- Gen.int(Int.MinValue, Int.MaxValue)
-      results    <- Gen.int(Int.MinValue, Int.MaxValue)
-    } yield SearchRequest(query, pageNumber, results)
-
-  val searchRequestSchema: Schema[SearchRequest] = DeriveSchema.gen[SearchRequest]
+//  object SearchRequest {
+//    implicit val encoder: JsonEncoder[SearchRequest] = DeriveJsonEncoder.gen[SearchRequest]
+//  }
+//
+//  val searchRequestGen: Gen[Random with Sized, SearchRequest] =
+//    for {
+//      query      <- Gen.anyString
+//      pageNumber <- Gen.int(Int.MinValue, Int.MaxValue)
+//      results    <- Gen.int(Int.MinValue, Int.MaxValue)
+//    } yield SearchRequest(query, pageNumber, results)
+//
+//  val searchRequestSchema: Schema[SearchRequest] = DeriveSchema.gen[SearchRequest]
 
   sealed trait OneOf
   case class StringValue(value: String)   extends OneOf
