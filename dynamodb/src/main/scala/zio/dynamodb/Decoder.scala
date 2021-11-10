@@ -1,11 +1,12 @@
 package zio.dynamodb
 
 import zio.schema.Schema.{ Optional, Primitive }
-import zio.schema.{ Schema, StandardType }
+import zio.schema.{ FieldSet, Schema, StandardType }
 import zio.schema.ast.SchemaAst
 import zio.{ schema, Chunk }
 
 import java.time.{ ZoneId, _ }
+import java.util.UUID
 import scala.util.Try
 
 private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
@@ -14,47 +15,34 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
 
   private[dynamodb] def decoder[A](schema: Schema[A]): Decoder[A] =
     schema match {
-      case ProductDecoder(decoder)         => decoder // TODO: inline for exhaustive matching
-      case s: Optional[a]                  => optionalDecoder[a](decoder(s.codec))
-      case Schema.Fail(s)                  => _ => Left(s)
-      case Schema.GenericRecord(structure) => genericRecordDecoder(structure).asInstanceOf[Decoder[A]]
-      case Schema.Enumeration(structure)   => enumerationDecoder(structure)
-      case Schema.Tuple(l, r)              => tupleDecoder(decoder(l), decoder(r))
-      case Schema.Transform(codec, f, _)   => transformDecoder(codec, f)
-      case s: Schema.Sequence[col, a]      =>
-        sequenceDecoder[col, a](decoder(s.schemaA), s.fromChunk)
-      case Schema.EitherSchema(l, r)       =>
-        eitherDecoder(decoder(l), decoder(r))
-      case Primitive(standardType)         =>
-        primitiveDecoder(standardType)
-      case l @ Schema.Lazy(_)              =>
+      case ProductDecoder(decoder)            => decoder // TODO: inline for exhaustive matching
+      case s: Optional[a]                     => optionalDecoder[a](decoder(s.codec))
+      case Schema.Fail(s, _)                  => _ => Left(s)
+      case Schema.GenericRecord(structure, _) => genericRecordDecoder(structure).asInstanceOf[Decoder[A]]
+      case Schema.Tuple(l, r, _)              => tupleDecoder(decoder(l), decoder(r))
+      case Schema.Transform(codec, f, _, _)   => transformDecoder(codec, f)
+      case s: Schema.Sequence[col, a]         => sequenceDecoder[col, a](decoder(s.schemaA), s.fromChunk)
+      case Schema.EitherSchema(l, r, _)       => eitherDecoder(decoder(l), decoder(r))
+      case Primitive(standardType, _)         => primitiveDecoder(standardType)
+      case l @ Schema.Lazy(_)                 =>
         lazy val dec = decoder(l.schema)
         (av: AttributeValue) => dec(av)
-      case Schema.Meta(_)                  => astDecoder
-      case Schema.Enum1(c)                 =>
-        enumDecoder(c)
-      case Schema.Enum2(c1, c2)            =>
-        enumDecoder(c1, c2)
-      case Schema.Enum3(c1, c2, c3)        =>
-        enumDecoder(c1, c2, c3)
-      case Schema.EnumN(cs)                => enumDecoder(cs: _*)
+      case Schema.Meta(_, _)                  => astDecoder
+      case Schema.Enum1(c, _)                 => enumDecoder(c)
+      case Schema.Enum2(c1, c2, _)            => enumDecoder(c1, c2)
+      case Schema.Enum3(c1, c2, c3, _)        => enumDecoder(c1, c2, c3)
+      case Schema.EnumN(cs, _)                => enumDecoder(cs.toSeq: _*)
     }
 
   private val astDecoder: Decoder[Schema[_]] =
     (av: AttributeValue) => decoder(Schema[SchemaAst])(av).map(_.toSchema)
 
-  private def enumerationDecoder(structure: Map[String, Schema[_]]): Decoder[(String, Any)] = {
-    case AttributeValue.List(AttributeValue.String(s) :: av :: Nil) =>
-      decoder(structure(s))(av).map((s, _))
-    case av                                                         => Left(s"Unexpected AttributeValue type $av")
-  }
-
-  private def genericRecordDecoder(structure: Chunk[schema.Schema.Field[_]]): Decoder[Any] =
+  private def genericRecordDecoder(structure: FieldSet): Decoder[Any] =
     (av: AttributeValue) =>
       av match {
         case AttributeValue.Map(map) =>
           zio.dynamodb
-            .foreach[schema.Schema.Field[_], (String, Any)](structure) {
+            .foreach[schema.Schema.Field[_], (String, Any)](structure.toChunk) {
               case Schema.Field(key, schema: Schema[a], _) =>
                 val av  = map(AttributeValue.String(key))
                 val dec = decoder(schema)
@@ -151,6 +139,11 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
               val array = s.toCharArray
               array(0)
             }
+      case StandardType.UUIDType                  =>
+        (av: AttributeValue) =>
+          FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av).flatMap { s =>
+            Try(UUID.fromString(s)).toEither.left.map(iae => s"Invalid UUID: ${iae.getMessage}")
+          }
       case StandardType.DayOfWeekType             =>
         (av: AttributeValue) => javaTimeStringParser(av)(DayOfWeek.valueOf(_))
       case StandardType.Duration(_)               =>
@@ -231,7 +224,7 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
           Left(s"Expected an AttributeValue.List of two elements but found $av")
       }
 
-  private def sequenceDecoder[Col[_], A](decoder: Decoder[A], to: Chunk[A] => Col[A]): Decoder[Col[A]] = {
+  private def sequenceDecoder[Col, A](decoder: Decoder[A], to: Chunk[A] => Col): Decoder[Col] = {
     case AttributeValue.List(list) =>
       zio.dynamodb.foreach(list)(decoder(_)).map(xs => to(Chunk.fromIterable(xs)))
     case av                        => Left(s"unable to decode $av as a list")

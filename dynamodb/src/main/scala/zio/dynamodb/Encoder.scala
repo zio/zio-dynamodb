@@ -1,8 +1,8 @@
 package zio.dynamodb
 
-import zio.schema.{ Schema, StandardType }
+import zio.Chunk
 import zio.schema.ast.SchemaAst
-import zio.{ schema, Chunk }
+import zio.schema.{ FieldSet, Schema, StandardType }
 
 import java.time.Year
 import java.time.format.{ DateTimeFormatterBuilder, SignStyle }
@@ -19,41 +19,34 @@ private[dynamodb] object Encoder {
 
   private def encoder[A](schema: Schema[A]): Encoder[A] =
     schema match {
-      case ProductEncoder(encoder)         => encoder // TODO: inline for exhaustive matching
-      case s: Schema.Optional[a]           => optionalEncoder[a](encoder(s.codec))
-      case Schema.Fail(_)                  => _ => AttributeValue.Null
-      case Schema.Tuple(l, r)              => tupleEncoder(encoder(l), encoder(r))
-      case s: Schema.Sequence[col, a]      => sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
-      case Schema.Transform(c, _, g)       => transformEncoder(c, g)
-      case Schema.Primitive(standardType)  => primitiveEncoder(standardType)
-      case Schema.GenericRecord(structure) => genericRecordEncoder(structure)
-      case Schema.Enumeration(structure)   => enumerationEncoder(structure)
-      case Schema.EitherSchema(l, r)       => eitherEncoder(encoder(l), encoder(r))
-      case l @ Schema.Lazy(_)              =>
+      case ProductEncoder(encoder)            =>
+        encoder // TODO: inline for exhaustive matching
+      case s: Schema.Optional[a]              => optionalEncoder[a](encoder(s.codec))
+      case Schema.Fail(_, _)                  => _ => AttributeValue.Null
+      case Schema.Tuple(l, r, _)              => tupleEncoder(encoder(l), encoder(r))
+      case s: Schema.Sequence[col, a]         => sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
+      case Schema.Transform(c, _, g, _)       => transformEncoder(c, g)
+      case Schema.Primitive(standardType, _)  => primitiveEncoder(standardType)
+      case Schema.GenericRecord(structure, _) => genericRecordEncoder(structure)
+      case Schema.EitherSchema(l, r, _)       => eitherEncoder(encoder(l), encoder(r))
+      case l @ Schema.Lazy(_)                 =>
         lazy val enc = encoder(l.schema)
         (a: A) => enc(a)
-      case Schema.Meta(_)                  => astEncoder
-      case Schema.Enum1(c)                 => enumEncoder(c)
-      case Schema.Enum2(c1, c2)            => enumEncoder(c1, c2)
-      case Schema.Enum3(c1, c2, c3)        => enumEncoder(c1, c2, c3)
-      case Schema.EnumN(cs)                => enumEncoder(cs: _*)
+      case Schema.Meta(_, _)                  => astEncoder
+      case Schema.Enum1(c, _)                 =>
+        enumEncoder(c)
+      case Schema.Enum2(c1, c2, _)            => enumEncoder(c1, c2)
+      case Schema.Enum3(c1, c2, c3, _)        => enumEncoder(c1, c2, c3)
+      case Schema.EnumN(cs, _)                =>
+        enumEncoder(cs.toSeq: _*)
     }
 
   private val astEncoder: Encoder[Schema[_]] =
     (schema: Schema[_]) => encoder(Schema[SchemaAst])(SchemaAst.fromSchema(schema))
 
-  private def enumerationEncoder(structure: Map[String, Schema[_]]): Encoder[(String, _)] =
-    (value: (String, _)) => {
-      val (k, v)                  = value
-      val s                       = structure(k).asInstanceOf[Schema[Any]]
-      val enc                     = encoder(s)
-      val encoded: AttributeValue = enc(v)
-      AttributeValue.List(List(AttributeValue.String(k), encoded))
-    }
-
-  private def genericRecordEncoder(structure: Chunk[schema.Schema.Field[_]]): Encoder[ListMap[String, _]] =
+  private def genericRecordEncoder(structure: FieldSet): Encoder[ListMap[String, _]] =
     (valuesMap: ListMap[String, _]) => {
-      structure.foldRight(AttributeValue.Map(Map.empty)) {
+      structure.toChunk.foldRight(AttributeValue.Map(Map.empty)) {
         case (Schema.Field(key, schema: Schema[a], _), avMap) =>
           val value              = valuesMap(key)
           val enc                = encoder[a](schema)
@@ -148,6 +141,7 @@ private[dynamodb] object Encoder {
       case StandardType.DoubleType                => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
       case StandardType.BigDecimalType            => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
       case StandardType.BigIntegerType            => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+      case StandardType.UUIDType                  => (a: A) => AttributeValue.String(a.toString)
       case StandardType.DayOfWeekType             => (a: A) => AttributeValue.String(a.toString)
       case StandardType.Duration(_)               => (a: A) => AttributeValue.String(a.toString)
       case StandardType.Instant(formatter)        => (a: A) => AttributeValue.String(formatter.format(a))
@@ -195,8 +189,8 @@ private[dynamodb] object Encoder {
       AttributeValue.List(Chunk(encL(a), encR(b)))
   }
 
-  private def sequenceEncoder[Col[_], A](encoder: Encoder[A], from: Col[A] => Chunk[A]): Encoder[Col[A]] =
-    (col: Col[A]) => AttributeValue.List(from(col).map(encoder))
+  private def sequenceEncoder[Col, A](encoder: Encoder[A], from: Col => Chunk[A]): Encoder[Col] =
+    (col: Col) => AttributeValue.List(from(col).map(encoder))
 
   private def enumEncoder[A](cases: Schema.Case[_, A]*): Encoder[A] =
     (a: A) => {

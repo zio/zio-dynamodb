@@ -2,8 +2,9 @@ package zio.dynamodb.codec
 
 import zio.Chunk
 import zio.dynamodb.{ AttributeValue, ToAttributeValue }
+import zio.schema.CaseSet.caseOf
 import zio.schema.Schema.chunk
-import zio.schema.{ DeriveSchema, Schema, StandardType }
+import zio.schema.{ CaseSet, DeriveSchema, Schema, StandardType }
 
 import java.time.Instant
 import java.time.format.DateTimeFormatter
@@ -16,12 +17,11 @@ trait CodecTestFixtures {
     Schema.Field("bar", Schema.Primitive(StandardType.IntType))
   )
 
-  val enumSchema: Schema[(String, _)] = Schema.enumeration(
-    ListMap(
-      "string"  -> Schema.Primitive(StandardType.StringType),
-      "int"     -> Schema.Primitive(StandardType.IntType),
-      "boolean" -> Schema.Primitive(StandardType.BoolType)
-    )
+  val enumSchema: Schema[Any] = Schema.enumeration[Any, CaseSet.Aux[Any]](
+    caseOf[String, Any]("string")(_.asInstanceOf[String]) ++ caseOf[Int, Any]("int")(_.asInstanceOf[Int]) ++ caseOf[
+      Boolean,
+      Any
+    ]("boolean")(_.asInstanceOf[Boolean])
   )
 
   lazy implicit val nestedCaseClass2Schema: Schema[NestedCaseClass2]               = DeriveSchema.gen[NestedCaseClass2]
