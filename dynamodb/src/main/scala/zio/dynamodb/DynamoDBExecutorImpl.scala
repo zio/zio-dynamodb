@@ -206,16 +206,22 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     stream.run(ZSink.collectAll[Item]).map(chunk => (chunk, Some(chunk.last)))
   }
 
-  private def generateUpdateItemRequest(updateItem: UpdateItem): UpdateItemRequest =
+  private def generateUpdateItemRequest(updateItem: UpdateItem): UpdateItemRequest = {
+    val (map, updateExpr) = updateItem.updateExpression.render().render(AliasMap.empty)
+
     UpdateItemRequest(
       tableName = updateItem.tableName.value,
       key = updateItem.key.map.map { case (k, v) => (k, buildAwsAttributeValue(v)) },
       returnValues = Some(buildAwsReturnValue(updateItem.returnValues)),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(updateItem.capacity)),
       returnItemCollectionMetrics = Some(buildAwsItemMetrics(updateItem.itemMetrics)),
-      updateExpression = Some(updateItem.updateExpression.render()),
+      updateExpression = Some(updateExpr),
+      expressionAttributeValues = Some(map.map.map {
+        case (attrVal, str) => (str, buildAwsAttributeValue(attrVal))
+      }),
       conditionExpression = updateItem.conditionExpression.map(_.toString)
     )
+  }
 
   private def doScanAll(scanAll: ScanAll): ZIO[Any, Throwable, Stream[Throwable, Item]] =
     ZIO.succeed(

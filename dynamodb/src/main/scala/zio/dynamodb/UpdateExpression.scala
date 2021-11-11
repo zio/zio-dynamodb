@@ -42,16 +42,40 @@ delete-action ::=
 
 // Note this implementation does not preserve the original order of actions ie after "Set field1 = 1, field1 = 2"
 // if this turns out to be a problem we could change the internal implementation
-final case class UpdateExpression(action: Action) {
-  def render(): String = ???
+final case class UpdateExpression(action: Action) { self =>
+  // TODO(adam): Implement
+  def render(): AliasMapRender[String] =
+    AliasMapRender { aliasMap =>
+      action.render().render(aliasMap)
+    }
 }
 
 object UpdateExpression {
 
   sealed trait Action { self =>
     def +(that: Action): Action = Actions(Chunk(self) :+ that)
+
+    def render(): AliasMapRender[String] =
+      AliasMapRender { aliasMap =>
+        self match {
+          case Actions(actions)                 =>
+            actions.foldLeft((aliasMap, "")) {
+              case ((am, acc), action) =>
+                val (a, b) = action.render().render(am)
+                (a, s"$acc, $b")
+            }
+          case Action.SetAction(path, operand)  =>
+            operand.render().map(s => s"set $path = $s").render(aliasMap)
+          case Action.RemoveAction(path)        => (aliasMap, s"remove $path")
+          case Action.AddAction(path, value)    =>
+            AliasMapRender.getOrInsert(value).map(v => s"add $path $v").render(aliasMap)
+          case Action.DeleteAction(path, value) =>
+            AliasMapRender.getOrInsert(value).map(s => s"delete $path $s").render(aliasMap)
+        }
+      }
+
   }
-  object Action       {
+  object Action {
 
     private[dynamodb] final case class Actions(actions: Chunk[Action]) extends Action { self =>
       override def +(that: Action): Action = Actions(actions :+ that)
@@ -83,8 +107,34 @@ object UpdateExpression {
 
     def +(that: SetOperand): SetOperand = Minus(self, that)
     def -(that: SetOperand): SetOperand = Plus(self, that)
+
+    def render(): AliasMapRender[String] =
+      AliasMapRender { aliasMap =>
+        self match {
+          case Minus(left, right)    =>
+            left
+              .render()
+              .flatMap { l =>
+                right.render().map(r => s"$l - $r")
+              }
+              .render(aliasMap)
+          case Plus(left, right)     =>
+            left
+              .render()
+              .flatMap { l =>
+                right.render().map(r => s"$l + $r")
+              }
+              .render(aliasMap)
+          case ValueOperand(value)   => AliasMapRender.getOrInsert(value).map(identity).render(aliasMap)
+          case PathOperand(path)     => (aliasMap, path.toString)
+          case ListAppend(_)         => ???
+          case ListPrepend(_)        => ???
+          case IfNotExists(_, value) => AliasMapRender.getOrInsert(value).map(_ => ???).render(aliasMap)
+        }
+      }
+
   }
-  object SetOperand       {
+  object SetOperand {
     private[dynamodb] final case class Minus(left: SetOperand, right: SetOperand) extends SetOperand
     private[dynamodb] final case class Plus(left: SetOperand, right: SetOperand)  extends SetOperand
     private[dynamodb] final case class ValueOperand(value: AttributeValue)        extends SetOperand

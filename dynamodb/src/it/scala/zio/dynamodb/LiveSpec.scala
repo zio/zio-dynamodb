@@ -1,12 +1,12 @@
 package zio.dynamodb
 
 import io.github.vigoo.zioaws.core.config
-import zio.dynamodb.PartitionKeyExpression.PartitionKey
-import zio.dynamodb.SortKeyExpression.SortKey
+//import zio.dynamodb.PartitionKeyExpression.PartitionKey
+//import zio.dynamodb.SortKeyExpression.SortKey
 
 //import scala.collection.immutable.{ Map => ScalaMap }
 import io.github.vigoo.zioaws.{ dynamodb, http4s }
-import zio._
+//import zio._
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.ProjectionExpression._
 import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
@@ -25,7 +25,6 @@ object LiveSpec extends DefaultRunnableSpec {
     suite("live test")(
 //      testM("put and get item") {
 //        (for {
-//          // TODO(adam): do not sleep here, put this in a loop and wait for a good response then continue
 //          _      <- putItem(tableName, Item("id" -> "first", "testName" -> "put and get item")).execute
 //          result <- getItem(tableName, PrimaryKey("id" -> "first")).execute
 //          _      <- deleteItem(tableName, PrimaryKey("id" -> "first")).execute
@@ -54,27 +53,36 @@ object LiveSpec extends DefaultRunnableSpec {
 //        ))
 //          .provideCustomLayer(layer ++ TestEnvironment.live)
 //      },
-      suite("query tables")(
-        testM("query table") {
+//      suite("query tables")(
+//        testM("query table") {
+//          (for {
+//            (chunk, _) <- querySomeItem(queryTableName, 10, $("firstName"))
+//                            .whereKey(PartitionKey("id") === "third1" && SortKey("age") < 200)
+//                            .execute
+//
+//          } yield assert(chunk)(
+//            equalTo(Chunk(Item("firstName" -> "avi")))
+//          ))
+//            .provideCustomLayer(layer ++ TestEnvironment.live)
+//        },
+//        testM("query table greater than") {
+//          (for {
+//            (chunk, _) <- querySomeItem(queryTableName, 10, $("firstName"))
+//                            .whereKey(PartitionKey("id") === "second1" && SortKey("age") > 0)
+//                            .execute
+//
+//          } yield assert(chunk)(
+//            equalTo(Chunk(Item("firstName" -> "avi"), Item("firstName" -> "adam"), Item("firstName" -> "john")))
+//          )) // REVIEW(john): somehow getting chunk out of bound exception with empty queries (when results are empty)
+//            .provideCustomLayer(layer ++ TestEnvironment.live)
+//        }
+//      ),
+      suite("update items")(
+        testM("update name") {
           (for {
-            (chunk, _) <- querySomeItem(queryTableName, 10, $("firstName"))
-                            .whereKey(PartitionKey("id") === "third1" && SortKey("age") < 200)
-                            .execute
-
-          } yield assert(chunk)(
-            equalTo(Chunk(Item("firstName" -> "avi")))
-          ))
-            .provideCustomLayer(layer ++ TestEnvironment.live)
-        },
-        testM("query table greater than") {
-          (for {
-            (chunk, _) <- querySomeItem(queryTableName, 10, $("firstName"))
-                            .whereKey(PartitionKey("id") === "second1" && SortKey("age") > 0)
-                            .execute
-
-          } yield assert(chunk)(
-            equalTo(Chunk(Item("firstName" -> "avi"), Item("firstName" -> "adam"), Item("firstName" -> "john")))
-          )) // REVIEW(john): somehow getting chunk out of bound exception with empty queries (when results are empty)
+            _ <- putItem(tableName, Item("id" -> "update", "firstName" -> "adam")).execute
+            _ <- updateItem(tableName, PrimaryKey("id" -> "update"))($("firstName").set("notAdam")).execute
+          } yield assert(true)(isTrue))
             .provideCustomLayer(layer ++ TestEnvironment.live)
         }
       )

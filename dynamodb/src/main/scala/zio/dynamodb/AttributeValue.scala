@@ -28,7 +28,7 @@ sealed trait AttributeValue { self =>
   def >=(that: ProjectionExpression): ConditionExpression  =
     GreaterThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))
 
-  // TODO(adam): Implement
+  // TODO(adam): Implement -- does this need to be an AliasMap???
   def render(): String =
     self match {
       case AttributeValue.Binary(value)    =>
