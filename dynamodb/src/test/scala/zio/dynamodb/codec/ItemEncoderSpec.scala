@@ -22,10 +22,10 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
     },
     test("encodes enumeration") {
 
-      val av = Encoder(enumSchema)("string" -> "FOO")
+      val av = Encoder(enumSchema)("FOO")
 
       assert(av)(
-        equalTo(AttributeValue.List(List(toAvString("string"), toAvString("FOO"))))
+        equalTo(AttributeValue.Map(Map(toAvString("string") -> toAvString("FOO"))))
       )
     },
     test("encodes List of Int") {
