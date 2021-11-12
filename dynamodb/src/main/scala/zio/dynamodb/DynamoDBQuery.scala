@@ -466,6 +466,14 @@ object DynamoDBQuery {
       tags = tags
     )
 
+  def deleteTable(
+    tableName: String
+  ) = DeleteTable(tableName = TableName(tableName))
+
+  def describeTable(
+    tableName: String
+  ) = DescribeTable(tableName = TableName(tableName))
+
   private def selectOrAll(projections: Seq[ProjectionExpression]): Option[Select] =
     Some(if (projections.isEmpty) Select.AllAttributes else Select.SpecificAttributes)
 
@@ -577,6 +585,29 @@ object DynamoDBQuery {
     final case class Put(item: Item)         extends Write
 
   }
+  private[dynamodb] final case class DeleteTable(
+    tableName: TableName
+  ) extends Constructor[Unit]
+
+  private[dynamodb] final case class DescribeTable(
+    tableName: TableName
+  ) extends Constructor[DescribeTableResponse] // TODO(adam): Should be a DescribeTableResponse case class
+
+  sealed trait TableStatus
+  object TableStatus {
+    case object Creating                          extends TableStatus
+    case object Updating                          extends TableStatus
+    case object Deleting                          extends TableStatus
+    case object Active                            extends TableStatus
+    case object InaccessibleEncryptionCredentials extends TableStatus
+    case object Archiving                         extends TableStatus
+    case object Archived                          extends TableStatus
+  }
+
+  final case class DescribeTableResponse(
+    tableArn: String,
+    tableStatus: TableStatus
+  )
 
   // Interestingly scan can be run in parallel using segment number and total segments fields
   // If running in parallel segment number must be used consistently with the paging token
@@ -754,6 +785,22 @@ object DynamoDBQuery {
       case batchWriteItem @ BatchWriteItem(_, _, _, _)        =>
         (
           Chunk(batchWriteItem),
+          (results: Chunk[Any]) => {
+            results.head.asInstanceOf[A]
+          }
+        )
+
+      case deleteTable @ DeleteTable(_)                       =>
+        (
+          Chunk(deleteTable),
+          (results: Chunk[Any]) => {
+            results.head.asInstanceOf[A]
+          }
+        )
+
+      case describeTable @ DescribeTable(_)                   =>
+        (
+          Chunk(describeTable),
           (results: Chunk[Any]) => {
             results.head.asInstanceOf[A]
           }

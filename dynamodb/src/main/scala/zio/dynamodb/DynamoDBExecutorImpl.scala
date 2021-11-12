@@ -8,6 +8,8 @@ import io.github.vigoo.zioaws.dynamodb.model.{
   CreateTableRequest,
   DeleteItemRequest,
   DeleteRequest,
+  DeleteTableRequest,
+  DescribeTableRequest,
   GetItemRequest,
   KeySchemaElement,
   KeyType,
@@ -33,7 +35,8 @@ import io.github.vigoo.zioaws.dynamodb.model.{
   ReturnItemCollectionMetrics => ZIOAwsReturnItemCollectionMetrics,
   SSESpecification => ZIOAwsSSESpecification,
   SSEType => ZIOAwsSSEType,
-  Select => ZIOAwsSelect
+  Select => ZIOAwsSelect,
+  TableStatus => ZIOAwsTableStatus
 }
 import zio.dynamodb.ConsistencyMode.toBoolean
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
@@ -61,6 +64,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case updateItem: UpdateItem         => doUpdateItem(updateItem)
       case createTable: CreateTable       => doCreateTable(createTable)
       case deleteItem: DeleteItem         => doDeleteItem(deleteItem)
+      case deleteTable: DeleteTable       => doDeleteTable(deleteTable)
+      case describeTable: DescribeTable   => doDescribeTable(describeTable)
       case querySome: QuerySome           => doQuerySome(querySome)
       case queryAll: QueryAll             => doQueryAll(queryAll)
       case Succeed(thunk)                 => ZIO.succeed(thunk())
@@ -78,6 +83,33 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
 
   private def doDeleteItem(deleteItem: DeleteItem): ZIO[Any, Throwable, Unit] =
     dynamoDb.deleteItem(generateDeleteItemRequest(deleteItem)).mapError(_.toThrowable).unit
+
+  private def doDeleteTable(deleteTable: DeleteTable): ZIO[Any, Throwable, Unit] =
+    dynamoDb.deleteTable(DeleteTableRequest(deleteTable.tableName.value)).mapError(_.toThrowable).unit
+
+  private def doDescribeTable(describeTable: DescribeTable): ZIO[Any, Throwable, DescribeTableResponse] =
+    dynamoDb
+      .describeTable(DescribeTableRequest(describeTable.tableName.value))
+      .flatMap(s =>
+        for {
+          t      <- s.table
+          arn    <- t.tableArn
+          status <- t.tableStatus
+        } yield DescribeTableResponse(tableArn = arn, tableStatus = zioAwsTableStatusToTableStatus(status))
+      )
+      .mapError(_.toThrowable)
+
+  private def zioAwsTableStatusToTableStatus(tableStatus: ZIOAwsTableStatus): TableStatus =
+    tableStatus match {
+      case ZIOAwsTableStatus.CREATING                            => TableStatus.Creating
+      case ZIOAwsTableStatus.UPDATING                            => TableStatus.Updating
+      case ZIOAwsTableStatus.DELETING                            => TableStatus.Deleting
+      case ZIOAwsTableStatus.ACTIVE                              => TableStatus.Active
+      case ZIOAwsTableStatus.INACCESSIBLE_ENCRYPTION_CREDENTIALS => TableStatus.InaccessibleEncryptionCredentials
+      case ZIOAwsTableStatus.ARCHIVING                           => TableStatus.Archiving
+      case ZIOAwsTableStatus.ARCHIVED                            => TableStatus.Archived
+      case ZIOAwsTableStatus.unknownToSdkVersion                 => ??? // What to do about this one?
+    }
 
   private def generateDeleteItemRequest(deleteItem: DeleteItem): DeleteItemRequest =
     DeleteItemRequest(
@@ -272,9 +304,12 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       (for {
         a <- dynamoDb.batchGetItem(generateBatchGetItemRequest(batchGetItem))
         b <- a.responses
+        _  = println(b)
       } yield BatchGetItem.Response(
         b.foldLeft(MapOfSet.empty[TableName, Item]) {
-          case (acc, (tableName, list)) => acc ++ ((TableName(tableName), list.map(toDynamoItem)))
+          case (acc, (tableName, list)) =>
+            println(s"acc: $acc, list: ${list.map(toDynamoItem)}")
+            acc ++ ((TableName(tableName), list.map(toDynamoItem)))
         }
       )).mapError(_.toThrowable)
 
