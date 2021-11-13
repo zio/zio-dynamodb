@@ -307,11 +307,17 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
 
 lazy val examples = module("zio-dynamodb-examples", "examples")
   .settings(
+    resolvers += "DynamoDB Local Release Repository" at "https://s3-us-west-2.amazonaws.com/dynamodb-local/release",
+    resolvers += Resolver.sonatypeRepo("releases"),
+    copyJarSetting,
+    (Compile / compile) := (Compile / compile).dependsOn(copyJars).value,
     skip in publish := true,
     fork := true,
     libraryDependencies ++= Seq(
-      "dev.zio" %% "zio-test"     % zioVersion % "test",
-      "dev.zio" %% "zio-test-sbt" % zioVersion % "test"
+      "dev.zio"               %% "zio-test"      % zioVersion % "test",
+      "dev.zio"               %% "zio-test-sbt"  % zioVersion % "test",
+      "software.amazon.awssdk" % "dynamodb"      % "2.16.20",
+      "com.amazonaws"          % "DynamoDBLocal" % "1.12.0"   % "test" // TODO: check latest version
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
