@@ -4,12 +4,12 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.dynamodb.model.{ AttributeValue, GetItemRequest, PutItemRequest }
 import zio.ZIO
 import zio.dynamodb.examples.LocalDdbServer
-import zio.test.{ assertTrue, DefaultRunnableSpec }
+import zio.test.{ assertTrue, DefaultRunnableSpec, ZSpec }
 
 import scala.jdk.CollectionConverters._
 
 object JavaSdkExampleSpec extends DefaultRunnableSpec {
-  override def spec =
+  override def spec: ZSpec[Environment, Failure] =
     suite("JavaSdkExample suite")(
       testM("sdk example") {
 
