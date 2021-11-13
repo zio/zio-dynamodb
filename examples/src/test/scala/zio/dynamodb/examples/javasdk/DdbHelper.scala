@@ -39,7 +39,6 @@ object DdbHelper {
     val attributeDefinitions: Seq[AttributeDefinition] = Seq(
       "id"          -> ScalarAttributeType.S,
       "entitlement" -> ScalarAttributeType.S
-//      "orderDate"   -> ScalarAttributeType.S
     )
 
     val ks: Seq[KeySchemaElement] = Seq(
