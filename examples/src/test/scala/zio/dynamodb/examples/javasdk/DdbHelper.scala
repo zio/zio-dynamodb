@@ -35,15 +35,15 @@ object DdbHelper {
       KeySchemaElement.builder.attributeName(t._1).keyType(t._2).build
     implicit def seqAsJava[T](seq: Seq[T]): util.List[T]                        = seq.asJava
 
-    val tableName                                      = "Entitlement"
+    val tableName                                      = "student"
     val attributeDefinitions: Seq[AttributeDefinition] = Seq(
-      "id"          -> ScalarAttributeType.S,
-      "entitlement" -> ScalarAttributeType.S
+      "email"   -> ScalarAttributeType.S,
+      "subject" -> ScalarAttributeType.S
     )
 
     val ks: Seq[KeySchemaElement] = Seq(
-      "id"          -> KeyType.HASH,
-      "entitlement" -> KeyType.RANGE
+      "email"   -> KeyType.HASH,
+      "subject" -> KeyType.RANGE
     )
     val provisionedThroughput     = ProvisionedThroughput.builder
       .readCapacityUnits(5L)

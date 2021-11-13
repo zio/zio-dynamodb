@@ -15,36 +15,36 @@ object JavaSdkExampleSpec extends DefaultRunnableSpec {
 
         for {
           client          <- ZIO.service[DynamoDbAsyncClient]
-          ent              = Entitlement("id1", "Entitlement1", "2021-03-20T01:39:33.0")
+          student          = Student("avi@gmail.com", "maths", "2021-03-20T01:39:33.0")
           _               <- ZIO.fromCompletionStage(client.createTable(DdbHelper.createTableRequest))
           putItemRequest   = PutItemRequest.builder
-                               .tableName("Entitlement")
+                               .tableName("student")
                                .item(
                                  Map(
-                                   "id"          -> AttributeValue.builder.s(ent.id).build,
-                                   "entitlement" -> AttributeValue.builder.s(ent.entitlement).build,
-                                   "orderDate"   -> AttributeValue.builder.s(ent.orderDate).build
+                                   "email"          -> AttributeValue.builder.s(student.email).build,
+                                   "subject"        -> AttributeValue.builder.s(student.subject).build,
+                                   "enrollmentDate" -> AttributeValue.builder.s(student.enrollmentDate).build
                                  ).asJava
                                )
                                .build
           _               <- ZIO.fromCompletionStage(client.putItem(putItemRequest))
           getItemRequest   = GetItemRequest.builder
-                               .tableName("Entitlement")
+                               .tableName("student")
                                .key(
                                  Map(
-                                   "id"          -> AttributeValue.builder.s(ent.id).build,
-                                   "entitlement" -> AttributeValue.builder.s(ent.entitlement).build
+                                   "email"   -> AttributeValue.builder.s(student.email).build,
+                                   "subject" -> AttributeValue.builder.s(student.subject).build
                                  ).asJava
                                )
                                .build()
           getItemResponse <- ZIO.fromCompletionStage(client.getItem(getItemRequest))
           item             = getItemResponse.item.asScala
-          foundEnt         = for {
-                               id          <- item.get("id")
-                               entitlement <- item.get("entitlement")
-                               orderDate   <- item.get("orderDate")
-                             } yield Entitlement(id.s, entitlement.s, orderDate.s)
-        } yield assertTrue(foundEnt == Some(ent))
+          foundStudent     = for {
+                               email          <- item.get("email")
+                               subject        <- item.get("subject")
+                               enrollmentDate <- item.get("enrollmentDate")
+                             } yield Student(email.s, subject.s, enrollmentDate.s)
+        } yield assertTrue(foundStudent == Some(student))
       }.provideCustomLayer(LocalDdbServer.inMemoryLayer ++ DdbHelper.ddbLayer)
     )
 
