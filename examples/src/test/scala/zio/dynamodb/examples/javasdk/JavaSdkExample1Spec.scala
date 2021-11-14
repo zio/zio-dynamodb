@@ -41,31 +41,31 @@ object JavaSdkExample1Spec extends DefaultRunnableSpec {
         for {
           client          <- ZIO.service[DynamoDbAsyncClient]
           enrollmentDate  <- ZIO.fromEither(parseInstant("2021-03-20T01:39:33Z"))
-          student          = Student("avi@gmail.com", "maths", Some(enrollmentDate))
+          expectedStudent  = Student("avi@gmail.com", "maths", Some(enrollmentDate))
           _               <- ZIO.fromCompletionStage(client.createTable(DdbHelper.createTableRequest))
-          putItemRequest   = putItemRequestForStudent(student)
+          putItemRequest   = putItemRequestForStudent(expectedStudent)
           _               <- ZIO.fromCompletionStage(client.putItem(putItemRequest))
           getItemRequest   = GetItemRequest.builder
                                .tableName("student")
                                .key(
                                  Map(
-                                   "email"   -> AttributeValue.builder.s(student.email).build,
-                                   "subject" -> AttributeValue.builder.s(student.subject).build
+                                   "email"   -> AttributeValue.builder.s(expectedStudent.email).build,
+                                   "subject" -> AttributeValue.builder.s(expectedStudent.subject).build
                                  ).asJava
                                )
                                .build()
           getItemResponse <- ZIO.fromCompletionStage(client.getItem(getItemRequest))
           item             = getItemResponse.item.asScala
           foundStudent     = for {
-                               email               <- getString(item, "email")
-                               subject             <- getString(item, "subject")
-                               enrollmentDateAV    <- getStringOpt(item, "enrollmentDate")
-                               maybeEnrollmentDate <-
-                                 enrollmentDateAV.fold[Either[String, Option[Instant]]](Right(None))(s =>
+                               email                 <- getString(item, "email")
+                               subject               <- getString(item, "subject")
+                               maybeEnrollmentDateAV <- getStringOpt(item, "enrollmentDate")
+                               maybeEnrollmentDate   <-
+                                 maybeEnrollmentDateAV.fold[Either[String, Option[Instant]]](Right(None))(s =>
                                    parseInstant(s).map(i => Some(i))
                                  )
                              } yield Student(email, subject, maybeEnrollmentDate)
-        } yield assertTrue(foundStudent == Right(student))
+        } yield assertTrue(foundStudent == Right(expectedStudent))
       }.provideCustomLayer(LocalDdbServer.inMemoryLayer ++ DdbHelper.ddbLayer)
     )
 
