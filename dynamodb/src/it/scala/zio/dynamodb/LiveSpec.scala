@@ -29,6 +29,8 @@ object LiveSpec extends DefaultRunnableSpec {
     )
   )
 
+  val liveAws = http4s.default >>> config.default >>> dynamodb.live >>> DynamoDBExecutor.live
+
   val layer: ZLayer[Any, Throwable, Has[DynamoDBProxyServer] with Has[DynamoDBExecutor]] =
     ((http4s.default ++ awsConfig) >>> config.configured() >>> (dynamodb.customized { builder =>
       builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
@@ -62,7 +64,7 @@ object LiveSpec extends DefaultRunnableSpec {
                          AttributeDefinition.attrDefnNumber("age")
                        ).execute
         } yield TableName(tableName)
-      )(tName => deleteTable(tName.value).execute.orDie)
+      )(_ => ZIO.unit) //deleteTable(tName.value).execute.orDie)
 
   private def withTemporaryTable[A](f: String => ZIO[Has[DynamoDBExecutor], Throwable, TestResult]) =
     // TODO(adam): This is bad random
@@ -86,7 +88,6 @@ object LiveSpec extends DefaultRunnableSpec {
             chunk  <- stream.runCollect
           } yield assert(chunk)(
             equalTo(
-              // Order matters here
               Chunk(
                 Item("id" -> "second", "firstName" -> "adam", "age"       -> 2),
                 Item("id" -> "third", "firstName"  -> "john", "age"       -> 3),
@@ -133,9 +134,9 @@ object LiveSpec extends DefaultRunnableSpec {
                 _       <- updateItem(tName, PrimaryKey("id" -> "second", "age" -> 2))($("firstName").set("notAdam")).execute
                 updated <- getItem(
                              tName,
-                             PrimaryKey("id" -> "update", "age" -> 2)
+                             PrimaryKey("id" -> "second", "age" -> 2)
                            ).execute // TODO(adam): for some reason adding a projection expression here results in none
-              } yield assert(updated)(equalTo(Some(Item("id" -> "update", "age" -> 2, "firstName" -> "notAdam"))))
+              } yield assert(updated)(equalTo(Some(Item("id" -> "second", "age" -> 2, "firstName" -> "notAdam"))))
           }
         }
       )
