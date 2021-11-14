@@ -127,8 +127,8 @@ object UpdateExpression {
               .render(aliasMap)
           case ValueOperand(value)   => AliasMapRender.getOrInsert(value).map(identity).render(aliasMap)
           case PathOperand(path)     => (aliasMap, path.toString)
-          case ListAppend(_)         => ???
-          case ListPrepend(_)        => ???
+          case ListAppend(_)         => ??? //list.value.foldLeft(aliasMap) { case (acc, a) => AliasMapRender.getOrInsert(a) }
+          case ListPrepend(_)        => ??? //(aliasMap, list.render())
           case IfNotExists(_, value) => AliasMapRender.getOrInsert(value).map(_ => ???).render(aliasMap)
         }
       }

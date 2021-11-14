@@ -31,6 +31,28 @@ inThisBuild(
 addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
 
+lazy val copyJars = taskKey[Unit]("copyJars")
+
+def copyJarSetting(dir: String) =
+  Seq(
+    copyJars := {
+      import java.nio.file.Files
+      import java.io.File
+      // For Local Dynamo DB to work, we need to copy SQLLite native libs from
+      // our test dependencies into a directory that Java can find ("lib" in this case)
+      // Then in our Java/Scala program, we need to set System.setProperty("sqlite4java.library.path", "lib");
+      // before attempting to instantiate a DynamoDBEmbedded instance
+      val artifactTypes = Set("dylib", "so", "dll")
+      val files         = Classpaths.managedJars(sbt.Test, artifactTypes, update.value).files
+      Files.createDirectories(new File(s"$dir/native-libs").toPath)
+      files.foreach { f =>
+        val fileToCopy = new File(s"$dir/native-libs", f.name)
+        if (!fileToCopy.exists())
+          Files.copy(f.toPath, fileToCopy.toPath)
+      }
+    }
+  )
+
 val zioVersion       = "1.0.12"
 val zioConfigVersion = "1.0.6"
 val zioAwsVersion    = "3.17.42.5"
@@ -47,17 +69,25 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
   .configs(IntegrationTest)
   .settings(
     Defaults.itSettings,
+    resolvers += "DynamoDB Local Release Repository" at "https://s3-us-west-2.amazonaws.com/dynamodb-local/release",
+    resolvers += Resolver.sonatypeRepo("releases"),
+    copyJarSetting("dynamodb"),
+    (Compile / compile) := (Compile / compile).dependsOn(copyJars).value,
     libraryDependencies ++= Seq(
-      "dev.zio"         %% "zio"                     % zioVersion,
-      "dev.zio"         %% "zio-streams"             % zioVersion,
-      "dev.zio"         %% "zio-test"                % zioVersion % "it,test",
-      "dev.zio"         %% "zio-test-sbt"            % zioVersion % "it,test",
-      "dev.zio"         %% "zio-schema"              % "0.1.2",
-      "dev.zio"         %% "zio-config-typesafe"     % zioConfigVersion,
-      "io.github.vigoo" %% "zio-aws-http4s"          % zioAwsVersion,
-      "io.github.vigoo" %% "zio-aws-dynamodb"        % zioAwsVersion,
-      "io.github.vigoo" %% "zio-aws-dynamodbstreams" % zioAwsVersion,
-      "org.scala-lang"   % "scala-reflect"           % scalaVersion.value
+      "dev.zio"                 %% "zio"                        % zioVersion,
+      "dev.zio"                 %% "zio-streams"                % zioVersion,
+      "dev.zio"                 %% "zio-test"                   % zioVersion           % "it,test",
+      "dev.zio"                 %% "zio-test-sbt"               % zioVersion           % "it,test",
+      "dev.zio"                 %% "zio-schema"                 % "0.1.2",
+      "dev.zio"                 %% "zio-config-typesafe"        % zioConfigVersion,
+      "io.github.vigoo"         %% "zio-aws-http4s"             % zioAwsVersion,
+      "io.github.vigoo"         %% "zio-aws-dynamodb"           % zioAwsVersion,
+      "io.github.vigoo"         %% "zio-aws-dynamodbstreams"    % zioAwsVersion,
+      "org.scala-lang"           % "scala-reflect"              % scalaVersion.value,
+      "software.amazon.awssdk"   % "dynamodb"                   % "2.16.20",
+      "com.amazonaws"            % "DynamoDBLocal"              % "1.12.0"             % "it,test", // TODO: check latest version
+      "com.almworks.sqlite4java" % "libsqlite4java-linux-i386"  % "latest.integration" % "it,test",
+      "com.almworks.sqlite4java" % "libsqlite4java-linux-amd64" % "latest.integration" % "it,test"
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework")),
     Compile / sourceGenerators += Def.task {
