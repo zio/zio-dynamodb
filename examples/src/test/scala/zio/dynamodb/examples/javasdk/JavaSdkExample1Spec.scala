@@ -16,11 +16,11 @@ object JavaSdkExample1Spec extends DefaultRunnableSpec {
       testM("sdk example") {
         def parseInstant(s: String): Either[String, Instant] = Try(Instant.parse(s)).toEither.left.map(_.getMessage)
 
-        def getString(map: scala.collection.mutable.Map[String, AttributeValue], name: String): Either[String, String] =
+        def getString(map: Map[String, AttributeValue], name: String): Either[String, String] =
           map.get(name).toRight(s"mandatory field $name not found").map(_.s)
 
         def getStringOpt(
-          map: scala.collection.mutable.Map[String, AttributeValue],
+          map: Map[String, AttributeValue],
           name: String
         ): Either[Nothing, Option[String]] = Right(map.get(name).map(_.s))
 
@@ -55,7 +55,7 @@ object JavaSdkExample1Spec extends DefaultRunnableSpec {
                                )
                                .build()
           getItemResponse <- ZIO.fromCompletionStage(client.getItem(getItemRequest))
-          item             = getItemResponse.item.asScala
+          item             = getItemResponse.item.asScala.toMap
           foundStudent     = for {
                                email                 <- getString(item, "email")
                                subject               <- getString(item, "subject")
