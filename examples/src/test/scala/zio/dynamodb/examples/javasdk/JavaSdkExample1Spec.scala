@@ -4,6 +4,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.dynamodb.model.{ AttributeValue, GetItemRequest, PutItemRequest }
 import zio.ZIO
 import zio.dynamodb.examples.LocalDdbServer
+import zio.dynamodb.examples.javasdk.Payment.{ CreditCard, DebitCard, PayPal }
 import zio.test.{ assertTrue, DefaultRunnableSpec, ZSpec }
 
 import java.time.Instant
@@ -27,7 +28,14 @@ object JavaSdkExample1Spec extends DefaultRunnableSpec {
         def putItemRequestForStudent(student: Student) = {
           val mandatoryFields                                     = Map(
             "email"   -> AttributeValue.builder.s(student.email).build,
-            "subject" -> AttributeValue.builder.s(student.subject).build
+            "subject" -> AttributeValue.builder.s(student.subject).build,
+            "payment" -> AttributeValue.builder.s {
+              student.payment match {
+                case DebitCard  => "DebitCard"
+                case CreditCard => "CreditCard"
+                case PayPal     => "PayPal"
+              }
+            }.build
           )
           val nonEmptyOptionalFields: Map[String, AttributeValue] = Map(
             "enrollmentDate" -> student.enrollmentDate.map(instant => AttributeValue.builder.s(instant.toString).build)
@@ -41,7 +49,7 @@ object JavaSdkExample1Spec extends DefaultRunnableSpec {
         for {
           client          <- ZIO.service[DynamoDbAsyncClient]
           enrollmentDate  <- ZIO.fromEither(parseInstant("2021-03-20T01:39:33Z"))
-          expectedStudent  = Student("avi@gmail.com", "maths", Some(enrollmentDate))
+          expectedStudent  = Student("avi@gmail.com", "maths", Some(enrollmentDate), Payment.DebitCard)
           _               <- ZIO.fromCompletionStage(client.createTable(DdbHelper.createTableRequest))
           putItemRequest   = putItemRequestForStudent(expectedStudent)
           _               <- ZIO.fromCompletionStage(client.putItem(putItemRequest))
@@ -64,7 +72,13 @@ object JavaSdkExample1Spec extends DefaultRunnableSpec {
                                  maybeEnrollmentDateAV.fold[Either[String, Option[Instant]]](Right(None))(s =>
                                    parseInstant(s).map(i => Some(i))
                                  )
-                             } yield Student(email, subject, maybeEnrollmentDate)
+                               payment               <- getString(item, "payment")
+                               paymentType            = payment match {
+                                                          case "DebitCard"  => DebitCard
+                                                          case "CreditCard" => CreditCard
+                                                          case "PayPal"     => PayPal
+                                                        }
+                             } yield Student(email, subject, maybeEnrollmentDate, paymentType)
         } yield assertTrue(foundStudent == Right(expectedStudent))
       }.provideCustomLayer(LocalDdbServer.inMemoryLayer ++ DdbHelper.ddbLayer)
     )
