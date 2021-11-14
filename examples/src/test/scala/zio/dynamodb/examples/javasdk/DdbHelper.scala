@@ -11,14 +11,6 @@ import scala.jdk.CollectionConverters._
 import scala.language.implicitConversions
 
 object DdbHelper {
-  lazy val dynamoDbAsyncClient: DynamoDbAsyncClient = {
-    val dynamodb = DynamoDbAsyncClient
-      .builder()
-      .region(Region.US_EAST_1)
-      .endpointOverride(URI.create("http://localhost:8000"))
-      .build()
-    dynamodb
-  }
   val ddbLayer: ULayer[Has[DynamoDbAsyncClient]] = ZManaged
     .make(for {
       _       <- ZIO.unit
