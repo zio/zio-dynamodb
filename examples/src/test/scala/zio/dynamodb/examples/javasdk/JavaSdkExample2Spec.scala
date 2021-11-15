@@ -4,7 +4,8 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.dynamodb.model._
 import zio.dynamodb.examples.LocalDdbServer
 import zio.dynamodb.examples.javasdk.Payment.{ CreditCard, DebitCard, PayPal }
-import zio.test.{ assertTrue, DefaultRunnableSpec, ZSpec }
+import zio.test.Assertion.{ equalTo, isRight }
+import zio.test._
 import zio.{ Has, ZIO }
 
 import java.time.Instant
@@ -14,7 +15,7 @@ import scala.util.Try
 object JavaSdkExample2Spec extends DefaultRunnableSpec {
   override def spec: ZSpec[Environment, Failure] =
     suite("JavaSdkExample suite")(
-      testM("BatchWriteItem and GetItem") {
+      testM("BatchWriteItem and BatchGetItem") {
         def parseInstant(s: String): Either[String, Instant] = Try(Instant.parse(s)).toEither.left.map(_.getMessage)
 
         def getString(map: Map[String, AttributeValue], name: String): Either[String, String] =
@@ -25,11 +26,29 @@ object JavaSdkExample2Spec extends DefaultRunnableSpec {
           name: String
         ): Either[Nothing, Option[String]] = Right(map.get(name).map(_.s))
 
+        def batchGetItemRequest(studentPks: Seq[(String, String)]): BatchGetItemRequest = {
+          val keysAndAttributes = KeysAndAttributes.builder
+            .keys(
+              studentPks.map {
+                case (email, subject) =>
+                  Map(
+                    "email"   -> AttributeValue.builder().s(email).build(),
+                    "subject" -> AttributeValue.builder().s(subject).build()
+                  ).asJava
+              }.asJava
+            )
+            .build()
+
+          BatchGetItemRequest.builder
+            .requestItems(Map("student" -> keysAndAttributes).asJava)
+            .build()
+        }
+
         def batchWriteItemRequest(students: Seq[Student]): BatchWriteItemRequest = {
           val putRequests = students.map { student =>
             val request = PutRequest
               .builder()
-              .item(studentAttributeValueMap(student).asJava)
+              .item(studentToAttributeValueMap(student).asJava)
               .build()
             WriteRequest.builder().putRequest(request).build()
           }
@@ -40,7 +59,7 @@ object JavaSdkExample2Spec extends DefaultRunnableSpec {
             .build()
         }
 
-        def studentAttributeValueMap(student: Student): Map[String, AttributeValue] = {
+        def studentToAttributeValueMap(student: Student): Map[String, AttributeValue] = {
           val mandatoryFields                                     = Map(
             "email"   -> AttributeValue.builder.s(student.email).build,
             "subject" -> AttributeValue.builder.s(student.subject).build,
@@ -57,6 +76,22 @@ object JavaSdkExample2Spec extends DefaultRunnableSpec {
           ).filter(_._2.nonEmpty).view.mapValues(_.get).toMap
           mandatoryFields ++ nonEmptyOptionalFields
         }
+
+        def attributeValueMapToStudent(item: Map[String, AttributeValue]): Either[String, Student] =
+          for {
+            email                 <- getString(item, "email")
+            subject               <- getString(item, "subject")
+            maybeEnrollmentDateAV <- getStringOpt(item, "enrollmentDate")
+            maybeEnrollmentDate   <- maybeEnrollmentDateAV.fold[Either[String, Option[Instant]]](Right(None))(s =>
+                                       parseInstant(s).map(i => Some(i))
+                                     )
+            payment               <- getString(item, "payment")
+            paymentType            = payment match {
+                                       case "DebitCard"  => DebitCard
+                                       case "CreditCard" => CreditCard
+                                       case "PayPal"     => PayPal
+                                     }
+          } yield Student(email, subject, maybeEnrollmentDate, paymentType)
 
         def processBatchWrite(
           batchRequest: BatchWriteItemRequest
@@ -78,41 +113,44 @@ object JavaSdkExample2Spec extends DefaultRunnableSpec {
           }
         }
 
+        def processBatchGetItem(
+          batchRequest: BatchGetItemRequest
+        ): ZIO[Has[DynamoDbAsyncClient], Throwable, BatchGetItemResponse] = {
+          val result = for {
+            client   <- ZIO.service[DynamoDbAsyncClient]
+            response <- ZIO.fromCompletionStage(client.batchGetItem(batchRequest))
+          } yield response
+
+          result.flatMap {
+            case response if response.unprocessedKeys.isEmpty => ZIO.succeed(response)
+            case response                                     =>
+              processBatchGetItem(batchRequest =
+                BatchGetItemRequest.builder
+                  .requestItems(response.unprocessedKeys)
+                  .build
+              )
+          }
+        }
+
         for {
-          client          <- ZIO.service[DynamoDbAsyncClient]
-          enrollmentDate  <- ZIO.fromEither(parseInstant("2021-03-20T01:39:33Z"))
-          expectedStudent1 = Student("avi@gmail.com", "maths", Some(enrollmentDate), Payment.DebitCard)
-          expectedStudent2 = Student("adam@gmail.com", "english", Some(enrollmentDate), Payment.CreditCard)
-          _               <- ZIO.fromCompletionStage(client.createTable(DdbHelper.createTableRequest))
-          batchPutRequest  = batchWriteItemRequest(List(expectedStudent1, expectedStudent2))
-          _               <- processBatchWrite(batchPutRequest)
-          getItemRequest   = GetItemRequest.builder
-                               .tableName("student")
-                               .key(
-                                 Map(
-                                   "email"   -> AttributeValue.builder.s(expectedStudent1.email).build,
-                                   "subject" -> AttributeValue.builder.s(expectedStudent1.subject).build
-                                 ).asJava
-                               )
-                               .build()
-          getItemResponse <- ZIO.fromCompletionStage(client.getItem(getItemRequest))
-          item             = getItemResponse.item.asScala.toMap
-          foundStudent     = for {
-                               email                 <- getString(item, "email")
-                               subject               <- getString(item, "subject")
-                               maybeEnrollmentDateAV <- getStringOpt(item, "enrollmentDate")
-                               maybeEnrollmentDate   <-
-                                 maybeEnrollmentDateAV.fold[Either[String, Option[Instant]]](Right(None))(s =>
-                                   parseInstant(s).map(i => Some(i))
-                                 )
-                               payment               <- getString(item, "payment")
-                               paymentType            = payment match {
-                                                          case "DebitCard"  => DebitCard
-                                                          case "CreditCard" => CreditCard
-                                                          case "PayPal"     => PayPal
-                                                        }
-                             } yield Student(email, subject, maybeEnrollmentDate, paymentType)
-        } yield assertTrue(foundStudent == Right(expectedStudent1))
+          client               <- ZIO.service[DynamoDbAsyncClient]
+          enrollmentDate       <- ZIO.fromEither(parseInstant("2021-03-20T01:39:33Z"))
+          expectedStudent1      = Student("avi@gmail.com", "maths", Some(enrollmentDate), Payment.DebitCard)
+          expectedStudent2      = Student("adam@gmail.com", "english", Some(enrollmentDate), Payment.CreditCard)
+          students              = List(expectedStudent1, expectedStudent2)
+          _                    <- ZIO.fromCompletionStage(client.createTable(DdbHelper.createTableRequest))
+          batchPutRequest       = batchWriteItemRequest(students)
+          _                    <- processBatchWrite(batchPutRequest)
+          batchGetItemResponse <- processBatchGetItem(batchGetItemRequest(students.map(st => (st.email, st.subject))))
+          listOfErrorOrStudent  =
+            batchGetItemResponse.responses.asScala.get("student").fold[List[Either[String, Student]]](List.empty) {
+              javaList =>
+                val listOfErrorOrStudent: List[Either[String, Student]] =
+                  javaList.asScala.map(m => attributeValueMapToStudent(m.asScala.toMap)).toList
+                listOfErrorOrStudent
+            }
+          errorOrStudents       = zio.dynamodb.foreach(listOfErrorOrStudent)(identity)
+        } yield assert(errorOrStudents)(isRight(equalTo(students)))
       }.provideCustomLayer(LocalDdbServer.inMemoryLayer ++ DdbHelper.ddbLayer)
     )
 
