@@ -172,7 +172,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       projectionExpression = toOption(querySome.projections).map(_.mkString(", ")),
       filterExpression = querySome.filterExpression.map(filterExpression => filterExpression.render()),
       expressionAttributeValues = keyConditionExpr.flatMap(c => aliasMapToExpressionZIOAwsAttributeValues(c._1)),
-      keyConditionExpression = keyConditionExpr.map(_._2) //querySome.keyConditionExpression.map(_.render())
+      keyConditionExpression = keyConditionExpr.map(_._2)
     )
   }
 

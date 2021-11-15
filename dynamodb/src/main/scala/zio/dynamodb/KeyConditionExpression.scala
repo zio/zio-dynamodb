@@ -2,7 +2,7 @@ package zio.dynamodb
 
 final case class AliasMap private (map: Map[AttributeValue, String], index: Int = 0) { self =>
   // REVIEW: Is this a reasonable interface?
-  def +(entry: AttributeValue): (AliasMap, String) = {
+  private def +(entry: AttributeValue): (AliasMap, String) = {
     val variableAlias = s":v${self.index}"
     (AliasMap(self.map + ((entry, variableAlias)), self.index + 1), variableAlias)
   }
@@ -37,32 +37,42 @@ final case class AliasMapRender[+A](
       f(a).render(am)
     }
 
+  def zipWith[B, C](that: AliasMapRender[B])(f: (A, B) => C): AliasMapRender[C] =
+    for {
+      a <- self
+      b <- that
+    } yield f(a, b)
+
 }
 
 object AliasMapRender {
   def getOrInsert(entry: AttributeValue): AliasMapRender[String] =
     AliasMapRender { aliasMap =>
-      aliasMap.map.get(entry).map(varName => (aliasMap, varName)).getOrElse {
-        aliasMap + entry
-      }
+      aliasMap.getOrInsert(entry)
     }
+
+  def succeed[A](a: => A): AliasMapRender[A] = AliasMapRender(aliasMap => (aliasMap, a))
+
+  val getMap: AliasMapRender[AliasMap] = AliasMapRender(aliasMap => (aliasMap, aliasMap))
+
+  def setMap(aliasMap: AliasMap): AliasMapRender[Unit] =
+    AliasMapRender { _ =>
+      (aliasMap, ())
+    }
+
 }
 
 sealed trait KeyConditionExpression { self =>
-  // REVIEW: should render take an AliasMap or does that not make sense?
-  def render(): AliasMapRender[String] =
-    AliasMapRender { aliasMap =>
-      self match {
-        case KeyConditionExpression.And(left, right) =>
-          // REVIEW: does this make sense?
-          left
-            .render()
-            .flatMap { leftRender =>
-              right.render().map(rightRender => s"$leftRender AND $rightRender")
-            }
-            .render(aliasMap)
-        case expression: PartitionKeyExpression      => expression.render().render(aliasMap)
-      }
+  def render: AliasMapRender[String] =
+    self match {
+      case KeyConditionExpression.And(left, right) =>
+        // TODO(adam): clean this up with zipwith
+        left
+          .render()
+          .flatMap { leftRender =>
+            right.render.map(rightRender => s"$leftRender AND $rightRender")
+          }
+      case expression: PartitionKeyExpression      => expression.render()
     }
 }
 
@@ -91,7 +101,7 @@ object PartitionKeyExpression {
 }
 
 sealed trait SortKeyExpression { self =>
-  def render(): AliasMapRender[String] =
+  def render: AliasMapRender[String] =
     self match {
       case SortKeyExpression.Equals(left, right)             =>
         AliasMapRender

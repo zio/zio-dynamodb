@@ -18,6 +18,8 @@ import zio.test.Assertion._
 import zio.test.environment._
 import zio.duration._
 import software.amazon.awssdk.regions.Region
+import zio.test.TestAspect.around // TODO(adam): Ap
+//import zio.test.TestAspect.nondeterministic
 
 import java.net.URI
 
@@ -158,15 +160,17 @@ object LiveSpec extends DefaultRunnableSpec {
           }
         },
         testM("query table greater than") {
-          withDefaultPopulatedTable { tableName =>
-            for {
-              (chunk, _) <- querySomeItem(tableName, 10, $("firstName"))
-                              .whereKey(PartitionKey("id") === "first" && SortKey("age") > 0)
-                              .execute
+          withDefaultPopulatedTable {
+            tableName =>
+              for {
+                (chunk, _) <- querySomeItem(tableName, 10, $("firstName"))
+                                .whereKey(PartitionKey("id") === "first" && SortKey("age") > 0)
+                                .execute
 
-            } yield assert(chunk)(
-              equalTo(Chunk(Item("firstName" -> "avi"), Item("firstName" -> "anotherAvi")))
-            ) // REVIEW(john): somehow getting chunk out of bound exception with empty queries (when results are empty)
+              } yield assert(chunk)(
+                equalTo(Chunk(Item("firstName" -> "avi"), Item("firstName" -> "anotherAvi")))
+              ) // REVIEW(john): somehow getting chunk out of bound exception with empty queries (when results are empty)
+            // Suspect that there is an edge case in the auto batch/auto parallelize code that could be causing this issue
           }
         },
         testM("SortKeyCondition between") {
@@ -182,15 +186,19 @@ object LiveSpec extends DefaultRunnableSpec {
         }
       ),
       suite("update items")(
+        // add an @@ ignore annotation
         testM("update name") {
-          withDefaultPopulatedTable { tableName =>
-            for {
-              _       <- updateItem(tableName, adamPrimaryKey)($("firstName").set("notAdam")).execute
-              updated <- getItem(
-                           tableName,
-                           adamPrimaryKey
-                         ).execute // TODO(adam): for some reason adding a projection expression here results in none
-            } yield assert(updated)(equalTo(Some(Item("id" -> "second", "age" -> 2, "firstName" -> "notAdam"))))
+          withDefaultPopulatedTable {
+            tableName =>
+              for {
+                _       <- updateItem(tableName, adamPrimaryKey)($("firstName").set("notAdam")).execute
+                updated <- getItem(
+                             tableName,
+                             adamPrimaryKey,
+                             $("firstName")
+                           ).execute // TODO(adam): for some reason adding a projection expression here results in none
+                // Expected to be a bug somewhere -- possibly write a ticket
+              } yield assert(updated)(equalTo(Some(Item("firstName" -> "notAdam"))))
           }
         },
         testM("remove field from row") {
@@ -315,4 +323,6 @@ object LiveSpec extends DefaultRunnableSpec {
     )
       .provideCustomLayerShared(layer.orDie)
 //      .provideCustomLayerShared(liveAws.orDie)
+  //@@ around (???)(???) // TODO: implement
+//  @@ nondeterministic
 }

@@ -35,7 +35,7 @@ sealed trait AttributeValue { self =>
         s""""B": "${Base64.getEncoder.encodeToString(value.toArray)}"""" // is base64 encoded when sent to AWS
       case AttributeValue.BinarySet(value) => value.toString()
       case AttributeValue.Bool(value)      =>
-        value.toString // REVIEW(john) -- does this make sense? -- expected to be lowercase by AWS
+        value.toString
       case AttributeValue.List(value)      => value.map(_.render()).mkString("[", ",", "]")
       case AttributeValue.Map(value)       => value.toString()
       case AttributeValue.Number(value)    => value.toString()
