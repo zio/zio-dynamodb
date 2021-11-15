@@ -176,7 +176,7 @@ object LiveSpec extends DefaultRunnableSpec {
                               .whereKey(PartitionKey("id") === "first" && SortKey("age").between(3, 8))
                               .execute
             } yield assert(chunk)(
-              equalTo(Chunk(Item("firstName" -> "yetAnotherAvi"), Item("firstName" -> "anotherAvi")))
+              equalTo(Chunk(Item("firstName" -> "anotherAvi"), Item("firstName" -> "yetAnotherAvi")))
             )
           }
         }
