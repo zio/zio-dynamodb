@@ -105,31 +105,33 @@ object UpdateExpression {
   sealed trait SetOperand { self =>
     import SetOperand._
 
-    def +(that: SetOperand): SetOperand = Minus(self, that)
-    def -(that: SetOperand): SetOperand = Plus(self, that)
+    def +(that: SetOperand): SetOperand = Plus(self, that)
+    def -(that: SetOperand): SetOperand = Minus(self, that)
 
     def render(): AliasMapRender[String] =
       AliasMapRender { aliasMap =>
         self match {
-          case Minus(left, right)    =>
+          case Minus(left, right)                      =>
             left
               .render()
               .flatMap { l =>
                 right.render().map(r => s"$l - $r")
               }
               .render(aliasMap)
-          case Plus(left, right)     =>
+          case Plus(left, right)                       =>
             left
               .render()
               .flatMap { l =>
                 right.render().map(r => s"$l + $r")
               }
               .render(aliasMap)
-          case ValueOperand(value)   => AliasMapRender.getOrInsert(value).map(identity).render(aliasMap)
-          case PathOperand(path)     => (aliasMap, path.toString)
-          case ListAppend(_)         => ??? //list.value.foldLeft(aliasMap) { case (acc, a) => AliasMapRender.getOrInsert(a) }
-          case ListPrepend(_)        => ??? //(aliasMap, list.render())
-          case IfNotExists(_, value) => AliasMapRender.getOrInsert(value).map(_ => ???).render(aliasMap)
+          case ValueOperand(value)                     => AliasMapRender.getOrInsert(value).map(identity).render(aliasMap)
+          case PathOperand(path)                       => (aliasMap, path.toString)
+          case ListAppend(projectionExpression, list)  =>
+            AliasMapRender.getOrInsert(list).map(v => s"list_append($projectionExpression, $v)").render(aliasMap)
+          case ListPrepend(projectionExpression, list) =>
+            AliasMapRender.getOrInsert(list).map(v => s"list_append($v, $projectionExpression)").render(aliasMap)
+          case IfNotExists(_, value)                   => AliasMapRender.getOrInsert(value).map(_ => ???).render(aliasMap)
         }
       }
 
@@ -141,8 +143,13 @@ object UpdateExpression {
     private[dynamodb] final case class PathOperand(path: ProjectionExpression)    extends SetOperand
 
     // functions
-    private[dynamodb] final case class ListAppend(list: AttributeValue.List)                          extends SetOperand
-    private[dynamodb] final case class ListPrepend(list: AttributeValue.List)                         extends SetOperand
+    // list_append takes two arguments
+    private[dynamodb] final case class ListAppend(projectionExpression: ProjectionExpression, list: AttributeValue.List)
+        extends SetOperand
+    private[dynamodb] final case class ListPrepend(
+      projectionExpression: ProjectionExpression,
+      list: AttributeValue.List
+    )                                                                                                 extends SetOperand
     private[dynamodb] final case class IfNotExists(path: ProjectionExpression, value: AttributeValue) extends SetOperand
   }
 }

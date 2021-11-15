@@ -5,6 +5,8 @@ import io.github.vigoo.zioaws.core.config
 import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
 import zio.blocking.Blocking
 import zio.clock.Clock
+import zio.dynamodb.UpdateExpression.Action.SetAction
+import zio.dynamodb.UpdateExpression.SetOperand
 import zio.dynamodb.PartitionKeyExpression.PartitionKey
 import zio.dynamodb.SortKeyExpression.SortKey
 import io.github.vigoo.zioaws.{ dynamodb, http4s }
@@ -16,6 +18,7 @@ import zio.test.Assertion._
 import zio.test.environment._
 import zio.duration._
 import software.amazon.awssdk.regions.Region
+
 import java.net.URI
 
 object LiveSpec extends DefaultRunnableSpec {
@@ -58,6 +61,11 @@ object LiveSpec extends DefaultRunnableSpec {
     createTable(tableName, KeySchema("id", "age"), BillingMode.PayPerRequest)(
       AttributeDefinition.attrDefnString("id"),
       AttributeDefinition.attrDefnNumber("age")
+    )
+
+  def numberTable(tableName: String) =
+    createTable(tableName, KeySchema("id"), BillingMode.PayPerRequest)(
+      AttributeDefinition.attrDefnNumber("id")
     )
 
   private def managedTable(seed: Long, tableDefinition: String => CreateTable) =
@@ -177,8 +185,62 @@ object LiveSpec extends DefaultRunnableSpec {
               equalTo(Some(Item("id" -> "second", "age" -> 2, "firstName" -> "adam", "listThing" -> List(1, 2))))
             )
           }
+        },
+        testM("append to list") {
+          withDefaultPopulatedTable {
+            tName =>
+              for {
+                _       <- updateItem(tName, adamPrimaryKey)($("listThing").set(List(1))).execute
+                _       <- updateItem(tName, adamPrimaryKey)($("listThing").appendList(Chunk(2, 3, 4))).execute
+                // REVIEW(john): Getting None when a projection expression is added here
+                updated <- getItem(tName, adamPrimaryKey).execute
+              } yield assert(
+                updated.map(a =>
+                  a.get("listThing")(
+                    FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
+                  )
+                )
+              )(equalTo(Some(Right(List(1, 2, 3, 4)))))
+          }
+        },
+        testM("add number") {
+          withTemporaryTable(
+            numberTable,
+            tName =>
+              for {
+                _       <- putItem(tName, Item("id" -> 1, "num" -> 0)).execute
+                _       <- updateItem(tName, PrimaryKey("id" -> 1))(
+                             SetAction(
+                               $("num"),
+                               SetOperand.PathOperand($("num")) + SetOperand.ValueOperand(
+                                 AttributeValue.Number(5)
+                               )
+                             )
+                           ).execute
+                updated <- getItem(tName, PrimaryKey("id" -> 1)).execute
+              } yield assert(updated)(equalTo(Some(Item("id" -> 1, "num" -> 5))))
+          )
+        },
+        testM("subtract number") {
+          withTemporaryTable(
+            numberTable,
+            tName =>
+              for {
+                _       <- putItem(tName, Item("id" -> 1, "num" -> 0)).execute
+                _       <- updateItem(tName, PrimaryKey("id" -> 1))(
+                             SetAction(
+                               $("num"),
+                               SetOperand.PathOperand($("num")) - SetOperand.ValueOperand(
+                                 AttributeValue.Number(2)
+                               )
+                             )
+                           ).execute
+                updated <- getItem(tName, PrimaryKey("id" -> 1)).execute
+              } yield assert(updated)(equalTo(Some(Item("id" -> 1, "num" -> -2))))
+          )
         }
       )
     )
       .provideCustomLayerShared(layer.orDie)
+//      .provideCustomLayerShared(liveAws.orDie)
 }

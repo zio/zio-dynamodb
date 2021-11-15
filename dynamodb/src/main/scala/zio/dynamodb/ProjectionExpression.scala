@@ -140,13 +140,13 @@ sealed trait ProjectionExpression { self =>
    * Add list `xs` to the end of this PathExpression
    */
   def appendList[A](xs: Iterable[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
-    UpdateExpression.Action.SetAction(self, ListAppend(AttributeValue.List(xs.map(t.toAttributeValue))))
+    UpdateExpression.Action.SetAction(self, ListAppend(self, AttributeValue.List(xs.map(t.toAttributeValue))))
 
   /**
    * Add list `xs` to the beginning of this PathExpression
    */
   def prependList[A](xs: Iterable[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
-    UpdateExpression.Action.SetAction(self, ListPrepend(AttributeValue.List(xs.map(t.toAttributeValue))))
+    UpdateExpression.Action.SetAction(self, ListPrepend(self, AttributeValue.List(xs.map(t.toAttributeValue))))
 
   /**
    * Updating Numbers and Sets
