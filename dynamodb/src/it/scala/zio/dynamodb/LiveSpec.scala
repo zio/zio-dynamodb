@@ -203,6 +203,22 @@ object LiveSpec extends DefaultRunnableSpec {
               )(equalTo(Some(Right(List(1, 2, 3, 4)))))
           }
         },
+        testM("prepend to list") {
+          withDefaultPopulatedTable {
+            tName =>
+              for {
+                _       <- updateItem(tName, adamPrimaryKey)($("listThing").set(List(1))).execute
+                _       <- updateItem(tName, adamPrimaryKey)($("listThing").prependList(Chunk(-1, 0))).execute
+                updated <- getItem(tName, adamPrimaryKey).execute
+              } yield assert(
+                updated.map(a =>
+                  a.get("listThing")(
+                    FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
+                  )
+                )
+              )(equalTo(Some(Right(List(-1, 0, 1)))))
+          }
+        },
         testM("add number") {
           withTemporaryTable(
             numberTable,
