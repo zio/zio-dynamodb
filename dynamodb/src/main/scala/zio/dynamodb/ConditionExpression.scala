@@ -42,6 +42,7 @@ sealed trait ConditionExpression { self =>
   def ||(that: ConditionExpression): ConditionExpression = Or(self, that)
   def unary_! : ConditionExpression                      = Not(self)
 
+  // TODO(adam): Needs to be AliasMapRender[String]
   def render(): String =
     self match {
       case Between(left, minValue, maxValue)  =>
