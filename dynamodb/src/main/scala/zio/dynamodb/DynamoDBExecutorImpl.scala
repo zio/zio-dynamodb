@@ -304,11 +304,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       (for {
         a <- dynamoDb.batchGetItem(generateBatchGetItemRequest(batchGetItem))
         b <- a.responses
-        _  = println(b)
       } yield BatchGetItem.Response(
         b.foldLeft(MapOfSet.empty[TableName, Item]) {
           case (acc, (tableName, list)) =>
-            println(s"acc: $acc, list: ${list.map(toDynamoItem)}")
             acc ++ ((TableName(tableName), list.map(toDynamoItem)))
         }
       )).mapError(_.toThrowable)
@@ -379,36 +377,43 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   private def awsAttrValToAttrVal(attributeValue: ZIOAwsAttributeValue.ReadOnly): Option[AttributeValue] =
     attributeValue.sValue
       .map(AttributeValue.String)
-      .orElse(
+      .orElse {
         attributeValue.nValue.map(n => AttributeValue.Number(BigDecimal(n)))
-      )   // TODO(adam): Does the BigDecimal need a try wrapper?
-      .orElse(
+      } // TODO(adam): Does the BigDecimal need a try wrapper?
+      .orElse {
         attributeValue.bValue.map(b => AttributeValue.Binary(b))
-      )
-      .orElse(
-        attributeValue.ssValue.map(s =>
-          AttributeValue.StringSet(s.toSet)
+      }
+      .orElse {
+        attributeValue.nsValue.flatMap(ns =>
+          toOption(ns).map(ns => AttributeValue.NumberSet(ns.map(BigDecimal(_)).toSet))
+        )
+        // TODO(adam): Wrap in try?
+      }
+      .orElse {
+        attributeValue.ssValue.flatMap(s =>
+          toOption(s).map(a => AttributeValue.StringSet(a.toSet))
         ) // TODO(adam): Is this `toSet` actually safe to do?
-      )
-      .orElse(
-        attributeValue.nsValue.map(ns =>
-          AttributeValue.NumberSet(ns.map(BigDecimal(_)).toSet)
-        ) // TODO(adam): Wrap in try?
-      )
-      .orElse(
-        attributeValue.bsValue.map(bs => AttributeValue.BinarySet(bs.toSet))
-      )
-      .orElse(
-        attributeValue.mValue.map(m =>
-          AttributeValue.Map(
-            m.flatMap {
-              case (k, v) =>
-                awsAttrValToAttrVal(v).map(attrVal => (AttributeValue.String(k), attrVal))
-            }
+      }
+      .orElse {
+        attributeValue.bsValue.flatMap(bs => toOption(bs).map(bs => AttributeValue.BinarySet(bs.toSet)))
+      }
+      .orElse {
+        attributeValue.mValue.flatMap(m =>
+          toOption(m).map(m =>
+            AttributeValue.Map(
+              m.flatMap {
+                case (k, v) =>
+                  awsAttrValToAttrVal(v).map(attrVal => (AttributeValue.String(k), attrVal))
+              }
+            )
           )
         )
-      )
-      .orElse(attributeValue.lValue.map(l => AttributeValue.List(l.flatMap(awsAttrValToAttrVal))))
+      }
+      .orElse {
+        attributeValue.lValue.flatMap(l =>
+          toOption(l).map(l => AttributeValue.List(Chunk.fromIterable(l.flatMap(awsAttrValToAttrVal))))
+        )
+      }
       .orElse(attributeValue.nulValue.map(_ => AttributeValue.Null))
       .orElse(attributeValue.boolValue.map(AttributeValue.Bool))
 
@@ -435,6 +440,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
 
   private def toOption[A](set: Set[A]): Option[Set[A]] =
     if (set.isEmpty) None else Some(set)
+
+  private def toOption[A, B](map: ScalaMap[A, B]): Option[ScalaMap[A, B]] =
+    if (map.isEmpty) None else Some(map)
 
   private def buildAwsReturnValue(
     returnValues: ReturnValues
