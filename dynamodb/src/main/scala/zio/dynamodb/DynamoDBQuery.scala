@@ -521,7 +521,7 @@ object DynamoDBQuery {
       }
 
     /*
-     for each added GetItem, check if its key exists in the response and create a corresponding Optional Item value
+     for each added GetItem, check it's key exists in the response and create a corresponding Optional Item value
      */
     def toGetItemResponses(response: BatchGetItem.Response): Chunk[Option[Item]] = {
       val chunk: Chunk[Option[Item]] = orderedGetItems.foldLeft[Chunk[Option[Item]]](Chunk.empty) {
@@ -591,7 +591,7 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class DescribeTable(
     tableName: TableName
-  ) extends Constructor[DescribeTableResponse] // TODO(adam): Should be a DescribeTableResponse case class
+  ) extends Constructor[DescribeTableResponse]
 
   sealed trait TableStatus
   object TableStatus {
@@ -604,6 +604,7 @@ object DynamoDBQuery {
     case object Archived                          extends TableStatus
   }
 
+  // TODO(adam): Add more fields here, this was for some basic testing initially
   final case class DescribeTableResponse(
     tableArn: String,
     tableStatus: TableStatus

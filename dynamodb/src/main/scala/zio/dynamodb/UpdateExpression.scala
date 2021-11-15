@@ -43,7 +43,6 @@ delete-action ::=
 // Note this implementation does not preserve the original order of actions ie after "Set field1 = 1, field1 = 2"
 // if this turns out to be a problem we could change the internal implementation
 final case class UpdateExpression(action: Action) { self =>
-  // TODO(adam): Implement
   def render(): AliasMapRender[String] =
     AliasMapRender { aliasMap =>
       action.render().render(aliasMap)
@@ -144,7 +143,7 @@ object UpdateExpression {
     private[dynamodb] final case class PathOperand(path: ProjectionExpression)    extends SetOperand
 
     // functions
-    // list_append takes two arguments
+    // list_append takes two arguments, currently just assuming that we'll be using this to append to an existing item
     private[dynamodb] final case class ListAppend(projectionExpression: ProjectionExpression, list: AttributeValue.List)
         extends SetOperand
     private[dynamodb] final case class ListPrepend(

@@ -340,5 +340,3 @@ lazy val docs = project
     docusaurusPublishGhpages := docusaurusPublishGhpages.dependsOn(unidoc in Compile).value
   )
   .enablePlugins(MdocPlugin, DocusaurusPlugin, ScalaUnidocPlugin)
-
-//(compile in Compile) := (compile in Compile).dependsOn(copyJars).value
