@@ -153,9 +153,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       projectionExpression = toOption(queryAll.projections).map(_.mkString(", ")),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(queryAll.capacity)),
       filterExpression = queryAll.filterExpression.map(filterExpression => filterExpression.render()),
-      expressionAttributeValues = keyConditionExpr.map(_._1.map.map {
-        case (attrVal, str) => (str, buildAwsAttributeValue(attrVal))
-      }),
+      expressionAttributeValues = keyConditionExpr.flatMap(c => aliasMapToExpressionZIOAwsAttributeValues(c._1)),
       keyConditionExpression = keyConditionExpr.map(_._2)
     )
   }
@@ -173,9 +171,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(querySome.capacity)),
       projectionExpression = toOption(querySome.projections).map(_.mkString(", ")),
       filterExpression = querySome.filterExpression.map(filterExpression => filterExpression.render()),
-      expressionAttributeValues = keyConditionExpr.map(_._1.map.map {
-        case (attrVal, str) => (str, buildAwsAttributeValue(attrVal))
-      }),
+      expressionAttributeValues = keyConditionExpr.flatMap(c => aliasMapToExpressionZIOAwsAttributeValues(c._1)),
       keyConditionExpression = keyConditionExpr.map(_._2) //querySome.keyConditionExpression.map(_.render())
     )
   }
@@ -248,9 +244,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(updateItem.capacity)),
       returnItemCollectionMetrics = Some(buildAwsItemMetrics(updateItem.itemMetrics)),
       updateExpression = Some(updateExpr),
-      expressionAttributeValues = Some(map.map.map {
-        case (attrVal, str) => (str, buildAwsAttributeValue(attrVal))
-      }),
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(map),
       conditionExpression = updateItem.conditionExpression.map(_.toString)
     )
   }
@@ -536,6 +530,15 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       hashKeyElement.appended(KeySchemaElement(attributeName = sortKey, keyType = KeyType.RANGE))
     )
   }
+
+  private def aliasMapToExpressionZIOAwsAttributeValues(
+    aliasMap: AliasMap
+  ): Option[ScalaMap[String, ZIOAwsAttributeValue]] =
+    if (aliasMap.isEmpty) None
+    else
+      Some(aliasMap.map.map {
+        case (attrVal, str) => (str, buildAwsAttributeValue(attrVal))
+      })
 
   private def buildAwsAttributeValue(
     attributeVal: AttributeValue

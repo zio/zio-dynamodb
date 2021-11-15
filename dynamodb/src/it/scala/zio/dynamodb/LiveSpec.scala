@@ -36,6 +36,7 @@ object LiveSpec extends DefaultRunnableSpec {
       builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
     } >>> DynamoDBExecutor.live)) ++ (Blocking.live >>> LocalDdbServer.inMemoryLayer)
 
+  val adamPrimaryKey                                                         = PrimaryKey("id" -> "second", "age" -> 2)
   def insertPeople(tName: String)                                            =
     putItem(tName, Item("id" -> "first", "firstName" -> "avi", "age" -> 1)) *>
       putItem(tName, Item("id" -> "first", "firstName" -> "anotherAvi", "age" -> 4)) *>
@@ -53,37 +54,54 @@ object LiveSpec extends DefaultRunnableSpec {
     }
       .retry(Schedule.spaced(2.seconds) && Schedule.recurs(5))
 
-  private def managedTable(seed: Long) =
+  private def defaultTable(tableName: String) =
+    createTable(tableName, KeySchema("id", "age"), BillingMode.PayPerRequest)(
+      AttributeDefinition.attrDefnString("id"),
+      AttributeDefinition.attrDefnNumber("age")
+    )
+
+  private def managedTable(seed: Long, tableDefinition: String => CreateTable) =
     ZManaged
       .make(
         for {
           _         <- TestRandom.setSeed(seed)
           tableName <- random.nextUUID.map(_.toString)
-          _         <- createTable(tableName, KeySchema("id", "age"), BillingMode.PayPerRequest)(
-                         AttributeDefinition.attrDefnString("id"),
-                         AttributeDefinition.attrDefnNumber("age")
-                       ).execute
+          _         <- tableDefinition(tableName).execute
         } yield TableName(tableName)
-      )(_ => ZIO.unit) //deleteTable(tName.value).execute.orDie)
+      )(tName => deleteTable(tName.value).execute.orDie)
 
-  private def withTemporaryTable[A](f: String => ZIO[Has[DynamoDBExecutor], Throwable, TestResult]) =
+  def withTemporaryTable[A](
+    tableDefinition: String => CreateTable,
+    f: String => ZIO[Has[DynamoDBExecutor], Throwable, TestResult]
+  ) =
     // TODO(adam): This is bad random
-    managedTable(scala.util.Random.nextLong()).use(table => f(table.value))
+    managedTable(scala.util.Random.nextLong(), tableDefinition).use(table => f(table.value))
+
+  def withDefaultPopulatedTable[A](
+    f: String => ZIO[Has[DynamoDBExecutor], Throwable, TestResult]
+  ) =
+    managedTable(scala.util.Random.nextLong(), defaultTable).use { table =>
+      for {
+        _      <- insertPeople(table.value).execute
+        result <- f(table.value)
+      } yield result
+    }
 
   override def spec: ZSpec[TestEnvironment, Any] =
     suite("live test")(
       testM("put and get item") {
-        withTemporaryTable { name =>
-          for {
-            _      <- putItem(name, Item("id" -> "first", "testName" -> "put and get item", "age" -> 20)).execute
-            result <- getItem(name, PrimaryKey("id" -> "first", "age" -> 20)).execute
-          } yield assert(result)(equalTo(Some(Item("id" -> "first", "testName" -> "put and get item", "age" -> 20))))
-        }
+        withTemporaryTable(
+          defaultTable,
+          name =>
+            for {
+              _      <- putItem(name, Item("id" -> "first", "testName" -> "put and get item", "age" -> 20)).execute
+              result <- getItem(name, PrimaryKey("id" -> "first", "age" -> 20)).execute
+            } yield assert(result)(equalTo(Some(Item("id" -> "first", "testName" -> "put and get item", "age" -> 20))))
+        )
       },
       testM("scan table") {
-        withTemporaryTable { name =>
+        withDefaultPopulatedTable { name =>
           for {
-            _      <- insertPeople(name).execute
             stream <- scanAllItem(name).execute
             chunk  <- stream.runCollect
           } yield assert(chunk)(
@@ -99,10 +117,9 @@ object LiveSpec extends DefaultRunnableSpec {
         }
       },
       suite("query tables")(
-        testM("query table") {
-          withTemporaryTable { tName =>
+        testM("query less than") {
+          withDefaultPopulatedTable { tName =>
             for {
-              _          <- insertPeople(tName).execute
               (chunk, _) <- querySomeItem(tName, 10, $("firstName"))
                               .whereKey(PartitionKey("id") === "first" && SortKey("age") < 2)
                               .execute
@@ -112,9 +129,8 @@ object LiveSpec extends DefaultRunnableSpec {
           }
         },
         testM("query table greater than") {
-          withTemporaryTable { tName =>
+          withDefaultPopulatedTable { tName =>
             for {
-              _          <- insertPeople(tName).execute
               (chunk, _) <- querySomeItem(tName, 10, $("firstName"))
                               .whereKey(PartitionKey("id") === "first" && SortKey("age") > 0)
                               .execute
@@ -127,16 +143,39 @@ object LiveSpec extends DefaultRunnableSpec {
       ),
       suite("update items")(
         testM("update name") {
-          withTemporaryTable {
-            tName =>
-              for {
-                _       <- insertPeople(tName).execute
-                _       <- updateItem(tName, PrimaryKey("id" -> "second", "age" -> 2))($("firstName").set("notAdam")).execute
-                updated <- getItem(
-                             tName,
-                             PrimaryKey("id" -> "second", "age" -> 2)
-                           ).execute // TODO(adam): for some reason adding a projection expression here results in none
-              } yield assert(updated)(equalTo(Some(Item("id" -> "second", "age" -> 2, "firstName" -> "notAdam"))))
+          withDefaultPopulatedTable { tName =>
+            for {
+              _       <- updateItem(tName, adamPrimaryKey)($("firstName").set("notAdam")).execute
+              updated <- getItem(
+                           tName,
+                           adamPrimaryKey
+                         ).execute // TODO(adam): for some reason adding a projection expression here results in none
+            } yield assert(updated)(equalTo(Some(Item("id" -> "second", "age" -> 2, "firstName" -> "notAdam"))))
+          }
+        },
+        testM("remove field from row") {
+          withDefaultPopulatedTable { tName =>
+            for {
+              _       <- updateItem(tName, adamPrimaryKey)($("firstName").remove).execute
+              updated <- getItem(
+                           tName,
+                           adamPrimaryKey
+                         ).execute
+            } yield assert(updated)(equalTo(Some(Item("id" -> "second", "age" -> 2))))
+          }
+        },
+        testM("insert item into list") {
+          withDefaultPopulatedTable { tName =>
+            for {
+              _       <- updateItem(tName, adamPrimaryKey)($("listThing").set(List(1))).execute
+              _       <- updateItem(tName, adamPrimaryKey)($("listThing[1]").set(2)).execute
+              updated <- getItem(
+                           tName,
+                           adamPrimaryKey
+                         ).execute
+            } yield assert(updated)(
+              equalTo(Some(Item("id" -> "second", "age" -> 2, "firstName" -> "adam", "listThing" -> List(1, 2))))
+            )
           }
         }
       )
