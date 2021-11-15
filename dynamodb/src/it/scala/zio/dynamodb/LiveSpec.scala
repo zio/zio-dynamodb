@@ -254,7 +254,31 @@ object LiveSpec extends DefaultRunnableSpec {
                 updated <- getItem(tName, PrimaryKey("id" -> 1)).execute
               } yield assert(updated)(equalTo(Some(Item("id" -> 1, "num" -> -2))))
           )
-        }
+        },
+        suite("if not exists")(
+          testM("field does not exist") {
+            withTemporaryTable(
+              numberTable,
+              tableName =>
+                for {
+                  _       <- putItem(tableName, Item("id" -> 1)).execute
+                  _       <- updateItem(tableName, PrimaryKey("id" -> 1))($("num").setIfNotExists($("num"), 4)).execute
+                  updated <- getItem(tableName, PrimaryKey("id" -> 1)).execute
+                } yield assert(updated)(equalTo(Some(Item("id" -> 1, "num" -> 4))))
+            )
+          },
+          testM("field does exist") {
+            withTemporaryTable(
+              numberTable,
+              tableName =>
+                for {
+                  _       <- putItem(tableName, Item("id" -> 1, "num" -> 0)).execute
+                  _       <- updateItem(tableName, PrimaryKey("id" -> 1))($("num").setIfNotExists($("num"), 4)).execute
+                  updated <- getItem(tableName, PrimaryKey("id" -> 1)).execute
+                } yield assert(updated)(equalTo(Some(Item("id" -> 1, "num" -> 0))))
+            )
+          }
+        )
       )
     )
       .provideCustomLayerShared(layer.orDie)

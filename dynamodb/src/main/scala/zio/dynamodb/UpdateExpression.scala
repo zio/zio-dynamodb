@@ -111,27 +111,28 @@ object UpdateExpression {
     def render(): AliasMapRender[String] =
       AliasMapRender { aliasMap =>
         self match {
-          case Minus(left, right)                      =>
+          case Minus(left, right)                                             =>
             left
               .render()
               .flatMap { l =>
                 right.render().map(r => s"$l - $r")
               }
               .render(aliasMap)
-          case Plus(left, right)                       =>
+          case Plus(left, right)                                              =>
             left
               .render()
               .flatMap { l =>
                 right.render().map(r => s"$l + $r")
               }
               .render(aliasMap)
-          case ValueOperand(value)                     => AliasMapRender.getOrInsert(value).map(identity).render(aliasMap)
-          case PathOperand(path)                       => (aliasMap, path.toString)
-          case ListAppend(projectionExpression, list)  =>
+          case ValueOperand(value)                                            => AliasMapRender.getOrInsert(value).map(identity).render(aliasMap)
+          case PathOperand(path)                                              => (aliasMap, path.toString)
+          case ListAppend(projectionExpression, list)                         =>
             AliasMapRender.getOrInsert(list).map(v => s"list_append($projectionExpression, $v)").render(aliasMap)
-          case ListPrepend(projectionExpression, list) =>
+          case ListPrepend(projectionExpression, list)                        =>
             AliasMapRender.getOrInsert(list).map(v => s"list_append($v, $projectionExpression)").render(aliasMap)
-          case IfNotExists(_, value)                   => AliasMapRender.getOrInsert(value).map(_ => ???).render(aliasMap)
+          case IfNotExists(projectionExpression: ProjectionExpression, value) =>
+            AliasMapRender.getOrInsert(value).map(v => s"if_not_exists($projectionExpression, $v)").render(aliasMap)
         }
       }
 
