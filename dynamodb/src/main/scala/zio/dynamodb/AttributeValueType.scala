@@ -3,6 +3,8 @@ package zio.dynamodb
 sealed trait AttributeValueType
 sealed trait PrimitiveValueType extends AttributeValueType
 
+// TODO(adam): Does this need a toString/render for condition expression?
+
 object AttributeValueType {
   // primitive types
   case object Binary    extends PrimitiveValueType

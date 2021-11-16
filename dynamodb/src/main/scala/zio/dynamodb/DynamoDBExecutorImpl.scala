@@ -139,8 +139,28 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
         )
     )
 
+  private def zipOptionalFilterAndKeyExpression(
+    filterExpression: Option[FilterExpression],
+    keyConditionExpression: Option[KeyConditionExpression]
+  ): Option[(AliasMap, (Option[String], Option[String]))] = {
+    // This is really gross because there are four cases we need to account for here
+    // REVIEW
+    val keyConditionExpr = keyConditionExpression.map(kce => kce.render).map(_.map(Some(_)))
+
+    filterExpression
+      .map(fe =>
+        fe.render.zipWith(keyConditionExpr.getOrElse(AliasMapRender.empty.map(_ => None))) {
+          case (filter, key) =>
+            (Some(filter), key)
+        }
+      )
+      .map(_.render(AliasMap.empty))
+      .orElse(keyConditionExpr.map(_.map(key => (None, key)).render(AliasMap.empty)))
+  }
+
   private def generateQueryRequest(queryAll: QueryAll): QueryRequest = {
-    val keyConditionExpr = queryAll.keyConditionExpression.map(kce => kce.render().render(AliasMap.empty))
+    val maybeFilterAndKeyExpression =
+      zipOptionalFilterAndKeyExpression(queryAll.filterExpression, queryAll.keyConditionExpression)
 
     QueryRequest(
       tableName = queryAll.tableName.value,
@@ -152,14 +172,16 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       exclusiveStartKey = queryAll.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
       projectionExpression = toOption(queryAll.projections).map(_.mkString(", ")),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(queryAll.capacity)),
-      filterExpression = queryAll.filterExpression.map(filterExpression => filterExpression.render()),
-      expressionAttributeValues = keyConditionExpr.flatMap(c => aliasMapToExpressionZIOAwsAttributeValues(c._1)),
-      keyConditionExpression = keyConditionExpr.map(_._2)
+      filterExpression = maybeFilterAndKeyExpression.flatMap(_._2._1),
+      expressionAttributeValues =
+        maybeFilterAndKeyExpression.flatMap(c => aliasMapToExpressionZIOAwsAttributeValues(c._1)),
+      keyConditionExpression = maybeFilterAndKeyExpression.flatMap(_._2._2)
     )
   }
 
   private def generateQueryRequest(querySome: QuerySome): QueryRequest = {
-    val keyConditionExpr = querySome.keyConditionExpression.map(kce => kce.render().render(AliasMap.empty))
+    val maybeFilterAndKeyExpression =
+      zipOptionalFilterAndKeyExpression(querySome.filterExpression, querySome.keyConditionExpression)
     QueryRequest(
       tableName = querySome.tableName.value,
       indexName = querySome.indexName.map(_.value),
@@ -170,9 +192,10 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       exclusiveStartKey = querySome.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(querySome.capacity)),
       projectionExpression = toOption(querySome.projections).map(_.mkString(", ")),
-      filterExpression = querySome.filterExpression.map(filterExpression => filterExpression.render()),
-      expressionAttributeValues = keyConditionExpr.flatMap(c => aliasMapToExpressionZIOAwsAttributeValues(c._1)),
-      keyConditionExpression = keyConditionExpr.map(_._2)
+      filterExpression = maybeFilterAndKeyExpression.flatMap(_._2._1),
+      expressionAttributeValues =
+        maybeFilterAndKeyExpression.flatMap(c => aliasMapToExpressionZIOAwsAttributeValues(c._1)),
+      keyConditionExpression = maybeFilterAndKeyExpression.flatMap(_._2._2)
     )
   }
 
@@ -235,7 +258,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   }
 
   private def generateUpdateItemRequest(updateItem: UpdateItem): UpdateItemRequest = {
-    val (map, updateExpr) = updateItem.updateExpression.render().render(AliasMap.empty)
+    val (map, updateExpr) = updateItem.updateExpression.render.render(AliasMap.empty)
 
     UpdateItemRequest(
       tableName = updateItem.tableName.value,
@@ -272,7 +295,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       segment = None,
       limit = Some(scanSome.limit),
       projectionExpression = toOption(scanSome.projections).map(_.mkString(", ")),
-      filterExpression = scanSome.filterExpression.map(filterExpression => filterExpression.render()),
+      filterExpression =
+        scanSome.filterExpression.map(filterExpression => filterExpression.render.render(AliasMap.empty)._2),
       consistentRead = Some(toBoolean(scanSome.consistency))
     )
 
@@ -288,7 +312,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       segment = None,
       limit = scanAll.limit,
       projectionExpression = toOption(scanAll.projections).map(_.mkString(", ")),
-      filterExpression = scanAll.filterExpression.map(filterExpression => filterExpression.render()),
+      filterExpression =
+        scanAll.filterExpression.map(filterExpression => filterExpression.render.render(AliasMap.empty)._2),
       consistentRead = Some(toBoolean(scanAll.consistency))
     )
 

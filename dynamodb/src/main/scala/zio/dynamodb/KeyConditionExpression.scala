@@ -19,8 +19,6 @@ object AliasMap {
   def empty: AliasMap = AliasMap(Map.empty, 0)
 }
 
-// REVIEW(john) why use a case class instead of a type like in the red book RNG example?
-//    type AliasMapRender[+A] = AliasMap => (AliasMap, A)
 final case class AliasMapRender[+A](
   render: AliasMap => (AliasMap, A)
 ) { self =>
@@ -43,6 +41,9 @@ final case class AliasMapRender[+A](
       b <- that
     } yield f(a, b)
 
+  def zipRight[B](that: AliasMapRender[B]): AliasMapRender[B] =
+    self.flatMap(_ => that)
+
 }
 
 object AliasMapRender {
@@ -50,6 +51,8 @@ object AliasMapRender {
     AliasMapRender { aliasMap =>
       aliasMap.getOrInsert(entry)
     }
+
+  def empty = AliasMapRender.setMap(AliasMap.empty)
 
   def succeed[A](a: => A): AliasMapRender[A] = AliasMapRender(aliasMap => (aliasMap, a))
 
@@ -66,13 +69,11 @@ sealed trait KeyConditionExpression { self =>
   def render: AliasMapRender[String] =
     self match {
       case KeyConditionExpression.And(left, right) =>
-        // TODO(adam): clean this up with zipwith
-        left
-          .render()
-          .flatMap { leftRender =>
-            right.render.map(rightRender => s"$leftRender AND $rightRender")
-          }
-      case expression: PartitionKeyExpression      => expression.render()
+        left.render
+          .zipWith(
+            right.render
+          ) { case (l, r) => s"$l AND $r" }
+      case expression: PartitionKeyExpression      => expression.render
     }
 }
 
@@ -86,7 +87,7 @@ sealed trait PartitionKeyExpression extends KeyConditionExpression { self =>
 
   def &&(that: SortKeyExpression): KeyConditionExpression = And(self, that)
 
-  override def render(): AliasMapRender[String] =
+  override def render: AliasMapRender[String] =
     self match {
       case PartitionKeyExpression.Equals(left, right) =>
         AliasMapRender.getOrInsert(right).map(v => s"${left.keyName} = $v")

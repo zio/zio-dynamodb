@@ -43,10 +43,8 @@ delete-action ::=
 // Note this implementation does not preserve the original order of actions ie after "Set field1 = 1, field1 = 2"
 // if this turns out to be a problem we could change the internal implementation
 final case class UpdateExpression(action: Action) { self =>
-  def render(): AliasMapRender[String] =
-    AliasMapRender { aliasMap =>
-      action.render().render(aliasMap)
-    }
+  def render: AliasMapRender[String] =
+    action.render
 }
 
 object UpdateExpression {
@@ -54,23 +52,20 @@ object UpdateExpression {
   sealed trait Action { self =>
     def +(that: Action): Action = Actions(Chunk(self) :+ that)
 
-    def render(): AliasMapRender[String] =
-      AliasMapRender { aliasMap =>
-        self match {
-          case Actions(actions)                 =>
-            actions.foldLeft((aliasMap, "")) {
-              case ((am, acc), action) =>
-                val (a, b) = action.render().render(am)
-                (a, s"$acc, $b")
-            }
-          case Action.SetAction(path, operand)  =>
-            operand.render().map(s => s"set $path = $s").render(aliasMap)
-          case Action.RemoveAction(path)        => (aliasMap, s"remove $path")
-          case Action.AddAction(path, value)    =>
-            AliasMapRender.getOrInsert(value).map(v => s"add $path $v").render(aliasMap)
-          case Action.DeleteAction(path, value) =>
-            AliasMapRender.getOrInsert(value).map(s => s"delete $path $s").render(aliasMap)
-        }
+    def render: AliasMapRender[String] =
+      self match {
+        case Actions(actions)                 =>
+          actions.foldLeft(AliasMapRender.empty.map(_ => "")) {
+            case (acc, action) =>
+              acc.zipWith(action.render) { case (acc, action) => s"$acc, $action" }
+          }
+        case Action.SetAction(path, operand)  =>
+          operand.render.map(s => s"set $path = $s")
+        case Action.RemoveAction(path)        => AliasMapRender.succeed(s"remove $path")
+        case Action.AddAction(path, value)    =>
+          AliasMapRender.getOrInsert(value).map(v => s"add $path $v")
+        case Action.DeleteAction(path, value) =>
+          AliasMapRender.getOrInsert(value).map(s => s"delete $path $s")
       }
 
   }
@@ -107,32 +102,22 @@ object UpdateExpression {
     def +(that: SetOperand): SetOperand = Plus(self, that)
     def -(that: SetOperand): SetOperand = Minus(self, that)
 
-    def render(): AliasMapRender[String] =
-      AliasMapRender { aliasMap =>
-        self match {
-          case Minus(left, right)                                             =>
-            left
-              .render()
-              .flatMap { l =>
-                right.render().map(r => s"$l - $r")
-              }
-              .render(aliasMap)
-          case Plus(left, right)                                              =>
-            left
-              .render()
-              .flatMap { l =>
-                right.render().map(r => s"$l + $r")
-              }
-              .render(aliasMap)
-          case ValueOperand(value)                                            => AliasMapRender.getOrInsert(value).map(identity).render(aliasMap)
-          case PathOperand(path)                                              => (aliasMap, path.toString)
-          case ListAppend(projectionExpression, list)                         =>
-            AliasMapRender.getOrInsert(list).map(v => s"list_append($projectionExpression, $v)").render(aliasMap)
-          case ListPrepend(projectionExpression, list)                        =>
-            AliasMapRender.getOrInsert(list).map(v => s"list_append($v, $projectionExpression)").render(aliasMap)
-          case IfNotExists(projectionExpression: ProjectionExpression, value) =>
-            AliasMapRender.getOrInsert(value).map(v => s"if_not_exists($projectionExpression, $v)").render(aliasMap)
-        }
+    def render: AliasMapRender[String] =
+      self match {
+        case Minus(left, right)                                             =>
+          left.render
+            .zipWith(right.render) { case (l, r) => s"$l - $r" }
+        case Plus(left, right)                                              =>
+          left.render
+            .zipWith(right.render) { case (l, r) => s"$l + $r" }
+        case ValueOperand(value)                                            => AliasMapRender.getOrInsert(value).map(identity)
+        case PathOperand(path)                                              => AliasMapRender.succeed(path.toString)
+        case ListAppend(projectionExpression, list)                         =>
+          AliasMapRender.getOrInsert(list).map(v => s"list_append($projectionExpression, $v)")
+        case ListPrepend(projectionExpression, list)                        =>
+          AliasMapRender.getOrInsert(list).map(v => s"list_append($v, $projectionExpression)")
+        case IfNotExists(projectionExpression: ProjectionExpression, value) =>
+          AliasMapRender.getOrInsert(value).map(v => s"if_not_exists($projectionExpression, $v)")
       }
 
   }

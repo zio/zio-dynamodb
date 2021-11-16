@@ -42,26 +42,36 @@ sealed trait ConditionExpression { self =>
   def ||(that: ConditionExpression): ConditionExpression = Or(self, that)
   def unary_! : ConditionExpression                      = Not(self)
 
-  // TODO(adam): Needs to be AliasMapRender[String]
-  def render(): String =
+  def render: AliasMapRender[String] =
     self match {
       case Between(left, minValue, maxValue)  =>
-        s"${left.render()} BETWEEN ${minValue.render()} AND ${maxValue.render()}"
-      case In(_, _)                           => ??? //TODO(adam): This one is funky
-      case AttributeExists(path)              => s"attribute_exists($path})"
-      case AttributeNotExists(path)           => s"attribute_not_exists($path)"
-      case AttributeType(path, attributeType) => s"attribute_type($path, $attributeType)"
-      case Contains(path, value)              => s"contains($path, $value)"
-      case BeginsWith(path, value)            => s"begins_with($path, ${value})"
-      case And(left, right)                   => s"($left) AND ($right)"
-      case Or(left, right)                    => s"($left) OR ($right)"
-      case Not(exprn)                         => s"NOT ($exprn)"
-      case Equals(left, right)                => s"($left) = ($right)"
-      case NotEqual(left, right)              => s"($left) <> ($right)"
-      case LessThan(left, right)              => s"($left) < ($right)"
-      case GreaterThan(left, right)           => s"($left) > ($right)"
-      case LessThanOrEqual(left, right)       => s"($left) <= ($right)"
-      case GreaterThanOrEqual(left, right)    => s"($left) >= ($right)"
+        AliasMapRender.getOrInsert(minValue)
+        for {
+          l   <- left.render
+          min <- AliasMapRender.getOrInsert(minValue)
+          max <- AliasMapRender.getOrInsert(maxValue)
+        } yield s"$l BETWEEN $min AND $max"
+      case In(left, values)                   =>
+        values
+          .foldLeft(AliasMapRender.empty.map(_ => "")) {
+            case (acc, value) =>
+              acc.zipWith(AliasMapRender.getOrInsert(value)) { case (acc, action) => s"$acc, $action" }
+          }
+          .map(vals => s"${left.render} IN ($vals)")
+      case AttributeExists(path)              => AliasMapRender.succeed(s"attribute_exists($path})")
+      case AttributeNotExists(path)           => AliasMapRender.succeed(s"attribute_not_exists($path)")
+      case AttributeType(path, attributeType) => AliasMapRender.succeed(s"attribute_type($path, $attributeType)")
+      case Contains(path, value)              => AliasMapRender.getOrInsert(value).map(v => s"contains($path, $v)")
+      case BeginsWith(path, value)            => AliasMapRender.getOrInsert(value).map(v => s"begins_with($path, $v)")
+      case And(left, right)                   => left.render.zipWith(right.render) { case (l, r) => s"($l) AND ($r)" }
+      case Or(left, right)                    => left.render.zipWith(right.render) { case (l, r) => s"($l) OR ($r)" }
+      case Not(exprn)                         => exprn.render.map(v => s"NOT ($v)")
+      case Equals(left, right)                => left.render.zipWith(right.render) { case (l, r) => s"($l) = ($r)" }
+      case NotEqual(left, right)              => left.render.zipWith(right.render) { case (l, r) => s"($l) <> ($r)" }
+      case LessThan(left, right)              => left.render.zipWith(right.render) { case (l, r) => s"($l) < ($r)" }
+      case GreaterThan(left, right)           => left.render.zipWith(right.render) { case (l, r) => s"($l) > ($r)" }
+      case LessThanOrEqual(left, right)       => left.render.zipWith(right.render) { case (l, r) => s"($l) <= ($r)" }
+      case GreaterThanOrEqual(left, right)    => left.render.zipWith(right.render) { case (l, r) => s"($l) >= ($r)" }
     }
 
 }
@@ -93,11 +103,11 @@ object ConditionExpression {
     def >=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
       GreaterThanOrEqual(self, Operand.ValueOperand(t.toAttributeValue(that)))
 
-    def render(): String =
+    def render: AliasMapRender[String] =
       self match {
-        case Operand.ProjectionExpressionOperand(pe) => pe.toString
-        case Operand.ValueOperand(value)             => value.toString
-        case Operand.Size(path)                      => s"size($path)"
+        case Operand.ProjectionExpressionOperand(pe) => AliasMapRender.succeed(pe.toString)
+        case Operand.ValueOperand(value)             => AliasMapRender.getOrInsert(value).map(identity)
+        case Operand.Size(path)                      => AliasMapRender.succeed(s"size($path)")
       }
   }
 

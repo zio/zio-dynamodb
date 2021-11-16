@@ -68,7 +68,6 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
   .settings(buildInfoSettings("zio.dynamodb"))
   .configs(IntegrationTest)
   .settings(
-    // TODO(adam): Add a fork in test = true
     Defaults.itSettings,
     resolvers += "DynamoDB Local Release Repository" at "https://s3-us-west-2.amazonaws.com/dynamodb-local/release",
     resolvers += Resolver.sonatypeRepo("releases"),

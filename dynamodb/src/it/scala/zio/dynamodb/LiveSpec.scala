@@ -18,7 +18,7 @@ import zio.test.Assertion._
 import zio.test.environment._
 import zio.duration._
 import software.amazon.awssdk.regions.Region
-import zio.test.TestAspect.around // TODO(adam): Ap
+//import zio.test.TestAspect.around // TODO(adam): Ap
 //import zio.test.TestAspect.nondeterministic
 
 import java.net.URI
@@ -194,11 +194,10 @@ object LiveSpec extends DefaultRunnableSpec {
                 _       <- updateItem(tableName, adamPrimaryKey)($("firstName").set("notAdam")).execute
                 updated <- getItem(
                              tableName,
-                             adamPrimaryKey,
-                             $("firstName")
+                             adamPrimaryKey
                            ).execute // TODO(adam): for some reason adding a projection expression here results in none
                 // Expected to be a bug somewhere -- possibly write a ticket
-              } yield assert(updated)(equalTo(Some(Item("firstName" -> "notAdam"))))
+              } yield assert(updated)(equalTo(Some(Item("firstName" -> "notAdam", "id" -> "second", "age" -> 2))))
           }
         },
         testM("remove field from row") {
