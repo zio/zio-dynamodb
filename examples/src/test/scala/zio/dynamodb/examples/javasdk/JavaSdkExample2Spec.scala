@@ -93,7 +93,7 @@ object JavaSdkExample2Spec extends DefaultRunnableSpec {
                                      }
           } yield Student(email, subject, maybeEnrollmentDate, paymentType)
 
-        def processBatchWrite(
+        def batchWriteAndRetryUnprocessed(
           batchRequest: BatchWriteItemRequest
         ): ZIO[Has[DynamoDbAsyncClient], Throwable, BatchWriteItemResponse] = {
           val result = for {
@@ -106,7 +106,7 @@ object JavaSdkExample2Spec extends DefaultRunnableSpec {
             case response                                        =>
               // very simple recursive retry of failed requests
               // in Production we would have exponential back offs and a timeout
-              processBatchWrite(batchRequest =
+              batchWriteAndRetryUnprocessed(batchRequest =
                 BatchWriteItemRequest
                   .builder()
                   .requestItems(response.unprocessedItems())
@@ -115,7 +115,7 @@ object JavaSdkExample2Spec extends DefaultRunnableSpec {
           }
         }
 
-        def processBatchGetItem(
+        def batchGetItemAndRetryUnprocessed(
           batchRequest: BatchGetItemRequest
         ): ZIO[Has[DynamoDbAsyncClient], Throwable, BatchGetItemResponse] = {
           val result = for {
@@ -128,7 +128,7 @@ object JavaSdkExample2Spec extends DefaultRunnableSpec {
             case response                                     =>
               // very simple recursive retry of failed requests
               // in Production we would have exponential back offs and a timeout
-              processBatchGetItem(batchRequest =
+              batchGetItemAndRetryUnprocessed(batchRequest =
                 BatchGetItemRequest.builder
                   .requestItems(response.unprocessedKeys)
                   .build
@@ -139,13 +139,14 @@ object JavaSdkExample2Spec extends DefaultRunnableSpec {
         for {
           client               <- ZIO.service[DynamoDbAsyncClient]
           enrollmentDate       <- ZIO.fromEither(parseInstant("2021-03-20T01:39:33Z"))
-          expectedStudent1      = Student("avi@gmail.com", "maths", Some(enrollmentDate), Payment.DebitCard)
-          expectedStudent2      = Student("adam@gmail.com", "english", Some(enrollmentDate), Payment.CreditCard)
-          students              = List(expectedStudent1, expectedStudent2)
+          avi                   = Student("avi@gmail.com", "maths", Some(enrollmentDate), Payment.DebitCard)
+          adam                  = Student("adam@gmail.com", "english", Some(enrollmentDate), Payment.CreditCard)
+          students              = List(avi, adam)
           _                    <- ZIO.fromCompletionStage(client.createTable(DdbHelper.createTableRequest))
           batchPutRequest       = batchWriteItemRequest(students)
-          _                    <- processBatchWrite(batchPutRequest)
-          batchGetItemResponse <- processBatchGetItem(batchGetItemRequest(students.map(st => (st.email, st.subject))))
+          _                    <- batchWriteAndRetryUnprocessed(batchPutRequest)
+          batchGetItemResponse <-
+            batchGetItemAndRetryUnprocessed(batchGetItemRequest(students.map(st => (st.email, st.subject))))
           listOfErrorOrStudent  =
             batchGetItemResponse.responses.asScala.get("student").fold[List[Either[String, Student]]](List.empty) {
               javaList =>
