@@ -34,6 +34,7 @@ addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck"
 // from this blog http://softwarebyjosh.com/2018/03/25/how-to-unit-test-your-dynamodb-queries.html
 lazy val copyJars = taskKey[Unit]("copyJars")
 
+// from this blog http://softwarebyjosh.com/2018/03/25/how-to-unit-test-your-dynamodb-queries.html
 def copyJarSetting(dir: String) =
   Seq(
     copyJars := {
@@ -314,12 +315,10 @@ lazy val examples = module("zio-dynamodb-examples", "examples")
     skip in publish := true,
     fork := true,
     libraryDependencies ++= Seq(
-      "dev.zio"                 %% "zio-test"                   % zioVersion           % "test",
-      "dev.zio"                 %% "zio-test-sbt"               % zioVersion           % "test",
-      "software.amazon.awssdk"   % "dynamodb"                   % "2.16.20",
-      "com.amazonaws"            % "DynamoDBLocal"              % "1.12.0"             % "test", // TODO: check latest version
-      "com.almworks.sqlite4java" % "libsqlite4java-linux-i386"  % "latest.integration" % "test",
-      "com.almworks.sqlite4java" % "libsqlite4java-linux-amd64" % "latest.integration" % "test"
+      "dev.zio"               %% "zio-test"      % zioVersion % "test",
+      "dev.zio"               %% "zio-test-sbt"  % zioVersion % "test",
+      "software.amazon.awssdk" % "dynamodb"      % "2.16.20",
+      "com.amazonaws"          % "DynamoDBLocal" % "1.17.0"   % "test"
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )

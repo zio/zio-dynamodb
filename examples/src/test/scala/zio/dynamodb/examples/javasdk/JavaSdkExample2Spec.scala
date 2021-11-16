@@ -104,6 +104,8 @@ object JavaSdkExample2Spec extends DefaultRunnableSpec {
           result.flatMap {
             case response if response.unprocessedItems().isEmpty => ZIO.succeed(response)
             case response                                        =>
+              // very simple recursive retry of failed requests
+              // in Production we would have exponential back offs and a timeout
               processBatchWrite(batchRequest =
                 BatchWriteItemRequest
                   .builder()
@@ -124,6 +126,8 @@ object JavaSdkExample2Spec extends DefaultRunnableSpec {
           result.flatMap {
             case response if response.unprocessedKeys.isEmpty => ZIO.succeed(response)
             case response                                     =>
+              // very simple recursive retry of failed requests
+              // in Production we would have exponential back offs and a timeout
               processBatchGetItem(batchRequest =
                 BatchGetItemRequest.builder
                   .requestItems(response.unprocessedKeys)
