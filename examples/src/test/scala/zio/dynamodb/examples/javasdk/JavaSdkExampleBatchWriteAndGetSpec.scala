@@ -12,7 +12,7 @@ import java.time.Instant
 import scala.jdk.CollectionConverters._
 import scala.util.Try
 
-object JavaSdkExample2Spec extends DefaultRunnableSpec {
+object JavaSdkExampleBatchWriteAndGetSpec extends DefaultRunnableSpec {
   override def spec: ZSpec[Environment, Failure] =
     suite("JavaSdkExample suite")(
       testM("BatchWriteItem and BatchGetItem") {
@@ -48,7 +48,7 @@ object JavaSdkExample2Spec extends DefaultRunnableSpec {
           val putRequests = students.map { student =>
             val request = PutRequest
               .builder()
-              .item(studentToAttributeValueMap(student).asJava)
+              .item(toAttributeValueMap(student).asJava)
               .build()
             WriteRequest.builder().putRequest(request).build()
           }
@@ -59,7 +59,7 @@ object JavaSdkExample2Spec extends DefaultRunnableSpec {
             .build()
         }
 
-        def studentToAttributeValueMap(student: Student): Map[String, AttributeValue] = {
+        def toAttributeValueMap(student: Student): Map[String, AttributeValue] = {
           val mandatoryFields                                     = Map(
             "email"   -> AttributeValue.builder.s(student.email).build,
             "subject" -> AttributeValue.builder.s(student.subject).build,

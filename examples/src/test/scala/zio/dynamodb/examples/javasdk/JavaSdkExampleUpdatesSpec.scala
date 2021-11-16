@@ -1,7 +1,12 @@
 package zio.dynamodb.examples.javasdk
 
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
-import software.amazon.awssdk.services.dynamodb.model.{ AttributeValue, GetItemRequest, PutItemRequest }
+import software.amazon.awssdk.services.dynamodb.model.{
+  AttributeValue,
+  GetItemRequest,
+  PutItemRequest,
+  UpdateItemRequest
+}
 import zio.ZIO
 import zio.dynamodb.examples.LocalDdbServer
 import zio.dynamodb.examples.javasdk.Payment.{ CreditCard, DebitCard, PayPal }
@@ -11,10 +16,10 @@ import java.time.Instant
 import scala.jdk.CollectionConverters._
 import scala.util.Try
 
-object JavaSdkExample1Spec extends DefaultRunnableSpec {
+object JavaSdkExampleUpdatesSpec extends DefaultRunnableSpec {
   override def spec: ZSpec[Environment, Failure] =
     suite("JavaSdkExample suite")(
-      testM("PutItem and GetItem") {
+      testM("UpdateItems") {
         def parseInstant(s: String): Either[String, Instant] = Try(Instant.parse(s)).toEither.left.map(_.getMessage)
 
         def getString(map: Map[String, AttributeValue], name: String): Either[String, String] =
@@ -25,13 +30,29 @@ object JavaSdkExample1Spec extends DefaultRunnableSpec {
           name: String
         ): Either[Nothing, Option[String]] = Right(map.get(name).map(_.s))
 
-        def putItemRequestForStudent(student: Student) =
+        def putItemRequest(student: Student): PutItemRequest =
           PutItemRequest.builder
             .tableName("student")
-            .item(studentAttributeValueMap(student).asJava)
+            .item(toAttributeValueMap(student).asJava)
             .build
 
-        def studentAttributeValueMap(student: Student): Map[String, AttributeValue] = {
+        def updateItemRequest(student: Student): UpdateItemRequest = {
+          val values: Map[String, AttributeValue] =
+            Map(":paymentType" -> AttributeValue.builder.s(student.payment.toString).build)
+          UpdateItemRequest.builder
+            .tableName("student")
+            .key(
+              Map(
+                "email"   -> AttributeValue.builder.s(student.email).build,
+                "subject" -> AttributeValue.builder.s(student.subject).build
+              ).asJava
+            )
+            .updateExpression("set payment = :paymentType")
+            .expressionAttributeValues(values.asJava)
+            .build
+        }
+
+        def toAttributeValueMap(student: Student): Map[String, AttributeValue] = {
           val mandatoryFields                                     = Map(
             "email"   -> AttributeValue.builder.s(student.email).build,
             "subject" -> AttributeValue.builder.s(student.subject).build,
@@ -52,16 +73,22 @@ object JavaSdkExample1Spec extends DefaultRunnableSpec {
         for {
           client          <- ZIO.service[DynamoDbAsyncClient]
           enrollmentDate  <- ZIO.fromEither(parseInstant("2021-03-20T01:39:33Z"))
-          expectedStudent  = Student("avi@gmail.com", "maths", Some(enrollmentDate), Payment.DebitCard)
+          avi              = Student("avi@gmail.com", "maths", Some(enrollmentDate), Payment.DebitCard)
+          adam             = Student("adam@gmail.com", "english", Some(enrollmentDate), Payment.CreditCard)
           _               <- ZIO.fromCompletionStage(client.createTable(DdbHelper.createTableRequest))
-          putItemRequest   = putItemRequestForStudent(expectedStudent)
-          _               <- ZIO.fromCompletionStage(client.putItem(putItemRequest))
+          request          = putItemRequest(avi)
+          _               <- ZIO.fromCompletionStage(client.putItem(request))
+          updatedAvi       = avi.copy(payment = Payment.PayPal)
+          updatedAdam      = adam.copy(payment = Payment.PayPal)
+          _               <- ZIO.fromCompletionStage(client.updateItem(updateItemRequest(updatedAvi))) zipPar ZIO.fromCompletionStage(
+                               client.updateItem(updateItemRequest(updatedAdam))
+                             )
           getItemRequest   = GetItemRequest.builder
                                .tableName("student")
                                .key(
                                  Map(
-                                   "email"   -> AttributeValue.builder.s(expectedStudent.email).build,
-                                   "subject" -> AttributeValue.builder.s(expectedStudent.subject).build
+                                   "email"   -> AttributeValue.builder.s(avi.email).build,
+                                   "subject" -> AttributeValue.builder.s(avi.subject).build
                                  ).asJava
                                )
                                .build()
@@ -82,7 +109,7 @@ object JavaSdkExample1Spec extends DefaultRunnableSpec {
                                                           case "PayPal"     => PayPal
                                                         }
                              } yield Student(email, subject, maybeEnrollmentDate, paymentType)
-        } yield assertTrue(foundStudent == Right(expectedStudent))
+        } yield assertTrue(foundStudent == Right(updatedAvi))
       }.provideCustomLayer(LocalDdbServer.inMemoryLayer ++ DdbHelper.ddbLayer)
     )
 
