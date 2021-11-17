@@ -15,6 +15,7 @@ import zio.dynamodb.ProjectionExpression._
 import zio.test.Assertion._
 import zio.test.environment._
 import software.amazon.awssdk.regions.Region
+import zio.stream.ZSink
 import zio.test._
 import zio.test.TestAspect._
 
@@ -117,7 +118,7 @@ object LiveSpec extends DefaultRunnableSpec {
 
   override def spec: ZSpec[TestEnvironment, Any] =
     suite("live test")(
-      suite("basic us" + number)(
+      suite("basic usage")(
         testM("put and get item") {
           withTemporaryTable(
             defaultTable,
@@ -144,17 +145,7 @@ object LiveSpec extends DefaultRunnableSpec {
               chunk  <- stream.runCollect
             } yield assert(chunk)(
               equalTo(
-                Chunk(
-                  adamItem,
-                  adam2Item,
-                  adam3Item,
-                  johnItem,
-                  john2Item,
-                  john3Item,
-                  aviItem,
-                  avi2Item,
-                  avi3Item
-                )
+                Chunk(adamItem, adam2Item, adam3Item, johnItem, john2Item, john3Item, aviItem, avi2Item, avi3Item)
               )
             )
           }
@@ -192,7 +183,7 @@ object LiveSpec extends DefaultRunnableSpec {
                               .execute
             } yield assert(chunk)(isEmpty)
           }
-        } @@ ignore, // Suspect that there is an edge case in the auto batch/auto parallelize code that could be causing this issue
+        } @@ ignore, // TODO: Suspect that there is an edge case in the auto batch/auto parallelize code that could be causing this issue
         testM("query with limit") {
           withDefaultTable { tableName =>
             for {
@@ -201,7 +192,7 @@ object LiveSpec extends DefaultRunnableSpec {
                               .execute
             } yield assert(chunk)(equalTo(Chunk(Item(name -> avi))))
           }
-        } @@ ignore, // limit is not being honored
+        } @@ ignore, // TODO(adam): limit is not being honored
         testM("query starting from StartKey") {
           withDefaultTable { tableName =>
             for {
@@ -214,7 +205,21 @@ object LiveSpec extends DefaultRunnableSpec {
                                  .execute
             } yield assert(chunk)(equalTo(Chunk(Item(name -> avi3))))
           }
-        } @@ ignore, // does not look like limit is being honored
+        } @@ ignore, // TODO(adam): does not look like limit is being honored
+        testM("queryAll") {
+          withDefaultTable { tableName =>
+            for {
+              stream <- queryAllItem(tableName)
+                          .whereKey(PartitionKey(id) === second)
+                          .execute
+              chunk  <- stream.run(ZSink.collectAll[Item])
+            } yield assert(chunk)(
+              equalTo(
+                Chunk(adamItem, adam2Item, adam3Item)
+              )
+            )
+          }
+        },
         suite("SortKeyCondition")(
           testM("SortKeyCondition between") {
             withDefaultTable { tableName =>
@@ -300,6 +305,19 @@ object LiveSpec extends DefaultRunnableSpec {
                   )
                 )
               )(equalTo(Some(Right(List(-1, 0, 1)))))
+          }
+        },
+        testM("set an Item Attribute") {
+          withDefaultTable { tableName =>
+            for {
+              _       <- updateItem(tableName, secondPrimaryKey)($(name).set($(id))).execute
+              updated <- getItem(
+                           tableName,
+                           secondPrimaryKey
+                         ).execute
+            } yield assert(updated)(
+              equalTo(Some(Item(id -> second, number -> 2, name -> second)))
+            )
           }
         },
         testM("add number") {

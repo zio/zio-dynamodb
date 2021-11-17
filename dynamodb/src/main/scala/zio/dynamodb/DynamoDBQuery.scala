@@ -444,6 +444,7 @@ object DynamoDBQuery {
    */
   def queryAll[A: Schema](
     tableName: String,
+    //keyConditionExpression: KeyConditionExpression, REVIEW: This is required by the dynamo API, should we make it required here?
     projections: ProjectionExpression*
   ): DynamoDBQuery[Stream[Throwable, A]] =
     queryAllItem(tableName, projections: _*).map(
