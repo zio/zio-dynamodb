@@ -19,7 +19,6 @@ import zio.duration._
 import software.amazon.awssdk.regions.Region
 import zio.test._
 import zio.test.TestAspect._
-//import zio.test.TestAspect.nondeterministic
 
 import java.net.URI
 
@@ -118,33 +117,44 @@ object LiveSpec extends DefaultRunnableSpec {
 
   override def spec: ZSpec[TestEnvironment, Any] =
     suite("live test")(
-      testM("put and get item") {
-        withTemporaryTable(
-          defaultTable,
-          tableName =>
+      suite("basic usage")(
+        testM("put and get item") {
+          withTemporaryTable(
+            defaultTable,
+            tableName =>
+              for {
+                _      <- putItem(tableName, Item("id" -> "first", "testName" -> "put and get item", "age" -> 20)).execute
+                result <- getItem(tableName, PrimaryKey("id" -> "first", "age" -> 20)).execute
+              } yield assert(result)(
+                equalTo(Some(Item("id" -> "first", "testName" -> "put and get item", "age" -> 20)))
+              )
+          )
+        },
+        testM("get nonexistant returns empty") {
+          withDefaultPopulatedTable { tableName =>
+            getItem(tableName, PrimaryKey("id" -> "nowhere", "age" -> 1000)).execute.map(item => assert(item)(isNone))
+          }
+        }
+      ),
+      suite("scan tables")(
+        testM("scan table") {
+          withDefaultPopulatedTable { tableName =>
             for {
-              _      <- putItem(tableName, Item("id" -> "first", "testName" -> "put and get item", "age" -> 20)).execute
-              result <- getItem(tableName, PrimaryKey("id" -> "first", "age" -> 20)).execute
-            } yield assert(result)(equalTo(Some(Item("id" -> "first", "testName" -> "put and get item", "age" -> 20))))
-        )
-      },
-      testM("scan table") {
-        withDefaultPopulatedTable { tableName =>
-          for {
-            stream <- scanAllItem(tableName).execute
-            chunk  <- stream.runCollect
-          } yield assert(chunk)(
-            equalTo(
-              Chunk(
-                Item("id" -> "second", "firstName" -> "adam", "age"       -> 2),
-                Item("id" -> "third", "firstName"  -> "john", "age"       -> 3),
-                Item("id" -> "first", "firstName"  -> "avi", "age"        -> 1),
-                Item("id" -> "first", "firstName"  -> "anotherAvi", "age" -> 4)
+              stream <- scanAllItem(tableName).execute
+              chunk  <- stream.runCollect
+            } yield assert(chunk)(
+              equalTo(
+                Chunk(
+                  Item("id" -> "second", "firstName" -> "adam", "age"       -> 2),
+                  Item("id" -> "third", "firstName"  -> "john", "age"       -> 3),
+                  Item("id" -> "first", "firstName"  -> "avi", "age"        -> 1),
+                  Item("id" -> "first", "firstName"  -> "anotherAvi", "age" -> 4)
+                )
               )
             )
-          )
+          }
         }
-      },
+      ),
       suite("query tables")(
         testM("query less than") {
           withDefaultPopulatedTable { tableName =>
@@ -158,30 +168,61 @@ object LiveSpec extends DefaultRunnableSpec {
           }
         },
         testM("query table greater than") {
-          withDefaultPopulatedTable {
-            tableName =>
-              for {
-                (chunk, _) <- querySomeItem(tableName, 10, $("firstName"))
-                                .whereKey(PartitionKey("id") === "first" && SortKey("age") > 0)
-                                .execute
-
-              } yield assert(chunk)(
-                equalTo(Chunk(Item("firstName" -> "avi"), Item("firstName" -> "anotherAvi")))
-              ) // REVIEW(john): somehow getting chunk out of bound exception with empty queries (when results are empty)
-            // Suspect that there is an edge case in the auto batch/auto parallelize code that could be causing this issue
-          }
-        },
-        testM("SortKeyCondition between") {
-          withQueryPopulatedTable { tableName =>
+          withDefaultPopulatedTable { tableName =>
             for {
               (chunk, _) <- querySomeItem(tableName, 10, $("firstName"))
-                              .whereKey(PartitionKey("id") === "first" && SortKey("age").between(3, 8))
+                              .whereKey(PartitionKey("id") === "first" && SortKey("age") > 0)
                               .execute
+
             } yield assert(chunk)(
-              equalTo(Chunk(Item("firstName" -> "anotherAvi"), Item("firstName" -> "yetAnotherAvi")))
+              equalTo(Chunk(Item("firstName" -> "avi"), Item("firstName" -> "anotherAvi")))
             )
           }
-        }
+        },
+        testM("empty query result returns empty chunk") {
+          withDefaultPopulatedTable { tableName =>
+            for {
+              (chunk, _) <- querySomeItem(tableName, 10, $("firstName"))
+                              .whereKey(PartitionKey("id") === "nowhere" && SortKey("age") > 0)
+                              .execute
+            } yield assert(chunk)(isEmpty)
+          }
+        } @@ ignore, // Suspect that there is an edge case in the auto batch/auto parallelize code that could be causing this issue
+        testM("query with limit") {
+          withQueryPopulatedTable { tableName =>
+            for {
+              (chunk, _) <- querySomeItem(tableName, 1, $("firstName"))
+                              .whereKey(PartitionKey("id") === "first")
+                              .execute
+            } yield assert(chunk)(equalTo(Chunk(Item("firstName" -> "avi"))))
+          }
+        } @@ ignore, // limit is not being honored
+        testM("query starting from StartKey") {
+          withQueryPopulatedTable { tableName =>
+            for {
+              (_, startKey) <- querySomeItem(tableName, 2, $("id"), $("age"))
+                                 .whereKey(PartitionKey("id") === "first")
+                                 .execute
+              (chunk, _)    <- querySomeItem(tableName, 5, $("firstName"))
+                                 .whereKey(PartitionKey("id") === "first")
+                                 .startKey(startKey)
+                                 .execute
+            } yield assert(chunk)(equalTo(Chunk(Item("firstName" -> "yetAnotherAvi"))))
+          }
+        } @@ ignore, // does not look like limit is being honored
+        suite("SortKeyCondition")(
+          testM("SortKeyCondition between") {
+            withQueryPopulatedTable { tableName =>
+              for {
+                (chunk, _) <- querySomeItem(tableName, 10, $("firstName"))
+                                .whereKey(PartitionKey("id") === "first" && SortKey("age").between(3, 8))
+                                .execute
+              } yield assert(chunk)(
+                equalTo(Chunk(Item("firstName" -> "anotherAvi"), Item("firstName" -> "yetAnotherAvi")))
+              )
+            }
+          }
+        )
       ),
       suite("update items")(
         // add an @@ ignore annotation
@@ -198,7 +239,7 @@ object LiveSpec extends DefaultRunnableSpec {
               } yield assert(updated)(equalTo(Some(Item("firstName" -> "notAdam", "id" -> "second", "age" -> 2))))
           }
         },
-        testM("remove field from row") {
+        testM("remove field") {
           withDefaultPopulatedTable { tableName =>
             for {
               _       <- updateItem(tableName, adamPrimaryKey)($("firstName").remove).execute
@@ -304,7 +345,7 @@ object LiveSpec extends DefaultRunnableSpec {
                 } yield assert(updated)(equalTo(Some(Item("id" -> 1, "num" -> 4))))
             )
           },
-          testM("field does exist") {
+          testM("does not update if field does exist") {
             withTemporaryTable(
               numberTable,
               tableName =>
