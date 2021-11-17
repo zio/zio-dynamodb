@@ -9,8 +9,9 @@ object AliasMapRenderSpec extends DefaultRunnableSpec {
     suite("AliasMapRender")(
       suite("ConditionExpression")(
         test("AttributeExists") {
-          val (_, expression) =
+          val (aliasMap, expression) =
             ConditionExpression.AttributeExists($("projection")).render.render(AliasMap.empty)
+          assert(aliasMap.map)(isEmpty) &&
           assert(expression)(equalTo("attribute_exists(projection)"))
         },
         test("Between") {
