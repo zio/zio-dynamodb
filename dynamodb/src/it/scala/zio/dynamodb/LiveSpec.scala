@@ -13,12 +13,12 @@ import io.github.vigoo.zioaws.{ dynamodb, http4s }
 import zio._
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.ProjectionExpression._
-import zio.test.{ assert, DefaultRunnableSpec, TestResult, ZSpec }
 import zio.test.Assertion._
 import zio.test.environment._
 import zio.duration._
 import software.amazon.awssdk.regions.Region
-//import zio.test.TestAspect.around // TODO(adam): Ap
+import zio.test._
+import zio.test.TestAspect._
 //import zio.test.TestAspect.nondeterministic
 
 import java.net.URI
@@ -81,11 +81,10 @@ object LiveSpec extends DefaultRunnableSpec {
       AttributeDefinition.attrDefnNumber("id")
     )
 
-  private def managedTable(seed: Long, tableDefinition: String => CreateTable) =
+  private def managedTable(tableDefinition: String => CreateTable) =
     ZManaged
       .make(
         for {
-          _         <- TestRandom.setSeed(seed)
           tableName <- random.nextUUID.map(_.toString)
           _         <- tableDefinition(tableName).execute
         } yield TableName(tableName)
@@ -95,13 +94,12 @@ object LiveSpec extends DefaultRunnableSpec {
     tableDefinition: String => CreateTable,
     f: String => ZIO[Has[DynamoDBExecutor], Throwable, TestResult]
   ) =
-    // TODO(adam): This is bad random
-    managedTable(scala.util.Random.nextLong(), tableDefinition).use(table => f(table.value))
+    managedTable(tableDefinition).use(table => f(table.value))
 
   def withQueryPopulatedTable(
     f: String => ZIO[Has[DynamoDBExecutor], Throwable, TestResult]
   ) =
-    managedTable(scala.util.Random.nextLong(), defaultTable).use { table =>
+    managedTable(defaultTable).use { table =>
       for {
         _      <- insertQueryData(table.value).execute
         result <- f(table.value)
@@ -111,7 +109,7 @@ object LiveSpec extends DefaultRunnableSpec {
   def withDefaultPopulatedTable(
     f: String => ZIO[Has[DynamoDBExecutor], Throwable, TestResult]
   ) =
-    managedTable(scala.util.Random.nextLong(), defaultTable).use { table =>
+    managedTable(defaultTable).use { table =>
       for {
         _      <- insertPeople(table.value).execute
         result <- f(table.value)
@@ -320,8 +318,9 @@ object LiveSpec extends DefaultRunnableSpec {
         )
       )
     )
-      .provideCustomLayerShared(layer.orDie)
+      .provideCustomLayerShared(
+        layer.orDie
+      ) @@ nondeterministic
+  // @@ around(???)(???) // may not be able to use this, I need the results of the first effect in the test
 //      .provideCustomLayerShared(liveAws.orDie)
-  //@@ around (???)(???) // TODO: implement
-//  @@ nondeterministic
 }
