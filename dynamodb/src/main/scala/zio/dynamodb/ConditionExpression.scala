@@ -52,12 +52,18 @@ sealed trait ConditionExpression { self =>
           max <- AliasMapRender.getOrInsert(maxValue)
         } yield s"$l BETWEEN $min AND $max"
       case In(left, values)                   =>
-        values
-          .foldLeft(AliasMapRender.empty.map(_ => "")) {
-            case (acc, value) =>
-              acc.zipWith(AliasMapRender.getOrInsert(value)) { case (acc, action) => s"$acc, $action" }
-          }
-          .map(vals => s"${left.render} IN ($vals)")
+        for {
+          l    <- left.render
+          vals <- values
+                    .foldLeft(AliasMapRender.empty.map(_ => "")) {
+                      case (acc, value) =>
+                        acc.zipWith(AliasMapRender.getOrInsert(value)) {
+                          case (acc, action) =>
+                            if (acc.isEmpty) action
+                            else s"$acc, $action"
+                        }
+                    }
+        } yield s"$l IN ($vals)"
       case AttributeExists(path)              => AliasMapRender.succeed(s"attribute_exists($path)")
       case AttributeNotExists(path)           => AliasMapRender.succeed(s"attribute_not_exists($path)")
       case AttributeType(path, attributeType) => AliasMapRender.succeed(s"attribute_type($path, $attributeType)")
