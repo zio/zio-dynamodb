@@ -40,23 +40,40 @@ object LiveSpec extends DefaultRunnableSpec {
       builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
     } >>> DynamoDBExecutor.live)) ++ (Blocking.live >>> LocalDdbServer.inMemoryLayer)
 
-  val adamPrimaryKey                                                         = PrimaryKey("id" -> "second", "age" -> 2)
+  private val id       = "id"
+  private val first    = "first"
+  private val second   = "second"
+  private val third    = "third"
+  private val name     = "firstName"
+  private val number   = "num"
+  val secondPrimaryKey = PrimaryKey(id -> second, number -> 2)
+
+  private val avi            = "avi"
+  private val anotherAvi     = "avi2"
+  private val yetAnotherAvi  = "avi3"
+  private val adam           = "adam"
+  private val anotherAdam    = "adam2"
+  private val yetAnotherAdam = "adam3"
+  private val john           = "john"
+  private val anotherJohn    = "john2"
+  private val yetAnotherJohn = "john3"
+
   def insertPeople(tableName: String)                                        =
-    putItem(tableName, Item("id" -> "first", "firstName" -> "avi", "age" -> 1)) *>
-      putItem(tableName, Item("id" -> "first", "firstName" -> "anotherAvi", "age" -> 4)) *>
-      putItem(tableName, Item("id" -> "second", "firstName" -> "adam", "age" -> 2)) *>
-      putItem(tableName, Item("id" -> "third", "firstName" -> "john", "age" -> 3))
+    putItem(tableName, Item(id -> first, name -> avi, number -> 1)) *>
+      putItem(tableName, Item(id -> first, name -> anotherAvi, number -> 4)) *>
+      putItem(tableName, Item(id -> second, name -> adam, number -> 2)) *>
+      putItem(tableName, Item(id -> third, name -> john, number -> 3))
 
   def insertQueryData(tableName: String)                                     =
-    putItem(tableName, Item("id" -> "first", "firstName" -> "avi", "age" -> 1)) *>
-      putItem(tableName, Item("id" -> "first", "firstName" -> "anotherAvi", "age" -> 4)) *>
-      putItem(tableName, Item("id" -> "first", "firstName" -> "yetAnotherAvi", "age" -> 7)) *>
-      putItem(tableName, Item("id" -> "second", "firstName" -> "adam", "age" -> 2)) *>
-      putItem(tableName, Item("id" -> "second", "firstName" -> "anotherAdam", "age" -> 5)) *>
-      putItem(tableName, Item("id" -> "second", "firstName" -> "yetAnotherAdam", "age" -> 8)) *>
-      putItem(tableName, Item("id" -> "third", "firstName" -> "john", "age" -> 3)) *>
-      putItem(tableName, Item("id" -> "third", "firstName" -> "anotherJohn", "age" -> 6)) *>
-      putItem(tableName, Item("id" -> "third", "firstName" -> "yetAnotherJohn", "age" -> 9))
+    putItem(tableName, Item(id -> first, name -> avi, number -> 1)) *>
+      putItem(tableName, Item(id -> first, name -> anotherAvi, number -> 4)) *>
+      putItem(tableName, Item(id -> first, name -> yetAnotherAvi, number -> 7)) *>
+      putItem(tableName, Item(id -> second, name -> adam, number -> 2)) *>
+      putItem(tableName, Item(id -> second, name -> anotherAdam, number -> 5)) *>
+      putItem(tableName, Item(id -> second, name -> yetAnotherAdam, number -> 8)) *>
+      putItem(tableName, Item(id -> third, name -> john, number -> 3)) *>
+      putItem(tableName, Item(id -> third, name -> anotherJohn, number -> 6)) *>
+      putItem(tableName, Item(id -> third, name -> yetAnotherJohn, number -> 9))
 
   def awaitTableCreation(
     tableName: String
@@ -70,14 +87,14 @@ object LiveSpec extends DefaultRunnableSpec {
       .retry(Schedule.spaced(2.seconds) && Schedule.recurs(5))
 
   private def defaultTable(tableName: String) =
-    createTable(tableName, KeySchema("id", "age"), BillingMode.PayPerRequest)(
-      AttributeDefinition.attrDefnString("id"),
-      AttributeDefinition.attrDefnNumber("age")
+    createTable(tableName, KeySchema(id, number), BillingMode.PayPerRequest)(
+      AttributeDefinition.attrDefnString(id),
+      AttributeDefinition.attrDefnNumber(number)
     )
 
   def numberTable(tableName: String) =
-    createTable(tableName, KeySchema("id"), BillingMode.PayPerRequest)(
-      AttributeDefinition.attrDefnNumber("id")
+    createTable(tableName, KeySchema(id), BillingMode.PayPerRequest)(
+      AttributeDefinition.attrDefnNumber(id)
     )
 
   private def managedTable(tableDefinition: String => CreateTable) =
@@ -117,22 +134,22 @@ object LiveSpec extends DefaultRunnableSpec {
 
   override def spec: ZSpec[TestEnvironment, Any] =
     suite("live test")(
-      suite("basic usage")(
+      suite("basic us" + number)(
         testM("put and get item") {
           withTemporaryTable(
             defaultTable,
             tableName =>
               for {
-                _      <- putItem(tableName, Item("id" -> "first", "testName" -> "put and get item", "age" -> 20)).execute
-                result <- getItem(tableName, PrimaryKey("id" -> "first", "age" -> 20)).execute
+                _      <- putItem(tableName, Item(id -> first, "testName" -> "put and get item", number -> 20)).execute
+                result <- getItem(tableName, PrimaryKey(id -> first, number -> 20)).execute
               } yield assert(result)(
-                equalTo(Some(Item("id" -> "first", "testName" -> "put and get item", "age" -> 20)))
+                equalTo(Some(Item(id -> first, "testName" -> "put and get item", number -> 20)))
               )
           )
         },
         testM("get nonexistant returns empty") {
           withDefaultPopulatedTable { tableName =>
-            getItem(tableName, PrimaryKey("id" -> "nowhere", "age" -> 1000)).execute.map(item => assert(item)(isNone))
+            getItem(tableName, PrimaryKey(id -> "nowhere", number -> 1000)).execute.map(item => assert(item)(isNone))
           }
         }
       ),
@@ -145,10 +162,10 @@ object LiveSpec extends DefaultRunnableSpec {
             } yield assert(chunk)(
               equalTo(
                 Chunk(
-                  Item("id" -> "second", "firstName" -> "adam", "age"       -> 2),
-                  Item("id" -> "third", "firstName"  -> "john", "age"       -> 3),
-                  Item("id" -> "first", "firstName"  -> "avi", "age"        -> 1),
-                  Item("id" -> "first", "firstName"  -> "anotherAvi", "age" -> 4)
+                  Item(id -> second, name -> adam, number       -> 2),
+                  Item(id -> third, name  -> john, number       -> 3),
+                  Item(id -> first, name  -> avi, number        -> 1),
+                  Item(id -> first, name  -> anotherAvi, number -> 4)
                 )
               )
             )
@@ -159,31 +176,31 @@ object LiveSpec extends DefaultRunnableSpec {
         testM("query less than") {
           withDefaultPopulatedTable { tableName =>
             for {
-              (chunk, _) <- querySomeItem(tableName, 10, $("firstName"))
-                              .whereKey(PartitionKey("id") === "first" && SortKey("age") < 2)
+              (chunk, _) <- querySomeItem(tableName, 10, $(name))
+                              .whereKey(PartitionKey(id) === first && SortKey(number) < 2)
                               .execute
             } yield assert(chunk)(
-              equalTo(Chunk(Item("firstName" -> "avi")))
+              equalTo(Chunk(Item(name -> avi)))
             )
           }
         },
         testM("query table greater than") {
           withDefaultPopulatedTable { tableName =>
             for {
-              (chunk, _) <- querySomeItem(tableName, 10, $("firstName"))
-                              .whereKey(PartitionKey("id") === "first" && SortKey("age") > 0)
+              (chunk, _) <- querySomeItem(tableName, 10, $(name))
+                              .whereKey(PartitionKey(id) === first && SortKey(number) > 0)
                               .execute
 
             } yield assert(chunk)(
-              equalTo(Chunk(Item("firstName" -> "avi"), Item("firstName" -> "anotherAvi")))
+              equalTo(Chunk(Item(name -> avi), Item(name -> anotherAvi)))
             )
           }
         },
         testM("empty query result returns empty chunk") {
           withDefaultPopulatedTable { tableName =>
             for {
-              (chunk, _) <- querySomeItem(tableName, 10, $("firstName"))
-                              .whereKey(PartitionKey("id") === "nowhere" && SortKey("age") > 0)
+              (chunk, _) <- querySomeItem(tableName, 10, $(name))
+                              .whereKey(PartitionKey(id) === "nowhere" && SortKey(number) > 0)
                               .execute
             } yield assert(chunk)(isEmpty)
           }
@@ -191,34 +208,34 @@ object LiveSpec extends DefaultRunnableSpec {
         testM("query with limit") {
           withQueryPopulatedTable { tableName =>
             for {
-              (chunk, _) <- querySomeItem(tableName, 1, $("firstName"))
-                              .whereKey(PartitionKey("id") === "first")
+              (chunk, _) <- querySomeItem(tableName, 1, $(name))
+                              .whereKey(PartitionKey(id) === first)
                               .execute
-            } yield assert(chunk)(equalTo(Chunk(Item("firstName" -> "avi"))))
+            } yield assert(chunk)(equalTo(Chunk(Item(name -> avi))))
           }
         } @@ ignore, // limit is not being honored
         testM("query starting from StartKey") {
           withQueryPopulatedTable { tableName =>
             for {
-              (_, startKey) <- querySomeItem(tableName, 2, $("id"), $("age"))
-                                 .whereKey(PartitionKey("id") === "first")
+              (_, startKey) <- querySomeItem(tableName, 2, $(id), $(number))
+                                 .whereKey(PartitionKey(id) === first)
                                  .execute
-              (chunk, _)    <- querySomeItem(tableName, 5, $("firstName"))
-                                 .whereKey(PartitionKey("id") === "first")
+              (chunk, _)    <- querySomeItem(tableName, 5, $(name))
+                                 .whereKey(PartitionKey(id) === first)
                                  .startKey(startKey)
                                  .execute
-            } yield assert(chunk)(equalTo(Chunk(Item("firstName" -> "yetAnotherAvi"))))
+            } yield assert(chunk)(equalTo(Chunk(Item(name -> yetAnotherAvi))))
           }
         } @@ ignore, // does not look like limit is being honored
         suite("SortKeyCondition")(
           testM("SortKeyCondition between") {
             withQueryPopulatedTable { tableName =>
               for {
-                (chunk, _) <- querySomeItem(tableName, 10, $("firstName"))
-                                .whereKey(PartitionKey("id") === "first" && SortKey("age").between(3, 8))
+                (chunk, _) <- querySomeItem(tableName, 10, $(name))
+                                .whereKey(PartitionKey(id) === first && SortKey(number).between(3, 8))
                                 .execute
               } yield assert(chunk)(
-                equalTo(Chunk(Item("firstName" -> "anotherAvi"), Item("firstName" -> "yetAnotherAvi")))
+                equalTo(Chunk(Item(name -> anotherAvi), Item(name -> yetAnotherAvi)))
               )
             }
           }
@@ -230,37 +247,37 @@ object LiveSpec extends DefaultRunnableSpec {
           withDefaultPopulatedTable {
             tableName =>
               for {
-                _       <- updateItem(tableName, adamPrimaryKey)($("firstName").set("notAdam")).execute
+                _       <- updateItem(tableName, secondPrimaryKey)($(name).set("notAdam")).execute
                 updated <- getItem(
                              tableName,
-                             adamPrimaryKey
+                             secondPrimaryKey
                            ).execute // TODO(adam): for some reason adding a projection expression here results in none
                 // Expected to be a bug somewhere -- possibly write a ticket
-              } yield assert(updated)(equalTo(Some(Item("firstName" -> "notAdam", "id" -> "second", "age" -> 2))))
+              } yield assert(updated)(equalTo(Some(Item(name -> "notAdam", id -> second, number -> 2))))
           }
         },
         testM("remove field") {
           withDefaultPopulatedTable { tableName =>
             for {
-              _       <- updateItem(tableName, adamPrimaryKey)($("firstName").remove).execute
+              _       <- updateItem(tableName, secondPrimaryKey)($(name).remove).execute
               updated <- getItem(
                            tableName,
-                           adamPrimaryKey
+                           secondPrimaryKey
                          ).execute
-            } yield assert(updated)(equalTo(Some(Item("id" -> "second", "age" -> 2))))
+            } yield assert(updated)(equalTo(Some(Item(id -> second, number -> 2))))
           }
         },
         testM("insert item into list") {
           withDefaultPopulatedTable { tableName =>
             for {
-              _       <- updateItem(tableName, adamPrimaryKey)($("listThing").set(List(1))).execute
-              _       <- updateItem(tableName, adamPrimaryKey)($("listThing[1]").set(2)).execute
+              _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
+              _       <- updateItem(tableName, secondPrimaryKey)($("listThing[1]").set(2)).execute
               updated <- getItem(
                            tableName,
-                           adamPrimaryKey
+                           secondPrimaryKey
                          ).execute
             } yield assert(updated)(
-              equalTo(Some(Item("id" -> "second", "age" -> 2, "firstName" -> "adam", "listThing" -> List(1, 2))))
+              equalTo(Some(Item(id -> second, number -> 2, name -> adam, "listThing" -> List(1, 2))))
             )
           }
         },
@@ -268,10 +285,10 @@ object LiveSpec extends DefaultRunnableSpec {
           withDefaultPopulatedTable {
             tableName =>
               for {
-                _       <- updateItem(tableName, adamPrimaryKey)($("listThing").set(List(1))).execute
-                _       <- updateItem(tableName, adamPrimaryKey)($("listThing").appendList(Chunk(2, 3, 4))).execute
+                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
+                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").appendList(Chunk(2, 3, 4))).execute
                 // REVIEW(john): Getting None when a projection expression is added here
-                updated <- getItem(tableName, adamPrimaryKey).execute
+                updated <- getItem(tableName, secondPrimaryKey).execute
               } yield assert(
                 updated.map(a =>
                   a.get("listThing")(
@@ -285,9 +302,9 @@ object LiveSpec extends DefaultRunnableSpec {
           withDefaultPopulatedTable {
             tableName =>
               for {
-                _       <- updateItem(tableName, adamPrimaryKey)($("listThing").set(List(1))).execute
-                _       <- updateItem(tableName, adamPrimaryKey)($("listThing").prependList(Chunk(-1, 0))).execute
-                updated <- getItem(tableName, adamPrimaryKey).execute
+                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
+                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").prependList(Chunk(-1, 0))).execute
+                updated <- getItem(tableName, secondPrimaryKey).execute
               } yield assert(
                 updated.map(a =>
                   a.get("listThing")(
@@ -302,8 +319,8 @@ object LiveSpec extends DefaultRunnableSpec {
             numberTable,
             tableName =>
               for {
-                _       <- putItem(tableName, Item("id" -> 1, "num" -> 0)).execute
-                _       <- updateItem(tableName, PrimaryKey("id" -> 1))(
+                _       <- putItem(tableName, Item(id -> 1, "num" -> 0)).execute
+                _       <- updateItem(tableName, PrimaryKey(id -> 1))(
                              SetAction(
                                $("num"),
                                SetOperand.PathOperand($("num")) + SetOperand.ValueOperand(
@@ -311,8 +328,8 @@ object LiveSpec extends DefaultRunnableSpec {
                                )
                              )
                            ).execute
-                updated <- getItem(tableName, PrimaryKey("id" -> 1)).execute
-              } yield assert(updated)(equalTo(Some(Item("id" -> 1, "num" -> 5))))
+                updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
+              } yield assert(updated)(equalTo(Some(Item(id -> 1, "num" -> 5))))
           )
         },
         testM("subtract number") {
@@ -320,8 +337,8 @@ object LiveSpec extends DefaultRunnableSpec {
             numberTable,
             tableName =>
               for {
-                _       <- putItem(tableName, Item("id" -> 1, "num" -> 0)).execute
-                _       <- updateItem(tableName, PrimaryKey("id" -> 1))(
+                _       <- putItem(tableName, Item(id -> 1, "num" -> 0)).execute
+                _       <- updateItem(tableName, PrimaryKey(id -> 1))(
                              SetAction(
                                $("num"),
                                SetOperand.PathOperand($("num")) - SetOperand.ValueOperand(
@@ -329,8 +346,8 @@ object LiveSpec extends DefaultRunnableSpec {
                                )
                              )
                            ).execute
-                updated <- getItem(tableName, PrimaryKey("id" -> 1)).execute
-              } yield assert(updated)(equalTo(Some(Item("id" -> 1, "num" -> -2))))
+                updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
+              } yield assert(updated)(equalTo(Some(Item(id -> 1, "num" -> -2))))
           )
         },
         suite("if not exists")(
@@ -339,10 +356,10 @@ object LiveSpec extends DefaultRunnableSpec {
               numberTable,
               tableName =>
                 for {
-                  _       <- putItem(tableName, Item("id" -> 1)).execute
-                  _       <- updateItem(tableName, PrimaryKey("id" -> 1))($("num").setIfNotExists($("num"), 4)).execute
-                  updated <- getItem(tableName, PrimaryKey("id" -> 1)).execute
-                } yield assert(updated)(equalTo(Some(Item("id" -> 1, "num" -> 4))))
+                  _       <- putItem(tableName, Item(id -> 1)).execute
+                  _       <- updateItem(tableName, PrimaryKey(id -> 1))($("num").setIfNotExists($("num"), 4)).execute
+                  updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
+                } yield assert(updated)(equalTo(Some(Item(id -> 1, "num" -> 4))))
             )
           },
           testM("does not update if field does exist") {
@@ -350,10 +367,10 @@ object LiveSpec extends DefaultRunnableSpec {
               numberTable,
               tableName =>
                 for {
-                  _       <- putItem(tableName, Item("id" -> 1, "num" -> 0)).execute
-                  _       <- updateItem(tableName, PrimaryKey("id" -> 1))($("num").setIfNotExists($("num"), 4)).execute
-                  updated <- getItem(tableName, PrimaryKey("id" -> 1)).execute
-                } yield assert(updated)(equalTo(Some(Item("id" -> 1, "num" -> 0))))
+                  _       <- putItem(tableName, Item(id -> 1, "num" -> 0)).execute
+                  _       <- updateItem(tableName, PrimaryKey(id -> 1))($("num").setIfNotExists($("num"), 4)).execute
+                  updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
+                } yield assert(updated)(equalTo(Some(Item(id -> 1, "num" -> 0))))
             )
           }
         )
