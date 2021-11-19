@@ -257,7 +257,31 @@ object AliasMapRenderSpec extends DefaultRunnableSpec {
             assert(aliasMap)(equalTo(AliasMap(Map(name -> ":v0"), 1))) &&
             assert(expression)(equalTo("begins_with(num, :v0)"))
           }
-        )
+        ),
+        suite("PartitionKeyExpression")(
+          test("Equals") {
+            val (aliasMap, expression) = PartitionKeyExpression
+              .Equals(PartitionKeyExpression.PartitionKey("num"), one)
+              .render
+              .render(AliasMap.empty)
+
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
+            assert(expression)(equalTo("num = :v0"))
+          }
+        ),
+        test("And") {
+          val (aliasMap, expression) = KeyConditionExpression
+            .And(
+              PartitionKeyExpression
+                .Equals(PartitionKeyExpression.PartitionKey("num"), two),
+              SortKeyExpression.Between(SortKeyExpression.SortKey("num"), one, three)
+            )
+            .render
+            .render(AliasMap.empty)
+
+          assert(aliasMap)(equalTo(AliasMap(Map(two -> ":v0", one -> ":v1", three -> ":v2"), 3))) &&
+          assert(expression)(equalTo("num = :v0 AND num BETWEEN :v1 AND :v2"))
+        }
       )
     )
 
