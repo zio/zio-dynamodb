@@ -460,6 +460,47 @@ object AliasMapRenderSpec extends DefaultRunnableSpec {
             assert(expression)(equalTo("set projection = if_not_exists(projection, :v0)"))
 
           }
+        ),
+        suite("Remove")(
+          test("Remove") {
+            val (aliasMap, expression) =
+              UpdateExpression(
+                UpdateExpression.Action.RemoveAction(
+                  $(projection)
+                )
+              ).render.render(AliasMap.empty)
+
+            assert(aliasMap.map)(isEmpty) &&
+            assert(expression)(equalTo("remove projection"))
+          }
+        ),
+        suite("Add")(
+          test("Add") {
+            val (aliasMap, expression) =
+              UpdateExpression(
+                UpdateExpression.Action.AddAction(
+                  $(projection),
+                  one
+                )
+              ).render.render(AliasMap.empty)
+
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
+            assert(expression)(equalTo("add projection :v0"))
+          }
+        ),
+        suite("Delete")(
+          test("Delete") {
+            val (aliasMap, expression) =
+              UpdateExpression(
+                UpdateExpression.Action.DeleteAction(
+                  $(projection),
+                  one
+                )
+              ).render.render(AliasMap.empty)
+
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
+            assert(expression)(equalTo("delete projection :v0"))
+          }
         )
       )
     )
