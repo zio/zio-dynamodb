@@ -66,7 +66,7 @@ sealed trait ConditionExpression { self =>
         } yield s"$l IN ($vals)"
       case AttributeExists(path)              => AliasMapRender.succeed(s"attribute_exists($path)")
       case AttributeNotExists(path)           => AliasMapRender.succeed(s"attribute_not_exists($path)")
-      case AttributeType(path, attributeType) => AliasMapRender.succeed(s"attribute_type($path, $attributeType)")
+      case AttributeType(path, attributeType) => attributeType.render.map(v => s"attribute_type($path, $v)")
       case Contains(path, value)              => AliasMapRender.getOrInsert(value).map(v => s"contains($path, $v)")
       case BeginsWith(path, value)            => AliasMapRender.getOrInsert(value).map(v => s"begins_with($path, $v)")
       case And(left, right)                   => left.render.zipWith(right.render) { case (l, r) => s"($l) AND ($r)" }
