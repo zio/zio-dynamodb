@@ -198,6 +198,66 @@ object AliasMapRenderSpec extends DefaultRunnableSpec {
             assert(expression)(equalTo("(:v0) >= (:v1)"))
           }
         )
+      ),
+      suite("KeyConditionExpression")(
+        suite("SortKeyExpression")(
+          test("Equals") {
+            val (aliasMap, expression) =
+              SortKeyExpression.Equals(SortKeyExpression.SortKey("num"), one).render.render(AliasMap.empty)
+
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
+            assert(expression)(equalTo("num = :v0"))
+          },
+          test("LessThan") {
+            val (aliasMap, expression) =
+              SortKeyExpression.LessThan(SortKeyExpression.SortKey("num"), one).render.render(AliasMap.empty)
+
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
+            assert(expression)(equalTo("num < :v0"))
+          },
+          test("NotEqual") {
+            val (aliasMap, expression) =
+              SortKeyExpression.NotEqual(SortKeyExpression.SortKey("num"), one).render.render(AliasMap.empty)
+
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
+            assert(expression)(equalTo("num <> :v0"))
+          },
+          test("GreaterThan") {
+            val (aliasMap, expression) =
+              SortKeyExpression.GreaterThan(SortKeyExpression.SortKey("num"), one).render.render(AliasMap.empty)
+
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
+            assert(expression)(equalTo("num > :v0"))
+          },
+          test("LessThanOrEqual") {
+            val (aliasMap, expression) =
+              SortKeyExpression.LessThanOrEqual(SortKeyExpression.SortKey("num"), one).render.render(AliasMap.empty)
+
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
+            assert(expression)(equalTo("num <= :v0"))
+          },
+          test("GreaterThanOrEqual") {
+            val (aliasMap, expression) =
+              SortKeyExpression.GreaterThanOrEqual(SortKeyExpression.SortKey("num"), one).render.render(AliasMap.empty)
+
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
+            assert(expression)(equalTo("num >= :v0"))
+          },
+          test("Between") {
+            val (aliasMap, expression) =
+              SortKeyExpression.Between(SortKeyExpression.SortKey("num"), one, two).render.render(AliasMap.empty)
+
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0", two -> ":v1"), 2))) &&
+            assert(expression)(equalTo("num BETWEEN :v0 AND :v1"))
+          },
+          test("BeginsWith") {
+            val (aliasMap, expression) =
+              SortKeyExpression.BeginsWith(SortKeyExpression.SortKey("num"), name).render.render(AliasMap.empty)
+
+            assert(aliasMap)(equalTo(AliasMap(Map(name -> ":v0"), 1))) &&
+            assert(expression)(equalTo("begins_with(num, :v0)"))
+          }
+        )
       )
     )
 

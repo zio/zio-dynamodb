@@ -152,7 +152,7 @@ sealed trait SortKeyExpression { self =>
         AliasMapRender
           .getOrInsert(value)
           .map { v =>
-            s"begins_with ( ${left.keyName} , $v )"
+            s"begins_with(${left.keyName}, $v)"
           }
     }
 }
