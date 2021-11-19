@@ -5,11 +5,13 @@ import zio.test.Assertion._
 
 object AliasMapRenderSpec extends DefaultRunnableSpec {
 
-  val one                                                = AttributeValue.Number(1)
-  val two                                                = AttributeValue.Number(2)
-  val three                                              = AttributeValue.Number(3)
-  val number                                             = AttributeValue.String("N")
-  val name                                               = AttributeValue.String("name")
+  val one    = AttributeValue.Number(1)
+  val two    = AttributeValue.Number(2)
+  val three  = AttributeValue.Number(3)
+  val number = AttributeValue.String("N")
+  val name   = AttributeValue.String("name")
+  val list   = AttributeValue.List(List(one, two, three))
+
   val between                                            = ConditionExpression
     .Between(
       ConditionExpression.Operand.ValueOperand(two),
@@ -37,6 +39,10 @@ object AliasMapRenderSpec extends DefaultRunnableSpec {
       projectionExpression,
       name
     )
+
+  val setOperandValueOne   = UpdateExpression.SetOperand.ValueOperand(one)
+  val setOperandValueTwo   = UpdateExpression.SetOperand.ValueOperand(two)
+  val setOperandValueThree = UpdateExpression.SetOperand.ValueOperand(three)
 
   override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
     suite("AliasMapRender")(
@@ -344,6 +350,117 @@ object AliasMapRenderSpec extends DefaultRunnableSpec {
           assert(aliasMap)(equalTo(AliasMap(Map(AttributeValue.String("S") -> ":v0"), 1))) &&
           assert(expression)(equalTo(":v0"))
         }
+      ),
+      suite("UpdateExpression")(
+        suite("Set")(
+          test("Minus") {
+            val (aliasMap, expression) =
+              UpdateExpression(
+                UpdateExpression.Action.SetAction(
+                  $(projection),
+                  UpdateExpression.SetOperand.Minus(
+                    setOperandValueOne,
+                    setOperandValueTwo
+                  )
+                )
+              ).render.render(AliasMap.empty)
+
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0", two -> ":v1"), 2))) &&
+            assert(expression)(equalTo("set projection = :v0 - :v1"))
+          },
+          test("Plus") {
+            val (aliasMap, expression) =
+              UpdateExpression(
+                UpdateExpression.Action.SetAction(
+                  $(projection),
+                  UpdateExpression.SetOperand.Plus(
+                    setOperandValueOne,
+                    setOperandValueTwo
+                  )
+                )
+              ).render.render(AliasMap.empty)
+
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0", two -> ":v1"), 2))) &&
+            assert(expression)(equalTo("set projection = :v0 + :v1"))
+
+          },
+          test("ValueOperand") {
+            val (aliasMap, expression) =
+              UpdateExpression(
+                UpdateExpression.Action.SetAction(
+                  $(projection),
+                  UpdateExpression.SetOperand.ValueOperand(one)
+                )
+              ).render.render(AliasMap.empty)
+
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
+            assert(expression)(equalTo("set projection = :v0"))
+
+          },
+          test("PathOperand") {
+            val (aliasMap, expression) =
+              UpdateExpression(
+                UpdateExpression.Action.SetAction(
+                  $(projection),
+                  UpdateExpression.SetOperand.PathOperand(
+                    projectionExpression
+                  )
+                )
+              ).render.render(AliasMap.empty)
+
+            assert(aliasMap.map)(isEmpty) &&
+            assert(expression)(equalTo("set projection = projection"))
+
+          },
+          test("ListAppend") {
+            val (aliasMap, expression) =
+              UpdateExpression(
+                UpdateExpression.Action.SetAction(
+                  $(projection),
+                  UpdateExpression.SetOperand.ListAppend(
+                    projectionExpression,
+                    list
+                  )
+                )
+              ).render.render(AliasMap.empty)
+
+            assert(aliasMap)(equalTo(AliasMap(Map(list -> ":v0"), 1))) &&
+            assert(expression)(equalTo("set projection = list_append(projection, :v0)"))
+
+          },
+          test("ListPrepend") {
+            val (aliasMap, expression) =
+              UpdateExpression(
+                UpdateExpression.Action.SetAction(
+                  $(projection),
+                  UpdateExpression.SetOperand.ListPrepend(
+                    projectionExpression,
+                    list
+                  )
+                )
+              ).render.render(AliasMap.empty)
+
+            assert(aliasMap)(equalTo(AliasMap(Map(list -> ":v0"), 1))) &&
+            assert(expression)(equalTo("set projection = list_append(:v0, projection)"))
+
+          },
+          test("IfNotExists") {
+            val (aliasMap, expression) =
+              UpdateExpression(
+                UpdateExpression.Action.SetAction(
+                  $(projection),
+                  UpdateExpression.SetOperand.IfNotExists(
+                    projectionExpression,
+                    one
+                  )
+                )
+              ).render.render(AliasMap.empty)
+
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
+            assert(expression)(equalTo("set projection = if_not_exists(projection, :v0)"))
+
+          }
+        )
       )
     )
 
