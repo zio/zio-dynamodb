@@ -20,10 +20,8 @@ object JavaSdkExamplePutAndGetSpec extends DefaultRunnableSpec {
         def getString(map: Map[String, AttributeValue], name: String): Either[String, String] =
           map.get(name).toRight(s"mandatory field $name not found").map(_.s)
 
-        def getStringOpt(
-          map: Map[String, AttributeValue],
-          name: String
-        ): Either[Nothing, Option[String]] = Right(map.get(name).map(_.s))
+        def getStringOpt(map: Map[String, AttributeValue], name: String): Either[Nothing, Option[String]] =
+          Right(map.get(name).map(_.s))
 
         def putItemRequest(student: Student): PutItemRequest =
           PutItemRequest.builder
