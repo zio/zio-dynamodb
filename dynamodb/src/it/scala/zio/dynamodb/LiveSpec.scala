@@ -235,31 +235,118 @@ object LiveSpec extends DefaultRunnableSpec {
         )
       ),
       suite("update items")(
-        testM("update name") {
-          withDefaultTable { tableName =>
-            for {
-              _       <- updateItem(tableName, secondPrimaryKey)($(name).set("notAdam")).execute
-              updated <- getItem(
-                           tableName,
-                           secondPrimaryKey
-                         ).execute
-            } yield assert(updated)(equalTo(Some(Item(name -> "notAdam", id -> second, number -> 2))))
-          }
-        },
-        testM("update name where getItem has projection") {
-          withDefaultTable {
-            tableName =>
+        suite("set actions")(
+          testM("update name") {
+            withDefaultTable { tableName =>
               for {
                 _       <- updateItem(tableName, secondPrimaryKey)($(name).set("notAdam")).execute
                 updated <- getItem(
                              tableName,
-                             secondPrimaryKey,
-                             $(name)
-                           ).execute // TODO(adam): for some reason adding a projection expression here results in none
-                // Expected to be a bug somewhere -- possibly write a ticket
+                             secondPrimaryKey
+                           ).execute
               } yield assert(updated)(equalTo(Some(Item(name -> "notAdam", id -> second, number -> 2))))
-          }
-        } @@ ignore,
+            }
+          },
+          testM("update name where getItem has projection") {
+            withDefaultTable {
+              tableName =>
+                for {
+                  _       <- updateItem(tableName, secondPrimaryKey)($(name).set("notAdam")).execute
+                  updated <-
+                    getItem(
+                      tableName,
+                      secondPrimaryKey,
+                      $(name)
+                    ).execute // TODO(adam): for some reason adding a projection expression here results in none
+                  // Expected to be a bug somewhere -- possibly write a ticket
+                } yield assert(updated)(equalTo(Some(Item(name -> "notAdam", id -> second, number -> 2))))
+            }
+          } @@ ignore,
+          testM("insert item into list") {
+            withDefaultTable { tableName =>
+              for {
+                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
+                _       <- updateItem(tableName, secondPrimaryKey)($("listThing[1]").set(2)).execute
+                updated <- getItem(
+                             tableName,
+                             secondPrimaryKey
+                           ).execute
+              } yield assert(updated)(
+                equalTo(Some(Item(id -> second, number -> 2, name -> adam, "listThing" -> List(1, 2))))
+              )
+            }
+          },
+          testM("append to list") {
+            withDefaultTable {
+              tableName =>
+                for {
+                  _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
+                  _       <- updateItem(tableName, secondPrimaryKey)($("listThing").appendList(Chunk(2, 3, 4))).execute
+                  // REVIEW(john): Getting None when a projection expression is added here
+                  updated <- getItem(tableName, secondPrimaryKey).execute
+                } yield assert(
+                  updated.map(a =>
+                    a.get("listThing")(
+                      FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
+                    )
+                  )
+                )(equalTo(Some(Right(List(1, 2, 3, 4)))))
+            }
+          },
+          testM("prepend to list") {
+            withDefaultTable {
+              tableName =>
+                for {
+                  _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
+                  _       <- updateItem(tableName, secondPrimaryKey)($("listThing").prependList(Chunk(-1, 0))).execute
+                  updated <- getItem(tableName, secondPrimaryKey).execute
+                } yield assert(
+                  updated.map(a =>
+                    a.get("listThing")(
+                      FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
+                    )
+                  )
+                )(equalTo(Some(Right(List(-1, 0, 1)))))
+            }
+          },
+          testM("set an Item Attribute") {
+            withDefaultTable { tableName =>
+              for {
+                _       <- updateItem(tableName, secondPrimaryKey)($(name).set($(id))).execute
+                updated <- getItem(
+                             tableName,
+                             secondPrimaryKey
+                           ).execute
+              } yield assert(updated)(
+                equalTo(Some(Item(id -> second, number -> 2, name -> second)))
+              )
+            }
+          },
+          suite("if not exists")(
+            testM("field does not exist") {
+              withTemporaryTable(
+                numberTable,
+                tableName =>
+                  for {
+                    _       <- putItem(tableName, Item(id -> 1)).execute
+                    _       <- updateItem(tableName, PrimaryKey(id -> 1))($(number).setIfNotExists($(number), 4)).execute
+                    updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
+                  } yield assert(updated)(equalTo(Some(Item(id -> 1, number -> 4))))
+              )
+            },
+            testM("does not update if field does exist") {
+              withTemporaryTable(
+                numberTable,
+                tableName =>
+                  for {
+                    _       <- putItem(tableName, Item(id -> 1, number -> 0)).execute
+                    _       <- updateItem(tableName, PrimaryKey(id -> 1))($(number).setIfNotExists($(number), 4)).execute
+                    updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
+                  } yield assert(updated)(equalTo(Some(Item(id -> 1, number -> 0))))
+              )
+            }
+          )
+        ),
         testM("remove field") {
           withDefaultTable { tableName =>
             for {
@@ -269,66 +356,6 @@ object LiveSpec extends DefaultRunnableSpec {
                            secondPrimaryKey
                          ).execute
             } yield assert(updated)(equalTo(Some(Item(id -> second, number -> 2))))
-          }
-        },
-        testM("insert item into list") {
-          withDefaultTable { tableName =>
-            for {
-              _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
-              _       <- updateItem(tableName, secondPrimaryKey)($("listThing[1]").set(2)).execute
-              updated <- getItem(
-                           tableName,
-                           secondPrimaryKey
-                         ).execute
-            } yield assert(updated)(
-              equalTo(Some(Item(id -> second, number -> 2, name -> adam, "listThing" -> List(1, 2))))
-            )
-          }
-        },
-        testM("append to list") {
-          withDefaultTable {
-            tableName =>
-              for {
-                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
-                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").appendList(Chunk(2, 3, 4))).execute
-                // REVIEW(john): Getting None when a projection expression is added here
-                updated <- getItem(tableName, secondPrimaryKey).execute
-              } yield assert(
-                updated.map(a =>
-                  a.get("listThing")(
-                    FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
-                  )
-                )
-              )(equalTo(Some(Right(List(1, 2, 3, 4)))))
-          }
-        },
-        testM("prepend to list") {
-          withDefaultTable {
-            tableName =>
-              for {
-                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
-                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").prependList(Chunk(-1, 0))).execute
-                updated <- getItem(tableName, secondPrimaryKey).execute
-              } yield assert(
-                updated.map(a =>
-                  a.get("listThing")(
-                    FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
-                  )
-                )
-              )(equalTo(Some(Right(List(-1, 0, 1)))))
-          }
-        },
-        testM("set an Item Attribute") {
-          withDefaultTable { tableName =>
-            for {
-              _       <- updateItem(tableName, secondPrimaryKey)($(name).set($(id))).execute
-              updated <- getItem(
-                           tableName,
-                           secondPrimaryKey
-                         ).execute
-            } yield assert(updated)(
-              equalTo(Some(Item(id -> second, number -> 2, name -> second)))
-            )
           }
         },
         testM("add number") {
@@ -366,31 +393,7 @@ object LiveSpec extends DefaultRunnableSpec {
                 updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
               } yield assert(updated)(equalTo(Some(Item(id -> 1, number -> -2))))
           )
-        },
-        suite("if not exists")(
-          testM("field does not exist") {
-            withTemporaryTable(
-              numberTable,
-              tableName =>
-                for {
-                  _       <- putItem(tableName, Item(id -> 1)).execute
-                  _       <- updateItem(tableName, PrimaryKey(id -> 1))($(number).setIfNotExists($(number), 4)).execute
-                  updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
-                } yield assert(updated)(equalTo(Some(Item(id -> 1, number -> 4))))
-            )
-          },
-          testM("does not update if field does exist") {
-            withTemporaryTable(
-              numberTable,
-              tableName =>
-                for {
-                  _       <- putItem(tableName, Item(id -> 1, number -> 0)).execute
-                  _       <- updateItem(tableName, PrimaryKey(id -> 1))($(number).setIfNotExists($(number), 4)).execute
-                  updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
-                } yield assert(updated)(equalTo(Some(Item(id -> 1, number -> 0))))
-            )
-          }
-        )
+        }
       )
     )
       .provideCustomLayerShared(
