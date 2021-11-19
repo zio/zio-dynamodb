@@ -282,6 +282,68 @@ object AliasMapRenderSpec extends DefaultRunnableSpec {
           assert(aliasMap)(equalTo(AliasMap(Map(two -> ":v0", one -> ":v1", three -> ":v2"), 3))) &&
           assert(expression)(equalTo("num = :v0 AND num BETWEEN :v1 AND :v2"))
         }
+      ),
+      suite("AttributeValueType")(
+        test("Bool") {
+          val (aliasMap, expression) = AttributeValueType.Bool.render.render(AliasMap.empty)
+
+          assert(aliasMap)(equalTo(AliasMap(Map(AttributeValue.String("BOOL") -> ":v0"), 1))) &&
+          assert(expression)(equalTo(":v0"))
+        },
+        test("BinarySet") {
+          val (aliasMap, expression) = AttributeValueType.BinarySet.render.render(AliasMap.empty)
+
+          assert(aliasMap)(equalTo(AliasMap(Map(AttributeValue.String("BS") -> ":v0"), 1))) &&
+          assert(expression)(equalTo(":v0"))
+        },
+        test("List") {
+          val (aliasMap, expression) = AttributeValueType.List.render.render(AliasMap.empty)
+
+          assert(aliasMap)(equalTo(AliasMap(Map(AttributeValue.String("L") -> ":v0"), 1))) &&
+          assert(expression)(equalTo(":v0"))
+        },
+        test("Map") {
+          val (aliasMap, expression) = AttributeValueType.Map.render.render(AliasMap.empty)
+
+          assert(aliasMap)(equalTo(AliasMap(Map(AttributeValue.String("M") -> ":v0"), 1))) &&
+          assert(expression)(equalTo(":v0"))
+        },
+        test("NumberSet") {
+          val (aliasMap, expression) = AttributeValueType.NumberSet.render.render(AliasMap.empty)
+
+          assert(aliasMap)(equalTo(AliasMap(Map(AttributeValue.String("NS") -> ":v0"), 1))) &&
+          assert(expression)(equalTo(":v0"))
+        },
+        test("Null") {
+          val (aliasMap, expression) = AttributeValueType.Null.render.render(AliasMap.empty)
+
+          assert(aliasMap)(equalTo(AliasMap(Map(AttributeValue.String("NULL") -> ":v0"), 1))) &&
+          assert(expression)(equalTo(":v0"))
+        },
+        test("StringSet") {
+          val (aliasMap, expression) = AttributeValueType.StringSet.render.render(AliasMap.empty)
+
+          assert(aliasMap)(equalTo(AliasMap(Map(AttributeValue.String("SS") -> ":v0"), 1))) &&
+          assert(expression)(equalTo(":v0"))
+        },
+        test("Binary") {
+          val (aliasMap, expression) = AttributeValueType.Binary.render.render(AliasMap.empty)
+
+          assert(aliasMap)(equalTo(AliasMap(Map(AttributeValue.String("B") -> ":v0"), 1))) &&
+          assert(expression)(equalTo(":v0"))
+        },
+        test("Number") {
+          val (aliasMap, expression) = AttributeValueType.Number.render.render(AliasMap.empty)
+
+          assert(aliasMap)(equalTo(AliasMap(Map(AttributeValue.String("N") -> ":v0"), 1))) &&
+          assert(expression)(equalTo(":v0"))
+        },
+        test("String") {
+          val (aliasMap, expression) = AttributeValueType.String.render.render(AliasMap.empty)
+
+          assert(aliasMap)(equalTo(AliasMap(Map(AttributeValue.String("S") -> ":v0"), 1))) &&
+          assert(expression)(equalTo(":v0"))
+        }
       )
     )
 

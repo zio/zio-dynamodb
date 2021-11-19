@@ -22,8 +22,6 @@ sealed trait PrimitiveValueType extends AttributeValueType { self =>
     }
 }
 
-// TODO(adam): Does this need a toString/render for condition expression?
-
 object AttributeValueType {
   // primitive types
   case object Binary    extends PrimitiveValueType
