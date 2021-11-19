@@ -235,20 +235,31 @@ object LiveSpec extends DefaultRunnableSpec {
         )
       ),
       suite("update items")(
-        // add an @@ ignore annotation
         testM("update name") {
+          withDefaultTable { tableName =>
+            for {
+              _       <- updateItem(tableName, secondPrimaryKey)($(name).set("notAdam")).execute
+              updated <- getItem(
+                           tableName,
+                           secondPrimaryKey
+                         ).execute
+            } yield assert(updated)(equalTo(Some(Item(name -> "notAdam", id -> second, number -> 2))))
+          }
+        },
+        testM("update name where getItem has projection") {
           withDefaultTable {
             tableName =>
               for {
                 _       <- updateItem(tableName, secondPrimaryKey)($(name).set("notAdam")).execute
                 updated <- getItem(
                              tableName,
-                             secondPrimaryKey
+                             secondPrimaryKey,
+                             $(name)
                            ).execute // TODO(adam): for some reason adding a projection expression here results in none
                 // Expected to be a bug somewhere -- possibly write a ticket
               } yield assert(updated)(equalTo(Some(Item(name -> "notAdam", id -> second, number -> 2))))
           }
-        },
+        } @@ ignore,
         testM("remove field") {
           withDefaultTable { tableName =>
             for {
