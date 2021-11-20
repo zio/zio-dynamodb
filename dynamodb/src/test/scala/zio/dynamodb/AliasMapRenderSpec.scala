@@ -1,4 +1,5 @@
 package zio.dynamodb
+import zio.Chunk
 import zio.test._
 import zio.dynamodb.ProjectionExpression._
 import zio.test.Assertion._
@@ -352,6 +353,28 @@ object AliasMapRenderSpec extends DefaultRunnableSpec {
         }
       ),
       suite("UpdateExpression")(
+        suite("multiple actions")(
+          test("Set and Remove") {
+            val (aliasMap, expression) =
+              UpdateExpression(
+                UpdateExpression.Action.Actions(
+                  Chunk(
+                    UpdateExpression.Action.SetAction(
+                      $(projection),
+                      UpdateExpression.SetOperand.IfNotExists(
+                        projectionExpression,
+                        one
+                      )
+                    ),
+                    UpdateExpression.Action.RemoveAction($("otherProjection"))
+                  )
+                )
+              ).render.render(AliasMap.empty)
+
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
+            assert(expression)(equalTo("set projection = if_not_exists(projection, :v0) remove otherProjection"))
+          }
+        ),
         suite("Set")(
           test("Minus") {
             val (aliasMap, expression) =

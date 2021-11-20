@@ -1,69 +1,11 @@
 package zio.dynamodb
-
-final case class AliasMap private (map: Map[AttributeValue, String], index: Int = 0) { self =>
-  // REVIEW: Is this a reasonable interface?
-  private def +(entry: AttributeValue): (AliasMap, String) = {
-    val variableAlias = s":v${self.index}"
-    (AliasMap(self.map + ((entry, variableAlias)), self.index + 1), variableAlias)
-  }
-
-  def getOrInsert(entry: AttributeValue): (AliasMap, String) =
-    self.map.get(entry).map(varName => (self, varName)).getOrElse {
-      self + entry
-    }
-
-  def isEmpty: Boolean = self.index == 0
-}
-
-object AliasMap {
-  def empty: AliasMap = AliasMap(Map.empty, 0)
-}
-
-final case class AliasMapRender[+A](
-  render: AliasMap => (AliasMap, A)
-) { self =>
-
-  def map[B](f: A => B): AliasMapRender[B] =
-    AliasMapRender { aliasMap =>
-      val (am, a) = self.render(aliasMap)
-      (am, f(a))
-    }
-
-  def flatMap[B](f: A => AliasMapRender[B]): AliasMapRender[B] =
-    AliasMapRender { aliasMap =>
-      val (am, a) = self.render(aliasMap)
-      f(a).render(am)
-    }
-
-  def zipWith[B, C](that: AliasMapRender[B])(f: (A, B) => C): AliasMapRender[C] =
-    for {
-      a <- self
-      b <- that
-    } yield f(a, b)
-
-  def zipRight[B](that: AliasMapRender[B]): AliasMapRender[B] =
-    self.flatMap(_ => that)
-
-}
-
-object AliasMapRender {
-  def getOrInsert(entry: AttributeValue): AliasMapRender[String] =
-    AliasMapRender { aliasMap =>
-      aliasMap.getOrInsert(entry)
-    }
-
-  def empty = AliasMapRender.setMap(AliasMap.empty)
-
-  def succeed[A](a: => A): AliasMapRender[A] = AliasMapRender(aliasMap => (aliasMap, a))
-
-  val getMap: AliasMapRender[AliasMap] = AliasMapRender(aliasMap => (aliasMap, aliasMap))
-
-  def setMap(aliasMap: AliasMap): AliasMapRender[Unit] =
-    AliasMapRender { _ =>
-      (aliasMap, ())
-    }
-
-}
+/*
+KeyCondition expression is a restricted version of ConditionExpression where by
+partition exprn is required and can only use "=" equals comparison
+ optionally AND can be used to add a sort key expression
+ eg partitionKeyName = :partitionkeyval AND sortKeyName = :sortkeyval
+ comparisons operators are the same as for Condition
+ */
 
 sealed trait KeyConditionExpression { self =>
   def render: AliasMapRender[String] =

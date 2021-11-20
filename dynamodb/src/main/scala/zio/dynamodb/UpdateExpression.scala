@@ -57,7 +57,11 @@ object UpdateExpression {
         case Actions(actions)                 =>
           actions.foldLeft(AliasMapRender.empty.map(_ => "")) {
             case (acc, action) =>
-              acc.zipWith(action.render) { case (acc, action) => s"$acc, $action" }
+              acc.zipWith(action.render) {
+                case (acc, action) =>
+                  if (acc.isEmpty) action
+                  else s"$acc $action"
+              }
           }
         case Action.SetAction(path, operand)  =>
           operand.render.map(s => s"set $path = $s")
