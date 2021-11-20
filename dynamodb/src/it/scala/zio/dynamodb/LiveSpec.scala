@@ -15,6 +15,7 @@ import zio.dynamodb.ProjectionExpression._
 import zio.test.Assertion._
 import zio.test.environment._
 import software.amazon.awssdk.regions.Region
+import zio.schema.{ DeriveSchema, Schema }
 import zio.stream.ZSink
 import zio.test._
 import zio.test.TestAspect._
@@ -59,6 +60,9 @@ object LiveSpec extends DefaultRunnableSpec {
   private val john3 = "john3"
 
   private val stringSortKeyItem = Item(id -> adam, name -> adam)
+
+  private final case class Person(id: String, firstName: String, num: Int)
+  private implicit lazy val person: Schema[Person] = DeriveSchema.gen[Person]
 
   private val aviItem  = Item(id -> first, name -> avi, number -> 1, "map" -> ScalaMap("abc" -> 1))
   private val avi2Item = Item(id -> first, name -> avi2, number -> 4)
@@ -139,6 +143,13 @@ object LiveSpec extends DefaultRunnableSpec {
                 equalTo(Some(Item(id -> first, "testName" -> "put and get item", number -> 20)))
               )
           )
+        },
+        testM("get into case class") {
+          withDefaultTable { tableName =>
+            get[Person](tableName, secondPrimaryKey).execute.map(person =>
+              assert(person)(equalTo(Right(Person("second", "adam", 2))))
+            )
+          }
         },
         testM("get nonexistant returns empty") {
           withDefaultTable { tableName =>
