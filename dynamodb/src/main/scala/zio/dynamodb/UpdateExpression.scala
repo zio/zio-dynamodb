@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.Chunk
+import zio.{ Chunk, ChunkBuilder }
 import zio.dynamodb.UpdateExpression.Action
 import zio.dynamodb.UpdateExpression.Action.Actions
 
@@ -50,19 +50,70 @@ final case class UpdateExpression(action: Action) { self =>
 object UpdateExpression {
 
   sealed trait Action { self =>
-    def +(that: Action): Action = Actions(Chunk(self) :+ that)
+
+    def +(that: RenderableAction): Action
 
     def render: AliasMapRender[String] =
+//      def foldActionsIntoAliasMap[A <: RenderableAction](
+//        chunk: Chunk[A],
+//        zipper: AliasMapRender[List[String]]
+//      ) =
+//        chunk.foldLeft(zipper) {
+//          case (acc, action) =>
+//            acc.zipWith(action.miniRender) {
+//              case (acc, action) => acc.appended(action)
+//            }
+//        }
       self match {
+        // each action verb is only allowed to appear once, need to collect them
         case Actions(actions)                 =>
-          actions.foldLeft(AliasMapRender.empty.map(_ => "")) {
-            case (acc, action) =>
-              acc.zipWith(action.render) {
-                case (acc, action) =>
-                  if (acc.isEmpty) action
-                  else s"$acc $action"
-              }
-          }
+          val (sets, removes, adds, deletes) = collectActions(actions)
+          val empty                          = AliasMapRender.empty.map(_ => "")
+          val s                              = sets
+            .foldLeft(empty) {
+              case (acc, action) =>
+                acc.zipWith(action.miniRender) {
+                  case (acc, action) =>
+                    acc ++ action
+                }
+            }
+            .map(s => if (s.isEmpty) s else "set " ++ s)
+          val r                              = removes
+//            .foldLeft(empty) {
+            .foldLeft(s) {
+              case (acc, action) =>
+                acc.zipWith(action.miniRender) {
+                  case (acc, action) =>
+                    acc ++ action
+                }
+            }
+            .map(s => if (s.isEmpty) s else "remove " ++ s)
+          val a                              = adds
+//            .foldLeft(empty) {
+            .foldLeft(r) {
+              case (acc, action) =>
+                acc.zipWith(action.miniRender) {
+                  case (acc, action) =>
+                    acc ++ action
+                }
+            }
+            .map(s => if (s.isEmpty) s else "add " ++ s)
+          val d                              = deletes
+//            .foldLeft(empty) {
+            .foldLeft(a) {
+              case (acc, action) =>
+                acc.zipWith(action.miniRender) {
+                  case (acc, action) =>
+                    acc ++ action
+                }
+            }
+            .map(s => if (s.isEmpty) s else "delete " ++ s)
+
+          d
+//          a.zipWith(r.zipWith(s.zipWith(d) { case (add, delete) => add ++ " " ++ delete }) {
+//            case (a, b) => a ++ " " ++ b
+//          }) { case (a, b) => a ++ " " ++ b }
+//            .map(_.trim)
         case Action.SetAction(path, operand)  =>
           operand.render.map(s => s"set $path = $s")
         case Action.RemoveAction(path)        => AliasMapRender.succeed(s"remove $path")
@@ -72,32 +123,66 @@ object UpdateExpression {
           AliasMapRender.getOrInsert(value).map(s => s"delete $path $s")
       }
 
+    def collectActions(actions: Chunk[RenderableAction]) = {
+      val sets    = ChunkBuilder.make[Action.SetAction]()
+      val removes = ChunkBuilder.make[Action.RemoveAction]()
+      val adds    = ChunkBuilder.make[Action.AddAction]()
+      val deletes = ChunkBuilder.make[Action.DeleteAction]()
+
+      actions.foreach {
+        case set: Action.SetAction       => sets += set
+        case remove: Action.RemoveAction => removes += remove
+        case add: Action.AddAction       => adds += add
+        case delete: Action.DeleteAction => deletes += delete
+      }
+      (sets.result(), removes.result(), adds.result(), deletes.result())
+    }
+
+  }
+
+  sealed trait RenderableAction extends Action { self =>
+    override def +(that: RenderableAction): Action = Actions(Chunk(self, that))
+    def miniRender: AliasMapRender[String]         =
+      self match {
+        case Action.SetAction(path, operand)  =>
+          operand.render.map(s => s"$path = $s")
+        case Action.RemoveAction(path)        => AliasMapRender.succeed(path.toString)
+        case Action.AddAction(path, value)    =>
+          AliasMapRender.getOrInsert(value).map(v => s"$path $v")
+        case Action.DeleteAction(path, value) =>
+          AliasMapRender.getOrInsert(value).map(s => s"$path $s")
+      }
   }
   object Action {
 
-    private[dynamodb] final case class Actions(actions: Chunk[Action]) extends Action { self =>
-      override def +(that: Action): Action = Actions(actions :+ that)
+    private[dynamodb] final case class Actions(actions: Chunk[RenderableAction]) extends Action { self =>
+      override def +(that: RenderableAction): Action = Actions(actions :+ that)
+
+      def ++(that: Actions): Actions = Actions(actions ++ that.actions)
     }
 
     /**
      * Modifying or Adding item Attributes
      */
-    private[dynamodb] final case class SetAction(path: ProjectionExpression, operand: SetOperand) extends Action
+    private[dynamodb] final case class SetAction(path: ProjectionExpression, operand: SetOperand)
+        extends RenderableAction
 
     /**
      * Removing Attributes from an item
      */
-    private[dynamodb] final case class RemoveAction(path: ProjectionExpression) extends Action
+    private[dynamodb] final case class RemoveAction(path: ProjectionExpression) extends RenderableAction
 
     /**
      * Updating Numbers and Sets
      */
-    private[dynamodb] final case class AddAction(path: ProjectionExpression, value: AttributeValue) extends Action
+    private[dynamodb] final case class AddAction(path: ProjectionExpression, value: AttributeValue)
+        extends RenderableAction
 
     /**
      * Delete Elements from a Set
      */
-    private[dynamodb] final case class DeleteAction(path: ProjectionExpression, value: AttributeValue) extends Action
+    private[dynamodb] final case class DeleteAction(path: ProjectionExpression, value: AttributeValue)
+        extends RenderableAction
   }
 
   sealed trait SetOperand { self =>
