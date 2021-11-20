@@ -64,7 +64,7 @@ object LiveSpec extends DefaultRunnableSpec {
   private final case class Person(id: String, firstName: String, num: Int)
   private implicit lazy val person: Schema[Person] = DeriveSchema.gen[Person]
 
-  private val aviItem  = Item(id -> first, name -> avi, number -> 1, "map" -> ScalaMap("abc" -> 1))
+  private val aviItem  = Item(id -> first, name -> avi, number -> 1, "mapp" -> ScalaMap("abc" -> 1))
   private val avi2Item = Item(id -> first, name -> avi2, number -> 4)
   private val avi3Item = Item(id -> first, name -> avi3, number -> 7)
 
@@ -151,6 +151,13 @@ object LiveSpec extends DefaultRunnableSpec {
             )
           }
         },
+        testM("get data from map") {
+          withDefaultTable { tableName =>
+            for {
+              item <- getItem(tableName, PrimaryKey(id -> first, number -> 1), $("mapp.abc")).execute
+            } yield assert(item)(equalTo(Some(Item("abc" -> 1))))
+          }
+        } @@ ignore, // this also returns a None when there is a projection expression, but the full item when there isn't
         testM("get nonexistant returns empty") {
           withDefaultTable { tableName =>
             getItem(tableName, PrimaryKey(id -> "nowhere", number -> 1000)).execute.map(item => assert(item)(isNone))
