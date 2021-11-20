@@ -20,6 +20,7 @@ import zio.test._
 import zio.test.TestAspect._
 
 import java.net.URI
+import scala.collection.immutable.{ Map => ScalaMap }
 
 object LiveSpec extends DefaultRunnableSpec {
 
@@ -57,7 +58,9 @@ object LiveSpec extends DefaultRunnableSpec {
   private val john2 = "john2"
   private val john3 = "john3"
 
-  private val aviItem  = Item(id -> first, name -> avi, number -> 1)
+  private val stringSortKeyItem = Item(id -> adam, name -> adam)
+
+  private val aviItem  = Item(id -> first, name -> avi, number -> 1, "map" -> ScalaMap("abc" -> 1))
   private val avi2Item = Item(id -> first, name -> avi2, number -> 4)
   private val avi3Item = Item(id -> first, name -> avi3, number -> 7)
 
@@ -89,6 +92,12 @@ object LiveSpec extends DefaultRunnableSpec {
   def numberTable(tableName: String) =
     createTable(tableName, KeySchema(id), BillingMode.PayPerRequest)(
       AttributeDefinition.attrDefnNumber(id)
+    )
+
+  def sortKeyStringTable(tableName: String) =
+    createTable(tableName, KeySchema(id, name), BillingMode.PayPerRequest)(
+      AttributeDefinition.attrDefnString(id),
+      AttributeDefinition.attrDefnString(name)
     )
 
   private def managedTable(tableDefinition: String => CreateTable) =
@@ -175,6 +184,39 @@ object LiveSpec extends DefaultRunnableSpec {
             )
           }
         },
+        testM("query table not equal") {
+          withDefaultTable { tableName =>
+            for {
+              (chunk, _) <- querySomeItem(tableName, 10, $(name))
+                              .whereKey(PartitionKey(id) === first && SortKey(number) <> 1)
+                              .execute
+            } yield assert(chunk)(
+              equalTo(Chunk(Item(name -> avi2), Item(name -> avi3)))
+            )
+          }
+        } @@ ignore, // I'm not sure notEqual is a valid SortKey condition: https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#API_Query_RequestSyntax
+        testM("query table greater than or equal") {
+          withDefaultTable { tableName =>
+            for {
+              (chunk, _) <- querySomeItem(tableName, 10, $(name))
+                              .whereKey(PartitionKey(id) === first && SortKey(number) >= 4)
+                              .execute
+            } yield assert(chunk)(
+              equalTo(Chunk(Item(name -> avi2), Item(name -> avi3)))
+            )
+          }
+        },
+        testM("query table less than or equal") {
+          withDefaultTable { tableName =>
+            for {
+              (chunk, _) <- querySomeItem(tableName, 10, $(name))
+                              .whereKey(PartitionKey(id) === first && SortKey(number) <= 4)
+                              .execute
+            } yield assert(chunk)(
+              equalTo(Chunk(Item(name -> avi), Item(name -> avi2)))
+            )
+          }
+        },
         testM("empty query result returns empty chunk") {
           withDefaultTable { tableName =>
             for {
@@ -231,6 +273,18 @@ object LiveSpec extends DefaultRunnableSpec {
                 equalTo(Chunk(Item(name -> avi2), Item(name -> avi3)))
               )
             }
+          },
+          testM("SortKeyCondition startsWtih") {
+            withTemporaryTable(
+              sortKeyStringTable,
+              tableName =>
+                for {
+                  _          <- putItem(tableName, stringSortKeyItem).execute
+                  (chunk, _) <- querySomeItem(tableName, 10)
+                                  .whereKey(PartitionKey(id) === adam && SortKey(name).beginsWith("ad"))
+                                  .execute
+                } yield assert(chunk)(equalTo(Chunk(stringSortKeyItem)))
+            )
           }
         )
       ),
