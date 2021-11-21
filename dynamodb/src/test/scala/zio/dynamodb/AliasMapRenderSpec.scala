@@ -387,6 +387,7 @@ object AliasMapRenderSpec extends DefaultRunnableSpec {
 //            assert(expression)(equalTo("set projection = if_not_exists(projection, :v0) remove otherProjection"))
           },
           test("Two Sets") {
+
             val (aliasMap, _) =
               (UpdateExpression.Action.SetAction($(projection), UpdateExpression.SetOperand.ValueOperand(one)) +
                 UpdateExpression.Action.SetAction(

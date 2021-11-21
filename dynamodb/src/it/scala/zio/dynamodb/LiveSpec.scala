@@ -243,7 +243,7 @@ object LiveSpec extends DefaultRunnableSpec {
                               .execute
             } yield assert(chunk)(isEmpty)
           }
-        } @@ ignore, // TODO: Suspect that there is an edge case in the auto batch/auto parallelize code that could be causing this issue
+        },
         testM("query with limit") {
           withDefaultTable { tableName =>
             for {

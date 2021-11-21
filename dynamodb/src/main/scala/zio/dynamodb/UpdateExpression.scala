@@ -69,7 +69,9 @@ object UpdateExpression {
         case Actions(actions)                 =>
           val (sets, removes, adds, deletes) = collectActions(actions)
           val empty                          = AliasMapRender.empty.map(_ => "")
-          val s                              = sets
+          // TODO(adam): Feels like these should all be zippable or I'm missing another monad funciton
+
+          val s: AliasMapRender[String] = sets
             .foldLeft(empty) {
               case (acc, action) =>
                 acc.zipWith(action.miniRender) {
@@ -78,7 +80,7 @@ object UpdateExpression {
                 }
             }
             .map(s => if (s.isEmpty) s else "set " ++ s)
-          val r                              = removes
+          val r: AliasMapRender[String] = removes
 //            .foldLeft(empty) {
             .foldLeft(s) {
               case (acc, action) =>
@@ -88,7 +90,7 @@ object UpdateExpression {
                 }
             }
             .map(s => if (s.isEmpty) s else "remove " ++ s)
-          val a                              = adds
+          val a: AliasMapRender[String] = adds
 //            .foldLeft(empty) {
             .foldLeft(r) {
               case (acc, action) =>
@@ -98,7 +100,7 @@ object UpdateExpression {
                 }
             }
             .map(s => if (s.isEmpty) s else "add " ++ s)
-          val d                              = deletes
+          val d: AliasMapRender[String] = deletes
 //            .foldLeft(empty) {
             .foldLeft(a) {
               case (acc, action) =>
@@ -110,10 +112,6 @@ object UpdateExpression {
             .map(s => if (s.isEmpty) s else "delete " ++ s)
 
           d
-//          a.zipWith(r.zipWith(s.zipWith(d) { case (add, delete) => add ++ " " ++ delete }) {
-//            case (a, b) => a ++ " " ++ b
-//          }) { case (a, b) => a ++ " " ++ b }
-//            .map(_.trim)
         case Action.SetAction(path, operand)  =>
           operand.render.map(s => s"set $path = $s")
         case Action.RemoveAction(path)        => AliasMapRender.succeed(s"remove $path")
