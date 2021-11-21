@@ -31,10 +31,10 @@ object Main extends App {
   val examplePerson = Person(1, "avi")
   
   private val program = for {
-    _ <- put[Person]("tableName", examplePerson).execute
+    _      <- put[Person]("tableName", examplePerson).execute
     person <- get[Person]("tableName", PrimaryKey("id" -> 1)).execute
-    _ <- putStrLn(s"hello ${person.firstName}")
-  } yield item
+    _      <- putStrLn(s"hello ${person.firstName}")
+  } yield ()
   
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
     // build DynamoDB layer
