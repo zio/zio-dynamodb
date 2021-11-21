@@ -291,7 +291,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     )
 
   // TODO(adam): Missing expression attribute fields
-  private def generateScanRequest(scanSome: ScanSome): ScanRequest =
+  private def generateScanRequest(scanSome: ScanSome): ScanRequest = {
+    val filterExpression = scanSome.filterExpression.map(fe => fe.render.render(AliasMap.empty))
     ScanRequest(
       tableName = scanSome.tableName.value,
       indexName = scanSome.indexName.map(_.value),
@@ -303,12 +304,14 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       segment = None,
       limit = Some(scanSome.limit),
       projectionExpression = toOption(scanSome.projections).map(_.mkString(", ")),
-      filterExpression =
-        scanSome.filterExpression.map(filterExpression => filterExpression.render.render(AliasMap.empty)._2),
+      filterExpression = filterExpression.map(_._2),
+      expressionAttributeValues = filterExpression.flatMap(a => aliasMapToExpressionZIOAwsAttributeValues(a._1)),
       consistentRead = Some(toBoolean(scanSome.consistency))
     )
+  }
 
-  private def generateScanRequest(scanAll: ScanAll): ScanRequest =
+  private def generateScanRequest(scanAll: ScanAll): ScanRequest = {
+    val filterExpression = scanAll.filterExpression.map(fe => fe.render.render(AliasMap.empty))
     ScanRequest(
       tableName = scanAll.tableName.value,
       indexName = scanAll.indexName.map(_.value),
@@ -320,10 +323,11 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       segment = None,
       limit = scanAll.limit,
       projectionExpression = toOption(scanAll.projections).map(_.mkString(", ")),
-      filterExpression =
-        scanAll.filterExpression.map(filterExpression => filterExpression.render.render(AliasMap.empty)._2),
+      filterExpression = filterExpression.map(_._2),
+      expressionAttributeValues = filterExpression.flatMap(a => aliasMapToExpressionZIOAwsAttributeValues(a._1)),
       consistentRead = Some(toBoolean(scanAll.consistency))
     )
+  }
 
   private def doBatchGetItem(batchGetItem: BatchGetItem): ZIO[Any, Throwable, BatchGetItem.Response] =
     if (batchGetItem.requestItems.isEmpty) ZIO.succeed(BatchGetItem.Response())

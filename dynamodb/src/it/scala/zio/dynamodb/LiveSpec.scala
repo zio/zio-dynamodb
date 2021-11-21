@@ -65,6 +65,10 @@ object LiveSpec extends DefaultRunnableSpec {
   private final case class Person(id: String, firstName: String, num: Int)
   private implicit lazy val person: Schema[Person] = DeriveSchema.gen[Person]
 
+  private val aviPerson  = Person(first, avi, 1)
+  private val avi2Person = Person(first, avi2, 4)
+  private val avi3Person = Person(first, avi3, 7)
+
   private val aviItem  = Item(id -> first, name -> avi, number -> 1, "mapp" -> ScalaMap("abc" -> 1, "123" -> 2))
   private val avi2Item = Item(id -> first, name -> avi2, number -> 4)
   private val avi3Item = Item(id -> first, name -> avi3, number -> 7)
@@ -175,6 +179,21 @@ object LiveSpec extends DefaultRunnableSpec {
               )
             )
           }
+        },
+        testM("scan table with filter") {
+          withDefaultTable { tableName =>
+            for {
+              stream <- scanAll[Person](tableName)
+                          .filter(
+                            ConditionExpression.Equals(
+                              ConditionExpression.Operand.ProjectionExpressionOperand($(id)),
+                              ConditionExpression.Operand.ValueOperand(AttributeValue(first))
+                            )
+                          )
+                          .execute
+              chunk  <- stream.runCollect
+            } yield assert(chunk)(equalTo(Chunk(aviPerson, avi2Person, avi3Person)))
+          }
         }
       ),
       suite("query tables")(
@@ -251,7 +270,7 @@ object LiveSpec extends DefaultRunnableSpec {
                               .execute
             } yield assert(chunk)(equalTo(Chunk(Item(name -> avi))))
           }
-        } @@ ignore, // TODO(adam): limit is not being honored
+        } @@ ignore, // TODO(adam): limit is not being honored, this is due to zio-aws not having the paging API exposed
         testM("query starting from StartKey") {
           withDefaultTable { tableName =>
             for {
@@ -264,7 +283,7 @@ object LiveSpec extends DefaultRunnableSpec {
                                  .execute
             } yield assert(chunk)(equalTo(Chunk(Item(name -> avi3))))
           }
-        } @@ ignore, // TODO(adam): does not look like limit is being honored
+        } @@ ignore, // TODO(adam): limit is not being honored
         testM("queryAll") {
           withDefaultTable { tableName =>
             for {
