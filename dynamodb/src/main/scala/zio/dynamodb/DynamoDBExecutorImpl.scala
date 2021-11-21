@@ -22,6 +22,7 @@ import io.github.vigoo.zioaws.dynamodb.model.{
   ScanRequest,
   Tag,
   UpdateItemRequest,
+  UpdateItemResponse,
   WriteRequest,
   AttributeDefinition => ZIOAwsAttributeDefinition,
   AttributeValue => ZIOAwsAttributeValue,
@@ -246,8 +247,15 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
         WriteRequest(Some(PutRequest(item.map.map { case (k, v) => (k, buildAwsAttributeValue(v)) })), None)
     }
 
-  private def doUpdateItem(updateItem: UpdateItem): ZIO[Any, Throwable, Unit] =
-    dynamoDb.updateItem(generateUpdateItemRequest(updateItem)).mapError(_.toThrowable).unit
+  private def doUpdateItem(updateItem: UpdateItem): ZIO[Any, Throwable, Option[Item]] =
+    dynamoDb.updateItem(generateUpdateItemRequest(updateItem)).mapBoth(_.toThrowable, optionalItem)
+
+  /* REVIEW(avi / john): We get an empty map back here if we pass a None to returned Items, but we can also get an empty map
+        if we haven't updated anything. Do we want to return an empty map if we haven't updated anything or return a None?
+        I feel like a None makes more sense here but want your thoughts as well.
+   */
+  private def optionalItem(updateItemResponse: UpdateItemResponse.ReadOnly): Option[Item] =
+    updateItemResponse.attributesValue.flatMap(m => toOption(m).map(toDynamoItem))
 
   private def doScanSome(scanSome: ScanSome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] = {
     val stream =

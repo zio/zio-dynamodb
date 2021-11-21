@@ -49,22 +49,23 @@ object LiveSpec extends DefaultRunnableSpec {
   private val number   = "num"
   val secondPrimaryKey = PrimaryKey(id -> second, number -> 2)
 
-  private val avi   = "avi"
-  private val avi2  = "avi2"
-  private val avi3  = "avi3"
-  private val adam  = "adam"
-  private val adam2 = "adam2"
-  private val adam3 = "adam3"
-  private val john  = "john"
-  private val john2 = "john2"
-  private val john3 = "john3"
+  private val notAdam = "notAdam"
+  private val avi     = "avi"
+  private val avi2    = "avi2"
+  private val avi3    = "avi3"
+  private val adam    = "adam"
+  private val adam2   = "adam2"
+  private val adam3   = "adam3"
+  private val john    = "john"
+  private val john2   = "john2"
+  private val john3   = "john3"
 
   private val stringSortKeyItem = Item(id -> adam, name -> adam)
 
   private final case class Person(id: String, firstName: String, num: Int)
   private implicit lazy val person: Schema[Person] = DeriveSchema.gen[Person]
 
-  private val aviItem  = Item(id -> first, name -> avi, number -> 1, "mapp" -> ScalaMap("abc" -> 1))
+  private val aviItem  = Item(id -> first, name -> avi, number -> 1, "mapp" -> ScalaMap("abc" -> 1, "123" -> 2))
   private val avi2Item = Item(id -> first, name -> avi2, number -> 4)
   private val avi3Item = Item(id -> first, name -> avi3, number -> 7)
 
@@ -133,16 +134,14 @@ object LiveSpec extends DefaultRunnableSpec {
     suite("live test")(
       suite("basic usage")(
         testM("put and get item") {
-          withTemporaryTable(
-            defaultTable,
-            tableName =>
-              for {
-                _      <- putItem(tableName, Item(id -> first, "testName" -> "put and get item", number -> 20)).execute
-                result <- getItem(tableName, PrimaryKey(id -> first, number -> 20)).execute
-              } yield assert(result)(
-                equalTo(Some(Item(id -> first, "testName" -> "put and get item", number -> 20)))
-              )
-          )
+          withDefaultTable { tableName =>
+            for {
+              _      <- putItem(tableName, Item(id -> first, "testName" -> "put and get item", number -> 20)).execute
+              result <- getItem(tableName, PrimaryKey(id -> first, number -> 20)).execute
+            } yield assert(result)(
+              equalTo(Some(Item(id -> first, "testName" -> "put and get item", number -> 20)))
+            )
+          }
         },
         testM("get into case class") {
           withDefaultTable { tableName =>
@@ -154,10 +153,10 @@ object LiveSpec extends DefaultRunnableSpec {
         testM("get data from map") {
           withDefaultTable { tableName =>
             for {
-              item <- getItem(tableName, PrimaryKey(id -> first, number -> 1), $("mapp.abc")).execute
-            } yield assert(item)(equalTo(Some(Item("abc" -> 1))))
+              item <- getItem(tableName, PrimaryKey(id -> first, number -> 1), $(id), $(number), $("mapp.abc")).execute
+            } yield assert(item)(equalTo(Some(Item(id -> first, number -> 1, "mapp" -> ScalaMap("abc" -> 1)))))
           }
-        } @@ ignore, // this also returns a None when there is a projection expression, but the full item when there isn't
+        },
         testM("get nonexistant returns empty") {
           withDefaultTable { tableName =>
             getItem(tableName, PrimaryKey(id -> "nowhere", number -> 1000)).execute.map(item => assert(item)(isNone))
@@ -311,29 +310,73 @@ object LiveSpec extends DefaultRunnableSpec {
           testM("update name") {
             withDefaultTable { tableName =>
               for {
-                _       <- updateItem(tableName, secondPrimaryKey)($(name).set("notAdam")).execute
-                updated <- getItem(
-                             tableName,
-                             secondPrimaryKey
-                           ).execute
-              } yield assert(updated)(equalTo(Some(Item(name -> "notAdam", id -> second, number -> 2))))
+                updatedResponse <- updateItem(tableName, secondPrimaryKey)($(name).set(notAdam)).execute
+                updated         <- getItem(
+                                     tableName,
+                                     secondPrimaryKey
+                                   ).execute
+              } yield assert(updated)(equalTo(Some(Item(name -> notAdam, id -> second, number -> 2)))) && assert(
+                updatedResponse
+              )(isNone)
             }
           },
-          testM("update name where getItem has projection") {
-            withDefaultTable {
-              tableName =>
-                for {
-                  _       <- updateItem(tableName, secondPrimaryKey)($(name).set("notAdam")).execute
-                  updated <-
-                    getItem(
-                      tableName,
-                      secondPrimaryKey,
-                      $(name)
-                    ).execute // TODO(adam): for some reason adding a projection expression here results in none
-                  // Expected to be a bug somewhere -- possibly write a ticket
-                } yield assert(updated)(equalTo(Some(Item(name -> "notAdam", id -> second, number -> 2))))
+          testM("update name return updated old") {
+            withDefaultTable { tableName =>
+              for {
+                updatedResponse <- updateItem(tableName, secondPrimaryKey)($(name).set(notAdam))
+                                     .returns(ReturnValues.UpdatedOld)
+                                     .execute
+                updated         <- getItem(
+                                     tableName,
+                                     secondPrimaryKey
+                                   ).execute
+              } yield assert(updated)(equalTo(Some(Item(name -> notAdam, id -> second, number -> 2)))) &&
+                assert(updatedResponse)(equalTo(Some(Item(name -> adam))))
             }
-          } @@ ignore,
+          },
+          testM("update name return all old") {
+            withDefaultTable { tableName =>
+              for {
+                updatedResponse <- updateItem(tableName, secondPrimaryKey)($(name).set(notAdam))
+                                     .returns(ReturnValues.AllOld)
+                                     .execute
+                updated         <- getItem(
+                                     tableName,
+                                     secondPrimaryKey
+                                   ).execute
+              } yield assert(updated)(equalTo(Some(Item(name -> notAdam, id -> second, number -> 2)))) &&
+                assert(updatedResponse)(equalTo(Some(adamItem)))
+            }
+          },
+          testM("update name return all new") {
+            withDefaultTable { tableName =>
+              val updatedItem = Some(Item(name -> notAdam, id -> second, number -> 2))
+              for {
+                updatedResponse <- updateItem(tableName, secondPrimaryKey)($(name).set(notAdam))
+                                     .returns(ReturnValues.AllNew)
+                                     .execute
+                updated         <- getItem(
+                                     tableName,
+                                     secondPrimaryKey
+                                   ).execute
+              } yield assert(updated)(equalTo(updatedItem)) &&
+                assert(updatedResponse)(equalTo(updatedItem))
+            }
+          },
+          testM("update name return updated new") {
+            withDefaultTable { tableName =>
+              for {
+                updatedResponse <- updateItem(tableName, secondPrimaryKey)($(name).set(notAdam))
+                                     .returns(ReturnValues.UpdatedNew)
+                                     .execute
+                updated         <- getItem(
+                                     tableName,
+                                     secondPrimaryKey
+                                   ).execute
+              } yield assert(updated)(equalTo(Some(Item(name -> notAdam, id -> second, number -> 2)))) &&
+                assert(updatedResponse)(equalTo(Some(Item(name -> notAdam))))
+            }
+          },
           testM("insert item into list") {
             withDefaultTable { tableName =>
               for {

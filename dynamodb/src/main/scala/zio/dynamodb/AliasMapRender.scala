@@ -7,12 +7,14 @@ final case class AliasMapRender[+A](
   def map[B](f: A => B): AliasMapRender[B] =
     AliasMapRender { aliasMap =>
       val (am, a) = self.render(aliasMap)
+      // REVIEW(john): I feel like the need for this ++ here is a flag that I am missing a conbinator(is this the right word?) or have a bad implementation
       (am ++ aliasMap, f(a))
     }
 
   def flatMap[B](f: A => AliasMapRender[B]): AliasMapRender[B] =
     AliasMapRender { aliasMap =>
       val (am, a) = self.render(aliasMap)
+      // REVIEW(john): I feel like the need for this ++ here is a flag that I am missing a conbinator(is this the right word?) or have a bad implementation
       f(a).render(am ++ aliasMap)
     }
 

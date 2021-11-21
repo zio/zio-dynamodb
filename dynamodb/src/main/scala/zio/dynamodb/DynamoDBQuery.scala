@@ -349,7 +349,7 @@ object DynamoDBQuery {
       .fromAttributeValue(AttributeValue.encode(a)(schema))
       .getOrElse(throw new Exception(s"error encoding $a"))
 
-  def updateItem(tableName: String, key: PrimaryKey)(action: Action): DynamoDBQuery[Unit] =
+  def updateItem(tableName: String, key: PrimaryKey)(action: Action): DynamoDBQuery[Option[Item]] =
     UpdateItem(TableName(tableName), key, UpdateExpression(action))
 
   def deleteItem(tableName: String, key: PrimaryKey): Write[Unit] = DeleteItem(TableName(tableName), key)
@@ -528,10 +528,11 @@ object DynamoDBQuery {
       val chunk: Chunk[Option[Item]] = orderedGetItems.foldLeft[Chunk[Option[Item]]](Chunk.empty) {
         case (chunk, getItem) =>
           val responsesForTable: Set[Item] = response.responses.getOrElse(getItem.tableName, Set.empty[Item])
+          // What if the projection expression for responsesForTable doesn't include the primaryKey?
+          // Shouldn't the responseForTable have only the requested item?
           val found: Option[Item]          = responsesForTable.find { item =>
             getItem.key.map.toSet.subsetOf(item.map.toSet)
           }
-
           found.fold(chunk :+ None)(item => chunk :+ Some(item))
       }
 
@@ -687,7 +688,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues = ReturnValues.None
-  ) extends Constructor[Unit]
+  ) extends Constructor[Option[Item]]
 
   private[dynamodb] final case class DeleteItem(
     tableName: TableName,
