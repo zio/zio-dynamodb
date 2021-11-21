@@ -28,9 +28,12 @@ object Main extends App {
   
   private final case class Person(id: Int, firstName: String)
   
+  val examplePerson = Person(1, "avi")
+  
   private val program = for {
-    item <- get[Person]("tableName", PrimaryKey("id" -> 1)).execute
-    _ <- putStrLn(s"hello ${item.firstName}")
+    _ <- put[Person]("tableName", examplePerson).execute
+    person <- get[Person]("tableName", PrimaryKey("id" -> 1)).execute
+    _ <- putStrLn(s"hello ${person.firstName}")
   } yield item
   
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
