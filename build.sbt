@@ -55,7 +55,7 @@ def copyJarSetting(dir: String) =
 
 val zioVersion       = "1.0.12"
 val zioConfigVersion = "1.0.6"
-val zioAwsVersion    = "3.17.42.5"
+val zioAwsVersion    = "4.0.4"
 
 lazy val root =
   project
@@ -82,7 +82,6 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
       "dev.zio"                 %% "zio-config-typesafe"        % zioConfigVersion,
       "io.github.vigoo"         %% "zio-aws-http4s"             % zioAwsVersion,
       "io.github.vigoo"         %% "zio-aws-dynamodb"           % zioAwsVersion,
-      "io.github.vigoo"         %% "zio-aws-dynamodbstreams"    % zioAwsVersion,
       "org.scala-lang"           % "scala-reflect"              % scalaVersion.value,
       "software.amazon.awssdk"   % "dynamodb"                   % "2.16.20",
       "com.amazonaws"            % "DynamoDBLocal"              % "1.12.0"             % "it,test", // TODO: check latest version
