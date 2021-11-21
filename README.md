@@ -8,6 +8,39 @@
 Simple, type-safe, and efficient access to DynamoDB
 
 # Documentation
+
+### Getting Started
+
+```sbt
+// add zio-dynamodb to your dependencies
+
+```
+
+```scala
+// import necessary dependencies
+import io.github.vigoo.zioaws.core.config
+import io.github.vigoo.zioaws.{ dynamodb, http4s }
+import zio.dynamodb.DynamoDBExecutor
+import zio.dynamodb.DynamoDBQuery._
+import zio._
+
+object Main extends App {
+  
+  private final case class Person(id: Int, firstName: String)
+  
+  private val program = for {
+    item <- get[Person]("tableName", PrimaryKey("id" -> 1)).execute
+    _ <- putStrLn(s"hello ${item.firstName}")
+  } yield item
+  
+  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
+    // build DynamoDB layer
+    val dynamoDBLayer = http4s.default >>> config.default >>> dynamodb.live >>> DynamoDBExecutor.live
+    program.inject(dynamoDBLayer).exitCode
+  }
+}
+```
+
 [ZIO DynamoDB Microsite](https://zio.github.io/zio-dynamodb/)
 
 # Contributing

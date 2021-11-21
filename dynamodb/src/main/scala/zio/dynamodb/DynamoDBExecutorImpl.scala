@@ -290,7 +290,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
         )
     )
 
-  // TODO(adam): Missing expression attribute fields
   private def generateScanRequest(scanSome: ScanSome): ScanRequest = {
     val filterExpression = scanSome.filterExpression.map(fe => fe.render.render(AliasMap.empty))
     ScanRequest(
