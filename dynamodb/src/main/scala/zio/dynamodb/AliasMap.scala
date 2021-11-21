@@ -11,6 +11,11 @@ final case class AliasMap private (map: Map[AttributeValue, String], index: Int 
       self + entry
     }
 
+  def ++(other: AliasMap): AliasMap = {
+    val nextMap = self.map ++ other.map
+    AliasMap(nextMap, nextMap.size)
+  }
+
   def isEmpty: Boolean = self.index == 0
 }
 

@@ -53,65 +53,31 @@ object UpdateExpression {
 
     def +(that: RenderableAction): Action
 
-    def render: AliasMapRender[String] =
-//      def foldActionsIntoAliasMap[A <: RenderableAction](
-//        chunk: Chunk[A],
-//        zipper: AliasMapRender[List[String]]
-//      ) =
-//        chunk.foldLeft(zipper) {
-//          case (acc, action) =>
-//            acc.zipWith(action.miniRender) {
-//              case (acc, action) => acc.appended(action)
-//            }
-//        }
+    def render: AliasMapRender[String] = {
+      def generateActionsStatements[A <: RenderableAction](chunk: Chunk[A]) =
+        chunk.foldLeft(AliasMapRender.empty.map(_ => "")) {
+          case (acc, action) =>
+            acc.zipWith(action.miniRender) {
+              case (acc, action) =>
+                if (acc.isEmpty) action
+                else acc ++ "," ++ action
+            }
+        }
+
       self match {
-        // each action verb is only allowed to appear once, need to collect them
         case Actions(actions)                 =>
           val (sets, removes, adds, deletes) = collectActions(actions)
-          val empty                          = AliasMapRender.empty.map(_ => "")
-          // TODO(adam): Feels like these should all be zippable or I'm missing another monad funciton
 
-          val s: AliasMapRender[String] = sets
-            .foldLeft(empty) {
-              case (acc, action) =>
-                acc.zipWith(action.miniRender) {
-                  case (acc, action) =>
-                    acc ++ action
-                }
-            }
-            .map(s => if (s.isEmpty) s else "set " ++ s)
-          val r: AliasMapRender[String] = removes
-//            .foldLeft(empty) {
-            .foldLeft(s) {
-              case (acc, action) =>
-                acc.zipWith(action.miniRender) {
-                  case (acc, action) =>
-                    acc ++ action
-                }
-            }
-            .map(s => if (s.isEmpty) s else "remove " ++ s)
-          val a: AliasMapRender[String] = adds
-//            .foldLeft(empty) {
-            .foldLeft(r) {
-              case (acc, action) =>
-                acc.zipWith(action.miniRender) {
-                  case (acc, action) =>
-                    acc ++ action
-                }
-            }
-            .map(s => if (s.isEmpty) s else "add " ++ s)
-          val d: AliasMapRender[String] = deletes
-//            .foldLeft(empty) {
-            .foldLeft(a) {
-              case (acc, action) =>
-                acc.zipWith(action.miniRender) {
-                  case (acc, action) =>
-                    acc ++ action
-                }
-            }
-            .map(s => if (s.isEmpty) s else "delete " ++ s)
-
-          d
+          for {
+            set    <- generateActionsStatements(sets)
+                        .map(s => if (s.isEmpty) s else "set " ++ s)
+            remove <- generateActionsStatements(removes)
+                        .map(s => if (s.isEmpty) s else "remove " ++ s)
+            add    <- generateActionsStatements(adds)
+                        .map(s => if (s.isEmpty) s else "add " ++ s)
+            delete <- generateActionsStatements(deletes)
+                        .map(s => if (s.isEmpty) s else "delete " ++ s)
+          } yield List(set, remove, add, delete).filter(_.nonEmpty).mkString(" ")
         case Action.SetAction(path, operand)  =>
           operand.render.map(s => s"set $path = $s")
         case Action.RemoveAction(path)        => AliasMapRender.succeed(s"remove $path")
@@ -120,6 +86,7 @@ object UpdateExpression {
         case Action.DeleteAction(path, value) =>
           AliasMapRender.getOrInsert(value).map(s => s"delete $path $s")
       }
+    }
 
     def collectActions(actions: Chunk[RenderableAction]) = {
       val sets    = ChunkBuilder.make[Action.SetAction]()

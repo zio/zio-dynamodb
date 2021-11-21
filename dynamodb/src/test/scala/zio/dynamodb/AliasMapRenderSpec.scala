@@ -367,7 +367,7 @@ object AliasMapRenderSpec extends DefaultRunnableSpec {
       suite("UpdateExpression")(
         suite("multiple actions")(
           test("Set and Remove") {
-            val (aliasMap, _) =
+            val (aliasMap, expression) =
               UpdateExpression(
                 UpdateExpression.Action.Actions(
                   Chunk(
@@ -383,30 +383,20 @@ object AliasMapRenderSpec extends DefaultRunnableSpec {
                 )
               ).render.render(AliasMap.empty)
 
-            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) //&&
-//            assert(expression)(equalTo("set projection = if_not_exists(projection, :v0) remove otherProjection"))
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
+            assert(expression)(equalTo("set projection = if_not_exists(projection, :v0) remove otherProjection"))
           },
           test("Two Sets") {
 
-            val (aliasMap, _) =
+            val (aliasMap, expression) =
               (UpdateExpression.Action.SetAction($(projection), UpdateExpression.SetOperand.ValueOperand(one)) +
                 UpdateExpression.Action.SetAction(
                   $("otherProjection"),
                   UpdateExpression.SetOperand.ValueOperand(one)
                 ) + UpdateExpression.Action.AddAction($("lastProjection"), one)).render.render(AliasMap.empty)
 
-            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) //&&
-//            assert(expression)(equalTo("set projection = :v0,otherProjection = :v0"))
-          },
-          test("other") {
-            val am1 = AliasMapRender.getOrInsert(one)
-            val am2 = AliasMapRender.getOrInsert(two)
-
-            val (aliasMap, exp) = am1.zipWith(am2) { case (a, b) => a ++ "   " ++ b }.render(AliasMap.empty)
-
-            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0", two -> ":v1"), 2))) &&
-            assert(exp)(equalTo(":v0   :v1"))
-
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
+            assert(expression)(equalTo("set projection = :v0,otherProjection = :v0 add lastProjection :v0"))
           }
         ),
         suite("Set")(

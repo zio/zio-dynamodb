@@ -7,13 +7,13 @@ final case class AliasMapRender[+A](
   def map[B](f: A => B): AliasMapRender[B] =
     AliasMapRender { aliasMap =>
       val (am, a) = self.render(aliasMap)
-      (am, f(a))
+      (am ++ aliasMap, f(a))
     }
 
   def flatMap[B](f: A => AliasMapRender[B]): AliasMapRender[B] =
     AliasMapRender { aliasMap =>
       val (am, a) = self.render(aliasMap)
-      f(a).render(am)
+      f(a).render(am ++ aliasMap)
     }
 
   def zipWith[B, C](that: AliasMapRender[B])(f: (A, B) => C): AliasMapRender[C] =
