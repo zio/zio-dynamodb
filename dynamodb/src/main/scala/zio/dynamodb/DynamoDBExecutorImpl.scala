@@ -126,7 +126,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       dynamoDb
         .query(generateQueryRequest(querySome))
         .mapBoth(_.toThrowable, toDynamoItem)
-    stream.run(ZSink.collectAll[Item]).map(chunk => (chunk, Some(chunk.last)))
+    stream.run(ZSink.collectAll[Item]).map(chunk => (chunk, chunk.lastOption))
   }
 
   private def doQueryAll(queryAll: QueryAll): ZIO[Any, Throwable, Stream[Throwable, Item]] =
@@ -254,7 +254,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       dynamoDb
         .scan(generateScanRequest(scanSome))
         .mapBoth(_.toThrowable, toDynamoItem)
-    stream.run(ZSink.collectAll[Item]).map(chunk => (chunk, Some(chunk.last)))
+    stream.run(ZSink.collectAll[Item]).map(chunk => (chunk, chunk.lastOption))
   }
 
   private def generateUpdateItemRequest(updateItem: UpdateItem): UpdateItemRequest = {
