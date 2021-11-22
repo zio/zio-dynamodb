@@ -1,5 +1,9 @@
 package zio.dynamodb
 
+trait Renderable {
+  def render: AliasMapRender[String]
+}
+
 final case class AliasMapRender[+A](
   render: AliasMap => (AliasMap, A)
 ) { self =>

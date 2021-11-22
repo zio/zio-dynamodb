@@ -494,7 +494,14 @@ object LiveSpec extends DefaultRunnableSpec {
                 tableName =>
                   for {
                     _       <- putItem(tableName, Item(id -> 1)).execute
-                    _       <- updateItem(tableName, PrimaryKey(id -> 1))($(number).setIfNotExists($(number), 4)).execute
+                    _       <- updateItem(tableName, PrimaryKey(id -> 1))($(number).setIfNotExists($(number), 4))
+                                 .where(
+                                   ConditionExpression.NotEqual(
+                                     ConditionExpression.Operand.ProjectionExpressionOperand($(id)),
+                                     ConditionExpression.Operand.ValueOperand(AttributeValue(id))
+                                   )
+                                 )
+                                 .execute
                     updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
                   } yield assert(updated)(equalTo(Some(Item(id -> 1, number -> 4))))
               )

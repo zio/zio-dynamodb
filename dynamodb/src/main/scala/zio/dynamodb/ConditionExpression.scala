@@ -35,7 +35,7 @@ function ::=
     | size (path)
  */
 
-sealed trait ConditionExpression { self =>
+sealed trait ConditionExpression extends Renderable { self =>
   import ConditionExpression._
 
   def &&(that: ConditionExpression): ConditionExpression = And(self, that)

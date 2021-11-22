@@ -10,7 +10,7 @@ comparisons operators are the same as for Condition
 
  */
 
-sealed trait KeyConditionExpression { self =>
+sealed trait KeyConditionExpression extends Renderable { self =>
   def render: AliasMapRender[String] =
     self match {
       case KeyConditionExpression.And(left, right) =>

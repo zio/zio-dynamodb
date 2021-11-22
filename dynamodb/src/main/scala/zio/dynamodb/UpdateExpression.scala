@@ -42,7 +42,7 @@ delete-action ::=
 
 // Note this implementation does not preserve the original order of actions ie after "Set field1 = 1, field1 = 2"
 // if this turns out to be a problem we could change the internal implementation
-final case class UpdateExpression(action: Action) { self =>
+final case class UpdateExpression(action: Action) extends Renderable { self =>
   def render: AliasMapRender[String] =
     action.render
 }

@@ -140,15 +140,15 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
         )
     )
 
-  private def zipOptionalFilterAndKeyExpression(
-    filterExpression: Option[FilterExpression],
-    keyConditionExpression: Option[KeyConditionExpression]
+  private def zipOptionalRenderables(
+    first: Option[Renderable],
+    second: Option[Renderable]
   ): Option[(AliasMap, (Option[String], Option[String]))] = {
     // This is really gross because there are four cases we need to account for here
     // REVIEW
-    val keyConditionExpr = keyConditionExpression.map(kce => kce.render).map(_.map(Some(_)))
+    val keyConditionExpr = second.map(kce => kce.render).map(_.map(Some(_)))
 
-    filterExpression
+    first
       .map(fe =>
         fe.render.zipWith(keyConditionExpr.getOrElse(AliasMapRender.empty.map(_ => None))) {
           case (filter, key) =>
@@ -161,7 +161,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
 
   private def generateQueryRequest(queryAll: QueryAll): QueryRequest = {
     val maybeFilterAndKeyExpression =
-      zipOptionalFilterAndKeyExpression(queryAll.filterExpression, queryAll.keyConditionExpression)
+      zipOptionalRenderables(queryAll.filterExpression, queryAll.keyConditionExpression)
 
     QueryRequest(
       tableName = queryAll.tableName.value,
@@ -182,7 +182,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
 
   private def generateQueryRequest(querySome: QuerySome): QueryRequest = {
     val maybeFilterAndKeyExpression =
-      zipOptionalFilterAndKeyExpression(querySome.filterExpression, querySome.keyConditionExpression)
+      zipOptionalRenderables(querySome.filterExpression, querySome.keyConditionExpression)
     QueryRequest(
       tableName = querySome.tableName.value,
       indexName = querySome.indexName.map(_.value),
@@ -266,7 +266,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   }
 
   private def generateUpdateItemRequest(updateItem: UpdateItem): UpdateItemRequest = {
-    val (map, updateExpr) = updateItem.updateExpression.render.render(AliasMap.empty)
+    val maybeUpdateConditionExpr =
+      zipOptionalRenderables(Some(updateItem.updateExpression), updateItem.conditionExpression)
 
     UpdateItemRequest(
       tableName = updateItem.tableName.value,
@@ -274,9 +275,10 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       returnValues = Some(buildAwsReturnValue(updateItem.returnValues)),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(updateItem.capacity)),
       returnItemCollectionMetrics = Some(buildAwsItemMetrics(updateItem.itemMetrics)),
-      updateExpression = Some(updateExpr),
-      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(map),
-      conditionExpression = updateItem.conditionExpression.map(_.toString)
+      updateExpression = maybeUpdateConditionExpr.flatMap(_._2._1),
+      expressionAttributeValues =
+        maybeUpdateConditionExpr.flatMap(m => aliasMapToExpressionZIOAwsAttributeValues(m._1)),
+      conditionExpression = maybeUpdateConditionExpr.flatMap(_._2._2)
     )
   }
 
