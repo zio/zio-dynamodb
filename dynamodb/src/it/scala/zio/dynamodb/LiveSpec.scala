@@ -75,7 +75,7 @@ object LiveSpec extends DefaultRunnableSpec {
 
   private val adamItem  = Item(id -> second, name -> adam, number -> 2)
   private val adam2Item = Item(id -> second, name -> adam2, number -> 5)
-  private val adam3Item = Item(id -> second, name -> adam3, number -> 8)
+  private val adam3Item = Item(id -> second, name -> adam3, number -> 8, "listt" -> List(1, 2, 3))
 
   private val johnItem  = Item(id -> third, name -> john, number -> 3)
   private val john2Item = Item(id -> third, name -> john2, number -> 6)
@@ -521,6 +521,20 @@ object LiveSpec extends DefaultRunnableSpec {
                            secondPrimaryKey
                          ).execute
             } yield assert(updated)(equalTo(Some(Item(id -> second, number -> 2))))
+          }
+        },
+        testM("remove item from list") {
+          withDefaultTable { tableName =>
+            val key = PrimaryKey(id -> second, number -> 8)
+            for {
+              _       <- updateItem(tableName, key)($("listt[1]").remove).execute
+              updated <- getItem(
+                           tableName,
+                           key
+                         ).execute
+            } yield assert(updated)(
+              equalTo(Some(Item(id -> second, number -> 8, name -> adam3, "listt" -> List(1, 3))))
+            )
           }
         },
         testM("add number") {
