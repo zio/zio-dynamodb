@@ -140,6 +140,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
         )
     )
 
+  // REVIEW: Is there a function I'm missing here? Or a better data model for what I'm trying to accomplish?
   private def zipOptionalRenderables(
     first: Option[Renderable],
     second: Option[Renderable]
