@@ -147,6 +147,37 @@ object LiveSpec extends DefaultRunnableSpec {
             )
           }
         },
+        testM("put and get item with all attribute types") {
+          import zio.dynamodb.ToAttributeValue._
+          val allAttributeTypeItem = Item(
+            id          -> 0,
+            "bin"       -> Chunk.fromArray("abc".getBytes),
+            "binSet"    -> Set(Chunk.fromArray("abc".getBytes)),
+            "boolean"   -> true,
+            "list"      -> List(1, 2, 3),
+            "mapp"      -> ScalaMap(
+              "a" -> true,
+              "b" -> false,
+              "c" -> false
+            ),
+            "num"       -> 5,
+            "numSet"    -> Set(4, 3, 2, 1),
+            "null"      -> null,
+            "string"    -> "string",
+            "stringSet" -> Set("a", "b", "c")
+          )
+          withTemporaryTable(
+            tableName =>
+              createTable(tableName, KeySchema(id), BillingMode.PayPerRequest)(AttributeDefinition.attrDefnNumber(id)),
+            tableName =>
+              for {
+                _      <- putItem(tableName, allAttributeTypeItem).execute
+                result <- getItem(tableName, PrimaryKey(id -> 0)).execute
+              } yield assert(result)(
+                equalTo(Some(allAttributeTypeItem))
+              )
+          )
+        },
         testM("get into case class") {
           withDefaultTable { tableName =>
             get[Person](tableName, secondPrimaryKey).execute.map(person =>
@@ -533,6 +564,5 @@ object LiveSpec extends DefaultRunnableSpec {
       .provideCustomLayerShared(
         layer.orDie
       ) @@ nondeterministic
-  // @@ around(???)(???) // may not be able to use this, I need the results of the first effect in the test
 //      .provideCustomLayerShared(liveAws.orDie)
 }

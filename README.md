@@ -17,7 +17,6 @@ Simple, type-safe, and efficient access to DynamoDB
 ```
 
 ```scala
-// import necessary dependencies
 import io.github.vigoo.zioaws.core.config
 import io.github.vigoo.zioaws.{ dynamodb, http4s }
 import zio.dynamodb.DynamoDBExecutor
