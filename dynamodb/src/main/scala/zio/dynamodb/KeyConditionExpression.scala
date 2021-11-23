@@ -2,8 +2,8 @@ package zio.dynamodb
 
 /*
 KeyCondition expression is a restricted version of ConditionExpression where by
-  partition exprn is required and can only use "=" equals comparison
- optionally AND can be used to add a sort key expression
+- partition exprn is required and can only use "=" equals comparison
+- optionally AND can be used to add a sort key expression
 
 eg partitionKeyName = :partitionkeyval AND sortKeyName = :sortkeyval
 comparisons operators are the same as for Condition
