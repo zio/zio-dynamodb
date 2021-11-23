@@ -34,9 +34,9 @@ object LiveSpec extends DefaultRunnableSpec {
     )
   )
 
-  val liveAws = http4s.default >>> config.default >>> dynamodb.live >>> DynamoDBExecutor.live
+//  private val liveAws = http4s.default >>> config.default >>> dynamodb.live >>> DynamoDBExecutor.live
 
-  val layer: ZLayer[Any, Throwable, Has[DynamoDBProxyServer] with Has[DynamoDBExecutor]] =
+  private val layer: ZLayer[Any, Throwable, Has[DynamoDBProxyServer] with Has[DynamoDBExecutor]] =
     ((http4s.default ++ awsConfig) >>> config.configured() >>> (dynamodb.customized { builder =>
       builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
     } >>> DynamoDBExecutor.live)) ++ (Blocking.live >>> LocalDdbServer.inMemoryLayer)
@@ -98,12 +98,12 @@ object LiveSpec extends DefaultRunnableSpec {
       AttributeDefinition.attrDefnNumber(number)
     )
 
-  def numberTable(tableName: String) =
+  private def numberTable(tableName: String) =
     createTable(tableName, KeySchema(id), BillingMode.PayPerRequest)(
       AttributeDefinition.attrDefnNumber(id)
     )
 
-  def sortKeyStringTable(tableName: String) =
+  private def sortKeyStringTable(tableName: String) =
     createTable(tableName, KeySchema(id, name), BillingMode.PayPerRequest)(
       AttributeDefinition.attrDefnString(id),
       AttributeDefinition.attrDefnString(name)
@@ -118,13 +118,13 @@ object LiveSpec extends DefaultRunnableSpec {
         } yield TableName(tableName)
       )(tName => deleteTable(tName.value).execute.orDie)
 
-  def withTemporaryTable(
+  private def withTemporaryTable(
     tableDefinition: String => CreateTable,
     f: String => ZIO[Has[DynamoDBExecutor], Throwable, TestResult]
   ) =
     managedTable(tableDefinition).use(table => f(table.value))
 
-  def withDefaultTable(
+  private def withDefaultTable(
     f: String => ZIO[Has[DynamoDBExecutor], Throwable, TestResult]
   ) =
     managedTable(defaultTable).use { table =>
@@ -544,7 +544,30 @@ object LiveSpec extends DefaultRunnableSpec {
             )
           }
         },
-        testM("add number") {
+        testM("add item to set") {
+          withTemporaryTable(
+            tableName =>
+              createTable(tableName, KeySchema(id), BillingMode.PayPerRequest)(AttributeDefinition.attrDefnNumber(id)),
+            tableName =>
+              for {
+                _       <- putItem(tableName, Item(id -> 1, "sett" -> Set(1, 2, 3))).execute
+                _       <- updateItem(tableName, PrimaryKey(id -> 1))($("sett").add(Set(4))).execute
+                updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
+              } yield assert(updated)(equalTo(Some(Item(id -> 1, "sett" -> Set(1, 2, 3, 4)))))
+          )
+        },
+        testM("add number using add action") {
+          withTemporaryTable(
+            numberTable,
+            tableName =>
+              for {
+                _       <- putItem(tableName, Item(id -> 1, number -> 0)).execute
+                _       <- updateItem(tableName, PrimaryKey(id -> 1))($(number).add(5)).execute
+                updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
+              } yield assert(updated)(equalTo(Some(Item(id -> 1, number -> 5))))
+          )
+        },
+        testM("add number using set action") {
           withTemporaryTable(
             numberTable,
             tableName =>
@@ -552,8 +575,8 @@ object LiveSpec extends DefaultRunnableSpec {
                 _       <- putItem(tableName, Item(id -> 1, number -> 0)).execute
                 _       <- updateItem(tableName, PrimaryKey(id -> 1))(
                              SetAction(
-                               $("num"),
-                               SetOperand.PathOperand($("num")) + SetOperand.ValueOperand(
+                               $(number),
+                               SetOperand.PathOperand($(number)) + SetOperand.ValueOperand(
                                  AttributeValue.Number(5)
                                )
                              )
@@ -570,8 +593,8 @@ object LiveSpec extends DefaultRunnableSpec {
                 _       <- putItem(tableName, Item(id -> 1, number -> 0)).execute
                 _       <- updateItem(tableName, PrimaryKey(id -> 1))(
                              SetAction(
-                               $("num"),
-                               SetOperand.PathOperand($("num")) - SetOperand.ValueOperand(
+                               $(number),
+                               SetOperand.PathOperand($(number)) - SetOperand.ValueOperand(
                                  AttributeValue.Number(2)
                                )
                              )

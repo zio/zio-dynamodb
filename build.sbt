@@ -85,9 +85,7 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
       "io.github.vigoo"         %% "zio-aws-dynamodb"           % zioAwsVersion,
       "org.scala-lang"           % "scala-reflect"              % scalaVersion.value,
       "software.amazon.awssdk"   % "dynamodb"                   % "2.16.20",
-      "com.amazonaws"            % "DynamoDBLocal"              % "1.17.0"             % "it,test",
-      "com.almworks.sqlite4java" % "libsqlite4java-linux-i386"  % "latest.integration" % "it,test",
-      "com.almworks.sqlite4java" % "libsqlite4java-linux-amd64" % "latest.integration" % "it,test"
+      "com.amazonaws"            % "DynamoDBLocal"              % "1.17.0"             % "it,test"
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework")),
     Compile / sourceGenerators += Def.task {
