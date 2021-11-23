@@ -93,9 +93,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       .describeTable(DescribeTableRequest(describeTable.tableName.value))
       .flatMap(s =>
         for {
-          t      <- s.table
-          arn    <- t.tableArn
-          status <- t.tableStatus
+          table  <- s.table
+          arn    <- table.tableArn
+          status <- table.tableStatus
         } yield DescribeTableResponse(tableArn = arn, tableStatus = zioAwsTableStatusToTableStatus(status))
       )
       .mapError(_.toThrowable)
@@ -122,13 +122,12 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       returnValues = Some(buildAwsReturnValue(deleteItem.returnValues))
     )
 
-  private def doQuerySome(querySome: QuerySome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] = {
-    val stream =
-      dynamoDb
-        .query(generateQueryRequest(querySome))
-        .mapBoth(_.toThrowable, toDynamoItem)
-    stream.run(ZSink.collectAll[Item]).map(chunk => (chunk, chunk.lastOption))
-  }
+  private def doQuerySome(querySome: QuerySome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] =
+    dynamoDb
+      .query(generateQueryRequest(querySome))
+      .mapBoth(_.toThrowable, toDynamoItem)
+      .run(ZSink.collectAll[Item])
+      .map(chunk => (chunk, chunk.lastOption))
 
   private def doQueryAll(queryAll: QueryAll): ZIO[Any, Throwable, Stream[Throwable, Item]] =
     ZIO.succeed(
@@ -210,14 +209,14 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       globalSecondaryIndexes = toOption(createTable.globalSecondaryIndexes.map(buildAwsGlobalSecondaryIndex)),
       billingMode = Some(buildAwsBillingMode(createTable.billingMode)),
       provisionedThroughput = createTable.billingMode match {
-        case BillingMode.Provisioned(pt) =>
+        case BillingMode.Provisioned(provisionedThroughput) =>
           Some(
             ZIOAwsProvisionedThroughput(
-              readCapacityUnits = pt.readCapacityUnit,
-              writeCapacityUnits = pt.writeCapacityUnit
+              readCapacityUnits = provisionedThroughput.readCapacityUnit,
+              writeCapacityUnits = provisionedThroughput.writeCapacityUnit
             )
           )
-        case BillingMode.PayPerRequest   => None
+        case BillingMode.PayPerRequest                      => None
       },
       sseSpecification = createTable.sseSpecification.map(buildAwsSSESpecification),
       tags = Some(createTable.tags.map { case (k, v) => Tag(k, v) })
@@ -251,20 +250,15 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   private def doUpdateItem(updateItem: UpdateItem): ZIO[Any, Throwable, Option[Item]] =
     dynamoDb.updateItem(generateUpdateItemRequest(updateItem)).mapBoth(_.toThrowable, optionalItem)
 
-  /* REVIEW(avi / john): We get an empty map back here if we pass a None to returned Items, but we can also get an empty map
-        if we haven't updated anything. Do we want to return an empty map if we haven't updated anything or return a None?
-        I feel like a None makes more sense here but want your thoughts as well.
-   */
   private def optionalItem(updateItemResponse: UpdateItemResponse.ReadOnly): Option[Item] =
     updateItemResponse.attributesValue.flatMap(m => toOption(m).map(toDynamoItem))
 
-  private def doScanSome(scanSome: ScanSome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] = {
-    val stream =
-      dynamoDb
-        .scan(generateScanRequest(scanSome))
-        .mapBoth(_.toThrowable, toDynamoItem)
-    stream.run(ZSink.collectAll[Item]).map(chunk => (chunk, chunk.lastOption))
-  }
+  private def doScanSome(scanSome: ScanSome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] =
+    dynamoDb
+      .scan(generateScanRequest(scanSome))
+      .mapBoth(_.toThrowable, toDynamoItem)
+      .run(ZSink.collectAll[Item])
+      .map(chunk => (chunk, chunk.lastOption))
 
   private def generateUpdateItemRequest(updateItem: UpdateItem): UpdateItemRequest = {
     val maybeUpdateConditionExpr =
@@ -301,9 +295,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       select = scanSome.select.map(buildAwsSelect),
       exclusiveStartKey = scanSome.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(scanSome.capacity)),
-      // Looks like we're not currently supporting segments?
-      totalSegments = None,
-      segment = None,
       limit = Some(scanSome.limit),
       projectionExpression = toOption(scanSome.projections).map(_.mkString(", ")),
       filterExpression = filterExpression.map(_._2),
@@ -320,9 +311,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       select = scanAll.select.map(buildAwsSelect),
       exclusiveStartKey = scanAll.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(scanAll.capacity)),
-      // Looks like we're not currently supporting segments?
-      totalSegments = None,
-      segment = None,
       limit = scanAll.limit,
       projectionExpression = toOption(scanAll.projections).map(_.mkString(", ")),
       filterExpression = filterExpression.map(_._2),
@@ -335,10 +323,10 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     if (batchGetItem.requestItems.isEmpty) ZIO.succeed(BatchGetItem.Response())
     else
       (for {
-        a <- dynamoDb.batchGetItem(generateBatchGetItemRequest(batchGetItem))
-        b <- a.responses
+        batchResponse <- dynamoDb.batchGetItem(generateBatchGetItemRequest(batchGetItem))
+        tableItemsMap <- batchResponse.responses
       } yield BatchGetItem.Response(
-        b.foldLeft(MapOfSet.empty[TableName, Item]) {
+        tableItemsMap.foldLeft(MapOfSet.empty[TableName, Item]) {
           case (acc, (tableName, list)) =>
             acc ++ ((TableName(tableName), list.map(toDynamoItem)))
         }
@@ -348,27 +336,22 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     dynamoDb.putItem(generatePutItemRequest(putItem)).unit.mapError(_.toThrowable)
 
   private def doGetItem(getItem: GetItem): ZIO[Any, Throwable, Option[Item]] =
-    for {
-      a <- dynamoDb
-             .getItem(generateGetItemRequest(getItem))
-             .mapError(_.toThrowable)
-      c  = a.itemValue.map(toDynamoItem)
-    } yield c
+    dynamoDb
+      .getItem(generateGetItemRequest(getItem))
+      .mapError(_.toThrowable)
+      .map(_.itemValue.map(toDynamoItem()))
 
   private def toDynamoItem(attrMap: ScalaMap[String, ZIOAwsAttributeValue.ReadOnly]): Item =
     Item(attrMap.flatMap { case (k, v) => awsAttrValToAttrVal(v).map(attrVal => (k, attrVal)) })
 
-  private def generateBatchGetItemRequest(batchGetItem: BatchGetItem): BatchGetItemRequest = {
-    val a = batchGetItem.requestItems.map {
-      case (tableName, tableGet) =>
-        (tableName.value, generateKeysAndAttributes(tableGet))
-    }
-
+  private def generateBatchGetItemRequest(batchGetItem: BatchGetItem): BatchGetItemRequest =
     BatchGetItemRequest(
-      requestItems = a,
+      requestItems = batchGetItem.requestItems.map {
+        case (tableName, tableGet) =>
+          (tableName.value, generateKeysAndAttributes(tableGet))
+      },
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(batchGetItem.capacity))
     )
-  }
 
   private def generateKeysAndAttributes(tableGet: TableGet): KeysAndAttributes =
     KeysAndAttributes(
