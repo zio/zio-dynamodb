@@ -31,6 +31,7 @@ inThisBuild(
 addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
 
+// from this blog http://softwarebyjosh.com/2018/03/25/how-to-unit-test-your-dynamodb-queries.html
 lazy val copyJars = taskKey[Unit]("copyJars")
 
 def copyJarSetting(dir: String) =
@@ -84,7 +85,7 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
       "io.github.vigoo"         %% "zio-aws-dynamodb"           % zioAwsVersion,
       "org.scala-lang"           % "scala-reflect"              % scalaVersion.value,
       "software.amazon.awssdk"   % "dynamodb"                   % "2.16.20",
-      "com.amazonaws"            % "DynamoDBLocal"              % "1.12.0"             % "it,test", // TODO: check latest version
+      "com.amazonaws"            % "DynamoDBLocal"              % "1.17.0"             % "it,test",
       "com.almworks.sqlite4java" % "libsqlite4java-linux-i386"  % "latest.integration" % "it,test",
       "com.almworks.sqlite4java" % "libsqlite4java-linux-amd64" % "latest.integration" % "it,test"
     ),

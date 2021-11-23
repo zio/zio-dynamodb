@@ -25,7 +25,7 @@ import scala.collection.immutable.{ Map => ScalaMap }
 
 object LiveSpec extends DefaultRunnableSpec {
 
-  val awsConfig = ZLayer.succeed(
+  private val awsConfig = ZLayer.succeed(
     config.CommonAwsConfig(
       region = None,
       credentialsProvider = SystemPropertyCredentialsProvider.create(),
@@ -81,7 +81,7 @@ object LiveSpec extends DefaultRunnableSpec {
   private val john2Item = Item(id -> third, name -> john2, number -> 6)
   private val john3Item = Item(id -> third, name -> john3, number -> 9)
 
-  def insertData(tableName: String) =
+  private def insertData(tableName: String) =
     putItem(tableName, aviItem) *>
       putItem(tableName, avi2Item) *>
       putItem(tableName, avi3Item) *>

@@ -105,7 +105,7 @@ object ConditionExpression {
     def <=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
       LessThanOrEqual(self, Operand.ValueOperand(t.toAttributeValue(that)))
     def >[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression  =
-      GreaterThanOrEqual(self, Operand.ValueOperand(t.toAttributeValue(that)))
+      GreaterThan(self, Operand.ValueOperand(t.toAttributeValue(that)))
     def >=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
       GreaterThanOrEqual(self, Operand.ValueOperand(t.toAttributeValue(that)))
 

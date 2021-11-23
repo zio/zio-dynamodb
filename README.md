@@ -26,7 +26,9 @@ import zio._
 object Main extends App {
   
   private final case class Person(id: Int, firstName: String)
-  
+object Person {
+  implicit lazy val codec: Schema[Person] = DeriveSchema.gen[Person]
+}
   val examplePerson = Person(1, "avi")
   
   private val program = for {
