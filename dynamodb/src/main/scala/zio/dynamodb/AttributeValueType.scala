@@ -1,7 +1,26 @@
 package zio.dynamodb
 
-sealed trait AttributeValueType
-sealed trait PrimitiveValueType extends AttributeValueType
+sealed trait AttributeValueType { self =>
+  def render: AliasMapRender[String] =
+    self match {
+      case valueType: PrimitiveValueType => valueType.render
+      case AttributeValueType.Bool       => AliasMapRender.getOrInsert(AttributeValue.String("BOOL"))
+      case AttributeValueType.BinarySet  => AliasMapRender.getOrInsert(AttributeValue.String("BS"))
+      case AttributeValueType.List       => AliasMapRender.getOrInsert(AttributeValue.String("L"))
+      case AttributeValueType.Map        => AliasMapRender.getOrInsert(AttributeValue.String("M"))
+      case AttributeValueType.NumberSet  => AliasMapRender.getOrInsert(AttributeValue.String("NS"))
+      case AttributeValueType.Null       => AliasMapRender.getOrInsert(AttributeValue.String("NULL"))
+      case AttributeValueType.StringSet  => AliasMapRender.getOrInsert(AttributeValue.String("SS"))
+    }
+}
+sealed trait PrimitiveValueType extends AttributeValueType { self =>
+  override def render: AliasMapRender[String] =
+    self match {
+      case AttributeValueType.Binary => AliasMapRender.getOrInsert(AttributeValue.String("B"))
+      case AttributeValueType.Number => AliasMapRender.getOrInsert(AttributeValue.String("N"))
+      case AttributeValueType.String => AliasMapRender.getOrInsert(AttributeValue.String("S"))
+    }
+}
 
 object AttributeValueType {
   // primitive types

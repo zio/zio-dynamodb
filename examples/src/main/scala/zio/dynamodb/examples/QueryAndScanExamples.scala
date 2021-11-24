@@ -9,15 +9,14 @@ import zio.stream.Stream
 import zio.{ Chunk, Has, ZIO }
 
 object QueryAndScanExamples extends App {
-
-  val scanAll: ZIO[Has[DynamoDBExecutor], Exception, Stream[Exception, Item]]                   =
+  val scanAll: ZIO[Has[DynamoDBExecutor], Throwable, Stream[Throwable, Item]]                   =
     scanAllItem("tableName1", $("A"), $("B"), $("C")).execute
-  val scanAllWithSecondaryIndex: ZIO[Has[DynamoDBExecutor], Exception, Stream[Exception, Item]] =
+  val scanAllWithSecondaryIndex: ZIO[Has[DynamoDBExecutor], Throwable, Stream[Throwable, Item]] =
     scanAllItem("tableName1", $("A"), $("B"), $("C")).indexName("secondaryIndex").execute
-  val scanSome: ZIO[Has[DynamoDBExecutor], Exception, (Chunk[Item], LastEvaluatedKey)]          =
+  val scanSome: ZIO[Has[DynamoDBExecutor], Throwable, (Chunk[Item], LastEvaluatedKey)]          =
     scanSomeItem("tableName1", limit = 10, $("A"), $("B"), $("C")).execute
 
-  val queryAll: ZIO[Has[DynamoDBExecutor], Exception, Stream[Exception, Item]] =
+  val queryAll: ZIO[Has[DynamoDBExecutor], Throwable, Stream[Throwable, Item]] =
     queryAllItem("tableName1", $("A"), $("B"), $("C"))
       .whereKey(
         PartitionKey("partitionKey1") === "x" &&
@@ -25,7 +24,7 @@ object QueryAndScanExamples extends App {
       )
       .execute
 
-  val querySome: ZIO[Has[DynamoDBExecutor], Exception, (Chunk[Item], LastEvaluatedKey)] =
+  val querySome: ZIO[Has[DynamoDBExecutor], Throwable, (Chunk[Item], LastEvaluatedKey)] =
     querySomeItem("tableName1", limit = 10, $("A"), $("B"), $("C"))
       .sortOrder(ascending = false)
       .whereKey(PartitionKey("partitionKey1") === "x" && SortKey("sortKey1") > "X")

@@ -19,7 +19,7 @@ package object dynamodb {
   type Encoder[A]  = A => AttributeValue
   type Decoder[+A] = AttributeValue => Either[String, A]
 
-  private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[A]): ZIO[Has[DynamoDBExecutor], Exception, A] =
+  private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[A]): ZIO[Has[DynamoDBExecutor], Throwable, A] =
     ZIO.serviceWith[DynamoDBExecutor](_.execute(query))
 
   /**
@@ -34,9 +34,9 @@ package object dynamodb {
    * @return A stream of results from the `DynamoDBQuery` write's
    */
   def batchWriteFromStream[R, A, B](
-    stream: ZStream[R, Exception, A],
+    stream: ZStream[R, Throwable, A],
     mPar: Int = 10
-  )(f: A => DynamoDBQuery[B]): ZStream[Has[DynamoDBExecutor] with R with Clock, Exception, B] =
+  )(f: A => DynamoDBQuery[B]): ZStream[Has[DynamoDBExecutor] with R with Clock, Throwable, B] =
     stream
       .aggregateAsync(Transducer.collectAllN(25))
       .mapMPar(mPar) { chunk =>
@@ -63,11 +63,11 @@ package object dynamodb {
    */
   def batchReadFromStream[R, A](
     tableName: String,
-    stream: ZStream[R, Exception, A],
+    stream: ZStream[R, Throwable, A],
     mPar: Int = 10
   )(
     pk: A => PrimaryKey
-  ): ZStream[R with Has[DynamoDBExecutor] with Clock, Exception, Item] =
+  ): ZStream[R with Has[DynamoDBExecutor] with Clock, Throwable, Item] =
     stream
       .aggregateAsync(Transducer.collectAllN(100))
       .mapMPar(mPar) { chunk =>

@@ -6,7 +6,7 @@ import zio.dynamodb.{ DynamoDBExecutor, Item, PrimaryKey, TestDynamoDBExecutor }
 import zio.{ App, ExitCode, Has, URIO, ZIO }
 
 object SimpleExample extends App {
-  private val program: ZIO[Console with Has[DynamoDBExecutor] with Has[TestDynamoDBExecutor], Exception, Unit] = for {
+  private val program: ZIO[Console with Has[DynamoDBExecutor] with Has[TestDynamoDBExecutor], Throwable, Unit] = for {
     _       <- TestDynamoDBExecutor.addTable("table1", primaryKeyFieldName = "id")
     _       <- (putItem("table1", Item("id" -> 1, "name" -> "name1")) zip putItem(
                    "table1",

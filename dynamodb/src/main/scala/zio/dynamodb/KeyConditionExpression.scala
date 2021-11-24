@@ -10,7 +10,18 @@ comparisons operators are the same as for Condition
 
  */
 
-sealed trait KeyConditionExpression
+sealed trait KeyConditionExpression extends Renderable { self =>
+  def render: AliasMapRender[String] =
+    self match {
+      case KeyConditionExpression.And(left, right) =>
+        left.render
+          .zipWith(
+            right.render
+          ) { case (l, r) => s"$l AND $r" }
+      case expression: PartitionKeyExpression      => expression.render
+    }
+}
+
 object KeyConditionExpression {
   private[dynamodb] final case class And(left: PartitionKeyExpression, right: SortKeyExpression)
       extends KeyConditionExpression
@@ -20,6 +31,12 @@ sealed trait PartitionKeyExpression extends KeyConditionExpression { self =>
   import KeyConditionExpression.And
 
   def &&(that: SortKeyExpression): KeyConditionExpression = And(self, that)
+
+  override def render: AliasMapRender[String] =
+    self match {
+      case PartitionKeyExpression.Equals(left, right) =>
+        AliasMapRender.getOrInsert(right).map(v => s"${left.keyName} = $v")
+    }
 }
 object PartitionKeyExpression {
   final case class PartitionKey(keyName: String) { self =>
@@ -29,7 +46,61 @@ object PartitionKeyExpression {
   final case class Equals(left: PartitionKey, right: AttributeValue) extends PartitionKeyExpression
 }
 
-sealed trait SortKeyExpression
+sealed trait SortKeyExpression { self =>
+  def render: AliasMapRender[String] =
+    self match {
+      case SortKeyExpression.Equals(left, right)             =>
+        AliasMapRender
+          .getOrInsert(right)
+          .map { v =>
+            s"${left.keyName} = $v"
+          }
+      case SortKeyExpression.LessThan(left, right)           =>
+        AliasMapRender
+          .getOrInsert(right)
+          .map { v =>
+            s"${left.keyName} < $v"
+          }
+      case SortKeyExpression.NotEqual(left, right)           =>
+        AliasMapRender
+          .getOrInsert(right)
+          .map { v =>
+            s"${left.keyName} <> $v"
+          }
+      case SortKeyExpression.GreaterThan(left, right)        =>
+        AliasMapRender
+          .getOrInsert(right)
+          .map { v =>
+            s"${left.keyName} > $v"
+          }
+      case SortKeyExpression.LessThanOrEqual(left, right)    =>
+        AliasMapRender
+          .getOrInsert(right)
+          .map { v =>
+            s"${left.keyName} <= $v"
+          }
+      case SortKeyExpression.GreaterThanOrEqual(left, right) =>
+        AliasMapRender
+          .getOrInsert(right)
+          .map { v =>
+            s"${left.keyName} >= $v"
+          }
+      case SortKeyExpression.Between(left, min, max)         =>
+        AliasMapRender
+          .getOrInsert(min)
+          .flatMap(min =>
+            AliasMapRender.getOrInsert(max).map { max =>
+              s"${left.keyName} BETWEEN $min AND $max"
+            }
+          )
+      case SortKeyExpression.BeginsWith(left, value)         =>
+        AliasMapRender
+          .getOrInsert(value)
+          .map { v =>
+            s"begins_with(${left.keyName}, $v)"
+          }
+    }
+}
 
 object SortKeyExpression {
 

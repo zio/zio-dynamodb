@@ -32,7 +32,7 @@ sealed trait DynamoDBQuery[+A] { self =>
 
   final def <*>[B](that: DynamoDBQuery[B]): DynamoDBQuery[(A, B)] = self zip that
 
-  def execute: ZIO[Has[DynamoDBExecutor], Exception, A] = {
+  def execute: ZIO[Has[DynamoDBExecutor], Throwable, A] = {
     val (constructors, assembler)                                                                   = parallelize(self)
     val (indexedConstructors, (batchGetItem, batchGetIndexes), (batchWriteItem, batchWriteIndexes)) =
       batched(constructors)
@@ -185,8 +185,8 @@ sealed trait DynamoDBQuery[+A] { self =>
     indexName: String,
     keySchema: KeySchema,
     projection: ProjectionType,
-    readCapacityUnit: Int,
-    writeCapacityUnit: Int
+    readCapacityUnit: Long,
+    writeCapacityUnit: Long
   ): DynamoDBQuery[A] =
     self match {
       case Zip(left, right, zippable) =>
@@ -349,7 +349,7 @@ object DynamoDBQuery {
       .fromAttributeValue(AttributeValue.encode(a)(schema))
       .getOrElse(throw new Exception(s"error encoding $a"))
 
-  def updateItem(tableName: String, key: PrimaryKey)(action: Action): DynamoDBQuery[Unit] =
+  def updateItem(tableName: String, key: PrimaryKey)(action: Action): DynamoDBQuery[Option[Item]] =
     UpdateItem(TableName(tableName), key, UpdateExpression(action))
 
   def deleteItem(tableName: String, key: PrimaryKey): Write[Unit] = DeleteItem(TableName(tableName), key)
@@ -397,7 +397,7 @@ object DynamoDBQuery {
   def scanAll[A: Schema](
     tableName: String,
     projections: ProjectionExpression*
-  ): DynamoDBQuery[Stream[Exception, A]] =
+  ): DynamoDBQuery[Stream[Throwable, A]] =
     scanAllItem(tableName, projections: _*).map(
       _.mapM(item => ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_)))
     ) // TODO: think about error model
@@ -444,8 +444,9 @@ object DynamoDBQuery {
    */
   def queryAll[A: Schema](
     tableName: String,
+    //keyConditionExpression: KeyConditionExpression, REVIEW: This is required by the dynamo API, should we make it required here?
     projections: ProjectionExpression*
-  ): DynamoDBQuery[Stream[Exception, A]] =
+  ): DynamoDBQuery[Stream[Throwable, A]] =
     queryAllItem(tableName, projections: _*).map(
       _.mapM(item => ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_)))
     ) // TODO: think about error model
@@ -465,6 +466,14 @@ object DynamoDBQuery {
       sseSpecification = sseSpecification,
       tags = tags
     )
+
+  def deleteTable(
+    tableName: String
+  ) = DeleteTable(tableName = TableName(tableName))
+
+  def describeTable(
+    tableName: String
+  ) = DescribeTable(tableName = TableName(tableName))
 
   private def selectOrAll(projections: Seq[ProjectionExpression]): Option[Select] =
     Some(if (projections.isEmpty) Select.AllAttributes else Select.SpecificAttributes)
@@ -519,10 +528,11 @@ object DynamoDBQuery {
       val chunk: Chunk[Option[Item]] = orderedGetItems.foldLeft[Chunk[Option[Item]]](Chunk.empty) {
         case (chunk, getItem) =>
           val responsesForTable: Set[Item] = response.responses.getOrElse(getItem.tableName, Set.empty[Item])
+          // What if the projection expression for responsesForTable doesn't include the primaryKey?
+          // Shouldn't the responseForTable have only the requested item?
           val found: Option[Item]          = responsesForTable.find { item =>
             getItem.key.map.toSet.subsetOf(item.map.toSet)
           }
-
           found.fold(chunk :+ None)(item => chunk :+ Some(item))
       }
 
@@ -577,6 +587,30 @@ object DynamoDBQuery {
     final case class Put(item: Item)         extends Write
 
   }
+  private[dynamodb] final case class DeleteTable(
+    tableName: TableName
+  ) extends Constructor[Unit]
+
+  private[dynamodb] final case class DescribeTable(
+    tableName: TableName
+  ) extends Constructor[DescribeTableResponse]
+
+  sealed trait TableStatus
+  object TableStatus {
+    case object Creating                          extends TableStatus
+    case object Updating                          extends TableStatus
+    case object Deleting                          extends TableStatus
+    case object Active                            extends TableStatus
+    case object InaccessibleEncryptionCredentials extends TableStatus
+    case object Archiving                         extends TableStatus
+    case object Archived                          extends TableStatus
+  }
+
+  // TODO(adam): Add more fields here, this was for some basic testing initially
+  final case class DescribeTableResponse(
+    tableArn: String,
+    tableStatus: TableStatus
+  )
 
   // Interestingly scan can be run in parallel using segment number and total segments fields
   // If running in parallel segment number must be used consistently with the paging token
@@ -620,7 +654,7 @@ object DynamoDBQuery {
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
-  ) extends Constructor[Stream[Exception, Item]]
+  ) extends Constructor[Stream[Throwable, Item]]
 
   private[dynamodb] final case class QueryAll(
     tableName: TableName,
@@ -635,7 +669,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None,                        // if ProjectExpression supplied then only valid value is SpecificAttributes
     ascending: Boolean = true
-  ) extends Constructor[Stream[Exception, Item]]
+  ) extends Constructor[Stream[Throwable, Item]]
 
   private[dynamodb] final case class PutItem(
     tableName: TableName,
@@ -654,7 +688,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues = ReturnValues.None
-  ) extends Constructor[Unit]
+  ) extends Constructor[Option[Item]]
 
   private[dynamodb] final case class DeleteItem(
     tableName: TableName,
@@ -754,6 +788,22 @@ object DynamoDBQuery {
       case batchWriteItem @ BatchWriteItem(_, _, _, _)        =>
         (
           Chunk(batchWriteItem),
+          (results: Chunk[Any]) => {
+            results.head.asInstanceOf[A]
+          }
+        )
+
+      case deleteTable @ DeleteTable(_)                       =>
+        (
+          Chunk(deleteTable),
+          (results: Chunk[Any]) => {
+            results.head.asInstanceOf[A]
+          }
+        )
+
+      case describeTable @ DescribeTable(_)                   =>
+        (
+          Chunk(describeTable),
           (results: Chunk[Any]) => {
             results.head.asInstanceOf[A]
           }

@@ -35,12 +35,51 @@ function ::=
     | size (path)
  */
 
-sealed trait ConditionExpression { self =>
+sealed trait ConditionExpression extends Renderable { self =>
   import ConditionExpression._
 
   def &&(that: ConditionExpression): ConditionExpression = And(self, that)
   def ||(that: ConditionExpression): ConditionExpression = Or(self, that)
   def unary_! : ConditionExpression                      = Not(self)
+
+  def render: AliasMapRender[String] =
+    self match {
+      case Between(left, minValue, maxValue)  =>
+        AliasMapRender.getOrInsert(minValue)
+        for {
+          l   <- left.render
+          min <- AliasMapRender.getOrInsert(minValue)
+          max <- AliasMapRender.getOrInsert(maxValue)
+        } yield s"$l BETWEEN $min AND $max"
+      case In(left, values)                   =>
+        for {
+          l    <- left.render
+          vals <- values
+                    .foldLeft(AliasMapRender.empty.map(_ => "")) {
+                      case (acc, value) =>
+                        acc.zipWith(AliasMapRender.getOrInsert(value)) {
+                          case (acc, action) =>
+                            if (acc.isEmpty) action
+                            else s"$acc, $action"
+                        }
+                    }
+        } yield s"$l IN ($vals)"
+      case AttributeExists(path)              => AliasMapRender.succeed(s"attribute_exists($path)")
+      case AttributeNotExists(path)           => AliasMapRender.succeed(s"attribute_not_exists($path)")
+      case AttributeType(path, attributeType) => attributeType.render.map(v => s"attribute_type($path, $v)")
+      case Contains(path, value)              => AliasMapRender.getOrInsert(value).map(v => s"contains($path, $v)")
+      case BeginsWith(path, value)            => AliasMapRender.getOrInsert(value).map(v => s"begins_with($path, $v)")
+      case And(left, right)                   => left.render.zipWith(right.render) { case (l, r) => s"($l) AND ($r)" }
+      case Or(left, right)                    => left.render.zipWith(right.render) { case (l, r) => s"($l) OR ($r)" }
+      case Not(exprn)                         => exprn.render.map(v => s"NOT ($v)")
+      case Equals(left, right)                => left.render.zipWith(right.render) { case (l, r) => s"($l) = ($r)" }
+      case NotEqual(left, right)              => left.render.zipWith(right.render) { case (l, r) => s"($l) <> ($r)" }
+      case LessThan(left, right)              => left.render.zipWith(right.render) { case (l, r) => s"($l) < ($r)" }
+      case GreaterThan(left, right)           => left.render.zipWith(right.render) { case (l, r) => s"($l) > ($r)" }
+      case LessThanOrEqual(left, right)       => left.render.zipWith(right.render) { case (l, r) => s"($l) <= ($r)" }
+      case GreaterThanOrEqual(left, right)    => left.render.zipWith(right.render) { case (l, r) => s"($l) >= ($r)" }
+    }
+
 }
 
 // BNF  https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
@@ -66,15 +105,24 @@ object ConditionExpression {
     def <=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
       LessThanOrEqual(self, Operand.ValueOperand(t.toAttributeValue(that)))
     def >[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression  =
-      GreaterThanOrEqual(self, Operand.ValueOperand(t.toAttributeValue(that)))
+      GreaterThan(self, Operand.ValueOperand(t.toAttributeValue(that)))
     def >=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
       GreaterThanOrEqual(self, Operand.ValueOperand(t.toAttributeValue(that)))
+
+    def render: AliasMapRender[String] =
+      self match {
+        case Operand.ProjectionExpressionOperand(pe) => AliasMapRender.succeed(pe.toString)
+        case Operand.ValueOperand(value)             => AliasMapRender.getOrInsert(value).map(identity)
+        case Operand.Size(path)                      => AliasMapRender.succeed(s"size($path)")
+      }
   }
-  object Operand                         {
+
+  object Operand {
 
     private[dynamodb] final case class ProjectionExpressionOperand(pe: ProjectionExpression) extends Operand
     private[dynamodb] final case class ValueOperand(value: AttributeValue)                   extends Operand
     private[dynamodb] final case class Size(path: ProjectionExpression)                      extends Operand
+
   }
 
   private[dynamodb] final case class Between(left: Operand, minValue: AttributeValue, maxValue: AttributeValue)

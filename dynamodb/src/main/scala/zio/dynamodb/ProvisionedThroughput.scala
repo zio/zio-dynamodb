@@ -1,3 +1,3 @@
 package zio.dynamodb
 
-final case class ProvisionedThroughput(readCapacityUnit: Int, writeCapacityUnit: Int)
+final case class ProvisionedThroughput(readCapacityUnit: Long, writeCapacityUnit: Long)
