@@ -28,7 +28,7 @@ object EitherUtil {
     loop(list.toList, List.empty)(f)
   }
 
-//  def collectAll[A, B](list: Iterable[B]): Either[String, Iterable[B]] = forEach[A, B](list)(identity)
+  def collectAll[A](list: Iterable[Either[String, A]]): Either[String, Iterable[A]] = forEach(list)(identity)
 }
 
 object ZioDynamodbExampleSpec extends DefaultRunnableSpec {
@@ -56,12 +56,11 @@ object ZioDynamodbExampleSpec extends DefaultRunnableSpec {
 
     _                  <- (updateItem("student", pk(avi))($("payment").set(PayPal.toString)) zip
                               updateItem("student", pk(adam))($("payment").set(PayPal.toString))).execute
-//  } yield zio.dynamodb.foreach(listErrorOrStudent)(identity)
-  } yield EitherUtil.forEach(listErrorOrStudent)(identity)
+  } yield EitherUtil.collectAll(listErrorOrStudent)
 
   case class Course(name: String, code: String)
   object Course {
-    implicit lazy val codec: Schema[Course] = DeriveSchema.gen[Course]
+    implicit lazy val schema: Schema[Course] = DeriveSchema.gen[Course]
   }
 
   val program2 = for {

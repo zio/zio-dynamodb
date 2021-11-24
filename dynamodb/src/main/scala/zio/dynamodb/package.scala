@@ -77,10 +77,38 @@ package object dynamodb {
         for {
           r    <- ZIO.environment[Has[DynamoDBExecutor]]
           list <- batchGetItem.execute.provide(r)
+          // stream.mapM(item  Either[String, A]
         } yield list
       }
       .flattenChunks
-      .collectSome
+      .collectSome[Item]
+
+//  def batchReadFromStream2[R, A: Schema](
+//    tableName: String,
+//    stream: ZStream[R, Exception, A],
+//    mPar: Int = 10
+//  )(
+//    pk: A => PrimaryKey
+//  ) =
+//    stream
+//      .aggregateAsync(Transducer.collectAllN(100))
+//      .mapMPar(mPar) { chunk =>
+//        val batchGetItem: DynamoDBQuery[Chunk[Option[Item]]]              = DynamoDBQuery
+//          .forEach(chunk)(a => DynamoDBQuery.getItem(tableName, pk(a)))
+//          .map(Chunk.fromIterable)
+//        val x: ZIO[Has[DynamoDBExecutor], Exception, Chunk[Option[Item]]] = for {
+//          r    <- ZIO.environment[Has[DynamoDBExecutor]]
+//          list <- batchGetItem.execute.provide(r)
+////          xs = list.map(_.map(DynamoDBQuery.fromItem))
+//        } yield list
+//        x
+//      }
+//      .flattenChunks
+//      .collectWhileRight
+//      .mapMPar(1)(i => ZIO.fromEither(DynamoDBQuery.fromItem(i)))
+////      .map(item => DynamoDBQuery.fromItem(item))
+////      .rightOrFail(new IllegalStateException("e.toString"))
+////      .collectWhileRight
 
   /**
    * Reads `stream` using function `pk` to determine the primary key which is then used to create a BatchGetItem request.
