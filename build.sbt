@@ -56,7 +56,7 @@ def copyJarSetting(dir: String) =
 
 val zioVersion       = "1.0.12"
 val zioConfigVersion = "1.0.6"
-val zioAwsVersion    = "3.17.87.0"
+val zioAwsVersion    = "3.17.87.2"
 
 lazy val root =
   project
@@ -75,17 +75,17 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
     copyJarSetting("dynamodb"),
     (Compile / compile) := (Compile / compile).dependsOn(copyJars).value,
     libraryDependencies ++= Seq(
-      "dev.zio"                 %% "zio"                        % zioVersion,
-      "dev.zio"                 %% "zio-streams"                % zioVersion,
-      "dev.zio"                 %% "zio-test"                   % zioVersion           % "it,test",
-      "dev.zio"                 %% "zio-test-sbt"               % zioVersion           % "it,test",
-      "dev.zio"                 %% "zio-schema"                 % "0.1.2",
-      "dev.zio"                 %% "zio-config-typesafe"        % zioConfigVersion,
-      "io.github.vigoo"         %% "zio-aws-http4s"             % zioAwsVersion,
-      "io.github.vigoo"         %% "zio-aws-dynamodb"           % zioAwsVersion,
-      "org.scala-lang"           % "scala-reflect"              % scalaVersion.value,
-      "software.amazon.awssdk"   % "dynamodb"                   % "2.16.20",
-      "com.amazonaws"            % "DynamoDBLocal"              % "1.17.0"             % "it,test"
+      "dev.zio"               %% "zio"                 % zioVersion,
+      "dev.zio"               %% "zio-streams"         % zioVersion,
+      "dev.zio"               %% "zio-test"            % zioVersion % "it,test",
+      "dev.zio"               %% "zio-test-sbt"        % zioVersion % "it,test",
+      "dev.zio"               %% "zio-schema"          % "0.1.2",
+      "dev.zio"               %% "zio-config-typesafe" % zioConfigVersion,
+      "io.github.vigoo"       %% "zio-aws-http4s"      % zioAwsVersion,
+      "io.github.vigoo"       %% "zio-aws-dynamodb"    % zioAwsVersion,
+      "org.scala-lang"         % "scala-reflect"       % scalaVersion.value,
+      "software.amazon.awssdk" % "dynamodb"            % "2.16.20",
+      "com.amazonaws"          % "DynamoDBLocal"       % "1.17.0"   % "it,test"
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework")),
     Compile / sourceGenerators += Def.task {

@@ -339,7 +339,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     dynamoDb
       .getItem(generateGetItemRequest(getItem))
       .mapError(_.toThrowable)
-      .map(_.itemValue.map(toDynamoItem()))
+      .map(_.itemValue.map(toDynamoItem))
 
   private def toDynamoItem(attrMap: ScalaMap[String, ZIOAwsAttributeValue.ReadOnly]): Item =
     Item(attrMap.flatMap { case (k, v) => awsAttrValToAttrVal(v).map(attrVal => (k, attrVal)) })
