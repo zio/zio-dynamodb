@@ -17,30 +17,33 @@ Simple, type-safe, and efficient access to DynamoDB
 ```
 
 ```scala
+import io.github.vigoo.zioaws.http4s
+import zio.{ App, ExitCode, URIO }
+import zio.dynamodb.DynamoDBQuery.{ get, put }
+import zio.dynamodb.{ DynamoDBExecutor, PrimaryKey }
+import zio.schema.{ DeriveSchema, Schema }
 import io.github.vigoo.zioaws.core.config
-import io.github.vigoo.zioaws.{ dynamodb, http4s }
-import zio.dynamodb.DynamoDBExecutor
-import zio.dynamodb.DynamoDBQuery._
-import zio._
+import io.github.vigoo.zioaws.dynamodb
 
 object Main extends App {
-  
-  private final case class Person(id: Int, firstName: String)
-object Person {
-  implicit lazy val codec: Schema[Person] = DeriveSchema.gen[Person]
-}
+
+  final case class Person(id: Int, firstName: String)
+  object Person {
+    implicit lazy val schema: Schema[Person] = DeriveSchema.gen[Person]
+  }
   val examplePerson = Person(1, "avi")
-  
+
   private val program = for {
     _      <- put[Person]("tableName", examplePerson).execute
     person <- get[Person]("tableName", PrimaryKey("id" -> 1)).execute
-    _      <- putStrLn(s"hello ${person.firstName}")
+    _      <- zio.console.putStrLn(s"hello $person")
   } yield ()
-  
+
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
     // build DynamoDB layer
     val dynamoDBLayer = http4s.default >>> config.default >>> dynamodb.live >>> DynamoDBExecutor.live
-    program.inject(dynamoDBLayer).exitCode
+
+    program.provideCustomLayer(dynamoDBLayer).exitCode
   }
 }
 ```
