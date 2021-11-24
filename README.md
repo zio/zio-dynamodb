@@ -34,8 +34,8 @@ object Main extends App {
   val examplePerson = Person(1, "avi")
 
   private val program = for {
-    _      <- put[Person]("tableName", examplePerson).execute
-    person <- get[Person]("tableName", PrimaryKey("id" -> 1)).execute
+    _      <- put[Person]("person", examplePerson).execute
+    person <- get[Person]("person", PrimaryKey("id" -> 1)).execute
     _      <- zio.console.putStrLn(s"hello $person")
   } yield ()
 
