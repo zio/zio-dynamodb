@@ -80,4 +80,19 @@ object ZioDynamodbExampleSpec extends DefaultRunnableSpec {
                           get[Student]("student", pk(adam))).execute
   } yield ()
 
+  val avi  = Student("avi@gmail.com", "maths", None, DebitCard)
+  val adam = Student("adam@gmail.com", "english", None, CreditCard)
+
+  val errorOrListOfStudent = (for {
+    _                    <- (put("student", avi) zip put("student", adam)).execute
+    listOfErrorOrStudent <- forEach(List(avi, adam)) { st =>
+                              get[Student](
+                                "student",
+                                PrimaryKey("email" -> st.email)
+                              )
+                            }.execute
+  } yield EitherUtil.collectAll(listOfErrorOrStudent)).provideCustomLayer(DynamoDBExecutor.test)
+
+  //    .provideLayer(DynamoDBExecutor.live)
+
 }
