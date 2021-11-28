@@ -375,7 +375,7 @@ object DynamoDBQuery {
   ): DynamoDBQuery[Either[String, (Chunk[A], LastEvaluatedKey)]] =
     scanSomeItem(tableName, limit, projections: _*).map {
       case (itemsChunk, lek) =>
-        foreach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
+        EitherUtil.forEach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
           case Right(chunk) => Right((chunk, lek))
           case Left(error)  => Left(error)
         }
@@ -423,7 +423,7 @@ object DynamoDBQuery {
   ): DynamoDBQuery[Either[String, (Chunk[A], LastEvaluatedKey)]] =
     querySomeItem(tableName, limit, projections: _*).map {
       case (itemsChunk, lek) =>
-        foreach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
+        EitherUtil.forEach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
           case Right(chunk) => Right((chunk, lek))
           case Left(error)  => Left(error)
         }

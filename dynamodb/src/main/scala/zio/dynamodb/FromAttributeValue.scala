@@ -86,8 +86,8 @@ object FromAttributeValue {
 
   implicit def mapFromAttributeValue[A](implicit ev: FromAttributeValue[A]): FromAttributeValue[Map[String, A]] = {
     case AttributeValue.Map(map) =>
-      zio.dynamodb
-        .foreach(map.toMap.toList) {
+      EitherUtil
+        .forEach(map.toMap.toList) {
           case (avK, avV) =>
             ev.fromAttributeValue(avV).map(v => (avK.value, v))
         }
@@ -108,7 +108,7 @@ object FromAttributeValue {
 
   implicit def iterableFromAttributeValue[A](implicit ev: FromAttributeValue[A]): FromAttributeValue[Iterable[A]] = {
     case AttributeValue.List(list) =>
-      zio.dynamodb.foreach(list)(ev.fromAttributeValue)
+      EitherUtil.forEach(list)(ev.fromAttributeValue)
     case av                        => Left(s"Error getting iterable value. Expected AttributeValue.List but found $av")
   }
 

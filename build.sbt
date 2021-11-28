@@ -280,8 +280,8 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
            |private def decodeFields(av: AttributeValue, fields: Schema.Field[_]*): Either[String, List[Any]] =
            |  av match {
            |    case AttributeValue.Map(map) =>
-           |      zio.dynamodb
-           |        .foreach(fields) {
+           |      EitherUtil
+           |        .forEach(fields) {
            |          case Schema.Field(key, schema, _) =>
            |            val dec        = decoder(schema)
            |            val maybeValue = map.get(AttributeValue.String(key))
