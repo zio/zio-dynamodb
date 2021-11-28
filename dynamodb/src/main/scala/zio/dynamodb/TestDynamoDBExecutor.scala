@@ -9,7 +9,7 @@ import zio.{ Has, UIO, ZIO }
  *  - Supported
  *    - CRUD operations GetItem, PutItem, DeleteItem, BatchGetItem, BatchWriteItem
  *  - Limited support
- *    - Primary Keys - only one primary key can be specified and it can have only one attribute which is only checked for equality
+ *    - Primary Keys - only the partition key can be specified and is only checked for equality
  *  - Not currently supported
  *    - Projections - all fields are returned for all queries
  *    - Expressions - these include `KeyConditionExpression`'s, `ConditionExpression`'s, `ProjectionExpression`'s, `UpdateExpression`'s
@@ -38,8 +38,8 @@ object TestDynamoDBExecutor {
 
   def addTable(
     tableName: String,
-    primaryKeyFieldName: String,
+    partitionKey: String,
     entries: TableEntry*
   ): ZIO[Has[TestDynamoDBExecutor], Nothing, Unit] =
-    ZIO.serviceWith[TestDynamoDBExecutor](_.addTable(tableName, primaryKeyFieldName, entries: _*))
+    ZIO.serviceWith[TestDynamoDBExecutor](_.addTable(tableName, partitionKey, entries: _*))
 }
