@@ -41,8 +41,8 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
     (av: AttributeValue) =>
       av match {
         case AttributeValue.Map(map) =>
-          zio.dynamodb
-            .foreach[schema.Schema.Field[_], (String, Any)](structure.toChunk) {
+          EitherUtil
+            .forEach[schema.Schema.Field[_], (String, Any)](structure.toChunk) {
               case Schema.Field(key, schema: Schema[a], _) =>
                 val av  = map(AttributeValue.String(key))
                 val dec = decoder(schema)
@@ -226,7 +226,7 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
 
   private def sequenceDecoder[Col, A](decoder: Decoder[A], to: Chunk[A] => Col): Decoder[Col] = {
     case AttributeValue.List(list) =>
-      zio.dynamodb.foreach(list)(decoder(_)).map(xs => to(Chunk.fromIterable(xs)))
+      EitherUtil.forEach(list)(decoder(_)).map(xs => to(Chunk.fromIterable(xs)))
     case av                        => Left(s"unable to decode $av as a list")
   }
 
