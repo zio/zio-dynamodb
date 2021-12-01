@@ -24,7 +24,7 @@ jobs:
       - name: Cache scala dependencies
         uses: coursier/cache-action@v6
       - name: Lint code
-        run: sbt fmtCheck fixCheck
+        run: sbt scalafmtCheckAll
 
   build:
     runs-on: ubuntu-20.04
