@@ -33,7 +33,7 @@ jobs:
       fail-fast: false
       matrix:
         java: ['adopt@1.8', 'adopt@1.11']
-        scala: ['2.12.15', '2.13.6']
+        scala: ['2.13.3']
     steps:
     - uses: actions/checkout@v2.3.4
     - uses: olafurpg/setup-scala@v13
@@ -43,6 +43,8 @@ jobs:
       uses: coursier/cache-action@v6
     - name: Run tests
       run: sbt ++${{ matrix.scala }}! test
+    - name: Run integration tests
+      run: sbt ++${{ matrix.scala }}! it:test
 
   publish:
     runs-on: ubuntu-20.04
