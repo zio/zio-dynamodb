@@ -90,13 +90,18 @@ package object dynamodb {
    * @param pk Function to determine the primary key
    * @tparam R Environment
    * @tparam A implicit Schema[A]
-   * @return stream of A
+   * @return stream of A, or fails on first error to convert an item to A
    */
   def batchReadFromStream[R, A: Schema](
     tableName: String,
     stream: ZStream[R, Throwable, A],
     mPar: Int = 10
-  )(pk: A => PrimaryKey): ZStream[Has[DynamoDBExecutor] with R with Clock, Throwable, Either[String, A]] =
-    batchReadItemFromStream(tableName, stream, mPar)(pk).map(item => DynamoDBQuery.fromItem(item))
+  )(pk: A => PrimaryKey): ZStream[R with Has[DynamoDBExecutor] with Clock, Throwable, A] =
+    batchReadItemFromStream(tableName, stream, mPar)(pk).mapM { item =>
+      DynamoDBQuery.fromItem(item) match {
+        case Right(a) => ZIO.succeedNow(a)
+        case Left(s)  => ZIO.fail(new IllegalStateException(s))
+      }
+    }
 
 }
