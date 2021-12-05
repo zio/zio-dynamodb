@@ -81,36 +81,27 @@ package object dynamodb {
       .flattenChunks
       .collectSome
 
-  def batchReadFromStream2[R, A: Schema](
+  def batchReadFromStream2[R, A](
     tableName: String,
-    stream: ZStream[R, Exception, A],
-    mPar: Int = 10
+    stream: ZStream[R, Throwable, A],
+    mPar: Int = 10,
+    s: Schema[A]
   )(
     pk: A => PrimaryKey
-  ) =
+  ): ZStream[Has[DynamoDBExecutor] with R with Clock, Throwable, Either[String, A]] =
     stream
       .aggregateAsync(Transducer.collectAllN(100))
       .mapMPar(mPar) { chunk =>
-        val batchGetItem: DynamoDBQuery[Chunk[Option[Item]]]              = DynamoDBQuery
+        val batchGetItem: DynamoDBQuery[Chunk[Option[Item]]] = DynamoDBQuery
           .forEach(chunk)(a => DynamoDBQuery.getItem(tableName, pk(a)))
           .map(Chunk.fromIterable)
-        val x: ZIO[Has[DynamoDBExecutor], Exception, Chunk[Option[Item]]] = for {
+        for {
           r    <- ZIO.environment[Has[DynamoDBExecutor]]
           list <- batchGetItem.execute.provide(r)
-          x    <- batchGetItem.execute.flatMap { xs =>
-                    val x: Chunk[Option[Either[String, A]]] = xs.map(_.map(DynamoDBQuery.fromItem))
-                    val x2                                  = x.toList.flatten
-                    val x3: Either[String, Iterable[A]]     = EitherUtil.collectAll(x2.toList)
-                    ZIO.fromEither(x3)
-                  }.provide(r)
-          xs    = list.map(_.map(DynamoDBQuery.fromItem))
         } yield list
-        x
       }
       .flattenChunks
-      .collectWhileRight
-      .mapMPar(1)(i => ZIO.fromEither(DynamoDBQuery.fromItem(i)))
-//      .map(item => DynamoDBQuery.fromItem(item))
-//      .rightOrFail(new IllegalStateException("e.toString"))
-//      .collectWhileRight
+      .collectSome
+      .map(x => DynamoDBQuery.fromItem(x)(s))
+
 }
