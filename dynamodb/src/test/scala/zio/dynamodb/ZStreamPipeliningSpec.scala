@@ -1,0 +1,34 @@
+package zio.dynamodb
+
+import zio.Ref
+import zio.console.Console
+import zio.dynamodb.DynamoDBQuery.put
+import zio.schema.{ DeriveSchema, Schema }
+import zio.stream.ZStream
+import zio.test.Assertion.equalTo
+import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
+
+object ZStreamPipeliningSpec extends DefaultRunnableSpec {
+  final case class Person(id: Int, name: String)
+  object Person {
+    implicit val schema: Schema[Person] = DeriveSchema.gen[Person]
+  }
+
+  private val people       = (1 to 200).map(i => Person(i, s"name$i")).toList
+  private val personStream = ZStream.fromIterable(people)
+
+  override def spec: ZSpec[Environment, Failure] =
+    suite("ZStream piplelining suite")(testM("round trip test") {
+      for {
+        _           <- TestDynamoDBExecutor.addTable("person", "id")
+        _           <- batchWriteFromStream(personStream) { person =>
+                         put("person", person)
+                       }.runDrain
+        refPeople   <- Ref.make(List.empty[Person])
+        _           <- batchReadFromStream[Console, Person]("person", personStream)(person => PrimaryKey("id" -> person.id))
+                         .mapM(person => refPeople.update(xs => xs :+ person))
+                         .runDrain
+        foundPeople <- refPeople.get
+      } yield assert(foundPeople)(equalTo(people))
+    }).provideCustomLayer(DynamoDBExecutor.test)
+}
