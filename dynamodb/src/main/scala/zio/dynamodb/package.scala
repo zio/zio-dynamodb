@@ -99,6 +99,6 @@ package object dynamodb {
       }
       .flattenChunks
       .collectSome
-      .map(x => DynamoDBQuery.fromItem(x))
+      .map(item => DynamoDBQuery.fromItem(item))
 
 }
