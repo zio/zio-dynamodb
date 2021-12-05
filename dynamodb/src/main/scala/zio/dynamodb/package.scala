@@ -60,7 +60,7 @@ package object dynamodb {
    * @tparam A
    * @return A stream of Item
    */
-  def batchReadFromStream[R, A](
+  def batchReadItemFromStream[R, A](
     tableName: String,
     stream: ZStream[R, Throwable, A],
     mPar: Int = 10
@@ -81,24 +81,22 @@ package object dynamodb {
       .flattenChunks
       .collectSome
 
-  def batchReadFromStream2[R, A: Schema](
+  /**
+   * Reads `stream` using function `pk` to determine the primary key which is then used to create a BatchGetItem request.
+   * Stream is batched into groups of 100 items in a BatchGetItem and executed using the provided `DynamoDBExecutor` service
+   * @param tableName
+   * @param stream
+   * @param mPar Level of parallelism for the stream processing
+   * @param pk Function to determine the primary key
+   * @tparam R Environment
+   * @tparam A implicit Schema[A]
+   * @return stream of A
+   */
+  def batchReadFromStream[R, A: Schema](
     tableName: String,
     stream: ZStream[R, Throwable, A],
     mPar: Int = 10
   )(pk: A => PrimaryKey): ZStream[Has[DynamoDBExecutor] with R with Clock, Throwable, Either[String, A]] =
-    stream
-      .aggregateAsync(Transducer.collectAllN(100))
-      .mapMPar(mPar) { chunk =>
-        val batchGetItem: DynamoDBQuery[Chunk[Option[Item]]] = DynamoDBQuery
-          .forEach(chunk)(a => DynamoDBQuery.getItem(tableName, pk(a)))
-          .map(Chunk.fromIterable)
-        for {
-          r    <- ZIO.environment[Has[DynamoDBExecutor]]
-          list <- batchGetItem.execute.provide(r)
-        } yield list
-      }
-      .flattenChunks
-      .collectSome
-      .map(item => DynamoDBQuery.fromItem(item))
+    batchReadItemFromStream(tableName, stream, mPar)(pk).map(item => DynamoDBQuery.fromItem(item))
 
 }

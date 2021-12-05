@@ -3,7 +3,7 @@ package zio.dynamodb.examples
 import zio.console.{ putStrLn, Console }
 import zio.dynamodb.DynamoDBQuery.putItem
 import zio.dynamodb.{
-  batchReadFromStream,
+  batchReadItemFromStream,
   batchWriteFromStream,
   DynamoDBExecutor,
   Item,
@@ -32,7 +32,7 @@ object BatchFromStreamExamples extends App {
            }.runDrain
       // read from the DB using the stream as the source of the primary key
       // read queries will automatically be batched using BatchGetItem when calling DynamoDB
-      _ <- batchReadFromStream[Console, Person]("table1", personStream)(person => PrimaryKey("id" -> person.id))
+      _ <- batchReadItemFromStream[Console, Person]("table1", personStream)(person => PrimaryKey("id" -> person.id))
              .mapMPar(4)(item => putStrLn(s"item=$item"))
              .runDrain
     } yield ()).provideCustomLayer(executorLayer).exitCode
