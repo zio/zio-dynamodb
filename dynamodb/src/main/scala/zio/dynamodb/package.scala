@@ -100,7 +100,7 @@ package object dynamodb {
     batchReadItemFromStream(tableName, stream, mPar)(pk).mapM { item =>
       DynamoDBQuery.fromItem(item) match {
         case Right(a) => ZIO.succeedNow(a)
-        case Left(s)  => ZIO.fail(new IllegalStateException(s))
+        case Left(s)  => ZIO.fail(new IllegalStateException(s)) // TODO: think about error model
       }
     }
 
