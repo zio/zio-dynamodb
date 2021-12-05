@@ -81,12 +81,10 @@ package object dynamodb {
       .flattenChunks
       .collectSome
 
-  def batchReadFromStream2[R, A](
+  def batchReadFromStream2[R, A: Schema](
     tableName: String,
     stream: ZStream[R, Throwable, A],
     mPar: Int = 10,
-    s: Schema[A]
-  )(
     pk: A => PrimaryKey
   ): ZStream[Has[DynamoDBExecutor] with R with Clock, Throwable, Either[String, A]] =
     stream
@@ -102,6 +100,6 @@ package object dynamodb {
       }
       .flattenChunks
       .collectSome
-      .map(x => DynamoDBQuery.fromItem(x)(s))
+      .map(x => DynamoDBQuery.fromItem(x))
 
 }
