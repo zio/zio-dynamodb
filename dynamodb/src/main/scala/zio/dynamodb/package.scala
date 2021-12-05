@@ -84,9 +84,8 @@ package object dynamodb {
   def batchReadFromStream2[R, A: Schema](
     tableName: String,
     stream: ZStream[R, Throwable, A],
-    mPar: Int = 10,
-    pk: A => PrimaryKey
-  ): ZStream[Has[DynamoDBExecutor] with R with Clock, Throwable, Either[String, A]] =
+    mPar: Int = 10
+  )(pk: A => PrimaryKey): ZStream[Has[DynamoDBExecutor] with R with Clock, Throwable, Either[String, A]] =
     stream
       .aggregateAsync(Transducer.collectAllN(100))
       .mapMPar(mPar) { chunk =>
