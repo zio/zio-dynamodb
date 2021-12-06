@@ -5,7 +5,7 @@ import zio.console.Console
 import zio.dynamodb.DynamoDBQuery.put
 import zio.schema.{ DeriveSchema, Schema }
 import zio.stream.ZStream
-import zio.test.Assertion.equalTo
+import zio.test.Assertion.{ equalTo, isLeft }
 import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
 
 object ZStreamPipeliningSpec extends DefaultRunnableSpec {
@@ -18,17 +18,37 @@ object ZStreamPipeliningSpec extends DefaultRunnableSpec {
   private val personStream = ZStream.fromIterable(people)
 
   override def spec: ZSpec[Environment, Failure] =
-    suite("ZStream piplelining suite")(testM("round trip test") {
-      for {
-        _           <- TestDynamoDBExecutor.addTable("person", "id")
-        _           <- batchWriteFromStream(personStream) { person =>
-                         put("person", person)
-                       }.runDrain
-        refPeople   <- Ref.make(List.empty[Person])
-        _           <- batchReadFromStream[Console, Person]("person", personStream)(person => PrimaryKey("id" -> person.id))
-                         .mapM(person => refPeople.update(xs => xs :+ person))
-                         .runDrain
-        foundPeople <- refPeople.get
-      } yield assert(foundPeople)(equalTo(people))
-    }).provideCustomLayer(DynamoDBExecutor.test)
+    suite("ZStream piplelining suite")(
+      testM("round trip test") {
+        for {
+          _           <- TestDynamoDBExecutor.addTable("person", "id")
+          _           <- batchWriteFromStream(personStream) { person =>
+                           put("person", person)
+                         }.runDrain
+          refPeople   <- Ref.make(List.empty[Person])
+          _           <- batchReadFromStream[Console, Person]("person", personStream)(person => PrimaryKey("id" -> person.id))
+                           .mapM(person => refPeople.update(xs => xs :+ person))
+                           .runDrain
+          foundPeople <- refPeople.get
+        } yield assert(foundPeople)(equalTo(people))
+      },
+      testM("lifts de-serialisation errors to ZStream error channel") {
+        for {
+          _           <- TestDynamoDBExecutor.addTable(
+                           "person",
+                           "id",
+                           PrimaryKey("id" -> 1) -> Item("id" -> 1, "name" -> "Avi"),
+                           PrimaryKey("id" -> 2) -> Item("id" -> 2, "boom!" -> "de-serialisation-error-expected")
+                         )
+          refPeople   <- Ref.make(List.empty[Person])
+          either      <- batchReadFromStream[Console, Person]("person", personStream.take(2))(person =>
+                           PrimaryKey("id" -> person.id)
+                         )
+                           .mapM(person => refPeople.update(xs => xs :+ person))
+                           .runDrain
+                           .either
+          foundPeople <- refPeople.get
+        } yield assert(either)(isLeft) && assert(foundPeople)(equalTo(List(Person(1, "Avi"))))
+      }
+    ).provideCustomLayer(DynamoDBExecutor.test)
 }
