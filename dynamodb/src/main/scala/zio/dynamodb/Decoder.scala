@@ -29,6 +29,42 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
         lazy val dec = decoder(l.schema)
         (av: AttributeValue) => dec(av)
       case Schema.Meta(_, _)                                                                                                     => astDecoder
+//      case s @ Schema.CaseClass1(_, _, _, _)                                                                                                                                => caseClass1Decoder(s)
+//      case s @ Schema.CaseClass2(_, _, _, _, _, _)                                                                                                                          => caseClass2Decoder(s)
+//      case s @ Schema.CaseClass3(_, _, _, _, _, _, _, _)                                                                                                                    => caseClass3Decoder(s)
+//      case s @ Schema.CaseClass4(_, _, _, _, _, _, _, _, _, _)                                                                                                              => caseClass4Decoder(s)
+//      case s @ Schema.CaseClass5(_, _, _, _, _, _, _, _, _, _, _, _)                                                                                                        => caseClass5Decoder(s)
+//      case s @ Schema.CaseClass6(_, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                                                                  => caseClass6Decoder(s)
+//      case s @ Schema.CaseClass7(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                                                            => caseClass7Decoder(s)
+//      case s @ Schema.CaseClass8(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                                                      => caseClass8Decoder(s)
+//      case s @ Schema.CaseClass9(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                                                => caseClass9Decoder(s)
+//      case s @ Schema.CaseClass10(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                                         => caseClass10Decoder(s)
+//      case s @ Schema.CaseClass11(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                                   =>
+//        caseClass11Decoder(s)
+//      case s @ Schema.CaseClass12(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                             =>
+//        caseClass12Decoder(s)
+//      case s @ Schema.CaseClass13(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                       =>
+//        caseClass13Decoder(s)
+//      case s @ Schema
+//            .CaseClass14(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
+//        caseClass14Decoder(s)
+//      case s @ Schema
+//            .CaseClass15(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
+//        caseClass15Decoder(s)
+//      case s @ Schema.CaseClass16(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                     =>
+//        caseClass16Decoder(s)
+//      case s @ Schema.CaseClass17(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                               =>
+//        caseClass17Decoder(s)
+//      case s @ Schema.CaseClass18(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                         =>
+//        caseClass18Decoder(s)
+//      case s @ Schema.CaseClass19(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                   =>
+//        caseClass19Decoder(s)
+//      case s @ Schema.CaseClass20(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)             =>
+//        caseClass20Decoder(s)
+//      case s @ Schema.CaseClass21(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)       =>
+//        caseClass21Decoder(s)
+//      case s @ Schema.CaseClass22(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
+//        caseClass22Decoder(s)
       case Schema.Enum1(c, _)                                                                                                    => enumDecoder(c)
       case Schema.Enum2(c1, c2, _)                                                                                               => enumDecoder(c1, c2)
       case Schema.Enum3(c1, c2, c3, _)                                                                                           => enumDecoder(c1, c2, c3)
