@@ -17,29 +17,64 @@ private[dynamodb] object Encoder {
 
   def apply[A](schema: Schema[A]): Encoder[A] = encoder(schema)
 
+  //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
   private def encoder[A](schema: Schema[A]): Encoder[A] =
     schema match {
-      case ProductEncoder(encoder)            =>
+      case ProductEncoder(encoder)                                                                                               =>
         encoder // TODO: inline for exhaustive matching
-      case s: Schema.Optional[a]              => optionalEncoder[a](encoder(s.codec))
-      case Schema.Fail(_, _)                  => _ => AttributeValue.Null
-      case Schema.Tuple(l, r, _)              => tupleEncoder(encoder(l), encoder(r))
-      case s: Schema.Sequence[col, a]         => sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
-      case Schema.Transform(c, _, g, _)       => transformEncoder(c, g)
-      case Schema.Primitive(standardType, _)  => primitiveEncoder(standardType)
-      case Schema.GenericRecord(structure, _) => genericRecordEncoder(structure)
-      case Schema.EitherSchema(l, r, _)       => eitherEncoder(encoder(l), encoder(r))
-      case l @ Schema.Lazy(_)                 =>
+      case s: Schema.Optional[a]                                                                                                 => optionalEncoder[a](encoder(s.codec))
+      case Schema.Fail(_, _)                                                                                                     => _ => AttributeValue.Null
+      case Schema.Tuple(l, r, _)                                                                                                 => tupleEncoder(encoder(l), encoder(r))
+      case s: Schema.Sequence[col, a]                                                                                            => sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
+      case Schema.Transform(c, _, g, _)                                                                                          => transformEncoder(c, g)
+      case Schema.Primitive(standardType, _)                                                                                     => primitiveEncoder(standardType)
+      case Schema.GenericRecord(structure, _)                                                                                    => genericRecordEncoder(structure)
+      case Schema.EitherSchema(l, r, _)                                                                                          => eitherEncoder(encoder(l), encoder(r))
+      case l @ Schema.Lazy(_)                                                                                                    =>
         lazy val enc = encoder(l.schema)
         (a: A) => enc(a)
-      case Schema.Meta(_, _)                  => astEncoder
-      case Schema.Enum1(c, _)                 =>
-        enumEncoder(c)
-      case Schema.Enum2(c1, c2, _)            => enumEncoder(c1, c2)
-      case Schema.Enum3(c1, c2, c3, _)        => enumEncoder(c1, c2, c3)
-      case Schema.EnumN(cs, _)                =>
+      case Schema.Meta(_, _)                                                                                                     => astEncoder
+      case Schema.Enum1(c, _)                                                                                                    => enumEncoder(c)
+      case Schema.Enum2(c1, c2, _)                                                                                               => enumEncoder(c1, c2)
+      case Schema.Enum3(c1, c2, c3, _)                                                                                           => enumEncoder(c1, c2, c3)
+      case Schema.Enum4(c1, c2, c3, c4, _)                                                                                       => enumEncoder(c1, c2, c3, c4)
+      case Schema.Enum5(c1, c2, c3, c4, c5, _)                                                                                   => enumEncoder(c1, c2, c3, c4, c5)
+      case Schema.Enum6(c1, c2, c3, c4, c5, c6, _)                                                                               => enumEncoder(c1, c2, c3, c4, c5, c6)
+      case Schema.Enum7(c1, c2, c3, c4, c5, c6, c7, _)                                                                           => enumEncoder(c1, c2, c3, c4, c5, c6, c7)
+      case Schema.Enum8(c1, c2, c3, c4, c5, c6, c7, c8, _)                                                                       => enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8)
+      case Schema.Enum9(c1, c2, c3, c4, c5, c6, c7, c8, c9, _)                                                                   => enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9)
+      case Schema.Enum10(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, _)                                                             =>
+        enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10)
+      case Schema.Enum11(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, _)                                                        =>
+        enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11)
+      case Schema.Enum12(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, _)                                                   =>
+        enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12)
+      case Schema.Enum13(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, _)                                              =>
+        enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13)
+      case Schema.Enum14(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, _)                                         =>
+        enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14)
+      case Schema.Enum15(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, _)                                    =>
+        enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15)
+      case Schema.Enum16(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, _)                               =>
+        enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16)
+      case Schema.Enum17(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, _)                          =>
+        enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17)
+      case Schema.Enum18(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, _)                     =>
+        enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18)
+      case Schema.Enum19(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, _)                =>
+        enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19)
+      case Schema
+            .Enum20(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, _) =>
+        enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20)
+      case Schema
+            .Enum21(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, _) =>
+        enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21)
+      case Schema.Enum22(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, _) =>
+        enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22)
+      case Schema.EnumN(cs, _)                                                                                                   =>
         enumEncoder(cs.toSeq: _*)
     }
+  //scalafmt: { maxColumn = 120, optIn.configStyleArguments = true }
 
   private val astEncoder: Encoder[Schema[_]] =
     (schema: Schema[_]) => encoder(Schema[SchemaAst])(SchemaAst.fromSchema(schema))
