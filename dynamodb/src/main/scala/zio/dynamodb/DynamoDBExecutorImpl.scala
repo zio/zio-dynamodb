@@ -139,29 +139,11 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
         )
     )
 
-  // REVIEW: Is there a function I'm missing here? Or a better data model for what I'm trying to accomplish?
-  private def zipOptionalRenderables(
-    first: Option[Renderable],
-    second: Option[Renderable]
-  ): Option[(AliasMap, (Option[String], Option[String]))] = {
-    // This is really gross because there are four cases we need to account for here
-    // REVIEW
-    val keyConditionExpr = second.map(kce => kce.render).map(_.map(Some(_)))
-
-    first
-      .map(fe =>
-        fe.render.zipWith(keyConditionExpr.getOrElse(AliasMapRender.empty.map(_ => None))) {
-          case (filter, key) =>
-            (Some(filter), key)
-        }
-      )
-      .map(_.render(AliasMap.empty))
-      .orElse(keyConditionExpr.map(_.map(key => (None, key)).render(AliasMap.empty)))
-  }
-
   private def generateQueryRequest(queryAll: QueryAll): QueryRequest = {
-    val maybeFilterAndKeyExpression =
-      zipOptionalRenderables(queryAll.filterExpression, queryAll.keyConditionExpression)
+    val maybeFilterAndKeyExpr: (AliasMap, (Option[String], Option[String])) = (for {
+      filter  <- AliasMapRender.collectAll(queryAll.filterExpression.map(_.render))
+      keyExpr <- AliasMapRender.collectAll(queryAll.keyConditionExpression.map(_.render))
+    } yield (filter, keyExpr)).execute
 
     QueryRequest(
       tableName = queryAll.tableName.value,
@@ -173,16 +155,17 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       exclusiveStartKey = queryAll.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
       projectionExpression = toOption(queryAll.projections).map(_.mkString(", ")),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(queryAll.capacity)),
-      filterExpression = maybeFilterAndKeyExpression.flatMap(_._2._1),
-      expressionAttributeValues =
-        maybeFilterAndKeyExpression.flatMap(c => aliasMapToExpressionZIOAwsAttributeValues(c._1)),
-      keyConditionExpression = maybeFilterAndKeyExpression.flatMap(_._2._2)
+      filterExpression = maybeFilterAndKeyExpr._2._1,
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(maybeFilterAndKeyExpr._1),
+      keyConditionExpression = maybeFilterAndKeyExpr._2._2
     )
   }
 
   private def generateQueryRequest(querySome: QuerySome): QueryRequest = {
-    val maybeFilterAndKeyExpression =
-      zipOptionalRenderables(querySome.filterExpression, querySome.keyConditionExpression)
+    val maybeFilterAndKeyExpr: (AliasMap, (Option[String], Option[String])) = (for {
+      filter  <- AliasMapRender.collectAll(querySome.filterExpression.map(_.render))
+      keyExpr <- AliasMapRender.collectAll(querySome.keyConditionExpression.map(_.render))
+    } yield (filter, keyExpr)).execute
     QueryRequest(
       tableName = querySome.tableName.value,
       indexName = querySome.indexName.map(_.value),
@@ -193,10 +176,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       exclusiveStartKey = querySome.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(querySome.capacity)),
       projectionExpression = toOption(querySome.projections).map(_.mkString(", ")),
-      filterExpression = maybeFilterAndKeyExpression.flatMap(_._2._1),
-      expressionAttributeValues =
-        maybeFilterAndKeyExpression.flatMap(c => aliasMapToExpressionZIOAwsAttributeValues(c._1)),
-      keyConditionExpression = maybeFilterAndKeyExpression.flatMap(_._2._2)
+      filterExpression = maybeFilterAndKeyExpr._2._1,
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(maybeFilterAndKeyExpr._1),
+      keyConditionExpression = maybeFilterAndKeyExpr._2._2
     )
   }
 
@@ -261,8 +243,10 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       .map(chunk => (chunk, chunk.lastOption))
 
   private def generateUpdateItemRequest(updateItem: UpdateItem): UpdateItemRequest = {
-    val maybeUpdateConditionExpr =
-      zipOptionalRenderables(Some(updateItem.updateExpression), updateItem.conditionExpression)
+    val maybeUpdateAndConditionExpr: (AliasMap, (String, Option[String])) = (for {
+      updateExpr    <- updateItem.updateExpression.render
+      conditionExpr <- AliasMapRender.collectAll(updateItem.conditionExpression.map(_.render))
+    } yield (updateExpr, conditionExpr)).execute
 
     UpdateItemRequest(
       tableName = updateItem.tableName.value,
@@ -270,10 +254,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       returnValues = Some(buildAwsReturnValue(updateItem.returnValues)),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(updateItem.capacity)),
       returnItemCollectionMetrics = Some(buildAwsItemMetrics(updateItem.itemMetrics)),
-      updateExpression = maybeUpdateConditionExpr.flatMap(_._2._1),
-      expressionAttributeValues =
-        maybeUpdateConditionExpr.flatMap(m => aliasMapToExpressionZIOAwsAttributeValues(m._1)),
-      conditionExpression = maybeUpdateConditionExpr.flatMap(_._2._2)
+      updateExpression = Some(maybeUpdateAndConditionExpr._2._1),
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(maybeUpdateAndConditionExpr._1),
+      conditionExpression = maybeUpdateAndConditionExpr._2._2
     )
   }
 
@@ -288,7 +271,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     )
 
   private def generateScanRequest(scanSome: ScanSome): ScanRequest = {
-    val filterExpression = scanSome.filterExpression.map(fe => fe.render.render(AliasMap.empty))
+    val filterExpression = scanSome.filterExpression.map(fe => fe.render.execute)
     ScanRequest(
       tableName = scanSome.tableName.value,
       indexName = scanSome.indexName.map(_.value),
@@ -304,7 +287,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   }
 
   private def generateScanRequest(scanAll: ScanAll): ScanRequest = {
-    val filterExpression = scanAll.filterExpression.map(fe => fe.render.render(AliasMap.empty))
+    val filterExpression = scanAll.filterExpression.map(fe => fe.render.execute)
     ScanRequest(
       tableName = scanAll.tableName.value,
       indexName = scanAll.indexName.map(_.value),
