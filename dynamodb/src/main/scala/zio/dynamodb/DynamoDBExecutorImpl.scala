@@ -140,7 +140,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     )
 
   private def generateQueryRequest(queryAll: QueryAll): QueryRequest = {
-    val maybeFilterAndKeyExpr: (AliasMap, (Option[String], Option[String])) = (for {
+    val (aliasMap, (maybeFilterExpr, maybeKeyExpr)) = (for {
       filter  <- AliasMapRender.collectAll(queryAll.filterExpression.map(_.render))
       keyExpr <- AliasMapRender.collectAll(queryAll.keyConditionExpression.map(_.render))
     } yield (filter, keyExpr)).execute
@@ -155,14 +155,14 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       exclusiveStartKey = queryAll.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
       projectionExpression = toOption(queryAll.projections).map(_.mkString(", ")),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(queryAll.capacity)),
-      filterExpression = maybeFilterAndKeyExpr._2._1,
-      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(maybeFilterAndKeyExpr._1),
-      keyConditionExpression = maybeFilterAndKeyExpr._2._2
+      filterExpression = maybeFilterExpr,
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap),
+      keyConditionExpression = maybeKeyExpr
     )
   }
 
   private def generateQueryRequest(querySome: QuerySome): QueryRequest = {
-    val maybeFilterAndKeyExpr: (AliasMap, (Option[String], Option[String])) = (for {
+    val (aliasMap, (maybeFilterExpr, maybeKeyExpr)) = (for {
       filter  <- AliasMapRender.collectAll(querySome.filterExpression.map(_.render))
       keyExpr <- AliasMapRender.collectAll(querySome.keyConditionExpression.map(_.render))
     } yield (filter, keyExpr)).execute
@@ -176,9 +176,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       exclusiveStartKey = querySome.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(querySome.capacity)),
       projectionExpression = toOption(querySome.projections).map(_.mkString(", ")),
-      filterExpression = maybeFilterAndKeyExpr._2._1,
-      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(maybeFilterAndKeyExpr._1),
-      keyConditionExpression = maybeFilterAndKeyExpr._2._2
+      filterExpression = maybeFilterExpr,
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap),
+      keyConditionExpression = maybeKeyExpr
     )
   }
 
@@ -253,7 +253,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       .map(chunk => (chunk, chunk.lastOption))
 
   private def generateUpdateItemRequest(updateItem: UpdateItem): UpdateItemRequest = {
-    val maybeUpdateAndConditionExpr: (AliasMap, (String, Option[String])) = (for {
+    val (aliasMap, (updateExpr, maybeConditionExpr)) = (for {
       updateExpr    <- updateItem.updateExpression.render
       conditionExpr <- AliasMapRender.collectAll(updateItem.conditionExpression.map(_.render))
     } yield (updateExpr, conditionExpr)).execute
@@ -264,9 +264,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       returnValues = Some(buildAwsReturnValue(updateItem.returnValues)),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(updateItem.capacity)),
       returnItemCollectionMetrics = Some(buildAwsItemMetrics(updateItem.itemMetrics)),
-      updateExpression = Some(maybeUpdateAndConditionExpr._2._1),
-      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(maybeUpdateAndConditionExpr._1),
-      conditionExpression = maybeUpdateAndConditionExpr._2._2
+      updateExpression = Some(updateExpr),
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap),
+      conditionExpression = maybeConditionExpr
     )
   }
 
