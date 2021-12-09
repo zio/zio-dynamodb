@@ -25,7 +25,7 @@ final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFrom
 
   // convenience method so that user does not have to transform between a List and an Either
   def getIterableItem[A](field: String)(f: AttrMap => Either[String, A]): Either[String, Iterable[A]] =
-    get[Iterable[Item]](field).flatMap[String, Iterable[A]](xs => foreach(xs)(f))
+    get[Iterable[Item]](field).flatMap[String, Iterable[A]](xs => EitherUtil.forEach(xs)(f))
 
   // convenience method so that user does not have to transform between an Option, List and an Either
   def getOptionalIterableItem[A](
@@ -34,7 +34,7 @@ final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFrom
     def maybeTransform(maybeItems: Option[Iterable[Item]]): Either[String, Option[Iterable[A]]] =
       maybeItems match {
         case None     => Right(None)
-        case Some(xs) => foreach(xs)(f).map(Some(_))
+        case Some(xs) => EitherUtil.forEach(xs)(f).map(Some(_))
       }
     getOptional[Iterable[Item]](field: String).flatMap(maybeTransform)
   }

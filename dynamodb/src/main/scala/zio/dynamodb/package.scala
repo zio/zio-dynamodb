@@ -1,9 +1,8 @@
 package zio
 
 import zio.clock.Clock
+import zio.schema.Schema
 import zio.stream.{ Transducer, ZStream }
-
-import scala.annotation.tailrec
 
 package object dynamodb {
   // Filter expression is the same as a ConditionExpression but when used with Query but does not allow key attributes
@@ -61,7 +60,7 @@ package object dynamodb {
    * @tparam A
    * @return A stream of Item
    */
-  def batchReadFromStream[R, A](
+  def batchReadItemFromStream[R, A](
     tableName: String,
     stream: ZStream[R, Throwable, A],
     mPar: Int = 10
@@ -82,18 +81,27 @@ package object dynamodb {
       .flattenChunks
       .collectSome
 
-  def foreach[A, B](list: Iterable[A])(f: A => Either[String, B]): Either[String, Iterable[B]] = {
-    @tailrec
-    def loop[A2, B2](xs: Iterable[A2], acc: List[B2])(f: A2 => Either[String, B2]): Either[String, Iterable[B2]] =
-      xs match {
-        case head :: tail =>
-          f(head) match {
-            case Left(e)  => Left(e)
-            case Right(a) => loop(tail, a :: acc)(f)
-          }
-        case Nil          => Right(acc.reverse)
+  /**
+   * Reads `stream` using function `pk` to determine the primary key which is then used to create a BatchGetItem request.
+   * Stream is batched into groups of 100 items in a BatchGetItem and executed using the provided `DynamoDBExecutor` service
+   * @param tableName
+   * @param stream
+   * @param mPar Level of parallelism for the stream processing
+   * @param pk Function to determine the primary key
+   * @tparam R Environment
+   * @tparam A implicit Schema[A]
+   * @return stream of A, or fails on first error to convert an item to A
+   */
+  def batchReadFromStream[R, A: Schema](
+    tableName: String,
+    stream: ZStream[R, Throwable, A],
+    mPar: Int = 10
+  )(pk: A => PrimaryKey): ZStream[R with Has[DynamoDBExecutor] with Clock, Throwable, A] =
+    batchReadItemFromStream(tableName, stream, mPar)(pk).mapM { item =>
+      DynamoDBQuery.fromItem(item) match {
+        case Right(a) => ZIO.succeedNow(a)
+        case Left(s)  => ZIO.fail(new IllegalStateException(s)) // TODO: think about error model
       }
+    }
 
-    loop(list.toList, List.empty)(f)
-  }
 }
