@@ -303,46 +303,20 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
     case av                        => Left(s"unable to decode $av as a list")
   }
 
-//  private def mapDecoder[A](dec: Decoder[A]): AttributeValue => Either[String, Map[String, A]] =
-//    (av: AttributeValue) => {
-//      val x: Either[String, Map[String, A]] = av match {
-//        case AttributeValue.Map(map) =>
-//          // TODO: use EitherUtil.foreach
-//          val xs: Iterable[Either[String, (String, A)]] = map.map {
-//            case (k, v) =>
-//              val x: Either[String, A]           = dec(v)
-//              val y: Either[String, (String, A)] = x match {
-//                case Right(decV) => Right(k.value, decV)
-//                case Left(s)     => Left(s)
-//              }
-//              y
-//            case _      => Left("XXXXXXXXXXXXXXXXXX")
-//          }
-//          EitherUtil.collectAll(xs).map(Map.from)
-//      }
-//      x
-//    }
-
   def mapDecoder[A, B <: Map[String, A]](dec: Decoder[A]): Decoder[B] =
     (av: AttributeValue) => {
-      val x: Either[String, B] = av match {
+      av match {
         case AttributeValue.Map(map) =>
           val xs: Iterable[Either[String, (String, A)]] = map.map {
             case (k, v) =>
-              val x: Either[String, A]           = dec(v)
-              val y: Either[String, (String, A)] = x match {
+              dec(v) match {
                 case Right(decV) => Right((k.value, decV))
                 case Left(s)     => Left(s)
               }
-              y
-            case _      => Left("XXXXXXXXXXXXXXXXXX")
           }
-          val xx: Either[String, Map[String, A]]        = EitherUtil.collectAll(xs).map(Map.from)
-          val xxx: Either[String, B]                    = xx.asInstanceOf[Either[String, B]]
-          xxx
+          EitherUtil.collectAll(xs).map(Map.from).asInstanceOf[Either[String, B]]
         case av                      => Left(s"Error: expected AttributeValue.Map but found $av")
       }
-      x
     }
 
   private def enumDecoder[A](cases: Schema.Case[_, A]*): Decoder[A] =

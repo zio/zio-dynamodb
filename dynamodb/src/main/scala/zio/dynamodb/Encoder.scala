@@ -230,11 +230,12 @@ private[dynamodb] object Encoder {
         AttributeValue.Null
     }
 
-  private def mapEncoder[A, K, V](encoderK: Encoder[K], encoderV: Encoder[V]) = { (a: A) =>
-    val m = a.asInstanceOf[Map[K, V]]
-    AttributeValue.Map(m.map {
-      case (k, v) =>
-        (encoderK(k), encoderV(v))
-    }.asInstanceOf[Map[AttributeValue.String, AttributeValue]])
-  }
+  private def mapEncoder[A, K, V](encoderK: Encoder[K], encoderV: Encoder[V]) =
+    (a: A) => {
+      val m = a.asInstanceOf[Map[K, V]]
+      AttributeValue.Map(m.map {
+        case (k, v) =>
+          (encoderK(k), encoderV(v))
+      }.asInstanceOf[Map[AttributeValue.String, AttributeValue]])
+    }
 }
