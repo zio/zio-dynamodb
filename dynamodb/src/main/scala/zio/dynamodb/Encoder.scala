@@ -26,7 +26,7 @@ private[dynamodb] object Encoder {
       case s: Schema.Sequence[col, a]                                                                                                                                                                                                                                                     => sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
       // TODO: how do we constrain k to type String?
       case Schema.MapSchema(ks, vs, _)                                                                                                                                                                                                                                                    =>
-        mapEncoder(ks, vs)
+        mapEncoder(encoder(ks), encoder(vs))
       case Schema.Transform(c, _, g, _)                                                                                                                                                                                                                                                   => transformEncoder(c, g)
       case Schema.Primitive(standardType, _)                                                                                                                                                                                                                                              => primitiveEncoder(standardType)
       case Schema.GenericRecord(structure, _)                                                                                                                                                                                                                                             => genericRecordEncoder(structure)
@@ -230,13 +230,11 @@ private[dynamodb] object Encoder {
         AttributeValue.Null
     }
 
-  private def mapEncoder[A, K, V](schemaK: Schema[K], schemaV: Schema[V]) = { (a: A) =>
-    val m  = a.asInstanceOf[Map[K, V]]
-    val ke = encoder(schemaK)
-    val ve = encoder(schemaV)
+  private def mapEncoder[A, K, V](encoderK: Encoder[K], encoderV: Encoder[V]) = { (a: A) =>
+    val m = a.asInstanceOf[Map[K, V]]
     AttributeValue.Map(m.map {
       case (k, v) =>
-        (ke(k), ve(v))
+        (encoderK(k), encoderV(v))
     }.asInstanceOf[Map[AttributeValue.String, AttributeValue]])
   }
 }
