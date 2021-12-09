@@ -25,18 +25,8 @@ private[dynamodb] object Encoder {
       case Schema.Tuple(l, r, _)                                                                                                                                                                                                                                                          => tupleEncoder(encoder(l), encoder(r))
       case s: Schema.Sequence[col, a]                                                                                                                                                                                                                                                     => sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
       // TODO: how do we constrain k to type String?
-      case map: Schema.MapSchema[k, v]                                                                                                                                                                                                                                                    =>
-        (a: A) =>
-          val m  = a.asInstanceOf[Map[k, v]]
-          println(s"${map.ks} ${map.vs}")
-          val ke = encoder(map.ks)
-          val ve = encoder(map.vs)
-          val m2 = m.map {
-            case (k, v) =>
-              (ke(k), ve(v))
-          }.asInstanceOf[Map[AttributeValue.String, AttributeValue]]
-          println(s"XXXX $m2 $ke, $ve")
-          AttributeValue.Map(m2)
+      case Schema.MapSchema(ks, vs, _)                                                                                                                                                                                                                                                    =>
+        mapEncoder(ks, vs)
       case Schema.Transform(c, _, g, _)                                                                                                                                                                                                                                                   => transformEncoder(c, g)
       case Schema.Primitive(standardType, _)                                                                                                                                                                                                                                              => primitiveEncoder(standardType)
       case Schema.GenericRecord(structure, _)                                                                                                                                                                                                                                             => genericRecordEncoder(structure)
@@ -239,4 +229,14 @@ private[dynamodb] object Encoder {
       } else
         AttributeValue.Null
     }
+
+  private def mapEncoder[A, K, V](schemaK: Schema[K], schemaV: Schema[V]) = { (a: A) =>
+    val m  = a.asInstanceOf[Map[K, V]]
+    val ke = encoder(schemaK)
+    val ve = encoder(schemaV)
+    AttributeValue.Map(m.map {
+      case (k, v) =>
+        (ke(k), ve(v))
+    }.asInstanceOf[Map[AttributeValue.String, AttributeValue]])
+  }
 }
