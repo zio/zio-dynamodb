@@ -1,11 +1,11 @@
 package zio.dynamodb.codec
 
-import zio.{ Chunk, ZIO }
 import zio.dynamodb.{ Decoder, Encoder }
 import zio.random.Random
 import zio.schema.{ DeriveSchema, Schema, StandardType }
 import zio.test.Assertion.{ equalTo, isRight }
-import zio.test.{ ZSpec, _ }
+import zio.test._
+import zio.{ Chunk, ZIO }
 
 import scala.collection.immutable.ListMap
 
@@ -262,6 +262,34 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
         case (schema, gen) =>
           assertEncodesThenDecodesWithGen(schema, gen)
       }
+    },
+//    testM("Map") {
+//      val schema = Schema.map[String, String]
+//      checkM(SchemaGen.anyMapAndGen) {
+//        case (schema, gen) =>
+//          assertEncodesThenDecodesWithGen[Map[String, Any]](schema, gen)
+//      }
+//    }
+
+    /*
+    get a String generator and schema
+    get a primitive generator and schema
+    feed schemas into a Map schema constructor
+    get a Map encoder an encode string and primitive values
+     */
+    testM("Map 2") {
+      check(Gen.anyString) { s =>
+        val mapSchema = Schema.map(Schema[String], Schema[String])
+//          assertEncodesThenDecodesWithGen(mapSchema, gen)
+        val enc       = Encoder(mapSchema)
+        val dec       = Decoder(mapSchema)
+
+        val m       = Map("String" -> s)
+        val encoded = enc(m)
+        val decoded = dec(encoded)
+        assert(decoded)(isRight(equalTo(m)))
+      //println(s"$a $mapSchema"); assertCompletes
+      }
     }
   )
 
@@ -315,16 +343,15 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
   val searchRequestSchema: Schema[SearchRequest] = DeriveSchema.gen[SearchRequest]
 
   sealed trait OneOf
-  case class StringValue(value: String)   extends OneOf
-  case class IntValue(value: Int)         extends OneOf
-  case class BooleanValue(value: Boolean) extends OneOf
+  final case class StringValue(value: String)   extends OneOf
+  final case class IntValue(value: Int)         extends OneOf
+  final case class BooleanValue(value: Boolean) extends OneOf
 
   object OneOf {
     implicit val schema: Schema[OneOf] = DeriveSchema.gen[OneOf]
   }
 
-  case class Enumeration(oneOf: OneOf)
-
+  final case class Enumeration(oneOf: OneOf)
   object Enumeration {
     implicit val schema: Schema[Enumeration] = DeriveSchema.gen[Enumeration]
   }
@@ -336,4 +363,9 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
     Schema.Field("l1", Schema.Primitive(StandardType.StringType)),
     Schema.Field("l2", recordSchema)
   )
+
+  final case class Value(first: Int, second: Boolean)
+  object Value {
+    implicit lazy val schema: Schema[Value] = DeriveSchema.gen[Value]
+  }
 }

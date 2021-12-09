@@ -1,11 +1,11 @@
 package zio.dynamodb
 
 import zio.schema.Schema.{ Optional, Primitive }
-import zio.schema.{ FieldSet, Schema, StandardType }
 import zio.schema.ast.SchemaAst
+import zio.schema.{ FieldSet, Schema, StandardType }
 import zio.{ schema, Chunk }
 
-import java.time.{ ZoneId, _ }
+import java.time._
 import java.util.UUID
 import scala.util.Try
 
@@ -16,19 +16,21 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
   //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
   private[dynamodb] def decoder[A](schema: Schema[A]): Decoder[A] =
     schema match {
-      case ProductDecoder(decoder)                                                                                               => decoder // TODO: inline for exhaustive matching
-      case s: Optional[a]                                                                                                        => optionalDecoder[a](decoder(s.codec))
-      case Schema.Fail(s, _)                                                                                                     => _ => Left(s)
-      case Schema.GenericRecord(structure, _)                                                                                    => genericRecordDecoder(structure).asInstanceOf[Decoder[A]]
-      case Schema.Tuple(l, r, _)                                                                                                 => tupleDecoder(decoder(l), decoder(r))
-      case Schema.Transform(codec, f, _, _)                                                                                      => transformDecoder(codec, f)
-      case s: Schema.Sequence[col, a]                                                                                            => sequenceDecoder[col, a](decoder(s.schemaA), s.fromChunk)
-      case Schema.EitherSchema(l, r, _)                                                                                          => eitherDecoder(decoder(l), decoder(r))
-      case Primitive(standardType, _)                                                                                            => primitiveDecoder(standardType)
-      case l @ Schema.Lazy(_)                                                                                                    =>
+      case ProductDecoder(decoder)            => decoder // TODO: inline for exhaustive matching
+      case s: Optional[a]                     => optionalDecoder[a](decoder(s.codec))
+      case Schema.Fail(s, _)                  => _ => Left(s)
+      case Schema.GenericRecord(structure, _) => genericRecordDecoder(structure).asInstanceOf[Decoder[A]]
+      case Schema.Tuple(l, r, _)              => tupleDecoder(decoder(l), decoder(r))
+      case Schema.Transform(codec, f, _, _)   => transformDecoder(codec, f)
+      case s: Schema.Sequence[col, a]         => sequenceDecoder[col, a](decoder(s.schemaA), s.fromChunk)
+      case Schema.EitherSchema(l, r, _)       => eitherDecoder(decoder(l), decoder(r))
+      case Primitive(standardType, _)         => primitiveDecoder(standardType)
+      case l @ Schema.Lazy(_)                 =>
         lazy val dec = decoder(l.schema)
         (av: AttributeValue) => dec(av)
-      case Schema.Meta(_, _)                                                                                                     => astDecoder
+      case Schema.Meta(_, _)                  => astDecoder
+      case Schema.MapSchema(_, vs, _)         => mapDecoder(decoder(vs))
+
 //      case s @ Schema.CaseClass1(_, _, _, _)                                                                                                                                => caseClass1Decoder(s)
 //      case s @ Schema.CaseClass2(_, _, _, _, _, _)                                                                                                                          => caseClass2Decoder(s)
 //      case s @ Schema.CaseClass3(_, _, _, _, _, _, _, _)                                                                                                                    => caseClass3Decoder(s)
@@ -301,6 +303,48 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
       EitherUtil.forEach(list)(decoder(_)).map(xs => to(Chunk.fromIterable(xs)))
     case av                        => Left(s"unable to decode $av as a list")
   }
+
+//  private def mapDecoder[A](dec: Decoder[A]): AttributeValue => Either[String, Map[String, A]] =
+//    (av: AttributeValue) => {
+//      val x: Either[String, Map[String, A]] = av match {
+//        case AttributeValue.Map(map) =>
+//          // TODO: use EitherUtil.foreach
+//          val xs: Iterable[Either[String, (String, A)]] = map.map {
+//            case (k, v) =>
+//              val x: Either[String, A]           = dec(v)
+//              val y: Either[String, (String, A)] = x match {
+//                case Right(decV) => Right(k.value, decV)
+//                case Left(s)     => Left(s)
+//              }
+//              y
+//            case _      => Left("XXXXXXXXXXXXXXXXXX")
+//          }
+//          EitherUtil.collectAll(xs).map(Map.from)
+//      }
+//      x
+//    }
+
+  def mapDecoder[A, B <: Map[String, A]](dec: Decoder[A]): Decoder[B] =
+    (av: AttributeValue) => {
+      val x: Either[String, B] = av match {
+        case AttributeValue.Map(map) =>
+          val xs: Iterable[Either[String, (String, A)]] = map.map {
+            case (k, v) =>
+              val x: Either[String, A]           = dec(v)
+              val y: Either[String, (String, A)] = x match {
+                case Right(decV) => Right((k.value, decV))
+                case Left(s)     => Left(s)
+              }
+              y
+            case _      => Left("XXXXXXXXXXXXXXXXXX")
+          }
+          val xx: Either[String, Map[String, A]]        = EitherUtil.collectAll(xs).map(Map.from)
+          val xxx: Either[String, B]                    = xx.asInstanceOf[Either[String, B]]
+          xxx
+        case av                      => Left(s"Error: expected AttributeValue.Map but found $av")
+      }
+      x
+    }
 
   private def enumDecoder[A](cases: Schema.Case[_, A]*): Decoder[A] =
     (av: AttributeValue) =>

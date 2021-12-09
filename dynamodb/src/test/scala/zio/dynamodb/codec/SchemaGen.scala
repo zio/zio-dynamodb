@@ -117,7 +117,21 @@ object SchemaGen {
       (valueA, valueB) <- gen
     } yield schema -> ((valueA, valueB))
 
-  val anySequence: Gen[Random with Sized, Schema[Chunk[Any]]]       =
+// -------------------------------------------------------------------------------------
+//  val anyMap: Gen[Random, Schema.MapSchema[String, _]]              = // : Gen[Random with Sized, Schema[Map[String, Any]]]
+//    anyPrimitive.map(Schema.map(Schema.primitive[String], _).asInstanceOf[Schema[Map[String, Any]]])
+//
+//  type MapAndGen[A] = (Schema.MapSchema[String, A], Gen[Random with Sized, A])
+//
+//  val anyMapAndGen: Gen[Random with Sized, MapAndGen[_]] =
+//    anyPrimitiveAndGen.map {
+//      case (schema, gen) =>
+//        Schema.MapSchema(Schema.primitive[String], schema, annotations = Chunk.empty) -> gen
+//    }
+
+// -------------------------------------------------------------------------------------
+
+  val anySequence: Gen[Random with Sized, Schema[Chunk[Any]]] =
     anySchema.map(Schema.chunk(_).asInstanceOf[Schema[Chunk[Any]]])
 
   type SequenceAndGen[A] = (Schema[Chunk[A]], Gen[Random with Sized, Chunk[A]])

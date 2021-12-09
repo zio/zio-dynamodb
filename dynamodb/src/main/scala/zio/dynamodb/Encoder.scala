@@ -24,7 +24,7 @@ private[dynamodb] object Encoder {
       case Schema.Fail(_, _)                                                                                                                                                                                                                                                              => _ => AttributeValue.Null
       case Schema.Tuple(l, r, _)                                                                                                                                                                                                                                                          => tupleEncoder(encoder(l), encoder(r))
       case s: Schema.Sequence[col, a]                                                                                                                                                                                                                                                     => sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
-//      case Schema.MapSchema(ks, vs, _)                                                                                                                                                                                                                                                    =>
+      // TODO: how do we constrain k to type String?
       case map: Schema.MapSchema[k, v]                                                                                                                                                                                                                                                    =>
         (a: A) =>
           val m  = a.asInstanceOf[Map[k, v]]
