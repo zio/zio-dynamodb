@@ -270,25 +270,20 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
 //          assertEncodesThenDecodesWithGen[Map[String, Any]](schema, gen)
 //      }
 //    }
+    testM("Map of primitive value") {
+      checkM(SchemaGen.anyPrimitiveAndGen) {
+        case (s, gen) =>
+          val mapSchema = Schema.map(Schema[String], s)
+          val enc       = Encoder(mapSchema)
+          val dec       = Decoder(mapSchema)
 
-    /*
-    get a String generator and schema
-    get a primitive generator and schema
-    feed schemas into a Map schema constructor
-    get a Map encoder an encode string and primitive values
-     */
-    testM("Map 2") {
-      check(Gen.anyString) { s =>
-        val mapSchema = Schema.map(Schema[String], Schema[String])
-//          assertEncodesThenDecodesWithGen(mapSchema, gen)
-        val enc       = Encoder(mapSchema)
-        val dec       = Decoder(mapSchema)
-
-        val m       = Map("String" -> s)
-        val encoded = enc(m)
-        val decoded = dec(encoded)
-        assert(decoded)(isRight(equalTo(m)))
-      //println(s"$a $mapSchema"); assertCompletes
+          check(gen) {
+            case a =>
+              val m       = Map("StringKey" -> a)
+              val encoded = enc(m)
+              val decoded = dec(encoded)
+              assert(decoded)(isRight(equalTo(m)))
+          }
       }
     }
   )
