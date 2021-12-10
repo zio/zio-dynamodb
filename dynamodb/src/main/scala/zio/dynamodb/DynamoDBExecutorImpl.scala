@@ -125,6 +125,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   private def doQuerySome(querySome: QuerySome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] =
     dynamoDb
       .query(generateQueryRequest(querySome))
+      .take(querySome.limit.toLong)
       .mapBoth(_.toThrowable, toDynamoItem)
       .run(ZSink.collectAll[Item])
       .map(chunk => (chunk, chunk.lastOption))
@@ -238,6 +239,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   private def doScanSome(scanSome: ScanSome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] =
     dynamoDb
       .scan(generateScanRequest(scanSome))
+      .take(scanSome.limit.toLong)
       .mapBoth(_.toThrowable, toDynamoItem)
       .run(ZSink.collectAll[Item])
       .map(chunk => (chunk, chunk.lastOption))

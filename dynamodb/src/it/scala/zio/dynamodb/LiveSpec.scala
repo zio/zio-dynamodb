@@ -301,7 +301,7 @@ object LiveSpec extends DefaultRunnableSpec {
                               .execute
             } yield assert(chunk)(equalTo(Chunk(Item(name -> avi))))
           }
-        } @@ ignore, // TODO(adam): limit is not being honored, this is due to zio-aws not having the paging API exposed
+        },           // TODO(adam): limit is not being honored, this is due to zio-aws not having the paging API exposed
         testM("query starting from StartKey") {
           withDefaultTable { tableName =>
             for {
@@ -314,7 +314,7 @@ object LiveSpec extends DefaultRunnableSpec {
                                  .execute
             } yield assert(chunk)(equalTo(Chunk(Item(name -> avi3))))
           }
-        } @@ ignore, // TODO(adam): limit is not being honored
+        },           // TODO(adam): limit is not being honored
         testM("queryAll") {
           withDefaultTable { tableName =>
             for {
