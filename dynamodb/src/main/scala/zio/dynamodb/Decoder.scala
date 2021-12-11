@@ -16,20 +16,28 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
   //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
   private[dynamodb] def decoder[A](schema: Schema[A]): Decoder[A] =
     schema match {
-      case s: Optional[a]                     => optionalDecoder[a](decoder(s.codec))
-      case Schema.Fail(s, _)                  => _ => Left(s)
-      case Schema.GenericRecord(structure, _) => genericRecordDecoder(structure).asInstanceOf[Decoder[A]]
-      case Schema.Tuple(l, r, _)              => tupleDecoder(decoder(l), decoder(r))
-      case Schema.Transform(codec, f, _, _)   => transformDecoder(codec, f)
-      case s: Schema.Sequence[col, a]         => sequenceDecoder[col, a](decoder(s.schemaA), s.fromChunk)
-      case Schema.EitherSchema(l, r, _)       => eitherDecoder(decoder(l), decoder(r))
-      case Primitive(standardType, _)         => primitiveDecoder(standardType)
-      case l @ Schema.Lazy(_)                 =>
+      case s: Optional[a]                                                                                                                                                   => optionalDecoder[a](decoder(s.codec))
+      case Schema.Fail(s, _)                                                                                                                                                => _ => Left(s)
+      case Schema.GenericRecord(structure, _)                                                                                                                               => genericRecordDecoder(structure).asInstanceOf[Decoder[A]]
+      case Schema.Tuple(l, r, _)                                                                                                                                            => tupleDecoder(decoder(l), decoder(r))
+      case Schema.Transform(codec, f, _, _)                                                                                                                                 => transformDecoder(codec, f)
+      case s: Schema.Sequence[col, a]                                                                                                                                       => sequenceDecoder[col, a](decoder(s.schemaA), s.fromChunk)
+      case Schema.EitherSchema(l, r, _)                                                                                                                                     => eitherDecoder(decoder(l), decoder(r))
+      case Primitive(standardType, _)                                                                                                                                       => primitiveDecoder(standardType)
+      case l @ Schema.Lazy(_)                                                                                                                                               =>
         lazy val dec = decoder(l.schema)
         (av: AttributeValue) => dec(av)
-      case Schema.Meta(_, _)                  => astDecoder
-      case Schema.MapSchema(_, vs, _)         => mapDecoder(decoder(vs))
-
+      case Schema.Meta(_, _)                                                                                                                                                => astDecoder
+      case Schema.MapSchema(ks, vs, _)                                                                                                                                      =>
+        ks match {
+          case Schema.Primitive(standardType, _) =>
+            if (isString(standardType))
+              nativeMapDecoder(decoder(vs))
+            else
+              nonNativeMapDecoder(decoder(ks), decoder(vs)).asInstanceOf[Decoder[A]]
+          case _                                 =>
+            nonNativeMapDecoder(decoder(ks), decoder(vs)).asInstanceOf[Decoder[A]]
+        }
       case s @ Schema.CaseClass1(_, _, _, _)                                                                                                                                => caseClass1Decoder(s)
       case s @ Schema.CaseClass2(_, _, _, _, _, _)                                                                                                                          => caseClass2Decoder(s)
       case s @ Schema.CaseClass3(_, _, _, _, _, _, _, _)                                                                                                                    => caseClass3Decoder(s)
@@ -286,7 +294,7 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
   private def tupleDecoder[A, B](decL: Decoder[A], decR: Decoder[B]): Decoder[(A, B)] =
     (av: AttributeValue) =>
       av match {
-        case AttributeValue.List(list: Seq[AttributeValue]) if list.size == 2 =>
+        case AttributeValue.List(list: Seq[AttributeValue]) if list.size == 2 => // TODO: did I try to pattern match using :: here?
           val avA = list(0)
           val avB = list(1)
           for {
@@ -303,7 +311,7 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
     case av                        => Left(s"unable to decode $av as a list")
   }
 
-  def mapDecoder[A, B <: Map[String, A]](dec: Decoder[A]): Decoder[B] =
+  def nativeMapDecoder[A, B <: Map[String, A]](dec: Decoder[A]): Decoder[B] =
     (av: AttributeValue) => {
       av match {
         case AttributeValue.Map(map) =>
@@ -316,6 +324,21 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
           }
           EitherUtil.collectAll(xs).map(Map.from).asInstanceOf[Either[String, B]]
         case av                      => Left(s"Error: expected AttributeValue.Map but found $av")
+      }
+    }
+
+  def nonNativeMapDecoder[A, B](decA: Decoder[A], decB: Decoder[B]): Decoder[Map[A, B]] =
+    (av: AttributeValue) => {
+      av match {
+        case AttributeValue.List(listOfAv) =>
+          val x: Either[String, Iterable[(A, B)]] = EitherUtil.forEach(listOfAv) {
+            case avList @ AttributeValue.List(_) =>
+              tupleDecoder(decA, decB)(avList)
+            case av                              =>
+              Left(s"Error: expected AttributeValue.List but found $av")
+          }
+          x.map(Map.from)
+        case av                            => Left(s"Error: expected AttributeValue.Map but found $av")
       }
     }
 
@@ -336,4 +359,9 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
           Left(s"invalid AttributeValue $av")
       }
 
+  private def isString[A](standardType: StandardType[A]): Boolean =
+    standardType match {
+      case StandardType.StringType => true
+      case _                       => false
+    }
 }
