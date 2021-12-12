@@ -29,15 +29,15 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
         (av: AttributeValue) => dec(av)
       case Schema.Meta(_, _)                                                                                                                                                => astDecoder
       case Schema.MapSchema(ks, vs, _)                                                                                                                                      =>
-        ks match {
+        (ks match {
           case Schema.Primitive(standardType, _) =>
             if (isString(standardType))
               nativeMapDecoder(decoder(vs))
             else
-              nonNativeMapDecoder(decoder(ks), decoder(vs)).asInstanceOf[Decoder[A]]
+              nonNativeMapDecoder(decoder(ks), decoder(vs))
           case _                                 =>
-            nonNativeMapDecoder(decoder(ks), decoder(vs)).asInstanceOf[Decoder[A]]
-        }
+            nonNativeMapDecoder(decoder(ks), decoder(vs))
+        }).asInstanceOf[Decoder[A]]
       case s @ Schema.CaseClass1(_, _, _, _)                                                                                                                                => caseClass1Decoder(s)
       case s @ Schema.CaseClass2(_, _, _, _, _, _)                                                                                                                          => caseClass2Decoder(s)
       case s @ Schema.CaseClass3(_, _, _, _, _, _, _, _)                                                                                                                    => caseClass3Decoder(s)
@@ -311,18 +311,18 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
     case av                        => Left(s"unable to decode $av as a list")
   }
 
-  def nativeMapDecoder[A, B <: Map[String, A]](dec: Decoder[A]): Decoder[B] =
+  def nativeMapDecoder[V](dec: Decoder[V]): Decoder[Map[String, V]] =
     (av: AttributeValue) => {
       av match {
         case AttributeValue.Map(map) =>
-          val xs: Iterable[Either[String, (String, A)]] = map.map {
+          val xs: Iterable[Either[String, (String, V)]] = map.map {
             case (k, v) =>
               dec(v) match {
                 case Right(decV) => Right((k.value, decV))
                 case Left(s)     => Left(s)
               }
           }
-          EitherUtil.collectAll(xs).map(Map.from).asInstanceOf[Either[String, B]]
+          EitherUtil.collectAll(xs).map(Map.from)
         case av                      => Left(s"Error: expected AttributeValue.Map but found $av")
       }
     }
