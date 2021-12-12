@@ -29,6 +29,7 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
         (av: AttributeValue) => dec(av)
       case Schema.Meta(_, _)                                                                                                                                                => astDecoder
       case Schema.MapSchema(ks, vs, _)                                                                                                                                      =>
+        // TODO: think about extracting to a function
         (ks match {
           case Schema.Primitive(standardType, _) =>
             if (isString(standardType))
@@ -338,7 +339,7 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
               Left(s"Error: expected AttributeValue.List but found $av")
           }
           x.map(Map.from)
-        case av                            => Left(s"Error: expected AttributeValue.Map but found $av")
+        case av                            => Left(s"Error: expected AttributeValue.List but found $av")
       }
     }
 

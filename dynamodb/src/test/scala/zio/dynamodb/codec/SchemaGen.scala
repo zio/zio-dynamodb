@@ -117,6 +117,29 @@ object SchemaGen {
       (valueA, valueB) <- gen
     } yield schema -> ((valueA, valueB))
 
+  lazy val anyMap: Gen[Random with Sized, Schema.MapSchema[_, _]]   =
+    anySchema.zipWith(anySchema) { (a, b) =>
+      Schema.MapSchema(a, b, Chunk.empty)
+    }
+
+  // TODO: replace A, B with K, V
+  type MapAndGen[A, B] = (Schema.MapSchema[A, B], Gen[Random with Sized, Map[A, B]])
+
+  val anyMapAndGen: Gen[Random with Sized, MapAndGen[_, _]] =
+    for {
+      (schemaA, genA) <- anyPrimitiveAndGen
+      (schemaB, genB) <- anyPrimitiveAndGen
+      // TODO: use for comprehension
+    } yield Schema.MapSchema(schemaA, schemaB, Chunk.empty) -> (genA.flatMap(a => genB.map(b => Map(a -> b))))
+
+  type MapAndValue[A, B] = (Schema.MapSchema[A, B], Map[A, B])
+
+  val anyMapAndValue: Gen[Random with Sized, MapAndValue[_, _]] =
+    for {
+      (schema, gen) <- anyMapAndGen
+      map           <- gen
+    } yield schema -> map
+
 // -------------------------------------------------------------------------------------
 //  val anyMap: Gen[Random, Schema.MapSchema[String, _]]              = // : Gen[Random with Sized, Schema[Map[String, Any]]]
 //    anyPrimitive.map(Schema.map(Schema.primitive[String], _).asInstanceOf[Schema[Map[String, Any]]])
