@@ -1,5 +1,5 @@
 package zio.dynamodb
-import zio.{ Chunk, Schedule, ZIO }
+import zio.{ Chunk, ZIO }
 import zio.dynamodb.DynamoDBQuery._
 import io.github.vigoo.zioaws.dynamodb.DynamoDb
 import io.github.vigoo.zioaws.dynamodb.model.{
@@ -60,7 +60,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case getItem: GetItem               => doGetItem(getItem)
       case putItem: PutItem               => doPutItem(putItem)
       case batchGetItem: BatchGetItem     => doBatchGetItem(batchGetItem)
-      case batchWriteItem: BatchWriteItem => doBatchWriteItem(batchWriteItem)
+      case batchWriteItem: BatchWriteItem => doBatchWriteItem(batchWriteItem).provideLayer(Clock.live)
       case scanAll: ScanAll               => doScanAll(scanAll)
       case scanSome: ScanSome             => doScanSome(scanSome)
       case updateItem: UpdateItem         => doUpdateItem(updateItem)

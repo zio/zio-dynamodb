@@ -23,7 +23,7 @@ import zio.dynamodb.DynamoDBQuery.{
 import zio.dynamodb.UpdateExpression.Action
 import zio.schema.Schema
 import zio.stream.Stream
-import zio.{ Chunk, Has, Schedule, ZIO }
+import zio.{ Chunk, Has, ZIO }
 
 sealed trait DynamoDBQuery[+A] { self =>
 
