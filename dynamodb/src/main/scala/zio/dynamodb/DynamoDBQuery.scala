@@ -562,8 +562,7 @@ object DynamoDBQuery {
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     addList: Chunk[BatchWriteItem.Write] = Chunk.empty,
     retryAttempts: Int = 0,
-    retrySchedule: Schedule[Any, Any, Duration] =
-      Schedule.exponential(3.seconds) // not currently used but seems like it should be something we have
+    retryWait: Duration = 3.seconds
   ) extends Constructor[BatchWriteItemResponse] { self =>
     def +[A](writeItem: Write[A]): BatchWriteItem =
       writeItem match {
@@ -574,7 +573,7 @@ object DynamoDBQuery {
             self.itemMetrics,
             self.addList :+ Put(putItem.item),
             self.retryAttempts,
-            self.retrySchedule
+            self.retryWait
           )
         case deleteItem @ DeleteItem(_, _, _, _, _, _) =>
           BatchWriteItem(
@@ -583,7 +582,7 @@ object DynamoDBQuery {
             self.itemMetrics,
             self.addList :+ Delete(deleteItem.key),
             self.retryAttempts,
-            self.retrySchedule
+            self.retryWait
           )
       }
 

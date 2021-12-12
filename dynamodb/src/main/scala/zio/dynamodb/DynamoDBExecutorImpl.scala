@@ -1,5 +1,5 @@
 package zio.dynamodb
-import zio.{ Chunk, ZIO }
+import zio.{ Chunk, Schedule, ZIO }
 import zio.dynamodb.DynamoDBQuery._
 import io.github.vigoo.zioaws.dynamodb.DynamoDb
 import io.github.vigoo.zioaws.dynamodb.model.{
@@ -39,6 +39,7 @@ import io.github.vigoo.zioaws.dynamodb.model.{
   Select => ZIOAwsSelect,
   TableStatus => ZIOAwsTableStatus
 }
+import zio.clock.Clock
 import zio.dynamodb.ConsistencyMode.toBoolean
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.SSESpecification.SSEType
@@ -210,7 +211,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
         acc ++ ((TableName(tableName), l.flatMap(f)))
     }
 
-  private def doBatchWriteItem(batchWriteItem: BatchWriteItem): ZIO[Any, Throwable, BatchWriteItemResponse] =
+  private def doBatchWriteItem(batchWriteItem: BatchWriteItem): ZIO[Clock, Throwable, BatchWriteItemResponse] =
     if (batchWriteItem.requestItems.nonEmpty)
       for {
         batchWriteResponse <- dynamoDb
@@ -221,9 +222,10 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
                                 doBatchWriteItem(
                                   batchWriteItem.copy(
                                     requestItems = mapOfListToMapOfSet(unprocessedItems)(writeRequestToBatchWrite),
-                                    retryAttempts = batchWriteItem.retryAttempts - 1
+                                    retryAttempts = batchWriteItem.retryAttempts - 1,
+                                    retryWait = batchWriteItem.retryWait.multipliedBy(2)
                                   )
-                                )
+                                ).delay(batchWriteItem.retryWait)
                               else
                                 ZIO.succeed(
                                   BatchWriteItemResponse(
