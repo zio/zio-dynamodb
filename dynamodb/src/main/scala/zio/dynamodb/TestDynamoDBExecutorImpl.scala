@@ -39,7 +39,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private (
 
         response
 
-      case BatchWriteItem(requestItems, _, _, _)                                  =>
+      case BatchWriteItem(requestItems, _, _, _, _, _)                            =>
         val results: ZIO[Any, DatabaseError, Unit] = ZIO.foreach_(requestItems.toList) {
           case (tableName, setOfWrite) =>
             ZIO.foreach_(setOfWrite) { write =>
@@ -52,7 +52,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private (
             }
 
         }
-        results
+        results.map(_ => BatchWriteItemResponse(None))
 
       case GetItem(tableName, key, _, _, _)                                       =>
         fakeGetItem(tableName.value, key)

@@ -204,19 +204,36 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       tags = Some(createTable.tags.map { case (k, v) => Tag(k, v) })
     )
 
-  private def doBatchWriteItem(batchWriteItem: BatchWriteItem): ZIO[Any, Throwable, Unit] =
-    (for {
-      batchWriteResponse <- dynamoDb
-                              .batchWriteItem(generateBatchWriteItem(batchWriteItem))
-      unprocessedItems   <- batchWriteResponse.unprocessedItems
-      nextBatchWrite      =
-        batchWriteItem.copy(requestItems = unprocessedItems.foldLeft(MapOfSet.empty[TableName, BatchWriteItem.Write]) {
-          case (acc, (tableName, l)) =>
-            acc ++ ((TableName(tableName), l.flatMap(writeRequestToBatchWrite)))
-        })
-    } yield ())
-      .mapError(_.toThrowable)
-      .unless(batchWriteItem.requestItems.isEmpty)
+  private def mapOfListToMapOfSet[A, B](map: ScalaMap[String, List[A]])(f: A => Option[B]): MapOfSet[TableName, B] =
+    map.foldLeft(MapOfSet.empty[TableName, B]) {
+      case (acc, (tableName, l)) =>
+        acc ++ ((TableName(tableName), l.flatMap(f)))
+    }
+
+  private def doBatchWriteItem(batchWriteItem: BatchWriteItem): ZIO[Any, Throwable, BatchWriteItemResponse] =
+    if (batchWriteItem.requestItems.nonEmpty)
+      for {
+        batchWriteResponse <- dynamoDb
+                                .batchWriteItem(generateBatchWriteItem(batchWriteItem))
+                                .mapError(_.toThrowable)
+        unprocessedItems   <- batchWriteResponse.unprocessedItems.mapError(_.toThrowable)
+        retryResponse      <- if (unprocessedItems.nonEmpty && batchWriteItem.retryAttempts > 0)
+                                doBatchWriteItem(
+                                  batchWriteItem.copy(
+                                    requestItems = mapOfListToMapOfSet(unprocessedItems)(writeRequestToBatchWrite),
+                                    retryAttempts = batchWriteItem.retryAttempts - 1
+                                  )
+                                )
+                              else
+                                ZIO.succeed(
+                                  BatchWriteItemResponse(
+                                    batchWriteResponse.unprocessedItemsValue.map(m =>
+                                      mapOfListToMapOfSet(m)(writeRequestToBatchWrite)
+                                    )
+                                  )
+                                )
+      } yield retryResponse
+    else ZIO.succeed(BatchWriteItemResponse(None))
 
   private def generateBatchWriteItem(batchWriteItem: BatchWriteItem): BatchWriteItemRequest =
     BatchWriteItemRequest(
@@ -228,8 +245,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       returnItemCollectionMetrics = Some(buildAwsItemMetrics(batchWriteItem.itemMetrics))
     )
 
-  private def writeRequestToBatchWrite(writeRequest: WriteRequest.ReadOnly): Option[BatchWriteItem.Write] =
-    writeRequest.putRequest.map(put => BatchWriteItem.Put(item = AttrMap(awsAttrMaptoAttrMap(put.item))))
+  private def writeRequestToBatchWrite(writeRequest: WriteRequest.ReadOnly) =
+    writeRequest.putRequestValue.map(put => BatchWriteItem.Put(item = AttrMap(awsAttrMapToAttrMap(put.itemValue))))
 
   private def batchItemWriteToZIOAwsWriteRequest(write: BatchWriteItem.Write): WriteRequest =
     write match {
@@ -316,9 +333,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     if (batchGetItem.requestItems.isEmpty) ZIO.succeed(BatchGetItem.Response())
     else
       (for {
-        batchResponse    <- dynamoDb.batchGetItem(generateBatchGetItemRequest(batchGetItem))
-        tableItemsMap    <- batchResponse.responses
-        unprocessedItems <- batchResponse.unprocessedKeys
+        batchResponse <- dynamoDb.batchGetItem(generateBatchGetItemRequest(batchGetItem))
+        tableItemsMap <- batchResponse.responses
+//        unprocessedItems <- batchResponse.unprocessedKeys
       } yield BatchGetItem.Response(
         tableItemsMap.foldLeft(MapOfSet.empty[TableName, Item]) {
           case (acc, (tableName, list)) =>
@@ -371,9 +388,14 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   private def attrMapToAwsAttrMap(attrMap: ScalaMap[String, AttributeValue]): ScalaMap[String, ZIOAwsAttributeValue] =
     attrMap.map { case (k, v) => (k, buildAwsAttributeValue(v)) }
 
-  private def awsAttrMaptoAttrMap(attrMap: ScalaMap[String, ZIOAwsAttributeValue]): ScalaMap[String, AttributeValue] =
-    attrMap.flatMap { case (k, v) => awsAttrValToAttrVal(v.asReadOnly).map((k, _)) }
+  private def awsAttrMapToAttrMap(
+    attrMap: ScalaMap[String, ZIOAwsAttributeValue.ReadOnly]
+  ): ScalaMap[String, AttributeValue]                                                                                =
+    attrMap.flatMap { case (k, v) => awsAttrValToAttrVal(v).map((k, _)) }
 
+//  private def awsAttrMapToAttrMap(attrMap: ScalaMap[String, ZIOAwsAttributeValue]): ScalaMap[String, AttributeValue] =
+//    attrMap.flatMap { case (k, v) => awsAttrValToAttrVal(v.asReadOnly).map((k, _)) }
+//
   private def generateGetItemRequest(getItem: GetItem): GetItemRequest                                               =
     GetItemRequest(
       tableName = getItem.tableName.value,

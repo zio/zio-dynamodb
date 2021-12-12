@@ -1,5 +1,6 @@
 package zio.dynamodb
 
+import zio.duration._
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put }
 import zio.dynamodb.DynamoDBQuery.{
@@ -22,7 +23,7 @@ import zio.dynamodb.DynamoDBQuery.{
 import zio.dynamodb.UpdateExpression.Action
 import zio.schema.Schema
 import zio.stream.Stream
-import zio.{ Chunk, Has, ZIO }
+import zio.{ Chunk, Has, Schedule, ZIO }
 
 sealed trait DynamoDBQuery[+A] { self =>
 
@@ -551,12 +552,19 @@ object DynamoDBQuery {
     )
   }
 
+  final case class BatchWriteItemResponse(
+    unprocessedItems: Option[MapOfSet[TableName, BatchWriteItem.Write]]
+  )
+
   private[dynamodb] final case class BatchWriteItem(
     requestItems: MapOfSet[TableName, BatchWriteItem.Write] = MapOfSet.empty,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
-    addList: Chunk[BatchWriteItem.Write] = Chunk.empty
-  ) extends Constructor[Unit] { self =>
+    addList: Chunk[BatchWriteItem.Write] = Chunk.empty,
+    retryAttempts: Int = 0,
+    retrySchedule: Schedule[Any, Any, Duration] =
+      Schedule.exponential(3.seconds) // not currently used but seems like it should be something we have
+  ) extends Constructor[BatchWriteItemResponse] { self =>
     def +[A](writeItem: Write[A]): BatchWriteItem =
       writeItem match {
         case putItem @ PutItem(_, _, _, _, _, _)       =>
@@ -564,14 +572,18 @@ object DynamoDBQuery {
             self.requestItems + ((putItem.tableName, Put(putItem.item))),
             self.capacity,
             self.itemMetrics,
-            self.addList :+ Put(putItem.item)
+            self.addList :+ Put(putItem.item),
+            self.retryAttempts,
+            self.retrySchedule
           )
         case deleteItem @ DeleteItem(_, _, _, _, _, _) =>
           BatchWriteItem(
             self.requestItems + ((deleteItem.tableName, Delete(deleteItem.key))),
             self.capacity,
             self.itemMetrics,
-            self.addList :+ Delete(deleteItem.key)
+            self.addList :+ Delete(deleteItem.key),
+            self.retryAttempts,
+            self.retrySchedule
           )
       }
 
@@ -785,7 +797,7 @@ object DynamoDBQuery {
           }
         )
 
-      case batchWriteItem @ BatchWriteItem(_, _, _, _)        =>
+      case batchWriteItem @ BatchWriteItem(_, _, _, _, _, _)  =>
         (
           Chunk(batchWriteItem),
           (results: Chunk[Any]) => {
