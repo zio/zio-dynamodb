@@ -30,7 +30,7 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
       case Schema.Meta(_, _)                                                                                                                                                => astDecoder
       case Schema.MapSchema(ks, vs, _)                                                                                                                                      =>
         // TODO: think about extracting to a function
-        mapDecoder(ks, vs)
+        mapDecoder(ks, vs).asInstanceOf[Decoder[A]]
       case s @ Schema.CaseClass1(_, _, _, _)                                                                                                                                => caseClass1Decoder(s)
       case s @ Schema.CaseClass2(_, _, _, _, _, _)                                                                                                                          => caseClass2Decoder(s)
       case s @ Schema.CaseClass3(_, _, _, _, _, _, _, _)                                                                                                                    => caseClass3Decoder(s)
@@ -128,50 +128,6 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
             .map(_.toMap)
         case av                      => Left(s"Expected AttributeValue.Map but found $av")
       }
-
-  //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
-  object ProductDecoder {
-    def unapply[A](schema: Schema[A]): Option[Decoder[A]] =
-      schema match {
-        case s @ Schema.CaseClass1(_, _, _, _)                                                                                                                                => Some(caseClass1Decoder(s))
-        case s @ Schema.CaseClass2(_, _, _, _, _, _)                                                                                                                          => Some(caseClass2Decoder(s))
-        case s @ Schema.CaseClass3(_, _, _, _, _, _, _, _)                                                                                                                    => Some(caseClass3Decoder(s))
-        case s @ Schema.CaseClass4(_, _, _, _, _, _, _, _, _, _)                                                                                                              => Some(caseClass4Decoder(s))
-        case s @ Schema.CaseClass5(_, _, _, _, _, _, _, _, _, _, _, _)                                                                                                        => Some(caseClass5Decoder(s))
-        case s @ Schema.CaseClass6(_, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                                                                  => Some(caseClass6Decoder(s))
-        case s @ Schema.CaseClass7(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                                                            => Some(caseClass7Decoder(s))
-        case s @ Schema.CaseClass8(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                                                      => Some(caseClass8Decoder(s))
-        case s @ Schema.CaseClass9(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                                                => Some(caseClass9Decoder(s))
-        case s @ Schema.CaseClass10(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                                         => Some(caseClass10Decoder(s))
-        case s @ Schema.CaseClass11(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                                   =>
-          Some(caseClass11Decoder(s))
-        case s @ Schema.CaseClass12(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                             =>
-          Some(caseClass12Decoder(s))
-        case s @ Schema.CaseClass13(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                       =>
-          Some(caseClass13Decoder(s))
-        case s @ Schema
-              .CaseClass14(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
-          Some(caseClass14Decoder(s))
-        case s @ Schema
-              .CaseClass15(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
-          Some(caseClass15Decoder(s))
-        case s @ Schema.CaseClass16(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                     =>
-          Some(caseClass16Decoder(s))
-        case s @ Schema.CaseClass17(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                               =>
-          Some(caseClass17Decoder(s))
-        case s @ Schema.CaseClass18(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                         =>
-          Some(caseClass18Decoder(s))
-        case s @ Schema.CaseClass19(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                   =>
-          Some(caseClass19Decoder(s))
-        case s @ Schema.CaseClass20(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)             =>
-          Some(caseClass20Decoder(s))
-        case s @ Schema.CaseClass21(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)       =>
-          Some(caseClass21Decoder(s))
-        case s @ Schema.CaseClass22(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
-          Some(caseClass22Decoder(s))
-        case _                                                                                                                                                                => None
-      }
-  }
 
   private def primitiveDecoder[A](standardType: StandardType[A]): Decoder[A] =
     standardType match {
@@ -287,14 +243,15 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
   private def tupleDecoder[A, B](decL: Decoder[A], decR: Decoder[B]): Decoder[(A, B)] =
     (av: AttributeValue) =>
       av match {
-        case AttributeValue.List(list: Seq[AttributeValue]) if list.size == 2 => // TODO: did I try to pattern match using :: here?
+        case AttributeValue.List(list: Seq[AttributeValue])
+            if list.size == 2 => // TODO: did I try to pattern match using :: here?
           val avA = list(0)
           val avB = list(1)
           for {
             a <- decL(avA)
             b <- decR(avB)
           } yield (a, b)
-        case av                                                               =>
+        case av =>
           Left(s"Expected an AttributeValue.List of two elements but found $av")
       }
 
@@ -304,7 +261,7 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
     case av                        => Left(s"unable to decode $av as a list")
   }
 
-  private def mapDecoder[A](ks: Schema[Any], vs: Schema[Any]) =
+  private def mapDecoder[K, V](ks: Schema[K], vs: Schema[V]) =
     (ks match {
       case Schema.Primitive(standardType, _) =>
         if (isString(standardType))
@@ -313,7 +270,7 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
           nonNativeMapDecoder(decoder(ks), decoder(vs))
       case _                                 =>
         nonNativeMapDecoder(decoder(ks), decoder(vs))
-    }).asInstanceOf[Decoder[A]]
+    })
 
   private def nativeMapDecoder[V](dec: Decoder[V]): Decoder[Map[String, V]] =
     (av: AttributeValue) => {
