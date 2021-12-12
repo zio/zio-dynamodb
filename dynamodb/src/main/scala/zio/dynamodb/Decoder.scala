@@ -30,15 +30,7 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
       case Schema.Meta(_, _)                                                                                                                                                => astDecoder
       case Schema.MapSchema(ks, vs, _)                                                                                                                                      =>
         // TODO: think about extracting to a function
-        (ks match {
-          case Schema.Primitive(standardType, _) =>
-            if (isString(standardType))
-              nativeMapDecoder(decoder(vs))
-            else
-              nonNativeMapDecoder(decoder(ks), decoder(vs))
-          case _                                 =>
-            nonNativeMapDecoder(decoder(ks), decoder(vs))
-        }).asInstanceOf[Decoder[A]]
+        mapDecoder(ks, vs)
       case s @ Schema.CaseClass1(_, _, _, _)                                                                                                                                => caseClass1Decoder(s)
       case s @ Schema.CaseClass2(_, _, _, _, _, _)                                                                                                                          => caseClass2Decoder(s)
       case s @ Schema.CaseClass3(_, _, _, _, _, _, _, _)                                                                                                                    => caseClass3Decoder(s)
@@ -312,7 +304,18 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
     case av                        => Left(s"unable to decode $av as a list")
   }
 
-  def nativeMapDecoder[V](dec: Decoder[V]): Decoder[Map[String, V]] =
+  private def mapDecoder[A](ks: Schema[Any], vs: Schema[Any]) =
+    (ks match {
+      case Schema.Primitive(standardType, _) =>
+        if (isString(standardType))
+          nativeMapDecoder(decoder(vs))
+        else
+          nonNativeMapDecoder(decoder(ks), decoder(vs))
+      case _                                 =>
+        nonNativeMapDecoder(decoder(ks), decoder(vs))
+    }).asInstanceOf[Decoder[A]]
+
+  private def nativeMapDecoder[V](dec: Decoder[V]): Decoder[Map[String, V]] =
     (av: AttributeValue) => {
       av match {
         case AttributeValue.Map(map) =>

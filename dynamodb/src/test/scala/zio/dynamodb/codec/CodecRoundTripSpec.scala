@@ -316,7 +316,6 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
     val enc = Encoder(schema)
     val dec = Decoder(schema)
 
-    // TODO: add debug flag to print values
     val encoded = enc(a)
     val decoded = dec(encoded)
 
