@@ -122,17 +122,15 @@ object SchemaGen {
       Schema.MapSchema(a, b, Chunk.empty)
     }
 
-  // TODO: replace A, B with K, V
-  type MapAndGen[A, B] = (Schema.MapSchema[A, B], Gen[Random with Sized, Map[A, B]])
+  type MapAndGen[K, V] = (Schema.MapSchema[K, V], Gen[Random with Sized, Map[K, V]])
 
   val anyMapAndGen: Gen[Random with Sized, MapAndGen[_, _]] =
     for {
-      (schemaA, genA) <- anyPrimitiveAndGen
-      (schemaB, genB) <- anyPrimitiveAndGen
-      // TODO: use for comprehension
-    } yield Schema.MapSchema(schemaA, schemaB, Chunk.empty) -> (genA.flatMap(a => genB.map(b => Map(a -> b))))
+      (schemaK, genK) <- anyPrimitiveAndGen
+      (schemaV, genV) <- anyPrimitiveAndGen
+    } yield Schema.MapSchema(schemaK, schemaV, Chunk.empty) -> (genK.flatMap(k => genV.map(v => Map(k -> v))))
 
-  type MapAndValue[A, B] = (Schema.MapSchema[A, B], Map[A, B])
+  type MapAndValue[K, V] = (Schema.MapSchema[K, V], Map[K, V])
 
   val anyMapAndValue: Gen[Random with Sized, MapAndValue[_, _]] =
     for {
@@ -140,21 +138,7 @@ object SchemaGen {
       map           <- gen
     } yield schema -> map
 
-// -------------------------------------------------------------------------------------
-//  val anyMap: Gen[Random, Schema.MapSchema[String, _]]              = // : Gen[Random with Sized, Schema[Map[String, Any]]]
-//    anyPrimitive.map(Schema.map(Schema.primitive[String], _).asInstanceOf[Schema[Map[String, Any]]])
-//
-//  type MapAndGen[A] = (Schema.MapSchema[String, A], Gen[Random with Sized, A])
-//
-//  val anyMapAndGen: Gen[Random with Sized, MapAndGen[_]] =
-//    anyPrimitiveAndGen.map {
-//      case (schema, gen) =>
-//        Schema.MapSchema(Schema.primitive[String], schema, annotations = Chunk.empty) -> gen
-//    }
-
-// -------------------------------------------------------------------------------------
-
-  val anySequence: Gen[Random with Sized, Schema[Chunk[Any]]] =
+  val anySequence: Gen[Random with Sized, Schema[Chunk[Any]]]   =
     anySchema.map(Schema.chunk(_).asInstanceOf[Schema[Chunk[Any]]])
 
   type SequenceAndGen[A] = (Schema[Chunk[A]], Gen[Random with Sized, Chunk[A]])
