@@ -25,15 +25,7 @@ private[dynamodb] object Encoder {
       case Schema.Tuple(l, r, _)                                                                                                                                                                                                                                                          => tupleEncoder(encoder(l), encoder(r))
       case s: Schema.Sequence[col, a]                                                                                                                                                                                                                                                     => sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
       case Schema.MapSchema(ks, vs, _)                                                                                                                                                                                                                                                    =>
-        ks match {
-          case Schema.Primitive(standardType, _) =>
-            if (isString(standardType))
-              nativeMapEncoder(encoder(vs))
-            else
-              nonNativeMapEncoder(encoder(ks), encoder(vs))
-          case _                                 =>
-            nonNativeMapEncoder(encoder(ks), encoder(vs))
-        }
+        mapEncoder(ks, vs)
       case Schema.Transform(c, _, g, _)                                                                                                                                                                                                                                                   => transformEncoder(c, g)
       case Schema.Primitive(standardType, _)                                                                                                                                                                                                                                              => primitiveEncoder(standardType)
       case Schema.GenericRecord(structure, _)                                                                                                                                                                                                                                             => genericRecordEncoder(structure)
@@ -245,6 +237,17 @@ private[dynamodb] object Encoder {
         case (k, v) =>
           (stringEncoder(k), encoderV(v))
       }.asInstanceOf[Map[AttributeValue.String, AttributeValue]])
+    }
+
+  private def mapEncoder[K, V](ks: Schema[K], vs: Schema[V]): Encoder[Map[K, V]] =
+    ks match {
+      case Schema.Primitive(standardType, _) =>
+        if (isString(standardType))
+          nativeMapEncoder(encoder(vs))
+        else
+          nonNativeMapEncoder(encoder(ks), encoder(vs))
+      case _                                 =>
+        nonNativeMapEncoder(encoder(ks), encoder(vs))
     }
 
   private def nonNativeMapEncoder[A, K, V](encoderK: Encoder[K], encoderV: Encoder[V]): Encoder[A] = {
