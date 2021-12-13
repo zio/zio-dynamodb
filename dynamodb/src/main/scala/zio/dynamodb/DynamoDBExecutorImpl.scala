@@ -211,7 +211,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
         acc ++ ((TableName(tableName), l.flatMap(f)))
     }
 
-  private def doBatchWriteItem(batchWriteItem: BatchWriteItem): ZIO[Clock, Throwable, BatchWriteItemResponse] =
+  private def doBatchWriteItem(batchWriteItem: BatchWriteItem): ZIO[Clock, Throwable, BatchWriteItem.Response] =
     if (batchWriteItem.requestItems.nonEmpty)
       for {
         batchWriteResponse <- dynamoDb
@@ -228,14 +228,14 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
                                 ).delay(batchWriteItem.retryWait)
                               else
                                 ZIO.succeed(
-                                  BatchWriteItemResponse(
+                                  BatchWriteItem.Response(
                                     batchWriteResponse.unprocessedItemsValue.map(m =>
                                       mapOfListToMapOfSet(m)(writeRequestToBatchWrite)
                                     )
                                   )
                                 )
       } yield retryResponse
-    else ZIO.succeed(BatchWriteItemResponse(None))
+    else ZIO.succeed(BatchWriteItem.Response(None))
 
   private def generateBatchWriteItem(batchWriteItem: BatchWriteItem): BatchWriteItemRequest =
     BatchWriteItemRequest(
@@ -395,9 +395,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   ): ScalaMap[String, AttributeValue]                                                                                =
     attrMap.flatMap { case (k, v) => awsAttrValToAttrVal(v).map((k, _)) }
 
-//  private def awsAttrMapToAttrMap(attrMap: ScalaMap[String, ZIOAwsAttributeValue]): ScalaMap[String, AttributeValue] =
-//    attrMap.flatMap { case (k, v) => awsAttrValToAttrVal(v.asReadOnly).map((k, _)) }
-//
   private def generateGetItemRequest(getItem: GetItem): GetItemRequest                                               =
     GetItemRequest(
       tableName = getItem.tableName.value,

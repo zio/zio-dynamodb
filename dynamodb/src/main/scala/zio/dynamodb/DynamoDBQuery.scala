@@ -552,18 +552,14 @@ object DynamoDBQuery {
     )
   }
 
-  final case class BatchWriteItemResponse(
-    unprocessedItems: Option[MapOfSet[TableName, BatchWriteItem.Write]]
-  )
-
   private[dynamodb] final case class BatchWriteItem(
     requestItems: MapOfSet[TableName, BatchWriteItem.Write] = MapOfSet.empty,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     addList: Chunk[BatchWriteItem.Write] = Chunk.empty,
-    retryAttempts: Int = 0,
+    retryAttempts: Int = 5,
     retryWait: Duration = 3.seconds
-  ) extends Constructor[BatchWriteItemResponse] { self =>
+  ) extends Constructor[BatchWriteItem.Response] { self =>
     def +[A](writeItem: Write[A]): BatchWriteItem =
       writeItem match {
         case putItem @ PutItem(_, _, _, _, _, _)       =>
@@ -591,11 +587,21 @@ object DynamoDBQuery {
         case (batch, write) => batch + write
       }
 
+    def withRetryWait(duration: Duration): BatchWriteItem =
+      self.copy(retryWait = duration)
+
+    def withRetryAttempts(attempts: Int): BatchWriteItem =
+      self.copy(retryAttempts = attempts)
+
   }
   private[dynamodb] object BatchWriteItem {
     sealed trait Write
     final case class Delete(key: PrimaryKey) extends Write
     final case class Put(item: Item)         extends Write
+
+    final case class Response(
+      unprocessedItems: Option[MapOfSet[TableName, BatchWriteItem.Write]]
+    )
 
   }
   private[dynamodb] final case class DeleteTable(
