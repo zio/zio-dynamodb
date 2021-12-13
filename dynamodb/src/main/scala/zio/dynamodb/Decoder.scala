@@ -29,7 +29,6 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
         (av: AttributeValue) => dec(av)
       case Schema.Meta(_, _)                                                                                                                                                => astDecoder
       case Schema.MapSchema(ks, vs, _)                                                                                                                                      =>
-        // TODO: think about extracting to a function
         mapDecoder(ks, vs).asInstanceOf[Decoder[A]]
       case s @ Schema.CaseClass1(_, _, _, _)                                                                                                                                => caseClass1Decoder(s)
       case s @ Schema.CaseClass2(_, _, _, _, _, _)                                                                                                                          => caseClass2Decoder(s)
@@ -243,15 +242,14 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
   private def tupleDecoder[A, B](decL: Decoder[A], decR: Decoder[B]): Decoder[(A, B)] =
     (av: AttributeValue) =>
       av match {
-        case AttributeValue.List(list: Seq[AttributeValue])
-            if list.size == 2 => // TODO: did I try to pattern match using :: here?
+        case AttributeValue.List(list: Seq[AttributeValue]) if list.size == 2 =>
           val avA = list(0)
           val avB = list(1)
           for {
             a <- decL(avA)
             b <- decR(avB)
           } yield (a, b)
-        case av =>
+        case av                                                               =>
           Left(s"Expected an AttributeValue.List of two elements but found $av")
       }
 
