@@ -494,7 +494,9 @@ object DynamoDBQuery {
     requestItems: ScalaMap[TableName, BatchGetItem.TableGet] = ScalaMap.empty,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     private[dynamodb] val orderedGetItems: Chunk[GetItem] =
-      Chunk.empty // track order of added GetItems for later unpacking
+      Chunk.empty, // track order of added GetItems for later unpacking
+    retryAttempts: Int = 5,
+    exponentialBackoff: Duration = 30.seconds
   ) extends Constructor[BatchGetItem.Response] { self =>
 
     def +(getItem: GetItem): BatchGetItem = {
@@ -548,7 +550,8 @@ object DynamoDBQuery {
     )
     final case class Response(
       // Note - if a requested item does not exist, it is not returned in the result
-      responses: MapOfSet[TableName, Item] = MapOfSet.empty
+      responses: MapOfSet[TableName, Item] = MapOfSet.empty,
+      unprocessedKeys: ScalaMap[TableName, TableGet] = ScalaMap.empty
     )
   }
 
@@ -558,7 +561,7 @@ object DynamoDBQuery {
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     addList: Chunk[BatchWriteItem.Write] = Chunk.empty,
     retryAttempts: Int = 5,
-    retryWait: Duration = 3.seconds
+    exponentialBackoff: Duration = 30.seconds
   ) extends Constructor[BatchWriteItem.Response] { self =>
     def +[A](writeItem: Write[A]): BatchWriteItem =
       writeItem match {
@@ -569,7 +572,7 @@ object DynamoDBQuery {
             self.itemMetrics,
             self.addList :+ Put(putItem.item),
             self.retryAttempts,
-            self.retryWait
+            self.exponentialBackoff
           )
         case deleteItem @ DeleteItem(_, _, _, _, _, _) =>
           BatchWriteItem(
@@ -578,7 +581,7 @@ object DynamoDBQuery {
             self.itemMetrics,
             self.addList :+ Delete(deleteItem.key),
             self.retryAttempts,
-            self.retryWait
+            self.exponentialBackoff
           )
       }
 
@@ -587,8 +590,8 @@ object DynamoDBQuery {
         case (batch, write) => batch + write
       }
 
-    def withRetryWait(duration: Duration): BatchWriteItem =
-      self.copy(retryWait = duration)
+    def withExponentialBackoff(duration: Duration): BatchWriteItem =
+      self.copy(exponentialBackoff = duration)
 
     def withRetryAttempts(attempts: Int): BatchWriteItem =
       self.copy(retryAttempts = attempts)
@@ -794,7 +797,7 @@ object DynamoDBQuery {
 
       case Succeed(value)     => (Chunk.empty, _ => value())
 
-      case batchGetItem @ BatchGetItem(_, _, _)               =>
+      case batchGetItem @ BatchGetItem(_, _, _, _, _)         =>
         (
           Chunk(batchGetItem),
           (results: Chunk[Any]) => {

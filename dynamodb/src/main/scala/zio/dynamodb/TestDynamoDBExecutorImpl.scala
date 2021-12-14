@@ -16,7 +16,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private (
 
   override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Exception, A] =
     atomicQuery match {
-      case BatchGetItem(requestItemsMap, _, _)                                    =>
+      case BatchGetItem(requestItemsMap, _, _, _, _)                              =>
         val requestItems: Seq[(TableName, TableGet)] = requestItemsMap.toList
 
         val foundItems: IO[DatabaseError, Seq[(TableName, Option[Item])]] =

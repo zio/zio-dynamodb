@@ -59,7 +59,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     constructor match {
       case getItem: GetItem               => doGetItem(getItem)
       case putItem: PutItem               => doPutItem(putItem)
-      case batchGetItem: BatchGetItem     => doBatchGetItem(batchGetItem)
+      case batchGetItem: BatchGetItem     => doBatchGetItem(batchGetItem).provideLayer(Clock.live)
       case batchWriteItem: BatchWriteItem => doBatchWriteItem(batchWriteItem).provideLayer(Clock.live)
       case scanAll: ScanAll               => doScanAll(scanAll)
       case scanSome: ScanSome             => doScanSome(scanSome)
@@ -223,9 +223,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
                                   batchWriteItem.copy(
                                     requestItems = mapOfListToMapOfSet(unprocessedItems)(writeRequestToBatchWrite),
                                     retryAttempts = batchWriteItem.retryAttempts - 1,
-                                    retryWait = batchWriteItem.retryWait.multipliedBy(2)
+                                    exponentialBackoff = batchWriteItem.exponentialBackoff.multipliedBy(2)
                                   )
-                                ).delay(batchWriteItem.retryWait)
+                                ).delay(batchWriteItem.exponentialBackoff)
                               else
                                 ZIO.succeed(
                                   BatchWriteItem.Response(
@@ -331,19 +331,43 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     )
   }
 
-  private def doBatchGetItem(batchGetItem: BatchGetItem): ZIO[Any, Throwable, BatchGetItem.Response] =
+  private def doBatchGetItem(batchGetItem: BatchGetItem): ZIO[Clock, Throwable, BatchGetItem.Response] = {
+    def keysAndAttrsToTableGet(ka: KeysAndAttributes.ReadOnly): Option[TableGet] = {
+      val pe = ka.projectionExpressionValue.map(
+        _.split(",").map(ProjectionExpression.$).toSet
+      ) // TODO(adam): Need a better way to accomplish this
+      val keySet =
+        ka.keysValue.map(m => PrimaryKey(m.flatMap { case (k, v) => awsAttrValToAttrVal(v).map((k, _)) })).toSet
+
+      pe.map(a => TableGet(keySet, a))
+    }
+
     if (batchGetItem.requestItems.isEmpty) ZIO.succeed(BatchGetItem.Response())
     else
-      (for {
-        batchResponse <- dynamoDb.batchGetItem(generateBatchGetItemRequest(batchGetItem))
-        tableItemsMap <- batchResponse.responses
-//        unprocessedItems <- batchResponse.unprocessedKeys
-      } yield BatchGetItem.Response(
-        tableItemsMap.foldLeft(MapOfSet.empty[TableName, Item]) {
-          case (acc, (tableName, list)) =>
-            acc ++ ((TableName(tableName), list.map(toDynamoItem)))
-        }
-      )).mapError(_.toThrowable)
+      for {
+        batchResponse    <- dynamoDb.batchGetItem(generateBatchGetItemRequest(batchGetItem)).mapError(_.toThrowable)
+        tableItemsMap    <- batchResponse.responses.mapError(_.toThrowable)
+        unprocessedItems <- batchResponse.unprocessedKeys.mapError(_.toThrowable)
+        response         <- if (unprocessedItems.nonEmpty && batchGetItem.retryAttempts > 0) {
+                              val nextBatchGet = batchGetItem.copy(
+                                retryAttempts = batchGetItem.retryAttempts - 1,
+                                exponentialBackoff = batchGetItem.exponentialBackoff.multipliedBy(2),
+                                requestItems = unprocessedItems.flatMap {
+                                  case (k, v) => keysAndAttrsToTableGet(v).map(tableGet => (TableName(k), tableGet))
+                                }
+                              )
+                              doBatchGetItem(nextBatchGet).delay(batchGetItem.exponentialBackoff)
+                            } else
+                              ZIO.succeed(
+                                BatchGetItem.Response(
+                                  tableItemsMap.foldLeft(MapOfSet.empty[TableName, Item]) {
+                                    case (acc, (tableName, list)) =>
+                                      acc ++ ((TableName(tableName), list.map(toDynamoItem)))
+                                  }
+                                )
+                              )
+      } yield response
+  }
 
   private def doPutItem(putItem: PutItem): ZIO[Any, Throwable, Unit] =
     dynamoDb.putItem(generatePutItemRequest(putItem)).unit.mapError(_.toThrowable)
