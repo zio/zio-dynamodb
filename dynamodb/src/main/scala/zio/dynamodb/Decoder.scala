@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.schema.Schema.{ Optional, Primitive }
+import zio.schema.Schema.{ Optional, Primitive, Transform }
 import zio.schema.ast.SchemaAst
 import zio.schema.{ FieldSet, Schema, StandardType }
 import zio.{ schema, Chunk }
@@ -301,7 +301,15 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
       }
     }
 
+  val useAlternateEnumEncoding = false
+
   private def enumDecoder[A](cases: Schema.Case[_, A]*): Decoder[A] =
+    if (useAlternateEnumEncoding)
+      enumDecoder2(cases: _*)
+    else
+      enumDecoder1(cases: _*)
+
+  private def enumDecoder1[A](cases: Schema.Case[_, A]*): Decoder[A] =
     (av: AttributeValue) =>
       av match {
         case AttributeValue.Map(map) => // TODO: assume Map is ListMap for now
@@ -318,9 +326,47 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
           Left(s"invalid AttributeValue $av")
       }
 
+  private def enumDecoder2[A](cases: Schema.Case[_, A]*): Decoder[A] = { (av: AttributeValue) =>
+    def decode(fieldIndex: Int, id: String): Either[String, A] =
+      if (fieldIndex > -1) { // TODO factor out
+        val case_ = cases(fieldIndex)
+        val dec   = decoder(case_.codec.asInstanceOf[Schema[Any]])
+        dec(av).map(_.asInstanceOf[A])
+      } else
+        Left(s"type name '$id' not found in schema cases")
+
+    av match {
+      case AttributeValue.String(id) =>
+        if (allCaseObjects(cases)) {
+          val fieldIndex = cases.indexWhere(c => c.id == id)
+          decode(fieldIndex, id)
+        } else
+          Left(s"Error: not all enumeration elements elements are case objects. Found $cases")
+      case AttributeValue.Map(map)   =>
+        map
+          .get(AttributeValue.String("discriminator"))
+          .fold[Either[String, A]](Left(s"map $av does not contain discriminator field 'discriminator'")) {
+            case AttributeValue.String(typeName) =>
+              val fieldIndex = cases.indexWhere(c => c.id == typeName)
+              decode(fieldIndex, typeName)
+            case av                              => Left(s"expected string type but found $av")
+          }
+      case _                         => Left(s"unexpected AttributeValue type $av")
+    }
+  }
+
   private def isString[A](standardType: StandardType[A]): Boolean =
     standardType match {
       case StandardType.StringType => true
       case _                       => false
     }
+
+  private def allCaseObjects[A](cases: Seq[Schema.Case[_, A]]): Boolean =
+    cases.count {
+      case Schema.Case(_, Transform(Primitive(standardType, _), _, _, _), _, _)
+          if standardType.isInstanceOf[StandardType.UnitType.type] =>
+        true
+      case _ =>
+        false
+    } == cases.size
 }

@@ -1,6 +1,7 @@
 package zio.dynamodb
 
 import zio.Chunk
+import zio.schema.Schema.{ Primitive, Transform }
 import zio.schema.ast.SchemaAst
 import zio.schema.{ FieldSet, Schema, StandardType }
 
@@ -133,7 +134,7 @@ private[dynamodb] object Encoder {
     }
 
   private def caseClassEncoder[A](fields: (Schema.Field[_], A => Any)*): Encoder[A] =
-    (a: A) =>
+    (a: A) => {
       fields.foldRight[AttributeValue.Map](AttributeValue.Map(Map.empty)) {
         case ((Schema.Field(key, schema, _), ext), acc) =>
           val enc                 = encoder(schema)
@@ -151,6 +152,7 @@ private[dynamodb] object Encoder {
 
           appendToMap(schema)
       }
+    }
 
   private def primitiveEncoder[A](standardType: StandardType[A]): Encoder[A] =
     standardType match {
@@ -217,7 +219,15 @@ private[dynamodb] object Encoder {
   private def sequenceEncoder[Col, A](encoder: Encoder[A], from: Col => Chunk[A]): Encoder[Col] =
     (col: Col) => AttributeValue.List(from(col).map(encoder))
 
+  val useAlternateEnumEncoding = false
+
   private def enumEncoder[A](cases: Schema.Case[_, A]*): Encoder[A] =
+    if (useAlternateEnumEncoding)
+      enumEncoder2(cases: _*)
+    else
+      enumEncoder1(cases: _*)
+
+  private def enumEncoder1[A](cases: Schema.Case[_, A]*): Encoder[A] =
     (a: A) => {
       val fieldIndex = cases.indexWhere(c => c.deconstruct(a).isDefined)
       if (fieldIndex > -1) {
@@ -228,6 +238,60 @@ private[dynamodb] object Encoder {
       } else
         AttributeValue.Null
     }
+
+  /*
+case Object instance of Case
+Case(ONE,Transform(Primitive(unit,Chunk())),Chunk())
+
+case_ = {EnumSchemas$Case@1023} "Case(ONE,Transform(Primitive(unit,Chunk())),Chunk())"
+ id = "ONE"
+ codec = {Schema$Transform@1289} "Transform(Primitive(unit,Chunk()))"
+  codec = {Schema$Primitive@1294} "Primitive(unit,Chunk())"
+   standardType = {StandardType$UnitType$@1298} "unit"
+    No fields to display
+   annotations = {Chunk$Empty$@1291} "Chunk$Empty$" size = 0
+  f = {Schema$lambda@1295}
+   arg = {Schema$$lambda@1300}
+    arg = {FooEnum2$ONE$@1019} "ONE"
+     No fields to display
+  g = {Schema$lambda@1296}
+   arg = {Schema$$lambda@1301}
+    Class has no fields
+  annotations = {Chunk$Empty$@1291} "Chunk$Empty$" size = 0
+ unsafeDeconstruct = {FooEnum2$OneOf$$lambda@1290}
+ annotations = {Chunk$Empty$@1291} "Chunk$Empty$" size = 0
+   */
+
+  private def enumEncoder2[A](cases: Schema.Case[_, A]*): Encoder[A] =
+    (a: A) => {
+      val fieldIndex = cases.indexWhere(c => c.deconstruct(a).isDefined)
+      if (fieldIndex > -1) {
+        val b     = allCaseObjects(cases)
+        println(b)
+        val case_ = cases(fieldIndex)
+        val enc   = encoder(case_.codec.asInstanceOf[Schema[Any]])
+        val av    = enc(a)
+        av match {
+          case AttributeValue.Map(map) =>
+            AttributeValue.Map(
+              map + (AttributeValue.String("discriminator") -> AttributeValue.String(case_.id))
+            ) // TODO: read name from annotation attached to the schema
+          case AttributeValue.Null     =>
+            if (allCaseObjects(cases))
+              AttributeValue.String(case_.id)
+            else
+              // these are case objects and are a special case - they need to wrapped in an AttributeValue.Map
+              AttributeValue.Map(Map(AttributeValue.String("discriminator") -> AttributeValue.String(case_.id)))
+          case av                      => throw new IllegalStateException(s"unexpected state $av")
+        }
+      } else
+        AttributeValue.Null
+    }
+
+//  private def areAllCaseObjects[A](cases: Seq[Schema.Case[_, A]]): Boolean = {
+//    print(cases)
+//    false
+//  }
 
   private def nativeMapEncoder[A, V](encoderV: Encoder[V]) =
     (a: A) => {
@@ -261,5 +325,14 @@ private[dynamodb] object Encoder {
       case StandardType.StringType => true
       case _                       => false
     }
+
+  private def allCaseObjects[A](cases: Seq[Schema.Case[_, A]]): Boolean =
+    cases.count {
+      case Schema.Case(_, Transform(Primitive(standardType, _), _, _, _), _, _)
+          if standardType.isInstanceOf[StandardType.UnitType.type] =>
+        true
+      case _ =>
+        false
+    } == cases.size
 
 }
