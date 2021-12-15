@@ -14,6 +14,7 @@ import scala.collection.immutable.ListMap
 import scala.util.Try
 
 private[dynamodb] object Codec {
+  private val useAlternateEnumEncoding = false
 
   def encoder[A](schema: Schema[A]): Encoder[A] = Encoder(schema)
 
@@ -227,8 +228,6 @@ private[dynamodb] object Codec {
     private def sequenceEncoder[Col, A](encoder: Encoder[A], from: Col => Chunk[A]): Encoder[Col] =
       (col: Col) => AttributeValue.List(from(col).map(encoder))
 
-    val useAlternateEnumEncoding = false
-
     private def enumEncoder[A](cases: Schema.Case[_, A]*): Encoder[A] =
       if (useAlternateEnumEncoding)
         enumEncoder2(cases: _*)
@@ -296,11 +295,6 @@ private[dynamodb] object Codec {
           AttributeValue.Null
       }
 
-    //  private def areAllCaseObjects[A](cases: Seq[Schema.Case[_, A]]): Boolean = {
-    //    print(cases)
-    //    false
-    //  }
-
     private def nativeMapEncoder[A, V](encoderV: Encoder[V]) =
       (a: A) => {
         val stringEncoder = encoder(Schema[String])        // TODO: move to a higher scope to avoid object allocation
@@ -328,22 +322,7 @@ private[dynamodb] object Codec {
       se.asInstanceOf[Encoder[A]]
     }
 
-    private def isString[A](standardType: StandardType[A]): Boolean =
-      standardType match {
-        case StandardType.StringType => true
-        case _                       => false
-      }
-
-    private def allCaseObjects[A](cases: Seq[Schema.Case[_, A]]): Boolean =
-      cases.count {
-        case Schema.Case(_, Transform(Primitive(standardType, _), _, _, _), _, _)
-            if standardType.isInstanceOf[StandardType.UnitType.type] =>
-          true
-        case _ =>
-          false
-      } == cases.size
-
-  }
+  } // end Encoder
 
   private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
 
@@ -637,8 +616,6 @@ private[dynamodb] object Codec {
         }
       }
 
-    val useAlternateEnumEncoding = false
-
     private def enumDecoder[A](cases: Schema.Case[_, A]*): Decoder[A] =
       if (useAlternateEnumEncoding)
         enumDecoder2(cases: _*)
@@ -691,20 +668,21 @@ private[dynamodb] object Codec {
       }
     }
 
-    private def isString[A](standardType: StandardType[A]): Boolean =
-      standardType match {
-        case StandardType.StringType => true
-        case _                       => false
-      }
+  } // end Decoder
 
-    private def allCaseObjects[A](cases: Seq[Schema.Case[_, A]]): Boolean =
-      cases.count {
-        case Schema.Case(_, Transform(Primitive(standardType, _), _, _, _), _, _)
-            if standardType.isInstanceOf[StandardType.UnitType.type] =>
-          true
-        case _ =>
-          false
-      } == cases.size
-  }
+  private def isString[A](standardType: StandardType[A]): Boolean =
+    standardType match {
+      case StandardType.StringType => true
+      case _                       => false
+    }
 
-}
+  private def allCaseObjects[A](cases: Seq[Schema.Case[_, A]]): Boolean =
+    cases.count {
+      case Schema.Case(_, Transform(Primitive(standardType, _), _, _, _), _, _)
+          if standardType.isInstanceOf[StandardType.UnitType.type] =>
+        true
+      case _ =>
+        false
+    } == cases.size
+
+} // end Codec
