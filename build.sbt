@@ -271,7 +271,7 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
         file,
         s"""package zio.dynamodb
            |
-           |import zio.dynamodb.Decoder.decoder
+           |import zio.dynamodb.Codec.decoder
            |import zio.schema.Schema
            |
            |private[dynamodb] trait GeneratedCaseClassDecoders {

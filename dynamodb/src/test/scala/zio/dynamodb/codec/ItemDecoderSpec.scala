@@ -1,9 +1,8 @@
 package zio.dynamodb.codec
 
-import zio.dynamodb.{ AttrMap, AttributeValue, Decoder, DynamoDBQuery, Item }
-import zio.test.assertTrue
+import zio.dynamodb._
 import zio.test.Assertion._
-import zio.test.{ DefaultRunnableSpec, ZSpec, _ }
+import zio.test._
 
 import java.time.Instant
 import scala.collection.immutable.ListMap
@@ -16,7 +15,7 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
     test("decodes generic record") {
       val expected: Map[String, Any] = ListMap("foo" -> "FOO", "bar" -> 1)
 
-      val actual: Either[String, Map[String, Any]] = Decoder(recordSchema)(
+      val actual: Either[String, Map[String, Any]] = Codec.decoder(recordSchema)(
         AttributeValue.Map(Map(toAvString("foo") -> toAvString("FOO"), toAvString("bar") -> toAvNum(1)))
       )
 
@@ -24,7 +23,7 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
     },
     test("encodes enumeration") {
 
-      val actual = Decoder(enumSchema)(AttributeValue.Map(Map(toAvString("string") -> toAvString("FOO"))))
+      val actual = Codec.decoder(enumSchema)(AttributeValue.Map(Map(toAvString("string") -> toAvString("FOO"))))
 
       assertTrue(actual == Right("FOO"))
     },
