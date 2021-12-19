@@ -29,31 +29,31 @@ private[dynamodb] object Codec {
     def apply[A](schema: Schema[A]): Encoder[A] = encoder(schema)
 
     //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
-    private def encoder[A](schema: Schema[A], parentAnnotations: Chunk[Any] = Chunk.empty): Encoder[A] =
+    private def encoder[A](schema: Schema[A]): Encoder[A] =
       schema match {
-        case s: Schema.Optional[a]                                                                                                                                                                                                                                                          => optionalEncoder[a](encoder(s.codec, Chunk.empty))
+        case s: Schema.Optional[a]                                                                                                                                                                                                                                                          => optionalEncoder[a](encoder(s.codec))
         case Schema.Fail(_, _)                                                                                                                                                                                                                                                              => _ => AttributeValue.Null
-        case Schema.Tuple(l, r, _)                                                                                                                                                                                                                                                          => tupleEncoder(encoder(l, Chunk.empty), encoder(r, Chunk.empty))
-        case s: Schema.Sequence[col, a]                                                                                                                                                                                                                                                     => sequenceEncoder[col, a](encoder(s.schemaA, Chunk.empty), s.toChunk)
+        case Schema.Tuple(l, r, _)                                                                                                                                                                                                                                                          => tupleEncoder(encoder(l), encoder(r))
+        case s: Schema.Sequence[col, a]                                                                                                                                                                                                                                                     => sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
         case Schema.MapSchema(ks, vs, _)                                                                                                                                                                                                                                                    =>
           mapEncoder(ks, vs)
         case Schema.Transform(c, _, g, _)                                                                                                                                                                                                                                                   => transformEncoder(c, g)
         case Schema.Primitive(standardType, _)                                                                                                                                                                                                                                              => primitiveEncoder(standardType)
         case Schema.GenericRecord(structure, _)                                                                                                                                                                                                                                             => genericRecordEncoder(structure)
-        case Schema.EitherSchema(l, r, _)                                                                                                                                                                                                                                                   => eitherEncoder(encoder(l, Chunk.empty), encoder(r, Chunk.empty))
+        case Schema.EitherSchema(l, r, _)                                                                                                                                                                                                                                                   => eitherEncoder(encoder(l), encoder(r))
         case l @ Schema.Lazy(_)                                                                                                                                                                                                                                                             =>
-          lazy val enc = encoder(l.schema, parentAnnotations)
+          lazy val enc = encoder(l.schema)
           (a: A) => enc(a)
         case Schema.Meta(_, _)                                                                                                                                                                                                                                                              => astEncoder
-        case Schema.CaseClass1(f, _, ext, annotations)                                                                                                                                                                                                                                      =>
-          caseClassEncoder(annotations ++ parentAnnotations, f -> ext)
-        case Schema.CaseClass2(f1, f2, _, ext1, ext2, annotations)                                                                                                                                                                                                                          =>
-          caseClassEncoder(annotations ++ parentAnnotations, f1 -> ext1, f2 -> ext2)
+        case Schema.CaseClass1(f, _, ext, _)                                                                                                                                                                                                                                                =>
+          caseClassEncoder(f -> ext)
+        case Schema.CaseClass2(f1, f2, _, ext1, ext2, _)                                                                                                                                                                                                                                    =>
+          caseClassEncoder(f1 -> ext1, f2 -> ext2)
         case Schema.CaseClass3(f1, f2, f3, _, ext1, ext2, ext3, _)                                                                                                                                                                                                                          => caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3)
         case Schema.CaseClass4(f1, f2, f3, f4, _, ext1, ext2, ext3, ext4, _)                                                                                                                                                                                                                =>
           caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4)
-        case Schema.CaseClass5(f1, f2, f3, f4, f5, _, ext1, ext2, ext3, ext4, ext5, annotations)                                                                                                                                                                                            =>
-          caseClassEncoder(annotations ++ parentAnnotations, f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4, f5 -> ext5)
+        case Schema.CaseClass5(f1, f2, f3, f4, f5, _, ext1, ext2, ext3, ext4, ext5, _)                                                                                                                                                                                                      =>
+          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4, f5 -> ext5)
         case Schema.CaseClass6(f1, f2, f3, f4, f5, f6, _, ext1, ext2, ext3, ext4, ext5, ext6, _)                                                                                                                                                                                            =>
           caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4, f5 -> ext5, f6 -> ext6)
         case Schema.CaseClass7(f1, f2, f3, f4, f5, f6, f7, _, ext1, ext2, ext3, ext4, ext5, ext6, ext7, _)                                                                                                                                                                                  =>
@@ -90,15 +90,15 @@ private[dynamodb] object Codec {
         case Schema.CaseClass22(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, _, ext1, ext2, ext3, ext4, ext5, ext6, ext7, ext8, ext9, ext10, ext11, ext12, ext13, ext14, ext15, ext16, ext17, ext18, ext19, ext20, ext21, ext22, _) =>
           caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4, f5 -> ext5, f6 -> ext6, f7 -> ext7, f8 -> ext8, f9 -> ext9, f10 -> ext10, f11 -> ext11, f12 -> ext12, f13 -> ext13, f14 -> ext14, f15 -> ext15, f16 -> ext16, f17 -> ext17, f18 -> ext18, f19 -> ext19, f20 -> ext20, f21 -> ext21, f22 -> ext22)
         case Schema.Enum1(c, annotations)                                                                                                                                                                                                                                                   =>
-          enumEncoder(annotations ++ parentAnnotations, c)
+          enumEncoder(annotations, c)
         case Schema.Enum2(c1, c2, annotations)                                                                                                                                                                                                                                              =>
-          enumEncoder(annotations ++ parentAnnotations, c1, c2)
+          enumEncoder(annotations, c1, c2)
         case Schema.Enum3(c1, c2, c3, annotations)                                                                                                                                                                                                                                          =>
-          enumEncoder(annotations ++ parentAnnotations, c1, c2, c3)
+          enumEncoder(annotations, c1, c2, c3)
         case Schema.Enum4(c1, c2, c3, c4, annotations)                                                                                                                                                                                                                                      =>
-          enumEncoder(annotations ++ parentAnnotations, c1, c2, c3, c4)
+          enumEncoder(annotations, c1, c2, c3, c4)
         case Schema.Enum5(c1, c2, c3, c4, c5, annotations)                                                                                                                                                                                                                                  =>
-          enumEncoder(annotations ++ parentAnnotations, c1, c2, c3, c4, c5)
+          enumEncoder(annotations, c1, c2, c3, c4, c5)
         case Schema.Enum6(c1, c2, c3, c4, c5, c6, _)                                                                                                                                                                                                                                        => enumEncoder(c1, c2, c3, c4, c5, c6)
         case Schema.Enum7(c1, c2, c3, c4, c5, c6, c7, _)                                                                                                                                                                                                                                    => enumEncoder(c1, c2, c3, c4, c5, c6, c7)
         case Schema.Enum8(c1, c2, c3, c4, c5, c6, c7, c8, _)                                                                                                                                                                                                                                => enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8)
@@ -151,16 +151,13 @@ private[dynamodb] object Codec {
       }
 
     private def caseClassEncoder[A](fields: (Schema.Field[_], A => Any)*): Encoder[A] =
-      caseClassEncoder(Chunk.empty, fields: _*)
-
-    private def caseClassEncoder[A](parentAnnotations: Chunk[Any], fields: (Schema.Field[_], A => Any)*): Encoder[A] =
       (a: A) => {
         fields.foldRight[AttributeValue.Map](AttributeValue.Map(Map.empty)) {
           case ((Schema.Field(key, schema, annotations), ext), acc) => // TODO: forward annotations somehow?
             println(
-              s"caseClassEncoder.annotations=${annotations ++ parentAnnotations} ${schema}"
+              s"caseClassEncoder.annotations=${annotations} ${schema}"
             )
-            val enc                 = encoder(schema, annotations ++ parentAnnotations)
+            val enc                 = encoder(schema)
             val extractedFieldValue = ext(a)
             val av                  = enc(extractedFieldValue)
 
