@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.AnnotaionExperiment.discriminator
+import zio.dynamodb.Annotations.discriminator
 import zio.{ schema, Chunk }
 import zio.schema.Schema.{ Optional, Primitive, Transform }
 import zio.schema.{ FieldSet, Schema, StandardType }
@@ -15,7 +15,6 @@ import scala.collection.immutable.ListMap
 import scala.util.Try
 
 private[dynamodb] object Codec {
-  private val useAlternateEnumEncoding = false
 
   def encoder[A](schema: Schema[A]): Encoder[A] = Encoder(schema)
 
@@ -153,10 +152,7 @@ private[dynamodb] object Codec {
     private def caseClassEncoder[A](fields: (Schema.Field[_], A => Any)*): Encoder[A] =
       (a: A) => {
         fields.foldRight[AttributeValue.Map](AttributeValue.Map(Map.empty)) {
-          case ((Schema.Field(key, schema, annotations), ext), acc) => // TODO: forward annotations somehow?
-            println(
-              s"caseClassEncoder.annotations=${annotations} ${schema}"
-            )
+          case ((Schema.Field(key, schema, _), ext), acc) =>
             val enc                 = encoder(schema)
             val extractedFieldValue = ext(a)
             val av                  = enc(extractedFieldValue)
@@ -242,7 +238,7 @@ private[dynamodb] object Codec {
     private def enumEncoder[A](cases: Schema.Case[_, A]*): Encoder[A] = enumEncoder[A](Chunk.empty, cases: _*)
 
     private def enumEncoder[A](annotations: Chunk[Any], cases: Schema.Case[_, A]*): Encoder[A] =
-      if (useAlternateEnumEncoding) // annotations.size > 0 TODO: refine switching criteria
+      if (isAlternateSumTypeCodec(annotations))
         enumEncoder2(discriminator(annotations), cases: _*)
       else
         enumEncoder1(cases: _*)
@@ -258,29 +254,6 @@ private[dynamodb] object Codec {
         } else
           AttributeValue.Null
       }
-
-    /*
-  case Object instance of Case
-  Case(ONE,Transform(Primitive(unit,Chunk())),Chunk())
-
-  case_ = {EnumSchemas$Case@1023} "Case(ONE,Transform(Primitive(unit,Chunk())),Chunk())"
-   id = "ONE"
-   codec = {Schema$Transform@1289} "Transform(Primitive(unit,Chunk()))"
-    codec = {Schema$Primitive@1294} "Primitive(unit,Chunk())"
-     standardType = {StandardType$UnitType$@1298} "unit"
-      No fields to display
-     annotations = {Chunk$Empty$@1291} "Chunk$Empty$" size = 0
-    f = {Schema$lambda@1295}
-     arg = {Schema$$lambda@1300}
-      arg = {FooEnum2$ONE$@1019} "ONE"
-       No fields to display
-    g = {Schema$lambda@1296}
-     arg = {Schema$$lambda@1301}
-      Class has no fields
-    annotations = {Chunk$Empty$@1291} "Chunk$Empty$" size = 0
-   unsafeDeconstruct = {FooEnum2$OneOf$$lambda@1290}
-   annotations = {Chunk$Empty$@1291} "Chunk$Empty$" size = 0
-     */
 
     private def enumEncoder2[A](discriminator: String, cases: Schema.Case[_, A]*): Encoder[A] =
       (a: A) => {
@@ -392,7 +365,7 @@ private[dynamodb] object Codec {
         case s @ Schema.CaseClass22(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
           caseClass22Decoder(s)
         case Schema.Enum1(c, _)                                                                                                                                               => enumDecoder(c)
-        case Schema.Enum2(c1, c2, _)                                                                                                                                          => enumDecoder(c1, c2)
+        case Schema.Enum2(c1, c2, annotations)                                                                                                                                => enumDecoder(annotations, c1, c2)
         case Schema.Enum3(c1, c2, c3, _)                                                                                                                                      => enumDecoder(c1, c2, c3)
         case Schema.Enum4(c1, c2, c3, c4, _)                                                                                                                                  => enumDecoder(c1, c2, c3, c4)
         case Schema.Enum5(c1, c2, c3, c4, c5, _)                                                                                                                              => enumDecoder(c1, c2, c3, c4, c5)
@@ -623,9 +596,11 @@ private[dynamodb] object Codec {
         }
       }
 
-    private def enumDecoder[A](cases: Schema.Case[_, A]*): Decoder[A] =
-      if (useAlternateEnumEncoding)
-        enumDecoder2(cases: _*)
+    private def enumDecoder[A](cases: Schema.Case[_, A]*): Decoder[A] = enumDecoder(Chunk.empty, cases: _*)
+
+    private def enumDecoder[A](annotations: Chunk[Any], cases: Schema.Case[_, A]*): Decoder[A] =
+      if (isAlternateSumTypeCodec(annotations))
+        enumDecoder2(discriminator(annotations), cases: _*)
       else
         enumDecoder1(cases: _*)
 
@@ -646,33 +621,34 @@ private[dynamodb] object Codec {
             Left(s"invalid AttributeValue $av")
         }
 
-    private def enumDecoder2[A](cases: Schema.Case[_, A]*): Decoder[A] = { (av: AttributeValue) =>
-      def decode(fieldIndex: Int, id: String): Either[String, A] =
-        if (fieldIndex > -1) {
-          val case_ = cases(fieldIndex)
-          val dec   = decoder(case_.codec.asInstanceOf[Schema[Any]])
-          dec(av).map(_.asInstanceOf[A])
-        } else
-          Left(s"type name '$id' not found in schema cases")
-
-      av match {
-        case AttributeValue.String(id) =>
-          if (allCaseObjects(cases)) {
-            val fieldIndex = cases.indexWhere(c => c.id == id)
-            decode(fieldIndex, id)
+    private def enumDecoder2[A](discriminator: String, cases: Schema.Case[_, A]*): Decoder[A] = {
+      (av: AttributeValue) =>
+        def decode(fieldIndex: Int, id: String): Either[String, A] =
+          if (fieldIndex > -1) {
+            val case_ = cases(fieldIndex)
+            val dec   = decoder(case_.codec.asInstanceOf[Schema[Any]])
+            dec(av).map(_.asInstanceOf[A])
           } else
-            Left(s"Error: not all enumeration elements elements are case objects. Found $cases")
-        case AttributeValue.Map(map)   =>
-          map
-            .get(AttributeValue.String("discriminator"))
-            .fold[Either[String, A]](Left(s"map $av does not contain discriminator field 'discriminator'")) {
-              case AttributeValue.String(typeName) =>
-                val fieldIndex = cases.indexWhere(c => c.id == typeName)
-                decode(fieldIndex, typeName)
-              case av                              => Left(s"expected string type but found $av")
-            }
-        case _                         => Left(s"unexpected AttributeValue type $av")
-      }
+            Left(s"type name '$id' not found in schema cases")
+
+        av match {
+          case AttributeValue.String(id) =>
+            if (allCaseObjects(cases)) {
+              val fieldIndex = cases.indexWhere(c => c.id == id)
+              decode(fieldIndex, id)
+            } else
+              Left(s"Error: not all enumeration elements elements are case objects. Found $cases")
+          case AttributeValue.Map(map)   =>
+            map
+              .get(AttributeValue.String(discriminator))
+              .fold[Either[String, A]](Left(s"map $av does not contain discriminator field 'discriminator'")) {
+                case AttributeValue.String(typeName) =>
+                  val fieldIndex = cases.indexWhere(c => c.id == typeName)
+                  decode(fieldIndex, typeName)
+                case av                              => Left(s"expected string type but found $av")
+              }
+          case _                         => Left(s"unexpected AttributeValue type $av")
+        }
     }
 
   } // end Decoder
@@ -699,5 +675,7 @@ private[dynamodb] object Codec {
       case _                        =>
         "discriminator"
     }
+
+  private def isAlternateSumTypeCodec(annotations: Chunk[Any]): Boolean = annotations.size > 0 // TODO: refine
 
 } // end Codec
