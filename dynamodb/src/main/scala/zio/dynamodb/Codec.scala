@@ -98,40 +98,44 @@ private[dynamodb] object Codec {
           enumEncoder(annotations, c1, c2, c3, c4)
         case Schema.Enum5(c1, c2, c3, c4, c5, annotations)                                                                                                                                                                                                                                  =>
           enumEncoder(annotations, c1, c2, c3, c4, c5)
-        case Schema.Enum6(c1, c2, c3, c4, c5, c6, _)                                                                                                                                                                                                                                        => enumEncoder(c1, c2, c3, c4, c5, c6)
-        case Schema.Enum7(c1, c2, c3, c4, c5, c6, c7, _)                                                                                                                                                                                                                                    => enumEncoder(c1, c2, c3, c4, c5, c6, c7)
-        case Schema.Enum8(c1, c2, c3, c4, c5, c6, c7, c8, _)                                                                                                                                                                                                                                => enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8)
-        case Schema.Enum9(c1, c2, c3, c4, c5, c6, c7, c8, c9, _)                                                                                                                                                                                                                            => enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9)
-        case Schema.Enum10(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, _)                                                                                                                                                                                                                      =>
-          enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10)
-        case Schema.Enum11(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, _)                                                                                                                                                                                                                 =>
-          enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11)
-        case Schema.Enum12(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, _)                                                                                                                                                                                                            =>
-          enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12)
-        case Schema.Enum13(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, _)                                                                                                                                                                                                       =>
-          enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13)
-        case Schema.Enum14(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, _)                                                                                                                                                                                                  =>
-          enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14)
-        case Schema.Enum15(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, _)                                                                                                                                                                                             =>
-          enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15)
-        case Schema.Enum16(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, _)                                                                                                                                                                                        =>
-          enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16)
-        case Schema.Enum17(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, _)                                                                                                                                                                                   =>
-          enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17)
-        case Schema.Enum18(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, _)                                                                                                                                                                              =>
-          enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18)
-        case Schema.Enum19(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, _)                                                                                                                                                                         =>
-          enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19)
+        case Schema.Enum6(c1, c2, c3, c4, c5, c6, annotations)                                                                                                                                                                                                                              =>
+          enumEncoder(annotations, c1, c2, c3, c4, c5, c6)
+        case Schema.Enum7(c1, c2, c3, c4, c5, c6, c7, annotations)                                                                                                                                                                                                                          =>
+          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7)
+        case Schema.Enum8(c1, c2, c3, c4, c5, c6, c7, c8, annotations)                                                                                                                                                                                                                      =>
+          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8)
+        case Schema.Enum9(c1, c2, c3, c4, c5, c6, c7, c8, c9, annotations)                                                                                                                                                                                                                  =>
+          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9)
+        case Schema.Enum10(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, annotations)                                                                                                                                                                                                            =>
+          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10)
+        case Schema.Enum11(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, annotations)                                                                                                                                                                                                       =>
+          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11)
+        case Schema.Enum12(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, annotations)                                                                                                                                                                                                  =>
+          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12)
+        case Schema.Enum13(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, annotations)                                                                                                                                                                                             =>
+          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13)
+        case Schema.Enum14(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, annotations)                                                                                                                                                                                        =>
+          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14)
+        case Schema.Enum15(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, annotations)                                                                                                                                                                                   =>
+          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15)
+        case Schema.Enum16(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, annotations)                                                                                                                                                                              =>
+          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16)
+        case Schema.Enum17(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, annotations)                                                                                                                                                                         =>
+          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17)
+        case Schema.Enum18(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, annotations)                                                                                                                                                                    =>
+          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18)
+        case Schema.Enum19(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, annotations)                                                                                                                                                               =>
+          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19)
         case Schema
-              .Enum20(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, _) =>
-          enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20)
+              .Enum20(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, annotations) =>
+          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20)
         case Schema
-              .Enum21(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, _) =>
-          enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21)
-        case Schema.Enum22(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, _)                                                                                                                                                          =>
-          enumEncoder(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22)
-        case Schema.EnumN(cs, _)                                                                                                                                                                                                                                                            =>
-          enumEncoder(cs.toSeq: _*)
+              .Enum21(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, annotations) =>
+          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21)
+        case Schema.Enum22(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, annotations)                                                                                                                                                =>
+          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22)
+        case Schema.EnumN(cs, annotations)                                                                                                                                                                                                                                                  =>
+          enumEncoder(annotations, cs.toSeq: _*)
       }
     //scalafmt: { maxColumn = 120, optIn.configStyleArguments = true }
 
@@ -234,8 +238,6 @@ private[dynamodb] object Codec {
 
     private def sequenceEncoder[Col, A](encoder: Encoder[A], from: Col => Chunk[A]): Encoder[Col] =
       (col: Col) => AttributeValue.List(from(col).map(encoder))
-
-    private def enumEncoder[A](cases: Schema.Case[_, A]*): Encoder[A] = enumEncoder[A](Chunk.empty, cases: _*)
 
     private def enumEncoder[A](annotations: Chunk[Any], cases: Schema.Case[_, A]*): Encoder[A] =
       if (isAlternateSumTypeCodec(annotations))
