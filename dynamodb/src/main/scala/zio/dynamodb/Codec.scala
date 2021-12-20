@@ -22,6 +22,7 @@ private[dynamodb] object Codec {
 
   private[dynamodb] object Encoder {
 
+    private val stringEncoder = encoder(Schema[String])
     private val yearFormatter =
       new DateTimeFormatterBuilder().appendValue(YEAR, 4, 10, SignStyle.EXCEEDS_PAD).toFormatter
 
@@ -240,12 +241,12 @@ private[dynamodb] object Codec {
       (col: Col) => AttributeValue.List(from(col).map(encoder))
 
     private def enumEncoder[A](annotations: Chunk[Any], cases: Schema.Case[_, A]*): Encoder[A] =
-      if (isAlternateSumTypeCodec(annotations))
-        enumEncoder2(discriminator(annotations), cases: _*)
+      if (isAlternateEnumCodec(annotations))
+        alternateEnumEncoder(discriminator(annotations), cases: _*)
       else
-        enumEncoder1(cases: _*)
+        defaultEnumEncoder(cases: _*)
 
-    private def enumEncoder1[A](cases: Schema.Case[_, A]*): Encoder[A] =
+    private def defaultEnumEncoder[A](cases: Schema.Case[_, A]*): Encoder[A] =
       (a: A) => {
         val fieldIndex = cases.indexWhere(c => c.deconstruct(a).isDefined)
         if (fieldIndex > -1) {
@@ -257,7 +258,7 @@ private[dynamodb] object Codec {
           AttributeValue.Null
       }
 
-    private def enumEncoder2[A](discriminator: String, cases: Schema.Case[_, A]*): Encoder[A] =
+    private def alternateEnumEncoder[A](discriminator: String, cases: Schema.Case[_, A]*): Encoder[A] =
       (a: A) => {
         val fieldIndex = cases.indexWhere(c => c.deconstruct(a).isDefined)
         if (fieldIndex > -1) {
@@ -293,8 +294,7 @@ private[dynamodb] object Codec {
 
     private def nativeMapEncoder[A, V](encoderV: Encoder[V]) =
       (a: A) => {
-        val stringEncoder = encoder(Schema[String])        // TODO: move to a higher scope to avoid object allocation
-        val m             = a.asInstanceOf[Map[String, V]] // TODO: this is pretty nasty
+        val m = a.asInstanceOf[Map[String, V]]
         AttributeValue.Map(m.map {
           case (k, v) =>
             (stringEncoder(k), encoderV(v))
@@ -597,19 +597,19 @@ private[dynamodb] object Codec {
       (av: AttributeValue) => {
         av match {
           case AttributeValue.List(listOfAv) =>
-            val x: Either[String, Iterable[(A, B)]] = EitherUtil.forEach(listOfAv) {
+            val errorOrListOfTuple = EitherUtil.forEach(listOfAv) {
               case avList @ AttributeValue.List(_) =>
                 tupleDecoder(decA, decB)(avList)
               case av                              =>
                 Left(s"Error: expected AttributeValue.List but found $av")
             }
-            x.map(Map.from)
+            errorOrListOfTuple.map(Map.from)
           case av                            => Left(s"Error: expected AttributeValue.List but found $av")
         }
       }
 
     private def enumDecoder[A](annotations: Chunk[Any], cases: Schema.Case[_, A]*): Decoder[A] =
-      if (isAlternateSumTypeCodec(annotations))
+      if (isAlternateEnumCodec(annotations))
         enumDecoder2(discriminator(annotations), cases: _*)
       else
         enumDecoder1(cases: _*)
@@ -686,6 +686,6 @@ private[dynamodb] object Codec {
         "discriminator"
     }
 
-  private def isAlternateSumTypeCodec(annotations: Chunk[Any]): Boolean = annotations.size > 0 // TODO: refine
+  private def isAlternateEnumCodec(annotations: Chunk[Any]): Boolean = annotations.size > 0 // TODO: refine
 
 } // end Codec
