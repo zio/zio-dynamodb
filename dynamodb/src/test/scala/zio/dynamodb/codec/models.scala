@@ -1,5 +1,8 @@
 package zio.dynamodb.codec
 
+import zio.dynamodb.Annotations.{ constantValue, discriminator }
+import zio.schema.DeriveSchema
+
 import java.time.Instant
 
 // ADT example
@@ -35,3 +38,22 @@ final case class CaseClassOfStatus(status: Status)
 final case class CaseClassOfMapOfInt(map: Map[String, Int])
 
 final case class CaseClassOfTuple2(tuple2: (String, Int))
+
+@discriminator(name = "funkyDiscriminator")
+sealed trait EnumWithDiscriminator
+
+final case class WithDiscriminatedEnum(enum: EnumWithDiscriminator)
+object WithDiscriminatedEnum {
+  final case class StringValue(value: String) extends EnumWithDiscriminator
+  final case class IntValue(value: Int)       extends EnumWithDiscriminator
+  implicit val schema = DeriveSchema.gen[WithDiscriminatedEnum]
+}
+@constantValue
+sealed trait CaseObjectOnlyEnum
+
+final case class WithCaseObjectOnlyEnum(enum: CaseObjectOnlyEnum)
+object WithCaseObjectOnlyEnum {
+  case object ONE extends CaseObjectOnlyEnum
+  case object TWO extends CaseObjectOnlyEnum
+  implicit val schema = DeriveSchema.gen[WithCaseObjectOnlyEnum]
+}

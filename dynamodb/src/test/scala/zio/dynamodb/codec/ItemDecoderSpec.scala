@@ -148,6 +148,30 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
       val actual = DynamoDBQuery.fromItem[CaseClassOfListOfCaseClass](item)
 
       assert(actual)(isRight(equalTo(expected)))
+    },
+    test("decodes enum with discriminator annotation") {
+      val item: Item =
+        Item(
+          Map(
+            "enum" -> AttributeValue.Map(
+              Map(
+                AttributeValue.String("value")              -> AttributeValue.String("foobar"),
+                AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("StringValue")
+              )
+            )
+          )
+        )
+
+      val actual = DynamoDBQuery.fromItem[WithDiscriminatedEnum](item)
+
+      assert(actual)(isRight(equalTo(WithDiscriminatedEnum(WithDiscriminatedEnum.StringValue("foobar")))))
+    },
+    test("decodes case object only enum with constValue annotation") {
+      val item: Item = Item(Map("enum" -> AttributeValue.String("ONE")))
+
+      val actual = DynamoDBQuery.fromItem[WithCaseObjectOnlyEnum](item)
+
+      assert(actual)(isRight(equalTo(WithCaseObjectOnlyEnum(WithCaseObjectOnlyEnum.ONE))))
     }
   )
 

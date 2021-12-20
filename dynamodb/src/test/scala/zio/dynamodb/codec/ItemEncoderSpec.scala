@@ -1,6 +1,7 @@
 package zio.dynamodb.codec
 
 import zio.dynamodb._
+import zio.dynamodb.codec.WithCaseObjectOnlyEnum.ONE
 import zio.test.Assertion._
 import zio.test._
 
@@ -117,6 +118,30 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
       val expectedItem: Item = Item("elements" -> List(Item("id" -> 1, "name" -> "Avi", "flag" -> true)))
 
       val item = DynamoDBQuery.toItem(CaseClassOfListOfCaseClass(List(SimpleCaseClass3(1, "Avi", flag = true))))
+
+      assert(item)(equalTo(expectedItem))
+    },
+    test("encodes enum with discriminator annotation") {
+      val expectedItem: Item =
+        Item(
+          Map(
+            "enum" -> AttributeValue.Map(
+              Map(
+                AttributeValue.String("value")              -> AttributeValue.String("foobar"),
+                AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("StringValue")
+              )
+            )
+          )
+        )
+
+      val item = DynamoDBQuery.toItem(WithDiscriminatedEnum(WithDiscriminatedEnum.StringValue("foobar")))
+
+      assert(item)(equalTo(expectedItem))
+    },
+    test("encodes case object only enum with constValue annotation") {
+      val expectedItem: Item = Item(Map("enum" -> AttributeValue.String("ONE")))
+
+      val item = DynamoDBQuery.toItem(WithCaseObjectOnlyEnum(ONE))
 
       assert(item)(equalTo(expectedItem))
     }
