@@ -49,8 +49,10 @@ object LiveExecutorSpec extends DefaultRunnableSpec {
         TableName(mockBatches),
         BatchWriteItem.Put(itemOne)
       )
-    )
-  ).withExponentialBackoff(0.seconds)
+    ),
+    exponentialBackoff = 0.seconds,
+    retryAttempts = 1
+  )
 
   private val firstWriteRequest =
     zio.dynamodb.DynamoDBExecutorImpl.generateBatchWriteItem(
@@ -132,7 +134,7 @@ object LiveExecutorSpec extends DefaultRunnableSpec {
         ).asReadOnly
       )
     )
-    .atMost(6)
+    .atMost(2)
 
   private val batchWriteSuite =
     suite("retry batch writes")(
