@@ -110,7 +110,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case ZIOAwsTableStatus.INACCESSIBLE_ENCRYPTION_CREDENTIALS => TableStatus.InaccessibleEncryptionCredentials
       case ZIOAwsTableStatus.ARCHIVING                           => TableStatus.Archiving
       case ZIOAwsTableStatus.ARCHIVED                            => TableStatus.Archived
-      case ZIOAwsTableStatus.unknownToSdkVersion                 => ??? // What to do about this one?
+      case ZIOAwsTableStatus.unknownToSdkVersion                 => TableStatus.unknownToSdkVersion
     }
 
   private def generateDeleteItemRequest(deleteItem: DeleteItem): DeleteItemRequest =

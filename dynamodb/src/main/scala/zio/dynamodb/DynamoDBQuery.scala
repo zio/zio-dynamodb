@@ -636,6 +636,7 @@ object DynamoDBQuery {
     case object InaccessibleEncryptionCredentials extends TableStatus
     case object Archiving                         extends TableStatus
     case object Archived                          extends TableStatus
+    case object unknownToSdkVersion               extends TableStatus
   }
 
   // TODO(adam): Add more fields here, this was for some basic testing initially
