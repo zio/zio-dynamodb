@@ -2,19 +2,24 @@ package zio.dynamodb
 
 import scala.collection.immutable.{ Map => ScalaMap }
 import io.github.vigoo.zioaws.dynamodb
-import io.github.vigoo.zioaws.dynamodb.model.BatchGetItemResponse
+import io.github.vigoo.zioaws.dynamodb.model.{ BatchGetItemResponse, BatchWriteItemResponse }
 import zio.ULayer
-import zio.dynamodb.DynamoDBQuery.{ forEach, getItem, BatchGetItem }
+import zio.duration._
+import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem }
 import zio.test.Assertion.equalTo
 import zio.test.mock.Expectation.value
 import zio.test._
 
 object LiveExecutorSpec extends DefaultRunnableSpec {
   override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
-    otherSuite.provideLayer(mockedBatchGet >>> DynamoDBExecutor.live)
+    suite("batch retries")(
+      batchGetSuite.provideLayer(mockedBatchGet >>> DynamoDBExecutor.live),
+      batchWriteSuite.provideLayer(mockedBatchWrite >>> DynamoDBExecutor.live)
+    )
 
-  private val mockBatches  = "mockBatches"
-  private val firstRequest =
+  private val mockBatches     = "mockBatches"
+  private val itemOne         = Item("k1" -> "v1")
+  private val firstGetRequest =
     zio.dynamodb.DynamoDBExecutorImpl.generateBatchGetItemRequest(
       BatchGetItem(
         ScalaMap(
@@ -26,7 +31,7 @@ object LiveExecutorSpec extends DefaultRunnableSpec {
       )
     )
 
-  private val retryRequest =
+  private val retryGetRequest =
     zio.dynamodb.DynamoDBExecutorImpl.generateBatchGetItemRequest(
       BatchGetItem(
         ScalaMap(
@@ -38,9 +43,23 @@ object LiveExecutorSpec extends DefaultRunnableSpec {
       )
     )
 
+  private val batchWriteRequest = BatchWriteItem(
+    MapOfSet.empty[TableName, BatchWriteItem.Write] + (
+      (
+        TableName(mockBatches),
+        BatchWriteItem.Put(itemOne)
+      )
+    )
+  ).withExponentialBackoff(0.seconds)
+
+  private val firstWriteRequest =
+    zio.dynamodb.DynamoDBExecutorImpl.generateBatchWriteItem(
+      batchWriteRequest
+    )
+
   private val mockedBatchGet: ULayer[io.github.vigoo.zioaws.dynamodb.DynamoDb] = dynamodb.DynamoDb.DynamoDbMock
     .BatchGetItem(
-      equalTo(firstRequest),
+      equalTo(firstGetRequest),
       value(
         BatchGetItemResponse(
           responses = Some(
@@ -61,7 +80,7 @@ object LiveExecutorSpec extends DefaultRunnableSpec {
       )
     ) ++ dynamodb.DynamoDb.DynamoDbMock
     .BatchGetItem(
-      equalTo(retryRequest),
+      equalTo(retryGetRequest),
       value(
         BatchGetItemResponse(
           responses = Some(
@@ -79,15 +98,62 @@ object LiveExecutorSpec extends DefaultRunnableSpec {
       )
     )
 
-  private val otherSuite =
-    suite("with mocks")(
+  private val batchGetSuite =
+    suite("retry batch gets")(
       testM("should retry when there are unprocessed keys") {
         for {
-          response <- forEach(1 to 2) { i =>
-                        getItem(mockBatches, PrimaryKey("k1" -> s"v$i"))
-                      }.execute
-
-        } yield assert(response)(equalTo(List(Some(Item("k1" -> "v1")), Some(Item("k1" -> "v2", "k2" -> "v23")))))
+          response <- BatchGetItem(
+                        requestItems = ScalaMap(
+                          TableName(mockBatches) -> BatchGetItem.TableGet(
+                            Set(PrimaryKey("k1" -> "v1"), PrimaryKey("k1" -> "v2")),
+                            Set.empty
+                          )
+                        ),
+                        exponentialBackoff = 0.seconds
+                      ).execute
+        } yield assert(response.responses.get(TableName(mockBatches)))(
+          equalTo(Some(Set(itemOne, Item("k1" -> "v2", "k2" -> "v23"))))
+        )
       }
     )
+
+  private val mockedBatchWrite: ULayer[io.github.vigoo.zioaws.dynamodb.DynamoDb] = dynamodb.DynamoDb.DynamoDbMock
+    .BatchWriteItem(
+      equalTo(firstWriteRequest),
+      value(
+        BatchWriteItemResponse(
+          unprocessedItems = Some(
+            ScalaMap(
+              mockBatches -> Set(
+                DynamoDBExecutorImpl.batchItemWriteToZIOAwsWriteRequest(BatchWriteItem.Put(itemOne))
+              )
+            )
+          )
+        ).asReadOnly
+      )
+    )
+    .atMost(6)
+
+  private val batchWriteSuite =
+    suite("retry batch writes")(
+      testM("should retry when there are unprocessed items") {
+        for {
+          response <- batchWriteRequest.execute
+
+        } yield assert(response.unprocessedItems)(
+          equalTo(
+            Some(
+              MapOfSet
+                .empty[TableName, BatchWriteItem.Write] + (
+                (
+                  TableName(mockBatches),
+                  BatchWriteItem.Put(itemOne)
+                )
+              )
+            )
+          )
+        )
+      }
+    )
+
 }

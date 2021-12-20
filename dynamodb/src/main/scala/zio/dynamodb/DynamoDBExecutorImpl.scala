@@ -219,11 +219,11 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     if (batchWriteItem.requestItems.nonEmpty)
       for {
         batchWriteResponse <- dynamoDb
-                                .batchWriteItem(generateBatchWriteItem(batchWriteItem))
+                                .batchWriteItem(DynamoDBExecutorImpl.generateBatchWriteItem(batchWriteItem))
                                 .mapError(_.toThrowable)
         unprocessedItems   <- batchWriteResponse.unprocessedItems.mapBoth(
                                 _.toThrowable,
-                                map => mapOfListToMapOfSet(map)(writeRequestToBatchWrite)
+                                map => mapOfListToMapOfSet(map)(DynamoDBExecutorImpl.writeRequestToBatchWrite)
                               )
         retryResponse      <- if (unprocessedItems.nonEmpty && batchWriteItem.retryAttempts > 0)
                                 doBatchWriteItem(
@@ -241,33 +241,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
                                 )
       } yield retryResponse
     else ZIO.succeed(BatchWriteItem.Response(None))
-
-  private def generateBatchWriteItem(batchWriteItem: BatchWriteItem): BatchWriteItemRequest =
-    BatchWriteItemRequest(
-      requestItems = batchWriteItem.requestItems.map {
-        case (tableName, items) =>
-          (tableName.value, items.map(batchItemWriteToZIOAwsWriteRequest))
-      }.toMap, // TODO(adam): MapOfSet uses iterable, maybe we should add a mapKeyValues?
-      returnConsumedCapacity = Some(DynamoDBExecutorImpl.buildAwsReturnConsumedCapacity(batchWriteItem.capacity)),
-      returnItemCollectionMetrics = Some(DynamoDBExecutorImpl.buildAwsItemMetrics(batchWriteItem.itemMetrics))
-    )
-
-  private def writeRequestToBatchWrite(writeRequest: WriteRequest.ReadOnly): Option[BatchWriteItem.Write] =
-    writeRequest.putRequestValue.map(put => BatchWriteItem.Put(item = AttrMap(awsAttrMapToAttrMap(put.itemValue))))
-
-  private def batchItemWriteToZIOAwsWriteRequest(write: BatchWriteItem.Write): WriteRequest =
-    write match {
-      case BatchWriteItem.Delete(key) =>
-        WriteRequest(
-          None,
-          Some(DeleteRequest(key.map.map { case (k, v) => (k, DynamoDBExecutorImpl.buildAwsAttributeValue(v)) }))
-        )
-      case BatchWriteItem.Put(item)   =>
-        WriteRequest(
-          Some(PutRequest(item.map.map { case (k, v) => (k, DynamoDBExecutorImpl.buildAwsAttributeValue(v)) })),
-          None
-        )
-    }
 
   private def doUpdateItem(updateItem: UpdateItem): ZIO[Any, Throwable, Option[Item]] =
     dynamoDb.updateItem(generateUpdateItemRequest(updateItem)).mapBoth(_.toThrowable, optionalItem)
@@ -418,11 +391,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   private def attrMapToAwsAttrMap(attrMap: ScalaMap[String, AttributeValue]): ScalaMap[String, ZIOAwsAttributeValue] =
     attrMap.map { case (k, v) => (k, DynamoDBExecutorImpl.buildAwsAttributeValue(v)) }
 
-  private def awsAttrMapToAttrMap(
-    attrMap: ScalaMap[String, ZIOAwsAttributeValue.ReadOnly]
-  ): ScalaMap[String, AttributeValue]                                                                                =
-    attrMap.flatMap { case (k, v) => DynamoDBExecutorImpl.awsAttrValToAttrVal(v).map((k, _)) }
-
   private def generateGetItemRequest(getItem: GetItem): GetItemRequest                                               =
     GetItemRequest(
       tableName = getItem.tableName.value,
@@ -442,6 +410,16 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
 
 case object DynamoDBExecutorImpl {
 
+  private[dynamodb] def generateBatchWriteItem(batchWriteItem: BatchWriteItem): BatchWriteItemRequest =
+    BatchWriteItemRequest(
+      requestItems = batchWriteItem.requestItems.map {
+        case (tableName, items) =>
+          (tableName.value, items.map(batchItemWriteToZIOAwsWriteRequest))
+      }.toMap, // TODO(adam): MapOfSet uses iterable, maybe we should add a mapKeyValues?
+      returnConsumedCapacity = Some(DynamoDBExecutorImpl.buildAwsReturnConsumedCapacity(batchWriteItem.capacity)),
+      returnItemCollectionMetrics = Some(DynamoDBExecutorImpl.buildAwsItemMetrics(batchWriteItem.itemMetrics))
+    )
+
   private[dynamodb] def generateBatchGetItemRequest(batchGetItem: BatchGetItem): BatchGetItemRequest =
     BatchGetItemRequest(
       requestItems = batchGetItem.requestItems.map {
@@ -451,7 +429,7 @@ case object DynamoDBExecutorImpl {
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(batchGetItem.capacity))
     )
 
-  private[dynamodb] def generateKeysAndAttributes(tableGet: TableGet): KeysAndAttributes                 =
+  private[dynamodb] def generateKeysAndAttributes(tableGet: TableGet): KeysAndAttributes =
     KeysAndAttributes(
       keys = tableGet.keysSet.map(set =>
         set.map.map {
@@ -461,6 +439,10 @@ case object DynamoDBExecutorImpl {
       ),
       projectionExpression = toOption(tableGet.projectionExpressionSet).map(_.mkString(", "))
     )
+
+  private[dynamodb] def writeRequestToBatchWrite(writeRequest: WriteRequest.ReadOnly): Option[BatchWriteItem.Write] =
+    writeRequest.putRequestValue.map(put => BatchWriteItem.Put(item = AttrMap(awsAttrMapToAttrMap(put.itemValue))))
+
   private def awsAttrValToAttrVal(attributeValue: ZIOAwsAttributeValue.ReadOnly): Option[AttributeValue] =
     attributeValue.sValue
       .map(AttributeValue.String)
@@ -510,9 +492,14 @@ case object DynamoDBExecutorImpl {
       case ReturnItemCollectionMetrics.Size => ZIOAwsReturnItemCollectionMetrics.SIZE
     }
 
+  private def awsAttrMapToAttrMap(
+    attrMap: ScalaMap[String, ZIOAwsAttributeValue.ReadOnly]
+  ): ScalaMap[String, AttributeValue] =
+    attrMap.flatMap { case (k, v) => DynamoDBExecutorImpl.awsAttrValToAttrVal(v).map((k, _)) }
+
   private def buildAwsReturnConsumedCapacity(
     returnConsumedCapacity: ReturnConsumedCapacity
-  ): ZIOAwsReturnConsumedCapacity =
+  ): ZIOAwsReturnConsumedCapacity     =
     returnConsumedCapacity match {
       case ReturnConsumedCapacity.Indexes => ZIOAwsReturnConsumedCapacity.INDEXES
       case ReturnConsumedCapacity.Total   => ZIOAwsReturnConsumedCapacity.TOTAL
@@ -652,4 +639,17 @@ case object DynamoDBExecutorImpl {
       case AttributeValue.StringSet(value) => ZIOAwsAttributeValue(ss = Some(value))
     }
 
+  private[dynamodb] def batchItemWriteToZIOAwsWriteRequest(write: BatchWriteItem.Write): WriteRequest =
+    write match {
+      case BatchWriteItem.Delete(key) =>
+        WriteRequest(
+          None,
+          Some(DeleteRequest(key.map.map { case (k, v) => (k, DynamoDBExecutorImpl.buildAwsAttributeValue(v)) }))
+        )
+      case BatchWriteItem.Put(item)   =>
+        WriteRequest(
+          Some(PutRequest(item.map.map { case (k, v) => (k, DynamoDBExecutorImpl.buildAwsAttributeValue(v)) })),
+          None
+        )
+    }
 }
