@@ -117,7 +117,28 @@ object SchemaGen {
       (valueA, valueB) <- gen
     } yield schema -> ((valueA, valueB))
 
-  val anySequence: Gen[Random with Sized, Schema[Chunk[Any]]]       =
+  lazy val anyMap: Gen[Random with Sized, Schema.MapSchema[_, _]]   =
+    anySchema.zipWith(anySchema) { (a, b) =>
+      Schema.MapSchema(a, b, Chunk.empty)
+    }
+
+  type MapAndGen[K, V] = (Schema.MapSchema[K, V], Gen[Random with Sized, Map[K, V]])
+
+  val anyMapAndGen: Gen[Random with Sized, MapAndGen[_, _]] =
+    for {
+      (schemaK, genK) <- anyPrimitiveAndGen
+      (schemaV, genV) <- anyPrimitiveAndGen
+    } yield Schema.MapSchema(schemaK, schemaV, Chunk.empty) -> (genK.flatMap(k => genV.map(v => Map(k -> v))))
+
+  type MapAndValue[K, V] = (Schema.MapSchema[K, V], Map[K, V])
+
+  val anyMapAndValue: Gen[Random with Sized, MapAndValue[_, _]] =
+    for {
+      (schema, gen) <- anyMapAndGen
+      map           <- gen
+    } yield schema -> map
+
+  val anySequence: Gen[Random with Sized, Schema[Chunk[Any]]]   =
     anySchema.map(Schema.chunk(_).asInstanceOf[Schema[Chunk[Any]]])
 
   type SequenceAndGen[A] = (Schema[Chunk[A]], Gen[Random with Sized, Chunk[A]])
