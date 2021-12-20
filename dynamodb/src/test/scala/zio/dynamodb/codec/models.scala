@@ -1,7 +1,7 @@
 package zio.dynamodb.codec
 
 import zio.dynamodb.Annotations.{ constantValue, discriminator }
-import zio.schema.DeriveSchema
+import zio.schema.{ DeriveSchema, Schema }
 
 import java.time.Instant
 
@@ -46,7 +46,7 @@ final case class WithDiscriminatedEnum(enum: EnumWithDiscriminator)
 object WithDiscriminatedEnum {
   final case class StringValue(value: String) extends EnumWithDiscriminator
   final case class IntValue(value: Int)       extends EnumWithDiscriminator
-  implicit val schema = DeriveSchema.gen[WithDiscriminatedEnum]
+  implicit val schema: Schema[WithDiscriminatedEnum] = DeriveSchema.gen[WithDiscriminatedEnum]
 }
 @constantValue
 sealed trait CaseObjectOnlyEnum
@@ -55,5 +55,15 @@ final case class WithCaseObjectOnlyEnum(enum: CaseObjectOnlyEnum)
 object WithCaseObjectOnlyEnum {
   case object ONE extends CaseObjectOnlyEnum
   case object TWO extends CaseObjectOnlyEnum
-  implicit val schema = DeriveSchema.gen[WithCaseObjectOnlyEnum]
+  implicit val schema: Schema[WithCaseObjectOnlyEnum] = DeriveSchema.gen[WithCaseObjectOnlyEnum]
+}
+
+@discriminator(name = "funkyDiscriminator")
+sealed trait Subscription {
+  def id: Int
+}
+object Subscription       {
+  final case class Billed(id: Int, i: Int)       extends Subscription
+  final case class PreBilled(id: Int, s: String) extends Subscription
+  implicit val schema: Schema[Subscription] = DeriveSchema.gen[Subscription]
 }

@@ -1,6 +1,7 @@
 package zio.dynamodb.codec
 
 import zio.dynamodb._
+import zio.dynamodb.codec.Subscription.PreBilled
 import zio.dynamodb.codec.WithCaseObjectOnlyEnum.ONE
 import zio.test.Assertion._
 import zio.test._
@@ -135,6 +136,20 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
         )
 
       val item = DynamoDBQuery.toItem(WithDiscriminatedEnum(WithDiscriminatedEnum.StringValue("foobar")))
+
+      assert(item)(equalTo(expectedItem))
+    },
+    test("encodes top level enum with discriminator annotation") {
+      val expectedItem: Item =
+        Item(
+          Map(
+            "id"                 -> AttributeValue.Number(BigDecimal(1)),
+            "s"                  -> AttributeValue.String("foobar"),
+            "funkyDiscriminator" -> AttributeValue.String("PreBilled")
+          )
+        )
+
+      val item = DynamoDBQuery.toItem[Subscription](PreBilled(1, "foobar"))
 
       assert(item)(equalTo(expectedItem))
     },
