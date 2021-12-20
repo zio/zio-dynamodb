@@ -39,6 +39,9 @@ private[dynamodb] final case class MapOfSet[K, V] private (private val map: Scal
       case (map, (k, v)) => map + (k -> v)
     }
 
+  def toOption: Option[MapOfSet[K, V]] =
+    if (self.isEmpty) None else Some(self)
+
   override def iterator: Iterator[(K, Set[V])] = map.iterator
 }
 private[dynamodb] object MapOfSet {

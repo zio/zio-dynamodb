@@ -610,7 +610,13 @@ object DynamoDBQuery {
 
     final case class Response(
       unprocessedItems: Option[MapOfSet[TableName, BatchWriteItem.Write]]
-    )
+    ) { self =>
+      def ++(that: Response): Response =
+        Response(
+          (self.unprocessedItems.getOrElse(MapOfSet.empty) ++ that.unprocessedItems.getOrElse(MapOfSet.empty)).toOption
+        )
+
+    }
 
   }
   private[dynamodb] final case class DeleteTable(
