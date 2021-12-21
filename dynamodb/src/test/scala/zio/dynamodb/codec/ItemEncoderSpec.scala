@@ -1,7 +1,7 @@
 package zio.dynamodb.codec
 
 import zio.dynamodb._
-import zio.dynamodb.codec.Subscription.PreBilled
+import zio.dynamodb.codec.Invoice.PreBilled
 import zio.dynamodb.codec.WithCaseObjectOnlyEnum.ONE
 import zio.test.Assertion._
 import zio.test._
@@ -149,7 +149,7 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
           )
         )
 
-      val item = DynamoDBQuery.toItem[Subscription](PreBilled(1, "foobar"))
+      val item = DynamoDBQuery.toItem[Invoice](PreBilled(1, "foobar"))
 
       assert(item)(equalTo(expectedItem))
     },

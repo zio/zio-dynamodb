@@ -1,7 +1,7 @@
 package zio.dynamodb.codec
 
 import zio.dynamodb._
-import zio.dynamodb.codec.Subscription.PreBilled
+import zio.dynamodb.codec.Invoice.PreBilled
 import zio.test.Assertion._
 import zio.test._
 
@@ -177,7 +177,7 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
           )
         )
 
-      val actual = DynamoDBQuery.fromItem[Subscription](item)
+      val actual = DynamoDBQuery.fromItem[Invoice](item)
 
       assert(actual)(isRight(equalTo(PreBilled(id = 1, s = "foobar"))))
     },

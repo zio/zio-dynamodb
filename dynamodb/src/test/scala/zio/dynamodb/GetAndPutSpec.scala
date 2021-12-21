@@ -1,8 +1,8 @@
 package zio.dynamodb
 
 import zio.dynamodb.DynamoDBQuery.{ get, put }
-import zio.dynamodb.codec.Subscription
-import zio.dynamodb.codec.Subscription.PreBilled
+import zio.dynamodb.codec.Invoice
+import zio.dynamodb.codec.Invoice.PreBilled
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test.{ assertTrue, DefaultRunnableSpec, ZSpec }
 
@@ -59,8 +59,8 @@ object GetAndPutSpec extends DefaultRunnableSpec {
     testM("""top level enum PreBilled(1, "foobar")""") {
       for {
         _     <- TestDynamoDBExecutor.addTable("table1", "id")
-        _     <- put[Subscription]("table1", PreBilled(1, "foobar")).execute
-        found <- get[Subscription]("table1", primaryKey1).execute
+        _     <- put[Invoice]("table1", PreBilled(1, "foobar")).execute
+        found <- get[Invoice]("table1", primaryKey1).execute
       } yield assertTrue(found == Right(PreBilled(1, "foobar")))
     },
     testM("""batched SimpleCaseClass2(1, "Avi") and SimpleCaseClass2(2, "Tarlochan")""") {

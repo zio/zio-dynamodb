@@ -59,11 +59,11 @@ object WithCaseObjectOnlyEnum {
 }
 
 @discriminator(name = "funkyDiscriminator")
-sealed trait Subscription {
+sealed trait Invoice {
   def id: Int
 }
-object Subscription       {
-  final case class Billed(id: Int, i: Int)       extends Subscription
-  final case class PreBilled(id: Int, s: String) extends Subscription
-  implicit val schema: Schema[Subscription] = DeriveSchema.gen[Subscription]
+object Invoice       {
+  final case class Billed(id: Int, i: Int)       extends Invoice
+  final case class PreBilled(id: Int, s: String) extends Invoice
+  implicit val schema: Schema[Invoice] = DeriveSchema.gen[Invoice]
 }
