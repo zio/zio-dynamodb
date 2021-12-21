@@ -688,9 +688,8 @@ private[dynamodb] object Codec {
 
   private def isAlternateEnumCodec(annotations: Chunk[Any]): Boolean =
     annotations.exists {
-      case discriminator(_) => true
-      case constantValue()  => true
-      case _                => false
+      case discriminator(_) | constantValue() => true
+      case _                                  => false
     }
 
 } // end Codec
