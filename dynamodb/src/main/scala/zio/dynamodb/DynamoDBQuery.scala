@@ -469,11 +469,11 @@ object DynamoDBQuery {
 
   def deleteTable(
     tableName: String
-  ) = DeleteTable(tableName = TableName(tableName))
+  ): DeleteTable = DeleteTable(tableName = TableName(tableName))
 
   def describeTable(
     tableName: String
-  ) = DescribeTable(tableName = TableName(tableName))
+  ): DescribeTable = DescribeTable(tableName = TableName(tableName))
 
   private def selectOrAll(projections: Seq[ProjectionExpression]): Option[Select] =
     Some(if (projections.isEmpty) Select.AllAttributes else Select.SpecificAttributes)
@@ -617,7 +617,7 @@ object DynamoDBQuery {
   // I have removed these fields on the assumption that the library will take care of these concerns
   private[dynamodb] final case class ScanSome(
     tableName: TableName,
-    limit: Int,
+    limit: Int,                                           // TODO: should this be a long to match AWS API?
     indexName: Option[IndexName] = None,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
@@ -630,7 +630,7 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class QuerySome(
     tableName: TableName,
-    limit: Int,
+    limit: Int,                                           // TODO: should this be a long to match AWS API?
     indexName: Option[IndexName] = None,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =

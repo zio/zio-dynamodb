@@ -293,7 +293,16 @@ object LiveSpec extends DefaultRunnableSpec {
             } yield assert(chunk)(isEmpty)
           }
         },
-        testM("query with limit") {
+        testM("query with limit == 0") {
+          withDefaultTable { tableName =>
+            for {
+              (chunk, _) <- querySomeItem(tableName, 0, $(name))
+                              .whereKey(PartitionKey(id) === first)
+                              .execute
+            } yield assert(chunk)(equalTo(Chunk.empty))
+          }
+        },
+        testM("query with limit > 0 and limit < matching items count") {
           withDefaultTable { tableName =>
             for {
               (chunk, _) <- querySomeItem(tableName, 1, $(name))
@@ -301,7 +310,25 @@ object LiveSpec extends DefaultRunnableSpec {
                               .execute
             } yield assert(chunk)(equalTo(Chunk(Item(name -> avi))))
           }
-        } @@ ignore, // TODO(adam): limit is not being honored, this is due to zio-aws not having the paging API exposed
+        },
+        testM("query with limit == matching items count") {
+          withDefaultTable { tableName =>
+            for {
+              (chunk, _) <- querySomeItem(tableName, 3, $(name))
+                              .whereKey(PartitionKey(id) === first)
+                              .execute
+            } yield assert(chunk)(equalTo(Chunk(Item(name -> avi), Item(name -> avi2), Item(name -> avi3))))
+          }
+        },
+        testM("query with limit > matching items count") {
+          withDefaultTable { tableName =>
+            for {
+              (chunk, _) <- querySomeItem(tableName, 4, $(name))
+                              .whereKey(PartitionKey(id) === first)
+                              .execute
+            } yield assert(chunk)(equalTo(Chunk(Item(name -> avi), Item(name -> avi2), Item(name -> avi3))))
+          }
+        },
         testM("query starting from StartKey") {
           withDefaultTable { tableName =>
             for {
@@ -314,7 +341,7 @@ object LiveSpec extends DefaultRunnableSpec {
                                  .execute
             } yield assert(chunk)(equalTo(Chunk(Item(name -> avi3))))
           }
-        } @@ ignore, // TODO(adam): limit is not being honored
+        },
         testM("queryAll") {
           withDefaultTable { tableName =>
             for {
