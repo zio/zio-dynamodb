@@ -610,11 +610,11 @@ private[dynamodb] object Codec {
 
     private def enumDecoder[A](annotations: Chunk[Any], cases: Schema.Case[_, A]*): Decoder[A] =
       if (isAlternateEnumCodec(annotations))
-        enumDecoder2(discriminator(annotations), cases: _*)
+        alternateEnumDecoder(discriminator(annotations), cases: _*)
       else
-        enumDecoder1(cases: _*)
+        defaultEnumDecoder(cases: _*)
 
-    private def enumDecoder1[A](cases: Schema.Case[_, A]*): Decoder[A] =
+    private def defaultEnumDecoder[A](cases: Schema.Case[_, A]*): Decoder[A] =
       (av: AttributeValue) =>
         av match {
           case AttributeValue.Map(map) => // TODO: assume Map is ListMap for now
@@ -631,7 +631,7 @@ private[dynamodb] object Codec {
             Left(s"invalid AttributeValue $av")
         }
 
-    private def enumDecoder2[A](discriminator: String, cases: Schema.Case[_, A]*): Decoder[A] = {
+    private def alternateEnumDecoder[A](discriminator: String, cases: Schema.Case[_, A]*): Decoder[A] = {
       (av: AttributeValue) =>
         def decode(fieldIndex: Int, id: String): Either[String, A] =
           if (fieldIndex > -1) {
