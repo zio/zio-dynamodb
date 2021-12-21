@@ -262,8 +262,6 @@ private[dynamodb] object Codec {
       (a: A) => {
         val fieldIndex = cases.indexWhere(c => c.deconstruct(a).isDefined)
         if (fieldIndex > -1) {
-          val b     = allCaseObjects(cases)
-          println(b)
           val case_ = cases(fieldIndex)
           val enc   = encoder(case_.codec.asInstanceOf[Schema[Any]])
           val av    = enc(a)
