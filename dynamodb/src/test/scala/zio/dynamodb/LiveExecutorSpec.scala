@@ -1,17 +1,24 @@
 package zio.dynamodb
 
 import scala.collection.immutable.{ Map => ScalaMap }
-import io.github.vigoo.zioaws.dynamodb
-import io.github.vigoo.zioaws.dynamodb.model.{ BatchGetItemResponse, BatchWriteItemResponse }
+import io.github.vigoo.zioaws.dynamodb.DynamoDb
+import io.github.vigoo.zioaws.dynamodb.DynamoDb.DynamoDbMock
+import io.github.vigoo.zioaws.dynamodb.model.{
+  AttributeValue,
+  BatchGetItemResponse,
+  BatchWriteItemResponse,
+  KeysAndAttributes
+}
 import zio.ULayer
 import zio.duration._
 import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem }
 import zio.test.Assertion.equalTo
 import zio.test.mock.Expectation.value
 import zio.test._
+import zio.test.environment.TestEnvironment
 
 object LiveExecutorSpec extends DefaultRunnableSpec {
-  override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
+  override def spec: ZSpec[TestEnvironment, Any] =
     suite("batch retries")(
       batchGetSuite.provideLayer(mockedBatchGet >>> DynamoDBExecutor.live),
       batchWriteSuite.provideLayer(mockedBatchWrite >>> DynamoDBExecutor.live)
@@ -20,7 +27,7 @@ object LiveExecutorSpec extends DefaultRunnableSpec {
   private val mockBatches     = "mockBatches"
   private val itemOne         = Item("k1" -> "v1")
   private val firstGetRequest =
-    zio.dynamodb.DynamoDBExecutorImpl.generateBatchGetItemRequest(
+    DynamoDBExecutorImpl.generateBatchGetItemRequest(
       BatchGetItem(
         ScalaMap(
           TableName(mockBatches) -> BatchGetItem.TableGet(
@@ -32,7 +39,7 @@ object LiveExecutorSpec extends DefaultRunnableSpec {
     )
 
   private val retryGetRequest =
-    zio.dynamodb.DynamoDBExecutorImpl.generateBatchGetItemRequest(
+    DynamoDBExecutorImpl.generateBatchGetItemRequest(
       BatchGetItem(
         ScalaMap(
           TableName(mockBatches) -> BatchGetItem.TableGet(
@@ -55,11 +62,11 @@ object LiveExecutorSpec extends DefaultRunnableSpec {
   )
 
   private val firstWriteRequest =
-    zio.dynamodb.DynamoDBExecutorImpl.generateBatchWriteItem(
+    DynamoDBExecutorImpl.generateBatchWriteItem(
       batchWriteRequest
     )
 
-  private val mockedBatchGet: ULayer[io.github.vigoo.zioaws.dynamodb.DynamoDb] = dynamodb.DynamoDb.DynamoDbMock
+  private val mockedBatchGet: ULayer[DynamoDb] = DynamoDbMock
     .BatchGetItem(
       equalTo(firstGetRequest),
       value(
@@ -67,20 +74,20 @@ object LiveExecutorSpec extends DefaultRunnableSpec {
           responses = Some(
             ScalaMap(
               mockBatches -> List(
-                ScalaMap("k1" -> io.github.vigoo.zioaws.dynamodb.model.AttributeValue(s = Some("v1")))
+                ScalaMap("k1" -> AttributeValue(s = Some("v1")))
               )
             )
           ),
           unprocessedKeys = Some(
             ScalaMap(
-              mockBatches -> io.github.vigoo.zioaws.dynamodb.model.KeysAndAttributes(
-                keys = List(ScalaMap("k1" -> io.github.vigoo.zioaws.dynamodb.model.AttributeValue(s = Some("v2"))))
+              mockBatches -> KeysAndAttributes(
+                keys = List(ScalaMap("k1" -> AttributeValue(s = Some("v2"))))
               )
             )
           )
         ).asReadOnly
       )
-    ) ++ dynamodb.DynamoDb.DynamoDbMock
+    ) ++ DynamoDbMock
     .BatchGetItem(
       equalTo(retryGetRequest),
       value(
@@ -89,8 +96,8 @@ object LiveExecutorSpec extends DefaultRunnableSpec {
             ScalaMap(
               mockBatches -> List(
                 ScalaMap(
-                  "k1" -> io.github.vigoo.zioaws.dynamodb.model.AttributeValue(s = Some("v2")),
-                  "k2" -> io.github.vigoo.zioaws.dynamodb.model.AttributeValue(s = Some("v23"))
+                  "k1" -> AttributeValue(s = Some("v2")),
+                  "k2" -> AttributeValue(s = Some("v23"))
                 )
               )
             )
@@ -119,7 +126,7 @@ object LiveExecutorSpec extends DefaultRunnableSpec {
       }
     )
 
-  private val mockedBatchWrite: ULayer[io.github.vigoo.zioaws.dynamodb.DynamoDb] = dynamodb.DynamoDb.DynamoDbMock
+  private val mockedBatchWrite: ULayer[DynamoDb] = DynamoDbMock
     .BatchWriteItem(
       equalTo(firstWriteRequest),
       value(
