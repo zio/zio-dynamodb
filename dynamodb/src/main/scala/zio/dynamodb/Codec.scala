@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.Annotations.discriminator
+import zio.dynamodb.Annotations.{ constantValue, discriminator }
 import zio.{ schema, Chunk }
 import zio.schema.Schema.{ Optional, Primitive, Transform }
 import zio.schema.{ FieldSet, Schema, StandardType }
@@ -686,6 +686,11 @@ private[dynamodb] object Codec {
         "discriminator"
     }
 
-  private def isAlternateEnumCodec(annotations: Chunk[Any]): Boolean = annotations.size > 0 // TODO: refine
+  private def isAlternateEnumCodec(annotations: Chunk[Any]): Boolean =
+    annotations.exists {
+      case discriminator(_) => true
+      case constantValue()  => true
+      case _                => false
+    }
 
 } // end Codec
