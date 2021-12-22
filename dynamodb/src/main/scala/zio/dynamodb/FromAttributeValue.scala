@@ -80,7 +80,7 @@ object FromAttributeValue {
     case av                        => Left(s"Error getting BigDecimal value. Expected AttributeValue.Number but found $av")
   }
   implicit val bigDecimalSetFromAttributeValue: FromAttributeValue[Set[BigDecimal]] = {
-    case AttributeValue.NumberSet(bdSet) => Right(bdSet.map(_.bigDecimal))
+    case AttributeValue.NumberSet(bdSet) => Right(bdSet)
     case av                              => Left(s"Error getting BigDecimal set value. Expected AttributeValue.Number but found $av")
   }
 
