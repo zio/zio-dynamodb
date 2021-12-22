@@ -1,4 +1,5 @@
 package zio.dynamodb
+import io.github.vigoo.zioaws.core.AwsError
 import zio.{ Chunk, ZIO }
 import zio.dynamodb.DynamoDBQuery._
 import io.github.vigoo.zioaws.dynamodb.DynamoDb
@@ -59,8 +60,10 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     constructor match {
       case getItem: GetItem               => doGetItem(getItem)
       case putItem: PutItem               => doPutItem(putItem)
-      case batchGetItem: BatchGetItem     => doBatchGetItem(batchGetItem).provideLayer(Clock.live)
-      case batchWriteItem: BatchWriteItem => doBatchWriteItem(batchWriteItem).provideLayer(Clock.live)
+      // TODO(adam): Cannot just leave this `Clock.live` here. Should be a part of building the executor
+      case batchGetItem: BatchGetItem     => doBatchGetItem(batchGetItem).mapError(_.toThrowable).provideLayer(Clock.live)
+      case batchWriteItem: BatchWriteItem =>
+        doBatchWriteItem(batchWriteItem).mapError(_.toThrowable).provideLayer(Clock.live)
       case scanAll: ScanAll               => doScanAll(scanAll)
       case scanSome: ScanSome             => doScanSome(scanSome)
       case updateItem: UpdateItem         => doUpdateItem(updateItem)
@@ -215,15 +218,14 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
         acc ++ ((TableName(tableName), l.flatMap(f)))
     }
 
-  private def doBatchWriteItem(batchWriteItem: BatchWriteItem): ZIO[Clock, Throwable, BatchWriteItem.Response] =
+  // TODO: Should be tail recursive
+  private def doBatchWriteItem(batchWriteItem: BatchWriteItem): ZIO[Clock, AwsError, BatchWriteItem.Response] =
     if (batchWriteItem.requestItems.nonEmpty)
       for {
         batchWriteResponse <- dynamoDb
                                 .batchWriteItem(DynamoDBExecutorImpl.generateBatchWriteItem(batchWriteItem))
-                                .mapError(_.toThrowable)
-        unprocessedItems   <- batchWriteResponse.unprocessedItems.mapBoth(
-                                _.toThrowable,
-                                map => mapOfListToMapOfSet(map)(DynamoDBExecutorImpl.writeRequestToBatchWrite)
+        unprocessedItems   <- batchWriteResponse.unprocessedItems.map(map =>
+                                mapOfListToMapOfSet(map)(DynamoDBExecutorImpl.writeRequestToBatchWrite)
                               )
         retryResponse      <- if (unprocessedItems.nonEmpty && batchWriteItem.retryAttempts > 0)
                                 doBatchWriteItem(
@@ -317,34 +319,16 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     )
   }
 
-  private def doBatchGetItem(batchGetItem: BatchGetItem): ZIO[Clock, Throwable, BatchGetItem.Response] = {
-    def keysAndAttrsToTableGet(ka: KeysAndAttributes.ReadOnly): TableGet = {
-      val maybeProjectionExpressions = ka.projectionExpressionValue.map(
-        _.split(",").map(ProjectionExpression.$).toSet
-      ) // TODO(adam): Need a better way to accomplish this
-      val keySet =
-        ka.keysValue
-          .map(m => PrimaryKey(m.flatMap { case (k, v) => DynamoDBExecutorImpl.awsAttrValToAttrVal(v).map((k, _)) }))
-          .toSet
-
-      maybeProjectionExpressions.map(a => TableGet(keySet, a)).getOrElse(TableGet(keySet, Set.empty))
-    }
-    def tableItemsMapToResponse(tableItems: ScalaMap[String, List[ScalaMap[String, ZIOAwsAttributeValue.ReadOnly]]]) =
-      tableItems.foldLeft(MapOfSet.empty[TableName, Item]) {
-        case (acc, (tableName, list)) =>
-          acc ++ ((TableName(tableName), list.map(toDynamoItem)))
-      }
-
+  // TODO: Should be tail recursive
+  private def doBatchGetItem(batchGetItem: BatchGetItem): ZIO[Clock, AwsError, BatchGetItem.Response] =
     if (batchGetItem.requestItems.isEmpty)
       ZIO.succeed(BatchGetItem.Response())
     else
       for {
-        batchResponse   <-
-          dynamoDb.batchGetItem(DynamoDBExecutorImpl.generateBatchGetItemRequest(batchGetItem)).mapError(_.toThrowable)
-        tableItemsMap   <- batchResponse.responses.mapError(_.toThrowable)
-        unprocessedKeys <- batchResponse.unprocessedKeys.mapBoth(
-                             _.toThrowable,
-                             _.map { case (k, v) => (TableName(k), keysAndAttrsToTableGet(v)) }
+        batchResponse   <- dynamoDb.batchGetItem(DynamoDBExecutorImpl.generateBatchGetItemRequest(batchGetItem))
+        tableItemsMap   <- batchResponse.responses
+        unprocessedKeys <- batchResponse.unprocessedKeys.map(
+                             _.map { case (k, v) => (TableName(k), DynamoDBExecutorImpl.keysAndAttrsToTableGet(v)) }
                            )
         response        <- if (unprocessedKeys.nonEmpty && batchGetItem.retryAttempts > 0) {
                              val nextBatchGet = batchGetItem.copy(
@@ -355,17 +339,18 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
                              doBatchGetItem(nextBatchGet)
                                .delay(batchGetItem.exponentialBackoff)
                                .map(retryResponse =>
-                                 BatchGetItem.Response(tableItemsMapToResponse(tableItemsMap)) ++ retryResponse
+                                 BatchGetItem.Response(
+                                   DynamoDBExecutorImpl.tableItemsMapToResponse(tableItemsMap)
+                                 ) ++ retryResponse
                                )
                            } else
                              ZIO.succeed(
                                BatchGetItem.Response(
-                                 responses = tableItemsMapToResponse(tableItemsMap),
+                                 responses = DynamoDBExecutorImpl.tableItemsMapToResponse(tableItemsMap),
                                  unprocessedKeys = unprocessedKeys
                                )
                              )
       } yield response
-  }
 
   private def doPutItem(putItem: PutItem): ZIO[Any, Throwable, Unit] =
     dynamoDb.putItem(generatePutItemRequest(putItem)).unit.mapError(_.toThrowable)
@@ -442,6 +427,26 @@ case object DynamoDBExecutorImpl {
 
   private[dynamodb] def writeRequestToBatchWrite(writeRequest: WriteRequest.ReadOnly): Option[BatchWriteItem.Write] =
     writeRequest.putRequestValue.map(put => BatchWriteItem.Put(item = AttrMap(awsAttrMapToAttrMap(put.itemValue))))
+
+  private def keysAndAttrsToTableGet(ka: KeysAndAttributes.ReadOnly): TableGet = {
+    val maybeProjectionExpressions = ka.projectionExpressionValue.map(
+      _.split(",").map(ProjectionExpression.$).toSet
+    ) // TODO(adam): Need a better way to accomplish this
+    val keySet =
+      ka.keysValue
+        .map(m => PrimaryKey(m.flatMap { case (k, v) => DynamoDBExecutorImpl.awsAttrValToAttrVal(v).map((k, _)) }))
+        .toSet
+
+    maybeProjectionExpressions.map(a => TableGet(keySet, a)).getOrElse(TableGet(keySet, Set.empty))
+  }
+
+  private def tableItemsMapToResponse(
+    tableItems: ScalaMap[String, List[ScalaMap[String, ZIOAwsAttributeValue.ReadOnly]]]
+  ) =
+    tableItems.foldLeft(MapOfSet.empty[TableName, Item]) {
+      case (acc, (tableName, list)) =>
+        acc ++ ((TableName(tableName), list.map(toDynamoItem)))
+    }
 
   private def awsAttrValToAttrVal(attributeValue: ZIOAwsAttributeValue.ReadOnly): Option[AttributeValue] =
     attributeValue.sValue
