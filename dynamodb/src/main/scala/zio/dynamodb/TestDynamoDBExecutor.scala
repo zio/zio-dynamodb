@@ -31,7 +31,8 @@ import zio.{ Has, UIO, ZIO }
  * }}}
  */
 trait TestDynamoDBExecutor {
-  def addTable(tableName: String, pkFieldName: String, entries: TableEntry*): UIO[Unit]
+  def addTable(tableName: String, pkFieldName: String, pkAndItems: PkAndItem*): UIO[Unit]
+  def addItems(tableName: String, pkAndItems: PkAndItem*): ZIO[Any, DatabaseError, Unit]
 }
 
 object TestDynamoDBExecutor {
@@ -39,7 +40,11 @@ object TestDynamoDBExecutor {
   def addTable(
     tableName: String,
     partitionKey: String,
-    entries: TableEntry*
+    pkAndItems: PkAndItem*
   ): ZIO[Has[TestDynamoDBExecutor], Nothing, Unit] =
-    ZIO.serviceWith[TestDynamoDBExecutor](_.addTable(tableName, partitionKey, entries: _*))
+    ZIO.serviceWith[TestDynamoDBExecutor](_.addTable(tableName, partitionKey, pkAndItems: _*))
+
+  def addItems(tableName: String, pkAndItems: PkAndItem*): ZIO[Has[TestDynamoDBExecutor], DatabaseError, Unit] =
+    ZIO.serviceWith[TestDynamoDBExecutor](_.addItems(tableName, pkAndItems: _*))
+
 }
