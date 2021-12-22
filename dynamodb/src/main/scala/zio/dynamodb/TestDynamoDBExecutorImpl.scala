@@ -149,7 +149,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private (
 
   }
 
-  private def sort(xs: Seq[TableEntry], pkName: String): Seq[TableEntry] =
+  private def sort(xs: Seq[PkAndItem], pkName: String): Seq[PkAndItem] =
     xs.toList.sortWith {
       case ((pkL, _), (pkR, _)) =>
         (pkL.map.get(pkName), pkR.map.get(pkName)) match {
@@ -159,7 +159,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private (
     }
 
   private def slice(
-    xs: Seq[TableEntry],
+    xs: Seq[PkAndItem],
     exclusiveStartKey: LastEvaluatedKey,
     maybeLimit: Option[Int]
   ): (Chunk[Item], LastEvaluatedKey) =
@@ -176,7 +176,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private (
       (chunk, lek)
     }.getOrElse((Chunk.empty, None))
 
-  private def maybeNextIndex(xs: Seq[TableEntry], exclusiveStartKey: LastEvaluatedKey): Option[Int] =
+  private def maybeNextIndex(xs: Seq[PkAndItem], exclusiveStartKey: LastEvaluatedKey): Option[Int] =
     exclusiveStartKey.fold[Option[Int]](Some(0)) { pk =>
       val foundIndex      = xs.indexWhere { case (pk2, _) => pk2 == pk }
       val afterFoundIndex =
@@ -207,12 +207,21 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private (
       case _                                                                    => false
     }
 
-  override def addTable(tableName: String, pkFieldName: String, entries: TableEntry*): UIO[Unit] =
+  override def addTable(tableName: String, pkFieldName: String, pkAndItems: PkAndItem*): UIO[Unit] =
     (for {
       _    <- tablePkNameMap.put(tableName, pkFieldName)
       tmap <- TMap.empty[PrimaryKey, Item]
-      _    <- STM.foreach(entries)(entry => tmap.put(entry._1, entry._2))
+      _    <- STM.foreach(pkAndItems) {
+                case (pk, item) => tmap.put(pk, item)
+              }
       _    <- tableMap.put(tableName, tmap)
     } yield ()).commit
 
+  override def addItems(tableName: String, pkAndItems: (PrimaryKey, Item)*): ZIO[Any, DatabaseError, Unit] =
+    (for {
+      (tableMap, _) <- tableMapAndPkName(tableName)
+      _             <- STM.foreach(pkAndItems) {
+                         case (pk, item) => tableMap.put(pk, item)
+                       }
+    } yield ()).commit
 }
