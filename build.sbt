@@ -284,9 +284,13 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
            |      EitherUtil
            |        .forEach(fields) {
            |          case Schema.Field(key, schema, _) =>
-           |            val dec        = decoder(schema)
-           |            val maybeValue = map.get(AttributeValue.String(key))
-           |            maybeValue.map(dec).toRight(s"field '$$key' not found in $$av").flatten
+           |            val dec          = decoder(schema)
+           |            val maybeValue   = map.get(AttributeValue.String(key))
+           |            val maybeDecoder = maybeValue.map(dec).toRight(s"field '$$key' not found in $$av")
+           |            for {
+           |              decoder <- maybeDecoder
+           |              decoded <- decoder
+           |            } yield decoded
            |        }
            |        .map(_.toList)
            |    case _                       =>

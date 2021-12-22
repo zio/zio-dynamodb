@@ -534,7 +534,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       )
     )
     keySchema.sortKey.fold(hashKeyElement)(sortKey =>
-      hashKeyElement.appended(KeySchemaElement(attributeName = sortKey, keyType = KeyType.RANGE))
+      hashKeyElement :+ KeySchemaElement(attributeName = sortKey, keyType = KeyType.RANGE)
     )
   }
 
