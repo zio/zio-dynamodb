@@ -91,5 +91,4 @@ object FromAttributeValueSpec extends DefaultRunnableSpec {
     }
   )
 
-  println(fromAttributeValueSuite)
 }

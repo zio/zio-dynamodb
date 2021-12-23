@@ -48,14 +48,22 @@ object WithDiscriminatedEnum {
   final case class IntValue(value: Int)       extends EnumWithDiscriminator
   implicit val schema: Schema[WithDiscriminatedEnum] = DeriveSchema.gen[WithDiscriminatedEnum]
 }
+
 @constantValue
 sealed trait CaseObjectOnlyEnum
-
 final case class WithCaseObjectOnlyEnum(enum: CaseObjectOnlyEnum)
 object WithCaseObjectOnlyEnum {
   case object ONE extends CaseObjectOnlyEnum
   case object TWO extends CaseObjectOnlyEnum
   implicit val schema: Schema[WithCaseObjectOnlyEnum] = DeriveSchema.gen[WithCaseObjectOnlyEnum]
+}
+
+sealed trait CaseObjectOnlyEnum2
+final case class WithCaseObjectOnlyEnum2(enum: CaseObjectOnlyEnum2)
+object WithCaseObjectOnlyEnum2 {
+  case object ONE extends CaseObjectOnlyEnum2
+  case object TWO extends CaseObjectOnlyEnum2
+  implicit val schema: Schema[WithCaseObjectOnlyEnum2] = DeriveSchema.gen[WithCaseObjectOnlyEnum2]
 }
 
 @discriminator(name = "funkyDiscriminator")

@@ -519,8 +519,6 @@ private[dynamodb] object Codec {
       FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av).flatMap { s =>
         val stringOrA = Try(unsafeParse(s)).toEither.left
           .map(e => s"error parsing string '$s': ${e.getMessage}")
-        if (stringOrA.isLeft)
-          println(stringOrA)
         stringOrA
       }
 

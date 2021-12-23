@@ -9,7 +9,7 @@ import zio.dynamodb.examples.TypeSafeRoundTripSerialisationExample.Invoice.{
   PaymentType,
   Product
 }
-import zio.dynamodb.{ DynamoDBExecutor, DynamoDBQuery, PrimaryKey, TestDynamoDBExecutor }
+import zio.dynamodb.{ DynamoDBExecutor, DynamoDBQuery, PrimaryKey }
 import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema, Schema }
 import zio.{ App, ExitCode, URIO }
 
@@ -54,7 +54,7 @@ object TypeSafeRoundTripSerialisationExample extends App {
     implicit val schema: Schema[Invoice] = DeriveSchema.gen[Invoice]
   }
 
-  val invoice1 = Billed(
+  private val invoice1 = Billed(
     id = "1",
     sequence = 1,
     dueDate = Instant.now(),
@@ -70,7 +70,6 @@ object TypeSafeRoundTripSerialisationExample extends App {
   )
 
   private val program = for {
-    _     <- TestDynamoDBExecutor.addTable("table1", partitionKey = "id")
     _     <- DynamoDBQuery.put[Invoice]("table1", invoice1).execute
     found <- DynamoDBQuery.get[Invoice]("table1", PrimaryKey("id" -> "1")).execute
     item  <- DynamoDBQuery.getItem("table1", PrimaryKey("id" -> "1")).execute
@@ -79,5 +78,5 @@ object TypeSafeRoundTripSerialisationExample extends App {
   } yield ()
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] =
-    program.provideCustomLayer(DynamoDBExecutor.test).exitCode
+    program.provideCustomLayer(DynamoDBExecutor.test("table1" -> "id")).exitCode
 }

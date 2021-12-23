@@ -159,6 +159,13 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
       val item = DynamoDBQuery.toItem(WithCaseObjectOnlyEnum(ONE))
 
       assert(item)(equalTo(expectedItem))
+    },
+    test("encodes case object only enum without constValue annotation") {
+      val expectedItem: Item = Item("enum" -> Item(Map("ONE" -> AttributeValue.Null)))
+
+      val item = DynamoDBQuery.toItem(WithCaseObjectOnlyEnum2(WithCaseObjectOnlyEnum2.ONE))
+
+      assert(item)(equalTo(expectedItem))
     }
   )
 
