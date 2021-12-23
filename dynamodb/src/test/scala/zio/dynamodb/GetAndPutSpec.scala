@@ -10,13 +10,13 @@ object GetAndPutSpec extends DefaultRunnableSpec {
   final case class SimpleCaseClass2(id: Int, name: String)
   implicit lazy val simpleCaseClass2: Schema[SimpleCaseClass2] = DeriveSchema.gen[SimpleCaseClass2]
 
-  val primaryKey1 = PrimaryKey("id" -> 1)
-  val primaryKey2 = PrimaryKey("id" -> 2)
+  private val primaryKey1 = PrimaryKey("id" -> 1)
+  private val primaryKey2 = PrimaryKey("id" -> 2)
 
   override def spec: ZSpec[Environment, Failure] =
-    suite("get and put suite")(getSuite, putSuite).provideLayer(DynamoDBExecutor.test)
+    suite("get and put suite")(getSuite, putSuite).provideLayer(DynamoDBExecutor.test("table1" -> "id"))
 
-  private val getSuite = suite("get item as SimpleCaseClass2")(
+  private val getSuite                           = suite("get item as SimpleCaseClass2")(
     testM("that exists") {
       for {
         _     <- TestDynamoDBExecutor.addItems("table1", primaryKey1 -> Item("id" -> 1, "name" -> "Avi"))
