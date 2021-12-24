@@ -584,7 +584,7 @@ private[dynamodb] object Codec {
                   case Left(s)     => Left(s)
                 }
             }
-            EitherUtil.collectAll(xs).map(Map.from)
+            EitherUtil.collectAll(xs).map(_.toMap)
           case av                      => Left(s"Error: expected AttributeValue.Map but found $av")
         }
       }
@@ -599,7 +599,7 @@ private[dynamodb] object Codec {
               case av                              =>
                 Left(s"Error: expected AttributeValue.List but found $av")
             }
-            errorOrListOfTuple.map(Map.from)
+            errorOrListOfTuple.map(_.toMap)
           case av                            => Left(s"Error: expected AttributeValue.List but found $av")
         }
       }
