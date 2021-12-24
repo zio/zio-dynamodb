@@ -265,7 +265,7 @@ private[dynamodb] object Codec {
           val case_ = cases(fieldIndex)
           val enc   = encoder(case_.codec.asInstanceOf[Schema[Any]])
           val av    = enc(a)
-          av match { // TODO: JDG push pattern matching outside of lambda
+          av match { // TODO: review all pattern matches inside of a lambda
             case AttributeValue.Map(map) =>
               AttributeValue.Map(
                 map + (AttributeValue.String(discriminator) -> AttributeValue.String(case_.id))
