@@ -1,6 +1,6 @@
 package zio.dynamodb
 import io.github.vigoo.zioaws.core.AwsError
-import zio.{ Chunk, ZIO }
+import zio.{ Chunk, ZIO, ZLayer }
 import zio.dynamodb.DynamoDBQuery._
 import io.github.vigoo.zioaws.dynamodb.DynamoDb
 import io.github.vigoo.zioaws.dynamodb.model.{
@@ -48,7 +48,8 @@ import zio.stream.{ Stream, ZSink }
 
 import scala.collection.immutable.{ Map => ScalaMap }
 
-private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: DynamoDb.Service) extends DynamoDBExecutor {
+private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Service, dynamoDb: DynamoDb.Service)
+    extends DynamoDBExecutor {
 
   def executeMap[A, B](map: Map[A, B]): ZIO[Any, Throwable, B] =
     execute(map.query).map(map.mapper)
@@ -63,7 +64,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       // TODO(adam): Cannot just leave this `Clock.live` here. Should be a part of building the executor
       case batchGetItem: BatchGetItem     => doBatchGetItem(batchGetItem).mapError(_.toThrowable).provideLayer(Clock.live)
       case batchWriteItem: BatchWriteItem =>
-        doBatchWriteItem(batchWriteItem).mapError(_.toThrowable).provideLayer(Clock.live)
+        doBatchWriteItem(batchWriteItem).mapError(_.toThrowable).provideLayer(ZLayer.succeed(clock))
       case scanAll: ScanAll               => doScanAll(scanAll)
       case scanSome: ScanSome             => doScanSome(scanSome)
       case updateItem: UpdateItem         => doUpdateItem(updateItem)
@@ -129,7 +130,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   private def doQuerySome(querySome: QuerySome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] =
     dynamoDb
       .query(generateQueryRequest(querySome))
-      .mapBoth(_.toThrowable, toDynamoItem)
+      .mapBoth(_.toThrowable, DynamoDBExecutorImpl.toDynamoItem)
       .run(ZSink.collectAll[Item])
       .map(chunk => (chunk, chunk.lastOption))
 
@@ -139,7 +140,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
         .query(generateQueryRequest(queryAll))
         .mapBoth(
           awsErr => awsErr.toThrowable,
-          item => toDynamoItem(item)
+          item => DynamoDBExecutorImpl.toDynamoItem(item)
         )
     )
 
@@ -218,7 +219,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
         acc ++ ((TableName(tableName), l.flatMap(f)))
     }
 
-  // TODO: Should be tail recursive
   private def doBatchWriteItem(batchWriteItem: BatchWriteItem): ZIO[Clock, AwsError, BatchWriteItem.Response] =
     if (batchWriteItem.requestItems.nonEmpty)
       for {
@@ -248,12 +248,14 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     dynamoDb.updateItem(generateUpdateItemRequest(updateItem)).mapBoth(_.toThrowable, optionalItem)
 
   private def optionalItem(updateItemResponse: UpdateItemResponse.ReadOnly): Option[Item] =
-    updateItemResponse.attributesValue.flatMap(m => DynamoDBExecutorImpl.toOption(m).map(toDynamoItem))
+    updateItemResponse.attributesValue.flatMap(m =>
+      DynamoDBExecutorImpl.toOption(m).map(DynamoDBExecutorImpl.toDynamoItem)
+    )
 
   private def doScanSome(scanSome: ScanSome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] =
     dynamoDb
       .scan(generateScanRequest(scanSome))
-      .mapBoth(_.toThrowable, toDynamoItem)
+      .mapBoth(_.toThrowable, DynamoDBExecutorImpl.toDynamoItem)
       .run(ZSink.collectAll[Item])
       .map(chunk => (chunk, chunk.lastOption))
 
@@ -281,7 +283,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
         .scan(generateScanRequest(scanAll))
         .mapBoth(
           awsError => awsError.toThrowable,
-          item => toDynamoItem(item)
+          item => DynamoDBExecutorImpl.toDynamoItem(item)
         )
     )
 
@@ -319,7 +321,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     )
   }
 
-  // TODO: Should be tail recursive
   private def doBatchGetItem(batchGetItem: BatchGetItem): ZIO[Clock, AwsError, BatchGetItem.Response] =
     if (batchGetItem.requestItems.isEmpty)
       ZIO.succeed(BatchGetItem.Response())
@@ -358,12 +359,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   private def doGetItem(getItem: GetItem): ZIO[Any, Throwable, Option[Item]] =
     dynamoDb
       .getItem(generateGetItemRequest(getItem))
-      .mapBoth(_.toThrowable, _.itemValue.map(toDynamoItem))
+      .mapBoth(_.toThrowable, _.itemValue.map(DynamoDBExecutorImpl.toDynamoItem))
 
-  private def toDynamoItem(attrMap: ScalaMap[String, ZIOAwsAttributeValue.ReadOnly]): Item =
-    Item(attrMap.flatMap { case (k, v) => DynamoDBExecutorImpl.awsAttrValToAttrVal(v).map(attrVal => (k, attrVal)) })
-
-  private def generatePutItemRequest(putItem: PutItem): PutItemRequest                     =
+  private def generatePutItemRequest(putItem: PutItem): PutItemRequest =
     PutItemRequest(
       tableName = putItem.tableName.value,
       item = attrMapToAwsAttrMap(putItem.item.map),
@@ -657,4 +655,8 @@ case object DynamoDBExecutorImpl {
           None
         )
     }
+
+  private def toDynamoItem(attrMap: ScalaMap[String, ZIOAwsAttributeValue.ReadOnly]): Item =
+    Item(attrMap.flatMap { case (k, v) => DynamoDBExecutorImpl.awsAttrValToAttrVal(v).map(attrVal => (k, attrVal)) })
+
 }

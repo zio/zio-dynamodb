@@ -1,16 +1,20 @@
 package zio.dynamodb
 
 import zio.stm.TMap
-import zio.{ Has, ULayer, URLayer, ZIO }
+import zio.{ Has, ULayer, URLayer, ZIO, ZLayer }
 import io.github.vigoo.zioaws.dynamodb.DynamoDb
+import zio.clock.Clock
 
 trait DynamoDBExecutor {
   def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Throwable, A]
 }
 
 object DynamoDBExecutor {
-  val live: URLayer[DynamoDb, Has[DynamoDBExecutor]] =
-    ZIO.service[DynamoDb.Service].map(dynamo => DynamoDBExecutorImpl(dynamo)).toLayer
+  val live: URLayer[DynamoDb with Clock, Has[DynamoDBExecutor]] =
+    ZLayer
+      .fromServices[Clock.Service, DynamoDb.Service, DynamoDBExecutor]((clock, dynamo) =>
+        DynamoDBExecutorImpl(clock, dynamo)
+      )
 
   val test: ULayer[Has[DynamoDBExecutor] with Has[TestDynamoDBExecutor]] =
     (for {

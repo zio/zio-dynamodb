@@ -2,6 +2,7 @@ package zio.dynamodb
 
 import com.amazonaws.services.dynamodbv2.local.server.DynamoDBProxyServer
 import io.github.vigoo.zioaws.core.config
+import io.github.vigoo.zioaws.dynamodb.DynamoDb
 import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
 import zio.blocking.Blocking
 import zio.dynamodb.UpdateExpression.Action.SetAction
@@ -10,6 +11,7 @@ import zio.dynamodb.PartitionKeyExpression.PartitionKey
 import zio.dynamodb.SortKeyExpression.SortKey
 import io.github.vigoo.zioaws.{ dynamodb, http4s }
 import zio._
+import zio.clock.Clock
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.ProjectionExpression._
 import zio.test.Assertion._
@@ -34,12 +36,18 @@ object LiveSpec extends DefaultRunnableSpec {
     )
   )
 
-//  private val liveAws = http4s.default >>> config.default >>> dynamodb.live >>> DynamoDBExecutor.live
+  private val clockLayer: ZLayer[Any, Nothing, Clock with TestClock] =
+    testEnvironment >>> ((Annotations.live ++ Live.default) >>> TestClock.default)
+
+  private val dynamoDbLayer: ZLayer[Any, Throwable, DynamoDb] =
+    (http4s.default ++ awsConfig) >>> config.configured() >>> dynamodb.customized { builder =>
+      builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
+    }
 
   private val layer: ZLayer[Any, Throwable, Has[DynamoDBProxyServer] with Has[DynamoDBExecutor]] =
-    ((http4s.default ++ awsConfig) >>> config.configured() >>> (dynamodb.customized { builder =>
-      builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
-    } >>> DynamoDBExecutor.live)) ++ (Blocking.live >>> LocalDdbServer.inMemoryLayer)
+    (dynamoDbLayer ++ clockLayer) >>> DynamoDBExecutor.live ++ (Blocking.live >>> LocalDdbServer.inMemoryLayer)
+
+  //  private val liveAws = http4s.default >>> config.default >>> dynamodb.live >>> DynamoDBExecutor.live
 
   private val id       = "id"
   private val first    = "first"
