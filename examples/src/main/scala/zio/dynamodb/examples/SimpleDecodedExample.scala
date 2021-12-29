@@ -2,7 +2,7 @@ package zio.dynamodb.examples
 
 import zio.console.putStrLn
 import zio.dynamodb.DynamoDBQuery._
-import zio.dynamodb.{ DynamoDBExecutor, Item, PrimaryKey, TestDynamoDBExecutor }
+import zio.dynamodb.{ DynamoDBExecutor, Item, PrimaryKey }
 import zio.schema.{ DeriveSchema, Schema }
 import zio.{ App, ExitCode, URIO }
 
@@ -17,7 +17,6 @@ object SimpleDecodedExample extends App {
   implicit lazy val simpleCaseClass3: Schema[SimpleCaseClass3] = DeriveSchema.gen[SimpleCaseClass3]
 
   private val program = for {
-    _         <- TestDynamoDBExecutor.addTable("table1", partitionKey = "id")
     _         <-
       put("table1", NestedCaseClass2(id = 1, SimpleCaseClass3(2, "Avi", flag = true))).execute // Save case class to DB
     caseClass <- get[NestedCaseClass2]("table1", PrimaryKey("id" -> 1)).execute // read case class from DB
@@ -37,5 +36,5 @@ object SimpleDecodedExample extends App {
   } yield ()
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] =
-    program.provideCustomLayer(DynamoDBExecutor.test).exitCode
+    program.provideCustomLayer(DynamoDBExecutor.test("table1" -> "id")).exitCode
 }

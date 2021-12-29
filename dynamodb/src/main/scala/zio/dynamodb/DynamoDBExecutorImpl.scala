@@ -130,6 +130,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
   private def doQuerySome(querySome: QuerySome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] =
     dynamoDb
       .query(generateQueryRequest(querySome))
+      .take(querySome.limit.toLong)
       .mapBoth(_.toThrowable, DynamoDBExecutorImpl.toDynamoItem)
       .run(ZSink.collectAll[Item])
       .map(chunk => (chunk, chunk.lastOption))
@@ -255,6 +256,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
   private def doScanSome(scanSome: ScanSome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] =
     dynamoDb
       .scan(generateScanRequest(scanSome))
+      .take(scanSome.limit.toLong)
       .mapBoth(_.toThrowable, DynamoDBExecutorImpl.toDynamoItem)
       .run(ZSink.collectAll[Item])
       .map(chunk => (chunk, chunk.lastOption))
@@ -610,7 +612,7 @@ case object DynamoDBExecutorImpl {
       )
     )
     keySchema.sortKey.fold(hashKeyElement)(sortKey =>
-      hashKeyElement.appended(KeySchemaElement(attributeName = sortKey, keyType = KeyType.RANGE))
+      hashKeyElement :+ KeySchemaElement(attributeName = sortKey, keyType = KeyType.RANGE)
     )
   }
 

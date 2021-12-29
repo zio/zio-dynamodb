@@ -34,9 +34,9 @@ trait DynamoDBFixtures {
   val deleteItemT1 = DeleteItem(tableName = tableName1, key = primaryKeyT1)
   val deleteItemT3 = DeleteItem(tableName = tableName3, key = primaryKeyT3)
 
-  def chunkOfPrimaryKeyAndItem(r: Range, pkFieldName: String): Chunk[TableEntry] =
+  def chunkOfPrimaryKeyAndItem(r: Range, pkFieldName: String): Chunk[PkAndItem] =
     Chunk.fromIterable(r.map(i => (PrimaryKey(pkFieldName -> i), Item(pkFieldName -> i, "k2" -> (i + 1)))).toList)
 
-  def resultItems(range: Range): Chunk[Item]                                     = chunkOfPrimaryKeyAndItem(range, "k1").map { case (_, v) => v }
+  def resultItems(range: Range): Chunk[Item]                                    = chunkOfPrimaryKeyAndItem(range, "k1").map { case (_, v) => v }
 
 }

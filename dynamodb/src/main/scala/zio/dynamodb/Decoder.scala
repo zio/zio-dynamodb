@@ -281,7 +281,7 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
                 case Left(s)     => Left(s)
               }
           }
-          EitherUtil.collectAll(xs).map(Map.from)
+          EitherUtil.collectAll(xs).map(elems => Map.newBuilder[String, V].++=(elems).result())
         case av                      => Left(s"Error: expected AttributeValue.Map but found $av")
       }
     }
@@ -296,7 +296,7 @@ private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
             case av                              =>
               Left(s"Error: expected AttributeValue.List but found $av")
           }
-          x.map(Map.from)
+          x.map(elems => Map.newBuilder[A, B].++=(elems).result())
         case av                            => Left(s"Error: expected AttributeValue.List but found $av")
       }
     }
