@@ -62,7 +62,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       case getItem: GetItem               => doGetItem(getItem)
       case putItem: PutItem               => doPutItem(putItem)
       // TODO(adam): Cannot just leave this `Clock.live` here. Should be a part of building the executor
-      case batchGetItem: BatchGetItem     => doBatchGetItem(batchGetItem).mapError(_.toThrowable).provideLayer(Clock.live)
+      case batchGetItem: BatchGetItem     =>
+        doBatchGetItem(batchGetItem).mapError(_.toThrowable).provideLayer(ZLayer.succeed(clock))
       case batchWriteItem: BatchWriteItem =>
         doBatchWriteItem(batchWriteItem).mapError(_.toThrowable).provideLayer(ZLayer.succeed(clock))
       case scanAll: ScanAll               => doScanAll(scanAll)
@@ -217,7 +218,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
   private def mapOfListToMapOfSet[A, B](map: ScalaMap[String, List[A]])(f: A => Option[B]): MapOfSet[TableName, B] =
     map.foldLeft(MapOfSet.empty[TableName, B]) {
       case (acc, (tableName, l)) =>
-        acc ++ ((TableName(tableName), l.flatMap(f)))
+        acc ++ ((TableName(tableName), l.map(f).flatten)) // TODO: Better way to make this compatible with 2.12 & 2.13?
     }
 
   private def doBatchWriteItem(batchWriteItem: BatchWriteItem): ZIO[Clock, AwsError, BatchWriteItem.Response] =
