@@ -3,10 +3,10 @@ package zio.dynamodb
 import io.github.vigoo.zioaws.dynamodb.DynamoDb
 import io.github.vigoo.zioaws.dynamodb.DynamoDb.DynamoDbMock
 import io.github.vigoo.zioaws.dynamodb.model.{
-  AttributeValue,
-  BatchGetItemResponse,
+  AttributeValue => ZIOAwsAttributeValue,
+  BatchGetItemResponse => ZIOAwsBatchGetItemResponse,
   BatchWriteItemResponse,
-  KeysAndAttributes
+  KeysAndAttributes => ZIOAwsKeysAndAttributes
 }
 import zio.clock.Clock
 import zio.{ Chunk, ULayer, ZLayer }
@@ -223,18 +223,18 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
     .BatchGetItem(
       equalTo(firstGetRequest),
       value(
-        BatchGetItemResponse(
+        ZIOAwsBatchGetItemResponse(
           responses = Some(
             ScalaMap(
               mockBatches -> List(
-                ScalaMap("k1" -> AttributeValue(s = Some("v1")))
+                ScalaMap("k1" -> ZIOAwsAttributeValue(s = Some("v1")))
               )
             )
           ),
           unprocessedKeys = Some(
             ScalaMap(
-              mockBatches -> KeysAndAttributes(
-                keys = List(ScalaMap("k1" -> AttributeValue(s = Some("v2"))))
+              mockBatches -> ZIOAwsKeysAndAttributes(
+                keys = List(ScalaMap("k1" -> ZIOAwsAttributeValue(s = Some("v2"))))
               )
             )
           )
@@ -244,13 +244,13 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
     .BatchGetItem(
       equalTo(retryGetRequest),
       value(
-        BatchGetItemResponse(
+        ZIOAwsBatchGetItemResponse(
           responses = Some(
             ScalaMap(
               mockBatches -> List(
                 ScalaMap(
-                  "k1" -> AttributeValue(s = Some("v2")),
-                  "k2" -> AttributeValue(s = Some("v23"))
+                  "k1" -> ZIOAwsAttributeValue(s = Some("v2")),
+                  "k2" -> ZIOAwsAttributeValue(s = Some("v23"))
                 )
               )
             )
