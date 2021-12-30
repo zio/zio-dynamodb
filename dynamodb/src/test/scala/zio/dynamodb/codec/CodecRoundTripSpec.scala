@@ -1,6 +1,6 @@
 package zio.dynamodb.codec
 
-import zio.dynamodb.{ Decoder, Encoder }
+import zio.dynamodb.Codec
 import zio.random.Random
 import zio.schema.{ DeriveSchema, Schema, StandardType }
 import zio.test.Assertion.{ equalTo, isRight }
@@ -267,8 +267,8 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
       checkM(SchemaGen.anyPrimitiveAndGen) {
         case (s, gen) =>
           val mapSchema = Schema.map(Schema[String], s)
-          val enc       = Encoder(mapSchema)
-          val dec       = Decoder(mapSchema)
+          val enc       = Codec.encoder(mapSchema)
+          val dec       = Codec.decoder(mapSchema)
 
           check(gen) { a =>
             val initialMap = Map("StringKey" -> a)
@@ -313,8 +313,8 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
     }
 
   private def assertEncodesThenDecodesPure[A](schema: Schema[A], a: A) = {
-    val enc = Encoder(schema)
-    val dec = Decoder(schema)
+    val enc = Codec.encoder(schema)
+    val dec = Codec.decoder(schema)
 
     val encoded = enc(a)
     val decoded = dec(encoded)

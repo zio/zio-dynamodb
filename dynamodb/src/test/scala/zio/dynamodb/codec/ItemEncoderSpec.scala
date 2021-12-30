@@ -1,8 +1,10 @@
 package zio.dynamodb.codec
 
-import zio.dynamodb.{ AttrMap, AttributeValue, DynamoDBQuery, Encoder, Item }
+import zio.dynamodb._
+import zio.dynamodb.codec.Invoice.PreBilled
+import zio.dynamodb.codec.WithCaseObjectOnlyEnum.ONE
 import zio.test.Assertion._
-import zio.test.{ DefaultRunnableSpec, ZSpec, _ }
+import zio.test._
 
 import java.time.Instant
 import scala.collection.immutable.ListMap
@@ -14,7 +16,7 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
   val mainSuite: ZSpec[Environment, Failure] = suite("Main Suite")(
     test("encodes generic record") {
 
-      val av = Encoder(recordSchema)(ListMap("foo" -> "FOO", "bar" -> 1))
+      val av = Codec.encoder(recordSchema)(ListMap("foo" -> "FOO", "bar" -> 1))
 
       assert(av)(
         equalTo(AttributeValue.Map(Map(toAvString("foo") -> toAvString("FOO"), toAvString("bar") -> toAvNum(1))))
@@ -22,7 +24,7 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
     },
     test("encodes enumeration") {
 
-      val av = Encoder(enumSchema)("FOO")
+      val av = Codec.encoder(enumSchema)("FOO")
 
       assert(av)(
         equalTo(AttributeValue.Map(Map(toAvString("string") -> toAvString("FOO"))))
@@ -117,6 +119,51 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
       val expectedItem: Item = Item("elements" -> List(Item("id" -> 1, "name" -> "Avi", "flag" -> true)))
 
       val item = DynamoDBQuery.toItem(CaseClassOfListOfCaseClass(List(SimpleCaseClass3(1, "Avi", flag = true))))
+
+      assert(item)(equalTo(expectedItem))
+    },
+    test("encodes enum with discriminator annotation") {
+      val expectedItem: Item =
+        Item(
+          Map(
+            "enum" -> AttributeValue.Map(
+              Map(
+                AttributeValue.String("value")              -> AttributeValue.String("foobar"),
+                AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("StringValue")
+              )
+            )
+          )
+        )
+
+      val item = DynamoDBQuery.toItem(WithDiscriminatedEnum(WithDiscriminatedEnum.StringValue("foobar")))
+
+      assert(item)(equalTo(expectedItem))
+    },
+    test("encodes top level enum with discriminator annotation") {
+      val expectedItem: Item =
+        Item(
+          Map(
+            "id"                 -> AttributeValue.Number(BigDecimal(1)),
+            "s"                  -> AttributeValue.String("foobar"),
+            "funkyDiscriminator" -> AttributeValue.String("PreBilled")
+          )
+        )
+
+      val item = DynamoDBQuery.toItem[Invoice](PreBilled(1, "foobar"))
+
+      assert(item)(equalTo(expectedItem))
+    },
+    test("encodes case object only enum with constValue annotation") {
+      val expectedItem: Item = Item(Map("enum" -> AttributeValue.String("ONE")))
+
+      val item = DynamoDBQuery.toItem(WithCaseObjectOnlyEnum(ONE))
+
+      assert(item)(equalTo(expectedItem))
+    },
+    test("encodes case object only enum without constValue annotation") {
+      val expectedItem: Item = Item("enum" -> Item(Map("ONE" -> AttributeValue.Null)))
+
+      val item = DynamoDBQuery.toItem(WithCaseObjectOnlyEnum2(WithCaseObjectOnlyEnum2.ONE))
 
       assert(item)(equalTo(expectedItem))
     }
