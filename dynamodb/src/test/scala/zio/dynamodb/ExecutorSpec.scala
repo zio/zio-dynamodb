@@ -3,21 +3,20 @@ package zio.dynamodb
 import io.github.vigoo.zioaws.dynamodb.DynamoDb
 import io.github.vigoo.zioaws.dynamodb.DynamoDb.DynamoDbMock
 import io.github.vigoo.zioaws.dynamodb.model.{
+  BatchWriteItemResponse,
   AttributeValue => ZIOAwsAttributeValue,
   BatchGetItemResponse => ZIOAwsBatchGetItemResponse,
-  BatchWriteItemResponse,
   KeysAndAttributes => ZIOAwsKeysAndAttributes
 }
 import zio.clock.Clock
-import zio.{ Chunk, ULayer, ZLayer }
+import zio.{ Chunk, Has, ULayer, ZLayer }
 import zio.dynamodb.DynamoDBQuery._
 
 import scala.collection.immutable.{ Map => ScalaMap }
 import zio.duration._
 import zio.test.Assertion._
-import zio.test.environment.{ testEnvironment, Live, TestClock }
 import zio.test.mock.Expectation.value
-import zio.test.{ assert, Annotations, DefaultRunnableSpec, TestAspect, ZSpec }
+import zio.test.{ assert, DefaultRunnableSpec, TestAspect, ZSpec }
 
 object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
 
@@ -318,8 +317,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
       }
     )
 
-  private val clockLayer: ZLayer[Any, Nothing, Clock with TestClock] =
-    testEnvironment >>> ((Annotations.live ++ Live.default) >>> TestClock.default)
+  private val clockLayer = ZLayer.identity[Has[Clock.Service]]
 
   private val batchRetries = suite("Batch retries")(
     batchGetSuite.provideCustomLayer((mockedBatchGet ++ clockLayer) >>> DynamoDBExecutor.live),
