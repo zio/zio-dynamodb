@@ -322,7 +322,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
     testEnvironment >>> ((Annotations.live ++ Live.default) >>> TestClock.default)
 
   private val batchRetries = suite("Batch retries")(
-    batchGetSuite.provideLayer((mockedBatchGet ++ clockLayer) >>> DynamoDBExecutor.live),
-    batchWriteSuite.provideLayer((mockedBatchWrite ++ clockLayer) >>> DynamoDBExecutor.live)
+    batchGetSuite.provideCustomLayer((mockedBatchGet ++ clockLayer) >>> DynamoDBExecutor.live),
+    batchWriteSuite.provideCustomLayer((mockedBatchWrite ++ clockLayer) >>> DynamoDBExecutor.live)
   )
 }

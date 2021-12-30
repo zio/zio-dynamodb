@@ -1,6 +1,6 @@
 package zio.dynamodb
 import io.github.vigoo.zioaws.core.AwsError
-import zio.{ Chunk, ZIO, ZLayer }
+import zio.{ Chunk, Has, ZIO }
 import zio.dynamodb.DynamoDBQuery._
 import io.github.vigoo.zioaws.dynamodb.DynamoDb
 import io.github.vigoo.zioaws.dynamodb.model.{
@@ -63,9 +63,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       case putItem: PutItem               => doPutItem(putItem)
       // TODO(adam): Cannot just leave this `Clock.live` here. Should be a part of building the executor
       case batchGetItem: BatchGetItem     =>
-        doBatchGetItem(batchGetItem).mapError(_.toThrowable).provideLayer(ZLayer.succeed(clock))
+        doBatchGetItem(batchGetItem).mapError(_.toThrowable).provide(Has(clock))
       case batchWriteItem: BatchWriteItem =>
-        doBatchWriteItem(batchWriteItem).mapError(_.toThrowable).provideLayer(ZLayer.succeed(clock))
+        doBatchWriteItem(batchWriteItem).mapError(_.toThrowable).provide(Has(clock))
       case scanAll: ScanAll               => doScanAll(scanAll)
       case scanSome: ScanSome             => doScanSome(scanSome)
       case updateItem: UpdateItem         => doUpdateItem(updateItem)

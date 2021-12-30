@@ -1,6 +1,5 @@
 package zio.dynamodb
 
-import com.amazonaws.services.dynamodbv2.local.server.DynamoDBProxyServer
 import io.github.vigoo.zioaws.core.config
 import io.github.vigoo.zioaws.dynamodb.DynamoDb
 import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
@@ -36,18 +35,14 @@ object LiveSpec extends DefaultRunnableSpec {
     )
   )
 
-  private val clockLayer: ZLayer[Any, Nothing, Clock with TestClock] =
-    testEnvironment >>> ((Annotations.live ++ Live.default) >>> TestClock.default)
-
   private val dynamoDbLayer: ZLayer[Any, Throwable, DynamoDb] =
     (http4s.default ++ awsConfig) >>> config.configured() >>> dynamodb.customized { builder =>
       builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
     }
 
-  private val layer: ZLayer[Any, Throwable, Has[DynamoDBProxyServer] with Has[DynamoDBExecutor]] =
-    (dynamoDbLayer ++ clockLayer) >>> DynamoDBExecutor.live ++ (Blocking.live >>> LocalDdbServer.inMemoryLayer)
-
-  //  private val liveAws = http4s.default >>> config.default >>> dynamodb.live >>> DynamoDBExecutor.live
+  private val layer =
+    (dynamoDbLayer ++ ZLayer
+      .identity[Has[Clock.Service]]) >>> DynamoDBExecutor.live ++ (Blocking.live >>> LocalDdbServer.inMemoryLayer)
 
   private val id       = "id"
   private val first    = "first"
@@ -477,36 +472,33 @@ object LiveSpec extends DefaultRunnableSpec {
             }
           },
           testM("append to list") {
-            withDefaultTable {
-              tableName =>
-                for {
-                  _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
-                  _       <- updateItem(tableName, secondPrimaryKey)($("listThing").appendList(Chunk(2, 3, 4))).execute
-                  // REVIEW(john): Getting None when a projection expression is added here
-                  updated <- getItem(tableName, secondPrimaryKey).execute
-                } yield assert(
-                  updated.map(a =>
-                    a.get("listThing")(
-                      FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
-                    )
+            withDefaultTable { tableName =>
+              for {
+                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
+                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").appendList(Chunk(2, 3, 4))).execute
+                updated <- getItem(tableName, secondPrimaryKey).execute
+              } yield assert(
+                updated.map(a =>
+                  a.get("listThing")(
+                    FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
                   )
-                )(equalTo(Some(Right(List(1, 2, 3, 4)))))
+                )
+              )(equalTo(Some(Right(List(1, 2, 3, 4)))))
             }
           },
           testM("prepend to list") {
-            withDefaultTable {
-              tableName =>
-                for {
-                  _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
-                  _       <- updateItem(tableName, secondPrimaryKey)($("listThing").prependList(Chunk(-1, 0))).execute
-                  updated <- getItem(tableName, secondPrimaryKey).execute
-                } yield assert(
-                  updated.map(a =>
-                    a.get("listThing")(
-                      FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
-                    )
+            withDefaultTable { tableName =>
+              for {
+                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
+                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").prependList(Chunk(-1, 0))).execute
+                updated <- getItem(tableName, secondPrimaryKey).execute
+              } yield assert(
+                updated.map(a =>
+                  a.get("listThing")(
+                    FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
                   )
-                )(equalTo(Some(Right(List(-1, 0, 1)))))
+                )
+              )(equalTo(Some(Right(List(-1, 0, 1)))))
             }
           },
           testM("set an Item Attribute") {
@@ -640,8 +632,7 @@ object LiveSpec extends DefaultRunnableSpec {
         }
       )
     )
-      .provideCustomLayerShared(
+      .provideSomeLayerShared[TestEnvironment](
         layer.orDie
       ) @@ nondeterministic
-//      .provideCustomLayerShared(liveAws.orDie)
 }
