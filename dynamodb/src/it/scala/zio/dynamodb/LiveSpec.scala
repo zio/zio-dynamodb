@@ -238,7 +238,7 @@ object LiveSpec extends DefaultRunnableSpec {
                               }
                               .execute
                           }
-                stream <- scanAllItem(tableName).execute
+                stream <- scanAllItem(tableName).inParallel(8).execute
                 chunk  <- stream.runCollect
               } yield assert(chunk.length)(equalTo(5000))
           )
