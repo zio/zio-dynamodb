@@ -181,6 +181,14 @@ sealed trait DynamoDBQuery[+A] { self =>
       case _                          => self
     }
 
+  def inParallel(n: Int): DynamoDBQuery[A] =
+    self match {
+      case Zip(left, right, zippable) => Zip(left.inParallel(n), right.inParallel(n), zippable)
+      case Map(query, mapper)         => Map(query.inParallel(n), mapper)
+      case s: ScanAll                 => s.copy(parallel = n).asInstanceOf[DynamoDBQuery[A]]
+      case _                          => self
+    }
+
   def gsi(
     indexName: String,
     keySchema: KeySchema,
@@ -312,8 +320,8 @@ object DynamoDBQuery {
   def succeed[A](a: A): DynamoDBQuery[A] = Succeed(() => a)
 
   def forEach[A, B](values: Iterable[A])(body: A => DynamoDBQuery[B]): DynamoDBQuery[List[B]] =
-    values.foldRight[DynamoDBQuery[List[B]]](succeed(Nil)) {
-      case (a, query) => body(a).zipWith(query)(_ :: _)
+    values.foldLeft[DynamoDBQuery[List[B]]](succeed(Nil)) {
+      case (query, a) => body(a).zipWith(query)(_ :: _)
     }
 
   def getItem(
@@ -653,8 +661,13 @@ object DynamoDBQuery {
     filterExpression: Option[FilterExpression] = None,
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
+    select: Option[Select] = None,                        // if ProjectExpression supplied then only valid value is SpecificAttributes
+    parallel: Int = 1                                     // TODO: Greater than 0
   ) extends Constructor[Stream[Throwable, Item]]
+
+  object ScanAll {
+    final case class Segment(number: Int, total: Int)
+  }
 
   private[dynamodb] final case class QueryAll(
     tableName: TableName,
@@ -849,7 +862,7 @@ object DynamoDBQuery {
           }
         )
 
-      case scan @ ScanAll(_, _, _, _, _, _, _, _, _)          =>
+      case scan @ ScanAll(_, _, _, _, _, _, _, _, _, _)       =>
         (
           Chunk(scan),
           (results: Chunk[Any]) => {

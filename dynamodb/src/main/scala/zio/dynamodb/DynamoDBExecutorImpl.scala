@@ -42,7 +42,7 @@ import io.github.vigoo.zioaws.dynamodb.model.{
 import zio.dynamodb.ConsistencyMode.toBoolean
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.SSESpecification.SSEType
-import zio.stream.{ Stream, ZSink }
+import zio.stream.{ Stream, ZSink, ZStream }
 
 import scala.collection.immutable.{ Map => ScalaMap }
 
@@ -263,14 +263,33 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   }
 
   private def doScanAll(scanAll: ScanAll): ZIO[Any, Throwable, Stream[Throwable, Item]] =
-    ZIO.succeed(
-      dynamoDb
-        .scan(generateScanRequest(scanAll))
-        .mapBoth(
-          awsError => awsError.toThrowable,
-          item => toDynamoItem(item)
-        )
-    )
+    if (scanAll.parallel == 1)
+      ZIO.succeed(
+        dynamoDb
+          .scan(generateScanRequest(scanAll, None))
+          .mapBoth(
+            awsError => awsError.toThrowable,
+            item => toDynamoItem(item)
+          )
+      )
+    else {
+      lazy val emptyStream: ZStream[Any, Throwable, Item] = ZStream()
+      for {
+        streams <- ZIO.foreachPar(Chunk.unfold(0)(n => if (n < scanAll.parallel) Some((n, n + 1)) else None)) {
+                     segment =>
+                       ZIO.succeed(
+                         dynamoDb
+                           .scan(
+                             generateScanRequest(
+                               scanAll,
+                               Some(ScanAll.Segment(segment, scanAll.parallel))
+                             )
+                           )
+                           .mapBoth(_.toThrowable, toDynamoItem)
+                       )
+                   }
+      } yield streams.foldLeft(emptyStream) { case (acc, stream) => acc.merge(stream) }
+    }
 
   private def generateScanRequest(scanSome: ScanSome): ScanRequest = {
     val filterExpression = scanSome.filterExpression.map(fe => fe.render.execute)
@@ -288,7 +307,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     )
   }
 
-  private def generateScanRequest(scanAll: ScanAll): ScanRequest = {
+  private def generateScanRequest(scanAll: ScanAll, segment: Option[ScanAll.Segment]): ScanRequest = {
     val filterExpression = scanAll.filterExpression.map(fe => fe.render.execute)
     ScanRequest(
       tableName = scanAll.tableName.value,
@@ -300,7 +319,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       projectionExpression = toOption(scanAll.projections).map(_.mkString(", ")),
       filterExpression = filterExpression.map(_._2),
       expressionAttributeValues = filterExpression.flatMap(a => aliasMapToExpressionZIOAwsAttributeValues(a._1)),
-      consistentRead = Some(toBoolean(scanAll.consistency))
+      consistentRead = Some(toBoolean(scanAll.consistency)),
+      totalSegments = segment.map(_.total),
+      segment = segment.map(_.number)
     )
   }
 
