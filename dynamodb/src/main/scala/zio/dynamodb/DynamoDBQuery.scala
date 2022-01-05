@@ -311,6 +311,16 @@ object DynamoDBQuery {
 
   def succeed[A](a: A): DynamoDBQuery[A] = Succeed(() => a)
 
+  /**
+   * Each element in `values` is zipped together using function `body` which has signature `A => DynamoDBQuery[B]`
+   * Note that when `DynamoDBQuery`'s are zipped together, on execution the queries are batched together as AWS DynamoDB
+   * batch queries whenever this is possible.
+   *
+   * Note this is a low level function for a small amount of elements - if you want to perform a large number of reads
+   * and writes prefer the following utility functions - [[zio.dynamodb.batchReadItemFromStream]],
+   * [[zio.dynamodb.batchWriteFromStream]] which work with ZStreams and efficiently limit batch sizes to the maximum size
+   * allowed by the AWS API.
+   */
   def forEach[A, B](values: Iterable[A])(body: A => DynamoDBQuery[B]): DynamoDBQuery[List[B]] =
     values.foldRight[DynamoDBQuery[List[B]]](succeed(Nil)) {
       case (a, query) => body(a).zipWith(query)(_ :: _)
