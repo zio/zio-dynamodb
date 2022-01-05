@@ -312,7 +312,7 @@ object DynamoDBQuery {
   def succeed[A](a: A): DynamoDBQuery[A] = Succeed(() => a)
 
   /**
-   * Each element in `values` is zipped together using function `body` which hase signature `A => DynamoDBQuery[B]`
+   * Each element in `values` is zipped together using function `body` which has signature `A => DynamoDBQuery[B]`
    * Note that when `DynamoDBQuery`'s are zipped together, on execution the queries are batched together as AWS DynamoDB
    * batch queries whenever this is possible.
    *
