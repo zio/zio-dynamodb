@@ -222,12 +222,35 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
         acc ++ ((TableName(tableName), l.map(f).flatten)) // TODO: Better way to make this compatible with 2.12 & 2.13?
     }
 
+  private def doBatchWriteItem2(batchWriteItem: BatchWriteItem): ZIO[Clock, AwsError, BatchWriteItem.Response] =
+    for {
+      ref     <- zio.Ref.make[MapOfSet[TableName, BatchWriteItem.Write]](batchWriteItem.requestItems)
+      attempt <- (for {
+                     unprocessedItems                                            <- ref.get
+                     response                                                    <- dynamoDb.batchWriteItem(
+                                                                                      generateBatchWriteItem(batchWriteItem.copy(requestItems = unprocessedItems))
+                                                                                    )
+                     unprocessedItems: MapOfSet[TableName, BatchWriteItem.Write] <-
+                       response.unprocessedItems.map(map => mapOfListToMapOfSet(map)(writeRequestToBatchWrite))
+                     _                                                           <- ref.set(unprocessedItems)
+                     _                                                           <- if (unprocessedItems.nonEmpty)
+                                                                                      ZIO.fail() // Fail with special marker error reason is we're going to be retrying the effect
+                                                                                    else ZIO.unit
+
+                   } yield ()).retry(
+                   batchWriteItem.retryPolicy.whileInput(???)
+                 ) // only retry if that special marker error is the error case
+      // on the front level of DynamoDBQuery allow the user to specify the retry policy
+      // similar to the parallel method in the scanAll par
+
+    } yield ???
+
   private def doBatchWriteItem(batchWriteItem: BatchWriteItem): ZIO[Clock, AwsError, BatchWriteItem.Response] =
     if (batchWriteItem.requestItems.nonEmpty)
       for {
-        batchWriteResponse <- dynamoDb
-                                .batchWriteItem(generateBatchWriteItem(batchWriteItem))
-        unprocessedItems   <-
+        batchWriteResponse                                          <- dynamoDb
+                                                                         .batchWriteItem(generateBatchWriteItem(batchWriteItem))
+        unprocessedItems: MapOfSet[TableName, BatchWriteItem.Write] <-
           batchWriteResponse.unprocessedItems.map(map => mapOfListToMapOfSet(map)(writeRequestToBatchWrite))
 
         /*
