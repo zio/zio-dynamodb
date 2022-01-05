@@ -229,20 +229,27 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
                                 .batchWriteItem(generateBatchWriteItem(batchWriteItem))
         unprocessedItems   <-
           batchWriteResponse.unprocessedItems.map(map => mapOfListToMapOfSet(map)(writeRequestToBatchWrite))
-        retryResponse      <- if (unprocessedItems.nonEmpty && batchWriteItem.retryAttempts > 0)
-                                doBatchWriteItem(
-                                  batchWriteItem.copy(
-                                    requestItems = unprocessedItems,
-                                    retryAttempts = batchWriteItem.retryAttempts - 1,
-                                    exponentialBackoff = batchWriteItem.exponentialBackoff.multipliedBy(2)
-                                  )
-                                ).delay(batchWriteItem.exponentialBackoff)
-                              else
-                                ZIO.succeed(
-                                  BatchWriteItem.Response(
-                                    unprocessedItems.toOption
-                                  )
-                                )
+
+        /*
+        create a helper effect that holds unprocessed
+        need to create a REF that will hold unprocessed Items
+        effect that we will retry will pull from that ref and call doBatchWrite on the items in the ref
+         */
+
+//        retryResponse      <- if (unprocessedItems.nonEmpty && batchWriteItem.retryAttempts > 0)
+//                                doBatchWriteItem(
+//                                  batchWriteItem.copy(
+//                                    requestItems = unprocessedItems,
+//                                    retryAttempts = batchWriteItem.retryAttempts - 1,
+//                                    exponentialBackoff = batchWriteItem.exponentialBackoff.multipliedBy(2)
+//                                  )
+//                                ).delay(batchWriteItem.exponentialBackoff)
+//                              else
+//                                ZIO.succeed(
+//                                  BatchWriteItem.Response(
+//                                    unprocessedItems.toOption
+//                                  )
+//                                )
       } yield retryResponse
     else ZIO.succeed(BatchWriteItem.Response(None))
 
