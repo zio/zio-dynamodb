@@ -181,11 +181,11 @@ sealed trait DynamoDBQuery[+A] { self =>
       case _                          => self
     }
 
-  def inParallel(n: Int): DynamoDBQuery[A] =
+  def parallel(n: Int): DynamoDBQuery[A] =
     self match {
-      case Zip(left, right, zippable) => Zip(left.inParallel(n), right.inParallel(n), zippable)
-      case Map(query, mapper)         => Map(query.inParallel(n), mapper)
-      case s: ScanAll                 => s.copy(parallel = n).asInstanceOf[DynamoDBQuery[A]]
+      case Zip(left, right, zippable) => Zip(left.parallel(n), right.parallel(n), zippable)
+      case Map(query, mapper)         => Map(query.parallel(n), mapper)
+      case s: ScanAll                 => s.copy(totalSegments = n).asInstanceOf[DynamoDBQuery[A]]
       case _                          => self
     }
 
@@ -662,7 +662,7 @@ object DynamoDBQuery {
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None,                        // if ProjectExpression supplied then only valid value is SpecificAttributes
-    parallel: Int = 1                                     // TODO: Greater than 0
+    totalSegments: Int = 1                                // TODO: Greater than 0
   ) extends Constructor[Stream[Throwable, Item]]
 
   object ScanAll {

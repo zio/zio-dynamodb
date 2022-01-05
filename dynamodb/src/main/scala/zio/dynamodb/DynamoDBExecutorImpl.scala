@@ -263,7 +263,24 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   }
 
   private def doScanAll(scanAll: ScanAll): ZIO[Any, Throwable, Stream[Throwable, Item]] =
-    if (scanAll.parallel == 1)
+    if (scanAll.totalSegments > 1) {
+      lazy val emptyStream: ZStream[Any, Throwable, Item] = ZStream()
+      for {
+        streams <- ZIO.foreachPar(Chunk.unfold(0)(n => if (n < scanAll.totalSegments) Some((n, n + 1)) else None)) {
+                     segment =>
+                       ZIO.succeed(
+                         dynamoDb
+                           .scan(
+                             generateScanRequest(
+                               scanAll,
+                               Some(ScanAll.Segment(segment, scanAll.totalSegments))
+                             )
+                           )
+                           .mapBoth(_.toThrowable, toDynamoItem)
+                       )
+                   }
+      } yield streams.foldLeft(emptyStream) { case (acc, stream) => acc.merge(stream) }
+    } else
       ZIO.succeed(
         dynamoDb
           .scan(generateScanRequest(scanAll, None))
@@ -272,24 +289,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
             item => toDynamoItem(item)
           )
       )
-    else {
-      lazy val emptyStream: ZStream[Any, Throwable, Item] = ZStream()
-      for {
-        streams <- ZIO.foreachPar(Chunk.unfold(0)(n => if (n < scanAll.parallel) Some((n, n + 1)) else None)) {
-                     segment =>
-                       ZIO.succeed(
-                         dynamoDb
-                           .scan(
-                             generateScanRequest(
-                               scanAll,
-                               Some(ScanAll.Segment(segment, scanAll.parallel))
-                             )
-                           )
-                           .mapBoth(_.toThrowable, toDynamoItem)
-                       )
-                   }
-      } yield streams.foldLeft(emptyStream) { case (acc, stream) => acc.merge(stream) }
-    }
 
   private def generateScanRequest(scanSome: ScanSome): ScanRequest = {
     val filterExpression = scanSome.filterExpression.map(fe => fe.render.execute)

@@ -226,7 +226,7 @@ object LiveSpec extends DefaultRunnableSpec {
             } yield assert(chunk)(equalTo(Chunk(aviPerson, avi2Person, avi3Person)))
           }
         },
-        testM("parallel scan all") {
+        testM("parallel scan all item") {
           withTemporaryTable(
             numberTable,
             tableName =>
@@ -234,7 +234,23 @@ object LiveSpec extends DefaultRunnableSpec {
                 _      <- batchWriteFromStream(ZStream.fromIterable(1 to 10000).map(i => Item(id -> i))) { item =>
                             putItem(tableName, item)
                           }.runDrain
-                stream <- scanAllItem(tableName).inParallel(8).execute
+                stream <- scanAllItem(tableName).parallel(8).execute
+                chunk  <- stream.runCollect
+              } yield assert(chunk.length)(equalTo(10000))
+          )
+        },
+        testM("parallel scan all typed") {
+          withTemporaryTable(
+            defaultTable,
+            tableName =>
+              for {
+                _      <-
+                  batchWriteFromStream(
+                    ZStream.fromIterable(1 to 10000).map(i => Item(id -> i.toString, number -> i, name -> i.toString))
+                  ) { item =>
+                    putItem(tableName, item)
+                  }.runDrain
+                stream <- scanAll[Person](tableName).parallel(8).execute
                 chunk  <- stream.runCollect
               } yield assert(chunk.length)(equalTo(10000))
           )
