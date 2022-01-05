@@ -266,18 +266,17 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
     if (scanAll.totalSegments > 1) {
       lazy val emptyStream: ZStream[Any, Throwable, Item] = ZStream()
       for {
-        streams <- ZIO.foreachPar(Chunk.unfold(0)(n => if (n < scanAll.totalSegments) Some((n, n + 1)) else None)) {
-                     segment =>
-                       ZIO.succeed(
-                         dynamoDb
-                           .scan(
-                             generateScanRequest(
-                               scanAll,
-                               Some(ScanAll.Segment(segment, scanAll.totalSegments))
-                             )
+        streams <- ZIO.foreachPar(Chunk.fromIterable(0 until scanAll.totalSegments)) { segment =>
+                     ZIO.succeed(
+                       dynamoDb
+                         .scan(
+                           generateScanRequest(
+                             scanAll,
+                             Some(ScanAll.Segment(segment, scanAll.totalSegments))
                            )
-                           .mapBoth(_.toThrowable, toDynamoItem)
-                       )
+                         )
+                         .mapBoth(_.toThrowable, toDynamoItem)
+                     )
                    }
       } yield streams.foldLeft(emptyStream) { case (acc, stream) => acc.merge(stream) }
     } else

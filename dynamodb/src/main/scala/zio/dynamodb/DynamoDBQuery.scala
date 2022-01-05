@@ -181,6 +181,16 @@ sealed trait DynamoDBQuery[+A] { self =>
       case _                          => self
     }
 
+  // DynamoDBQuery.when(f: A => Boolean) // fail if this is false
+
+  // Could make sense to add a DynamoDBQuery.FailCause that translates to ZIO.failCause
+  // Then if n < 0 just do DynamoDBQuery.dieMessage("n less than 0")
+  // DynamoDBQuery.failCause(cause: Cause[Nothing]) // can only fail for interrupt or fatal
+  // Can implement dieMessage in the same way ZIO does
+  // DyanmoDBQuery.die(throwable: Throwable) // for fatal errors
+
+  // Could do zio-prelude (still moving along quickly but not stable)
+  // would return an either during runtime
   def parallel(n: Int): DynamoDBQuery[A] =
     self match {
       case Zip(left, right, zippable) => Zip(left.parallel(n), right.parallel(n), zippable)
