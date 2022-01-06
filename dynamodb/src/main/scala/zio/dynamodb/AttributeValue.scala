@@ -37,7 +37,6 @@ object AttributeValue {
   private[dynamodb] final case class Bool(value: Boolean)                       extends AttributeValue
   private[dynamodb] final case class List(value: Iterable[AttributeValue])      extends AttributeValue
 
-  // TODO: use ListMap rather than Map
   private[dynamodb] final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue
 
   private[dynamodb] final case class Number(value: BigDecimal)          extends AttributeValue

@@ -690,9 +690,11 @@ private[dynamodb] object Codec {
 
   private def discriminator(annotations: Chunk[Any]): String =
     annotations.toList match {
-      case discriminator(name) :: _ => // TODO: check if discriminator is in any tail position as well ie anywhere
+      case discriminator(name) :: _      =>
         name
-      case _                        =>
+      case _ :: discriminator(name) :: _ =>
+        name
+      case _                             =>
         "discriminator"
     }
 
