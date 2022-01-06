@@ -223,30 +223,25 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
     if (batchWriteItem.requestItems.isEmpty) ZIO.succeed(BatchWriteItem.Response(None))
     else
       for {
-        ref     <- zio.Ref.make[MapOfSet[TableName, BatchWriteItem.Write]](batchWriteItem.requestItems)
-        attempt <- (for {
-                       unprocessedItems         <- ref.get
-                       response                 <- dynamoDb
-                                                     .batchWriteItem(
-                                                       generateBatchWriteItem(batchWriteItem.copy(requestItems = unprocessedItems))
-                                                     )
-                                                     .mapError(_.toThrowable)
-                       responseUnprocessedItems <-
-                         response.unprocessedItems
-                           .mapBoth(_.toThrowable, map => mapOfListToMapOfSet(map)(writeRequestToBatchWrite))
-                       _                        <- ref.set(responseUnprocessedItems)
-                       _                        <- ZIO.fail(new Throwable("abcd")).when(responseUnprocessedItems.nonEmpty)
+        ref         <- zio.Ref.make[MapOfSet[TableName, BatchWriteItem.Write]](batchWriteItem.requestItems)
+        _           <- (for {
+                           unprocessedItems         <- ref.get
+                           response                 <- dynamoDb
+                                                         .batchWriteItem(
+                                                           generateBatchWriteItem(batchWriteItem.copy(requestItems = unprocessedItems))
+                                                         )
+                                                         .mapError(_.toThrowable)
+                           responseUnprocessedItems <-
+                             response.unprocessedItems
+                               .mapBoth(_.toThrowable, map => mapOfListToMapOfSet(map)(writeRequestToBatchWrite))
+                           _                        <- ref.set(responseUnprocessedItems)
+                           _                        <- ZIO.fail(BatchRetryError()).when(responseUnprocessedItems.nonEmpty)
 
-                     } yield responseUnprocessedItems)
-                     .retry(
-                       batchWriteItem.retryPolicy.whileInput { thrown =>
-                         thrown.getMessage == "abcd" // only retry if that special marker error is the error case
-                       }
-                     )
-                     .catchSome { thrown =>
-                       if (thrown.getMessage == "abcd") ref.get else ZIO.fail(thrown)
-                     }
-      } yield BatchWriteItem.Response(attempt.toOption)
+                         } yield ())
+                         .retry(batchWriteItem.retryPolicy.whileInput(_.isInstanceOf[BatchRetryError]))
+                         .catchSome(thrown => ZIO.fail(thrown).unless(thrown.isInstanceOf[BatchRetryError]))
+        unprocessed <- ref.get
+      } yield BatchWriteItem.Response(unprocessed.toOption)
 
   private def doUpdateItem(updateItem: UpdateItem): ZIO[Any, Throwable, Option[Item]] =
     dynamoDb.updateItem(generateUpdateItemRequest(updateItem)).mapBoth(_.toThrowable, optionalItem)
@@ -329,13 +324,12 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       for {
         unprocessedKeys <- zio.Ref.make[ScalaMap[TableName, TableGet]](batchGetItem.requestItems)
         collectedItems  <- zio.Ref.make[MapOfSet[TableName, Item]](MapOfSet.empty)
-        attempt         <- (for {
+        _               <- (for {
                                unprocessed         <- unprocessedKeys.get
                                currentCollection   <- collectedItems.get
-                               response            <-
-                                 dynamoDb
-                                   .batchGetItem(generateBatchGetItemRequest(batchGetItem.copy(requestItems = unprocessed)))
-                                   .mapError(_.toThrowable)
+                               response            <- dynamoDb
+                                                        .batchGetItem(generateBatchGetItemRequest(batchGetItem.copy(requestItems = unprocessed)))
+                                                        .mapError(_.toThrowable)
                                responseUnprocessed <- response.unprocessedKeys.mapBoth(
                                                         _.toThrowable,
                                                         _.map { case (k, v) => (TableName(k), keysAndAttrsToTableGet(v)) }
@@ -343,12 +337,14 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
                                _                   <- unprocessedKeys.set(responseUnprocessed)
                                retrievedItems      <- response.responses.mapError(_.toThrowable)
                                _                   <- collectedItems.set(currentCollection ++ tableItemsMapToResponse(retrievedItems))
-                               _                   <- ZIO.fail(new Throwable("abcd")).when(responseUnprocessed.nonEmpty)
-                             } yield responseUnprocessed)
-                             .retry(batchGetItem.retryPolicy.whileInput(thrown => thrown.getMessage == "abcd"))
-                             .catchSome(thrown => if (thrown.getMessage == "abcd") unprocessedKeys.get else ZIO.fail(thrown))
+                               _                   <- ZIO.fail(BatchRetryError()).when(responseUnprocessed.nonEmpty)
+                             } yield ())
+                             .retry(batchGetItem.retryPolicy.whileInput(thrown => thrown.isInstanceOf[BatchRetryError]))
+                             .catchSome(thrown => ZIO.fail(thrown).unless(thrown.isInstanceOf[BatchRetryError]))
+
         retrievedItems  <- collectedItems.get
-      } yield BatchGetItem.Response(responses = retrievedItems, unprocessedKeys = attempt)
+        unprocessed     <- unprocessedKeys.get
+      } yield BatchGetItem.Response(responses = retrievedItems, unprocessedKeys = unprocessed)
 
   private def doPutItem(putItem: PutItem): ZIO[Any, Throwable, Unit] =
     dynamoDb.putItem(generatePutItemRequest(putItem)).unit.mapError(_.toThrowable)

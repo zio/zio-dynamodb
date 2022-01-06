@@ -276,6 +276,7 @@ sealed trait DynamoDBQuery[+A] { self =>
         Zip(left.withRetryPolicy(retryPolicy), right.withRetryPolicy(retryPolicy), zippable)
       case Map(query, mapper)         => Map(query.withRetryPolicy(retryPolicy), mapper)
       case s: BatchWriteItem          => s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[A]]
+      case s: BatchGetItem            => s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[A]]
       case _                          => self
     }
 
@@ -498,6 +499,10 @@ object DynamoDBQuery {
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
   ) extends Constructor[Option[Item]]
+
+  private[dynamodb] final case class BatchRetryError() extends Throwable { self =>
+    def toThrowable = new Throwable("Unprocessed data in response from Dynamo")
+  }
 
   private[dynamodb] final case class BatchGetItem(
     requestItems: ScalaMap[TableName, BatchGetItem.TableGet] = ScalaMap.empty,
