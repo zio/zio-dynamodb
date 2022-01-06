@@ -1,20 +1,22 @@
 package zio.dynamodb
 
 import zio.dynamodb.DynamoDBQuery.{ get, put }
+import zio.dynamodb.codec.Invoice
+import zio.dynamodb.codec.Invoice.PreBilled
 import zio.schema.{ DeriveSchema, Schema }
-import zio.test.{ assertTrue, DefaultRunnableSpec }
+import zio.test.{ assertTrue, DefaultRunnableSpec, ZSpec }
 
 object GetAndPutSpec extends DefaultRunnableSpec {
   final case class SimpleCaseClass2(id: Int, name: String)
   implicit lazy val simpleCaseClass2: Schema[SimpleCaseClass2] = DeriveSchema.gen[SimpleCaseClass2]
 
-  val primaryKey1 = PrimaryKey("id" -> 1)
-  val primaryKey2 = PrimaryKey("id" -> 2)
+  private val primaryKey1 = PrimaryKey("id" -> 1)
+  private val primaryKey2 = PrimaryKey("id" -> 2)
 
-  override def spec =
+  override def spec: ZSpec[Environment, Failure] =
     suite("get and put suite")(getSuite, putSuite).provideLayer(DynamoDBExecutor.test("table1" -> "id"))
 
-  val getSuite      = suite("get item as SimpleCaseClass2")(
+  private val getSuite                           = suite("get item as SimpleCaseClass2")(
     testM("that exists") {
       for {
         _     <- TestDynamoDBExecutor.addItems("table1", primaryKey1 -> Item("id" -> 1, "name" -> "Avi"))
@@ -47,12 +49,19 @@ object GetAndPutSpec extends DefaultRunnableSpec {
     }
   )
 
-  val putSuite = suite("put")(
+  private val putSuite = suite("put")(
     testM("""SimpleCaseClass2(1, "Avi")""") {
       for {
         _     <- put[SimpleCaseClass2]("table1", SimpleCaseClass2(1, "Avi")).execute
         found <- get[SimpleCaseClass2]("table1", primaryKey1).execute
       } yield assertTrue(found == Right(SimpleCaseClass2(1, "Avi")))
+    },
+    testM("""top level enum PreBilled(1, "foobar")""") {
+      for {
+        _     <- TestDynamoDBExecutor.addTable("table1", "id")
+        _     <- put[Invoice]("table1", PreBilled(1, "foobar")).execute
+        found <- get[Invoice]("table1", primaryKey1).execute
+      } yield assertTrue(found == Right(PreBilled(1, "foobar")))
     },
     testM("""batched SimpleCaseClass2(1, "Avi") and SimpleCaseClass2(2, "Tarlochan")""") {
       for {
