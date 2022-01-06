@@ -638,14 +638,11 @@ private[dynamodb] object Codec {
 
     private def alternateEnumDecoder[A](discriminator: String, cases: Schema.Case[_, A]*): Decoder[A] = {
       (av: AttributeValue) =>
-        def findCase(value: String): Either[String, Schema.Case[_, A]] = {
-          val maybeCase = cases.find {
+        def findCase(value: String): Either[String, Schema.Case[_, A]] =
+          cases.find {
             case Schema.Case(_, _, _, Chunk(constantValue(const))) => const == value
             case Schema.Case(id, _, _, _)                          => id == value
-          }
-
-          maybeCase.toRight(s"type name '$value' not found in schema cases")
-        }
+          }.toRight(s"type name '$value' not found in schema cases")
 
         def decode(id: String): Either[String, A] =
           findCase(id).flatMap { c =>
