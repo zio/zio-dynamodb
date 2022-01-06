@@ -1,5 +1,4 @@
 package zio.dynamodb
-import io.github.vigoo.zioaws.core.AwsError
 import zio.{ Chunk, Has, ZIO }
 import zio.dynamodb.DynamoDBQuery._
 import io.github.vigoo.zioaws.dynamodb.DynamoDb
@@ -63,10 +62,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       case getItem: GetItem               => doGetItem(getItem)
       case putItem: PutItem               => doPutItem(putItem)
       // TODO(adam): Cannot just leave this `Clock.live` here. Should be a part of building the executor
-      case batchGetItem: BatchGetItem     =>
-        doBatchGetItem(batchGetItem).mapError(_.toThrowable).provide(Has(clock))
-      case batchWriteItem: BatchWriteItem =>
-        doBatchWriteItem(batchWriteItem).provide(Has(clock))
+      case batchGetItem: BatchGetItem     => doBatchGetItem(batchGetItem).provide(Has(clock))
+      case batchWriteItem: BatchWriteItem => doBatchWriteItem(batchWriteItem).provide(Has(clock))
       case scanAll: ScanAll               => doScanAll(scanAll)
       case scanSome: ScanSome             => doScanSome(scanSome)
       case updateItem: UpdateItem         => doUpdateItem(updateItem)
@@ -227,11 +224,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
     else
       for {
         ref     <- zio.Ref.make[MapOfSet[TableName, BatchWriteItem.Write]](batchWriteItem.requestItems)
-        ref2    <- zio.Ref.make(1)
         attempt <- (for {
                        unprocessedItems         <- ref.get
-                       count                    <- ref2.get
-                       _                         = println(s"count: $count, gotten unprocessed: $unprocessedItems")
                        response                 <- dynamoDb
                                                      .batchWriteItem(
                                                        generateBatchWriteItem(batchWriteItem.copy(requestItems = unprocessedItems))
@@ -241,13 +235,11 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
                          response.unprocessedItems
                            .mapBoth(_.toThrowable, map => mapOfListToMapOfSet(map)(writeRequestToBatchWrite))
                        _                        <- ref.set(responseUnprocessedItems)
-                       _                        <- ref2.set(count + 1)
                        _                        <- ZIO.fail(new Throwable("abcd")).when(responseUnprocessedItems.nonEmpty)
 
                      } yield responseUnprocessedItems)
                      .retry(
                        batchWriteItem.retryPolicy.whileInput { thrown =>
-                         println("we failed")
                          thrown.getMessage == "abcd" // only retry if that special marker error is the error case
                        }
                      )
@@ -330,37 +322,33 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
     )
   }
 
-  private def doBatchGetItem(batchGetItem: BatchGetItem): ZIO[Clock, AwsError, BatchGetItem.Response] =
+  private def doBatchGetItem(batchGetItem: BatchGetItem): ZIO[Clock, Throwable, BatchGetItem.Response] =
     if (batchGetItem.requestItems.isEmpty)
       ZIO.succeed(BatchGetItem.Response())
     else
       for {
-        batchResponse   <- dynamoDb.batchGetItem(generateBatchGetItemRequest(batchGetItem))
-        tableItemsMap   <- batchResponse.responses
-        unprocessedKeys <- batchResponse.unprocessedKeys.map(
-                             _.map { case (k, v) => (TableName(k), keysAndAttrsToTableGet(v)) }
-                           )
-        response        <- if (unprocessedKeys.nonEmpty && batchGetItem.retryAttempts > 0) {
-                             val nextBatchGet = batchGetItem.copy(
-                               retryAttempts = batchGetItem.retryAttempts - 1,
-                               exponentialBackoff = batchGetItem.exponentialBackoff.multipliedBy(2),
-                               requestItems = unprocessedKeys
-                             )
-                             doBatchGetItem(nextBatchGet)
-                               .delay(batchGetItem.exponentialBackoff)
-                               .map(retryResponse =>
-                                 BatchGetItem.Response(
-                                   tableItemsMapToResponse(tableItemsMap)
-                                 ) ++ retryResponse
-                               )
-                           } else
-                             ZIO.succeed(
-                               BatchGetItem.Response(
-                                 responses = tableItemsMapToResponse(tableItemsMap),
-                                 unprocessedKeys = unprocessedKeys
-                               )
-                             )
-      } yield response
+        unprocessedKeys <- zio.Ref.make[ScalaMap[TableName, TableGet]](batchGetItem.requestItems)
+        collectedItems  <- zio.Ref.make[MapOfSet[TableName, Item]](MapOfSet.empty)
+        attempt         <- (for {
+                               unprocessed         <- unprocessedKeys.get
+                               currentCollection   <- collectedItems.get
+                               response            <-
+                                 dynamoDb
+                                   .batchGetItem(generateBatchGetItemRequest(batchGetItem.copy(requestItems = unprocessed)))
+                                   .mapError(_.toThrowable)
+                               responseUnprocessed <- response.unprocessedKeys.mapBoth(
+                                                        _.toThrowable,
+                                                        _.map { case (k, v) => (TableName(k), keysAndAttrsToTableGet(v)) }
+                                                      )
+                               _                   <- unprocessedKeys.set(responseUnprocessed)
+                               retrievedItems      <- response.responses.mapError(_.toThrowable)
+                               _                   <- collectedItems.set(currentCollection ++ tableItemsMapToResponse(retrievedItems))
+                               _                   <- ZIO.fail(new Throwable("abcd")).when(responseUnprocessed.nonEmpty)
+                             } yield responseUnprocessed)
+                             .retry(batchGetItem.retryPolicy.whileInput(thrown => thrown.getMessage == "abcd"))
+                             .catchSome(thrown => if (thrown.getMessage == "abcd") unprocessedKeys.get else ZIO.fail(thrown))
+        retrievedItems  <- collectedItems.get
+      } yield BatchGetItem.Response(responses = retrievedItems, unprocessedKeys = attempt)
 
   private def doPutItem(putItem: PutItem): ZIO[Any, Throwable, Unit] =
     dynamoDb.putItem(generatePutItemRequest(putItem)).unit.mapError(_.toThrowable)

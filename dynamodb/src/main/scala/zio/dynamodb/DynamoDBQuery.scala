@@ -504,8 +504,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     private[dynamodb] val orderedGetItems: Chunk[GetItem] =
       Chunk.empty, // track order of added GetItems for later unpacking
-    retryAttempts: Int = 5,
-    exponentialBackoff: Duration = 30.seconds
+    retryPolicy: Schedule[Any, Throwable, Any] = Schedule.recurs(5) && Schedule.exponential(30.seconds)
   ) extends Constructor[BatchGetItem.Response] { self =>
 
     def +(getItem: GetItem): BatchGetItem = {
@@ -811,7 +810,7 @@ object DynamoDBQuery {
 
       case Succeed(value)     => (Chunk.empty, _ => value())
 
-      case batchGetItem @ BatchGetItem(_, _, _, _, _)         =>
+      case batchGetItem @ BatchGetItem(_, _, _, _)            =>
         (
           Chunk(batchGetItem),
           (results: Chunk[Any]) => {

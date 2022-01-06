@@ -13,7 +13,6 @@ import zio.{ Chunk, Has, Schedule, ULayer, ZLayer }
 import zio.dynamodb.DynamoDBQuery._
 
 import scala.collection.immutable.{ Map => ScalaMap }
-import zio.duration._
 import zio.test.Assertion._
 import zio.test.mock.Expectation.value
 import zio.test.{ assert, DefaultRunnableSpec, TestAspect, ZSpec }
@@ -269,7 +268,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
                             Set.empty
                           )
                         ),
-                        exponentialBackoff = 0.seconds
+                        retryPolicy = Schedule.recurs(1)
                       ).execute
         } yield assert(response.responses.get(TableName(mockBatches)))(
           equalTo(Some(Set(itemOne, Item("k1" -> "v2", "k2" -> "v23"))))
