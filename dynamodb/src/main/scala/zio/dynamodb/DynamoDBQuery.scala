@@ -510,9 +510,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
   ) extends Constructor[Option[Item]]
 
-  private[dynamodb] final case class BatchRetryError() extends Throwable { self =>
-    def toThrowable = new Throwable("Unprocessed data in response from Dynamo")
-  }
+  private[dynamodb] final case class BatchRetryError() extends Throwable
 
   private[dynamodb] final case class BatchGetItem(
     requestItems: ScalaMap[TableName, BatchGetItem.TableGet] = ScalaMap.empty,
