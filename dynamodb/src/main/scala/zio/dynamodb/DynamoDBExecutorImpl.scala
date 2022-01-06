@@ -61,7 +61,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
     constructor match {
       case getItem: GetItem               => doGetItem(getItem)
       case putItem: PutItem               => doPutItem(putItem)
-      // TODO(adam): Cannot just leave this `Clock.live` here. Should be a part of building the executor
       case batchGetItem: BatchGetItem     => doBatchGetItem(batchGetItem).provide(Has(clock))
       case batchWriteItem: BatchWriteItem => doBatchWriteItem(batchWriteItem).provide(Has(clock))
       case scanAll: ScanAll               => doScanAll(scanAll)

@@ -575,13 +575,7 @@ object DynamoDBQuery {
       // Note - if a requested item does not exist, it is not returned in the result
       responses: MapOfSet[TableName, Item] = MapOfSet.empty,
       unprocessedKeys: ScalaMap[TableName, TableGet] = ScalaMap.empty
-    ) { self =>
-      def ++(that: Response): Response =
-        Response(
-          responses = self.responses ++ that.responses,
-          unprocessedKeys = self.unprocessedKeys ++ that.unprocessedKeys
-        )
-    }
+    )
   }
 
   private[dynamodb] final case class BatchWriteItem(
@@ -625,13 +619,7 @@ object DynamoDBQuery {
 
     final case class Response(
       unprocessedItems: Option[MapOfSet[TableName, BatchWriteItem.Write]]
-    ) { self =>
-      def ++(that: Response): Response =
-        Response(
-          (self.unprocessedItems.getOrElse(MapOfSet.empty) ++ that.unprocessedItems.getOrElse(MapOfSet.empty)).toOption
-        )
-
-    }
+    )
 
   }
   private[dynamodb] final case class DeleteTable(
