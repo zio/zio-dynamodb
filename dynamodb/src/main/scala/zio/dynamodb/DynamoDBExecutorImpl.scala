@@ -66,7 +66,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       case batchGetItem: BatchGetItem     =>
         doBatchGetItem(batchGetItem).mapError(_.toThrowable).provide(Has(clock))
       case batchWriteItem: BatchWriteItem =>
-        doBatchWriteItem(batchWriteItem).mapError(_.toThrowable).provide(Has(clock))
+        doBatchWriteItem(batchWriteItem).provide(Has(clock))
       case scanAll: ScanAll               => doScanAll(scanAll)
       case scanSome: ScanSome             => doScanSome(scanSome)
       case updateItem: UpdateItem         => doUpdateItem(updateItem)
@@ -222,59 +222,39 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
         acc ++ ((TableName(tableName), l.map(f).flatten)) // TODO: Better way to make this compatible with 2.12 & 2.13?
     }
 
-  private def doBatchWriteItem2(batchWriteItem: BatchWriteItem): ZIO[Clock, AwsError, BatchWriteItem.Response] =
-    for {
-      ref     <- zio.Ref.make[MapOfSet[TableName, BatchWriteItem.Write]](batchWriteItem.requestItems)
-      attempt <- (for {
-                     unprocessedItems                                            <- ref.get
-                     response                                                    <- dynamoDb.batchWriteItem(
-                                                                                      generateBatchWriteItem(batchWriteItem.copy(requestItems = unprocessedItems))
-                                                                                    )
-                     unprocessedItems: MapOfSet[TableName, BatchWriteItem.Write] <-
-                       response.unprocessedItems.map(map => mapOfListToMapOfSet(map)(writeRequestToBatchWrite))
-                     _                                                           <- ref.set(unprocessedItems)
-                     _                                                           <- if (unprocessedItems.nonEmpty)
-                                                                                      ZIO.fail() // Fail with special marker error reason is we're going to be retrying the effect
-                                                                                    else ZIO.unit
-
-                   } yield ()).retry(
-                   batchWriteItem.retryPolicy.whileInput(???)
-                 ) // only retry if that special marker error is the error case
-      // on the front level of DynamoDBQuery allow the user to specify the retry policy
-      // similar to the parallel method in the scanAll par
-
-    } yield ???
-
-  private def doBatchWriteItem(batchWriteItem: BatchWriteItem): ZIO[Clock, AwsError, BatchWriteItem.Response] =
-    if (batchWriteItem.requestItems.nonEmpty)
+  private def doBatchWriteItem(batchWriteItem: BatchWriteItem): ZIO[Clock, Throwable, BatchWriteItem.Response] =
+    if (batchWriteItem.requestItems.isEmpty) ZIO.succeed(BatchWriteItem.Response(None))
+    else
       for {
-        batchWriteResponse                                          <- dynamoDb
-                                                                         .batchWriteItem(generateBatchWriteItem(batchWriteItem))
-        unprocessedItems: MapOfSet[TableName, BatchWriteItem.Write] <-
-          batchWriteResponse.unprocessedItems.map(map => mapOfListToMapOfSet(map)(writeRequestToBatchWrite))
+        ref     <- zio.Ref.make[MapOfSet[TableName, BatchWriteItem.Write]](batchWriteItem.requestItems)
+        ref2    <- zio.Ref.make(1)
+        attempt <- (for {
+                       unprocessedItems         <- ref.get
+                       count                    <- ref2.get
+                       _                         = println(s"count: $count, gotten unprocessed: $unprocessedItems")
+                       response                 <- dynamoDb
+                                                     .batchWriteItem(
+                                                       generateBatchWriteItem(batchWriteItem.copy(requestItems = unprocessedItems))
+                                                     )
+                                                     .mapError(_.toThrowable)
+                       responseUnprocessedItems <-
+                         response.unprocessedItems
+                           .mapBoth(_.toThrowable, map => mapOfListToMapOfSet(map)(writeRequestToBatchWrite))
+                       _                        <- ref.set(responseUnprocessedItems)
+                       _                        <- ref2.set(count + 1)
+                       _                        <- ZIO.fail(new Throwable("abcd")).when(responseUnprocessedItems.nonEmpty)
 
-        /*
-        create a helper effect that holds unprocessed
-        need to create a REF that will hold unprocessed Items
-        effect that we will retry will pull from that ref and call doBatchWrite on the items in the ref
-         */
-
-//        retryResponse      <- if (unprocessedItems.nonEmpty && batchWriteItem.retryAttempts > 0)
-//                                doBatchWriteItem(
-//                                  batchWriteItem.copy(
-//                                    requestItems = unprocessedItems,
-//                                    retryAttempts = batchWriteItem.retryAttempts - 1,
-//                                    exponentialBackoff = batchWriteItem.exponentialBackoff.multipliedBy(2)
-//                                  )
-//                                ).delay(batchWriteItem.exponentialBackoff)
-//                              else
-//                                ZIO.succeed(
-//                                  BatchWriteItem.Response(
-//                                    unprocessedItems.toOption
-//                                  )
-//                                )
-      } yield retryResponse
-    else ZIO.succeed(BatchWriteItem.Response(None))
+                     } yield responseUnprocessedItems)
+                     .retry(
+                       batchWriteItem.retryPolicy.whileInput { thrown =>
+                         println("we failed")
+                         thrown.getMessage == "abcd" // only retry if that special marker error is the error case
+                       }
+                     )
+                     .catchSome { thrown =>
+                       if (thrown.getMessage == "abcd") ref.get else ZIO.fail(thrown)
+                     }
+      } yield BatchWriteItem.Response(attempt.toOption)
 
   private def doUpdateItem(updateItem: UpdateItem): ZIO[Any, Throwable, Option[Item]] =
     dynamoDb.updateItem(generateUpdateItemRequest(updateItem)).mapBoth(_.toThrowable, optionalItem)

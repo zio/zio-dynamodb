@@ -9,7 +9,7 @@ import io.github.vigoo.zioaws.dynamodb.model.{
   KeysAndAttributes => ZIOAwsKeysAndAttributes
 }
 import zio.clock.Clock
-import zio.{ Chunk, Has, ULayer, ZLayer }
+import zio.{ Chunk, Has, Schedule, ULayer, ZLayer }
 import zio.dynamodb.DynamoDBQuery._
 
 import scala.collection.immutable.{ Map => ScalaMap }
@@ -209,8 +209,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
         BatchWriteItem.Put(itemOne)
       )
     ),
-    exponentialBackoff = 0.seconds,
-    retryAttempts = 1
+    retryPolicy = Schedule.recurs(1)
   )
 
   private val firstWriteRequest =
@@ -300,7 +299,6 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
       testM("should retry when there are unprocessed items") {
         for {
           response <- batchWriteRequest.execute
-
         } yield assert(response.unprocessedItems)(
           equalTo(
             Some(

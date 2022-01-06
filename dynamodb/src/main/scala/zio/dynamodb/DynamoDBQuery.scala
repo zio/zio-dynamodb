@@ -270,6 +270,15 @@ sealed trait DynamoDBQuery[+A] { self =>
       case _                          => self
     }
 
+  def withRetryPolicy(retryPolicy: Schedule[Any, Throwable, Any]): DynamoDBQuery[A] =
+    self match {
+      case Zip(left, right, zippable) =>
+        Zip(left.withRetryPolicy(retryPolicy), right.withRetryPolicy(retryPolicy), zippable)
+      case Map(query, mapper)         => Map(query.withRetryPolicy(retryPolicy), mapper)
+      case s: BatchWriteItem          => s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[A]]
+      case _                          => self
+    }
+
   def sortOrder(ascending: Boolean): DynamoDBQuery[A] =
     self match {
       case Zip(left, right, zippable) => Zip(left.sortOrder(ascending), right.sortOrder(ascending), zippable)
@@ -566,7 +575,8 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     addList: Chunk[BatchWriteItem.Write] = Chunk.empty,
-    retryPolicy: Schedule[Any, Throwable, Any] = Schedule.recurs(5) && Schedule.exponential(30.seconds)
+    retryPolicy: Schedule[Any, Throwable, Any] =
+      Schedule.recurs(5) && Schedule.exponential(30.seconds)
   ) extends Constructor[BatchWriteItem.Response] { self =>
     def +[A](writeItem: Write[A]): BatchWriteItem =
       writeItem match {
@@ -576,8 +586,7 @@ object DynamoDBQuery {
             self.capacity,
             self.itemMetrics,
             self.addList :+ Put(putItem.item),
-            self.retryAttempts,
-            self.exponentialBackoff
+            self.retryPolicy
           )
         case deleteItem @ DeleteItem(_, _, _, _, _, _) =>
           BatchWriteItem(
@@ -585,8 +594,7 @@ object DynamoDBQuery {
             self.capacity,
             self.itemMetrics,
             self.addList :+ Delete(deleteItem.key),
-            self.retryAttempts,
-            self.exponentialBackoff
+            self.retryPolicy
           )
       }
 
@@ -594,14 +602,8 @@ object DynamoDBQuery {
       entries.foldLeft(self) {
         case (batch, write) => batch + write
       }
-
-    def withExponentialBackoff(duration: Duration): BatchWriteItem =
-      self.copy(exponentialBackoff = duration)
-
-    def withRetryAttempts(attempts: Int): BatchWriteItem =
-      self.copy(retryAttempts = attempts)
-
   }
+
   private[dynamodb] object BatchWriteItem {
     sealed trait Write
     final case class Delete(key: PrimaryKey) extends Write
@@ -817,7 +819,7 @@ object DynamoDBQuery {
           }
         )
 
-      case batchWriteItem @ BatchWriteItem(_, _, _, _, _, _)  =>
+      case batchWriteItem @ BatchWriteItem(_, _, _, _, _)     =>
         (
           Chunk(batchWriteItem),
           (results: Chunk[Any]) => {
