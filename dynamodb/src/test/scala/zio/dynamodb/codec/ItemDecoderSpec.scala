@@ -167,6 +167,38 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(WithDiscriminatedEnum(WithDiscriminatedEnum.StringValue("foobar")))))
     },
+    test("decodes enum with discriminator annotation and case object as item without a constValue annotation") {
+      val item: Item =
+        Item(
+          Map(
+            "enum" -> AttributeValue.Map(
+              Map(
+                AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("ONE")
+              )
+            )
+          )
+        )
+
+      val actual = DynamoDBQuery.fromItem[WithDiscriminatedEnum](item)
+
+      assert(actual)(isRight(equalTo(WithDiscriminatedEnum(WithDiscriminatedEnum.ONE))))
+    },
+    test("decodes enum with discriminator annotation and case object as item with a constValue annotation of '2'") {
+      val item: Item =
+        Item(
+          Map(
+            "enum" -> AttributeValue.Map(
+              Map(
+                AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("2")
+              )
+            )
+          )
+        )
+
+      val actual = DynamoDBQuery.fromItem[WithDiscriminatedEnum](item)
+
+      assert(actual)(isRight(equalTo(WithDiscriminatedEnum(WithDiscriminatedEnum.TWO))))
+    },
     test("decodes top level enum with discriminator annotation") {
       val item: Item =
         Item(
@@ -187,6 +219,13 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
       val actual = DynamoDBQuery.fromItem[WithCaseObjectOnlyEnum](item)
 
       assert(actual)(isRight(equalTo(WithCaseObjectOnlyEnum(WithCaseObjectOnlyEnum.ONE))))
+    },
+    test("decodes case object only enum with enumNameAsValue annotation and constValue annotation of '2'") {
+      val item: Item = Item(Map("enum" -> AttributeValue.String("2")))
+
+      val actual = DynamoDBQuery.fromItem[WithCaseObjectOnlyEnum](item)
+
+      assert(actual)(isRight(equalTo(WithCaseObjectOnlyEnum(WithCaseObjectOnlyEnum.TWO))))
     },
     test("decodes case object only enum without constValue annotation") {
       val item: Item = Item("enum" -> Item(Map("ONE" -> AttributeValue.Null)))
