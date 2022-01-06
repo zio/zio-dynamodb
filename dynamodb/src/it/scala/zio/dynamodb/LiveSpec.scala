@@ -236,7 +236,7 @@ object LiveSpec extends DefaultRunnableSpec {
                           }.runDrain
                 stream <- scanAllItem(tableName).parallel(8).execute
                 count  <- stream.fold(0) { case (count, _) => count + 1 }
-              } yield assert(chunk.length)(equalTo(10000))
+              } yield assert(count)(equalTo(10000))
           )
         },
         testM("parallel scan all typed") {
@@ -251,8 +251,8 @@ object LiveSpec extends DefaultRunnableSpec {
                     putItem(tableName, item)
                   }.runDrain
                 stream <- scanAll[Person](tableName).parallel(8).execute
-                chunk  <- stream.runCollect
-              } yield assert(chunk.length)(equalTo(10000))
+                count  <- stream.fold(0) { case (count, _) => count + 1 }
+              } yield assert(count)(equalTo(10000))
           )
         }
       ),

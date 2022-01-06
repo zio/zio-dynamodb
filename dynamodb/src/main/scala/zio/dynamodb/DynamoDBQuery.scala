@@ -330,8 +330,8 @@ object DynamoDBQuery {
   def succeed[A](a: A): DynamoDBQuery[A] = Succeed(() => a)
 
   def forEach[A, B](values: Iterable[A])(body: A => DynamoDBQuery[B]): DynamoDBQuery[List[B]] =
-    values.foldLeft[DynamoDBQuery[List[B]]](succeed(Nil)) {
-      case (query, a) => body(a).zipWith(query)(_ :: _)
+    values.foldRight[DynamoDBQuery[List[B]]](succeed(Nil)) {
+      case (a, query) => body(a).zipWith(query)(_ :: _)
     }
 
   def getItem(
@@ -672,7 +672,7 @@ object DynamoDBQuery {
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None,                        // if ProjectExpression supplied then only valid value is SpecificAttributes
-    totalSegments: Int = 1                                // TODO: Greater than 0
+    totalSegments: Int = 1
   ) extends Constructor[Stream[Throwable, Item]]
 
   object ScanAll {
