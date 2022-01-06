@@ -1,6 +1,6 @@
 package zio.dynamodb.codec
 
-import zio.dynamodb.Annotations.{ constantValue, discriminator }
+import zio.dynamodb.Annotations.{ constantValue2, discriminator, enumNameAsValue }
 import zio.schema.{ DeriveSchema, Schema }
 
 import java.time.Instant
@@ -42,14 +42,30 @@ final case class CaseClassOfTuple2(tuple2: (String, Int))
 @discriminator(name = "funkyDiscriminator")
 sealed trait EnumWithDiscriminator
 
+/*
+anyCaseObjectHasConstAnnotation
+isAlternate = anyCaseObjectHasConstAnnotation OR enum has discriminator annotation
+allCaseObjects = all cases are objects
+
+
+if all cases are objects
+  if case has constValue2 annotation use that else use label
+if mixed and no discriminator // this is default case so no change?
+//  if case has constValue2 annotation use that else use label
+
+
+ */
 final case class WithDiscriminatedEnum(enum: EnumWithDiscriminator)
 object WithDiscriminatedEnum {
   final case class StringValue(value: String) extends EnumWithDiscriminator
   final case class IntValue(value: Int)       extends EnumWithDiscriminator
+  @constantValue2("1")
+  final case object ONE                       extends EnumWithDiscriminator
+
   implicit val schema: Schema[WithDiscriminatedEnum] = DeriveSchema.gen[WithDiscriminatedEnum]
 }
 
-@constantValue
+@enumNameAsValue
 sealed trait CaseObjectOnlyEnum
 final case class WithCaseObjectOnlyEnum(enum: CaseObjectOnlyEnum)
 object WithCaseObjectOnlyEnum {

@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.Annotations.{ constantValue, discriminator }
+import zio.dynamodb.Annotations.{ discriminator, enumNameAsValue }
 import zio.{ schema, Chunk }
 import zio.schema.Schema.{ Optional, Primitive, Transform }
 import zio.schema.{ FieldSet, Schema, StandardType }
@@ -613,7 +613,9 @@ private[dynamodb] object Codec {
     private def defaultEnumDecoder[A](cases: Schema.Case[_, A]*): Decoder[A] =
       (av: AttributeValue) =>
         av match {
-          case AttributeValue.Map(map) => // TODO: assume Map is ListMap for now
+          case AttributeValue.Map(map) =>
+            // default enum encoding uses a Map with a single entry that denotes the type
+            // TODO: think about being stricter and rejecting Maps with > 1 entry ???
             map.toList.headOption.fold[Either[String, A]](Left(s"map $av is empty")) {
               case (AttributeValue.String(subtype), av) =>
                 cases.find(_.id == subtype) match {
@@ -643,11 +645,11 @@ private[dynamodb] object Codec {
               val fieldIndex = cases.indexWhere(c => c.id == id)
               decode(fieldIndex, id)
             } else
-              Left(s"Error: not all enumeration elements elements are case objects. Found $cases")
+              Left(s"Error: not all enumeration elements are case objects. Found $cases")
           case AttributeValue.Map(map)   =>
             map
               .get(AttributeValue.String(discriminator))
-              .fold[Either[String, A]](Left(s"map $av does not contain discriminator field 'discriminator'")) {
+              .fold[Either[String, A]](Left(s"map $av does not contain discriminator field '$discriminator'")) {
                 case AttributeValue.String(typeName) =>
                   val fieldIndex = cases.indexWhere(c => c.id == typeName)
                   decode(fieldIndex, typeName)
@@ -684,8 +686,8 @@ private[dynamodb] object Codec {
 
   private def isAlternateEnumCodec(annotations: Chunk[Any]): Boolean =
     annotations.exists {
-      case discriminator(_) | constantValue() => true
-      case _                                  => false
+      case discriminator(_) | enumNameAsValue() => true
+      case _                                    => false
     }
 
 } // end Codec

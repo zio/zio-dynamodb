@@ -139,6 +139,22 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     },
+    test("encodes enum with discriminator annotation and case object as item") {
+      val expectedItem: Item =
+        Item(
+          Map(
+            "enum" -> AttributeValue.Map(
+              Map(
+                AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("ONE")
+              )
+            )
+          )
+        )
+
+      val item = DynamoDBQuery.toItem(WithDiscriminatedEnum(WithDiscriminatedEnum.ONE))
+
+      assert(item)(equalTo(expectedItem))
+    },
     test("encodes top level enum with discriminator annotation") {
       val expectedItem: Item =
         Item(
