@@ -218,6 +218,10 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
         acc ++ ((TableName(tableName), l.map(f).flatten)) // TODO: Better way to make this compatible with 2.12 & 2.13?
     }
 
+  private val catchBatchRetryError: PartialFunction[Throwable, ZIO[Clock, Throwable, Unit]] = {
+    case thrown: Throwable => ZIO.fail(thrown).unless(thrown.isInstanceOf[BatchRetryError])
+  }
+
   private def doBatchWriteItem(batchWriteItem: BatchWriteItem): ZIO[Clock, Throwable, BatchWriteItem.Response] =
     if (batchWriteItem.requestItems.isEmpty) ZIO.succeed(BatchWriteItem.Response(None))
     else
@@ -238,7 +242,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
 
                          } yield ())
                          .retry(batchWriteItem.retryPolicy.whileInput(_.isInstanceOf[BatchRetryError]))
-                         .catchSome(thrown => ZIO.fail(thrown).unless(thrown.isInstanceOf[BatchRetryError]))
+                         .catchSome(catchBatchRetryError)
         unprocessed <- ref.get
       } yield BatchWriteItem.Response(unprocessed.toOption)
 
@@ -339,7 +343,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
                                _                   <- ZIO.fail(BatchRetryError()).when(responseUnprocessed.nonEmpty)
                              } yield ())
                              .retry(batchGetItem.retryPolicy.whileInput(thrown => thrown.isInstanceOf[BatchRetryError]))
-                             .catchSome(thrown => ZIO.fail(thrown).unless(thrown.isInstanceOf[BatchRetryError]))
+                             .catchSome(catchBatchRetryError)
 
         retrievedItems  <- collectedItems.get
         unprocessed     <- unprocessedKeys.get
