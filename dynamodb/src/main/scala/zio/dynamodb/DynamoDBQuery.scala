@@ -1,5 +1,6 @@
 package zio.dynamodb
 
+import zio.duration._
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put }
 import zio.dynamodb.DynamoDBQuery.{
@@ -22,7 +23,7 @@ import zio.dynamodb.DynamoDBQuery.{
 import zio.dynamodb.UpdateExpression.Action
 import zio.schema.Schema
 import zio.stream.Stream
-import zio.{ Chunk, Has, ZIO }
+import zio.{ Chunk, Has, Schedule, ZIO }
 
 sealed trait DynamoDBQuery[+A] { self =>
 
@@ -284,6 +285,16 @@ sealed trait DynamoDBQuery[+A] { self =>
       case _                          => self
     }
 
+  def withRetryPolicy(retryPolicy: Schedule[Any, Throwable, Any]): DynamoDBQuery[A] =
+    self match {
+      case Zip(left, right, zippable) =>
+        Zip(left.withRetryPolicy(retryPolicy), right.withRetryPolicy(retryPolicy), zippable)
+      case Map(query, mapper)         => Map(query.withRetryPolicy(retryPolicy), mapper)
+      case s: BatchWriteItem          => s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[A]]
+      case s: BatchGetItem            => s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[A]]
+      case _                          => self
+    }
+
   def sortOrder(ascending: Boolean): DynamoDBQuery[A] =
     self match {
       case Zip(left, right, zippable) => Zip(left.sortOrder(ascending), right.sortOrder(ascending), zippable)
@@ -514,11 +525,14 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
   ) extends Constructor[Option[Item]]
 
+  private[dynamodb] final case class BatchRetryError() extends Throwable
+
   private[dynamodb] final case class BatchGetItem(
     requestItems: ScalaMap[TableName, BatchGetItem.TableGet] = ScalaMap.empty,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     private[dynamodb] val orderedGetItems: Chunk[GetItem] =
-      Chunk.empty // track order of added GetItems for later unpacking
+      Chunk.empty, // track order of added GetItems for later unpacking
+    retryPolicy: Schedule[Any, Throwable, Any] = Schedule.recurs(5) && Schedule.exponential(30.seconds)
   ) extends Constructor[BatchGetItem.Response] { self =>
 
     def +(getItem: GetItem): BatchGetItem = {
@@ -572,7 +586,8 @@ object DynamoDBQuery {
     )
     final case class Response(
       // Note - if a requested item does not exist, it is not returned in the result
-      responses: MapOfSet[TableName, Item] = MapOfSet.empty
+      responses: MapOfSet[TableName, Item] = MapOfSet.empty,
+      unprocessedKeys: ScalaMap[TableName, TableGet] = ScalaMap.empty
     )
   }
 
@@ -580,8 +595,10 @@ object DynamoDBQuery {
     requestItems: MapOfSet[TableName, BatchWriteItem.Write] = MapOfSet.empty,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
-    addList: Chunk[BatchWriteItem.Write] = Chunk.empty
-  ) extends Constructor[Unit] { self =>
+    addList: Chunk[BatchWriteItem.Write] = Chunk.empty,
+    retryPolicy: Schedule[Any, Throwable, Any] =
+      Schedule.recurs(5) && Schedule.exponential(30.seconds)
+  ) extends Constructor[BatchWriteItem.Response] { self =>
     def +[A](writeItem: Write[A]): BatchWriteItem =
       writeItem match {
         case putItem @ PutItem(_, _, _, _, _, _)       =>
@@ -589,14 +606,16 @@ object DynamoDBQuery {
             self.requestItems + ((putItem.tableName, Put(putItem.item))),
             self.capacity,
             self.itemMetrics,
-            self.addList :+ Put(putItem.item)
+            self.addList :+ Put(putItem.item),
+            self.retryPolicy
           )
         case deleteItem @ DeleteItem(_, _, _, _, _, _) =>
           BatchWriteItem(
             self.requestItems + ((deleteItem.tableName, Delete(deleteItem.key))),
             self.capacity,
             self.itemMetrics,
-            self.addList :+ Delete(deleteItem.key)
+            self.addList :+ Delete(deleteItem.key),
+            self.retryPolicy
           )
       }
 
@@ -604,12 +623,16 @@ object DynamoDBQuery {
       entries.foldLeft(self) {
         case (batch, write) => batch + write
       }
-
   }
+
   private[dynamodb] object BatchWriteItem {
     sealed trait Write
     final case class Delete(key: PrimaryKey) extends Write
     final case class Put(item: Item)         extends Write
+
+    final case class Response(
+      unprocessedItems: Option[MapOfSet[TableName, BatchWriteItem.Write]]
+    )
 
   }
   private[dynamodb] final case class DeleteTable(
@@ -629,6 +652,7 @@ object DynamoDBQuery {
     case object InaccessibleEncryptionCredentials extends TableStatus
     case object Archiving                         extends TableStatus
     case object Archived                          extends TableStatus
+    case object unknownToSdkVersion               extends TableStatus
   }
 
   // TODO(adam): Add more fields here, this was for some basic testing initially
@@ -807,7 +831,7 @@ object DynamoDBQuery {
 
       case Succeed(value)     => (Chunk.empty, _ => value())
 
-      case batchGetItem @ BatchGetItem(_, _, _)               =>
+      case batchGetItem @ BatchGetItem(_, _, _, _)            =>
         (
           Chunk(batchGetItem),
           (results: Chunk[Any]) => {
@@ -815,7 +839,7 @@ object DynamoDBQuery {
           }
         )
 
-      case batchWriteItem @ BatchWriteItem(_, _, _, _)        =>
+      case batchWriteItem @ BatchWriteItem(_, _, _, _, _)     =>
         (
           Chunk(batchWriteItem),
           (results: Chunk[Any]) => {

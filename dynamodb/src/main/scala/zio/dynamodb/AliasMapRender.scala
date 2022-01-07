@@ -1,10 +1,10 @@
 package zio.dynamodb
 
-trait Renderable {
+private[dynamodb] trait Renderable {
   def render: AliasMapRender[String]
 }
 
-final case class AliasMapRender[+A](
+private[dynamodb] final case class AliasMapRender[+A](
   render: AliasMap => (AliasMap, A)
 ) { self =>
 
@@ -33,7 +33,7 @@ final case class AliasMapRender[+A](
 
 }
 
-object AliasMapRender {
+private[dynamodb] object AliasMapRender {
   def getOrInsert(entry: AttributeValue): AliasMapRender[String] =
     AliasMapRender { aliasMap =>
       aliasMap.getOrInsert(entry)
