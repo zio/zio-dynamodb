@@ -157,7 +157,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       consistentRead = Some(toBoolean(queryAll.consistency)),
       scanIndexForward = Some(queryAll.ascending),
       exclusiveStartKey = queryAll.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
-      projectionExpression = toOption(queryAll.projections).map(_.mkString(", ")),
+      projectionExpression = toOption(queryAll.projections).map(projectionExpressionToZIOAWSProjectionExpression),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(queryAll.capacity)),
       filterExpression = maybeFilterExpr,
       expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap),
@@ -179,7 +179,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       scanIndexForward = Some(querySome.ascending),
       exclusiveStartKey = querySome.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(querySome.capacity)),
-      projectionExpression = toOption(querySome.projections).map(_.mkString(", ")),
+      projectionExpression = toOption(querySome.projections).map(projectionExpressionToZIOAWSProjectionExpression),
       filterExpression = maybeFilterExpr,
       expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap),
       keyConditionExpression = maybeKeyExpr
@@ -241,7 +241,10 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
                            _                        <- ZIO.fail(BatchRetryError()).when(responseUnprocessedItems.nonEmpty)
 
                          } yield ())
-                         .retry(batchWriteItem.retryPolicy.whileInput(_.isInstanceOf[BatchRetryError]))
+                         .retry(batchWriteItem.retryPolicy.whileInput {
+                           case BatchRetryError() => true
+                           case _                 => false
+                         })
                          .catchSome(catchBatchRetryError)
         unprocessed <- ref.get
       } yield BatchWriteItem.Response(unprocessed.toOption)
@@ -297,7 +300,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       exclusiveStartKey = scanSome.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(scanSome.capacity)),
       limit = Some(scanSome.limit),
-      projectionExpression = toOption(scanSome.projections).map(_.mkString(", ")),
+      projectionExpression = toOption(scanSome.projections).map(projectionExpressionToZIOAWSProjectionExpression),
       filterExpression = filterExpression.map(_._2),
       expressionAttributeValues = filterExpression.flatMap(a => aliasMapToExpressionZIOAwsAttributeValues(a._1)),
       consistentRead = Some(toBoolean(scanSome.consistency))
@@ -313,7 +316,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       exclusiveStartKey = scanAll.exclusiveStartKey.map(m => attrMapToAwsAttrMap(m.map)),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(scanAll.capacity)),
       limit = scanAll.limit,
-      projectionExpression = toOption(scanAll.projections).map(_.mkString(", ")),
+      projectionExpression = toOption(scanAll.projections).map(projectionExpressionToZIOAWSProjectionExpression),
       filterExpression = filterExpression.map(_._2),
       expressionAttributeValues = filterExpression.flatMap(a => aliasMapToExpressionZIOAwsAttributeValues(a._1)),
       consistentRead = Some(toBoolean(scanAll.consistency))
@@ -342,7 +345,10 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
                                _                   <- collectedItems.set(currentCollection ++ tableItemsMapToResponse(retrievedItems))
                                _                   <- ZIO.fail(BatchRetryError()).when(responseUnprocessed.nonEmpty)
                              } yield ())
-                             .retry(batchGetItem.retryPolicy.whileInput(thrown => thrown.isInstanceOf[BatchRetryError]))
+                             .retry(batchGetItem.retryPolicy.whileInput {
+                               case BatchRetryError() => true
+                               case _                 => false
+                             })
                              .catchSome(catchBatchRetryError)
 
         retrievedItems  <- collectedItems.get
@@ -376,17 +382,17 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       key = getItem.key.map.map { case (k, v) => (k, buildAwsAttributeValue(v)) },
       consistentRead = Some(ConsistencyMode.toBoolean(getItem.consistency)),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(getItem.capacity)),
-      projectionExpression = toOption(getItem.projections)
-        .map(
-          _.mkString(
-            ", "
-          ) // TODO(adam): Not sure if this is the best way to combine projection expressions??? -- Feels like this should be a part of the projection expression trait?
-        )
+      projectionExpression = toOption(getItem.projections).map(projectionExpressionToZIOAWSProjectionExpression)
     )
 
 }
 
 case object DynamoDBExecutorImpl {
+
+  private[dynamodb] def projectionExpressionToZIOAWSProjectionExpression(
+    projectionExpressions: List[ProjectionExpression]
+  ): String =
+    projectionExpressions.mkString(", ")
 
   private[dynamodb] def generateBatchWriteItem(batchWriteItem: BatchWriteItem): BatchWriteItemRequest =
     BatchWriteItemRequest(
@@ -415,7 +421,8 @@ case object DynamoDBExecutorImpl {
             (k, buildAwsAttributeValue(v))
         }
       ),
-      projectionExpression = toOption(tableGet.projectionExpressionSet).map(_.mkString(", "))
+      projectionExpression =
+        toOption(tableGet.projectionExpressionSet).map(projectionExpressionToZIOAWSProjectionExpression)
     )
 
   private[dynamodb] def writeRequestToBatchWrite(writeRequest: WriteRequest.ReadOnly): Option[BatchWriteItem.Write] =
