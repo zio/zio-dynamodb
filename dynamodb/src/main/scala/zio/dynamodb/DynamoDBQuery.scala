@@ -181,6 +181,21 @@ sealed trait DynamoDBQuery[+A] { self =>
       case _                          => self
     }
 
+  /**
+   * Parallel executes DynamoDB queries in parallel if the query type has parallel features in DynamoDB.
+   * There are no guarantees on order of returned items.
+   *
+   * @param n The number of parallel requests to make to DynamoDB
+   */
+
+  def parallel(n: Int): DynamoDBQuery[A] =
+    self match {
+      case Zip(left, right, zippable) => Zip(left.parallel(n), right.parallel(n), zippable)
+      case Map(query, mapper)         => Map(query.parallel(n), mapper)
+      case s: ScanAll                 => s.copy(totalSegments = n).asInstanceOf[DynamoDBQuery[A]]
+      case _                          => self
+    }
+
   def gsi(
     indexName: String,
     keySchema: KeySchema,
@@ -663,8 +678,13 @@ object DynamoDBQuery {
     filterExpression: Option[FilterExpression] = None,
     projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
+    select: Option[Select] = None,                        // if ProjectExpression supplied then only valid value is SpecificAttributes
+    totalSegments: Int = 1
   ) extends Constructor[Stream[Throwable, Item]]
+
+  object ScanAll {
+    final case class Segment(number: Int, total: Int)
+  }
 
   private[dynamodb] final case class QueryAll(
     tableName: TableName,
@@ -859,7 +879,7 @@ object DynamoDBQuery {
           }
         )
 
-      case scan @ ScanAll(_, _, _, _, _, _, _, _, _)          =>
+      case scan @ ScanAll(_, _, _, _, _, _, _, _, _, _)       =>
         (
           Chunk(scan),
           (results: Chunk[Any]) => {
