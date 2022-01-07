@@ -75,7 +75,8 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
             ScalaMap(
               mockBatches -> ZIOAwsKeysAndAttributes(
                 keys = List(
-                  ScalaMap("k1" -> ZIOAwsAttributeValue(s = Some("v2")), "k1" -> ZIOAwsAttributeValue(s = Some("v1")))
+                  ScalaMap("k1" -> ZIOAwsAttributeValue(s = Some("v2"))),
+                  ScalaMap("k1" -> ZIOAwsAttributeValue(s = Some("v1")))
                 )
               )
             )
