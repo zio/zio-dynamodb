@@ -127,47 +127,39 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
       )
     )
 
-  private val batchGetSuite =
+  private val getRequestItems: ScalaMap[TableName, BatchGetItem.TableGet] = ScalaMap(
+    TableName(mockBatches) -> BatchGetItem.TableGet(
+      Set(PrimaryKey("k1" -> "v1"), PrimaryKey("k1" -> "v2")),
+      Set.empty
+    )
+  )
+  private val batchGetItem: BatchGetItem                                  = BatchGetItem(
+    requestItems = getRequestItems,
+    retryPolicy = Schedule.recurs(1)
+  )
+  private val batchGetSuite                                               =
     suite("retry batch gets")(
       suite("successful batch gets")(testM("should retry when there are unprocessed keys") {
         for {
-          response <- BatchGetItem(
-                        requestItems = ScalaMap(
-                          TableName(mockBatches) -> BatchGetItem.TableGet(
-                            Set(PrimaryKey("k1" -> "v1"), PrimaryKey("k1" -> "v2")),
-                            Set.empty
-                          )
-                        ),
-                        retryPolicy = Schedule.recurs(1)
-                      ).execute
+          response <- batchGetItem.execute
         } yield assert(response.responses.get(TableName(mockBatches)))(
           equalTo(Some(Set(itemOne, Item("k1" -> "v2", "k2" -> "v23"))))
         )
       }).provideCustomLayer((successfulMockBatchGet ++ clockLayer) >>> DynamoDBExecutor.live),
       suite("failed batch gets")(testM("should return keys we did not get") {
         for {
-          response <- BatchGetItem(
-                        requestItems = ScalaMap(
-                          TableName(mockBatches) -> BatchGetItem.TableGet(
-                            Set(PrimaryKey("k1" -> "v1"), PrimaryKey("k1" -> "v2")),
-                            Set.empty
-                          )
-                        ),
-                        retryPolicy = Schedule.recurs(1)
-                      ).execute
+          response <- batchGetItem.execute
         } yield assert(response.unprocessedKeys)(
           equalTo(
-            ScalaMap(
-              TableName(mockBatches) -> BatchGetItem.TableGet(
-                Set(PrimaryKey("k1" -> "v1"), PrimaryKey("k1" -> "v2")),
-                Set.empty
-              )
-            )
+            getRequestItems
           )
         )
       }).provideCustomLayer((failedMockBatchGet ++ clockLayer) >>> DynamoDBExecutor.live)
     )
 
+  private val itemOneWriteRequest                    = Set(
+    DynamoDBExecutorImpl.batchItemWriteToZIOAwsWriteRequest(BatchWriteItem.Put(itemOne))
+  )
   private val failedMockBatchWrite: ULayer[DynamoDb] = DynamoDbMock
     .BatchWriteItem(
       equalTo(firstWriteRequest),
@@ -175,9 +167,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
         BatchWriteItemResponse(
           unprocessedItems = Some(
             ScalaMap(
-              mockBatches -> Set(
-                DynamoDBExecutorImpl.batchItemWriteToZIOAwsWriteRequest(BatchWriteItem.Put(itemOne))
-              )
+              mockBatches -> itemOneWriteRequest
             )
           )
         ).asReadOnly
@@ -192,9 +182,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
         BatchWriteItemResponse(
           unprocessedItems = Some(
             ScalaMap(
-              mockBatches -> Set(
-                DynamoDBExecutorImpl.batchItemWriteToZIOAwsWriteRequest(BatchWriteItem.Put(itemOne))
-              )
+              mockBatches -> itemOneWriteRequest
             )
           )
         ).asReadOnly
