@@ -17,7 +17,7 @@ import zio.test.Assertion._
 import zio.test.environment._
 import software.amazon.awssdk.regions.Region
 import zio.schema.{ DeriveSchema, Schema }
-import zio.stream.ZSink
+import zio.stream.{ ZSink, ZStream }
 import zio.test._
 import zio.test.TestAspect._
 
@@ -121,9 +121,9 @@ object LiveSpec extends DefaultRunnableSpec {
         } yield TableName(tableName)
       )(tName => deleteTable(tName.value).execute.orDie)
 
-  private def withTemporaryTable(
+  private def withTemporaryTable[R](
     tableDefinition: String => CreateTable,
-    f: String => ZIO[Has[DynamoDBExecutor], Throwable, TestResult]
+    f: String => ZIO[Has[DynamoDBExecutor] with R, Throwable, TestResult]
   ) =
     managedTable(tableDefinition).use(table => f(table.value))
 
@@ -228,6 +228,35 @@ object LiveSpec extends DefaultRunnableSpec {
               chunk  <- stream.runCollect
             } yield assert(chunk)(equalTo(Chunk(aviPerson, avi2Person, avi3Person)))
           }
+        },
+        testM("parallel scan all item") {
+          withTemporaryTable(
+            numberTable,
+            tableName =>
+              for {
+                _      <- batchWriteFromStream(ZStream.fromIterable(1 to 10000).map(i => Item(id -> i))) { item =>
+                            putItem(tableName, item)
+                          }.runDrain
+                stream <- scanAllItem(tableName).parallel(8).execute
+                count  <- stream.fold(0) { case (count, _) => count + 1 }
+              } yield assert(count)(equalTo(10000))
+          )
+        },
+        testM("parallel scan all typed") {
+          withTemporaryTable(
+            defaultTable,
+            tableName =>
+              for {
+                _      <-
+                  batchWriteFromStream(
+                    ZStream.fromIterable(1 to 10000).map(i => Item(id -> i.toString, number -> i, name -> i.toString))
+                  ) { item =>
+                    putItem(tableName, item)
+                  }.runDrain
+                stream <- scanAll[Person](tableName).parallel(8).execute
+                count  <- stream.fold(0) { case (count, _) => count + 1 }
+              } yield assert(count)(equalTo(10000))
+          )
         }
       ),
       suite("query tables")(

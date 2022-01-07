@@ -68,7 +68,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private (
       case ScanSome(tableName, limit, _, _, exclusiveStartKey, _, _, _, _)        =>
         fakeScanSome(tableName.value, exclusiveStartKey, Some(limit))
 
-      case ScanAll(tableName, _, maybeLimit, _, _, _, _, _, _)                    =>
+      case ScanAll(tableName, _, maybeLimit, _, _, _, _, _, _, _)                 =>
         fakeScanAll(tableName.value, maybeLimit)
 
       case QuerySome(tableName, limit, _, _, exclusiveStartKey, _, _, _, _, _, _) =>
