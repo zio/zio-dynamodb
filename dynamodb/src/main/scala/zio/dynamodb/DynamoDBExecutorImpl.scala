@@ -390,7 +390,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
 case object DynamoDBExecutorImpl {
 
   private[dynamodb] def projectionExpressionToZIOAWSProjectionExpression(
-    projectionExpressions: List[ProjectionExpression]
+    projectionExpressions: Iterable[ProjectionExpression]
   ): String =
     projectionExpressions.mkString(", ")
 
