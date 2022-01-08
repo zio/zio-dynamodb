@@ -2,7 +2,6 @@ package zio.dynamodb.codec
 
 import zio.dynamodb._
 import zio.dynamodb.codec.Invoice.PreBilled
-import zio.dynamodb.codec.WithCaseObjectOnlyEnum.ONE
 import zio.test.Assertion._
 import zio.test._
 
@@ -139,6 +138,38 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     },
+    test("encodes enum with discriminator annotation and case object as item without a constValue annotation") {
+      val expectedItem: Item =
+        Item(
+          Map(
+            "enum" -> AttributeValue.Map(
+              Map(
+                AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("ONE")
+              )
+            )
+          )
+        )
+
+      val item = DynamoDBQuery.toItem(WithDiscriminatedEnum(WithDiscriminatedEnum.ONE))
+
+      assert(item)(equalTo(expectedItem))
+    },
+    test("encodes enum with discriminator annotation and case object as item with constValue annotation of '2'") {
+      val expectedItem: Item =
+        Item(
+          Map(
+            "enum" -> AttributeValue.Map(
+              Map(
+                AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("2")
+              )
+            )
+          )
+        )
+
+      val item = DynamoDBQuery.toItem(WithDiscriminatedEnum(WithDiscriminatedEnum.TWO))
+
+      assert(item)(equalTo(expectedItem))
+    },
     test("encodes top level enum with discriminator annotation") {
       val expectedItem: Item =
         Item(
@@ -153,14 +184,21 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes case object only enum with constValue annotation") {
+    test("encodes case object only enum with enumNameAsValue annotation") {
       val expectedItem: Item = Item(Map("enum" -> AttributeValue.String("ONE")))
 
-      val item = DynamoDBQuery.toItem(WithCaseObjectOnlyEnum(ONE))
+      val item = DynamoDBQuery.toItem(WithCaseObjectOnlyEnum(WithCaseObjectOnlyEnum.ONE))
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes case object only enum without constValue annotation") {
+    test("encodes case object only enum with enumNameAsValue annotation and constValue annotation of '2'") {
+      val expectedItem: Item = Item(Map("enum" -> AttributeValue.String("2")))
+
+      val item = DynamoDBQuery.toItem(WithCaseObjectOnlyEnum(WithCaseObjectOnlyEnum.TWO))
+
+      assert(item)(equalTo(expectedItem))
+    },
+    test("encodes case object only enum without enumNameAsValue annotation") {
       val expectedItem: Item = Item("enum" -> Item(Map("ONE" -> AttributeValue.Null)))
 
       val item = DynamoDBQuery.toItem(WithCaseObjectOnlyEnum2(WithCaseObjectOnlyEnum2.ONE))
