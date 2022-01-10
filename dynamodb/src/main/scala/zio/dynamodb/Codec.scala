@@ -177,35 +177,35 @@ private[dynamodb] object Codec {
 
     private def primitiveEncoder[A](standardType: StandardType[A]): Encoder[A] =
       standardType match {
-        case StandardType.UnitType                  => _ => AttributeValue.Null
-        case StandardType.CharType                  => (a: A) => AttributeValue.String(Character.toString(a))
-        case StandardType.StringType                => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.BoolType                  => (a: A) => AttributeValue.Bool(a.asInstanceOf[Boolean])
-        case StandardType.BinaryType                => (a: A) => AttributeValue.Binary(a)
-        case StandardType.ShortType                 => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-        case StandardType.IntType                   => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-        case StandardType.LongType                  => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-        case StandardType.FloatType                 => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-        case StandardType.DoubleType                => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-        case StandardType.BigDecimalType            => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-        case StandardType.BigIntegerType            => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-        case StandardType.UUIDType                  => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.DayOfWeekType             => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.Duration(_)               => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.Instant(formatter)        => (a: A) => AttributeValue.String(formatter.format(a))
-        case StandardType.LocalDate(formatter)      => (a: A) => AttributeValue.String(formatter.format(a))
-        case StandardType.LocalDateTime(formatter)  => (a: A) => AttributeValue.String(formatter.format(a))
-        case StandardType.LocalTime(formatter)      => (a: A) => AttributeValue.String(formatter.format(a))
-        case StandardType.Month                     => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.MonthDay                  => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.OffsetDateTime(formatter) => (a: A) => AttributeValue.String(formatter.format(a))
-        case StandardType.OffsetTime(formatter)     => (a: A) => AttributeValue.String(formatter.format(a))
-        case StandardType.Period                    => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.Year                      => yearEncoder
-        case StandardType.YearMonth                 => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.ZonedDateTime(formatter)  => (a: A) => AttributeValue.String(formatter.format(a))
-        case StandardType.ZoneId                    => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.ZoneOffset                => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.UnitType                      => _ => AttributeValue.Null
+        case StandardType.CharType                      => (a: A) => AttributeValue.String(Character.toString(a))
+        case StandardType.StringType                    => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.BoolType                      => (a: A) => AttributeValue.Bool(a.asInstanceOf[Boolean])
+        case StandardType.BinaryType                    => (a: A) => AttributeValue.Binary(a)
+        case StandardType.ShortType                     => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+        case StandardType.IntType                       => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+        case StandardType.LongType                      => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+        case StandardType.FloatType                     => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+        case StandardType.DoubleType                    => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+        case StandardType.BigDecimalType                => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+        case StandardType.BigIntegerType                => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+        case StandardType.UUIDType                      => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.DayOfWeekType                 => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.Duration(_)                   => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.InstantType(formatter)        => (a: A) => AttributeValue.String(formatter.format(a))
+        case StandardType.LocalDateType(formatter)      => (a: A) => AttributeValue.String(formatter.format(a))
+        case StandardType.LocalDateTimeType(formatter)  => (a: A) => AttributeValue.String(formatter.format(a))
+        case StandardType.LocalTimeType(formatter)      => (a: A) => AttributeValue.String(formatter.format(a))
+        case StandardType.MonthType                     => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.MonthDayType                  => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.OffsetDateTimeType(formatter) => (a: A) => AttributeValue.String(formatter.format(a))
+        case StandardType.OffsetTimeType(formatter)     => (a: A) => AttributeValue.String(formatter.format(a))
+        case StandardType.PeriodType                    => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.YearType                      => yearEncoder
+        case StandardType.YearMonthType                 => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.ZonedDateTimeType(formatter)  => (a: A) => AttributeValue.String(formatter.format(a))
+        case StandardType.ZoneIdType                    => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.ZoneOffsetType                => (a: A) => AttributeValue.String(a.toString)
       }
 
     private def yearEncoder[A]: Encoder[A] =
@@ -445,37 +445,37 @@ private[dynamodb] object Codec {
 
     private def primitiveDecoder[A](standardType: StandardType[A]): Decoder[A] =
       standardType match {
-        case StandardType.UnitType                  => _ => Right(())
-        case StandardType.StringType                =>
+        case StandardType.UnitType                      => _ => Right(())
+        case StandardType.StringType                    =>
           (av: AttributeValue) => FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av)
-        case StandardType.BoolType                  =>
+        case StandardType.BoolType                      =>
           (av: AttributeValue) => FromAttributeValue.booleanFromAttributeValue.fromAttributeValue(av)
-        case StandardType.ShortType                 =>
+        case StandardType.ShortType                     =>
           (av: AttributeValue) => FromAttributeValue.shortFromAttributeValue.fromAttributeValue(av)
-        case StandardType.IntType                   =>
+        case StandardType.IntType                       =>
           (av: AttributeValue) => FromAttributeValue.intFromAttributeValue.fromAttributeValue(av)
-        case StandardType.LongType                  =>
+        case StandardType.LongType                      =>
           (av: AttributeValue) => FromAttributeValue.longFromAttributeValue.fromAttributeValue(av)
-        case StandardType.FloatType                 =>
+        case StandardType.FloatType                     =>
           (av: AttributeValue) => FromAttributeValue.floatFromAttributeValue.fromAttributeValue(av)
-        case StandardType.DoubleType                =>
+        case StandardType.DoubleType                    =>
           (av: AttributeValue) => FromAttributeValue.doubleFromAttributeValue.fromAttributeValue(av)
-        case StandardType.BigDecimalType            =>
+        case StandardType.BigDecimalType                =>
           (av: AttributeValue) =>
             FromAttributeValue.bigDecimalFromAttributeValue
               .fromAttributeValue(av)
               .map(_.bigDecimal)
-        case StandardType.BigIntegerType            =>
+        case StandardType.BigIntegerType                =>
           (av: AttributeValue) =>
             FromAttributeValue.bigDecimalFromAttributeValue
               .fromAttributeValue(av)
               .map(_.toBigInt.bigInteger)
-        case StandardType.BinaryType                =>
+        case StandardType.BinaryType                    =>
           (av: AttributeValue) =>
             FromAttributeValue.binaryFromAttributeValue
               .fromAttributeValue(av)
               .map(Chunk.fromIterable(_))
-        case StandardType.CharType                  =>
+        case StandardType.CharType                      =>
           (av: AttributeValue) =>
             FromAttributeValue.stringFromAttributeValue
               .fromAttributeValue(av)
@@ -483,42 +483,42 @@ private[dynamodb] object Codec {
                 val array = s.toCharArray
                 array(0)
               }
-        case StandardType.UUIDType                  =>
+        case StandardType.UUIDType                      =>
           (av: AttributeValue) =>
             FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av).flatMap { s =>
               Try(UUID.fromString(s)).toEither.left.map(iae => s"Invalid UUID: ${iae.getMessage}")
             }
-        case StandardType.DayOfWeekType             =>
+        case StandardType.DayOfWeekType                 =>
           (av: AttributeValue) => javaTimeStringParser(av)(DayOfWeek.valueOf(_))
-        case StandardType.Duration(_)               =>
+        case StandardType.Duration(_)                   =>
           (av: AttributeValue) => javaTimeStringParser(av)(Duration.parse(_))
-        case StandardType.Instant(formatter)        =>
+        case StandardType.InstantType(formatter)        =>
           (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, Instant.from(_)))
-        case StandardType.LocalDate(formatter)      =>
+        case StandardType.LocalDateType(formatter)      =>
           (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, LocalDate.from(_)))
-        case StandardType.LocalDateTime(formatter)  =>
+        case StandardType.LocalDateTimeType(formatter)  =>
           (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, LocalDateTime.from(_)))
-        case StandardType.LocalTime(formatter)      =>
+        case StandardType.LocalTimeType(formatter)      =>
           (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, LocalTime.from(_)))
-        case StandardType.Month                     =>
+        case StandardType.MonthType                     =>
           (av: AttributeValue) => javaTimeStringParser(av)(Month.valueOf(_))
-        case StandardType.MonthDay                  =>
+        case StandardType.MonthDayType                  =>
           (av: AttributeValue) => javaTimeStringParser(av)(MonthDay.parse(_))
-        case StandardType.OffsetDateTime(formatter) =>
+        case StandardType.OffsetDateTimeType(formatter) =>
           (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, OffsetDateTime.from(_)))
-        case StandardType.OffsetTime(formatter)     =>
+        case StandardType.OffsetTimeType(formatter)     =>
           (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, OffsetTime.from(_)))
-        case StandardType.Period                    =>
+        case StandardType.PeriodType                    =>
           (av: AttributeValue) => javaTimeStringParser(av)(Period.parse(_))
-        case StandardType.Year                      =>
+        case StandardType.YearType                      =>
           (av: AttributeValue) => javaTimeStringParser(av)(Year.parse(_))
-        case StandardType.YearMonth                 =>
+        case StandardType.YearMonthType                 =>
           (av: AttributeValue) => javaTimeStringParser(av)(YearMonth.parse(_))
-        case StandardType.ZonedDateTime(formatter)  =>
+        case StandardType.ZonedDateTimeType(formatter)  =>
           (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, ZonedDateTime.from(_)))
-        case StandardType.ZoneId                    =>
+        case StandardType.ZoneIdType                    =>
           (av: AttributeValue) => javaTimeStringParser(av)(ZoneId.of(_))
-        case StandardType.ZoneOffset                =>
+        case StandardType.ZoneOffsetType                =>
           (av: AttributeValue) => javaTimeStringParser(av)(ZoneOffset.of(_))
       }
 
