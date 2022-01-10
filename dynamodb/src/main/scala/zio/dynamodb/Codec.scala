@@ -35,6 +35,8 @@ private[dynamodb] object Codec {
         case Schema.Fail(_, _)                                                                                                                                                                                                                                                              => _ => AttributeValue.Null
         case Schema.Tuple(l, r, _)                                                                                                                                                                                                                                                          => tupleEncoder(encoder(l), encoder(r))
         case s: Schema.Sequence[col, a]                                                                                                                                                                                                                                                     => sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
+        case Schema.SetSchema(s, _)                                                                                                                                                                                                                                                         =>
+          setEncoder(s)
         case Schema.MapSchema(ks, vs, _)                                                                                                                                                                                                                                                    =>
           mapEncoder(ks, vs)
         case Schema.Transform(c, _, g, _)                                                                                                                                                                                                                                                   => transformEncoder(c, g)
@@ -289,6 +291,15 @@ private[dynamodb] object Codec {
           AttributeValue.Null
       }
 
+    private def setEncoder[A](s: Schema[A]): Encoder[Set[A]] =
+      // TODO: conditional logic and nativeSetEncoder
+      nonNativeSetEncoder(encoder(s))
+
+    private def nonNativeSetEncoder[A](encoder: Encoder[A]): Encoder[Set[A]] = {
+      val se = sequenceEncoder[Chunk[A], A](encoder, (c: Iterable[A]) => Chunk.fromIterable(c))
+      se.asInstanceOf[Encoder[Set[A]]]
+    }
+
     private def mapEncoder[K, V](ks: Schema[K], vs: Schema[V]): Encoder[Map[K, V]] =
       ks match {
         case Schema.Primitive(standardType, _) if isString(standardType) =>
@@ -333,6 +344,8 @@ private[dynamodb] object Codec {
           lazy val dec = decoder(l.schema)
           (av: AttributeValue) => dec(av)
         case Schema.Meta(_, _)                                                                                                                                                => astDecoder
+        case Schema.SetSchema(s, _)                                                                                                                                           =>
+          setDecoder(s).asInstanceOf[Decoder[A]]
         case Schema.MapSchema(ks, vs, _)                                                                                                                                      =>
           mapDecoder(ks, vs).asInstanceOf[Decoder[A]]
         case s @ Schema.CaseClass1(_, _, _, _)                                                                                                                                => caseClass1Decoder(s)
@@ -571,6 +584,20 @@ private[dynamodb] object Codec {
         EitherUtil.forEach(list)(decoder(_)).map(xs => to(Chunk.fromIterable(xs)))
       case av                        => Left(s"unable to decode $av as a list")
     }
+
+    private def setDecoder[A](s: Schema[A]) =
+      nonNativeSetDecoder(decoder(s))
+
+    def nonNativeSetDecoder[A](decA: Decoder[A]): Decoder[Set[A]] =
+      (av: AttributeValue) =>
+        av match {
+          case AttributeValue.List(listOfAv) =>
+            val errorOrList = EitherUtil.forEach(listOfAv) { av =>
+              decA(av)
+            }
+            errorOrList.map(_.toSet)
+          case av                            => Left(s"Error: expected AttributeValue.List but found $av")
+        }
 
     private def mapDecoder[K, V](ks: Schema[K], vs: Schema[V]) =
       ks match {

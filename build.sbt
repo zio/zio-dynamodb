@@ -79,8 +79,8 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
       "dev.zio"               %% "zio-streams"           % zioVersion,
       "dev.zio"               %% "zio-test"              % zioVersion % "it,test",
       "dev.zio"               %% "zio-test-sbt"          % zioVersion % "it,test",
-      "dev.zio"               %% "zio-schema"            % "0.1.6", //0.1.5, 0.1.6, 0.1.5+9-49875c2f-SNAPSHOT
-      "dev.zio"               %% "zio-schema-derivation" % "0.1.6",
+      "dev.zio"               %% "zio-schema"            % "0.1.5+9-49875c2f-SNAPSHOT", //0.1.5, 0.1.6, 0.1.5+9-49875c2f-SNAPSHOT
+      "dev.zio"               %% "zio-schema-derivation" % "0.1.5+9-49875c2f-SNAPSHOT",
       "dev.zio"               %% "zio-config-typesafe"   % zioConfigVersion,
       "io.github.vigoo"       %% "zio-aws-http4s"        % zioAwsVersion,
       "io.github.vigoo"       %% "zio-aws-dynamodb"      % zioAwsVersion,
