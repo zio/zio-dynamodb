@@ -1,10 +1,10 @@
 package zio.dynamodb
 
 import zio.dynamodb.Annotations.{ constantValue, discriminator, enumNameAsValue }
-import zio.{ schema, Chunk }
 import zio.schema.Schema.{ Optional, Primitive, Transform }
-import zio.schema.{ FieldSet, Schema, StandardType }
 import zio.schema.ast.SchemaAst
+import zio.schema.{ FieldSet, Schema, StandardType }
+import zio.{ schema, Chunk }
 
 import java.time._
 import java.time.format.{ DateTimeFormatterBuilder, SignStyle }
@@ -291,9 +291,20 @@ private[dynamodb] object Codec {
           AttributeValue.Null
       }
 
-    private def setEncoder[A](s: Schema[A]): Encoder[Set[A]] =
-      // TODO: conditional logic and nativeSetEncoder
-      nonNativeSetEncoder(encoder(s))
+    private def setEncoder[A](s: Schema[A]): Encoder[Set[A]]              =
+      s match {
+        // TODO: expand to String/All Numbers/Binary
+        case Schema.Primitive(StandardType.StringType, _) =>
+          nativeSetEncoder(encoder(s))
+        case _                                            =>
+          nonNativeSetEncoder(encoder(s))
+      }
+    private def nativeSetEncoder[A](encoder: Encoder[A]): Encoder[Set[A]] =
+      (a: Set[A]) => {
+        println(encoder)
+        val ss = a.asInstanceOf[Set[String]]
+        AttributeValue.StringSet(ss)
+      }
 
     private def nonNativeSetEncoder[A](encoder: Encoder[A]): Encoder[Set[A]] = {
       val se = sequenceEncoder[Chunk[A], A](encoder, (c: Iterable[A]) => Chunk.fromIterable(c))
@@ -302,6 +313,7 @@ private[dynamodb] object Codec {
 
     private def mapEncoder[K, V](ks: Schema[K], vs: Schema[V]): Encoder[Map[K, V]] =
       ks match {
+        // TODO: try case Schema.Primitive(StandardType.StringType, _)
         case Schema.Primitive(standardType, _) if isString(standardType) =>
           nativeMapEncoder(encoder(vs))
         case _                                                           =>
@@ -586,7 +598,20 @@ private[dynamodb] object Codec {
     }
 
     private def setDecoder[A](s: Schema[A]) =
-      nonNativeSetDecoder(decoder(s))
+      s match {
+        case Schema.Primitive(StandardType.StringType, _) =>
+          nativeSetDecoder(decoder(s))
+        case _                                            =>
+          nonNativeSetDecoder(decoder(s))
+      }
+
+    def nativeSetDecoder[A](decA: Decoder[A]): Decoder[Set[A]] = {
+      case AttributeValue.StringSet(stringSet) =>
+        println(decA)
+        Right(stringSet.asInstanceOf[Set[A]])
+      case av                                  =>
+        Left(s"Error: expected a set but found '$av'")
+    }
 
     def nonNativeSetDecoder[A](decA: Decoder[A]): Decoder[Set[A]] =
       (av: AttributeValue) =>

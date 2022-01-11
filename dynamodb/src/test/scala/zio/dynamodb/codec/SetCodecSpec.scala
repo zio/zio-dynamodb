@@ -12,7 +12,7 @@ object SetCodecSpec extends DefaultRunnableSpec {
     implicit val schema: Schema[HasStringSet] = DeriveSchema.gen[HasStringSet]
   }
 
-  final case class HasSetWithNonNativeType(set: Set[Double])
+  final case class HasSetWithNonNativeType(set: Set[Boolean])
   object HasSetWithNonNativeType {
     implicit val schema: Schema[HasSetWithNonNativeType] = DeriveSchema.gen[HasSetWithNonNativeType]
   }
@@ -20,51 +20,42 @@ object SetCodecSpec extends DefaultRunnableSpec {
   override def spec: ZSpec[zio.test.environment.TestEnvironment, Any] =
     suite("Set codecs")(
       suite("when encoding")(
-        test("encodes set with string key natively") {
-//          val actual: AttributeValue = Codec.encoder(HasStringSet.schema)(HasStringSet(Map("1" -> 1)))
-//
-//          assert(actual.toString)(equalTo("Map(Map(String(map) -> Map(Map(String(1) -> Number(1)))))"))
-          assertCompletes
+        test("encodes set of string natively") {
+          val actual: AttributeValue = Codec.encoder(HasStringSet.schema)(HasStringSet(Set("1", "2")))
+
+          assert(actual.toString)(equalTo("Map(Map(String(set) -> StringSet(Set(1, 2))))"))
         },
-        test("encodes set with non native type as a sequence") {
+        test("encodes set with non native type as a list") {
           val actual: AttributeValue =
-            Codec.encoder(HasSetWithNonNativeType.schema)(HasSetWithNonNativeType(Set(0.1, 0.2)))
+            Codec.encoder(HasSetWithNonNativeType.schema)(HasSetWithNonNativeType(Set(true, false)))
 
           assert(actual.toString)(
-            equalTo("Map(Map(String(set) -> List(Chunk(Number(0.1),Number(0.2)))))")
+            equalTo("Map(Map(String(set) -> List(Chunk(Bool(true),Bool(false)))))")
           )
         }
       ),
       suite("when decoding")(
-        test("decodes set with string key natively") {
-//          val av = AttributeValue.Map(
-//            Map(
-//              AttributeValue.String("map") -> AttributeValue.Map(
-//                Map(AttributeValue.String("one") -> AttributeValue.Number(BigDecimal(1)))
-//              )
-//            )
-//          )
-//
-//          val actual = Codec.decoder(HasStringSet.schema)(av)
-//
-//          assert(actual)(isRight(equalTo(HasStringSet(Map("one" -> 1)))))
-          assertCompletes
+        test("decodes set of string natively") {
+          val av = AttributeValue.Map(
+            Map(AttributeValue.String("set") -> AttributeValue.StringSet(Set("one", "two")))
+          )
+
+          val actual = Codec.decoder(HasStringSet.schema)(av)
+
+          assert(actual)(isRight(equalTo(HasStringSet(Set("one", "two")))))
         },
-        test("decodes map with non native type") {
+        test("decodes set with non native type") {
           val av = AttributeValue.Map(
             Map(
               AttributeValue.String("set") -> AttributeValue.List(
-                List(
-                  AttributeValue.Number(BigDecimal(0.1)),
-                  AttributeValue.Number(BigDecimal(0.2))
-                )
+                List(AttributeValue.Bool(true), AttributeValue.Bool(false))
               )
             )
           )
 
           val actual = Codec.decoder(HasSetWithNonNativeType.schema)(av)
 
-          assert(actual)(isRight(equalTo(HasSetWithNonNativeType(Set(0.1, 0.2)))))
+          assert(actual)(isRight(equalTo(HasSetWithNonNativeType(Set(true, false)))))
         }
       )
     )
