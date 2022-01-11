@@ -312,10 +312,9 @@ private[dynamodb] object Codec {
 
     private def mapEncoder[K, V](ks: Schema[K], vs: Schema[V]): Encoder[Map[K, V]] =
       ks match {
-        // TODO: try case Schema.Primitive(StandardType.StringType, _)
-        case Schema.Primitive(standardType, _) if isString(standardType) =>
+        case Schema.Primitive(StandardType.StringType, _) =>
           nativeMapEncoder(encoder(vs))
-        case _                                                           =>
+        case _                                            =>
           nonNativeMapEncoder(encoder(ks), encoder(vs))
       }
 
@@ -624,9 +623,9 @@ private[dynamodb] object Codec {
 
     private def mapDecoder[K, V](ks: Schema[K], vs: Schema[V]) =
       ks match {
-        case Schema.Primitive(standardType, _) if isString(standardType) =>
+        case Schema.Primitive(StandardType.StringType, _) =>
           nativeMapDecoder(decoder(vs))
-        case _                                                           =>
+        case _                                            =>
           nonNativeMapDecoder(decoder(ks), decoder(vs))
       }
 
@@ -719,12 +718,6 @@ private[dynamodb] object Codec {
     }
 
   } // end Decoder
-
-  private def isString[A](standardType: StandardType[A]): Boolean =
-    standardType match {
-      case StandardType.StringType => true
-      case _                       => false
-    }
 
   private def allCaseObjects[A](cases: Seq[Schema.Case[_, A]]): Boolean =
     cases.forall {
