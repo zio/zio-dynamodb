@@ -291,17 +291,16 @@ private[dynamodb] object Codec {
           AttributeValue.Null
       }
 
-    private def setEncoder[A](s: Schema[A]): Encoder[Set[A]]              =
+    private def setEncoder[A](s: Schema[A]): Encoder[Set[A]] =
       s match {
         // TODO: expand to String/All Numbers/Binary
         case Schema.Primitive(StandardType.StringType, _) =>
-          nativeSetEncoder(encoder(s))
+          nativeSetEncoder
         case _                                            =>
           nonNativeSetEncoder(encoder(s))
       }
-    private def nativeSetEncoder[A](encoder: Encoder[A]): Encoder[Set[A]] =
+    private def nativeSetEncoder[A]: Encoder[Set[A]]         =
       (a: Set[A]) => {
-        println(encoder)
         val ss = a.asInstanceOf[Set[String]]
         AttributeValue.StringSet(ss)
       }
@@ -600,14 +599,13 @@ private[dynamodb] object Codec {
     private def setDecoder[A](s: Schema[A]) =
       s match {
         case Schema.Primitive(StandardType.StringType, _) =>
-          nativeSetDecoder(decoder(s))
+          nativeSetDecoder
         case _                                            =>
           nonNativeSetDecoder(decoder(s))
       }
 
-    def nativeSetDecoder[A](decA: Decoder[A]): Decoder[Set[A]] = {
+    def nativeSetDecoder[A]: Decoder[Set[A]] = {
       case AttributeValue.StringSet(stringSet) =>
-        println(decA)
         Right(stringSet.asInstanceOf[Set[A]])
       case av                                  =>
         Left(s"Error: expected a set but found '$av'")
