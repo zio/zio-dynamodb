@@ -293,22 +293,31 @@ private[dynamodb] object Codec {
 
     private def setEncoder[A](s: Schema[A]): Encoder[Set[A]] =
       s match {
-        // TODO: expand to String/All Numbers/Binary
-        case Schema.Primitive(StandardType.StringType, _) =>
-          nativeSetEncoder
-        case _                                            =>
-          nonNativeSetEncoder(encoder(s))
+        // AttributeValue.StringSet
+        case Schema.Primitive(StandardType.StringType, _)     =>
+          (a: Set[A]) => AttributeValue.StringSet(a.asInstanceOf[Set[String]])
+        // AttributeValue.NumberSet
+        case Schema.Primitive(StandardType.IntType, _)        =>
+          (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[Int]].map(BigDecimal(_)))
+        case Schema.Primitive(StandardType.LongType, _)       =>
+          (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[Long]].map(BigDecimal(_)))
+        case Schema.Primitive(StandardType.ShortType, _)      =>
+          (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[Short]].map(s => BigDecimal(s.toInt)))
+        case Schema.Primitive(StandardType.DoubleType, _)     =>
+          (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[Double]].map(BigDecimal(_)))
+        case Schema.Primitive(StandardType.FloatType, _)      =>
+          (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[Float]].map(f => BigDecimal(f.toString)))
+        case Schema.Primitive(StandardType.BigDecimalType, _) =>
+          (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[BigDecimal]])
+        case Schema.Primitive(StandardType.BigIntegerType, _) =>
+          (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[BigInt]].map(BigDecimal(_)))
+        // AttributeValue.BinarySet
+        case Schema.Primitive(StandardType.BinaryType, _)     =>
+          (a: Set[A]) => AttributeValue.BinarySet(a.asInstanceOf[Set[Chunk[Byte]]])
+        case _                                                =>
+          sequenceEncoder[Chunk[A], A](encoder(s), (c: Iterable[A]) => Chunk.fromIterable(c))
+            .asInstanceOf[Encoder[Set[A]]]
       }
-    private def nativeSetEncoder[A]: Encoder[Set[A]]         =
-      (a: Set[A]) => {
-        val ss = a.asInstanceOf[Set[String]]
-        AttributeValue.StringSet(ss)
-      }
-
-    private def nonNativeSetEncoder[A](encoder: Encoder[A]): Encoder[Set[A]] = {
-      val se = sequenceEncoder[Chunk[A], A](encoder, (c: Iterable[A]) => Chunk.fromIterable(c))
-      se.asInstanceOf[Encoder[Set[A]]]
-    }
 
     private def mapEncoder[K, V](ks: Schema[K], vs: Schema[V]): Encoder[Map[K, V]] =
       ks match {
@@ -595,31 +604,67 @@ private[dynamodb] object Codec {
       case av                        => Left(s"unable to decode $av as a list")
     }
 
-    private def setDecoder[A](s: Schema[A]) =
-      s match {
-        case Schema.Primitive(StandardType.StringType, _) =>
-          nativeSetDecoder
-        case _                                            =>
-          nonNativeSetDecoder(decoder(s))
+    private def setDecoder[A](s: Schema[A]): Decoder[Set[A]] = {
+      def nativeStringSetDecoder[A]: Decoder[Set[A]] = {
+        case AttributeValue.StringSet(stringSet) =>
+          Right(stringSet.asInstanceOf[Set[A]])
+        case av                                  =>
+          Left(s"Error: expected a set but found '$av'")
       }
 
-    def nativeSetDecoder[A]: Decoder[Set[A]] = {
-      case AttributeValue.StringSet(stringSet) =>
-        Right(stringSet.asInstanceOf[Set[A]])
-      case av                                  =>
-        Left(s"Error: expected a set but found '$av'")
+      def nativeNumberSetDecoder[A](f: BigDecimal => A): Decoder[Set[A]] = {
+        case AttributeValue.NumberSet(numberSet) =>
+          Right(numberSet.map(f))
+        case av                                  =>
+          Left(s"Error: expected a number set but found '$av'")
+      }
+
+      def nativeBinarySetDecoder[A]: Decoder[Set[A]] = {
+        case AttributeValue.BinarySet(setOfChunkOfByte) =>
+          val x: Set[Chunk[Byte]] = setOfChunkOfByte.toSet.map((xs: Iterable[Byte]) => Chunk.fromIterable(xs))
+          Right(x.asInstanceOf[Set[A]])
+        case av                                         =>
+          Left(s"Error: expected a Set of Chunk of Byte but found '$av'")
+      }
+
+      s match {
+        // StringSet
+        case Schema.Primitive(StandardType.StringType, _)     =>
+          nativeStringSetDecoder
+        // NumberSet
+        case Schema.Primitive(StandardType.IntType, _)        =>
+          nativeNumberSetDecoder(_.intValue)
+        case Schema.Primitive(StandardType.LongType, _)       =>
+          nativeNumberSetDecoder(_.longValue)
+        case Schema.Primitive(StandardType.ShortType, _)      =>
+          nativeNumberSetDecoder(_.shortValue)
+        case Schema.Primitive(StandardType.DoubleType, _)     =>
+          nativeNumberSetDecoder(_.doubleValue)
+        case Schema.Primitive(StandardType.FloatType, _)      =>
+          nativeNumberSetDecoder(_.floatValue)
+        case Schema.Primitive(StandardType.BigDecimalType, _) =>
+          nativeNumberSetDecoder(_.bigDecimal)
+        case Schema.Primitive(StandardType.BigIntegerType, _) =>
+          nativeNumberSetDecoder(bd => bd.toBigInt.bigInteger)
+        // BinarySet
+        case Schema.Primitive(StandardType.BinaryType, _)     =>
+          nativeBinarySetDecoder
+
+        case _                                                =>
+          nonNativeSetDecoder(decoder(s))
+      }
     }
 
-    def nonNativeSetDecoder[A](decA: Decoder[A]): Decoder[Set[A]] =
-      (av: AttributeValue) =>
-        av match {
-          case AttributeValue.List(listOfAv) =>
-            val errorOrList = EitherUtil.forEach(listOfAv) { av =>
-              decA(av)
-            }
-            errorOrList.map(_.toSet)
-          case av                            => Left(s"Error: expected AttributeValue.List but found $av")
-        }
+    private def nonNativeSetDecoder[A](decA: Decoder[A]): Decoder[Set[A]] = { (av: AttributeValue) =>
+      av match {
+        case AttributeValue.List(listOfAv) =>
+          val errorOrList = EitherUtil.forEach(listOfAv) { av =>
+            decA(av)
+          }
+          errorOrList.map(_.toSet)
+        case av                            => Left(s"Error: expected AttributeValue.List but found $av")
+      }
+    }
 
     private def mapDecoder[K, V](ks: Schema[K], vs: Schema[V]) =
       ks match {

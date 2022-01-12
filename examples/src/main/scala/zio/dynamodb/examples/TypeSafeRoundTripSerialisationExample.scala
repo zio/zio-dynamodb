@@ -42,6 +42,7 @@ object TypeSafeRoundTripSerialisationExample extends App {
       total: BigDecimal,
       isTest: Boolean,
       categoryMap: Map[String, String],
+      accountSet: Set[String],
       address: Option[Address],
       lineItems: List[LineItem],
       paymentType: PaymentType
@@ -63,6 +64,7 @@ object TypeSafeRoundTripSerialisationExample extends App {
     total = BigDecimal(10.0),
     isTest = false,
     categoryMap = Map("a" -> "1", "b" -> "2"),
+    accountSet = Set("account1", "account2"),
     address = Some(Address("line1", None, "UK")),
     lineItems = List(
       LineItem("lineItem1", BigDecimal(1.0), Product("sku1", "a")),
