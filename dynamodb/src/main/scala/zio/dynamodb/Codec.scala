@@ -314,33 +314,20 @@ private[dynamodb] object Codec {
           (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[Float]].map(f => BigDecimal(f.toString)))
         case Schema.Primitive(StandardType.BigDecimalType, _) =>
           (a: Set[A]) =>
-            val set =
-              AttributeValue.NumberSet(
-//                a.asInstanceOf[Set[BigDecimal]]
-                a.asInstanceOf[Set[java.math.BigDecimal]].map(bd => BigDecimal(bd.doubleValue))
-              ) // TODO: map over set and create the scala on from the java one
-            set
-        /*
-case Schema.Transform(Schema.Primitive(StandardType.BigDecimalType, _), _, _, _) =>
-PRODUCES ERROR:
-pattern type is incompatible with expected type;
- found   : zio.schema.StandardType.BigDecimalType.type
- required: zio.schema.StandardType[Any]
-Note: java.math.BigDecimal <: Any (and zio.schema.StandardType.BigDecimalType.type <: zio.schema.StandardType[java.math.BigDecimal]), but trait StandardType is invariant in type A.
-You may wish to define A as +A instead. (SLS 4.5)
-        case Schema.Transform(Schema.Primitive(bigDecimal: StandardType.BigDecimalType.type, _), _, _, _) =>
-         */
-        case Schema.Transform(Schema.Primitive(bigDecimal, _), _, _, _) // TODO: delete this
+            AttributeValue.NumberSet(
+              a.asInstanceOf[Set[java.math.BigDecimal]].map(bd => BigDecimal(bd.doubleValue))
+            )
+        // DerivedGen will wrap a scala BigDecimal with a Transform so we need to peek ahead here
+        case Schema.Transform(Schema.Primitive(bigDecimal, _), _, _, _)
             if bigDecimal.isInstanceOf[StandardType.BigDecimalType.type] =>
-          // TODO: nasty type casing
-          (a: Set[A]) =>
-            val set = AttributeValue.NumberSet(a.asInstanceOf[Set[BigDecimal]])
-            set
+          (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[BigDecimal]])
         case Schema.Primitive(StandardType.BigIntegerType, _) =>
-//          (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[BigInt]].map(BigDecimal(_)))
           (a: Set[A]) =>
             AttributeValue.NumberSet(a.asInstanceOf[Set[java.math.BigInteger]].map(i => BigDecimal(i.longValue)))
-        // AttributeValue.BinarySet
+        // DerivedGen will wrap a scala BigInt with a Transform so we need to peek ahead here
+        case Schema.Transform(Schema.Primitive(bigDecimal, _), _, _, _)
+            if bigDecimal.isInstanceOf[StandardType.BigIntegerType.type] =>
+          (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[BigInt]].map(bi => BigDecimal(bi.bigInteger)))
         case Schema.Primitive(StandardType.BinaryType, _)     =>
           (a: Set[A]) => AttributeValue.BinarySet(a.asInstanceOf[Set[Chunk[Byte]]])
         case s                                                =>
@@ -676,10 +663,13 @@ You may wish to define A as +A instead. (SLS 4.5)
         case Schema.Primitive(StandardType.BigDecimalType, _) =>
           nativeNumberSetDecoder(_.bigDecimal)
         case Schema.Transform(Schema.Primitive(bigDecimal, _), _, _, _)
-            if bigDecimal.isInstanceOf[StandardType.BigDecimalType.type] => // TODO: nasty type casing
-          nativeNumberSetDecoder[BigDecimal](_.bigDecimal).asInstanceOf[Decoder[Set[A]]] // java big dec _.bigDecimal
+            if bigDecimal.isInstanceOf[StandardType.BigDecimalType.type] =>
+          nativeNumberSetDecoder[BigDecimal](_.bigDecimal).asInstanceOf[Decoder[Set[A]]]
         case Schema.Primitive(StandardType.BigIntegerType, _) =>
           nativeNumberSetDecoder(bd => bd.toBigInt.bigInteger)
+        case Schema.Transform(Schema.Primitive(bigInt, _), _, _, _)
+            if bigInt.isInstanceOf[StandardType.BigIntegerType.type] =>
+          nativeNumberSetDecoder[BigInt](_.toBigInt).asInstanceOf[Decoder[Set[A]]]
         // BinarySet
         case Schema.Primitive(StandardType.BinaryType, _)     =>
           nativeBinarySetDecoder

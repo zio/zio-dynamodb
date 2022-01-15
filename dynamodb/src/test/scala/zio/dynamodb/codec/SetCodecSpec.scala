@@ -3,8 +3,7 @@ package zio.dynamodb.codec
 import zio.Chunk
 import zio.dynamodb.{ AttributeValue, Codec }
 import zio.schema.{ DeriveSchema, Schema }
-import zio.test.Assertion.{ equalTo, hasKey, isRight }
-import zio.test.AssertionM.Render.param
+import zio.test.Assertion.{ equalTo, isRight }
 import zio.test._
 
 import scala.collection.immutable.Map
@@ -13,7 +12,7 @@ object SetCodecSpec extends DefaultRunnableSpec {
 
   final case class HasStringSet(set: Set[String])
   object HasStringSet         {
-    implicit val schema = DeriveSchema.gen[HasStringSet]
+    implicit val schema: Schema[HasStringSet] = DeriveSchema.gen[HasStringSet]
   }
   /*
   for `final case class HasBinarySet(set: Set[List[Byte]])` I get
@@ -21,7 +20,7 @@ object SetCodecSpec extends DefaultRunnableSpec {
    */
   final case class HasBinarySet(set: Set[Chunk[Byte]])
   object HasBinarySet         {
-    implicit val schema = DeriveSchema.gen[HasBinarySet]
+    implicit val schema: Schema[HasBinarySet] = DeriveSchema.gen[HasBinarySet]
   }
   final case class HasIntSet(set: Set[Int])
   object HasIntSet            {
@@ -42,6 +41,10 @@ object SetCodecSpec extends DefaultRunnableSpec {
   final case class HasJavaBigDecimalSet(set: Set[java.math.BigDecimal])
   object HasJavaBigDecimalSet {
     implicit val schema: Schema[HasJavaBigDecimalSet] = DeriveSchema.gen[HasJavaBigDecimalSet]
+  }
+  final case class HasBigIntSet(set: Set[BigInt])
+  object HasBigIntSet         {
+    implicit val schema: Schema[HasBigIntSet] = DeriveSchema.gen[HasBigIntSet]
   }
 
   final case class HasSetWithNonNativeType(set: Set[Boolean])
@@ -91,17 +94,7 @@ object SetCodecSpec extends DefaultRunnableSpec {
           )
         },
         test("encodes set of BigDecimal natively") {
-          /*
-this = {Codec$Encoder$@2914}
-s = {Schema$Transform@2915} "Transform(Primitive(bigDecimal,Chunk()))"
- codec = {Schema$Primitive@2923} "Primitive(bigDecimal,Chunk())"
-  standardType = {StandardType$BigDecimalType$@2928} "bigDecimal"
-   No fields to display
-  annotations = {Chunk$Empty$@2926} "Chunk$Empty$" size = 0
- f = {Schema$lambda@2924}
- g = {Schema$lambda@2925}
- annotations = {Chunk$Empty$@2926} "Chunk$Empty$" size = 0
-           */
+
           val s = HasBigDecimalSet.schema
           println(s"XXXXXXXXXXXXXXXXX s=$s")
 
@@ -115,35 +108,22 @@ s = {Schema$Transform@2915} "Transform(Primitive(bigDecimal,Chunk()))"
         test("encodes set of Java BigDecimal natively") {
           val actual: AttributeValue =
             Codec.encoder(HasJavaBigDecimalSet.schema)(
-              HasJavaBigDecimalSet(Set(BigDecimal(1).bigDecimal, BigDecimal(2).bigDecimal))
+              HasJavaBigDecimalSet(Set(new java.math.BigDecimal(1), new java.math.BigDecimal(2)))
             )
 
-          actual match {
-            case AttributeValue.Map(map) =>
-              assert(map)(hasKey(AttributeValue.String("set"))) && {
-                map.get(AttributeValue.String("set")) match {
-                  case Some(AttributeValue.NumberSet(set)) =>
-                    assert(set)(equalTo2(Set(BigDecimal(1), BigDecimal(2))))
-                  case _                                   =>
-                    assertTrue(false)
-                }
-              }
-            case _                       =>
-              assertTrue(false)
-          }
-
           assert(actual.toString)(equalTo("Map(Map(String(set) -> NumberSet(Set(1.0, 2.0))))"))
-//          assert(actual)(
-//            equalTo2(
-//              AttributeValue.Map(
-//                Map(
-//                  AttributeValue.String("set") -> AttributeValue.NumberSet(
-//                    Set(BigDecimal(1), BigDecimal(2))
-//                  )
-//                )
-//              )
-//            )
-//          )
+        },
+        test("encodes set of BigDecimal natively") {
+
+          val s = HasBigDecimalSet.schema
+          println(s"XXXXXXXXXXXXXXXXX s=$s")
+
+          val actual: AttributeValue =
+            Codec.encoder(HasBigIntSet.schema)(
+              HasBigIntSet(Set(BigInt(1), BigInt(2)))
+            )
+
+          assert(actual.toString)(equalTo("Map(Map(String(set) -> NumberSet(Set(1, 2))))"))
         },
         test("encodes set with non native type as a list") {
           val actual: AttributeValue =
@@ -224,6 +204,15 @@ s = {Schema$Transform@2915} "Transform(Primitive(bigDecimal,Chunk()))"
             isRight(equalTo(HasJavaBigDecimalSet(Set(new java.math.BigDecimal(1), new java.math.BigDecimal(2)))))
           )
         },
+        test("decodes set of BigInt natively") {
+          val av = AttributeValue.Map(
+            Map(AttributeValue.String("set") -> AttributeValue.NumberSet(Set(BigDecimal(1), BigDecimal(2))))
+          )
+
+          val actual = Codec.decoder(HasBigIntSet.schema)(av)
+
+          assert(actual)(isRight(equalTo(HasBigIntSet(Set(BigInt(1), BigInt(2))))))
+        },
         test("decodes set with non native type") {
           val av = AttributeValue.Map(
             Map(
@@ -240,22 +229,4 @@ s = {Schema$Transform@2915} "Transform(Primitive(bigDecimal,Chunk()))"
       )
     )
 
-  def equalTo2[A, B](expected: A) /*(implicit eql: Eql[A, B])*/: Assertion[B] =
-    Assertion.assertion("equalTo")(param(expected)) { actual =>
-      (actual, expected) match {
-        case (left: Set[a], right: Set[b])     =>
-          println(s"left=$left right=$right")
-          left.foldLeft[Int](0) {
-            case (count, el) =>
-              if (right.contains(el.asInstanceOf[b]))
-                count + 1
-              else
-                count
-          } == left.size
-        case (left: Array[_], right: Array[_]) =>
-          left.sameElements[Any](right)
-        case (left, right)                     =>
-          left == right
-      }
-    }
 }

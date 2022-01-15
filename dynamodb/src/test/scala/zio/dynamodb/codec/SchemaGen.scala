@@ -143,13 +143,6 @@ object SchemaGen {
 
   type SetAndGen[A] = (Schema.SetSchema[A], Gen[Random with Sized, Set[A]])
 
-  val anyPrimitiveAndGen2: Gen[Random, PrimitiveAndGen[_]] = anyPrimitiveAndGen.map {
-    case (s @ Schema.Primitive(StandardType.BigDecimalType, _), gen) =>
-      (s, gen.map(javaBigDecimal => BigDecimal(javaBigDecimal.doubleValue))).asInstanceOf[PrimitiveAndGen[_]]
-    case tuple                                                       =>
-      tuple
-  }
-
   val anySetAndGen: Gen[Random with Sized, SetAndGen[_]] =
     anyPrimitiveAndGen.map {
       case (schema, gen) =>
