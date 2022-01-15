@@ -138,26 +138,7 @@ object SchemaGen {
       map           <- gen
     } yield schema -> map
 
-  lazy val anySet: Gen[Random with Sized, Schema.SetSchema[_]]  =
-    anySchema.map(a => Schema.SetSchema(a, Chunk.empty))
-
-  type SetAndGen[A] = (Schema.SetSchema[A], Gen[Random with Sized, Set[A]])
-
-  val anySetAndGen: Gen[Random with Sized, SetAndGen[_]] =
-    anyPrimitiveAndGen.map {
-      case (schema, gen) =>
-        Schema.SetSchema(schema, Chunk.empty) -> Gen.setOf(gen)
-    }
-
-  type SetAndValue[A] = (Schema.SetSchema[A], Set[A])
-
-  val anySetAndValue: Gen[Random with Sized, SetAndValue[_]]  =
-    for {
-      (schema, gen) <- anySetAndGen
-      value         <- gen
-    } yield schema -> value
-
-  val anySequence: Gen[Random with Sized, Schema[Chunk[Any]]] =
+  val anySequence: Gen[Random with Sized, Schema[Chunk[Any]]]   =
     anySchema.map(Schema.chunk(_).asInstanceOf[Schema[Chunk[Any]]])
 
   type SequenceAndGen[A] = (Schema[Chunk[A]], Gen[Random with Sized, Chunk[A]])
