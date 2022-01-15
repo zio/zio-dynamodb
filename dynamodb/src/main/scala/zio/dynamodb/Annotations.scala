@@ -2,7 +2,7 @@ package zio.dynamodb
 
 object Annotations {
   final case class discriminator(name: String)  extends scala.annotation.Annotation
-  // rename to enumOfCaseObjects
+  // TODO: rename to enumOfCaseObjects
   final case class enumNameAsValue()            extends scala.annotation.Annotation
   final case class constantValue(value: String) extends scala.annotation.Annotation
 }

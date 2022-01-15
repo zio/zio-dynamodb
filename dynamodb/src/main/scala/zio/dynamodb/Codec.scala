@@ -31,10 +31,14 @@ private[dynamodb] object Codec {
     //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
     private def encoder[A](schema: Schema[A]): Encoder[A] =
       schema match {
-        case s: Schema.Optional[a]                                                                                                                                                                                                                                                          => optionalEncoder[a](encoder(s.codec))
-        case Schema.Fail(_, _)                                                                                                                                                                                                                                                              => _ => AttributeValue.Null
-        case Schema.Tuple(l, r, _)                                                                                                                                                                                                                                                          => tupleEncoder(encoder(l), encoder(r))
-        case s: Schema.Sequence[col, a]                                                                                                                                                                                                                                                     => sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
+        case s: Schema.Optional[a]                                                                                                                                                                                                                                                          =>
+          optionalEncoder[a](encoder(s.codec))
+        case Schema.Fail(_, _)                                                                                                                                                                                                                                                              =>
+          _ => AttributeValue.Null
+        case Schema.Tuple(l, r, _)                                                                                                                                                                                                                                                          =>
+          tupleEncoder(encoder(l), encoder(r))
+        case s: Schema.Sequence[col, a]                                                                                                                                                                                                                                                     =>
+          sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
         case Schema.SetSchema(s, _)                                                                                                                                                                                                                                                         =>
           setEncoder(s)
         case Schema.MapSchema(ks, vs, _)                                                                                                                                                                                                                                                    =>
@@ -45,16 +49,19 @@ private[dynamodb] object Codec {
           primitiveEncoder(standardType)
         case Schema.GenericRecord(structure, _)                                                                                                                                                                                                                                             =>
           genericRecordEncoder(structure)
-        case Schema.EitherSchema(l, r, _)                                                                                                                                                                                                                                                   => eitherEncoder(encoder(l), encoder(r))
+        case Schema.EitherSchema(l, r, _)                                                                                                                                                                                                                                                   =>
+          eitherEncoder(encoder(l), encoder(r))
         case l @ Schema.Lazy(_)                                                                                                                                                                                                                                                             =>
           lazy val enc = encoder(l.schema)
           (a: A) => enc(a)
-        case Schema.Meta(_, _)                                                                                                                                                                                                                                                              => astEncoder
+        case Schema.Meta(_, _)                                                                                                                                                                                                                                                              =>
+          astEncoder
         case Schema.CaseClass1(f, _, ext, _)                                                                                                                                                                                                                                                =>
           caseClassEncoder(f -> ext)
         case Schema.CaseClass2(f1, f2, _, ext1, ext2, _)                                                                                                                                                                                                                                    =>
           caseClassEncoder(f1 -> ext1, f2 -> ext2)
-        case Schema.CaseClass3(f1, f2, f3, _, ext1, ext2, ext3, _)                                                                                                                                                                                                                          => caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3)
+        case Schema.CaseClass3(f1, f2, f3, _, ext1, ext2, ext3, _)                                                                                                                                                                                                                          =>
+          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3)
         case Schema.CaseClass4(f1, f2, f3, f4, _, ext1, ext2, ext3, ext4, _)                                                                                                                                                                                                                =>
           caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4)
         case Schema.CaseClass5(f1, f2, f3, f4, f5, _, ext1, ext2, ext3, ext4, ext5, _)                                                                                                                                                                                                      =>
@@ -301,6 +308,7 @@ private[dynamodb] object Codec {
         // AttributeValue.StringSet
         case Schema.Primitive(StandardType.StringType, _)     =>
           (a: Set[A]) => AttributeValue.StringSet(a.asInstanceOf[Set[String]])
+
         // AttributeValue.NumberSet
         case Schema.Primitive(StandardType.IntType, _)        =>
           (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[Int]].map(BigDecimal(_)))
@@ -328,8 +336,12 @@ private[dynamodb] object Codec {
         case Schema.Transform(Schema.Primitive(bigDecimal, _), _, _, _)
             if bigDecimal.isInstanceOf[StandardType.BigIntegerType.type] =>
           (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[BigInt]].map(bi => BigDecimal(bi.bigInteger)))
+
+        // AttributeValue.BinarySet
         case Schema.Primitive(StandardType.BinaryType, _)     =>
           (a: Set[A]) => AttributeValue.BinarySet(a.asInstanceOf[Set[Chunk[Byte]]])
+
+        // Non native set
         case schema                                           =>
           sequenceEncoder[Chunk[A], A](encoder(schema), (c: Iterable[A]) => Chunk.fromIterable(c))
             .asInstanceOf[Encoder[Set[A]]]
@@ -637,8 +649,8 @@ private[dynamodb] object Codec {
 
       def nativeBinarySetDecoder[A]: Decoder[Set[A]] = {
         case AttributeValue.BinarySet(setOfChunkOfByte) =>
-          val x: Set[Chunk[Byte]] = setOfChunkOfByte.toSet.map((xs: Iterable[Byte]) => Chunk.fromIterable(xs))
-          Right(x.asInstanceOf[Set[A]])
+          val set: Set[Chunk[Byte]] = setOfChunkOfByte.toSet.map((xs: Iterable[Byte]) => Chunk.fromIterable(xs))
+          Right(set.asInstanceOf[Set[A]])
         case av                                         =>
           Left(s"Error: expected a Set of Chunk of Byte but found '$av'")
       }
@@ -647,6 +659,7 @@ private[dynamodb] object Codec {
         // StringSet
         case Schema.Primitive(StandardType.StringType, _)     =>
           nativeStringSetDecoder
+
         // NumberSet
         case Schema.Primitive(StandardType.IntType, _)        =>
           nativeNumberSetDecoder(_.intValue)
@@ -668,10 +681,12 @@ private[dynamodb] object Codec {
         case Schema.Transform(Schema.Primitive(bigInt, _), _, _, _)
             if bigInt.isInstanceOf[StandardType.BigIntegerType.type] =>
           nativeNumberSetDecoder[BigInt](_.toBigInt).asInstanceOf[Decoder[Set[A]]]
+
         // BinarySet
         case Schema.Primitive(StandardType.BinaryType, _)     =>
           nativeBinarySetDecoder
 
+        // non native set
         case _                                                =>
           nonNativeSetDecoder(decoder(s))
       }
