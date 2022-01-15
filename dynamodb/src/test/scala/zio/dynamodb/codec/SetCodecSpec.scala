@@ -5,6 +5,7 @@ import zio.schema.{ DeriveSchema, Schema }
 import zio.test.Assertion.{ equalTo, isRight }
 import zio.test._
 
+import java.math.BigInteger
 import scala.collection.immutable.Map
 
 object SetCodecSpec extends DefaultRunnableSpec {
@@ -20,6 +21,10 @@ object SetCodecSpec extends DefaultRunnableSpec {
   final case class HasBigIntSet(set: Set[BigInt])
   object HasBigIntSet            {
     implicit val schema: Schema[HasBigIntSet] = DeriveSchema.gen[HasBigIntSet]
+  }
+  final case class HasJavaBigIntegerSet(set: Set[BigInt])
+  object HasJavaBigIntegerSet    {
+    implicit val schema: Schema[HasJavaBigIntegerSet] = DeriveSchema.gen[HasJavaBigIntegerSet]
   }
   final case class HasSetWithNonNativeType(set: Set[Boolean])
   object HasSetWithNonNativeType {
@@ -46,11 +51,20 @@ object SetCodecSpec extends DefaultRunnableSpec {
 
           assert(actual.toString)(equalTo("Map(Map(String(set) -> NumberSet(Set(1.0, 2.0))))"))
         },
-        test("encodes set of BigDecimal natively") {
+        test("encodes set of BigInt natively") {
 
           val actual: AttributeValue =
             Codec.encoder(HasBigIntSet.schema)(
               HasBigIntSet(Set(BigInt(1), BigInt(2)))
+            )
+
+          assert(actual.toString)(equalTo("Map(Map(String(set) -> NumberSet(Set(1, 2))))"))
+        },
+        test("encodes set of Java BigInteger natively") {
+
+          val actual: AttributeValue =
+            Codec.encoder(HasJavaBigIntegerSet.schema)(
+              HasJavaBigIntegerSet(Set(BigInteger.valueOf(1), BigInteger.valueOf(2)))
             )
 
           assert(actual.toString)(equalTo("Map(Map(String(set) -> NumberSet(Set(1, 2))))"))
@@ -97,6 +111,15 @@ object SetCodecSpec extends DefaultRunnableSpec {
           val actual = Codec.decoder(HasBigIntSet.schema)(av)
 
           assert(actual)(isRight(equalTo(HasBigIntSet(Set(BigInt(1), BigInt(2))))))
+        },
+        test("decodes set of Java BigInteger natively") {
+          val av = AttributeValue.Map(
+            Map(AttributeValue.String("set") -> AttributeValue.NumberSet(Set(BigDecimal(1), BigDecimal(2))))
+          )
+
+          val actual = Codec.decoder(HasJavaBigIntegerSet.schema)(av)
+
+          assert(actual)(isRight(equalTo(HasJavaBigIntegerSet(Set(BigInteger.valueOf(1), BigInteger.valueOf(2))))))
         },
         test("decodes set with non native type") {
           val av = AttributeValue.Map(

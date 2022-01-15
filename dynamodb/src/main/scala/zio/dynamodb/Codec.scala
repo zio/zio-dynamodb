@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.Annotations.{ constantValue, discriminator, enumNameAsValue }
+import zio.dynamodb.Annotations.{ constantValue, discriminator, enumOfCaseObjects }
 import zio.schema.Schema.{ Optional, Primitive, Transform }
 import zio.schema.ast.SchemaAst
 import zio.schema.{ FieldSet, Schema, StandardType }
@@ -822,8 +822,8 @@ private[dynamodb] object Codec {
 
   private def isAlternateEnumCodec(annotations: Chunk[Any]): Boolean =
     annotations.exists {
-      case discriminator(_) | enumNameAsValue() => true
-      case _                                    => false
+      case discriminator(_) | enumOfCaseObjects() => true
+      case _                                      => false
     }
 
 } // end Codec
