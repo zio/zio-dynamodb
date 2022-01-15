@@ -34,14 +34,14 @@ object SetSchemaGen {
 
   type PrimitiveAndGenWithSetType[A] = (Schema.Primitive[A], Gen[Random with Sized, A], SetType)
 
-  val anyPrimitiveAndGenWithSetType: Gen[Random, PrimitiveAndGenWithSetType[_]] = anyPrimitiveAndGen.collect {
+  val filteredPrimitiveAndGenWithSetType: Gen[Random, PrimitiveAndGenWithSetType[_]] = anyPrimitiveAndGen.collect {
     case (s: Schema.Primitive[_], gen) if setType(s.standardType) != SetType.None => (s, gen, setType(s.standardType))
   }
 
   type SetAndGenWithSetType[A] = (Schema.SetSchema[A], Gen[Random with Sized, Set[A]], SetType)
 
   val anySetAndGenWithSetType: Gen[Random with Sized, SetAndGenWithSetType[_]] =
-    anyPrimitiveAndGenWithSetType.map {
+    filteredPrimitiveAndGenWithSetType.map {
       case (schema, gen, setType) =>
         (Schema.SetSchema(schema, Chunk.empty), Gen.setOf(gen), setType)
     }
@@ -60,8 +60,6 @@ object SetSchemaGen {
 
     val encoded = enc(a)
     val decoded = dec(encoded)
-
-    println(s"XXXXXXXXXXXXX $encoded $decoded")
 
     val assertRoundTrip = assert(decoded)(isRight(equalTo(a)))
 

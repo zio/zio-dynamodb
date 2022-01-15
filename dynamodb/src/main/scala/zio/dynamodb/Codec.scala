@@ -330,10 +330,8 @@ private[dynamodb] object Codec {
           (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[BigInt]].map(bi => BigDecimal(bi.bigInteger)))
         case Schema.Primitive(StandardType.BinaryType, _)     =>
           (a: Set[A]) => AttributeValue.BinarySet(a.asInstanceOf[Set[Chunk[Byte]]])
-        case s                                                =>
-          // Transform(Primitive(bigDecimal,Chunk()))
-          println(s"XXXXXXXXXXXXXXXXXXXXX s=$s")
-          sequenceEncoder[Chunk[A], A](encoder(s), (c: Iterable[A]) => Chunk.fromIterable(c))
+        case schema                                           =>
+          sequenceEncoder[Chunk[A], A](encoder(schema), (c: Iterable[A]) => Chunk.fromIterable(c))
             .asInstanceOf[Encoder[Set[A]]]
       }
 
