@@ -39,9 +39,12 @@ private[dynamodb] object Codec {
           setEncoder(s)
         case Schema.MapSchema(ks, vs, _)                                                                                                                                                                                                                                                    =>
           mapEncoder(ks, vs)
-        case Schema.Transform(c, _, g, _)                                                                                                                                                                                                                                                   => transformEncoder(c, g)
-        case Schema.Primitive(standardType, _)                                                                                                                                                                                                                                              => primitiveEncoder(standardType)
-        case Schema.GenericRecord(structure, _)                                                                                                                                                                                                                                             => genericRecordEncoder(structure)
+        case Schema.Transform(c, _, g, _)                                                                                                                                                                                                                                                   =>
+          transformEncoder(c, g)
+        case Schema.Primitive(standardType, _)                                                                                                                                                                                                                                              =>
+          primitiveEncoder(standardType)
+        case Schema.GenericRecord(structure, _)                                                                                                                                                                                                                                             =>
+          genericRecordEncoder(structure)
         case Schema.EitherSchema(l, r, _)                                                                                                                                                                                                                                                   => eitherEncoder(encoder(l), encoder(r))
         case l @ Schema.Lazy(_)                                                                                                                                                                                                                                                             =>
           lazy val enc = encoder(l.schema)
@@ -219,8 +222,10 @@ private[dynamodb] object Codec {
 
     private def transformEncoder[A, B](schema: Schema[A], g: B => Either[String, A]): Encoder[B] = { (b: B) =>
       g(b) match {
-        case Right(a) => encoder(schema)(a)
-        case _        => AttributeValue.Null
+        case Right(a) =>
+          encoder(schema)(a)
+        case _        =>
+          AttributeValue.Null
       }
     }
 
@@ -308,13 +313,39 @@ private[dynamodb] object Codec {
         case Schema.Primitive(StandardType.FloatType, _)      =>
           (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[Float]].map(f => BigDecimal(f.toString)))
         case Schema.Primitive(StandardType.BigDecimalType, _) =>
-          (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[BigDecimal]])
+          (a: Set[A]) =>
+            val set =
+              AttributeValue.NumberSet(
+//                a.asInstanceOf[Set[BigDecimal]]
+                a.asInstanceOf[Set[java.math.BigDecimal]].map(bd => BigDecimal(bd.doubleValue))
+              ) // TODO: map over set and create the scala on from the java one
+            set
+        /*
+case Schema.Transform(Schema.Primitive(StandardType.BigDecimalType, _), _, _, _) =>
+PRODUCES ERROR:
+pattern type is incompatible with expected type;
+ found   : zio.schema.StandardType.BigDecimalType.type
+ required: zio.schema.StandardType[Any]
+Note: java.math.BigDecimal <: Any (and zio.schema.StandardType.BigDecimalType.type <: zio.schema.StandardType[java.math.BigDecimal]), but trait StandardType is invariant in type A.
+You may wish to define A as +A instead. (SLS 4.5)
+        case Schema.Transform(Schema.Primitive(bigDecimal: StandardType.BigDecimalType.type, _), _, _, _) =>
+         */
+        case Schema.Transform(Schema.Primitive(bigDecimal, _), _, _, _) // TODO: delete this
+            if bigDecimal.isInstanceOf[StandardType.BigDecimalType.type] =>
+          // TODO: nasty type casing
+          (a: Set[A]) =>
+            val set = AttributeValue.NumberSet(a.asInstanceOf[Set[BigDecimal]])
+            set
         case Schema.Primitive(StandardType.BigIntegerType, _) =>
-          (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[BigInt]].map(BigDecimal(_)))
+//          (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[BigInt]].map(BigDecimal(_)))
+          (a: Set[A]) =>
+            AttributeValue.NumberSet(a.asInstanceOf[Set[java.math.BigInteger]].map(i => BigDecimal(i.longValue)))
         // AttributeValue.BinarySet
         case Schema.Primitive(StandardType.BinaryType, _)     =>
           (a: Set[A]) => AttributeValue.BinarySet(a.asInstanceOf[Set[Chunk[Byte]]])
-        case _                                                =>
+        case s                                                =>
+          // Transform(Primitive(bigDecimal,Chunk()))
+          println(s"XXXXXXXXXXXXXXXXXXXXX s=$s")
           sequenceEncoder[Chunk[A], A](encoder(s), (c: Iterable[A]) => Chunk.fromIterable(c))
             .asInstanceOf[Encoder[Set[A]]]
       }
@@ -644,6 +675,9 @@ private[dynamodb] object Codec {
           nativeNumberSetDecoder(_.floatValue)
         case Schema.Primitive(StandardType.BigDecimalType, _) =>
           nativeNumberSetDecoder(_.bigDecimal)
+        case Schema.Transform(Schema.Primitive(bigDecimal, _), _, _, _)
+            if bigDecimal.isInstanceOf[StandardType.BigDecimalType.type] => // TODO: nasty type casing
+          nativeNumberSetDecoder[BigDecimal](_.bigDecimal).asInstanceOf[Decoder[Set[A]]] // java big dec _.bigDecimal
         case Schema.Primitive(StandardType.BigIntegerType, _) =>
           nativeNumberSetDecoder(bd => bd.toBigInt.bigInteger)
         // BinarySet

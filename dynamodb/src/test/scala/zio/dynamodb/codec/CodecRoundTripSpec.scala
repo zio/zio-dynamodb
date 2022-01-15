@@ -4,6 +4,7 @@ import zio.dynamodb.Codec
 import zio.random.Random
 import zio.schema.{ DeriveSchema, Schema, StandardType }
 import zio.test.Assertion.{ equalTo, isRight }
+import zio.test.AssertionM.Render.param
 import zio.test._
 import zio.{ Chunk, ZIO }
 
@@ -283,6 +284,12 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
         case (schema, value) =>
           assertEncodesThenDecodes(schema, value)
       }
+    },
+    testM("any Set") {
+      checkM(SchemaGen.anySetAndValue) {
+        case (schema, value) =>
+          assertEncodesThenDecodes(schema, value)
+      }
     }
   )
 
@@ -320,6 +327,41 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
     val decoded = dec(encoded)
 
     assert(decoded)(isRight(equalTo(a)))
+  }
+
+  def assertEncodesThenDecodesPure2[A](schema: Schema[A], a: A): TestResult = {
+    val enc = Codec.encoder(schema)
+    val dec = Codec.decoder(schema)
+
+    val encoded = enc(a)
+    val decoded = dec(encoded)
+
+    def equalTo2[A, B](expected: A) /*(implicit eql: Eql[A, B])*/: Assertion[B] =
+      Assertion.assertion("equalTo")(param(expected)) { actual =>
+        (actual, expected) match {
+          case (left: Set[_], right: Set[_])     =>
+            val bool: Boolean = left.iterator.sameElements[Any](right)
+            bool
+          case (left: Array[_], right: Array[_]) =>
+            left.sameElements[Any](right)
+          case (left, right)                     =>
+            left == right
+        }
+      }
+
+    decoded match {
+      case Right(d) if d.isInstanceOf[Set[_]] && a.isInstanceOf[Set[_]] =>
+//        if () {
+//
+//        }
+//        val xs = a.asInstanceOf[Set[_]]
+//        assert(decoded)(isRight(hasSameElements(a)))
+        println(s"is set decoded=$d a=$a")
+        assert(decoded)(isRight(equalTo2(a)))
+      case _                                                            =>
+        println(s"no match")
+        assert(decoded)(isRight(equalTo2(a)))
+    }
   }
 
   private def assertEncodesThenDecodes[A](schema: Schema[A], a: A) =
