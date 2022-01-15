@@ -34,14 +34,14 @@ object SetSchemaGen {
 
   type PrimitiveAndGenWithSetType[A] = (Schema.Primitive[A], Gen[Random with Sized, A], SetType)
 
-  val filteredPrimitiveAndGenWithSetType: Gen[Random, PrimitiveAndGenWithSetType[_]] = anyPrimitiveAndGen.collect {
-    case (s: Schema.Primitive[_], gen) if setType(s.standardType) != SetType.None => (s, gen, setType(s.standardType))
+  val primitiveAndGenWithSetType: Gen[Random, PrimitiveAndGenWithSetType[_]] = anyPrimitiveAndGen.collect {
+    case (s: Schema.Primitive[_], gen) => (s, gen, setType(s.standardType))
   }
 
   type SetAndGenWithSetType[A] = (Schema.SetSchema[A], Gen[Random with Sized, Set[A]], SetType)
 
   val anySetAndGenWithSetType: Gen[Random with Sized, SetAndGenWithSetType[_]] =
-    filteredPrimitiveAndGenWithSetType.map {
+    primitiveAndGenWithSetType.map {
       case (schema, gen, setType) =>
         (Schema.SetSchema(schema, Chunk.empty), Gen.setOf(gen), setType)
     }
@@ -67,6 +67,7 @@ object SetSchemaGen {
       case (SetType.StringSet, AttributeValue.StringSet(_)) => assertCompletes
       case (SetType.NumberSet, AttributeValue.NumberSet(_)) => assertCompletes
       case (SetType.BinarySet, AttributeValue.BinarySet(_)) => assertCompletes
+      case (SetType.None, AttributeValue.List(_))           => assertCompletes
       case _                                                => !assertCompletes
     }
 
