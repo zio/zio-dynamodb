@@ -136,7 +136,7 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
       //FIXME test independently because including ZoneOffset in StandardTypeGen.anyStandardType wreaks havoc.
       checkM(Gen.chunkOf(JavaTimeGen.anyZoneOffset)) { chunk =>
         assertEncodesThenDecodes(
-          Schema.chunk(Schema.Primitive(StandardType.ZoneOffset)),
+          Schema.chunk(Schema.Primitive(StandardType.ZoneOffsetType)),
           chunk
         )
       }
@@ -183,7 +183,7 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
     testM("of ZoneOffsets") {
       checkM(JavaTimeGen.anyZoneOffset) { zoneOffset =>
         assertEncodesThenDecodes(
-          Schema.record(Schema.Field("zoneOffset", Schema.Primitive(StandardType.ZoneOffset))),
+          Schema.record(Schema.Field("zoneOffset", Schema.Primitive(StandardType.ZoneOffsetType))),
           ListMap[String, Any]("zoneOffset" -> zoneOffset)
         )
       }
@@ -282,6 +282,14 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
       checkM(SchemaGen.anyMapAndValue) {
         case (schema, value) =>
           assertEncodesThenDecodes(schema, value)
+      }
+    },
+    testM("any Set") {
+      import SetSchemaGen._
+
+      check(anySetAndValueWithSetType) {
+        case (schema, value, setType) =>
+          assertEncodesThenDecodesSet(schema, value, setType)
       }
     }
   )

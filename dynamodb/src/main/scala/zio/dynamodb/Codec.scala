@@ -1,10 +1,10 @@
 package zio.dynamodb
 
-import zio.dynamodb.Annotations.{ constantValue, discriminator, enumNameAsValue }
-import zio.{ schema, Chunk }
+import zio.dynamodb.Annotations.{ constantValue, discriminator, enumOfCaseObjects }
 import zio.schema.Schema.{ Optional, Primitive, Transform }
-import zio.schema.{ FieldSet, Schema, StandardType }
 import zio.schema.ast.SchemaAst
+import zio.schema.{ FieldSet, Schema, StandardType }
+import zio.{ schema, Chunk }
 
 import java.time._
 import java.time.format.{ DateTimeFormatterBuilder, SignStyle }
@@ -31,25 +31,37 @@ private[dynamodb] object Codec {
     //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
     private def encoder[A](schema: Schema[A]): Encoder[A] =
       schema match {
-        case s: Schema.Optional[a]                                                                                                                                                                                                                                                          => optionalEncoder[a](encoder(s.codec))
-        case Schema.Fail(_, _)                                                                                                                                                                                                                                                              => _ => AttributeValue.Null
-        case Schema.Tuple(l, r, _)                                                                                                                                                                                                                                                          => tupleEncoder(encoder(l), encoder(r))
-        case s: Schema.Sequence[col, a]                                                                                                                                                                                                                                                     => sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
+        case s: Schema.Optional[a]                                                                                                                                                                                                                                                          =>
+          optionalEncoder[a](encoder(s.codec))
+        case Schema.Fail(_, _)                                                                                                                                                                                                                                                              =>
+          _ => AttributeValue.Null
+        case Schema.Tuple(l, r, _)                                                                                                                                                                                                                                                          =>
+          tupleEncoder(encoder(l), encoder(r))
+        case s: Schema.Sequence[col, a]                                                                                                                                                                                                                                                     =>
+          sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
+        case Schema.SetSchema(s, _)                                                                                                                                                                                                                                                         =>
+          setEncoder(s)
         case Schema.MapSchema(ks, vs, _)                                                                                                                                                                                                                                                    =>
           mapEncoder(ks, vs)
-        case Schema.Transform(c, _, g, _)                                                                                                                                                                                                                                                   => transformEncoder(c, g)
-        case Schema.Primitive(standardType, _)                                                                                                                                                                                                                                              => primitiveEncoder(standardType)
-        case Schema.GenericRecord(structure, _)                                                                                                                                                                                                                                             => genericRecordEncoder(structure)
-        case Schema.EitherSchema(l, r, _)                                                                                                                                                                                                                                                   => eitherEncoder(encoder(l), encoder(r))
+        case Schema.Transform(c, _, g, _)                                                                                                                                                                                                                                                   =>
+          transformEncoder(c, g)
+        case Schema.Primitive(standardType, _)                                                                                                                                                                                                                                              =>
+          primitiveEncoder(standardType)
+        case Schema.GenericRecord(structure, _)                                                                                                                                                                                                                                             =>
+          genericRecordEncoder(structure)
+        case Schema.EitherSchema(l, r, _)                                                                                                                                                                                                                                                   =>
+          eitherEncoder(encoder(l), encoder(r))
         case l @ Schema.Lazy(_)                                                                                                                                                                                                                                                             =>
           lazy val enc = encoder(l.schema)
           (a: A) => enc(a)
-        case Schema.Meta(_, _)                                                                                                                                                                                                                                                              => astEncoder
+        case Schema.Meta(_, _)                                                                                                                                                                                                                                                              =>
+          astEncoder
         case Schema.CaseClass1(f, _, ext, _)                                                                                                                                                                                                                                                =>
           caseClassEncoder(f -> ext)
         case Schema.CaseClass2(f1, f2, _, ext1, ext2, _)                                                                                                                                                                                                                                    =>
           caseClassEncoder(f1 -> ext1, f2 -> ext2)
-        case Schema.CaseClass3(f1, f2, f3, _, ext1, ext2, ext3, _)                                                                                                                                                                                                                          => caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3)
+        case Schema.CaseClass3(f1, f2, f3, _, ext1, ext2, ext3, _)                                                                                                                                                                                                                          =>
+          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3)
         case Schema.CaseClass4(f1, f2, f3, f4, _, ext1, ext2, ext3, ext4, _)                                                                                                                                                                                                                =>
           caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4)
         case Schema.CaseClass5(f1, f2, f3, f4, f5, _, ext1, ext2, ext3, ext4, ext5, _)                                                                                                                                                                                                      =>
@@ -177,35 +189,35 @@ private[dynamodb] object Codec {
 
     private def primitiveEncoder[A](standardType: StandardType[A]): Encoder[A] =
       standardType match {
-        case StandardType.UnitType                  => _ => AttributeValue.Null
-        case StandardType.CharType                  => (a: A) => AttributeValue.String(Character.toString(a))
-        case StandardType.StringType                => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.BoolType                  => (a: A) => AttributeValue.Bool(a.asInstanceOf[Boolean])
-        case StandardType.BinaryType                => (a: A) => AttributeValue.Binary(a)
-        case StandardType.ShortType                 => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-        case StandardType.IntType                   => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-        case StandardType.LongType                  => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-        case StandardType.FloatType                 => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-        case StandardType.DoubleType                => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-        case StandardType.BigDecimalType            => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-        case StandardType.BigIntegerType            => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-        case StandardType.UUIDType                  => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.DayOfWeekType             => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.Duration(_)               => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.Instant(formatter)        => (a: A) => AttributeValue.String(formatter.format(a))
-        case StandardType.LocalDate(formatter)      => (a: A) => AttributeValue.String(formatter.format(a))
-        case StandardType.LocalDateTime(formatter)  => (a: A) => AttributeValue.String(formatter.format(a))
-        case StandardType.LocalTime(formatter)      => (a: A) => AttributeValue.String(formatter.format(a))
-        case StandardType.Month                     => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.MonthDay                  => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.OffsetDateTime(formatter) => (a: A) => AttributeValue.String(formatter.format(a))
-        case StandardType.OffsetTime(formatter)     => (a: A) => AttributeValue.String(formatter.format(a))
-        case StandardType.Period                    => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.Year                      => yearEncoder
-        case StandardType.YearMonth                 => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.ZonedDateTime(formatter)  => (a: A) => AttributeValue.String(formatter.format(a))
-        case StandardType.ZoneId                    => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.ZoneOffset                => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.UnitType                      => _ => AttributeValue.Null
+        case StandardType.CharType                      => (a: A) => AttributeValue.String(Character.toString(a))
+        case StandardType.StringType                    => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.BoolType                      => (a: A) => AttributeValue.Bool(a.asInstanceOf[Boolean])
+        case StandardType.BinaryType                    => (a: A) => AttributeValue.Binary(a)
+        case StandardType.ShortType                     => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+        case StandardType.IntType                       => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+        case StandardType.LongType                      => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+        case StandardType.FloatType                     => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+        case StandardType.DoubleType                    => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+        case StandardType.BigDecimalType                => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+        case StandardType.BigIntegerType                => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+        case StandardType.UUIDType                      => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.DayOfWeekType                 => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.Duration(_)                   => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.InstantType(formatter)        => (a: A) => AttributeValue.String(formatter.format(a))
+        case StandardType.LocalDateType(formatter)      => (a: A) => AttributeValue.String(formatter.format(a))
+        case StandardType.LocalDateTimeType(formatter)  => (a: A) => AttributeValue.String(formatter.format(a))
+        case StandardType.LocalTimeType(formatter)      => (a: A) => AttributeValue.String(formatter.format(a))
+        case StandardType.MonthType                     => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.MonthDayType                  => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.OffsetDateTimeType(formatter) => (a: A) => AttributeValue.String(formatter.format(a))
+        case StandardType.OffsetTimeType(formatter)     => (a: A) => AttributeValue.String(formatter.format(a))
+        case StandardType.PeriodType                    => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.YearType                      => yearEncoder
+        case StandardType.YearMonthType                 => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.ZonedDateTimeType(formatter)  => (a: A) => AttributeValue.String(formatter.format(a))
+        case StandardType.ZoneIdType                    => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.ZoneOffsetType                => (a: A) => AttributeValue.String(a.toString)
       }
 
     private def yearEncoder[A]: Encoder[A] =
@@ -217,8 +229,10 @@ private[dynamodb] object Codec {
 
     private def transformEncoder[A, B](schema: Schema[A], g: B => Either[String, A]): Encoder[B] = { (b: B) =>
       g(b) match {
-        case Right(a) => encoder(schema)(a)
-        case _        => AttributeValue.Null
+        case Right(a) =>
+          encoder(schema)(a)
+        case _        =>
+          AttributeValue.Null
       }
     }
 
@@ -289,11 +303,55 @@ private[dynamodb] object Codec {
           AttributeValue.Null
       }
 
+    private def setEncoder[A](s: Schema[A]): Encoder[Set[A]] =
+      s match {
+        // AttributeValue.StringSet
+        case Schema.Primitive(StandardType.StringType, _)     =>
+          (a: Set[A]) => AttributeValue.StringSet(a.asInstanceOf[Set[String]])
+
+        // AttributeValue.NumberSet
+        case Schema.Primitive(StandardType.IntType, _)        =>
+          (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[Int]].map(BigDecimal(_)))
+        case Schema.Primitive(StandardType.LongType, _)       =>
+          (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[Long]].map(BigDecimal(_)))
+        case Schema.Primitive(StandardType.ShortType, _)      =>
+          (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[Short]].map(s => BigDecimal(s.toInt)))
+        case Schema.Primitive(StandardType.DoubleType, _)     =>
+          (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[Double]].map(BigDecimal(_)))
+        case Schema.Primitive(StandardType.FloatType, _)      =>
+          (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[Float]].map(f => BigDecimal(f.toString)))
+        case Schema.Primitive(StandardType.BigDecimalType, _) =>
+          (a: Set[A]) =>
+            AttributeValue.NumberSet(
+              a.asInstanceOf[Set[java.math.BigDecimal]].map(bd => BigDecimal(bd.doubleValue))
+            )
+        // DerivedGen will wrap a java BigDecimal with a Transform for a scala BigDecimal so we need to peek ahead here
+        case Schema.Transform(Schema.Primitive(bigDecimal, _), _, _, _)
+            if bigDecimal.isInstanceOf[StandardType.BigDecimalType.type] =>
+          (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[BigDecimal]])
+        case Schema.Primitive(StandardType.BigIntegerType, _) =>
+          (a: Set[A]) =>
+            AttributeValue.NumberSet(a.asInstanceOf[Set[java.math.BigInteger]].map(i => BigDecimal(i.longValue)))
+        // DerivedGen will wrap a java BigInteger with a Transform for a scala BigInt so we need to peek ahead here
+        case Schema.Transform(Schema.Primitive(bigDecimal, _), _, _, _)
+            if bigDecimal.isInstanceOf[StandardType.BigIntegerType.type] =>
+          (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[BigInt]].map(bi => BigDecimal(bi.bigInteger)))
+
+        // AttributeValue.BinarySet
+        case Schema.Primitive(StandardType.BinaryType, _)     =>
+          (a: Set[A]) => AttributeValue.BinarySet(a.asInstanceOf[Set[Chunk[Byte]]])
+
+        // Non native set
+        case schema                                           =>
+          sequenceEncoder[Chunk[A], A](encoder(schema), (c: Iterable[A]) => Chunk.fromIterable(c))
+            .asInstanceOf[Encoder[Set[A]]]
+      }
+
     private def mapEncoder[K, V](ks: Schema[K], vs: Schema[V]): Encoder[Map[K, V]] =
       ks match {
-        case Schema.Primitive(standardType, _) if isString(standardType) =>
+        case Schema.Primitive(StandardType.StringType, _) =>
           nativeMapEncoder(encoder(vs))
-        case _                                                           =>
+        case _                                            =>
           nonNativeMapEncoder(encoder(ks), encoder(vs))
       }
 
@@ -333,6 +391,8 @@ private[dynamodb] object Codec {
           lazy val dec = decoder(l.schema)
           (av: AttributeValue) => dec(av)
         case Schema.Meta(_, _)                                                                                                                                                => astDecoder
+        case Schema.SetSchema(s, _)                                                                                                                                           =>
+          setDecoder(s).asInstanceOf[Decoder[A]]
         case Schema.MapSchema(ks, vs, _)                                                                                                                                      =>
           mapDecoder(ks, vs).asInstanceOf[Decoder[A]]
         case s @ Schema.CaseClass1(_, _, _, _)                                                                                                                                => caseClass1Decoder(s)
@@ -445,37 +505,37 @@ private[dynamodb] object Codec {
 
     private def primitiveDecoder[A](standardType: StandardType[A]): Decoder[A] =
       standardType match {
-        case StandardType.UnitType                  => _ => Right(())
-        case StandardType.StringType                =>
+        case StandardType.UnitType                      => _ => Right(())
+        case StandardType.StringType                    =>
           (av: AttributeValue) => FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av)
-        case StandardType.BoolType                  =>
+        case StandardType.BoolType                      =>
           (av: AttributeValue) => FromAttributeValue.booleanFromAttributeValue.fromAttributeValue(av)
-        case StandardType.ShortType                 =>
+        case StandardType.ShortType                     =>
           (av: AttributeValue) => FromAttributeValue.shortFromAttributeValue.fromAttributeValue(av)
-        case StandardType.IntType                   =>
+        case StandardType.IntType                       =>
           (av: AttributeValue) => FromAttributeValue.intFromAttributeValue.fromAttributeValue(av)
-        case StandardType.LongType                  =>
+        case StandardType.LongType                      =>
           (av: AttributeValue) => FromAttributeValue.longFromAttributeValue.fromAttributeValue(av)
-        case StandardType.FloatType                 =>
+        case StandardType.FloatType                     =>
           (av: AttributeValue) => FromAttributeValue.floatFromAttributeValue.fromAttributeValue(av)
-        case StandardType.DoubleType                =>
+        case StandardType.DoubleType                    =>
           (av: AttributeValue) => FromAttributeValue.doubleFromAttributeValue.fromAttributeValue(av)
-        case StandardType.BigDecimalType            =>
+        case StandardType.BigDecimalType                =>
           (av: AttributeValue) =>
             FromAttributeValue.bigDecimalFromAttributeValue
               .fromAttributeValue(av)
               .map(_.bigDecimal)
-        case StandardType.BigIntegerType            =>
+        case StandardType.BigIntegerType                =>
           (av: AttributeValue) =>
             FromAttributeValue.bigDecimalFromAttributeValue
               .fromAttributeValue(av)
               .map(_.toBigInt.bigInteger)
-        case StandardType.BinaryType                =>
+        case StandardType.BinaryType                    =>
           (av: AttributeValue) =>
             FromAttributeValue.binaryFromAttributeValue
               .fromAttributeValue(av)
               .map(Chunk.fromIterable(_))
-        case StandardType.CharType                  =>
+        case StandardType.CharType                      =>
           (av: AttributeValue) =>
             FromAttributeValue.stringFromAttributeValue
               .fromAttributeValue(av)
@@ -483,42 +543,42 @@ private[dynamodb] object Codec {
                 val array = s.toCharArray
                 array(0)
               }
-        case StandardType.UUIDType                  =>
+        case StandardType.UUIDType                      =>
           (av: AttributeValue) =>
             FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av).flatMap { s =>
               Try(UUID.fromString(s)).toEither.left.map(iae => s"Invalid UUID: ${iae.getMessage}")
             }
-        case StandardType.DayOfWeekType             =>
+        case StandardType.DayOfWeekType                 =>
           (av: AttributeValue) => javaTimeStringParser(av)(DayOfWeek.valueOf(_))
-        case StandardType.Duration(_)               =>
+        case StandardType.Duration(_)                   =>
           (av: AttributeValue) => javaTimeStringParser(av)(Duration.parse(_))
-        case StandardType.Instant(formatter)        =>
+        case StandardType.InstantType(formatter)        =>
           (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, Instant.from(_)))
-        case StandardType.LocalDate(formatter)      =>
+        case StandardType.LocalDateType(formatter)      =>
           (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, LocalDate.from(_)))
-        case StandardType.LocalDateTime(formatter)  =>
+        case StandardType.LocalDateTimeType(formatter)  =>
           (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, LocalDateTime.from(_)))
-        case StandardType.LocalTime(formatter)      =>
+        case StandardType.LocalTimeType(formatter)      =>
           (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, LocalTime.from(_)))
-        case StandardType.Month                     =>
+        case StandardType.MonthType                     =>
           (av: AttributeValue) => javaTimeStringParser(av)(Month.valueOf(_))
-        case StandardType.MonthDay                  =>
+        case StandardType.MonthDayType                  =>
           (av: AttributeValue) => javaTimeStringParser(av)(MonthDay.parse(_))
-        case StandardType.OffsetDateTime(formatter) =>
+        case StandardType.OffsetDateTimeType(formatter) =>
           (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, OffsetDateTime.from(_)))
-        case StandardType.OffsetTime(formatter)     =>
+        case StandardType.OffsetTimeType(formatter)     =>
           (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, OffsetTime.from(_)))
-        case StandardType.Period                    =>
+        case StandardType.PeriodType                    =>
           (av: AttributeValue) => javaTimeStringParser(av)(Period.parse(_))
-        case StandardType.Year                      =>
+        case StandardType.YearType                      =>
           (av: AttributeValue) => javaTimeStringParser(av)(Year.parse(_))
-        case StandardType.YearMonth                 =>
+        case StandardType.YearMonthType                 =>
           (av: AttributeValue) => javaTimeStringParser(av)(YearMonth.parse(_))
-        case StandardType.ZonedDateTime(formatter)  =>
+        case StandardType.ZonedDateTimeType(formatter)  =>
           (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, ZonedDateTime.from(_)))
-        case StandardType.ZoneId                    =>
+        case StandardType.ZoneIdType                    =>
           (av: AttributeValue) => javaTimeStringParser(av)(ZoneId.of(_))
-        case StandardType.ZoneOffset                =>
+        case StandardType.ZoneOffsetType                =>
           (av: AttributeValue) => javaTimeStringParser(av)(ZoneOffset.of(_))
       }
 
@@ -572,11 +632,82 @@ private[dynamodb] object Codec {
       case av                        => Left(s"unable to decode $av as a list")
     }
 
+    private def setDecoder[A](s: Schema[A]): Decoder[Set[A]] = {
+      def nativeStringSetDecoder[A]: Decoder[Set[A]] = {
+        case AttributeValue.StringSet(stringSet) =>
+          Right(stringSet.asInstanceOf[Set[A]])
+        case av                                  =>
+          Left(s"Error: expected a string set but found '$av'")
+      }
+
+      def nativeNumberSetDecoder[A](f: BigDecimal => A): Decoder[Set[A]] = {
+        case AttributeValue.NumberSet(numberSet) =>
+          Right(numberSet.map(f))
+        case av                                  =>
+          Left(s"Error: expected a number set but found '$av'")
+      }
+
+      def nativeBinarySetDecoder[A]: Decoder[Set[A]] = {
+        case AttributeValue.BinarySet(setOfChunkOfByte) =>
+          val set: Set[Chunk[Byte]] = setOfChunkOfByte.toSet.map((xs: Iterable[Byte]) => Chunk.fromIterable(xs))
+          Right(set.asInstanceOf[Set[A]])
+        case av                                         =>
+          Left(s"Error: expected a Set of Chunk of Byte but found '$av'")
+      }
+
+      s match {
+        // StringSet
+        case Schema.Primitive(StandardType.StringType, _)     =>
+          nativeStringSetDecoder
+
+        // NumberSet
+        case Schema.Primitive(StandardType.IntType, _)        =>
+          nativeNumberSetDecoder(_.intValue)
+        case Schema.Primitive(StandardType.LongType, _)       =>
+          nativeNumberSetDecoder(_.longValue)
+        case Schema.Primitive(StandardType.ShortType, _)      =>
+          nativeNumberSetDecoder(_.shortValue)
+        case Schema.Primitive(StandardType.DoubleType, _)     =>
+          nativeNumberSetDecoder(_.doubleValue)
+        case Schema.Primitive(StandardType.FloatType, _)      =>
+          nativeNumberSetDecoder(_.floatValue)
+        case Schema.Primitive(StandardType.BigDecimalType, _) =>
+          nativeNumberSetDecoder(_.bigDecimal)
+        case Schema.Transform(Schema.Primitive(bigDecimal, _), _, _, _)
+            if bigDecimal.isInstanceOf[StandardType.BigDecimalType.type] =>
+          nativeNumberSetDecoder[BigDecimal](_.bigDecimal).asInstanceOf[Decoder[Set[A]]]
+        case Schema.Primitive(StandardType.BigIntegerType, _) =>
+          nativeNumberSetDecoder(bd => bd.toBigInt.bigInteger)
+        case Schema.Transform(Schema.Primitive(bigInt, _), _, _, _)
+            if bigInt.isInstanceOf[StandardType.BigIntegerType.type] =>
+          nativeNumberSetDecoder[BigInt](_.toBigInt).asInstanceOf[Decoder[Set[A]]]
+
+        // BinarySet
+        case Schema.Primitive(StandardType.BinaryType, _)     =>
+          nativeBinarySetDecoder
+
+        // non native set
+        case _                                                =>
+          nonNativeSetDecoder(decoder(s))
+      }
+    }
+
+    private def nonNativeSetDecoder[A](decA: Decoder[A]): Decoder[Set[A]] = { (av: AttributeValue) =>
+      av match {
+        case AttributeValue.List(listOfAv) =>
+          val errorOrList = EitherUtil.forEach(listOfAv) { av =>
+            decA(av)
+          }
+          errorOrList.map(_.toSet)
+        case av                            => Left(s"Error: expected AttributeValue.List but found $av")
+      }
+    }
+
     private def mapDecoder[K, V](ks: Schema[K], vs: Schema[V]) =
       ks match {
-        case Schema.Primitive(standardType, _) if isString(standardType) =>
+        case Schema.Primitive(StandardType.StringType, _) =>
           nativeMapDecoder(decoder(vs))
-        case _                                                           =>
+        case _                                            =>
           nonNativeMapDecoder(decoder(ks), decoder(vs))
       }
 
@@ -670,12 +801,6 @@ private[dynamodb] object Codec {
 
   } // end Decoder
 
-  private def isString[A](standardType: StandardType[A]): Boolean =
-    standardType match {
-      case StandardType.StringType => true
-      case _                       => false
-    }
-
   private def allCaseObjects[A](cases: Seq[Schema.Case[_, A]]): Boolean =
     cases.forall {
       case Schema.Case(_, Transform(Primitive(standardType, _), _, _, _), _, _)
@@ -697,8 +822,8 @@ private[dynamodb] object Codec {
 
   private def isAlternateEnumCodec(annotations: Chunk[Any]): Boolean =
     annotations.exists {
-      case discriminator(_) | enumNameAsValue() => true
-      case _                                    => false
+      case discriminator(_) | enumOfCaseObjects() => true
+      case _                                      => false
     }
 
 } // end Codec
