@@ -214,8 +214,8 @@ object ProjectionExpression {
    * {{{
    * parse("foo.bar[9].baz"")
    * // Right(MapElement(ListElement(MapElement(Root(bar),baz),9),baz))
-   * parse(fo$o.ba$r[9].ba$z)
-   * // Left("error with fo$o,error with ba$r[9],error with ba$z")
+   * parse(fo$$o.ba$$r[9].ba$$z)
+   * // Left("error with fo$$o,error with ba$$r[9],error with ba$$z")
    * }}}
    * @param s Projection expression as a string
    * @return either a `Right` of ProjectionExpression if successful, else a `Chunk` of error strings
