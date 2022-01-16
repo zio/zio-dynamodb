@@ -12,8 +12,14 @@ Simple, type-safe, and efficient access to DynamoDB
 ### Getting Started
 
 ```sbt
-// add zio-dynamodb to your dependencies
+// only snapshots are published at the moment
+resolvers += "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
 
+// add zio-dynamodb to your dependencies - lookup the latest snapshot version here https://oss.sonatype.org/content/repositories/snapshots/dev/zio/zio-dynamodb_2.13/
+libraryDependencies ++= Seq(
+  // ...
+  "dev.zio"               %% "zio-dynamodb"          % "0.0.1-SNAPSHOT<LATEST_VERSION>-SNAPSHOT"
+)
 ```
 
 ```scala

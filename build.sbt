@@ -101,7 +101,7 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
           val implicits = (1 to i).map(p => s"${lowerAlpha(p)}: ToAttributeValue[${upperAlpha(p)}]").mkString(", ")
           val tentries  = (1 to i).map(p => s"t$p._1 -> ${lowerAlpha(p)}.toAttributeValue(t$p._2)").mkString(", ")
 
-          s"""private[dynamodb] def apply[$types]($tparams)(implicit $implicits): AttrMap =
+          s"""def apply[$types]($tparams)(implicit $implicits): AttrMap =
              |    AttrMap(
              |      Map($tentries)
              |    )""".stripMargin
@@ -126,7 +126,7 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
           val types      = (1 until i).map(upperAlpha).mkString(", ")
           val leftTuples = (1 until i).map(i => s"left._$i").mkString(", ")
 
-          s"""private[dynamodb] implicit def Zippable$i[$types, Z]: Zippable.Out[($types), Z, ($types, Z)] =
+          s"""implicit def Zippable$i[$types, Z]: Zippable.Out[($types), Z, ($types, Z)] =
              |    new Zippable[($types), Z] {
              |      type Out = ($types, Z)
              |
@@ -146,7 +146,7 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
            |object Zippable extends ZippableLowPriority1 {
            |  type Out[-A, -B, C] = Zippable[A, B] { type Out = C }
            |
-           |  private[dynamodb] implicit def ZippableUnit[A]: Zippable.Out[A, Unit, A] =
+           |  implicit def ZippableUnit[A]: Zippable.Out[A, Unit, A] =
            |    new Zippable[A, Unit] {
            |      type Out = A
            |
