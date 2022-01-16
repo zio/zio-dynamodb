@@ -22,7 +22,7 @@ object SetCodecSpec extends DefaultRunnableSpec {
   object HasBigIntSet            {
     implicit val schema: Schema[HasBigIntSet] = DeriveSchema.gen[HasBigIntSet]
   }
-  final case class HasJavaBigIntegerSet(set: Set[BigInt])
+  final case class HasJavaBigIntegerSet(set: Set[java.math.BigInteger])
   object HasJavaBigIntegerSet    {
     implicit val schema: Schema[HasJavaBigIntegerSet] = DeriveSchema.gen[HasJavaBigIntegerSet]
   }

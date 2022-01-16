@@ -637,7 +637,7 @@ private[dynamodb] object Codec {
         case AttributeValue.StringSet(stringSet) =>
           Right(stringSet.asInstanceOf[Set[A]])
         case av                                  =>
-          Left(s"Error: expected a set but found '$av'")
+          Left(s"Error: expected a string set but found '$av'")
       }
 
       def nativeNumberSetDecoder[A](f: BigDecimal => A): Decoder[Set[A]] = {
