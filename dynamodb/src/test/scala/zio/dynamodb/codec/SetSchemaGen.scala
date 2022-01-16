@@ -55,22 +55,20 @@ object SetSchemaGen {
     } yield (schema, value, setType)
 
   def assertEncodesThenDecodesSet[A](schema: Schema[A], a: A, setType: SetType) = {
-    val enc = Codec.encoder(schema)
-    val dec = Codec.decoder(schema)
-
+    val enc     = Codec.encoder(schema)
+    val dec     = Codec.decoder(schema)
     val encoded = enc(a)
     val decoded = dec(encoded)
 
     val assertRoundTrip = assert(decoded)(isRight(equalTo(a)))
 
-    val assertEncodedSetType = (setType, encoded) match {
+    val assertEncodedSetTypeIsNativeWhenPossible = (setType, encoded) match {
       case (SetType.StringSet, AttributeValue.StringSet(_)) => assertCompletes
       case (SetType.NumberSet, AttributeValue.NumberSet(_)) => assertCompletes
       case (SetType.BinarySet, AttributeValue.BinarySet(_)) => assertCompletes
       case (SetType.None, AttributeValue.List(_))           => assertCompletes
       case _                                                => !assertCompletes
     }
-
-    assertRoundTrip && assertEncodedSetType
+    assertRoundTrip && assertEncodedSetTypeIsNativeWhenPossible
   }
 }

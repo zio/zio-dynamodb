@@ -325,14 +325,14 @@ private[dynamodb] object Codec {
             AttributeValue.NumberSet(
               a.asInstanceOf[Set[java.math.BigDecimal]].map(bd => BigDecimal(bd.doubleValue))
             )
-        // DerivedGen will wrap a scala BigDecimal with a Transform so we need to peek ahead here
+        // DerivedGen will wrap a java BigDecimal with a Transform for a scala BigDecimal so we need to peek ahead here
         case Schema.Transform(Schema.Primitive(bigDecimal, _), _, _, _)
             if bigDecimal.isInstanceOf[StandardType.BigDecimalType.type] =>
           (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[BigDecimal]])
         case Schema.Primitive(StandardType.BigIntegerType, _) =>
           (a: Set[A]) =>
             AttributeValue.NumberSet(a.asInstanceOf[Set[java.math.BigInteger]].map(i => BigDecimal(i.longValue)))
-        // DerivedGen will wrap a scala BigInt with a Transform so we need to peek ahead here
+        // DerivedGen will wrap a java BigInteger with a Transform for a scala BigInt so we need to peek ahead here
         case Schema.Transform(Schema.Primitive(bigDecimal, _), _, _, _)
             if bigDecimal.isInstanceOf[StandardType.BigIntegerType.type] =>
           (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[BigInt]].map(bi => BigDecimal(bi.bigInteger)))
