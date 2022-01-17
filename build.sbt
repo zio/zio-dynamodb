@@ -34,7 +34,6 @@ addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck"
 // from this blog http://softwarebyjosh.com/2018/03/25/how-to-unit-test-your-dynamodb-queries.html
 lazy val copyJars = taskKey[Unit]("copyJars")
 
-// from this blog http://softwarebyjosh.com/2018/03/25/how-to-unit-test-your-dynamodb-queries.html
 def copyJarSetting(dir: String) =
   Seq(
     copyJars := {

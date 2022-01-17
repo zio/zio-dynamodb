@@ -4,32 +4,12 @@ import zio.ZIO
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.ProjectionExpression.$
 import zio.dynamodb.examples.javasdk.Payment.{ CreditCard, DebitCard, PayPal }
-import zio.dynamodb.{ DynamoDBExecutor, PrimaryKey }
+import zio.dynamodb.{ DynamoDBExecutor, EitherUtil, PrimaryKey }
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test.{ assertCompletes, DefaultRunnableSpec }
 
 import java.time.Instant
-import scala.annotation.tailrec
 import scala.util.Try
-
-object EitherUtil {
-  def forEach[A, B](list: Iterable[A])(f: A => Either[String, B]): Either[String, Iterable[B]] = {
-    @tailrec
-    def loop[A2, B2](xs: Iterable[A2], acc: List[B2])(f: A2 => Either[String, B2]): Either[String, Iterable[B2]] =
-      xs match {
-        case head :: tail =>
-          f(head) match {
-            case Left(e)  => Left(e)
-            case Right(a) => loop(tail, a :: acc)(f)
-          }
-        case Nil          => Right(acc.reverse)
-      }
-
-    loop(list.toList, List.empty)(f)
-  }
-
-  def collectAll[A](list: Iterable[Either[String, A]]): Either[String, Iterable[A]] = forEach(list)(identity)
-}
 
 object ZioDynamodbExampleSpec extends DefaultRunnableSpec {
   override def spec =
@@ -92,7 +72,5 @@ object ZioDynamodbExampleSpec extends DefaultRunnableSpec {
                               )
                             }.execute
   } yield EitherUtil.collectAll(listOfErrorOrStudent)).provideCustomLayer(DynamoDBExecutor.test)
-
-  //    .provideLayer(DynamoDBExecutor.live)
 
 }

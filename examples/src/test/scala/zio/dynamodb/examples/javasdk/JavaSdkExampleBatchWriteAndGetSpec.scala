@@ -2,6 +2,7 @@ package zio.dynamodb.examples.javasdk
 
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.dynamodb.model._
+import zio.dynamodb.EitherUtil
 import zio.dynamodb.examples.LocalDdbServer
 import zio.dynamodb.examples.javasdk.Payment.{ CreditCard, DebitCard, PayPal }
 import zio.test.Assertion.{ equalTo, isRight }
@@ -154,7 +155,7 @@ object JavaSdkExampleBatchWriteAndGetSpec extends DefaultRunnableSpec {
                   javaList.asScala.map(m => attributeValueMapToStudent(m.asScala.toMap)).toList
                 listOfErrorOrStudent
             }
-          errorOrStudents       = zio.dynamodb.foreach(listOfErrorOrStudent)(identity)
+          errorOrStudents       = EitherUtil.collectAll(listOfErrorOrStudent)
         } yield assert(errorOrStudents)(isRight(equalTo(students)))
       }.provideCustomLayer(LocalDdbServer.inMemoryLayer ++ DdbHelper.ddbLayer)
     )
