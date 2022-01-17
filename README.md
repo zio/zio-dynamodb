@@ -13,14 +13,16 @@ Simple, type-safe, and efficient access to DynamoDB
 
 ```sbt
 // only snapshots are published at the moment
-resolvers += "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
+resolvers += Resolver.sonatypeRepo("snapshots")
 
 // add zio-dynamodb to your dependencies - lookup the latest snapshot version here https://oss.sonatype.org/content/repositories/snapshots/dev/zio/zio-dynamodb_2.13/
 libraryDependencies ++= Seq(
   // ...
-  "dev.zio"               %% "zio-dynamodb"          % "0.0.1-SNAPSHOT<LATEST_VERSION>-SNAPSHOT"
+  "dev.zio"               %% "zio-dynamodb"          % "0.0.1<LATEST_VERSION>"
 )
 ```
+
+For examples please see [examples sbt module](examples/src/main/scala/zio/dynamodb/examples). Below is `Main.scala` from that module.
 
 ```scala
 package zio.dynamodb.examples
@@ -58,6 +60,8 @@ object Main extends App {
 }
 
 ```
+
+For examples on how to use the DynamoDBLocal in memory database please see the [integration tests](dynamodb/src/it/scala/zio/dynamodb/LiveSpec.scala)
 
 [ZIO DynamoDB Microsite](https://zio.github.io/zio-dynamodb/)
 
