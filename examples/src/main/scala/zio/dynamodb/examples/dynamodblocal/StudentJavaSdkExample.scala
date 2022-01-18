@@ -1,4 +1,4 @@
-package zio.dynamodb.examples.javasdk
+package zio.dynamodb.examples.dynamodblocal
 
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
