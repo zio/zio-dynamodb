@@ -317,7 +317,7 @@ lazy val examples = module("zio-dynamodb-examples", "examples")
       "dev.zio"               %% "zio-test"      % zioVersion % "test",
       "dev.zio"               %% "zio-test-sbt"  % zioVersion % "test",
       "software.amazon.awssdk" % "dynamodb"      % "2.16.20",
-      "com.amazonaws"          % "DynamoDBLocal" % "1.17.0"   % "test"
+      "com.amazonaws"          % "DynamoDBLocal" % "1.17.0"
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
