@@ -147,7 +147,7 @@ object StudentJavaSdkExample extends App {
     )
     val nonEmptyOptionalFields: Map[String, AttributeValue] = Map(
       "enrollmentDate" -> student.enrollmentDate.map(instant => AttributeValue.builder.s(instant.toString).build)
-    ).filter(_._2.nonEmpty).view.mapValues(_.get).toMap
+    ).filter(_._2.nonEmpty).view.map { case (k, v) => (k, v.get) }.toMap
     mandatoryFields ++ nonEmptyOptionalFields
   }
 
