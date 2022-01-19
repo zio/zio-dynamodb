@@ -12,13 +12,16 @@ import zio.dynamodb.DynamoDBQuery.{ createTable, put }
 import zio.dynamodb._
 import zio.dynamodb.examples.LocalDdbServer
 import zio.dynamodb.examples.dynamodblocal.StudentJavaSdkExample.parseInstant
-import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema }
+import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema, Schema }
 import zio.stream.ZStream
 import zio.{ console, App, ExitCode, Has, URIO, ZIO, ZLayer }
 
 import java.net.URI
 import java.time.Instant
 
+/**
+ * An equivalent app to [[StudentJavaSdkExample]] but using `zio-dynamodb` - note the reduction in boiler plate code!
+ */
 object StudentZioDynamoDbExample extends App {
 
   @enumOfCaseObjects
@@ -30,7 +33,7 @@ object StudentZioDynamoDbExample extends App {
   }
   final case class Student(email: String, subject: String, enrollmentDate: Option[Instant], payment: Payment)
   object Student extends DefaultJavaTimeSchemas {
-    implicit val schema = DeriveSchema.gen[Student]
+    implicit val schema: Schema[Student] = DeriveSchema.gen[Student]
   }
 
   private val awsConfig = ZLayer.succeed(
@@ -47,11 +50,10 @@ object StudentZioDynamoDbExample extends App {
       builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
     }
 
-  private val layer =
-    (dynamoDbLayer ++ ZLayer
-      .identity[Has[Clock.Service]]) >>> DynamoDBExecutor.live ++ (Blocking.live >>> LocalDdbServer.inMemoryLayer)
+  private val layer = ((dynamoDbLayer ++ ZLayer.identity[Has[Clock.Service]]) >>> DynamoDBExecutor.live) ++ (ZLayer
+    .identity[Has[Blocking.Service]] >>> LocalDdbServer.inMemoryLayer)
 
-  val program = for {
+  private val program = for {
     _              <- createTable("tableName", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
                         AttributeDefinition.attrDefnString("email"),
                         AttributeDefinition.attrDefnString("subject")
