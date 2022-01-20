@@ -41,8 +41,9 @@ object LiveSpec extends DefaultRunnableSpec {
     }
 
   private val layer =
-    (dynamoDbLayer ++ ZLayer
-      .identity[Has[Clock.Service]]) >>> DynamoDBExecutor.live ++ (Blocking.live >>> LocalDdbServer.inMemoryLayer)
+    ((dynamoDbLayer ++ ZLayer
+      .identity[Has[Clock.Service]]) >>> DynamoDBExecutor.live) ++ (ZLayer
+      .identity[Has[Blocking.Service]] >>> LocalDdbServer.inMemoryLayer)
 
   private val id       = "id"
   private val first    = "first"
@@ -501,33 +502,35 @@ object LiveSpec extends DefaultRunnableSpec {
             }
           },
           testM("append to list") {
-            withDefaultTable { tableName =>
-              for {
-                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
-                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").appendList(Chunk(2, 3, 4))).execute
-                updated <- getItem(tableName, secondPrimaryKey).execute
-              } yield assert(
-                updated.map(a =>
-                  a.get("listThing")(
-                    FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
+            withDefaultTable {
+              tableName =>
+                for {
+                  _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
+                  _       <- updateItem(tableName, secondPrimaryKey)($("listThing").appendList(Chunk(2, 3, 4))).execute
+                  updated <- getItem(tableName, secondPrimaryKey).execute
+                } yield assert(
+                  updated.map(a =>
+                    a.get("listThing")(
+                      FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
+                    )
                   )
-                )
-              )(equalTo(Some(Right(List(1, 2, 3, 4)))))
+                )(equalTo(Some(Right(List(1, 2, 3, 4)))))
             }
           },
           testM("prepend to list") {
-            withDefaultTable { tableName =>
-              for {
-                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
-                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").prependList(Chunk(-1, 0))).execute
-                updated <- getItem(tableName, secondPrimaryKey).execute
-              } yield assert(
-                updated.map(a =>
-                  a.get("listThing")(
-                    FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
+            withDefaultTable {
+              tableName =>
+                for {
+                  _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
+                  _       <- updateItem(tableName, secondPrimaryKey)($("listThing").prependList(Chunk(-1, 0))).execute
+                  updated <- getItem(tableName, secondPrimaryKey).execute
+                } yield assert(
+                  updated.map(a =>
+                    a.get("listThing")(
+                      FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
+                    )
                   )
-                )
-              )(equalTo(Some(Right(List(-1, 0, 1)))))
+                )(equalTo(Some(Right(List(-1, 0, 1)))))
             }
           },
           testM("set an Item Attribute") {
