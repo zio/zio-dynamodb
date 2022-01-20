@@ -288,7 +288,9 @@ private[dynamodb] object Codec {
           av match { // TODO: review all pattern matches inside of a lambda
             case AttributeValue.Map(map) =>
               AttributeValue.Map(
-                map + (AttributeValue.String(discriminator) -> AttributeValue.String(case_.id))
+                map + (AttributeValue.String(discriminator) -> AttributeValue.String(
+                  maybeConstantValue.fold(case_.id)(identity)
+                ))
               )
             case AttributeValue.Null     =>
               val av2 = AttributeValue.String(maybeConstantValue.fold(case_.id)(identity))

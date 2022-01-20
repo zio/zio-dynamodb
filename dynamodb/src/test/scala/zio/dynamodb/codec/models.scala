@@ -44,6 +44,7 @@ sealed trait EnumWithDiscriminator
 final case class WithDiscriminatedEnum(enum: EnumWithDiscriminator)
 object WithDiscriminatedEnum {
   final case class StringValue(value: String) extends EnumWithDiscriminator
+  @constantValue("ival")
   final case class IntValue(value: Int)       extends EnumWithDiscriminator
   final case object ONE                       extends EnumWithDiscriminator
   @constantValue("2")
