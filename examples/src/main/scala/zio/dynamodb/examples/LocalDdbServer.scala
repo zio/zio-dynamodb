@@ -5,7 +5,6 @@ import com.amazonaws.services.dynamodbv2.local.server.DynamoDBProxyServer
 import zio.blocking.{ effectBlocking, Blocking }
 import zio.{ Has, ZLayer, ZManaged }
 
-// TODO: move to production code
 object LocalDdbServer {
 
   val inMemoryLayer: ZLayer[Blocking, Nothing, Has[DynamoDBProxyServer]] =
