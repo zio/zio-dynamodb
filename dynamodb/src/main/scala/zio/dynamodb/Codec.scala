@@ -806,6 +806,25 @@ private[dynamodb] object Codec {
         }
     }
 
+    private[dynamodb] def decodeFields(av: AttributeValue, fields: Schema.Field[_]*): Either[String, List[Any]] =
+      av match {
+        case AttributeValue.Map(map) =>
+          EitherUtil
+            .forEach(fields) {
+              case Schema.Field(key, schema, _) =>
+                val dec          = decoder(schema)
+                val maybeValue   = map.get(AttributeValue.String(key))
+                val maybeDecoder = maybeValue.map(dec).toRight(s"field '$key' not found in $av")
+                for {
+                  decoder <- maybeDecoder
+                  decoded <- decoder
+                } yield decoded
+            }
+            .map(_.toList)
+        case _                       =>
+          Left(s"$av is not an AttributeValue.Map")
+      }
+
   } // end Decoder
 
   private def allCaseObjects[A](cases: Seq[Schema.Case[_, A]]): Boolean =
