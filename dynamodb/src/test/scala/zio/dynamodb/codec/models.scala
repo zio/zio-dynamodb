@@ -68,9 +68,9 @@ sealed trait EnumWithoutDiscriminator
 final case class WithEnumWithoutDiscriminator(enum: EnumWithoutDiscriminator)
 object WithEnumWithoutDiscriminator {
   @id("1") // this should get ignored as there is no annotation at the trait level
-  case object ONE                 extends EnumWithoutDiscriminator
-  case object TWO                 extends EnumWithoutDiscriminator
-  case class Three(value: String) extends EnumWithoutDiscriminator
+  case object ONE                                    extends EnumWithoutDiscriminator
+  case object TWO                                    extends EnumWithoutDiscriminator
+  case class Three(@id("funky_value") value: String) extends EnumWithoutDiscriminator
   implicit val schema: Schema[WithEnumWithoutDiscriminator] = DeriveSchema.gen[WithEnumWithoutDiscriminator]
 }
 

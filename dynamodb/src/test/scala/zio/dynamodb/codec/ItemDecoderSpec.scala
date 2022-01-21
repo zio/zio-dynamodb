@@ -201,7 +201,7 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(WithDiscriminatedEnum(WithDiscriminatedEnum.IntValue(1)))))
     },
-    test("decodes enum with discriminator annotation and case object as item without a constValue annotation") {
+    test("decodes enum with discriminator annotation and case object as item without a id annotation") {
       val item: Item =
         Item(
           Map(
@@ -217,7 +217,7 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(WithDiscriminatedEnum(WithDiscriminatedEnum.ONE))))
     },
-    test("decodes enum with discriminator annotation and case object as item with a constValue annotation of '2'") {
+    test("decodes enum with discriminator annotation and case object as item with a id annotation of '2'") {
       val item: Item =
         Item(
           Map(
@@ -247,21 +247,21 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(PreBilled(id = 1, s = "foobar"))))
     },
-    test("decodes case object only enum with constValue annotation") {
+    test("decodes case object only enum with id annotation") {
       val item: Item = Item(Map("enum" -> AttributeValue.String("ONE")))
 
       val actual = DynamoDBQuery.fromItem[WithCaseObjectOnlyEnum](item)
 
       assert(actual)(isRight(equalTo(WithCaseObjectOnlyEnum(WithCaseObjectOnlyEnum.ONE))))
     },
-    test("decodes case object only enum with enumNameAsValue annotation and constValue annotation of '2'") {
+    test("decodes case object only enum with enumNameAsValue annotation and id annotation of '2'") {
       val item: Item = Item(Map("enum" -> AttributeValue.String("2")))
 
       val actual = DynamoDBQuery.fromItem[WithCaseObjectOnlyEnum](item)
 
       assert(actual)(isRight(equalTo(WithCaseObjectOnlyEnum(WithCaseObjectOnlyEnum.TWO))))
     },
-    test("decodes case object only enum without constValue annotation") {
+    test("decodes case object only enum without id annotation") {
       val item: Item = Item("enum" -> Item(Map("ONE" -> AttributeValue.Null)))
 
       val actual = DynamoDBQuery.fromItem[WithEnumWithoutDiscriminator](item)
