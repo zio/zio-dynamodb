@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.Annotations.{ constantValue, discriminator, enumOfCaseObjects }
+import zio.dynamodb.Annotations.{ discriminator, enumOfCaseObjects, id }
 import zio.schema.Schema.{ Optional, Primitive, Transform }
 import zio.schema.ast.SchemaAst
 import zio.schema.{ FieldSet, Schema, StandardType }
@@ -279,9 +279,9 @@ private[dynamodb] object Codec {
           val case_                              = cases(fieldIndex)
           val enc                                = encoder(case_.codec.asInstanceOf[Schema[Any]])
           val maybeConstantValue: Option[String] = case_.annotations match {
-            case Chunk(constantValue(const)) =>
+            case Chunk(id(const)) =>
               Some(const)
-            case _                           =>
+            case _                =>
               None
           }
           val av                                 = enc(a)
@@ -773,8 +773,8 @@ private[dynamodb] object Codec {
       (av: AttributeValue) =>
         def findCase(value: String): Either[String, Schema.Case[_, A]] =
           cases.find {
-            case Schema.Case(_, _, _, Chunk(constantValue(const))) => const == value
-            case Schema.Case(id, _, _, _)                          => id == value
+            case Schema.Case(_, _, _, Chunk(id(const))) => const == value
+            case Schema.Case(id, _, _, _)               => id == value
           }.toRight(s"type name '$value' not found in schema cases")
 
         def decode(id: String): Either[String, A] =

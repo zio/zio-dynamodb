@@ -138,7 +138,7 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes enum with discriminator annotation and a constantValue annotation on a case class") {
+    test("encodes enum with discriminator annotation and an id annotation on a case class") {
       val expectedItem: Item =
         Item(
           Map(
