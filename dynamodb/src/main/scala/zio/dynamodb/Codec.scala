@@ -169,10 +169,15 @@ private[dynamodb] object Codec {
     private def caseClassEncoder[A](fields: (Schema.Field[_], A => Any)*): Encoder[A] =
       (a: A) => {
         fields.foldRight[AttributeValue.Map](AttributeValue.Map(Map.empty)) {
-          case ((Schema.Field(key, schema, _), ext), acc) =>
+          case ((Schema.Field(key, schema, annotations), ext), acc) =>
             val enc                 = encoder(schema)
             val extractedFieldValue = ext(a)
             val av                  = enc(extractedFieldValue)
+            val k                   = maybeId(annotations).getOrElse(key)
+
+            // TODO: remove
+            val list = annotations.toList
+            println(s"annotations=$list")
 
             @tailrec
             def appendToMap[B](schema: Schema[B]): AttributeValue.Map =
@@ -180,7 +185,7 @@ private[dynamodb] object Codec {
                 case l @ Schema.Lazy(_) =>
                   appendToMap(l.schema)
                 case _                  =>
-                  AttributeValue.Map(acc.value + (AttributeValue.String(key) -> av))
+                  AttributeValue.Map(acc.value + (AttributeValue.String(k) -> av))
               }
 
             appendToMap(schema)
@@ -820,6 +825,14 @@ private[dynamodb] object Codec {
         name
       case _                             =>
         "discriminator"
+    }
+
+  private def maybeId(annotations: Chunk[Any]): Option[String] =
+    annotations.toList match {
+      case id(name) :: _ =>
+        Some(name)
+      case _             =>
+        None
     }
 
   private def isAlternateEnumCodec(annotations: Chunk[Any]): Boolean =

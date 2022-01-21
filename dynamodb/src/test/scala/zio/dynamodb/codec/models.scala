@@ -43,12 +43,13 @@ final case class CaseClassOfTuple2(tuple2: (String, Int))
 sealed trait EnumWithDiscriminator
 final case class WithDiscriminatedEnum(enum: EnumWithDiscriminator)
 object WithDiscriminatedEnum {
-  final case class StringValue(value: String) extends EnumWithDiscriminator
+  final case class StringValue(value: String)                     extends EnumWithDiscriminator
+  final case class StringValue2(@id("funky_value") value: String) extends EnumWithDiscriminator
   @id("ival")
-  final case class IntValue(value: Int)       extends EnumWithDiscriminator
-  final case object ONE                       extends EnumWithDiscriminator
+  final case class IntValue(value: Int)                           extends EnumWithDiscriminator
+  final case object ONE                                           extends EnumWithDiscriminator
   @id("2")
-  final case object TWO                       extends EnumWithDiscriminator
+  final case object TWO                                           extends EnumWithDiscriminator
 
   implicit val schema: Schema[WithDiscriminatedEnum] = DeriveSchema.gen[WithDiscriminatedEnum]
 }
