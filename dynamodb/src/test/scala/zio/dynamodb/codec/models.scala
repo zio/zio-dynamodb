@@ -64,13 +64,14 @@ object WithCaseObjectOnlyEnum {
   implicit val schema: Schema[WithCaseObjectOnlyEnum] = DeriveSchema.gen[WithCaseObjectOnlyEnum]
 }
 
-sealed trait CaseObjectOnlyEnum2
-final case class WithCaseObjectOnlyEnum2(enum: CaseObjectOnlyEnum2)
-object WithCaseObjectOnlyEnum2 {
+sealed trait EnumWithoutDiscriminator
+final case class WithEnumWithoutDiscriminator(enum: EnumWithoutDiscriminator)
+object WithEnumWithoutDiscriminator {
   @id("1") // this should get ignored as there is no annotation at the trait level
-  case object ONE extends CaseObjectOnlyEnum2
-  case object TWO extends CaseObjectOnlyEnum2
-  implicit val schema: Schema[WithCaseObjectOnlyEnum2] = DeriveSchema.gen[WithCaseObjectOnlyEnum2]
+  case object ONE                 extends EnumWithoutDiscriminator
+  case object TWO                 extends EnumWithoutDiscriminator
+  case class Three(value: String) extends EnumWithoutDiscriminator
+  implicit val schema: Schema[WithEnumWithoutDiscriminator] = DeriveSchema.gen[WithEnumWithoutDiscriminator]
 }
 
 @discriminator(name = "funkyDiscriminator")

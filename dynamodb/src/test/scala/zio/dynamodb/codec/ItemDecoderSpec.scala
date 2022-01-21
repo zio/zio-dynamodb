@@ -167,23 +167,23 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(WithDiscriminatedEnum(WithDiscriminatedEnum.StringValue("foobar")))))
     },
-//    test("decodes enum with discriminator annotation and id annotation on a case class field ") {
-//      val item: Item =
-//        Item(
-//          Map(
-//            "enum" -> AttributeValue.Map(
-//              Map(
-//                AttributeValue.String("funky_value")        -> AttributeValue.String("foobar"),
-//                AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("StringValue")
-//              )
-//            )
-//          )
-//        )
-//
-//      val actual = DynamoDBQuery.fromItem[WithDiscriminatedEnum](item)
-//
-//      assert(actual)(isRight(equalTo(WithDiscriminatedEnum(WithDiscriminatedEnum.StringValue("foobar")))))
-//    },
+    test("decodes enum with discriminator annotation and id annotation on a case class field ") {
+      val item: Item =
+        Item(
+          Map(
+            "enum" -> AttributeValue.Map(
+              Map(
+                AttributeValue.String("funky_value")        -> AttributeValue.String("foobar"),
+                AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("StringValue2")
+              )
+            )
+          )
+        )
+
+      val actual = DynamoDBQuery.fromItem[WithDiscriminatedEnum](item)
+
+      assert(actual)(isRight(equalTo(WithDiscriminatedEnum(WithDiscriminatedEnum.StringValue2("foobar")))))
+    },
     test("decodes enum with discriminator annotation and an id annotation on a case class") {
       val item: Item =
         Item(
@@ -264,9 +264,9 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
     test("decodes case object only enum without constValue annotation") {
       val item: Item = Item("enum" -> Item(Map("ONE" -> AttributeValue.Null)))
 
-      val actual = DynamoDBQuery.fromItem[WithCaseObjectOnlyEnum2](item)
+      val actual = DynamoDBQuery.fromItem[WithEnumWithoutDiscriminator](item)
 
-      assert(actual)(isRight(equalTo(WithCaseObjectOnlyEnum2(WithCaseObjectOnlyEnum2.ONE))))
+      assert(actual)(isRight(equalTo(WithEnumWithoutDiscriminator(WithEnumWithoutDiscriminator.ONE))))
     }
   )
 

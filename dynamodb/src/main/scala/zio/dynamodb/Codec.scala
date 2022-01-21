@@ -175,10 +175,6 @@ private[dynamodb] object Codec {
             val av                  = enc(extractedFieldValue)
             val k                   = maybeId(annotations).getOrElse(key)
 
-            // TODO: remove
-            val list = annotations.toList
-            println(s"annotations=$list")
-
             @tailrec
             def appendToMap[B](schema: Schema[B]): AttributeValue.Map =
               schema match {
@@ -811,10 +807,11 @@ private[dynamodb] object Codec {
         case AttributeValue.Map(map) =>
           EitherUtil
             .forEach(fields) {
-              case Schema.Field(key, schema, _) =>
+              case Schema.Field(key, schema, annotations) =>
                 val dec          = decoder(schema)
-                val maybeValue   = map.get(AttributeValue.String(key))
-                val maybeDecoder = maybeValue.map(dec).toRight(s"field '$key' not found in $av")
+                val k            = maybeId(annotations).getOrElse(key)
+                val maybeValue   = map.get(AttributeValue.String(k))
+                val maybeDecoder = maybeValue.map(dec).toRight(s"field '$k' not found in $av")
                 for {
                   decoder <- maybeDecoder
                   decoded <- decoder
