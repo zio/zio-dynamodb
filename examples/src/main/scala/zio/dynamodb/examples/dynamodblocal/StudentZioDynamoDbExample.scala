@@ -11,7 +11,6 @@ import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.dynamodb.DynamoDBQuery.{ createTable, put }
 import zio.dynamodb._
 import zio.dynamodb.examples.LocalDdbServer
-import zio.dynamodb.examples.dynamodblocal.StudentJavaSdkExample.parseInstant
 import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema, Schema }
 import zio.stream.ZStream
 import zio.{ console, App, ExitCode, Has, URIO, ZIO, ZLayer }
@@ -54,20 +53,20 @@ object StudentZioDynamoDbExample extends App {
     .identity[Has[Blocking.Service]] >>> LocalDdbServer.inMemoryLayer)
 
   private val program = for {
-    _              <- createTable("tableName", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
+    _              <- createTable("student", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
                         AttributeDefinition.attrDefnString("email"),
                         AttributeDefinition.attrDefnString("subject")
                       ).execute
-    enrollmentDate <- ZIO.fromEither(parseInstant("2021-03-20T01:39:33Z"))
+    enrollmentDate <- ZIO.effect(Instant.parse("2021-03-20T01:39:33Z"))
     avi             = Student("avi@gmail.com", "maths", Some(enrollmentDate), Payment.DebitCard)
     adam            = Student("adam@gmail.com", "english", Some(enrollmentDate), Payment.CreditCard)
     _              <- batchWriteFromStream(ZStream(avi, adam)) { student =>
-                        put("tableName", student)
+                        put("student", student)
                       }.runDrain
-    _              <- put("tableName", avi.copy(payment = Payment.CreditCard)).execute
-    _              <- batchReadFromStream("tableName", ZStream(avi, adam))(s =>
-                        PrimaryKey("email" -> s.email, "subject" -> s.subject)
-                      ).tap(student => console.putStrLn(s"student=$student")).runDrain
+    _              <- put("student", avi.copy(payment = Payment.CreditCard)).execute
+    _              <- batchReadFromStream("student", ZStream(avi, adam))(s => PrimaryKey("email" -> s.email, "subject" -> s.subject))
+                        .tap(student => console.putStrLn(s"student=$student"))
+                        .runDrain
   } yield ()
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = program.provideCustomLayer(layer).exitCode
