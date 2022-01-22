@@ -277,24 +277,17 @@ private[dynamodb] object Codec {
       (a: A) => {
         val fieldIndex = cases.indexWhere(c => c.deconstruct(a).isDefined)
         if (fieldIndex > -1) {
-          val case_                              = cases(fieldIndex)
-          val enc                                = encoder(case_.codec.asInstanceOf[Schema[Any]])
-          val maybeConstantValue: Option[String] = case_.annotations match {
-            case Chunk(id(const)) =>
-              Some(const)
-            case _                =>
-              None
-          }
-          val av                                 = enc(a)
+          val case_   = cases(fieldIndex)
+          val enc     = encoder(case_.codec.asInstanceOf[Schema[Any]])
+          lazy val id = maybeId(case_.annotations).getOrElse(case_.id)
+          val av      = enc(a)
           av match { // TODO: review all pattern matches inside of a lambda
             case AttributeValue.Map(map) =>
               AttributeValue.Map(
-                map + (AttributeValue.String(discriminator) -> AttributeValue.String(
-                  maybeConstantValue.fold(case_.id)(identity)
-                ))
+                map + (AttributeValue.String(discriminator) -> AttributeValue.String(id))
               )
             case AttributeValue.Null     =>
-              val av2 = AttributeValue.String(maybeConstantValue.fold(case_.id)(identity))
+              val av2 = AttributeValue.String(id)
               if (allCaseObjects(cases))
                 av2
               else
