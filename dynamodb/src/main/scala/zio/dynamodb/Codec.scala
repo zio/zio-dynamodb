@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.Annotations.{ constantValue, discriminator, enumOfCaseObjects }
+import zio.dynamodb.Annotations.{ discriminator, enumOfCaseObjects, id }
 import zio.schema.Schema.{ Optional, Primitive, Transform }
 import zio.schema.ast.SchemaAst
 import zio.schema.{ FieldSet, Schema, StandardType }
@@ -169,10 +169,11 @@ private[dynamodb] object Codec {
     private def caseClassEncoder[A](fields: (Schema.Field[_], A => Any)*): Encoder[A] =
       (a: A) => {
         fields.foldRight[AttributeValue.Map](AttributeValue.Map(Map.empty)) {
-          case ((Schema.Field(key, schema, _), ext), acc) =>
+          case ((Schema.Field(key, schema, annotations), ext), acc) =>
             val enc                 = encoder(schema)
             val extractedFieldValue = ext(a)
             val av                  = enc(extractedFieldValue)
+            val k                   = maybeId(annotations).getOrElse(key)
 
             @tailrec
             def appendToMap[B](schema: Schema[B]): AttributeValue.Map =
@@ -180,7 +181,7 @@ private[dynamodb] object Codec {
                 case l @ Schema.Lazy(_) =>
                   appendToMap(l.schema)
                 case _                  =>
-                  AttributeValue.Map(acc.value + (AttributeValue.String(key) -> av))
+                  AttributeValue.Map(acc.value + (AttributeValue.String(k) -> av))
               }
 
             appendToMap(schema)
@@ -276,22 +277,17 @@ private[dynamodb] object Codec {
       (a: A) => {
         val fieldIndex = cases.indexWhere(c => c.deconstruct(a).isDefined)
         if (fieldIndex > -1) {
-          val case_                              = cases(fieldIndex)
-          val enc                                = encoder(case_.codec.asInstanceOf[Schema[Any]])
-          val maybeConstantValue: Option[String] = case_.annotations match {
-            case Chunk(constantValue(const)) =>
-              Some(const)
-            case _                           =>
-              None
-          }
-          val av                                 = enc(a)
+          val case_   = cases(fieldIndex)
+          val enc     = encoder(case_.codec.asInstanceOf[Schema[Any]])
+          lazy val id = maybeId(case_.annotations).getOrElse(case_.id)
+          val av      = enc(a)
           av match { // TODO: review all pattern matches inside of a lambda
             case AttributeValue.Map(map) =>
               AttributeValue.Map(
-                map + (AttributeValue.String(discriminator) -> AttributeValue.String(case_.id))
+                map + (AttributeValue.String(discriminator) -> AttributeValue.String(id))
               )
             case AttributeValue.Null     =>
-              val av2 = AttributeValue.String(maybeConstantValue.fold(case_.id)(identity))
+              val av2 = AttributeValue.String(id)
               if (allCaseObjects(cases))
                 av2
               else
@@ -771,8 +767,8 @@ private[dynamodb] object Codec {
       (av: AttributeValue) =>
         def findCase(value: String): Either[String, Schema.Case[_, A]] =
           cases.find {
-            case Schema.Case(_, _, _, Chunk(constantValue(const))) => const == value
-            case Schema.Case(id, _, _, _)                          => id == value
+            case Schema.Case(_, _, _, Chunk(id(const))) => const == value
+            case Schema.Case(id, _, _, _)               => id == value
           }.toRight(s"type name '$value' not found in schema cases")
 
         def decode(id: String): Either[String, A] =
@@ -799,6 +795,26 @@ private[dynamodb] object Codec {
         }
     }
 
+    private[dynamodb] def decodeFields(av: AttributeValue, fields: Schema.Field[_]*): Either[String, List[Any]] =
+      av match {
+        case AttributeValue.Map(map) =>
+          EitherUtil
+            .forEach(fields) {
+              case Schema.Field(key, schema, annotations) =>
+                val dec          = decoder(schema)
+                val k            = maybeId(annotations).getOrElse(key)
+                val maybeValue   = map.get(AttributeValue.String(k))
+                val maybeDecoder = maybeValue.map(dec).toRight(s"field '$k' not found in $av")
+                for {
+                  decoder <- maybeDecoder
+                  decoded <- decoder
+                } yield decoded
+            }
+            .map(_.toList)
+        case _                       =>
+          Left(s"$av is not an AttributeValue.Map")
+      }
+
   } // end Decoder
 
   private def allCaseObjects[A](cases: Seq[Schema.Case[_, A]]): Boolean =
@@ -818,6 +834,14 @@ private[dynamodb] object Codec {
         name
       case _                             =>
         "discriminator"
+    }
+
+  private def maybeId(annotations: Chunk[Any]): Option[String] =
+    annotations.toList match {
+      case id(name) :: _ =>
+        Some(name)
+      case _             =>
+        None
     }
 
   private def isAlternateEnumCodec(annotations: Chunk[Any]): Boolean =

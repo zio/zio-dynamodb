@@ -262,7 +262,7 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
           val fieldParams       = (1 to i).map(p => s"schema.field${if (i == 1) "" else p.toString}").mkString(",")
           val fieldTypes        = (1 to i).map(p => s"${upperAlpha(p)}").mkString(", ")
           s"""def caseClass${i}Decoder[$fieldTypes, Z](schema: Schema.CaseClass${i}[$fieldTypes, Z]): Decoder[Z] =  { (av: AttributeValue) =>
-             |    decodeFields(av, $fieldParams).map { xs =>
+             |    Codec.Decoder.decodeFields(av, $fieldParams).map { xs =>
              |      schema.construct($constructorParams)
              |    }
              |  }""".stripMargin
@@ -271,31 +271,12 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
         file,
         s"""package zio.dynamodb
            |
-           |import zio.dynamodb.Codec.decoder
            |import zio.schema.Schema
            |
            |private[dynamodb] trait GeneratedCaseClassDecoders {
            |
            |  ${applyMethods.mkString("\n\n  ")}
            |
-           |private def decodeFields(av: AttributeValue, fields: Schema.Field[_]*): Either[String, List[Any]] =
-           |  av match {
-           |    case AttributeValue.Map(map) =>
-           |      EitherUtil
-           |        .forEach(fields) {
-           |          case Schema.Field(key, schema, _) =>
-           |            val dec          = decoder(schema)
-           |            val maybeValue   = map.get(AttributeValue.String(key))
-           |            val maybeDecoder = maybeValue.map(dec).toRight(s"field '$$key' not found in $$av")
-           |            for {
-           |              decoder <- maybeDecoder
-           |              decoded <- decoder
-           |            } yield decoded
-           |        }
-           |        .map(_.toList)
-           |    case _                       =>
-           |      Left(s"$$av is not an AttributeValue.Map")
-           |  }
            |}""".stripMargin
       )
       Seq(file)

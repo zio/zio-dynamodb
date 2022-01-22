@@ -138,7 +138,41 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes enum with discriminator annotation and case object as item without a constValue annotation") {
+    test("encodes enum with discriminator annotation and @id annotation at field level for a case class") {
+      val expectedItem: Item =
+        Item(
+          Map(
+            "enum" -> AttributeValue.Map(
+              Map(
+                AttributeValue.String("funky_value")        -> AttributeValue.String("foobar"),
+                AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("StringValue2")
+              )
+            )
+          )
+        )
+
+      val item = DynamoDBQuery.toItem(WithDiscriminatedEnum(WithDiscriminatedEnum.StringValue2("foobar")))
+
+      assert(item)(equalTo(expectedItem))
+    },
+    test("encodes enum with discriminator annotation and an @id annotation on a case class") {
+      val expectedItem: Item =
+        Item(
+          Map(
+            "enum" -> AttributeValue.Map(
+              Map(
+                AttributeValue.String("value")              -> AttributeValue.Number(BigDecimal(1)),
+                AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("ival")
+              )
+            )
+          )
+        )
+
+      val item = DynamoDBQuery.toItem(WithDiscriminatedEnum(WithDiscriminatedEnum.IntValue(1)))
+
+      assert(item)(equalTo(expectedItem))
+    },
+    test("encodes enum with discriminator annotation and case object as item without a @id annotation") {
       val expectedItem: Item =
         Item(
           Map(
@@ -154,7 +188,7 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes enum with discriminator annotation and case object as item with constValue annotation of '2'") {
+    test("encodes enum with discriminator annotation and case object as item with @id annotation of '2'") {
       val expectedItem: Item =
         Item(
           Map(
@@ -184,24 +218,41 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes case object only enum with enumNameAsValue annotation") {
+    test("encodes case object only enum with @enumOfCaseObjects annotation") {
       val expectedItem: Item = Item(Map("enum" -> AttributeValue.String("ONE")))
 
       val item = DynamoDBQuery.toItem(WithCaseObjectOnlyEnum(WithCaseObjectOnlyEnum.ONE))
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes case object only enum with enumNameAsValue annotation and constValue annotation of '2'") {
+    test("encodes case object only enum with @enumOfCaseObjects annotation and @id annotation of '2'") {
       val expectedItem: Item = Item(Map("enum" -> AttributeValue.String("2")))
 
       val item = DynamoDBQuery.toItem(WithCaseObjectOnlyEnum(WithCaseObjectOnlyEnum.TWO))
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes case object only enum without enumNameAsValue annotation") {
+    test("encodes enum and ignores @id annotation when there is no @enumOfCaseObjects annotation") {
       val expectedItem: Item = Item("enum" -> Item(Map("ONE" -> AttributeValue.Null)))
 
-      val item = DynamoDBQuery.toItem(WithCaseObjectOnlyEnum2(WithCaseObjectOnlyEnum2.ONE))
+      val item = DynamoDBQuery.toItem(WithEnumWithoutDiscriminator(WithEnumWithoutDiscriminator.ONE))
+
+      assert(item)(equalTo(expectedItem))
+    },
+    test("encodes enum without @discriminator annotation and uses @id field level annotation") {
+      val expectedItem: Item = Item(
+        Map(
+          "enum" -> AttributeValue.Map(
+            Map(
+              AttributeValue.String("Three") -> AttributeValue.Map(
+                Map(AttributeValue.String("funky_value") -> AttributeValue.String("value"))
+              )
+            )
+          )
+        )
+      )
+
+      val item = DynamoDBQuery.toItem(WithEnumWithoutDiscriminator(WithEnumWithoutDiscriminator.Three(value = "value")))
 
       assert(item)(equalTo(expectedItem))
     }

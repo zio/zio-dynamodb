@@ -1,7 +1,7 @@
 package zio.dynamodb.examples
 
 import zio.console.putStrLn
-import zio.dynamodb.Annotations.{ constantValue, discriminator, enumOfCaseObjects }
+import zio.dynamodb.Annotations.{ discriminator, enumOfCaseObjects, id }
 import zio.dynamodb.examples.TypeSafeRoundTripSerialisationExample.Invoice.{
   Address,
   Billed,
@@ -25,9 +25,9 @@ object TypeSafeRoundTripSerialisationExample extends App {
     @enumOfCaseObjects
     sealed trait PaymentType
     object PaymentType {
-      @constantValue("debit")
+      @id("debit")
       case object DebitCard  extends PaymentType
-      @constantValue("credit")
+      @id("credit")
       case object CreditCard extends PaymentType
     }
 

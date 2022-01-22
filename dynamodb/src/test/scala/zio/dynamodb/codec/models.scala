@@ -1,6 +1,6 @@
 package zio.dynamodb.codec
 
-import zio.dynamodb.Annotations.{ constantValue, discriminator, enumOfCaseObjects }
+import zio.dynamodb.Annotations.{ discriminator, enumOfCaseObjects, id }
 import zio.schema.{ DeriveSchema, Schema }
 
 import java.time.Instant
@@ -43,11 +43,13 @@ final case class CaseClassOfTuple2(tuple2: (String, Int))
 sealed trait EnumWithDiscriminator
 final case class WithDiscriminatedEnum(enum: EnumWithDiscriminator)
 object WithDiscriminatedEnum {
-  final case class StringValue(value: String) extends EnumWithDiscriminator
-  final case class IntValue(value: Int)       extends EnumWithDiscriminator
-  final case object ONE                       extends EnumWithDiscriminator
-  @constantValue("2")
-  final case object TWO                       extends EnumWithDiscriminator
+  final case class StringValue(value: String)                     extends EnumWithDiscriminator
+  final case class StringValue2(@id("funky_value") value: String) extends EnumWithDiscriminator
+  @id("ival")
+  final case class IntValue(value: Int)                           extends EnumWithDiscriminator
+  final case object ONE                                           extends EnumWithDiscriminator
+  @id("2")
+  final case object TWO                                           extends EnumWithDiscriminator
 
   implicit val schema: Schema[WithDiscriminatedEnum] = DeriveSchema.gen[WithDiscriminatedEnum]
 }
@@ -57,18 +59,19 @@ sealed trait CaseObjectOnlyEnum
 final case class WithCaseObjectOnlyEnum(enum: CaseObjectOnlyEnum)
 object WithCaseObjectOnlyEnum {
   case object ONE extends CaseObjectOnlyEnum
-  @constantValue("2")
+  @id("2")
   case object TWO extends CaseObjectOnlyEnum
   implicit val schema: Schema[WithCaseObjectOnlyEnum] = DeriveSchema.gen[WithCaseObjectOnlyEnum]
 }
 
-sealed trait CaseObjectOnlyEnum2
-final case class WithCaseObjectOnlyEnum2(enum: CaseObjectOnlyEnum2)
-object WithCaseObjectOnlyEnum2 {
-  @constantValue("1") // this should get ignored as there is no annotation at the trait level
-  case object ONE extends CaseObjectOnlyEnum2
-  case object TWO extends CaseObjectOnlyEnum2
-  implicit val schema: Schema[WithCaseObjectOnlyEnum2] = DeriveSchema.gen[WithCaseObjectOnlyEnum2]
+sealed trait EnumWithoutDiscriminator
+final case class WithEnumWithoutDiscriminator(enum: EnumWithoutDiscriminator)
+object WithEnumWithoutDiscriminator {
+  @id("1") // this should get ignored as there is no annotation at the trait level
+  case object ONE                                    extends EnumWithoutDiscriminator
+  case object TWO                                    extends EnumWithoutDiscriminator
+  case class Three(@id("funky_value") value: String) extends EnumWithoutDiscriminator
+  implicit val schema: Schema[WithEnumWithoutDiscriminator] = DeriveSchema.gen[WithEnumWithoutDiscriminator]
 }
 
 @discriminator(name = "funkyDiscriminator")
