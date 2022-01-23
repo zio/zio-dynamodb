@@ -9,9 +9,9 @@ final case class Red(rgb: Int) extends TrafficLight
 final case class Box(trafficLightColour: TrafficLight)
 ```
 
-The encoding for `Box(Green(42))` is:
+The default encoding for `Box(Green(42))` is:
 
-`AttrMap(Map(trafficLightColour -> Map(Map(String(Green) -> String(rgb) -> Number(42)))))))`
+`AttrMap(Map(trafficLightColour -> Map(String(Green) -> String(rgb) -> Number(42))))`
 
 Here an intermediate map is used to identify the member of `TraficLight` ie `Map(String(Green) -> ...)`
 
@@ -24,9 +24,9 @@ case object RED extends TrafficLight
 final case class Box(trafficLightColour: TrafficLight)
 ```
 
-Encoding for `Box(GREEN)`:
+The default encoding for `Box(GREEN)` is:
 
-`AttrMap(Map(trafficLightColour -> Map(Map(String(GREEN) -> Null))))`
+`AttrMap(Map(trafficLightColour -> Map(String(GREEN) -> Null)))`
 
 Here an intermediate map is used to identify the member of `TraficLight` ie `Map(String(GREEN) -> Null)`
 Note that the `Null` is used as in this case we do not care about the value.
@@ -54,19 +54,19 @@ final case class Box(trafficLightColour: TrafficLight)
 
 encoding for an instance of `Box(Green(42))` would be:
 
-`AttrMap(Map(trafficLightColour -> Map(String(rgb) -> Number(42), String(light_type) -> String(Green))))))`
+`AttrMap(Map(trafficLightColour -> Map(String(rgb) -> Number(42), String(light_type) -> String(Green))))`
 
 We can specify the field name used to identify the case class through the `@discriminator` annotation. The alternate
-encoding removes the intermediate map and inserts a new field with a name specified by discrimnator annotation and a
+encoding removes the intermediate map and inserts a new field with a name specified by discriminator annotation and a
 value that identifies the member which defaults to the class name.
 
 This can be further customised using the `@id` annotation - encoding for an instance of `Box(Red(42))` would be:
 
-`AttrMap(Map(trafficLightColour -> Map(String(rgb) -> Number(42), String(light_type) -> String(red_traffic_light))))))`
+`AttrMap(Map(trafficLightColour -> Map(String(rgb) -> Number(42), String(light_type) -> String(red_traffic_light))))`
 
 The encoding for case class field names can also be customised via `@id` - encoding for an instance of `Box(Amber(42))` would be:
 
-`AttrMap(Map(trafficLightColour -> Map(String(red_green_blue) -> Number(42), String(light_type) -> String(Amber))))))`
+`AttrMap(Map(trafficLightColour -> Map(String(red_green_blue) -> Number(42), String(light_type) -> String(Amber))))`
 
 
 ## Sealed trait members that are all case objects
