@@ -11,9 +11,9 @@ final case class Box(trafficLightColour: TrafficLight)
 
 The default encoding for `Box(Green(42))` is:
 
-`AttrMap(Map(trafficLightColour -> Map(String(Green) -> String(rgb) -> Number(42))))`
+`Map(trafficLightColour -> Map(String(Green) -> Map(String(rgb) -> Number(42))))`
 
-Here an intermediate map is used to identify the member of `TraficLight` ie `Map(String(Green) -> ...)`
+Here an intermediate map is used to identify the member of `TraficLight` ie `Map(String(Green) -> Map(...)`
 
 ## Sealed trait members that are case objects
 
@@ -26,7 +26,7 @@ final case class Box(trafficLightColour: TrafficLight)
 
 The default encoding for `Box(GREEN)` is:
 
-`AttrMap(Map(trafficLightColour -> Map(String(GREEN) -> Null)))`
+`Map(trafficLightColour -> Map(String(GREEN) -> Null))`
 
 Here an intermediate map is used to identify the member of `TraficLight` ie `Map(String(GREEN) -> Null)`
 Note that the `Null` is used as in this case we do not care about the value.
@@ -54,7 +54,7 @@ final case class Box(trafficLightColour: TrafficLight)
 
 encoding for an instance of `Box(Green(42))` would be:
 
-`AttrMap(Map(trafficLightColour -> Map(String(rgb) -> Number(42), String(light_type) -> String(Green))))`
+`Map(trafficLightColour -> Map(String(rgb) -> Number(42), String(light_type) -> String(Green)))`
 
 We can specify the field name used to identify the case class through the `@discriminator` annotation. The alternate
 encoding removes the intermediate map and inserts a new field with a name specified by discriminator annotation and a
@@ -62,11 +62,11 @@ value that identifies the member which defaults to the class name.
 
 This can be further customised using the `@id` annotation - encoding for an instance of `Box(Red(42))` would be:
 
-`AttrMap(Map(trafficLightColour -> Map(String(rgb) -> Number(42), String(light_type) -> String(red_traffic_light))))`
+`Map(trafficLightColour -> Map(String(rgb) -> Number(42), String(light_type) -> String(red_traffic_light)))`
 
 The encoding for case class field names can also be customised via `@id` - encoding for an instance of `Box(Amber(42))` would be:
 
-`AttrMap(Map(trafficLightColour -> Map(String(red_green_blue) -> Number(42), String(light_type) -> String(Amber))))`
+`Map(trafficLightColour -> Map(String(red_green_blue) -> Number(42), String(light_type) -> String(Amber)))`
 
 
 ## Sealed trait members that are all case objects
@@ -83,9 +83,9 @@ final case class Box(trafficLightColour: TrafficLight)
 We can get a more compact and intuitive encoding of trait members that are case objects by using the `@enumOfCaseObjects`
 annotation which encodes to just a value that is the member name. Encoding for an instance of `Box(GREEN)` would be:
 
-`AttrMap(Map(trafficLightColour -> String(GREEN)))`
+`Map(trafficLightColour -> String(GREEN))`
 
 This can be further customised by using the `@id` annotation again - encoding for `Box(RED)` would be
 
-`AttrMap(Map(trafficLightColour -> String(red_traffic_light)))`
+`Map(trafficLightColour -> String(red_traffic_light))`
 
