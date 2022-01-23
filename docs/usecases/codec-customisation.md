@@ -13,7 +13,7 @@ The default encoding for `Box(Green(42))` is:
 
 `Map(trafficLightColour -> Map(String(Green) -> Map(String(rgb) -> Number(42))))`
 
-Here an intermediate map is used to identify the member of `TraficLight` ie `Map(String(Green) -> Map(...)`
+Here an intermediate map is used to identify the member of `TraficLight` using the member class name ie `Map(String(Green) -> Map(...))`
 
 ## Sealed trait members that are case objects
 
