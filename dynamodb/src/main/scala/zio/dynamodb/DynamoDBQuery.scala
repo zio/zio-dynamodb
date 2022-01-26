@@ -591,6 +591,40 @@ object DynamoDBQuery {
     )
   }
 
+  // TODO: These transactions are limited to 25 items
+  private[dynamodb] final case class TransactWriteItems(
+    transactions: Chunk[TransactWriteItems.Write],
+    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
+    itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
+    clientRequestToken: Option[String]
+  ) extends Constructor[Unit]
+
+  private[dynamodb] object TransactWriteItems {
+    sealed trait Write
+
+    final case class ConditionCheck(
+      primaryKey: PrimaryKey,
+      tableName: TableName,
+      conditionExpression: Option[ConditionExpression]
+    ) extends Write
+    final case class Put(
+      item: AttrMap,
+      tableName: TableName,
+      conditionExpression: Option[ConditionExpression]
+    ) extends Write
+    final case class Delete(
+      primaryKey: PrimaryKey,
+      tableName: TableName,
+      conditionExpression: Option[ConditionExpression]
+    ) extends Write
+    final case class Update(
+      primaryKey: PrimaryKey,
+      tableName: TableName,
+      updateExpression: UpdateExpression,
+      conditionExpression: Option[ConditionExpression]
+    ) extends Write
+  }
+
   private[dynamodb] final case class BatchWriteItem(
     requestItems: MapOfSet[TableName, BatchWriteItem.Write] = MapOfSet.empty,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
