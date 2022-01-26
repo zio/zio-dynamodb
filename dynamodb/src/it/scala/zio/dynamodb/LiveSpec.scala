@@ -752,13 +752,57 @@ object LiveSpec extends DefaultRunnableSpec {
             }
           },
           testM("all transaction types at once") {
-            // TODO
-            ???
+            withDefaultTable { tableName =>
+              val putItem        = TransactWriteItems.Put(
+                item = Item(id -> first, name -> avi3, number -> 10),
+                tableName = TableName(tableName)
+              )
+              val conditionCheck = TransactWriteItems.ConditionCheck(
+                primaryKey = PrimaryKey(id -> first, number -> 1),
+                tableName = TableName(tableName),
+                conditionExpression = ConditionExpression.Equals(
+                  ConditionExpression.Operand.ValueOperand(AttributeValue(id)),
+                  ConditionExpression.Operand.ValueOperand(AttributeValue(id))
+                )
+              )
+              val updateItem     = TransactWriteItems.Update(
+                primaryKey = Item(id -> first, number -> 7),
+                tableName = TableName(tableName),
+                updateExpression = UpdateExpression($(name).set(notAdam))
+              )
+              val deleteItem     = TransactWriteItems.Delete(
+                primaryKey = Item(id -> first, number -> 4),
+                tableName = TableName(tableName)
+              )
+
+              for {
+                _       <- TransactWriteItems(transactions = Chunk(putItem, conditionCheck, updateItem, deleteItem)).execute
+                put     <- get[Person](tableName, Item(id -> first, number -> 10)).execute
+                deleted <- get[Person](tableName, Item(id -> first, number -> 4)).execute
+                updated <- get[Person](tableName, Item(id -> first, number -> 7)).execute
+              } yield assert(put)(isRight(equalTo(Person(first, avi3, 10)))) &&
+                assert(deleted)(isLeft) &&
+                assert(updated)(isRight(equalTo(Person(first, notAdam, 7))))
+            }
           },
           testM("two updates to same item fails") {
-            // TODO
-            ???
-          }
+            withDefaultTable { tableName =>
+              val updateItem1 = TransactWriteItems.Update(
+                primaryKey = Item(id -> first, number -> 7),
+                tableName = TableName(tableName),
+                updateExpression = UpdateExpression($(name).set(notAdam))
+              )
+
+              val updateItem2 = TransactWriteItems.Update(
+                primaryKey = Item(id -> first, number -> 7),
+                tableName = TableName(tableName),
+                updateExpression = UpdateExpression($(name).set("shouldFail"))
+              )
+              for {
+                a <- TransactWriteItems(transactions = Chunk(updateItem1, updateItem2)).execute
+              } yield assert(a)(isUnit)
+            }
+          } @@ failing
         )
       )
     )
