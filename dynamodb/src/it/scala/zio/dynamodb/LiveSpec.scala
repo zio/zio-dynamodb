@@ -502,35 +502,33 @@ object LiveSpec extends DefaultRunnableSpec {
             }
           },
           testM("append to list") {
-            withDefaultTable {
-              tableName =>
-                for {
-                  _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
-                  _       <- updateItem(tableName, secondPrimaryKey)($("listThing").appendList(Chunk(2, 3, 4))).execute
-                  updated <- getItem(tableName, secondPrimaryKey).execute
-                } yield assert(
-                  updated.map(a =>
-                    a.get("listThing")(
-                      FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
-                    )
+            withDefaultTable { tableName =>
+              for {
+                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
+                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").appendList(Chunk(2, 3, 4))).execute
+                updated <- getItem(tableName, secondPrimaryKey).execute
+              } yield assert(
+                updated.map(a =>
+                  a.get("listThing")(
+                    FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
                   )
-                )(equalTo(Some(Right(List(1, 2, 3, 4)))))
+                )
+              )(equalTo(Some(Right(List(1, 2, 3, 4)))))
             }
           },
           testM("prepend to list") {
-            withDefaultTable {
-              tableName =>
-                for {
-                  _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
-                  _       <- updateItem(tableName, secondPrimaryKey)($("listThing").prependList(Chunk(-1, 0))).execute
-                  updated <- getItem(tableName, secondPrimaryKey).execute
-                } yield assert(
-                  updated.map(a =>
-                    a.get("listThing")(
-                      FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
-                    )
+            withDefaultTable { tableName =>
+              for {
+                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
+                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").prependList(Chunk(-1, 0))).execute
+                updated <- getItem(tableName, secondPrimaryKey).execute
+              } yield assert(
+                updated.map(a =>
+                  a.get("listThing")(
+                    FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
                   )
-                )(equalTo(Some(Right(List(-1, 0, 1)))))
+                )
+              )(equalTo(Some(Right(List(-1, 0, 1)))))
             }
           },
           testM("set an Item Attribute") {
@@ -662,6 +660,32 @@ object LiveSpec extends DefaultRunnableSpec {
               } yield assert(updated)(equalTo(Some(Item(id -> 1, number -> -2))))
           )
         }
+      ),
+      suite("transactions")(
+        suite("transact write items")(
+          testM("put item") {
+            withDefaultTable { tableName =>
+              val putItem = TransactWriteItems.Put(
+                item = ???,
+                tableName = TableName(tableName)
+              )
+              for {
+                _ <- TransactWriteItems(
+                       transactions = Chunk(putItem)
+                     ).execute
+              } yield assertCompletes
+            }
+          },
+          testM("condition check") {
+            ???
+          },
+          testM("delete item") {
+            ???
+          },
+          testM("update item") {
+            ???
+          }
+        )
       )
     )
       .provideSomeLayerShared[TestEnvironment](

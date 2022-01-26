@@ -596,7 +596,7 @@ object DynamoDBQuery {
     transactions: Chunk[TransactWriteItems.Write],
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
-    clientRequestToken: Option[String]
+    clientRequestToken: Option[String] = None
   ) extends Constructor[Unit]
 
   private[dynamodb] object TransactWriteItems {
@@ -605,23 +605,23 @@ object DynamoDBQuery {
     final case class ConditionCheck(
       primaryKey: PrimaryKey,
       tableName: TableName,
-      conditionExpression: Option[ConditionExpression]
+      conditionExpression: Option[ConditionExpression] = None
     ) extends Write
     final case class Put(
       item: AttrMap,
       tableName: TableName,
-      conditionExpression: Option[ConditionExpression]
+      conditionExpression: Option[ConditionExpression] = None
     ) extends Write
     final case class Delete(
       primaryKey: PrimaryKey,
       tableName: TableName,
-      conditionExpression: Option[ConditionExpression]
+      conditionExpression: Option[ConditionExpression] = None
     ) extends Write
     final case class Update(
       primaryKey: PrimaryKey,
       tableName: TableName,
       updateExpression: UpdateExpression,
-      conditionExpression: Option[ConditionExpression]
+      conditionExpression: Option[ConditionExpression] = None
     ) extends Write
   }
 
@@ -865,7 +865,7 @@ object DynamoDBQuery {
 
       case Succeed(value)     => (Chunk.empty, _ => value())
 
-      case batchGetItem @ BatchGetItem(_, _, _, _)            =>
+      case batchGetItem @ BatchGetItem(_, _, _, _)             =>
         (
           Chunk(batchGetItem),
           (results: Chunk[Any]) => {
@@ -873,7 +873,7 @@ object DynamoDBQuery {
           }
         )
 
-      case batchWriteItem @ BatchWriteItem(_, _, _, _, _)     =>
+      case batchWriteItem @ BatchWriteItem(_, _, _, _, _)      =>
         (
           Chunk(batchWriteItem),
           (results: Chunk[Any]) => {
@@ -881,7 +881,7 @@ object DynamoDBQuery {
           }
         )
 
-      case deleteTable @ DeleteTable(_)                       =>
+      case deleteTable @ DeleteTable(_)                        =>
         (
           Chunk(deleteTable),
           (results: Chunk[Any]) => {
@@ -889,7 +889,7 @@ object DynamoDBQuery {
           }
         )
 
-      case describeTable @ DescribeTable(_)                   =>
+      case describeTable @ DescribeTable(_)                    =>
         (
           Chunk(describeTable),
           (results: Chunk[Any]) => {
@@ -897,7 +897,7 @@ object DynamoDBQuery {
           }
         )
 
-      case getItem @ GetItem(_, _, _, _, _)                   =>
+      case getItem @ GetItem(_, _, _, _, _)                    =>
         (
           Chunk(getItem),
           (results: Chunk[Any]) => {
@@ -905,7 +905,7 @@ object DynamoDBQuery {
           }
         )
 
-      case putItem @ PutItem(_, _, _, _, _, _)                =>
+      case putItem @ PutItem(_, _, _, _, _, _)                 =>
         (
           Chunk(putItem),
           (results: Chunk[Any]) => {
@@ -913,7 +913,15 @@ object DynamoDBQuery {
           }
         )
 
-      case updateItem @ UpdateItem(_, _, _, _, _, _, _)       =>
+      case transactWriteItems @ TransactWriteItems(_, _, _, _) =>
+        (
+          Chunk(transactWriteItems),
+          (results: Chunk[Any]) => {
+            if (results.isEmpty) ().asInstanceOf[A] else results.head.asInstanceOf[A]
+          }
+        )
+
+      case updateItem @ UpdateItem(_, _, _, _, _, _, _)        =>
         (
           Chunk(updateItem),
           (results: Chunk[Any]) => {
@@ -921,7 +929,7 @@ object DynamoDBQuery {
           }
         )
 
-      case deleteItem @ DeleteItem(_, _, _, _, _, _)          =>
+      case deleteItem @ DeleteItem(_, _, _, _, _, _)           =>
         (
           Chunk(deleteItem),
           (results: Chunk[Any]) => {
@@ -929,7 +937,7 @@ object DynamoDBQuery {
           }
         )
 
-      case scan @ ScanSome(_, _, _, _, _, _, _, _, _)         =>
+      case scan @ ScanSome(_, _, _, _, _, _, _, _, _)          =>
         (
           Chunk(scan),
           (results: Chunk[Any]) => {
@@ -937,7 +945,7 @@ object DynamoDBQuery {
           }
         )
 
-      case scan @ ScanAll(_, _, _, _, _, _, _, _, _, _)       =>
+      case scan @ ScanAll(_, _, _, _, _, _, _, _, _, _)        =>
         (
           Chunk(scan),
           (results: Chunk[Any]) => {
@@ -945,7 +953,7 @@ object DynamoDBQuery {
           }
         )
 
-      case query @ QuerySome(_, _, _, _, _, _, _, _, _, _, _) =>
+      case query @ QuerySome(_, _, _, _, _, _, _, _, _, _, _)  =>
         (
           Chunk(query),
           (results: Chunk[Any]) => {
@@ -953,7 +961,7 @@ object DynamoDBQuery {
           }
         )
 
-      case query @ QueryAll(_, _, _, _, _, _, _, _, _, _, _)  =>
+      case query @ QueryAll(_, _, _, _, _, _, _, _, _, _, _)   =>
         (
           Chunk(query),
           (results: Chunk[Any]) => {
@@ -961,7 +969,7 @@ object DynamoDBQuery {
           }
         )
 
-      case createTable @ CreateTable(_, _, _, _, _, _, _, _)  =>
+      case createTable @ CreateTable(_, _, _, _, _, _, _, _)   =>
         (
           Chunk(createTable),
           (results: Chunk[Any]) => {

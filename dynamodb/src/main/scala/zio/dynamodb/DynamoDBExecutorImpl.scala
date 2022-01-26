@@ -78,7 +78,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       case describeTable: DescribeTable           => doDescribeTable(describeTable)
       case querySome: QuerySome                   => doQuerySome(querySome)
       case queryAll: QueryAll                     => doQueryAll(queryAll)
-      case transactWriteItems: TransactWriteItems => ???
+      case transactWriteItems: TransactWriteItems => doTransactWriteItems(transactWriteItems)
       case Succeed(thunk)                         => ZIO.succeed(thunk())
     }
 
@@ -461,7 +461,7 @@ case object DynamoDBExecutorImpl {
 
   private def generateZIOAWSTransactWriteItems(transactWriteItems: TransactWriteItems): TransactWriteItemsRequest =
     TransactWriteItemsRequest(
-      transactItems = transactWriteItems.transactions.map(_ => ???),
+      transactItems = transactWriteItems.transactions.map(generateTransactWriteItem),
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(transactWriteItems.capacity)),
       returnItemCollectionMetrics = Some(buildAwsItemMetrics(transactWriteItems.itemMetrics)),
       clientRequestToken = transactWriteItems.clientRequestToken
