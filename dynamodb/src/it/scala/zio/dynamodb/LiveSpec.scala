@@ -666,14 +666,15 @@ object LiveSpec extends DefaultRunnableSpec {
           testM("put item") {
             withDefaultTable { tableName =>
               val putItem = TransactWriteItems.Put(
-                item = ???,
+                item = Item(id -> first, name -> avi3, number -> 10),
                 tableName = TableName(tableName)
               )
               for {
                 _ <- TransactWriteItems(
                        transactions = Chunk(putItem)
                      ).execute
-              } yield assertCompletes
+                written <- getItem(tableName, PrimaryKey(id -> first, number -> 10)).execute
+              } yield assert(written)(isSome)
             }
           },
           testM("condition check") {

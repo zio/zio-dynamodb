@@ -316,7 +316,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       )
 
   private def generateScanRequest(scanSome: ScanSome): ScanRequest = {
-    val filterExpression = scanSome.filterExpression.map(fe => fe.render.execute)
+    val (aliasMap, filterExpression) = AliasMapRender.collectAll(scanSome.filterExpression.map(_.render)).execute
     ScanRequest(
       tableName = scanSome.tableName.value,
       indexName = scanSome.indexName.map(_.value),
@@ -325,14 +325,14 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(scanSome.capacity)),
       limit = Some(scanSome.limit),
       projectionExpression = toOption(scanSome.projections).map(projectionExpressionToZIOAWSProjectionExpression),
-      filterExpression = filterExpression.map(_._2),
-      expressionAttributeValues = filterExpression.flatMap(a => aliasMapToExpressionZIOAwsAttributeValues(a._1)),
+      filterExpression = filterExpression,
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap),
       consistentRead = Some(toBoolean(scanSome.consistency))
     )
   }
 
   private def generateScanRequest(scanAll: ScanAll, segment: Option[ScanAll.Segment]): ScanRequest = {
-    val filterExpression = scanAll.filterExpression.map(fe => fe.render.execute)
+    val (aliasMap, filterExpression) = AliasMapRender.collectAll(scanAll.filterExpression.map(_.render)).execute
     ScanRequest(
       tableName = scanAll.tableName.value,
       indexName = scanAll.indexName.map(_.value),
@@ -341,8 +341,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(scanAll.capacity)),
       limit = scanAll.limit,
       projectionExpression = toOption(scanAll.projections).map(projectionExpressionToZIOAWSProjectionExpression),
-      filterExpression = filterExpression.map(_._2),
-      expressionAttributeValues = filterExpression.flatMap(a => aliasMapToExpressionZIOAwsAttributeValues(a._1)),
+      filterExpression = filterExpression,
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap),
       consistentRead = Some(toBoolean(scanAll.consistency)),
       totalSegments = segment.map(_.total),
       segment = segment.map(_.number)
@@ -479,7 +479,16 @@ case object DynamoDBExecutorImpl {
   private def generateZIOAwsConditionCheck(conditionCheck: TransactWriteItems.ConditionCheck): ZIOAwsConditionCheck =
     ???
 
-  private def generateZIOAwsPut(put: TransactWriteItems.Put): ZIOAwsPut = ???
+  private def generateZIOAwsPut(put: TransactWriteItems.Put): ZIOAwsPut = {
+    val (aliasMap, conditionExpression) = AliasMapRender.collectAll(put.conditionExpression.map(_.render)).execute
+
+    ZIOAwsPut(
+      item = put.item.map.map { case (k, v) => (k, buildAwsAttributeValue(v)) },
+      tableName = put.tableName.value,
+      conditionExpression = conditionExpression,
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap)
+    )
+  }
 
   private def generateZIOAwsDelete(delete: TransactWriteItems.Delete): ZIOAwsDelete = ???
   private def generateZIOAwsUpdate(update: TransactWriteItems.Update): ZIOAwsUpdate = ???
