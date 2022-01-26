@@ -476,8 +476,16 @@ case object DynamoDBExecutorImpl {
       case update: TransactWriteItems.Update                 => TransactWriteItem(update = Some(generateZIOAwsUpdate(update)))
     }
 
-  private def generateZIOAwsConditionCheck(conditionCheck: TransactWriteItems.ConditionCheck): ZIOAwsConditionCheck =
-    ???
+  private def generateZIOAwsConditionCheck(conditionCheck: TransactWriteItems.ConditionCheck): ZIOAwsConditionCheck = {
+    val (aliasMap, conditionExpression) = conditionCheck.conditionExpression.render.execute
+
+    ZIOAwsConditionCheck(
+      key = conditionCheck.primaryKey.map.map { case (k, v) => (k, buildAwsAttributeValue(v)) },
+      tableName = conditionCheck.tableName.value,
+      conditionExpression = conditionExpression,
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap)
+    )
+  }
 
   private def generateZIOAwsPut(put: TransactWriteItems.Put): ZIOAwsPut = {
     val (aliasMap, conditionExpression) = AliasMapRender.collectAll(put.conditionExpression.map(_.render)).execute
@@ -490,8 +498,31 @@ case object DynamoDBExecutorImpl {
     )
   }
 
-  private def generateZIOAwsDelete(delete: TransactWriteItems.Delete): ZIOAwsDelete = ???
-  private def generateZIOAwsUpdate(update: TransactWriteItems.Update): ZIOAwsUpdate = ???
+  private def generateZIOAwsDelete(delete: TransactWriteItems.Delete): ZIOAwsDelete = {
+    val (aliasMap, conditionExpression) = AliasMapRender.collectAll(delete.conditionExpression.map(_.render)).execute
+
+    ZIOAwsDelete(
+      key = delete.primaryKey.map.map { case (k, v) => (k, buildAwsAttributeValue(v)) },
+      tableName = delete.tableName.value,
+      conditionExpression = conditionExpression,
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap)
+    )
+  }
+
+  private def generateZIOAwsUpdate(update: TransactWriteItems.Update): ZIOAwsUpdate = {
+    val (aliasMap, (updateExpr, maybeConditionExpr)) = (for {
+      updateExpr    <- update.updateExpression.render
+      conditionExpr <- AliasMapRender.collectAll(update.conditionExpression.map(_.render))
+    } yield (updateExpr, conditionExpr)).execute
+
+    ZIOAwsUpdate(
+      key = update.primaryKey.map.map { case (k, v) => (k, buildAwsAttributeValue(v)) },
+      tableName = update.tableName.value,
+      conditionExpression = maybeConditionExpr,
+      updateExpression = updateExpr,
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap)
+    )
+  }
 
   private def keysAndAttrsToTableGet(ka: KeysAndAttributes.ReadOnly): TableGet = {
     val maybeProjectionExpressions = ka.projectionExpressionValue.map(

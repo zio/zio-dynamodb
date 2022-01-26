@@ -605,7 +605,7 @@ object DynamoDBQuery {
     final case class ConditionCheck(
       primaryKey: PrimaryKey,
       tableName: TableName,
-      conditionExpression: Option[ConditionExpression] = None
+      conditionExpression: ConditionExpression
     ) extends Write
     final case class Put(
       item: AttrMap,
