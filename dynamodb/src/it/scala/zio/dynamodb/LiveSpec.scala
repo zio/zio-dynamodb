@@ -677,13 +677,86 @@ object LiveSpec extends DefaultRunnableSpec {
               } yield assert(written)(isSome)
             }
           },
-          testM("condition check") {
-            ???
+          testM("condition check succeeds") {
+            withDefaultTable { tableName =>
+              val conditionCheck = TransactWriteItems.ConditionCheck(
+                primaryKey = PrimaryKey(id -> first, number -> 7),
+                tableName = TableName(tableName),
+                conditionExpression = ConditionExpression.Equals(
+                  ConditionExpression.Operand.ValueOperand(AttributeValue(id)),
+                  ConditionExpression.Operand.ValueOperand(AttributeValue(id))
+                )
+              )
+              val putItem        = TransactWriteItems.Put(
+                item = Item(id -> first, name -> avi3, number -> 10),
+                tableName = TableName(tableName)
+              )
+
+              for {
+                _       <- TransactWriteItems(
+                             transactions = Chunk(putItem, conditionCheck)
+                           ).execute
+                written <- getItem(tableName, PrimaryKey(id -> first, number -> 10)).execute
+              } yield assert(written)(isSome)
+            }
           },
+          testM("condition check fails") {
+            withDefaultTable { tableName =>
+              val conditionCheck = TransactWriteItems.ConditionCheck(
+                primaryKey = PrimaryKey(id -> first, number -> 8),
+                tableName = TableName(tableName),
+                conditionExpression = ConditionExpression.Equals(
+                  ConditionExpression.Operand.ValueOperand(AttributeValue(id)),
+                  ConditionExpression.Operand.ValueOperand(AttributeValue(first))
+                )
+              )
+              val putItem        = TransactWriteItems.Put(
+                item = Item(id -> first, name -> avi3, number -> 10),
+                tableName = TableName(tableName)
+              )
+
+              assertM(
+                TransactWriteItems(
+                  transactions = Chunk(putItem, conditionCheck)
+                ).execute
+              )(isUnit)
+            }
+          } @@ failing,
           testM("delete item") {
-            ???
+            withDefaultTable { tableName =>
+              val deleteItem = TransactWriteItems.Delete(
+                primaryKey = Item(id -> first, number -> 7),
+                tableName = TableName(tableName)
+              )
+              for {
+                _ <- TransactWriteItems(
+                       transactions = Chunk(deleteItem)
+                     ).execute
+                written <- getItem(tableName, PrimaryKey(id -> first, number -> 7)).execute
+              } yield assert(written)(isNone)
+            }
           },
           testM("update item") {
+            withDefaultTable { tableName =>
+              val updateItem = TransactWriteItems.Update(
+                primaryKey = Item(id -> first, number -> 7),
+                tableName = TableName(tableName),
+                updateExpression = UpdateExpression($(name).set(notAdam))
+              )
+              for {
+                _ <- TransactWriteItems(
+                       transactions = Chunk(updateItem)
+                     ).execute
+                written <- get[Person](tableName, PrimaryKey(id -> first, number -> 7)).execute
+              } yield assert(written)(isRight(equalTo(Person(first, notAdam, 7))))
+            }
+          },
+          testM("all transaction types at once") {
+            // TODO
+            ???
+          },
+          testM("two updates to same item fails") {
+            // TODO
             ???
           }
         )
