@@ -37,7 +37,13 @@ import io.github.vigoo.zioaws.dynamodb.model.{
   SSESpecification => ZIOAwsSSESpecification,
   SSEType => ZIOAwsSSEType,
   Select => ZIOAwsSelect,
-  TableStatus => ZIOAwsTableStatus
+  TableStatus => ZIOAwsTableStatus,
+  TransactWriteItemsRequest,
+  TransactWriteItem,
+  ConditionCheck => ZIOAwsConditionCheck,
+  Put => ZIOAwsPut,
+  Delete => ZIOAwsDelete,
+  Update => ZIOAwsUpdate
 }
 import zio.clock.Clock
 import zio.dynamodb.ConsistencyMode.toBoolean
@@ -59,20 +65,21 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
 
   def executeConstructor[A](constructor: Constructor[A]): ZIO[Any, Throwable, A] =
     constructor match {
-      case getItem: GetItem               => doGetItem(getItem)
-      case putItem: PutItem               => doPutItem(putItem)
-      case batchGetItem: BatchGetItem     => doBatchGetItem(batchGetItem).provide(Has(clock))
-      case batchWriteItem: BatchWriteItem => doBatchWriteItem(batchWriteItem).provide(Has(clock))
-      case scanAll: ScanAll               => doScanAll(scanAll)
-      case scanSome: ScanSome             => doScanSome(scanSome)
-      case updateItem: UpdateItem         => doUpdateItem(updateItem)
-      case createTable: CreateTable       => doCreateTable(createTable)
-      case deleteItem: DeleteItem         => doDeleteItem(deleteItem)
-      case deleteTable: DeleteTable       => doDeleteTable(deleteTable)
-      case describeTable: DescribeTable   => doDescribeTable(describeTable)
-      case querySome: QuerySome           => doQuerySome(querySome)
-      case queryAll: QueryAll             => doQueryAll(queryAll)
-      case Succeed(thunk)                 => ZIO.succeed(thunk())
+      case getItem: GetItem                       => doGetItem(getItem)
+      case putItem: PutItem                       => doPutItem(putItem)
+      case batchGetItem: BatchGetItem             => doBatchGetItem(batchGetItem).provide(Has(clock))
+      case batchWriteItem: BatchWriteItem         => doBatchWriteItem(batchWriteItem).provide(Has(clock))
+      case scanAll: ScanAll                       => doScanAll(scanAll)
+      case scanSome: ScanSome                     => doScanSome(scanSome)
+      case updateItem: UpdateItem                 => doUpdateItem(updateItem)
+      case createTable: CreateTable               => doCreateTable(createTable)
+      case deleteItem: DeleteItem                 => doDeleteItem(deleteItem)
+      case deleteTable: DeleteTable               => doDeleteTable(deleteTable)
+      case describeTable: DescribeTable           => doDescribeTable(describeTable)
+      case querySome: QuerySome                   => doQuerySome(querySome)
+      case queryAll: QueryAll                     => doQueryAll(queryAll)
+      case transactWriteItems: TransactWriteItems => ???
+      case Succeed(thunk)                         => ZIO.succeed(thunk())
     }
 
   override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Throwable, A] =
@@ -377,6 +384,11 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
   private def doPutItem(putItem: PutItem): ZIO[Any, Throwable, Unit] =
     dynamoDb.putItem(generatePutItemRequest(putItem)).unit.mapError(_.toThrowable)
 
+  private def doTransactWriteItems(transactWriteItems: TransactWriteItems): ZIO[Any, Throwable, Unit] =
+    for {
+      _ <- dynamoDb.transactWriteItems(generateZIOAWSTransactWriteItems(transactWriteItems)).mapError(_.toThrowable)
+    } yield ()
+
   private def doGetItem(getItem: GetItem): ZIO[Any, Throwable, Option[Item]] =
     dynamoDb
       .getItem(generateGetItemRequest(getItem))
@@ -446,6 +458,31 @@ case object DynamoDBExecutorImpl {
 
   private[dynamodb] def writeRequestToBatchWrite(writeRequest: WriteRequest.ReadOnly): Option[BatchWriteItem.Write] =
     writeRequest.putRequestValue.map(put => BatchWriteItem.Put(item = AttrMap(awsAttrMapToAttrMap(put.itemValue))))
+
+  private def generateZIOAWSTransactWriteItems(transactWriteItems: TransactWriteItems): TransactWriteItemsRequest =
+    TransactWriteItemsRequest(
+      transactItems = transactWriteItems.transactions.map(_ => ???),
+      returnConsumedCapacity = Some(buildAwsReturnConsumedCapacity(transactWriteItems.capacity)),
+      returnItemCollectionMetrics = Some(buildAwsItemMetrics(transactWriteItems.itemMetrics)),
+      clientRequestToken = transactWriteItems.clientRequestToken
+    )
+
+  private def generateTransactWriteItem(transactWriteItem: TransactWriteItems.Write): TransactWriteItem =
+    transactWriteItem match {
+      case conditionCheck: TransactWriteItems.ConditionCheck =>
+        TransactWriteItem(conditionCheck = Some(generateZIOAwsConditionCheck(conditionCheck)))
+      case put: TransactWriteItems.Put                       => TransactWriteItem(put = Some(generateZIOAwsPut(put)))
+      case delete: TransactWriteItems.Delete                 => TransactWriteItem(delete = Some(generateZIOAwsDelete(delete)))
+      case update: TransactWriteItems.Update                 => TransactWriteItem(update = Some(generateZIOAwsUpdate(update)))
+    }
+
+  private def generateZIOAwsConditionCheck(conditionCheck: TransactWriteItems.ConditionCheck): ZIOAwsConditionCheck =
+    ???
+
+  private def generateZIOAwsPut(put: TransactWriteItems.Put): ZIOAwsPut = ???
+
+  private def generateZIOAwsDelete(delete: TransactWriteItems.Delete): ZIOAwsDelete = ???
+  private def generateZIOAwsUpdate(update: TransactWriteItems.Update): ZIOAwsUpdate = ???
 
   private def keysAndAttrsToTableGet(ka: KeysAndAttributes.ReadOnly): TableGet = {
     val maybeProjectionExpressions = ka.projectionExpressionValue.map(
