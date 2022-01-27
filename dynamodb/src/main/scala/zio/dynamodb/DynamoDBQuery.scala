@@ -17,6 +17,7 @@ import zio.dynamodb.DynamoDBQuery.{
   QuerySome,
   ScanAll,
   ScanSome,
+  TransactWriteItems,
   UpdateItem,
   Zip
 }
@@ -304,6 +305,15 @@ sealed trait DynamoDBQuery[+A] { self =>
       case _                          => self
     }
 
+  def withClientRequestToken(token: String): DynamoDBQuery[A] =
+    self match {
+      case Zip(left, right, zippable) =>
+        Zip(left.withClientRequestToken(token), right.withClientRequestToken(token), zippable)
+      case Map(query, mapper)         => Map(query.withClientRequestToken(token), mapper)
+      case s: TransactWriteItems      => s.copy(clientRequestToken = Some(token)).asInstanceOf[DynamoDBQuery[A]]
+      case _                          => self
+    }
+
   final def map[B](f: A => B): DynamoDBQuery[B] = DynamoDBQuery.Map(self, f)
 
   final def zip[B](that: DynamoDBQuery[B])(implicit z: Zippable[A, B]): DynamoDBQuery[z.Out] =
@@ -332,8 +342,9 @@ object DynamoDBQuery {
   import scala.collection.immutable.{ Map => ScalaMap }
   import scala.collection.immutable.{ Set => ScalaSet }
 
-  sealed trait Constructor[+A] extends DynamoDBQuery[A]
-  sealed trait Write[+A]       extends Constructor[A]
+  sealed trait Constructor[+A]   extends DynamoDBQuery[A]
+  sealed trait TransactWrite[+A] extends Constructor[A]
+  sealed trait Write[+A]         extends TransactWrite[A]
 
   def succeed[A](a: A): DynamoDBQuery[A] = Succeed(() => a)
 
@@ -379,6 +390,9 @@ object DynamoDBQuery {
 
   def put[A: Schema](tableName: String, a: A): DynamoDBQuery[Unit] =
     putItem(tableName, toItem(a))
+
+  def transactWriteItem(transaction: TransactWriteItems.Write): DynamoDBQuery[Unit] =
+    TransactWriteItems(Chunk(transaction))
 
   private[dynamodb] def toItem[A](a: A)(implicit schema: Schema[A]): Item =
     FromAttributeValue.attrMapFromAttributeValue
@@ -597,7 +611,16 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     clientRequestToken: Option[String] = None
-  ) extends Constructor[Unit]
+  ) extends Constructor[Unit] { self =>
+
+    def +[A](transaction: TransactWrite[A]): TransactWriteItems =
+      transaction match {
+        case _: PutItem        => ???
+        case _: DeleteItem     => ???
+        case _: ConditionCheck => ???
+        case _: UpdateItem     => ???
+      }
+  }
 
   private[dynamodb] object TransactWriteItems {
     sealed trait Write
@@ -776,7 +799,13 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues = ReturnValues.None
-  ) extends Constructor[Option[Item]]
+  ) extends TransactWrite[Option[Item]]
+
+  private[dynamodb] final case class ConditionCheck(
+    tableName: TableName,
+    primaryKey: PrimaryKey,
+    conditionCheck: ConditionCheck
+  ) extends TransactWrite[Unit]
 
   private[dynamodb] final case class DeleteItem(
     tableName: TableName,
@@ -894,6 +923,15 @@ object DynamoDBQuery {
           Chunk(describeTable),
           (results: Chunk[Any]) => {
             results.head.asInstanceOf[A]
+          }
+        )
+
+      // condition check is not a real query, it is only used in transactions
+      case _ @ConditionCheck(_, _, _)                          =>
+        (
+          Chunk[Constructor[Any]](),
+          (_: Chunk[Any]) => {
+            ().asInstanceOf[A]
           }
         )
 

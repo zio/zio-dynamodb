@@ -802,7 +802,10 @@ object LiveSpec extends DefaultRunnableSpec {
                 a <- TransactWriteItems(transactions = Chunk(updateItem1, updateItem2)).execute
               } yield assert(a)(isUnit)
             }
-          } @@ failing
+          } @@ failing,
+          testM("repeated client request token fails on second try") {
+            ???
+          }
         )
       )
     )

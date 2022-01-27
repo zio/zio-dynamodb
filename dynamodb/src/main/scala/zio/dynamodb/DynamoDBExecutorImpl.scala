@@ -69,6 +69,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       case putItem: PutItem                       => doPutItem(putItem)
       case batchGetItem: BatchGetItem             => doBatchGetItem(batchGetItem).provide(Has(clock))
       case batchWriteItem: BatchWriteItem         => doBatchWriteItem(batchWriteItem).provide(Has(clock))
+      case _: ConditionCheck                      => ZIO.unit
       case scanAll: ScanAll                       => doScanAll(scanAll)
       case scanSome: ScanSome                     => doScanSome(scanSome)
       case updateItem: UpdateItem                 => doUpdateItem(updateItem)
