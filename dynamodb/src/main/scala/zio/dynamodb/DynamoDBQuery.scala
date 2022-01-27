@@ -615,10 +615,39 @@ object DynamoDBQuery {
 
     def +[A](transaction: TransactWrite[A]): TransactWriteItems =
       transaction match {
-        case _: PutItem        => ???
-        case _: DeleteItem     => ???
-        case _: ConditionCheck => ???
-        case _: UpdateItem     => ???
+        case putItem: PutItem               =>
+          self.copy(transactions =
+            self.transactions :+ TransactWriteItems.Put(
+              item = putItem.item,
+              tableName = putItem.tableName,
+              conditionExpression = putItem.conditionExpression
+            )
+          )
+        case deleteItem: DeleteItem         =>
+          self.copy(transactions =
+            self.transactions :+ TransactWriteItems.Delete(
+              primaryKey = deleteItem.key,
+              tableName = deleteItem.tableName,
+              conditionExpression = deleteItem.conditionExpression
+            )
+          )
+        case conditionCheck: ConditionCheck =>
+          self.copy(transactions =
+            self.transactions :+ TransactWriteItems.ConditionCheck(
+              primaryKey = conditionCheck.primaryKey,
+              tableName = conditionCheck.tableName,
+              conditionExpression = conditionCheck.conditionExpression
+            )
+          )
+        case updateItem: UpdateItem         =>
+          self.copy(transactions =
+            self.transactions :+ TransactWriteItems.Update(
+              primaryKey = updateItem.key,
+              tableName = updateItem.tableName,
+              conditionExpression = updateItem.conditionExpression,
+              updateExpression = updateItem.updateExpression
+            )
+          )
       }
   }
 
@@ -804,7 +833,7 @@ object DynamoDBQuery {
   private[dynamodb] final case class ConditionCheck(
     tableName: TableName,
     primaryKey: PrimaryKey,
-    conditionCheck: ConditionCheck
+    conditionExpression: ConditionExpression
   ) extends TransactWrite[Unit]
 
   private[dynamodb] final case class DeleteItem(
