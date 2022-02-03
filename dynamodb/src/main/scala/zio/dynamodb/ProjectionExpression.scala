@@ -6,11 +6,15 @@ import zio.dynamodb.DynamoDBQuery.toItem
 import zio.dynamodb.ProjectionExpression.{ ListElement, MapElement, Root }
 import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand }
 import zio.schema.Schema
+import zio.schema.{ AccessorBuilder, Schema }
 
 import scala.annotation.tailrec
 
 // The maximum depth for a document path is 32
 sealed trait ProjectionExpression { self =>
+  type From
+  type To
+
   def apply(index: Int): ProjectionExpression = ProjectionExpression.ListElement(self, index)
 
   def apply(key: String): ProjectionExpression = ProjectionExpression.MapElement(self, key)
@@ -184,6 +188,52 @@ sealed trait ProjectionExpression { self =>
 }
 
 object ProjectionExpression {
+  type Typed[From0, To0] = ProjectionExpression {
+    type From = From0
+    type To   = To0
+  }
+
+  val builder = new AccessorBuilder {
+    override type Lens[From, To]      = ProjectionExpression.Typed[From, To]
+    override type Prism[From, To]     = ProjectionExpression.Typed[From, To]
+    override type Traversal[From, To] = ProjectionExpression.Typed[From, To]
+
+    override def makeLens[S, A](product: Schema.Record[S], term: Schema.Field[A]): Lens[S, A] =
+      ProjectionExpression.Root(term.label).asInstanceOf[Lens[S, A]]
+
+    /*
+    need to respect enum annotations
+    may need PE.identity case object => we do not need Root anymore
+
+     */
+    override def makePrism[S, A](sum: Schema.Enum[S], term: Schema.Case[A, S]): Prism[S, A] =
+      ProjectionExpression.Root(term.id).asInstanceOf[Prism[S, A]]
+
+    override def makeTraversal[S, A](collection: Schema.Collection[S, A], element: Schema[A]): Traversal[S, A] = ???
+  }
+
+  // where should we put this?
+  def accessors[A](implicit s: Schema[A]): s.Accessors[builder.Lens, builder.Prism, builder.Traversal] =
+    s.makeAccessors(builder)
+
+  final case class Person(name: String, age: Int)
+  object Person {
+    implicit val schema = Schema.CaseClass2[String, Int, Person](
+      Schema.Field("name", Schema[String]),
+      Schema.Field("age", Schema[Int]),
+      Person(_, _),
+      _.name,
+      _.age
+    )
+
+    /*
+    we only want this to work on Person
+
+    where age > 2
+     */
+    val (name, age) = ProjectionExpression.accessors[Person]
+  }
+
   private val regexMapElement     = """(^[a-zA-Z0-9_]+)""".r
   private val regexIndexedElement = """(^[a-zA-Z0-9_]+)(\[[0-9]+])+""".r
   private val regexGroupedIndexes = """(\[([0-9]+)])""".r
