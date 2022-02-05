@@ -49,6 +49,13 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(expected)))
     },
+    test("decoded option of None in CaseClass2") {
+      val expected = CaseClass2OfOption(1, None)
+
+      val actual = DynamoDBQuery.fromItem[CaseClass2OfOption](Item("num" -> 1))
+
+      assert(actual)(isRight(equalTo(expected)))
+    },
     test("decoded nested option of Some") {
       val expected = CaseClassOfNestedOption(Some(Some(42)))
 

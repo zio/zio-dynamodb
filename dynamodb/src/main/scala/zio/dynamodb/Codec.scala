@@ -795,25 +795,48 @@ private[dynamodb] object Codec {
         }
     }
 
-    private[dynamodb] def decodeFields(av: AttributeValue, fields: Schema.Field[_]*): Either[String, List[Any]] =
+    private[dynamodb] def decodeFields(av: AttributeValue, fields: Schema.Field[_]*): Either[String, List[Any]] = {
+      @tailrec
+      def unwrapLazySchema[B](schema: Schema[B]): Schema[B] =
+        schema match {
+          case l @ Schema.Lazy(_) =>
+            unwrapLazySchema(l.schema)
+          case s                  =>
+            s
+        }
+
+      def isOptional[B](schema: Schema[B]): Boolean =
+        schema match {
+          case _: Schema.Optional[a] =>
+            true
+          case _                     =>
+            false
+        }
+
       av match {
         case AttributeValue.Map(map) =>
           EitherUtil
             .forEach(fields) {
               case Schema.Field(key, schema, annotations) =>
-                val dec          = decoder(schema)
-                val k            = maybeId(annotations).getOrElse(key)
-                val maybeValue   = map.get(AttributeValue.String(k))
-                val maybeDecoder = maybeValue.map(dec).toRight(s"field '$k' not found in $av")
-                for {
+                val isOpt                       = isOptional(unwrapLazySchema(schema)) // legacy databases may use missing data for None
+                val dec                         = decoder(schema)
+                val k                           = maybeId(annotations).getOrElse(key)
+                val maybeValue                  = map.get(AttributeValue.String(k))
+                val maybeDecoder                = maybeValue.map(dec).toRight(s"field '$k' not found in $av")
+                val either: Either[String, Any] = for {
                   decoder <- maybeDecoder
                   decoded <- decoder
                 } yield decoded
+                if (maybeValue.isEmpty && isOpt)
+                  Right(None)
+                else
+                  either
             }
             .map(_.toList)
         case _                       =>
           Left(s"$av is not an AttributeValue.Map")
       }
+    }
 
   } // end Decoder
 
