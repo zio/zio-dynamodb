@@ -342,6 +342,12 @@ object DynamoDBQuery {
   import scala.collection.immutable.{ Map => ScalaMap }
   import scala.collection.immutable.{ Set => ScalaSet }
 
+  /*
+  sealed trait Constructor[+A]   extends DynamoDBQuery[A]
+  sealed trait Transaction[+A]   extends Constructor[A]
+  sealed trait Write[+A]         extends Constructor[A]
+   */
+
   sealed trait Constructor[+A]   extends DynamoDBQuery[A]
   sealed trait TransactWrite[+A] extends Constructor[A]
   sealed trait Write[+A]         extends TransactWrite[A]
@@ -830,6 +836,9 @@ object DynamoDBQuery {
     returnValues: ReturnValues = ReturnValues.None
   ) extends TransactWrite[Option[Item]]
 
+  // REVIEW: Does this make sense to extend?
+  // It's only ever used in transactions and doesn't return anything.
+  // AWS Impl just does a ZIO.unit
   private[dynamodb] final case class ConditionCheck(
     tableName: TableName,
     primaryKey: PrimaryKey,
