@@ -799,18 +799,14 @@ private[dynamodb] object Codec {
       @tailrec
       def unwrapLazySchema[B](schema: Schema[B]): Schema[B] =
         schema match {
-          case l @ Schema.Lazy(_) =>
-            unwrapLazySchema(l.schema)
-          case s                  =>
-            s
+          case l @ Schema.Lazy(_) => unwrapLazySchema(l.schema)
+          case s                  => s
         }
 
       def isOptional[B](schema: Schema[B]): Boolean =
         schema match {
-          case _: Schema.Optional[a] =>
-            true
-          case _                     =>
-            false
+          case _: Schema.Optional[a] => true
+          case _                     => false
         }
 
       av match {
