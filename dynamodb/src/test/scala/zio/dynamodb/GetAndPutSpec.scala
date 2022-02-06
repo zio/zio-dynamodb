@@ -8,7 +8,10 @@ import zio.test.{ assertTrue, DefaultRunnableSpec, ZSpec }
 
 object GetAndPutSpec extends DefaultRunnableSpec {
   final case class SimpleCaseClass2(id: Int, name: String)
-  implicit lazy val simpleCaseClass2: Schema[SimpleCaseClass2] = DeriveSchema.gen[SimpleCaseClass2]
+  final case class SimpleCaseClass2OptionalField(id: Int, maybeName: Option[String])
+  implicit lazy val simpleCaseClass2: Schema[SimpleCaseClass2]                           = DeriveSchema.gen[SimpleCaseClass2]
+  implicit lazy val simpleCaseClass2OptionalField: Schema[SimpleCaseClass2OptionalField] =
+    DeriveSchema.gen[SimpleCaseClass2OptionalField]
 
   private val primaryKey1 = PrimaryKey("id" -> 1)
   private val primaryKey2 = PrimaryKey("id" -> 2)
