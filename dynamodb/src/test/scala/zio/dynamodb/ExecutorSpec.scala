@@ -28,7 +28,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
   private val itemOne         = Item("k1" -> "v1")
   private val clockLayer      = ZLayer.identity[Has[Clock.Service]]
   private val firstGetRequest =
-    DynamoDBExecutorImpl.generateBatchGetItemRequest(
+    DynamoDBExecutorImpl.awsBatchGetItemRequest(
       BatchGetItem(
         ScalaMap(
           TableName(mockBatches) -> BatchGetItem.TableGet(
@@ -40,7 +40,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
     )
 
   private val retryGetRequest =
-    DynamoDBExecutorImpl.generateBatchGetItemRequest(
+    DynamoDBExecutorImpl.awsBatchGetItemRequest(
       BatchGetItem(
         ScalaMap(
           TableName(mockBatches) -> BatchGetItem.TableGet(
@@ -62,7 +62,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
   )
 
   private val firstWriteRequest =
-    DynamoDBExecutorImpl.generateBatchWriteItem(
+    DynamoDBExecutorImpl.awsBatchWriteItemRequest(
       batchWriteRequest
     )
 
@@ -158,7 +158,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
     )
 
   private val itemOneWriteRequest                    = Set(
-    DynamoDBExecutorImpl.batchItemWriteToZIOAwsWriteRequest(BatchWriteItem.Put(itemOne))
+    DynamoDBExecutorImpl.awsWriteRequest(BatchWriteItem.Put(itemOne))
   )
   private val failedMockBatchWrite: ULayer[DynamoDb] = DynamoDbMock
     .BatchWriteItem(
