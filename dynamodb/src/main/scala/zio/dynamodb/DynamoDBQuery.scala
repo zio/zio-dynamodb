@@ -348,6 +348,21 @@ object DynamoDBQuery {
   sealed trait Write[+A]         extends Constructor[A]
    */
 
+  /*
+
+  TRANSACTIONS
+  puts
+  deletes
+  updates
+  condition checks
+
+  NORMAL WRITES
+
+  deletes
+  puts
+
+   */
+
   sealed trait Constructor[+A]   extends DynamoDBQuery[A]
   sealed trait TransactWrite[+A] extends Constructor[A]
   sealed trait Write[+A]         extends TransactWrite[A]
@@ -835,6 +850,21 @@ object DynamoDBQuery {
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues = ReturnValues.None
   ) extends TransactWrite[Option[Item]]
+
+  /*
+  in the impl we break everything in the query that is transactionable into a transaction
+  and if there is something that is not transactionable then we fail with a specific case class exception "nonTransactQuery" that shows what you're trying to do that is not transactionable
+    - tell the user what operator they're using that is not transactable
+
+  should be able to wrap transactions inside of each other and get a single transaction -- nestable
+
+   */
+
+  private[dynamodb] final case class Transaction[A](
+    query: DynamoDBQuery[A]
+  ) extends DynamoDBQuery[A]
+
+  def transaction[A](query: DynamoDBQuery[A]): DynamoDBQuery[A] = ???
 
   // REVIEW: Does this make sense to extend?
   // It's only ever used in transactions and doesn't return anything.
