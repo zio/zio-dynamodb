@@ -9,6 +9,7 @@ import zio.schema.Schema
 import zio.schema.{ AccessorBuilder, Schema }
 
 import scala.annotation.tailrec
+import scala.annotation.implicitNotFound
 
 // The maximum depth for a document path is 32
 sealed trait ProjectionExpression { self =>
@@ -74,10 +75,15 @@ sealed trait ProjectionExpression { self =>
 
   // ConditionExpression with AttributeValue's
 
-  def contains[A](av: A)(implicit t: ToAttributeValue[A]): ConditionExpression                   =
+  // constraint = av must be a String OR a Set
+  def contains[A](av: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
     ConditionExpression.Contains(self, t.toAttributeValue(av))
-  def beginsWith[A](av: A)(implicit t: ToAttributeValue[A]): ConditionExpression                 =
+
+  // t: needs to be more constrained than implicit t: ToAttributeValue[A] as function only applies to Strings
+  def beginsWith[A](av: A)(implicit t: ToAttributeValue[A] /*, ev: RefersToString[To] */ ): ConditionExpression =
+//    println(ev) // TODO to get around "parameter value ev in method beginsWith is never used"
     ConditionExpression.BeginsWith(self, t.toAttributeValue(av))
+
   def between[A](minValue: A, maxValue: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
     ConditionExpression.Operand
       .ProjectionExpressionOperand(self)
@@ -178,13 +184,26 @@ sealed trait ProjectionExpression { self =>
     @tailrec
     def loop(pe: ProjectionExpression, acc: List[String]): List[String] =
       pe match {
-        case Root(name)                 => acc :+ s"$name"
-        case MapElement(parent, key)    => loop(parent, acc :+ s".$key")
-        case ListElement(parent, index) => loop(parent, acc :+ s"[$index]")
+        /*
+        If you have a PE that DDB does not know how to handle, then you have an error
+        eg [0] // DDB does not support top level array or primitives at the top level
+        so we need more code everywhere it is used to check that ROOT is valid and maybe
+        special case it when in the context of the top level.
+         */
+        case Root                                        => acc
+        case ProjectionExpression.MapElement(Root, name) => acc :+ s"$name"
+        case MapElement(parent, key)                     => loop(parent, acc :+ s".$key")
+        case ListElement(parent, index)                  => loop(parent, acc :+ s"[$index]")
       }
 
     loop(self, List.empty).reverse.mkString("")
   }
+}
+
+@implicitNotFound("the type ${A} must be a string in order to use this operator")
+sealed trait RefersToString[-A]
+object RefersToString {
+  implicit val x: RefersToString[String] = new RefersToString[String] {}
 }
 
 object ProjectionExpression {
@@ -196,10 +215,13 @@ object ProjectionExpression {
   val builder = new AccessorBuilder {
     override type Lens[From, To]      = ProjectionExpression.Typed[From, To]
     override type Prism[From, To]     = ProjectionExpression.Typed[From, To]
-    override type Traversal[From, To] = ProjectionExpression.Typed[From, To]
+    override type Traversal[From, To] = Unit
+
+    // ProjectionExpression.MapElement(Root, name)
 
     override def makeLens[S, A](product: Schema.Record[S], term: Schema.Field[A]): Lens[S, A] =
-      ProjectionExpression.Root(term.label).asInstanceOf[Lens[S, A]]
+      ProjectionExpression.MapElement(Root, term.label).asInstanceOf[Lens[S, A]]
+    //ProjectionExpression.Root(term.label).asInstanceOf[Lens[S, A]]
 
     /*
     need to respect enum annotations
@@ -207,9 +229,10 @@ object ProjectionExpression {
 
      */
     override def makePrism[S, A](sum: Schema.Enum[S], term: Schema.Case[A, S]): Prism[S, A] =
-      ProjectionExpression.Root(term.id).asInstanceOf[Prism[S, A]]
+      ProjectionExpression.MapElement(Root, term.id).asInstanceOf[Prism[S, A]]
+    //ProjectionExpression.Root(term.id).asInstanceOf[Prism[S, A]]
 
-    override def makeTraversal[S, A](collection: Schema.Collection[S, A], element: Schema[A]): Traversal[S, A] = ???
+    override def makeTraversal[S, A](collection: Schema.Collection[S, A], element: Schema[A]): Traversal[S, A] = ()
   }
 
   // where should we put this?
@@ -232,6 +255,19 @@ object ProjectionExpression {
     where age > 2
      */
     val (name, age) = ProjectionExpression.accessors[Person]
+//    age.beginsWith("X") // this will fail compilation with a custom compile error msg - nice!
+    name.beginsWith("X")
+
+    /*
+    TODO
+    propagate ROOT changes
+    propagate operator constraint changes
+    fix tests:
+      [error] Failed tests:
+      [error]         zio.dynamodb.AliasMapRenderSpec
+      [error]         zio.dynamodb.ProjectionExpressionParserSpec
+    next step is to deal with strings in path expressions
+     */
   }
 
   private val regexMapElement     = """(^[a-zA-Z0-9_]+)""".r
@@ -242,9 +278,9 @@ object ProjectionExpression {
   // (if present) is a-z, A-Z, or 0-9. Also key words are not allowed
   // If this is not the case then you must use the Expression Attribute Names facility to create an alias.
   // Attribute names containing a dot "." must also use the Expression Attribute Names
-  def apply(name: String): ProjectionExpression = Root(name)
+  def apply(name: String): ProjectionExpression = ProjectionExpression.MapElement(Root, name)
 
-  final case class Root(name: String)                                    extends ProjectionExpression
+  case object Root                                                       extends ProjectionExpression
   final case class MapElement(parent: ProjectionExpression, key: String) extends ProjectionExpression
   // index must be non negative - we could use a new type here?
   final case class ListElement(parent: ProjectionExpression, index: Int) extends ProjectionExpression
@@ -281,7 +317,7 @@ object ProjectionExpression {
       def mapElement(name: String): Builder =
         Builder(self.pe match {
           case None                     =>
-            Some(Right(Root(name)))
+            Some(Right(ProjectionExpression.MapElement(Root, name)))
           case Some(Right(pe))          =>
             Some(Right(pe(name)))
           case someLeft @ Some(Left(_)) =>
@@ -298,7 +334,7 @@ object ProjectionExpression {
 
         Builder(self.pe match {
           case None                     =>
-            Some(Right(multiDimPe(Root(name), indexes)))
+            Some(Right(multiDimPe(ProjectionExpression.MapElement(Root, name), indexes)))
           case Some(Right(pe))          =>
             Some(Right(multiDimPe(MapElement(pe, name), indexes)))
           case someLeft @ Some(Left(_)) =>

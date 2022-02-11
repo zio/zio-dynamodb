@@ -11,13 +11,14 @@ object ConditionExpressionExamples {
 
   val exists: ConditionExpression     = $("col1").exists
   val notExists: ConditionExpression  = $("col1").notExists
-  val beginsWith: ConditionExpression = $("col1").beginsWith("1")
-  val contains: ConditionExpression   = $("col1").contains("1")
-  val sizeOnLhs: ConditionExpression  = $("col2").size > 1
-  val isType: ConditionExpression     = $("col1").isNumber
-  val expnAnd: ConditionExpression    = beginsWith && sizeOnLhs
-  val expnOr: ConditionExpression     = beginsWith || sizeOnLhs
-  val expnNot: ConditionExpression    = !beginsWith
+  val beginsWith: ConditionExpression =
+    $("col1").beginsWith("1") // TODO: "the type stabilizer$1.To must be a string in order to use this operator"
+  val contains: ConditionExpression  = $("col1").contains("1")
+  val sizeOnLhs: ConditionExpression = $("col2").size > 1
+  val isType: ConditionExpression    = $("col1").isNumber
+  val expnAnd: ConditionExpression   = beginsWith && sizeOnLhs
+  val expnOr: ConditionExpression    = beginsWith || sizeOnLhs
+  val expnNot: ConditionExpression   = !beginsWith
 
   val peCompPe1: ConditionExpression = $("col1") > $("col2")
   val peCompPe2: ConditionExpression = $("col1") === $("col2")
