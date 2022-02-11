@@ -11,8 +11,8 @@ object ProjectionExpressionExamples extends App {
   println(list)
   println(map)
 
-  val b1 = ListElement(MapElement(MapElement(Root("foo"), "bar"), "baz"), 9) === $("foo.bar.baz[9]")
+  val b1 = ListElement(MapElement(MapElement(Root("foo"), "bar"), "baz"), 9) == $("foo.bar.baz[9]")
   println(b1)
-  val b2 = MapElement(ListElement(Root("foo"), 42), "bar") === $("foo[42].bar")
+  val b2 = MapElement(ListElement(Root("foo"), 42), "bar") == $("foo[42].bar")
   println(b2)
 }

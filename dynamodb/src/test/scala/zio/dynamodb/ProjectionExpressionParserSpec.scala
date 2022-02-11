@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.ProjectionExpression.{ $, parse, ListElement, MapElement, Root }
+import zio.dynamodb.ProjectionExpression.{ parse, ListElement, MapElement, Root }
 import zio.random.Random
 import zio.test.Assertion._
 import zio.test.{ DefaultRunnableSpec, _ }
@@ -100,7 +100,8 @@ object ProjectionExpressionParserSpec extends DefaultRunnableSpec {
   private def anyEmptyName(pe: ProjectionExpression): Boolean =
     pe match {
       case Root                                        =>
-        false
+        println("TODO: check this never happens") // TODO: check this never happens
+        false                                     //
       case ProjectionExpression.MapElement(Root, name) =>
         name.isEmpty
       case MapElement(parent, key)                     =>
