@@ -190,7 +190,7 @@ sealed trait ProjectionExpression { self =>
         so we need more code everywhere it is used to check that ROOT is valid and maybe
         special case it when in the context of the top level.
          */
-        case Root                                        => acc
+        case Root                                        => acc // identity
         case ProjectionExpression.MapElement(Root, name) => acc :+ s"$name"
         case MapElement(parent, key)                     => loop(parent, acc :+ s".$key")
         case ListElement(parent, index)                  => loop(parent, acc :+ s"[$index]")
@@ -255,18 +255,19 @@ object ProjectionExpression {
     where age > 2
      */
     val (name, age) = ProjectionExpression.accessors[Person]
-//    age.beginsWith("X") // this will fail compilation with a custom compile error msg - nice!
+//    age.beginsWith("X") // this will fail compilation with a custom compile error msg
     name.beginsWith("X")
 
     /*
-    TODO
-    propagate ROOT changes
-    propagate operator constraint changes
-    fix tests:
-      [error] Failed tests:
-      [error]         zio.dynamodb.AliasMapRenderSpec
-      [error]         zio.dynamodb.ProjectionExpressionParserSpec
     next step is to deal with strings in path expressions
+
+[error] /home/avinder/Workspaces/git/zio-dynamodb/examples/src/main/scala/zio/dynamodb/examples/ConditionExpressionExamples.scala:15:25: the type stabilizer$1.To must be a string in order to use this operator
+[error]     $("col1").beginsWith("1") // TODO: "the type stabilizer$1.To must be a string in order to use this operator"
+[error]                         ^
+[error] /home/avinder/Workspaces/git/zio-dynamodb/examples/src/main/scala/zio/dynamodb/examples/PutItemExamples.scala:10:100: the type stabilizer$1.To must be a string in order to use this operator
+[error]   putItem("tableName2", Item("field1" -> 1)) where $("foo.bar").isNumber && $("foo.bar").beginsWith("f")
+[error]                                                                                                    ^
+[error] two errors found
      */
   }
 
