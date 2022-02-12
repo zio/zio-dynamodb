@@ -55,10 +55,14 @@ sealed trait ProjectionExpression { self =>
 
   // unary ConditionExpressions
 
+  // constraint: None - applies to all types
   def exists: ConditionExpression            = ConditionExpression.AttributeExists(self)
+  // constraint: None - applies to all types
   def notExists: ConditionExpression         = ConditionExpression.AttributeNotExists(self)
+  // constraint: Applies to ALL except Number and Boolean
   def size: ConditionExpression.Operand.Size = ConditionExpression.Operand.Size(self)
 
+  // constraint: ALL
   def isBinary: ConditionExpression    = isType(AttributeValueType.Binary)
   def isNumber: ConditionExpression    = isType(AttributeValueType.Number)
   def isString: ConditionExpression    = isType(AttributeValueType.String)
@@ -70,20 +74,22 @@ sealed trait ProjectionExpression { self =>
   def isNull: ConditionExpression      = isType(AttributeValueType.Null)
   def isStringSet: ConditionExpression = isType(AttributeValueType.StringSet)
 
-  private def isType(attributeType: AttributeValueType): ConditionExpression =
+  private def isType(attributeType: AttributeValueType): ConditionExpression = // TODO: private so move down
     ConditionExpression.AttributeType(self, attributeType)
 
   // ConditionExpression with AttributeValue's
 
-  // constraint = av must be a String OR a Set
+  // constraint: String OR Set
   def contains[A](av: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
     ConditionExpression.Contains(self, t.toAttributeValue(av))
 
+  // constraint: String
   // t: needs to be more constrained than implicit t: ToAttributeValue[A] as function only applies to Strings
   def beginsWith[A](av: A)(implicit t: ToAttributeValue[A] /*, ev: RefersToString[To] */ ): ConditionExpression =
 //    println(ev) // TODO to get around "parameter value ev in method beginsWith is never used"
     ConditionExpression.BeginsWith(self, t.toAttributeValue(av))
 
+  // constraint: NONE
   def between[A](minValue: A, maxValue: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
     ConditionExpression.Operand
       .ProjectionExpressionOperand(self)
