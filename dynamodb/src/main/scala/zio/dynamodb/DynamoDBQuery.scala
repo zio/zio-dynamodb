@@ -8,15 +8,19 @@ import zio.dynamodb.DynamoDBQuery.{
   parallelize,
   BatchGetItem,
   BatchWriteItem,
+  ConditionCheck,
   CreateTable,
   DeleteItem,
   GetItem,
+  InvalidTransactionActions,
   Map,
   PutItem,
   QueryAll,
   QuerySome,
   ScanAll,
   ScanSome,
+  Succeed,
+  TransactGetItems,
   TransactWriteItems,
   UpdateItem,
   Zip
@@ -336,36 +340,67 @@ sealed trait DynamoDBQuery[+A] { self =>
       case s: QueryAll                => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
       case _                          => self
     }
+
+  // This would need to know if we were doing a transact read or a transact write
+  final def transaction(): Either[InvalidTransactionActions[A], DynamoDBQuery[A]] =
+    self match {
+      case c: DeleteItem              =>
+        Right(
+          TransactWriteItems(
+            transactions = Chunk(TransactWriteItems.Delete(c.key, c.tableName, c.conditionExpression)),
+            capacity = c.capacity,
+            itemMetrics = c.itemMetrics
+          ).asInstanceOf[DynamoDBQuery[A]]
+        )
+      case c: PutItem                 =>
+        Right(
+          TransactWriteItems(
+            transactions = Chunk(TransactWriteItems.Put(c.item, c.tableName, c.conditionExpression)),
+            capacity = c.capacity,
+            itemMetrics = c.itemMetrics
+          ).asInstanceOf[DynamoDBQuery[A]]
+        )
+      case c: UpdateItem              =>
+        Right(
+          TransactWriteItems(
+            transactions =
+              Chunk(TransactWriteItems.Update(c.key, c.tableName, c.updateExpression, c.conditionExpression)),
+            capacity = c.capacity,
+            itemMetrics = c.itemMetrics
+          ).asInstanceOf[DynamoDBQuery[A]]
+        )
+      case c: Succeed[A]              => Right(c)
+      case c: GetItem                 => Right(TransactGetItems(items = Chunk(c), capacity = c.capacity).asInstanceOf[DynamoDBQuery[A]])
+      case c: BatchGetItem            =>
+        Right(TransactGetItems(items = Chunk.fromIterable(c.requestItems.flatMap {
+          case (k, v) => v.keysSet.map(key => GetItem(tableName = k, key = key))
+        })).asInstanceOf[DynamoDBQuery[A]])
+      case c: TransactWriteItems      => Right(c)
+      case c: TransactGetItems        => Right(c)
+      case _: BatchWriteItem          => Right(???)
+      case _: ConditionCheck          => Right(???)
+      case Zip(left, right, zippable) =>
+        (left.transaction(), right.transaction()) match {
+          case (Left(l), Left(r))   =>
+            Left(
+              InvalidTransactionActions(l.invalidActions ++ r.invalidActions).asInstanceOf[InvalidTransactionActions[A]]
+            )
+          case (Right(_), Left(r))  => Left(r.asInstanceOf[InvalidTransactionActions[A]])
+          case (Left(l), Right(_))  => Left(l.asInstanceOf[InvalidTransactionActions[A]])
+          case (Right(l), Right(r)) => Right(Zip(l, r, zippable))
+        }
+      case Map(_, _)                  => ??? //query.transaction().map(q => Map(q, mapper))
+      case c                          => Left(InvalidTransactionActions(Chunk(c)))
+    }
+
 }
 
 object DynamoDBQuery {
   import scala.collection.immutable.{ Map => ScalaMap }
   import scala.collection.immutable.{ Set => ScalaSet }
 
-  /*
-  sealed trait Constructor[+A]   extends DynamoDBQuery[A]
-  sealed trait Transaction[+A]   extends Constructor[A]
-  sealed trait Write[+A]         extends Constructor[A]
-   */
-
-  /*
-
-  TRANSACTIONS
-  puts
-  deletes
-  updates
-  condition checks
-
-  NORMAL WRITES
-
-  deletes
-  puts
-
-   */
-
-  sealed trait Constructor[+A]   extends DynamoDBQuery[A]
-  sealed trait TransactWrite[+A] extends Constructor[A]
-  sealed trait Write[+A]         extends TransactWrite[A]
+  sealed trait Constructor[+A] extends DynamoDBQuery[A]
+  sealed trait Write[+A]       extends Constructor[A]
 
   def succeed[A](a: A): DynamoDBQuery[A] = Succeed(() => a)
 
@@ -626,6 +661,22 @@ object DynamoDBQuery {
     )
   }
 
+  /*
+  in the impl we break everything in the query that is transactionable into a transaction
+  and if there is something that is not transactionable then we fail with a specific case class exception "nonTransactQuery" that shows what you're trying to do that is not transactionable
+    - tell the user what operator they're using that is not transactable
+
+  should be able to wrap transactions inside of each other and get a single transaction -- nestable
+
+   */
+
+//  private[dynamodb] final case class Transaction[A](
+//    query: DynamoDBQuery[A]
+//  ) extends DynamoDBQuery[A]
+
+  private[dynamodb] final case class InvalidTransactionActions[+A](invalidActions: Chunk[DynamoDBQuery[A]])
+      extends Throwable
+
   // TODO: These transactions are limited to 25 items
   private[dynamodb] final case class TransactWriteItems(
     transactions: Chunk[TransactWriteItems.Write],
@@ -634,7 +685,7 @@ object DynamoDBQuery {
     clientRequestToken: Option[String] = None
   ) extends Constructor[Unit] { self =>
 
-    def +[A](transaction: TransactWrite[A]): TransactWriteItems =
+    def +[A](transaction: DynamoDBQuery[A]): TransactWriteItems =
       transaction match {
         case putItem: PutItem               =>
           self.copy(transactions =
@@ -669,6 +720,8 @@ object DynamoDBQuery {
               updateExpression = updateItem.updateExpression
             )
           )
+
+        case _                              => ??? // TODO: If we can't add something to the transaction should we just ignore it?
       }
   }
 
@@ -697,6 +750,13 @@ object DynamoDBQuery {
       conditionExpression: Option[ConditionExpression] = None
     ) extends Write
   }
+
+  private[dynamodb] final case class TransactGetItems(
+    items: Chunk[GetItem],
+    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
+    itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
+    clientRequestToken: Option[String] = None
+  ) extends Constructor[Chunk[Option[Item]]]
 
   private[dynamodb] final case class BatchWriteItem(
     requestItems: MapOfSet[TableName, BatchWriteItem.Write] = MapOfSet.empty,
@@ -849,31 +909,13 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues = ReturnValues.None
-  ) extends TransactWrite[Option[Item]]
+  ) extends Write[Option[Item]]
 
-  /*
-  in the impl we break everything in the query that is transactionable into a transaction
-  and if there is something that is not transactionable then we fail with a specific case class exception "nonTransactQuery" that shows what you're trying to do that is not transactionable
-    - tell the user what operator they're using that is not transactable
-
-  should be able to wrap transactions inside of each other and get a single transaction -- nestable
-
-   */
-
-  private[dynamodb] final case class Transaction[A](
-    query: DynamoDBQuery[A]
-  ) extends DynamoDBQuery[A]
-
-  def transaction[A](query: DynamoDBQuery[A]): DynamoDBQuery[A] = ???
-
-  // REVIEW: Does this make sense to extend?
-  // It's only ever used in transactions and doesn't return anything.
-  // AWS Impl just does a ZIO.unit
   private[dynamodb] final case class ConditionCheck(
     tableName: TableName,
     primaryKey: PrimaryKey,
     conditionExpression: ConditionExpression
-  ) extends TransactWrite[Unit]
+  ) extends Constructor[Unit]
 
   private[dynamodb] final case class DeleteItem(
     tableName: TableName,
