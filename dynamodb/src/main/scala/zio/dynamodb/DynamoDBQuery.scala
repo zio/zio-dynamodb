@@ -377,19 +377,41 @@ sealed trait DynamoDBQuery[+A] { self =>
         })).asInstanceOf[DynamoDBQuery[A]])
       case c: TransactWriteItems      => Right(c)
       case c: TransactGetItems        => Right(c)
-      case _: BatchWriteItem          => Right(???)
-      case _: ConditionCheck          => Right(???)
+      case c: BatchWriteItem          =>
+        Right(
+          TransactWriteItems(
+            transactions = Chunk.fromIterable(c.requestItems.flatMap {
+              case (k, v) =>
+                v.map {
+                  case Delete(key) => TransactWriteItems.Delete(key, k)
+                  case Put(item)   => TransactWriteItems.Put(item, tableName = k)
+                }
+            }),
+            capacity = c.capacity,
+            itemMetrics = c.itemMetrics
+          ).asInstanceOf[DynamoDBQuery[A]]
+        )
+      case c: ConditionCheck          =>
+        Right(
+          TransactWriteItems(
+            transactions = Chunk(TransactWriteItems.ConditionCheck(c.primaryKey, c.tableName, c.conditionExpression))
+          ).asInstanceOf[DynamoDBQuery[A]]
+        )
       case Zip(left, right, zippable) =>
         (left.transaction(), right.transaction()) match {
+          case (Right(l), Right(r)) => Right(Zip(l, r, zippable))
           case (Left(l), Left(r))   =>
             Left(
               InvalidTransactionActions(l.invalidActions ++ r.invalidActions).asInstanceOf[InvalidTransactionActions[A]]
             )
-          case (Right(_), Left(r))  => Left(r.asInstanceOf[InvalidTransactionActions[A]])
-          case (Left(l), Right(_))  => Left(l.asInstanceOf[InvalidTransactionActions[A]])
-          case (Right(l), Right(r)) => Right(Zip(l, r, zippable))
+          case (_, Left(r))         => Left(r.asInstanceOf[InvalidTransactionActions[A]])
+          case (Left(l), _)         => Left(l.asInstanceOf[InvalidTransactionActions[A]])
         }
-      case Map(_, _)                  => ??? //query.transaction().map(q => Map(q, mapper))
+      case Map(query, mapper)         =>
+        query.transaction() match {
+          case Right(r) => Right(Map(r, mapper).asInstanceOf[DynamoDBQuery[A]])
+          case Left(l)  => Left(l.asInstanceOf[InvalidTransactionActions[A]])
+        }
       case c                          => Left(InvalidTransactionActions(Chunk(c)))
     }
 
@@ -909,7 +931,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues = ReturnValues.None
-  ) extends Write[Option[Item]]
+  ) extends Constructor[Option[Item]]
 
   private[dynamodb] final case class ConditionCheck(
     tableName: TableName,
@@ -1064,6 +1086,14 @@ object DynamoDBQuery {
       case transactWriteItems @ TransactWriteItems(_, _, _, _) =>
         (
           Chunk(transactWriteItems),
+          (results: Chunk[Any]) => {
+            if (results.isEmpty) ().asInstanceOf[A] else results.head.asInstanceOf[A]
+          }
+        )
+
+      case transactGetItems @ TransactGetItems(_, _, _, _)     =>
+        (
+          Chunk(transactGetItems),
           (results: Chunk[Any]) => {
             if (results.isEmpty) ().asInstanceOf[A] else results.head.asInstanceOf[A]
           }

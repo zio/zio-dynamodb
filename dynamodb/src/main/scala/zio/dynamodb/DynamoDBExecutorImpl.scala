@@ -10,6 +10,7 @@ import io.github.vigoo.zioaws.dynamodb.model.{
   DeleteRequest,
   DeleteTableRequest,
   DescribeTableRequest,
+  Get,
   GetItemRequest,
   KeySchemaElement,
   KeyType,
@@ -21,28 +22,30 @@ import io.github.vigoo.zioaws.dynamodb.model.{
   ScalarAttributeType,
   ScanRequest,
   Tag,
+  TransactGetItem,
+  TransactGetItemsRequest,
+  TransactWriteItem,
+  TransactWriteItemsRequest,
   UpdateItemRequest,
   UpdateItemResponse,
   WriteRequest,
   AttributeDefinition => ZIOAwsAttributeDefinition,
   AttributeValue => ZIOAwsAttributeValue,
   BillingMode => ZIOAwsBillingMode,
+  ConditionCheck => ZIOAwsConditionCheck,
+  Delete => ZIOAwsDelete,
   GlobalSecondaryIndex => ZIOAwsGlobalSecondaryIndex,
   LocalSecondaryIndex => ZIOAwsLocalSecondaryIndex,
   Projection => ZIOAwsProjection,
   ProjectionType => ZIOAwsProjectionType,
   ProvisionedThroughput => ZIOAwsProvisionedThroughput,
+  Put => ZIOAwsPut,
   ReturnConsumedCapacity => ZIOAwsReturnConsumedCapacity,
   ReturnItemCollectionMetrics => ZIOAwsReturnItemCollectionMetrics,
   SSESpecification => ZIOAwsSSESpecification,
   SSEType => ZIOAwsSSEType,
   Select => ZIOAwsSelect,
   TableStatus => ZIOAwsTableStatus,
-  TransactWriteItemsRequest,
-  TransactWriteItem,
-  ConditionCheck => ZIOAwsConditionCheck,
-  Put => ZIOAwsPut,
-  Delete => ZIOAwsDelete,
   Update => ZIOAwsUpdate
 }
 import zio.clock.Clock
@@ -80,6 +83,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       case c: QuerySome          => executeQuerySome(c)
       case c: QueryAll           => executeQueryAll(c)
       case c: TransactWriteItems => executeTransactWriteItems(c)
+      case c: TransactGetItems   => executeTransactGetItems(c)
       case Succeed(c)            => ZIO.succeed(c())
     }
 
@@ -166,6 +170,12 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
                          .catchSome(catchBatchRetryError)
         unprocessed <- ref.get
       } yield BatchWriteItem.Response(unprocessed.toOption)
+
+  private def executeTransactGetItems(transactGetItems: TransactGetItems): ZIO[Any, Throwable, Chunk[Option[Item]]] =
+    (for {
+      response <- dynamoDb.transactGetItems(awsTransactGetItemsRequest(transactGetItems))
+      items    <- response.responses.map(_.map(item => item.itemValue.map(dynamoDBItem)))
+    } yield Chunk.fromIterable(items)).mapError(_.toThrowable)
 
   private def executeTransactWriteItems(transactWriteItems: TransactWriteItems): ZIO[Any, Throwable, Unit] =
     for {
@@ -463,6 +473,20 @@ case object DynamoDBExecutorImpl {
       consistentRead = Some(toBoolean(scanSome.consistency))
     )
   }
+
+  private def awsTransactGetItemsRequest(transactGetItems: TransactGetItems): TransactGetItemsRequest =
+    TransactGetItemsRequest(
+      transactItems = transactGetItems.items.map(item =>
+        TransactGetItem(
+          Get(
+            key = item.key.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+            tableName = item.tableName.value,
+            projectionExpression = toOption(item.projections).map(awsProjectionExpression)
+          )
+        )
+      ),
+      returnConsumedCapacity = Some(awsConsumedCapacity(transactGetItems.capacity))
+    )
 
   private def awsTransactWriteItemsRequest(transactWriteItems: TransactWriteItems): TransactWriteItemsRequest =
     TransactWriteItemsRequest(

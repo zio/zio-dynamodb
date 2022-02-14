@@ -807,6 +807,34 @@ object LiveSpec extends DefaultRunnableSpec {
 //          testM("repeated client request token fails on second try") {
 //            ???
 //          }
+        ),
+        suite("transact get items")(
+          testM("basic transact get items") {
+            withDefaultTable { tableName =>
+              val getItem = TransactGetItems(
+                Chunk(
+                  GetItem(TableName(tableName), Item(id -> first, number -> 7)),
+                  GetItem(TableName(tableName), Item(id -> second, number -> 5))
+                )
+              )
+              for {
+                a <- getItem.execute
+              } yield assert(a)(equalTo(Chunk(Some(avi3Item), Some(adam2Item))))
+            }
+          },
+          testM("single failure means complete failure") {
+            withDefaultTable { tableName =>
+              val getItem = TransactGetItems(
+                Chunk(
+                  GetItem(TableName(tableName), Item(id -> first, number -> 1000)),
+                  GetItem(TableName(tableName), Item(id -> second, number -> 5))
+                )
+              )
+              for {
+                a <- getItem.execute
+              } yield assert(a)(equalTo(Chunk()))
+            }
+          } @@ failing
         )
       )
     )
