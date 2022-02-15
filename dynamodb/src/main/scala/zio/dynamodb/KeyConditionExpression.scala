@@ -1,5 +1,10 @@
 package zio.dynamodb
 
+import zio.dynamodb.ConditionExpression.Operand.ProjectionExpressionOperand
+import zio.dynamodb.PartitionKeyExpression.PartitionKey
+import zio.dynamodb.ProjectionExpression.{ MapElement, Root }
+import zio.dynamodb.SortKeyExpression.SortKey
+
 /*
 KeyCondition expression is a restricted version of ConditionExpression where by
 - partition exprn is required and can only use "=" equals comparison
@@ -25,6 +30,57 @@ sealed trait KeyConditionExpression extends Renderable { self =>
 object KeyConditionExpression {
   private[dynamodb] final case class And(left: PartitionKeyExpression, right: SortKeyExpression)
       extends KeyConditionExpression
+  def partitionKey(key: String): PartitionKey = PartitionKey(key)
+
+  private[dynamodb] def unsafe(c: ConditionExpression): KeyConditionExpression =
+    KeyConditionExpression(c).getOrElse(
+      throw new IllegalStateException(s"Error: invalid key conditition expression $c")
+    )
+
+  /**
+   * Create a KeyConditionExpression from a ConditionExpression
+   */
+  private[dynamodb] def apply(c: ConditionExpression): Either[String, KeyConditionExpression] =
+    c match {
+      case ConditionExpression.Equals(
+            ProjectionExpressionOperand(MapElement(Root, partitionKey)),
+            ConditionExpression.Operand.ValueOperand(av)
+          ) =>
+        Right(PartitionKeyExpression.Equals(PartitionKey(partitionKey), av))
+      case ConditionExpression.And(
+            ConditionExpression.Equals(
+              ProjectionExpressionOperand(MapElement(Root, partitionKey)),
+              ConditionExpression.Operand.ValueOperand(avL)
+            ),
+            rhs
+            //SortKeyExpression.Equals(SortKey(name), av)
+          ) =>
+        rhs match {
+          case ConditionExpression.Equals(
+                ProjectionExpressionOperand(MapElement(Root, sortKey)),
+                ConditionExpression.Operand.ValueOperand(avR)
+              ) =>
+            Right(
+              PartitionKeyExpression
+                .Equals(PartitionKey(partitionKey), avL)
+                .&&(SortKeyExpression.Equals(SortKey(sortKey), avR))
+            )
+          case ConditionExpression.NotEqual(
+                ProjectionExpressionOperand(MapElement(Root, sortKey)),
+                ConditionExpression.Operand.ValueOperand(avR)
+              ) =>
+            Right(
+              PartitionKeyExpression
+                .Equals(PartitionKey(partitionKey), avL)
+                .&&(SortKeyExpression.NotEqual(SortKey(sortKey), avR))
+            )
+          // TODO: more cases for LessThan,GreaterThan, LessThanOrEqual, GreaterThanOrEqual, Between, BeginsWith
+          case c => Left(s"condition $c is not a valid sort condition expression")
+        }
+
+      case c => Left(s"condition $c is not a valid partition condition expression")
+    }
+
 }
 
 sealed trait PartitionKeyExpression extends KeyConditionExpression { self =>

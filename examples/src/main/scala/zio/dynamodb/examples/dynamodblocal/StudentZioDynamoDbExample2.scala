@@ -9,8 +9,6 @@ import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.dynamodb.DynamoDBQuery._
-import zio.dynamodb.PartitionKeyExpression.PartitionKey
-import zio.dynamodb.SortKeyExpression.SortKey
 import zio.dynamodb._
 import zio.dynamodb.examples.LocalDdbServer
 import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema, Schema }
@@ -63,6 +61,11 @@ object StudentZioDynamoDbExample2 extends App {
   // TODO: we may need to extend actions to take in an implicit to make them type safe eg `payment.set(Payment.PayPal)`
   //val x: Action.SetAction                       = payment.set(Payment.PayPal)
 
+  val x: Either[String, KeyConditionExpression] = KeyConditionExpression(
+    enrollmentDate === Instant.now.toString && payment === "PayPal"
+  )
+  println(s"XXXXXXXXXXXXXXXXXXXXX x=$x")
+
   private val program = for {
     _         <- createTable("student", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
                    AttributeDefinition.attrDefnString("email"),
@@ -92,7 +95,8 @@ object StudentZioDynamoDbExample2 extends App {
                      (enrollmentDate === Instant.now.toString) && (payment === "PayPal")
                    )
                    // KeyConditionExpression now really sucks in comparison
-                   .whereKey(PartitionKey("email") === "avi@gmail.com" && SortKey("subject") === "maths")
+//                   .whereKey(partitionKey("email") === "avi@gmail.com" && SortKey("subject") === "maths")
+                   .whereKey2(email === "avi@gmail.com" && subject === "maths")
                    .execute
     _         <- put[Student]("student", avi)
                    .where(                                                          // Update/Delete/Put
