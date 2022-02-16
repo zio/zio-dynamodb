@@ -32,14 +32,25 @@ object KeyConditionExpression {
       extends KeyConditionExpression
   def partitionKey(key: String): PartitionKey = PartitionKey(key)
 
-  private[dynamodb] def unsafe(c: ConditionExpression): KeyConditionExpression =
-    KeyConditionExpression(c).getOrElse(
-      throw new IllegalStateException(s"Error: invalid key conditition expression $c")
-    )
-
   /**
    * Create a KeyConditionExpression from a ConditionExpression
+   * Must be in the form of `<Condition1> && <Cindition2>` where format of `<Condition1>` is:
+   * {{{<ProjectionExpressionForPartitionKey> === <value>}}}
+   * and the format of `<Condition2>` is:
+   * {{{<ProjectionExpressionForSortKey> <op> <value>}}} where op can be one of `===`, `>`, `>=`, `<`, `<=`, `between`, `beginsWith`
+   *
+   * Example using type API:
+   * {{{
+   * val (email, subject, enrollmentDate, payment) = ProjectionExpression.accessors[Student]
+   * // ...
+   * val keyConditionExprn = filterKey(email === "avi@gmail.com" && subject === "maths")
+   * }}}
    */
+  private[dynamodb] def unsafe(c: ConditionExpression): KeyConditionExpression =
+    KeyConditionExpression(c).getOrElse(
+      throw new IllegalStateException(s"Error: invalid key condition expression $c")
+    )
+
   private[dynamodb] def apply(c: ConditionExpression): Either[String, KeyConditionExpression] =
     c match {
       case ConditionExpression.Equals(
