@@ -62,7 +62,7 @@ object StudentZioDynamoDbExample2 extends App {
   //val x: Action.SetAction                       = payment.set(Payment.PayPal)
 
   val x: Either[String, KeyConditionExpression] = KeyConditionExpression(
-    enrollmentDate === Instant.now.toString && payment === "PayPal"
+    email === "avi@gmail.com" && subject === "maths"
   )
   println(s"XXXXXXXXXXXXXXXXXXXXX x=$x")
 
@@ -96,10 +96,10 @@ object StudentZioDynamoDbExample2 extends App {
                    )
                    // KeyConditionExpression now really sucks in comparison
 //                   .whereKey(partitionKey("email") === "avi@gmail.com" && SortKey("subject") === "maths")
-                   .whereKey2(email === "avi@gmail.com" && subject === "maths")
+                   .whereKey(email === "avi@gmail.com" && subject === "maths")
                    .execute
     _         <- put[Student]("student", avi)
-                   .where(                                                          // Update/Delete/Put
+                   .where(
                      (enrollmentDate === Instant.now.toString) && (payment === "PayPal")
                    )
                    .execute
@@ -107,7 +107,7 @@ object StudentZioDynamoDbExample2 extends App {
                    enrollmentDate.set(Instant.now.toString) + payment.set("PayPal") // TODO: make actions type safe
                  ).execute
     _         <- deleteItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths"))
-                   .where(                                                          // Update/Delete/Put
+                   .where(
                      (enrollmentDate === Instant.now.toString) && (payment === "PayPal")
                    )
                    .execute
