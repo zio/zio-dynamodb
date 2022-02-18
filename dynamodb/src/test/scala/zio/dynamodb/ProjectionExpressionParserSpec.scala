@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.ProjectionExpression.{ parse, ListElement, MapElement, Root }
+import zio.dynamodb.ProjectionExpression.{ $, parse, ListElement, MapElement, Root }
 import zio.random.Random
 import zio.test.Assertion._
 import zio.test.{ DefaultRunnableSpec, _ }
@@ -43,6 +43,10 @@ object ProjectionExpressionParserSpec extends DefaultRunnableSpec {
 
   private val mainSuite =
     suite("ProjectionExpression Parser")(
+      test("$ function compiles") {
+        val _ = $("name").beginsWith("Avi")
+        assertCompletes
+      },
       testM("should parse valid expressions and return a Left for any invalid expressions") {
         check(Generators.projectionExpression) { pe =>
           assert(parse(pe.toString))(

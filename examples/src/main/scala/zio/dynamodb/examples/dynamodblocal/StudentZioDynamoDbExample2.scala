@@ -30,6 +30,7 @@ object StudentZioDynamoDbExample2 extends App {
     final case object CreditCard extends Payment
     final case object PayPal     extends Payment
 
+    // report bug
     // weirdly the compiler complains about order - maybe auto derivation sorts the cases
     val schema: Schema.Enum3[CreditCard.type, DebitCard.type, PayPal.type, Payment] = DeriveSchema.gen[Payment]
   }
@@ -86,12 +87,12 @@ object StudentZioDynamoDbExample2 extends App {
     // at the cost of less precision in the type (eg maybe we generate more runtime errors instead)?
     // also is this the time to introduce phantom types to restrict ops like filter/query?
     _         <- queryAll[Student]("student")
-                   .filter(                                                         // Scan/Query
-                     (enrollmentDate === Instant.now.toString) && (payment === "PayPal")
+                   .filter(                                                              // Scan/Query
+                     (enrollmentDate === Instant.now.toString) && (payment === "PayPal") // TODO: can we make values type safe?
                    )
                    .execute
     _         <- queryAll[Student]("student")
-                   .filter(                                                         // Scan/Query
+                   .filter(                                                              // Scan/Query
                      (enrollmentDate === Instant.now.toString) && (payment === "PayPal")
                    )
                    // KeyConditionExpression now really sucks in comparison
@@ -104,7 +105,7 @@ object StudentZioDynamoDbExample2 extends App {
                    )
                    .execute
     _         <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths"))(
-                   enrollmentDate.set(Instant.now.toString) + payment.set("PayPal") // TODO: make actions type safe
+                   enrollmentDate.set(Instant.now.toString) + payment.set("PayPal")      // TODO: make actions type safe
                  ).execute
     _         <- deleteItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths"))
                    .where(

@@ -16,6 +16,8 @@ sealed trait ProjectionExpression { self =>
   type From
   type To
 
+  def unsafeTo[To2]: ProjectionExpression.Typed[From, To2] = self.asInstanceOf[ProjectionExpression.Typed[From, To2]]
+
   def apply(index: Int): ProjectionExpression = ProjectionExpression.ListElement(self, index)
 
   def apply(key: String): ProjectionExpression = ProjectionExpression.MapElement(self, key)
@@ -85,9 +87,15 @@ sealed trait ProjectionExpression { self =>
 
   // constraint: String
   // t: needs to be more constrained than implicit t: ToAttributeValue[A] as function only applies to Strings
-  def beginsWith[A](av: A)(implicit t: ToAttributeValue[A] /*, ev: RefersToString[To] */ ): ConditionExpression =
+//  def beginsWith(av: String)(implicit ev: RefersToString[To]): ConditionExpression = {
 //    println(ev) // TODO to get around "parameter value ev in method beginsWith is never used"
+//    ConditionExpression.BeginsWith(self, AttributeValue.String(av))
+//  }
+  // TODO: re-instate the above restriction to String
+  def beginsWith[A](av: A)(implicit t: ToAttributeValue[A], ev: RefersToString[To]): ConditionExpression = {
+    println(ev) // TODO to get around "parameter value ev in method beginsWith is never used"
     ConditionExpression.BeginsWith(self, t.toAttributeValue(av))
+  }
 
   // constraint: NONE
   def between[A](minValue: A, maxValue: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
@@ -101,6 +109,10 @@ sealed trait ProjectionExpression { self =>
       .ProjectionExpressionOperand(self)
       .in(values.map(t.toAttributeValue).toSet + t.toAttributeValue(value))
 
+  /*
+  like RefersToString
+  def ===[A](that: A)(implicit t: ToAttributeValue[A], eq: CanEqual[To, A]): ConditionExpression = .
+   */
   def ===[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
     ConditionExpression.Equals(
       ProjectionExpressionOperand(self),
@@ -296,9 +308,9 @@ object ProjectionExpression {
    * Unsafe version of `parse` that throws an exception rather than returning an Either
    * @see [[parse]]
    */
-  def $(s: String): ProjectionExpression =
+  def $(s: String): ProjectionExpression.Typed[_, Nothing] =
     parse(s) match {
-      case Right(a)  => a
+      case Right(a)  => a.unsafeTo[Nothing]
       case Left(msg) => throw new IllegalStateException(msg)
     }
 

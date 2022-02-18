@@ -85,11 +85,66 @@ object KeyConditionExpression {
                 .Equals(PartitionKey(partitionKey), avL)
                 .&&(SortKeyExpression.NotEqual(SortKey(sortKey), avR))
             )
+          case ConditionExpression.GreaterThan(
+                ProjectionExpressionOperand(MapElement(Root, sortKey)),
+                ConditionExpression.Operand.ValueOperand(avR)
+              ) =>
+            Right(
+              PartitionKeyExpression
+                .Equals(PartitionKey(partitionKey), avL)
+                .&&(SortKeyExpression.GreaterThan(SortKey(sortKey), avR))
+            )
+          case ConditionExpression.LessThan(
+                ProjectionExpressionOperand(MapElement(Root, sortKey)),
+                ConditionExpression.Operand.ValueOperand(avR)
+              ) =>
+            Right(
+              PartitionKeyExpression
+                .Equals(PartitionKey(partitionKey), avL)
+                .&&(SortKeyExpression.LessThan(SortKey(sortKey), avR))
+            )
+          case ConditionExpression.GreaterThanOrEqual(
+                ProjectionExpressionOperand(MapElement(Root, sortKey)),
+                ConditionExpression.Operand.ValueOperand(avR)
+              ) =>
+            Right(
+              PartitionKeyExpression
+                .Equals(PartitionKey(partitionKey), avL)
+                .&&(SortKeyExpression.GreaterThanOrEqual(SortKey(sortKey), avR))
+            )
+          case ConditionExpression.LessThanOrEqual(
+                ProjectionExpressionOperand(MapElement(Root, sortKey)),
+                ConditionExpression.Operand.ValueOperand(avR)
+              ) =>
+            Right(
+              PartitionKeyExpression
+                .Equals(PartitionKey(partitionKey), avL)
+                .&&(SortKeyExpression.LessThanOrEqual(SortKey(sortKey), avR))
+            )
+          case ConditionExpression.Between(
+                ProjectionExpressionOperand(MapElement(Root, sortKey)),
+                avMin,
+                avMax
+              ) =>
+            Right(
+              PartitionKeyExpression
+                .Equals(PartitionKey(partitionKey), avL)
+                .&&(SortKeyExpression.Between(SortKey(sortKey), avMin, avMax))
+            )
+          case ConditionExpression.BeginsWith(
+                MapElement(Root, sortKey),
+                av
+              ) =>
+            Right(
+              PartitionKeyExpression
+                .Equals(PartitionKey(partitionKey), avL)
+                .&&(SortKeyExpression.BeginsWith(SortKey(sortKey), av))
+            )
           // TODO: more cases for LessThan,GreaterThan, LessThanOrEqual, GreaterThanOrEqual, Between, BeginsWith
           case c => Left(s"condition $c is not a valid sort condition expression")
         }
 
-      case c => Left(s"condition $c is not a valid partition condition expression")
+      case c => Left(s"condition $c is not a valid key condition expression")
     }
 
 }
