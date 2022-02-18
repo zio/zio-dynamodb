@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.ProjectionExpression.{ parse, ListElement, MapElement, Root }
+import zio.dynamodb.ProjectionExpression.{ $, parse, ListElement, MapElement, Root }
 import zio.random.Random
 import zio.test.Assertion._
 import zio.test.{ DefaultRunnableSpec, _ }
