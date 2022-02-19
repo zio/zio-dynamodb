@@ -37,7 +37,7 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
       assert(item)(equalTo(expectedItem))
     },
     test("encodes simple Optional Item") {
-      val expectedItem: Item = Item("id" -> 2, "name" -> "Avi", "opt" -> null)
+      val expectedItem: Item = Item("id" -> 2, "name" -> "Avi")
 
       val item = DynamoDBQuery.toItem(SimpleCaseClass3Option(2, "Avi", opt = None))
 
