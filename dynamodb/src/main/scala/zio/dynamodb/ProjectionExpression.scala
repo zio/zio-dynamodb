@@ -184,8 +184,8 @@ sealed trait ProjectionExpression { self =>
 }
 
 object ProjectionExpression {
-  private val regexMapElement     = """(^[a-zA-Z_]+)""".r
-  private val regexIndexedElement = """(^[a-zA-Z_]+)(\[[0-9]+])+""".r
+  private val regexMapElement     = """(^[a-zA-Z0-9_]+)""".r
+  private val regexIndexedElement = """(^[a-zA-Z0-9_]+)(\[[0-9]+])+""".r
   private val regexGroupedIndexes = """(\[([0-9]+)])""".r
 
   // Note that you can only use a ProjectionExpression if the first character is a-z or A-Z and the second character
