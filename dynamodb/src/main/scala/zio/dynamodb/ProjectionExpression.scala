@@ -2,8 +2,10 @@ package zio.dynamodb
 
 import zio.Chunk
 import zio.dynamodb.ConditionExpression.Operand.ProjectionExpressionOperand
+import zio.dynamodb.DynamoDBQuery.toItem
 import zio.dynamodb.ProjectionExpression.{ ListElement, MapElement, Root }
 import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand }
+import zio.schema.Schema
 
 import scala.annotation.tailrec
 
@@ -119,8 +121,10 @@ sealed trait ProjectionExpression { self =>
   /**
    * Modify or Add an item Attribute
    */
-  def set[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
+  def setValue[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
     UpdateExpression.Action.SetAction(self, UpdateExpression.SetOperand.ValueOperand(t.toAttributeValue(a)))
+
+  def set[A: Schema](a: A): UpdateExpression.Action.SetAction = setValue(toItem(a))
 
   /**
    * Modify or Add an item Attribute
