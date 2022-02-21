@@ -27,10 +27,6 @@ object KeyConditionExpressionSpec extends DefaultRunnableSpec {
 
   val happyPathSuite   =
     suite("returns a Right for")(
-      test(""" email === "avi@gmail.com" """) {
-        val actual = KeyConditionExpression(email === "avi@gmail.com")
-        zio.test.assert(actual)(isRight)
-      },
       test(""" email === "avi@gmail.com" && subject === "maths" """) {
         val actual = KeyConditionExpression(email === "avi@gmail.com" && subject === "maths")
         zio.test.assert(actual)(isRight)
