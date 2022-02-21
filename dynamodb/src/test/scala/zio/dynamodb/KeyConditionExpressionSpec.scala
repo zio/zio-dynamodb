@@ -42,6 +42,10 @@ object KeyConditionExpressionSpec extends DefaultRunnableSpec {
 
   val happyPathSuite   =
     suite("returns a Right for")(
+      test(""" email === "avi@gmail.com" """) {
+        val actual = KeyConditionExpression(email === "avi@gmail.com")
+        zio.test.assert(actual)(isRight)
+      },
       test(""" email === "avi@gmail.com" && subject === "maths" """) {
         val actual = KeyConditionExpression(email === "avi@gmail.com" && subject === "maths")
         zio.test.assert(actual)(isRight)
@@ -64,6 +68,13 @@ object KeyConditionExpressionSpec extends DefaultRunnableSpec {
         val actual =
           KeyConditionExpression(
             email >= "avi@gmail.com" && subject.beginsWith("ma")
+          )
+        zio.test.assert(actual)(isLeft)
+      },
+      test(""" email === "avi@gmail.com" && subject.beginsWith("ma") && subject.beginsWith("ma") """) {
+        val actual =
+          KeyConditionExpression(
+            email === "avi@gmail.com" && subject.beginsWith("ma") && subject.beginsWith("ma")
           )
         zio.test.assert(actual)(isLeft)
       }
@@ -97,6 +108,55 @@ object KeyConditionExpressionSpec extends DefaultRunnableSpec {
     Gen.listOfBounded(1, 4)(Gen.alphaNumericString zip genOP)
   // TODO - simple generator for a very limited set of PE
 
+  /*
+  private[dynamodb] final case class Equals(left: Operand, right: Operand)             extends ConditionExpression
+  private[dynamodb] final case class NotEqual(left: Operand, right: Operand)           extends ConditionExpression
+  private[dynamodb] final case class LessThan(left: Operand, right: Operand)           extends ConditionExpression
+  private[dynamodb] final case class GreaterThan(left: Operand, right: Operand)        extends ConditionExpression
+  private[dynamodb] final case class LessThanOrEqual(left: Operand, right: Operand)    extends ConditionExpression
+  private[dynamodb] final case class GreaterThanOrEqual(left: Operand, right: Operand) extends ConditionExpression
+
+   */
+
+  object Properties {
+    def firstExpression(ce: ConditionExpression): ConditionExpression = {
+      def loop(ce: ConditionExpression) =
+        ce match {
+          case ce @ ConditionExpression.Equals(_, _)             => (ce, ce)
+          case ce @ ConditionExpression.NotEqual(_, _)           => (ce, ce)
+          case ce @ ConditionExpression.LessThan(_, _)           => (ce, ce)
+          case ce @ ConditionExpression.GreaterThan(_, _)        => (ce, ce)
+          case ce @ ConditionExpression.LessThanOrEqual(_, _)    => (ce, ce)
+          case ce @ ConditionExpression.GreaterThanOrEqual(_, _) => (ce, ce)
+// It would fail on the following inputs: AttributeExists(_), AttributeNotExists(_), AttributeType(_, _),
+// BeginsWith(_, _), Between(_, _, _), Contains(_, _), In(_, _), Not(_), Or(_, _)
+          case ce @ ConditionExpression.AttributeExists(_)       => (ce, ce)
+          case ce @ ConditionExpression.AttributeNotExists(_)    => (ce, ce)
+          case ce @ ConditionExpression.AttributeType(_, _)      => (ce, ce)
+          case ce @ ConditionExpression.BeginsWith(_, _)         => (ce, ce)
+          case ce @ ConditionExpression.Between(_, _, _)         => (ce, ce)
+          case ce @ ConditionExpression.Contains(_, _)           => (ce, ce)
+          case ce @ ConditionExpression.In(_, _)                 => (ce, ce)
+          case ce @ ConditionExpression.Not(_)                   => (ce, ce)
+          case ce @ ConditionExpression.Or(_, _)                 => (ce, ce)
+
+          case ConditionExpression.And(left, right) => (firstExpression(left), firstExpression(right))
+        }
+      loop(ce)._1
+    }
+
+    def isEquals(ce: ConditionExpression): Boolean =
+      ce match {
+        case ConditionExpression.Equals(_, _) => true
+        case _                                => false
+      }
+  }
+
+  /*
+full=And(And(Equals(ProjectionExpressionOperand(),ValueOperand(String(TODO))),Equals(ProjectionExpressionOperand(),ValueOperand(String(TODO)))),Equals(ProjectionExpressionOperand(YWF),ValueOperand(String(TODO))))
+first=Equals(ProjectionExpressionOperand(),ValueOperand(String(TODO)))
+   */
+
   def foo(name: String, op: Op): ConditionExpression =
     op match {
       case Op.Equals    =>
@@ -117,7 +177,9 @@ object KeyConditionExpressionSpec extends DefaultRunnableSpec {
       val (name, op) = xs.head
       val first      = foo(name, op)
       val condEx     = xs.tail.foldRight(first) { case ((name, op), acc) => acc && foo(name, op) }
-      println(condEx)
+      val firstEx    = Properties.firstExpression(condEx)
+      val isEqual    = Properties.isEquals(firstEx)
+      println(s"full=$condEx\nfirst=${isEqual}")
       assertCompletes
     }
   })
