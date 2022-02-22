@@ -5,11 +5,9 @@ import zio.dynamodb.ConditionExpression.Operand.ProjectionExpressionOperand
 import zio.dynamodb.DynamoDBQuery.toItem
 import zio.dynamodb.ProjectionExpression.{ ListElement, MapElement, Root }
 import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand }
-import zio.schema.Schema
 import zio.schema.{ AccessorBuilder, Schema }
 
-import scala.annotation.tailrec
-import scala.annotation.implicitNotFound
+import scala.annotation.{ implicitNotFound, tailrec }
 
 // The maximum depth for a document path is 32
 sealed trait ProjectionExpression { self =>
@@ -211,11 +209,6 @@ sealed trait ProjectionExpression { self =>
     loop(self, List.empty).reverse.mkString("")
   }
 }
-
-/*
-like RefersToString
-def ===[A](that: A)(implicit t: ToAttributeValue[A], eq: CanEqual[To, A]): ConditionExpression = .
- */
 
 @implicitNotFound("the type ${A} must be a string in order to use this operator")
 sealed trait RefersToString[-A]

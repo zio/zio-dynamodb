@@ -59,8 +59,6 @@ object StudentZioDynamoDbExample2 extends App {
 
   val (email, subject, enrollmentDate, payment) = ProjectionExpression.accessors[Student]
   println(s"$email $subject $enrollmentDate $payment")
-  // TODO: we may need to extend actions to take in an implicit to make them type safe eg `payment.set(Payment.PayPal)`
-  //val x: Action.SetAction                       = payment.set(Payment.PayPal)
 
   val x: Either[String, KeyConditionExpression] = KeyConditionExpression(
     email === "avi@gmail.com" && subject === "maths"
@@ -83,20 +81,15 @@ object StudentZioDynamoDbExample2 extends App {
                    .tap(student => console.putStrLn(s"student=$student"))
                    .runDrain
 
-    // TODO: could we unify KeyConditionExpression as a ConditionExpression so that we could gain PE/CE ergonomics?
-    // at the cost of less precision in the type (eg maybe we generate more runtime errors instead)?
-    // also is this the time to introduce phantom types to restrict ops like filter/query?
     _         <- queryAll[Student]("student")
-                   .filter(                                                              // Scan/Query
-                     (enrollmentDate === Instant.now.toString) && (payment === "PayPal") // TODO: can we make values type safe?
+                   .filter(                                                                   // Scan/Query
+                     (enrollmentDate === Instant.now.toString) && (payment === "PayPal")      // TODO: can we make values type safe?
                    )
                    .execute
     _         <- queryAll[Student]("student")
-                   .filter(                                                              // Scan/Query
+                   .filter(                                                                   // Scan/Query
                      (enrollmentDate === Instant.now.toString) && (payment === "PayPal")
                    )
-                   // KeyConditionExpression now really sucks in comparison
-//                   .whereKey(partitionKey("email") === "avi@gmail.com" && SortKey("subject") === "maths")
                    .whereKey(email === "avi@gmail.com" && subject === "maths")
                    .execute
     _         <- put[Student]("student", avi)
@@ -105,7 +98,7 @@ object StudentZioDynamoDbExample2 extends App {
                    )
                    .execute
     _         <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths"))(
-                   enrollmentDate.set(Instant.now.toString) + payment.set("PayPal")      // TODO: make actions type safe
+                   enrollmentDate.setValue(Instant.now.toString) + payment.setValue("PayPal") // TODO: make actions type safe
                  ).execute
     _         <- deleteItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths"))
                    .where(
