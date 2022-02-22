@@ -10,7 +10,7 @@ import scala.annotation.tailrec
 object ProjectionExpressionParserSpec extends DefaultRunnableSpec {
   object Generators {
     private val maxFields                                                                                    = 20
-    private val validCharGens                                                                                = List(Gen.const('_'), Gen.char('a', 'z'), Gen.char('a', 'z'))
+    private val validCharGens                                                                                = List(Gen.const('_'), Gen.char('a', 'z'), Gen.char('A', 'Z'), Gen.char('0', '9'))
     private def fieldName                                                                                    = Gen.stringBounded(0, 10)(Gen.oneOf(validCharGens: _*))
     private def index                                                                                        = Gen.int(0, 10)
     private def root: Gen[Random with Sized, Root]                                                           = fieldName.map(Root)
@@ -49,6 +49,9 @@ object ProjectionExpressionParserSpec extends DefaultRunnableSpec {
             else isRight(equalTo(pe))
           )
         }
+      },
+      test("toString on a ProjectionExpression of a_0[0]") {
+        assert(parse("a_0[0]"))(isRight)
       },
       test("toString on a ProjectionExpression of foo.bar[9].baz") {
         val pe = MapElement(ListElement(MapElement(Root("foo"), "bar"), 9), "baz")

@@ -2,8 +2,10 @@ package zio.dynamodb
 
 import zio.Chunk
 import zio.dynamodb.ConditionExpression.Operand.ProjectionExpressionOperand
+import zio.dynamodb.DynamoDBQuery.toItem
 import zio.dynamodb.ProjectionExpression.{ ListElement, MapElement, Root }
 import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand }
+import zio.schema.Schema
 
 import scala.annotation.tailrec
 
@@ -119,8 +121,10 @@ sealed trait ProjectionExpression { self =>
   /**
    * Modify or Add an item Attribute
    */
-  def set[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
+  def setValue[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
     UpdateExpression.Action.SetAction(self, UpdateExpression.SetOperand.ValueOperand(t.toAttributeValue(a)))
+
+  def set[A: Schema](a: A): UpdateExpression.Action.SetAction = setValue(toItem(a))
 
   /**
    * Modify or Add an item Attribute
@@ -180,8 +184,8 @@ sealed trait ProjectionExpression { self =>
 }
 
 object ProjectionExpression {
-  private val regexMapElement     = """(^[a-zA-Z_]+)""".r
-  private val regexIndexedElement = """(^[a-zA-Z_]+)(\[[0-9]+])+""".r
+  private val regexMapElement     = """(^[a-zA-Z0-9_]+)""".r
+  private val regexIndexedElement = """(^[a-zA-Z0-9_]+)(\[[0-9]+])+""".r
   private val regexGroupedIndexes = """(\[([0-9]+)])""".r
 
   // Note that you can only use a ProjectionExpression if the first character is a-z or A-Z and the second character
