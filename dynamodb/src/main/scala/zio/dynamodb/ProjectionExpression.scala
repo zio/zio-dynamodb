@@ -86,15 +86,9 @@ sealed trait ProjectionExpression { self =>
     ConditionExpression.Contains(self, t.toAttributeValue(av))
 
   // constraint: String
-  // t: needs to be more constrained than implicit t: ToAttributeValue[A] as function only applies to Strings
-//  def beginsWith(av: String)(implicit ev: RefersToString[To]): ConditionExpression = {
-//    println(ev) // TODO to get around "parameter value ev in method beginsWith is never used"
-//    ConditionExpression.BeginsWith(self, AttributeValue.String(av))
-//  }
-  // TODO: re-instate the above restriction to String
-  def beginsWith[A](av: A)(implicit t: ToAttributeValue[A], ev: RefersToString[To]): ConditionExpression = {
+  def beginsWith(av: String)(implicit ev: RefersToString[To]): ConditionExpression = {
     println(ev) // TODO to get around "parameter value ev in method beginsWith is never used"
-    ConditionExpression.BeginsWith(self, t.toAttributeValue(av))
+    ConditionExpression.BeginsWith(self, AttributeValue.String(av))
   }
 
   // constraint: NONE
@@ -218,6 +212,11 @@ sealed trait ProjectionExpression { self =>
   }
 }
 
+/*
+like RefersToString
+def ===[A](that: A)(implicit t: ToAttributeValue[A], eq: CanEqual[To, A]): ConditionExpression = .
+ */
+
 @implicitNotFound("the type ${A} must be a string in order to use this operator")
 sealed trait RefersToString[-A]
 object RefersToString {
@@ -276,17 +275,6 @@ object ProjectionExpression {
 //    age.beginsWith("X") // this will fail compilation with a custom compile error msg
     name.beginsWith("X")
 
-    /*
-    next step is to deal with strings in path expressions
-
-[error] /home/avinder/Workspaces/git/zio-dynamodb/examples/src/main/scala/zio/dynamodb/examples/ConditionExpressionExamples.scala:15:25: the type stabilizer$1.To must be a string in order to use this operator
-[error]     $("col1").beginsWith("1") // TODO: "the type stabilizer$1.To must be a string in order to use this operator"
-[error]                         ^
-[error] /home/avinder/Workspaces/git/zio-dynamodb/examples/src/main/scala/zio/dynamodb/examples/PutItemExamples.scala:10:100: the type stabilizer$1.To must be a string in order to use this operator
-[error]   putItem("tableName2", Item("field1" -> 1)) where $("foo.bar").isNumber && $("foo.bar").beginsWith("f")
-[error]                                                                                                    ^
-[error] two errors found
-     */
   }
 
   private val regexMapElement     = """(^[a-zA-Z0-9_]+)""".r

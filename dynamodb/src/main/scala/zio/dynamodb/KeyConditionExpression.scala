@@ -34,7 +34,7 @@ object KeyConditionExpression {
 
   /**
    * Create a KeyConditionExpression from a ConditionExpression
-   * Must be in the form of `<Condition1> && <Cindition2>` where format of `<Condition1>` is:
+   * Must be in the form of `<Condition1> && <Condition2>` where format of `<Condition1>` is:
    * {{{<ProjectionExpressionForPartitionKey> === <value>}}}
    * and the format of `<Condition2>` is:
    * {{{<ProjectionExpressionForSortKey> <op> <value>}}} where op can be one of `===`, `>`, `>=`, `<`, `<=`, `between`, `beginsWith`
@@ -140,7 +140,6 @@ object KeyConditionExpression {
                 .Equals(PartitionKey(partitionKey), avL)
                 .&&(SortKeyExpression.BeginsWith(SortKey(sortKey), av))
             )
-          // TODO: more cases for LessThan,GreaterThan, LessThanOrEqual, GreaterThanOrEqual, Between, BeginsWith
           case c => Left(s"condition $c is not a valid sort condition expression")
         }
 
