@@ -308,7 +308,7 @@ object ProjectionExpression {
    * // Left("error with fo$$o,error with ba$$r[9],error with ba$$z")
    * }}}
    * @param s Projection expression as a string
-   * @return either a `Right` of ProjectionExpression if successful, else a `Chunk` of error strings
+   * @return either a `Right` of ProjectionExpression if successful, else a list of errors in a string
    */
   def parse(s: String): Either[String, ProjectionExpression] = {
 
