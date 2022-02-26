@@ -102,7 +102,7 @@ sealed trait ProjectionExpression { self =>
       .in(values.map(t.toAttributeValue).toSet + t.toAttributeValue(value))
 
   @implicitNotFound(
-    "the type ${A} is not camparable to the type ${B}. To compare two type t need to be compatible"
+    "the type ${A} is not comparable to the type ${B}. To compare two types they need to be compatible"
   ) // TOD clean up wording
   trait DynamodbEquality[A, -B] {}
   object DynamodbEquality       {
