@@ -40,6 +40,8 @@ object StudentZioDynamoDbExample2 extends App {
       DeriveSchema.gen[Student]
   }
 
+  object Foo extends DefaultJavaTimeSchemas
+
   private val awsConfig = ZLayer.succeed(
     config.CommonAwsConfig(
       region = None,
@@ -82,12 +84,12 @@ object StudentZioDynamoDbExample2 extends App {
                    .runDrain
 
     _         <- queryAll[Student]("student")
-                   .filter(                                                                   // Scan/Query
-                     (enrollmentDate === Instant.now.toString) && (payment === "PayPal")      // TODO: can we make values type safe?
+                   .filter(                                                              // Scan/Query
+                     (enrollmentDate === Instant.now.toString) && (payment === "PayPal") // TODO: can we make values type safe?
                    )
                    .execute
     _         <- queryAll[Student]("student")
-                   .filter(                                                                   // Scan/Query
+                   .filter(                                                              // Scan/Query
                      (enrollmentDate === Instant.now.toString) && (payment === "PayPal")
                    )
                    .whereKey(email === "avi@gmail.com" && subject === "maths")
@@ -97,9 +99,10 @@ object StudentZioDynamoDbExample2 extends App {
                      (enrollmentDate === Instant.now.toString) && (payment === "PayPal")
                    )
                    .execute
-    _         <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths"))(
-                   enrollmentDate.setValue(Instant.now.toString) + payment.setValue("PayPal") // TODO: make actions type safe
-                 ).execute
+    _         <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
+                   import Foo._
+                   enrollmentDate.set3(Some(Instant.now)) + payment.set2[Payment](Payment.PayPal)(Payment.schema)
+                 }.execute
     _         <- deleteItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths"))
                    .where(
                      (enrollmentDate === Instant.now.toString) && (payment === "PayPal")

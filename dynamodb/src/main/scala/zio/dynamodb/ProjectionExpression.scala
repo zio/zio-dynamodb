@@ -101,36 +101,47 @@ sealed trait ProjectionExpression { self =>
       .ProjectionExpressionOperand(self)
       .in(values.map(t.toAttributeValue).toSet + t.toAttributeValue(value))
 
+  @implicitNotFound(
+    "the type ${A} is not camparable to the type ${B}. To compare two type t need to be compatible"
+  ) // TOD clean up wording
+  trait DynamodbEquality[A, -B] {}
+  object DynamodbEquality       {
+    implicit def refl[A]: DynamodbEquality[A, A]                = new DynamodbEquality[A, A] {}
+    implicit def leftIsNothing[A]: DynamodbEquality[Nothing, A] = new DynamodbEquality[Nothing, A] {}
+  }
   /*
   like RefersToString
   def ===[A](that: A)(implicit t: ToAttributeValue[A], eq: CanEqual[To, A]): ConditionExpression = .
    */
-  def ===[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
+  def ===[A](that: A)(implicit t: ToAttributeValue[A], eq: DynamodbEquality[To, A]): ConditionExpression = {
+    val _ = eq
     ConditionExpression.Equals(
       ProjectionExpressionOperand(self),
       ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
     )
-  def <>[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression  =
+  }
+
+  def <>[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
     ConditionExpression.NotEqual(
       ProjectionExpressionOperand(self),
       ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
     )
-  def <[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression   =
+  def <[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression  =
     ConditionExpression.LessThan(
       ProjectionExpressionOperand(self),
       ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
     )
-  def <=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression  =
+  def <=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
     ConditionExpression.LessThanOrEqual(
       ProjectionExpressionOperand(self),
       ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
     )
-  def >[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression   =
+  def >[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression  =
     ConditionExpression.GreaterThanOrEqual(
       ProjectionExpressionOperand(self),
       ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
     )
-  def >=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression  =
+  def >=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
     ConditionExpression.GreaterThanOrEqual(
       ProjectionExpressionOperand(self),
       ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
@@ -145,6 +156,34 @@ sealed trait ProjectionExpression { self =>
     UpdateExpression.Action.SetAction(self, UpdateExpression.SetOperand.ValueOperand(t.toAttributeValue(a)))
 
   def set[A: Schema](a: A): UpdateExpression.Action.SetAction = setValue(toItem(a))
+
+  def set2[A](a: A)(implicit schema: Schema[A]): UpdateExpression.Action.SetAction =
+    schema match {
+      case s @ Schema.Primitive(_, _)   =>
+        val enc                = Codec.encoder[A](s)
+        val av: AttributeValue = enc(a)
+        setValue(av)
+      case s @ Schema.Enum3(_, _, _, _) =>
+        val enc                = Codec.encoder[A](s)
+        val av: AttributeValue = enc(a)
+        setValue(av)
+      case _                            =>
+        setValue(toItem(a))
+    }
+
+  def set3(a: To)(implicit schema: Schema[To]): UpdateExpression.Action.SetAction =
+    schema match {
+      case s @ Schema.Primitive(_, _)   =>
+        val enc                = Codec.encoder[To](s)
+        val av: AttributeValue = enc(a)
+        setValue(av)
+      case s @ Schema.Enum3(_, _, _, _) =>
+        val enc                = Codec.encoder[To](s)
+        val av: AttributeValue = enc(a)
+        setValue(av)
+      case _                            =>
+        setValue(toItem(a))
+    }
 
   /**
    * Modify or Add an item Attribute
