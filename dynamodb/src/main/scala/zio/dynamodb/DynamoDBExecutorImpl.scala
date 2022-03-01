@@ -85,6 +85,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       case c: TransactWriteItems => executeTransactWriteItems(c)
       case c: TransactGetItems   => executeTransactGetItems(c)
       case Succeed(c)            => ZIO.succeed(c())
+      // match on the FailCause => ZIO.failCause(c.cause())
     }
 
   override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Throwable, A] =

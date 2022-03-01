@@ -342,33 +342,36 @@ sealed trait DynamoDBQuery[+A] { self =>
     }
 
   // This would need to know if we were doing a transact read or a transact write
-  final def transaction(): Either[InvalidTransactionActions[A], DynamoDBQuery[A]] =
+  // do not expose this type signature
+  // do not expose empty parens: they don't do anything in functional
+
+  // if we do transaction on a bunch of things that are not transactional then do we want to break things up into individual transactions that are workable
+  // return the fail cause here if we get an invalid transaction
+
+  // we're duplicating some of the implementation details with both the TransactWrite & TransactGet
+  // We should treat case of gets/writes in the same transaction as a failure case just like a scan or a query
+
+  final def transaction: DynamoDBQuery[A] =
     self match {
       case c: DeleteItem              =>
-        Right(
-          TransactWriteItems(
-            transactions = Chunk(TransactWriteItems.Delete(c.key, c.tableName, c.conditionExpression)),
-            capacity = c.capacity,
-            itemMetrics = c.itemMetrics
-          ).asInstanceOf[DynamoDBQuery[A]]
-        )
+        TransactWriteItems(
+          transactions = Chunk(TransactWriteItems.Delete(c.key, c.tableName, c.conditionExpression)),
+          capacity = c.capacity,
+          itemMetrics = c.itemMetrics
+        ).asInstanceOf[DynamoDBQuery[A]]
       case c: PutItem                 =>
-        Right(
-          TransactWriteItems(
-            transactions = Chunk(TransactWriteItems.Put(c.item, c.tableName, c.conditionExpression)),
-            capacity = c.capacity,
-            itemMetrics = c.itemMetrics
-          ).asInstanceOf[DynamoDBQuery[A]]
-        )
+        TransactWriteItems(
+          transactions = Chunk(TransactWriteItems.Put(c.item, c.tableName, c.conditionExpression)),
+          capacity = c.capacity,
+          itemMetrics = c.itemMetrics
+        ).asInstanceOf[DynamoDBQuery[A]]
       case c: UpdateItem              =>
-        Right(
-          TransactWriteItems(
-            transactions =
-              Chunk(TransactWriteItems.Update(c.key, c.tableName, c.updateExpression, c.conditionExpression)),
-            capacity = c.capacity,
-            itemMetrics = c.itemMetrics
-          ).asInstanceOf[DynamoDBQuery[A]]
-        )
+        TransactWriteItems(
+          transactions =
+            Chunk(TransactWriteItems.Update(c.key, c.tableName, c.updateExpression, c.conditionExpression)),
+          capacity = c.capacity,
+          itemMetrics = c.itemMetrics
+        ).asInstanceOf[DynamoDBQuery[A]]
       case c: Succeed[A]              => Right(c)
       case c: GetItem                 => Right(TransactGetItems(items = Chunk(c), capacity = c.capacity).asInstanceOf[DynamoDBQuery[A]])
       case c: BatchGetItem            =>
@@ -425,6 +428,9 @@ object DynamoDBQuery {
   sealed trait Write[+A]       extends Constructor[A]
 
   def succeed[A](a: A): DynamoDBQuery[A] = Succeed(() => a)
+
+  case class FailCause(cause: () => Cause[Throwable]) extends DynamoDBQuery[Nothing]
+  def failCause(cause: => Cause[Throwable]): DynamoDBQuery[Nothing] = FailCause(() => cause)
 
   /**
    * Each element in `values` is zipped together using function `body` which has signature `A => DynamoDBQuery[B]`
@@ -690,6 +696,10 @@ object DynamoDBQuery {
 
   should be able to wrap transactions inside of each other and get a single transaction -- nestable
 
+  if a user calls transaction on a `zip` then we expect those transactions/queries to be executed as a single transaction rather than a group of individual transactions
+
+  transaction (zip transaction transaction) -> single transaction
+
    */
 
 //  private[dynamodb] final case class Transaction[A](
@@ -709,7 +719,7 @@ object DynamoDBQuery {
 
     def +[A](transaction: DynamoDBQuery[A]): TransactWriteItems =
       transaction match {
-        case putItem: PutItem               =>
+        case putItem: PutItem                       =>
           self.copy(transactions =
             self.transactions :+ TransactWriteItems.Put(
               item = putItem.item,
@@ -717,7 +727,7 @@ object DynamoDBQuery {
               conditionExpression = putItem.conditionExpression
             )
           )
-        case deleteItem: DeleteItem         =>
+        case deleteItem: DeleteItem                 =>
           self.copy(transactions =
             self.transactions :+ TransactWriteItems.Delete(
               primaryKey = deleteItem.key,
@@ -725,7 +735,7 @@ object DynamoDBQuery {
               conditionExpression = deleteItem.conditionExpression
             )
           )
-        case conditionCheck: ConditionCheck =>
+        case conditionCheck: ConditionCheck         =>
           self.copy(transactions =
             self.transactions :+ TransactWriteItems.ConditionCheck(
               primaryKey = conditionCheck.primaryKey,
@@ -733,7 +743,7 @@ object DynamoDBQuery {
               conditionExpression = conditionCheck.conditionExpression
             )
           )
-        case updateItem: UpdateItem         =>
+        case updateItem: UpdateItem                 =>
           self.copy(transactions =
             self.transactions :+ TransactWriteItems.Update(
               primaryKey = updateItem.key,
@@ -742,8 +752,10 @@ object DynamoDBQuery {
               updateExpression = updateItem.updateExpression
             )
           )
+        case batchWriteItem: BatchWriteItem         => ???
+        case transactWriteItems: TransactWriteItems => ???
 
-        case _                              => ??? // TODO: If we can't add something to the transaction should we just ignore it?
+        case _ => self // TODO: If we can't add something to the transaction should we just ignore it?
       }
   }
 
@@ -778,7 +790,14 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     clientRequestToken: Option[String] = None
-  ) extends Constructor[Chunk[Option[Item]]]
+  ) extends Constructor[Chunk[Option[Item]]] { self =>
+    def +[A](transaction: DynamoDBQuery[A]): TransactGetItems =
+      transaction match {
+        case getItem: GetItem           => ???
+        case batchGetItem: BatchGetItem => ???
+      }
+
+  }
 
   private[dynamodb] final case class BatchWriteItem(
     requestItems: MapOfSet[TableName, BatchWriteItem.Write] = MapOfSet.empty,
