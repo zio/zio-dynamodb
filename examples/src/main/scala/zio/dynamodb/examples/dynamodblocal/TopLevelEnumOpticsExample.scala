@@ -2,12 +2,12 @@ package zio.dynamodb.examples.dynamodblocal
 
 import zio.dynamodb.DynamoDBQuery.queryAll
 import zio.dynamodb.{ DynamoDBQuery, ProjectionExpression }
-import zio.dynamodb.examples.dynamodblocal.StudentZioDynamoDbExample2.Student
-import zio.dynamodb.examples.dynamodblocal.TopLevelEnumROExample.Invoice.{ BilledInvoice, PreBilledInvoice }
+import zio.dynamodb.examples.dynamodblocal.StudentZioDynamoDbExampleWithOptics.Student
+import zio.dynamodb.examples.dynamodblocal.TopLevelEnumOpticsExample.Invoice.{ BilledInvoice, PreBilledInvoice }
 import zio.schema.{ DeriveSchema, Schema }
 import zio.stream
 
-object TopLevelEnumROExample {
+object TopLevelEnumOpticsExample {
   sealed trait Invoice {
     def id: String
   }

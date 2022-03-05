@@ -9,6 +9,14 @@ object BatchGetItemExamples {
   val tableName1: TableName = TableName("T1")
   val tableName2: TableName = TableName("T2")
 
+  val pe = ProjectionExpression
+    .MapElement(
+      ProjectionExpression.Root,
+      "fooBar"
+    )
+
+  val eqTest = (getItem("T1", PrimaryKey("field1" -> "1"), $("a.b"), $("c.b")) where $("a.b") === "X")
+
   // Queries that are zipped together become eligible for auto-batching in `execute`
   val batchWithZip =
     (getItem("T1", PrimaryKey("field1" -> "1"), $("a.b"), $("c.b")) where $(
@@ -37,14 +45,14 @@ object BatchGetItemExamples {
 
   // If we have an Iterable of data from which we wish to create a batch query from we can use `DynamoDBQuery.forEach`
   // The below example will create 1 BatchGetItem containing 10 GetItem requests
-  val batchFromIterable                                                         = DynamoDBQuery.forEach(1 to 10) { i =>
-    getItem(
-      "T1",
-      PrimaryKey("field1" -> i),
-      $("field1"),
-      $("field2")
-    ) where $(
-      "field1"
-    ) === 42
-  }
+//  val batchFromIterable                                                         = DynamoDBQuery.forEach(1 to 10) { i =>
+//    getItem(
+//      "T1",
+//      PrimaryKey("field1" -> i),
+//      $("field1"),
+//      $("field2")
+//    ) where $(
+//      "field1"
+//    ) === 42
+//  }
 }
