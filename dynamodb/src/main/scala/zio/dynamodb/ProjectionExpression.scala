@@ -3,7 +3,7 @@ package zio.dynamodb
 import zio.Chunk
 import zio.dynamodb.ConditionExpression.Operand.ProjectionExpressionOperand
 import zio.dynamodb.DynamoDBQuery.toItem
-import zio.dynamodb.ProjectionExpression.{ ListElement, MapElement, Root }
+import zio.dynamodb.ProjectionExpression.{ ListElement, MapElement, RefersToString, Root }
 import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand }
 import zio.schema.{ AccessorBuilder, Schema }
 
@@ -101,15 +101,6 @@ sealed trait ProjectionExpression { self =>
       .ProjectionExpressionOperand(self)
       .in(values.map(t.toAttributeValue).toSet + t.toAttributeValue(value))
 
-  @implicitNotFound(
-    "the type ${A} is not comparable to the type ${B}. To compare two types they need to be compatible"
-  )
-  trait DynamodbEquality[A, -B] {}
-  object DynamodbEquality       {
-    implicit def refl[A]: DynamodbEquality[A, A]                = new DynamodbEquality[A, A] {}
-    implicit def leftIsNothing[A]: DynamodbEquality[Nothing, A] = new DynamodbEquality[Nothing, A] {}
-  }
-
   def ===[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
     ConditionExpression.Equals(
       ProjectionExpressionOperand(self),
@@ -154,6 +145,7 @@ sealed trait ProjectionExpression { self =>
 
   // setValue uses FromAttributeValue.attrMapFromAttributeValue.fromAttributeValue ie only works with AttrMaps
   // so we need another way to SET non AttrMap scalar types
+  // TODO: remove
   def set2[A](a: A)(implicit schema: Schema[A]): UpdateExpression.Action.SetAction =
     schema match {
       case s @ Schema.Primitive(_, _)   =>
@@ -168,6 +160,7 @@ sealed trait ProjectionExpression { self =>
         setValue(toItem(a))
     }
 
+  // TODO: remove
   def set3(a: To)(implicit schema: Schema[To]): UpdateExpression.Action.SetAction =
     schema match {
       case s @ Schema.Primitive(_, _)   =>
@@ -230,12 +223,6 @@ sealed trait ProjectionExpression { self =>
     @tailrec
     def loop(pe: ProjectionExpression, acc: List[String]): List[String] =
       pe match {
-        /*
-        If you have a PE that DDB does not know how to handle, then you have an error
-        eg [0] // DDB does not support top level array or primitives at the top level
-        so we need more code everywhere it is used to check that ROOT is valid and maybe
-        special case it when in the context of the top level.
-         */
         case Root                                        => acc // identity
         case ProjectionExpression.MapElement(Root, name) => acc :+ s"$name"
         case MapElement(parent, key)                     => loop(parent, acc :+ s".$key")
@@ -246,16 +233,25 @@ sealed trait ProjectionExpression { self =>
   }
 }
 
-@implicitNotFound("the type ${A} must be a string in order to use this operator")
-sealed trait RefersToString[-A]
-object RefersToString {
-  implicit val x: RefersToString[String] = new RefersToString[String] {}
-}
-
 object ProjectionExpression {
   type Typed[From0, To0] = ProjectionExpression {
     type From = From0
     type To   = To0
+  }
+
+  @implicitNotFound("the type ${A} must be a string in order to use this operator")
+  sealed trait RefersToString[-A]
+  object RefersToString {
+    implicit val refers: RefersToString[String] = new RefersToString[String] {}
+  }
+
+  @implicitNotFound(
+    "the type ${A} is not comparable to the type ${B}. To compare two types they need to be compatible"
+  )
+  trait DynamodbEquality[A, -B] {}
+  object DynamodbEquality       {
+    implicit def refl[A]: DynamodbEquality[A, A]                = new DynamodbEquality[A, A] {}
+    implicit def leftIsNothing[A]: DynamodbEquality[Nothing, A] = new DynamodbEquality[Nothing, A] {}
   }
 
   val builder = new AccessorBuilder {
@@ -263,48 +259,18 @@ object ProjectionExpression {
     override type Prism[From, To]     = ProjectionExpression.Typed[From, To]
     override type Traversal[From, To] = Unit
 
-    // ProjectionExpression.MapElement(Root, name)
-
     override def makeLens[S, A](product: Schema.Record[S], term: Schema.Field[A]): Lens[S, A] =
       ProjectionExpression.MapElement(Root, term.label).asInstanceOf[Lens[S, A]]
-    //ProjectionExpression.Root(term.label).asInstanceOf[Lens[S, A]]
 
-    /*
-    need to respect enum annotations
-    may need PE.identity case object => we do not need Root anymore
-
-     */
     override def makePrism[S, A](sum: Schema.Enum[S], term: Schema.Case[A, S]): Prism[S, A] =
       ProjectionExpression.MapElement(Root, term.id).asInstanceOf[Prism[S, A]]
-    //ProjectionExpression.Root(term.id).asInstanceOf[Prism[S, A]]
 
     override def makeTraversal[S, A](collection: Schema.Collection[S, A], element: Schema[A]): Traversal[S, A] = ()
   }
 
-  // where should we put this?
+  // TODO: where should we put this?
   def accessors[A](implicit s: Schema[A]): s.Accessors[builder.Lens, builder.Prism, builder.Traversal] =
     s.makeAccessors(builder)
-
-  final case class Person(name: String, age: Int)
-  object Person {
-    implicit val schema = Schema.CaseClass2[String, Int, Person](
-      Schema.Field("name", Schema[String]),
-      Schema.Field("age", Schema[Int]),
-      Person(_, _),
-      _.name,
-      _.age
-    )
-
-    /*
-    we only want this to work on Person
-
-    where age > 2
-     */
-    val (name, age) = ProjectionExpression.accessors[Person]
-//    age.beginsWith("X") // this will fail compilation with a custom compile error msg
-    name.beginsWith("X")
-
-  }
 
   private val regexMapElement     = """(^[a-zA-Z0-9_]+)""".r
   private val regexIndexedElement = """(^[a-zA-Z0-9_]+)(\[[0-9]+])+""".r
