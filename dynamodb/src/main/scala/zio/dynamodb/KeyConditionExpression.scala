@@ -64,7 +64,6 @@ object KeyConditionExpression {
               ConditionExpression.Operand.ValueOperand(avL)
             ),
             rhs
-            //SortKeyExpression.Equals(SortKey(name), av)
           ) =>
         rhs match {
           case ConditionExpression.Equals(
