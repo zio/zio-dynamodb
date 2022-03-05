@@ -141,39 +141,10 @@ sealed trait ProjectionExpression { self =>
   def setValue[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
     UpdateExpression.Action.SetAction(self, UpdateExpression.SetOperand.ValueOperand(t.toAttributeValue(a)))
 
+  /**
+   * Modify or Add an `A`` for which there is a `Schema[A]` - note at the moment this only works for case classes
+   */
   def set[A: Schema](a: A): UpdateExpression.Action.SetAction = setValue(toItem(a))
-
-  // setValue uses FromAttributeValue.attrMapFromAttributeValue.fromAttributeValue ie only works with AttrMaps
-  // so we need another way to SET non AttrMap scalar types
-  // TODO: remove
-  def set2[A](a: A)(implicit schema: Schema[A]): UpdateExpression.Action.SetAction =
-    schema match {
-      case s @ Schema.Primitive(_, _)   =>
-        val enc                = Codec.encoder[A](s)
-        val av: AttributeValue = enc(a)
-        setValue(av)
-      case s @ Schema.Enum3(_, _, _, _) =>
-        val enc                = Codec.encoder[A](s)
-        val av: AttributeValue = enc(a)
-        setValue(av)
-      case _                            =>
-        setValue(toItem(a))
-    }
-
-  // TODO: remove
-  def set3(a: To)(implicit schema: Schema[To]): UpdateExpression.Action.SetAction =
-    schema match {
-      case s @ Schema.Primitive(_, _)   =>
-        val enc                = Codec.encoder[To](s)
-        val av: AttributeValue = enc(a)
-        setValue(av)
-      case s @ Schema.Enum3(_, _, _, _) =>
-        val enc                = Codec.encoder[To](s)
-        val av: AttributeValue = enc(a)
-        setValue(av)
-      case _                            =>
-        setValue(toItem(a))
-    }
 
   /**
    * Modify or Add an item Attribute

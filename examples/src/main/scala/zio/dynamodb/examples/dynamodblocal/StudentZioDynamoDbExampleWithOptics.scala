@@ -11,7 +11,7 @@ import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb._
 import zio.dynamodb.examples.LocalDdbServer
-import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema, Schema }
+import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema }
 import zio.stream.ZStream
 import zio.{ console, App, ExitCode, Has, URIO, ZIO, ZLayer }
 
@@ -31,14 +31,12 @@ object StudentZioDynamoDbExampleWithOptics extends App {
     final case object CreditCard extends Payment
     final case object PayPal     extends Payment
 
-    // weirdly the compiler complains about order - maybe auto derivation sorts the cases - JDG has reported an issue with ordering
-    // Note downcast is not required - its just to keep Intellij happy
-    implicit val schema: Schema.Enum3[CreditCard.type, DebitCard.type, PayPal.type, Payment] = DeriveSchema.gen[Payment]
+    implicit val schema = DeriveSchema.gen[Payment]
   }
   final case class Student(email: String, subject: String, enrollmentDate: Option[Instant], payment: Payment)
   object Student extends DefaultJavaTimeSchemas {
-    implicit val schema: Schema.CaseClass4[String, String, Option[Instant], Payment, Student] =
-      DeriveSchema.gen[Student]
+    implicit val schema                           = DeriveSchema.gen[Student]
+    val (email, subject, enrollmentDate, payment) = ProjectionExpression.accessors[Student]
   }
 
   object TimeSchemas extends DefaultJavaTimeSchemas
@@ -60,8 +58,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
   private val layer = ((dynamoDbLayer ++ ZLayer.identity[Has[Clock.Service]]) >>> DynamoDBExecutor.live) ++ (ZLayer
     .identity[Has[Blocking.Service]] >>> LocalDdbServer.inMemoryLayer)
 
-  val (email, subject, enrollmentDate, payment) = ProjectionExpression.accessors[Student]
-  println(s"$email $subject $enrollmentDate $payment")
+  import zio.dynamodb.examples.dynamodblocal.StudentZioDynamoDbExampleWithOptics.Student._
 
   private val program = for {
     _         <- createTable("student", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
@@ -94,8 +91,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                    )
                    .execute
     _         <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
-                   import TimeSchemas._
-                   enrollmentDate.set2(Instant.now) + payment.set2[Payment](Payment.PayPal)(Payment.schema)
+                   enrollmentDate.setValue(Instant.now.toString) + payment.setValue(Payment.PayPal.toString)
                  }.execute
     _         <- deleteItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths"))
                    .where(
