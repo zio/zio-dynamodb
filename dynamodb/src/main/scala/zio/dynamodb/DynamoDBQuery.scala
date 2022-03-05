@@ -307,7 +307,8 @@ sealed trait DynamoDBQuery[+A] { self =>
    * }}}
    */
   def whereKey(conditionExpression: ConditionExpression): DynamoDBQuery[A] = {
-    val keyConditionExpression: KeyConditionExpression = KeyConditionExpression.unsafe(conditionExpression)
+    val keyConditionExpression: KeyConditionExpression =
+      KeyConditionExpression.fromConditionExpressionUnsafe(conditionExpression)
     self match {
       case Zip(left, right, zippable) =>
         Zip(left.whereKey(keyConditionExpression), right.whereKey(keyConditionExpression), zippable)

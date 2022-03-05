@@ -46,7 +46,7 @@ object KeyConditionExpression {
    * val keyConditionExprn = filterKey(email === "avi@gmail.com" && subject === "maths")
    * }}}
    */
-  private[dynamodb] def unsafe(c: ConditionExpression): KeyConditionExpression =
+  private[dynamodb] def fromConditionExpressionUnsafe(c: ConditionExpression): KeyConditionExpression =
     KeyConditionExpression(c).getOrElse(
       throw new IllegalStateException(s"Error: invalid key condition expression $c")
     )
@@ -140,7 +140,7 @@ object KeyConditionExpression {
                 .Equals(PartitionKey(partitionKey), avL)
                 .&&(SortKeyExpression.BeginsWith(SortKey(sortKey), av))
             )
-          case c => Left(s"condition $c is not a valid sort condition expression")
+          case c => Left(s"condition '$c' is not a valid sort condition expression")
         }
 
       case c => Left(s"condition $c is not a valid key condition expression")

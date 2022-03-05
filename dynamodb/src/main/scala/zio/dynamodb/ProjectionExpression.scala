@@ -85,7 +85,7 @@ sealed trait ProjectionExpression { self =>
 
   // constraint: String
   def beginsWith(av: String)(implicit ev: RefersToString[To]): ConditionExpression = {
-    println(ev) // TODO to get around "parameter value ev in method beginsWith is never used"
+    val _ = ev
     ConditionExpression.BeginsWith(self, AttributeValue.String(av))
   }
 
@@ -142,7 +142,7 @@ sealed trait ProjectionExpression { self =>
     UpdateExpression.Action.SetAction(self, UpdateExpression.SetOperand.ValueOperand(t.toAttributeValue(a)))
 
   /**
-   * Modify or Add an `A`` for which there is a `Schema[A]` - note at the moment this only works for case classes
+   * Modify or Add an `A` for which there is a `Schema[A]` - note at the moment this only works for case classes
    */
   def set[A: Schema](a: A): UpdateExpression.Action.SetAction = setValue(toItem(a))
 
