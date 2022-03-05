@@ -20,8 +20,9 @@ import java.time.Instant
 
 /**
  * An equivalent app to [[StudentJavaSdkExample]] but using `zio-dynamodb` - note the reduction in boiler plate code!
+ * It also uses the type safe query and update API.
  */
-object StudentZioDynamoDbExample2 extends App {
+object StudentZioDynamoDbExampleWithOptics extends App {
 
   @enumOfCaseObjects
   sealed trait Payment
@@ -30,9 +31,9 @@ object StudentZioDynamoDbExample2 extends App {
     final case object CreditCard extends Payment
     final case object PayPal     extends Payment
 
-    // report bug
-    // weirdly the compiler complains about order - maybe auto derivation sorts the cases
-    val schema: Schema.Enum3[CreditCard.type, DebitCard.type, PayPal.type, Payment] = DeriveSchema.gen[Payment]
+    // weirdly the compiler complains about order - maybe auto derivation sorts the cases - JDG has reported an issue with ordering
+    // Note downcast is not required - its just to keep Intellij happy
+    implicit val schema: Schema.Enum3[CreditCard.type, DebitCard.type, PayPal.type, Payment] = DeriveSchema.gen[Payment]
   }
   final case class Student(email: String, subject: String, enrollmentDate: Option[Instant], payment: Payment)
   object Student extends DefaultJavaTimeSchemas {
@@ -40,7 +41,7 @@ object StudentZioDynamoDbExample2 extends App {
       DeriveSchema.gen[Student]
   }
 
-  object Foo extends DefaultJavaTimeSchemas
+  object TimeSchemas extends DefaultJavaTimeSchemas
 
   private val awsConfig = ZLayer.succeed(
     config.CommonAwsConfig(
@@ -62,11 +63,6 @@ object StudentZioDynamoDbExample2 extends App {
   val (email, subject, enrollmentDate, payment) = ProjectionExpression.accessors[Student]
   println(s"$email $subject $enrollmentDate $payment")
 
-  val x: Either[String, KeyConditionExpression] = KeyConditionExpression(
-    email === "avi@gmail.com" && subject === "maths"
-  )
-  println(s"XXXXXXXXXXXXXXXXXXXXX x=$x")
-
   private val program = for {
     _         <- createTable("student", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
                    AttributeDefinition.attrDefnString("email"),
@@ -83,29 +79,29 @@ object StudentZioDynamoDbExample2 extends App {
                    .tap(student => console.putStrLn(s"student=$student"))
                    .runDrain
 
+    _         <- queryAll[Student]("student").filter { // TODO: - implicit Schema for Option[A] needs to be available for =====
+                   import TimeSchemas._
+                   enrollmentDate.equalsSome(Instant.now) && payment === "PayPal"
+                 }.execute
     _         <- queryAll[Student]("student")
-                   .filter(                                                              // Scan/Query
-                     (enrollmentDate === Instant.now.toString) && (payment === "PayPal") // TODO: can we make values type safe?
-                   )
-                   .execute
-    _         <- queryAll[Student]("student")
-                   .filter(                                                              // Scan/Query
-                     (enrollmentDate === Instant.now.toString) && (payment === "PayPal")
+                   .filter(
+                     enrollmentDate === Instant.now.toString && (payment ===== [Payment] Payment.PayPal)
                    )
                    .whereKey(email === "avi@gmail.com" && subject === "maths")
                    .execute
-    _         <- put[Student]("student", avi)
-                   .where(
-                     (enrollmentDate === Instant.now.toString) && (payment === "PayPal")
-                   )
-                   .execute
+    _         <-
+      put[Student]("student", avi)
+        .where(
+          enrollmentDate === Instant.now.toString && email ===== "avi@gmail.com" && (payment ===== [Payment] Payment.PayPal)
+        )
+        .execute
     _         <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
-                   import Foo._
-                   enrollmentDate.set3(Some(Instant.now)) + payment.set2[Payment](Payment.PayPal)(Payment.schema)
+                   import TimeSchemas._
+                   enrollmentDate.set2(Instant.now) + payment.set2[Payment](Payment.PayPal)(Payment.schema)
                  }.execute
     _         <- deleteItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths"))
                    .where(
-                     (enrollmentDate === Instant.now.toString) && (payment === "PayPal")
+                     enrollmentDate === Instant.now.toString && payment ===== [Payment] Payment.PayPal
                    )
                    .execute
   } yield ()

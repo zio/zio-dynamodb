@@ -113,12 +113,57 @@ sealed trait ProjectionExpression { self =>
   like RefersToString
   def ===[A](that: A)(implicit t: ToAttributeValue[A], eq: CanEqual[To, A]): ConditionExpression = .
    */
-  def ===[A](that: A)(implicit t: ToAttributeValue[A], eq: DynamodbEquality[To, A]): ConditionExpression = {
-    val _ = eq
+  def ===[A](that: A)(implicit /* eq: DynamodbEquality[To, A], */ t: ToAttributeValue[A]): ConditionExpression = {
+//    val _ = eq
+    val _ = that
     ConditionExpression.Equals(
       ProjectionExpressionOperand(self),
       ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
     )
+  }
+
+  def equalsSome[A](that: A)(implicit schema: Schema[A]): ConditionExpression =
+    schema match {
+      case s @ Schema.Primitive(_, _) =>
+        val enc                = Codec.encoder[A](s)
+        val av: AttributeValue = enc(that)
+        ConditionExpression.Equals(
+          ProjectionExpressionOperand(self),
+          ConditionExpression.Operand.ValueOperand(av)
+        )
+      case _                          =>
+        // TODO:
+        ConditionExpression.Equals(
+          ProjectionExpressionOperand(self),
+          ConditionExpression.Operand.ValueOperand(null) // TODO
+        )
+    }
+
+  // for PE's created using RO
+  def =====[A](that: A)(implicit eq: DynamodbEquality[To, A], schema: Schema[A]): ConditionExpression = {
+    val _ = eq
+    // TODO: comprehensive match
+    schema match {
+      case s @ Schema.Primitive(_, _)   =>
+        val enc                = Codec.encoder[A](s)
+        val av: AttributeValue = enc(that)
+        ConditionExpression.Equals(
+          ProjectionExpressionOperand(self),
+          ConditionExpression.Operand.ValueOperand(av)
+        )
+      case s @ Schema.Enum3(_, _, _, _) =>
+        val enc                = Codec.encoder[A](s)
+        val av: AttributeValue = enc(that)
+        ConditionExpression.Equals(
+          ProjectionExpressionOperand(self),
+          ConditionExpression.Operand.ValueOperand(av)
+        )
+      case _                            =>
+        ConditionExpression.Equals(
+          ProjectionExpressionOperand(self),
+          ConditionExpression.Operand.ValueOperand(null) // TODO
+        )
+    }
   }
 
   def <>[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
@@ -157,6 +202,8 @@ sealed trait ProjectionExpression { self =>
 
   def set[A: Schema](a: A): UpdateExpression.Action.SetAction = setValue(toItem(a))
 
+  // setValue uses FromAttributeValue.attrMapFromAttributeValue.fromAttributeValue ie only works with AttrMaps
+  // so we need another way to SET non AttrMap scalar types
   def set2[A](a: A)(implicit schema: Schema[A]): UpdateExpression.Action.SetAction =
     schema match {
       case s @ Schema.Primitive(_, _)   =>

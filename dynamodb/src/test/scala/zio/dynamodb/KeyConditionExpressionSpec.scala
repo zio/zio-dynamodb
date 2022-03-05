@@ -18,8 +18,7 @@ object KeyConditionExpressionSpec extends DefaultRunnableSpec {
     final case object CreditCard extends Payment
     final case object PayPal     extends Payment
 
-    // report bug
-    // weirdly the compiler complains about order - maybe auto derivation sorts the cases
+    // TODO: remove downcasting
     val schema: Schema.Enum3[CreditCard.type, DebitCard.type, PayPal.type, Payment] = DeriveSchema.gen[Payment]
   }
   final case class Address(line1: String, postcode: String)
@@ -31,6 +30,7 @@ object KeyConditionExpressionSpec extends DefaultRunnableSpec {
     addresses: List[Address]
   )
   object Student extends DefaultJavaTimeSchemas {
+    // TODO: remove downcasting
     implicit val schema: Schema.CaseClass5[String, String, Option[Instant], Payment, List[Address], Student] =
       DeriveSchema.gen[Student]
   }
