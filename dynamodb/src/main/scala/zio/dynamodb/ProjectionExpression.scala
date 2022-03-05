@@ -103,68 +103,18 @@ sealed trait ProjectionExpression { self =>
 
   @implicitNotFound(
     "the type ${A} is not comparable to the type ${B}. To compare two types they need to be compatible"
-  ) // TOD clean up wording
+  )
   trait DynamodbEquality[A, -B] {}
   object DynamodbEquality       {
     implicit def refl[A]: DynamodbEquality[A, A]                = new DynamodbEquality[A, A] {}
     implicit def leftIsNothing[A]: DynamodbEquality[Nothing, A] = new DynamodbEquality[Nothing, A] {}
   }
-  /*
-  like RefersToString
-  def ===[A](that: A)(implicit t: ToAttributeValue[A], eq: CanEqual[To, A]): ConditionExpression = .
-   */
-  def ===[A](that: A)(implicit /* eq: DynamodbEquality[To, A], */ t: ToAttributeValue[A]): ConditionExpression = {
-//    val _ = eq
-    val _ = that
+
+  def ===[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
     ConditionExpression.Equals(
       ProjectionExpressionOperand(self),
       ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
     )
-  }
-
-  def equalsSome[A](that: A)(implicit schema: Schema[A]): ConditionExpression =
-    schema match {
-      case s @ Schema.Primitive(_, _) =>
-        val enc                = Codec.encoder[A](s)
-        val av: AttributeValue = enc(that)
-        ConditionExpression.Equals(
-          ProjectionExpressionOperand(self),
-          ConditionExpression.Operand.ValueOperand(av)
-        )
-      case _                          =>
-        // TODO:
-        ConditionExpression.Equals(
-          ProjectionExpressionOperand(self),
-          ConditionExpression.Operand.ValueOperand(null) // TODO
-        )
-    }
-
-  // for PE's created using RO
-  def =====[A](that: A)(implicit eq: DynamodbEquality[To, A], schema: Schema[A]): ConditionExpression = {
-    val _ = eq
-    // TODO: comprehensive match
-    schema match {
-      case s @ Schema.Primitive(_, _)   =>
-        val enc                = Codec.encoder[A](s)
-        val av: AttributeValue = enc(that)
-        ConditionExpression.Equals(
-          ProjectionExpressionOperand(self),
-          ConditionExpression.Operand.ValueOperand(av)
-        )
-      case s @ Schema.Enum3(_, _, _, _) =>
-        val enc                = Codec.encoder[A](s)
-        val av: AttributeValue = enc(that)
-        ConditionExpression.Equals(
-          ProjectionExpressionOperand(self),
-          ConditionExpression.Operand.ValueOperand(av)
-        )
-      case _                            =>
-        ConditionExpression.Equals(
-          ProjectionExpressionOperand(self),
-          ConditionExpression.Operand.ValueOperand(null) // TODO
-        )
-    }
-  }
 
   def <>[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
     ConditionExpression.NotEqual(

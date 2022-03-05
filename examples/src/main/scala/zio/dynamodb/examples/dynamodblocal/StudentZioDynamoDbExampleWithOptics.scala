@@ -79,29 +79,27 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                    .tap(student => console.putStrLn(s"student=$student"))
                    .runDrain
 
-    _         <- queryAll[Student]("student").filter { // TODO: - implicit Schema for Option[A] needs to be available for =====
-                   import TimeSchemas._
-                   enrollmentDate.equalsSome(Instant.now) && payment === "PayPal"
+    _         <- queryAll[Student]("student").filter {
+                   enrollmentDate === Instant.now.toString && payment === "PayPal"
                  }.execute
     _         <- queryAll[Student]("student")
                    .filter(
-                     enrollmentDate === Instant.now.toString && (payment ===== [Payment] Payment.PayPal)
+                     enrollmentDate === Instant.now.toString && payment === Payment.PayPal.toString
                    )
                    .whereKey(email === "avi@gmail.com" && subject === "maths")
                    .execute
-    _         <-
-      put[Student]("student", avi)
-        .where(
-          enrollmentDate === Instant.now.toString && email ===== "avi@gmail.com" && (payment ===== [Payment] Payment.PayPal)
-        )
-        .execute
+    _         <- put[Student]("student", avi)
+                   .where(
+                     enrollmentDate === Instant.now.toString && email === "avi@gmail.com" && payment === Payment.PayPal.toString
+                   )
+                   .execute
     _         <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
                    import TimeSchemas._
                    enrollmentDate.set2(Instant.now) + payment.set2[Payment](Payment.PayPal)(Payment.schema)
                  }.execute
     _         <- deleteItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths"))
                    .where(
-                     enrollmentDate === Instant.now.toString && payment ===== [Payment] Payment.PayPal
+                     enrollmentDate === Instant.now.toString && payment === Payment.PayPal.toString
                    )
                    .execute
   } yield ()
