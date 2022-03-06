@@ -1,6 +1,5 @@
 package zio.dynamodb
 
-import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.dynamodb.ConditionExpression.Operand.ProjectionExpressionOperand
 import zio.dynamodb.ProjectionExpression.{ MapElement, Root }
 import zio.random.Random
@@ -11,30 +10,19 @@ import zio.test._
 import java.time.Instant
 
 object KeyConditionExpressionSpec extends DefaultRunnableSpec {
-  @enumOfCaseObjects
-  sealed trait Payment
-  object Payment {
-    final case object DebitCard  extends Payment
-    final case object CreditCard extends Payment
-    final case object PayPal     extends Payment
 
-    val schema = DeriveSchema.gen[Payment]
-  }
-  final case class Address(line1: String, postcode: String)
   final case class Student(
     email: String,
     subject: String,
-    enrollmentDate: Option[Instant],
-    payment: Payment,
-    addresses: List[Address]
+    enrollmentDate: Option[Instant]
   )
   object Student extends DefaultJavaTimeSchemas {
     implicit val schema = DeriveSchema.gen[Student]
   }
 
-  val (email, subject, enrollmentDate, payment, addresses) = ProjectionExpression.accessors[Student]
+  val (email, subject, enrollmentDate) = ProjectionExpression.accessors[Student]
 
-  override def spec =
+  override def spec: ZSpec[Environment, Failure] =
     suite("KeyConditionExpression from a ConditionExpression")(happyPathSuite, unhappyPathSuite, pbtSuite)
 
   val happyPathSuite =
