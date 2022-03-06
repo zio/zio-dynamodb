@@ -33,10 +33,21 @@ object StudentZioDynamoDbExampleWithOptics extends App {
 
     implicit val schema = DeriveSchema.gen[Payment]
   }
-  final case class Student(email: String, subject: String, enrollmentDate: Option[Instant], payment: Payment)
+  final case class Address(addr1: String, postcode: String)
+  object Address {
+    implicit val schema = DeriveSchema.gen[Address]
+  }
+
+  final case class Student(
+    email: String,
+    subject: String,
+    enrollmentDate: Option[Instant],
+    payment: Payment,
+    address: Option[Address] = None
+  )
   object Student extends DefaultJavaTimeSchemas {
-    implicit val schema                           = DeriveSchema.gen[Student]
-    val (email, subject, enrollmentDate, payment) = ProjectionExpression.accessors[Student]
+    implicit val schema                                    = DeriveSchema.gen[Student]
+    val (email, subject, enrollmentDate, payment, address) = ProjectionExpression.accessors[Student]
   }
 
   object TimeSchemas extends DefaultJavaTimeSchemas
@@ -61,43 +72,49 @@ object StudentZioDynamoDbExampleWithOptics extends App {
   import zio.dynamodb.examples.dynamodblocal.StudentZioDynamoDbExampleWithOptics.Student._
 
   private val program = for {
-    _         <- createTable("student", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
-                   AttributeDefinition.attrDefnString("email"),
-                   AttributeDefinition.attrDefnString("subject")
-                 ).execute
-    enrolDate <- ZIO.effect(Instant.parse("2021-03-20T01:39:33Z"))
-    avi        = Student("avi@gmail.com", "maths", Some(enrolDate), Payment.DebitCard)
-    adam       = Student("adam@gmail.com", "english", Some(enrolDate), Payment.CreditCard)
-    _         <- batchWriteFromStream(ZStream(avi, adam)) { student =>
-                   put("student", student)
-                 }.runDrain
-    _         <- put("student", avi.copy(payment = Payment.CreditCard)).execute
-    _         <- batchReadFromStream("student", ZStream(avi, adam))(s => PrimaryKey("email" -> s.email, "subject" -> s.subject))
-                   .tap(student => console.putStrLn(s"student=$student"))
-                   .runDrain
-
-    _         <- queryAll[Student]("student").filter {
-                   enrollmentDate === Instant.now.toString && payment === "PayPal"
-                 }.execute
-    _         <- queryAll[Student]("student")
-                   .filter(
-                     enrollmentDate === Instant.now.toString && payment === Payment.PayPal.toString
-                   )
-                   .whereKey(email === "avi@gmail.com" && subject === "maths")
-                   .execute
-    _         <- put[Student]("student", avi)
-                   .where(
-                     enrollmentDate === Instant.now.toString && email === "avi@gmail.com" && payment === Payment.PayPal.toString
-                   )
-                   .execute
-    _         <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
-                   enrollmentDate.setValue(Instant.now.toString) + payment.setValue(Payment.PayPal.toString)
-                 }.execute
-    _         <- deleteItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths"))
-                   .where(
-                     enrollmentDate === Instant.now.toString && payment === Payment.PayPal.toString
-                   )
-                   .execute
+    _          <- createTable("student", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
+                    AttributeDefinition.attrDefnString("email"),
+                    AttributeDefinition.attrDefnString("subject")
+                  ).execute
+    enrolDate  <- ZIO.effect(Instant.parse("2021-03-20T01:39:33Z"))
+    enrolDate2 <- ZIO.effect(Instant.parse("2022-03-20T01:39:33Z"))
+    avi         = Student("avi@gmail.com", "maths", Some(enrolDate), Payment.DebitCard)
+    adam        = Student("adam@gmail.com", "english", Some(enrolDate), Payment.CreditCard)
+    _          <- batchWriteFromStream(ZStream(avi, adam)) { student =>
+                    put("student", student)
+                  }.runDrain
+    _          <- put("student", avi.copy(payment = Payment.CreditCard)).execute
+    _          <- batchReadFromStream("student", ZStream(avi, adam))(s => PrimaryKey("email" -> s.email, "subject" -> s.subject))
+                    .tap(student => console.putStrLn(s"student=$student"))
+                    .runDrain
+    _          <- scanAll[Student]("student").filter {
+                    enrollmentDate === enrolDate.toString && payment === "PayPal"
+                  }.execute.map(_.runCollect)
+    _          <- queryAll[Student]("student")
+                    .filter(
+                      enrollmentDate === enrolDate.toString && payment === Payment.PayPal.toString
+                    )
+                    .whereKey(email === "avi@gmail.com" && subject === "maths")
+                    .execute
+                    .map(_.runCollect)
+    _          <- put[Student]("student", avi)
+                    .where(
+                      enrollmentDate === enrolDate.toString && email === "avi@gmail.com" && payment === Payment.PayPal.toString
+                    )
+                    .execute
+    _          <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
+                    enrollmentDate.setValue(enrolDate2.toString) + payment.setValue(Payment.PayPal.toString) + address
+                      .set[Option[Address]](
+                        Some(Address("line1", "postcode1"))
+                      )
+                  }.execute
+    _          <- deleteItem("student", PrimaryKey("email" -> "adam@gmail.com", "subject" -> "english"))
+                    .where(
+                      enrollmentDate === enrolDate.toString && payment === Payment.CreditCard.toString
+                    )
+                    .execute
+    _          <- scanAll[Student]("student").execute
+                    .tap(_.tap(student => console.putStrLn(s"scanAll - student=$student")).runDrain)
   } yield ()
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = program.provideCustomLayer(layer).exitCode

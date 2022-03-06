@@ -100,8 +100,7 @@ object ProjectionExpressionParserSpec extends DefaultRunnableSpec {
   private def anyEmptyName(pe: ProjectionExpression): Boolean =
     pe match {
       case Root                                        =>
-        println("TODO: check this never happens") // TODO: check this never happens
-        false                                     //
+        false
       case ProjectionExpression.MapElement(Root, name) =>
         name.isEmpty
       case MapElement(parent, key)                     =>

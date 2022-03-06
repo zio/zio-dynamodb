@@ -269,15 +269,6 @@ case object DynamoDBExecutorImpl {
         .map(m => PrimaryKey(m.flatMap { case (k, v) => awsAttrValToAttrVal(v).map((k, _)) }))
         .toSet
 
-    /*
-TODO: investigate why we need this cast
-type mismatch;
- found   : scala.collection.immutable.Set[zio.dynamodb.ProjectionExpression{type From = _$1; type To = Nothing}( forSome { type _$1 })]
- required: scala.collection.immutable.Set[zio.dynamodb.ProjectionExpression]
-Note: zio.dynamodb.ProjectionExpression{type From = _$1; type To = Nothing}( forSome { type _$1 }) <: zio.dynamodb.ProjectionExpression, but trait Set is invariant in type A.
-You may wish to investigate a wildcard type such as `_ <: zio.dynamodb.ProjectionExpression`. (SLS 3.2.10)
-      .map(a => TableGet(keySet, a /*.asInstanceOf[Set[ProjectionExpression]] */ ))
-     */
     maybeProjectionExpressions
       .map(a => TableGet(keySet, a.asInstanceOf[Set[ProjectionExpression]]))
       .getOrElse(TableGet(keySet, Set.empty))

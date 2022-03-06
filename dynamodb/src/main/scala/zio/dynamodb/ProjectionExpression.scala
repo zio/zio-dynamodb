@@ -239,7 +239,6 @@ object ProjectionExpression {
     override def makeTraversal[S, A](collection: Schema.Collection[S, A], element: Schema[A]): Traversal[S, A] = ()
   }
 
-  // TODO: where should we put this?
   def accessors[A](implicit s: Schema[A]): s.Accessors[builder.Lens, builder.Prism, builder.Traversal] =
     s.makeAccessors(builder)
 
