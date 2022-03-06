@@ -104,7 +104,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     .execute
     _          <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
                     enrollmentDate.setValue(enrolDate2.toString) + payment.setValue(Payment.PayPal.toString) + address
-                      .set[Option[Address]](
+                      .set[Option[Address]]( // Note we are setting a case class directly here
                         Some(Address("line1", "postcode1"))
                       )
                   }.execute
