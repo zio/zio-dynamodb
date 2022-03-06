@@ -37,7 +37,7 @@ object KeyConditionExpressionSpec extends DefaultRunnableSpec {
   override def spec =
     suite("KeyConditionExpression from a ConditionExpression")(happyPathSuite, unhappyPathSuite, pbtSuite)
 
-  val happyPathSuite   =
+  val happyPathSuite =
     suite("returns a Right for")(
       test(""" email === "avi@gmail.com" """) {
         val actual = KeyConditionExpression(email === "avi@gmail.com")
@@ -55,6 +55,7 @@ object KeyConditionExpressionSpec extends DefaultRunnableSpec {
         zio.test.assert(actual)(isRight)
       }
     )
+
   val unhappyPathSuite =
     suite("returns a Left for")(
       test(""" email > "avi@gmail.com" && subject === "maths" """) {
@@ -77,78 +78,96 @@ object KeyConditionExpressionSpec extends DefaultRunnableSpec {
       }
     )
 
-  sealed trait Op
-  object Op {
-    case object Equals             extends Op
-    case object NotEquals          extends Op
-    case object LessThan           extends Op
-    case object GreaterThan        extends Op
-    case object LessThanOrEqual    extends Op
-    case object GreaterThanOrEqual extends Op
+  import Generators._
 
-    val set = Set(Equals, NotEquals, LessThan, GreaterThan, LessThanOrEqual, GreaterThanOrEqual)
+  val pbtSuite =
+    suite("property based suite")(testM("conversion of ConditionExpression to KeyConditionExpression must be valid") {
+      check(genConditionExpression) {
+        case (condExprn, seedDataList) => assertConditionExpression(condExprn, seedDataList)
+      }
+    })
+
+  def assertConditionExpression(
+    condExprn: ConditionExpression,
+    seedDataList: List[SeedData],
+    printCondExprn: Boolean = false
+  ): TestResult = {
+    val errorOrkeyCondExprn: Either[String, KeyConditionExpression] = KeyConditionExpression(condExprn)
+
+    if (printCondExprn) println(condExprn) else ()
+
+    assert(errorOrkeyCondExprn) {
+      if (seedDataList.length > maxNumOfTerms || seedDataList.head._2 != ComparisonOp.Equals)
+        isLeft
+      else
+        isRight
+    }
   }
 
-  val genNumTerms: Gen[Random, Int]                                                             = Gen.int(1, 3)
-  val genNames: Gen[Random with Sized, List[String]]                                            =
-    genNumTerms.flatMap(i => Gen.listOfN(i)(Gen.alphaNumericStringBounded(1, 5)))
-  val genOP                                                                                     = Gen.fromIterable(Op.set)
-  val genNameAndOpList: Gen[Random with Sized, List[(String, Op)]]                              =
-    Gen.listOfBounded(1, 4)(Gen.alphaNumericStringBounded(1, 5) zip genOP)
-  val genConditionExpression: Gen[Random with Sized, (ConditionExpression, List[(String, Op)])] = genNameAndOpList.map {
-    xs =>
-      val (name, op) = xs.head
-      val first      = conditionExpression(name, op)
-      // TODO: generate joining ops
-      val condEx     = xs.tail.foldRight(first) { case ((name, op), acc) => acc && conditionExpression(name, op) }
-      (condEx, xs)
+  object Generators {
+    sealed trait ComparisonOp
+    object ComparisonOp {
+      case object Equals             extends ComparisonOp
+      case object NotEquals          extends ComparisonOp
+      case object LessThan           extends ComparisonOp
+      case object GreaterThan        extends ComparisonOp
+      case object LessThanOrEqual    extends ComparisonOp
+      case object GreaterThanOrEqual extends ComparisonOp
+
+      val set = Set(Equals, NotEquals, LessThan, GreaterThan, LessThanOrEqual, GreaterThanOrEqual)
+    }
+
+    val maxNumOfTerms                                                               = 2
+    val genOP                                                                       = Gen.fromIterable(ComparisonOp.set)
+    private val genFieldName: Gen[Random with Sized, String]                        = Gen.alphaNumericStringBounded(1, 5)
+    val genFieldNameAndOpList: Gen[Random with Sized, List[(String, ComparisonOp)]] =
+      Gen.listOfBounded(0, maxNumOfTerms + 1)( // ensure we generate more that max number of terms
+        genFieldName zip genOP
+      )
+    final case class FieldNameAndComparisonOp(fieldName: String, op: ComparisonOp)
+    type SeedData = (String, ComparisonOp)
+    val genConditionExpression: Gen[Random with Sized, (ConditionExpression, List[SeedData])] =
+      genFieldNameAndOpList.map { xs =>
+        val (name, op) = xs.head
+        val first      = conditionExpression(name, op)
+        // TODO: generate joining ops
+        val condEx     = xs.tail.foldRight(first) { case ((name, op), acc) => acc && conditionExpression(name, op) }
+        (condEx, xs)
+      }
+
+    def conditionExpression(name: String, op: ComparisonOp): ConditionExpression =
+      op match {
+        case ComparisonOp.Equals             =>
+          ConditionExpression.Equals(
+            ProjectionExpressionOperand(MapElement(Root, name)),
+            ConditionExpression.Operand.ValueOperand(AttributeValue.String("SOME_VALUE"))
+          )
+        case ComparisonOp.NotEquals          =>
+          ConditionExpression.NotEqual(
+            ProjectionExpressionOperand(MapElement(Root, name)),
+            ConditionExpression.Operand.ValueOperand(AttributeValue.String("SOME_VALUE"))
+          )
+        case ComparisonOp.LessThan           =>
+          ConditionExpression.LessThan(
+            ProjectionExpressionOperand(MapElement(Root, name)),
+            ConditionExpression.Operand.ValueOperand(AttributeValue.String("SOME_VALUE"))
+          )
+        case ComparisonOp.GreaterThan        =>
+          ConditionExpression.GreaterThan(
+            ProjectionExpressionOperand(MapElement(Root, name)),
+            ConditionExpression.Operand.ValueOperand(AttributeValue.String("SOME_VALUE"))
+          )
+        case ComparisonOp.LessThanOrEqual    =>
+          ConditionExpression.LessThanOrEqual(
+            ProjectionExpressionOperand(MapElement(Root, name)),
+            ConditionExpression.Operand.ValueOperand(AttributeValue.String("SOME_VALUE"))
+          )
+        case ComparisonOp.GreaterThanOrEqual =>
+          ConditionExpression.GreaterThanOrEqual(
+            ProjectionExpressionOperand(MapElement(Root, name)),
+            ConditionExpression.Operand.ValueOperand(AttributeValue.String("SOME_VALUE"))
+          )
+      }
   }
 
-  def conditionExpression(name: String, op: Op): ConditionExpression =
-    op match {
-      case Op.Equals             =>
-        ConditionExpression.Equals(
-          ProjectionExpressionOperand(MapElement(Root, name)),
-          ConditionExpression.Operand.ValueOperand(AttributeValue.String("TODO"))
-        )
-      case Op.NotEquals          =>
-        ConditionExpression.NotEqual(
-          ProjectionExpressionOperand(MapElement(Root, name)),
-          ConditionExpression.Operand.ValueOperand(AttributeValue.String("TODO"))
-        )
-      case Op.LessThan           =>
-        ConditionExpression.LessThan(
-          ProjectionExpressionOperand(MapElement(Root, name)),
-          ConditionExpression.Operand.ValueOperand(AttributeValue.String("TODO"))
-        )
-      case Op.GreaterThan        =>
-        ConditionExpression.GreaterThan(
-          ProjectionExpressionOperand(MapElement(Root, name)),
-          ConditionExpression.Operand.ValueOperand(AttributeValue.String("TODO"))
-        )
-      case Op.LessThanOrEqual    =>
-        ConditionExpression.LessThanOrEqual(
-          ProjectionExpressionOperand(MapElement(Root, name)),
-          ConditionExpression.Operand.ValueOperand(AttributeValue.String("TODO"))
-        )
-      case Op.GreaterThanOrEqual =>
-        ConditionExpression.GreaterThanOrEqual(
-          ProjectionExpressionOperand(MapElement(Root, name)),
-          ConditionExpression.Operand.ValueOperand(AttributeValue.String("TODO"))
-        )
-    }
-
-  val pbtSuite = suite("pbt suite")(testM("pbt") {
-    check(genConditionExpression) {
-      case (condEx, originalList) =>
-        val errorOrkeyCondExprn: Either[String, KeyConditionExpression] = KeyConditionExpression(condEx)
-
-        assert(errorOrkeyCondExprn) {
-          if (originalList.length > 2 || originalList.head._2 != Op.Equals)
-            isLeft
-          else
-            isRight
-        }
-    }
-  })
 }
