@@ -85,7 +85,9 @@ object KeyConditionExpressionSpec extends DefaultRunnableSpec {
     if (printCondExprn) println(condExprn) else ()
 
     assert(errorOrkeyCondExprn) {
-      if (seedDataList.length > maxNumOfTerms || seedDataList.head._2 != ComparisonOp.Equals)
+      if (
+        seedDataList.length == 0 || seedDataList.length > maxNumOfTerms || seedDataList.head._2 != ComparisonOp.Equals
+      )
         isLeft
       else
         isRight
