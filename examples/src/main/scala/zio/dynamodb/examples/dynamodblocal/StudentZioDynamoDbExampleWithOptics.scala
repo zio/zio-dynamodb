@@ -50,8 +50,6 @@ object StudentZioDynamoDbExampleWithOptics extends App {
     val (email, subject, enrollmentDate, payment, address) = ProjectionExpression.accessors[Student]
   }
 
-  object TimeSchemas extends DefaultJavaTimeSchemas
-
   private val awsConfig = ZLayer.succeed(
     config.CommonAwsConfig(
       region = None,
