@@ -2,7 +2,7 @@ package zio.dynamodb.examples
 
 import zio.dynamodb.DynamoDBQuery.getItem
 import zio.dynamodb.ProjectionExpression.$
-import zio.dynamodb.{ DynamoDBQuery, Item, PrimaryKey, TableName }
+import zio.dynamodb._
 
 object BatchGetItemExamples {
 

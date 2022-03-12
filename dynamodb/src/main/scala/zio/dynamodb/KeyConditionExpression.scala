@@ -1,5 +1,10 @@
 package zio.dynamodb
 
+import zio.dynamodb.ConditionExpression.Operand.ProjectionExpressionOperand
+import zio.dynamodb.PartitionKeyExpression.PartitionKey
+import zio.dynamodb.ProjectionExpression.{ MapElement, Root }
+import zio.dynamodb.SortKeyExpression.SortKey
+
 /*
 KeyCondition expression is a restricted version of ConditionExpression where by
 - partition exprn is required and can only use "=" equals comparison
@@ -25,6 +30,121 @@ sealed trait KeyConditionExpression extends Renderable { self =>
 object KeyConditionExpression {
   private[dynamodb] final case class And(left: PartitionKeyExpression, right: SortKeyExpression)
       extends KeyConditionExpression
+  def partitionKey(key: String): PartitionKey = PartitionKey(key)
+
+  /**
+   * Create a KeyConditionExpression from a ConditionExpression
+   * Must be in the form of `<Condition1> && <Condition2>` where format of `<Condition1>` is:
+   * {{{<ProjectionExpressionForPartitionKey> === <value>}}}
+   * and the format of `<Condition2>` is:
+   * {{{<ProjectionExpressionForSortKey> <op> <value>}}} where op can be one of `===`, `>`, `>=`, `<`, `<=`, `between`, `beginsWith`
+   *
+   * Example using type API:
+   * {{{
+   * val (email, subject, enrollmentDate, payment) = ProjectionExpression.accessors[Student]
+   * // ...
+   * val keyConditionExprn = filterKey(email === "avi@gmail.com" && subject === "maths")
+   * }}}
+   */
+  private[dynamodb] def fromConditionExpressionUnsafe(c: ConditionExpression): KeyConditionExpression =
+    KeyConditionExpression(c).getOrElse(
+      throw new IllegalStateException(s"Error: invalid key condition expression $c")
+    )
+
+  private[dynamodb] def apply(c: ConditionExpression): Either[String, KeyConditionExpression] =
+    c match {
+      case ConditionExpression.Equals(
+            ProjectionExpressionOperand(MapElement(Root, partitionKey)),
+            ConditionExpression.Operand.ValueOperand(av)
+          ) =>
+        Right(PartitionKeyExpression.Equals(PartitionKey(partitionKey), av))
+      case ConditionExpression.And(
+            ConditionExpression.Equals(
+              ProjectionExpressionOperand(MapElement(Root, partitionKey)),
+              ConditionExpression.Operand.ValueOperand(avL)
+            ),
+            rhs
+          ) =>
+        rhs match {
+          case ConditionExpression.Equals(
+                ProjectionExpressionOperand(MapElement(Root, sortKey)),
+                ConditionExpression.Operand.ValueOperand(avR)
+              ) =>
+            Right(
+              PartitionKeyExpression
+                .Equals(PartitionKey(partitionKey), avL)
+                .&&(SortKeyExpression.Equals(SortKey(sortKey), avR))
+            )
+          case ConditionExpression.NotEqual(
+                ProjectionExpressionOperand(MapElement(Root, sortKey)),
+                ConditionExpression.Operand.ValueOperand(avR)
+              ) =>
+            Right(
+              PartitionKeyExpression
+                .Equals(PartitionKey(partitionKey), avL)
+                .&&(SortKeyExpression.NotEqual(SortKey(sortKey), avR))
+            )
+          case ConditionExpression.GreaterThan(
+                ProjectionExpressionOperand(MapElement(Root, sortKey)),
+                ConditionExpression.Operand.ValueOperand(avR)
+              ) =>
+            Right(
+              PartitionKeyExpression
+                .Equals(PartitionKey(partitionKey), avL)
+                .&&(SortKeyExpression.GreaterThan(SortKey(sortKey), avR))
+            )
+          case ConditionExpression.LessThan(
+                ProjectionExpressionOperand(MapElement(Root, sortKey)),
+                ConditionExpression.Operand.ValueOperand(avR)
+              ) =>
+            Right(
+              PartitionKeyExpression
+                .Equals(PartitionKey(partitionKey), avL)
+                .&&(SortKeyExpression.LessThan(SortKey(sortKey), avR))
+            )
+          case ConditionExpression.GreaterThanOrEqual(
+                ProjectionExpressionOperand(MapElement(Root, sortKey)),
+                ConditionExpression.Operand.ValueOperand(avR)
+              ) =>
+            Right(
+              PartitionKeyExpression
+                .Equals(PartitionKey(partitionKey), avL)
+                .&&(SortKeyExpression.GreaterThanOrEqual(SortKey(sortKey), avR))
+            )
+          case ConditionExpression.LessThanOrEqual(
+                ProjectionExpressionOperand(MapElement(Root, sortKey)),
+                ConditionExpression.Operand.ValueOperand(avR)
+              ) =>
+            Right(
+              PartitionKeyExpression
+                .Equals(PartitionKey(partitionKey), avL)
+                .&&(SortKeyExpression.LessThanOrEqual(SortKey(sortKey), avR))
+            )
+          case ConditionExpression.Between(
+                ProjectionExpressionOperand(MapElement(Root, sortKey)),
+                avMin,
+                avMax
+              ) =>
+            Right(
+              PartitionKeyExpression
+                .Equals(PartitionKey(partitionKey), avL)
+                .&&(SortKeyExpression.Between(SortKey(sortKey), avMin, avMax))
+            )
+          case ConditionExpression.BeginsWith(
+                MapElement(Root, sortKey),
+                av
+              ) =>
+            Right(
+              PartitionKeyExpression
+                .Equals(PartitionKey(partitionKey), avL)
+                .&&(SortKeyExpression.BeginsWith(SortKey(sortKey), av))
+            )
+          case c => Left(s"condition '$c' is not a valid sort condition expression")
+        }
+
+      case c => Left(s"condition $c is not a valid key condition expression")
+    }
+
 }
 
 sealed trait PartitionKeyExpression extends KeyConditionExpression { self =>
