@@ -1,5 +1,7 @@
 package zio.dynamodb
 
+import zio.schema.Schema
+
 /* https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
 
 In the following syntax summary, an operand can be the following:
@@ -118,6 +120,51 @@ object ConditionExpression {
   }
 
   object Operand {
+    trait ToOperand[Left, -A] {
+      def toOperand(a: A): Operand
+    }
+    object ToOperand extends ToOperandLowPriorityImplicits {
+
+      implicit def fromProjectionExpression[From, To]: ToOperand[To, ProjectionExpression] =
+        new ToOperand[To, ProjectionExpression] {
+
+          override def toOperand(a: ProjectionExpression): Operand = {
+            println(s"fromProjectionExpression av=${ProjectionExpressionOperand(a)}")
+            ProjectionExpressionOperand(a)
+          }
+        }
+      implicit def fromSchemaAttributeValue[A](implicit schema: Schema[A]): ToOperand[A, A] = {
+        val _ = schema
+        new ToOperand[A, A] {
+          override def toOperand(a: A): Operand = {
+            val enc = Codec.encoder(schema)
+            val av  = enc(a)
+            println(s"fromSchemaAttributeValue av=${ValueOperand(av)}")
+            ValueOperand(av) // TODO: review
+          }
+        }
+      }
+
+    }
+
+    trait ToOperandLowPriorityImplicits {
+      implicit def fromAttributeValue[A, B >: A](implicit x: ToAttributeValue[B]): ToOperand[A, B] =
+        new ToOperand[A, B] {
+          override def toOperand(a: B): Operand = {
+            println(s"fromAttributeValue ${ValueOperand(x.toAttributeValue(a))}")
+            ValueOperand(x.toAttributeValue(a))
+          }
+        }
+
+      implicit def fromAttributeValueNothing[A](implicit x: ToAttributeValue[A]): ToOperand[Nothing, A] =
+        new ToOperand[Nothing, A] {
+          override def toOperand(a: A): Operand = {
+            println(s"fromAttributeValueNothing ${ValueOperand(x.toAttributeValue(a))}")
+            ValueOperand(x.toAttributeValue(a))
+          }
+        }
+
+    }
 
     private[dynamodb] final case class ProjectionExpressionOperand(pe: ProjectionExpression) extends Operand
     private[dynamodb] final case class ValueOperand(value: AttributeValue)                   extends Operand

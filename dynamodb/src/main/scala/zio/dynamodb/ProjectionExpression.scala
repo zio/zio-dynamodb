@@ -22,32 +22,32 @@ sealed trait ProjectionExpression { self =>
 
   // ConditionExpression with another ProjectionExpression
 
-  def ===(that: ProjectionExpression): ConditionExpression =
-    ConditionExpression.Equals(
-      ProjectionExpressionOperand(self),
-      ConditionExpression.Operand.ProjectionExpressionOperand(that)
-    )
-  def <>(that: ProjectionExpression): ConditionExpression  =
+//  def ===(that: ProjectionExpression): ConditionExpression =
+//    ConditionExpression.Equals(
+//      ProjectionExpressionOperand(self),
+//      ConditionExpression.Operand.ProjectionExpressionOperand(that)
+//    )
+  def <>(that: ProjectionExpression): ConditionExpression =
     ConditionExpression.NotEqual(
       ProjectionExpressionOperand(self),
       ConditionExpression.Operand.ProjectionExpressionOperand(that)
     )
-  def <(that: ProjectionExpression): ConditionExpression   =
+  def <(that: ProjectionExpression): ConditionExpression  =
     ConditionExpression.LessThan(
       ProjectionExpressionOperand(self),
       ConditionExpression.Operand.ProjectionExpressionOperand(that)
     )
-  def <=(that: ProjectionExpression): ConditionExpression  =
+  def <=(that: ProjectionExpression): ConditionExpression =
     ConditionExpression.LessThanOrEqual(
       ProjectionExpressionOperand(self),
       ConditionExpression.Operand.ProjectionExpressionOperand(that)
     )
-  def >(that: ProjectionExpression): ConditionExpression   =
+  def >(that: ProjectionExpression): ConditionExpression  =
     ConditionExpression.GreaterThanOrEqual(
       ProjectionExpressionOperand(self),
       ConditionExpression.Operand.ProjectionExpressionOperand(that)
     )
-  def >=(that: ProjectionExpression): ConditionExpression  =
+  def >=(that: ProjectionExpression): ConditionExpression =
     ConditionExpression.GreaterThanOrEqual(
       ProjectionExpressionOperand(self),
       ConditionExpression.Operand.ProjectionExpressionOperand(that)
@@ -109,18 +109,13 @@ sealed trait ProjectionExpression { self =>
     implicit def refl[A]: DynamodbEquality[A, A]                = new DynamodbEquality[A, A] {}
     implicit def leftIsNothing[A]: DynamodbEquality[Nothing, A] = new DynamodbEquality[Nothing, A] {}
   }
-  /*
-  like RefersToString
-  def ===[A](that: A)(implicit t: ToAttributeValue[A], eq: CanEqual[To, A]): ConditionExpression = .
-   */
-  def ===[A](that: A)(implicit /* eq: DynamodbEquality[To, A], */ t: ToAttributeValue[A]): ConditionExpression = {
-//    val _ = eq
-    val _ = that
+
+  def ===[A](that: A)(implicit t: ConditionExpression.Operand.ToOperand[To, A]): ConditionExpression =
     ConditionExpression.Equals(
       ProjectionExpressionOperand(self),
-      ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
+      t.toOperand(that)
+//      ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
     )
-  }
 
   def equalsSome[A](that: A)(implicit schema: Schema[A]): ConditionExpression =
     schema match {
@@ -186,6 +181,14 @@ sealed trait ProjectionExpression { self =>
       ProjectionExpressionOperand(self),
       ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
     )
+
+  // TODO: remove - experiment with ToOperand
+  def >#[A](that: A)(implicit t: ConditionExpression.Operand.ToOperand[To, A]): ConditionExpression =
+    ConditionExpression.GreaterThanOrEqual(
+      ProjectionExpressionOperand(self),
+      t.toOperand(that)
+    )
+
   def >=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
     ConditionExpression.GreaterThanOrEqual(
       ProjectionExpressionOperand(self),
