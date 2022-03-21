@@ -134,33 +134,6 @@ sealed trait ProjectionExpression { self =>
         )
     }
 
-  // for PE's created using RO
-  def =====[A](that: A)(implicit eq: DynamodbEquality[To, A], schema: Schema[A]): ConditionExpression = {
-    val _ = eq
-    // TODO: comprehensive match
-    schema match {
-      case s @ Schema.Primitive(_, _)   =>
-        val enc                = Codec.encoder[A](s)
-        val av: AttributeValue = enc(that)
-        ConditionExpression.Equals(
-          ProjectionExpressionOperand(self),
-          ConditionExpression.Operand.ValueOperand(av)
-        )
-      case s @ Schema.Enum3(_, _, _, _) =>
-        val enc                = Codec.encoder[A](s)
-        val av: AttributeValue = enc(that)
-        ConditionExpression.Equals(
-          ProjectionExpressionOperand(self),
-          ConditionExpression.Operand.ValueOperand(av)
-        )
-      case _                            =>
-        ConditionExpression.Equals(
-          ProjectionExpressionOperand(self),
-          ConditionExpression.Operand.ValueOperand(null) // TODO
-        )
-    }
-  }
-
   def <>[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
     ConditionExpression.NotEqual(
       ProjectionExpressionOperand(self),
