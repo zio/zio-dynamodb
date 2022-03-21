@@ -194,20 +194,6 @@ sealed trait ProjectionExpression { self =>
         setValue(toItem(a))
     }
 
-  def set3(a: To)(implicit schema: Schema[To]): UpdateExpression.Action.SetAction =
-    schema match {
-      case s @ Schema.Primitive(_, _)   =>
-        val enc                = Codec.encoder[To](s)
-        val av: AttributeValue = enc(a)
-        setValue(av)
-      case s @ Schema.Enum3(_, _, _, _) =>
-        val enc                = Codec.encoder[To](s)
-        val av: AttributeValue = enc(a)
-        setValue(av)
-      case _                            =>
-        setValue(toItem(a))
-    }
-
   /**
    * Modify or Add an item Attribute
    */
