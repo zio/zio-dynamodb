@@ -1083,13 +1083,11 @@ object DynamoDBQuery {
           }
         )
 
-      case transaction @ Transaction(_, _)                    =>
-        (
-          Chunk(transaction),
-          (results: Chunk[Any]) => {
-            if (results.isEmpty) ().asInstanceOf[A] else results.head.asInstanceOf[A]
-          }
-        )
+      case Transaction(query, _)                              =>
+        parallelize(query) match {
+          case (constructors, assembler) =>
+            (constructors, assembler)
+        }
 
       case updateItem @ UpdateItem(_, _, _, _, _, _, _)       =>
         (

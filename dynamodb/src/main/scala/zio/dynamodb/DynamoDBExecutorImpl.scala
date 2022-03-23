@@ -1,7 +1,7 @@
 package zio.dynamodb
-import zio.{ Chunk, Has, IO, ZIO }
+import zio.{ Chunk, Has, IO, NonEmptyChunk, ZIO }
 import zio.dynamodb.DynamoDBQuery._
-import io.github.vigoo.zioaws.dynamodb.{ DynamoDb, executeTransaction => ZIOAwsExecuteTransaction }
+import io.github.vigoo.zioaws.dynamodb.DynamoDb
 import io.github.vigoo.zioaws.dynamodb.model.{
   BatchGetItemRequest,
   BatchWriteItemRequest,
@@ -169,7 +169,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
   // need to know if we're mixing gets and writes in the same transaction
   // should do it as soon as possible
   private def buildTransaction[A](
-    query: DynamoDBQuery.Transaction[A]
+//    query: DynamoDBQuery.Transaction[A]
+    query: DynamoDBQuery[A]
   ): IO[Throwable, (Chunk[Constructor[Any]], Chunk[Any] => A)] =
     /*
     we have transformations on the individual pieces of the query and then mapping
@@ -181,17 +182,20 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
             ZIO.succeed(
               (Chunk(s), chunk => chunk(0).asInstanceOf[A])
             ) // execute the put item and then return the response
+
+          // TODO: transact write items does not return any of the values, should the mappings for these just be Unit?
           case s: DeleteItem     => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: Succeed[A]     => ???
-          case s: GetItem        => ???
-          case s: BatchGetItem   => ???
-          case s: BatchWriteItem => ???
-          case s: UpdateItem     => ???
-          case s: ConditionCheck => ???
-          case s                 => ZIO.fail(InvalidTransactionActions(Chunk(s)))
+          case s: Succeed[A]     => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: GetItem        => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: BatchGetItem   => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: BatchWriteItem => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: UpdateItem     => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: ConditionCheck => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s                 => ZIO.fail(InvalidTransactionActions(NonEmptyChunk(s)))
         }
       case FailCause(cause)            => ZIO.halt(cause())
-      case Transaction(query, _)       => buildTransaction(query.asInstanceOf[DynamoDBQuery[A]], actions)
+      // TODO(required): What to do about the client token here? -- do we just ignore and use a top-level one?
+      case Transaction(query, _)       => buildTransaction(query)
       case Zip(left, right, zippable)  =>
         for {
           l <- buildTransaction(left)
@@ -233,7 +237,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
     actions: Chunk[Constructor[A]]
   ): IO[Throwable, Either[TransactGetItemsRequest, TransactWriteItemsRequest]] = ???
 
-  private def executeTransaction[A](transaction: Transaction[A]): ZIO[Any, Throwable, A] = {}
+  private def executeTransaction[A](transaction: Transaction[A]): ZIO[Any, Throwable, A] = ???
 
 //  private def executeTransactGetItems(transactGetItems: TransactGetItems): ZIO[Any, Throwable, Chunk[Option[Item]]] =
 //    (for {
@@ -241,6 +245,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
 //      items    <- response.responses.map(_.map(item => item.itemValue.map(dynamoDBItem)))
 //    } yield Chunk.fromIterable(items)).mapError(_.toThrowable)
 //
+
+//  private final case class TransactWriteItems()
+
 //  private def executeTransactWriteItems(transactWriteItems: TransactWriteItems): ZIO[Any, Throwable, Unit] =
 //    for {
 //      _ <- dynamoDb.transactWriteItems(awsTransactWriteItemsRequest(transactWriteItems)).mapError(_.toThrowable)
