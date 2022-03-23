@@ -171,26 +171,23 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
   private def buildTransaction[A](
 //    query: DynamoDBQuery.Transaction[A]
     query: DynamoDBQuery[A]
-  ): IO[Throwable, (Chunk[Constructor[Any]], Chunk[Any] => A)] =
+  ): IO[
+    Throwable,
+    (Chunk[Constructor[Any]], Chunk[Any] => Any)
+  ] = // general idea here is that transactWrites will be unit but transactGets will be As
     /*
     we have transformations on the individual pieces of the query and then mapping
      */
     query match {
       case constructor: Constructor[A] =>
         constructor match {
-          case s: PutItem        =>
-            ZIO.succeed(
-              (Chunk(s), chunk => chunk(0).asInstanceOf[A])
-            ) // execute the put item and then return the response
-
-          // TODO: transact write items does not return any of the values, should the mappings for these just be Unit?
-          case s: DeleteItem     => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: Succeed[A]     => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: PutItem        => ZIO.succeed((Chunk(s), _ => ()))
+          case s: DeleteItem     => ZIO.succeed((Chunk(s), _ => ()))
           case s: GetItem        => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
           case s: BatchGetItem   => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: BatchWriteItem => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: UpdateItem     => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: ConditionCheck => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: BatchWriteItem => ZIO.succeed((Chunk(s), _ => ()))
+          case s: UpdateItem     => ZIO.succeed((Chunk(s), _ => ()))
+          case s: ConditionCheck => ZIO.succeed((Chunk(s), _ => ()))
           case s                 => ZIO.fail(InvalidTransactionActions(NonEmptyChunk(s)))
         }
       case FailCause(cause)            => ZIO.halt(cause())
@@ -230,8 +227,66 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
   make sure that on the writes that we
    */
 
+  sealed trait TransactionType
+  object TransactionType {
+    final case object Write extends TransactionType
+    final case object Get   extends TransactionType
+  }
+
   // Need to go through the chunk and make sure we don't have mixed transaction actions otherwise we'll fail at runtime.
-  private def filterMixedTransactions[A](actions: Chunk[Constructor[A]]): IO[Throwable, Chunk[Constructor[A]]] = ???
+  private def filterMixedTransactions[A](actions: Chunk[Constructor[A]]): IO[Throwable, Chunk[Constructor[A]]] =
+    actions
+      .foldLeft(None: Option[Either[Throwable, TransactionType]]) {
+        case (acc, constructor) =>
+          acc match {
+            case None                   =>
+              constructor match {
+                case _: DeleteItem     => Some(Right(TransactionType.Write))
+                case _: PutItem        => Some(Right(TransactionType.Write))
+                case _: BatchWriteItem => Some(Right(TransactionType.Write))
+                case _: UpdateItem     => Some(Right(TransactionType.Write))
+                case _: ConditionCheck => Some(Right(TransactionType.Write))
+                case _: GetItem        => Some(Right(TransactionType.Get))
+                case _: BatchGetItem   => Some(Right(TransactionType.Get))
+                case _                 => Some(Left(InvalidTransactionActions(???)))
+              }
+            case Some(errOrTransaction) =>
+              errOrTransaction match {
+                case Left(throwable)        => Some(Left(throwable))
+                case Right(transactionType) =>
+                  transactionType match {
+                    case TransactionType.Write =>
+                      constructor match {
+                        case _: DeleteItem     => Some(Right(TransactionType.Write))
+                        case _: PutItem        => Some(Right(TransactionType.Write))
+                        case _: BatchWriteItem => Some(Right(TransactionType.Write))
+                        case _: UpdateItem     => Some(Right(TransactionType.Write))
+                        case _: ConditionCheck => Some(Right(TransactionType.Write))
+                        case _: GetItem        => Some(Left(MixedTransactionTypes()))
+                        case _: BatchGetItem   => Some(Left(MixedTransactionTypes()))
+                        case _                 => Some(Left(InvalidTransactionActions(???)))
+                      }
+                    case TransactionType.Get   =>
+                      constructor match {
+                        case _: GetItem        => Some(Right(TransactionType.Get))
+                        case _: BatchGetItem   => Some(Right(TransactionType.Get))
+                        case _: DeleteItem     => Some(Left(MixedTransactionTypes()))
+                        case _: PutItem        => Some(Left(MixedTransactionTypes()))
+                        case _: BatchWriteItem => Some(Left(MixedTransactionTypes()))
+                        case _: UpdateItem     => Some(Left(MixedTransactionTypes()))
+                        case _: ConditionCheck => Some(Left(MixedTransactionTypes()))
+                        case _                 => Some(Left(InvalidTransactionActions(???)))
+                      }
+                  }
+              }
+          }
+
+      }
+      .map(e => ZIO.fromEither(e))
+      .map(_.as(actions))
+      .getOrElse(ZIO.succeed(actions)) // if we get a None then the actions are empty
+
+  final case class MixedTransactionTypes() extends Throwable
 
   private def constructTransaction[A](
     actions: Chunk[Constructor[A]]
