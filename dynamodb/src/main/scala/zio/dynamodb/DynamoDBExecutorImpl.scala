@@ -240,44 +240,15 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
         case (acc, constructor) =>
           acc match {
             case None                   =>
-              constructor match {
-                case _: DeleteItem     => Some(Right(TransactionType.Write))
-                case _: PutItem        => Some(Right(TransactionType.Write))
-                case _: BatchWriteItem => Some(Right(TransactionType.Write))
-                case _: UpdateItem     => Some(Right(TransactionType.Write))
-                case _: ConditionCheck => Some(Right(TransactionType.Write))
-                case _: GetItem        => Some(Right(TransactionType.Get))
-                case _: BatchGetItem   => Some(Right(TransactionType.Get))
-                case _                 => Some(Left(InvalidTransactionActions(???)))
-              }
+              constructorToTransactionType(constructor)
+                .map(Right(_))
+                .orElse(
+                  Some(Left(InvalidTransactionActions(NonEmptyChunk(constructor))))
+                )
             case Some(errOrTransaction) =>
               errOrTransaction match {
-                case Left(throwable)        => Some(Left(throwable))
-                case Right(transactionType) =>
-                  transactionType match {
-                    case TransactionType.Write =>
-                      constructor match {
-                        case _: DeleteItem     => Some(Right(TransactionType.Write))
-                        case _: PutItem        => Some(Right(TransactionType.Write))
-                        case _: BatchWriteItem => Some(Right(TransactionType.Write))
-                        case _: UpdateItem     => Some(Right(TransactionType.Write))
-                        case _: ConditionCheck => Some(Right(TransactionType.Write))
-                        case _: GetItem        => Some(Left(MixedTransactionTypes()))
-                        case _: BatchGetItem   => Some(Left(MixedTransactionTypes()))
-                        case _                 => Some(Left(InvalidTransactionActions(???)))
-                      }
-                    case TransactionType.Get   =>
-                      constructor match {
-                        case _: GetItem        => Some(Right(TransactionType.Get))
-                        case _: BatchGetItem   => Some(Right(TransactionType.Get))
-                        case _: DeleteItem     => Some(Left(MixedTransactionTypes()))
-                        case _: PutItem        => Some(Left(MixedTransactionTypes()))
-                        case _: BatchWriteItem => Some(Left(MixedTransactionTypes()))
-                        case _: UpdateItem     => Some(Left(MixedTransactionTypes()))
-                        case _: ConditionCheck => Some(Left(MixedTransactionTypes()))
-                        case _                 => Some(Left(InvalidTransactionActions(???)))
-                      }
-                  }
+                case l @ Left(_)            => Some(l)
+                case Right(transactionType) => constructorMatch(constructor, transactionType)
               }
           }
 
@@ -285,6 +256,28 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       .map(e => ZIO.fromEither(e))
       .map(_.as(actions))
       .getOrElse(ZIO.succeed(actions)) // if we get a None then the actions are empty
+
+  private def constructorMatch[A](constructor: Constructor[A], transactionType: TransactionType) =
+    constructorToTransactionType(constructor)
+      .map(t =>
+        if (t == transactionType) Right(transactionType)
+        else Left(MixedTransactionTypes())
+      )
+      .orElse(
+        Some(Left(InvalidTransactionActions(NonEmptyChunk(constructor))))
+      )
+
+  private def constructorToTransactionType[A](constructor: Constructor[A]): Option[TransactionType] =
+    constructor match {
+      case _: DeleteItem     => Some(TransactionType.Write)
+      case _: PutItem        => Some(TransactionType.Write)
+      case _: BatchWriteItem => Some(TransactionType.Write)
+      case _: UpdateItem     => Some(TransactionType.Write)
+      case _: ConditionCheck => Some(TransactionType.Write)
+      case _: GetItem        => Some(TransactionType.Get)
+      case _: BatchGetItem   => Some(TransactionType.Get)
+      case _                 => None
+    }
 
   final case class MixedTransactionTypes() extends Throwable
 
