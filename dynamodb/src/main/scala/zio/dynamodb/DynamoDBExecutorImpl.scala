@@ -391,9 +391,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
                                                         items    <- response.responses.map(_.map(item => item.itemValue.map(dynamoDBItem)))
                                                       } yield Chunk.fromIterable(items)).mapError(_.toThrowable)
                                                     case Right(transactWriteItems) =>
-                                                      for {
-                                                        _ <- dynamoDb.transactWriteItems(transactWriteItems).mapError(_.toThrowable)
-                                                      } yield Chunk.fill(transactionActions.length)(())
+                                                      dynamoDb
+                                                        .transactWriteItems(transactWriteItems)
+                                                        .mapBoth(_.toThrowable, _ => Chunk.fill(transactionActions.length)(()))
                                                   }
     } yield transactionMapping(a)
 
