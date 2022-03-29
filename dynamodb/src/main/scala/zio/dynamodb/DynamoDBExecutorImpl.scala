@@ -10,6 +10,7 @@ import io.github.vigoo.zioaws.dynamodb.model.{
   DeleteRequest,
   DeleteTableRequest,
   DescribeTableRequest,
+  Get,
   GetItemRequest,
   KeySchemaElement,
   KeyType,
@@ -21,7 +22,9 @@ import io.github.vigoo.zioaws.dynamodb.model.{
   ScalarAttributeType,
   ScanRequest,
   Tag,
+  TransactGetItem,
   TransactGetItemsRequest,
+  TransactWriteItem,
   TransactWriteItemsRequest,
   UpdateItemRequest,
   UpdateItemResponse,
@@ -29,17 +32,21 @@ import io.github.vigoo.zioaws.dynamodb.model.{
   AttributeDefinition => ZIOAwsAttributeDefinition,
   AttributeValue => ZIOAwsAttributeValue,
   BillingMode => ZIOAwsBillingMode,
+  ConditionCheck => ZIOAwsConditionCheck,
+  Delete => ZIOAwsDelete,
   GlobalSecondaryIndex => ZIOAwsGlobalSecondaryIndex,
   LocalSecondaryIndex => ZIOAwsLocalSecondaryIndex,
   Projection => ZIOAwsProjection,
   ProjectionType => ZIOAwsProjectionType,
   ProvisionedThroughput => ZIOAwsProvisionedThroughput,
+  Put => ZIOAwsPut,
   ReturnConsumedCapacity => ZIOAwsReturnConsumedCapacity,
   ReturnItemCollectionMetrics => ZIOAwsReturnItemCollectionMetrics,
   SSESpecification => ZIOAwsSSESpecification,
   SSEType => ZIOAwsSSEType,
   Select => ZIOAwsSelect,
-  TableStatus => ZIOAwsTableStatus
+  TableStatus => ZIOAwsTableStatus,
+  Update => ZIOAwsUpdate
 }
 import zio.clock.Clock
 import zio.dynamodb.ConsistencyMode.toBoolean
@@ -287,10 +294,96 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
   final case class MixedTransactionTypes() extends Throwable
 
   private def constructTransaction[A](
-    actions: Chunk[Constructor[A]]
-  ): IO[Throwable, Either[TransactGetItemsRequest, TransactWriteItemsRequest]] = ???
+    actions: Chunk[Constructor[A]],
+    transactionType: TransactionType
+  ): Either[TransactGetItemsRequest, TransactWriteItemsRequest] =
+    transactionType match {
+      case TransactionType.Write => Right(constructWriteTransaction(actions))
+      case TransactionType.Get   => ???
+    }
 
-  private def executeTransaction[A](transaction: Transaction[A]): ZIO[Any, Throwable, A] = ???
+  private def constructGetTransaction[A](actions: Chunk[Constructor[A]]): TransactGetItemsRequest = {
+    val getActions: Chunk[TransactGetItem] = actions.flatMap {
+      case s: GetItem      =>
+        Some(
+          TransactGetItem(
+            Get(
+              key = s.key.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+              tableName = s.tableName.value,
+              projectionExpression = toOption(s.projections).map(awsProjectionExpression)
+            )
+          )
+        )
+      case s: BatchGetItem =>
+        s.requestItems.flatMap {
+          case (tableName, items) =>
+            val something = items.keysSet.zip(items.projectionExpressionSet)
+            something.map {
+              case (key, projectionExpression) =>
+                TransactGetItem(
+                  Get(
+                    key = key.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+                    tableName = tableName.value,
+                    projectionExpression = ???,
+                    expressionAttributeNames = ???
+                  )
+                )
+            }
+            ???
+        }
+      case _               => None
+    }
+    ???
+  }
+
+  // really want to constrain A to be one of the write actions
+  private def constructWriteTransaction[A](actions: Chunk[Constructor[A]]): TransactWriteItemsRequest = {
+    val writeActions: Chunk[TransactWriteItem] = actions.flatMap {
+      case s: DeleteItem     => awsTransactWriteItem(s)
+      case s: PutItem        => awsTransactWriteItem(s)
+      case s: BatchWriteItem =>
+        s.requestItems.flatMap {
+          case (table, items) =>
+            val something = items.map {
+              case BatchWriteItem.Delete(key) =>
+                TransactWriteItem(delete =
+                  Some(
+                    ZIOAwsDelete(
+                      key = key.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+                      tableName = table.value
+                    )
+                  )
+                )
+              case BatchWriteItem.Put(item)   =>
+                TransactWriteItem(put =
+                  Some(
+                    ZIOAwsPut(
+                      item = item.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+                      tableName = table.value
+                    )
+                  )
+                )
+            }
+            Chunk.fromIterable(something)
+        }
+      case s: UpdateItem     => awsTransactWriteItem(s)
+      case s: ConditionCheck => awsTransactWriteItem(s)
+      case _                 => None
+    }
+
+    // TODO: Should we require these fields in the `.transaction` method?
+    TransactWriteItemsRequest(
+      transactItems = writeActions,
+      returnConsumedCapacity = None,
+      returnItemCollectionMetrics = None,
+      clientRequestToken = None
+    )
+  }
+
+  private def executeTransaction[A](transaction: Transaction[A]): ZIO[Any, Throwable, A] =
+    for {
+      trans <- buildTransaction(transaction)
+    } yield ???
 
 //  private def executeTransactGetItems(transactGetItems: TransactGetItems): ZIO[Any, Throwable, Chunk[Option[Item]]] =
 //    (for {
@@ -619,63 +712,64 @@ case object DynamoDBExecutorImpl {
 //      returnItemCollectionMetrics = Some(awsReturnItemCollectionMetrics(transactWriteItems.itemMetrics)),
 //      clientRequestToken = transactWriteItems.clientRequestToken
 //    )
-//
-//  private def awsTransactWriteItem(transactWriteItem: TransactWriteItems.Write): TransactWriteItem =
-//    transactWriteItem match {
-//      case conditionCheck: TransactWriteItems.ConditionCheck =>
-//        TransactWriteItem(conditionCheck = Some(awsConditionCheck(conditionCheck)))
-//      case put: TransactWriteItems.Put                       => TransactWriteItem(put = Some(awsTransactPutItem(put)))
-//      case delete: TransactWriteItems.Delete                 => TransactWriteItem(delete = Some(awsTransactDeleteItem(delete)))
-//      case update: TransactWriteItems.Update                 => TransactWriteItem(update = Some(awsTransactUpdateItem(update)))
-//    }
-//
-//  private def awsConditionCheck(conditionCheck: TransactWriteItems.ConditionCheck): ZIOAwsConditionCheck = {
-//    val (aliasMap, conditionExpression) = conditionCheck.conditionExpression.render.execute
-//
-//    ZIOAwsConditionCheck(
-//      key = conditionCheck.primaryKey.map.map { case (k, v) => (k, awsAttributeValue(v)) },
-//      tableName = conditionCheck.tableName.value,
-//      conditionExpression = conditionExpression,
-//      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap)
-//    )
-//  }
-//
-//  private def awsTransactPutItem(put: TransactWriteItems.Put): ZIOAwsPut = {
-//    val (aliasMap, conditionExpression) = AliasMapRender.collectAll(put.conditionExpression.map(_.render)).execute
-//
-//    ZIOAwsPut(
-//      item = put.item.map.map { case (k, v) => (k, awsAttributeValue(v)) },
-//      tableName = put.tableName.value,
-//      conditionExpression = conditionExpression,
-//      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap)
-//    )
-//  }
-//
-//  private def awsTransactDeleteItem(delete: TransactWriteItems.Delete): ZIOAwsDelete = {
-//    val (aliasMap, conditionExpression) = AliasMapRender.collectAll(delete.conditionExpression.map(_.render)).execute
-//
-//    ZIOAwsDelete(
-//      key = delete.primaryKey.map.map { case (k, v) => (k, awsAttributeValue(v)) },
-//      tableName = delete.tableName.value,
-//      conditionExpression = conditionExpression,
-//      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap)
-//    )
-//  }
-//
-//  private def awsTransactUpdateItem(update: TransactWriteItems.Update): ZIOAwsUpdate = {
-//    val (aliasMap, (updateExpr, maybeConditionExpr)) = (for {
-//      updateExpr    <- update.updateExpression.render
-//      conditionExpr <- AliasMapRender.collectAll(update.conditionExpression.map(_.render))
-//    } yield (updateExpr, conditionExpr)).execute
-//
-//    ZIOAwsUpdate(
-//      key = update.primaryKey.map.map { case (k, v) => (k, awsAttributeValue(v)) },
-//      tableName = update.tableName.value,
-//      conditionExpression = maybeConditionExpr,
-//      updateExpression = updateExpr,
-//      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap)
-//    )
-//  }
+
+  private def awsTransactWriteItem[A](action: Constructor[A]): Option[TransactWriteItem] =
+    action match {
+      case conditionCheck: ConditionCheck =>
+        Some(TransactWriteItem(conditionCheck = Some(awsConditionCheck(conditionCheck))))
+      case put: PutItem                   => Some(TransactWriteItem(put = Some(awsTransactPutItem(put))))
+      case delete: DeleteItem             => Some(TransactWriteItem(delete = Some(awsTransactDeleteItem(delete))))
+      case update: UpdateItem             => Some(TransactWriteItem(update = Some(awsTransactUpdateItem(update))))
+      case _                              => None
+    }
+
+  private def awsConditionCheck(conditionCheck: ConditionCheck): ZIOAwsConditionCheck = {
+    val (aliasMap, conditionExpression) = conditionCheck.conditionExpression.render.execute
+
+    ZIOAwsConditionCheck(
+      key = conditionCheck.primaryKey.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+      tableName = conditionCheck.tableName.value,
+      conditionExpression = conditionExpression,
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap)
+    )
+  }
+
+  private def awsTransactPutItem(put: PutItem): ZIOAwsPut = {
+    val (aliasMap, conditionExpression) = AliasMapRender.collectAll(put.conditionExpression.map(_.render)).execute
+
+    ZIOAwsPut(
+      item = put.item.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+      tableName = put.tableName.value,
+      conditionExpression = conditionExpression,
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap)
+    )
+  }
+
+  private def awsTransactDeleteItem(delete: DeleteItem): ZIOAwsDelete = {
+    val (aliasMap, conditionExpression) = AliasMapRender.collectAll(delete.conditionExpression.map(_.render)).execute
+
+    ZIOAwsDelete(
+      key = delete.key.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+      tableName = delete.tableName.value,
+      conditionExpression = conditionExpression,
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap)
+    )
+  }
+
+  private def awsTransactUpdateItem(update: UpdateItem): ZIOAwsUpdate = {
+    val (aliasMap, (updateExpr, maybeConditionExpr)) = (for {
+      updateExpr    <- update.updateExpression.render
+      conditionExpr <- AliasMapRender.collectAll(update.conditionExpression.map(_.render))
+    } yield (updateExpr, conditionExpr)).execute
+
+    ZIOAwsUpdate(
+      key = update.key.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+      tableName = update.tableName.value,
+      conditionExpression = maybeConditionExpr,
+      updateExpression = updateExpr,
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap)
+    )
+  }
 
   private[dynamodb] def awsProjectionExpression(
     projectionExpressions: Iterable[ProjectionExpression]
