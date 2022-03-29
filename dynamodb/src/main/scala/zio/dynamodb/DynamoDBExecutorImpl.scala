@@ -245,38 +245,38 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
 
   // Need to go through the chunk and make sure we don't have mixed transaction actions otherwise we'll fail at runtime.
 
-  private def filterMixedTransactions[A](actions: Chunk[Constructor[A]]): IO[Throwable, Chunk[Constructor[A]]] =
-    actions
-      .foldLeft(None: Option[Either[Throwable, TransactionType]]) {
-        case (acc, constructor) =>
-          acc match {
-            case None                   =>
-              constructorToTransactionType(constructor)
-                .map(Right(_))
-                .orElse(
-                  Some(Left(InvalidTransactionActions(NonEmptyChunk(constructor))))
-                )
-            case Some(errOrTransaction) =>
-              errOrTransaction match {
-                case l @ Left(_)            => Some(l)
-                case Right(transactionType) => constructorMatch(constructor, transactionType)
-              }
-          }
-
-      }
-      .map(e => ZIO.fromEither(e))
-      .map(_.as(actions))
-      .getOrElse(ZIO.succeed(actions))
+  private def filterMixedTransactions[A](
+    actions: Chunk[Constructor[A]]
+  ): Either[Throwable, (Chunk[Constructor[A]], TransactionType)] =
+    if (actions.isEmpty) Left(new Throwable("empty transaction actions")) // TODO: Better error type here
+    else {
+      val headConstructor = constructorToTransactionType(actions.head)
+        .map(Right(_))
+        .getOrElse(Left(InvalidTransactionActions(NonEmptyChunk(actions.head))))
+      actions
+        .drop(1)
+        .foldLeft(headConstructor: Either[Throwable, TransactionType]) {
+          case (acc, constructor) =>
+            acc match {
+              case l @ Left(_)            => l
+              case Right(transactionType) => constructorMatch(constructor, transactionType)
+            }
+        }
+        .map(transactionType => (actions, transactionType))
+    }
   // if we get a None then the actions are empty
 
-  private def constructorMatch[A](constructor: Constructor[A], transactionType: TransactionType) =
+  private def constructorMatch[A](
+    constructor: Constructor[A],
+    transactionType: TransactionType
+  ): Either[Throwable, TransactionType] =
     constructorToTransactionType(constructor)
       .map(t =>
         if (t == transactionType) Right(transactionType)
         else Left(MixedTransactionTypes())
       )
-      .orElse(
-        Some(Left(InvalidTransactionActions(NonEmptyChunk(constructor))))
+      .getOrElse(
+        Left(InvalidTransactionActions(NonEmptyChunk(constructor)))
       )
 
   private def constructorToTransactionType[A](constructor: Constructor[A]): Option[TransactionType] =
@@ -299,7 +299,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
   ): Either[TransactGetItemsRequest, TransactWriteItemsRequest] =
     transactionType match {
       case TransactionType.Write => Right(constructWriteTransaction(actions))
-      case TransactionType.Get   => ???
+      case TransactionType.Get   => Left(constructGetTransaction(actions))
     }
 
   private def constructGetTransaction[A](actions: Chunk[Constructor[A]]): TransactGetItemsRequest = {
@@ -317,23 +317,22 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       case s: BatchGetItem =>
         s.requestItems.flatMap {
           case (tableName, items) =>
-            val something = items.keysSet.zip(items.projectionExpressionSet)
-            something.map {
-              case (key, projectionExpression) =>
-                TransactGetItem(
-                  Get(
-                    key = key.map.map { case (k, v) => (k, awsAttributeValue(v)) },
-                    tableName = tableName.value,
-                    projectionExpression = ???,
-                    expressionAttributeNames = ???
-                  )
+            items.keysSet.map { key =>
+              TransactGetItem(
+                Get(
+                  key = key.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+                  tableName = tableName.value,
+                  projectionExpression = toOption(items.projectionExpressionSet).map(awsProjectionExpression)
                 )
+              )
             }
-            ???
         }
       case _               => None
     }
-    ???
+    TransactGetItemsRequest(
+      transactItems = getActions,
+      returnConsumedCapacity = None
+    )
   }
 
   // really want to constrain A to be one of the write actions
@@ -382,7 +381,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
 
   private def executeTransaction[A](transaction: Transaction[A]): ZIO[Any, Throwable, A] =
     for {
-      trans <- buildTransaction(transaction)
+      (transactionActions, transactionMapping) <- buildTransaction(transaction)
+      allOneTransaction                        <- filterMixedTransactions(transactionActions)
     } yield ???
 
 //  private def executeTransactGetItems(transactGetItems: TransactGetItems): ZIO[Any, Throwable, Chunk[Option[Item]]] =
