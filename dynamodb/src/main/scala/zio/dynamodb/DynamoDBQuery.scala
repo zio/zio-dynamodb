@@ -687,6 +687,7 @@ object DynamoDBQuery {
     clientRequestToken: Option[String] = None
   ) extends DynamoDBQuery[A]
 
+  private[dynamodb] final case class MixedTransactionTypes(a: Int = 0) extends Throwable
   private[dynamodb] final case class InvalidTransactionActions(invalidActions: NonEmptyChunk[DynamoDBQuery[Any]])
       extends Throwable
 
@@ -1039,6 +1040,14 @@ object DynamoDBQuery {
           Chunk(batchWriteItem),
           (results: Chunk[Any]) => {
             results.head.asInstanceOf[A]
+          }
+        )
+
+      case _: FailCause                                       =>
+        (
+          Chunk[Constructor[Any]](),
+          (_: Chunk[Any]) => {
+            ().asInstanceOf[A]
           }
         )
 

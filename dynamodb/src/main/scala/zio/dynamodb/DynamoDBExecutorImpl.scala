@@ -244,7 +244,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
   }
 
   // Need to go through the chunk and make sure we don't have mixed transaction actions otherwise we'll fail at runtime.
-
   private def filterMixedTransactions[A](
     actions: Chunk[Constructor[A]]
   ): Either[Throwable, (Chunk[Constructor[A]], TransactionType)] =
@@ -291,7 +290,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       case _                 => None
     }
 
-  final case class MixedTransactionTypes() extends Throwable
+  // ask John about this error: The outer reference in this type test cannot be checked at run time.
+//  final case class MixedTransactionTypes(a: Int = 0) extends Throwable
 
   private def constructTransaction[A](
     actions: Chunk[Constructor[A]],
@@ -382,15 +382,26 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
   private def executeTransaction[A](transaction: Transaction[A]): ZIO[Any, Throwable, A] =
     for {
       (transactionActions, transactionMapping) <- buildTransaction(transaction)
-      allOneTransaction                        <- filterMixedTransactions(transactionActions)
-    } yield ???
+      (transactionActions, transactionType)    <- ZIO.fromEither(filterMixedTransactions(transactionActions))
+      transaction                               = constructTransaction(transactionActions, transactionType)
+      a: Chunk[Any]                            <- transaction match {
+                                                    case Left(transactGetItems)    =>
+                                                      (for {
+                                                        response <- dynamoDb.transactGetItems(transactGetItems)
+                                                        items    <- response.responses.map(_.map(item => item.itemValue.map(dynamoDBItem)))
+                                                      } yield Chunk.fromIterable(items)).mapError(_.toThrowable)
+                                                    case Right(transactWriteItems) =>
+                                                      for {
+                                                        _ <- dynamoDb.transactWriteItems(transactWriteItems).mapError(_.toThrowable)
+                                                      } yield Chunk.fill(transactionActions.length)(())
+                                                  }
+    } yield transactionMapping(a)
 
 //  private def executeTransactGetItems(transactGetItems: TransactGetItems): ZIO[Any, Throwable, Chunk[Option[Item]]] =
 //    (for {
 //      response <- dynamoDb.transactGetItems(awsTransactGetItemsRequest(transactGetItems))
 //      items    <- response.responses.map(_.map(item => item.itemValue.map(dynamoDBItem)))
 //    } yield Chunk.fromIterable(items)).mapError(_.toThrowable)
-//
 
 //  private final case class TransactWriteItems()
 
