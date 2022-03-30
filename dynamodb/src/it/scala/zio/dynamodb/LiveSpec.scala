@@ -788,8 +788,19 @@ object LiveSpec extends DefaultRunnableSpec {
                 tableName = TableName(tableName),
                 updateExpression = UpdateExpression($(name).set("shouldFail"))
               )
+
+              val transaction = updateItem1.zip(updateItem2).transaction
+
               for {
-                a <- updateItem1.zip(updateItem2).transaction.execute
+                (actions, _)    <- DynamoDBExecutorImpl.buildTransaction(transaction)
+                builtTransaction =
+                  DynamoDBExecutorImpl.constructTransaction(actions, DynamoDBExecutorImpl.TransactionType.Write)
+
+                _                = println(s"""
+                               |actions: $actions
+                               |builtTransaction: $builtTransaction
+                               |""".stripMargin)
+                a               <- transaction.execute
               } yield assert(a)(equalTo((None, None)))
             }
           } @@ failing

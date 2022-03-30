@@ -172,59 +172,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
         unprocessed <- ref.get
       } yield BatchWriteItem.Response(unprocessed.toOption)
 
-  // what to do about the request token?
-  // need to know if we're mixing gets and writes in the same transaction
-  // should do it as soon as possible
-  private def buildTransaction[A](
-//    query: DynamoDBQuery.Transaction[A]
-    query: DynamoDBQuery[A]
-  ): IO[
-    Throwable,
-    (Chunk[Constructor[Any]], Chunk[Any] => A)
-  ] = // general idea here is that transactWrites will be unit but transactGets will be As
-    /*
-    we have transformations on the individual pieces of the query and then mapping
-     */
-    query match {
-      case constructor: Constructor[A] =>
-        constructor match {
-          case s: PutItem        => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: DeleteItem     => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: GetItem        => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: BatchGetItem   => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: BatchWriteItem => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: UpdateItem     =>
-            ZIO.succeed(
-              (Chunk(s), _ => None.asInstanceOf[A])
-            ) // we don't get data back from transactWrites, return None here
-          case s: ConditionCheck => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s                 => ZIO.fail(InvalidTransactionActions(NonEmptyChunk(s)))
-        }
-      case FailCause(cause)            => ZIO.halt(cause())
-      // TODO(required): What to do about the client token here? -- do we just ignore and use a top-level one?
-      case Transaction(query, _)       => buildTransaction(query)
-      case Zip(left, right, zippable)  =>
-        for {
-          l <- buildTransaction(left)
-          r <- buildTransaction(right)
-        } yield (
-          l._1 ++ r._1,
-          (chunk: Chunk[Any]) => {
-            val leftChunk  = chunk.take(l._1.length)
-            val rightChunk = chunk.drop(l._1.length)
-
-            val leftValue  = l._2(leftChunk)
-            val rightValue = r._2(rightChunk)
-
-            zippable.zip(leftValue, rightValue)
-          }
-        )
-      case Map(query, mapper)          =>
-        buildTransaction(query).map {
-          case (constructors, construct) => (constructors, chunk => mapper.asInstanceOf[Any => A](construct(chunk)))
-        }
-    }
-
   /*
   execute all of the individual operations by packing them into the AWS data types
   produce the correct return values
@@ -236,12 +183,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
 
   make sure that on the writes that we
    */
-
-  sealed trait TransactionType
-  object TransactionType {
-    final case object Write extends TransactionType
-    final case object Get   extends TransactionType
-  }
 
   // Need to go through the chunk and make sure we don't have mixed transaction actions otherwise we'll fail at runtime.
   private def filterMixedTransactions[A](
@@ -292,92 +233,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
 
   // ask John about this error: The outer reference in this type test cannot be checked at run time.
 //  final case class MixedTransactionTypes(a: Int = 0) extends Throwable
-
-  private def constructTransaction[A](
-    actions: Chunk[Constructor[A]],
-    transactionType: TransactionType
-  ): Either[TransactGetItemsRequest, TransactWriteItemsRequest] =
-    transactionType match {
-      case TransactionType.Write => Right(constructWriteTransaction(actions))
-      case TransactionType.Get   => Left(constructGetTransaction(actions))
-    }
-
-  private def constructGetTransaction[A](actions: Chunk[Constructor[A]]): TransactGetItemsRequest = {
-    val getActions: Chunk[TransactGetItem] = actions.flatMap {
-      case s: GetItem      =>
-        Some(
-          TransactGetItem(
-            Get(
-              key = s.key.map.map { case (k, v) => (k, awsAttributeValue(v)) },
-              tableName = s.tableName.value,
-              projectionExpression = toOption(s.projections).map(awsProjectionExpression)
-            )
-          )
-        )
-      case s: BatchGetItem =>
-        s.requestItems.flatMap {
-          case (tableName, items) =>
-            items.keysSet.map { key =>
-              TransactGetItem(
-                Get(
-                  key = key.map.map { case (k, v) => (k, awsAttributeValue(v)) },
-                  tableName = tableName.value,
-                  projectionExpression = toOption(items.projectionExpressionSet).map(awsProjectionExpression)
-                )
-              )
-            }
-        }
-      case _               => None
-    }
-    TransactGetItemsRequest(
-      transactItems = getActions,
-      returnConsumedCapacity = None
-    )
-  }
-
-  // really want to constrain A to be one of the write actions
-  private def constructWriteTransaction[A](actions: Chunk[Constructor[A]]): TransactWriteItemsRequest = {
-    val writeActions: Chunk[TransactWriteItem] = actions.flatMap {
-      case s: DeleteItem     => awsTransactWriteItem(s)
-      case s: PutItem        => awsTransactWriteItem(s)
-      case s: BatchWriteItem =>
-        s.requestItems.flatMap {
-          case (table, items) =>
-            val something = items.map {
-              case BatchWriteItem.Delete(key) =>
-                TransactWriteItem(delete =
-                  Some(
-                    ZIOAwsDelete(
-                      key = key.map.map { case (k, v) => (k, awsAttributeValue(v)) },
-                      tableName = table.value
-                    )
-                  )
-                )
-              case BatchWriteItem.Put(item)   =>
-                TransactWriteItem(put =
-                  Some(
-                    ZIOAwsPut(
-                      item = item.map.map { case (k, v) => (k, awsAttributeValue(v)) },
-                      tableName = table.value
-                    )
-                  )
-                )
-            }
-            Chunk.fromIterable(something)
-        }
-      case s: UpdateItem     => awsTransactWriteItem(s)
-      case s: ConditionCheck => awsTransactWriteItem(s)
-      case _                 => None
-    }
-
-    // TODO: Should we require these fields in the `.transaction` method?
-    TransactWriteItemsRequest(
-      transactItems = writeActions,
-      returnConsumedCapacity = None,
-      returnItemCollectionMetrics = None,
-      clientRequestToken = None
-    )
-  }
 
   private def executeTransaction[A](transaction: Transaction[A]): ZIO[Any, Throwable, A] =
     for {
@@ -480,6 +335,155 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
 }
 
 case object DynamoDBExecutorImpl {
+
+  sealed trait TransactionType
+  object TransactionType {
+    final case object Write extends TransactionType
+    final case object Get   extends TransactionType
+  }
+
+  // what to do about the request token?
+  // need to know if we're mixing gets and writes in the same transaction
+  // should do it as soon as possible
+  private[dynamodb] def buildTransaction[A](
+    //    query: DynamoDBQuery.Transaction[A]
+    query: DynamoDBQuery[A]
+  ): IO[
+    Throwable,
+    (Chunk[Constructor[Any]], Chunk[Any] => A)
+  ] = // general idea here is that transactWrites will be unit but transactGets will be As
+    /*
+  we have transformations on the individual pieces of the query and then mapping
+     */
+    query match {
+      case constructor: Constructor[A] =>
+        constructor match {
+          case s: PutItem        => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: DeleteItem     => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: GetItem        => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: BatchGetItem   => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: BatchWriteItem => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: UpdateItem     =>
+            ZIO.succeed(
+              (Chunk(s), _ => None.asInstanceOf[A])
+            ) // we don't get data back from transactWrites, return None here
+          case s: ConditionCheck => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s                 => ZIO.fail(InvalidTransactionActions(NonEmptyChunk(s)))
+        }
+      case FailCause(cause)            => ZIO.halt(cause())
+      // TODO(required): What to do about the client token here? -- do we just ignore and use a top-level one?
+      case Transaction(query, _)       => buildTransaction(query)
+      // BUG: Currently these transactions are completely unique so zipping two updates results in two transactions
+      /* If we have a zip we need to merge them into a single transaction and then split them back out, which seems like what we have here
+        however two updates to the same item should fail but we're executing two different transactions
+       */
+      case Zip(left, right, zippable)  =>
+        for {
+          l <- buildTransaction(left)
+          r <- buildTransaction(right)
+        } yield (
+          l._1 ++ r._1,
+          (chunk: Chunk[Any]) => {
+            val leftChunk  = chunk.take(l._1.length)
+            val rightChunk = chunk.drop(l._1.length)
+
+            val leftValue  = l._2(leftChunk)
+            val rightValue = r._2(rightChunk)
+
+            zippable.zip(leftValue, rightValue)
+          }
+        )
+      case Map(query, mapper)          =>
+        buildTransaction(query).map {
+          case (constructors, construct) => (constructors, chunk => mapper.asInstanceOf[Any => A](construct(chunk)))
+        }
+    }
+
+  private[dynamodb] def constructTransaction[A](
+    actions: Chunk[Constructor[A]],
+    transactionType: TransactionType
+  ): Either[TransactGetItemsRequest, TransactWriteItemsRequest] =
+    transactionType match {
+      case TransactionType.Write => Right(constructWriteTransaction(actions))
+      case TransactionType.Get   => Left(constructGetTransaction(actions))
+    }
+
+  private def constructGetTransaction[A](actions: Chunk[Constructor[A]]): TransactGetItemsRequest = {
+    val getActions: Chunk[TransactGetItem] = actions.flatMap {
+      case s: GetItem      =>
+        Some(
+          TransactGetItem(
+            Get(
+              key = s.key.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+              tableName = s.tableName.value,
+              projectionExpression = toOption(s.projections).map(awsProjectionExpression)
+            )
+          )
+        )
+      case s: BatchGetItem =>
+        s.requestItems.flatMap {
+          case (tableName, items) =>
+            items.keysSet.map { key =>
+              TransactGetItem(
+                Get(
+                  key = key.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+                  tableName = tableName.value,
+                  projectionExpression = toOption(items.projectionExpressionSet).map(awsProjectionExpression)
+                )
+              )
+            }
+        }
+      case _               => None
+    }
+    TransactGetItemsRequest(
+      transactItems = getActions,
+      returnConsumedCapacity = None
+    )
+  }
+
+  // really want to constrain A to be one of the write actions
+  private def constructWriteTransaction[A](actions: Chunk[Constructor[A]]): TransactWriteItemsRequest = {
+    val writeActions: Chunk[TransactWriteItem] = actions.flatMap {
+      case s: DeleteItem     => awsTransactWriteItem(s)
+      case s: PutItem        => awsTransactWriteItem(s)
+      case s: BatchWriteItem =>
+        s.requestItems.flatMap {
+          case (table, items) =>
+            val something = items.map {
+              case BatchWriteItem.Delete(key) =>
+                TransactWriteItem(delete =
+                  Some(
+                    ZIOAwsDelete(
+                      key = key.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+                      tableName = table.value
+                    )
+                  )
+                )
+              case BatchWriteItem.Put(item)   =>
+                TransactWriteItem(put =
+                  Some(
+                    ZIOAwsPut(
+                      item = item.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+                      tableName = table.value
+                    )
+                  )
+                )
+            }
+            Chunk.fromIterable(something)
+        }
+      case s: UpdateItem     => awsTransactWriteItem(s)
+      case s: ConditionCheck => awsTransactWriteItem(s)
+      case _                 => None
+    }
+
+    // TODO: Should we require these fields in the `.transaction` method?
+    TransactWriteItemsRequest(
+      transactItems = writeActions,
+      returnConsumedCapacity = None,
+      returnItemCollectionMetrics = None,
+      clientRequestToken = None
+    )
+  }
 
   private val catchBatchRetryError: PartialFunction[Throwable, ZIO[Clock, Throwable, Unit]] = {
     case thrown: Throwable => ZIO.fail(thrown).unless(thrown.isInstanceOf[BatchRetryError])
