@@ -82,6 +82,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       case c: DescribeTable  => executeDescribeTable(c)
       case c: QuerySome      => executeQuerySome(c)
       case c: QueryAll       => executeQueryAll(c)
+      case c: Transaction[_] => executeTransaction(c)
       case Succeed(c)        => ZIO.succeed(c())
     }
 
@@ -92,7 +93,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       case map @ Map(_, _)             => executeMap(map)
       case FailCause(c)                =>
         ZIO.fail(c().squashWith(identity)) // I cannot find a `failCause` method on ZIO? // TODO: Make constructor
-      case c: Transaction[_]           => executeTransaction(c)
     }
 
   private def executeCreateTable(createTable: CreateTable): ZIO[Any, Throwable, Unit] =
@@ -172,18 +172,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
         unprocessed <- ref.get
       } yield BatchWriteItem.Response(unprocessed.toOption)
 
-  /*
-  execute all of the individual operations by packing them into the AWS data types
-  produce the correct return values
-
-
-  need a bit of state to see if we've got a read or a write transaction
-
-  sealed trait for read or write, if detect mixing then fail
-
-  make sure that on the writes that we
-   */
-
   // Need to go through the chunk and make sure we don't have mixed transaction actions otherwise we'll fail at runtime.
   private def filterMixedTransactions[A](
     actions: Chunk[Constructor[A]]
@@ -204,7 +192,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
         }
         .map(transactionType => (actions, transactionType))
     }
-  // if we get a None then the actions are empty
 
   private def constructorMatch[A](
     constructor: Constructor[A],
@@ -251,19 +238,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
                                                         .mapBoth(_.toThrowable, _ => Chunk.fill(transactionActions.length)(()))
                                                   }
     } yield transactionMapping(a)
-
-//  private def executeTransactGetItems(transactGetItems: TransactGetItems): ZIO[Any, Throwable, Chunk[Option[Item]]] =
-//    (for {
-//      response <- dynamoDb.transactGetItems(awsTransactGetItemsRequest(transactGetItems))
-//      items    <- response.responses.map(_.map(item => item.itemValue.map(dynamoDBItem)))
-//    } yield Chunk.fromIterable(items)).mapError(_.toThrowable)
-
-//  private final case class TransactWriteItems()
-
-//  private def executeTransactWriteItems(transactWriteItems: TransactWriteItems): ZIO[Any, Throwable, Unit] =
-//    for {
-//      _ <- dynamoDb.transactWriteItems(awsTransactWriteItemsRequest(transactWriteItems)).mapError(_.toThrowable)
-//    } yield ()
 
   private def executeScanSome(scanSome: ScanSome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] =
     dynamoDb
@@ -343,40 +317,30 @@ case object DynamoDBExecutorImpl {
   }
 
   // what to do about the request token?
-  // need to know if we're mixing gets and writes in the same transaction
-  // should do it as soon as possible
   private[dynamodb] def buildTransaction[A](
-    //    query: DynamoDBQuery.Transaction[A]
     query: DynamoDBQuery[A]
   ): IO[
     Throwable,
     (Chunk[Constructor[Any]], Chunk[Any] => A)
-  ] = // general idea here is that transactWrites will be unit but transactGets will be As
-    /*
-  we have transformations on the individual pieces of the query and then mapping
-     */
+  ] =
     query match {
       case constructor: Constructor[A] =>
         constructor match {
-          case s: PutItem        => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: DeleteItem     => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: GetItem        => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: BatchGetItem   => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: BatchWriteItem => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: UpdateItem     =>
+          case s: PutItem            => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: DeleteItem         => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: GetItem            => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: BatchGetItem       => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: BatchWriteItem     => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          // TODO(required): What to do about the client token here? -- do we just ignore and use a top-level one?
+          case Transaction(query, _) => buildTransaction(query)
+          case s: UpdateItem         =>
             ZIO.succeed(
               (Chunk(s), _ => None.asInstanceOf[A])
             ) // we don't get data back from transactWrites, return None here
-          case s: ConditionCheck => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s                 => ZIO.fail(InvalidTransactionActions(NonEmptyChunk(s)))
+          case s: ConditionCheck     => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s                     => ZIO.fail(InvalidTransactionActions(NonEmptyChunk(s)))
         }
       case FailCause(cause)            => ZIO.halt(cause())
-      // TODO(required): What to do about the client token here? -- do we just ignore and use a top-level one?
-      case Transaction(query, _)       => buildTransaction(query)
-      // BUG: Currently these transactions are completely unique so zipping two updates results in two transactions
-      /* If we have a zip we need to merge them into a single transaction and then split them back out, which seems like what we have here
-        however two updates to the same item should fail but we're executing two different transactions
-       */
       case Zip(left, right, zippable)  =>
         for {
           l <- buildTransaction(left)
@@ -441,7 +405,6 @@ case object DynamoDBExecutorImpl {
     )
   }
 
-  // really want to constrain A to be one of the write actions
   private def constructWriteTransaction[A](actions: Chunk[Constructor[A]]): TransactWriteItemsRequest = {
     val writeActions: Chunk[TransactWriteItem] = actions.flatMap {
       case s: DeleteItem     => awsTransactWriteItem(s)
@@ -705,28 +668,6 @@ case object DynamoDBExecutorImpl {
       consistentRead = Some(toBoolean(scanSome.consistency))
     )
   }
-
-//  private def awsTransactGetItemsRequest(transactGetItems: TransactGetItems): TransactGetItemsRequest =
-//    TransactGetItemsRequest(
-//      transactItems = transactGetItems.items.map(item =>
-//        TransactGetItem(
-//          Get(
-//            key = item.key.map.map { case (k, v) => (k, awsAttributeValue(v)) },
-//            tableName = item.tableName.value,
-//            projectionExpression = toOption(item.projections).map(awsProjectionExpression)
-//          )
-//        )
-//      ),
-//      returnConsumedCapacity = Some(awsConsumedCapacity(transactGetItems.capacity))
-//    )
-//
-//  private def awsTransactWriteItemsRequest(transactWriteItems: TransactWriteItems): TransactWriteItemsRequest =
-//    TransactWriteItemsRequest(
-//      transactItems = transactWriteItems.transactions.map(awsTransactWriteItem),
-//      returnConsumedCapacity = Some(awsConsumedCapacity(transactWriteItems.capacity)),
-//      returnItemCollectionMetrics = Some(awsReturnItemCollectionMetrics(transactWriteItems.itemMetrics)),
-//      clientRequestToken = transactWriteItems.clientRequestToken
-//    )
 
   private def awsTransactWriteItem[A](action: Constructor[A]): Option[TransactWriteItem] =
     action match {
