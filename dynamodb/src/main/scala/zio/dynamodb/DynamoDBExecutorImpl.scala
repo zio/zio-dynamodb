@@ -83,7 +83,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       case c: QuerySome      => executeQuerySome(c)
       case c: QueryAll       => executeQueryAll(c)
       case c: Transaction[_] => executeTransaction(c)
-      case Succeed(c)        => ZIO.succeed(c())
+      case FailCause(cause)  => ZIO.halt(cause())
+      case Succeed(value)    => ZIO.succeed(value())
     }
 
   override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Throwable, A] =
@@ -91,8 +92,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       case constructor: Constructor[_] => executeConstructor(constructor)
       case zip @ Zip(_, _, _)          => executeZip(zip)
       case map @ Map(_, _)             => executeMap(map)
-      case FailCause(c)                =>
-        ZIO.fail(c().squashWith(identity)) // I cannot find a `failCause` method on ZIO? // TODO: Make constructor
     }
 
   private def executeCreateTable(createTable: CreateTable): ZIO[Any, Throwable, Unit] =
@@ -176,17 +175,17 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
   private def filterMixedTransactions[A](
     actions: Chunk[Constructor[A]]
   ): Either[Throwable, (Chunk[Constructor[A]], TransactionType)] =
-    if (actions.isEmpty) Left(new Throwable("empty transaction actions")) // TODO: Better error type here
+    if (actions.isEmpty) Left(EmptyTransaction())
     else {
       val headConstructor = constructorToTransactionType(actions.head)
         .map(Right(_))
-        .getOrElse(Left(InvalidTransactionActions(NonEmptyChunk(actions.head))))
+        .getOrElse(Left(InvalidTransactionActions(NonEmptyChunk(actions.head)))) // TODO: Grab all that are invalid
       actions
         .drop(1)
         .foldLeft(headConstructor: Either[Throwable, TransactionType]) {
           case (acc, constructor) =>
             acc match {
-              case l @ Left(_)            => l
+              case l @ Left(_)            => l // Should also continue collecting other failures
               case Right(transactionType) => constructorMatch(constructor, transactionType)
             }
         }
@@ -338,9 +337,9 @@ case object DynamoDBExecutorImpl {
               (Chunk(s), _ => None.asInstanceOf[A])
             ) // we don't get data back from transactWrites, return None here
           case s: ConditionCheck     => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case FailCause(cause)      => ZIO.halt(cause())
           case s                     => ZIO.fail(InvalidTransactionActions(NonEmptyChunk(s)))
         }
-      case FailCause(cause)            => ZIO.halt(cause())
       case Zip(left, right, zippable)  =>
         for {
           l <- buildTransaction(left)

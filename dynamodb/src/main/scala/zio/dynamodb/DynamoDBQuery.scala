@@ -350,8 +350,9 @@ object DynamoDBQuery {
 
   def succeed[A](a: A): DynamoDBQuery[A] = Succeed(() => a)
 
-  case class FailCause(cause: () => Cause[Throwable]) extends DynamoDBQuery[Nothing]
+  private[dynamodb] final case class FailCause(cause: () => Cause[Throwable]) extends Constructor[Nothing]
   private[dynamodb] def failCause(cause: => Cause[Throwable]): DynamoDBQuery[Nothing] = FailCause(() => cause)
+  final case class EmptyTransaction() extends Throwable
 
   /**
    * Each element in `values` is zipped together using function `body` which has signature `A => DynamoDBQuery[B]`
@@ -612,7 +613,7 @@ object DynamoDBQuery {
     clientRequestToken: Option[String] = None
   ) extends Constructor[A]
 
-  private[dynamodb] final case class MixedTransactionTypes(a: Int = 0) extends Throwable
+  private[dynamodb] final case class MixedTransactionTypes() extends Throwable
   private[dynamodb] final case class InvalidTransactionActions(invalidActions: NonEmptyChunk[DynamoDBQuery[Any]])
       extends Throwable
 
