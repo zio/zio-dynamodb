@@ -171,7 +171,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
         unprocessed <- ref.get
       } yield BatchWriteItem.Response(unprocessed.toOption)
 
-  // Need to go through the chunk and make sure we don't have mixed transaction actions otherwise we'll fail at runtime.
+  // Need to go through the chunk and make sure we don't have mixed transaction actions
   private def filterMixedTransactions[A](
     actions: Chunk[Constructor[A]]
   ): Either[Throwable, (Chunk[Constructor[A]], TransactionType)] =
