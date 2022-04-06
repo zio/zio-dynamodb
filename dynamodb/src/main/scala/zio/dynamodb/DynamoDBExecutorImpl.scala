@@ -371,7 +371,7 @@ case object DynamoDBExecutorImpl {
       case TransactionType.Get   => Left(constructGetTransaction(actions))
     }
 
-  private def constructGetTransaction[A](actions: Chunk[Constructor[A]]): TransactGetItemsRequest = {
+  private[dynamodb] def constructGetTransaction[A](actions: Chunk[Constructor[A]]): TransactGetItemsRequest = {
     val getActions: Chunk[TransactGetItem] = actions.flatMap {
       case s: GetItem      =>
         Some(
@@ -731,10 +731,12 @@ case object DynamoDBExecutorImpl {
   ): String =
     projectionExpressions.mkString(", ")
 
-  private def awsAttributeValueMap(attrMap: ScalaMap[String, AttributeValue]): ScalaMap[String, ZIOAwsAttributeValue] =
+  private[dynamodb] def awsAttributeValueMap(
+    attrMap: ScalaMap[String, AttributeValue]
+  ): ScalaMap[String, ZIOAwsAttributeValue]                                                              =
     attrMap.map { case (k, v) => (k, awsAttributeValue(v)) }
 
-  private def awsAttrValToAttrVal(attributeValue: ZIOAwsAttributeValue.ReadOnly): Option[AttributeValue]              =
+  private def awsAttrValToAttrVal(attributeValue: ZIOAwsAttributeValue.ReadOnly): Option[AttributeValue] =
     attributeValue.sValue
       .map(AttributeValue.String)
       .orElse {

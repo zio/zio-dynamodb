@@ -4,30 +4,33 @@ import io.github.vigoo.zioaws.dynamodb.DynamoDb
 import io.github.vigoo.zioaws.dynamodb.DynamoDb.DynamoDbMock
 import zio.{ Chunk, Has, ULayer, ZLayer }
 import zio.clock.Clock
-import zio.dynamodb.DynamoDBQuery.{
-  CreateTable,
-  DeleteTable,
-  DescribeTable,
-  DescribeTableResponse,
-  GetItem,
-  ScanAll,
-  ScanSome,
-  TableStatus,
-  UpdateItem
-}
+import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.ProjectionExpression.$
 import zio.test.Assertion.equalTo
 import zio.test.TestAspect.failing
+import zio.test.mock.Expectation.value
 import zio.test.{ assertM, DefaultRunnableSpec, ZSpec }
+import io.github.vigoo.zioaws.dynamodb.model.{ ItemResponse, TransactGetItemsResponse }
 
 object TransactionModelSpec extends DefaultRunnableSpec {
   private val tableName                          = TableName("table")
   private val item                               = Item("a" -> 1)
+  private val simpleGetItem                      = GetItem(tableName, item)
   private val emptyDynamoDB: ULayer[DynamoDb]    = DynamoDbMock.empty
+  private val dynamoDB: ULayer[DynamoDb]         = DynamoDbMock.TransactGetItems(
+    equalTo(DynamoDBExecutorImpl.constructGetTransaction(Chunk(simpleGetItem))),
+    value(
+      TransactGetItemsResponse(
+        consumedCapacity = None,
+        responses = Some(List(ItemResponse(Some(DynamoDBExecutorImpl.awsAttributeValueMap(item.map)))))
+      ).asReadOnly
+    )
+  )
   private val clockLayer                         = ZLayer.identity[Has[Clock.Service]]
   override def spec: ZSpec[Environment, Failure] =
     suite("Transaction builder suite")(
-      failureSuite.provideCustomLayer((emptyDynamoDB ++ clockLayer) >>> DynamoDBExecutor.live)
+      failureSuite.provideCustomLayer((emptyDynamoDB ++ clockLayer) >>> DynamoDBExecutor.live),
+      successfulSuite
     )
 
   val failureSuite = suite("transaction construction failures")(
@@ -71,25 +74,27 @@ object TransactionModelSpec extends DefaultRunnableSpec {
       testM("describe table") {
         val describeTable = DescribeTable(tableName)
         assertM(describeTable.transaction.execute)(equalTo(DescribeTableResponse("", TableStatus.Creating)))
+      } @@ failing,
+      testM("query some") {
+        val querySome = QuerySome(tableName, 4)
+        assertM(querySome.transaction.execute)(equalTo((Chunk.empty, None)))
+      } @@ failing,
+      testM("query all") {
+        val queryAll = QueryAll(tableName)
+        assertM(queryAll.transaction.execute)(equalTo(zio.stream.Stream.empty))
       } @@ failing
-//      testM("query some") {
-//        ???
-//      },
-//      testM("query all") {
-//        ???
-//      }
     )
   )
 
-//  val successfulSuite = suite("transaction construction successes")(
-//    suite("transact get items")(
+  val successfulSuite = suite("transaction construction successes")(
+    suite("transact get items")(
+      testM("get item") {
+        assertM(simpleGetItem.transaction.execute)(equalTo(Some(item)))
+      }.provideCustomLayer((dynamoDB ++ clockLayer) >>> DynamoDBExecutor.live)
 //      testM("batch get item") {
 //        ???
-//      },
-//      testM("get item") {
-//        ???
 //      }
-//    ),
+    )
 //    suite("transact write items")(
 //      testM("update item") {
 //        ???
@@ -104,6 +109,6 @@ object TransactionModelSpec extends DefaultRunnableSpec {
 //        ???
 //      }
 //    )
-//  )
+  )
 
 }
