@@ -109,6 +109,10 @@ object TransactionModelSpec extends DefaultRunnableSpec {
 //      testM("get item") {
 //        assertM(simpleGetItem.transaction.execute)(equalTo(Some(item)))
 //      },
+      /* Need more tests around this, at least but not limited to:
+          - asking for values that don't exist
+          - multiple tables with varying request sizes
+       */
       testM("batch get item") {
         assertM(simpleBatchGet.transaction.execute)(
           equalTo(
