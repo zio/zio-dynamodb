@@ -15,9 +15,12 @@ import io.github.vigoo.zioaws.dynamodb.model.{ ItemResponse, TransactGetItemsRes
 object TransactionModelSpec extends DefaultRunnableSpec {
   private val tableName                          = TableName("table")
   private val item                               = Item("a" -> 1)
+  private val item2                              = Item("a" -> 2)
   private val simpleGetItem                      = GetItem(tableName, item)
+  private val simpleGetItem2                     = GetItem(tableName, item2)
+  private val simpleBatchGet                     = BatchGetItem().addAll(simpleGetItem, simpleGetItem2)
   private val emptyDynamoDB: ULayer[DynamoDb]    = DynamoDbMock.empty
-  private val dynamoDB: ULayer[DynamoDb]         = DynamoDbMock.TransactGetItems(
+  val getTransaction: ULayer[DynamoDb]           = DynamoDbMock.TransactGetItems(
     equalTo(DynamoDBExecutorImpl.constructGetTransaction(Chunk(simpleGetItem))),
     value(
       TransactGetItemsResponse(
@@ -26,11 +29,26 @@ object TransactionModelSpec extends DefaultRunnableSpec {
       ).asReadOnly
     )
   )
+  val batchGetTransaction: ULayer[DynamoDb]      = DynamoDbMock.TransactGetItems(
+    equalTo(DynamoDBExecutorImpl.constructGetTransaction(Chunk(simpleBatchGet))),
+    value(
+      TransactGetItemsResponse(
+        consumedCapacity = None,
+        responses = Some(
+          List(
+            ItemResponse(Some(DynamoDBExecutorImpl.awsAttributeValueMap(item.map))),
+            ItemResponse(Some(DynamoDBExecutorImpl.awsAttributeValueMap(item2.map)))
+          )
+        )
+      ).asReadOnly
+    )
+  )
   private val clockLayer                         = ZLayer.identity[Has[Clock.Service]]
+//  private val partialExecutor                    = (ZLayer.identity[Has[DynamoDb.Service]] ++ clockLayer) >>> DynamoDBExecutor.live
   override def spec: ZSpec[Environment, Failure] =
     suite("Transaction builder suite")(
       failureSuite.provideCustomLayer((emptyDynamoDB ++ clockLayer) >>> DynamoDBExecutor.live),
-      successfulSuite
+      successfulSuite.provideCustomLayer((batchGetTransaction ++ clockLayer) >>> DynamoDBExecutor.live)
     )
 
   val failureSuite = suite("transaction construction failures")(
@@ -88,12 +106,18 @@ object TransactionModelSpec extends DefaultRunnableSpec {
 
   val successfulSuite = suite("transaction construction successes")(
     suite("transact get items")(
-      testM("get item") {
-        assertM(simpleGetItem.transaction.execute)(equalTo(Some(item)))
-      }.provideCustomLayer((dynamoDB ++ clockLayer) >>> DynamoDBExecutor.live)
-//      testM("batch get item") {
-//        ???
-//      }
+//      testM("get item") {
+//        assertM(simpleGetItem.transaction.execute)(equalTo(Some(item)))
+//      },
+      testM("batch get item") {
+        assertM(simpleBatchGet.transaction.execute)(
+          equalTo(
+            BatchGetItem.Response(responses =
+              MapOfSet.empty[TableName, Item].addAll((tableName, item), (tableName, item2))
+            )
+          )
+        )
+      }
     )
 //    suite("transact write items")(
 //      testM("update item") {

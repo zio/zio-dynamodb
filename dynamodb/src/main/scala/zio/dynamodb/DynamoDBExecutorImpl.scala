@@ -325,11 +325,33 @@ case object DynamoDBExecutorImpl {
     query match {
       case constructor: Constructor[A] =>
         constructor match {
-          case s: PutItem            => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: DeleteItem         => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: GetItem            => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: BatchGetItem       => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: BatchWriteItem     => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: PutItem        => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: DeleteItem     => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: GetItem        => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: BatchGetItem   =>
+            ZIO.succeed(
+              (
+                Chunk(s),
+                chunk => {
+                  val b: Seq[(TableName, Int)] = s.requestItems.toSeq.flatMap {
+                    case (tName, items) => Seq.fill(items.keysSet.size)(tName)
+                  }.zipWithIndex
+                  val responses                = b.foldLeft(MapOfSet.empty[TableName, Item]) {
+                    case (acc, (tableName, index)) =>
+                      val maybeItem = chunk(index).asInstanceOf[Option[AttrMap]]
+                      maybeItem match {
+                        case Some(value) => acc.addAll((tableName, value))
+                        case None        => acc
+                      }
+                  }
+
+                  BatchGetItem.Response(responses = responses).asInstanceOf[A]
+                }
+              )
+            )
+
+          case s: BatchWriteItem => ZIO.succeed((Chunk(s), _ => BatchWriteItem.Response(None).asInstanceOf[A]))
+
           // TODO(required): What to do about the client token here? -- do we just ignore and use a top-level one?
           case Transaction(query, _) => buildTransaction(query)
           case s: UpdateItem         =>
