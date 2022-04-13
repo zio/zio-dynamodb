@@ -10,7 +10,7 @@ import zio.test.Assertion.equalTo
 import zio.test.TestAspect.failing
 import zio.test.mock.Expectation.value
 import zio.test.{ assertM, DefaultRunnableSpec, ZSpec }
-import io.github.vigoo.zioaws.dynamodb.model.{ ItemResponse, TransactGetItemsResponse }
+import io.github.vigoo.zioaws.dynamodb.model.{ ItemResponse, TransactGetItemsResponse, TransactWriteItemsResponse }
 
 object TransactionModelSpec extends DefaultRunnableSpec {
   private val tableName                       = TableName("table")
@@ -21,6 +21,10 @@ object TransactionModelSpec extends DefaultRunnableSpec {
   private val simpleGetItem                   = GetItem(tableName, item)
   private val simpleGetItem2                  = GetItem(tableName, item2)
   private val simpleGetItem3                  = GetItem(tableName2, item3)
+  private val simpleUpdateItem                = UpdateItem(tableName, item, UpdateExpression($("a").set(4)))
+  private val simpleDeleteItem                = DeleteItem(tableName, item)
+  private val simplePutItem                   = PutItem(tableName, item)
+  private val simpleBatchWrite                = BatchWriteItem().addAll(simplePutItem, simpleDeleteItem)
   private val simpleBatchGet                  = BatchGetItem().addAll(simpleGetItem, simpleGetItem2)
   private val multiTableGet                   = BatchGetItem().addAll(simpleGetItem, simpleGetItem2, simpleGetItem3)
   private val emptyDynamoDB: ULayer[DynamoDb] = DynamoDbMock.empty
@@ -62,8 +66,31 @@ object TransactionModelSpec extends DefaultRunnableSpec {
       ).asReadOnly
     )
   )
+  val updateItem                              = DynamoDbMock.TransactWriteItems(
+    equalTo(DynamoDBExecutorImpl.constructWriteTransaction(Chunk(simpleUpdateItem))),
+    value(TransactWriteItemsResponse().asReadOnly)
+  )
+  val deleteItem                              = DynamoDbMock.TransactWriteItems(
+    equalTo(DynamoDBExecutorImpl.constructWriteTransaction(Chunk(simpleDeleteItem))),
+    value(TransactWriteItemsResponse().asReadOnly)
+  )
+  val putItem                                 = DynamoDbMock.TransactWriteItems(
+    equalTo(DynamoDBExecutorImpl.constructWriteTransaction(Chunk(simplePutItem))),
+    value(TransactWriteItemsResponse().asReadOnly)
+  )
+  val batchWriteItem                          = DynamoDbMock.TransactWriteItems(
+    equalTo(DynamoDBExecutorImpl.constructWriteTransaction(Chunk(simpleBatchWrite))),
+    value(TransactWriteItemsResponse().asReadOnly)
+  )
 
-  private val getLayer: ULayer[DynamoDb]         = multiTableBatchGet.or(batchGetTransaction).or(getTransaction)
+  private val getLayer: ULayer[DynamoDb]         =
+    multiTableBatchGet
+      .or(batchGetTransaction)
+      .or(getTransaction)
+      .or(updateItem)
+      .or(deleteItem)
+      .or(putItem)
+      .or(batchWriteItem)
   private val clockLayer                         = ZLayer.identity[Has[Clock.Service]]
 //  private val partialExecutor                    = (ZLayer.identity[Has[DynamoDb.Service]] ++ clockLayer) >>> DynamoDBExecutor.live
   override def spec: ZSpec[Environment, Failure] =
@@ -88,14 +115,14 @@ object TransactionModelSpec extends DefaultRunnableSpec {
     ),
     suite("invalid transaction actions")(
       testM("create table") {
-        val createTable = CreateTable(
-          tableName = tableName,
-          keySchema = KeySchema("key"),
-          attributeDefinitions = NonEmptySet(AttributeDefinition.attrDefnString("name")),
-          billingMode = BillingMode.PayPerRequest
-        )
-
-        assertM(createTable.transaction.execute)(equalTo(()))
+        assertM(
+          CreateTable(
+            tableName = tableName,
+            keySchema = KeySchema("key"),
+            attributeDefinitions = NonEmptySet(AttributeDefinition.attrDefnString("name")),
+            billingMode = BillingMode.PayPerRequest
+          ).transaction.execute
+        )(equalTo(()))
       } @@ failing,
       testM("delete table") {
         assertM(DeleteTable(tableName).transaction.execute)(equalTo(()))
@@ -141,21 +168,21 @@ object TransactionModelSpec extends DefaultRunnableSpec {
           )
         )
       }
+    ),
+    suite("transact write items")(
+      testM("update item") {
+        assertM(simpleUpdateItem.transaction.execute)(equalTo(None))
+      },
+      testM("delete item") {
+        assertM(simpleDeleteItem.transaction.execute)(equalTo(()))
+      },
+      testM("put item") {
+        assertM(simplePutItem.transaction.execute)(equalTo(()))
+      },
+      testM("batch write item") {
+        assertM(simpleBatchWrite.transaction.execute)(equalTo(BatchWriteItem.Response(None)))
+      }
     )
-//    suite("transact write items")(
-//      testM("update item") {
-//        ???
-//      },
-//      testM("delete item") {
-//        ???
-//      },
-//      testM("put item") {
-//        ???
-//      },
-//      testM("batch write item") {
-//        ???
-//      }
-//    )
   )
 
 }

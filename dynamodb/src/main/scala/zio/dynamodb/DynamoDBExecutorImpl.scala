@@ -426,7 +426,7 @@ case object DynamoDBExecutorImpl {
     )
   }
 
-  private def constructWriteTransaction[A](actions: Chunk[Constructor[A]]): TransactWriteItemsRequest = {
+  private[dynamodb] def constructWriteTransaction[A](actions: Chunk[Constructor[A]]): TransactWriteItemsRequest = {
     val writeActions: Chunk[TransactWriteItem] = actions.flatMap {
       case s: DeleteItem     => awsTransactWriteItem(s)
       case s: PutItem        => awsTransactWriteItem(s)
