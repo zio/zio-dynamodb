@@ -21,7 +21,7 @@ object TransactionModelSpec extends DefaultRunnableSpec {
   private val simpleGetItem                   = GetItem(tableName, item)
   private val simpleGetItem2                  = GetItem(tableName, item2)
   private val simpleGetItem3                  = GetItem(tableName2, item3)
-  private val simpleUpdateItem                = UpdateItem(tableName, item, UpdateExpression($("a").set(4)))
+  private val simpleUpdateItem                = UpdateItem(tableName, item, UpdateExpression($("a").setValue(4)))
   private val simpleDeleteItem                = DeleteItem(tableName, item)
   private val simplePutItem                   = PutItem(tableName, item)
   private val simpleBatchWrite                = BatchWriteItem().addAll(simplePutItem, simpleDeleteItem)
