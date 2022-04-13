@@ -332,7 +332,7 @@ case object DynamoDBExecutorImpl {
               (
                 Chunk(s),
                 chunk => {
-                  val maybeItem = chunk(0).asInstanceOf[Option[Item]] // may have an empty AttrMap
+                  val maybeItem = chunk(0).asInstanceOf[Option[AttrMap]] // may have an empty AttrMap
                   maybeItem.flatMap(item => if (item.map.isEmpty) None else Some(item)).asInstanceOf[A]
                 }
               )
