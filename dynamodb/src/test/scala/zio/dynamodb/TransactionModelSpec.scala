@@ -13,14 +13,18 @@ import zio.test.{ assertM, DefaultRunnableSpec, ZSpec }
 import io.github.vigoo.zioaws.dynamodb.model.{ ItemResponse, TransactGetItemsResponse }
 
 object TransactionModelSpec extends DefaultRunnableSpec {
-  private val tableName                          = TableName("table")
-  private val item                               = Item("a" -> 1)
-  private val item2                              = Item("a" -> 2)
-  private val simpleGetItem                      = GetItem(tableName, item)
-  private val simpleGetItem2                     = GetItem(tableName, item2)
-  private val simpleBatchGet                     = BatchGetItem().addAll(simpleGetItem, simpleGetItem2)
-  private val emptyDynamoDB: ULayer[DynamoDb]    = DynamoDbMock.empty
-  val getTransaction: ULayer[DynamoDb]           = DynamoDbMock.TransactGetItems(
+  private val tableName                       = TableName("table")
+  private val tableName2                      = TableName("table2")
+  private val item                            = Item("a" -> 1)
+  private val item2                           = Item("a" -> 2)
+  private val item3                           = Item("a" -> 3)
+  private val simpleGetItem                   = GetItem(tableName, item)
+  private val simpleGetItem2                  = GetItem(tableName, item2)
+  private val simpleGetItem3                  = GetItem(tableName2, item3)
+  private val simpleBatchGet                  = BatchGetItem().addAll(simpleGetItem, simpleGetItem2)
+  private val multiTableGet                   = BatchGetItem().addAll(simpleGetItem, simpleGetItem2, simpleGetItem3)
+  private val emptyDynamoDB: ULayer[DynamoDb] = DynamoDbMock.empty
+  val getTransaction                          = DynamoDbMock.TransactGetItems(
     equalTo(DynamoDBExecutorImpl.constructGetTransaction(Chunk(simpleGetItem))),
     value(
       TransactGetItemsResponse(
@@ -29,7 +33,7 @@ object TransactionModelSpec extends DefaultRunnableSpec {
       ).asReadOnly
     )
   )
-  val batchGetTransaction: ULayer[DynamoDb]      = DynamoDbMock.TransactGetItems(
+  val batchGetTransaction                     = DynamoDbMock.TransactGetItems(
     equalTo(DynamoDBExecutorImpl.constructGetTransaction(Chunk(simpleBatchGet))),
     value(
       TransactGetItemsResponse(
@@ -43,12 +47,29 @@ object TransactionModelSpec extends DefaultRunnableSpec {
       ).asReadOnly
     )
   )
+  val multiTableBatchGet                      = DynamoDbMock.TransactGetItems(
+    equalTo(DynamoDBExecutorImpl.constructGetTransaction(Chunk(multiTableGet))),
+    value(
+      TransactGetItemsResponse(
+        consumedCapacity = None,
+        responses = Some(
+          List(
+            ItemResponse(Some(DynamoDBExecutorImpl.awsAttributeValueMap(item.map))),
+            ItemResponse(Some(DynamoDBExecutorImpl.awsAttributeValueMap(item2.map))),
+            ItemResponse(Some(DynamoDBExecutorImpl.awsAttributeValueMap(item3.map)))
+          )
+        )
+      ).asReadOnly
+    )
+  )
+
+  private val getLayer: ULayer[DynamoDb]         = multiTableBatchGet.or(batchGetTransaction).or(getTransaction)
   private val clockLayer                         = ZLayer.identity[Has[Clock.Service]]
 //  private val partialExecutor                    = (ZLayer.identity[Has[DynamoDb.Service]] ++ clockLayer) >>> DynamoDBExecutor.live
   override def spec: ZSpec[Environment, Failure] =
     suite("Transaction builder suite")(
       failureSuite.provideCustomLayer((emptyDynamoDB ++ clockLayer) >>> DynamoDBExecutor.live),
-      successfulSuite.provideCustomLayer((batchGetTransaction ++ clockLayer) >>> DynamoDBExecutor.live)
+      successfulSuite.provideCustomLayer((getLayer ++ clockLayer) >>> DynamoDBExecutor.live)
     )
 
   val failureSuite = suite("transaction construction failures")(
@@ -77,47 +98,45 @@ object TransactionModelSpec extends DefaultRunnableSpec {
         assertM(createTable.transaction.execute)(equalTo(()))
       } @@ failing,
       testM("delete table") {
-        val deleteTable = DeleteTable(tableName)
-
-        assertM(deleteTable.transaction.execute)(equalTo(()))
+        assertM(DeleteTable(tableName).transaction.execute)(equalTo(()))
       } @@ failing,
       testM("scan all") {
-        val scanAll = ScanAll(tableName)
-        assertM(scanAll.transaction.execute)(equalTo(zio.stream.Stream.empty))
+        assertM(ScanAll(tableName).transaction.execute)(equalTo(zio.stream.Stream.empty))
       } @@ failing,
       testM("scan some") {
-        val scanSome = ScanSome(tableName, 4)
-        assertM(scanSome.transaction.execute)(equalTo((Chunk.empty, None)))
+        assertM(ScanSome(tableName, 4).transaction.execute)(equalTo((Chunk.empty, None)))
       } @@ failing,
       testM("describe table") {
-        val describeTable = DescribeTable(tableName)
-        assertM(describeTable.transaction.execute)(equalTo(DescribeTableResponse("", TableStatus.Creating)))
+        assertM(DescribeTable(tableName).transaction.execute)(equalTo(DescribeTableResponse("", TableStatus.Creating)))
       } @@ failing,
       testM("query some") {
-        val querySome = QuerySome(tableName, 4)
-        assertM(querySome.transaction.execute)(equalTo((Chunk.empty, None)))
+        assertM(QuerySome(tableName, 4).transaction.execute)(equalTo((Chunk.empty, None)))
       } @@ failing,
       testM("query all") {
-        val queryAll = QueryAll(tableName)
-        assertM(queryAll.transaction.execute)(equalTo(zio.stream.Stream.empty))
+        assertM(QueryAll(tableName).transaction.execute)(equalTo(zio.stream.Stream.empty))
       } @@ failing
     )
   )
 
   val successfulSuite = suite("transaction construction successes")(
     suite("transact get items")(
-//      testM("get item") {
-//        assertM(simpleGetItem.transaction.execute)(equalTo(Some(item)))
-//      },
-      /* Need more tests around this, at least but not limited to:
-          - asking for values that don't exist
-          - multiple tables with varying request sizes
-       */
+      testM("get item") {
+        assertM(simpleGetItem.transaction.execute)(equalTo(Some(item)))
+      },
       testM("batch get item") {
         assertM(simpleBatchGet.transaction.execute)(
           equalTo(
             BatchGetItem.Response(responses =
               MapOfSet.empty[TableName, Item].addAll((tableName, item), (tableName, item2))
+            )
+          )
+        )
+      },
+      testM("multi table batch get item") {
+        assertM(multiTableGet.transaction.execute)(
+          equalTo(
+            BatchGetItem.Response(responses =
+              MapOfSet.empty[TableName, Item].addAll((tableName, item), (tableName2, item3), (tableName, item2))
             )
           )
         )

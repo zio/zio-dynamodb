@@ -797,6 +797,7 @@ object LiveSpec extends DefaultRunnableSpec {
 //              ???
 //            }
         ),
+        // need batch gets that include missing items across tables
         suite("transact get items")(
           testM("basic transact get items") {
             withDefaultTable { tableName =>
