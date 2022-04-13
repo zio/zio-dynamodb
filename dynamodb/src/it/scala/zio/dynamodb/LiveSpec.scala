@@ -200,6 +200,27 @@ object LiveSpec extends DefaultRunnableSpec {
           withDefaultTable { tableName =>
             getItem(tableName, PrimaryKey(id -> "nowhere", number -> 1000)).execute.map(item => assert(item)(isNone))
           }
+        },
+        testM("batch get item") {
+          withDefaultTable { tableName =>
+            val getItems = BatchGetItem().addAll(
+              GetItem(TableName(tableName), Item(id -> first, number -> 7)),
+              GetItem(TableName(tableName), Item(id -> second, number -> 5))
+            )
+            for {
+              a <- getItems.transaction.execute
+            } yield assert(a)(
+              equalTo(
+                BatchGetItem.Response(
+                  responses = MapOfSet.apply(
+                    ScalaMap[TableName, Set[Item]](
+                      TableName(tableName) -> Set(avi3Item, adam2Item)
+                    )
+                  )
+                )
+              )
+            )
+          }
         }
       ),
       suite("scan tables")(
@@ -809,16 +830,61 @@ object LiveSpec extends DefaultRunnableSpec {
               } yield assert(a)(equalTo((Some(avi3Item), Some(adam2Item))))
             }
           },
-          testM("single failure means complete failure") {
+          testM("basic batch get item transaction") {
+            withDefaultTable { tableName =>
+              val getItems = BatchGetItem().addAll(
+                GetItem(TableName(tableName), Item(id -> first, number -> 7)),
+                GetItem(TableName(tableName), Item(id -> second, number -> 5))
+              )
+              for {
+                a <- getItems.transaction.execute
+              } yield assert(a)(
+                equalTo(
+                  BatchGetItem.Response(
+                    responses = MapOfSet.apply(
+                      ScalaMap[TableName, Set[Item]](
+                        TableName(tableName) -> Set(avi3Item, adam2Item)
+                      )
+                    )
+                  )
+                )
+              )
+            }
+          },
+          testM("missing item does not result in failure") {
             withDefaultTable { tableName =>
               val getItems =
                 GetItem(TableName(tableName), Item(id -> first, number -> 1000))
                   .zip(GetItem(TableName(tableName), Item(id -> second, number -> 5)))
               for {
-                a <- getItems.execute
-              } yield assert(a)(equalTo((None, None)))
+                a <- getItems.transaction.execute
+              } yield assert(a)(equalTo((None, Some(adam2Item))))
             }
-          } @@ failing
+          },
+          testM("missing item in other table") {
+            withDefaultTable { tableName =>
+              val secondTable = numberTable("some-table")
+              val getItems    = BatchGetItem().addAll(
+                GetItem(TableName(tableName), Item(id -> first, number -> 7)),
+                GetItem(TableName(tableName), Item(id -> second, number -> 5)),
+                GetItem(TableName("some-table"), Item(id -> 5))
+              )
+              for {
+                _ <- secondTable.execute
+                a <- getItems.transaction.execute
+              } yield assert(a)(
+                equalTo(
+                  BatchGetItem.Response(
+                    responses = MapOfSet.apply(
+                      ScalaMap[TableName, Set[Item]](
+                        TableName(tableName) -> Set(avi3Item, adam2Item)
+                      )
+                    )
+                  )
+                )
+              )
+            }
+          }
         )
       )
     )

@@ -327,7 +327,16 @@ case object DynamoDBExecutorImpl {
         constructor match {
           case s: PutItem        => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
           case s: DeleteItem     => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: GetItem        => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: GetItem        =>
+            ZIO.succeed(
+              (
+                Chunk(s),
+                chunk => {
+                  val maybeItem = chunk(0).asInstanceOf[Option[Item]] // may have an empty AttrMap
+                  maybeItem.flatMap(item => if (item.map.isEmpty) None else Some(item)).asInstanceOf[A]
+                }
+              )
+            )
           case s: BatchGetItem   =>
             ZIO.succeed(
               (
@@ -340,7 +349,10 @@ case object DynamoDBExecutorImpl {
                     case (acc, (tableName, index)) =>
                       val maybeItem = chunk(index).asInstanceOf[Option[AttrMap]]
                       maybeItem match {
-                        case Some(value) => acc.addAll((tableName, value))
+                        case Some(value) =>
+                          if (value.map.isEmpty) // may have an empty AttrMap
+                            acc
+                          else acc.addAll((tableName, value))
                         case None        => acc
                       }
                   }

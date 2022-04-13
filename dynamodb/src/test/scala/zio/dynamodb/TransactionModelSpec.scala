@@ -83,7 +83,7 @@ object TransactionModelSpec extends DefaultRunnableSpec {
     value(TransactWriteItemsResponse().asReadOnly)
   )
 
-  private val getLayer: ULayer[DynamoDb]         =
+  private val successCaseLayer: ULayer[DynamoDb] =
     multiTableBatchGet
       .or(batchGetTransaction)
       .or(getTransaction)
@@ -92,11 +92,10 @@ object TransactionModelSpec extends DefaultRunnableSpec {
       .or(putItem)
       .or(batchWriteItem)
   private val clockLayer                         = ZLayer.identity[Has[Clock.Service]]
-//  private val partialExecutor                    = (ZLayer.identity[Has[DynamoDb.Service]] ++ clockLayer) >>> DynamoDBExecutor.live
   override def spec: ZSpec[Environment, Failure] =
     suite("Transaction builder suite")(
       failureSuite.provideCustomLayer((emptyDynamoDB ++ clockLayer) >>> DynamoDBExecutor.live),
-      successfulSuite.provideCustomLayer((getLayer ++ clockLayer) >>> DynamoDBExecutor.live)
+      successfulSuite.provideCustomLayer((successCaseLayer ++ clockLayer) >>> DynamoDBExecutor.live)
     )
 
   val failureSuite = suite("transaction construction failures")(

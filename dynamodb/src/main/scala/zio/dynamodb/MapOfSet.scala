@@ -45,6 +45,6 @@ private[dynamodb] final case class MapOfSet[K, V] private (private val map: Scal
   override def iterator: Iterator[(K, Set[V])] = map.iterator
 }
 private[dynamodb] object MapOfSet {
-  private def apply[K, V](map: ScalaMap[K, Set[V]]) = new MapOfSet(map)
-  def empty[K, V]: MapOfSet[K, V]                   = apply(ScalaMap.empty)
+  private[dynamodb] def apply[K, V](map: ScalaMap[K, Set[V]]) = new MapOfSet(map)
+  def empty[K, V]: MapOfSet[K, V]                             = apply(ScalaMap.empty)
 }
