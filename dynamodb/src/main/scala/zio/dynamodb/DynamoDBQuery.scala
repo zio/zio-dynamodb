@@ -276,6 +276,12 @@ sealed trait DynamoDBQuery[+A] { self =>
   def selectSpecificAttributes: DynamoDBQuery[A]     = select(Select.SpecificAttributes)
   def selectCount: DynamoDBQuery[A]                  = select(Select.Count)
 
+  /**
+   * Adds a KeyConditionExpression to a DynamoDBQuery. Example:
+   * {{{
+   * val newQuery = query.whereKey(partitionKey("email") === "avi@gmail.com" && sortKey("subject") === "maths")
+   * }}}
+   */
   def whereKey(keyConditionExpression: KeyConditionExpression): DynamoDBQuery[A] =
     self match {
       case Zip(left, right, zippable) =>
@@ -285,6 +291,34 @@ sealed trait DynamoDBQuery[+A] { self =>
       case s: QueryAll                => s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[A]]
       case _                          => self
     }
+
+  /**
+   * Adds a KeyConditionExpression from a ConditionExpression to a DynamoDBQuery
+   * Must be in the form of `<Condition1> && <Condition2>` where format of `<Condition1>` is:
+   * {{{<ProjectionExpressionForPartitionKey> === <value>}}}
+   * and the format of `<Condition2>` is:
+   * {{{<ProjectionExpressionForSortKey> <op> <value>}}} where op can be one of `===`, `>`, `>=`, `<`, `<=`, `between`, `beginsWith`
+   *
+   * Example using type safe API:
+   * {{{
+   * // email and subject are partition and sort keys respectively
+   * val (email, subject, enrollmentDate, payment) = ProjectionExpression.accessors[Student]
+   * // ...
+   * val newQuery = query.whereKey(email === "avi@gmail.com" && subject === "maths")
+   * }}}
+   */
+  def whereKey(conditionExpression: ConditionExpression): DynamoDBQuery[A] = {
+    val keyConditionExpression: KeyConditionExpression =
+      KeyConditionExpression.fromConditionExpressionUnsafe(conditionExpression)
+    self match {
+      case Zip(left, right, zippable) =>
+        Zip(left.whereKey(keyConditionExpression), right.whereKey(keyConditionExpression), zippable)
+      case Map(query, mapper)         => Map(query.whereKey(keyConditionExpression), mapper)
+      case s: QuerySome               => s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[A]]
+      case s: QueryAll                => s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[A]]
+      case _                          => self
+    }
+  }
 
   def withRetryPolicy(retryPolicy: Schedule[Any, Throwable, Any]): DynamoDBQuery[A] =
     self match {

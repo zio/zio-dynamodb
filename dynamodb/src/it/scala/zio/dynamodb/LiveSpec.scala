@@ -441,7 +441,7 @@ object LiveSpec extends DefaultRunnableSpec {
           testM("update name") {
             withDefaultTable { tableName =>
               for {
-                updatedResponse <- updateItem(tableName, secondPrimaryKey)($(name).set(notAdam)).execute
+                updatedResponse <- updateItem(tableName, secondPrimaryKey)($(name).setValue(notAdam)).execute
                 updated         <- getItem(
                                      tableName,
                                      secondPrimaryKey
@@ -454,7 +454,7 @@ object LiveSpec extends DefaultRunnableSpec {
           testM("update name return updated old") {
             withDefaultTable { tableName =>
               for {
-                updatedResponse <- updateItem(tableName, secondPrimaryKey)($(name).set(notAdam))
+                updatedResponse <- updateItem(tableName, secondPrimaryKey)($(name).setValue(notAdam))
                                      .returns(ReturnValues.UpdatedOld)
                                      .execute
                 updated         <- getItem(
@@ -468,7 +468,7 @@ object LiveSpec extends DefaultRunnableSpec {
           testM("update name return all old") {
             withDefaultTable { tableName =>
               for {
-                updatedResponse <- updateItem(tableName, secondPrimaryKey)($(name).set(notAdam))
+                updatedResponse <- updateItem(tableName, secondPrimaryKey)($(name).setValue(notAdam))
                                      .returns(ReturnValues.AllOld)
                                      .execute
                 updated         <- getItem(
@@ -483,7 +483,7 @@ object LiveSpec extends DefaultRunnableSpec {
             withDefaultTable { tableName =>
               val updatedItem = Some(Item(name -> notAdam, id -> second, number -> 2))
               for {
-                updatedResponse <- updateItem(tableName, secondPrimaryKey)($(name).set(notAdam))
+                updatedResponse <- updateItem(tableName, secondPrimaryKey)($(name).setValue(notAdam))
                                      .returns(ReturnValues.AllNew)
                                      .execute
                 updated         <- getItem(
@@ -497,7 +497,7 @@ object LiveSpec extends DefaultRunnableSpec {
           testM("update name return updated new") {
             withDefaultTable { tableName =>
               for {
-                updatedResponse <- updateItem(tableName, secondPrimaryKey)($(name).set(notAdam))
+                updatedResponse <- updateItem(tableName, secondPrimaryKey)($(name).setValue(notAdam))
                                      .returns(ReturnValues.UpdatedNew)
                                      .execute
                 updated         <- getItem(
@@ -511,8 +511,8 @@ object LiveSpec extends DefaultRunnableSpec {
           testM("insert item into list") {
             withDefaultTable { tableName =>
               for {
-                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
-                _       <- updateItem(tableName, secondPrimaryKey)($("listThing[1]").set(2)).execute
+                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").setValue(List(1))).execute
+                _       <- updateItem(tableName, secondPrimaryKey)($("listThing[1]").setValue(2)).execute
                 updated <- getItem(
                              tableName,
                              secondPrimaryKey
@@ -523,30 +523,34 @@ object LiveSpec extends DefaultRunnableSpec {
             }
           },
           testM("append to list") {
-            withDefaultTable { tableName =>
-              for {
-                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
-                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").appendList(Chunk(2, 3, 4))).execute
-                updated <- getItem(tableName, secondPrimaryKey).execute
-              } yield assert(
-                updated.map(a =>
-                  a.get("listThing")(
-                    FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
+            withDefaultTable {
+              tableName =>
+                for {
+                  _       <- updateItem(tableName, secondPrimaryKey)($("listThing").setValue(List(1))).execute
+                  _       <- updateItem(tableName, secondPrimaryKey)($("listThing").appendList(Chunk(2, 3, 4))).execute
+                  updated <- getItem(tableName, secondPrimaryKey).execute
+                } yield assert(
+                  updated.map(a =>
+                    a.get("listThing")(
+                      FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
+                    )
                   )
                 )
               )(equalTo(Some(Right(List(1, 2, 3, 4)))))
             }
           },
           testM("prepend to list") {
-            withDefaultTable { tableName =>
-              for {
-                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").set(List(1))).execute
-                _       <- updateItem(tableName, secondPrimaryKey)($("listThing").prependList(Chunk(-1, 0))).execute
-                updated <- getItem(tableName, secondPrimaryKey).execute
-              } yield assert(
-                updated.map(a =>
-                  a.get("listThing")(
-                    FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
+            withDefaultTable {
+              tableName =>
+                for {
+                  _       <- updateItem(tableName, secondPrimaryKey)($("listThing").setValue(List(1))).execute
+                  _       <- updateItem(tableName, secondPrimaryKey)($("listThing").prependList(Chunk(-1, 0))).execute
+                  updated <- getItem(tableName, secondPrimaryKey).execute
+                } yield assert(
+                  updated.map(a =>
+                    a.get("listThing")(
+                      FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
+                    )
                   )
                 )
               )(equalTo(Some(Right(List(-1, 0, 1)))))

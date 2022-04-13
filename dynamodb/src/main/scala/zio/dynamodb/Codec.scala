@@ -178,9 +178,11 @@ private[dynamodb] object Codec {
             @tailrec
             def appendToMap[B](schema: Schema[B]): AttributeValue.Map =
               schema match {
-                case l @ Schema.Lazy(_) =>
+                case l @ Schema.Lazy(_)                                                 =>
                   appendToMap(l.schema)
-                case _                  =>
+                case _: Schema.Optional[_] if av.isInstanceOf[AttributeValue.Null.type] =>
+                  AttributeValue.Map(acc.value)
+                case _                                                                  =>
                   AttributeValue.Map(acc.value + (AttributeValue.String(k) -> av))
               }
 
