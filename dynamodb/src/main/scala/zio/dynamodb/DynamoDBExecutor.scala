@@ -11,7 +11,7 @@ trait DynamoDBExecutor {
 object DynamoDBExecutor {
   val live: URLayer[DynamoDb, DynamoDBExecutor] =
     ZLayer.fromZIO(for {
-      db    <- ZIO.service[DynamoDb]
+      db <- ZIO.service[DynamoDb]
     } yield DynamoDBExecutorImpl(db))
 
   lazy val test: ULayer[DynamoDBExecutor with TestDynamoDBExecutor] = {

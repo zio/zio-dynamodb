@@ -31,9 +31,9 @@ object AttributeValueRoundTripSerialisationSpec extends ZIOSpecDefault {
       type Element = A
     } =
       new Serializable {
-        override def genA: Gen[Sized, Element] = genA0
-        override def to: ToAttributeValue[Element]         = to0
-        override def from: FromAttributeValue[Element]     = from0
+        override def genA: Gen[Sized, Element]         = genA0
+        override def to: ToAttributeValue[Element]     = to0
+        override def from: FromAttributeValue[Element] = from0
         override type Element = A
       }
   }

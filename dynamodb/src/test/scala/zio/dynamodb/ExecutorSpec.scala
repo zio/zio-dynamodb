@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.aws.dynamodb.model.primitives.{ AttributeName, StringAttributeValue, TableName => ZIOAwsTableName}
+import zio.aws.dynamodb.model.primitives.{ AttributeName, StringAttributeValue, TableName => ZIOAwsTableName }
 import zio.aws.dynamodb.model.{
   BatchWriteItemResponse,
   AttributeValue => ZIOAwsAttributeValue,
@@ -217,7 +217,7 @@ object ExecutorSpec extends ZIOSpecDefault with DynamoDBFixtures {
         for {
           response <- batchWriteRequest.execute
         } yield assert(response.unprocessedItems)(isNone)
-      }).provideCustomLayer(successfulMockBatchWrite  >>> DynamoDBExecutor.live)
+      }).provideCustomLayer(successfulMockBatchWrite >>> DynamoDBExecutor.live)
     )
 
   private val batchRetries = suite("Batch retries")(

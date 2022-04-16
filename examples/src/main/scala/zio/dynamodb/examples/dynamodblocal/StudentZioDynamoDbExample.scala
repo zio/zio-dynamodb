@@ -49,7 +49,7 @@ object StudentZioDynamoDbExample extends ZIOAppDefault {
     }
 
   private val customLayer =
-    (dynamoDbLayer  >>> DynamoDBExecutor.live) ++ LocalDdbServer.inMemoryLayer
+    (dynamoDbLayer >>> DynamoDBExecutor.live) ++ LocalDdbServer.inMemoryLayer
 
   private val program = for {
     _              <- createTable("student", KeySchema("email", "subject"), BillingMode.PayPerRequest)(

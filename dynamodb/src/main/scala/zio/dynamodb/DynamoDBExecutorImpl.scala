@@ -352,7 +352,8 @@ case object DynamoDBExecutorImpl {
       key = getItem.key.map.map { case (k, v) => (ZIOAwsAttributeName(k), awsAttributeValue(v)) },
       consistentRead = Some(ConsistencyMode.toBoolean(getItem.consistency)).map(ZIOAwsConsistentRead(_)),
       returnConsumedCapacity = Some(awsConsumedCapacity(getItem.capacity)),
-      projectionExpression = toOption(getItem.projections).map(awsProjectionExpression).map(ZIOAwsProjectionExpression(_))
+      projectionExpression =
+        toOption(getItem.projections).map(awsProjectionExpression).map(ZIOAwsProjectionExpression(_))
     )
 
   private[dynamodb] def awsBatchWriteItemRequest(batchWriteItem: BatchWriteItem): BatchWriteItemRequest =
@@ -444,7 +445,8 @@ case object DynamoDBExecutorImpl {
       consistentRead = Some(toBoolean(queryAll.consistency)).map(ZIOAwsConsistentRead(_)),
       scanIndexForward = Some(queryAll.ascending),
       exclusiveStartKey = queryAll.exclusiveStartKey.map(m => awsAttributeValueMap(m.map)),
-      projectionExpression = toOption(queryAll.projections).map(awsProjectionExpression).map(ZIOAwsProjectionExpression(_)),
+      projectionExpression =
+        toOption(queryAll.projections).map(awsProjectionExpression).map(ZIOAwsProjectionExpression(_)),
       returnConsumedCapacity = Some(awsConsumedCapacity(queryAll.capacity)),
       filterExpression = maybeFilterExpr.map(ZIOAwsConditionExpression(_)),
       expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap).map(m =>
@@ -468,7 +470,8 @@ case object DynamoDBExecutorImpl {
       scanIndexForward = Some(querySome.ascending),
       exclusiveStartKey = querySome.exclusiveStartKey.map(m => awsAttributeValueMap(m.map)),
       returnConsumedCapacity = Some(awsConsumedCapacity(querySome.capacity)),
-      projectionExpression = toOption(querySome.projections).map(awsProjectionExpression).map(ZIOAwsProjectionExpression(_)),
+      projectionExpression =
+        toOption(querySome.projections).map(awsProjectionExpression).map(ZIOAwsProjectionExpression(_)),
       filterExpression = maybeFilterExpr.map(ZIOAwsConditionExpression(_)),
       expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap).map(_.map {
         case (k, v) => (ZIOAwsExpressionAttributeValueVariable(k), v)
@@ -485,7 +488,8 @@ case object DynamoDBExecutorImpl {
       exclusiveStartKey = scanAll.exclusiveStartKey.map(m => awsAttributeValueMap(m.map)),
       returnConsumedCapacity = Some(awsConsumedCapacity(scanAll.capacity)),
       limit = scanAll.limit.map(PositiveIntegerObject(_)),
-      projectionExpression = toOption(scanAll.projections).map(awsProjectionExpression).map(ZIOAwsProjectionExpression(_)),
+      projectionExpression =
+        toOption(scanAll.projections).map(awsProjectionExpression).map(ZIOAwsProjectionExpression(_)),
       filterExpression = filterExpression.map(_._2).map(ZIOAwsConditionExpression(_)),
       expressionAttributeValues = filterExpression
         .flatMap(a => aliasMapToExpressionZIOAwsAttributeValues(a._1))
@@ -505,7 +509,8 @@ case object DynamoDBExecutorImpl {
       exclusiveStartKey = scanSome.exclusiveStartKey.map(m => awsAttributeValueMap(m.map)),
       returnConsumedCapacity = Some(awsConsumedCapacity(scanSome.capacity)),
       limit = Some(scanSome.limit).map(PositiveIntegerObject(_)),
-      projectionExpression = toOption(scanSome.projections).map(awsProjectionExpression).map(ZIOAwsProjectionExpression(_)),
+      projectionExpression =
+        toOption(scanSome.projections).map(awsProjectionExpression).map(ZIOAwsProjectionExpression(_)),
       filterExpression = filterExpression.map(_._2).map(ZIOAwsConditionExpression(_)),
       expressionAttributeValues = filterExpression
         .flatMap(a => aliasMapToExpressionZIOAwsAttributeValues(a._1))

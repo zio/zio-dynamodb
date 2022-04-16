@@ -40,12 +40,11 @@ object ZStreamPipeliningSpec extends ZIOSpecDefault {
                            PrimaryKey("id" -> 2) -> Item("id" -> 2, "boom!" -> "de-serialisation-error-expected")
                          )
           refPeople   <- Ref.make(List.empty[Person])
-          either      <- batchReadFromStream[Any, Person]("person", personStream.take(2))(person =>
-                           PrimaryKey("id" -> person.id)
-                         )
-                           .mapZIO(person => refPeople.update(xs => xs :+ person))
-                           .runDrain
-                           .either
+          either      <-
+            batchReadFromStream[Any, Person]("person", personStream.take(2))(person => PrimaryKey("id" -> person.id))
+              .mapZIO(person => refPeople.update(xs => xs :+ person))
+              .runDrain
+              .either
           foundPeople <- refPeople.get
         } yield assert(either)(isLeft) && assert(foundPeople)(equalTo(List(Person(1, "Avi"))))
       }

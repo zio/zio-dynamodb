@@ -6,7 +6,8 @@ import zio.test.ZIOSpecDefault
 
 object MapOfSetSpec extends ZIOSpecDefault {
 
-  override def spec = suite("MapOfSet")(
+  override def spec =
+    suite("MapOfSet")(
       test("addAll(1 -> 1, 1 -> 2)") {
         val actual   = MapOfSet.empty.addAll(1 -> 1, 1 -> 2)
         val expected = Set(1 -> Set(1, 2))

@@ -11,7 +11,8 @@ import zio.test.{ Gen, Sized, ZIOSpecDefault }
 
 object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
 
-  override def spec = suite("encode then decode suite")(
+  override def spec =
+    suite("encode then decode suite")(
       simpleSuite,
       eitherSuite,
       optionalSuite,

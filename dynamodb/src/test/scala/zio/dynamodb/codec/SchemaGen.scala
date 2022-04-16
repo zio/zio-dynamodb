@@ -2,7 +2,7 @@ package zio.dynamodb.codec
 
 import zio.Chunk
 import zio.schema._
-import zio.test.{Gen, Sized}
+import zio.test.{ Gen, Sized }
 
 import scala.collection.immutable.ListMap
 
@@ -37,7 +37,7 @@ object SchemaGen {
   def anyEnumeration[A](schema: Schema[A]): Gen[Sized, ListMap[String, Schema[A]]] =
     Gen.listOfBounded(1, 10)(Gen.string.map(_ -> schema)).map(ListMap.empty ++ _)
 
-  val anyPrimitive: Gen[Any, Schema.Primitive[_]]                                           =
+  val anyPrimitive: Gen[Any, Schema.Primitive[_]]                                  =
     StandardTypeGen.anyStandardType.map(Schema.Primitive(_))
 
   type PrimitiveAndGen[A] = (Schema.Primitive[A], Gen[Sized, A])
@@ -49,7 +49,7 @@ object SchemaGen {
 
   type PrimitiveAndValue[A] = (Schema.Primitive[A], A)
 
-  val anyPrimitiveAndValue: Gen[Sized, PrimitiveAndValue[_]]                                    =
+  val anyPrimitiveAndValue: Gen[Sized, PrimitiveAndValue[_]]                        =
     for {
       (schema, gen) <- anyPrimitiveAndGen
       value         <- gen
@@ -150,13 +150,13 @@ object SchemaGen {
 
   type SequenceAndValue[A] = (Schema[Chunk[A]], Chunk[A])
 
-  val anySequenceAndValue: Gen[Sized, SequenceAndValue[_]] =
+  val anySequenceAndValue: Gen[Sized, SequenceAndValue[_]]           =
     for {
       (schema, gen) <- anySequenceAndGen
       value         <- gen
     } yield schema -> value
 
-  def toCaseSet(cases: ListMap[String, Schema[_]]): CaseSet.Aux[Any]   =
+  def toCaseSet(cases: ListMap[String, Schema[_]]): CaseSet.Aux[Any] =
     cases.foldRight[CaseSet.Aux[Any]](CaseSet.Empty[Any]()) {
       case ((id, codec), acc) =>
         val _case = Schema.Case[Any, Any](id, codec.asInstanceOf[Schema[Any]], _.asInstanceOf[Any], Chunk.empty)

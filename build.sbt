@@ -82,7 +82,7 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
       "dev.zio"               %% "zio-schema"            % zioSchemaVersion,
       "dev.zio"               %% "zio-schema-derivation" % zioSchemaVersion,
       "dev.zio"               %% "zio-aws-http4s"        % zioAwsVersion,
-      "dev.zio"               %% "zio-aws-netty"        % zioAwsVersion,
+      "dev.zio"               %% "zio-aws-netty"         % zioAwsVersion,
       "dev.zio"               %% "zio-aws-dynamodb"      % zioAwsVersion,
       "org.scala-lang"         % "scala-reflect"         % scalaVersion.value,
       "software.amazon.awssdk" % "dynamodb"              % "2.17.166",
@@ -330,4 +330,3 @@ lazy val docs = project
     docusaurusPublishGhpages := docusaurusPublishGhpages.dependsOn(unidoc in Compile).value
   )
   .enablePlugins(MdocPlugin, DocusaurusPlugin, ScalaUnidocPlugin)
-
