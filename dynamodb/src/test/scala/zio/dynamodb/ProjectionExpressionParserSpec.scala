@@ -1,11 +1,10 @@
 package zio.dynamodb
 
-import zio.dynamodb.ProjectionExpression.{ parse, ListElement, MapElement, Root }
+import zio.dynamodb.ProjectionExpression.{ $, parse, ListElement, MapElement, Root }
 import zio.test.Assertion._
 import zio.test._
 
 import scala.annotation.tailrec
-import zio.test.{ Sized, ZIOSpecDefault }
 
 object ProjectionExpressionParserSpec extends ZIOSpecDefault {
   object Generators {
@@ -13,7 +12,8 @@ object ProjectionExpressionParserSpec extends ZIOSpecDefault {
     private val validCharGens                                                                                = List(Gen.const('_'), Gen.char('a', 'z'), Gen.char('A', 'Z'), Gen.char('0', '9'))
     private def fieldName                                                                                    = Gen.stringBounded(0, 10)(Gen.oneOf(validCharGens: _*))
     private def index                                                                                        = Gen.int(0, 10)
-    private def root: Gen[Sized, Root]                                                           = fieldName.map(Root)
+    private def root: Gen[Sized, ProjectionExpression]                                           =
+      fieldName.map(ProjectionExpression.MapElement(Root, _))
     private def mapElement(parent: => ProjectionExpression)                                                  = fieldName.map(MapElement(parent, _))
     private def listElement(parent: => ProjectionExpression)                                                 = index.map(ListElement(parent, _))
     private def mapOrListElement(parent: ProjectionExpression): Gen[Sized, ProjectionExpression] =
@@ -42,6 +42,10 @@ object ProjectionExpressionParserSpec extends ZIOSpecDefault {
 
   private val mainSuite: Spec[Sized with TestConfig, TestFailure[Any], TestSuccess] =
     suite("ProjectionExpression Parser")(
+      test("$ function compiles") {
+        val _ = $("name").beginsWith("Avi")
+        assertCompletes
+      },
       test("should parse valid expressions and return a Left for any invalid expressions") {
         check(Generators.projectionExpression) { pe =>
           assert(parse(pe.toString))(
@@ -73,6 +77,10 @@ object ProjectionExpressionParserSpec extends ZIOSpecDefault {
         val actual = parse("foo.")
         assert(actual)(isLeft(equalTo("error - input string 'foo.' is invalid")))
       },
+      test("returns error for '.foo'") {
+        val actual = parse(".foo")
+        assert(actual)(isLeft(equalTo("error - input string '.foo' is invalid")))
+      },
       test("returns error for for 'foo..bar'") {
         val actual = parse("foo..bar")
         assert(actual)(isLeft(equalTo("error with ''")))
@@ -90,11 +98,13 @@ object ProjectionExpressionParserSpec extends ZIOSpecDefault {
   @tailrec
   private def anyEmptyName(pe: ProjectionExpression): Boolean =
     pe match {
-      case Root(name)              =>
+      case Root                                        =>
+        false
+      case ProjectionExpression.MapElement(Root, name) =>
         name.isEmpty
-      case MapElement(parent, key) =>
+      case MapElement(parent, key)                     =>
         key.isEmpty || anyEmptyName(parent)
-      case ListElement(parent, _)  =>
+      case ListElement(parent, _)                      =>
         anyEmptyName(parent)
     }
 

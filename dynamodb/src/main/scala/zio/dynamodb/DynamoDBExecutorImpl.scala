@@ -320,7 +320,9 @@ case object DynamoDBExecutorImpl {
         .map(m => PrimaryKey(m.flatMap { case (k, v) => awsAttrValToAttrVal(v).map((k.toString, _)) }))
         .toSet
 
-    maybeProjectionExpressions.map(a => TableGet(keySet, a)).getOrElse(TableGet(keySet, Set.empty))
+    maybeProjectionExpressions
+      .map(a => TableGet(keySet, a.asInstanceOf[Set[ProjectionExpression]]))
+      .getOrElse(TableGet(keySet, Set.empty))
   }
 
   private def tableItemsMapToResponse(
