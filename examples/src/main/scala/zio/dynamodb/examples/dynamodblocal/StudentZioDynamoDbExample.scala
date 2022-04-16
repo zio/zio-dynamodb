@@ -4,7 +4,7 @@ import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
 import software.amazon.awssdk.regions.Region
 import zio.aws.core.config
 import zio.aws.dynamodb.DynamoDb
-import zio.aws.{ dynamodb, http4s }
+import zio.aws.{ dynamodb, netty }
 import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.dynamodb.DynamoDBQuery.{ createTable, put }
 import zio.dynamodb._
@@ -43,7 +43,7 @@ object StudentZioDynamoDbExample extends ZIOAppDefault {
   )
 
   private val dynamoDbLayer: ZLayer[Any, Throwable, DynamoDb] =
-    (http4s.Http4sClient.default ++ awsConfig) >>> config.AwsConfig.default >>> dynamodb.DynamoDb.customized {
+    (netty.NettyHttpClient.default ++ awsConfig) >>> config.AwsConfig.default >>> dynamodb.DynamoDb.customized {
       builder =>
         builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
     }

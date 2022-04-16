@@ -8,7 +8,7 @@ import zio.{ ZIO, ZLayer }
 object LocalDdbServer {
 
   val inMemoryLayer: ZLayer[Any, Nothing, DynamoDBProxyServer] = {
-    val effect = ZIO.acquireRelease({
+    val effect = ZIO.acquireRelease(
       attemptBlocking {
         System.setProperty("sqlite4java.library.path", "native-libs")
         System.setProperty("aws.accessKeyId", "dummy-key")
@@ -22,9 +22,9 @@ object LocalDdbServer {
         server.start()
         server
       }.orDie
-    })(server => attemptBlocking(server.stop()).orDie)
+    )(server => attemptBlocking(server.stop()).orDie)
 
-    ZLayer.fromZIO(ZIO.scoped(effect))
+    ZLayer.scoped(effect)
 
   }
 }

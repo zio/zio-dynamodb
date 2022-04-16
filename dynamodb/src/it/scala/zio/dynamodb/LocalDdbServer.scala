@@ -10,7 +10,7 @@ object LocalDdbServer {
   val inMemoryLayer: ZLayer[Any, Nothing, DynamoDBProxyServer] = {
 
     val effect = ZIO.acquireRelease(
-      ZIO.debug("open in memory layer") *> attemptBlocking {
+      attemptBlocking {
         System.setProperty(
           "sqlite4java.library.path",
           "dynamodb/native-libs"
@@ -26,7 +26,7 @@ object LocalDdbServer {
         server.start()
         server
       }.orDie
-    )(server => ZIO.debug("close in memory layer") *> attemptBlocking(server.stop()).orDie)
+    )(server => attemptBlocking(server.stop()).orDie)
 
     ZLayer.scoped(effect)
   }
