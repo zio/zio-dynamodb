@@ -5,7 +5,7 @@ import zio.schema.DeriveSchema
 import zio.test.Assertion.equalTo
 import zio.test._
 
-object ReifiedOpticsSpec extends DefaultRunnableSpec {
+object ReifiedOpticsSpec extends ZIOSpecDefault {
 
   @enumOfCaseObjects
   sealed trait Payment
@@ -23,7 +23,7 @@ object ReifiedOpticsSpec extends DefaultRunnableSpec {
     val (name, age, payment) = ProjectionExpression.accessors[Person]
   }
 
-  override def spec: ZSpec[Environment, Failure] =
+  override def spec =
     suite("reified optics suite")(
       test("name Lens results is a valid projection expression") {
         val pe: ProjectionExpression = Person.name

@@ -2,14 +2,13 @@ package zio.dynamodb
 
 import zio.dynamodb.ConditionExpression.Operand.ProjectionExpressionOperand
 import zio.dynamodb.ProjectionExpression.{ MapElement, Root }
-import zio.random.Random
 import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema }
 import zio.test.Assertion.{ isLeft, isRight }
 import zio.test._
 
 import java.time.Instant
 
-object KeyConditionExpressionSpec extends DefaultRunnableSpec {
+object KeyConditionExpressionSpec extends ZIOSpecDefault {
 
   final case class Student(
     email: String,
@@ -22,7 +21,7 @@ object KeyConditionExpressionSpec extends DefaultRunnableSpec {
 
   val (email, subject, enrollmentDate) = ProjectionExpression.accessors[Student]
 
-  override def spec: ZSpec[Environment, Failure] =
+  override def spec =
     suite("KeyConditionExpression from a ConditionExpression")(happyPathSuite, unhappyPathSuite, pbtSuite)
 
   val happyPathSuite =
@@ -69,7 +68,7 @@ object KeyConditionExpressionSpec extends DefaultRunnableSpec {
   import Generators._
 
   val pbtSuite =
-    suite("property based suite")(testM("conversion of ConditionExpression to KeyConditionExpression must be valid") {
+    suite("property based suite")(test("conversion of ConditionExpression to KeyConditionExpression must be valid") {
       check(genConditionExpression) {
         case (condExprn, seedDataList) => assertConditionExpression(condExprn, seedDataList)
       }
@@ -107,17 +106,17 @@ object KeyConditionExpressionSpec extends DefaultRunnableSpec {
       val set = Set(Equals, NotEquals, LessThan, GreaterThan, LessThanOrEqual, GreaterThanOrEqual)
     }
 
-    val maxNumOfTerms                                                               = 2
-    val genOP                                                                       = Gen.fromIterable(ComparisonOp.set)
-    private val genFieldName: Gen[Random with Sized, String]                        = Gen.alphaNumericStringBounded(1, 5)
-    val genFieldNameAndOpList: Gen[Random with Sized, List[(String, ComparisonOp)]] =
+    val maxNumOfTerms                                                   = 2
+    val genOP                                                           = Gen.fromIterable(ComparisonOp.set)
+    private val genFieldName: Gen[Sized, String]                        = Gen.alphaNumericStringBounded(1, 5)
+    val genFieldNameAndOpList: Gen[Sized, List[(String, ComparisonOp)]] =
       Gen.listOfBounded(0, maxNumOfTerms + 1)( // ensure we generate more that max number of terms
         genFieldName zip genOP
       )
     final case class FieldNameAndComparisonOp(fieldName: String, op: ComparisonOp)
     type SeedData = (String, ComparisonOp)
-    val genConditionExpression: Gen[Random with Sized, (ConditionExpression, List[SeedData])] =
-      genFieldNameAndOpList.map { xs =>
+    val genConditionExpression: Gen[Sized, (ConditionExpression, List[SeedData])] =
+      genFieldNameAndOpList.filter(_.nonEmpty).map { xs =>
         val (name, op) = xs.head
         val first      = conditionExpression(name, op)
         // TODO: generate joining ops
