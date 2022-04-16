@@ -4,11 +4,12 @@ import zio.Chunk
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem, GetItem }
 import zio.test.Assertion._
-import zio.test.{ DefaultRunnableSpec, _ }
+import zio.test._
+import zio.test.ZIOSpecDefault
 
-object BatchingModelSpec extends DefaultRunnableSpec with DynamoDBFixtures {
+object BatchingModelSpec extends ZIOSpecDefault with DynamoDBFixtures {
 
-  override def spec: ZSpec[Environment, Failure] = suite("Batch Model")(batchGetItemSuite, batchWriteItemSuite)
+  override def spec = suite("Batch Model")(batchGetItemSuite, batchWriteItemSuite)
 
   private val batchGetItemSuite = suite("BatchGetItem")(
     test("should aggregate GetItems using +") {

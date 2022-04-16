@@ -1,11 +1,11 @@
 package zio.dynamodb
 
+import zio.Chunk
 import zio.dynamodb.DynamoDBQuery._
 import zio.test.Assertion._
-import zio.test.{ assert, DefaultRunnableSpec, TestAspect, ZSpec }
-import zio.Chunk
+import zio.test.{ assert, TestAspect, ZIOSpecDefault }
 
-object BatchingDSLSpec extends DefaultRunnableSpec with DynamoDBFixtures {
+object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
 
   private val beforeAddTable1          = TestAspect.before(
     TestDynamoDBExecutor
@@ -17,34 +17,33 @@ object BatchingDSLSpec extends DefaultRunnableSpec with DynamoDBFixtures {
       TestDynamoDBExecutor.addTable(tableName3.value, "k3", primaryKeyT3 -> itemT3)
   )
 
-  override def spec: ZSpec[Environment, Failure] =
-    suite("Batching")(crudSuite, scanAndQuerySuite, batchingSuite).provideLayer(DynamoDBExecutor.test)
+  override def spec = suite("Batching")(crudSuite, scanAndQuerySuite, batchingSuite).provideLayer(DynamoDBExecutor.test)
 
   private val crudSuite = suite("single Item CRUD suite")(
-    testM("getItem") {
+    test("getItem") {
       for {
         _      <- TestDynamoDBExecutor.addTable(tableName1.value, "k1", primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
         result <- getItemT1.execute
       } yield assert(result)(equalTo(Some(itemT1)))
     },
-    testM("getItem returns an error when table does not exist") {
+    test("getItem returns an error when table does not exist") {
       for {
         result <- getItem("TABLE_DOES_NOT_EXISTS", primaryKeyT1).execute.either
       } yield assert(result)(isLeft)
     },
-    testM("should execute putItem then getItem when sequenced in a ZIO") {
+    test("should execute putItem then getItem when sequenced in a ZIO") {
       for {
         _      <- TestDynamoDBExecutor.addTable(tableName1.value, "k1")
         _      <- putItemT1.execute
         result <- getItemT1.execute
       } yield assert(result)(equalTo(Some(itemT1)))
     },
-    testM("putItem returns an error when table does not exist") {
+    test("putItem returns an error when table does not exist") {
       for {
         result <- putItem("TABLE_DOES_NOT_EXISTS", itemT1).execute.either
       } yield assert(result)(isLeft)
     },
-    testM("should delete an item") {
+    test("should delete an item") {
       for {
         _            <- TestDynamoDBExecutor.addTable(tableName1.value, "k1", primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
         beforeDelete <- getItemT1.execute
@@ -52,7 +51,7 @@ object BatchingDSLSpec extends DefaultRunnableSpec with DynamoDBFixtures {
         afterDelete  <- getItemT1.execute
       } yield assert(beforeDelete)(equalTo(Some(itemT1))) && assert(afterDelete)(equalTo(None))
     },
-    testM("deleteItem returns an error when table does not exist") {
+    test("deleteItem returns an error when table does not exist") {
       for {
         result <- deleteItem("TABLE_DOES_NOT_EXISTS", primaryKeyT1).execute.either
       } yield assert(result)(isLeft)
@@ -60,57 +59,57 @@ object BatchingDSLSpec extends DefaultRunnableSpec with DynamoDBFixtures {
   )
 
   private val scanAndQuerySuite = suite("Scan and Query suite")(
-    testM(
+    test(
       "scanSome returns an error when table does not exist"
     ) {
       for {
         errorOrResult <- scanSomeItem("TABLE_DOES_NOT_EXISTS", 3).execute.either
       } yield assert(errorOrResult)(isLeft)
     },
-    testM("scanSome on an empty table returns empty results and a LEK of None") {
+    test("scanSome on an empty table returns empty results and a LEK of None") {
       for {
-        (chunk, lek) <- scanSomeItem(tableName2.value, 10).execute
-      } yield assert(chunk)(equalTo(Chunk.empty)) && assert(lek)(equalTo(None))
+        r <- scanSomeItem(tableName2.value, 10).execute
+      } yield assert(r._1)(equalTo(Chunk.empty)) && assert(r._2)(equalTo(None))
     },
-    testM("scanSome with limit greater than table size should scan all items in a table and return a LEK of None") {
+    test("scanSome with limit greater than table size should scan all items in a table and return a LEK of None") {
       for {
-        (chunk, lek) <- scanSomeItem(tableName1.value, 10).execute
-      } yield assert(chunk)(equalTo(resultItems(1 to 5))) && assert(lek)(equalTo(None))
+        r <- scanSomeItem(tableName1.value, 10).execute
+      } yield assert(r._1)(equalTo(resultItems(1 to 5))) && assert(r._2)(equalTo(None))
     },
-    testM(
+    test(
       "querySome returns an error when table does not exist"
     ) {
       for {
         errorOrResult <- querySomeItem("TABLE_DOES_NOT_EXISTS", 3).execute.either
       } yield assert(errorOrResult)(isLeft)
     },
-    testM("querySome on an empty table returns empty results and a LEK of None") {
+    test("querySome on an empty table returns empty results and a LEK of None") {
       for {
-        (chunk, lek) <- querySomeItem(tableName2.value, 10).execute
-      } yield assert(chunk)(equalTo(Chunk.empty)) && assert(lek)(equalTo(None))
+        r <- querySomeItem(tableName2.value, 10).execute
+      } yield assert(r._1)(equalTo(Chunk.empty)) && assert(r._2)(equalTo(None))
     },
-    testM(
+    test(
       "querySome with limit less than table size should return partial result chunk and return a LEK of last read Item"
     ) {
       for {
-        (chunk, lek) <- querySomeItem(tableName1.value, 3).execute
+        r <- querySomeItem(tableName1.value, 3).execute
       } yield {
         val item3 = Item("k1" -> 3)
-        assert(chunk)(equalTo(resultItems(1 to 3))) && assert(lek)(equalTo(Some(item3)))
+        assert(r._1)(equalTo(resultItems(1 to 3))) && assert(r._2)(equalTo(Some(item3)))
       }
     },
-    testM("querySome with limit greater than table size should scan all items in a table and return a LEK of None") {
+    test("querySome with limit greater than table size should scan all items in a table and return a LEK of None") {
       for {
-        (chunk, lek) <- querySomeItem(tableName1.value, 10).execute
-      } yield assert(chunk)(equalTo(resultItems(1 to 5))) && assert(lek)(equalTo(None))
+        r <- querySomeItem(tableName1.value, 10).execute
+      } yield assert(r._1)(equalTo(resultItems(1 to 5))) && assert(r._2)(equalTo(None))
     },
-    testM("scanAll should scan all items in a table") {
+    test("scanAll should scan all items in a table") {
       for {
         stream <- scanAllItem(tableName1.value).execute
         chunk  <- stream.runCollect
       } yield assert(chunk)(equalTo(resultItems(1 to 5)))
     },
-    testM("queryAll should scan all items in a table") {
+    test("queryAll should scan all items in a table") {
       for {
         stream <- queryAllItem(tableName1.value).execute
         chunk  <- stream.runCollect
@@ -125,33 +124,33 @@ object BatchingDSLSpec extends DefaultRunnableSpec with DynamoDBFixtures {
   )
 
   private val batchingSuite = suite("batching should")(
-    testM("batch putItem1 zip putItem1_2") {
+    test("batch putItem1 zip putItem1_2") {
       for {
         _           <- TestDynamoDBExecutor.addTable(tableName1.value, "k1")
         result      <- (putItemT1 zip putItemT1_2).execute
         table1Items <- (getItemT1 zip getItemT1_2).execute
       } yield assert(result)(equalTo(())) && assert(table1Items)(equalTo((Some(itemT1), Some(itemT1_2))))
     },
-    testM("batch getItem1 zip getItem2 zip getItem3 returns 3 items that are found") {
+    test("batch getItem1 zip getItem2 zip getItem3 returns 3 items that are found") {
       for {
         result  <- (getItemT1 zip getItemT1_2 zip getItemT3).execute
         expected = (Some(itemT1), Some(itemT1_2), Some(itemT3))
       } yield assert(result)(equalTo(expected))
     } @@ beforeAddTable1AndTable2,
-    testM("batch getItem1 zip getItem2 zip getItem3 returns 2 items that are found") {
+    test("batch getItem1 zip getItem2 zip getItem3 returns 2 items that are found") {
       for {
         result  <- (getItemT1 zip getItemT1_2 zip getItemT1_NotExists).execute
         expected = (Some(itemT1), Some(itemT1_2), None)
       } yield assert(result)(equalTo(expected))
     } @@ beforeAddTable1,
-    testM("batch putItem1 zip getItem1 zip getItem2 zip deleteItem1") {
+    test("batch putItem1 zip getItem1 zip getItem2 zip deleteItem1") {
       for {
         result      <- (putItemT3_2 zip getItemT1 zip getItemT1_2 zip deleteItemT3).execute
         expected     = (Some(itemT1), Some(itemT1_2))
         table3Items <- (getItemT3 zip getItemT3_2).execute
       } yield assert(result)(equalTo(expected)) && assert(table3Items)(equalTo((None, Some(itemT3_2))))
     } @@ beforeAddTable1AndTable2,
-    testM("should execute forEach of GetItems (resulting in a batched request)") {
+    test("should execute forEach of GetItems (resulting in a batched request)") {
       for {
         result <- forEach(1 to 2) { i =>
                     getItem(tableName1.value, PrimaryKey("k1" -> s"v$i"))

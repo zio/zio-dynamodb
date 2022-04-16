@@ -1,6 +1,7 @@
 package zio.dynamodb.examples
 
-import zio.console.putStrLn
+import zio.Console.printLine
+import zio.ZIOAppDefault
 import zio.dynamodb.Annotations.{ discriminator, enumOfCaseObjects, id }
 import zio.dynamodb.examples.TypeSafeRoundTripSerialisationExample.Invoice.{
   Address,
@@ -11,11 +12,10 @@ import zio.dynamodb.examples.TypeSafeRoundTripSerialisationExample.Invoice.{
 }
 import zio.dynamodb.{ DynamoDBExecutor, DynamoDBQuery, PrimaryKey }
 import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema, Schema }
-import zio.{ App, ExitCode, URIO }
 
 import java.time.Instant
 
-object TypeSafeRoundTripSerialisationExample extends App {
+object TypeSafeRoundTripSerialisationExample extends ZIOAppDefault {
 
   @discriminator("invoiceType")
   sealed trait Invoice {
@@ -77,10 +77,10 @@ object TypeSafeRoundTripSerialisationExample extends App {
     _     <- DynamoDBQuery.put[Invoice]("table1", invoice1).execute
     found <- DynamoDBQuery.get[Invoice]("table1", PrimaryKey("id" -> "1")).execute
     item  <- DynamoDBQuery.getItem("table1", PrimaryKey("id" -> "1")).execute
-    _     <- putStrLn(s"found=$found")
-    _     <- putStrLn(s"item=$item")
+    _     <- printLine(s"found=$found")
+    _     <- printLine(s"item=$item")
   } yield ()
 
-  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] =
-    program.provideCustomLayer(DynamoDBExecutor.test("table1" -> "id")).exitCode
+  override def run =
+    program.provide(DynamoDBExecutor.test("table1" -> "id"))
 }

@@ -1,31 +1,31 @@
 package zio.dynamodb
 
-import io.github.vigoo.zioaws.dynamodb.DynamoDb
-import zio.clock.Clock
+import zio.aws.dynamodb.DynamoDb
 import zio.stm.{ STM, TMap }
-import zio.{ Has, ULayer, URLayer, ZIO, ZLayer }
+import zio.{ ULayer, URLayer, ZIO, ZLayer }
 
 trait DynamoDBExecutor {
   def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Throwable, A]
 }
 
 object DynamoDBExecutor {
-  val live: URLayer[DynamoDb with Clock, Has[DynamoDBExecutor]] =
-    ZLayer
-      .fromServices[Clock.Service, DynamoDb.Service, DynamoDBExecutor]((clock, dynamo) =>
-        DynamoDBExecutorImpl(clock, dynamo)
-      )
+  val live: URLayer[DynamoDb, DynamoDBExecutor] =
+    ZLayer.fromZIO(for {
+      db    <- ZIO.service[DynamoDb]
+    } yield DynamoDBExecutorImpl(db))
 
-  lazy val test: ULayer[Has[DynamoDBExecutor] with Has[TestDynamoDBExecutor]] =
-    (for {
+  lazy val test: ULayer[DynamoDBExecutor with TestDynamoDBExecutor] = {
+    val effect = for {
       test <- (for {
                   tableMap       <- TMap.empty[String, TMap[PrimaryKey, Item]]
                   tablePkNameMap <- TMap.empty[String, String]
                 } yield TestDynamoDBExecutorImpl(tableMap, tablePkNameMap)).commit
-    } yield Has.allOf[DynamoDBExecutor, TestDynamoDBExecutor](test, test)).toLayerMany
+    } yield test
+    ZLayer.fromZIO(effect)
+  }
 
-  def test(tableDefs: TableNameAndPK*): ULayer[Has[DynamoDBExecutor] with Has[TestDynamoDBExecutor]] =
-    (for {
+  def test(tableDefs: TableNameAndPK*): ULayer[DynamoDBExecutor with TestDynamoDBExecutor] = {
+    val effect = for {
       test <- (for {
                   tableMap       <- TMap.empty[String, TMap[PrimaryKey, Item]]
                   tablePkNameMap <- TMap.empty[String, String]
@@ -38,6 +38,8 @@ object DynamoDBExecutor {
                                         } yield ()
                                     }
                 } yield TestDynamoDBExecutorImpl(tableMap, tablePkNameMap)).commit
-    } yield Has.allOf[DynamoDBExecutor, TestDynamoDBExecutor](test, test)).toLayerMany
+    } yield test
+    ZLayer.fromZIO(effect)
+  }
 
 }

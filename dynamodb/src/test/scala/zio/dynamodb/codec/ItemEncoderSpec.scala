@@ -7,12 +7,12 @@ import zio.test._
 
 import java.time.Instant
 import scala.collection.immutable.ListMap
+import zio.test.ZIOSpecDefault
 
-object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
-  override def spec: ZSpec[Environment, Failure] =
-    suite("ItemEncoder Suite")(mainSuite)
+object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
+  override def spec = suite("ItemEncoder Suite")(mainSuite)
 
-  val mainSuite: ZSpec[Environment, Failure] = suite("Main Suite")(
+  val mainSuite = suite("Main Suite")(
     test("encodes generic record") {
 
       val av = Codec.encoder(recordSchema)(ListMap("foo" -> "FOO", "bar" -> 1))

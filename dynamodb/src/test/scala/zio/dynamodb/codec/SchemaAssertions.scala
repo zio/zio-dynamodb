@@ -1,9 +1,9 @@
 package zio.dynamodb.codec
 
 import zio.Chunk
+import zio.schema._
 import zio.test.Assertion
 import zio.test.AssertionM.Render.param
-import zio.schema._
 
 object SchemaAssertions {
 
@@ -15,11 +15,11 @@ object SchemaAssertions {
 
   private def equalsAst(expected: Schema[_], actual: Schema[_], depth: Int = 0): Boolean =
     (expected, actual) match {
-      case (Schema.Primitive(StandardType.Duration(_), _), Schema.Primitive(StandardType.Duration(_), _))             => true
-      case (Schema.Primitive(StandardType.InstantType(_), _), Schema.Primitive(StandardType.InstantType(_), _))       => true
-      case (Schema.Primitive(StandardType.LocalDateType(_), _), Schema.Primitive(StandardType.LocalDateType(_), _))   =>
+      case (Schema.Primitive(StandardType.DurationType, _), Schema.Primitive(StandardType.DurationType, _))         => true
+      case (Schema.Primitive(StandardType.InstantType(_), _), Schema.Primitive(StandardType.InstantType(_), _))     => true
+      case (Schema.Primitive(StandardType.LocalDateType(_), _), Schema.Primitive(StandardType.LocalDateType(_), _)) =>
         true
-      case (Schema.Primitive(StandardType.LocalTimeType(_), _), Schema.Primitive(StandardType.LocalTimeType(_), _))   =>
+      case (Schema.Primitive(StandardType.LocalTimeType(_), _), Schema.Primitive(StandardType.LocalTimeType(_), _)) =>
         true
       case (
             Schema.Primitive(StandardType.LocalDateTimeType(_), _),
@@ -31,29 +31,30 @@ object SchemaAssertions {
             Schema.Primitive(StandardType.ZonedDateTimeType(_), _)
           ) =>
         true
-      case (Schema.Primitive(StandardType.OffsetTimeType(_), _), Schema.Primitive(StandardType.OffsetTimeType(_), _)) =>
+      case (Schema.Primitive(StandardType.OffsetTimeType(_), _), Schema.Primitive(StandardType.OffsetTimeType(_), _))   =>
         true
       case (
             Schema.Primitive(StandardType.OffsetDateTimeType(_), _),
             Schema.Primitive(StandardType.OffsetDateTimeType(_), _)
           ) =>
         true
-      case (Schema.Primitive(tpe1, _), Schema.Primitive(tpe2, _))                                                     => tpe1 == tpe2
-      case (Schema.Optional(expected, _), Schema.Optional(actual, _))                                                 => equalsAst(expected, actual, depth)
-      case (Schema.Tuple(expectedLeft, expectedRight, _), Schema.Tuple(actualLeft, actualRight, _))                   =>
+      case (Schema.Primitive(tpe1, _), Schema.Primitive(tpe2, _))                                                   => tpe1 == tpe2
+      case (Schema.Optional(expected, _), Schema.Optional(actual, _))                                               => equalsAst(expected, actual, depth)
+      case (Schema.Tuple(expectedLeft, expectedRight, _), Schema.Tuple(actualLeft, actualRight, _))                 =>
         equalsAst(expectedLeft, actualLeft, depth) && equalsAst(expectedRight, actualRight, depth)
-      case (Schema.Tuple(expectedLeft, expectedRight, _), Schema.GenericRecord(structure, _))                         =>
+      case (Schema.Tuple(expectedLeft, expectedRight, _), Schema.GenericRecord(structure, _))                       =>
         structure.toChunk.size == 2 &&
           structure.toChunk.find(_.label == "left").exists(f => equalsAst(expectedLeft, f.schema, depth)) &&
           structure.toChunk.find(_.label == "right").exists(f => equalsAst(expectedRight, f.schema, depth))
-      case (Schema.EitherSchema(expectedLeft, expectedRight, _), Schema.EitherSchema(actualLeft, actualRight, _))     =>
+      case (Schema.EitherSchema(expectedLeft, expectedRight, _), Schema.EitherSchema(actualLeft, actualRight, _))   =>
         equalsAst(expectedLeft, actualLeft, depth) && equalsAst(expectedRight, actualRight, depth)
-      case (Schema.EitherSchema(expectedLeft, expectedRight, _), right: Schema.Enum[_])                               =>
+      case (Schema.EitherSchema(expectedLeft, expectedRight, _), right: Schema.Enum[_])                             =>
         right.structure.size == 2 &&
           right.structure.get("left").exists(actualLeft => equalsAst(expectedLeft, actualLeft, depth)) &&
           right.structure.get("right").exists(actualRight => equalsAst(expectedRight, actualRight, depth))
-      case (Schema.Sequence(expected, _, _, _), Schema.Sequence(actual, _, _, _))                                     => equalsAst(expected, actual, depth)
-      case (expected: Schema.Record[_], actual: Schema.Record[_])                                                     =>
+      case (Schema.Sequence(expected, _, _, _, _), Schema.Sequence(actual, _, _, _, _))                             =>
+        equalsAst(expected, actual, depth)
+      case (expected: Schema.Record[_], actual: Schema.Record[_])                                                   =>
         expected.structure.zipAll(actual.structure).forall {
           case (
                 Some(Schema.Field(expectedLabel, expectedSchema, _)),
@@ -62,26 +63,26 @@ object SchemaAssertions {
             expectedLabel == actualLabel && equalsAst(expectedSchema, actualSchema, depth)
           case _ => false
         }
-      case (expected: Schema.Enum[_], actual: Schema.Enum[_])                                                         =>
+      case (expected: Schema.Enum[_], actual: Schema.Enum[_])                                                       =>
         Chunk.fromIterable(expected.structure).zipAll(Chunk.fromIterable(actual.structure)).forall {
           case (Some((expectedId, expectedSchema)), Some((actualId, actualSchema))) =>
             actualId == expectedId && equalsAst(expectedSchema, actualSchema, depth)
           case _                                                                    => false
         }
-      case (expected, Schema.Transform(actualSchema, _, _, _))                                                        =>
+      case (expected, Schema.Transform(actualSchema, _, _, _, _))                                                   =>
         equalsAst(expected, actualSchema, depth)
-      case (Schema.Transform(expected, _, _, _), actual)                                                              =>
+      case (Schema.Transform(expected, _, _, _, _), actual)                                                         =>
         equalsAst(expected, actual, depth)
-      case (expected: Schema.Lazy[_], actual)                                                                         => if (depth > 10) true else equalsAst(expected.schema, actual, depth + 1)
-      case (expected, actual: Schema.Lazy[_])                                                                         => if (depth > 10) true else equalsAst(expected, actual.schema, depth + 1)
-      case _                                                                                                          => false
+      case (expected: Schema.Lazy[_], actual)                                                                       => if (depth > 10) true else equalsAst(expected.schema, actual, depth + 1)
+      case (expected, actual: Schema.Lazy[_])                                                                       => if (depth > 10) true else equalsAst(expected, actual.schema, depth + 1)
+      case _                                                                                                        => false
     }
 
   private def equalsSchema[A](left: Schema[A], right: Schema[A]): Boolean =
     (left: Schema[_], right: Schema[_]) match {
-      case (Schema.Transform(codec1, _, _, a1), Schema.Transform(codec2, _, _, a2))     =>
+      case (Schema.Transform(codec1, _, _, a1, _), Schema.Transform(codec2, _, _, a2, _))   =>
         equalsSchema(codec1, codec2) && equalsAnnotations(a1, a2)
-      case (Schema.GenericRecord(structure1, a1), Schema.GenericRecord(structure2, a2)) =>
+      case (Schema.GenericRecord(structure1, a1), Schema.GenericRecord(structure2, a2))     =>
         hasSameFields(structure1.toChunk, structure2.toChunk) &&
           structure1.toChunk.forall {
             case Schema.Field(label, schema, _) =>
@@ -89,7 +90,7 @@ object SchemaAssertions {
               val right: Schema[Any] = structure2.toChunk.find(_.label == label).asInstanceOf[Schema[Any]]
               equalsSchema(left, right)
           } && equalsAnnotations(a1, a2)
-      case (left: Schema.Record[_], right: Schema.Record[_])                            =>
+      case (left: Schema.Record[_], right: Schema.Record[_])                                =>
         hasSameStructure(
           left.asInstanceOf[Schema.Record[A]],
           right.asInstanceOf[Schema.Record[A]]
@@ -97,27 +98,27 @@ object SchemaAssertions {
           left.annotations,
           right.annotations
         )
-      case (Schema.Sequence(element1, _, _, a1), Schema.Sequence(element2, _, _, a2))   =>
+      case (Schema.Sequence(element1, _, _, a1, _), Schema.Sequence(element2, _, _, a2, _)) =>
         equalsSchema(element1, element2) && equalsAnnotations(a1, a2)
-      case (Schema.Primitive(standardType1, a1), Schema.Primitive(standardType2, a2))   =>
+      case (Schema.Primitive(standardType1, a1), Schema.Primitive(standardType2, a2))       =>
         standardType1 == standardType2 && equalsAnnotations(a1, a2)
-      case (Schema.Tuple(left1, right1, a1), Schema.Tuple(left2, right2, a2))           =>
+      case (Schema.Tuple(left1, right1, a1), Schema.Tuple(left2, right2, a2))               =>
         equalsSchema(left1, left2) && equalsSchema(right1, right2) && equalsAnnotations(a1, a2)
-      case (Schema.Optional(codec1, a1), Schema.Optional(codec2, a2))                   =>
+      case (Schema.Optional(codec1, a1), Schema.Optional(codec2, a2))                       =>
         equalsSchema(codec1, codec2) && equalsAnnotations(a1, a2)
-      case (Schema.Enum1(l, lA), Schema.Enum1(r, rA))                                   => equalsCase(l, r) && lA.equals(rA)
-      case (Schema.Enum2(l1, l2, lA), Schema.Enum2(r1, r2, rA))                         =>
+      case (Schema.Enum1(l, lA), Schema.Enum1(r, rA))                                       => equalsCase(l, r) && lA.equals(rA)
+      case (Schema.Enum2(l1, l2, lA), Schema.Enum2(r1, r2, rA))                             =>
         hasSameCases(Seq(l1, l2), Seq(r1, r2)) && equalsAnnotations(lA, rA)
-      case (Schema.Enum3(l1, l2, l3, lA), Schema.Enum3(r1, r2, r3, rA))                 =>
+      case (Schema.Enum3(l1, l2, l3, lA), Schema.Enum3(r1, r2, r3, rA))                     =>
         hasSameCases(Seq(l1, l2, l3), Seq(r1, r2, r3)) && lA.equals(rA)
-      case (Schema.EnumN(ls, lA), Schema.EnumN(rs, rA))                                 => hasSameCases(ls.toSeq, rs.toSeq) && lA.equals(rA)
-      case (l @ Schema.Lazy(_), r @ Schema.Lazy(_))                                     =>
+      case (Schema.EnumN(ls, lA), Schema.EnumN(rs, rA))                                     => hasSameCases(ls.toSeq, rs.toSeq) && lA.equals(rA)
+      case (l @ Schema.Lazy(_), r @ Schema.Lazy(_))                                         =>
         equalsSchema(l.schema.asInstanceOf[Schema[Any]], r.schema.asInstanceOf[Schema[Any]])
-      case (lazySchema @ Schema.Lazy(_), eagerSchema)                                   =>
+      case (lazySchema @ Schema.Lazy(_), eagerSchema)                                       =>
         equalsSchema(lazySchema.schema.asInstanceOf[Schema[Any]], eagerSchema.asInstanceOf[Schema[Any]])
-      case (eagerSchema, lazySchema @ Schema.Lazy(_))                                   =>
+      case (eagerSchema, lazySchema @ Schema.Lazy(_))                                       =>
         equalsSchema(lazySchema.asInstanceOf[Schema[Any]], eagerSchema.asInstanceOf[Schema[Any]])
-      case _                                                                            => false
+      case _                                                                                => false
     }
 
   private def equalsAnnotations(l: Chunk[Any], r: Chunk[Any]): Boolean = l.equals(r)

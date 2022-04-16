@@ -1,20 +1,17 @@
 package zio.dynamodb
 
-import io.github.vigoo.zioaws.core.config
-import io.github.vigoo.zioaws.dynamodb.DynamoDb
+import zio.aws.core.config
+import zio.aws.dynamodb.DynamoDb
 import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
-import zio.blocking.Blocking
 import zio.dynamodb.UpdateExpression.Action.SetAction
 import zio.dynamodb.UpdateExpression.SetOperand
 import zio.dynamodb.PartitionKeyExpression.PartitionKey
 import zio.dynamodb.SortKeyExpression.SortKey
-import io.github.vigoo.zioaws.{ dynamodb, http4s }
+import zio.aws.{ dynamodb, netty }
 import zio._
-import zio.clock.Clock
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.ProjectionExpression._
 import zio.test.Assertion._
-import zio.test.environment._
 import software.amazon.awssdk.regions.Region
 import zio.schema.{ DeriveSchema, Schema }
 import zio.stream.{ ZSink, ZStream }
@@ -24,7 +21,7 @@ import zio.test.TestAspect._
 import java.net.URI
 import scala.collection.immutable.{ Map => ScalaMap }
 
-object LiveSpec extends DefaultRunnableSpec {
+object LiveSpec extends ZIOSpecDefault {
 
   private val awsConfig = ZLayer.succeed(
     config.CommonAwsConfig(
@@ -36,14 +33,13 @@ object LiveSpec extends DefaultRunnableSpec {
   )
 
   private val dynamoDbLayer: ZLayer[Any, Throwable, DynamoDb] =
-    (http4s.default ++ awsConfig) >>> config.configured() >>> dynamodb.customized { builder =>
-      builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
+    (netty.NettyHttpClient.default ++ awsConfig) >>> config.AwsConfig.configured() >>> dynamodb.DynamoDb.customized {
+      builder =>
+        builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
     }
 
-  private val layer =
-    ((dynamoDbLayer ++ ZLayer
-      .identity[Has[Clock.Service]]) >>> DynamoDBExecutor.live) ++ (ZLayer
-      .identity[Has[Blocking.Service]] >>> LocalDdbServer.inMemoryLayer)
+  private val testLayer =
+    (dynamoDbLayer >>> DynamoDBExecutor.live) ++ LocalDdbServer.inMemoryLayer
 
   private val id       = "id"
   private val first    = "first"
@@ -114,34 +110,45 @@ object LiveSpec extends DefaultRunnableSpec {
     )
 
   private def managedTable(tableDefinition: String => CreateTable) =
-    ZManaged
-      .make(
+    ZIO
+      .acquireRelease(
         for {
-          tableName <- random.nextUUID.map(_.toString)
+          tableName <- zio.Random.nextUUID.map(_.toString)
           _         <- tableDefinition(tableName).execute
         } yield TableName(tableName)
       )(tName => deleteTable(tName.value).execute.orDie)
 
   private def withTemporaryTable[R](
     tableDefinition: String => CreateTable,
-    f: String => ZIO[Has[DynamoDBExecutor] with R, Throwable, TestResult]
-  ) =
-    managedTable(tableDefinition).use(table => f(table.value))
+    f: String => ZIO[DynamoDBExecutor with R, Throwable, TestResult]
+  ): ZIO[DynamoDBExecutor with R, Throwable, TestResult] = {
+    val effect: ZIO[Scope with DynamoDBExecutor with R, Throwable, TestResult] =
+      for {
+        table      <- managedTable(tableDefinition)
+        testResult <- f(table.value)
+      } yield testResult
+    val r                                                                      = ZIO.scoped[R with DynamoDBExecutor] {
+      effect
+    }
+    r
+  }
 
   private def withDefaultTable(
-    f: String => ZIO[Has[DynamoDBExecutor], Throwable, TestResult]
+    f: String => ZIO[DynamoDBExecutor, Throwable, TestResult]
   ) =
-    managedTable(defaultTable).use { table =>
-      for {
-        _      <- insertData(table.value).execute
-        result <- f(table.value)
-      } yield result
+    ZIO.scoped {
+      managedTable(defaultTable).flatMap { table =>
+        for {
+          _      <- insertData(table.value).execute
+          result <- f(table.value)
+        } yield result
+      }
     }
 
   override def spec: ZSpec[TestEnvironment, Any] =
     suite("live test")(
       suite("basic usage")(
-        testM("put and get item") {
+        test("put and get item") {
           withDefaultTable { tableName =>
             for {
               _      <- putItem(tableName, Item(id -> first, "testName" -> "put and get item", number -> 20)).execute
@@ -151,7 +158,7 @@ object LiveSpec extends DefaultRunnableSpec {
             )
           }
         },
-        testM("put and get item with all attribute types") {
+        test("put and get item with all attribute types") {
           import zio.dynamodb.ToAttributeValue._
           val allAttributeTypeItem = Item(
             id          -> 0,
@@ -182,28 +189,28 @@ object LiveSpec extends DefaultRunnableSpec {
               )
           )
         },
-        testM("get into case class") {
+        test("get into case class") {
           withDefaultTable { tableName =>
             get[Person](tableName, secondPrimaryKey).execute.map(person =>
               assert(person)(equalTo(Right(Person("second", "adam", 2))))
             )
           }
         },
-        testM("get data from map") {
+        test("get data from map") {
           withDefaultTable { tableName =>
             for {
               item <- getItem(tableName, PrimaryKey(id -> first, number -> 1), $(id), $(number), $("mapp.abc")).execute
             } yield assert(item)(equalTo(Some(Item(id -> first, number -> 1, "mapp" -> ScalaMap("abc" -> 1)))))
           }
         },
-        testM("get nonexistant returns empty") {
+        test("get nonexistant returns empty") {
           withDefaultTable { tableName =>
             getItem(tableName, PrimaryKey(id -> "nowhere", number -> 1000)).execute.map(item => assert(item)(isNone))
           }
         }
       ),
       suite("scan tables")(
-        testM("scan table") {
+        test("scan table") {
           withDefaultTable { tableName =>
             for {
               stream <- scanAllItem(tableName).execute
@@ -215,7 +222,7 @@ object LiveSpec extends DefaultRunnableSpec {
             )
           }
         },
-        testM("scan table with filter") {
+        test("scan table with filter") {
           withDefaultTable { tableName =>
             for {
               stream <- scanAll[Person](tableName)
@@ -230,7 +237,7 @@ object LiveSpec extends DefaultRunnableSpec {
             } yield assert(chunk)(equalTo(Chunk(aviPerson, avi2Person, avi3Person)))
           }
         },
-        testM("parallel scan all item") {
+        test("parallel scan all item") {
           withTemporaryTable(
             numberTable,
             tableName =>
@@ -239,11 +246,11 @@ object LiveSpec extends DefaultRunnableSpec {
                             putItem(tableName, item)
                           }.runDrain
                 stream <- scanAllItem(tableName).parallel(8).execute
-                count  <- stream.fold(0) { case (count, _) => count + 1 }
+                count  <- stream.runFold(0) { case (count, _) => count + 1 }
               } yield assert(count)(equalTo(10000))
           )
         },
-        testM("parallel scan all typed") {
+        test("parallel scan all typed") {
           withTemporaryTable(
             defaultTable,
             tableName =>
@@ -255,127 +262,138 @@ object LiveSpec extends DefaultRunnableSpec {
                     putItem(tableName, item)
                   }.runDrain
                 stream <- scanAll[Person](tableName).parallel(8).execute
-                count  <- stream.fold(0) { case (count, _) => count + 1 }
+                count  <- stream.runFold(0) { case (count, _) => count + 1 }
               } yield assert(count)(equalTo(10000))
           )
         }
       ),
       suite("query tables")(
-        testM("query less than") {
+        test("query less than") {
           withDefaultTable { tableName =>
             for {
-              (chunk, _) <- querySomeItem(tableName, 10, $(name))
-                              .whereKey(PartitionKey(id) === first && SortKey(number) < 2)
-                              .execute
+              chunk <- querySomeItem(tableName, 10, $(name))
+                         .whereKey(PartitionKey(id) === first && SortKey(number) < 2)
+                         .execute
+                         .map(_._1)
             } yield assert(chunk)(
               equalTo(Chunk(Item(name -> avi)))
             )
           }
         },
-        testM("query table greater than") {
+        test("query table greater than") {
           withDefaultTable { tableName =>
             for {
-              (chunk, _) <- querySomeItem(tableName, 10, $(name))
-                              .whereKey(PartitionKey(id) === first && SortKey(number) > 0)
-                              .execute
-
+              chunk <- querySomeItem(tableName, 10, $(name))
+                         .whereKey(PartitionKey(id) === first && SortKey(number) > 0)
+                         .execute
+                         .map(_._1)
             } yield assert(chunk)(
               equalTo(Chunk(Item(name -> avi), Item(name -> avi2), Item(name -> avi3)))
             )
           }
         },
-        testM("query table not equal") {
+        test("query table not equal") {
           withDefaultTable { tableName =>
             for {
-              (chunk, _) <- querySomeItem(tableName, 10, $(name))
-                              .whereKey(PartitionKey(id) === first && SortKey(number) <> 1)
-                              .execute
+              chunk <- querySomeItem(tableName, 10, $(name))
+                         .whereKey(PartitionKey(id) === first && SortKey(number) <> 1)
+                         .execute
+                         .map(_._1)
             } yield assert(chunk)(
               equalTo(Chunk(Item(name -> avi2), Item(name -> avi3)))
             )
           }
         } @@ ignore, // I'm not sure notEqual is a valid SortKey condition: https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#API_Query_RequestSyntax
-        testM("query table greater than or equal") {
+        test("query table greater than or equal") {
           withDefaultTable { tableName =>
             for {
-              (chunk, _) <- querySomeItem(tableName, 10, $(name))
-                              .whereKey(PartitionKey(id) === first && SortKey(number) >= 4)
-                              .execute
+              chunk <- querySomeItem(tableName, 10, $(name))
+                         .whereKey(PartitionKey(id) === first && SortKey(number) >= 4)
+                         .execute
+                         .map(_._1)
             } yield assert(chunk)(
               equalTo(Chunk(Item(name -> avi2), Item(name -> avi3)))
             )
           }
         },
-        testM("query table less than or equal") {
+        test("query table less than or equal") {
           withDefaultTable { tableName =>
             for {
-              (chunk, _) <- querySomeItem(tableName, 10, $(name))
-                              .whereKey(PartitionKey(id) === first && SortKey(number) <= 4)
-                              .execute
+              chunk <- querySomeItem(tableName, 10, $(name))
+                         .whereKey(PartitionKey(id) === first && SortKey(number) <= 4)
+                         .execute
+                         .map(_._1)
             } yield assert(chunk)(
               equalTo(Chunk(Item(name -> avi), Item(name -> avi2)))
             )
           }
         },
-        testM("empty query result returns empty chunk") {
+        test("empty query result returns empty chunk") {
           withDefaultTable { tableName =>
             for {
-              (chunk, _) <- querySomeItem(tableName, 10, $(name))
-                              .whereKey(PartitionKey(id) === "nowhere" && SortKey(number) > 0)
-                              .execute
+              chunk <- querySomeItem(tableName, 10, $(name))
+                         .whereKey(PartitionKey(id) === "nowhere" && SortKey(number) > 0)
+                         .execute
+                         .map(_._1)
             } yield assert(chunk)(isEmpty)
           }
         },
-        testM("query with limit == 0") {
+        test("query with limit == 0") {
           withDefaultTable { tableName =>
             for {
-              (chunk, _) <- querySomeItem(tableName, 0, $(name))
-                              .whereKey(PartitionKey(id) === first)
-                              .execute
+              chunk <- querySomeItem(tableName, 0, $(name))
+                         .whereKey(PartitionKey(id) === first)
+                         .execute
+                         .map(_._1)
             } yield assert(chunk)(equalTo(Chunk.empty))
           }
         },
-        testM("query with limit > 0 and limit < matching items count") {
+        test("query with limit > 0 and limit < matching items count") {
           withDefaultTable { tableName =>
             for {
-              (chunk, _) <- querySomeItem(tableName, 1, $(name))
-                              .whereKey(PartitionKey(id) === first)
-                              .execute
+              chunk <- querySomeItem(tableName, 1, $(name))
+                         .whereKey(PartitionKey(id) === first)
+                         .execute
+                         .map(_._1)
             } yield assert(chunk)(equalTo(Chunk(Item(name -> avi))))
           }
         },
-        testM("query with limit == matching items count") {
+        test("query with limit == matching items count") {
           withDefaultTable { tableName =>
             for {
-              (chunk, _) <- querySomeItem(tableName, 3, $(name))
-                              .whereKey(PartitionKey(id) === first)
-                              .execute
+              chunk <- querySomeItem(tableName, 3, $(name))
+                         .whereKey(PartitionKey(id) === first)
+                         .execute
+                         .map(_._1)
             } yield assert(chunk)(equalTo(Chunk(Item(name -> avi), Item(name -> avi2), Item(name -> avi3))))
           }
         },
-        testM("query with limit > matching items count") {
+        test("query with limit > matching items count") {
           withDefaultTable { tableName =>
             for {
-              (chunk, _) <- querySomeItem(tableName, 4, $(name))
-                              .whereKey(PartitionKey(id) === first)
-                              .execute
+              chunk <- querySomeItem(tableName, 4, $(name))
+                         .whereKey(PartitionKey(id) === first)
+                         .execute
+                         .map(_._1)
             } yield assert(chunk)(equalTo(Chunk(Item(name -> avi), Item(name -> avi2), Item(name -> avi3))))
           }
         },
-        testM("query starting from StartKey") {
+        test("query starting from StartKey") {
           withDefaultTable { tableName =>
             for {
-              (_, startKey) <- querySomeItem(tableName, 2, $(id), $(number))
-                                 .whereKey(PartitionKey(id) === first)
-                                 .execute
-              (chunk, _)    <- querySomeItem(tableName, 5, $(name))
-                                 .whereKey(PartitionKey(id) === first)
-                                 .startKey(startKey)
-                                 .execute
+              startKey <- querySomeItem(tableName, 2, $(id), $(number))
+                            .whereKey(PartitionKey(id) === first)
+                            .execute
+                            .map(_._2)
+              chunk    <- querySomeItem(tableName, 5, $(name))
+                            .whereKey(PartitionKey(id) === first)
+                            .startKey(startKey)
+                            .execute
+                            .map(_._1)
             } yield assert(chunk)(equalTo(Chunk(Item(name -> avi3))))
           }
         },
-        testM("queryAll") {
+        test("queryAll") {
           withDefaultTable { tableName =>
             for {
               stream <- queryAllItem(tableName)
@@ -390,26 +408,28 @@ object LiveSpec extends DefaultRunnableSpec {
           }
         },
         suite("SortKeyCondition")(
-          testM("SortKeyCondition between") {
+          test("SortKeyCondition between") {
             withDefaultTable { tableName =>
               for {
-                (chunk, _) <- querySomeItem(tableName, 10, $(name))
-                                .whereKey(PartitionKey(id) === first && SortKey(number).between(3, 8))
-                                .execute
+                chunk <- querySomeItem(tableName, 10, $(name))
+                           .whereKey(PartitionKey(id) === first && SortKey(number).between(3, 8))
+                           .execute
+                           .map(_._1)
               } yield assert(chunk)(
                 equalTo(Chunk(Item(name -> avi2), Item(name -> avi3)))
               )
             }
           },
-          testM("SortKeyCondition startsWtih") {
+          test("SortKeyCondition startsWtih") {
             withTemporaryTable(
               sortKeyStringTable,
               tableName =>
                 for {
-                  _          <- putItem(tableName, stringSortKeyItem).execute
-                  (chunk, _) <- querySomeItem(tableName, 10)
-                                  .whereKey(PartitionKey(id) === adam && SortKey(name).beginsWith("ad"))
-                                  .execute
+                  _     <- putItem(tableName, stringSortKeyItem).execute
+                  chunk <- querySomeItem(tableName, 10)
+                             .whereKey(PartitionKey(id) === adam && SortKey(name).beginsWith("ad"))
+                             .execute
+                             .map(_._1)
                 } yield assert(chunk)(equalTo(Chunk(stringSortKeyItem)))
             )
           }
@@ -417,7 +437,7 @@ object LiveSpec extends DefaultRunnableSpec {
       ),
       suite("update items")(
         suite("set actions")(
-          testM("update name") {
+          test("update name") {
             withDefaultTable { tableName =>
               for {
                 updatedResponse <- updateItem(tableName, secondPrimaryKey)($(name).setValue(notAdam)).execute
@@ -430,7 +450,7 @@ object LiveSpec extends DefaultRunnableSpec {
               )(isNone)
             }
           },
-          testM("update name return updated old") {
+          test("update name return updated old") {
             withDefaultTable { tableName =>
               for {
                 updatedResponse <- updateItem(tableName, secondPrimaryKey)($(name).setValue(notAdam))
@@ -444,7 +464,7 @@ object LiveSpec extends DefaultRunnableSpec {
                 assert(updatedResponse)(equalTo(Some(Item(name -> adam))))
             }
           },
-          testM("update name return all old") {
+          test("update name return all old") {
             withDefaultTable { tableName =>
               for {
                 updatedResponse <- updateItem(tableName, secondPrimaryKey)($(name).setValue(notAdam))
@@ -458,7 +478,7 @@ object LiveSpec extends DefaultRunnableSpec {
                 assert(updatedResponse)(equalTo(Some(adamItem)))
             }
           },
-          testM("update name return all new") {
+          test("update name return all new") {
             withDefaultTable { tableName =>
               val updatedItem = Some(Item(name -> notAdam, id -> second, number -> 2))
               for {
@@ -473,7 +493,7 @@ object LiveSpec extends DefaultRunnableSpec {
                 assert(updatedResponse)(equalTo(updatedItem))
             }
           },
-          testM("update name return updated new") {
+          test("update name return updated new") {
             withDefaultTable { tableName =>
               for {
                 updatedResponse <- updateItem(tableName, secondPrimaryKey)($(name).setValue(notAdam))
@@ -487,7 +507,7 @@ object LiveSpec extends DefaultRunnableSpec {
                 assert(updatedResponse)(equalTo(Some(Item(name -> notAdam))))
             }
           },
-          testM("insert item into list") {
+          test("insert item into list") {
             withDefaultTable { tableName =>
               for {
                 _       <- updateItem(tableName, secondPrimaryKey)($("listThing").setValue(List(1))).execute
@@ -501,7 +521,7 @@ object LiveSpec extends DefaultRunnableSpec {
               )
             }
           },
-          testM("append to list") {
+          test("append to list") {
             withDefaultTable {
               tableName =>
                 for {
@@ -517,7 +537,7 @@ object LiveSpec extends DefaultRunnableSpec {
                 )(equalTo(Some(Right(List(1, 2, 3, 4)))))
             }
           },
-          testM("prepend to list") {
+          test("prepend to list") {
             withDefaultTable {
               tableName =>
                 for {
@@ -533,7 +553,7 @@ object LiveSpec extends DefaultRunnableSpec {
                 )(equalTo(Some(Right(List(-1, 0, 1)))))
             }
           },
-          testM("set an Item Attribute") {
+          test("set an Item Attribute") {
             withDefaultTable { tableName =>
               for {
                 _       <- updateItem(tableName, secondPrimaryKey)($(name).set($(id))).execute
@@ -547,7 +567,7 @@ object LiveSpec extends DefaultRunnableSpec {
             }
           },
           suite("if not exists")(
-            testM("field does not exist") {
+            test("field does not exist") {
               withTemporaryTable(
                 numberTable,
                 tableName =>
@@ -565,7 +585,7 @@ object LiveSpec extends DefaultRunnableSpec {
                   } yield assert(updated)(equalTo(Some(Item(id -> 1, number -> 4))))
               )
             },
-            testM("does not update if field does exist") {
+            test("does not update if field does exist") {
               withTemporaryTable(
                 numberTable,
                 tableName =>
@@ -578,7 +598,7 @@ object LiveSpec extends DefaultRunnableSpec {
             }
           )
         ),
-        testM("remove field") {
+        test("remove field") {
           withDefaultTable { tableName =>
             for {
               _       <- updateItem(tableName, secondPrimaryKey)($(name).remove).execute
@@ -589,7 +609,7 @@ object LiveSpec extends DefaultRunnableSpec {
             } yield assert(updated)(equalTo(Some(Item(id -> second, number -> 2))))
           }
         },
-        testM("remove item from list") {
+        test("remove item from list") {
           withDefaultTable { tableName =>
             val key = PrimaryKey(id -> second, number -> 8)
             for {
@@ -603,7 +623,7 @@ object LiveSpec extends DefaultRunnableSpec {
             )
           }
         },
-        testM("add item to set") {
+        test("add item to set") {
           withTemporaryTable(
             tableName =>
               createTable(tableName, KeySchema(id), BillingMode.PayPerRequest)(AttributeDefinition.attrDefnNumber(id)),
@@ -615,7 +635,7 @@ object LiveSpec extends DefaultRunnableSpec {
               } yield assert(updated)(equalTo(Some(Item(id -> 1, "sett" -> Set(1, 2, 3, 4)))))
           )
         },
-        testM("add number using add action") {
+        test("add number using add action") {
           withTemporaryTable(
             numberTable,
             tableName =>
@@ -626,7 +646,7 @@ object LiveSpec extends DefaultRunnableSpec {
               } yield assert(updated)(equalTo(Some(Item(id -> 1, number -> 5))))
           )
         },
-        testM("add number using set action") {
+        test("add number using set action") {
           withTemporaryTable(
             numberTable,
             tableName =>
@@ -644,7 +664,7 @@ object LiveSpec extends DefaultRunnableSpec {
               } yield assert(updated)(equalTo(Some(Item(id -> 1, number -> 5))))
           )
         },
-        testM("subtract number") {
+        test("subtract number") {
           withTemporaryTable(
             numberTable,
             tableName =>
@@ -665,6 +685,6 @@ object LiveSpec extends DefaultRunnableSpec {
       )
     )
       .provideSomeLayerShared[TestEnvironment](
-        layer.orDie
+        testLayer.orDie
       ) @@ nondeterministic
 }

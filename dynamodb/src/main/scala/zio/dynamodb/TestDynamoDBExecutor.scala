@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.{ Has, UIO, ZIO }
+import zio.{ UIO, ZIO }
 
 /**
  * A Fake implementation of `DynamoDBExecutor.Service` that currently has the very modest aspiration of providing bare minimum
@@ -41,10 +41,10 @@ object TestDynamoDBExecutor {
     tableName: String,
     partitionKey: String,
     pkAndItems: PkAndItem*
-  ): ZIO[Has[TestDynamoDBExecutor], Nothing, Unit] =
-    ZIO.serviceWith[TestDynamoDBExecutor](_.addTable(tableName, partitionKey, pkAndItems: _*))
+  ): ZIO[TestDynamoDBExecutor, Nothing, Unit] =
+    ZIO.serviceWithZIO[TestDynamoDBExecutor](_.addTable(tableName, partitionKey, pkAndItems: _*))
 
-  def addItems(tableName: String, pkAndItems: PkAndItem*): ZIO[Has[TestDynamoDBExecutor], DatabaseError, Unit] =
-    ZIO.serviceWith[TestDynamoDBExecutor](_.addItems(tableName, pkAndItems: _*))
+  def addItems(tableName: String, pkAndItems: PkAndItem*): ZIO[TestDynamoDBExecutor, DatabaseError, Unit] =
+    ZIO.serviceWithZIO[TestDynamoDBExecutor](_.addItems(tableName, pkAndItems: _*))
 
 }

@@ -1,18 +1,17 @@
 package zio.dynamodb.codec
 
 import zio.dynamodb.Codec
-import zio.random.Random
 import zio.schema.{ DeriveSchema, Schema, StandardType }
 import zio.test.Assertion.{ equalTo, isRight }
 import zio.test._
 import zio.{ Chunk, ZIO }
 
 import scala.collection.immutable.ListMap
+import zio.test.{ Gen, Sized, ZIOSpecDefault }
 
-object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
+object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
 
-  override def spec: ZSpec[Environment, Failure] =
-    suite("encode then decode suite")(
+  override def spec = suite("encode then decode suite")(
       simpleSuite,
       eitherSuite,
       optionalSuite,
@@ -25,14 +24,14 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
     )
 
   private val eitherSuite = suite("either suite")(
-    testM("a primitive") {
-      checkM(SchemaGen.anyEitherAndGen) {
+    test("a primitive") {
+      check(SchemaGen.anyEitherAndGen) {
         case (schema, gen) =>
           assertEncodesThenDecodesWithGen(schema, gen)
       }
     },
-    testM("of tuples") {
-      checkM(
+    test("of tuples") {
+      check(
         for {
           left  <- SchemaGen.anyTupleAndValue
           right <- SchemaGen.anyTupleAndValue
@@ -44,8 +43,8 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
         case (schema, value) => assertEncodesThenDecodes(schema, value)
       }
     },
-    testM("of sequence") {
-      checkM(
+    test("of sequence") {
+      check(
         for {
           left  <- SchemaGen.anySequenceAndValue
           right <- SchemaGen.anySequenceAndValue
@@ -57,16 +56,16 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
         case (schema, value) => assertEncodesThenDecodes(schema, value)
       }
     },
-    testM("of records") {
-      checkM(for {
+    test("of records") {
+      check(for {
         (left, a)       <- SchemaGen.anyRecordAndValue
         primitiveSchema <- SchemaGen.anyPrimitive
       } yield (Schema.EitherSchema(left, primitiveSchema), Left(a))) {
         case (schema, value) => assertEncodesThenDecodes(schema, value)
       }
     },
-    testM("of records of records") {
-      checkM(for {
+    test("of records of records") {
+      check(for {
         (left, _)  <- SchemaGen.anyRecordOfRecordsAndValue
         (right, b) <- SchemaGen.anyRecordOfRecordsAndValue
       } yield (Schema.EitherSchema(left, right), Right(b))) {
@@ -74,8 +73,8 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
           assertEncodesThenDecodes(schema, value)
       }
     },
-    testM("mixed") {
-      checkM(for {
+    test("mixed") {
+      check(for {
         (left, _)      <- SchemaGen.anyEnumerationAndValue
         (right, value) <- SchemaGen.anySequenceAndValue
       } yield (Schema.EitherSchema(left, right), Right(value))) {
@@ -85,34 +84,34 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
   )
 
   private val optionalSuite = suite("optional suite")(
-    testM("of primitive") {
-      checkM(SchemaGen.anyOptionalAndValue) {
+    test("of primitive") {
+      check(SchemaGen.anyOptionalAndValue) {
         case (schema, value) => assertEncodesThenDecodes(schema, value)
       }
     },
-    testM("of tuple") {
-      checkM(SchemaGen.anyTupleAndValue) {
+    test("of tuple") {
+      check(SchemaGen.anyTupleAndValue) {
         case (schema, value) =>
           assertEncodesThenDecodes(Schema.Optional(schema), Some(value)) &>
             assertEncodesThenDecodes(Schema.Optional(schema), None)
       }
     },
-    testM("of record") {
-      checkM(SchemaGen.anyRecordAndValue) {
+    test("of record") {
+      check(SchemaGen.anyRecordAndValue) {
         case (schema, value) =>
           assertEncodesThenDecodes(Schema.Optional(schema), Some(value)) &>
             assertEncodesThenDecodes(Schema.Optional(schema), None)
       }
     },
-    testM("of enumeration") {
-      checkM(SchemaGen.anyEnumerationAndValue) {
+    test("of enumeration") {
+      check(SchemaGen.anyEnumerationAndValue) {
         case (schema, value) =>
           assertEncodesThenDecodes(Schema.Optional(schema), Some(value)) &>
             assertEncodesThenDecodes(Schema.Optional(schema), None)
       }
     },
-    testM("of sequence") {
-      checkM(SchemaGen.anySequenceAndValue) {
+    test("of sequence") {
+      check(SchemaGen.anySequenceAndValue) {
         case (schema, value) =>
           assertEncodesThenDecodes(Schema.Optional(schema), Some(value)) &>
             assertEncodesThenDecodes(Schema.Optional(schema), None)
@@ -121,20 +120,20 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
   )
 
   private val sequenceSuite = suite("sequence")(
-    testM("of primitives") {
-      checkM(SchemaGen.anySequenceAndValue) {
+    test("of primitives") {
+      check(SchemaGen.anySequenceAndValue) {
         case (schema, value) => assertEncodesThenDecodes(schema, value)
       }
     },
-    testM("of records") {
-      checkM(SchemaGen.anyCaseClassAndValue) {
+    test("of records") {
+      check(SchemaGen.anyCaseClassAndValue) {
         case (schema, value) =>
           assertEncodesThenDecodes(Schema.chunk(schema), Chunk.fill(3)(value))
       }
     },
-    testM("of java.time.ZoneOffset") {
+    test("of java.time.ZoneOffset") {
       //FIXME test independently because including ZoneOffset in StandardTypeGen.anyStandardType wreaks havoc.
-      checkM(Gen.chunkOf(JavaTimeGen.anyZoneOffset)) { chunk =>
+      check(Gen.chunkOf(JavaTimeGen.anyZoneOffset)) { chunk =>
         assertEncodesThenDecodes(
           Schema.chunk(Schema.Primitive(StandardType.ZoneOffsetType)),
           chunk
@@ -144,23 +143,23 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
   )
 
   private val caseClassSuite = suite("case class")(
-    testM("basic") {
-      checkM(searchRequestGen) { value =>
+    test("basic") {
+      check(searchRequestGen) { value =>
         assertEncodesThenDecodes(searchRequestSchema, value)
       }
     },
-    testM("object") {
+    test("object") {
       assertEncodesThenDecodes(schemaObject, Singleton)
     }
   )
 
   private val recordSuite = suite("record")(
-    testM("any") {
-      checkM(SchemaGen.anyRecordAndValue) {
+    test("any") {
+      check(SchemaGen.anyRecordAndValue) {
         case (schema, value) => assertEncodesThenDecodes(schema, value)
       }
     },
-    testM("minimal test case") {
+    test("minimal test case") {
       SchemaGen.anyRecordAndValue.runHead.flatMap {
         case Some((schema, value)) =>
           val key      = new String(Array('\u0007', '\n'))
@@ -169,26 +168,26 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
         case None                  => ZIO.fail("Should never happen!")
       }
     },
-    testM("record of records") {
-      checkM(SchemaGen.anyRecordOfRecordsAndValue) {
+    test("record of records") {
+      check(SchemaGen.anyRecordOfRecordsAndValue) {
         case (schema, value) =>
           assertEncodesThenDecodes(schema, value)
       }
     },
-    testM("of primitives") {
-      checkM(SchemaGen.anyRecordAndValue) {
+    test("of primitives") {
+      check(SchemaGen.anyRecordAndValue) {
         case (schema, value) => assertEncodesThenDecodes(schema, value)
       }
     },
-    testM("of ZoneOffsets") {
-      checkM(JavaTimeGen.anyZoneOffset) { zoneOffset =>
+    test("of ZoneOffsets") {
+      check(JavaTimeGen.anyZoneOffset) { zoneOffset =>
         assertEncodesThenDecodes(
           Schema.record(Schema.Field("zoneOffset", Schema.Primitive(StandardType.ZoneOffsetType))),
           ListMap[String, Any]("zoneOffset" -> zoneOffset)
         )
       }
     },
-    testM("of record") {
+    test("of record") {
       assertEncodesThenDecodes(
         nestedRecordSchema,
         ListMap[String, Any]("l1" -> "s", "l2" -> ListMap[String, Any]("foo" -> "s", "bar" -> 1))
@@ -197,13 +196,13 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
   )
 
   private val enumerationSuite = suite("enumeration")(
-    testM("of primitives") {
+    test("of primitives") {
       assertEncodesThenDecodes(
         enumSchema,
         "foo"
       )
     },
-    testM("ADT") {
+    test("ADT") {
       assertEncodesThenDecodes(
         Schema[Enumeration],
         Enumeration(StringValue("foo"))
@@ -215,8 +214,8 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
   )
 
   private val transformSuite = suite("transform")(
-    testM("any") {
-      checkM(SchemaGen.anyTransformAndValue) {
+    test("any") {
+      check(SchemaGen.anyTransformAndValue) {
         case (schema, value) =>
           assertEncodesThenDecodes(schema, value)
       }
@@ -227,44 +226,44 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
     test("unit") {
       assertEncodesThenDecodesPure(Schema[Unit], ())
     },
-    testM("a primitive") {
-      checkM(SchemaGen.anyPrimitiveAndGen) {
+    test("a primitive") {
+      check(SchemaGen.anyPrimitiveAndGen) {
         case (schema, gen) =>
           assertEncodesThenDecodesWithGen(schema, gen)
       }
     },
-    testM("either of primitive") {
-      checkM(SchemaGen.anyEitherAndGen) {
+    test("either of primitive") {
+      check(SchemaGen.anyEitherAndGen) {
         case (schema, gen) =>
           assertEncodesThenDecodesWithGen(schema, gen)
       }
     },
-    testM("of enumeration") {
-      checkM(SchemaGen.anyEnumerationAndGen) {
+    test("of enumeration") {
+      check(SchemaGen.anyEnumerationAndGen) {
         case (schema, gen) =>
           assertEncodesThenDecodesWithGen(schema, gen)
       }
     },
-    testM("optional of primitive") {
-      checkM(SchemaGen.anyOptionalAndGen) {
+    test("optional of primitive") {
+      check(SchemaGen.anyOptionalAndGen) {
         case (schema, gen) =>
           assertEncodesThenDecodesWithGen(schema, gen)
       }
     },
-    testM("tuple of primitive") {
-      checkM(SchemaGen.anyTupleAndGen) {
+    test("tuple of primitive") {
+      check(SchemaGen.anyTupleAndGen) {
         case (schema, gen) =>
           assertEncodesThenDecodesWithGen(schema, gen)
       }
     },
-    testM("sequence of primitive") {
-      checkM(SchemaGen.anySequenceAndGen) {
+    test("sequence of primitive") {
+      check(SchemaGen.anySequenceAndGen) {
         case (schema, gen) =>
           assertEncodesThenDecodesWithGen(schema, gen)
       }
     },
-    testM("Map of string to primitive value") {
-      checkM(SchemaGen.anyPrimitiveAndGen) {
+    test("Map of string to primitive value") {
+      check(SchemaGen.anyPrimitiveAndGen) {
         case (s, gen) =>
           val mapSchema = Schema.map(Schema[String], s)
           val enc       = Codec.encoder(mapSchema)
@@ -278,44 +277,36 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
           }
       }
     },
-    testM("any Map") {
-      checkM(SchemaGen.anyMapAndValue) {
+    test("any Map") {
+      check(SchemaGen.anyMapAndValue) {
         case (schema, value) =>
           assertEncodesThenDecodes(schema, value)
-      }
-    },
-    testM("any Set") {
-      import SetSchemaGen._
-
-      check(anySetAndValueWithSetType) {
-        case (schema, value, setType) =>
-          assertEncodesThenDecodesSet(schema, value, setType)
       }
     }
   )
 
   private val anySchemaSuite = suite("any schema")(
-    testM("leaf") {
-      checkM(SchemaGen.anyLeafAndValue) {
+    test("leaf") {
+      check(SchemaGen.anyLeafAndValue) {
         case (schema, value) =>
           assertEncodesThenDecodes(schema, value)
       }
     },
-    testM("recursive schema") {
-      checkM(SchemaGen.anyTreeAndValue) {
+    test("recursive schema") {
+      check(SchemaGen.anyTreeAndValue) {
         case (schema, value) =>
           assertEncodesThenDecodes(schema, value)
       }
     },
-    testM("recursive data type") {
-      checkM(SchemaGen.anyRecursiveTypeAndValue) {
+    test("recursive data type") {
+      check(SchemaGen.anyRecursiveTypeAndValue) {
         case (schema, value) =>
           assertEncodesThenDecodes(schema, value)
       }
     }
   )
 
-  private def assertEncodesThenDecodesWithGen[A](schema: Schema[A], genA: Gen[Random with Sized, A]) =
+  private def assertEncodesThenDecodesWithGen[A](schema: Schema[A], genA: Gen[Sized, A]) =
     check(genA) { a =>
       assertEncodesThenDecodesPure(schema, a)
     }
@@ -335,9 +326,9 @@ object CodecRoundTripSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
   case class SearchRequest(query: String, pageNumber: Int, resultPerPage: Int)
 
-  val searchRequestGen: Gen[Random with Sized, SearchRequest] =
+  val searchRequestGen: Gen[Sized, SearchRequest] =
     for {
-      query      <- Gen.anyString
+      query      <- Gen.string
       pageNumber <- Gen.int(Int.MinValue, Int.MaxValue)
       results    <- Gen.int(Int.MinValue, Int.MaxValue)
     } yield SearchRequest(query, pageNumber, results)

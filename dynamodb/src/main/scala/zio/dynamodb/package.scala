@@ -1,8 +1,7 @@
 package zio
 
-import zio.clock.Clock
 import zio.schema.Schema
-import zio.stream.{ Transducer, ZStream }
+import zio.stream.{ ZSink, ZStream }
 
 package object dynamodb {
   // Filter expression is the same as a ConditionExpression but when used with Query but does not allow key attributes
@@ -19,8 +18,8 @@ package object dynamodb {
   type Encoder[A]  = A => AttributeValue
   type Decoder[+A] = AttributeValue => Either[String, A]
 
-  private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[A]): ZIO[Has[DynamoDBExecutor], Throwable, A] =
-    ZIO.serviceWith[DynamoDBExecutor](_.execute(query))
+  private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[A]): ZIO[DynamoDBExecutor, Throwable, A] =
+    ZIO.serviceWithZIO[DynamoDBExecutor](_.execute(query))
 
   /**
    * Reads `stream` and uses function `f` for creating a BatchWrite request that is executes for side effects. Stream is batched into groups
@@ -36,16 +35,16 @@ package object dynamodb {
   def batchWriteFromStream[R, A, B](
     stream: ZStream[R, Throwable, A],
     mPar: Int = 10
-  )(f: A => DynamoDBQuery[B]): ZStream[Has[DynamoDBExecutor] with R with Clock, Throwable, B] =
+  )(f: A => DynamoDBQuery[B]): ZStream[DynamoDBExecutor with R, Throwable, B] =
     stream
-      .aggregateAsync(Transducer.collectAllN(25))
-      .mapMPar(mPar) { chunk =>
+      .aggregateAsync(ZSink.collectAllN[A](25))
+      .mapZIOPar(mPar) { chunk =>
         val batchWriteItem = DynamoDBQuery
           .forEach(chunk)(a => f(a))
           .map(Chunk.fromIterable)
         for {
-          r <- ZIO.environment[Has[DynamoDBExecutor]]
-          b <- batchWriteItem.execute.provide(r)
+          r <- ZIO.environment[DynamoDBExecutor]
+          b <- batchWriteItem.execute.provideEnvironment(r)
         } yield b
       }
       .flattenChunks
@@ -67,16 +66,16 @@ package object dynamodb {
     mPar: Int = 10
   )(
     pk: A => PrimaryKey
-  ): ZStream[R with Has[DynamoDBExecutor] with Clock, Throwable, Item] =
+  ): ZStream[R with DynamoDBExecutor, Throwable, Item] =
     stream
-      .aggregateAsync(Transducer.collectAllN(100))
-      .mapMPar(mPar) { chunk =>
+      .aggregateAsync(ZSink.collectAllN[A](100))
+      .mapZIOPar(mPar) { chunk =>
         val batchGetItem: DynamoDBQuery[Chunk[Option[Item]]] = DynamoDBQuery
           .forEach(chunk)(a => DynamoDBQuery.getItem(tableName, pk(a)))
           .map(Chunk.fromIterable)
         for {
-          r    <- ZIO.environment[Has[DynamoDBExecutor]]
-          list <- batchGetItem.execute.provide(r)
+          r    <- ZIO.environment[DynamoDBExecutor]
+          list <- batchGetItem.execute.provideEnvironment(r)
         } yield list
       }
       .flattenChunks
@@ -97,8 +96,8 @@ package object dynamodb {
     tableName: String,
     stream: ZStream[R, Throwable, A],
     mPar: Int = 10
-  )(pk: A => PrimaryKey): ZStream[R with Has[DynamoDBExecutor] with Clock, Throwable, A] =
-    batchReadItemFromStream(tableName, stream, mPar)(pk).mapM { item =>
+  )(pk: A => PrimaryKey): ZStream[R with DynamoDBExecutor, Throwable, A] =
+    batchReadItemFromStream(tableName, stream, mPar)(pk).mapZIO { item =>
       DynamoDBQuery.fromItem(item) match {
         case Right(a) => ZIO.succeedNow(a)
         case Left(s)  => ZIO.fail(new IllegalStateException(s)) // TODO: think about error model

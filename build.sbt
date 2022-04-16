@@ -37,8 +37,8 @@ lazy val copyJars = taskKey[Unit]("copyJars")
 def copyJarSetting(dir: String) =
   Seq(
     copyJars := {
-      import java.nio.file.Files
       import java.io.File
+      import java.nio.file.Files
       // For Local Dynamo DB to work, we need to copy SQLLite native libs from
       // our test dependencies into a directory that Java can find ("lib" in this case)
       // Then in our Java/Scala program, we need to set System.setProperty("sqlite4java.library.path", "lib");
@@ -54,9 +54,9 @@ def copyJarSetting(dir: String) =
     }
   )
 
-val zioVersion       = "1.0.13"
-val zioConfigVersion = "1.0.6"
-val zioAwsVersion    = "3.17.87.2"
+val zioVersion       = "2.0.0-RC5"
+val zioAwsVersion    = "5.17.170.1"
+val zioSchemaVersion = "0.2.0-RC5"
 
 lazy val root =
   project
@@ -79,12 +79,13 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
       "dev.zio"               %% "zio-streams"           % zioVersion,
       "dev.zio"               %% "zio-test"              % zioVersion % "it,test",
       "dev.zio"               %% "zio-test-sbt"          % zioVersion % "it,test",
-      "dev.zio"               %% "zio-schema"            % "0.1.8",
-      "dev.zio"               %% "zio-schema-derivation" % "0.1.8",
-      "io.github.vigoo"       %% "zio-aws-http4s"        % zioAwsVersion,
-      "io.github.vigoo"       %% "zio-aws-dynamodb"      % zioAwsVersion,
+      "dev.zio"               %% "zio-schema"            % zioSchemaVersion,
+      "dev.zio"               %% "zio-schema-derivation" % zioSchemaVersion,
+      "dev.zio"               %% "zio-aws-http4s"        % zioAwsVersion,
+      "dev.zio"               %% "zio-aws-netty"        % zioAwsVersion,
+      "dev.zio"               %% "zio-aws-dynamodb"      % zioAwsVersion,
       "org.scala-lang"         % "scala-reflect"         % scalaVersion.value,
-      "software.amazon.awssdk" % "dynamodb"              % "2.16.20",
+      "software.amazon.awssdk" % "dynamodb"              % "2.17.166",
       "com.amazonaws"          % "DynamoDBLocal"         % "1.17.0"   % "it,test"
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework")),
@@ -329,3 +330,4 @@ lazy val docs = project
     docusaurusPublishGhpages := docusaurusPublishGhpages.dependsOn(unidoc in Compile).value
   )
   .enablePlugins(MdocPlugin, DocusaurusPlugin, ScalaUnidocPlugin)
+

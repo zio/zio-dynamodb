@@ -40,9 +40,9 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private (
         response
 
       case BatchWriteItem(requestItems, _, _, _, _)                               =>
-        val results: ZIO[Any, DatabaseError, Unit] = ZIO.foreach_(requestItems.toList) {
+        val results: ZIO[Any, DatabaseError, Unit] = ZIO.foreachDiscard(requestItems.toList) {
           case (tableName, setOfWrite) =>
-            ZIO.foreach_(setOfWrite) { write =>
+            ZIO.foreachDiscard(setOfWrite) { write =>
               write match {
                 case BatchWriteItem.Put(item)  =>
                   fakePut(tableName.value, item)
@@ -135,7 +135,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private (
     val start: LastEvaluatedKey = None
     ZIO.succeed(
       ZStream
-        .paginateM(start) { lek =>
+        .paginateZIO(start) { lek =>
           fakeScanSome(tableName, lek, maybeLimit).map {
             case (chunk, lek) =>
               lek match {

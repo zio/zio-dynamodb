@@ -3,8 +3,9 @@ import zio.Chunk
 import zio.test._
 import zio.dynamodb.ProjectionExpression._
 import zio.test.Assertion._
+import zio.test.ZIOSpecDefault
 
-object AliasMapRenderSpec extends DefaultRunnableSpec {
+object AliasMapRenderSpec extends ZIOSpecDefault {
 
   val one    = AttributeValue.Number(1)
   val two    = AttributeValue.Number(2)
@@ -45,7 +46,7 @@ object AliasMapRenderSpec extends DefaultRunnableSpec {
   val setOperandValueTwo   = UpdateExpression.SetOperand.ValueOperand(two)
   val setOperandValueThree = UpdateExpression.SetOperand.ValueOperand(three)
 
-  override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
+  override def spec: ZSpec[_root_.zio.test.TestEnvironment, Any] =
     suite("AliasMapRender")(
       suite("ConditionExpression")(
         suite("basic renders")(

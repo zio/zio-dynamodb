@@ -1,32 +1,30 @@
 package zio.dynamodb
 
-import io.github.vigoo.zioaws.dynamodb.DynamoDb
-import io.github.vigoo.zioaws.dynamodb.DynamoDb.DynamoDbMock
-import io.github.vigoo.zioaws.dynamodb.model.{
+import zio.aws.dynamodb.model.primitives.{ AttributeName, StringAttributeValue, TableName => ZIOAwsTableName}
+import zio.aws.dynamodb.model.{
   BatchWriteItemResponse,
   AttributeValue => ZIOAwsAttributeValue,
   BatchGetItemResponse => ZIOAwsBatchGetItemResponse,
   KeysAndAttributes => ZIOAwsKeysAndAttributes
 }
-import zio.clock.Clock
-import zio.{ Has, Schedule, ULayer, ZLayer }
+import zio.aws.dynamodb.{ DynamoDb, DynamoDbMock }
 import zio.dynamodb.DynamoDBQuery._
+import zio.mock.Expectation.value
+import zio.test.Assertion._
+import zio.test.{ assert, ZIOSpecDefault }
+import zio.{ Schedule, ULayer }
 
 import scala.collection.immutable.{ Map => ScalaMap }
-import zio.test.Assertion._
-import zio.test.mock.Expectation.value
-import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
 
-object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
+object ExecutorSpec extends ZIOSpecDefault with DynamoDBFixtures {
 
-  override def spec: ZSpec[Environment, Failure] =
+  override def spec =
     suite("Executor spec")(
       batchRetries
     )
 
   private val mockBatches     = "mockBatches"
   private val itemOne         = Item("k1" -> "v1")
-  private val clockLayer      = ZLayer.identity[Has[Clock.Service]]
   private val firstGetRequest =
     DynamoDBExecutorImpl.awsBatchGetItemRequest(
       BatchGetItem(
@@ -73,10 +71,10 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
         ZIOAwsBatchGetItemResponse(
           unprocessedKeys = Some(
             ScalaMap(
-              mockBatches -> ZIOAwsKeysAndAttributes(
+              ZIOAwsTableName(mockBatches) -> ZIOAwsKeysAndAttributes(
                 keys = List(
-                  ScalaMap("k1" -> ZIOAwsAttributeValue(s = Some("v2"))),
-                  ScalaMap("k1" -> ZIOAwsAttributeValue(s = Some("v1")))
+                  ScalaMap(AttributeName("k1") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v2")))),
+                  ScalaMap(AttributeName("k1") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v1"))))
                 )
               )
             )
@@ -93,15 +91,15 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
         ZIOAwsBatchGetItemResponse(
           responses = Some(
             ScalaMap(
-              mockBatches -> List(
-                ScalaMap("k1" -> ZIOAwsAttributeValue(s = Some("v1")))
+              ZIOAwsTableName(mockBatches) -> List(
+                ScalaMap(AttributeName("k1") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v1"))))
               )
             )
           ),
           unprocessedKeys = Some(
             ScalaMap(
-              mockBatches -> ZIOAwsKeysAndAttributes(
-                keys = List(ScalaMap("k1" -> ZIOAwsAttributeValue(s = Some("v2"))))
+              ZIOAwsTableName(mockBatches) -> ZIOAwsKeysAndAttributes(
+                keys = List(ScalaMap(AttributeName("k1") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v2")))))
               )
             )
           )
@@ -114,10 +112,10 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
         ZIOAwsBatchGetItemResponse(
           responses = Some(
             ScalaMap(
-              mockBatches -> List(
+              ZIOAwsTableName(mockBatches) -> List(
                 ScalaMap(
-                  "k1" -> ZIOAwsAttributeValue(s = Some("v2")),
-                  "k2" -> ZIOAwsAttributeValue(s = Some("v23"))
+                  AttributeName("k1") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v2"))),
+                  AttributeName("k2") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v23")))
                 )
               )
             )
@@ -139,14 +137,14 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
   )
   private val batchGetSuite                                               =
     suite("retry batch gets")(
-      suite("successful batch gets")(testM("should retry when there are unprocessed keys") {
+      suite("successful batch gets")(test("should retry when there are unprocessed keys") {
         for {
           response <- batchGetItem.execute
         } yield assert(response.responses.get(TableName(mockBatches)))(
           equalTo(Some(Set(itemOne, Item("k1" -> "v2", "k2" -> "v23"))))
         )
-      }).provideCustomLayer((successfulMockBatchGet ++ clockLayer) >>> DynamoDBExecutor.live),
-      suite("failed batch gets")(testM("should return keys we did not get") {
+      }).provideCustomLayer(successfulMockBatchGet >>> DynamoDBExecutor.live),
+      suite("failed batch gets")(test("should return keys we did not get") {
         for {
           response <- batchGetItem.execute
         } yield assert(response.unprocessedKeys)(
@@ -154,7 +152,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
             getRequestItems
           )
         )
-      }).provideCustomLayer((failedMockBatchGet ++ clockLayer) >>> DynamoDBExecutor.live)
+      }).provideCustomLayer(failedMockBatchGet >>> DynamoDBExecutor.live)
     )
 
   private val itemOneWriteRequest                    = Set(
@@ -167,7 +165,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
         BatchWriteItemResponse(
           unprocessedItems = Some(
             ScalaMap(
-              mockBatches -> itemOneWriteRequest
+              ZIOAwsTableName(mockBatches) -> itemOneWriteRequest
             )
           )
         ).asReadOnly
@@ -182,7 +180,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
         BatchWriteItemResponse(
           unprocessedItems = Some(
             ScalaMap(
-              mockBatches -> itemOneWriteRequest
+              ZIOAwsTableName(mockBatches) -> itemOneWriteRequest
             )
           )
         ).asReadOnly
@@ -197,7 +195,7 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
   private val batchWriteSuite =
     suite("retry batch writes")(
       suite("failed batch write")(
-        testM("should retry when there are unprocessedItems and return unprocessedItems in failure case") {
+        test("should retry when there are unprocessedItems and return unprocessedItems in failure case") {
           for {
             response <- batchWriteRequest.execute
           } yield assert(response.unprocessedItems)(
@@ -214,12 +212,12 @@ object ExecutorSpec extends DefaultRunnableSpec with DynamoDBFixtures {
             )
           )
         }
-      ).provideCustomLayer((failedMockBatchWrite ++ clockLayer) >>> DynamoDBExecutor.live),
-      suite("successful batch write")(testM("should return no unprocessedItems") {
+      ).provideCustomLayer(failedMockBatchWrite >>> DynamoDBExecutor.live),
+      suite("successful batch write")(test("should return no unprocessedItems") {
         for {
           response <- batchWriteRequest.execute
         } yield assert(response.unprocessedItems)(isNone)
-      }).provideCustomLayer((successfulMockBatchWrite ++ clockLayer) >>> DynamoDBExecutor.live)
+      }).provideCustomLayer(successfulMockBatchWrite  >>> DynamoDBExecutor.live)
     )
 
   private val batchRetries = suite("Batch retries")(
