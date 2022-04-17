@@ -511,7 +511,7 @@ private[dynamodb] object Codec {
                     case Left(s)      => Left(s)
                   }
               }
-              .map(ls => ListMap.newBuilder.addAll(ls).result())
+              .map(ls => ListMap.newBuilder.++=(ls).result())
           case av                      => Left(s"Expected AttributeValue.Map but found $av")
         }
 
