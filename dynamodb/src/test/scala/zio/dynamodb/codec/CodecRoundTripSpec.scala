@@ -283,6 +283,14 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
         case (schema, value) =>
           assertEncodesThenDecodes(schema, value)
       }
+    },
+    test("any Set") {
+      import SetSchemaGen._
+
+      check(anySetAndValueWithSetType) {
+        case (schema, value, setType) =>
+          assertEncodesThenDecodesSet(schema, value, setType)
+      }
     }
   )
 
