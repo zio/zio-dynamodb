@@ -26,11 +26,11 @@ object ReifiedOpticsSpec extends DefaultRunnableSpec {
   override def spec: ZSpec[Environment, Failure] =
     suite("reified optics suite")(
       test("name Lens results is a valid projection expression") {
-        val pe: ProjectionExpression = Person.name
+        val pe: ProjectionExpression[Any] = Person.name
         assert(pe)(equalTo(ProjectionExpression.MapElement(ProjectionExpression.Root, "name")))
       },
       test("age Lens results is a valid projection expression") {
-        val pe: ProjectionExpression = Person.age
+        val pe: ProjectionExpression[Any] = Person.age
         assert(pe)(equalTo(ProjectionExpression.MapElement(ProjectionExpression.Root, "age")))
       },
       test("payment Prism results is a valid projection expression") {

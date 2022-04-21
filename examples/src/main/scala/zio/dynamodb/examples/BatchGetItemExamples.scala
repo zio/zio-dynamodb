@@ -9,6 +9,13 @@ object BatchGetItemExamples {
   val tableName1: TableName = TableName("T1")
   val tableName2: TableName = TableName("T2")
 
+  /*
+/home/avinder/Workspaces/git/zio-dynamodb/examples/src/main/scala/zio/dynamodb/examples/BatchGetItemExamples.scala:16:7
+diverging implicit expansion for type zio.dynamodb.ToAttributeValue[A]
+starting with value floatSetToAttributeValue in object ToAttributeValue
+    ) === "X") <*> (getItem(
+   */
+
   // Queries that are zipped together become eligible for auto-batching in `execute`
   val batchWithZip =
     (getItem("T1", PrimaryKey("field1" -> "1"), $("a.b"), $("c.b")) where $(

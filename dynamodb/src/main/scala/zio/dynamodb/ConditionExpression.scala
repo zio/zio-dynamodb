@@ -119,23 +119,18 @@ object ConditionExpression {
       }
   }
 
+  /*
+  its a problem cos it says we ca
+   */
   object Operand {
-    trait ToOperand[Left, -A] {
+    trait ToOperand[A] {
       def toOperand(a: A): Operand
     }
     object ToOperand extends ToOperandLowPriorityImplicits {
 
-      implicit def fromProjectionExpression[From, To]: ToOperand[To, ProjectionExpression] =
-        new ToOperand[To, ProjectionExpression] {
-
-          override def toOperand(a: ProjectionExpression): Operand = {
-            println(s"fromProjectionExpression av=${ProjectionExpressionOperand(a)}")
-            ProjectionExpressionOperand(a)
-          }
-        }
-      implicit def fromSchemaAttributeValue[A](implicit schema: Schema[A]): ToOperand[A, A] = {
+      implicit def fromSchemaAttributeValue[A](implicit schema: Schema[A]): ToOperand[A] = {
         val _ = schema
-        new ToOperand[A, A] {
+        new ToOperand[A] {
           override def toOperand(a: A): Operand = {
             val enc = Codec.encoder(schema)
             val av  = enc(a)
@@ -148,27 +143,27 @@ object ConditionExpression {
     }
 
     trait ToOperandLowPriorityImplicits {
-      implicit def fromAttributeValue[A, B >: A](implicit x: ToAttributeValue[B]): ToOperand[A, B] =
-        new ToOperand[A, B] {
-          override def toOperand(a: B): Operand = {
+      implicit def fromAttributeValue[A](implicit x: ToAttributeValue[A]): ToOperand[A] =
+        new ToOperand[A] {
+          override def toOperand(a: A): Operand = {
             println(s"fromAttributeValue ${ValueOperand(x.toAttributeValue(a))}")
             ValueOperand(x.toAttributeValue(a))
           }
         }
 
-      implicit def fromAttributeValueNothing[A](implicit x: ToAttributeValue[A]): ToOperand[Nothing, A] =
-        new ToOperand[Nothing, A] {
-          override def toOperand(a: A): Operand = {
-            println(s"fromAttributeValueNothing ${ValueOperand(x.toAttributeValue(a))}")
-            ValueOperand(x.toAttributeValue(a))
-          }
-        }
+//      implicit def fromAttributeValueNothing[A](implicit x: ToAttributeValue[A]): ToOperand[Nothing, A] =
+//        new ToOperand[Nothing, A] {
+//          override def toOperand(a: A): Operand = {
+//            println(s"fromAttributeValueNothing ${ValueOperand(x.toAttributeValue(a))}")
+//            ValueOperand(x.toAttributeValue(a))
+//          }
+//        }
 
     }
 
-    private[dynamodb] final case class ProjectionExpressionOperand(pe: ProjectionExpression) extends Operand
-    private[dynamodb] final case class ValueOperand(value: AttributeValue)                   extends Operand
-    private[dynamodb] final case class Size(path: ProjectionExpression)                      extends Operand
+    private[dynamodb] final case class ProjectionExpressionOperand(pe: ProjectionExpression[Any]) extends Operand
+    private[dynamodb] final case class ValueOperand(value: AttributeValue)                        extends Operand
+    private[dynamodb] final case class Size(path: ProjectionExpression[Any])                      extends Operand
 
   }
 
@@ -177,13 +172,13 @@ object ConditionExpression {
   private[dynamodb] final case class In(left: Operand, values: Set[AttributeValue]) extends ConditionExpression
 
   // functions
-  private[dynamodb] final case class AttributeExists(path: ProjectionExpression)    extends ConditionExpression
-  private[dynamodb] final case class AttributeNotExists(path: ProjectionExpression) extends ConditionExpression
-  private[dynamodb] final case class AttributeType(path: ProjectionExpression, attributeType: AttributeValueType)
+  private[dynamodb] final case class AttributeExists(path: ProjectionExpression[Any])    extends ConditionExpression
+  private[dynamodb] final case class AttributeNotExists(path: ProjectionExpression[Any]) extends ConditionExpression
+  private[dynamodb] final case class AttributeType(path: ProjectionExpression[Any], attributeType: AttributeValueType)
       extends ConditionExpression
-  private[dynamodb] final case class Contains(path: ProjectionExpression, value: AttributeValue)
+  private[dynamodb] final case class Contains(path: ProjectionExpression[Any], value: AttributeValue)
       extends ConditionExpression
-  private[dynamodb] final case class BeginsWith(path: ProjectionExpression, value: AttributeValue)
+  private[dynamodb] final case class BeginsWith(path: ProjectionExpression[Any], value: AttributeValue)
       extends ConditionExpression
 
   // logical operators

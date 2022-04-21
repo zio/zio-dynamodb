@@ -430,14 +430,14 @@ object DynamoDBQuery {
   def getItem(
     tableName: String,
     key: PrimaryKey,
-    projections: ProjectionExpression*
+    projections: ProjectionExpression[Any]*
   ): DynamoDBQuery[Option[Item]] =
     GetItem(TableName(tableName), key, projections.toList)
 
   def get[A: Schema](
     tableName: String,
     key: PrimaryKey,
-    projections: ProjectionExpression*
+    projections: ProjectionExpression[Any]*
   ): DynamoDBQuery[Either[String, A]] =
     getItem(tableName, key, projections: _*).map {
       case Some(item) =>
@@ -456,8 +456,9 @@ object DynamoDBQuery {
     putItem(tableName, toItem(a))
 
   private[dynamodb] def toItem[A](a: A)(implicit schema: Schema[A]): Item =
-    FromAttributeValue.attrMapFromAttributeValue
-      .fromAttributeValue(AttributeValue.encode(a)(schema))
+    FromAttributeValue.attrMapFromAttributeValue.fromAttributeValue {
+      println(s"XXXXXXXXXXXXXXXX toItem($a) ${AttributeValue.encode(a)(schema)}"); AttributeValue.encode(a)(schema)
+    }
       .getOrElse(throw new Exception(s"error encoding $a"))
 
   def updateItem(tableName: String, key: PrimaryKey)(action: Action): DynamoDBQuery[Option[Item]] =
@@ -468,7 +469,7 @@ object DynamoDBQuery {
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
    */
-  def scanSomeItem(tableName: String, limit: Int, projections: ProjectionExpression*): ScanSome =
+  def scanSomeItem(tableName: String, limit: Int, projections: ProjectionExpression[Any]*): ScanSome =
     ScanSome(
       TableName(tableName),
       limit,
@@ -482,7 +483,7 @@ object DynamoDBQuery {
   def scanSome[A: Schema](
     tableName: String,
     limit: Int,
-    projections: ProjectionExpression*
+    projections: ProjectionExpression[Any]*
   ): DynamoDBQuery[Either[String, (Chunk[A], LastEvaluatedKey)]] =
     scanSomeItem(tableName, limit, projections: _*).map {
       case (itemsChunk, lek) =>
@@ -495,7 +496,7 @@ object DynamoDBQuery {
   /**
    * when executed will return a ZStream of Item
    */
-  def scanAllItem(tableName: String, projections: ProjectionExpression*): ScanAll =
+  def scanAllItem(tableName: String, projections: ProjectionExpression[Any]*): ScanAll =
     ScanAll(
       TableName(tableName),
       select = selectOrAll(projections),
@@ -507,7 +508,7 @@ object DynamoDBQuery {
    */
   def scanAll[A: Schema](
     tableName: String,
-    projections: ProjectionExpression*
+    projections: ProjectionExpression[Any]*
   ): DynamoDBQuery[Stream[Throwable, A]] =
     scanAllItem(tableName, projections: _*).map(
       _.mapM(item => ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_)))
@@ -516,7 +517,7 @@ object DynamoDBQuery {
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
    */
-  def querySomeItem(tableName: String, limit: Int, projections: ProjectionExpression*): QuerySome =
+  def querySomeItem(tableName: String, limit: Int, projections: ProjectionExpression[Any]*): QuerySome =
     QuerySome(
       TableName(tableName),
       limit,
@@ -530,7 +531,7 @@ object DynamoDBQuery {
   def querySome[A: Schema](
     tableName: String,
     limit: Int,
-    projections: ProjectionExpression*
+    projections: ProjectionExpression[Any]*
   ): DynamoDBQuery[Either[String, (Chunk[A], LastEvaluatedKey)]] =
     querySomeItem(tableName, limit, projections: _*).map {
       case (itemsChunk, lek) =>
@@ -543,7 +544,7 @@ object DynamoDBQuery {
   /**
    * when executed will return a ZStream of Item
    */
-  def queryAllItem(tableName: String, projections: ProjectionExpression*): QueryAll =
+  def queryAllItem(tableName: String, projections: ProjectionExpression[Any]*): QueryAll =
     QueryAll(
       TableName(tableName),
       select = selectOrAll(projections),
@@ -556,7 +557,7 @@ object DynamoDBQuery {
   def queryAll[A: Schema](
     tableName: String,
     //keyConditionExpression: KeyConditionExpression, REVIEW: This is required by the dynamo API, should we make it required here?
-    projections: ProjectionExpression*
+    projections: ProjectionExpression[Any]*
   ): DynamoDBQuery[Stream[Throwable, A]] =
     queryAllItem(tableName, projections: _*).map(
       _.mapM(item => ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_)))
@@ -597,7 +598,7 @@ object DynamoDBQuery {
     tableName: String
   ): DescribeTable = DescribeTable(tableName = TableName(tableName))
 
-  private def selectOrAll(projections: Seq[ProjectionExpression]): Option[Select] =
+  private def selectOrAll(projections: Seq[ProjectionExpression[Any]]): Option[Select] =
     Some(if (projections.isEmpty) Select.AllAttributes else Select.SpecificAttributes)
 
   private[dynamodb] final case class Succeed[A](value: () => A) extends Constructor[A]
@@ -605,7 +606,7 @@ object DynamoDBQuery {
   private[dynamodb] final case class GetItem(
     tableName: TableName,
     key: PrimaryKey,
-    projections: List[ProjectionExpression] =
+    projections: List[ProjectionExpression[Any]] =
       List.empty, // If no attribute names are specified, then all attributes are returned
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
@@ -622,10 +623,10 @@ object DynamoDBQuery {
   ) extends Constructor[BatchGetItem.Response] { self =>
 
     def +(getItem: GetItem): BatchGetItem = {
-      val tableName                                               = getItem.tableName
-      val key                                                     = getItem.key
-      val projectionExpressionSet: ScalaSet[ProjectionExpression] = getItem.projections.toSet
-      val newEntry: (TableName, TableGet)                         =
+      val tableName                                                    = getItem.tableName
+      val key                                                          = getItem.key
+      val projectionExpressionSet: ScalaSet[ProjectionExpression[Any]] = getItem.projections.toSet
+      val newEntry: (TableName, TableGet)                              =
         self.requestItems
           .get(tableName)
           .fold((tableName, BatchGetItem.TableGet(ScalaSet(key), getItem.projections.toSet)))(t =>
@@ -668,7 +669,7 @@ object DynamoDBQuery {
   private[dynamodb] object BatchGetItem {
     final case class TableGet(
       keysSet: ScalaSet[PrimaryKey],
-      projectionExpressionSet: ScalaSet[ProjectionExpression]
+      projectionExpressionSet: ScalaSet[ProjectionExpression[Any]]
     )
     final case class Response(
       // Note - if a requested item does not exist, it is not returned in the result
@@ -763,29 +764,29 @@ object DynamoDBQuery {
   // I have removed these fields on the assumption that the library will take care of these concerns
   private[dynamodb] final case class ScanSome(
     tableName: TableName,
-    limit: Int,                                           // TODO: should this be a long to match AWS API?
+    limit: Int,                                                // TODO: should this be a long to match AWS API?
     indexName: Option[IndexName] = None,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
-      None,                                               // allows client to control start position - eg for client managed paging
+      None,                                                    // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
-    projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
+    projections: List[ProjectionExpression[Any]] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    select: Option[Select] = None                         // if ProjectExpression supplied then only valid value is SpecificAttributes
+    select: Option[Select] = None                              // if ProjectExpression supplied then only valid value is SpecificAttributes
   ) extends Constructor[(Chunk[Item], LastEvaluatedKey)]
 
   private[dynamodb] final case class QuerySome(
     tableName: TableName,
-    limit: Int,                                           // TODO: should this be a long to match AWS API?
+    limit: Int,                                                // TODO: should this be a long to match AWS API?
     indexName: Option[IndexName] = None,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
-      None,                                               // allows client to control start position - eg for client managed paging
+      None,                                                    // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
     keyConditionExpression: Option[KeyConditionExpression] = None,
-    projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
+    projections: List[ProjectionExpression[Any]] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    select: Option[Select] = None,                        // if ProjectExpression supplied then only valid value is SpecificAttributes
+    select: Option[Select] = None,                             // if ProjectExpression supplied then only valid value is SpecificAttributes
     ascending: Boolean = true
   ) extends Constructor[(Chunk[Item], LastEvaluatedKey)]
 
@@ -795,11 +796,11 @@ object DynamoDBQuery {
     limit: Option[Int] = None,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
-      None,                                               // allows client to control start position - eg for client managed paging
+      None,                                                    // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
-    projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
+    projections: List[ProjectionExpression[Any]] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    select: Option[Select] = None,                        // if ProjectExpression supplied then only valid value is SpecificAttributes
+    select: Option[Select] = None,                             // if ProjectExpression supplied then only valid value is SpecificAttributes
     totalSegments: Int = 1
   ) extends Constructor[Stream[Throwable, Item]]
 
@@ -813,12 +814,12 @@ object DynamoDBQuery {
     limit: Option[Int] = None,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
-      None,                                               // allows client to control start position - eg for client managed paging
+      None,                                                    // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
     keyConditionExpression: Option[KeyConditionExpression] = None,
-    projections: List[ProjectionExpression] = List.empty, // if empty all attributes will be returned
+    projections: List[ProjectionExpression[Any]] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    select: Option[Select] = None,                        // if ProjectExpression supplied then only valid value is SpecificAttributes
+    select: Option[Select] = None,                             // if ProjectExpression supplied then only valid value is SpecificAttributes
     ascending: Boolean = true
   ) extends Constructor[Stream[Throwable, Item]]
 
