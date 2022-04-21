@@ -121,17 +121,13 @@ object LiveSpec extends ZIOSpecDefault {
   private def withTemporaryTable[R](
     tableDefinition: String => CreateTable,
     f: String => ZIO[DynamoDBExecutor with R, Throwable, TestResult]
-  ): ZIO[DynamoDBExecutor with R, Throwable, TestResult] = {
-    val effect: ZIO[Scope with DynamoDBExecutor with R, Throwable, TestResult] =
+  ): ZIO[DynamoDBExecutor with R, Throwable, TestResult] =
+    ZIO.scoped[R with DynamoDBExecutor] {
       for {
         table      <- managedTable(tableDefinition)
         testResult <- f(table.value)
       } yield testResult
-    val r                                                                      = ZIO.scoped[R with DynamoDBExecutor] {
-      effect
     }
-    r
-  }
 
   private def withDefaultTable(
     f: String => ZIO[DynamoDBExecutor, Throwable, TestResult]
