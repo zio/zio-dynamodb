@@ -100,6 +100,8 @@ sealed trait DynamoDBQuery[+A] { self =>
         m.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
       case m: DeleteItem              =>
         m.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
+      case t: Transaction[_]          =>
+        t.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
       case _                          => self
     }
 
@@ -157,6 +159,8 @@ sealed trait DynamoDBQuery[+A] { self =>
         u.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[A]]
       case d: DeleteItem              =>
         d.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[A]]
+      case t: Transaction[_]          =>
+        t.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[A]]
       case _                          => self
     }
 
@@ -644,7 +648,9 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class Transaction[A](
     query: DynamoDBQuery[A],
-    clientRequestToken: Option[String] = None
+    clientRequestToken: Option[String] = None,
+    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
+    itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None
   ) extends Constructor[A]
 
   private[dynamodb] final case class MixedTransactionTypes() extends Throwable
@@ -962,7 +968,7 @@ object DynamoDBQuery {
           }
         )
 
-      case transaction @ Transaction(_, _)                    =>
+      case transaction @ Transaction(_, _, _, _)              =>
         (
           Chunk(transaction),
           (results: Chunk[Any]) => {

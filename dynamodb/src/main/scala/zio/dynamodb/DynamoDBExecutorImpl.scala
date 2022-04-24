@@ -217,15 +217,18 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       case _                 => None
     }
 
-  // ask John about this error: The outer reference in this type test cannot be checked at run time.
-//  final case class MixedTransactionTypes(a: Int = 0) extends Throwable
-
   private def executeTransaction[A](transaction: Transaction[A]): ZIO[Any, Throwable, A] =
     for {
       (transactionActions, transactionMapping) <- buildTransaction(transaction)
       (transactionActions, transactionType)    <- ZIO.fromEither(filterMixedTransactions(transactionActions))
-      transaction                               = constructTransaction(transactionActions, transactionType)
-      a: Chunk[Any]                            <- transaction match {
+      builtTransaction                          = constructTransaction(
+                                                    transactionActions,
+                                                    transactionType,
+                                                    transaction.clientRequestToken,
+                                                    transaction.itemMetrics,
+                                                    transaction.capacity
+                                                  )
+      a: Chunk[Any]                            <- builtTransaction match {
                                                     case Left(transactGetItems)    =>
                                                       (for {
                                                         response <- dynamoDb.transactGetItems(transactGetItems)
@@ -325,9 +328,9 @@ case object DynamoDBExecutorImpl {
     query match {
       case constructor: Constructor[A] =>
         constructor match {
-          case s: PutItem        => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: DeleteItem     => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: GetItem        =>
+          case s: PutItem                  => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: DeleteItem               => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: GetItem                  =>
             ZIO.succeed(
               (
                 Chunk(s),
@@ -337,7 +340,7 @@ case object DynamoDBExecutorImpl {
                 }
               )
             )
-          case s: BatchGetItem   =>
+          case s: BatchGetItem             =>
             ZIO.succeed(
               (
                 Chunk(s),
@@ -362,17 +365,15 @@ case object DynamoDBExecutorImpl {
               )
             )
 
-          case s: BatchWriteItem => ZIO.succeed((Chunk(s), _ => BatchWriteItem.Response(None).asInstanceOf[A]))
-
-          // TODO(required): What to do about the client token here? -- do we just ignore and use a top-level one?
-          case Transaction(query, _) => buildTransaction(query)
-          case s: UpdateItem         =>
+          case s: BatchWriteItem           => ZIO.succeed((Chunk(s), _ => BatchWriteItem.Response(None).asInstanceOf[A]))
+          case Transaction(query, _, _, _) => buildTransaction(query)
+          case s: UpdateItem               =>
             ZIO.succeed(
               (Chunk(s), _ => None.asInstanceOf[A])
             ) // we don't get data back from transactWrites, return None here
-          case s: ConditionCheck     => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case FailCause(cause)      => ZIO.halt(cause())
-          case s                     => ZIO.fail(InvalidTransactionActions(NonEmptyChunk(s)))
+          case s: ConditionCheck           => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case FailCause(cause)            => ZIO.halt(cause())
+          case s                           => ZIO.fail(InvalidTransactionActions(NonEmptyChunk(s)))
         }
       case Zip(left, right, zippable)  =>
         for {
@@ -398,14 +399,21 @@ case object DynamoDBExecutorImpl {
 
   private[dynamodb] def constructTransaction[A](
     actions: Chunk[Constructor[A]],
-    transactionType: TransactionType
+    transactionType: TransactionType,
+    clientRequestToken: Option[String],
+    itemCollectionMetrics: ReturnItemCollectionMetrics,
+    returnConsumedCapacity: ReturnConsumedCapacity
   ): Either[TransactGetItemsRequest, TransactWriteItemsRequest] =
     transactionType match {
-      case TransactionType.Write => Right(constructWriteTransaction(actions))
-      case TransactionType.Get   => Left(constructGetTransaction(actions))
+      case TransactionType.Write =>
+        Right(constructWriteTransaction(actions, clientRequestToken, returnConsumedCapacity, itemCollectionMetrics))
+      case TransactionType.Get   => Left(constructGetTransaction(actions, returnConsumedCapacity))
     }
 
-  private[dynamodb] def constructGetTransaction[A](actions: Chunk[Constructor[A]]): TransactGetItemsRequest = {
+  private[dynamodb] def constructGetTransaction[A](
+    actions: Chunk[Constructor[A]],
+    returnConsumedCapacity: ReturnConsumedCapacity
+  ): TransactGetItemsRequest = {
     val getActions: Chunk[TransactGetItem] = actions.flatMap {
       case s: GetItem      =>
         Some(
@@ -434,11 +442,16 @@ case object DynamoDBExecutorImpl {
     }
     TransactGetItemsRequest(
       transactItems = getActions,
-      returnConsumedCapacity = None
+      returnConsumedCapacity = Some(awsConsumedCapacity(returnConsumedCapacity))
     )
   }
 
-  private[dynamodb] def constructWriteTransaction[A](actions: Chunk[Constructor[A]]): TransactWriteItemsRequest = {
+  private[dynamodb] def constructWriteTransaction[A](
+    actions: Chunk[Constructor[A]],
+    clientRequestToken: Option[String],
+    returnConsumedCapacity: ReturnConsumedCapacity,
+    itemCollectionMetrics: ReturnItemCollectionMetrics
+  ): TransactWriteItemsRequest = {
     val writeActions: Chunk[TransactWriteItem] = actions.flatMap {
       case s: DeleteItem     => awsTransactWriteItem(s)
       case s: PutItem        => awsTransactWriteItem(s)
@@ -472,12 +485,11 @@ case object DynamoDBExecutorImpl {
       case _                 => None
     }
 
-    // TODO: Should we require these fields in the `.transaction` method?
     TransactWriteItemsRequest(
       transactItems = writeActions,
-      returnConsumedCapacity = None,
-      returnItemCollectionMetrics = None,
-      clientRequestToken = None
+      returnConsumedCapacity = Some(awsConsumedCapacity(returnConsumedCapacity)),
+      returnItemCollectionMetrics = Some(awsReturnItemCollectionMetrics(itemCollectionMetrics)),
+      clientRequestToken = clientRequestToken
     )
   }
 

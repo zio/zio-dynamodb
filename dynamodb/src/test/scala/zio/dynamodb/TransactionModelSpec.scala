@@ -29,7 +29,7 @@ object TransactionModelSpec extends DefaultRunnableSpec {
   private val multiTableGet                   = BatchGetItem().addAll(simpleGetItem, simpleGetItem2, simpleGetItem3)
   private val emptyDynamoDB: ULayer[DynamoDb] = DynamoDbMock.empty
   val getTransaction                          = DynamoDbMock.TransactGetItems(
-    equalTo(DynamoDBExecutorImpl.constructGetTransaction(Chunk(simpleGetItem))),
+    equalTo(DynamoDBExecutorImpl.constructGetTransaction(Chunk(simpleGetItem), ReturnConsumedCapacity.None)),
     value(
       TransactGetItemsResponse(
         consumedCapacity = None,
@@ -38,7 +38,7 @@ object TransactionModelSpec extends DefaultRunnableSpec {
     )
   )
   val batchGetTransaction                     = DynamoDbMock.TransactGetItems(
-    equalTo(DynamoDBExecutorImpl.constructGetTransaction(Chunk(simpleBatchGet))),
+    equalTo(DynamoDBExecutorImpl.constructGetTransaction(Chunk(simpleBatchGet), ReturnConsumedCapacity.None)),
     value(
       TransactGetItemsResponse(
         consumedCapacity = None,
@@ -52,7 +52,7 @@ object TransactionModelSpec extends DefaultRunnableSpec {
     )
   )
   val multiTableBatchGet                      = DynamoDbMock.TransactGetItems(
-    equalTo(DynamoDBExecutorImpl.constructGetTransaction(Chunk(multiTableGet))),
+    equalTo(DynamoDBExecutorImpl.constructGetTransaction(Chunk(multiTableGet), ReturnConsumedCapacity.None)),
     value(
       TransactGetItemsResponse(
         consumedCapacity = None,
@@ -67,19 +67,47 @@ object TransactionModelSpec extends DefaultRunnableSpec {
     )
   )
   val updateItem                              = DynamoDbMock.TransactWriteItems(
-    equalTo(DynamoDBExecutorImpl.constructWriteTransaction(Chunk(simpleUpdateItem))),
+    equalTo(
+      DynamoDBExecutorImpl.constructWriteTransaction(
+        Chunk(simpleUpdateItem),
+        None,
+        ReturnConsumedCapacity.None,
+        ReturnItemCollectionMetrics.None
+      )
+    ),
     value(TransactWriteItemsResponse().asReadOnly)
   )
   val deleteItem                              = DynamoDbMock.TransactWriteItems(
-    equalTo(DynamoDBExecutorImpl.constructWriteTransaction(Chunk(simpleDeleteItem))),
+    equalTo(
+      DynamoDBExecutorImpl.constructWriteTransaction(
+        Chunk(simpleDeleteItem),
+        None,
+        ReturnConsumedCapacity.None,
+        ReturnItemCollectionMetrics.None
+      )
+    ),
     value(TransactWriteItemsResponse().asReadOnly)
   )
   val putItem                                 = DynamoDbMock.TransactWriteItems(
-    equalTo(DynamoDBExecutorImpl.constructWriteTransaction(Chunk(simplePutItem))),
+    equalTo(
+      DynamoDBExecutorImpl.constructWriteTransaction(
+        Chunk(simplePutItem),
+        None,
+        ReturnConsumedCapacity.None,
+        ReturnItemCollectionMetrics.None
+      )
+    ),
     value(TransactWriteItemsResponse().asReadOnly)
   )
   val batchWriteItem                          = DynamoDbMock.TransactWriteItems(
-    equalTo(DynamoDBExecutorImpl.constructWriteTransaction(Chunk(simpleBatchWrite))),
+    equalTo(
+      DynamoDBExecutorImpl.constructWriteTransaction(
+        Chunk(simpleBatchWrite),
+        None,
+        ReturnConsumedCapacity.None,
+        ReturnItemCollectionMetrics.None
+      )
+    ),
     value(TransactWriteItemsResponse().asReadOnly)
   )
 
