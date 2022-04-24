@@ -812,11 +812,23 @@ object LiveSpec extends DefaultRunnableSpec {
 
               assertM(updateItem1.zip(updateItem2).transaction.execute)(equalTo((None, None)))
             }
-          } @@ failing
+          } @@ failing,
           // TODO
-//            testM ("repeated client request token fails on second try") {
-//              ???
-//            }
+          testM("repeated client request token fails on second try") {
+            withDefaultTable { tableName =>
+              val updateItem = UpdateItem(
+                key = Item(id -> first, number -> 7),
+                tableName = TableName(tableName),
+                updateExpression = UpdateExpression($(name).set(notAdam))
+              )
+
+              val transaction = updateItem.transaction.withClientRequestToken("test-token")
+              for {
+                _ <- transaction.execute
+                _ <- transaction.execute
+              } yield assert(())(isUnit)
+            }
+          } @@ failing
         ),
         suite("transact get items")(
           testM("basic transact get items") {
