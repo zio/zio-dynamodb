@@ -1,31 +1,30 @@
 package zio.dynamodb
 
 import zio.dynamodb.ProjectionExpression.{ $, parse, ListElement, MapElement, Root }
-import zio.random.Random
 import zio.test.Assertion._
-import zio.test.{ DefaultRunnableSpec, _ }
+import zio.test._
 
 import scala.annotation.tailrec
 
-object ProjectionExpressionParserSpec extends DefaultRunnableSpec {
+object ProjectionExpressionParserSpec extends ZIOSpecDefault {
   object Generators {
-    private val maxFields                                                                                    = 20
-    private val validCharGens                                                                                = List(Gen.const('_'), Gen.char('a', 'z'), Gen.char('A', 'Z'), Gen.char('0', '9'))
-    private def fieldName                                                                                    = Gen.stringBounded(0, 10)(Gen.oneOf(validCharGens: _*))
-    private def index                                                                                        = Gen.int(0, 10)
-    private def root: Gen[Random with Sized, ProjectionExpression]                                           =
+    private val maxFields                                                                        = 20
+    private val validCharGens                                                                    = List(Gen.const('_'), Gen.char('a', 'z'), Gen.char('A', 'Z'), Gen.char('0', '9'))
+    private def fieldName                                                                        = Gen.stringBounded(0, 10)(Gen.oneOf(validCharGens: _*))
+    private def index                                                                            = Gen.int(0, 10)
+    private def root: Gen[Sized, ProjectionExpression]                                           =
       fieldName.map(ProjectionExpression.MapElement(Root, _))
-    private def mapElement(parent: => ProjectionExpression)                                                  = fieldName.map(MapElement(parent, _))
-    private def listElement(parent: => ProjectionExpression)                                                 = index.map(ListElement(parent, _))
-    private def mapOrListElement(parent: ProjectionExpression): Gen[Random with Sized, ProjectionExpression] =
+    private def mapElement(parent: => ProjectionExpression)                                      = fieldName.map(MapElement(parent, _))
+    private def listElement(parent: => ProjectionExpression)                                     = index.map(ListElement(parent, _))
+    private def mapOrListElement(parent: ProjectionExpression): Gen[Sized, ProjectionExpression] =
       Gen.oneOf(mapElement(parent), listElement(parent))
 
-    def projectionExpression: Gen[Random with Sized, ProjectionExpression] = {
+    def projectionExpression: Gen[Sized, ProjectionExpression] = {
       @tailrec
       def loop(
-        parentGen: Gen[Random with Sized, ProjectionExpression],
+        parentGen: Gen[Sized, ProjectionExpression],
         counter: Int
-      ): Gen[Random with Sized, ProjectionExpression] =
+      ): Gen[Sized, ProjectionExpression] =
         if (counter == 0)
           parentGen
         else
@@ -39,15 +38,15 @@ object ProjectionExpressionParserSpec extends DefaultRunnableSpec {
 
   }
 
-  override def spec: ZSpec[Environment, Failure] = mainSuite
+  override def spec = mainSuite
 
-  private val mainSuite =
+  private val mainSuite: Spec[Sized with TestConfig, TestFailure[Any], TestSuccess] =
     suite("ProjectionExpression Parser")(
       test("$ function compiles") {
         val _ = $("name").beginsWith("Avi")
         assertCompletes
       },
-      testM("should parse valid expressions and return a Left for any invalid expressions") {
+      test("should parse valid expressions and return a Left for any invalid expressions") {
         check(Generators.projectionExpression) { pe =>
           assert(parse(pe.toString))(
             if (anyEmptyName(pe)) isLeft

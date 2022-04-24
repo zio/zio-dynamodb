@@ -3,10 +3,11 @@ package zio.dynamodb
 import zio.Chunk
 import zio.dynamodb.DynamoDBQuery._
 import zio.test.Assertion.equalTo
-import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
+import zio.test.assert
+import zio.test.ZIOSpecDefault
 
-object ParallelizeSpec extends DefaultRunnableSpec with DynamoDBFixtures {
-  override def spec: ZSpec[Environment, Failure] = suite("Executor")(parallelizeSuite)
+object ParallelizeSpec extends ZIOSpecDefault with DynamoDBFixtures {
+  override def spec = suite("Executor")(parallelizeSuite)
 
   private val parallelizeSuite =
     suite(label = "parallelize")(

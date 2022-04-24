@@ -1,15 +1,13 @@
 package zio.dynamodb.codec
 
-import zio.random.Random
-import zio.test.{ Gen, Sized }
 import zio.schema._
+import zio.test.{ Gen, Sized }
 
 import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
 
 object StandardTypeGen {
 
-  val anyStandardType: Gen[Random, StandardType[_]] = Gen.fromIterable(
+  val anyStandardType: Gen[Any, StandardType[_]] = Gen.fromIterable(
     List(
       (StandardType.StringType),
       (StandardType.BoolType),
@@ -23,7 +21,7 @@ object StandardTypeGen {
       (StandardType.BigIntegerType),
       (StandardType.CharType),
       (StandardType.DayOfWeekType),
-      (StandardType.Duration(ChronoUnit.SECONDS)),
+      (StandardType.DurationType),
       (StandardType.InstantType(
         DateTimeFormatter.ISO_INSTANT
       )), // TODO: original uses (StandardType.Instant(DateTimeFormatter.ISO_DATE_TIME)),
@@ -45,23 +43,23 @@ object StandardTypeGen {
 //    Gen.const(StandardType.ZoneOffset)
   )
 
-  type StandardTypeAndGen[A] = (StandardType[A], Gen[Random with Sized, A])
+  type StandardTypeAndGen[A] = (StandardType[A], Gen[Sized, A])
 
-  val anyStandardTypeAndGen: Gen[Random, StandardTypeAndGen[_]] =
+  val anyStandardTypeAndGen: Gen[Any, StandardTypeAndGen[_]] =
     anyStandardType.map {
-      case typ: StandardType.StringType.type     => typ -> Gen.anyString
+      case typ: StandardType.StringType.type     => typ -> Gen.string
       case typ: StandardType.BoolType.type       => typ -> Gen.boolean
-      case typ: StandardType.ShortType.type      => typ -> Gen.anyShort
-      case typ: StandardType.IntType.type        => typ -> Gen.anyInt
-      case typ: StandardType.LongType.type       => typ -> Gen.anyLong
-      case typ: StandardType.FloatType.type      => typ -> Gen.anyFloat
-      case typ: StandardType.DoubleType.type     => typ -> Gen.anyDouble
-      case typ: StandardType.BinaryType.type     => typ -> Gen.chunkOf(Gen.anyByte)
-      case typ: StandardType.CharType.type       => typ -> Gen.anyASCIIChar
-      case typ: StandardType.BigDecimalType.type => typ -> Gen.anyDouble.map(d => java.math.BigDecimal.valueOf(d))
-      case typ: StandardType.BigIntegerType.type => typ -> Gen.anyLong.map(n => java.math.BigInteger.valueOf(n))
+      case typ: StandardType.ShortType.type      => typ -> Gen.short
+      case typ: StandardType.IntType.type        => typ -> Gen.int
+      case typ: StandardType.LongType.type       => typ -> Gen.long
+      case typ: StandardType.FloatType.type      => typ -> Gen.float
+      case typ: StandardType.DoubleType.type     => typ -> Gen.double
+      case typ: StandardType.BinaryType.type     => typ -> Gen.chunkOf(Gen.byte)
+      case typ: StandardType.CharType.type       => typ -> Gen.asciiChar
+      case typ: StandardType.BigDecimalType.type => typ -> Gen.double.map(d => java.math.BigDecimal.valueOf(d))
+      case typ: StandardType.BigIntegerType.type => typ -> Gen.long.map(n => java.math.BigInteger.valueOf(n))
       case typ: StandardType.DayOfWeekType.type  => typ -> JavaTimeGen.anyDayOfWeek
-      case typ: StandardType.Duration            => typ -> JavaTimeGen.anyDuration
+      case typ: StandardType.DurationType.type   => typ -> JavaTimeGen.anyDuration
       case typ: StandardType.InstantType         => typ -> JavaTimeGen.anyInstant
       case typ: StandardType.LocalDateType       => typ -> JavaTimeGen.anyLocalDate
       case typ: StandardType.LocalDateTimeType   => typ -> JavaTimeGen.anyLocalDateTime

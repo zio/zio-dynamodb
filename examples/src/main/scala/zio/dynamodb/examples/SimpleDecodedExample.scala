@@ -1,12 +1,12 @@
 package zio.dynamodb.examples
 
-import zio.console.putStrLn
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.{ DynamoDBExecutor, Item, PrimaryKey }
 import zio.schema.{ DeriveSchema, Schema }
-import zio.{ App, ExitCode, URIO }
+import zio.ZIOAppDefault
+import zio.Console.printLine
 
-object SimpleDecodedExample extends App {
+object SimpleDecodedExample extends ZIOAppDefault {
   val nestedItem       = Item("id" -> 2, "name" -> "Avi", "flag" -> true)
   val parentItem: Item = Item("id" -> 1, "nested" -> nestedItem)
 
@@ -20,21 +20,21 @@ object SimpleDecodedExample extends App {
     _         <-
       put("table1", NestedCaseClass2(id = 1, SimpleCaseClass3(2, "Avi", flag = true))).execute // Save case class to DB
     caseClass <- get[NestedCaseClass2]("table1", PrimaryKey("id" -> 1)).execute // read case class from DB
-    _         <- putStrLn(s"get: found $caseClass")
+    _         <- printLine(s"get: found $caseClass")
     either    <- scanSome[NestedCaseClass2]("table1", 10).execute
-    _         <- putStrLn(s"scanSome: found $either")
+    _         <- printLine(s"scanSome: found $either")
     stream    <- scanAll[NestedCaseClass2]("table1").execute
     xs        <- stream.runCollect
-    _         <- putStrLn(s"scanAll: found stream $xs")
+    _         <- printLine(s"scanAll: found stream $xs")
 
     either2 <- querySome[NestedCaseClass2]("table1", 10).execute
-    _       <- putStrLn(s"querySome: found $either2")
+    _       <- printLine(s"querySome: found $either2")
     stream2 <- queryAll[NestedCaseClass2]("table1").execute
     xs2     <- stream2.runCollect
-    _       <- putStrLn(s"queryAll: found stream $xs2")
+    _       <- printLine(s"queryAll: found stream $xs2")
 
   } yield ()
 
-  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] =
-    program.provideCustomLayer(DynamoDBExecutor.test("table1" -> "id")).exitCode
+  override def run =
+    program.provide(DynamoDBExecutor.test("table1" -> "id"))
 }

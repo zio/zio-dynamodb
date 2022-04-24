@@ -8,9 +8,9 @@ object ReturnItemCollectionMetrics {
 
   private[dynamodb] def toZioAws(
     returnItemCollectionMetrics: ReturnItemCollectionMetrics
-  ): io.github.vigoo.zioaws.dynamodb.model.ReturnItemCollectionMetrics =
+  ): zio.aws.dynamodb.model.ReturnItemCollectionMetrics =
     returnItemCollectionMetrics match {
-      case None => io.github.vigoo.zioaws.dynamodb.model.ReturnItemCollectionMetrics.NONE
-      case Size => io.github.vigoo.zioaws.dynamodb.model.ReturnItemCollectionMetrics.SIZE
+      case None => zio.aws.dynamodb.model.ReturnItemCollectionMetrics.NONE
+      case Size => zio.aws.dynamodb.model.ReturnItemCollectionMetrics.SIZE
     }
 }

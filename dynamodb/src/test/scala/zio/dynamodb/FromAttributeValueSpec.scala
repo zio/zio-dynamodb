@@ -1,13 +1,13 @@
 package zio.dynamodb
 
 import zio.test.Assertion._
-import zio.test.{ DefaultRunnableSpec, ZSpec, _ }
+import zio.test.{ ZIOSpecDefault, _ }
 
-object FromAttributeValueSpec extends DefaultRunnableSpec {
+object FromAttributeValueSpec extends ZIOSpecDefault {
 
-  override def spec: ZSpec[Environment, Failure] = suite("AttrMap suite")(fromAttributeValueSuite)
+  override def spec: Spec[Any, TestFailure[Nothing], TestSuccess] = suite("AttrMap suite")(fromAttributeValueSuite)
 
-  val fromAttributeValueSuite: ZSpec[Environment, Failure] = suite("FromAttributeValueSuite")(
+  val fromAttributeValueSuite = suite("FromAttributeValueSuite")(
     test("get[String] should return a Right of String when it exists") {
       val attrMap = AttrMap("f1" -> "a")
       assert(attrMap.get[String]("f1"))(isRight(equalTo("a")))

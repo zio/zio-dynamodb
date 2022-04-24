@@ -1,12 +1,13 @@
 package zio.dynamodb
 
 import zio.Chunk
-import zio.test.{ DefaultRunnableSpec, _ }
+import zio.test._
+import zio.test.ZIOSpecDefault
 
-object ToAttributeValueSpec extends DefaultRunnableSpec {
+object ToAttributeValueSpec extends ZIOSpecDefault {
   private val ScalaMap = scala.collection.immutable.Map
 
-  override def spec: ZSpec[Environment, Failure] = suite("AttrMap suite")(simpleAttrMapSuite)
+  override def spec = suite("AttrMap suite")(simpleAttrMapSuite)
 
   val simpleAttrMapSuite = suite("Simple AttrMap suite")(
     test("AttrMap.empty.map equals empty map") {

@@ -1,11 +1,12 @@
 package zio.dynamodb
 
 import zio.test.Assertion._
-import zio.test.{ DefaultRunnableSpec, _ }
+import zio.test._
+import zio.test.ZIOSpecDefault
 
-object MapOfSetSpec extends DefaultRunnableSpec {
+object MapOfSetSpec extends ZIOSpecDefault {
 
-  override def spec: ZSpec[Environment, Failure] =
+  override def spec =
     suite("MapOfSet")(
       test("addAll(1 -> 1, 1 -> 2)") {
         val actual   = MapOfSet.empty.addAll(1 -> 1, 1 -> 2)

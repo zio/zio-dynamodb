@@ -2,14 +2,14 @@ package zio.dynamodb.examples
 
 import com.amazonaws.services.dynamodbv2.local.main.ServerRunner
 import com.amazonaws.services.dynamodbv2.local.server.DynamoDBProxyServer
-import zio.blocking.{ effectBlocking, Blocking }
-import zio.{ Has, ZLayer, ZManaged }
+import zio.ZIO.attemptBlocking
+import zio.{ ZIO, ZLayer }
 
 object LocalDdbServer {
 
-  val inMemoryLayer: ZLayer[Blocking, Nothing, Has[DynamoDBProxyServer]] =
-    ZManaged.make {
-      effectBlocking {
+  val inMemoryLayer: ZLayer[Any, Nothing, DynamoDBProxyServer] = {
+    val effect = ZIO.acquireRelease(
+      attemptBlocking {
         System.setProperty("sqlite4java.library.path", "native-libs")
         System.setProperty("aws.accessKeyId", "dummy-key")
         System.setProperty("aws.secretKey", "dummy-key")
@@ -22,5 +22,9 @@ object LocalDdbServer {
         server.start()
         server
       }.orDie
-    }(server => effectBlocking(server.stop()).orDie).toLayer
+    )(server => attemptBlocking(server.stop()).orDie)
+
+    ZLayer.scoped(effect)
+
+  }
 }

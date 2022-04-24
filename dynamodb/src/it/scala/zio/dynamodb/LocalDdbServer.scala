@@ -2,14 +2,15 @@ package zio.dynamodb
 
 import com.amazonaws.services.dynamodbv2.local.main.ServerRunner
 import com.amazonaws.services.dynamodbv2.local.server.DynamoDBProxyServer
-import zio.{ Has, ZLayer, ZManaged }
-import zio.blocking.{ effectBlocking, Blocking }
+import zio.ZIO.attemptBlocking
+import zio.{ ZIO, ZLayer }
 
 object LocalDdbServer {
 
-  val inMemoryLayer: ZLayer[Blocking, Nothing, Has[DynamoDBProxyServer]] =
-    ZManaged.make {
-      effectBlocking {
+  val inMemoryLayer: ZLayer[Any, Nothing, DynamoDBProxyServer] = {
+
+    val effect = ZIO.acquireRelease(
+      attemptBlocking {
         System.setProperty(
           "sqlite4java.library.path",
           "dynamodb/native-libs"
@@ -25,5 +26,8 @@ object LocalDdbServer {
         server.start()
         server
       }.orDie
-    }(server => effectBlocking(server.stop()).orDie).toLayer
+    )(server => attemptBlocking(server.stop()).orDie)
+
+    ZLayer.scoped(effect)
+  }
 }

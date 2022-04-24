@@ -7,12 +7,12 @@ import zio.test._
 
 import java.time.Instant
 import scala.collection.immutable.ListMap
+import zio.test.ZIOSpecDefault
 
-object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
-  override def spec: ZSpec[Environment, Failure] =
-    suite("ItemDecoder Suite")(mainSuite)
+object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
+  override def spec = suite("ItemDecoder Suite")(mainSuite)
 
-  val mainSuite: ZSpec[Environment, Failure] = suite("Decoder Suite")(
+  val mainSuite = suite("Decoder Suite")(
     test("decodes generic record") {
       val expected: Map[String, Any] = ListMap("foo" -> "FOO", "bar" -> 1)
 

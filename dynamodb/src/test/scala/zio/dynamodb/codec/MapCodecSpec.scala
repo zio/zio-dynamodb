@@ -4,9 +4,10 @@ import zio.dynamodb.{ AttributeValue, Codec }
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test.Assertion.{ equalTo, isRight }
 import zio.test._
+import zio.test.ZIOSpecDefault
 
 // TODO: extending with CodecTestFixtures leads to map with string key implicit being used throughout the spec
-object MapCodecSpec extends DefaultRunnableSpec {
+object MapCodecSpec extends ZIOSpecDefault {
 
   final case class HasMapWithStringKey(map: Map[String, Int])
   object HasMapWithStringKey {
@@ -18,7 +19,7 @@ object MapCodecSpec extends DefaultRunnableSpec {
     implicit val schema: Schema[HasMapWithNonStringKey] = DeriveSchema.gen[HasMapWithNonStringKey]
   }
 
-  override def spec: ZSpec[zio.test.environment.TestEnvironment, Any] =
+  override def spec: ZSpec[zio.test.TestEnvironment, Any] =
     suite("Map codecs")(
       suite("when encoding")(
         test("encodes map with string key natively") {

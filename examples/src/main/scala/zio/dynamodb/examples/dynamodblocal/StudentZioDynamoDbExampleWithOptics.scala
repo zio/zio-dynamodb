@@ -1,19 +1,17 @@
 package zio.dynamodb.examples.dynamodblocal
 
-import io.github.vigoo.zioaws.core.config
-import io.github.vigoo.zioaws.dynamodb.DynamoDb
-import io.github.vigoo.zioaws.{ dynamodb, http4s }
+import zio.aws.core.config
+import zio.aws.dynamodb.DynamoDb
+import zio.aws.{ dynamodb, netty }
 import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
 import software.amazon.awssdk.regions.Region
-import zio.blocking.Blocking
-import zio.clock.Clock
 import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb._
 import zio.dynamodb.examples.LocalDdbServer
 import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema }
 import zio.stream.ZStream
-import zio.{ console, App, ExitCode, Has, URIO, ZIO, ZLayer }
+import zio.{ Console, ZIO, ZIOAppDefault, ZLayer }
 
 import java.net.URI
 import java.time.Instant
@@ -22,7 +20,7 @@ import java.time.Instant
  * An equivalent app to [[StudentJavaSdkExample]] but using `zio-dynamodb` - note the reduction in boiler plate code!
  * It also uses the type safe query and update API.
  */
-object StudentZioDynamoDbExampleWithOptics extends App {
+object StudentZioDynamoDbExampleWithOptics extends ZIOAppDefault {
 
   @enumOfCaseObjects
   sealed trait Payment
@@ -60,12 +58,12 @@ object StudentZioDynamoDbExampleWithOptics extends App {
   )
 
   private val dynamoDbLayer: ZLayer[Any, Throwable, DynamoDb] =
-    (http4s.default ++ awsConfig) >>> config.configured() >>> dynamodb.customized { builder =>
-      builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
+    (netty.NettyHttpClient.default ++ awsConfig) >>> config.AwsConfig.configured() >>> dynamodb.DynamoDb.customized {
+      builder =>
+        builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
     }
 
-  private val layer = ((dynamoDbLayer ++ ZLayer.identity[Has[Clock.Service]]) >>> DynamoDBExecutor.live) ++ (ZLayer
-    .identity[Has[Blocking.Service]] >>> LocalDdbServer.inMemoryLayer)
+  private val customLayer = (dynamoDbLayer >>> DynamoDBExecutor.live) ++ LocalDdbServer.inMemoryLayer
 
   import zio.dynamodb.examples.dynamodblocal.StudentZioDynamoDbExampleWithOptics.Student._
 
@@ -74,8 +72,8 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     AttributeDefinition.attrDefnString("email"),
                     AttributeDefinition.attrDefnString("subject")
                   ).execute
-    enrolDate  <- ZIO.effect(Instant.parse("2021-03-20T01:39:33Z"))
-    enrolDate2 <- ZIO.effect(Instant.parse("2022-03-20T01:39:33Z"))
+    enrolDate  <- ZIO.attempt(Instant.parse("2021-03-20T01:39:33Z"))
+    enrolDate2 <- ZIO.attempt(Instant.parse("2022-03-20T01:39:33Z"))
     avi         = Student("avi@gmail.com", "maths", Some(enrolDate), Payment.DebitCard)
     adam        = Student("adam@gmail.com", "english", Some(enrolDate), Payment.CreditCard)
     _          <- batchWriteFromStream(ZStream(avi, adam)) { student =>
@@ -83,7 +81,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                   }.runDrain
     _          <- put("student", avi.copy(payment = Payment.CreditCard)).execute
     _          <- batchReadFromStream("student", ZStream(avi, adam))(s => PrimaryKey("email" -> s.email, "subject" -> s.subject))
-                    .tap(student => console.putStrLn(s"student=$student"))
+                    .tap(student => Console.printLine(s"student=$student"))
                     .runDrain
     _          <- scanAll[Student]("student").filter {
                     enrollmentDate === enrolDate.toString && payment === "PayPal"
@@ -112,8 +110,8 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     )
                     .execute
     _          <- scanAll[Student]("student").execute
-                    .tap(_.tap(student => console.putStrLn(s"scanAll - student=$student")).runDrain)
+                    .tap(_.tap(student => Console.printLine(s"scanAll - student=$student")).runDrain)
   } yield ()
 
-  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = program.provideCustomLayer(layer).exitCode
+  override def run = program.provide(customLayer)
 }

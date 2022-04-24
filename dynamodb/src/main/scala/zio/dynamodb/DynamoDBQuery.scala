@@ -1,6 +1,5 @@
 package zio.dynamodb
 
-import zio.duration._
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put }
 import zio.dynamodb.DynamoDBQuery.{
@@ -23,7 +22,7 @@ import zio.dynamodb.DynamoDBQuery.{
 import zio.dynamodb.UpdateExpression.Action
 import zio.schema.Schema
 import zio.stream.Stream
-import zio.{ Chunk, Has, Schedule, ZIO }
+import zio.{ Chunk, Schedule, ZIO, _ }
 
 sealed trait DynamoDBQuery[+A] { self =>
 
@@ -33,7 +32,7 @@ sealed trait DynamoDBQuery[+A] { self =>
 
   final def <*>[B](that: DynamoDBQuery[B]): DynamoDBQuery[(A, B)] = self zip that
 
-  def execute: ZIO[Has[DynamoDBExecutor], Throwable, A] = {
+  def execute: ZIO[DynamoDBExecutor, Throwable, A] = {
     val (constructors, assembler)                                                                   = parallelize(self)
     val (indexedConstructors, (batchGetItem, batchGetIndexes), (batchWriteItem, batchWriteIndexes)) =
       batched(constructors)
@@ -51,8 +50,8 @@ sealed trait DynamoDBQuery[+A] { self =>
       ddbExecute(batchWriteItem).as(batchWriteItem.addList.map(_ => ()) zip batchWriteIndexes)
 
     (indexedNonBatchedResults zipPar indexedGetResults zipPar indexedWriteResults).map {
-      case ((nonBatched, batchedGets), batchedWrites) =>
-        val combined = (nonBatched ++ batchedGets ++ batchedWrites).sortBy {
+      case (nonBatched, batchedGets, batchedWrites) =>
+        val combined = (nonBatched ++ batchedGets ++ batchedWrites.map(((), _))).sortBy {
           case (_, index) => index
         }.map { case (value, _) => value }
         assembler(combined)
@@ -363,8 +362,7 @@ sealed trait DynamoDBQuery[+A] { self =>
 }
 
 object DynamoDBQuery {
-  import scala.collection.immutable.{ Map => ScalaMap }
-  import scala.collection.immutable.{ Set => ScalaSet }
+  import scala.collection.immutable.{ Map => ScalaMap, Set => ScalaSet }
 
   sealed trait Constructor[+A] extends DynamoDBQuery[A]
   sealed trait Write[+A]       extends Constructor[A]
@@ -469,7 +467,7 @@ object DynamoDBQuery {
     projections: ProjectionExpression*
   ): DynamoDBQuery[Stream[Throwable, A]] =
     scanAllItem(tableName, projections: _*).map(
-      _.mapM(item => ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_)))
+      _.mapZIO(item => ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_)))
     ) // TODO: think about error model
 
   /**
@@ -518,7 +516,7 @@ object DynamoDBQuery {
     projections: ProjectionExpression*
   ): DynamoDBQuery[Stream[Throwable, A]] =
     queryAllItem(tableName, projections: _*).map(
-      _.mapM(item => ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_)))
+      _.mapZIO(item => ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_)))
     ) // TODO: think about error model
 
   def createTable(

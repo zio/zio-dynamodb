@@ -5,7 +5,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.dynamodb.model._
 import zio.dynamodb.EitherUtil
 import zio.dynamodb.examples.LocalDdbServer
-import zio.{ console, App, ExitCode, Has, ULayer, URIO, ZIO, ZManaged }
+import zio.{ Console, ULayer, ZIO, ZIOAppDefault, ZLayer }
 
 import java.net.URI
 import java.time.Instant
@@ -18,7 +18,7 @@ import scala.util.Try
  * see [[StudentZioDynamoDbExample]] for the equivalent app using `zio-dynamodb` - note the drastic reduction in boiler
  * plate code!
  */
-object StudentJavaSdkExample extends App {
+object StudentJavaSdkExample extends ZIOAppDefault {
 
   sealed trait Payment
   object Payment {
@@ -33,14 +33,15 @@ object StudentJavaSdkExample extends App {
   object DdbHelper {
     import scala.language.implicitConversions
 
-    val ddbLayer: ULayer[Has[DynamoDbAsyncClient]] = ZManaged
-      .make(for {
+    val ddbLayer: ULayer[DynamoDbAsyncClient] = {
+      val effect = ZIO.acquireRelease(for {
         _       <- ZIO.unit
         region   = Region.US_EAST_1
         endpoint = URI.create("http://localhost:8000")
         client   = DynamoDbAsyncClient.builder().endpointOverride(endpoint).region(region).build()
-      } yield client)(client => ZIO.effect(client.close()).ignore)
-      .toLayer
+      } yield client)(client => ZIO.attempt(client.close()).ignore)
+      ZLayer.fromZIO(ZIO.scoped(effect))
+    }
 
     def createTableRequest: CreateTableRequest = {
       implicit def attrDef(t: (String, ScalarAttributeType)): AttributeDefinition =
@@ -168,7 +169,7 @@ object StudentJavaSdkExample extends App {
 
   def batchWriteAndRetryUnprocessed(
     batchRequest: BatchWriteItemRequest
-  ): ZIO[Has[DynamoDbAsyncClient], Throwable, BatchWriteItemResponse] = {
+  ): ZIO[DynamoDbAsyncClient, Throwable, BatchWriteItemResponse] = {
     val result = for {
       client   <- ZIO.service[DynamoDbAsyncClient]
       response <- ZIO.fromCompletionStage(client.batchWriteItem(batchRequest))
@@ -190,7 +191,7 @@ object StudentJavaSdkExample extends App {
 
   def batchGetItemAndRetryUnprocessed(
     batchRequest: BatchGetItemRequest
-  ): ZIO[Has[DynamoDbAsyncClient], Throwable, BatchGetItemResponse] = {
+  ): ZIO[DynamoDbAsyncClient, Throwable, BatchGetItemResponse] = {
     val result = for {
       client   <- ZIO.service[DynamoDbAsyncClient]
       response <- ZIO.fromCompletionStage(client.batchGetItem(batchRequest))
@@ -232,9 +233,9 @@ object StudentJavaSdkExample extends App {
           listOfErrorOrStudent
       }
     errorOrStudents       = EitherUtil.collectAll(listOfErrorOrStudent)
-    _                    <- console.putStrLn(s"result=$errorOrStudents")
+    _                    <- Console.printLine(s"result=$errorOrStudents")
   } yield errorOrStudents
 
-  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] =
-    program.provideCustomLayer(LocalDdbServer.inMemoryLayer ++ DdbHelper.ddbLayer).exitCode
+  override def run =
+    program.provide(LocalDdbServer.inMemoryLayer ++ DdbHelper.ddbLayer).exitCode
 }

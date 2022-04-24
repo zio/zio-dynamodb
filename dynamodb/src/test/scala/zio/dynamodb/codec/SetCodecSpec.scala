@@ -3,12 +3,12 @@ package zio.dynamodb.codec
 import zio.dynamodb.{ AttributeValue, Codec }
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test.Assertion.{ equalTo, isRight }
-import zio.test._
+import zio.test.{ ZIOSpecDefault, _ }
 
 import java.math.BigInteger
 import scala.collection.immutable.Map
 
-object SetCodecSpec extends DefaultRunnableSpec {
+object SetCodecSpec extends ZIOSpecDefault {
 
   final case class HasBigDecimalSet(set: Set[BigDecimal])
   object HasBigDecimalSet        {
@@ -31,7 +31,7 @@ object SetCodecSpec extends DefaultRunnableSpec {
     implicit val schema: Schema[HasSetWithNonNativeType] = DeriveSchema.gen[HasSetWithNonNativeType]
   }
 
-  override def spec: ZSpec[zio.test.environment.TestEnvironment, Any] =
+  override def spec: ZSpec[zio.test.TestEnvironment, Any] =
     suite("Set codecs")(
       suite("when encoding")(
         test("encodes set of BigDecimal natively") {

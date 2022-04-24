@@ -1,12 +1,11 @@
 package zio.dynamodb
 
-import zio.random.Random
 import zio.test.Assertion.{ equalTo, isRight }
-import zio.test.{ DefaultRunnableSpec, _ }
+import zio.test._
 
-object AttributeValueRoundTripSerialisationSpec extends DefaultRunnableSpec {
-  private val serialisationSuite = suite("AttributeValue Serialisation suite")(testM("round trip serialisation") {
-    checkM(genSerializable) { s =>
+object AttributeValueRoundTripSerialisationSpec extends ZIOSpecDefault {
+  private val serialisationSuite = suite("AttributeValue Serialisation suite")(test("round trip serialisation") {
+    check(genSerializable) { s =>
       check(s.genA) { (a: s.Element) =>
         val av: AttributeValue           = s.to.toAttributeValue(a)
         val v: Either[String, s.Element] = s.from.fromAttributeValue(av)
@@ -15,26 +14,26 @@ object AttributeValueRoundTripSerialisationSpec extends DefaultRunnableSpec {
     }
   })
 
-  override def spec: ZSpec[Environment, Failure] = serialisationSuite
+  override def spec = serialisationSuite
 
   trait Serializable  {
-    def genA: Gen[Random with Sized, Element]
+    def genA: Gen[Sized, Element]
     def to: ToAttributeValue[Element]
     def from: FromAttributeValue[Element]
     type Element
   }
   object Serializable {
     def apply[A](
-      genA0: Gen[Random with Sized, A],
+      genA0: Gen[Sized, A],
       to0: ToAttributeValue[A],
       from0: FromAttributeValue[A]
     ): Serializable {
       type Element = A
     } =
       new Serializable {
-        override def genA: Gen[Random with Sized, Element] = genA0
-        override def to: ToAttributeValue[Element]         = to0
-        override def from: FromAttributeValue[Element]     = from0
+        override def genA: Gen[Sized, Element]         = genA0
+        override def to: ToAttributeValue[Element]     = to0
+        override def from: FromAttributeValue[Element] = from0
         override type Element = A
       }
   }
@@ -42,25 +41,25 @@ object AttributeValueRoundTripSerialisationSpec extends DefaultRunnableSpec {
   private val bigDecimalGen = Gen.bigDecimal(BigDecimal("0.0"), BigDecimal("10.0"))
 
   private val serializableBinary: Serializable =
-    Serializable(Gen.listOf(Gen.anyByte), ToAttributeValue[Iterable[Byte]], FromAttributeValue[Iterable[Byte]])
+    Serializable(Gen.listOf(Gen.byte), ToAttributeValue[Iterable[Byte]], FromAttributeValue[Iterable[Byte]])
 
   private val serializableBool: Serializable =
     Serializable(Gen.boolean, ToAttributeValue[Boolean], FromAttributeValue[Boolean])
 
   private val serializableString: Serializable =
-    Serializable(Gen.anyString, ToAttributeValue[String], FromAttributeValue[String])
+    Serializable(Gen.string, ToAttributeValue[String], FromAttributeValue[String])
 
   private val anyNumberGen = Gen.oneOf(
-    Gen.const(Serializable(Gen.anyShort, ToAttributeValue[Short], FromAttributeValue[Short])),
-    Gen.const(Serializable(Gen.anyInt, ToAttributeValue[Int], FromAttributeValue[Int])),
-    Gen.const(Serializable(Gen.anyLong, ToAttributeValue[Long], FromAttributeValue[Long])),
-    Gen.const(Serializable(Gen.anyFloat, ToAttributeValue[Float], FromAttributeValue[Float])),
-    Gen.const(Serializable(Gen.anyDouble, ToAttributeValue[Double], FromAttributeValue[Double])),
+    Gen.const(Serializable(Gen.short, ToAttributeValue[Short], FromAttributeValue[Short])),
+    Gen.const(Serializable(Gen.int, ToAttributeValue[Int], FromAttributeValue[Int])),
+    Gen.const(Serializable(Gen.long, ToAttributeValue[Long], FromAttributeValue[Long])),
+    Gen.const(Serializable(Gen.float, ToAttributeValue[Float], FromAttributeValue[Float])),
+    Gen.const(Serializable(Gen.double, ToAttributeValue[Double], FromAttributeValue[Double])),
     Gen.const(Serializable(bigDecimalGen, ToAttributeValue[BigDecimal], FromAttributeValue[BigDecimal]))
   )
 
   private def serializableOption[V: ToAttributeValue: FromAttributeValue](
-    genV: Gen[Random with Sized, V]
+    genV: Gen[Sized, V]
   ): Serializable =
     Serializable(
       Gen.option(genV),
@@ -69,31 +68,31 @@ object AttributeValueRoundTripSerialisationSpec extends DefaultRunnableSpec {
     )
 
   private def serializableMap[V: ToAttributeValue: FromAttributeValue](
-    genV: Gen[Random with Sized, V]
+    genV: Gen[Sized, V]
   ): Serializable =
-    Serializable(Gen.mapOf(Gen.anyString, genV), ToAttributeValue[Map[String, V]], FromAttributeValue[Map[String, V]])
+    Serializable(Gen.mapOf(Gen.string, genV), ToAttributeValue[Map[String, V]], FromAttributeValue[Map[String, V]])
 
   private def serializableList[V: ToAttributeValue: FromAttributeValue](
-    genV: Gen[Random with Sized, V]
+    genV: Gen[Sized, V]
   ): Serializable =
     Serializable(Gen.listOf(genV), ToAttributeValue[Iterable[V]], FromAttributeValue[Iterable[V]])
 
   private val serializableStringSet: Serializable =
-    Serializable(Gen.setOf(Gen.anyString), ToAttributeValue[Set[String]], FromAttributeValue[Set[String]])
+    Serializable(Gen.setOf(Gen.string), ToAttributeValue[Set[String]], FromAttributeValue[Set[String]])
 
   private val serializableBinarySet: Serializable =
     Serializable(
-      Gen.setOf(Gen.listOf(Gen.anyByte)),
+      Gen.setOf(Gen.listOf(Gen.byte)),
       ToAttributeValue[Iterable[Iterable[Byte]]],
       FromAttributeValue[Iterable[Iterable[Byte]]]
     )
 
   private val anyNumberSetGen = Gen.oneOf(
-    Gen.const(Serializable(Gen.setOf(Gen.anyShort), ToAttributeValue[Set[Short]], FromAttributeValue[Set[Short]])),
-    Gen.const(Serializable(Gen.setOf(Gen.anyInt), ToAttributeValue[Set[Int]], FromAttributeValue[Set[Int]])),
-    Gen.const(Serializable(Gen.setOf(Gen.anyLong), ToAttributeValue[Set[Long]], FromAttributeValue[Set[Long]])),
-    Gen.const(Serializable(Gen.setOf(Gen.anyFloat), ToAttributeValue[Set[Float]], FromAttributeValue[Set[Float]])),
-    Gen.const(Serializable(Gen.setOf(Gen.anyDouble), ToAttributeValue[Set[Double]], FromAttributeValue[Set[Double]])),
+    Gen.const(Serializable(Gen.setOf(Gen.short), ToAttributeValue[Set[Short]], FromAttributeValue[Set[Short]])),
+    Gen.const(Serializable(Gen.setOf(Gen.int), ToAttributeValue[Set[Int]], FromAttributeValue[Set[Int]])),
+    Gen.const(Serializable(Gen.setOf(Gen.long), ToAttributeValue[Set[Long]], FromAttributeValue[Set[Long]])),
+    Gen.const(Serializable(Gen.setOf(Gen.float), ToAttributeValue[Set[Float]], FromAttributeValue[Set[Float]])),
+    Gen.const(Serializable(Gen.setOf(Gen.double), ToAttributeValue[Set[Double]], FromAttributeValue[Set[Double]])),
     Gen.const(
       Serializable(Gen.setOf(bigDecimalGen), ToAttributeValue[Set[BigDecimal]], FromAttributeValue[Set[BigDecimal]])
     )
@@ -101,35 +100,35 @@ object AttributeValueRoundTripSerialisationSpec extends DefaultRunnableSpec {
 
   private val anyOptionGen = Gen.oneOf(
     Gen.const(serializableOption[Boolean](Gen.boolean)),
-    Gen.const(serializableOption[String](Gen.anyString)),
-    Gen.const(serializableOption[Short](Gen.anyShort)),
-    Gen.const(serializableOption[Int](Gen.anyInt)),
-    Gen.const(serializableOption[Float](Gen.anyFloat)),
-    Gen.const(serializableOption[Double](Gen.anyDouble)),
+    Gen.const(serializableOption[String](Gen.string)),
+    Gen.const(serializableOption[Short](Gen.short)),
+    Gen.const(serializableOption[Int](Gen.int)),
+    Gen.const(serializableOption[Float](Gen.float)),
+    Gen.const(serializableOption[Double](Gen.double)),
     Gen.const(serializableOption[BigDecimal](bigDecimalGen))
   )
 
   private val anyMapGen = Gen.oneOf(
     Gen.const(serializableMap[Boolean](Gen.boolean)),
-    Gen.const(serializableMap[String](Gen.anyString)),
-    Gen.const(serializableMap[Short](Gen.anyShort)),
-    Gen.const(serializableMap[Int](Gen.anyInt)),
-    Gen.const(serializableMap[Float](Gen.anyFloat)),
-    Gen.const(serializableMap[Double](Gen.anyDouble)),
+    Gen.const(serializableMap[String](Gen.string)),
+    Gen.const(serializableMap[Short](Gen.short)),
+    Gen.const(serializableMap[Int](Gen.int)),
+    Gen.const(serializableMap[Float](Gen.float)),
+    Gen.const(serializableMap[Double](Gen.double)),
     Gen.const(serializableMap[BigDecimal](bigDecimalGen))
   )
 
   private val anyListGen = Gen.oneOf(
     Gen.const(serializableList[Boolean](Gen.boolean)),
-    Gen.const(serializableList[String](Gen.anyString)),
-    Gen.const(serializableList[Short](Gen.anyShort)),
-    Gen.const(serializableList[Int](Gen.anyInt)),
-    Gen.const(serializableList[Float](Gen.anyFloat)),
-    Gen.const(serializableList[Double](Gen.anyDouble)),
+    Gen.const(serializableList[String](Gen.string)),
+    Gen.const(serializableList[Short](Gen.short)),
+    Gen.const(serializableList[Int](Gen.int)),
+    Gen.const(serializableList[Float](Gen.float)),
+    Gen.const(serializableList[Double](Gen.double)),
     Gen.const(serializableList[BigDecimal](bigDecimalGen))
   )
 
-  private lazy val genSerializable: Gen[Random with Sized, Serializable] =
+  private lazy val genSerializable: Gen[Sized, Serializable] =
     Gen.oneOf(
       Gen.const(serializableBinary),
       Gen.const(serializableBinarySet),

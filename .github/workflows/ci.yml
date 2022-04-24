@@ -42,9 +42,9 @@ jobs:
     - name: Cache scala dependencies
       uses: coursier/cache-action@v6
     - name: Run tests
-      run: sbt ++${{ matrix.scala }}! test
+      run: sbt -J-XX:+UseG1GC -J-Xmx6g -J-Xms6g -J-Xss16m ++${{ matrix.scala }}! test
     - name: Run integration tests
-      run: sbt ++${{ matrix.scala }}! it:test
+      run: sbt -J-XX:+UseG1GC -J-Xmx6g -J-Xms6g -J-Xss16m ++${{ matrix.scala }}! it:test
 
   publish:
     runs-on: ubuntu-20.04

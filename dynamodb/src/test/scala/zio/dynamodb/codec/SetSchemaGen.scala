@@ -3,7 +3,6 @@ package zio.dynamodb.codec
 import zio.Chunk
 import zio.dynamodb.codec.SchemaGen.anyPrimitiveAndGen
 import zio.dynamodb.{ AttributeValue, Codec }
-import zio.random.Random
 import zio.schema.{ Schema, StandardType }
 import zio.test.Assertion.{ equalTo, isRight }
 import zio.test.{ assert, assertCompletes, Gen, Sized }
@@ -32,15 +31,15 @@ object SetSchemaGen {
       case _                           => SetType.None
     }
 
-  type PrimitiveAndGenWithSetType[A] = (Schema.Primitive[A], Gen[Random with Sized, A], SetType)
+  type PrimitiveAndGenWithSetType[A] = (Schema.Primitive[A], Gen[Sized, A], SetType)
 
-  val primitiveAndGenWithSetType: Gen[Random, PrimitiveAndGenWithSetType[_]] = anyPrimitiveAndGen.collect {
+  val primitiveAndGenWithSetType: Gen[Any, PrimitiveAndGenWithSetType[_]] = anyPrimitiveAndGen.collect {
     case (s: Schema.Primitive[_], gen) => (s, gen, setType(s.standardType))
   }
 
-  type SetAndGenWithSetType[A] = (Schema.SetSchema[A], Gen[Random with Sized, Set[A]], SetType)
+  type SetAndGenWithSetType[A] = (Schema.SetSchema[A], Gen[Sized, Set[A]], SetType)
 
-  val anySetAndGenWithSetType: Gen[Random with Sized, SetAndGenWithSetType[_]] =
+  val anySetAndGenWithSetType: Gen[Sized, SetAndGenWithSetType[_]] =
     primitiveAndGenWithSetType.map {
       case (schema, gen, setType) =>
         (Schema.SetSchema(schema, Chunk.empty), Gen.setOf(gen), setType)
@@ -48,7 +47,7 @@ object SetSchemaGen {
 
   type SetAndValueWithSetType[A] = (Schema.SetSchema[A], Set[A], SetType)
 
-  val anySetAndValueWithSetType: Gen[Random with Sized, SetAndValueWithSetType[_]] =
+  val anySetAndValueWithSetType: Gen[Sized, SetAndValueWithSetType[_]] =
     for {
       (schema, gen, setType) <- anySetAndGenWithSetType
       value                  <- gen
