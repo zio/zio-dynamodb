@@ -1,5 +1,5 @@
 package zio.dynamodb
-import zio.{ Chunk, Has, IO, NonEmptyChunk, ZIO }
+import zio.{ Chunk, Has, NonEmptyChunk, ZIO }
 import zio.dynamodb.DynamoDBQuery._
 import io.github.vigoo.zioaws.dynamodb.DynamoDb
 import io.github.vigoo.zioaws.dynamodb.model.{
@@ -83,7 +83,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       case c: QuerySome      => executeQuerySome(c)
       case c: QueryAll       => executeQueryAll(c)
       case c: Transaction[_] => executeTransaction(c)
-      case FailCause(cause)  => ZIO.halt(cause())
       case Succeed(value)    => ZIO.succeed(value())
     }
 
@@ -171,55 +170,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
         unprocessed <- ref.get
       } yield BatchWriteItem.Response(unprocessed.toOption)
 
-  // Need to go through the chunk and make sure we don't have mixed transaction actions
-  private def filterMixedTransactions[A](
-    actions: Chunk[Constructor[A]]
-  ): Either[Throwable, (Chunk[Constructor[A]], TransactionType)] =
-    if (actions.isEmpty) Left(EmptyTransaction())
-    else {
-      val headConstructor = constructorToTransactionType(actions.head)
-        .map(Right(_))
-        .getOrElse(Left(InvalidTransactionActions(NonEmptyChunk(actions.head)))) // TODO: Grab all that are invalid
-      actions
-        .drop(1)
-        .foldLeft(headConstructor: Either[Throwable, TransactionType]) {
-          case (acc, constructor) =>
-            acc match {
-              case l @ Left(_)            => l // Should also continue collecting other failures
-              case Right(transactionType) => constructorMatch(constructor, transactionType)
-            }
-        }
-        .map(transactionType => (actions, transactionType))
-    }
-
-  private def constructorMatch[A](
-    constructor: Constructor[A],
-    transactionType: TransactionType
-  ): Either[Throwable, TransactionType] =
-    constructorToTransactionType(constructor)
-      .map(t =>
-        if (t == transactionType) Right(transactionType)
-        else Left(MixedTransactionTypes())
-      )
-      .getOrElse(
-        Left(InvalidTransactionActions(NonEmptyChunk(constructor)))
-      )
-
-  private def constructorToTransactionType[A](constructor: Constructor[A]): Option[TransactionType] =
-    constructor match {
-      case _: DeleteItem     => Some(TransactionType.Write)
-      case _: PutItem        => Some(TransactionType.Write)
-      case _: BatchWriteItem => Some(TransactionType.Write)
-      case _: UpdateItem     => Some(TransactionType.Write)
-      case _: ConditionCheck => Some(TransactionType.Write)
-      case _: GetItem        => Some(TransactionType.Get)
-      case _: BatchGetItem   => Some(TransactionType.Get)
-      case _                 => None
-    }
-
   private def executeTransaction[A](transaction: Transaction[A]): ZIO[Any, Throwable, A] =
     for {
-      (transactionActions, transactionMapping) <- buildTransaction(transaction)
+      (transactionActions, transactionMapping) <- ZIO.fromEither(buildTransaction(transaction))
       (transactionActions, transactionType)    <- ZIO.fromEither(filterMixedTransactions(transactionActions))
       builtTransaction                          = constructTransaction(
                                                     transactionActions,
@@ -318,20 +271,65 @@ case object DynamoDBExecutorImpl {
     final case object Get   extends TransactionType
   }
 
-  // what to do about the request token?
+  // Need to go through the chunk and make sure we don't have mixed transaction actions
+  private[dynamodb] def filterMixedTransactions[A](
+    actions: Chunk[Constructor[A]]
+  ): Either[Throwable, (Chunk[Constructor[A]], TransactionType)] =
+    if (actions.isEmpty) Left(EmptyTransaction())
+    else {
+      val headConstructor = constructorToTransactionType(actions.head)
+        .map(Right(_))
+        .getOrElse(Left(InvalidTransactionActions(NonEmptyChunk(actions.head)))) // TODO: Grab all that are invalid
+      actions
+        .drop(1)
+        .foldLeft(headConstructor: Either[Throwable, TransactionType]) {
+          case (acc, constructor) =>
+            acc match {
+              case l @ Left(_)            => l // Should also continue collecting other failures
+              case Right(transactionType) => constructorMatch(constructor, transactionType)
+            }
+        }
+        .map(transactionType => (actions, transactionType))
+    }
+
+  private def constructorMatch[A](
+    constructor: Constructor[A],
+    transactionType: TransactionType
+  ): Either[Throwable, TransactionType] =
+    constructorToTransactionType(constructor)
+      .map(t =>
+        if (t == transactionType) Right(transactionType)
+        else Left(MixedTransactionTypes())
+      )
+      .getOrElse(
+        Left(InvalidTransactionActions(NonEmptyChunk(constructor)))
+      )
+
+  private def constructorToTransactionType[A](constructor: Constructor[A]): Option[TransactionType] =
+    constructor match {
+      case _: DeleteItem     => Some(TransactionType.Write)
+      case _: PutItem        => Some(TransactionType.Write)
+      case _: BatchWriteItem => Some(TransactionType.Write)
+      case _: UpdateItem     => Some(TransactionType.Write)
+      case _: ConditionCheck => Some(TransactionType.Write)
+      case _: GetItem        => Some(TransactionType.Get)
+      case _: BatchGetItem   => Some(TransactionType.Get)
+      case _                 => None
+    }
+
   private[dynamodb] def buildTransaction[A](
     query: DynamoDBQuery[A]
-  ): IO[
+  ): Either[
     Throwable,
     (Chunk[Constructor[Any]], Chunk[Any] => A)
   ] =
     query match {
       case constructor: Constructor[A] =>
         constructor match {
-          case s: PutItem                  => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: DeleteItem               => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: PutItem                  => Right((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: DeleteItem               => Right((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
           case s: GetItem                  =>
-            ZIO.succeed(
+            Right(
               (
                 Chunk(s),
                 chunk => {
@@ -341,7 +339,7 @@ case object DynamoDBExecutorImpl {
               )
             )
           case s: BatchGetItem             =>
-            ZIO.succeed(
+            Right(
               (
                 Chunk(s),
                 chunk => {
@@ -365,15 +363,14 @@ case object DynamoDBExecutorImpl {
               )
             )
 
-          case s: BatchWriteItem           => ZIO.succeed((Chunk(s), _ => BatchWriteItem.Response(None).asInstanceOf[A]))
+          case s: BatchWriteItem           => Right((Chunk(s), _ => BatchWriteItem.Response(None).asInstanceOf[A]))
           case Transaction(query, _, _, _) => buildTransaction(query)
           case s: UpdateItem               =>
-            ZIO.succeed(
+            Right(
               (Chunk(s), _ => None.asInstanceOf[A])
             ) // we don't get data back from transactWrites, return None here
-          case s: ConditionCheck           => ZIO.succeed((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case FailCause(cause)            => ZIO.halt(cause())
-          case s                           => ZIO.fail(InvalidTransactionActions(NonEmptyChunk(s)))
+          case s: ConditionCheck           => Right((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s                           => Left(InvalidTransactionActions(NonEmptyChunk(s)))
         }
       case Zip(left, right, zippable)  =>
         for {

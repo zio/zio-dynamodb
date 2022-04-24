@@ -24,7 +24,7 @@ import zio.dynamodb.DynamoDBQuery.{
 import zio.dynamodb.UpdateExpression.Action
 import zio.schema.Schema
 import zio.stream.Stream
-import zio.{ Cause, Chunk, Has, NonEmptyChunk, Schedule, ZIO }
+import zio.{ Chunk, Has, NonEmptyChunk, Schedule, ZIO }
 
 sealed trait DynamoDBQuery[+A] { self =>
 
@@ -377,6 +377,16 @@ sealed trait DynamoDBQuery[+A] { self =>
 
   final def transaction: DynamoDBQuery[A] = Transaction(self).asInstanceOf[DynamoDBQuery[A]]
 
+  final def safeTransaction: Either[Throwable, DynamoDBQuery[A]] = {
+    val transaction = Transaction(self)
+    DynamoDBExecutorImpl
+      .buildTransaction(transaction)
+      .flatMap {
+        case (actions, _) => DynamoDBExecutorImpl.filterMixedTransactions(actions)
+      }
+      .map(_ => transaction)
+  }
+
 }
 
 object DynamoDBQuery {
@@ -388,8 +398,6 @@ object DynamoDBQuery {
 
   def succeed[A](a: A): DynamoDBQuery[A] = Succeed(() => a)
 
-  private[dynamodb] final case class FailCause(cause: () => Cause[Throwable]) extends Constructor[Nothing]
-  private[dynamodb] def failCause(cause: => Cause[Throwable]): DynamoDBQuery[Nothing] = FailCause(() => cause)
   final case class EmptyTransaction() extends Throwable
 
   /**
@@ -916,14 +924,6 @@ object DynamoDBQuery {
           Chunk(batchWriteItem),
           (results: Chunk[Any]) => {
             results.head.asInstanceOf[A]
-          }
-        )
-
-      case _: FailCause                                       =>
-        (
-          Chunk[Constructor[Any]](),
-          (_: Chunk[Any]) => {
-            ().asInstanceOf[A]
           }
         )
 
