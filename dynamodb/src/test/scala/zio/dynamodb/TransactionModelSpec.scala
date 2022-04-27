@@ -6,10 +6,9 @@ import zio.{ Chunk, Has, ULayer, ZLayer }
 import zio.clock.Clock
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.ProjectionExpression.$
-import zio.test.Assertion.equalTo
-import zio.test.TestAspect.failing
+import zio.test.Assertion.{ contains, equalTo, fails, hasField, isSubtype }
 import zio.test.mock.Expectation.value
-import zio.test.{ assertM, DefaultRunnableSpec, ZSpec }
+import zio.test.{ assertM, Assertion, DefaultRunnableSpec, ZSpec }
 import io.github.vigoo.zioaws.dynamodb.model.{ ItemResponse, TransactGetItemsResponse, TransactWriteItemsResponse }
 
 object TransactionModelSpec extends DefaultRunnableSpec {
@@ -120,6 +119,19 @@ object TransactionModelSpec extends DefaultRunnableSpec {
       .or(putItem)
       .or(batchWriteItem)
   private val clockLayer                         = ZLayer.identity[Has[Clock.Service]]
+
+  private def invalidTransactionActionsContains(action: DynamoDBQuery[Any]): Assertion[Any] =
+    isSubtype[InvalidTransactionActions](
+      hasField(
+        "invalidActions",
+        a => {
+          val b: Iterable[DynamoDBQuery[Any]] = a.invalidActions.toIterable
+          b
+        },
+        contains(action)
+      )
+    )
+
   override def spec: ZSpec[Environment, Failure] =
     suite("Transaction builder suite")(
       failureSuite.provideCustomLayer((emptyDynamoDB ++ clockLayer) >>> DynamoDBExecutor.live),
@@ -132,43 +144,50 @@ object TransactionModelSpec extends DefaultRunnableSpec {
         val updateItem = UpdateItem(
           key = item,
           tableName = tableName,
-          updateExpression = UpdateExpression($("name").set(""))
+          updateExpression = UpdateExpression($("name").setValue(""))
         )
 
         val getItem = GetItem(tableName, item)
 
-        assertM(updateItem.zip(getItem).transaction.execute)(equalTo((None, None)))
-      } @@ failing
+        assertM(updateItem.zip(getItem).transaction.execute.run)(
+          fails(isSubtype[MixedTransactionTypes](Assertion.anything))
+        )
+      }
     ),
     suite("invalid transaction actions")(
       testM("create table") {
-        assertM(
-          CreateTable(
-            tableName = tableName,
-            keySchema = KeySchema("key"),
-            attributeDefinitions = NonEmptySet(AttributeDefinition.attrDefnString("name")),
-            billingMode = BillingMode.PayPerRequest
-          ).transaction.execute
-        )(equalTo(()))
-      } @@ failing,
+        val createTable = CreateTable(
+          tableName = tableName,
+          keySchema = KeySchema("key"),
+          attributeDefinitions = NonEmptySet(AttributeDefinition.attrDefnString("name")),
+          billingMode = BillingMode.PayPerRequest
+        )
+        assertM(createTable.transaction.execute.run)(fails(invalidTransactionActionsContains(createTable)))
+      },
       testM("delete table") {
-        assertM(DeleteTable(tableName).transaction.execute)(equalTo(()))
-      } @@ failing,
+        val deleteTable = DeleteTable(tableName)
+        assertM(deleteTable.transaction.execute.run)(fails(invalidTransactionActionsContains(deleteTable)))
+      },
       testM("scan all") {
-        assertM(ScanAll(tableName).transaction.execute)(equalTo(zio.stream.Stream.empty))
-      } @@ failing,
+        val scanAll = ScanAll(tableName)
+        assertM(scanAll.transaction.execute.run)(fails(invalidTransactionActionsContains(scanAll)))
+      },
       testM("scan some") {
-        assertM(ScanSome(tableName, 4).transaction.execute)(equalTo((Chunk.empty, None)))
-      } @@ failing,
+        val scanSome = ScanSome(tableName, 4)
+        assertM(scanSome.transaction.execute.run)(fails(invalidTransactionActionsContains(scanSome)))
+      },
       testM("describe table") {
-        assertM(DescribeTable(tableName).transaction.execute)(equalTo(DescribeTableResponse("", TableStatus.Creating)))
-      } @@ failing,
+        val describeTable = DescribeTable(tableName)
+        assertM(describeTable.transaction.execute.run)(fails(invalidTransactionActionsContains(describeTable)))
+      },
       testM("query some") {
-        assertM(QuerySome(tableName, 4).transaction.execute)(equalTo((Chunk.empty, None)))
-      } @@ failing,
+        val querySome = QuerySome(tableName, 4)
+        assertM(querySome.transaction.execute.run)(fails(invalidTransactionActionsContains(querySome)))
+      },
       testM("query all") {
-        assertM(QueryAll(tableName).transaction.execute)(equalTo(zio.stream.Stream.empty))
-      } @@ failing
+        val queryAll = QueryAll(tableName)
+        assertM(queryAll.transaction.execute.run)(fails(invalidTransactionActionsContains(queryAll)))
+      }
     )
   )
 

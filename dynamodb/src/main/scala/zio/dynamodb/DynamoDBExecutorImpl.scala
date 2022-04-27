@@ -174,14 +174,14 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
     for {
       (transactionActions, transactionMapping) <- ZIO.fromEither(buildTransaction(transaction))
       (transactionActions, transactionType)    <- ZIO.fromEither(filterMixedTransactions(transactionActions))
-      builtTransaction                          = constructTransaction(
+      getOrWriteTransaction                     = constructTransaction(
                                                     transactionActions,
                                                     transactionType,
                                                     transaction.clientRequestToken,
                                                     transaction.itemMetrics,
                                                     transaction.capacity
                                                   )
-      a: Chunk[Any]                            <- builtTransaction match {
+      a: Chunk[Any]                            <- getOrWriteTransaction match {
                                                     case Left(transactGetItems)    =>
                                                       (for {
                                                         response <- dynamoDb.transactGetItems(transactGetItems)
@@ -281,7 +281,7 @@ case object DynamoDBExecutorImpl {
         .map(Right(_))
         .getOrElse(Left(InvalidTransactionActions(NonEmptyChunk(actions.head)))) // TODO: Grab all that are invalid
       actions
-        .drop(1)
+        .drop(1)                                                                 // dropping 1 because we have the head element as the base case of the fold
         .foldLeft(headConstructor: Either[Throwable, TransactionType]) {
           case (acc, constructor) =>
             acc match {
