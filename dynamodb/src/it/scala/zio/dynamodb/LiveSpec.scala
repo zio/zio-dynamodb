@@ -156,7 +156,7 @@ object LiveSpec extends DefaultRunnableSpec {
   private def assertDynamoDbException(substring: String): Assertion[Any] =
     isSubtype[DynamoDbException](hasMessage(containsString(substring)))
 
-  private val trueConditionExpression = ConditionExpression.Equals(
+  private val conditionAlwaysTrue = ConditionExpression.Equals(
     ConditionExpression.Operand.ValueOperand(AttributeValue(id)),
     ConditionExpression.Operand.ValueOperand(AttributeValue(id))
   )
@@ -715,7 +715,7 @@ object LiveSpec extends DefaultRunnableSpec {
               val conditionCheck = ConditionCheck(
                 primaryKey = pk(avi3Item),
                 tableName = TableName(tableName),
-                conditionExpression = trueConditionExpression
+                conditionExpression = conditionAlwaysTrue
               )
               val putItem        = PutItem(
                 item = Item(id -> first, name -> avi3, number -> 10),
@@ -782,7 +782,7 @@ object LiveSpec extends DefaultRunnableSpec {
               val conditionCheck = ConditionCheck(
                 primaryKey = pk(aviItem),
                 tableName = TableName(tableName),
-                conditionExpression = trueConditionExpression
+                conditionExpression = conditionAlwaysTrue
               )
               val updateItem     = UpdateItem(
                 key = pk(avi3Item),
