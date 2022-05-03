@@ -1,5 +1,5 @@
 package zio.dynamodb
-import zio.{ Chunk, Has, ZIO }
+import zio.{ Chunk, Has, NonEmptyChunk, ZIO }
 import zio.dynamodb.DynamoDBQuery._
 import io.github.vigoo.zioaws.dynamodb.DynamoDb
 import io.github.vigoo.zioaws.dynamodb.model.{
@@ -10,6 +10,7 @@ import io.github.vigoo.zioaws.dynamodb.model.{
   DeleteRequest,
   DeleteTableRequest,
   DescribeTableRequest,
+  Get,
   GetItemRequest,
   KeySchemaElement,
   KeyType,
@@ -21,23 +22,31 @@ import io.github.vigoo.zioaws.dynamodb.model.{
   ScalarAttributeType,
   ScanRequest,
   Tag,
+  TransactGetItem,
+  TransactGetItemsRequest,
+  TransactWriteItem,
+  TransactWriteItemsRequest,
   UpdateItemRequest,
   UpdateItemResponse,
   WriteRequest,
   AttributeDefinition => ZIOAwsAttributeDefinition,
   AttributeValue => ZIOAwsAttributeValue,
   BillingMode => ZIOAwsBillingMode,
+  ConditionCheck => ZIOAwsConditionCheck,
+  Delete => ZIOAwsDelete,
   GlobalSecondaryIndex => ZIOAwsGlobalSecondaryIndex,
   LocalSecondaryIndex => ZIOAwsLocalSecondaryIndex,
   Projection => ZIOAwsProjection,
   ProjectionType => ZIOAwsProjectionType,
   ProvisionedThroughput => ZIOAwsProvisionedThroughput,
+  Put => ZIOAwsPut,
   ReturnConsumedCapacity => ZIOAwsReturnConsumedCapacity,
   ReturnItemCollectionMetrics => ZIOAwsReturnItemCollectionMetrics,
   SSESpecification => ZIOAwsSSESpecification,
   SSEType => ZIOAwsSSEType,
   Select => ZIOAwsSelect,
-  TableStatus => ZIOAwsTableStatus
+  TableStatus => ZIOAwsTableStatus,
+  Update => ZIOAwsUpdate
 }
 import zio.clock.Clock
 import zio.dynamodb.ConsistencyMode.toBoolean
@@ -66,13 +75,15 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       case c: ScanAll        => executeScanAll(c)
       case c: ScanSome       => executeScanSome(c)
       case c: UpdateItem     => executeUpdateItem(c)
+      case _: ConditionCheck => ZIO.unit
       case c: CreateTable    => executeCreateTable(c)
       case c: DeleteItem     => executeDeleteItem(c)
       case c: DeleteTable    => executeDeleteTable(c)
       case c: DescribeTable  => executeDescribeTable(c)
       case c: QuerySome      => executeQuerySome(c)
       case c: QueryAll       => executeQueryAll(c)
-      case Succeed(c)        => ZIO.succeed(c())
+      case c: Transaction[_] => executeTransaction(c)
+      case Succeed(value)    => ZIO.succeed(value())
     }
 
   override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Throwable, A] =
@@ -159,6 +170,30 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
         unprocessed <- ref.get
       } yield BatchWriteItem.Response(unprocessed.toOption)
 
+  private def executeTransaction[A](transaction: Transaction[A]): ZIO[Any, Throwable, A] =
+    for {
+      (transactionActions, transactionMapping) <- ZIO.fromEither(buildTransaction(transaction))
+      (transactionActions, transactionType)    <- ZIO.fromEither(filterMixedTransactions(transactionActions))
+      getOrWriteTransaction                     = constructTransaction(
+                                                    transactionActions,
+                                                    transactionType,
+                                                    transaction.clientRequestToken,
+                                                    transaction.itemMetrics,
+                                                    transaction.capacity
+                                                  )
+      a: Chunk[Any]                            <- getOrWriteTransaction match {
+                                                    case Left(transactGetItems)    =>
+                                                      (for {
+                                                        response <- dynamoDb.transactGetItems(transactGetItems)
+                                                        items    <- response.responses.map(_.map(item => item.itemValue.map(dynamoDBItem)))
+                                                      } yield Chunk.fromIterable(items)).mapError(_.toThrowable)
+                                                    case Right(transactWriteItems) =>
+                                                      dynamoDb
+                                                        .transactWriteItems(transactWriteItems)
+                                                        .mapBoth(_.toThrowable, _ => Chunk.fill(transactionActions.length)(()))
+                                                  }
+    } yield transactionMapping(a)
+
   private def executeScanSome(scanSome: ScanSome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] =
     dynamoDb
       .scan(awsScanRequest(scanSome))
@@ -229,6 +264,231 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
 }
 
 case object DynamoDBExecutorImpl {
+
+  sealed trait TransactionType
+  object TransactionType {
+    final case object Write extends TransactionType
+    final case object Get   extends TransactionType
+  }
+
+  // Need to go through the chunk and make sure we don't have mixed transaction actions
+  private[dynamodb] def filterMixedTransactions[A](
+    actions: Chunk[Constructor[A]]
+  ): Either[Throwable, (Chunk[Constructor[A]], TransactionType)] =
+    if (actions.isEmpty) Left(EmptyTransaction())
+    else {
+      val headConstructor = constructorToTransactionType(actions.head)
+        .map(Right(_))
+        .getOrElse(Left(InvalidTransactionActions(NonEmptyChunk(actions.head)))) // TODO: Grab all that are invalid
+      actions
+        .drop(1)                                                                 // dropping 1 because we have the head element as the base case of the fold
+        .foldLeft(headConstructor: Either[Throwable, TransactionType]) {
+          case (acc, constructor) =>
+            acc match {
+              case l @ Left(_)            => l // Should also continue collecting other failures
+              case Right(transactionType) => constructorMatch(constructor, transactionType)
+            }
+        }
+        .map(transactionType => (actions, transactionType))
+    }
+
+  private def constructorMatch[A](
+    constructor: Constructor[A],
+    transactionType: TransactionType
+  ): Either[Throwable, TransactionType] =
+    constructorToTransactionType(constructor)
+      .map(t =>
+        if (t == transactionType) Right(transactionType)
+        else Left(MixedTransactionTypes())
+      )
+      .getOrElse(
+        Left(InvalidTransactionActions(NonEmptyChunk(constructor)))
+      )
+
+  private def constructorToTransactionType[A](constructor: Constructor[A]): Option[TransactionType] =
+    constructor match {
+      case _: DeleteItem     => Some(TransactionType.Write)
+      case _: PutItem        => Some(TransactionType.Write)
+      case _: BatchWriteItem => Some(TransactionType.Write)
+      case _: UpdateItem     => Some(TransactionType.Write)
+      case _: ConditionCheck => Some(TransactionType.Write)
+      case _: GetItem        => Some(TransactionType.Get)
+      case _: BatchGetItem   => Some(TransactionType.Get)
+      case _                 => None
+    }
+
+  private[dynamodb] def buildTransaction[A](
+    query: DynamoDBQuery[A]
+  ): Either[
+    Throwable,
+    (Chunk[Constructor[Any]], Chunk[Any] => A)
+  ] =
+    query match {
+      case constructor: Constructor[A] =>
+        constructor match {
+          case s: PutItem                  => Right((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: DeleteItem               => Right((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: GetItem                  =>
+            Right(
+              (
+                Chunk(s),
+                chunk => {
+                  val maybeItem = chunk(0).asInstanceOf[Option[AttrMap]] // may have an empty AttrMap
+                  maybeItem.flatMap(item => if (item.map.isEmpty) None else Some(item)).asInstanceOf[A]
+                }
+              )
+            )
+          case s: BatchGetItem             =>
+            Right(
+              (
+                Chunk(s),
+                chunk => {
+                  val b: Seq[(TableName, Int)] = s.requestItems.toSeq.flatMap {
+                    case (tName, items) => Seq.fill(items.keysSet.size)(tName)
+                  }.zipWithIndex
+                  val responses                = b.foldLeft(MapOfSet.empty[TableName, Item]) {
+                    case (acc, (tableName, index)) =>
+                      val maybeItem = chunk(index).asInstanceOf[Option[AttrMap]]
+                      maybeItem match {
+                        case Some(value) =>
+                          if (value.map.isEmpty) // may have an empty AttrMap
+                            acc
+                          else acc.addAll((tableName, value))
+                        case None        => acc
+                      }
+                  }
+
+                  BatchGetItem.Response(responses = responses).asInstanceOf[A]
+                }
+              )
+            )
+
+          case s: BatchWriteItem           => Right((Chunk(s), _ => BatchWriteItem.Response(None).asInstanceOf[A]))
+          case Transaction(query, _, _, _) => buildTransaction(query)
+          case s: UpdateItem               =>
+            Right(
+              (Chunk(s), _ => None.asInstanceOf[A])
+            ) // we don't get data back from transactWrites, return None here
+          case s: ConditionCheck           => Right((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s                           => Left(InvalidTransactionActions(NonEmptyChunk(s)))
+        }
+      case Zip(left, right, zippable)  =>
+        for {
+          l <- buildTransaction(left)
+          r <- buildTransaction(right)
+        } yield (
+          l._1 ++ r._1,
+          (chunk: Chunk[Any]) => {
+            val leftChunk  = chunk.take(l._1.length)
+            val rightChunk = chunk.drop(l._1.length)
+
+            val leftValue  = l._2(leftChunk)
+            val rightValue = r._2(rightChunk)
+
+            zippable.zip(leftValue, rightValue)
+          }
+        )
+      case Map(query, mapper)          =>
+        buildTransaction(query).map {
+          case (constructors, construct) => (constructors, chunk => mapper.asInstanceOf[Any => A](construct(chunk)))
+        }
+    }
+
+  private[dynamodb] def constructTransaction[A](
+    actions: Chunk[Constructor[A]],
+    transactionType: TransactionType,
+    clientRequestToken: Option[String],
+    itemCollectionMetrics: ReturnItemCollectionMetrics,
+    returnConsumedCapacity: ReturnConsumedCapacity
+  ): Either[TransactGetItemsRequest, TransactWriteItemsRequest] =
+    transactionType match {
+      case TransactionType.Write =>
+        Right(constructWriteTransaction(actions, clientRequestToken, returnConsumedCapacity, itemCollectionMetrics))
+      case TransactionType.Get   => Left(constructGetTransaction(actions, returnConsumedCapacity))
+    }
+
+  private[dynamodb] def constructGetTransaction[A](
+    actions: Chunk[Constructor[A]],
+    returnConsumedCapacity: ReturnConsumedCapacity
+  ): TransactGetItemsRequest = {
+    val getActions: Chunk[TransactGetItem] = actions.flatMap {
+      case s: GetItem      =>
+        Some(
+          TransactGetItem(
+            Get(
+              key = s.key.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+              tableName = s.tableName.value,
+              projectionExpression = toOption(s.projections).map(awsProjectionExpression)
+            )
+          )
+        )
+      case s: BatchGetItem =>
+        s.requestItems.flatMap {
+          case (tableName, items) =>
+            items.keysSet.map { key =>
+              TransactGetItem(
+                Get(
+                  key = key.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+                  tableName = tableName.value,
+                  projectionExpression = toOption(items.projectionExpressionSet).map(awsProjectionExpression)
+                )
+              )
+            }
+        }
+      case _               => None
+    }
+    TransactGetItemsRequest(
+      transactItems = getActions,
+      returnConsumedCapacity = Some(awsConsumedCapacity(returnConsumedCapacity))
+    )
+  }
+
+  private[dynamodb] def constructWriteTransaction[A](
+    actions: Chunk[Constructor[A]],
+    clientRequestToken: Option[String],
+    returnConsumedCapacity: ReturnConsumedCapacity,
+    itemCollectionMetrics: ReturnItemCollectionMetrics
+  ): TransactWriteItemsRequest = {
+    val writeActions: Chunk[TransactWriteItem] = actions.flatMap {
+      case s: DeleteItem     => awsTransactWriteItem(s)
+      case s: PutItem        => awsTransactWriteItem(s)
+      case s: BatchWriteItem =>
+        s.requestItems.flatMap {
+          case (table, items) =>
+            val something = items.map {
+              case BatchWriteItem.Delete(key) =>
+                TransactWriteItem(delete =
+                  Some(
+                    ZIOAwsDelete(
+                      key = key.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+                      tableName = table.value
+                    )
+                  )
+                )
+              case BatchWriteItem.Put(item)   =>
+                TransactWriteItem(put =
+                  Some(
+                    ZIOAwsPut(
+                      item = item.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+                      tableName = table.value
+                    )
+                  )
+                )
+            }
+            Chunk.fromIterable(something)
+        }
+      case s: UpdateItem     => awsTransactWriteItem(s)
+      case s: ConditionCheck => awsTransactWriteItem(s)
+      case _                 => None
+    }
+
+    TransactWriteItemsRequest(
+      transactItems = writeActions,
+      returnConsumedCapacity = Some(awsConsumedCapacity(returnConsumedCapacity)),
+      returnItemCollectionMetrics = Some(awsReturnItemCollectionMetrics(itemCollectionMetrics)),
+      clientRequestToken = clientRequestToken
+    )
+  }
 
   private val catchBatchRetryError: PartialFunction[Throwable, ZIO[Clock, Throwable, Unit]] = {
     case thrown: Throwable => ZIO.fail(thrown).unless(thrown.isInstanceOf[BatchRetryError])
@@ -453,15 +713,75 @@ case object DynamoDBExecutorImpl {
     )
   }
 
+  private def awsTransactWriteItem[A](action: Constructor[A]): Option[TransactWriteItem] =
+    action match {
+      case conditionCheck: ConditionCheck =>
+        Some(TransactWriteItem(conditionCheck = Some(awsConditionCheck(conditionCheck))))
+      case put: PutItem                   => Some(TransactWriteItem(put = Some(awsTransactPutItem(put))))
+      case delete: DeleteItem             => Some(TransactWriteItem(delete = Some(awsTransactDeleteItem(delete))))
+      case update: UpdateItem             => Some(TransactWriteItem(update = Some(awsTransactUpdateItem(update))))
+      case _                              => None
+    }
+
+  private def awsConditionCheck(conditionCheck: ConditionCheck): ZIOAwsConditionCheck = {
+    val (aliasMap, conditionExpression) = conditionCheck.conditionExpression.render.execute
+
+    ZIOAwsConditionCheck(
+      key = conditionCheck.primaryKey.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+      tableName = conditionCheck.tableName.value,
+      conditionExpression = conditionExpression,
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap)
+    )
+  }
+
+  private def awsTransactPutItem(put: PutItem): ZIOAwsPut = {
+    val (aliasMap, conditionExpression) = AliasMapRender.collectAll(put.conditionExpression.map(_.render)).execute
+
+    ZIOAwsPut(
+      item = put.item.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+      tableName = put.tableName.value,
+      conditionExpression = conditionExpression,
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap)
+    )
+  }
+
+  private def awsTransactDeleteItem(delete: DeleteItem): ZIOAwsDelete = {
+    val (aliasMap, conditionExpression) = AliasMapRender.collectAll(delete.conditionExpression.map(_.render)).execute
+
+    ZIOAwsDelete(
+      key = delete.key.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+      tableName = delete.tableName.value,
+      conditionExpression = conditionExpression,
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap)
+    )
+  }
+
+  private def awsTransactUpdateItem(update: UpdateItem): ZIOAwsUpdate = {
+    val (aliasMap, (updateExpr, maybeConditionExpr)) = (for {
+      updateExpr    <- update.updateExpression.render
+      conditionExpr <- AliasMapRender.collectAll(update.conditionExpression.map(_.render))
+    } yield (updateExpr, conditionExpr)).execute
+
+    ZIOAwsUpdate(
+      key = update.key.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+      tableName = update.tableName.value,
+      conditionExpression = maybeConditionExpr,
+      updateExpression = updateExpr,
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap)
+    )
+  }
+
   private[dynamodb] def awsProjectionExpression(
     projectionExpressions: Iterable[ProjectionExpression]
   ): String =
     projectionExpressions.mkString(", ")
 
-  private def awsAttributeValueMap(attrMap: ScalaMap[String, AttributeValue]): ScalaMap[String, ZIOAwsAttributeValue] =
+  private[dynamodb] def awsAttributeValueMap(
+    attrMap: ScalaMap[String, AttributeValue]
+  ): ScalaMap[String, ZIOAwsAttributeValue]                                                              =
     attrMap.map { case (k, v) => (k, awsAttributeValue(v)) }
 
-  private def awsAttrValToAttrVal(attributeValue: ZIOAwsAttributeValue.ReadOnly): Option[AttributeValue]              =
+  private def awsAttrValToAttrVal(attributeValue: ZIOAwsAttributeValue.ReadOnly): Option[AttributeValue] =
     attributeValue.sValue
       .map(AttributeValue.String)
       .orElse {
