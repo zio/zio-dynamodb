@@ -36,7 +36,7 @@ import io.github.vigoo.zioaws.core.config
 import io.github.vigoo.zioaws.dynamodb
 import zio.clock.Clock
 
-object Main extends App {
+object Main extends ZIOAppDefault {
 
   final case class Person(id: Int, firstName: String)
   object Person {
@@ -47,15 +47,16 @@ object Main extends App {
   private val program = for {
     _      <- put("tableName", examplePerson).execute
     person <- get[Person]("tableName", PrimaryKey("id" -> 1)).execute
-    _      <- zio.console.putStrLn(s"hello $person")
+    _      <- zio.Console.printLine(s"hello $person")
   } yield ()
 
-  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
+  override def run = {
 
-    val dynamoDbLayer = http4s.default >>> config.default >>> dynamodb.live // uses real AWS dynamodb
-    val executorLayer = (dynamoDbLayer ++ ZLayer.identity[Has[Clock.Service]]) >>> DynamoDBExecutor.live
+    val dynamoDbLayer =
+      http4s.Http4sClient.default >>> config.AwsConfig.default >>> dynamodb.DynamoDb.live // uses real AWS dynamodb
+    val executorLayer = dynamoDbLayer >>> DynamoDBExecutor.live
 
-    program.provideCustomLayer(executorLayer).exitCode
+    program.provide(executorLayer)
   }
 }
 
