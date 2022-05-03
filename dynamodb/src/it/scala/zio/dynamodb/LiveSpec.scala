@@ -84,21 +84,11 @@ object LiveSpec extends DefaultRunnableSpec {
   private val john2Item = Item(id -> third, name -> john2, number -> 6)
   private val john3Item = Item(id -> third, name -> john3, number -> 9)
 
-  private def pk(item: Item): PrimaryKey = {
-    val map: ScalaMap[Item, PrimaryKey] = ScalaMap(
-      aviItem   -> PrimaryKey(id -> first, number -> 1),
-      avi2Item  -> PrimaryKey(id -> first, number -> 4),
-      avi3Item  -> PrimaryKey(id -> first, number -> 7),
-      adamItem  -> PrimaryKey(id -> second, number -> 2),
-      adam2Item -> PrimaryKey(id -> second, number -> 5),
-      adam3Item -> PrimaryKey(id -> second, number -> 8),
-      johnItem  -> PrimaryKey(id -> third, number -> 3),
-      john2Item -> PrimaryKey(id -> third, number -> 6),
-      john3Item -> PrimaryKey(id -> third, number -> 9)
-    )
-    map.getOrElse(item, PrimaryKey("nothing" -> "nothing"))
-
-  }
+  private def pk(item: Item): PrimaryKey =
+    (item.map.get("id"), item.map.get("num")) match {
+      case (Some(id), Some(num)) => PrimaryKey("id" -> id, "num" -> num)
+      case _                     => throw new IllegalStateException(s"Both id and num need to present in item $item")
+    }
 
   private def insertData(tableName: String) =
     putItem(tableName, aviItem) *>
