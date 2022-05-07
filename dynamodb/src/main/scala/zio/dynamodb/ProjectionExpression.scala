@@ -258,19 +258,30 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
         implicitly[ToOperand[To]].toOperand(that)
       )
 
-    def ===[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = ???
-
+    def ===[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = {
+      val _ = refersTo
+      ConditionExpression.Equals(
+        ProjectionExpressionOperand(self),
+        ConditionExpression.Operand.ProjectionExpressionOperand(that)
+      )
+    }
   }
 }
 trait ProjectionExpressionLowPriorityImplicits1 {
   implicit class ProjectionExpressionSyntax1[To](self: ProjectionExpression[To]) {
 
-    def ===[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = ???
-    //    ConditionExpression.Equals(
-    //      ProjectionExpressionOperand(self),
-    //      t.toOperand(that)
-    //      //      ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
-    //    )
+    def ===[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = {
+      val _ = refersTo
+      ConditionExpression.Equals(
+        ProjectionExpressionOperand(self),
+        ConditionExpression.Operand.ProjectionExpressionOperand(that)
+      )
+    }
+    //      ConditionExpression.Equals(
+//        ProjectionExpressionOperand(self),
+//        refersTo. toOperand(that)
+//        //      ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
+//      )
   }
 }
 
@@ -288,7 +299,11 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
         implicitly[ToOperand[To]].toOperand(that)
       )
 
-    def ===(that: ProjectionExpression[_]): ConditionExpression = ??? // TODO: implement
+    def ===(that: ProjectionExpression[_]): ConditionExpression =
+      ConditionExpression.Equals(
+        ProjectionExpressionOperand(self),
+        ConditionExpression.Operand.ProjectionExpressionOperand(that)
+      )
 //      ConditionExpression.Equals(
 //        ProjectionExpressionOperand(self),
 //        implicitly[ToOperand[To]].toOperand(that)
