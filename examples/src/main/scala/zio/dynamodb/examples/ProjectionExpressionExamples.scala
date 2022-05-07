@@ -18,4 +18,5 @@ object ProjectionExpressionExamples extends App {
 
   val peEq = $("a.b") === 5
   val peNe = $("a.b") <> 5
+  val peLt = $("a.b") < 5
 }

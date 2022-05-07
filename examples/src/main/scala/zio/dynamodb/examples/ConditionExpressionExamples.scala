@@ -19,6 +19,8 @@ object ConditionExpressionExamples {
   val expnOr: ConditionExpression     = beginsWith || sizeOnLhs
   val expnNot: ConditionExpression    = !beginsWith
 
+  val peNeVal: ConditionExpression   = $("col1") <> 1
+  val peLtVal: ConditionExpression   = $("col1") < 1
   val peCompPe1: ConditionExpression = $("col1") > $("col2")
   val peCompPe2: ConditionExpression = $("col1") === $("col2")
 

@@ -20,11 +20,6 @@ sealed trait ProjectionExpression[To] { self =>
 
   // ConditionExpression with another ProjectionExpression
 
-  def <(that: ProjectionExpression[_]): ConditionExpression  =
-    ConditionExpression.LessThan(
-      ProjectionExpressionOperand(self),
-      ConditionExpression.Operand.ProjectionExpressionOperand(that)
-    )
   def <=(that: ProjectionExpression[_]): ConditionExpression =
     ConditionExpression.LessThanOrEqual(
       ProjectionExpressionOperand(self),
@@ -89,11 +84,6 @@ sealed trait ProjectionExpression[To] { self =>
       .ProjectionExpressionOperand(self)
       .in(values.map(t.toAttributeValue).toSet + t.toAttributeValue(value))
 
-  def <[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression  =
-    ConditionExpression.LessThan(
-      ProjectionExpressionOperand(self),
-      ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
-    )
   def <=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
     ConditionExpression.LessThanOrEqual(
       ProjectionExpressionOperand(self),
@@ -220,7 +210,7 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
       )
     }
 
-    def <>[A](that: To): ConditionExpression =
+    def <>(that: To): ConditionExpression =
       ConditionExpression.NotEqual(
         ProjectionExpressionOperand(self),
         implicitly[ToOperand[To]].toOperand(that)
@@ -232,6 +222,20 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
         ConditionExpression.Operand.ProjectionExpressionOperand(that)
       )
     }
+
+    def <(that: To): ConditionExpression =
+      ConditionExpression.LessThan(
+        ProjectionExpressionOperand(self),
+        implicitly[ToOperand[To]].toOperand(that)
+      )
+    def <[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = {
+      val _ = refersTo
+      ConditionExpression.LessThan(
+        ProjectionExpressionOperand(self),
+        ConditionExpression.Operand.ProjectionExpressionOperand(that)
+      )
+    }
+
   }
 }
 trait ProjectionExpressionLowPriorityImplicits1 {
@@ -247,6 +251,13 @@ trait ProjectionExpressionLowPriorityImplicits1 {
     def <>[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = {
       val _ = refersTo
       ConditionExpression.NotEqual(
+        ProjectionExpressionOperand(self),
+        ConditionExpression.Operand.ProjectionExpressionOperand(that)
+      )
+    }
+    def <[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = {
+      val _ = refersTo
+      ConditionExpression.LessThan(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ProjectionExpressionOperand(that)
       )
@@ -276,14 +287,25 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ProjectionExpressionOperand(that)
       )
-    def <>[To: ToOperand](that: To): ConditionExpression        =
+
+    def <>[To: ToOperand](that: To): ConditionExpression       =
       ConditionExpression.NotEqual(
         ProjectionExpressionOperand(self),
         implicitly[ToOperand[To]].toOperand(that)
       )
-
     def <>(that: ProjectionExpression[_]): ConditionExpression =
       ConditionExpression.NotEqual(
+        ProjectionExpressionOperand(self),
+        ConditionExpression.Operand.ProjectionExpressionOperand(that)
+      )
+
+    def <[To: ToOperand](that: To): ConditionExpression       =
+      ConditionExpression.LessThan(
+        ProjectionExpressionOperand(self),
+        implicitly[ToOperand[To]].toOperand(that)
+      )
+    def <(that: ProjectionExpression[_]): ConditionExpression =
+      ConditionExpression.LessThan(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ProjectionExpressionOperand(that)
       )
