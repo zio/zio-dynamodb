@@ -23,6 +23,7 @@ object ConditionExpressionExamples {
   val peLtVal: ConditionExpression   = $("col1") < 1
   val peLtEqVal: ConditionExpression = $("col1") <= 1
   val peGtVal: ConditionExpression   = $("col1") > 1
+  val peGtEqVal: ConditionExpression = $("col1") >= 1
   val peCompPe1: ConditionExpression = $("col1") > $("col2")
   val peCompPe2: ConditionExpression = $("col1") === $("col2")
 

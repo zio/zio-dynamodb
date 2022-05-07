@@ -40,13 +40,13 @@ object TopLevelEnumOpticsExample {
         val (id, sku) = ProjectionExpression.accessors[PreBilledInvoice]
         queryAll[Student]("invoice")
           .filter( // Scan/Query
-            id === id_ && sku === sku_
+            id > id_ && sku < sku_
           )
       case BilledInvoice(id_, sku_, amount_) =>
         val (id, sku, amount) = ProjectionExpression.accessors[BilledInvoice]
         queryAll[Student]("invoice")
           .filter( // Scan/Query
-            id === id_ && sku === sku_ && amount <= amount_
+            id >= id_ && sku === sku_ && amount <= amount_
           )
     }
 
