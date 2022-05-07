@@ -11,7 +11,6 @@ import scala.annotation.{ implicitNotFound, tailrec }
 // The maximum depth for a document path is 32
 sealed trait ProjectionExpression[To] { self =>
   type From
-//  type To
 
   def unsafeTo[To2]: ProjectionExpression.Typed[From, To2] = self.asInstanceOf[ProjectionExpression.Typed[From, To2]]
 
@@ -21,16 +20,6 @@ sealed trait ProjectionExpression[To] { self =>
 
   // ConditionExpression with another ProjectionExpression
 
-//  def ===(that: ProjectionExpression): ConditionExpression =
-//    ConditionExpression.Equals(
-//      ProjectionExpressionOperand(self),
-//      ConditionExpression.Operand.ProjectionExpressionOperand(that)
-//    )
-  def <>(that: ProjectionExpression[_]): ConditionExpression = // TODO: we need to fix this
-    ConditionExpression.NotEqual(
-      ProjectionExpressionOperand(self),
-      ConditionExpression.Operand.ProjectionExpressionOperand(that)
-    )
   def <(that: ProjectionExpression[_]): ConditionExpression  =
     ConditionExpression.LessThan(
       ProjectionExpressionOperand(self),
@@ -100,25 +89,6 @@ sealed trait ProjectionExpression[To] { self =>
       .ProjectionExpressionOperand(self)
       .in(values.map(t.toAttributeValue).toSet + t.toAttributeValue(value))
 
-  // TODO: was (implicit t: ConditionExpression.Operand.ToOperand[To, A])
-//  def ===(that: To)(implicit t: ToOperand[To]): ConditionExpression =
-//    ConditionExpression.Equals(
-//      ProjectionExpressionOperand(self),
-//      t.toOperand(that)
-//    )
-
-//  def ===(that: ProjectionExpression[To]): ConditionExpression = ???
-//    ConditionExpression.Equals(
-//      ProjectionExpressionOperand(self),
-//      t.toOperand(that)
-//      //      ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
-//    )
-
-  def <>[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
-    ConditionExpression.NotEqual(
-      ProjectionExpressionOperand(self),
-      ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
-    )
   def <[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression  =
     ConditionExpression.LessThan(
       ProjectionExpressionOperand(self),
@@ -134,13 +104,6 @@ sealed trait ProjectionExpression[To] { self =>
       ProjectionExpressionOperand(self),
       ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
     )
-
-//  // TODO: remove - experiment with ToOperand
-//  def >#[A](that: A)(implicit t: ConditionExpression.Operand.ToOperand[Any, A]): ConditionExpression =
-//    ConditionExpression.GreaterThanOrEqual(
-//      ProjectionExpressionOperand(self),
-//      t.toOperand(that)
-//    )
 
   def >=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
     ConditionExpression.GreaterThanOrEqual(
@@ -249,10 +212,22 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
         ProjectionExpressionOperand(self),
         implicitly[ToOperand[To]].toOperand(that)
       )
-
     def ===[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = {
       val _ = refersTo
       ConditionExpression.Equals(
+        ProjectionExpressionOperand(self),
+        ConditionExpression.Operand.ProjectionExpressionOperand(that)
+      )
+    }
+
+    def <>[A](that: To): ConditionExpression =
+      ConditionExpression.NotEqual(
+        ProjectionExpressionOperand(self),
+        implicitly[ToOperand[To]].toOperand(that)
+      )
+    def <>[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = {
+      val _ = refersTo
+      ConditionExpression.NotEqual(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ProjectionExpressionOperand(that)
       )
@@ -269,20 +244,25 @@ trait ProjectionExpressionLowPriorityImplicits1 {
         ConditionExpression.Operand.ProjectionExpressionOperand(that)
       )
     }
-    //      ConditionExpression.Equals(
-//        ProjectionExpressionOperand(self),
-//        refersTo. toOperand(that)
-//        //      ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
-//      )
+    def <>[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = {
+      val _ = refersTo
+      ConditionExpression.NotEqual(
+        ProjectionExpressionOperand(self),
+        ConditionExpression.Operand.ProjectionExpressionOperand(that)
+      )
+    }
   }
 }
 
 object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
-//  type TypedTo[To0] = ProjectionExpression {
-//    type To = To0
-//  }
 
   type Unknown
+
+  type Untyped = ProjectionExpression[_]
+
+  type Typed[From0, To0] = ProjectionExpression[To0] {
+    type From = From0
+  }
 
   implicit class ProjectionExpressionSyntax(self: ProjectionExpression[Unknown]) {
     def ===[To: ToOperand](that: To): ConditionExpression =
@@ -296,16 +276,6 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ProjectionExpressionOperand(that)
       )
-//      ConditionExpression.Equals(
-//        ProjectionExpressionOperand(self),
-//        implicitly[ToOperand[To]].toOperand(that)
-//      )
-  }
-
-  type Untyped = ProjectionExpression[_]
-
-  type Typed[From0, To0] = ProjectionExpression[To0] {
-    type From = From0
   }
 
   val builder = new AccessorBuilder {
