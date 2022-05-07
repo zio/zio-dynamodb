@@ -54,5 +54,6 @@ object TypeSafeOperandExamples extends App {
   //val x = age <> "1"
   //val x = age < "1"
   //val x = age <= "1"
+  //val x = age > "1"
 
 }
