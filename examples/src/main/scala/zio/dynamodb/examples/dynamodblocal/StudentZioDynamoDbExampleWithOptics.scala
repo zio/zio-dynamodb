@@ -86,18 +86,18 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     .tap(student => console.putStrLn(s"student=$student"))
                     .runDrain
     _          <- scanAll[Student]("student").filter {
-                    enrollmentDate === enrolDate.toString && payment === "PayPal"
+                    enrollmentDate === Some(enrolDate) && payment === Payment.PayPal
                   }.execute.map(_.runCollect)
     _          <- queryAll[Student]("student")
                     .filter(
-                      enrollmentDate === enrolDate.toString && payment === Payment.PayPal.toString
+                      enrollmentDate === Some(enrolDate) && payment === Payment.PayPal
                     )
                     .whereKey(email === "avi@gmail.com" && subject === "maths")
                     .execute
                     .map(_.runCollect)
     _          <- put[Student]("student", avi)
                     .where(
-                      enrollmentDate === enrolDate.toString && email === "avi@gmail.com" && payment === Payment.PayPal.toString
+                      enrollmentDate === Some(enrolDate) && email === "avi@gmail.com" && payment === Payment.PayPal
                     )
                     .execute
     _          <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
@@ -108,7 +108,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                   }.execute
     _          <- deleteItem("student", PrimaryKey("email" -> "adam@gmail.com", "subject" -> "english"))
                     .where(
-                      enrollmentDate === enrolDate.toString && payment === Payment.CreditCard.toString
+                      enrollmentDate === Some(enrolDate) && payment === Payment.CreditCard
                     )
                     .execute
     _          <- scanAll[Student]("student").execute
