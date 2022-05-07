@@ -15,4 +15,7 @@ object ProjectionExpressionExamples extends App {
   println(b1)
   val b2 = MapElement(ListElement(Root("foo"), 42), "bar") === $("foo[42].bar")
   println(b2)
+
+  val peEq = $("a.b") === 5
+  val peNe = $("a.b") <> 5
 }

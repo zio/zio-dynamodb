@@ -276,6 +276,17 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ProjectionExpressionOperand(that)
       )
+    def <>[To: ToOperand](that: To): ConditionExpression        =
+      ConditionExpression.NotEqual(
+        ProjectionExpressionOperand(self),
+        implicitly[ToOperand[To]].toOperand(that)
+      )
+
+    def <>(that: ProjectionExpression[_]): ConditionExpression =
+      ConditionExpression.NotEqual(
+        ProjectionExpressionOperand(self),
+        ConditionExpression.Operand.ProjectionExpressionOperand(that)
+      )
   }
 
   val builder = new AccessorBuilder {
