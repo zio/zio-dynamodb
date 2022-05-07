@@ -108,7 +108,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                   }.execute
     _          <- deleteItem("student", PrimaryKey("email" -> "adam@gmail.com", "subject" -> "english"))
                     .where(
-                      enrollmentDate === Some(enrolDate) && payment === Payment.CreditCard
+                      enrollmentDate === Some(enrolDate) && payment <> Payment.PayPal
                     )
                     .execute
     _          <- scanAll[Student]("student").execute

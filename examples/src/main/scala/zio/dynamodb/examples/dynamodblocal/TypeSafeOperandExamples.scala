@@ -51,6 +51,8 @@ object TypeSafeOperandExamples extends App {
 
   // the type String must be a Int in order to use this operator
   //val x = age === id
-  //val x = age <> 1
+  //val x = age <> "1"
+  //val x = age < "1"
+  //val x = age <= "1"
 
 }
