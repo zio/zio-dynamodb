@@ -9,14 +9,15 @@ import zio.schema.{ AccessorBuilder, Schema }
 import scala.annotation.{ implicitNotFound, tailrec }
 
 // The maximum depth for a document path is 32
-sealed trait ProjectionExpression[+To] { self =>
+sealed trait ProjectionExpression[To] { self =>
   type From
+//  type To
 
   def unsafeTo[To2]: ProjectionExpression.Typed[From, To2] = self.asInstanceOf[ProjectionExpression.Typed[From, To2]]
 
-  def apply(index: Int): ProjectionExpression[Any] = ProjectionExpression.ListElement(self, index)
+  def apply(index: Int): ProjectionExpression[_] = ProjectionExpression.ListElement(self, index)
 
-  def apply(key: String): ProjectionExpression[Any] = ProjectionExpression.MapElement(self, key)
+  def apply(key: String): ProjectionExpression[_] = ProjectionExpression.MapElement(self, key)
 
   // ConditionExpression with another ProjectionExpression
 
@@ -25,27 +26,27 @@ sealed trait ProjectionExpression[+To] { self =>
 //      ProjectionExpressionOperand(self),
 //      ConditionExpression.Operand.ProjectionExpressionOperand(that)
 //    )
-  def <>(that: ProjectionExpression[Any]): ConditionExpression = // TODO: we need to fix this
+  def <>(that: ProjectionExpression[_]): ConditionExpression = // TODO: we need to fix this
     ConditionExpression.NotEqual(
       ProjectionExpressionOperand(self),
       ConditionExpression.Operand.ProjectionExpressionOperand(that)
     )
-  def <(that: ProjectionExpression[Any]): ConditionExpression  =
+  def <(that: ProjectionExpression[_]): ConditionExpression  =
     ConditionExpression.LessThan(
       ProjectionExpressionOperand(self),
       ConditionExpression.Operand.ProjectionExpressionOperand(that)
     )
-  def <=(that: ProjectionExpression[Any]): ConditionExpression =
+  def <=(that: ProjectionExpression[_]): ConditionExpression =
     ConditionExpression.LessThanOrEqual(
       ProjectionExpressionOperand(self),
       ConditionExpression.Operand.ProjectionExpressionOperand(that)
     )
-  def >(that: ProjectionExpression[Any]): ConditionExpression  =
+  def >(that: ProjectionExpression[_]): ConditionExpression  =
     ConditionExpression.GreaterThanOrEqual(
       ProjectionExpressionOperand(self),
       ConditionExpression.Operand.ProjectionExpressionOperand(that)
     )
-  def >=(that: ProjectionExpression[Any]): ConditionExpression =
+  def >=(that: ProjectionExpression[_]): ConditionExpression =
     ConditionExpression.GreaterThanOrEqual(
       ProjectionExpressionOperand(self),
       ConditionExpression.Operand.ProjectionExpressionOperand(that)
@@ -99,45 +100,19 @@ sealed trait ProjectionExpression[+To] { self =>
       .ProjectionExpressionOperand(self)
       .in(values.map(t.toAttributeValue).toSet + t.toAttributeValue(value))
 
-  // TODO: remove
-  @implicitNotFound(
-    "the type ${A} is not comparable to the type ${B}. To compare two types they need to be compatible"
-  ) // TOD clean up wording
-  trait DynamodbEquality[A, -B] {}
-  object DynamodbEquality       {
-    implicit def refl[A]: DynamodbEquality[A, A]                = new DynamodbEquality[A, A] {}
-    implicit def leftIsNothing[A]: DynamodbEquality[Nothing, A] = new DynamodbEquality[Nothing, A] {}
-  }
-
   // TODO: was (implicit t: ConditionExpression.Operand.ToOperand[To, A])
-  def ===[A >: To](that: A)(implicit t: ToOperand[A]): ConditionExpression =
-    ConditionExpression.Equals(
-      ProjectionExpressionOperand(self),
-      t.toOperand(that)
-    )
+//  def ===(that: To)(implicit t: ToOperand[To]): ConditionExpression =
+//    ConditionExpression.Equals(
+//      ProjectionExpressionOperand(self),
+//      t.toOperand(that)
+//    )
 
-  def ===[A >: To](that: ProjectionExpression[A]): ConditionExpression        = ???
+//  def ===(that: ProjectionExpression[To]): ConditionExpression = ???
 //    ConditionExpression.Equals(
 //      ProjectionExpressionOperand(self),
 //      t.toOperand(that)
 //      //      ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
 //    )
-  def equalsSome[A](that: A)(implicit schema: Schema[A]): ConditionExpression =
-    schema match {
-      case s @ Schema.Primitive(_, _) =>
-        val enc                = Codec.encoder[A](s)
-        val av: AttributeValue = enc(that)
-        ConditionExpression.Equals(
-          ProjectionExpressionOperand(self),
-          ConditionExpression.Operand.ValueOperand(av)
-        )
-      case _                          =>
-        // TODO:
-        ConditionExpression.Equals(
-          ProjectionExpressionOperand(self),
-          ConditionExpression.Operand.ValueOperand(null) // TODO
-        )
-    }
 
   def <>[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
     ConditionExpression.NotEqual(
@@ -186,13 +161,13 @@ sealed trait ProjectionExpression[+To] { self =>
   /**
    * Modify or Add an item Attribute
    */
-  def set(pe: ProjectionExpression[Any]): UpdateExpression.Action.SetAction =
+  def set(pe: ProjectionExpression[_]): UpdateExpression.Action.SetAction =
     UpdateExpression.Action.SetAction(self, PathOperand(pe))
 
   /**
    * Modifying or Add item Attributes if ProjectionExpression `pe` exists
    */
-  def setIfNotExists[A](pe: ProjectionExpression[Any], a: A)(implicit
+  def setIfNotExists[A](pe: ProjectionExpression[_], a: A)(implicit
     t: ToAttributeValue[A]
   ): UpdateExpression.Action.SetAction =
     UpdateExpression.Action.SetAction(self, IfNotExists(pe, t.toAttributeValue(a)))
@@ -229,7 +204,7 @@ sealed trait ProjectionExpression[+To] { self =>
 
   override def toString: String = {
     @tailrec
-    def loop(pe: ProjectionExpression[Any], acc: List[String]): List[String] =
+    def loop(pe: ProjectionExpression[_], acc: List[String]): List[String] =
       pe match {
         /*
         If you have a PE that DDB does not know how to handle, then you have an error
@@ -248,17 +223,79 @@ sealed trait ProjectionExpression[+To] { self =>
 }
 
 @implicitNotFound("the type ${A} must be a string in order to use this operator")
+// TODO: delete this and replace with RefersTo
 sealed trait RefersToString[-A]
 object RefersToString {
-  implicit val x: RefersToString[String] = new RefersToString[String] {}
+  implicit val x: RefersToString[String]                       = new RefersToString[String] {}
+  implicit val y: RefersToString[ProjectionExpression.Unknown] = new RefersToString[ProjectionExpression.Unknown] {}
 }
 
-object ProjectionExpression {
+@implicitNotFound("the type ${A} must be a ${X} in order to use this operator")
+sealed trait RefersTo[X, -A]
+trait RefersToLowerPriorityImplicits0 extends RefersToLowerPriorityImplicits1 {
+  implicit def unknownRight[X]: RefersTo[X, ProjectionExpression.Unknown] =
+    new RefersTo[X, ProjectionExpression.Unknown] {}
+}
+trait RefersToLowerPriorityImplicits1 {
+  implicit def identity[X]: RefersTo[X, X] = new RefersTo[X, X] {}
+}
+object RefersTo                       extends RefersToLowerPriorityImplicits0 {
+  implicit def unknownLeft[X]: RefersTo[ProjectionExpression.Unknown, X] =
+    new RefersTo[ProjectionExpression.Unknown, X] {}
+}
+
+object Test1 {
+  implicitly[RefersTo[String, String]]
+  //implicitly[RefersTo[Int, String]]
+  implicitly[RefersTo[ProjectionExpression.Unknown, String]]
+}
+
+trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowPriorityImplicits1 {
+  implicit class ProjectionExpressionSyntax0[To: ToOperand](self: ProjectionExpression[To]) {
+    def ===(that: To): ConditionExpression =
+      ConditionExpression.Equals(
+        ProjectionExpressionOperand(self),
+        implicitly[ToOperand[To]].toOperand(that)
+      )
+
+    def ===[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = ???
+
+  }
+}
+trait ProjectionExpressionLowPriorityImplicits1 {
+  implicit class ProjectionExpressionSyntax1[To](self: ProjectionExpression[To]) {
+
+    def ===[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = ???
+    //    ConditionExpression.Equals(
+    //      ProjectionExpressionOperand(self),
+    //      t.toOperand(that)
+    //      //      ConditionExpression.Operand.ValueOperand(t.toAttributeValue(that))
+    //    )
+  }
+}
+
+object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
 //  type TypedTo[To0] = ProjectionExpression {
 //    type To = To0
 //  }
 
-  type Untyped = ProjectionExpression[Any]
+  type Unknown
+
+  implicit class ProjectionExpressionSyntax(self: ProjectionExpression[Unknown]) {
+    def ===[To: ToOperand](that: To): ConditionExpression =
+      ConditionExpression.Equals(
+        ProjectionExpressionOperand(self),
+        implicitly[ToOperand[To]].toOperand(that)
+      )
+
+    def ===(that: ProjectionExpression[_]): ConditionExpression = ??? // TODO: implement
+//      ConditionExpression.Equals(
+//        ProjectionExpressionOperand(self),
+//        implicitly[ToOperand[To]].toOperand(that)
+//      )
+  }
+
+  type Untyped = ProjectionExpression[_]
 
   type Typed[From0, To0] = ProjectionExpression[To0] {
     type From = From0
@@ -278,7 +315,6 @@ object ProjectionExpression {
     /*
     need to respect enum annotations
     may need PE.identity case object => we do not need Root anymore
-
      */
     override def makePrism[S, A](sum: Schema.Enum[S], term: Schema.Case[A, S]): Prism[S, A] =
       ProjectionExpression.MapElement(Root, term.id).asInstanceOf[Prism[S, A]]
@@ -291,27 +327,6 @@ object ProjectionExpression {
   def accessors[A](implicit s: Schema[A]): s.Accessors[builder.Lens, builder.Prism, builder.Traversal] =
     s.makeAccessors(builder)
 
-  final case class Person(name: String, age: Int)
-  object Person {
-    implicit val schema = Schema.CaseClass2[String, Int, Person](
-      Schema.Field("name", Schema[String]),
-      Schema.Field("age", Schema[Int]),
-      Person(_, _),
-      _.name,
-      _.age
-    )
-
-    /*
-    we only want this to work on Person
-
-    where age > 2
-     */
-    val (name, age) = ProjectionExpression.accessors[Person]
-//    age.beginsWith("X") // this will fail compilation with a custom compile error msg
-    name.beginsWith("X")
-
-  }
-
   private val regexMapElement     = """(^[a-zA-Z0-9_]+)""".r
   private val regexIndexedElement = """(^[a-zA-Z0-9_]+)(\[[0-9]+])+""".r
   private val regexGroupedIndexes = """(\[([0-9]+)])""".r
@@ -320,20 +335,20 @@ object ProjectionExpression {
   // (if present) is a-z, A-Z, or 0-9. Also key words are not allowed
   // If this is not the case then you must use the Expression Attribute Names facility to create an alias.
   // Attribute names containing a dot "." must also use the Expression Attribute Names
-  def apply(name: String): ProjectionExpression[Any] = ProjectionExpression.MapElement(Root, name)
+  def apply(name: String): ProjectionExpression[_] = ProjectionExpression.MapElement(Root, name)
 
-  case object Root                                                                extends ProjectionExpression[Any]
-  final case class MapElement[To](parent: ProjectionExpression[Any], key: String) extends ProjectionExpression[To]
+  case object Root                                                              extends ProjectionExpression[Any]
+  final case class MapElement[To](parent: ProjectionExpression[_], key: String) extends ProjectionExpression[To]
   // index must be non negative - we could use a new type here?
-  final case class ListElement[To](parent: ProjectionExpression[Any], index: Int) extends ProjectionExpression[To]
+  final case class ListElement[To](parent: ProjectionExpression[_], index: Int) extends ProjectionExpression[To]
 
   /**
    * Unsafe version of `parse` that throws an exception rather than returning an Either
    * @see [[parse]]
    */
-  def $(s: String): ProjectionExpression.Typed[_, Nothing] =
+  def $(s: String): ProjectionExpression[Unknown] =
     parse(s) match {
-      case Right(a)  => a.unsafeTo[Nothing]
+      case Right(a)  => a.unsafeTo[Unknown]
       case Left(msg) => throw new IllegalStateException(msg)
     }
 
@@ -352,9 +367,9 @@ object ProjectionExpression {
    * @param s Projection expression as a string
    * @return either a `Right` of ProjectionExpression if successful, else a list of errors in a string
    */
-  def parse(s: String): Either[String, ProjectionExpression[Any]] = {
+  def parse(s: String): Either[String, ProjectionExpression[_]] = {
 
-    final case class Builder(pe: Option[Either[Chunk[String], ProjectionExpression[Any]]] = None) { self =>
+    final case class Builder(pe: Option[Either[Chunk[String], ProjectionExpression[_]]] = None) { self =>
 
       def mapElement(name: String): Builder =
         Builder(self.pe match {
@@ -368,7 +383,7 @@ object ProjectionExpression {
 
       def listElement(name: String, indexes: List[Int]): Builder = {
         @tailrec
-        def multiDimPe(pe: ProjectionExpression[Any], indexes: List[Int]): ProjectionExpression[Any] =
+        def multiDimPe(pe: ProjectionExpression[_], indexes: List[Int]): ProjectionExpression[_] =
           if (indexes == Nil)
             pe
           else
@@ -392,7 +407,7 @@ object ProjectionExpression {
             Some(Left(chunk :+ s"error with '$s'"))
         })
 
-      def either: Either[Chunk[String], ProjectionExpression[Any]] =
+      def either: Either[Chunk[String], ProjectionExpression[_]] =
         self.pe.getOrElse(Left(Chunk("error - at least one element must be specified")))
     }
 

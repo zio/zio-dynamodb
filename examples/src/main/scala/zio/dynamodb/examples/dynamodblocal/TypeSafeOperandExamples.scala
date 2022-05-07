@@ -33,16 +33,20 @@ object TypeSafeOperandExamples extends App {
 
   val (id, name, age, updated, maybeCount, payment) = ProjectionExpression.accessors[Person]
 
-  // TODO: better type error messages when types differ than
-  //  "diverging implicit expansion for type zio.dynamodb.ConditionExpression.Operand.ToOperand"
+  val id2: ProjectionExpression[String] = id
+
+  /*
+  TODO: better type error messages when types differ than
+/home/avinder/Workspaces/git/zio-dynamodb/examples/src/main/scala/zio/dynamodb/examples/dynamodblocal/TypeSafeOperandExamples.scala:42:23
+diverging implicit expansion for type zio.dynamodb.ConditionExpression.Operand.ToOperand[Any]
+starting with value floatSetToAttributeValue in object ToAttributeValue
+  val x3 = maybeCount === 3
+   */
   val x1 =
     id === "person_id1"
-//  val x2 = age ># 10
 
   val x3 = maybeCount === Some(3)
   val x4 = id === $("a.b")
-//  val x5 = id ># "1" && payment === Payment.DebitCard
-//  val x6 = age ># 1
 
 //  val set = payment.set2[Payment](Payment.PayPal)
 
@@ -53,6 +57,6 @@ object TypeSafeOperandExamples extends App {
   println(set2)
 
   // TODO: we want this to fail compilation as age is an int and id is a string
-  val x = age === id
+  // val x = age === id
 
 }

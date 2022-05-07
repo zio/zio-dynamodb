@@ -91,6 +91,7 @@ object ConditionExpression {
       Between(self, minValue, maxValue)
     def in(values: Set[AttributeValue]): ConditionExpression                             = In(self, values)
 
+    // TODO: looks like these are never used
     def ==(that: Operand): ConditionExpression = Equals(self, that)
     def <>(that: Operand): ConditionExpression = NotEqual(self, that)
     def <(that: Operand): ConditionExpression  = LessThan(self, that)
@@ -161,9 +162,9 @@ object ConditionExpression {
 
     }
 
-    private[dynamodb] final case class ProjectionExpressionOperand(pe: ProjectionExpression[Any]) extends Operand
-    private[dynamodb] final case class ValueOperand(value: AttributeValue)                        extends Operand
-    private[dynamodb] final case class Size(path: ProjectionExpression[Any])                      extends Operand
+    private[dynamodb] final case class ProjectionExpressionOperand(pe: ProjectionExpression[_]) extends Operand
+    private[dynamodb] final case class ValueOperand(value: AttributeValue)                      extends Operand
+    private[dynamodb] final case class Size(path: ProjectionExpression[_])                      extends Operand
 
   }
 
@@ -172,13 +173,13 @@ object ConditionExpression {
   private[dynamodb] final case class In(left: Operand, values: Set[AttributeValue]) extends ConditionExpression
 
   // functions
-  private[dynamodb] final case class AttributeExists(path: ProjectionExpression[Any])    extends ConditionExpression
-  private[dynamodb] final case class AttributeNotExists(path: ProjectionExpression[Any]) extends ConditionExpression
-  private[dynamodb] final case class AttributeType(path: ProjectionExpression[Any], attributeType: AttributeValueType)
+  private[dynamodb] final case class AttributeExists(path: ProjectionExpression[_])    extends ConditionExpression
+  private[dynamodb] final case class AttributeNotExists(path: ProjectionExpression[_]) extends ConditionExpression
+  private[dynamodb] final case class AttributeType(path: ProjectionExpression[_], attributeType: AttributeValueType)
       extends ConditionExpression
-  private[dynamodb] final case class Contains(path: ProjectionExpression[Any], value: AttributeValue)
+  private[dynamodb] final case class Contains(path: ProjectionExpression[_], value: AttributeValue)
       extends ConditionExpression
-  private[dynamodb] final case class BeginsWith(path: ProjectionExpression[Any], value: AttributeValue)
+  private[dynamodb] final case class BeginsWith(path: ProjectionExpression[_], value: AttributeValue)
       extends ConditionExpression
 
   // logical operators
