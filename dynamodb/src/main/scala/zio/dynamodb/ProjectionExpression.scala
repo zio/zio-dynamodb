@@ -83,8 +83,8 @@ sealed trait ProjectionExpression[To] { self =>
     ConditionExpression.Contains(self, t.toAttributeValue(av))
 
   // constraint: String
-  def beginsWith(av: String)(implicit ev: RefersToString[To]): ConditionExpression = {
-    println(ev) // TODO to get around "parameter value ev in method beginsWith is never used"
+  def beginsWith(av: String)(implicit ev: RefersTo[String, To]): ConditionExpression = {
+    val _ = ev
     ConditionExpression.BeginsWith(self, AttributeValue.String(av))
   }
 
@@ -220,14 +220,6 @@ sealed trait ProjectionExpression[To] { self =>
 
     loop(self, List.empty).reverse.mkString("")
   }
-}
-
-@implicitNotFound("the type ${A} must be a string in order to use this operator")
-// TODO: delete this and replace with RefersTo
-sealed trait RefersToString[-A]
-object RefersToString {
-  implicit val x: RefersToString[String]                       = new RefersToString[String] {}
-  implicit val y: RefersToString[ProjectionExpression.Unknown] = new RefersToString[ProjectionExpression.Unknown] {}
 }
 
 @implicitNotFound("the type ${A} must be a ${X} in order to use this operator")

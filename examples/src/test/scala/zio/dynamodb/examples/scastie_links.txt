@@ -1,8 +1,0 @@
-https://scastie.scala-lang.org/HyV3xLqBT4mpWXfaMqogRQ
-https://scastie.scala-lang.org/fmwLPxC5QuarYn7lV0eGWA
-
-
-- clean it up
-- roll out to other operators eg <, >= etc etc
-- monomorphic operators can use RefersTo - they do not need complex syntax machinery
-- replace ReferesToString with much more general RefersTo
