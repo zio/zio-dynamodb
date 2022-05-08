@@ -13,8 +13,10 @@ object ConditionExpressionExamples {
   val notExists: ConditionExpression  = $("col1").notExists
   val beginsWith: ConditionExpression = $("col1").beginsWith("1")
   val contains: ConditionExpression   = $("col1").contains("1")
-  val sizeOnLhs: ConditionExpression  = $("col2").size > 1
+  val sizeOnLhs: ConditionExpression  = $("col2").size > "1" // TODO: Avi - restrict size type to numeric
   val isType: ConditionExpression     = $("col1").isNumber
+  val between: ConditionExpression    = $("col1").between(1, 2)
+  val in: ConditionExpression         = $("col1").in(1, 2)
   val expnAnd: ConditionExpression    = beginsWith && sizeOnLhs
   val expnOr: ConditionExpression     = beginsWith || sizeOnLhs
   val expnNot: ConditionExpression    = !beginsWith

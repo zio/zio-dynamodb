@@ -25,7 +25,8 @@ sealed trait ProjectionExpression[To] { self =>
   // constraint: None - applies to all types
   def notExists: ConditionExpression         = ConditionExpression.AttributeNotExists(self)
   // constraint: Applies to ALL except Number and Boolean
-  def size: ConditionExpression.Operand.Size = ConditionExpression.Operand.Size(self)
+  def size: ConditionExpression.Operand.Size =
+    ConditionExpression.Operand.Size(self)
 
   // constraint: ALL
   def isBinary: ConditionExpression    = isType(AttributeValueType.Binary)
@@ -147,7 +148,7 @@ trait RefersToLowerPriorityImplicits0 extends RefersToLowerPriorityImplicits1 {
     new RefersTo[X, ProjectionExpression.Unknown] {}
 }
 trait RefersToLowerPriorityImplicits1 {
-  implicit def identity[X]: RefersTo[X, X] = new RefersTo[X, X] {}
+  implicit def identity[A]: RefersTo[A, A] = new RefersTo[A, A] {}
 }
 object RefersTo                       extends RefersToLowerPriorityImplicits0 {
   implicit def unknownLeft[X]: RefersTo[ProjectionExpression.Unknown, X] =
@@ -156,7 +157,6 @@ object RefersTo                       extends RefersToLowerPriorityImplicits0 {
 
 object Test1 {
   implicitly[RefersTo[String, String]]
-  //implicitly[RefersTo[Int, String]]
   implicitly[RefersTo[ProjectionExpression.Unknown, String]]
 }
 
