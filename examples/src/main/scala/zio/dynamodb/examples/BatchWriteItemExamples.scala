@@ -1,13 +1,11 @@
 package zio.dynamodb.examples
 
-import zio.dynamodb.ConditionExpression.Operand.ToOperand
 import zio.dynamodb.DynamoDBQuery.{ deleteItem, putItem }
 import zio.dynamodb.ProjectionExpression.$
 import zio.dynamodb._
 
 object BatchWriteItemExamples extends App {
 
-  implicit val x  = implicitly[ToOperand[String]]
   val batchManual =
     (putItem("table1", Item("field1" -> 1)) where $("a.b") === "1") <*> deleteItem(
       "table2",

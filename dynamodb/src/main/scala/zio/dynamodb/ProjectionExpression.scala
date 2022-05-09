@@ -149,11 +149,6 @@ object RefersTo                       extends RefersToLowerPriorityImplicits0 {
     new RefersTo[ProjectionExpression.Unknown, X] {}
 }
 
-object Test1 {
-  implicitly[RefersTo[String, String]]
-  implicitly[RefersTo[ProjectionExpression.Unknown, String]]
-}
-
 trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowPriorityImplicits1 {
   implicit class ProjectionExpressionSyntax0[To: ToOperand](self: ProjectionExpression[To]) {
     def ===(that: To): ConditionExpression =
