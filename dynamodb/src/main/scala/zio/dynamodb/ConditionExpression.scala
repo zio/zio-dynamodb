@@ -120,9 +120,6 @@ object ConditionExpression {
       }
   }
 
-  /*
-  its a problem cos it says we ca
-   */
   object Operand {
     trait ToOperand[A] {
       def toOperand(a: A): Operand
@@ -151,14 +148,6 @@ object ConditionExpression {
             ValueOperand(x.toAttributeValue(a))
           }
         }
-
-//      implicit def fromAttributeValueNothing[A](implicit x: ToAttributeValue[A]): ToOperand[Nothing, A] =
-//        new ToOperand[Nothing, A] {
-//          override def toOperand(a: A): Operand = {
-//            println(s"fromAttributeValueNothing ${ValueOperand(x.toAttributeValue(a))}")
-//            ValueOperand(x.toAttributeValue(a))
-//          }
-//        }
 
     }
 

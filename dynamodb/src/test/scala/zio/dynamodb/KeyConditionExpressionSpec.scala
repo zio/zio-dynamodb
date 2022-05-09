@@ -25,8 +25,12 @@ object KeyConditionExpressionSpec extends DefaultRunnableSpec {
   override def spec: ZSpec[Environment, Failure] =
     suite("KeyConditionExpression from a ConditionExpression")(happyPathSuite, unhappyPathSuite, pbtSuite)
 
-  val happyPathSuite   =
+  val happyPathSuite =
     suite("returns a Right for")(
+      test(""" email === "avi@gmail.com" """) {
+        val actual = KeyConditionExpression(email === "avi@gmail.com")
+        zio.test.assert(actual)(isRight)
+      },
       test(""" email === "avi@gmail.com" && subject === "maths" """) {
         val actual = KeyConditionExpression(email === "avi@gmail.com" && subject === "maths")
         zio.test.assert(actual)(isRight)
@@ -39,6 +43,7 @@ object KeyConditionExpressionSpec extends DefaultRunnableSpec {
         zio.test.assert(actual)(isRight)
       }
     )
+
   val unhappyPathSuite =
     suite("returns a Left for")(
       test(""" email > "avi@gmail.com" && subject === "maths" """) {

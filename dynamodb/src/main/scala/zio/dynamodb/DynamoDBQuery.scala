@@ -324,19 +324,6 @@ sealed trait DynamoDBQuery[+A] { self =>
     }
   }
 
-  def whereKey2(conditionExpression: ConditionExpression): DynamoDBQuery[A] = {
-    val keyConditionExpression: KeyConditionExpression =
-      KeyConditionExpression.fromConditionExpressionUnsafe(conditionExpression)
-    self match {
-      case Zip(left, right, zippable) =>
-        Zip(left.whereKey(keyConditionExpression), right.whereKey(keyConditionExpression), zippable)
-      case Map(query, mapper)         => Map(query.whereKey(keyConditionExpression), mapper)
-      case s: QuerySome               => s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[A]]
-      case s: QueryAll                => s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[A]]
-      case _                          => self
-    }
-  }
-
   def withRetryPolicy(retryPolicy: Schedule[Any, Throwable, Any]): DynamoDBQuery[A] =
     self match {
       case Zip(left, right, zippable) =>
