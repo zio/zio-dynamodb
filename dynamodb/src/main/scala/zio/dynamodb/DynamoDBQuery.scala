@@ -444,9 +444,8 @@ object DynamoDBQuery {
     putItem(tableName, toItem(a))
 
   private[dynamodb] def toItem[A](a: A)(implicit schema: Schema[A]): Item =
-    FromAttributeValue.attrMapFromAttributeValue.fromAttributeValue {
-      println(s"XXXXXXXXXXXXXXXX toItem($a) ${AttributeValue.encode(a)(schema)}"); AttributeValue.encode(a)(schema)
-    }
+    FromAttributeValue.attrMapFromAttributeValue
+      .fromAttributeValue(AttributeValue.encode(a)(schema))
       .getOrElse(throw new Exception(s"error encoding $a"))
 
   def updateItem(tableName: String, key: PrimaryKey)(action: Action): DynamoDBQuery[Option[Item]] =

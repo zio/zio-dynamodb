@@ -125,12 +125,6 @@ sealed trait ProjectionExpression[To] { self =>
     @tailrec
     def loop(pe: ProjectionExpression[_], acc: List[String]): List[String] =
       pe match {
-        /*
-        If you have a PE that DDB does not know how to handle, then you have an error
-        eg [0] // DDB does not support top level array or primitives at the top level
-        so we need more code everywhere it is used to check that ROOT is valid and maybe
-        special case it when in the context of the top level.
-         */
         case Root                                        => acc // identity
         case ProjectionExpression.MapElement(Root, name) => acc :+ s"$name"
         case MapElement(parent, key)                     => loop(parent, acc :+ s".$key")
@@ -374,19 +368,11 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     override type Prism[From, To]     = ProjectionExpression.Typed[From, To]
     override type Traversal[From, To] = Unit
 
-    // ProjectionExpression.MapElement(Root, name)
-
     override def makeLens[S, A](product: Schema.Record[S], term: Schema.Field[A]): Lens[S, A] =
       ProjectionExpression.MapElement(Root, term.label).asInstanceOf[Lens[S, A]]
-    //ProjectionExpression.Root(term.label).asInstanceOf[Lens[S, A]]
 
-    /*
-    need to respect enum annotations
-    may need PE.identity case object => we do not need Root anymore
-     */
     override def makePrism[S, A](sum: Schema.Enum[S], term: Schema.Case[A, S]): Prism[S, A] =
       ProjectionExpression.MapElement(Root, term.id).asInstanceOf[Prism[S, A]]
-    //ProjectionExpression.Root(term.id).asInstanceOf[Prism[S, A]]
 
     override def makeTraversal[S, A](collection: Schema.Collection[S, A], element: Schema[A]): Traversal[S, A] = ()
   }
