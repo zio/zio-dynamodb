@@ -91,7 +91,7 @@ object ConditionExpression {
       Between(self, minValue, maxValue)
     def in(values: Set[AttributeValue]): ConditionExpression                             = In(self, values)
 
-    // TODO: looks like these are never used
+    // TODO: looks like these are not used anymore
     def ==(that: Operand): ConditionExpression = Equals(self, that)
     def <>(that: Operand): ConditionExpression = NotEqual(self, that)
     def <(that: Operand): ConditionExpression  = LessThan(self, that)
@@ -99,6 +99,7 @@ object ConditionExpression {
     def >(that: Operand): ConditionExpression  = GreaterThanOrEqual(self, that)
     def >=(that: Operand): ConditionExpression = GreaterThanOrEqual(self, that)
 
+    // TODO: looks like these are not used anymore
     def ==[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
       Equals(self, Operand.ValueOperand(t.toAttributeValue(that)))
     def <>[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =

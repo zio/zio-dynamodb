@@ -7,13 +7,6 @@ import zio.dynamodb._
 
 object BatchWriteItemExamples extends App {
 
-  /*
-
-2
-/home/avinder/Workspaces/git/zio-dynamodb/examples/src/main/scala/zio/dynamodb/examples/BatchWriteItemExamples.scala:20:60
-value === is not a member of zio.dynamodb.ProjectionExpression.Typed[_$15,Nothing]
-    (putItem("table1", Item("field1" -> 1)) where $("a.b") === "1") <*> deleteItem(
-   */
   implicit val x  = implicitly[ToOperand[String]]
   val batchManual =
     (putItem("table1", Item("field1" -> 1)) where $("a.b") === "1") <*> deleteItem(
