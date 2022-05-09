@@ -1,10 +1,10 @@
 package zio.dynamodb.examples.dynamodblocal
 
 import zio.dynamodb.DynamoDBQuery.queryAll
-import zio.dynamodb.{ DynamoDBQuery, ProjectionExpression }
 import zio.dynamodb.examples.dynamodblocal.StudentZioDynamoDbExampleWithOptics.Student
 import zio.dynamodb.examples.dynamodblocal.TopLevelEnumOpticsExample.Invoice.{ BilledInvoice, PreBilledInvoice }
-import zio.schema.{ DeriveSchema, Schema }
+import zio.dynamodb.{ DynamoDBQuery, ProjectionExpression }
+import zio.schema.DeriveSchema
 import zio.stream
 
 object TopLevelEnumOpticsExample {
@@ -17,7 +17,7 @@ object TopLevelEnumOpticsExample {
       sku: String
     ) extends Invoice
     object PreBilledInvoice {
-      implicit val schema: Schema.CaseClass2[String, String, PreBilledInvoice] = DeriveSchema.gen[PreBilledInvoice]
+      implicit val schema = DeriveSchema.gen[PreBilledInvoice]
     }
 
     final case class BilledInvoice(
@@ -26,13 +26,13 @@ object TopLevelEnumOpticsExample {
       amount: Double
     ) extends Invoice
     object BilledInvoice {
-      implicit val schema: Schema.CaseClass3[String, String, Double, BilledInvoice] = DeriveSchema.gen[BilledInvoice]
+      implicit val schema = DeriveSchema.gen[BilledInvoice]
     }
 
   }
 
   /*
-   Explore polymorphic queries using RO for top level Enums
+   Explore polymorphic queries using optics for top level Enums
    */
   def polymorphicQueryByExample(invoice: Invoice): DynamoDBQuery[stream.Stream[Throwable, Student]] =
     invoice match {
