@@ -761,7 +761,7 @@ object LiveSpec extends ZIOSpecDefault {
               )
 
               assertM(
-                conditionCheck.zip(putItem).transaction.execute.run
+                conditionCheck.zip(putItem).transaction.execute.exit
               )(fails(assertDynamoDbException("ConditionalCheckFailed")))
             }
           },
@@ -835,7 +835,7 @@ object LiveSpec extends ZIOSpecDefault {
                 updateExpression = UpdateExpression($(name).setValue("shouldFail"))
               )
 
-              assertM(updateItem1.zip(updateItem2).transaction.execute.run)(
+              assertM(updateItem1.zip(updateItem2).transaction.execute.exit)(
                 fails(assertDynamoDbException("Transaction request cannot include multiple operations on one item"))
               )
             }
@@ -859,7 +859,7 @@ object LiveSpec extends ZIOSpecDefault {
                 _ <- updateItem2.execute
               } yield ()
 
-              assertM(program.run)(
+              assertM(program.exit)(
                 fails(isSubtype[IdempotentParameterMismatchException](Assertion.anything))
               )
             }

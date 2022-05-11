@@ -2,7 +2,7 @@ package zio.dynamodb
 
 import zio.aws.dynamodb.DynamoDb
 import zio.aws.dynamodb.DynamoDbMock
-import zio.{ Chunk, ULayer, ZLayer }
+import zio.{ Chunk, ULayer }
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.ProjectionExpression.$
 import zio.test.Assertion.{ contains, equalTo, fails, hasField, isSubtype }
@@ -147,7 +147,7 @@ object TransactionModelSpec extends ZIOSpecDefault {
 
         val getItem = GetItem(tableName, item)
 
-        assertM(updateItem.zip(getItem).transaction.execute.run)(
+        assertM(updateItem.zip(getItem).transaction.execute.exit)(
           fails(isSubtype[MixedTransactionTypes](Assertion.anything))
         )
       }
@@ -160,31 +160,31 @@ object TransactionModelSpec extends ZIOSpecDefault {
           attributeDefinitions = NonEmptySet(AttributeDefinition.attrDefnString("name")),
           billingMode = BillingMode.PayPerRequest
         )
-        assertM(createTable.transaction.execute.run)(fails(invalidTransactionActionsContains(createTable)))
+        assertM(createTable.transaction.execute.exit)(fails(invalidTransactionActionsContains(createTable)))
       },
       test("delete table") {
         val deleteTable = DeleteTable(tableName)
-        assertM(deleteTable.transaction.execute.run)(fails(invalidTransactionActionsContains(deleteTable)))
+        assertM(deleteTable.transaction.execute.exit)(fails(invalidTransactionActionsContains(deleteTable)))
       },
       test("scan all") {
         val scanAll = ScanAll(tableName)
-        assertM(scanAll.transaction.execute.run)(fails(invalidTransactionActionsContains(scanAll)))
+        assertM(scanAll.transaction.execute.exit)(fails(invalidTransactionActionsContains(scanAll)))
       },
       test("scan some") {
         val scanSome = ScanSome(tableName, 4)
-        assertM(scanSome.transaction.execute.run)(fails(invalidTransactionActionsContains(scanSome)))
+        assertM(scanSome.transaction.execute.exit)(fails(invalidTransactionActionsContains(scanSome)))
       },
       test("describe table") {
         val describeTable = DescribeTable(tableName)
-        assertM(describeTable.transaction.execute.run)(fails(invalidTransactionActionsContains(describeTable)))
+        assertM(describeTable.transaction.execute.exit)(fails(invalidTransactionActionsContains(describeTable)))
       },
       test("query some") {
         val querySome = QuerySome(tableName, 4)
-        assertM(querySome.transaction.execute.run)(fails(invalidTransactionActionsContains(querySome)))
+        assertM(querySome.transaction.execute.exit)(fails(invalidTransactionActionsContains(querySome)))
       },
       test("query all") {
         val queryAll = QueryAll(tableName)
-        assertM(queryAll.transaction.execute.run)(fails(invalidTransactionActionsContains(queryAll)))
+        assertM(queryAll.transaction.execute.exit)(fails(invalidTransactionActionsContains(queryAll)))
       }
     )
   )
