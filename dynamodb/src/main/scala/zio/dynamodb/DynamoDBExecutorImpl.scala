@@ -227,9 +227,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
                                                 case Left(transactGetItems)    =>
                                                   (for {
                                                     response <- dynamoDb.transactGetItems(transactGetItems)
-                                                    items     = response.responses.map(l =>
-                                                                  l.flatMap(item => item.item.map(i => dynamoDBItem(i)).toOption)
-                                                                )
+                                                    items     = response.responses.map(_.map(item => item.item.map(dynamoDBItem).toOption))
                                                   } yield items.map(Chunk.fromIterable(_)).getOrElse(Chunk.empty[Item]))
                                                     .mapError(_.toThrowable)
                                                 case Right(transactWriteItems) =>
@@ -390,7 +388,7 @@ case object DynamoDBExecutorImpl {
               (
                 Chunk(s),
                 chunk => {
-                  val maybeItem = chunk(0).asInstanceOf[Option[AttrMap]] // may have an empty AttrMap
+                  val maybeItem = chunk(0).asInstanceOf[Option[Item]] // may have an empty AttrMap
                   maybeItem.flatMap(item => if (item.map.isEmpty) None else Some(item)).asInstanceOf[A]
                 }
               )
