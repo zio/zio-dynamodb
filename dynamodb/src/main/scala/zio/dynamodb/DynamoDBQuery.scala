@@ -16,6 +16,7 @@ import zio.dynamodb.DynamoDBQuery.{
   QuerySome,
   ScanAll,
   ScanSome,
+  Transaction,
   UpdateItem,
   Zip
 }
@@ -98,6 +99,8 @@ sealed trait DynamoDBQuery[+A] { self =>
         m.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
       case m: DeleteItem              =>
         m.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
+      case t: Transaction[_]          =>
+        t.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[A]]
       case _                          => self
     }
 
@@ -155,6 +158,8 @@ sealed trait DynamoDBQuery[+A] { self =>
         u.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[A]]
       case d: DeleteItem              =>
         d.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[A]]
+      case t: Transaction[_]          =>
+        t.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[A]]
       case _                          => self
     }
 
@@ -328,6 +333,15 @@ sealed trait DynamoDBQuery[+A] { self =>
       case _                          => self
     }
 
+  def withClientRequestToken(token: String): DynamoDBQuery[A] =
+    self match {
+      case Zip(left, right, zippable) =>
+        Zip(left.withClientRequestToken(token), right.withClientRequestToken(token), zippable)
+      case Map(query, mapper)         => Map(query.withClientRequestToken(token), mapper)
+      case s: Transaction[A]          => s.copy(clientRequestToken = Some(token)).asInstanceOf[DynamoDBQuery[A]]
+      case _                          => self
+    }
+
   def sortOrder(ascending: Boolean): DynamoDBQuery[A] =
     self match {
       case Zip(left, right, zippable) => Zip(left.sortOrder(ascending), right.sortOrder(ascending), zippable)
@@ -359,6 +373,19 @@ sealed trait DynamoDBQuery[+A] { self =>
       case s: QueryAll                => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[A]]
       case _                          => self
     }
+
+  final def transaction: DynamoDBQuery[A] = Transaction(self).asInstanceOf[DynamoDBQuery[A]]
+
+  final def safeTransaction: Either[Throwable, DynamoDBQuery[A]] = {
+    val transaction = Transaction(self)
+    DynamoDBExecutorImpl
+      .buildTransaction(transaction)
+      .flatMap {
+        case (actions, _) => DynamoDBExecutorImpl.filterMixedTransactions(actions)
+      }
+      .map(_ => transaction)
+  }
+
 }
 
 object DynamoDBQuery {
@@ -657,6 +684,24 @@ object DynamoDBQuery {
       }
   }
 
+  private[dynamodb] final case class Transaction[A](
+    query: DynamoDBQuery[A],
+    clientRequestToken: Option[String] = None,
+    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
+    itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None
+  ) extends Constructor[A]
+
+  private[dynamodb] final case class ConditionCheck(
+    tableName: TableName,
+    primaryKey: PrimaryKey,
+    conditionExpression: ConditionExpression
+  ) extends Constructor[Unit]
+
+  private[dynamodb] final case class MixedTransactionTypes() extends Throwable
+  private[dynamodb] final case class InvalidTransactionActions(invalidActions: NonEmptyChunk[DynamoDBQuery[Any]])
+      extends Throwable
+  final case class EmptyTransaction()                        extends Throwable
+
   private[dynamodb] object BatchWriteItem {
     sealed trait Write
     final case class Delete(key: PrimaryKey) extends Write
@@ -898,6 +943,23 @@ object DynamoDBQuery {
       case getItem @ GetItem(_, _, _, _, _)                   =>
         (
           Chunk(getItem),
+          (results: Chunk[Any]) => {
+            results.head.asInstanceOf[A]
+          }
+        )
+
+      // condition check is not a real query, it is only used in transactions
+      case _ @ConditionCheck(_, _, _)                         =>
+        (
+          Chunk[Constructor[Any]](),
+          (_: Chunk[Any]) => {
+            ().asInstanceOf[A]
+          }
+        )
+
+      case transaction @ Transaction(_, _, _, _)              =>
+        (
+          Chunk(transaction),
           (results: Chunk[Any]) => {
             results.head.asInstanceOf[A]
           }
