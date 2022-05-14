@@ -133,8 +133,7 @@ object ConditionExpression {
           override def toOperand(a: A): Operand = {
             val enc = Codec.encoder(schema)
             val av  = enc(a)
-            println(s"fromSchemaAttributeValue av=${ValueOperand(av)}")
-            ValueOperand(av) // TODO: review
+            ValueOperand(av)
           }
         }
       }
@@ -142,6 +141,8 @@ object ConditionExpression {
     }
 
     trait ToOperandLowPriorityImplicits {
+// TODO: when using show implicit hints I notice that only fromSchemaAttributeValue was being used in all the examples
+// when I comment out this section all tests still pass
       implicit def fromAttributeValue[A](implicit x: ToAttributeValue[A]): ToOperand[A] =
         new ToOperand[A] {
           override def toOperand(a: A): Operand = {

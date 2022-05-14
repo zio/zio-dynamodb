@@ -25,7 +25,8 @@ sealed trait ProjectionExpression[To] { self =>
   // constraint: None - applies to all types
   def notExists: ConditionExpression         = ConditionExpression.AttributeNotExists(self)
   // constraint: Applies to ALL except Number and Boolean
-  def size: ConditionExpression.Operand.Size =
+  // Sizable typeclass for all types we support including Unknown
+  def size: ConditionExpression.Operand.Size = // TODO: is it worth trying to restrict this to only compare with numeric types?
     ConditionExpression.Operand.Size(self)
 
   // constraint: ALL
@@ -46,6 +47,7 @@ sealed trait ProjectionExpression[To] { self =>
   // ConditionExpression with AttributeValue's
 
   // constraint: String OR Set
+  // create a typeclass called containable that only has String and Set and Unknown instances
   def contains[A](av: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
     ConditionExpression.Contains(self, t.toAttributeValue(av))
 
@@ -55,7 +57,9 @@ sealed trait ProjectionExpression[To] { self =>
     ConditionExpression.BeginsWith(self, AttributeValue.String(av))
   }
 
-  // constraint: NONE
+  // constraint: NONE -
+  // we make this tighter by using the source type as the constraint for A
+  // could be done by extension methods as well
   def between[A](minValue: A, maxValue: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
     ConditionExpression.Operand
       .ProjectionExpressionOperand(self)
@@ -69,12 +73,23 @@ sealed trait ProjectionExpression[To] { self =>
 
   // UpdateExpression conversions
 
+  // maybe we can derive AV from schema
+  // can we provide schema for AV -
+  // this would reduce API by half
+  /*
+  implicit val x: Schema[AttributeValue] = ??? // eg use DynamicValue.transform(f1, f2)
+   */
+//  implicit val x: Schema[AttributeValue] = ???
+//  def foo[A: ToAttributeValue](a: A): Schema[AttributeValue] = ???
+
   /**
    * Modify or Add an item Attribute
    */
   def setValue[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
     UpdateExpression.Action.SetAction(self, UpdateExpression.SetOperand.ValueOperand(t.toAttributeValue(a)))
 
+  // we could restrict A to be same type as field
+  // have to move as extension method
   def set[A: Schema](a: A): UpdateExpression.Action.SetAction = setValue(AttributeValue.encode(a))
 
   /**
@@ -86,6 +101,7 @@ sealed trait ProjectionExpression[To] { self =>
   /**
    * Modifying or Add item Attributes if ProjectionExpression `pe` exists
    */
+  // TODO: add Schema variant and move
   def setIfNotExists[A](pe: ProjectionExpression[_], a: A)(implicit
     t: ToAttributeValue[A]
   ): UpdateExpression.Action.SetAction =
@@ -94,18 +110,21 @@ sealed trait ProjectionExpression[To] { self =>
   /**
    * Add list `xs` to the end of this PathExpression
    */
+  // TODO: add schema variant
   def appendList[A](xs: Iterable[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
     UpdateExpression.Action.SetAction(self, ListAppend(self, AttributeValue.List(xs.map(t.toAttributeValue))))
 
   /**
    * Add list `xs` to the beginning of this PathExpression
    */
+  // TODO: add schema variant
   def prependList[A](xs: Iterable[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
     UpdateExpression.Action.SetAction(self, ListPrepend(self, AttributeValue.List(xs.map(t.toAttributeValue))))
 
   /**
    * Updating Numbers and Sets
    */
+  // TODO: add schema variant
   def add[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.AddAction =
     UpdateExpression.Action.AddAction(self, t.toAttributeValue(a))
 
@@ -118,6 +137,7 @@ sealed trait ProjectionExpression[To] { self =>
   /**
    * Delete Elements from a Set
    */
+  // TODO: add schema variant
   def deleteFromSet[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.DeleteAction =
     UpdateExpression.Action.DeleteAction(self, t.toAttributeValue(a))
 
@@ -125,6 +145,12 @@ sealed trait ProjectionExpression[To] { self =>
     @tailrec
     def loop(pe: ProjectionExpression[_], acc: List[String]): List[String] =
       pe match {
+        /*
+        If you have a PE that DDB does not know how to handle, then you have an error
+        eg [0] // DDB does not support top level array or primitives at the top level
+        so we need more code everywhere it is used to check that ROOT is valid and maybe
+        special case it when in the context of the top level.
+         */
         case Root                                        => acc // identity
         case ProjectionExpression.MapElement(Root, name) => acc :+ s"$name"
         case MapElement(parent, key)                     => loop(parent, acc :+ s".$key")
@@ -134,6 +160,8 @@ sealed trait ProjectionExpression[To] { self =>
     loop(self, List.empty).reverse.mkString("")
   }
 }
+
+//sealed trait Sizeable[A]
 
 @implicitNotFound("the type ${A} must be a ${X} in order to use this operator")
 sealed trait RefersTo[X, -A]
@@ -156,78 +184,78 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
         ProjectionExpressionOperand(self),
         implicitly[ToOperand[To]].toOperand(that)
       )
-    def ===[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = {
-      val _ = refersTo
-      ConditionExpression.Equals(
-        ProjectionExpressionOperand(self),
-        ConditionExpression.Operand.ProjectionExpressionOperand(that)
-      )
-    }
+//    def ===[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = {
+//      val _ = refersTo
+//      ConditionExpression.Equals(
+//        ProjectionExpressionOperand(self),
+//        ConditionExpression.Operand.ProjectionExpressionOperand(that)
+//      )
+//    }
 
     def <>(that: To): ConditionExpression =
       ConditionExpression.NotEqual(
         ProjectionExpressionOperand(self),
         implicitly[ToOperand[To]].toOperand(that)
       )
-    def <>[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = {
-      val _ = refersTo
-      ConditionExpression.NotEqual(
-        ProjectionExpressionOperand(self),
-        ConditionExpression.Operand.ProjectionExpressionOperand(that)
-      )
-    }
+//    def <>[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = {
+//      val _ = refersTo
+//      ConditionExpression.NotEqual(
+//        ProjectionExpressionOperand(self),
+//        ConditionExpression.Operand.ProjectionExpressionOperand(that)
+//      )
+//    }
 
     def <(that: To): ConditionExpression =
       ConditionExpression.LessThan(
         ProjectionExpressionOperand(self),
         implicitly[ToOperand[To]].toOperand(that)
       )
-    def <[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = {
-      val _ = refersTo
-      ConditionExpression.LessThan(
-        ProjectionExpressionOperand(self),
-        ConditionExpression.Operand.ProjectionExpressionOperand(that)
-      )
-    }
+//    def <[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = {
+//      val _ = refersTo
+//      ConditionExpression.LessThan(
+//        ProjectionExpressionOperand(self),
+//        ConditionExpression.Operand.ProjectionExpressionOperand(that)
+//      )
+//    }
 
     def <=(that: To): ConditionExpression =
       ConditionExpression.LessThanOrEqual(
         ProjectionExpressionOperand(self),
         implicitly[ToOperand[To]].toOperand(that)
       )
-    def <=[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = {
-      val _ = refersTo
-      ConditionExpression.LessThanOrEqual(
-        ProjectionExpressionOperand(self),
-        ConditionExpression.Operand.ProjectionExpressionOperand(that)
-      )
-    }
+//    def <=[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = {
+//      val _ = refersTo
+//      ConditionExpression.LessThanOrEqual(
+//        ProjectionExpressionOperand(self),
+//        ConditionExpression.Operand.ProjectionExpressionOperand(that)
+//      )
+//    }
 
     def >(that: To): ConditionExpression =
       ConditionExpression.GreaterThan(
         ProjectionExpressionOperand(self),
         implicitly[ToOperand[To]].toOperand(that)
       )
-    def >[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = {
-      val _ = refersTo
-      ConditionExpression.GreaterThan(
-        ProjectionExpressionOperand(self),
-        ConditionExpression.Operand.ProjectionExpressionOperand(that)
-      )
-    }
+//    def >[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = {
+//      val _ = refersTo
+//      ConditionExpression.GreaterThan(
+//        ProjectionExpressionOperand(self),
+//        ConditionExpression.Operand.ProjectionExpressionOperand(that)
+//      )
+//    }
 
     def >=(that: To): ConditionExpression =
       ConditionExpression.GreaterThanOrEqual(
         ProjectionExpressionOperand(self),
         implicitly[ToOperand[To]].toOperand(that)
       )
-    def >=[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = {
-      val _ = refersTo
-      ConditionExpression.GreaterThanOrEqual(
-        ProjectionExpressionOperand(self),
-        ConditionExpression.Operand.ProjectionExpressionOperand(that)
-      )
-    }
+//    def >=[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = {
+//      val _ = refersTo
+//      ConditionExpression.GreaterThanOrEqual(
+//        ProjectionExpressionOperand(self),
+//        ConditionExpression.Operand.ProjectionExpressionOperand(that)
+//      )
+//    }
 
   }
 }
@@ -366,6 +394,10 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     override def makeLens[S, A](product: Schema.Record[S], term: Schema.Field[A]): Lens[S, A] =
       ProjectionExpression.MapElement(Root, term.label).asInstanceOf[Lens[S, A]]
 
+    /*
+    need to respect enum annotations
+    may need PE.identity case object => we do not need Root anymore
+     */
     override def makePrism[S, A](sum: Schema.Enum[S], term: Schema.Case[A, S]): Prism[S, A] =
       ProjectionExpression.MapElement(Root, term.id).asInstanceOf[Prism[S, A]]
 

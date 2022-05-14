@@ -42,6 +42,13 @@ object TopLevelEnumOpticsExample {
           .filter( // Scan/Query
             id > id_ && sku < sku_
           )
+      /*
+overloaded method > with alternatives:
+  [To2](that: zio.dynamodb.ProjectionExpression[To2])(implicit refersTo: zio.dynamodb.RefersTo[String,To2]): zio.dynamodb.ConditionExpression <and>
+  (that: String)zio.dynamodb.ConditionExpression
+ cannot be applied to (Int)
+            id > 1 && sku < sku_
+       */
       case BilledInvoice(id_, sku_, amount_) =>
         val (id, sku, amount) = ProjectionExpression.accessors[BilledInvoice]
         queryAll[Student]("invoice")
