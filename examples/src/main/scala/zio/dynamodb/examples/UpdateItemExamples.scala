@@ -8,7 +8,7 @@ import zio.dynamodb.ProjectionExpression.$
 object UpdateItemExamples {
 
   val pi1 = updateItem("tableName1", PrimaryKey("field1" -> 1)) {
-    $("foo.bar").setValue("a_value") +
+    $("foo.bar").setX("a_value") +
       $("bar.foo").remove +
       $("foo.foo").appendList(Chunk("s")) +
       $("foo.foo").prependList(Chunk("s")) +

@@ -82,15 +82,15 @@ sealed trait ProjectionExpression[To] { self =>
 //  implicit val x: Schema[AttributeValue] = ???
 //  def foo[A: ToAttributeValue](a: A): Schema[AttributeValue] = ???
 
-  /**
-   * Modify or Add an item Attribute
-   */
-  def setValue[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
-    UpdateExpression.Action.SetAction(self, UpdateExpression.SetOperand.ValueOperand(t.toAttributeValue(a)))
+//  /**
+//   * Modify or Add an item Attribute
+//   */
+//  def setValue[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
+//    UpdateExpression.Action.SetAction(self, UpdateExpression.SetOperand.ValueOperand(t.toAttributeValue(a)))
 
-  // we could restrict A to be same type as field
-  // have to move as extension method
-  def set[A: Schema](a: A): UpdateExpression.Action.SetAction = setValue(AttributeValue.encode(a))
+//  // we could restrict A to be same type as field
+//  // have to move as extension method
+//  def set[A: Schema](a: A): UpdateExpression.Action.SetAction = setValue(AttributeValue.encode(a))
 
   /**
    * Modify or Add an item Attribute
@@ -326,6 +326,10 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
   }
 
   implicit class ProjectionExpressionSyntax(self: ProjectionExpression[Unknown]) {
+
+    /**
+     * Modify or Add an item Attribute
+     */
     def setX[To: ToSetOperand](a: To): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(self, implicitly[ToSetOperand[To]].toOperand(a))
 
