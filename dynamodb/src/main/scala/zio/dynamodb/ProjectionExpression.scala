@@ -330,7 +330,7 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     /**
      * Modify or Add an item Attribute
      */
-    def setX[To: ToSetOperand](a: To): UpdateExpression.Action.SetAction =
+    def set[To: ToSetOperand](a: To): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(self, implicitly[ToSetOperand[To]].toOperand(a))
 
     def ===[To: ToOperand](that: To): ConditionExpression =
