@@ -182,7 +182,7 @@ object RefersTo                       extends RefersToLowerPriorityImplicits0 {
 
 trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowPriorityImplicits1 {
   implicit class ProjectionExpressionSyntaxSet0[To: ToSetOperand](self: ProjectionExpression[To]) {
-    def setX(a: To): UpdateExpression.Action.SetAction =
+    def set(a: To): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(self, implicitly[ToSetOperand[To]].toOperand(a))
 
   }

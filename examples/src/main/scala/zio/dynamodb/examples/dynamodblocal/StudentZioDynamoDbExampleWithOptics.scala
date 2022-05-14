@@ -101,9 +101,9 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     )
                     .execute
     _          <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
-                    enrollmentDate.setIfNotExists(enrolDate2.toString) + payment.setX(Payment.PayPal) + address
-                      .setX( // Note we are setting a case class directly here
-                        Some(Address("line1", "postcode1"))
+                    enrollmentDate.setIfNotExists(enrolDate2.toString) + payment.set(Payment.PayPal) + address
+                      .set( // Note we are setting a case class directly here
+                        Some(Address("line1X", "postcode1"))
                       )
                   }.execute
     _          <- deleteItem("student", PrimaryKey("email" -> "adam@gmail.com", "subject" -> "english"))
