@@ -125,6 +125,7 @@ object ConditionExpression {
     trait ToOperand[A] {
       def toOperand(a: A): Operand
     }
+
     object ToOperand extends ToOperandLowPriorityImplicits {
 
       implicit def fromSchemaAttributeValue[A](implicit schema: Schema[A]): ToOperand[A] = {

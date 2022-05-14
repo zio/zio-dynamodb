@@ -3,7 +3,7 @@ package zio.dynamodb
 import zio.Chunk
 import zio.dynamodb.ConditionExpression.Operand.{ ProjectionExpressionOperand, ToOperand }
 import zio.dynamodb.ProjectionExpression.{ ListElement, MapElement, Root }
-import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand }
+import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand, ToSetOperand }
 import zio.schema.{ AccessorBuilder, Schema }
 
 import scala.annotation.{ implicitNotFound, tailrec }
@@ -181,6 +181,11 @@ object RefersTo                       extends RefersToLowerPriorityImplicits0 {
 }
 
 trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowPriorityImplicits1 {
+  implicit class ProjectionExpressionSyntaxSet0[To: ToSetOperand](self: ProjectionExpression[To]) {
+    def setX(a: To): UpdateExpression.Action.SetAction =
+      UpdateExpression.Action.SetAction(self, implicitly[ToSetOperand[To]].toOperand(a))
+
+  }
   implicit class ProjectionExpressionSyntax0[To: ToOperand](self: ProjectionExpression[To]) {
     def ===(that: To): ConditionExpression =
       ConditionExpression.Equals(
@@ -321,6 +326,9 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
   }
 
   implicit class ProjectionExpressionSyntax(self: ProjectionExpression[Unknown]) {
+    def setX[To: ToSetOperand](a: To): UpdateExpression.Action.SetAction =
+      UpdateExpression.Action.SetAction(self, implicitly[ToSetOperand[To]].toOperand(a))
+
     def ===[To: ToOperand](that: To): ConditionExpression =
       ConditionExpression.Equals(
         ProjectionExpressionOperand(self),

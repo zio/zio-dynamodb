@@ -18,6 +18,7 @@ object UpdateExpressionExamples extends App {
   val ops: UpdateExpression =
     UpdateExpression(
       $("one[2]").setValue(1) +
+        $("one[2]").setX(1) +
         $("one[2]").set($("two")) +
         $("one[2]").setIfNotExists("v2") +
         $("one[2]").setIfNotExists($("two"), "v2") +
