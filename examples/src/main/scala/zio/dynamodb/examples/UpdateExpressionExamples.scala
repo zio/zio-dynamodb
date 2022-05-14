@@ -19,6 +19,7 @@ object UpdateExpressionExamples extends App {
     UpdateExpression(
       $("one[2]").setValue(1) +
         $("one[2]").set($("two")) +
+        $("one[2]").setIfNotExists("v2") +
         $("one[2]").setIfNotExists($("two"), "v2") +
         $("one[2]").appendList(List("x1", "x2")) +
         $("one[2]").prependList(List("x", "x2")) +

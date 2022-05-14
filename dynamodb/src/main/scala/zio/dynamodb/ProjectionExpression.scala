@@ -107,6 +107,9 @@ sealed trait ProjectionExpression[To] { self =>
   ): UpdateExpression.Action.SetAction =
     UpdateExpression.Action.SetAction(self, IfNotExists(pe, t.toAttributeValue(a)))
 
+  def setIfNotExists[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
+    UpdateExpression.Action.SetAction(self, IfNotExists(self, t.toAttributeValue(a)))
+
   /**
    * Add list `xs` to the end of this PathExpression
    */
