@@ -14,7 +14,7 @@ import zio.dynamodb.examples.LocalDdbServer
 import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema }
 import zio.stream.ZStream
 import zio.{ console, App, ExitCode, Has, URIO, ZIO, ZLayer }
-import zio.dynamodb.ProjectionExpression.$
+//import zio.dynamodb.ProjectionExpression.$
 
 import java.net.URI
 import java.time.Instant
@@ -103,7 +103,10 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     )
                     .execute
     _          <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
-                    enrollmentDate.setIfNotExists(enrolDate2.toString) + payment.set($("altPayment")) + address
+                    altPayment.set(Payment.PayPal)
+                  }.execute
+    _          <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
+                    enrollmentDate.setIfNotExists(enrolDate2.toString) + payment.set(altPayment) + address
                       .set( // Note we are setting a case class directly here
                         Some(Address("line1X", "postcode1"))
                       )

@@ -92,11 +92,11 @@ sealed trait ProjectionExpression[To] { self =>
 //  // have to move as extension method
 //  def set[A: Schema](a: A): UpdateExpression.Action.SetAction = setValue(AttributeValue.encode(a))
 
-  /**
-   * Modify or Add an item Attribute
-   */
-  def set(pe: ProjectionExpression[_]): UpdateExpression.Action.SetAction =
-    UpdateExpression.Action.SetAction(self, PathOperand(pe))
+//  /**
+//   * Modify or Add an item Attribute
+//   */
+//  def set(pe: ProjectionExpression[_]): UpdateExpression.Action.SetAction =
+//    UpdateExpression.Action.SetAction(self, PathOperand(pe))
 
   /**
    * Modifying or Add item Attributes if ProjectionExpression `pe` exists
@@ -185,6 +185,11 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
     def set(a: To): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(self, implicitly[ToSetOperand[To]].toOperand(a))
 
+    def set(pe: ProjectionExpression[To]): UpdateExpression.Action.SetAction = {
+      println(s"XXXXXXXXXXXX set 1")
+      UpdateExpression.Action.SetAction(self, PathOperand(pe))
+    }
+
   }
   implicit class ProjectionExpressionSyntax0[To: ToOperand](self: ProjectionExpression[To]) {
     def ===(that: To): ConditionExpression =
@@ -269,6 +274,13 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
 }
 trait ProjectionExpressionLowPriorityImplicits1 {
   implicit class ProjectionExpressionSyntax1[To](self: ProjectionExpression[To]) {
+    def set[To2](
+      that: ProjectionExpression[To]
+    )(implicit refersTo: RefersTo[To, To2]): UpdateExpression.Action.SetAction = {
+      val _ = refersTo
+      println(s"XXXXXXXXXXXX set 2")
+      UpdateExpression.Action.SetAction(self, PathOperand(that))
+    }
 
     def ===[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = {
       val _ = refersTo
@@ -330,8 +342,14 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     /**
      * Modify or Add an item Attribute
      */
-    def set[To: ToSetOperand](a: To): UpdateExpression.Action.SetAction =
+    def set[To: ToSetOperand](a: To): UpdateExpression.Action.SetAction = {
+      println(s"XXXXXXXXXXXX set 3")
       UpdateExpression.Action.SetAction(self, implicitly[ToSetOperand[To]].toOperand(a))
+    }
+    def set(that: ProjectionExpression[_]): UpdateExpression.Action.SetAction = {
+      println(s"XXXXXXXXXXXX set 4")
+      UpdateExpression.Action.SetAction(self, PathOperand(that))
+    }
 
     def ===[To: ToOperand](that: To): ConditionExpression =
       ConditionExpression.Equals(

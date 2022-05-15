@@ -181,7 +181,7 @@ object UpdateExpression {
       def toOperand(a: A): SetOperand
     }
     object ToSetOperand extends ToSetOperandLowPriorityImplicits {
-      implicit def fromX[A](implicit schema: Schema[A]): ToSetOperand[A] = {
+      implicit def fromSchema[A](implicit schema: Schema[A]): ToSetOperand[A] = {
         val _ = schema
         new ToSetOperand[A] {
           override def toOperand(a: A): SetOperand = {
