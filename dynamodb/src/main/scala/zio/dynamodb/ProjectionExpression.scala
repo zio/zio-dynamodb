@@ -3,7 +3,7 @@ package zio.dynamodb
 import zio.Chunk
 import zio.dynamodb.ConditionExpression.Operand.{ ProjectionExpressionOperand, ToAv }
 import zio.dynamodb.ProjectionExpression.{ ListElement, MapElement, Root }
-import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand, ToSetOperand }
+import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand }
 import zio.schema.{ AccessorBuilder, Schema }
 
 import scala.annotation.{ implicitNotFound, tailrec }
@@ -181,17 +181,16 @@ object RefersTo                       extends RefersToLowerPriorityImplicits0 {
 }
 
 trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowPriorityImplicits1 {
-  implicit class ProjectionExpressionSyntaxSet0[To: ToSetOperand](self: ProjectionExpression[To]) {
+
+  implicit class ProjectionExpressionSyntax0[To: ToAv](self: ProjectionExpression[To]) {
     def set(a: To): UpdateExpression.Action.SetAction =
-      UpdateExpression.Action.SetAction(self, implicitly[ToSetOperand[To]].toOperand(a))
+      UpdateExpression.Action.SetAction(self, UpdateExpression.SetOperand.ValueOperand(implicitly[ToAv[To]].toAv(a)))
 
     def set(pe: ProjectionExpression[To]): UpdateExpression.Action.SetAction = {
       println(s"XXXXXXXXXXXX set 1")
       UpdateExpression.Action.SetAction(self, PathOperand(pe))
     }
 
-  }
-  implicit class ProjectionExpressionSyntax0[To: ToAv](self: ProjectionExpression[To]) {
     def ===(that: To): ConditionExpression =
       ConditionExpression.Equals(
         ProjectionExpressionOperand(self),
@@ -342,9 +341,9 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     /**
      * Modify or Add an item Attribute
      */
-    def set[To: ToSetOperand](a: To): UpdateExpression.Action.SetAction = {
+    def set[To: ToAv](a: To): UpdateExpression.Action.SetAction = {
       println(s"XXXXXXXXXXXX set 3")
-      UpdateExpression.Action.SetAction(self, implicitly[ToSetOperand[To]].toOperand(a))
+      UpdateExpression.Action.SetAction(self, UpdateExpression.SetOperand.ValueOperand(implicitly[ToAv[To]].toAv(a)))
     }
     def set(that: ProjectionExpression[_]): UpdateExpression.Action.SetAction = {
       println(s"XXXXXXXXXXXX set 4")

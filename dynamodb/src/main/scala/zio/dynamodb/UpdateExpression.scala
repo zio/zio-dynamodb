@@ -1,9 +1,8 @@
 package zio.dynamodb
 
-import zio.{ Chunk, ChunkBuilder }
 import zio.dynamodb.UpdateExpression.Action
 import zio.dynamodb.UpdateExpression.Action.Actions
-import zio.schema.Schema
+import zio.{ Chunk, ChunkBuilder }
 
 /*
 
@@ -177,30 +176,6 @@ object UpdateExpression {
 
   }
   object SetOperand {
-    sealed trait ToSetOperand[A] {
-      def toOperand(a: A): SetOperand
-    }
-    object ToSetOperand extends ToSetOperandLowPriorityImplicits {
-      implicit def fromSchema[A](implicit schema: Schema[A]): ToSetOperand[A] = {
-        val _ = schema
-        new ToSetOperand[A] {
-          override def toOperand(a: A): SetOperand = {
-            val enc = Codec.encoder(schema)
-            val av  = enc(a)
-            ValueOperand(av)
-          }
-        }
-      }
-    }
-
-    trait ToSetOperandLowPriorityImplicits {
-      implicit def fromAttributeValue[A](implicit toAv: ToAttributeValue[A]): ToSetOperand[A] =
-        new ToSetOperand[A] {
-          override def toOperand(a: A): SetOperand =
-            ValueOperand(toAv.toAttributeValue(a))
-        }
-
-    }
 
     private[dynamodb] final case class Minus(left: SetOperand, right: SetOperand) extends SetOperand
     private[dynamodb] final case class Plus(left: SetOperand, right: SetOperand)  extends SetOperand
