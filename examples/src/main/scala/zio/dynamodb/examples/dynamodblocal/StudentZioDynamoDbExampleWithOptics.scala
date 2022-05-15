@@ -45,11 +45,13 @@ object StudentZioDynamoDbExampleWithOptics extends App {
     enrollmentDate: Option[Instant],
     payment: Payment,
     altPayment: Payment,
-    address: Option[Address] = None
+    address: Option[Address] = None,
+    addresses: List[Address] = List.empty[Address]
   )
   object Student extends DefaultJavaTimeSchemas {
-    implicit val schema                                                = DeriveSchema.gen[Student]
-    val (email, subject, enrollmentDate, payment, altPayment, address) = ProjectionExpression.accessors[Student]
+    implicit val schema                                                           = DeriveSchema.gen[Student]
+    val (email, subject, enrollmentDate, payment, altPayment, address, addresses) =
+      ProjectionExpression.accessors[Student]
   }
 
   private val awsConfig = ZLayer.succeed(
@@ -78,8 +80,24 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                   ).execute
     enrolDate  <- ZIO.effect(Instant.parse("2021-03-20T01:39:33Z"))
     enrolDate2 <- ZIO.effect(Instant.parse("2022-03-20T01:39:33Z"))
-    avi         = Student("avi@gmail.com", "maths", Some(enrolDate), Payment.DebitCard, Payment.CreditCard)
-    adam        = Student("adam@gmail.com", "english", Some(enrolDate), Payment.CreditCard, Payment.DebitCard)
+    avi         = Student(
+                    "avi@gmail.com",
+                    "maths",
+                    Some(enrolDate),
+                    Payment.DebitCard,
+                    Payment.CreditCard,
+                    None,
+                    List(Address("line2", "postcode2"))
+                  )
+    adam        = Student(
+                    "adam@gmail.com",
+                    "english",
+                    Some(enrolDate),
+                    Payment.CreditCard,
+                    Payment.DebitCard,
+                    None,
+                    List(Address("line2", "postcode2"))
+                  )
     _          <- batchWriteFromStream(ZStream(avi, adam)) { student =>
                     put("student", student)
                   }.runDrain
@@ -108,7 +126,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
     _          <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
                     enrollmentDate.setIfNotExists(Some(enrolDate2)) + payment.set(altPayment) + address
                       .set( // Note we are setting a case class directly here
-                        Some(Address("line1X", "postcode1"))
+                        Some(Address("line1", "postcode1"))
                       )
                   }.execute
     _          <- deleteItem("student", PrimaryKey("email" -> "adam@gmail.com", "subject" -> "english"))
