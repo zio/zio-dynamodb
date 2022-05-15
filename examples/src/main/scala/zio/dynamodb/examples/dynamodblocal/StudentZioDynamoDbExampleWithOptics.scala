@@ -14,6 +14,7 @@ import zio.dynamodb.examples.LocalDdbServer
 import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema }
 import zio.stream.ZStream
 import zio.{ console, App, ExitCode, Has, URIO, ZIO, ZLayer }
+import zio.dynamodb.ProjectionExpression.$
 
 import java.net.URI
 import java.time.Instant
@@ -43,11 +44,12 @@ object StudentZioDynamoDbExampleWithOptics extends App {
     subject: String,
     enrollmentDate: Option[Instant],
     payment: Payment,
+    altPayment: Payment,
     address: Option[Address] = None
   )
   object Student extends DefaultJavaTimeSchemas {
-    implicit val schema                                    = DeriveSchema.gen[Student]
-    val (email, subject, enrollmentDate, payment, address) = ProjectionExpression.accessors[Student]
+    implicit val schema                                                = DeriveSchema.gen[Student]
+    val (email, subject, enrollmentDate, payment, altPayment, address) = ProjectionExpression.accessors[Student]
   }
 
   private val awsConfig = ZLayer.succeed(
@@ -76,8 +78,8 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                   ).execute
     enrolDate  <- ZIO.effect(Instant.parse("2021-03-20T01:39:33Z"))
     enrolDate2 <- ZIO.effect(Instant.parse("2022-03-20T01:39:33Z"))
-    avi         = Student("avi@gmail.com", "maths", Some(enrolDate), Payment.DebitCard)
-    adam        = Student("adam@gmail.com", "english", Some(enrolDate), Payment.CreditCard)
+    avi         = Student("avi@gmail.com", "maths", Some(enrolDate), Payment.DebitCard, Payment.CreditCard)
+    adam        = Student("adam@gmail.com", "english", Some(enrolDate), Payment.CreditCard, Payment.DebitCard)
     _          <- batchWriteFromStream(ZStream(avi, adam)) { student =>
                     put("student", student)
                   }.runDrain
@@ -101,7 +103,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     )
                     .execute
     _          <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
-                    enrollmentDate.setIfNotExists(enrolDate2.toString) + payment.set(Payment.PayPal) + address
+                    enrollmentDate.setIfNotExists(enrolDate2.toString) + payment.set($("altPayment")) + address
                       .set( // Note we are setting a case class directly here
                         Some(Address("line1X", "postcode1"))
                       )
