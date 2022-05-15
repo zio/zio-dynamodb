@@ -122,7 +122,7 @@ object ConditionExpression {
   }
 
   object Operand {
-    trait ToAv[A] {
+    trait ToAv[A] { // TODO: think of a better name
       def toAv(a: A): AttributeValue
     }
 

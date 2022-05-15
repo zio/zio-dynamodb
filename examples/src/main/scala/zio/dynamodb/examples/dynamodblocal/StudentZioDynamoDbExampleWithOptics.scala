@@ -106,7 +106,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     altPayment.set(Payment.PayPal)
                   }.execute
     _          <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
-                    enrollmentDate.setIfNotExists(enrolDate2.toString) + payment.set(altPayment) + address
+                    enrollmentDate.setIfNotExists(Some(enrolDate2)) + payment.set(altPayment) + address
                       .set( // Note we are setting a case class directly here
                         Some(Address("line1X", "postcode1"))
                       )

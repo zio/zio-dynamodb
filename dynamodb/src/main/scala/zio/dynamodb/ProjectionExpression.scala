@@ -98,17 +98,17 @@ sealed trait ProjectionExpression[To] { self =>
 //  def set(pe: ProjectionExpression[_]): UpdateExpression.Action.SetAction =
 //    UpdateExpression.Action.SetAction(self, PathOperand(pe))
 
-  /**
-   * Modifying or Add item Attributes if ProjectionExpression `pe` exists
-   */
-  // TODO: add Schema variant and move
-  def setIfNotExists[A](pe: ProjectionExpression[_], a: A)(implicit
-    t: ToAttributeValue[A]
-  ): UpdateExpression.Action.SetAction =
-    UpdateExpression.Action.SetAction(self, IfNotExists(pe, t.toAttributeValue(a)))
+//  /**
+//   * Modifying or Add item Attributes if ProjectionExpression `pe` exists
+//   */
+//  // TODO: add Schema variant and move
+//  def setIfNotExists[A](pe: ProjectionExpression[_], a: A)(implicit
+//    t: ToAttributeValue[A]
+//  ): UpdateExpression.Action.SetAction =
+//    UpdateExpression.Action.SetAction(self, IfNotExists(pe, t.toAttributeValue(a)))
 
-  def setIfNotExists[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
-    UpdateExpression.Action.SetAction(self, IfNotExists(self, t.toAttributeValue(a)))
+//  def setIfNotExists[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
+//    UpdateExpression.Action.SetAction(self, IfNotExists(self, t.toAttributeValue(a)))
 
   /**
    * Add list `xs` to the end of this PathExpression
@@ -190,6 +190,9 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
       println(s"XXXXXXXXXXXX set 1")
       UpdateExpression.Action.SetAction(self, PathOperand(pe))
     }
+
+    def setIfNotExists(a: To): UpdateExpression.Action.SetAction =
+      UpdateExpression.Action.SetAction(self, IfNotExists(self, implicitly[ToAv[To]].toAv(a)))
 
     def ===(that: To): ConditionExpression =
       ConditionExpression.Equals(
@@ -349,6 +352,12 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
       println(s"XXXXXXXXXXXX set 4")
       UpdateExpression.Action.SetAction(self, PathOperand(that))
     }
+
+    def setIfNotExists[To: ToAv](a: To): UpdateExpression.Action.SetAction =
+      UpdateExpression.Action.SetAction(self, IfNotExists(self, implicitly[ToAv[To]].toAv(a)))
+
+    def setIfNotExists[To: ToAv](that: ProjectionExpression[_], a: To): UpdateExpression.Action.SetAction =
+      UpdateExpression.Action.SetAction(self, IfNotExists(that, implicitly[ToAv[To]].toAv(a)))
 
     def ===[To: ToAv](that: To): ConditionExpression =
       ConditionExpression.Equals(
