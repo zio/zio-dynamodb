@@ -117,12 +117,12 @@ sealed trait ProjectionExpression[To] { self =>
 //  def appendList[A](xs: Iterable[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
 //    UpdateExpression.Action.SetAction(self, ListAppend(self, AttributeValue.List(xs.map(t.toAttributeValue))))
 
-  /**
-   * Add list `xs` to the beginning of this PathExpression
-   */
-  // TODO: add schema variant
-  def prependList[A](xs: Iterable[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
-    UpdateExpression.Action.SetAction(self, ListPrepend(self, AttributeValue.List(xs.map(t.toAttributeValue))))
+//  /**
+//   * Add list `xs` to the beginning of this PathExpression
+//   */
+//  // TODO: add schema variant
+//  def prependList[A](xs: Iterable[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
+//    UpdateExpression.Action.SetAction(self, ListPrepend(self, AttributeValue.List(xs.map(t.toAttributeValue))))
 
   /**
    * Updating Numbers and Sets
@@ -199,6 +199,9 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
         self,
         ListAppend(self, AttributeValue.List(xs.map(a => to.toAv(a))))
       )
+
+    def prependList[A](xs: To)(implicit ev: To <:< Iterable[A], to: ToAv[A]): UpdateExpression.Action.SetAction =
+      UpdateExpression.Action.SetAction(self, ListPrepend(self, AttributeValue.List(xs.map(a => to.toAv(a)))))
 
     def ===(that: To): ConditionExpression =
       ConditionExpression.Equals(
@@ -369,6 +372,12 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
       UpdateExpression.Action.SetAction(
         self,
         ListAppend(self, AttributeValue.List(xs.map(a => implicitly[ToAv[A]].toAv(a))))
+      )
+
+    def prependList[A: ToAv](xs: Iterable[A]): UpdateExpression.Action.SetAction =
+      UpdateExpression.Action.SetAction(
+        self,
+        ListPrepend(self, AttributeValue.List(xs.map(a => implicitly[ToAv[A]].toAv(a))))
       )
 
     def ===[To: ToAv](that: To): ConditionExpression =
