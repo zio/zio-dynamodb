@@ -47,11 +47,12 @@ object StudentZioDynamoDbExampleWithOptics extends App {
     altPayment: Payment,
     studentNumber: Int,
     address: Option[Address] = None,
-    addresses: List[Address] = List.empty[Address]
+    addresses: List[Address] = List.empty[Address],
+    groups: Set[String] = Set.empty[String]
   )
   object Student extends DefaultJavaTimeSchemas {
-    implicit val schema                                                                          = DeriveSchema.gen[Student]
-    val (email, subject, enrollmentDate, payment, altPayment, studentNumber, address, addresses) =
+    implicit val schema                                                                                  = DeriveSchema.gen[Student]
+    val (email, subject, enrollmentDate, payment, altPayment, studentNumber, address, addresses, groups) =
       ProjectionExpression.accessors[Student]
   }
 
@@ -89,7 +90,8 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     Payment.CreditCard,
                     1,
                     None,
-                    List(Address("line2", "postcode2"))
+                    List(Address("line2", "postcode2")),
+                    Set("group1", "group2")
                   )
     adam        = Student(
                     "adam@gmail.com",
@@ -99,7 +101,8 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     Payment.DebitCard,
                     2,
                     None,
-                    List(Address("line2", "postcode2"))
+                    List(Address("line2", "postcode2")),
+                    Set("group1", "group2")
                   )
     _          <- batchWriteFromStream(ZStream(avi, adam)) { student =>
                     put("student", student)

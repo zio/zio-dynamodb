@@ -142,8 +142,8 @@ sealed trait ProjectionExpression[To] { self =>
    * Delete Elements from a Set
    */
   // TODO: add schema variant
-  def deleteFromSet[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.DeleteAction =
-    UpdateExpression.Action.DeleteAction(self, t.toAttributeValue(a))
+//  def deleteFromSet[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.DeleteAction =
+//    UpdateExpression.Action.DeleteAction(self, t.toAttributeValue(a))
 
   override def toString: String = {
     @tailrec
@@ -211,6 +211,16 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
       ConditionExpression.Operand
         .ProjectionExpressionOperand(self)
         .between(to.toAv(minValue), to.toAv(maxValue))
+
+    /*
+    TODO: fix the AWS interface for this - we get the following error
+    [error] ║  ║  ║ software.amazon.awssdk.services.dynamodb.model.DynamoDbException: Invalid UpdateExpression: Incorrect operand
+    type for operator or function; operator: DELETE, operand type: STRING, typeSet: ALLOWED_FOR_DELETE_OPERAND
+    (Service: DynamoDb, Status Code: 400, Request ID: 4839352c-fe7f-4771-bb89-6d69a48ee935, Extended Request ID: null)
+    TODO: also add a test for this in LiveSpec
+     */
+    def deleteFromSet[A](a: A)(implicit ev: To <:< Set[A], to: ToAv[A]): UpdateExpression.Action.DeleteAction =
+      UpdateExpression.Action.DeleteAction(self, to.toAv(a))
 
     def ===(that: To): ConditionExpression =
       ConditionExpression.Equals(
@@ -396,6 +406,9 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
       ConditionExpression.Operand
         .ProjectionExpressionOperand(self)
         .between(to.toAv(minValue), to.toAv(maxValue))
+
+    def deleteFromSet[A](a: A)(implicit to: ToAv[A]): UpdateExpression.Action.DeleteAction =
+      UpdateExpression.Action.DeleteAction(self, to.toAv(a))
 
     def ===[To: ToAv](that: To): ConditionExpression =
       ConditionExpression.Equals(
