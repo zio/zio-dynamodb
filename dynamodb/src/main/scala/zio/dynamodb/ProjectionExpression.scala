@@ -60,13 +60,14 @@ sealed trait ProjectionExpression[To] { self =>
   // constraint: NONE -
   // we make this tighter by using the source type as the constraint for A
   // could be done by extension methods as well
-  def between[A](minValue: A, maxValue: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
-    ConditionExpression.Operand
-      .ProjectionExpressionOperand(self)
-      .between(t.toAttributeValue(minValue), t.toAttributeValue(maxValue))
-  def in[A](values: Set[A])(implicit t: ToAttributeValue[A]): ConditionExpression                =
+//  def between[A](minValue: A, maxValue: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
+//    ConditionExpression.Operand
+//      .ProjectionExpressionOperand(self)
+//      .between(t.toAttributeValue(minValue), t.toAttributeValue(maxValue))
+
+  def in[A](values: Set[A])(implicit t: ToAttributeValue[A]): ConditionExpression       =
     ConditionExpression.Operand.ProjectionExpressionOperand(self).in(values.map(t.toAttributeValue))
-  def in[A](value: A, values: A*)(implicit t: ToAttributeValue[A]): ConditionExpression          =
+  def in[A](value: A, values: A*)(implicit t: ToAttributeValue[A]): ConditionExpression =
     ConditionExpression.Operand
       .ProjectionExpressionOperand(self)
       .in(values.map(t.toAttributeValue).toSet + t.toAttributeValue(value))
@@ -205,6 +206,11 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
 
     def prependList[A](xs: To)(implicit ev: To <:< Iterable[A], to: ToAv[A]): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(self, ListPrepend(self, AttributeValue.List(xs.map(a => to.toAv(a)))))
+
+    def between(minValue: To, maxValue: To)(implicit to: ToAv[To]): ConditionExpression =
+      ConditionExpression.Operand
+        .ProjectionExpressionOperand(self)
+        .between(to.toAv(minValue), to.toAv(maxValue))
 
     def ===(that: To): ConditionExpression =
       ConditionExpression.Equals(
@@ -385,6 +391,11 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
         self,
         ListPrepend(self, AttributeValue.List(xs.map(a => implicitly[ToAv[A]].toAv(a))))
       )
+
+    def between[A](minValue: A, maxValue: A)(implicit to: ToAv[A]): ConditionExpression =
+      ConditionExpression.Operand
+        .ProjectionExpressionOperand(self)
+        .between(to.toAv(minValue), to.toAv(maxValue))
 
     def ===[To: ToAv](that: To): ConditionExpression =
       ConditionExpression.Equals(

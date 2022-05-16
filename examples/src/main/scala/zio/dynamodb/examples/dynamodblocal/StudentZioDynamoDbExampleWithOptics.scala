@@ -45,12 +45,13 @@ object StudentZioDynamoDbExampleWithOptics extends App {
     enrollmentDate: Option[Instant],
     payment: Payment,
     altPayment: Payment,
+    studentNumber: Int,
     address: Option[Address] = None,
     addresses: List[Address] = List.empty[Address]
   )
   object Student extends DefaultJavaTimeSchemas {
-    implicit val schema                                                           = DeriveSchema.gen[Student]
-    val (email, subject, enrollmentDate, payment, altPayment, address, addresses) =
+    implicit val schema                                                                          = DeriveSchema.gen[Student]
+    val (email, subject, enrollmentDate, payment, altPayment, studentNumber, address, addresses) =
       ProjectionExpression.accessors[Student]
   }
 
@@ -86,6 +87,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     Some(enrolDate),
                     Payment.DebitCard,
                     Payment.CreditCard,
+                    1,
                     None,
                     List(Address("line2", "postcode2"))
                   )
@@ -95,6 +97,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     Some(enrolDate),
                     Payment.CreditCard,
                     Payment.DebitCard,
+                    2,
                     None,
                     List(Address("line2", "postcode2"))
                   )
@@ -134,9 +137,11 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                   }.execute
     _          <- deleteItem("student", PrimaryKey("email" -> "adam@gmail.com", "subject" -> "english"))
                     .where(
-                      enrollmentDate === Some(enrolDate) && payment <> Payment.PayPal && payment.contains(
-                        "XXXXXXX" // TODO: we want payment.contains("XXXXXXX") to fail
-                      )
+                      (enrollmentDate === Some(enrolDate)) && (payment <> Payment.PayPal) && (studentNumber
+                        .between(0, 2)) && (payment
+                        .contains(
+                          "XXXXXXX" // TODO: we want payment.contains("XXXXXXX") to fail
+                        ))
                     )
                     .execute
     _          <- scanAll[Student]("student").execute
