@@ -113,9 +113,9 @@ sealed trait ProjectionExpression[To] { self =>
   /**
    * Add list `xs` to the end of this PathExpression
    */
-  // TODO: add schema variant
-  def appendList[A](xs: Iterable[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
-    UpdateExpression.Action.SetAction(self, ListAppend(self, AttributeValue.List(xs.map(t.toAttributeValue))))
+//  // TODO: add schema variant
+//  def appendList[A](xs: Iterable[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
+//    UpdateExpression.Action.SetAction(self, ListAppend(self, AttributeValue.List(xs.map(t.toAttributeValue))))
 
   /**
    * Add list `xs` to the beginning of this PathExpression
@@ -193,6 +193,12 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
 
     def setIfNotExists(a: To): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(self, IfNotExists(self, implicitly[ToAv[To]].toAv(a)))
+
+    def appendList[A](xs: To)(implicit ev: To <:< Iterable[A], to: ToAv[A]): UpdateExpression.Action.SetAction =
+      UpdateExpression.Action.SetAction(
+        self,
+        ListAppend(self, AttributeValue.List(xs.map(a => to.toAv(a))))
+      )
 
     def ===(that: To): ConditionExpression =
       ConditionExpression.Equals(
@@ -358,6 +364,12 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
 
     def setIfNotExists[To: ToAv](that: ProjectionExpression[_], a: To): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(self, IfNotExists(that, implicitly[ToAv[To]].toAv(a)))
+
+    def appendList[A: ToAv](xs: Iterable[A]): UpdateExpression.Action.SetAction =
+      UpdateExpression.Action.SetAction(
+        self,
+        ListAppend(self, AttributeValue.List(xs.map(a => implicitly[ToAv[A]].toAv(a))))
+      )
 
     def ===[To: ToAv](that: To): ConditionExpression =
       ConditionExpression.Equals(

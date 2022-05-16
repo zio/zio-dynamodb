@@ -121,7 +121,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     )
                     .execute
     _          <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
-                    altPayment.set(Payment.PayPal)
+                    altPayment.set(Payment.PayPal) + addresses.appendList(List(Address("line3", "postcode3")))
                   }.execute
     _          <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
                     enrollmentDate.setIfNotExists(Some(enrolDate2)) + payment.set(altPayment) + address
