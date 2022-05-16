@@ -200,6 +200,9 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
         ListAppend(self, AttributeValue.List(xs.map(a => to.toAv(a))))
       )
 
+    def prepend[A](a: A)(implicit ev: To <:< Iterable[A], to: ToAv[A]): UpdateExpression.Action.SetAction =
+      prependList(List(a).asInstanceOf[To])
+
     def prependList[A](xs: To)(implicit ev: To <:< Iterable[A], to: ToAv[A]): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(self, ListPrepend(self, AttributeValue.List(xs.map(a => to.toAv(a)))))
 
@@ -373,6 +376,9 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
         self,
         ListAppend(self, AttributeValue.List(xs.map(a => implicitly[ToAv[A]].toAv(a))))
       )
+
+    def prepend[A: ToAv](a: A): UpdateExpression.Action.SetAction =
+      prependList(List(a))
 
     def prependList[A: ToAv](xs: Iterable[A]): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(
