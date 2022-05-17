@@ -132,6 +132,7 @@ sealed trait ProjectionExpression[To] { self =>
   def add[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.AddAction =
     UpdateExpression.Action.AddAction(self, t.toAttributeValue(a))
 
+  // TODO: add version that removes items from a List eg removeFromList
   /**
    * Removes this PathExpression from an item
    */
@@ -172,8 +173,8 @@ trait ContainableLowPriorityImplicits0 extends ContainableLowPriorityImplicits1 
     new Containable[X, ProjectionExpression.Unknown] {}
 }
 trait ContainableLowPriorityImplicits1 {
-  implicit def set[Set[A], A]: Containable[Set[A], A]      = new Containable[Set[A], A] {}
-  implicit def string[String]: Containable[String, String] = new Containable[String, String] {}
+  implicit def set[A]: Containable[Set[A], A]      = new Containable[Set[A], A] {}
+  implicit def string: Containable[String, String] = new Containable[String, String] {}
 }
 object Containable                     extends ContainableLowPriorityImplicits0 {
   implicit def unknownLeft[X]: Containable[ProjectionExpression.Unknown, X] =
@@ -415,38 +416,38 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     def setIfNotExists[To: ToAv](that: ProjectionExpression[_], a: To): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(self, IfNotExists(that, implicitly[ToAv[To]].toAv(a)))
 
-    def appendList[A: ToAv](xs: Iterable[A]): UpdateExpression.Action.SetAction =
+    def appendList[To: ToAv](xs: Iterable[To]): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(
         self,
-        ListAppend(self, AttributeValue.List(xs.map(a => implicitly[ToAv[A]].toAv(a))))
+        ListAppend(self, AttributeValue.List(xs.map(a => implicitly[ToAv[To]].toAv(a))))
       )
 
-    def prepend[A: ToAv](a: A): UpdateExpression.Action.SetAction =
+    def prepend[To: ToAv](a: To): UpdateExpression.Action.SetAction =
       prependList(List(a))
 
-    def prependList[A: ToAv](xs: Iterable[A]): UpdateExpression.Action.SetAction =
+    def prependList[To: ToAv](xs: Iterable[To]): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(
         self,
-        ListPrepend(self, AttributeValue.List(xs.map(a => implicitly[ToAv[A]].toAv(a))))
+        ListPrepend(self, AttributeValue.List(xs.map(a => implicitly[ToAv[To]].toAv(a))))
       )
 
-    def between[A](minValue: A, maxValue: A)(implicit to: ToAv[A]): ConditionExpression =
+    def between[To](minValue: To, maxValue: To)(implicit to: ToAv[To]): ConditionExpression =
       ConditionExpression.Operand
         .ProjectionExpressionOperand(self)
         .between(to.toAv(minValue), to.toAv(maxValue))
 
-    def deleteFromSet[A](a: A)(implicit to: ToAv[A]): UpdateExpression.Action.DeleteAction =
+    def deleteFromSet[To](a: To)(implicit to: ToAv[To]): UpdateExpression.Action.DeleteAction =
       UpdateExpression.Action.DeleteAction(self, to.toAv(a))
 
-    def inSet[A](values: Set[A])(implicit to: ToAv[A]): ConditionExpression =
+    def inSet[To](values: Set[To])(implicit to: ToAv[To]): ConditionExpression =
       ConditionExpression.Operand.ProjectionExpressionOperand(self).in(values.map(to.toAv))
 
-    def in[A](value: A, values: A*)(implicit to: ToAv[A]): ConditionExpression = {
-      val set: Set[A] = values.toSet + value
+    def in[To](value: To, values: To*)(implicit to: ToAv[To]): ConditionExpression = {
+      val set: Set[To] = values.toSet + value
       ConditionExpression.Operand.ProjectionExpressionOperand(self).in(set.map(to.toAv))
     }
 
-    def contains[A](av: A)(implicit to: ToAv[A]): ConditionExpression = {
+    def contains[To](av: To)(implicit to: ToAv[To]): ConditionExpression = {
       println(s"contains for Unknown")
       ConditionExpression.Contains(self, to.toAv(av))
     }
