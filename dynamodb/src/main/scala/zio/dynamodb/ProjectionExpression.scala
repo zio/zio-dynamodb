@@ -48,8 +48,8 @@ sealed trait ProjectionExpression[To] { self =>
 
   // constraint: String OR Set
   // create a typeclass called containable that only has String and Set and Unknown instances
-  def contains[A](av: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
-    ConditionExpression.Contains(self, t.toAttributeValue(av))
+//  def contains[A](av: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
+//    ConditionExpression.Contains(self, t.toAttributeValue(av))
 
   // constraint: String
   def beginsWith(av: String)(implicit ev: RefersTo[String, To]): ConditionExpression = {
@@ -165,7 +165,20 @@ sealed trait ProjectionExpression[To] { self =>
   }
 }
 
-//sealed trait Sizeable[A]
+@implicitNotFound("the type ${A} must be a ${X} in order to use this operator")
+sealed trait Containable[X, -A]
+trait ContainableLowPriorityImplicits0 extends ContainableLowPriorityImplicits1 {
+  implicit def unknownRight[X]: Containable[X, ProjectionExpression.Unknown] =
+    new Containable[X, ProjectionExpression.Unknown] {}
+}
+trait ContainableLowPriorityImplicits1 {
+  implicit def set[Set[A], A]: Containable[Set[A], A]      = new Containable[Set[A], A] {}
+  implicit def string[String]: Containable[String, String] = new Containable[String, String] {}
+}
+object Containable                     extends ContainableLowPriorityImplicits0 {
+  implicit def unknownLeft[X]: Containable[ProjectionExpression.Unknown, X] =
+    new Containable[ProjectionExpression.Unknown, X] {}
+}
 
 @implicitNotFound("the type ${A} must be a ${X} in order to use this operator")
 sealed trait RefersTo[X, -A]
@@ -207,10 +220,10 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
     def prependList[A](xs: To)(implicit ev: To <:< Iterable[A], to: ToAv[A]): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(self, ListPrepend(self, AttributeValue.List(xs.map(a => to.toAv(a)))))
 
-    def between(minValue: To, maxValue: To)(implicit to: ToAv[To]): ConditionExpression =
+    def between(minValue: To, maxValue: To): ConditionExpression =
       ConditionExpression.Operand
         .ProjectionExpressionOperand(self)
-        .between(to.toAv(minValue), to.toAv(maxValue))
+        .between(implicitly[ToAv[To]].toAv(minValue), implicitly[ToAv[To]].toAv(maxValue))
 
     /*
     TODO: Avi fix the AWS interpreter for this - we get the following error
@@ -228,6 +241,12 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
     def in[A](value: A, values: A*)(implicit ev: To <:< Set[A], to: ToAv[A]): ConditionExpression = {
       val set: Set[A] = values.toSet + value
       ConditionExpression.Operand.ProjectionExpressionOperand(self).in(set.map(to.toAv))
+    }
+
+    def contains[A](av: A)(implicit ev: Containable[To, A], to: ToAv[A]): ConditionExpression = {
+      val _ = ev
+      println(s"contains for Optics")
+      ConditionExpression.Contains(self, to.toAv(av))
     }
 
     def ===(that: To): ConditionExpression =
@@ -424,6 +443,11 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     def in[A](value: A, values: A*)(implicit to: ToAv[A]): ConditionExpression = {
       val set: Set[A] = values.toSet + value
       ConditionExpression.Operand.ProjectionExpressionOperand(self).in(set.map(to.toAv))
+    }
+
+    def contains[A](av: A)(implicit to: ToAv[A]): ConditionExpression = {
+      println(s"contains for Unknown")
+      ConditionExpression.Contains(self, to.toAv(av))
     }
 
     def ===[To: ToAv](that: To): ConditionExpression =
