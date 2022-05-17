@@ -139,15 +139,19 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                       )
                   }.execute
     _          <- deleteItem("student", PrimaryKey("email" -> "adam@gmail.com", "subject" -> "english"))
+                    // TODO: Avi "where" expression does not seem to be interpreted at AWS level for delete
                     .where(
-                      (enrollmentDate === Some(enrolDate)) && (payment <> Payment.PayPal) && (studentNumber
-                        .between(0, 2)) && (payment
+                      (enrollmentDate === None /* Some(enrolDate) */ ) && (payment <> Payment.PayPal) && (studentNumber
+                        .between(10, 12)) && (payment
                         .contains(
                           "XXXXXXX" // TODO: we want payment.contains("XXXXXXX") to fail
                         ))
                     )
                     .execute
-    _          <- scanAll[Student]("student").execute
+    _          <- scanAll[Student]("student")
+                    // TODO: Avi "in" expression does not seem to be interpreted at AWS level for scans
+                    .where(groups.in("A", "B"))
+                    .execute
                     .tap(_.tap(student => console.putStrLn(s"scanAll - student=$student")).runDrain)
   } yield ()
 

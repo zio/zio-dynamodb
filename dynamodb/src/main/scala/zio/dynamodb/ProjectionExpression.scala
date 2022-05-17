@@ -65,12 +65,12 @@ sealed trait ProjectionExpression[To] { self =>
 //      .ProjectionExpressionOperand(self)
 //      .between(t.toAttributeValue(minValue), t.toAttributeValue(maxValue))
 
-  def in[A](values: Set[A])(implicit t: ToAttributeValue[A]): ConditionExpression       =
-    ConditionExpression.Operand.ProjectionExpressionOperand(self).in(values.map(t.toAttributeValue))
-  def in[A](value: A, values: A*)(implicit t: ToAttributeValue[A]): ConditionExpression =
-    ConditionExpression.Operand
-      .ProjectionExpressionOperand(self)
-      .in(values.map(t.toAttributeValue).toSet + t.toAttributeValue(value))
+//  def in[A](values: Set[A])(implicit t: ToAttributeValue[A]): ConditionExpression       =
+//    ConditionExpression.Operand.ProjectionExpressionOperand(self).in(values.map(t.toAttributeValue))
+//  def in[A](value: A, values: A*)(implicit t: ToAttributeValue[A]): ConditionExpression =
+//    ConditionExpression.Operand
+//      .ProjectionExpressionOperand(self)
+//      .in(values.map(t.toAttributeValue).toSet + t.toAttributeValue(value))
 
   // UpdateExpression conversions
 
@@ -213,14 +213,22 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
         .between(to.toAv(minValue), to.toAv(maxValue))
 
     /*
-    TODO: fix the AWS interface for this - we get the following error
+    TODO: Avi fix the AWS interpreter for this - we get the following error
     [error] ║  ║  ║ software.amazon.awssdk.services.dynamodb.model.DynamoDbException: Invalid UpdateExpression: Incorrect operand
     type for operator or function; operator: DELETE, operand type: STRING, typeSet: ALLOWED_FOR_DELETE_OPERAND
     (Service: DynamoDb, Status Code: 400, Request ID: 4839352c-fe7f-4771-bb89-6d69a48ee935, Extended Request ID: null)
-    TODO: also add a test for this in LiveSpec
+    TODO: Avi also add a test for this in LiveSpec
      */
     def deleteFromSet[A](a: A)(implicit ev: To <:< Set[A], to: ToAv[A]): UpdateExpression.Action.DeleteAction =
       UpdateExpression.Action.DeleteAction(self, to.toAv(a))
+
+    def in[A](values: To)(implicit ev: To <:< Set[A], to: ToAv[A]): ConditionExpression =
+      ConditionExpression.Operand.ProjectionExpressionOperand(self).in(values.map(to.toAv))
+
+    def in[A](value: A, values: A*)(implicit ev: To <:< Set[A], to: ToAv[A]): ConditionExpression = {
+      val set: Set[A] = values.toSet + value
+      ConditionExpression.Operand.ProjectionExpressionOperand(self).in(set.map(to.toAv))
+    }
 
     def ===(that: To): ConditionExpression =
       ConditionExpression.Equals(
@@ -409,6 +417,14 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
 
     def deleteFromSet[A](a: A)(implicit to: ToAv[A]): UpdateExpression.Action.DeleteAction =
       UpdateExpression.Action.DeleteAction(self, to.toAv(a))
+
+    def in[A](values: Set[A])(implicit to: ToAv[A]): ConditionExpression =
+      ConditionExpression.Operand.ProjectionExpressionOperand(self).in(values.map(to.toAv))
+
+    def in[A](value: A, values: A*)(implicit to: ToAv[A]): ConditionExpression = {
+      val set: Set[A] = values.toSet + value
+      ConditionExpression.Operand.ProjectionExpressionOperand(self).in(set.map(to.toAv))
+    }
 
     def ===[To: ToAv](that: To): ConditionExpression =
       ConditionExpression.Equals(

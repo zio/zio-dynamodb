@@ -91,7 +91,7 @@ object ConditionExpression {
       Between(self, minValue, maxValue)
     def in(values: Set[AttributeValue]): ConditionExpression                             = In(self, values)
 
-    // TODO: looks like these are not used anymore
+    // TODO: Avi looks like these are not used anymore
     def ==(that: Operand): ConditionExpression = Equals(self, that)
     def <>(that: Operand): ConditionExpression = NotEqual(self, that)
     def <(that: Operand): ConditionExpression  = LessThan(self, that)
@@ -99,7 +99,7 @@ object ConditionExpression {
     def >(that: Operand): ConditionExpression  = GreaterThanOrEqual(self, that)
     def >=(that: Operand): ConditionExpression = GreaterThanOrEqual(self, that)
 
-    // TODO: looks like these are not used anymore
+    // TODO: Avi looks like these are not used anymore
     def ==[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
       Equals(self, Operand.ValueOperand(t.toAttributeValue(that)))
     def <>[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
@@ -122,7 +122,7 @@ object ConditionExpression {
   }
 
   object Operand {
-    trait ToAv[A] { // TODO: think of a better name
+    trait ToAv[A] { // TODO: Avi think of a better name
       def toAv(a: A): AttributeValue
     }
 
@@ -141,7 +141,7 @@ object ConditionExpression {
     }
 
     trait ToOperandLowPriorityImplicits {
-// TODO: when using show implicit hints I notice that only fromSchemaAttributeValue was being used in all the examples
+// TODO: Avi when using show implicit hints I notice that only fromSchemaAttributeValue was being used in all the examples
 // when I comment out this section all tests still pass
       implicit def fromAttributeValue[A](implicit x: ToAttributeValue[A]): ToAv[A] =
         new ToAv[A] {
