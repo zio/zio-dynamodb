@@ -32,7 +32,7 @@ object ConditionExpressionExamples {
   val peToCond1: ConditionExpression   = $("col1") === "2"
   val peToCond2: ConditionExpression   = $("col1") > 1.0
   val peFnToCond1: ConditionExpression = $("col1").between("1", "2")
-  val peFnToCond2: ConditionExpression = $("col1").in(Set("1", "2"))
+  val peFnToCond2: ConditionExpression = $("col1").inSet(Set("1", "2"))
   val peFnToCond3: ConditionExpression = $("col1").in("1", "2")
 
 }

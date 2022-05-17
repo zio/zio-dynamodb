@@ -147,7 +147,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     .execute
     _          <- scanAll[Student]("student")
                     // TODO: Avi "in" expression does not seem to be interpreted at AWS level for scans
-                    .where(groups.in("A", "B"))
+                    .filter(payment.inSet(Set(Payment.PayPal, Payment.CreditCard)))
                     .execute
                     .tap(_.tap(student => console.putStrLn(s"scanAll - student=$student")).runDrain)
   } yield ()

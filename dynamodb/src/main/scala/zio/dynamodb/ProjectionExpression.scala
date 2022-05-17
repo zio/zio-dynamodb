@@ -235,12 +235,13 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
     def deleteFromSet[A](a: A)(implicit ev: To <:< Set[A], to: ToAv[A]): UpdateExpression.Action.DeleteAction =
       UpdateExpression.Action.DeleteAction(self, to.toAv(a))
 
-    def in[A](values: To)(implicit ev: To <:< Set[A], to: ToAv[A]): ConditionExpression =
-      ConditionExpression.Operand.ProjectionExpressionOperand(self).in(values.map(to.toAv))
+    // TODO: needed a different name to avoid " overloaded method in with alternatives:"
+    def inSet(values: Set[To]): ConditionExpression =
+      ConditionExpression.Operand.ProjectionExpressionOperand(self).in(values.map(implicitly[ToAv[To]].toAv))
 
-    def in[A](value: A, values: A*)(implicit ev: To <:< Set[A], to: ToAv[A]): ConditionExpression = {
-      val set: Set[A] = values.toSet + value
-      ConditionExpression.Operand.ProjectionExpressionOperand(self).in(set.map(to.toAv))
+    def in(value: To, values: To*): ConditionExpression = {
+      val set: Set[To] = values.toSet + value
+      ConditionExpression.Operand.ProjectionExpressionOperand(self).in(set.map(implicitly[ToAv[To]].toAv))
     }
 
     def contains[A](av: A)(implicit ev: Containable[To, A], to: ToAv[A]): ConditionExpression = {
@@ -437,7 +438,7 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     def deleteFromSet[A](a: A)(implicit to: ToAv[A]): UpdateExpression.Action.DeleteAction =
       UpdateExpression.Action.DeleteAction(self, to.toAv(a))
 
-    def in[A](values: Set[A])(implicit to: ToAv[A]): ConditionExpression =
+    def inSet[A](values: Set[A])(implicit to: ToAv[A]): ConditionExpression =
       ConditionExpression.Operand.ProjectionExpressionOperand(self).in(values.map(to.toAv))
 
     def in[A](value: A, values: A*)(implicit to: ToAv[A]): ConditionExpression = {
