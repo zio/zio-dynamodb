@@ -1,0 +1,177 @@
+{
+  "id": {
+    "S": "D2C:BAMTECH:urn:dss:launchpad:orders:fd7e154f-05b4-424d-a169-3739492e7511_launchpad_monthly"
+  },
+  "product": {
+    "M": {
+      "entitlements": {
+        "L": [
+          {
+            "M": {
+              "name": {
+                "S": "LP_TESTENT"
+              },
+              "id": {
+                "N": "2582"
+              },
+              "desc": {
+                "S": "Launchpad Test Entitlement (DO NOT USE)"
+              }
+            }
+          }
+        ]
+      },
+      "earlyAccess": {
+        "BOOL": false
+      },
+      "redeemed": {
+        "M": {
+          "voucherCode": {
+            "S": "LAUNCHPAD_PURCHASE_VOCHR"
+          },
+          "campaignCode": {
+            "S": "LAUNCHPAD_PURCHASE_CMPGN"
+          }
+        }
+      },
+      "billingCycle": {
+        "M": {
+          "period": {
+            "N": "1"
+          },
+          "timeUnit": {
+            "S": "Months"
+          }
+        }
+      },
+      "name": {
+        "S": "Test Launchpad D2C Product"
+      },
+      "offerId": {
+        "S": "cc5e905b-385b-322f-81ba-2ac2e2fad460"
+      },
+      "id": {
+        "N": "1000002873"
+      },
+      "sku": {
+        "S": "launchpad_monthly"
+      },
+      "categoryCodes": {
+        "L": [
+          {
+            "S": "monthly"
+          },
+          {
+            "S": "launchpad_submgmt_products"
+          }
+        ]
+      },
+      "promotionId": {
+        "S": "LAUNCHPAD_PURCHASE_VOCHR"
+      }
+    }
+  },
+  "lastUpdatedDate": {
+    "S": "2021-11-30T01:42:00.406961Z"
+  },
+  "subscriptionGroupId": {
+    "S": "59737d39-c0f8-383a-b00d-f75cb125fdbd"
+  },
+  "accountId": {
+    "S": "6396a6ff-4c4f-4da6-96f8-120601064ea7"
+  },
+  "orderId": {
+    "S": "urn:dss:launchpad:orders:fd7e154f-05b4-424d-a169-3739492e7511"
+  },
+  "paymentMethodId": {
+    "S": "12193a27-257e-4142-a6ec-0e3bb706f1d5"
+  },
+  "identityId": {
+    "S": "a2b50630-7ea7-43f1-a483-4a002ff87b49"
+  },
+  "term": {
+    "M": {
+      "billingPhase": {
+        "N": "0"
+      },
+      "churnedDate": {
+        "S": "2021-11-30T01:42:00.406961Z"
+      },
+      "creationDate": {
+        "S": "2021-11-30T01:40:48.440406Z"
+      },
+      "nextBillingDate": {
+        "S": "2023-01-15T00:00:00Z"
+      },
+      "nextRenewalDate": {
+        "S": "2023-01-15T00:00:00Z"
+      },
+      "purchaseDate": {
+        "S": "2021-11-30T01:40:46.445Z"
+      },
+      "subscriptionStartDate": {
+        "S": "2021-11-30T01:40:46.445Z"
+      },
+      "transactionCount": {
+        "N": "1"
+      }
+    }
+  },
+  "ttl": {
+    "N": "1641692448"
+  },
+  "source": {
+    "M": {
+      "salesPlatform": {
+        "S": "commercee2e"
+      },
+      "ref": {
+        "S": "urn:dss:launchpad:orders:fd7e154f-05b4-424d-a169-3739492e7511_launchpad_monthly"
+      },
+      "subType": {
+        "S": "INITIAL"
+      },
+      "type": {
+        "S": "D2C"
+      },
+      "provider": {
+        "S": "BAMTECH"
+      }
+    }
+  },
+  "walletId": {
+    "S": "6396a6ff-4c4f-4da6-96f8-120601064ea7"
+  },
+  "purchasePlatform": {
+    "S": "e2e"
+  },
+  "state": {
+    "S": "ACTIVE"
+  },
+  "isTest": {
+    "BOOL": true
+  },
+  "stacking": {
+    "M": {
+      "previouslyStackedByProvider": {
+        "S": "TIM_IT"
+      }
+    }
+  },
+  "subscriptionType": {
+    "S": "D2CRecurring"
+  },
+  "cancellation": {
+    "M": {
+      "type": {
+        "S": "INVOLUNTARY_CANCEL"
+      }
+    }
+  },
+  "partner": {
+    "S": "launchpad"
+  },
+  "isPendingInitialPayment": {
+    "BOOL": false
+  }
+}

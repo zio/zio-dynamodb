@@ -1,0 +1,63 @@
+BAD
+
+Initializing DynamoDB Local with the following configuration:
+Port:	8000
+InMemory:	true
+DbPath:	null
+SharedDb:	false
+shouldDelayTransientStatuses:	false
+CorsParams:	*
+
+def fromCompletionStage[A](cs: => CompletionStage[A])(implicit trace: ZTraceElement): Task[A] =
+  javaz.fromCompletionStage(cs)
+
+  def fromCompletionStage[A](thunk: => CompletionStage[A])(implicit trace: ZTraceElement): Task[A] =
+    Task.attempt(thunk).flatMap { cs =>
+      Task.suspendSucceedWith { (p, _) =>
+        val cf = cs.toCompletableFuture
+        if (cf.isDone) {
+          unwrapDone(p.fatal)(cf)
+        } else {
+          Task.asyncInterrupt { cb =>
+            val _ = cs.handle[Unit] { (v: A, t: Throwable) =>
+              val io = Option(t).fold[Task[A]](Task.succeed(v)) { t =>
+                catchFromGet(p.fatal).lift(t).getOrElse(Task.die(t))
+              }
+              cb(io)
+            }
+            Left(ZIO.succeed(cf.cancel(false)))
+          }
+        }
+      }
+    }
+
+================================================================================
+OK
+
+Port:	8000
+InMemory:	true
+DbPath:	null
+SharedDb:	false
+shouldDelayTransientStatuses:	false
+CorsParams:	*
+
+  def fromCompletionStage[A](cs: => CompletionStage[A]): Task[A] = javaz.fromCompletionStage(cs)
+
+  def fromCompletionStage[A](thunk: => CompletionStage[A]): Task[A] =
+    Task.effect(thunk).flatMap { cs =>
+      Task.effectSuspendTotalWith { (p, _) =>
+        val cf = cs.toCompletableFuture
+        if (cf.isDone) {
+          unwrapDone(p.fatal)(cf)
+        } else {
+          Task.effectAsync { cb =>
+            cs.handle[Unit] { (v: A, t: Throwable) =>
+              val io = Option(t).fold[Task[A]](Task.succeed(v)) { t =>
+                catchFromGet(p.fatal).lift(t).getOrElse(Task.die(t))
+              }
+              cb(io)
+            }
+          }
+        }
+      }
+    }
