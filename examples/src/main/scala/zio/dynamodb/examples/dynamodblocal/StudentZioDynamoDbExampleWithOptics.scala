@@ -46,13 +46,14 @@ object StudentZioDynamoDbExampleWithOptics extends App {
     payment: Payment,
     altPayment: Payment,
     studentNumber: Int,
+    collegeName: String,
     address: Option[Address] = None,
     addresses: List[Address] = List.empty[Address],
     groups: Set[String] = Set.empty[String]
   )
   object Student extends DefaultJavaTimeSchemas {
-    implicit val schema                                                                                  = DeriveSchema.gen[Student]
-    val (email, subject, enrollmentDate, payment, altPayment, studentNumber, address, addresses, groups) =
+    implicit val schema                                                                                               = DeriveSchema.gen[Student]
+    val (email, subject, enrollmentDate, payment, altPayment, studentNumber, collegeName, address, addresses, groups) =
       ProjectionExpression.accessors[Student]
   }
 
@@ -89,6 +90,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     Payment.DebitCard,
                     Payment.CreditCard,
                     1,
+                    "college1",
                     None,
                     List(Address("line2", "postcode2")),
                     Set("group1", "group2")
@@ -100,6 +102,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     Payment.CreditCard,
                     Payment.DebitCard,
                     2,
+                    "college1",
                     None,
                     List(Address("line2", "postcode2")),
                     Set("group1", "group2")
@@ -142,7 +145,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     // TODO: Avi "where" expression does not seem to be interpreted at AWS level for delete
                     .where(
                       (enrollmentDate === None /* Some(enrolDate) */ ) && (payment <> Payment.PayPal) && (studentNumber
-                        .between(10, 12)) && (groups.contains("XXXXXXX"))
+                        .between(10, 12)) && (groups.contains("XXXXXXX")) && collegeName.contains("XXXXXXX")
                     )
                     .execute
     _          <- scanAll[Student]("student")
