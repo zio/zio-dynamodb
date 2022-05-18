@@ -166,7 +166,7 @@ sealed trait ProjectionExpression[To] { self =>
   }
 }
 
-@implicitNotFound("XXXXX the type ${A} must be a ${X} in order to use this operator")
+@implicitNotFound("the type ${A} must be a ${X} in order to use this operator")
 sealed trait Addable[X, -A]
 // TODO: add imp for all numeric types eg Int, Long etc etc plus Set
 trait AddableLowPriorityImplicits0 extends AddableLowPriorityImplicits1 {
@@ -174,9 +174,12 @@ trait AddableLowPriorityImplicits0 extends AddableLowPriorityImplicits1 {
     new Addable[X, ProjectionExpression.Unknown] {}
 }
 trait AddableLowPriorityImplicits1 {
-  implicit def set[A]: Addable[Set[A], A]    = new Addable[Set[A], A] {}
-  implicit def longXXXX: Addable[Long, Long] = new Addable[Long, Long] {}
-  implicit def int: Addable[Int, Int]        = new Addable[Int, Int] {}
+  implicit def set[A]: Addable[Set[A], A]      = new Addable[Set[A], A] {}
+  implicit def int: Addable[Int, Int]          = new Addable[Int, Int] {}
+  implicit def long: Addable[Long, Long]       = new Addable[Long, Long] {}
+  implicit def float: Addable[Float, Float]    = new Addable[Float, Float] {}
+  implicit def double: Addable[Double, Double] = new Addable[Double, Double] {}
+  implicit def short: Addable[Short, Short]    = new Addable[Short, Short] {}
 }
 object Addable                     extends AddableLowPriorityImplicits0 {
   implicit def unknownLeft[X]: Addable[ProjectionExpression.Unknown, X] =
@@ -273,12 +276,13 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
 //      println(s"add for Optics")
 //      UpdateExpression.Action.AddAction(self, to.toAv(a))
 //    }
+
     def add(a: To)(implicit ev: Addable[To, To]): UpdateExpression.Action.AddAction = {
       val _ = ev
       println(s"add for Optics")
       UpdateExpression.Action.AddAction(self, implicitly[ToAv[To]].toAv(a))
     }
-    def addSet[A](
+    def addSet[A]( // TODO: see if we can unify these 2 methods
       set: Set[A]
     )(implicit ev: Addable[To, A], evSet: To <:< Set[A]): UpdateExpression.Action.AddAction = {
       val _ = ev
