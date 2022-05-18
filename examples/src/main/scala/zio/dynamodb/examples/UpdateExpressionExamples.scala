@@ -11,6 +11,7 @@ object UpdateExpressionExamples extends App {
   val set4: SetAction      = $("one[2]").appendList(List("1"))
   val set5: SetAction      = $("one[2]").prependList(List("1"))
   val add: AddAction       = $("one[2]").add("V2")
+  val addSet: AddAction    = $("one[2]").addSet(Set("V2"))
   val remove: RemoveAction = $("one[2]").remove
   val delete: DeleteAction = $("one[2]").deleteFromSet("v2")
   val pe8: SetAction       = $("one[2]").set(Item("x" -> "x"))

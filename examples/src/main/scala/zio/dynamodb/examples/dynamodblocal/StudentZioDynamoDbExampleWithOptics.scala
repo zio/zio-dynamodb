@@ -130,7 +130,8 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     )
                     .execute
     _          <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
-                    altPayment.set(Payment.PayPal) + addresses.prependList(List(Address("line0", "postcode0")))
+                    altPayment.set(Payment.PayPal) + addresses.prependList(List(Address("line0", "postcode0"))) + studentNumber
+                      .add(1000) + groups.addSet(Set("group3"))
                   }.execute
     _          <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
                     altPayment.set(Payment.PayPal) + addresses.appendList(List(Address("line3", "postcode3")))

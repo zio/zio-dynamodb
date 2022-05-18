@@ -129,8 +129,8 @@ sealed trait ProjectionExpression[To] { self =>
    * Updating Numbers and Sets
    */
   // TODO: add schema variant
-  def add[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.AddAction =
-    UpdateExpression.Action.AddAction(self, t.toAttributeValue(a))
+//  def add[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.AddAction =
+//    UpdateExpression.Action.AddAction(self, t.toAttributeValue(a))
 
   // TODO: Avi - add version that removes items from a List eg removeFromList
   /**
@@ -164,6 +164,23 @@ sealed trait ProjectionExpression[To] { self =>
 
     loop(self, List.empty).reverse.mkString("")
   }
+}
+
+@implicitNotFound("XXXXX the type ${A} must be a ${X} in order to use this operator")
+sealed trait Addable[X, -A]
+// TODO: add imp for all numeric types eg Int, Long etc etc plus Set
+trait AddableLowPriorityImplicits0 extends AddableLowPriorityImplicits1 {
+  implicit def unknownRight[X]: Addable[X, ProjectionExpression.Unknown] =
+    new Addable[X, ProjectionExpression.Unknown] {}
+}
+trait AddableLowPriorityImplicits1 {
+  implicit def set[A]: Addable[Set[A], A]    = new Addable[Set[A], A] {}
+  implicit def longXXXX: Addable[Long, Long] = new Addable[Long, Long] {}
+  implicit def int: Addable[Int, Int]        = new Addable[Int, Int] {}
+}
+object Addable                     extends AddableLowPriorityImplicits0 {
+  implicit def unknownLeft[X]: Addable[ProjectionExpression.Unknown, X] =
+    new Addable[ProjectionExpression.Unknown, X] {}
 }
 
 @implicitNotFound("the type ${A} must be a ${X} in order to use this operator")
@@ -249,6 +266,24 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
       val _ = ev
       println(s"contains for Optics")
       ConditionExpression.Contains(self, to.toAv(av))
+    }
+
+//    def add[A](a: A)(implicit ev: Addable[To, A], to: ToAv[A]): UpdateExpression.Action.AddAction = {
+//      val _ = ev
+//      println(s"add for Optics")
+//      UpdateExpression.Action.AddAction(self, to.toAv(a))
+//    }
+    def add(a: To)(implicit ev: Addable[To, To]): UpdateExpression.Action.AddAction = {
+      val _ = ev
+      println(s"add for Optics")
+      UpdateExpression.Action.AddAction(self, implicitly[ToAv[To]].toAv(a))
+    }
+    def addSet[A](
+      set: Set[A]
+    )(implicit ev: Addable[To, A], evSet: To <:< Set[A]): UpdateExpression.Action.AddAction = {
+      val _ = ev
+      println(s"addSet for Optics")
+      UpdateExpression.Action.AddAction(self, implicitly[ToAv[To]].toAv(set.asInstanceOf[To]))
     }
 
     def ===(that: To): ConditionExpression =
@@ -450,6 +485,15 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     def contains[To](av: To)(implicit to: ToAv[To]): ConditionExpression = {
       println(s"contains for Unknown")
       ConditionExpression.Contains(self, to.toAv(av))
+    }
+
+    def add[A](a: A)(implicit to: ToAv[A]): UpdateExpression.Action.AddAction =
+      UpdateExpression.Action.AddAction(self, to.toAv(a))
+
+    def addSet[To: ToAv](set: To)(implicit ev: To <:< Set[_]): UpdateExpression.Action.AddAction = {
+      val _ = ev
+      println(s"addSet for Optics")
+      UpdateExpression.Action.AddAction(self, implicitly[ToAv[To]].toAv(set))
     }
 
     def ===[To: ToAv](that: To): ConditionExpression =
