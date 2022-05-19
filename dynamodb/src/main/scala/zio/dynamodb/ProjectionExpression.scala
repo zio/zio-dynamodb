@@ -26,7 +26,7 @@ sealed trait ProjectionExpression[To] { self =>
   def notExists: ConditionExpression         = ConditionExpression.AttributeNotExists(self)
   // constraint: Applies to ALL except Number and Boolean
   // Sizable typeclass for all types we support including Unknown
-  def size: ConditionExpression.Operand.Size = // TODO: is it worth trying to restrict this to only compare with numeric types?
+  def size: ConditionExpression.Operand.Size = // TODO: is it worth trying to restrict this to only compare with numeric/set types?
     ConditionExpression.Operand.Size(self)
 
   // constraint: ALL
@@ -168,7 +168,6 @@ sealed trait ProjectionExpression[To] { self =>
 
 @implicitNotFound("the type ${A} must be a ${X} in order to use this operator")
 sealed trait Addable[X, -A]
-// TODO: add imp for all numeric types eg Int, Long etc etc plus Set
 trait AddableLowPriorityImplicits0 extends AddableLowPriorityImplicits1 {
   implicit def unknownRight[X]: Addable[X, ProjectionExpression.Unknown] =
     new Addable[X, ProjectionExpression.Unknown] {}
@@ -246,15 +245,9 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
         .ProjectionExpressionOperand(self)
         .between(implicitly[ToAv[To]].toAv(minValue), implicitly[ToAv[To]].toAv(maxValue))
 
-    /*
-    TODO: Avi fix the AWS interpreter for this - we get the following error
-    [error] ║  ║  ║ software.amazon.awssdk.services.dynamodb.model.DynamoDbException: Invalid UpdateExpression: Incorrect operand
-    type for operator or function; operator: DELETE, operand type: STRING, typeSet: ALLOWED_FOR_DELETE_OPERAND
-    (Service: DynamoDb, Status Code: 400, Request ID: 4839352c-fe7f-4771-bb89-6d69a48ee935, Extended Request ID: null)
-    TODO: Avi also add a test for this in LiveSpec
-     */
-    def deleteFromSet[A](a: A)(implicit ev: To <:< Set[A], to: ToAv[A]): UpdateExpression.Action.DeleteAction =
-      UpdateExpression.Action.DeleteAction(self, to.toAv(a))
+    // a must be a Set
+    def deleteFromSet(a: To)(implicit ev: To <:< Set[_]): UpdateExpression.Action.DeleteAction =
+      UpdateExpression.Action.DeleteAction(self, implicitly[ToAv[To]].toAv(a))
 
     // TODO: needed a different name to avoid " overloaded method in with alternatives:"
     def inSet(values: Set[To]): ConditionExpression =
@@ -282,6 +275,8 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
       println(s"add for Optics")
       UpdateExpression.Action.AddAction(self, implicitly[ToAv[To]].toAv(a))
     }
+    // Note addSet will be used very infrequently - even AWS recommend using "set" instead for this case
+    // so maybe not worth investing too much effort on this one
     def addSet[A]( // TODO: see if we can unify these 2 methods
       set: Set[A]
     )(implicit ev: Addable[To, A], evSet: To <:< Set[A]): UpdateExpression.Action.AddAction = {
@@ -475,7 +470,8 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
         .ProjectionExpressionOperand(self)
         .between(to.toAv(minValue), to.toAv(maxValue))
 
-    def deleteFromSet[To](a: To)(implicit to: ToAv[To]): UpdateExpression.Action.DeleteAction =
+    // a must be a set
+    def deleteFromSet[To](a: To)(implicit ev: To <:< Set[_], to: ToAv[To]): UpdateExpression.Action.DeleteAction =
       UpdateExpression.Action.DeleteAction(self, to.toAv(a))
 
     def inSet[To](values: Set[To])(implicit to: ToAv[To]): ConditionExpression =

@@ -666,6 +666,18 @@ object LiveSpec extends DefaultRunnableSpec {
               } yield assert(updated)(equalTo(Some(Item(id -> 1, "sett" -> Set(1, 2, 3, 4)))))
           )
         },
+        testM("delete elements from a set") {
+          withTemporaryTable(
+            tableName =>
+              createTable(tableName, KeySchema(id), BillingMode.PayPerRequest)(AttributeDefinition.attrDefnNumber(id)),
+            tableName =>
+              for {
+                _       <- putItem(tableName, Item(id -> 1, "sett" -> Set(1, 2, 3))).execute
+                _       <- updateItem(tableName, PrimaryKey(id -> 1))($("sett").deleteFromSet(Set(3))).execute
+                updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
+              } yield assert(updated)(equalTo(Some(Item(id -> 1, "sett" -> Set(1, 2)))))
+          )
+        },
         testM("add item to a numeric attribute") {
           withTemporaryTable(
             tableName =>

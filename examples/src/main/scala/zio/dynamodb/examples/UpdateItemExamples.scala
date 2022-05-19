@@ -12,6 +12,6 @@ object UpdateItemExamples {
       $("bar.foo").remove +
       $("foo.foo").appendList(Chunk("s")) +
       $("foo.foo").prependList(Chunk("s")) +
-      $("baz.fooSet").deleteFromSet("el1")
+      $("baz.fooSet").deleteFromSet(Set(Set("el1")))
   } where $("foo.bar") === "value1"
 }

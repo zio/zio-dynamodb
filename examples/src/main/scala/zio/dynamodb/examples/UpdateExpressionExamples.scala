@@ -13,7 +13,7 @@ object UpdateExpressionExamples extends App {
   val add: AddAction       = $("one[2]").add("V2")
   val addSet: AddAction    = $("one[2]").addSet(Set("V2"))
   val remove: RemoveAction = $("one[2]").remove
-  val delete: DeleteAction = $("one[2]").deleteFromSet("v2")
+  val delete: DeleteAction = $("one[2]").deleteFromSet(Set("v2"))
   val pe8: SetAction       = $("one[2]").set(Item("x" -> "x"))
 
   val ops: UpdateExpression =
@@ -26,7 +26,7 @@ object UpdateExpressionExamples extends App {
         $("one[2]").prependList(List("x", "x2")) +
         $("one[2]").add(1) +
         $("one[2]").remove +
-        $("one[2]").deleteFromSet(1)
+        $("one[2]").deleteFromSet(Set(1))
     )
 
   $("one[2]").set("v2")
