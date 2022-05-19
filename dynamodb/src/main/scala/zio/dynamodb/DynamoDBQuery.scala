@@ -566,6 +566,17 @@ object DynamoDBQuery {
       tags = tags
     )
 
+  def conditionCheck(
+    tableName: TableName,
+    primaryKey: PrimaryKey,
+    conditionExpression: ConditionExpression
+  ): ConditionCheck =
+    ConditionCheck(
+      tableName,
+      primaryKey,
+      conditionExpression
+    )
+
   def deleteTable(
     tableName: String
   ): DeleteTable = DeleteTable(tableName = TableName(tableName))

@@ -46,6 +46,19 @@ jobs:
     - name: Run integration tests
       run: sbt ++${{ matrix.scala }}! it:test
 
+  mdoc:
+    runs-on: ubuntu-20.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v2.4.0
+      - name: Setup Scala and Java
+        uses: olafurpg/setup-scala@v13
+      - name: Cache scala dependencies
+        uses: coursier/cache-action@v6
+      - name: Check Document Generation
+        run: ./sbt docs/docusaurusCreateSite
+
   publish:
     runs-on: ubuntu-20.04
     timeout-minutes: 30
