@@ -132,7 +132,7 @@ sealed trait ProjectionExpression[To] { self =>
 //  def add[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.AddAction =
 //    UpdateExpression.Action.AddAction(self, t.toAttributeValue(a))
 
-  // TODO: Avi - add version that removes items from a List eg removeFromList
+  // TODO: Avi - change query model + AWS interpreter to allow for multiple path expression to remove
   /**
    * Removes this PathExpression from an item
    */

@@ -640,7 +640,7 @@ object LiveSpec extends DefaultRunnableSpec {
             } yield assert(updated)(equalTo(Some(Item(id -> second, number -> 2))))
           }
         },
-        testM("remove item from list") {
+        testM("remove an element from list") {
           withDefaultTable { tableName =>
             val key = PrimaryKey(id -> second, number -> 8)
             for {

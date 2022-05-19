@@ -135,6 +135,7 @@ object UpdateExpression {
     /**
      * Removing Attributes from an item
      */
+    // TODO: Avi - change model to allow for multiple items
     private[dynamodb] final case class RemoveAction(path: ProjectionExpression[_]) extends RenderableAction
 
     /**
