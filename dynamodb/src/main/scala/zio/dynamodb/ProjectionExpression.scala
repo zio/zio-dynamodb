@@ -46,31 +46,13 @@ sealed trait ProjectionExpression[To] { self =>
 
   // ConditionExpression with AttributeValue's
 
-  // constraint: String OR Set
-  // create a typeclass called containable that only has String and Set and Unknown instances
-//  def contains[A](av: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
-//    ConditionExpression.Contains(self, t.toAttributeValue(av))
-
-  // constraint: String
+  /**
+   * Applies to a string attribute
+   */
   def beginsWith(av: String)(implicit ev: RefersTo[String, To]): ConditionExpression = {
     val _ = ev
     ConditionExpression.BeginsWith(self, AttributeValue.String(av))
   }
-
-  // constraint: NONE -
-  // we make this tighter by using the source type as the constraint for A
-  // could be done by extension methods as well
-//  def between[A](minValue: A, maxValue: A)(implicit t: ToAttributeValue[A]): ConditionExpression =
-//    ConditionExpression.Operand
-//      .ProjectionExpressionOperand(self)
-//      .between(t.toAttributeValue(minValue), t.toAttributeValue(maxValue))
-
-//  def in[A](values: Set[A])(implicit t: ToAttributeValue[A]): ConditionExpression       =
-//    ConditionExpression.Operand.ProjectionExpressionOperand(self).in(values.map(t.toAttributeValue))
-//  def in[A](value: A, values: A*)(implicit t: ToAttributeValue[A]): ConditionExpression =
-//    ConditionExpression.Operand
-//      .ProjectionExpressionOperand(self)
-//      .in(values.map(t.toAttributeValue).toSet + t.toAttributeValue(value))
 
   // UpdateExpression conversions
 
@@ -81,49 +63,6 @@ sealed trait ProjectionExpression[To] { self =>
   implicit val x: Schema[AttributeValue] = ??? // eg use DynamicValue.transform(f1, f2)
    */
 //  implicit val x: Schema[AttributeValue] = ???
-//  def foo[A: ToAttributeValue](a: A): Schema[AttributeValue] = ???
-
-//  /**
-//   * Modify or Add an item Attribute
-//   */
-//  def setValue[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
-//    UpdateExpression.Action.SetAction(self, UpdateExpression.SetOperand.ValueOperand(t.toAttributeValue(a)))
-
-//  // we could restrict A to be same type as field
-//  // have to move as extension method
-//  def set[A: Schema](a: A): UpdateExpression.Action.SetAction = setValue(AttributeValue.encode(a))
-
-//  /**
-//   * Modify or Add an item Attribute
-//   */
-//  def set(pe: ProjectionExpression[_]): UpdateExpression.Action.SetAction =
-//    UpdateExpression.Action.SetAction(self, PathOperand(pe))
-
-//  /**
-//   * Modifying or Add item Attributes if ProjectionExpression `pe` exists
-//   */
-//  // TODO: add Schema variant and move
-//  def setIfNotExists[A](pe: ProjectionExpression[_], a: A)(implicit
-//    t: ToAttributeValue[A]
-//  ): UpdateExpression.Action.SetAction =
-//    UpdateExpression.Action.SetAction(self, IfNotExists(pe, t.toAttributeValue(a)))
-
-//  def setIfNotExists[A](a: A)(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
-//    UpdateExpression.Action.SetAction(self, IfNotExists(self, t.toAttributeValue(a)))
-
-  /**
-   * Add list `xs` to the end of this PathExpression
-   */
-//  // TODO: add schema variant
-//  def appendList[A](xs: Iterable[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
-//    UpdateExpression.Action.SetAction(self, ListAppend(self, AttributeValue.List(xs.map(t.toAttributeValue))))
-
-//  /**
-//   * Add list `xs` to the beginning of this PathExpression
-//   */
-//  // TODO: add schema variant
-//  def prependList[A](xs: Iterable[A])(implicit t: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
-//    UpdateExpression.Action.SetAction(self, ListPrepend(self, AttributeValue.List(xs.map(t.toAttributeValue))))
 
   /**
    * Updating Numbers and Sets
@@ -225,9 +164,15 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
       UpdateExpression.Action.SetAction(self, PathOperand(pe))
     }
 
+    /**
+     *  Set attribute if it does not exists
+     */
     def setIfNotExists(a: To): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(self, IfNotExists(self, implicitly[ToAv[To]].toAv(a)))
 
+    /**
+     * Add list `xs` to the end of this list attribute
+     */
     def appendList[A](xs: To)(implicit ev: To <:< Iterable[A], to: ToAv[A]): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(
         self,
@@ -237,6 +182,9 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
     def prepend[A](a: A)(implicit ev: To <:< Iterable[A], to: ToAv[A]): UpdateExpression.Action.SetAction =
       prependList(List(a).asInstanceOf[To])
 
+    /**
+     * Add list `xs` to the beginning of this list attribute
+     */
     def prependList[A](xs: To)(implicit ev: To <:< Iterable[A], to: ToAv[A]): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(self, ListPrepend(self, AttributeValue.List(xs.map(a => to.toAv(a)))))
 
@@ -258,6 +206,9 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
       ConditionExpression.Operand.ProjectionExpressionOperand(self).in(set.map(implicitly[ToAv[To]].toAv))
     }
 
+    /**
+     * Applies to a String or Set
+     */
     def contains[A](av: A)(implicit ev: Containable[To, A], to: ToAv[A]): ConditionExpression = {
       val _ = ev
       println(s"contains for Optics")
@@ -269,7 +220,9 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
 //      println(s"add for Optics")
 //      UpdateExpression.Action.AddAction(self, to.toAv(a))
 //    }
-
+    /**
+     * adds a number attribute if it does not exists, else if it exists it adds the numeric value of a
+     */
     def add(a: To)(implicit ev: Addable[To, To]): UpdateExpression.Action.AddAction = {
       val _ = ev
       println(s"add for Optics")
@@ -277,6 +230,9 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
     }
     // Note addSet will be used very infrequently - even AWS recommend using "set" instead for this case
     // so maybe not worth investing too much effort on this one
+    /**
+     * adds a set attribute if it does not exists, else if it exists it adds the elements of the set
+     */
     def addSet[A]( // TODO: see if we can unify these 2 methods
       set: Set[A]
     )(implicit ev: Addable[To, A], evSet: To <:< Set[A]): UpdateExpression.Action.AddAction = {
@@ -444,12 +400,21 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
       UpdateExpression.Action.SetAction(self, PathOperand(that))
     }
 
+    /**
+     * Add item attribute if it does not exists
+     */
     def setIfNotExists[To: ToAv](a: To): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(self, IfNotExists(self, implicitly[ToAv[To]].toAv(a)))
 
+    /**
+     * Add item attribute if it does not exists
+     */
     def setIfNotExists[To: ToAv](that: ProjectionExpression[_], a: To): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(self, IfNotExists(that, implicitly[ToAv[To]].toAv(a)))
 
+    /**
+     * Add list `xs` to the end of this list attribute
+     */
     def appendList[To: ToAv](xs: Iterable[To]): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(
         self,
@@ -459,6 +424,9 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     def prepend[To: ToAv](a: To): UpdateExpression.Action.SetAction =
       prependList(List(a))
 
+    /**
+     * Add list `xs` to the beginning of this list attribute
+     */
     def prependList[To: ToAv](xs: Iterable[To]): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(
         self,
@@ -482,14 +450,23 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
       ConditionExpression.Operand.ProjectionExpressionOperand(self).in(set.map(to.toAv))
     }
 
+    /**
+     * Applies to a String or Set
+     */
     def contains[To](av: To)(implicit to: ToAv[To]): ConditionExpression = {
       println(s"contains for Unknown")
       ConditionExpression.Contains(self, to.toAv(av))
     }
 
+    /**
+     * adds a number attribute if it does not exists, else if it exists it adds the numeric value of a
+     */
     def add[A](a: A)(implicit to: ToAv[A]): UpdateExpression.Action.AddAction =
       UpdateExpression.Action.AddAction(self, to.toAv(a))
 
+    /**
+     * adds a set attribute if it does not exists, else if it exists it adds the elements of the set
+     */
     def addSet[To: ToAv](set: To)(implicit ev: To <:< Set[_]): UpdateExpression.Action.AddAction = {
       val _ = ev
       println(s"addSet for Optics")
