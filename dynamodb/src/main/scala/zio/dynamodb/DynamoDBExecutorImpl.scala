@@ -78,7 +78,7 @@ import zio.dynamodb.ConsistencyMode.toBoolean
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.SSESpecification.SSEType
-import zio.stream.{ Stream, ZSink, ZStream }
+import zio.stream.{ Stream, ZStream }
 import zio.{ Chunk, NonEmptyChunk, ZIO }
 
 import scala.collection.immutable.{ Map => ScalaMap }
@@ -160,11 +160,15 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
 
   private def executeQuerySome(querySome: QuerySome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] =
     dynamoDb
-      .query(awsQueryRequest(querySome))
-      .take(querySome.limit.toLong)
-      .mapBoth(_.toThrowable, dynamoDBItem)
-      .run(ZSink.collectAll[Item])
-      .map(chunk => (chunk, chunk.lastOption))
+      .queryPaginated(awsQueryRequest(querySome))
+      .mapBoth(
+        _.toThrowable,
+        queryResponse =>
+          (
+            queryResponse.items.map(list => Chunk.fromIterable(list.map(dynamoDBItem))).getOrElse(Chunk.empty[Item]),
+            queryResponse.lastEvaluatedKey.map(dynamoDBItem).toOption
+          )
+      )
 
   private def executeQueryAll(queryAll: QueryAll): ZIO[Any, Throwable, Stream[Throwable, Item]] =
     ZIO.succeed(
@@ -243,11 +247,15 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
 
   private def executeScanSome(scanSome: ScanSome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] =
     dynamoDb
-      .scan(awsScanRequest(scanSome))
-      .take(scanSome.limit.toLong)
-      .mapBoth(_.toThrowable, dynamoDBItem)
-      .run(ZSink.collectAll[Item])
-      .map(chunk => (chunk, chunk.lastOption))
+      .scanPaginated(awsScanRequest(scanSome))
+      .mapBoth(
+        _.toThrowable,
+        scanResponse =>
+          (
+            scanResponse.items.map(list => Chunk.fromIterable(list.map(dynamoDBItem))).getOrElse(Chunk.empty[Item]),
+            scanResponse.lastEvaluatedKey.map(dynamoDBItem).toOption
+          )
+      )
 
   private def executeScanAll(scanAll: ScanAll): ZIO[Any, Throwable, Stream[Throwable, Item]] =
     if (scanAll.totalSegments > 1) {
