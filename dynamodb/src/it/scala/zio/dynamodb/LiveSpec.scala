@@ -750,6 +750,18 @@ object LiveSpec extends DefaultRunnableSpec {
               } yield assert(written)(isNone)
             }
           },
+          testM("delete item with where clause") {
+            withDefaultTable { tableName =>
+              val deleteItem = DeleteItem(
+                key = pk(avi3Item),
+                tableName = TableName(tableName)
+              ).where($("firstName").beginsWith("avi"))
+              for {
+                _       <- deleteItem.transaction.execute
+                written <- getItem(tableName, PrimaryKey(id -> first, number -> 7)).execute
+              } yield assert(written)(isNone)
+            }
+          },
           testM("update item") {
             withDefaultTable { tableName =>
               val updateItem = UpdateItem(
