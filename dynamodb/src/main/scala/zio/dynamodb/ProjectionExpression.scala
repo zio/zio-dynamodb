@@ -221,7 +221,7 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
 //      UpdateExpression.Action.AddAction(self, to.toAv(a))
 //    }
     /**
-     * adds a number attribute if it does not exists, else if it exists it adds the numeric value of a
+     * adds a number attribute if it does not exists, else adds the numeric value to the existing attribute
      */
     def add(a: To)(implicit ev: Addable[To, To]): UpdateExpression.Action.AddAction = {
       val _ = ev
@@ -459,7 +459,7 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     }
 
     /**
-     * adds a number attribute if it does not exists, else if it exists it adds the numeric value of a
+     * adds a number attribute if it does not exists, else adds the numeric value to the existing attribute
      */
     def add[A](a: A)(implicit to: ToAv[A]): UpdateExpression.Action.AddAction =
       UpdateExpression.Action.AddAction(self, to.toAv(a))
