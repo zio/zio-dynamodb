@@ -214,6 +214,18 @@ object LiveSpec extends DefaultRunnableSpec {
             getItem(tableName, PrimaryKey(id -> "nowhere", number -> 1000)).execute.map(item => assert(item)(isNone))
           }
         },
+        testM("delete item with where clause") {
+          withDefaultTable { tableName =>
+            val deleteItem = DeleteItem(
+              key = pk(avi3Item),
+              tableName = TableName(tableName)
+            ).where($("firstName").beginsWith("avi"))
+            for {
+              _                <- deleteItem.execute
+              maybeDeletedItem <- getItem(tableName, pk(avi3Item)).execute
+            } yield assert(maybeDeletedItem)(isNone)
+          }
+        },
         testM("batch get item") {
           withDefaultTable { tableName =>
             val getItems = BatchGetItem().addAll(
@@ -744,18 +756,6 @@ object LiveSpec extends DefaultRunnableSpec {
                 key = pk(avi3Item),
                 tableName = TableName(tableName)
               )
-              for {
-                _       <- deleteItem.transaction.execute
-                written <- getItem(tableName, PrimaryKey(id -> first, number -> 7)).execute
-              } yield assert(written)(isNone)
-            }
-          },
-          testM("delete item with where clause") {
-            withDefaultTable { tableName =>
-              val deleteItem = DeleteItem(
-                key = pk(avi3Item),
-                tableName = TableName(tableName)
-              ).where($("firstName").beginsWith("avi"))
               for {
                 _       <- deleteItem.transaction.execute
                 written <- getItem(tableName, PrimaryKey(id -> first, number -> 7)).execute
