@@ -820,7 +820,7 @@ private[dynamodb] object Codec {
                 val dec                         = decoder(schema)
                 val k                           = maybeId(annotations).getOrElse(key)
                 val maybeValue                  = map.get(AttributeValue.String(k))
-                // TODO: handle case where List/Set/Map map entry does not exists ie is empty - currently we only check if Option is empty
+                // TODO: Avi handle case where List/Set/Map map entry does not exists ie is empty - currently we only check if Option is empty
                 val maybeDecoder                = maybeValue.map(dec).toRight(s"field '$k' not found in $av")
                 val either: Either[String, Any] = for {
                   decoder <- maybeDecoder

@@ -35,6 +35,13 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(expected)))
     },
+    test("decoded empty list") {
+      val expected = CaseClassOfList(List.empty)
+
+      val actual = DynamoDBQuery.fromItem[CaseClassOfList](Item("nums" -> List.empty[Int]))
+
+      assert(actual)(isRight(equalTo(expected)))
+    },
     test("decoded option of Some") {
       val expected = CaseClassOfOption(Some(42))
 
@@ -42,17 +49,17 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(expected)))
     },
-    test("decoded option of None") {
+    test("decoded option of None where value is null") {
       val expected = CaseClassOfOption(None)
 
       val actual = DynamoDBQuery.fromItem[CaseClassOfOption](Item("opt" -> null))
 
       assert(actual)(isRight(equalTo(expected)))
     },
-    test("decoded option of None in CaseClass2 represented by a missing value") {
-      val expected = CaseClass2OfOption(1, None)
+    test("decoded option of None where field is missing") {
+      val expected = CaseClassOfOption(None)
 
-      val actual = DynamoDBQuery.fromItem[CaseClass2OfOption](Item("num" -> 1))
+      val actual = DynamoDBQuery.fromItem[CaseClassOfOption](Item.empty)
 
       assert(actual)(isRight(equalTo(expected)))
     },

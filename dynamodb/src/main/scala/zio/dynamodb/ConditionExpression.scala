@@ -123,7 +123,6 @@ object ConditionExpression {
 
   object Operand {
     // TODO: Avi think of a better name
-    // TODO: Avi think of a better name
     // TODO: move out to somewhere else as this is now AttributeValue related
     /**
      * Can create an AttributeValue given an A, with instances that use the below type classes:
