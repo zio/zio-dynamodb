@@ -840,16 +840,11 @@ private[dynamodb] object Codec {
 
                 if (maybeValue.isEmpty)
                   ContainerField.containerField(schema) match {
-                    case ContainerField.Optional =>
-                      Right(None)
-                    case ContainerField.List     =>
-                      Right(List.empty)
-                    case ContainerField.Map      =>
-                      Right(Map.empty)
-                    case ContainerField.Set      =>
-                      Right(Set.empty)
-                    case ContainerField.Scalar   =>
-                      either
+                    case ContainerField.Optional => Right(None)
+                    case ContainerField.List     => Right(List.empty)
+                    case ContainerField.Map      => Right(Map.empty)
+                    case ContainerField.Set      => Right(Set.empty)
+                    case ContainerField.Scalar   => either
                   }
                 else
                   either
