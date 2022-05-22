@@ -104,8 +104,11 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     2,
                     "college1",
                     None,
-                    List(Address("line2", "postcode2")),
-                    Set("group1", "group2")
+                    List.empty,
+                    Set(
+                      "group1",
+                      "group2"
+                    ) // we can't save an empty set yet - see issue https://github.com/zio/zio-dynamodb/issues/113
                   )
     _          <- batchWriteFromStream(ZStream(avi, adam)) { student =>
                     put("student", student)

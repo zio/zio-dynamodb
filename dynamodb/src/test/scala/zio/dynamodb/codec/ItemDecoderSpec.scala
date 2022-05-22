@@ -35,10 +35,10 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(expected)))
     },
-    test("decoded empty list") {
+    test("decoded empty list when field is missing") {
       val expected = CaseClassOfList(List.empty)
 
-      val actual = DynamoDBQuery.fromItem[CaseClassOfList](Item("nums" -> List.empty[Int]))
+      val actual = DynamoDBQuery.fromItem[CaseClassOfList](Item.empty)
 
       assert(actual)(isRight(equalTo(expected)))
     },
@@ -133,10 +133,34 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
       assert(actual)(isRight(equalTo(expected)))
     },
     test("decodes map") {
-      val item     = AttrMap(Map("map" -> toAvList(toAvTuple("One", 1), toAvTuple("Two", 2))))
+      val item     = Item("map" -> Map("One" -> 1, "Two" -> 2))
       val expected = CaseClassOfMapOfInt(Map("One" -> 1, "Two" -> 2))
 
       val actual = DynamoDBQuery.fromItem[CaseClassOfMapOfInt](item)
+
+      assert(actual)(isRight(equalTo(expected)))
+    },
+    test("decodes map when field is missing") {
+      val item     = Item.empty
+      val expected = CaseClassOfMapOfInt(Map.empty)
+
+      val actual = DynamoDBQuery.fromItem[CaseClassOfMapOfInt](item)(caseClassOfMapOfInt)
+
+      assert(actual)(isRight(equalTo(expected)))
+    },
+    test("decodes set") {
+      val item     = Item("set" -> Set(1, 2))
+      val expected = CaseClassOfSetOfInt(Set(1, 2))
+
+      val actual = DynamoDBQuery.fromItem[CaseClassOfSetOfInt](item)
+
+      assert(actual)(isRight(equalTo(expected)))
+    },
+    test("decodes set when field is missing") {
+      val item     = Item.empty
+      val expected = CaseClassOfSetOfInt(Set.empty)
+
+      val actual = DynamoDBQuery.fromItem[CaseClassOfSetOfInt](item)
 
       assert(actual)(isRight(equalTo(expected)))
     },
