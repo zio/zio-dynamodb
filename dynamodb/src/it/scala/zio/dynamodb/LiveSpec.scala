@@ -220,7 +220,7 @@ object LiveSpec extends DefaultRunnableSpec {
             for {
               _ <- putItem(tableName, setItem).execute
               a <- getItem(tableName, PrimaryKey(number -> 100, id -> "set")).execute
-            } yield assert(a.flatMap(_.map.get("emptySet")))(equalTo(Some(AttributeValue.NumberSet(Set.empty))))
+            } yield assert(a.flatMap(_.map.get("emptySet")))(isNone)
           }
         },
         testM("batch get item") {

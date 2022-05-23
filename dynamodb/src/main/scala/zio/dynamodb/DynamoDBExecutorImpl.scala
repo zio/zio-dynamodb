@@ -428,7 +428,7 @@ case object DynamoDBExecutorImpl {
             items.keysSet.map { key =>
               TransactGetItem(
                 Get(
-                  key = key.map.map { case (k, v) => (k, awsAttributeValue(v)) },
+                  key = key.toZioAwsMap(),
                   tableName = tableName.value,
                   projectionExpression = toOption(items.projectionExpressionSet).map(awsProjectionExpression)
                 )
@@ -502,8 +502,8 @@ case object DynamoDBExecutorImpl {
   ): Option[ScalaMap[String, ZIOAwsAttributeValue]] =
     if (aliasMap.isEmpty) None
     else
-      Some(aliasMap.map.map {
-        case (attrVal, str) => (str, awsAttributeValue(attrVal))
+      Some(aliasMap.map.flatMap {
+        case (attrVal, str) => awsAttributeValue(attrVal).map(a => (str, a))
       })
 
   private[dynamodb] def tableGetToKeysAndAttributes(tableGet: TableGet): KeysAndAttributes =
@@ -526,7 +526,7 @@ case object DynamoDBExecutorImpl {
 
     maybeProjectionExpressions
       .map(a => TableGet(keySet, a.asInstanceOf[Set[ProjectionExpression]]))
-      .getOrElse(TableGet(keySet, Set.empty))
+      .getOrElse(TableGet(keySet, Set.empty[ProjectionExpression]))
   }
 
   private def tableItemsMapToResponse(
@@ -645,7 +645,7 @@ case object DynamoDBExecutorImpl {
       limit = queryAll.limit,
       consistentRead = Some(toBoolean(queryAll.consistency)),
       scanIndexForward = Some(queryAll.ascending),
-      exclusiveStartKey = queryAll.exclusiveStartKey.map(m => awsAttributeValueMap(m.map)),
+      exclusiveStartKey = queryAll.exclusiveStartKey.map(m => m.toZioAwsMap()),
       projectionExpression = toOption(queryAll.projections).map(awsProjectionExpression),
       returnConsumedCapacity = Some(awsConsumedCapacity(queryAll.capacity)),
       filterExpression = maybeFilterExpr,
@@ -666,7 +666,7 @@ case object DynamoDBExecutorImpl {
       limit = Some(querySome.limit),
       consistentRead = Some(toBoolean(querySome.consistency)),
       scanIndexForward = Some(querySome.ascending),
-      exclusiveStartKey = querySome.exclusiveStartKey.flatMap(m => awsAttributeValueMap(m.map)),
+      exclusiveStartKey = querySome.exclusiveStartKey.map(m => m.toZioAwsMap()),
       returnConsumedCapacity = Some(awsConsumedCapacity(querySome.capacity)),
       projectionExpression = toOption(querySome.projections).map(awsProjectionExpression),
       filterExpression = maybeFilterExpr,
@@ -680,7 +680,7 @@ case object DynamoDBExecutorImpl {
       tableName = scanAll.tableName.value,
       indexName = scanAll.indexName.map(_.value),
       select = scanAll.select.map(awsSelect),
-      exclusiveStartKey = scanAll.exclusiveStartKey.map(m => awsAttributeValueMap(m.map)),
+      exclusiveStartKey = scanAll.exclusiveStartKey.map(m => m.toZioAwsMap()),
       returnConsumedCapacity = Some(awsConsumedCapacity(scanAll.capacity)),
       limit = scanAll.limit,
       projectionExpression = toOption(scanAll.projections).map(awsProjectionExpression),
@@ -698,7 +698,7 @@ case object DynamoDBExecutorImpl {
       tableName = scanSome.tableName.value,
       indexName = scanSome.indexName.map(_.value),
       select = scanSome.select.map(awsSelect),
-      exclusiveStartKey = scanSome.exclusiveStartKey.map(m => awsAttributeValueMap(m.map)),
+      exclusiveStartKey = scanSome.exclusiveStartKey.map(m => m.toZioAwsMap()),
       returnConsumedCapacity = Some(awsConsumedCapacity(scanSome.capacity)),
       limit = Some(scanSome.limit),
       projectionExpression = toOption(scanSome.projections).map(awsProjectionExpression),
