@@ -2,6 +2,7 @@ package zio.dynamodb
 import zio.{ Chunk, Has, NonEmptyChunk, ZIO }
 import zio.dynamodb.DynamoDBQuery._
 import io.github.vigoo.zioaws.dynamodb.DynamoDb
+import io.github.vigoo.zioaws.dynamodb.model.primitives.AttributeName
 import io.github.vigoo.zioaws.dynamodb.model.{
   BatchGetItemRequest,
   BatchWriteItemRequest,
@@ -540,7 +541,12 @@ case object DynamoDBExecutorImpl {
   private def dynamoDBItem(attrMap: ScalaMap[String, ZIOAwsAttributeValue.ReadOnly]): Item =
     Item(attrMap.flatMap { case (k, v) => awsAttrValToAttrVal(v).map(attrVal => (k, attrVal)) })
 
-  private def awsPutItemRequest(putItem: PutItem): PutItemRequest                          =
+  implicit class ToZioAwsMap(item: AttrMap) {
+    def toZioAwsMap(): ScalaMap[AttributeName, ZIOAwsAttributeValue] =
+      item.map.flatMap { case (k, v) => awsAttributeValue(v).map(a => (k, a)) }
+  }
+
+  private def awsPutItemRequest(putItem: PutItem): PutItemRequest =
     PutItemRequest(
       tableName = putItem.tableName.value,
       item = awsAttributeValueMap(putItem.item.map),
