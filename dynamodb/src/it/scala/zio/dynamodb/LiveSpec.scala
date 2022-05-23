@@ -219,11 +219,11 @@ object LiveSpec extends DefaultRunnableSpec {
             val deleteItem = DeleteItem(
               key = pk(avi3Item),
               tableName = TableName(tableName)
-            ).where($("firstName").beginsWith("avi"))
+            ).where($("firstName").beginsWith("noOne"))
             for {
               _                <- deleteItem.execute
               maybeDeletedItem <- getItem(tableName, pk(avi3Item)).execute
-            } yield assert(maybeDeletedItem)(isNone)
+            } yield assert(maybeDeletedItem)(isSome)
           }
         },
         testM("batch get item") {
