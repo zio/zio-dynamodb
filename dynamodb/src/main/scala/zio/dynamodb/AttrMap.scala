@@ -1,5 +1,9 @@
 package zio.dynamodb
 
+import io.github.vigoo.zioaws.dynamodb.model.primitives.AttributeName
+import zio.dynamodb.DynamoDBExecutorImpl.awsAttributeValue
+import io.github.vigoo.zioaws.dynamodb.model.AttributeValue
+
 final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFromAttributeValueAs { self =>
 
   def get[A](field: String)(implicit ev: FromAttributeValue[A]): Either[String, A] =
@@ -38,6 +42,9 @@ final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFrom
       }
     getOptional[Iterable[Item]](field: String).flatMap(maybeTransform)
   }
+
+  private[dynamodb] def toZioAwsMap(): Map[AttributeName, AttributeValue] =
+    self.map.flatMap { case (k, v) => awsAttributeValue(v).map(a => (k, a)) }
 
 }
 
