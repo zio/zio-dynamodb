@@ -526,7 +526,7 @@ case object DynamoDBExecutorImpl {
 
     maybeProjectionExpressions
       .map(a => TableGet(keySet, a.asInstanceOf[Set[ProjectionExpression]]))
-      .getOrElse(TableGet(keySet, Set.empty[ProjectionExpression]))
+      .getOrElse(TableGet(keySet, Set.empty))
   }
 
   private def tableItemsMapToResponse(
