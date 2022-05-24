@@ -152,7 +152,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                       (enrollmentDate === None /* Some(enrolDate) */ ) && (payment <> Payment.PayPal) && (studentNumber
                         .between(10, 12)) && (groups.contains("XXXXXXX")) && collegeName.contains(
                         "XXXXXXX"
-                      ) /* && collegeName.size > 1 */
+                      ) && collegeName.size > 1 && groups.size > 1
                     )
                     .execute
     _          <- scanAll[Student]("student")
