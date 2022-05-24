@@ -1,7 +1,5 @@
 package zio.dynamodb
 
-import zio.schema.Schema
-
 /* https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
 
 In the following syntax summary, an operand can be the following:
@@ -122,44 +120,6 @@ object ConditionExpression {
   }
 
   object Operand {
-    // TODO: Avi think of a better name
-    // TODO: move out to somewhere else as this is now AttributeValue related
-    /**
-     * Can create an AttributeValue given an A, with instances that use the below type classes:
-     * 1) Schema[A]
-     * 2) ToAttributeValue[A]
-     * used to create AVs for both condition AND update query operands
-     */
-    trait ToAv[A] {
-      def toAv(a: A): AttributeValue
-    }
-
-    object ToAv extends ToAvLowPriorityImplicits {
-
-      implicit def fromSchemaAttributeValue[A](implicit schema: Schema[A]): ToAv[A] = {
-        val _ = schema
-        new ToAv[A] {
-          override def toAv(a: A): AttributeValue = {
-            val enc = Codec.encoder(schema)
-            enc(a)
-          }
-        }
-      }
-
-    }
-
-    trait ToAvLowPriorityImplicits {
-// TODO: Avi when using show implicit hints I notice that only fromSchemaAttributeValue was being used in all the examples
-// when I comment out this section all tests still pass
-      implicit def fromAttributeValue[A](implicit x: ToAttributeValue[A]): ToAv[A] =
-        new ToAv[A] {
-          override def toAv(a: A): AttributeValue = {
-            println(s"fromAttributeValue ${ValueOperand(x.toAttributeValue(a))}")
-            x.toAttributeValue(a)
-          }
-        }
-
-    }
 
     private[dynamodb] final case class ProjectionExpressionOperand(pe: ProjectionExpression[_]) extends Operand
     private[dynamodb] final case class ValueOperand(value: AttributeValue)                      extends Operand

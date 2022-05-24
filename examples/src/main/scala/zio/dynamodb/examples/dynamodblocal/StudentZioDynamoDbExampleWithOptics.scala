@@ -150,7 +150,9 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     // TODO: Avi "where" expression does not seem to be interpreted at AWS level for delete
                     .where(
                       (enrollmentDate === None /* Some(enrolDate) */ ) && (payment <> Payment.PayPal) && (studentNumber
-                        .between(10, 12)) && (groups.contains("XXXXXXX")) && collegeName.contains("XXXXXXX")
+                        .between(10, 12)) && (groups.contains("XXXXXXX")) && collegeName.contains(
+                        "XXXXXXX"
+                      ) /* && collegeName.size > 1 */
                     )
                     .execute
     _          <- scanAll[Student]("student")
