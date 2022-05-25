@@ -147,7 +147,6 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                       )
                   }.execute
     _          <- deleteItem("student", PrimaryKey("email" -> "adam@gmail.com", "subject" -> "english"))
-                    // TODO: Avi "where" expression does not seem to be interpreted at AWS level for delete
                     .where(
                       enrollmentDate === Some(enrolDate) && payment <> Payment.PayPal && studentNumber
                         .between(1, 3) && (groups.contains("group1")) && collegeName.contains(
