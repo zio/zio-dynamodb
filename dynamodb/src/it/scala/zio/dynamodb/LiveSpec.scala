@@ -154,23 +154,6 @@ object LiveSpec extends DefaultRunnableSpec {
   override def spec: ZSpec[TestEnvironment, Any] =
     suite("live test")(
       suite("basic usage")(
-        testM("delete item with where clause") {
-          withDefaultTable { tableName =>
-            for {
-              _     <- deleteItem(tableName, pk(aviItem))
-                         .where(
-                           ConditionExpression.Equals(
-                             ConditionExpression.Operand.ProjectionExpressionOperand($(number)),
-                             ConditionExpression.Operand.ValueOperand(
-                               AttributeValue(42)
-                             ) // this should fail delete as number is 1
-                           )
-                         )
-                         .execute
-              after <- getItem(tableName, pk(aviItem)).execute
-            } yield assert(after)(isNone)
-          }
-        },
         testM("put and get item") {
           withDefaultTable { tableName =>
             for {
