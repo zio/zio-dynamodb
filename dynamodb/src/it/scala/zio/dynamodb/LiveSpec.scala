@@ -219,6 +219,15 @@ object LiveSpec extends ZIOSpecDefault {
             getItem(tableName, PrimaryKey(id -> "nowhere", number -> 1000)).execute.map(item => assert(item)(isNone))
           }
         },
+        test("empty set not written") {
+          withDefaultTable { tableName =>
+            val setItem = Item(number -> 100, id -> "set", "emptySet" -> Set.empty[Int])
+            for {
+              _ <- putItem(tableName, setItem).execute
+              a <- getItem(tableName, PrimaryKey(number -> 100, id -> "set")).execute
+            } yield assert(a.flatMap(_.map.get("emptySet")))(isNone)
+          }
+        },
         test("batch get item") {
           withDefaultTable { tableName =>
             val getItems = BatchGetItem().addAll(
@@ -544,35 +553,33 @@ object LiveSpec extends ZIOSpecDefault {
             }
           },
           test("append to list") {
-            withDefaultTable {
-              tableName =>
-                for {
-                  _       <- updateItem(tableName, pk(adamItem))($("listThing").setValue(List(1))).execute
-                  _       <- updateItem(tableName, pk(adamItem))($("listThing").appendList(Chunk(2, 3, 4))).execute
-                  updated <- getItem(tableName, pk(adamItem)).execute
-                } yield assert(
-                  updated.map(a =>
-                    a.get("listThing")(
-                      FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
-                    )
+            withDefaultTable { tableName =>
+              for {
+                _       <- updateItem(tableName, pk(adamItem))($("listThing").setValue(List(1))).execute
+                _       <- updateItem(tableName, pk(adamItem))($("listThing").appendList(Chunk(2, 3, 4))).execute
+                updated <- getItem(tableName, pk(adamItem)).execute
+              } yield assert(
+                updated.map(a =>
+                  a.get("listThing")(
+                    FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
                   )
-                )(equalTo(Some(Right(List(1, 2, 3, 4)))))
+                )
+              )(equalTo(Some(Right(List(1, 2, 3, 4)))))
             }
           },
           test("prepend to list") {
-            withDefaultTable {
-              tableName =>
-                for {
-                  _       <- updateItem(tableName, pk(adamItem))($("listThing").setValue(List(1))).execute
-                  _       <- updateItem(tableName, pk(adamItem))($("listThing").prependList(Chunk(-1, 0))).execute
-                  updated <- getItem(tableName, pk(adamItem)).execute
-                } yield assert(
-                  updated.map(a =>
-                    a.get("listThing")(
-                      FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
-                    )
+            withDefaultTable { tableName =>
+              for {
+                _       <- updateItem(tableName, pk(adamItem))($("listThing").setValue(List(1))).execute
+                _       <- updateItem(tableName, pk(adamItem))($("listThing").prependList(Chunk(-1, 0))).execute
+                updated <- getItem(tableName, pk(adamItem)).execute
+              } yield assert(
+                updated.map(a =>
+                  a.get("listThing")(
+                    FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
                   )
-                )(equalTo(Some(Right(List(-1, 0, 1)))))
+                )
+              )(equalTo(Some(Right(List(-1, 0, 1)))))
             }
           },
           test("set an Item Attribute") {
@@ -720,43 +727,41 @@ object LiveSpec extends ZIOSpecDefault {
             }
           },
           test("condition check succeeds") {
-            withDefaultTable {
-              tableName =>
-                val conditionCheck = ConditionCheck(
-                  primaryKey = pk(avi3Item),
-                  tableName = TableName(tableName),
-                  conditionExpression = conditionAlwaysTrue
-                )
-                val putItem        = PutItem(
-                  item = Item(id -> first, name -> avi3, number -> 10),
-                  tableName = TableName(tableName)
-                )
+            withDefaultTable { tableName =>
+              val conditionCheck = ConditionCheck(
+                primaryKey = pk(avi3Item),
+                tableName = TableName(tableName),
+                conditionExpression = conditionAlwaysTrue
+              )
+              val putItem        = PutItem(
+                item = Item(id -> first, name -> avi3, number -> 10),
+                tableName = TableName(tableName)
+              )
 
-                for {
-                  _       <- conditionCheck.zip(putItem).transaction.execute
-                  written <- getItem(tableName, PrimaryKey(id -> first, number -> 10)).execute
-                } yield assert(written)(isSome)
+              for {
+                _       <- conditionCheck.zip(putItem).transaction.execute
+                written <- getItem(tableName, PrimaryKey(id -> first, number -> 10)).execute
+              } yield assert(written)(isSome)
             }
           },
           test("condition check fails because 'id' != 'first'") {
-            withDefaultTable {
-              tableName =>
-                val conditionCheck = ConditionCheck(
-                  primaryKey = pk(avi3Item),
-                  tableName = TableName(tableName),
-                  conditionExpression = ConditionExpression.Equals(
-                    ConditionExpression.Operand.ValueOperand(AttributeValue(id)),
-                    ConditionExpression.Operand.ValueOperand(AttributeValue(first))
-                  )
+            withDefaultTable { tableName =>
+              val conditionCheck = ConditionCheck(
+                primaryKey = pk(avi3Item),
+                tableName = TableName(tableName),
+                conditionExpression = ConditionExpression.Equals(
+                  ConditionExpression.Operand.ValueOperand(AttributeValue(id)),
+                  ConditionExpression.Operand.ValueOperand(AttributeValue(first))
                 )
-                val putItem        = PutItem(
-                  item = Item(id -> first, name -> avi3, number -> 10),
-                  tableName = TableName(tableName)
-                )
+              )
+              val putItem        = PutItem(
+                item = Item(id -> first, name -> avi3, number -> 10),
+                tableName = TableName(tableName)
+              )
 
-                assertM(
-                  conditionCheck.zip(putItem).transaction.execute.exit
-                )(fails(assertDynamoDbException("ConditionalCheckFailed")))
+              assertM(
+                conditionCheck.zip(putItem).transaction.execute.exit
+              )(fails(assertDynamoDbException("ConditionalCheckFailed")))
             }
           },
           test("delete item") {
@@ -785,80 +790,77 @@ object LiveSpec extends ZIOSpecDefault {
             }
           },
           test("all transaction types at once") {
-            withDefaultTable {
-              tableName =>
-                val putItem        = PutItem(
-                  item = Item(id -> first, name -> avi3, number -> 10),
-                  tableName = TableName(tableName)
-                )
-                val conditionCheck = ConditionCheck(
-                  primaryKey = pk(aviItem),
-                  tableName = TableName(tableName),
-                  conditionExpression = conditionAlwaysTrue
-                )
-                val updateItem     = UpdateItem(
-                  key = pk(avi3Item),
-                  tableName = TableName(tableName),
-                  updateExpression = UpdateExpression($(name).setValue(notAdam))
-                )
-                val deleteItem     = DeleteItem(
-                  key = pk(avi2Item),
-                  tableName = TableName(tableName)
-                )
+            withDefaultTable { tableName =>
+              val putItem        = PutItem(
+                item = Item(id -> first, name -> avi3, number -> 10),
+                tableName = TableName(tableName)
+              )
+              val conditionCheck = ConditionCheck(
+                primaryKey = pk(aviItem),
+                tableName = TableName(tableName),
+                conditionExpression = conditionAlwaysTrue
+              )
+              val updateItem     = UpdateItem(
+                key = pk(avi3Item),
+                tableName = TableName(tableName),
+                updateExpression = UpdateExpression($(name).setValue(notAdam))
+              )
+              val deleteItem     = DeleteItem(
+                key = pk(avi2Item),
+                tableName = TableName(tableName)
+              )
 
-                for {
-                  _       <- (putItem zip conditionCheck zip updateItem zip deleteItem).transaction.execute
-                  put     <- get[Person](tableName, Item(id -> first, number -> 10)).execute
-                  deleted <- get[Person](tableName, Item(id -> first, number -> 4)).execute
-                  updated <- get[Person](tableName, Item(id -> first, number -> 7)).execute
-                } yield assert(put)(isRight(equalTo(Person(first, avi3, 10)))) &&
-                  assert(deleted)(isLeft) &&
-                  assert(updated)(isRight(equalTo(Person(first, notAdam, 7))))
+              for {
+                _       <- (putItem zip conditionCheck zip updateItem zip deleteItem).transaction.execute
+                put     <- get[Person](tableName, Item(id -> first, number -> 10)).execute
+                deleted <- get[Person](tableName, Item(id -> first, number -> 4)).execute
+                updated <- get[Person](tableName, Item(id -> first, number -> 7)).execute
+              } yield assert(put)(isRight(equalTo(Person(first, avi3, 10)))) &&
+                assert(deleted)(isLeft) &&
+                assert(updated)(isRight(equalTo(Person(first, notAdam, 7))))
             }
           },
           test("two updates to same item fails") {
-            withDefaultTable {
-              tableName =>
-                val updateItem1 = UpdateItem(
-                  key = pk(avi3Item),
-                  tableName = TableName(tableName),
-                  updateExpression = UpdateExpression($(name).setValue("abc"))
-                )
+            withDefaultTable { tableName =>
+              val updateItem1 = UpdateItem(
+                key = pk(avi3Item),
+                tableName = TableName(tableName),
+                updateExpression = UpdateExpression($(name).setValue("abc"))
+              )
 
-                val updateItem2 = UpdateItem(
-                  key = pk(avi3Item),
-                  tableName = TableName(tableName),
-                  updateExpression = UpdateExpression($(name).setValue("shouldFail"))
-                )
+              val updateItem2 = UpdateItem(
+                key = pk(avi3Item),
+                tableName = TableName(tableName),
+                updateExpression = UpdateExpression($(name).setValue("shouldFail"))
+              )
 
-                assertM(updateItem1.zip(updateItem2).transaction.execute.exit)(
-                  fails(assertDynamoDbException("Transaction request cannot include multiple operations on one item"))
-                )
+              assertM(updateItem1.zip(updateItem2).transaction.execute.exit)(
+                fails(assertDynamoDbException("Transaction request cannot include multiple operations on one item"))
+              )
             }
           },
           test("repeated client request token with different transaction fails") {
-            withDefaultTable {
-              tableName =>
-                val updateItem = UpdateItem(
-                  key = pk(avi3Item),
-                  tableName = TableName(tableName),
-                  updateExpression = UpdateExpression($(name).setValue(notAdam))
-                ).transaction.withClientRequestToken("test-token")
+            withDefaultTable { tableName =>
+              val updateItem = UpdateItem(
+                key = pk(avi3Item),
+                tableName = TableName(tableName),
+                updateExpression = UpdateExpression($(name).setValue(notAdam))
+              ).transaction.withClientRequestToken("test-token")
 
-                val updateItem2 = UpdateItem(
-                  key = pk(avi3Item),
-                  tableName = TableName(tableName),
-                  updateExpression = UpdateExpression($(name).setValue("BOOOOOOO"))
-                ).transaction.withClientRequestToken("test-token")
+              val updateItem2 = UpdateItem(
+                key = pk(avi3Item),
+                tableName = TableName(tableName),
+                updateExpression = UpdateExpression($(name).setValue("BOOOOOOO"))
+              ).transaction.withClientRequestToken("test-token")
 
-                val program = for {
-                  _ <- updateItem.execute
-                  _ <- updateItem2.execute
-                } yield ()
+              val program = for {
+                _ <- updateItem.execute
+                _ <- updateItem2.execute
+              } yield ()
 
-                assertM(program.exit)(
-                  fails(isSubtype[IdempotentParameterMismatchException](Assertion.anything))
-                )
+              assertM(program.exit)(
+                fails(isSubtype[IdempotentParameterMismatchException](Assertion.anything))
+              )
             }
           }
         ),
@@ -905,28 +907,27 @@ object LiveSpec extends ZIOSpecDefault {
             }
           },
           test("missing item in other table") {
-            withDefaultTable {
-              tableName =>
-                val secondTable = numberTable("some-table")
-                val getItems    = BatchGetItem().addAll(
-                  GetItem(TableName(tableName), pk(avi3Item)),
-                  GetItem(TableName(tableName), pk(adam2Item)),
-                  GetItem(TableName("some-table"), Item(id -> 5))
-                )
-                for {
-                  _ <- secondTable.execute
-                  a <- getItems.transaction.execute
-                } yield assert(a)(
-                  equalTo(
-                    BatchGetItem.Response(
-                      responses = MapOfSet.apply(
-                        ScalaMap[TableName, Set[Item]](
-                          TableName(tableName) -> Set(avi3Item, adam2Item)
-                        )
+            withDefaultTable { tableName =>
+              val secondTable = numberTable("some-table")
+              val getItems    = BatchGetItem().addAll(
+                GetItem(TableName(tableName), pk(avi3Item)),
+                GetItem(TableName(tableName), pk(adam2Item)),
+                GetItem(TableName("some-table"), Item(id -> 5))
+              )
+              for {
+                _ <- secondTable.execute
+                a <- getItems.transaction.execute
+              } yield assert(a)(
+                equalTo(
+                  BatchGetItem.Response(
+                    responses = MapOfSet.apply(
+                      ScalaMap[TableName, Set[Item]](
+                        TableName(tableName) -> Set(avi3Item, adam2Item)
                       )
                     )
                   )
                 )
+              )
             }
           }
         )

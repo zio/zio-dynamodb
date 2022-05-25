@@ -479,7 +479,7 @@ case object DynamoDBExecutorImpl {
         Some(
           TransactGetItem(
             Get(
-              key = s.key.map.map { case (k, v) => (ZIOAwsAttributeName(k), awsAttributeValue(v)) },
+              key = s.key.toZioAwsMap(),
               tableName = ZIOAwsTableName(s.tableName.value),
               projectionExpression =
                 toOption(s.projections).map(awsProjectionExpression).map(ZIOAwsProjectionExpression(_))
@@ -492,7 +492,7 @@ case object DynamoDBExecutorImpl {
             items.keysSet.map { key =>
               TransactGetItem(
                 Get(
-                  key = key.map.map { case (k, v) => (ZIOAwsAttributeName(k), awsAttributeValue(v)) },
+                  key = key.toZioAwsMap(),
                   tableName = ZIOAwsTableName(tableName.value),
                   projectionExpression = toOption(items.projectionExpressionSet)
                     .map(awsProjectionExpression)
@@ -526,7 +526,7 @@ case object DynamoDBExecutorImpl {
                 TransactWriteItem(delete =
                   Some(
                     ZIOAwsDelete(
-                      key = key.map.map { case (k, v) => (ZIOAwsAttributeName(k), awsAttributeValue(v)) },
+                      key = key.toZioAwsMap(),
                       tableName = ZIOAwsTableName(table.value)
                     )
                   )
@@ -535,7 +535,7 @@ case object DynamoDBExecutorImpl {
                 TransactWriteItem(put =
                   Some(
                     ZIOAwsPut(
-                      item = item.map.map { case (k, v) => (ZIOAwsAttributeName(k), awsAttributeValue(v)) },
+                      item = item.toZioAwsMap(),
                       tableName = ZIOAwsTableName(table.value)
                     )
                   )
@@ -568,18 +568,13 @@ case object DynamoDBExecutorImpl {
   ): Option[ScalaMap[ZIOAwsExpressionAttributeValueVariable, ZIOAwsAttributeValue]] =
     if (aliasMap.isEmpty) None
     else
-      Some(aliasMap.map.map {
-        case (attrVal, str) => (ZIOAwsExpressionAttributeValueVariable(str), awsAttributeValue(attrVal))
+      Some(aliasMap.map.flatMap {
+        case (attrVal, str) => awsAttributeValue(attrVal).map(a => (ZIOAwsExpressionAttributeValueVariable(str), a))
       })
 
   private[dynamodb] def tableGetToKeysAndAttributes(tableGet: TableGet): KeysAndAttributes =
     KeysAndAttributes(
-      keys = tableGet.keysSet.map(set =>
-        set.map.map {
-          case (k, v) =>
-            (ZIOAwsAttributeName(k), awsAttributeValue(v))
-        }
-      ),
+      keys = tableGet.keysSet.map(set => set.toZioAwsMap()),
       projectionExpression = toOption(tableGet.projectionExpressionSet)
         .map(awsProjectionExpression)
         .map(ZIOAwsProjectionExpression(_))
@@ -594,7 +589,7 @@ case object DynamoDBExecutorImpl {
     ) // TODO(adam): Need a better way to accomplish this
     val keySet =
       ka.keys
-        .map(m => PrimaryKey(m.flatMap { case (k, v) => awsAttrValToAttrVal(v).map((k.toString, _)) }))
+        .map(m => PrimaryKey(m.flatMap { case (k, v) => awsAttrValToAttrVal(v).map(a => (k.toString, a)) }))
         .toSet
 
     maybeProjectionExpressions
@@ -613,7 +608,12 @@ case object DynamoDBExecutorImpl {
   private def dynamoDBItem(attrMap: ScalaMap[ZIOAwsAttributeName, ZIOAwsAttributeValue.ReadOnly]): Item =
     Item(attrMap.flatMap { case (k, v) => awsAttrValToAttrVal(v).map(attrVal => (k.toString, attrVal)) })
 
-  private def awsPutItemRequest(putItem: PutItem): PutItemRequest                                       =
+  implicit class ToZioAwsMap(item: AttrMap) {
+    def toZioAwsMap(): ScalaMap[ZIOAwsAttributeName, ZIOAwsAttributeValue] =
+      item.map.flatMap { case (k, v) => awsAttributeValue(v).map(a => (ZIOAwsAttributeName(k.toString), a)) }
+  }
+
+  private def awsPutItemRequest(putItem: PutItem): PutItemRequest =
     PutItemRequest(
       tableName = ZIOAwsTableName(putItem.tableName.value),
       item = awsAttributeValueMap(putItem.item.map),
@@ -626,7 +626,7 @@ case object DynamoDBExecutorImpl {
   private def awsGetItemRequest(getItem: GetItem): GetItemRequest =
     GetItemRequest(
       tableName = ZIOAwsTableName(getItem.tableName.value),
-      key = getItem.key.map.map { case (k, v) => (ZIOAwsAttributeName(k), awsAttributeValue(v)) },
+      key = getItem.key.toZioAwsMap(),
       consistentRead = Some(ConsistencyMode.toBoolean(getItem.consistency)).map(ZIOAwsConsistentRead(_)),
       returnConsumedCapacity = Some(awsConsumedCapacity(getItem.capacity)),
       projectionExpression =
@@ -655,7 +655,7 @@ case object DynamoDBExecutorImpl {
   private def awsDeleteItemRequest(deleteItem: DeleteItem): DeleteItemRequest =
     DeleteItemRequest(
       tableName = ZIOAwsTableName(deleteItem.tableName.value),
-      key = deleteItem.key.map.map { case (k, v) => (ZIOAwsAttributeName(k), awsAttributeValue(v)) },
+      key = deleteItem.key.toZioAwsMap(),
       conditionExpression = deleteItem.conditionExpression.map(_.toString).map(ZIOAwsConditionExpression(_)),
       returnConsumedCapacity = Some(awsConsumedCapacity(deleteItem.capacity)),
       returnItemCollectionMetrics = Some(awsReturnItemCollectionMetrics(deleteItem.itemMetrics)),
@@ -696,7 +696,7 @@ case object DynamoDBExecutorImpl {
 
     UpdateItemRequest(
       tableName = ZIOAwsTableName(updateItem.tableName.value),
-      key = updateItem.key.map.map { case (k, v) => (ZIOAwsAttributeName(k), awsAttributeValue(v)) },
+      key = updateItem.key.toZioAwsMap(),
       returnValues = Some(awsReturnValues(updateItem.returnValues)),
       returnConsumedCapacity = Some(awsConsumedCapacity(updateItem.capacity)),
       returnItemCollectionMetrics = Some(awsReturnItemCollectionMetrics(updateItem.itemMetrics)),
@@ -810,7 +810,7 @@ case object DynamoDBExecutorImpl {
     val (aliasMap, conditionExpression) = conditionCheck.conditionExpression.render.execute
 
     ZIOAwsConditionCheck(
-      key = conditionCheck.primaryKey.map.map { case (k, v) => (ZIOAwsAttributeName(k), awsAttributeValue(v)) },
+      key = conditionCheck.primaryKey.toZioAwsMap(),
       tableName = ZIOAwsTableName(conditionCheck.tableName.value),
       conditionExpression = ZIOAwsConditionExpression(conditionExpression),
       expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap)
@@ -821,7 +821,7 @@ case object DynamoDBExecutorImpl {
     val (aliasMap, conditionExpression) = AliasMapRender.collectAll(put.conditionExpression.map(_.render)).execute
 
     ZIOAwsPut(
-      item = put.item.map.map { case (k, v) => (ZIOAwsAttributeName(k), awsAttributeValue(v)) },
+      item = put.item.toZioAwsMap(),
       tableName = ZIOAwsTableName(put.tableName.value),
       conditionExpression = conditionExpression.map(ZIOAwsConditionExpression(_)),
       expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap)
@@ -832,7 +832,7 @@ case object DynamoDBExecutorImpl {
     val (aliasMap, conditionExpression) = AliasMapRender.collectAll(delete.conditionExpression.map(_.render)).execute
 
     ZIOAwsDelete(
-      key = delete.key.map.map { case (k, v) => (ZIOAwsAttributeName(k), awsAttributeValue(v)) },
+      key = delete.key.toZioAwsMap(),
       tableName = ZIOAwsTableName(delete.tableName.value),
       conditionExpression = conditionExpression.map(ZIOAwsConditionExpression(_)),
       expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap)
@@ -846,7 +846,7 @@ case object DynamoDBExecutorImpl {
     } yield (updateExpr, conditionExpr)).execute
 
     ZIOAwsUpdate(
-      key = update.key.map.map { case (k, v) => (ZIOAwsAttributeName(k), awsAttributeValue(v)) },
+      key = update.key.toZioAwsMap(),
       tableName = ZIOAwsTableName(update.tableName.value),
       conditionExpression = maybeConditionExpr.map(ZIOAwsConditionExpression(_)),
       updateExpression = ZIOAwsUpdateExpression(updateExpr),
@@ -862,7 +862,7 @@ case object DynamoDBExecutorImpl {
   private[dynamodb] def awsAttributeValueMap(
     attrMap: ScalaMap[String, AttributeValue]
   ): ScalaMap[ZIOAwsAttributeName, ZIOAwsAttributeValue]                                                 =
-    attrMap.map { case (k, v) => (ZIOAwsAttributeName(k), awsAttributeValue(v)) }
+    attrMap.flatMap { case (k, v) => awsAttributeValue(v).map(a => (ZIOAwsAttributeName(k), a)) }
 
   private def awsAttrValToAttrVal(attributeValue: ZIOAwsAttributeValue.ReadOnly): Option[AttributeValue] =
     attributeValue.s
@@ -1036,38 +1036,34 @@ case object DynamoDBExecutorImpl {
 
   private def awsAttributeValue(
     attributeVal: AttributeValue
-  ): ZIOAwsAttributeValue =
+  ): Option[ZIOAwsAttributeValue] =
     attributeVal match {
       case AttributeValue.Binary(value)    =>
-        ZIOAwsAttributeValue(b = Some(Chunk.fromIterable(value)).map(BinaryAttributeValue(_)))
+        Some(ZIOAwsAttributeValue(b = Some(Chunk.fromIterable(value)).map(BinaryAttributeValue(_))))
       case AttributeValue.BinarySet(value) =>
-        ZIOAwsAttributeValue(bs = Some(value.map(Chunk.fromIterable).map(BinaryAttributeValue(_))))
-      case AttributeValue.Bool(value)      => ZIOAwsAttributeValue(bool = Some(value).map(BooleanAttributeValue(_)))
-      case AttributeValue.List(value)      => ZIOAwsAttributeValue(l = Some(value.map(awsAttributeValue)))
+        if (value.isEmpty) None
+        else Some(ZIOAwsAttributeValue(bs = Some(value.map(Chunk.fromIterable).map(BinaryAttributeValue(_)))))
+      case AttributeValue.Bool(value)      => Some(ZIOAwsAttributeValue(bool = Some(value).map(BooleanAttributeValue(_))))
+      case AttributeValue.List(value)      => Some(ZIOAwsAttributeValue(l = Some(value.flatMap(awsAttributeValue))))
       case AttributeValue.Map(value)       =>
-        ZIOAwsAttributeValue(m = Some(value.map {
-          case (k, v) => (ZIOAwsAttributeName(k.value), awsAttributeValue(v))
-        }))
-      case AttributeValue.Number(value)    => ZIOAwsAttributeValue(n = Some(value.toString()).map(NumberAttributeValue(_)))
+        Some(ZIOAwsAttributeValue(m = Some(value.flatMap {
+          case (k, v) => awsAttributeValue(v).map(r => (ZIOAwsAttributeName(k.value), r))
+        })))
+      case AttributeValue.Number(value)    =>
+        Some(ZIOAwsAttributeValue(n = Some(value.toString()).map(NumberAttributeValue(_))))
       case AttributeValue.NumberSet(value) =>
-        ZIOAwsAttributeValue(ns = Some(value.map(_.toString()).map(NumberAttributeValue(_))))
-      case AttributeValue.Null             => ZIOAwsAttributeValue(nul = Some(true).map(NullAttributeValue(_)))
-      case AttributeValue.String(value)    => ZIOAwsAttributeValue(s = Some(value).map(StringAttributeValue(_)))
-      case AttributeValue.StringSet(value) => ZIOAwsAttributeValue(ss = Some(value.map(StringAttributeValue(_))))
+        if (value.isEmpty) None
+        else Some(ZIOAwsAttributeValue(ns = Some(value.map(_.toString()).map(NumberAttributeValue(_)))))
+      case AttributeValue.Null             => Some(ZIOAwsAttributeValue(nul = Some(true).map(NullAttributeValue(_))))
+      case AttributeValue.String(value)    => Some(ZIOAwsAttributeValue(s = Some(value).map(StringAttributeValue(_))))
+      case AttributeValue.StringSet(value) =>
+        if (value.isEmpty) None else Some(ZIOAwsAttributeValue(ss = Some(value.map(StringAttributeValue(_)))))
     }
 
   private[dynamodb] def awsWriteRequest(write: BatchWriteItem.Write): WriteRequest =
     write match {
-      case BatchWriteItem.Delete(key) =>
-        WriteRequest(
-          None,
-          Some(DeleteRequest(key.map.map { case (k, v) => (ZIOAwsAttributeName(k), awsAttributeValue(v)) }))
-        )
-      case BatchWriteItem.Put(item)   =>
-        WriteRequest(
-          Some(PutRequest(item.map.map { case (k, v) => (ZIOAwsAttributeName(k), awsAttributeValue(v)) })),
-          None
-        )
+      case BatchWriteItem.Delete(key) => WriteRequest(None, Some(DeleteRequest(key.toZioAwsMap())))
+      case BatchWriteItem.Put(item)   => WriteRequest(Some(PutRequest(item.toZioAwsMap())), None)
     }
 
   private def toOption[A](list: List[A]): Option[::[A]] =
