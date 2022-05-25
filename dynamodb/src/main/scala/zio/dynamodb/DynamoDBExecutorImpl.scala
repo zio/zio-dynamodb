@@ -613,15 +613,19 @@ case object DynamoDBExecutorImpl {
       item.map.flatMap { case (k, v) => awsAttributeValue(v).map(a => (ZIOAwsAttributeName(k.toString), a)) }
   }
 
-  private def awsPutItemRequest(putItem: PutItem): PutItemRequest =
+  private def awsPutItemRequest(putItem: PutItem): PutItemRequest = {
+    val maybeAliasMap = putItem.conditionExpression.map(_.render.execute)
+
     PutItemRequest(
       tableName = ZIOAwsTableName(putItem.tableName.value),
       item = awsAttributeValueMap(putItem.item.map),
       returnConsumedCapacity = Some(awsConsumedCapacity(putItem.capacity)),
       returnItemCollectionMetrics = Some(ReturnItemCollectionMetrics.toZioAws(putItem.itemMetrics)),
-      conditionExpression = putItem.conditionExpression.map(v => ZIOAwsConditionExpression(v.toString)),
+      conditionExpression = maybeAliasMap.map(c => ZIOAwsConditionExpression(c._2)),
+      expressionAttributeValues = maybeAliasMap.flatMap(m => aliasMapToExpressionZIOAwsAttributeValues(m._1)),
       returnValues = Some(awsReturnValues(putItem.returnValues))
     )
+  }
 
   private def awsGetItemRequest(getItem: GetItem): GetItemRequest =
     GetItemRequest(
@@ -652,15 +656,19 @@ case object DynamoDBExecutorImpl {
       returnConsumedCapacity = Some(awsConsumedCapacity(batchGetItem.capacity))
     )
 
-  private def awsDeleteItemRequest(deleteItem: DeleteItem): DeleteItemRequest =
+  private def awsDeleteItemRequest(deleteItem: DeleteItem): DeleteItemRequest = {
+    val maybeAliasMap = deleteItem.conditionExpression.map(_.render.execute)
+
     DeleteItemRequest(
       tableName = ZIOAwsTableName(deleteItem.tableName.value),
       key = deleteItem.key.toZioAwsMap(),
-      conditionExpression = deleteItem.conditionExpression.map(_.toString).map(ZIOAwsConditionExpression(_)),
+      conditionExpression = maybeAliasMap.map(c => ZIOAwsConditionExpression(c._2)),
+      expressionAttributeValues = maybeAliasMap.flatMap(m => aliasMapToExpressionZIOAwsAttributeValues(m._1)),
       returnConsumedCapacity = Some(awsConsumedCapacity(deleteItem.capacity)),
       returnItemCollectionMetrics = Some(awsReturnItemCollectionMetrics(deleteItem.itemMetrics)),
       returnValues = Some(awsReturnValues(deleteItem.returnValues))
     )
+  }
 
   private def awsCreateTableRequest(createTable: CreateTable): CreateTableRequest =
     CreateTableRequest(

@@ -862,13 +862,19 @@ object DynamoDBQuery {
       constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem], Chunk[IndexedWriteItem])](
         (Chunk.empty, Chunk.empty, Chunk.empty)
       ) {
-        case ((nonBatched, gets, writes), (get @ GetItem(_, _, _, _, _), index))          =>
+        case ((nonBatched, gets, writes), (get @ GetItem(_, _, _, _, _), index))                            =>
           (nonBatched, gets :+ (get -> index), writes)
-        case ((nonBatched, gets, writes), (put @ PutItem(_, _, _, _, _, _), index))       =>
-          (nonBatched, gets, writes :+ (put -> index))
-        case ((nonBatched, gets, writes), (delete @ DeleteItem(_, _, _, _, _, _), index)) =>
-          (nonBatched, gets, writes :+ (delete -> index))
-        case ((nonBatched, gets, writes), (nonGetItem, index))                            =>
+        case ((nonBatched, gets, writes), (put @ PutItem(_, _, conditionExpression, _, _, _), index))       =>
+          conditionExpression match {
+            case Some(_) => (nonBatched :+ (put -> index), gets, writes)
+            case None    => (nonBatched, gets, writes :+ (put -> index))
+          }
+        case ((nonBatched, gets, writes), (delete @ DeleteItem(_, _, conditionExpression, _, _, _), index)) =>
+          conditionExpression match {
+            case Some(_) => (nonBatched :+ (delete -> index), gets, writes)
+            case None    => (nonBatched, gets, writes :+ (delete -> index))
+          }
+        case ((nonBatched, gets, writes), (nonGetItem, index))                                              =>
           (nonBatched :+ (nonGetItem -> index), gets, writes)
       }
 
