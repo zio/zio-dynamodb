@@ -223,6 +223,25 @@ object LiveSpec extends DefaultRunnableSpec {
             } yield assert(a.flatMap(_.map.get("emptySet")))(isNone)
           }
         },
+        testM("delete item with false where clause") {
+          withDefaultTable { tableName =>
+            val deleteItem = DeleteItem(
+              key = pk(avi3Item),
+              tableName = TableName(tableName)
+            ).where($("firstName").beginsWith("noOne"))
+            assertM(deleteItem.execute.run)(fails(assertDynamoDbException("The conditional request failed")))
+          }
+        },
+        testM("put item with false where clause") {
+          withDefaultTable { tableName =>
+            val putItem = PutItem(
+              tableName = TableName(tableName),
+              item = Item(id -> "nothing", number -> 900)
+            ).where($("id").beginsWith("false"))
+
+            assertM(putItem.execute.run)(fails(assertDynamoDbException("The conditional request failed")))
+          }
+        },
         testM("batch get item") {
           withDefaultTable { tableName =>
             val getItems = BatchGetItem().addAll(
@@ -744,7 +763,13 @@ object LiveSpec extends DefaultRunnableSpec {
 
               assertM(
                 conditionCheck.zip(putItem).transaction.execute.run
-              )(fails(assertDynamoDbException("ConditionalCheckFailed")))
+              )(
+                fails(
+                  assertDynamoDbException(
+                    "Transaction cancelled, please refer cancellation reasons for specific reasons [ConditionalCheckFailed, None]"
+                  )
+                )
+              )
             }
           },
           testM("delete item") {
