@@ -589,7 +589,7 @@ case object DynamoDBExecutorImpl {
     ) // TODO(adam): Need a better way to accomplish this
     val keySet =
       ka.keys
-        .map(m => PrimaryKey(m.flatMap { case (k, v) => awsAttrValToAttrVal(v).map(a => (k.toString, a)) }))
+        .map(m => PrimaryKey(m.flatMap { case (k, v) => awsAttrValToAttrVal(v).map((k.toString, _)) }))
         .toSet
 
     maybeProjectionExpressions
