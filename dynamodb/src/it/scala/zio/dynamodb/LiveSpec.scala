@@ -214,6 +214,15 @@ object LiveSpec extends DefaultRunnableSpec {
             getItem(tableName, PrimaryKey(id -> "nowhere", number -> 1000)).execute.map(item => assert(item)(isNone))
           }
         },
+        testM("empty set not written") {
+          withDefaultTable { tableName =>
+            val setItem = Item(number -> 100, id -> "set", "emptySet" -> Set.empty[Int])
+            for {
+              _ <- putItem(tableName, setItem).execute
+              a <- getItem(tableName, PrimaryKey(number -> 100, id -> "set")).execute
+            } yield assert(a.flatMap(_.map.get("emptySet")))(isNone)
+          }
+        },
         testM("delete item with false where clause") {
           withDefaultTable { tableName =>
             val deleteItem = DeleteItem(

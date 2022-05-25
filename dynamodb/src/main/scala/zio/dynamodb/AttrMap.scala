@@ -38,7 +38,6 @@ final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFrom
       }
     getOptional[Iterable[Item]](field: String).flatMap(maybeTransform)
   }
-
 }
 
 object AttrMap extends GeneratedAttrMapApplies {
