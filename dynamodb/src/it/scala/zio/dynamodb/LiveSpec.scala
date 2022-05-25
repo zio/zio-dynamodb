@@ -219,6 +219,34 @@ object LiveSpec extends ZIOSpecDefault {
             getItem(tableName, PrimaryKey(id -> "nowhere", number -> 1000)).execute.map(item => assert(item)(isNone))
           }
         },
+        test("empty set not written") {
+          withDefaultTable { tableName =>
+            val setItem = Item(number -> 100, id -> "set", "emptySet" -> Set.empty[Int])
+            for {
+              _ <- putItem(tableName, setItem).execute
+              a <- getItem(tableName, PrimaryKey(number -> 100, id -> "set")).execute
+            } yield assert(a.flatMap(_.map.get("emptySet")))(isNone)
+          }
+        },
+        test("delete item with false where clause") {
+          withDefaultTable { tableName =>
+            val deleteItem = DeleteItem(
+              key = pk(avi3Item),
+              tableName = TableName(tableName)
+            ).where($("firstName").beginsWith("noOne"))
+            assertM(deleteItem.execute.exit)(fails(assertDynamoDbException("The conditional request failed")))
+          }
+        },
+        test("put item with false where clause") {
+          withDefaultTable { tableName =>
+            val putItem = PutItem(
+              tableName = TableName(tableName),
+              item = Item(id -> "nothing", number -> 900)
+            ).where($("id").beginsWith("false"))
+
+            assertM(putItem.execute.exit)(fails(assertDynamoDbException("The conditional request failed")))
+          }
+        },
         test("batch get item") {
           withDefaultTable { tableName =>
             val getItems = BatchGetItem().addAll(
@@ -756,7 +784,13 @@ object LiveSpec extends ZIOSpecDefault {
 
                 assertM(
                   conditionCheck.zip(putItem).transaction.execute.exit
-                )(fails(assertDynamoDbException("ConditionalCheckFailed")))
+                )(
+                  fails(
+                    assertDynamoDbException(
+                      "Transaction cancelled, please refer cancellation reasons for specific reasons [ConditionalCheckFailed, None]"
+                    )
+                  )
+                )
             }
           },
           test("delete item") {
