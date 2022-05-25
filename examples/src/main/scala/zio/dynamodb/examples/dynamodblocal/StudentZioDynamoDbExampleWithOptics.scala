@@ -108,7 +108,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     Set(
                       "group1",
                       "group2"
-                    ) // we can't save an empty set yet - see issue https://github.com/zio/zio-dynamodb/issues/113
+                    )
                   )
     _          <- batchWriteFromStream(ZStream(avi, adam)) { student =>
                     put("student", student)
@@ -129,7 +129,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     .map(_.runCollect)
     _          <- put[Student]("student", avi)
                     .where(
-                      enrollmentDate === Some(enrolDate) && email === "avi@gmail.com" && payment === Payment.PayPal
+                      enrollmentDate === Some(enrolDate) && email === "avi@gmail.com" && payment === Payment.CreditCard
                     )
                     .execute
     _          <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
@@ -149,9 +149,9 @@ object StudentZioDynamoDbExampleWithOptics extends App {
     _          <- deleteItem("student", PrimaryKey("email" -> "adam@gmail.com", "subject" -> "english"))
                     // TODO: Avi "where" expression does not seem to be interpreted at AWS level for delete
                     .where(
-                      (enrollmentDate === None /* Some(enrolDate) */ ) && (payment <> Payment.PayPal) && (studentNumber
-                        .between(10, 12)) && (groups.contains("XXXXXXX")) && collegeName.contains(
-                        "XXXXXXX"
+                      enrollmentDate === Some(enrolDate) && payment <> Payment.PayPal && studentNumber
+                        .between(1, 3) && (groups.contains("group1")) && collegeName.contains(
+                        "college1"
                       ) && collegeName.size > 1 && groups.size > 1
                     )
                     .execute
