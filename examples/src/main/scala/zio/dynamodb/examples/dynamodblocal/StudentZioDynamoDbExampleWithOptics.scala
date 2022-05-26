@@ -114,12 +114,18 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     put("student", student)
                   }.runDrain
     _          <- put("student", avi.copy(payment = Payment.CreditCard)).execute
-    _          <- batchReadFromStream("student", ZStream(avi, adam))(s => PrimaryKey("email" -> s.email, "subject" -> s.subject))
+    _          <- batchReadFromStream("student", ZStream(avi, adam))(student =>
+                    PrimaryKey("email" -> student.email, "subject" -> student.subject)
+                  )
                     .tap(student => console.putStrLn(s"student=$student"))
                     .runDrain
-    _          <- scanAll[Student]("student").filter {
-                    enrollmentDate === Some(enrolDate) && payment === Payment.PayPal
-                  }.execute.map(_.runCollect)
+    _          <- scanAll[Student]("student")
+                    .parallel(10)
+                    .filter {
+                      enrollmentDate === Some(enrolDate) && payment === Payment.PayPal
+                    }
+                    .execute
+                    .map(_.runCollect)
     _          <- queryAll[Student]("student")
                     .filter(
                       enrollmentDate === Some(enrolDate) && payment === Payment.PayPal

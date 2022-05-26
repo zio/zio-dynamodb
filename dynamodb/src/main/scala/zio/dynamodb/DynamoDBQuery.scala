@@ -176,6 +176,9 @@ sealed trait DynamoDBQuery[+A] { self =>
       case _                          => self
     }
 
+  /**
+   * Filter a Scan or a Query
+   */
   def filter(filterExpression: FilterExpression): DynamoDBQuery[A] =
     self match {
       case Zip(left, right, zippable) => Zip(left.filter(filterExpression), right.filter(filterExpression), zippable)
@@ -188,12 +191,11 @@ sealed trait DynamoDBQuery[+A] { self =>
     }
 
   /**
-   * Parallel executes DynamoDB queries in parallel if the query type has parallel features in DynamoDB.
+   * Parallel executes a DynamoDB Scan in parallel.
    * There are no guarantees on order of returned items.
    *
    * @param n The number of parallel requests to make to DynamoDB
    */
-
   def parallel(n: Int): DynamoDBQuery[A] =
     self match {
       case Zip(left, right, zippable) => Zip(left.parallel(n), right.parallel(n), zippable)

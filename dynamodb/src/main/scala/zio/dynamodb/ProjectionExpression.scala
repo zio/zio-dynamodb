@@ -163,6 +163,12 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
       UpdateExpression.Action.SetAction(self, IfNotExists(self, implicitly[ToAttributeValue[To]].toAttributeValue(a)))
 
     /**
+     * Append `a` to this list attribute
+     */
+    def append[A](a: A)(implicit ev: To <:< Iterable[A], to: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
+      appendList(List(a).asInstanceOf[To])
+
+    /**
      * Add list `xs` to the end of this list attribute
      */
     def appendList[A](
