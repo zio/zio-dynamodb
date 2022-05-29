@@ -152,6 +152,9 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                         Some(Address("line1", "postcode1"))
                       )
                   }.execute
+    _          <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
+                    addresses.remove(1)
+                  }.execute
     _          <- deleteItem("student", PrimaryKey("email" -> "adam@gmail.com", "subject" -> "english"))
                     .where(
                       enrollmentDate === Some(enrolDate) && payment <> Payment.PayPal && studentNumber

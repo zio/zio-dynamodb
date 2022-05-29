@@ -20,17 +20,25 @@ sealed trait ProjectionExpression[To] { self =>
 
   // unary ConditionExpressions
 
-  // constraint: None - applies to all types
+  // applies to all types
   def exists: ConditionExpression    = ConditionExpression.AttributeExists(self)
-  // constraint: None - applies to all types
+  // applies to all types
   def notExists: ConditionExpression = ConditionExpression.AttributeNotExists(self)
-  // constraint: Applies to ALL except Number and Boolean
+  // Applies to all types except Number and Boolean
   def size(implicit ev: Sizable[To]): ConditionExpression.Operand.Size = {
     val _ = ev
     ConditionExpression.Operand.Size(self)
   }
 
-  // constraint: ALL
+  /**
+   * Removes an element at the specified index from a list. Note that index is zero based
+   */
+  def remove(index: Int)(implicit ev: ListRemoveable[To]): UpdateExpression.Action.RemoveAction = {
+    val _ = ev
+    UpdateExpression.Action.RemoveAction(ProjectionExpression.ListElement(self, index))
+  }
+
+  // apply to all types
   def isBinary: ConditionExpression    = isType(AttributeValueType.Binary)
   def isNumber: ConditionExpression    = isType(AttributeValueType.Number)
   def isString: ConditionExpression    = isType(AttributeValueType.String)
@@ -45,10 +53,8 @@ sealed trait ProjectionExpression[To] { self =>
   private def isType(attributeType: AttributeValueType): ConditionExpression = // TODO: private so move down
     ConditionExpression.AttributeType(self, attributeType)
 
-  // ConditionExpression with AttributeValue's
-
   /**
-   * Applies to a string attribute
+   * Only applies to a string attribute
    */
   def beginsWith(av: String)(implicit ev: RefersTo[String, To]): ConditionExpression = {
     val _ = ev
@@ -57,7 +63,6 @@ sealed trait ProjectionExpression[To] { self =>
 
   // UpdateExpression conversions
 
-  // TODO: Avi - change query model + AWS interpreter to allow for multiple path expression to remove
   /**
    * Removes this PathExpression from an item
    */
@@ -68,12 +73,6 @@ sealed trait ProjectionExpression[To] { self =>
     @tailrec
     def loop(pe: ProjectionExpression[_], acc: List[String]): List[String] =
       pe match {
-        /*
-        If you have a PE that DDB does not know how to handle, then you have an error
-        eg [0] // DDB does not support top level array or primitives at the top level
-        so we need more code everywhere it is used to check that ROOT is valid and maybe
-        special case it when in the context of the top level.
-         */
         case Root                                        => acc // identity
         case ProjectionExpression.MapElement(Root, name) => acc :+ s"$name"
         case MapElement(parent, key)                     => loop(parent, acc :+ s".$key")
@@ -83,6 +82,17 @@ sealed trait ProjectionExpression[To] { self =>
     loop(self, List.empty).reverse.mkString("")
   }
 }
+
+@implicitNotFound("the type ${X} is not ListRemoveable")
+sealed trait ListRemoveable[-X]
+trait ListRemoveable0 extends ListRemoveable1 {
+  implicit def unknownRight[X]: ListRemoveable[ProjectionExpression.Unknown] =
+    new ListRemoveable[ProjectionExpression.Unknown] {}
+}
+trait ListRemoveable1 {
+  implicit def list[A]: ListRemoveable[Seq[A]] = new ListRemoveable[Seq[A]] {}
+}
+object ListRemoveable extends ListRemoveable0 {}
 
 @implicitNotFound("the type ${X} is not Sizable")
 sealed trait Sizable[-X]
@@ -210,8 +220,7 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
     def deleteFromSet(set: To)(implicit ev: To <:< Set[_]): UpdateExpression.Action.DeleteAction =
       UpdateExpression.Action.DeleteAction(self, implicitly[ToAttributeValue[To]].toAttributeValue(set))
 
-    // TODO: needed a different name to avoid " overloaded method in with alternatives:"
-
+    // TODO
     def inSet(values: Set[To]): ConditionExpression =
       ConditionExpression.Operand
         .ProjectionExpressionOperand(self)
@@ -233,16 +242,15 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
     }
 
     /**
-     * adds a number attribute if it does not exists, else adds the numeric value to the existing attribute
+     * adds this value as a number attribute if it does not exists, else adds the numeric value to the existing attribute
      */
     def add(a: To)(implicit ev: Addable[To, To]): UpdateExpression.Action.AddAction = {
       val _ = ev
       UpdateExpression.Action.AddAction(self, implicitly[ToAttributeValue[To]].toAttributeValue(a))
     }
-    // Note addSet will be used very infrequently - even AWS recommend using "set" instead for this case
-    // so maybe not worth investing too much effort on trying to unify these 2 methods
+
     /**
-     * adds a set attribute if it does not exists, else if it exists it adds the elements of the set
+     * adds this set as an attribute if it does not exists, else if it exists it adds the elements of the set
      */
     def addSet[A](
       set: Set[A]
@@ -358,11 +366,15 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     /**
      * Modify or Add an item Attribute
      */
-    def set[To: ToAttributeValue](a: To): UpdateExpression.Action.SetAction   =
+    def set[To: ToAttributeValue](a: To): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(
         self,
         UpdateExpression.SetOperand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(a))
       )
+
+    /**
+     * Modify or Add an item Attribute
+     */
     def set(that: ProjectionExpression[_]): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(self, PathOperand(that))
 

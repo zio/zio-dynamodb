@@ -2,25 +2,25 @@ package zio.dynamodb
 
 import io.github.vigoo.zioaws.core.config
 import io.github.vigoo.zioaws.dynamodb.DynamoDb
-import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
-import zio.blocking.Blocking
-import zio.dynamodb.UpdateExpression.Action.SetAction
-import zio.dynamodb.UpdateExpression.SetOperand
-import zio.dynamodb.PartitionKeyExpression.PartitionKey
-import zio.dynamodb.SortKeyExpression.SortKey
 import io.github.vigoo.zioaws.{ dynamodb, http4s }
-import zio._
-import zio.clock.Clock
-import zio.dynamodb.DynamoDBQuery._
-import zio.dynamodb.ProjectionExpression._
-import zio.test.Assertion._
-import zio.test.environment._
+import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.dynamodb.model.{ DynamoDbException, IdempotentParameterMismatchException }
+import zio._
+import zio.blocking.Blocking
+import zio.clock.Clock
+import zio.dynamodb.DynamoDBQuery._
+import zio.dynamodb.PartitionKeyExpression.PartitionKey
+import zio.dynamodb.ProjectionExpression._
+import zio.dynamodb.SortKeyExpression.SortKey
+import zio.dynamodb.UpdateExpression.Action.SetAction
+import zio.dynamodb.UpdateExpression.SetOperand
 import zio.schema.{ DeriveSchema, Schema }
 import zio.stream.{ ZSink, ZStream }
-import zio.test._
+import zio.test.Assertion._
 import zio.test.TestAspect._
+import zio.test._
+import zio.test.environment._
 
 import java.net.URI
 import scala.collection.immutable.{ Map => ScalaMap }
@@ -674,7 +674,21 @@ object LiveSpec extends DefaultRunnableSpec {
             )
           }
         },
-        testM("add item to set") {
+        testM("remove an element from list") {
+          withDefaultTable { tableName =>
+            val key = PrimaryKey(id -> second, number -> 8)
+            for {
+              _       <- updateItem(tableName, key)($("listt[1]").remove).execute
+              updated <- getItem(
+                           tableName,
+                           key
+                         ).execute
+            } yield assert(updated)(
+              equalTo(Some(Item(id -> second, number -> 8, name -> adam3, "listt" -> List(1, 3))))
+            )
+          }
+        },
+        testM("add a set to set") {
           withTemporaryTable(
             tableName =>
               createTable(tableName, KeySchema(id), BillingMode.PayPerRequest)(AttributeDefinition.attrDefnNumber(id)),
@@ -721,7 +735,7 @@ object LiveSpec extends DefaultRunnableSpec {
               } yield assert(updated)(equalTo(Some(Item(id -> 1, number -> 5))))
           )
         },
-        testM("add number using set action") {
+        testM("add number using set action with a value") {
           withTemporaryTable(
             numberTable,
             tableName =>
@@ -739,7 +753,23 @@ object LiveSpec extends DefaultRunnableSpec {
               } yield assert(updated)(equalTo(Some(Item(id -> 1, number -> 5))))
           )
         },
-        testM("subtract number") {
+        testM("add number using set action with a projection expression") {
+          withTemporaryTable(
+            numberTable,
+            tableName =>
+              for {
+                _       <- putItem(tableName, Item(id -> 1, number -> 2)).execute
+                _       <- updateItem(tableName, PrimaryKey(id -> 1))(
+                             SetAction(
+                               $(number),
+                               SetOperand.PathOperand($(number)) + SetOperand.PathOperand($(number))
+                             )
+                           ).execute
+                updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
+              } yield assert(updated)(equalTo(Some(Item(id -> 1, number -> 4))))
+          )
+        },
+        testM("subtract number using a value") {
           withTemporaryTable(
             numberTable,
             tableName =>
@@ -758,6 +788,22 @@ object LiveSpec extends DefaultRunnableSpec {
           )
         }
       ),
+      testM("subtract number using a projection expression") {
+        withTemporaryTable(
+          numberTable,
+          tableName =>
+            for {
+              _       <- putItem(tableName, Item(id -> 1, number -> 4)).execute
+              _       <- updateItem(tableName, PrimaryKey(id -> 1))(
+                           SetAction(
+                             $(number),
+                             SetOperand.PathOperand($(number)) - SetOperand.PathOperand($(number))
+                           )
+                         ).execute
+              updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
+            } yield assert(updated)(equalTo(Some(Item(id -> 1, number -> 0))))
+        )
+      },
       suite("transactions")(
         suite("transact write items")(
           testM("put item") {
