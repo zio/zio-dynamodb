@@ -220,10 +220,10 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
     def deleteFromSet(set: To)(implicit ev: To <:< Set[_]): UpdateExpression.Action.DeleteAction =
       UpdateExpression.Action.DeleteAction(self, implicitly[ToAttributeValue[To]].toAttributeValue(set))
 
-    def inSet(values: Set[To])(implicit to: ToAttributeValue[To]): ConditionExpression =
+    def inSet(values: Set[To]): ConditionExpression =
       ConditionExpression.Operand
         .ProjectionExpressionOperand(self)
-        .in(values.map(to.toAttributeValue))
+        .in(values.map(implicitly[ToAttributeValue[To]].toAttributeValue))
 
     def in(value: To, values: To*): ConditionExpression = {
       val set: Set[To] = values.toSet + value
@@ -443,7 +443,7 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     /**
      * adds a number attribute if it does not exists, else adds the numeric value to the existing attribute
      */
-    def add[A](a: A)(implicit to: ToAttributeValue[A]): UpdateExpression.Action.AddAction =
+    def add[To](a: To)(implicit to: ToAttributeValue[To]): UpdateExpression.Action.AddAction =
       UpdateExpression.Action.AddAction(self, to.toAttributeValue(a))
 
     /**

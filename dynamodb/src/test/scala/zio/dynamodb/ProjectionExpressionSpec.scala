@@ -33,7 +33,7 @@ object ProjectionExpressionSpec extends DefaultRunnableSpec {
   override def spec: ZSpec[Environment, Failure] = suite("ProjectionExpressionSpec")(opSuite, comparisonSuite)
 
   val opSuite: ZSpec[Environment, Failure] =
-    suite("expression derived from optics suite")(
+    suite("type safe update expressions suite")(
       test("exists") {
         val ex = Student.email.exists
         assertTrue(ex.toString == "AttributeExists(email)")
@@ -134,17 +134,17 @@ object ProjectionExpressionSpec extends DefaultRunnableSpec {
         val ex = Student.studentNumber.inSet(Set(1))
         assertTrue(ex.toString == "In(ProjectionExpressionOperand(studentNumber),Set(Number(1)))")
       },
-      test("in for a collection attribute") {
+      test("'in' for a collection attribute") {
         val ex = Student.groups.in(Set("group1"), Set("group2"))
         assertTrue(
           ex.toString == "In(ProjectionExpressionOperand(groups),Set(StringSet(Set(group2)), StringSet(Set(group1))))"
         )
       },
-      test("in for a scalar") {
+      test("'in' for a scalar") {
         val ex = Student.studentNumber.in(1, 2)
         assertTrue(ex.toString == "In(ProjectionExpressionOperand(studentNumber),Set(Number(2), Number(1)))")
       },
-      test("in for a sum type") {
+      test("'in' for a sum type") {
         val ex = Student.payment.in(Payment.CreditCard, Payment.PayPal)
         assertTrue(ex.toString == "In(ProjectionExpressionOperand(payment),Set(String(PayPal), String(CreditCard)))")
       },
@@ -167,7 +167,7 @@ object ProjectionExpressionSpec extends DefaultRunnableSpec {
     )
 
   val comparisonSuite: ZSpec[Environment, Failure] =
-    suite("comparison suite")(
+    suite("type safe comparison suite")(
       test("===") {
         val ex = Student.studentNumber === 1
         assertTrue(ex.toString == "Equals(ProjectionExpressionOperand(studentNumber),ValueOperand(Number(1)))")
