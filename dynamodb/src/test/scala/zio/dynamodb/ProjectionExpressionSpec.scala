@@ -30,10 +30,55 @@ object ProjectionExpressionSpec extends DefaultRunnableSpec {
       ProjectionExpression.accessors[Student]
   }
 
-  override def spec: ZSpec[Environment, Failure] = suite("ProjectionExpressionSpec")(opSuite, comparisonSuite)
+  override def spec: ZSpec[Environment, Failure] =
+    suite("ProjectionExpressionSpec")(opSuite, functionsSuite, comparisonSuite)
 
   val opSuite: ZSpec[Environment, Failure] =
     suite("type safe update expressions suite")(
+      test("remove") {
+        val ex = Student.addresses.remove
+        assertTrue(ex.toString == "RemoveAction(addresses)")
+      },
+      test("remove using an index") {
+        val ex = Student.addresses.remove(2)
+        assertTrue(ex.toString == "RemoveAction(addresses[2])")
+      },
+      test("set a number") {
+        val ex = Student.studentNumber.set(1)
+        assertTrue(ex.toString == "SetAction(studentNumber,ValueOperand(Number(1)))")
+      },
+      test("set using a projection expression") {
+        val ex = Student.studentNumber.set(Student.studentNumber)
+        assertTrue(ex.toString == "SetAction(studentNumber,PathOperand(studentNumber))")
+      },
+      test("set if not exists") {
+        val ex = Student.studentNumber.setIfNotExists(10)
+        assertTrue(ex.toString == "SetAction(studentNumber,IfNotExists(studentNumber,Number(10)))")
+      },
+      test("append to a list") {
+        val ex = Student.groups.append("group1")
+        assertTrue(ex.toString == "SetAction(groups,ListAppend(groups,List(List(String(group1)))))")
+      },
+      test("prepend") {
+        val ex = Student.groups.prepend("group1")
+        assertTrue(ex.toString == "SetAction(groups,ListPrepend(groups,List(List(String(group1)))))")
+      },
+      test("delete from a set") {
+        val ex = Student.groups.deleteFromSet(Set("group1"))
+        assertTrue(ex.toString == "DeleteAction(groups,StringSet(Set(group1)))")
+      },
+      test("add") {
+        val ex = Student.studentNumber.add(1)
+        assertTrue(ex.toString == "AddAction(studentNumber,Number(1))")
+      },
+      test("addSet") {
+        val ex = Student.groups.addSet(Set("group2"))
+        assertTrue(ex.toString == "AddAction(groups,StringSet(Set(group2)))")
+      }
+    )
+
+  val functionsSuite: ZSpec[Environment, Failure] =
+    suite("type safe functions suite")(
       test("exists") {
         val ex = Student.email.exists
         assertTrue(ex.toString == "AttributeExists(email)")
@@ -49,10 +94,6 @@ object ProjectionExpressionSpec extends DefaultRunnableSpec {
       test("size for a list") {
         val ex = Student.addresses.size
         assertTrue(ex.toString == "Size(addresses)")
-      },
-      test("remove using an index") {
-        val ex = Student.addresses.remove(2)
-        assertTrue(ex.toString == "RemoveAction(addresses[2])")
       },
       test("isBinary") {
         val ex = Student.groups.isBinary
@@ -98,37 +139,13 @@ object ProjectionExpressionSpec extends DefaultRunnableSpec {
         val ex = Student.email.beginsWith("avi")
         assertTrue(ex.toString == "BeginsWith(email,String(avi))")
       },
-      test("set a number") {
-        val ex = Student.studentNumber.set(1)
-        assertTrue(ex.toString == "SetAction(studentNumber,ValueOperand(Number(1)))")
-      },
-      test("set using a projection expression") {
-        val ex = Student.studentNumber.set(Student.studentNumber)
-        assertTrue(ex.toString == "SetAction(studentNumber,PathOperand(studentNumber))")
-      },
-      test("set if not exists") {
-        val ex = Student.studentNumber.setIfNotExists(10)
-        assertTrue(ex.toString == "SetAction(studentNumber,IfNotExists(studentNumber,Number(10)))")
-      },
-      test("append to a list") {
-        val ex = Student.groups.append("group1")
-        assertTrue(ex.toString == "SetAction(groups,ListAppend(groups,List(List(String(group1)))))")
-      },
-      test("prepend") {
-        val ex = Student.groups.prepend("group1")
-        assertTrue(ex.toString == "SetAction(groups,ListPrepend(groups,List(List(String(group1)))))")
-      },
       test("between using number range") {
         val ex = Student.studentNumber.between(1, 3)
         assertTrue(ex.toString == "Between(ProjectionExpressionOperand(studentNumber),Number(1),Number(3))")
       },
-      test("delete from a set") {
-        val ex = Student.groups.deleteFromSet(Set("group1"))
-        assertTrue(ex.toString == "DeleteAction(groups,StringSet(Set(group1)))")
-      },
       test("inSet for a collection attribute") {
-        val ex = Student.groups.inSet(Set(Set("group1")))
-        assertTrue(ex.toString == "In(ProjectionExpressionOperand(groups),Set(StringSet(Set(group1))))")
+        val ex = Student.addresses.inSet(Set(List("Addr1")))
+        assertTrue(ex.toString == "In(ProjectionExpressionOperand(addresses),Set(List(Chunk(String(Addr1)))))")
       },
       test("inSet for a scalar") {
         val ex = Student.studentNumber.inSet(Set(1))
@@ -155,14 +172,6 @@ object ProjectionExpressionSpec extends DefaultRunnableSpec {
       test("set contains") {
         val ex = Student.groups.contains("group1")
         assertTrue(ex.toString == "Contains(groups,String(group1))")
-      },
-      test("add") {
-        val ex = Student.studentNumber.add(1)
-        assertTrue(ex.toString == "AddAction(studentNumber,Number(1))")
-      },
-      test("addSet") {
-        val ex = Student.groups.addSet(Set("group2"))
-        assertTrue(ex.toString == "AddAction(groups,StringSet(Set(group2)))")
       }
     )
 
