@@ -1,21 +1,32 @@
 package zio.dynamodb
 
+import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema }
 import zio.test.{ assertTrue, DefaultRunnableSpec, ZSpec }
 
 object ProjectionExpressionSpec extends DefaultRunnableSpec {
 
+  @enumOfCaseObjects
+  sealed trait Payment
+  object Payment {
+    final case object DebitCard  extends Payment
+    final case object CreditCard extends Payment
+    final case object PayPal     extends Payment
+
+    implicit val schema = DeriveSchema.gen[Payment]
+  }
   final case class Student(
     email: String,
     subject: String,
     studentNumber: Int,
     collegeName: String,
     addresses: List[String] = List.empty,
-    groups: Set[String] = Set.empty[String]
+    groups: Set[String] = Set.empty[String],
+    payment: Payment
   )
   object Student extends DefaultJavaTimeSchemas {
-    implicit val schema                                                 = DeriveSchema.gen[Student]
-    val (email, subject, studentNumber, collegeName, addresses, groups) =
+    implicit val schema                                                          = DeriveSchema.gen[Student]
+    val (email, subject, studentNumber, collegeName, addresses, groups, payment) =
       ProjectionExpression.accessors[Student]
   }
 
@@ -39,7 +50,7 @@ object ProjectionExpressionSpec extends DefaultRunnableSpec {
         val ex = Student.addresses.size
         assertTrue(ex.toString == "Size(addresses)")
       },
-      test("remove(index)") {
+      test("remove using an index") {
         val ex = Student.addresses.remove(2)
         assertTrue(ex.toString == "RemoveAction(addresses[2])")
       },
@@ -95,7 +106,7 @@ object ProjectionExpressionSpec extends DefaultRunnableSpec {
         val ex = Student.studentNumber.set(Student.studentNumber)
         assertTrue(ex.toString == "SetAction(studentNumber,PathOperand(studentNumber))")
       },
-      test("set is not exists") {
+      test("set if not exists") {
         val ex = Student.studentNumber.setIfNotExists(10)
         assertTrue(ex.toString == "SetAction(studentNumber,IfNotExists(studentNumber,Number(10)))")
       },
@@ -107,25 +118,35 @@ object ProjectionExpressionSpec extends DefaultRunnableSpec {
         val ex = Student.groups.prepend("group1")
         assertTrue(ex.toString == "SetAction(groups,ListPrepend(groups,List(List(String(group1)))))")
       },
-      test("between") {
+      test("between using number range") {
         val ex = Student.studentNumber.between(1, 3)
         assertTrue(ex.toString == "Between(ProjectionExpressionOperand(studentNumber),Number(1),Number(3))")
       },
-      test("deleteFromSet") {
+      test("delete from a set") {
         val ex = Student.groups.deleteFromSet(Set("group1"))
         assertTrue(ex.toString == "DeleteAction(groups,StringSet(Set(group1)))")
       },
-//      test("inSet") { // TODO
-//        val ex = Student.groups.inSet(Set("group1"))
-//        assertTrue(ex.toString == "DeleteAction(groups,StringSet(Set(group1)))")
-//      }
-      test("in") {
-        val ex = Student.groups.in(Set("group1"), Set("group1")) // TODO: this interface is wrong
+      test("inSet for a collection attribute") {
+        val ex = Student.groups.inSet(Set(Set("group1")))
         assertTrue(ex.toString == "In(ProjectionExpressionOperand(groups),Set(StringSet(Set(group1))))")
       },
-      test("in") {
-        val ex = Student.studentNumber.in(1, 2) // TODO: what if To is a Set?
+      test("inSet for a scalar") {
+        val ex = Student.studentNumber.inSet(Set(1))
+        assertTrue(ex.toString == "In(ProjectionExpressionOperand(studentNumber),Set(Number(1)))")
+      },
+      test("in for a collection attribute") {
+        val ex = Student.groups.in(Set("group1"), Set("group2"))
+        assertTrue(
+          ex.toString == "In(ProjectionExpressionOperand(groups),Set(StringSet(Set(group2)), StringSet(Set(group1))))"
+        )
+      },
+      test("in for a scalar") {
+        val ex = Student.studentNumber.in(1, 2)
         assertTrue(ex.toString == "In(ProjectionExpressionOperand(studentNumber),Set(Number(2), Number(1)))")
+      },
+      test("in for a sum type") {
+        val ex = Student.payment.in(Payment.CreditCard, Payment.PayPal)
+        assertTrue(ex.toString == "In(ProjectionExpressionOperand(payment),Set(String(PayPal), String(CreditCard)))")
       },
       test("string contains") {
         val ex = Student.collegeName.contains("foo")

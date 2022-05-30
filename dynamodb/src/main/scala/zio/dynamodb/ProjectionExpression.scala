@@ -220,11 +220,10 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
     def deleteFromSet(set: To)(implicit ev: To <:< Set[_]): UpdateExpression.Action.DeleteAction =
       UpdateExpression.Action.DeleteAction(self, implicitly[ToAttributeValue[To]].toAttributeValue(set))
 
-    // TODO
-    def inSet(values: Set[To]): ConditionExpression =
+    def inSet(values: Set[To])(implicit to: ToAttributeValue[To]): ConditionExpression =
       ConditionExpression.Operand
         .ProjectionExpressionOperand(self)
-        .in(values.map(implicitly[ToAttributeValue[To]].toAttributeValue))
+        .in(values.map(to.toAttributeValue))
 
     def in(value: To, values: To*): ConditionExpression = {
       val set: Set[To] = values.toSet + value

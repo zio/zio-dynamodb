@@ -712,6 +712,42 @@ object LiveSpec extends DefaultRunnableSpec {
               } yield assert(updated)(equalTo(Some(Item(id -> 1, "sett" -> Set(1, 2)))))
           )
         },
+        testM("`in` using a range of set when field is a set") {
+          withTemporaryTable(
+            tableName =>
+              createTable(tableName, KeySchema(id), BillingMode.PayPerRequest)(AttributeDefinition.attrDefnNumber(id)),
+            tableName =>
+              for {
+                _       <- putItem(tableName, Item(id -> 1, "sett" -> Set(1, 2))).execute
+                _       <- updateItem(tableName, PrimaryKey(id -> 1))($("sett").addSet(Set(3)))
+                             .where(
+                               ConditionExpression.Operand
+                                 .ProjectionExpressionOperand($("sett"))
+                                 .in(Set(AttributeValue(Set(1, 2))))
+                             )
+                             .execute
+                updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
+              } yield assert(updated)(equalTo(Some(Item(id -> 1, "sett" -> Set(1, 2, 3)))))
+          )
+        },
+        testM("`in` using a range of scalar when field is a scalar") {
+          withTemporaryTable(
+            tableName =>
+              createTable(tableName, KeySchema(id), BillingMode.PayPerRequest)(AttributeDefinition.attrDefnNumber(id)),
+            tableName =>
+              for {
+                _       <- putItem(tableName, Item(id -> 1, "age" -> 21)).execute
+                _       <- updateItem(tableName, PrimaryKey(id -> 1))($("age").add(1))
+                             .where(
+                               ConditionExpression.Operand
+                                 .ProjectionExpressionOperand($("age"))
+                                 .in(Set(AttributeValue(21), AttributeValue(22)))
+                             )
+                             .execute
+                updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
+              } yield assert(updated)(equalTo(Some(Item(id -> 1, "age" -> 22))))
+          )
+        },
         testM("add item to a numeric attribute") {
           withTemporaryTable(
             tableName =>
