@@ -4,9 +4,10 @@ import zio.Chunk
 import zio.dynamodb.ConditionExpression.Operand.ProjectionExpressionOperand
 import zio.dynamodb.ProjectionExpression.{ ListElement, MapElement, Root }
 import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand }
+import zio.dynamodb.proofs.{ Addable, Containable, ListRemoveable, RefersTo, Sizable }
 import zio.schema.{ AccessorBuilder, Schema }
 
-import scala.annotation.{ implicitNotFound, tailrec }
+import scala.annotation.tailrec
 
 // The maximum depth for a document path is 32
 sealed trait ProjectionExpression[To] { self =>
@@ -81,77 +82,6 @@ sealed trait ProjectionExpression[To] { self =>
 
     loop(self, List.empty).reverse.mkString("")
   }
-}
-
-@implicitNotFound("the type ${X} is not ListRemoveable")
-sealed trait ListRemoveable[-X]
-trait ListRemoveable0 extends ListRemoveable1 {
-  implicit def unknownRight[X]: ListRemoveable[ProjectionExpression.Unknown] =
-    new ListRemoveable[ProjectionExpression.Unknown] {}
-}
-trait ListRemoveable1 {
-  implicit def list[A]: ListRemoveable[Seq[A]] = new ListRemoveable[Seq[A]] {}
-}
-object ListRemoveable extends ListRemoveable0 {}
-
-@implicitNotFound("the type ${X} is not Sizable")
-sealed trait Sizable[-X]
-trait SizableLowPriorityImplicits0 extends SizableLowPriorityImplicits1 {
-  implicit def unknown: Sizable[ProjectionExpression.Unknown] =
-    new Sizable[ProjectionExpression.Unknown] {}
-}
-trait SizableLowPriorityImplicits1 {
-  implicit def iterable[A]: Sizable[Iterable[A]] = new Sizable[Iterable[A]] {}
-  implicit def string[A]: Sizable[String]        = new Sizable[String] {}
-}
-object Sizable                     extends SizableLowPriorityImplicits0 {}
-
-@implicitNotFound("the type ${A} must be a ${X} in order to use this operator")
-sealed trait Addable[X, -A]
-trait AddableLowPriorityImplicits0 extends AddableLowPriorityImplicits1 {
-  implicit def unknownRight[X]: Addable[X, ProjectionExpression.Unknown] =
-    new Addable[X, ProjectionExpression.Unknown] {}
-}
-trait AddableLowPriorityImplicits1 {
-  implicit def set[A]: Addable[Set[A], A]      = new Addable[Set[A], A] {}
-  implicit def int: Addable[Int, Int]          = new Addable[Int, Int] {}
-  implicit def long: Addable[Long, Long]       = new Addable[Long, Long] {}
-  implicit def float: Addable[Float, Float]    = new Addable[Float, Float] {}
-  implicit def double: Addable[Double, Double] = new Addable[Double, Double] {}
-  implicit def short: Addable[Short, Short]    = new Addable[Short, Short] {}
-}
-object Addable                     extends AddableLowPriorityImplicits0 {
-  implicit def unknownLeft[X]: Addable[ProjectionExpression.Unknown, X] =
-    new Addable[ProjectionExpression.Unknown, X] {}
-}
-
-@implicitNotFound("the type ${A} must be a ${X} in order to use this operator")
-sealed trait Containable[X, -A]
-trait ContainableLowPriorityImplicits0 extends ContainableLowPriorityImplicits1 {
-  implicit def unknownRight[X]: Containable[X, ProjectionExpression.Unknown] =
-    new Containable[X, ProjectionExpression.Unknown] {}
-}
-trait ContainableLowPriorityImplicits1 {
-  implicit def set[A]: Containable[Set[A], A]      = new Containable[Set[A], A] {}
-  implicit def string: Containable[String, String] = new Containable[String, String] {}
-}
-object Containable                     extends ContainableLowPriorityImplicits0 {
-  implicit def unknownLeft[X]: Containable[ProjectionExpression.Unknown, X] =
-    new Containable[ProjectionExpression.Unknown, X] {}
-}
-
-@implicitNotFound("the type ${A} must be a ${X} in order to use this operator")
-sealed trait RefersTo[X, -A]
-trait RefersToLowerPriorityImplicits0 extends RefersToLowerPriorityImplicits1 {
-  implicit def unknownRight[X]: RefersTo[X, ProjectionExpression.Unknown] =
-    new RefersTo[X, ProjectionExpression.Unknown] {}
-}
-trait RefersToLowerPriorityImplicits1 {
-  implicit def identity[A]: RefersTo[A, A] = new RefersTo[A, A] {}
-}
-object RefersTo                       extends RefersToLowerPriorityImplicits0 {
-  implicit def unknownLeft[X]: RefersTo[ProjectionExpression.Unknown, X] =
-    new RefersTo[ProjectionExpression.Unknown, X] {}
 }
 
 trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowPriorityImplicits1 {
@@ -251,6 +181,7 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
     /**
      * adds this set as an attribute if it does not exists, else if it exists it adds the elements of the set
      */
+    // TODO: see if we can get rid of this op
     def addSet[A](
       set: Set[A]
     )(implicit ev: Addable[To, A], evSet: To <:< Set[A]): UpdateExpression.Action.AddAction = {
@@ -258,44 +189,75 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
       UpdateExpression.Action.AddAction(self, implicitly[ToAttributeValue[To]].toAttributeValue(set.asInstanceOf[To]))
     }
 
-    def ===(that: To): ConditionExpression =
+    def ===(that: To): ConditionExpression                       =
       ConditionExpression.Equals(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(that))
       )
+    def ===(that: ProjectionExpression[To]): ConditionExpression =
+      ConditionExpression.Equals(
+        ProjectionExpressionOperand(self),
+        ConditionExpression.Operand.ProjectionExpressionOperand(that)
+      )
 
-    def <>(that: To): ConditionExpression =
+    def <>(that: To): ConditionExpression                       =
       ConditionExpression.NotEqual(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(that))
       )
+    def <>(that: ProjectionExpression[To]): ConditionExpression =
+      ConditionExpression.NotEqual(
+        ProjectionExpressionOperand(self),
+        ConditionExpression.Operand.ProjectionExpressionOperand(that)
+      )
 
-    def <(that: To): ConditionExpression =
+    def <(that: To): ConditionExpression                       =
       ConditionExpression.LessThan(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(that))
       )
+    def <(that: ProjectionExpression[To]): ConditionExpression =
+      ConditionExpression.LessThan(
+        ProjectionExpressionOperand(self),
+        ConditionExpression.Operand.ProjectionExpressionOperand(that)
+      )
 
-    def <=(that: To): ConditionExpression =
+    def <=(that: To): ConditionExpression                       =
       ConditionExpression.LessThanOrEqual(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(that))
       )
+    def <=(that: ProjectionExpression[To]): ConditionExpression =
+      ConditionExpression.LessThanOrEqual(
+        ProjectionExpressionOperand(self),
+        ConditionExpression.Operand.ProjectionExpressionOperand(that)
+      )
 
-    def >(that: To): ConditionExpression =
+    def >(that: To): ConditionExpression                       =
       ConditionExpression.GreaterThan(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(that))
       )
+    def >(that: ProjectionExpression[To]): ConditionExpression =
+      ConditionExpression.GreaterThan(
+        ProjectionExpressionOperand(self),
+        ConditionExpression.Operand.ProjectionExpressionOperand(that)
+      )
 
-    def >=(that: To): ConditionExpression =
+    def >=(that: To): ConditionExpression                       =
       ConditionExpression.GreaterThanOrEqual(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(that))
       )
+    def >=(that: ProjectionExpression[To]): ConditionExpression =
+      ConditionExpression.GreaterThanOrEqual(
+        ProjectionExpressionOperand(self),
+        ConditionExpression.Operand.ProjectionExpressionOperand(that)
+      )
 
   }
 }
+
 trait ProjectionExpressionLowPriorityImplicits1 {
   implicit class ProjectionExpressionSyntax1[To](self: ProjectionExpression[To]) {
     def set[To2](
@@ -312,6 +274,7 @@ trait ProjectionExpressionLowPriorityImplicits1 {
         ConditionExpression.Operand.ProjectionExpressionOperand(that)
       )
     }
+    // TODO: think about !=
     def <>[To2](that: ProjectionExpression[To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression = {
       val _ = refersTo
       ConditionExpression.NotEqual(

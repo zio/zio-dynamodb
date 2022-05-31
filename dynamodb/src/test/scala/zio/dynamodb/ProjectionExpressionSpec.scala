@@ -78,7 +78,7 @@ object ProjectionExpressionSpec extends DefaultRunnableSpec {
     )
 
   val functionsSuite: ZSpec[Environment, Failure] =
-    suite("type safe functions suite")(
+    suite("type safe DDB functions suite")(
       test("exists") {
         val ex = Student.email.exists
         assertTrue(ex.toString == "AttributeExists(email)")
@@ -177,30 +177,66 @@ object ProjectionExpressionSpec extends DefaultRunnableSpec {
 
   val comparisonSuite: ZSpec[Environment, Failure] =
     suite("type safe comparison suite")(
-      test("===") {
+      test("PE === X") {
         val ex = Student.studentNumber === 1
         assertTrue(ex.toString == "Equals(ProjectionExpressionOperand(studentNumber),ValueOperand(Number(1)))")
       },
-      test("<>") {
+      test("PE === PE") {
+        val ex = Student.studentNumber === Student.studentNumber
+        assertTrue(
+          ex.toString == "Equals(ProjectionExpressionOperand(studentNumber),ProjectionExpressionOperand(studentNumber))"
+        )
+      },
+      test("PE <> X") {
         val ex = Student.studentNumber <> 1
         assertTrue(ex.toString == "NotEqual(ProjectionExpressionOperand(studentNumber),ValueOperand(Number(1)))")
       },
-      test("<") {
+      test("PE <> PE") {
+        val ex = Student.studentNumber <> Student.studentNumber
+        assertTrue(
+          ex.toString == "NotEqual(ProjectionExpressionOperand(studentNumber),ProjectionExpressionOperand(studentNumber))"
+        )
+      },
+      test("PE < X") {
         val ex = Student.studentNumber < 1
         assertTrue(ex.toString == "LessThan(ProjectionExpressionOperand(studentNumber),ValueOperand(Number(1)))")
       },
-      test("<=") {
+      test("PE < PE") {
+        val ex = Student.studentNumber < Student.studentNumber
+        assertTrue(
+          ex.toString == "LessThan(ProjectionExpressionOperand(studentNumber),ProjectionExpressionOperand(studentNumber))"
+        )
+      },
+      test("PE <= X") {
         val ex = Student.studentNumber <= 1
         assertTrue(ex.toString == "LessThanOrEqual(ProjectionExpressionOperand(studentNumber),ValueOperand(Number(1)))")
       },
-      test(">") {
+      test("PE <= PE") {
+        val ex = Student.studentNumber <= Student.studentNumber
+        assertTrue(
+          ex.toString == "LessThanOrEqual(ProjectionExpressionOperand(studentNumber),ProjectionExpressionOperand(studentNumber))"
+        )
+      },
+      test("PE > X") {
         val ex = Student.studentNumber > 1
         assertTrue(ex.toString == "GreaterThan(ProjectionExpressionOperand(studentNumber),ValueOperand(Number(1)))")
       },
-      test(">=") {
+      test("PE > PE") {
+        val ex = Student.studentNumber > Student.studentNumber
+        assertTrue(
+          ex.toString == "GreaterThan(ProjectionExpressionOperand(studentNumber),ProjectionExpressionOperand(studentNumber))"
+        )
+      },
+      test("PE >= X") {
         val ex = Student.studentNumber >= 1
         assertTrue(
           ex.toString == "GreaterThanOrEqual(ProjectionExpressionOperand(studentNumber),ValueOperand(Number(1)))"
+        )
+      },
+      test("PE >= PE") {
+        val ex = Student.studentNumber >= Student.studentNumber
+        assertTrue(
+          ex.toString == "GreaterThanOrEqual(ProjectionExpressionOperand(studentNumber),ProjectionExpressionOperand(studentNumber))"
         )
       }
     )
