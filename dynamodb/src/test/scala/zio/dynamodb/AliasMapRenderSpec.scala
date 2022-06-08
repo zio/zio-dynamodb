@@ -46,7 +46,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
   val setOperandValueTwo   = UpdateExpression.SetOperand.ValueOperand(two)
   val setOperandValueThree = UpdateExpression.SetOperand.ValueOperand(three)
 
-  override def spec: ZSpec[_root_.zio.test.TestEnvironment, Any] =
+  override def spec: Spec[_root_.zio.test.TestEnvironment, Any] =
     suite("AliasMapRender")(
       suite("ConditionExpression")(
         suite("basic renders")(

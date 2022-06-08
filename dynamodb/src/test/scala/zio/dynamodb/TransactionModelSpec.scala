@@ -147,7 +147,7 @@ object TransactionModelSpec extends ZIOSpecDefault {
 
         val getItem = GetItem(tableName, item)
 
-        assertM(updateItem.zip(getItem).transaction.execute.exit)(
+        assertZIO(updateItem.zip(getItem).transaction.execute.exit)(
           fails(isSubtype[MixedTransactionTypes](Assertion.anything))
         )
       }
@@ -160,31 +160,31 @@ object TransactionModelSpec extends ZIOSpecDefault {
           attributeDefinitions = NonEmptySet(AttributeDefinition.attrDefnString("name")),
           billingMode = BillingMode.PayPerRequest
         )
-        assertM(createTable.transaction.execute.exit)(fails(invalidTransactionActionsContains(createTable)))
+        assertZIO(createTable.transaction.execute.exit)(fails(invalidTransactionActionsContains(createTable)))
       },
       test("delete table") {
         val deleteTable = DeleteTable(tableName)
-        assertM(deleteTable.transaction.execute.exit)(fails(invalidTransactionActionsContains(deleteTable)))
+        assertZIO(deleteTable.transaction.execute.exit)(fails(invalidTransactionActionsContains(deleteTable)))
       },
       test("scan all") {
         val scanAll = ScanAll(tableName)
-        assertM(scanAll.transaction.execute.exit)(fails(invalidTransactionActionsContains(scanAll)))
+        assertZIO(scanAll.transaction.execute.exit)(fails(invalidTransactionActionsContains(scanAll)))
       },
       test("scan some") {
         val scanSome = ScanSome(tableName, 4)
-        assertM(scanSome.transaction.execute.exit)(fails(invalidTransactionActionsContains(scanSome)))
+        assertZIO(scanSome.transaction.execute.exit)(fails(invalidTransactionActionsContains(scanSome)))
       },
       test("describe table") {
         val describeTable = DescribeTable(tableName)
-        assertM(describeTable.transaction.execute.exit)(fails(invalidTransactionActionsContains(describeTable)))
+        assertZIO(describeTable.transaction.execute.exit)(fails(invalidTransactionActionsContains(describeTable)))
       },
       test("query some") {
         val querySome = QuerySome(tableName, 4)
-        assertM(querySome.transaction.execute.exit)(fails(invalidTransactionActionsContains(querySome)))
+        assertZIO(querySome.transaction.execute.exit)(fails(invalidTransactionActionsContains(querySome)))
       },
       test("query all") {
         val queryAll = QueryAll(tableName)
-        assertM(queryAll.transaction.execute.exit)(fails(invalidTransactionActionsContains(queryAll)))
+        assertZIO(queryAll.transaction.execute.exit)(fails(invalidTransactionActionsContains(queryAll)))
       }
     )
   )
@@ -192,10 +192,10 @@ object TransactionModelSpec extends ZIOSpecDefault {
   val successfulSuite = suite("transaction construction successes")(
     suite("transact get items")(
       test("get item") {
-        assertM(simpleGetItem.transaction.execute)(equalTo(Some(item)))
+        assertZIO(simpleGetItem.transaction.execute)(equalTo(Some(item)))
       },
       test("batch get item") {
-        assertM(simpleBatchGet.transaction.execute)(
+        assertZIO(simpleBatchGet.transaction.execute)(
           equalTo(
             BatchGetItem.Response(responses =
               MapOfSet.empty[TableName, Item].addAll((tableName, item), (tableName, item2))
@@ -204,7 +204,7 @@ object TransactionModelSpec extends ZIOSpecDefault {
         )
       },
       test("multi table batch get item") {
-        assertM(multiTableGet.transaction.execute)(
+        assertZIO(multiTableGet.transaction.execute)(
           equalTo(
             BatchGetItem.Response(responses =
               MapOfSet.empty[TableName, Item].addAll((tableName, item), (tableName2, item3), (tableName, item2))
@@ -215,16 +215,16 @@ object TransactionModelSpec extends ZIOSpecDefault {
     ),
     suite("transact write items")(
       test("update item") {
-        assertM(simpleUpdateItem.transaction.execute)(equalTo(None))
+        assertZIO(simpleUpdateItem.transaction.execute)(equalTo(None))
       },
       test("delete item") {
-        assertM(simpleDeleteItem.transaction.execute)(equalTo(()))
+        assertZIO(simpleDeleteItem.transaction.execute)(equalTo(()))
       },
       test("put item") {
-        assertM(simplePutItem.transaction.execute)(equalTo(()))
+        assertZIO(simplePutItem.transaction.execute)(equalTo(()))
       },
       test("batch write item") {
-        assertM(simpleBatchWrite.transaction.execute)(equalTo(BatchWriteItem.Response(None)))
+        assertZIO(simpleBatchWrite.transaction.execute)(equalTo(BatchWriteItem.Response(None)))
       }
     )
   )
