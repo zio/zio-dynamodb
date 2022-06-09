@@ -40,7 +40,7 @@ object ProjectionExpressionParserSpec extends ZIOSpecDefault {
 
   override def spec = mainSuite
 
-  private val mainSuite: Spec[Sized with TestConfig, TestFailure[Any], TestSuccess] =
+  private val mainSuite: Spec[Sized with TestConfig, Nothing] =
     suite("ProjectionExpression Parser")(
       test("$ function compiles") {
         val _ = $("name").beginsWith("Avi")

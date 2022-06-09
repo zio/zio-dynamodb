@@ -19,7 +19,7 @@ object MapCodecSpec extends ZIOSpecDefault {
     implicit val schema: Schema[HasMapWithNonStringKey] = DeriveSchema.gen[HasMapWithNonStringKey]
   }
 
-  override def spec: ZSpec[zio.test.TestEnvironment, Any] =
+  override def spec: Spec[zio.test.TestEnvironment, Any] =
     suite("Map codecs")(
       suite("when encoding")(
         test("encodes map with string key natively") {

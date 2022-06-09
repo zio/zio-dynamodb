@@ -156,7 +156,7 @@ object LiveSpec extends ZIOSpecDefault {
     ConditionExpression.Operand.ValueOperand(AttributeValue(id))
   )
 
-  override def spec: ZSpec[TestEnvironment, Any] =
+  override def spec: Spec[TestEnvironment, Any] =
     suite("live test")(
       suite("basic usage")(
         test("put and get item") {
@@ -234,7 +234,7 @@ object LiveSpec extends ZIOSpecDefault {
               key = pk(avi3Item),
               tableName = TableName(tableName)
             ).where($("firstName").beginsWith("noOne"))
-            assertM(deleteItem.execute.exit)(fails(assertDynamoDbException("The conditional request failed")))
+            assertZIO(deleteItem.execute.exit)(fails(assertDynamoDbException("The conditional request failed")))
           }
         },
         test("put item with false where clause") {
@@ -244,7 +244,7 @@ object LiveSpec extends ZIOSpecDefault {
               item = Item(id -> "nothing", number -> 900)
             ).where($("id").beginsWith("false"))
 
-            assertM(putItem.execute.exit)(fails(assertDynamoDbException("The conditional request failed")))
+            assertZIO(putItem.execute.exit)(fails(assertDynamoDbException("The conditional request failed")))
           }
         },
         test("batch get item") {
@@ -782,7 +782,7 @@ object LiveSpec extends ZIOSpecDefault {
                   tableName = TableName(tableName)
                 )
 
-                assertM(
+                assertZIO(
                   conditionCheck.zip(putItem).transaction.execute.exit
                 )(
                   fails(
@@ -865,7 +865,7 @@ object LiveSpec extends ZIOSpecDefault {
                   updateExpression = UpdateExpression($(name).setValue("shouldFail"))
                 )
 
-                assertM(updateItem1.zip(updateItem2).transaction.execute.exit)(
+                assertZIO(updateItem1.zip(updateItem2).transaction.execute.exit)(
                   fails(assertDynamoDbException("Transaction request cannot include multiple operations on one item"))
                 )
             }
@@ -890,7 +890,7 @@ object LiveSpec extends ZIOSpecDefault {
                   _ <- updateItem2.execute
                 } yield ()
 
-                assertM(program.exit)(
+                assertZIO(program.exit)(
                   fails(isSubtype[IdempotentParameterMismatchException](Assertion.anything))
                 )
             }

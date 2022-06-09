@@ -5,7 +5,7 @@ import zio.test.{ ZIOSpecDefault, _ }
 
 object FromAttributeValueSpec extends ZIOSpecDefault {
 
-  override def spec: Spec[Any, TestFailure[Nothing], TestSuccess] = suite("AttrMap suite")(fromAttributeValueSuite)
+  override def spec: Spec[Any, Nothing] = suite("AttrMap suite")(fromAttributeValueSuite)
 
   val fromAttributeValueSuite = suite("FromAttributeValueSuite")(
     test("get[String] should return a Right of String when it exists") {

@@ -3,15 +3,14 @@ package zio.dynamodb.codec
 import zio.Chunk
 import zio.schema._
 import zio.test.Assertion
-import zio.test.AssertionM.Render.param
 
 object SchemaAssertions {
 
   def hasSameSchema[A](expected: Schema[A]): Assertion[Schema[A]] =
-    Assertion.assertion("hasSameSchema")(param(expected))(actual => equalsSchema(expected, actual))
+    Assertion.assertion("hasSameSchema")(actual => equalsSchema(expected, actual))
 
   def hasSameAst(expected: Schema[_]): Assertion[Schema[_]] =
-    Assertion.assertion("hasSameAst")(param(expected))(actual => equalsAst(expected, actual))
+    Assertion.assertion("hasSameAst")(actual => equalsAst(expected, actual))
 
   private def equalsAst(expected: Schema[_], actual: Schema[_], depth: Int = 0): Boolean =
     (expected, actual) match {

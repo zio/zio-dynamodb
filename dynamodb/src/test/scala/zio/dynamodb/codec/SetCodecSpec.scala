@@ -31,7 +31,7 @@ object SetCodecSpec extends ZIOSpecDefault {
     implicit val schema: Schema[HasSetWithNonNativeType] = DeriveSchema.gen[HasSetWithNonNativeType]
   }
 
-  override def spec: ZSpec[zio.test.TestEnvironment, Any] =
+  override def spec: Spec[zio.test.TestEnvironment, Any] =
     suite("Set codecs")(
       suite("when encoding")(
         test("encodes set of BigDecimal natively") {
