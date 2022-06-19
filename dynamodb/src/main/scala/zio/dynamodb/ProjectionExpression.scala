@@ -187,7 +187,6 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
       set: Set[A]
     )(implicit ev: Addable[To, A], evSet: To <:< Set[A]): UpdateExpression.Action.AddAction = {
       val _ = ev
-      val _ = evSet
       UpdateExpression.Action.AddAction(self, implicitly[ToAttributeValue[To]].toAttributeValue(set.asInstanceOf[To]))
     }
 
