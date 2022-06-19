@@ -147,8 +147,10 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
     /**
      * Remove all elements of parameter `set` from this set attribute
      */
-    def deleteFromSet(set: To)(implicit ev: To <:< Set[_]): UpdateExpression.Action.DeleteAction =
+    def deleteFromSet(set: To)(implicit ev: To <:< Set[_]): UpdateExpression.Action.DeleteAction = {
+      val _ = ev
       UpdateExpression.Action.DeleteAction(self, implicitly[ToAttributeValue[To]].toAttributeValue(set))
+    }
 
     def inSet(values: Set[To]): ConditionExpression =
       ConditionExpression.Operand
@@ -185,6 +187,7 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
       set: Set[A]
     )(implicit ev: Addable[To, A], evSet: To <:< Set[A]): UpdateExpression.Action.AddAction = {
       val _ = ev
+      val _ = evSet
       UpdateExpression.Action.AddAction(self, implicitly[ToAttributeValue[To]].toAttributeValue(set.asInstanceOf[To]))
     }
 
@@ -321,8 +324,10 @@ trait ProjectionExpressionLowPriorityImplicits1 {
      */
     def deleteFromSet[To](
       set: To
-    )(implicit ev: To <:< Set[_], to: ToAttributeValue[To]): UpdateExpression.Action.DeleteAction =
+    )(implicit ev: To <:< Set[_], to: ToAttributeValue[To]): UpdateExpression.Action.DeleteAction = {
+      val _ = ev
       UpdateExpression.Action.DeleteAction(self, to.toAttributeValue(set))
+    }
 
     def inSet[To](values: Set[To])(implicit to: ToAttributeValue[To]): ConditionExpression =
       ConditionExpression.Operand.ProjectionExpressionOperand(self).in(values.map(to.toAttributeValue))
@@ -481,8 +486,10 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
      */
     def deleteFromSet[To](
       set: To
-    )(implicit ev: To <:< Set[_], to: ToAttributeValue[To]): UpdateExpression.Action.DeleteAction =
+    )(implicit ev: To <:< Set[_], to: ToAttributeValue[To]): UpdateExpression.Action.DeleteAction = {
+      val _ = ev
       UpdateExpression.Action.DeleteAction(self, to.toAttributeValue(set))
+    }
 
     def inSet[To](values: Set[To])(implicit to: ToAttributeValue[To]): ConditionExpression =
       ConditionExpression.Operand.ProjectionExpressionOperand(self).in(values.map(to.toAttributeValue))
