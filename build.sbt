@@ -1,8 +1,5 @@
 import BuildHelper._
 
-// see https://stackoverflow.com/questions/56351793/scala-implicit-parameters-are-marked-as-unused-by-the-compiler
-scalacOptions ++= Seq("-Ywarn-macros:after")
-
 inThisBuild(
   List(
     organization := "dev.zio",
