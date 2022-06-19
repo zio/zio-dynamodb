@@ -1,13 +1,12 @@
 package zio.dynamodb.examples.dynamodblocal
 
 import zio.dynamodb.DynamoDBQuery.queryAll
-import zio.dynamodb.examples.dynamodblocal.StudentZioDynamoDbExampleWithOptics.Student
-import zio.dynamodb.examples.dynamodblocal.TopLevelEnumOpticsExample.Invoice.{ BilledInvoice, PreBilledInvoice }
+import zio.dynamodb.examples.dynamodblocal.TopLevelSumTypeOpticsExample.Invoice.{ BilledInvoice, PreBilledInvoice }
 import zio.dynamodb.{ DynamoDBQuery, ProjectionExpression }
 import zio.schema.DeriveSchema
 import zio.stream
 
-object TopLevelEnumOpticsExample {
+object TopLevelSumTypeOpticsExample {
   sealed trait Invoice {
     def id: String
   }
@@ -18,6 +17,7 @@ object TopLevelEnumOpticsExample {
     ) extends Invoice
     object PreBilledInvoice {
       implicit val schema = DeriveSchema.gen[PreBilledInvoice]
+      val (id, sku)       = ProjectionExpression.accessors[PreBilledInvoice]
     }
 
     final case class BilledInvoice(
@@ -26,22 +26,23 @@ object TopLevelEnumOpticsExample {
       amount: Double
     ) extends Invoice
     object BilledInvoice {
-      implicit val schema = DeriveSchema.gen[BilledInvoice]
+      implicit val schema   = DeriveSchema.gen[BilledInvoice]
+      val (id, sku, amount) = ProjectionExpression.accessors[BilledInvoice]
     }
 
   }
 
-  def polymorphicQueryByExample(invoice: Invoice): DynamoDBQuery[stream.Stream[Throwable, Student]] =
+  def polymorphicQueryByExample(invoice: Invoice): DynamoDBQuery[stream.Stream[Throwable, Invoice]] =
     invoice match {
       case PreBilledInvoice(id_, sku_)       =>
-        val (id, sku) = ProjectionExpression.accessors[PreBilledInvoice]
-        queryAll[Student]("invoice")
+        import PreBilledInvoice._
+        queryAll[PreBilledInvoice]("invoice")
           .filter( // Scan/Query
             id > id_ && sku < sku_
           )
       case BilledInvoice(id_, sku_, amount_) =>
-        val (id, sku, amount) = ProjectionExpression.accessors[BilledInvoice]
-        queryAll[Student]("invoice")
+        import BilledInvoice._
+        queryAll[BilledInvoice]("invoice")
           .filter( // Scan/Query
             id >= id_ && sku === sku_ && amount <= amount_
           )
