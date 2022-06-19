@@ -135,7 +135,6 @@ object UpdateExpression {
     /**
      * Removing Attributes from an item
      */
-    // TODO: Avi - AWS allows multiple path expressions - should we change our model to match? how often would users benefit?
     private[dynamodb] final case class RemoveAction(path: ProjectionExpression[_]) extends RenderableAction
 
     /**
