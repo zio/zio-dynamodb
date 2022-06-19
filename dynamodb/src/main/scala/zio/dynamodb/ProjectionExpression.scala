@@ -8,6 +8,7 @@ import zio.dynamodb.proofs.{ Addable, Containable, ListRemoveable, RefersTo, Siz
 import zio.schema.{ AccessorBuilder, Schema }
 
 import scala.annotation.tailrec
+import scala.annotation.unused
 
 // The maximum depth for a document path is 32
 sealed trait ProjectionExpression[To] { self =>
@@ -185,7 +186,7 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
      */
     def addSet[A](
       set: Set[A]
-    )(implicit ev: Addable[To, A], evSet: To <:< Set[A]): UpdateExpression.Action.AddAction = {
+    )(implicit ev: Addable[To, A], @unused evSet: To <:< Set[A]): UpdateExpression.Action.AddAction = {
       val _ = ev
       UpdateExpression.Action.AddAction(self, implicitly[ToAttributeValue[To]].toAttributeValue(set.asInstanceOf[To]))
     }
