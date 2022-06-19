@@ -181,7 +181,6 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
     /**
      * adds this set as an attribute if it does not exists, else if it exists it adds the elements of the set
      */
-    // TODO: see if we can get rid of this op
     def addSet[A](
       set: Set[A]
     )(implicit ev: Addable[To, A], evSet: To <:< Set[A]): UpdateExpression.Action.AddAction = {
@@ -615,11 +614,9 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
 
   private[dynamodb] case object Root extends ProjectionExpression[Any]
 
-  // we could hide this constructor and onlt expose a function that forces type Unknown
   private[dynamodb] final case class MapElement[To](parent: ProjectionExpression[_], key: String)
       extends ProjectionExpression[To]
 
-  // index must be non negative - we could use a new type here?
   private[dynamodb] final case class ListElement[To](parent: ProjectionExpression[_], index: Int)
       extends ProjectionExpression[To]
 

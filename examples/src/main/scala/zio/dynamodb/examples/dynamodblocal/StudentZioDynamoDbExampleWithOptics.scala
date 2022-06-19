@@ -14,7 +14,6 @@ import zio.dynamodb.examples.LocalDdbServer
 import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema }
 import zio.stream.ZStream
 import zio.{ console, App, ExitCode, Has, URIO, ZIO, ZLayer }
-//import zio.dynamodb.ProjectionExpression.$
 
 import java.net.URI
 import java.time.Instant
