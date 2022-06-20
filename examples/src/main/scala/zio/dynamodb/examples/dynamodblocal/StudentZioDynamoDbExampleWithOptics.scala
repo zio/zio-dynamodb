@@ -102,7 +102,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     .execute
     _          <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
                     enrollmentDate.set(Some(enrolDate2)) + payment.set(Payment.PayPal) + address
-                      .set( // Note we are setting a case class directly here
+                      .set(
                         Some(Address("line1", "postcode1"))
                       )
                   }.execute
