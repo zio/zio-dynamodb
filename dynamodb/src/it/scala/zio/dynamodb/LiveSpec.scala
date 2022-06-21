@@ -660,7 +660,7 @@ object LiveSpec extends DefaultRunnableSpec {
             } yield assert(updated)(equalTo(Some(Item(id -> second, number -> 2))))
           }
         },
-        testM("remove an element from list") {
+        testM("remove an element from a list addressed by an index") {
           withDefaultTable { tableName =>
             val key = PrimaryKey(id -> second, number -> 8)
             for {
@@ -674,11 +674,11 @@ object LiveSpec extends DefaultRunnableSpec {
             )
           }
         },
-        testM("remove an element from list") {
+        testM("remove an element from list passing index to remove") {
           withDefaultTable { tableName =>
             val key = PrimaryKey(id -> second, number -> 8)
             for {
-              _       <- updateItem(tableName, key)($("listt[1]").remove).execute
+              _       <- updateItem(tableName, key)($("listt").remove(1)).execute
               updated <- getItem(
                            tableName,
                            key
