@@ -16,4 +16,4 @@ trait SizableLowPriorityImplicits1 {
   implicit def iterable[A]: Sizable[Iterable[A]] = new Sizable[Iterable[A]] {}
   implicit def string[A]: Sizable[String]        = new Sizable[String] {}
 }
-object Sizable                     extends SizableLowPriorityImplicits0 {} // TODO: shuffle up
+object Sizable                     extends SizableLowPriorityImplicits0

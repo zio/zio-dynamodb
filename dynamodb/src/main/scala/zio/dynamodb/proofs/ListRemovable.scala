@@ -15,4 +15,4 @@ trait ListRemoveable0 extends ListRemoveableLowPriorityImplicits {
 trait ListRemoveableLowPriorityImplicits {
   implicit def list[A]: ListRemoveable[Seq[A]] = new ListRemoveable[Seq[A]] {}
 }
-object ListRemoveable extends ListRemoveable0                    {} // TODO: shuffle up
+object ListRemoveable extends ListRemoveable0

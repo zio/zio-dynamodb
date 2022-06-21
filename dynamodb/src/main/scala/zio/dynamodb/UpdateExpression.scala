@@ -32,7 +32,7 @@ function
 remove-action ::=
     path
 -------------------------------------------------------------
-add-action ::=   // TODO: The ADD action supports only number and set data types.
+add-action ::=   // Note: The ADD action supports only number and set data types.
     path value
 -------------------------------------------------------------
 delete-action ::=
