@@ -22,7 +22,6 @@ final case class CaseClassOfList(nums: List[Int])
 final case class CaseClassOfListOfCaseClass(elements: List[SimpleCaseClass3])
 
 final case class CaseClassOfOption(opt: Option[Int])
-final case class CaseClass2OfOption(num: Int, opt: Option[Int])
 
 final case class CaseClassOfNestedOption(opt: Option[Option[Int]])
 
@@ -37,6 +36,8 @@ final case class CaseClassOfInstant(instant: Instant)
 final case class CaseClassOfStatus(status: Status)
 
 final case class CaseClassOfMapOfInt(map: Map[String, Int])
+
+final case class CaseClassOfSetOfInt(set: Set[Int])
 
 final case class CaseClassOfTuple2(tuple2: (String, Int))
 

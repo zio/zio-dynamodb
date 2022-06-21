@@ -478,3 +478,4 @@ shell.nix
 # direnv
 .envrc
 .direnv
+/.vscode/

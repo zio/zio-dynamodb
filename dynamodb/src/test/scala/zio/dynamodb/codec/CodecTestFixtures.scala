@@ -1,9 +1,7 @@
 package zio.dynamodb.codec
 
-import zio.Chunk
 import zio.dynamodb.{ AttributeValue, ToAttributeValue }
 import zio.schema.CaseSet.caseOf
-import zio.schema.Schema.chunk
 import zio.schema.{ CaseSet, DeriveSchema, Schema, StandardType }
 
 import java.time.Instant
@@ -32,7 +30,6 @@ trait CodecTestFixtures {
   lazy implicit val caseClassOfListOfCaseClass: Schema[CaseClassOfListOfCaseClass] =
     DeriveSchema.gen[CaseClassOfListOfCaseClass]
   lazy implicit val caseClassOfOption: Schema[CaseClassOfOption]                   = DeriveSchema.gen[CaseClassOfOption]
-  lazy implicit val caseClass2OfOption: Schema[CaseClass2OfOption]                 = DeriveSchema.gen[CaseClass2OfOption]
   lazy implicit val caseClassOfNestedOption: Schema[CaseClassOfNestedOption]       = DeriveSchema.gen[CaseClassOfNestedOption]
   lazy implicit val caseClassOfEither: Schema[CaseClassOfEither]                   = DeriveSchema.gen[CaseClassOfEither]
   lazy implicit val caseClassOfTuple2: Schema[CaseClassOfTuple2]                   = DeriveSchema.gen[CaseClassOfTuple2]
@@ -42,12 +39,9 @@ trait CodecTestFixtures {
   lazy implicit val caseClassOfInstant: Schema[CaseClassOfInstant]                 = DeriveSchema.gen[CaseClassOfInstant]
   lazy implicit val caseClassOfStatus: Schema[CaseClassOfStatus]                   = DeriveSchema.gen[CaseClassOfStatus]
 
-  implicit def mapSchema[String, V](implicit element: Schema[(String, V)]): Schema[Map[String, V]] = {
-    val value: Schema[Chunk[(String, V)]] = chunk(element)
-    value.transform(_.toMap[String, V], Chunk.fromIterable(_))
-  }
+  implicit val caseClassOfMapOfInt: Schema[CaseClassOfMapOfInt] = DeriveSchema.gen[CaseClassOfMapOfInt]
 
-  lazy implicit val caseClassOfMapOfInt: Schema[CaseClassOfMapOfInt] = DeriveSchema.gen[CaseClassOfMapOfInt]
+  implicit val caseClassOfSetOfInt: Schema[CaseClassOfSetOfInt] = DeriveSchema.gen[CaseClassOfSetOfInt]
 
   implicit val caseClassOfListOfTuple2: Schema[CaseClassOfListOfTuple2] = DeriveSchema.gen[CaseClassOfListOfTuple2]
 

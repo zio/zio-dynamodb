@@ -1,8 +1,8 @@
 package zio.dynamodb
 
-import zio.{ Chunk, ChunkBuilder }
 import zio.dynamodb.UpdateExpression.Action
 import zio.dynamodb.UpdateExpression.Action.Actions
+import zio.{ Chunk, ChunkBuilder }
 
 /*
 
@@ -32,7 +32,7 @@ function
 remove-action ::=
     path
 -------------------------------------------------------------
-add-action ::=   // TODO: The ADD action supports only number and set data types.
+add-action ::=   // Note: The ADD action supports only number and set data types.
     path value
 -------------------------------------------------------------
 delete-action ::=
@@ -129,24 +129,24 @@ object UpdateExpression {
     /**
      * Modifying or Adding item Attributes
      */
-    private[dynamodb] final case class SetAction(path: ProjectionExpression, operand: SetOperand)
+    private[dynamodb] final case class SetAction(path: ProjectionExpression[_], operand: SetOperand)
         extends RenderableAction
 
     /**
      * Removing Attributes from an item
      */
-    private[dynamodb] final case class RemoveAction(path: ProjectionExpression) extends RenderableAction
+    private[dynamodb] final case class RemoveAction(path: ProjectionExpression[_]) extends RenderableAction
 
     /**
      * Updating Numbers and Sets
      */
-    private[dynamodb] final case class AddAction(path: ProjectionExpression, value: AttributeValue)
+    private[dynamodb] final case class AddAction(path: ProjectionExpression[_], value: AttributeValue)
         extends RenderableAction
 
     /**
      * Delete Elements from a Set
      */
-    private[dynamodb] final case class DeleteAction(path: ProjectionExpression, value: AttributeValue)
+    private[dynamodb] final case class DeleteAction(path: ProjectionExpression[_], value: AttributeValue)
         extends RenderableAction
   }
 
@@ -158,37 +158,41 @@ object UpdateExpression {
 
     def render: AliasMapRender[String] =
       self match {
-        case Minus(left, right)                                             =>
+        case Minus(left, right)                                                =>
           left.render
             .zipWith(right.render) { case (l, r) => s"$l - $r" }
-        case Plus(left, right)                                              =>
+        case Plus(left, right)                                                 =>
           left.render
             .zipWith(right.render) { case (l, r) => s"$l + $r" }
-        case ValueOperand(value)                                            => AliasMapRender.getOrInsert(value).map(identity)
-        case PathOperand(path)                                              => AliasMapRender.succeed(path.toString)
-        case ListAppend(projectionExpression, list)                         =>
+        case ValueOperand(value)                                               => AliasMapRender.getOrInsert(value).map(identity)
+        case PathOperand(path)                                                 => AliasMapRender.succeed(path.toString)
+        case ListAppend(projectionExpression, list)                            =>
           AliasMapRender.getOrInsert(list).map(v => s"list_append($projectionExpression, $v)")
-        case ListPrepend(projectionExpression, list)                        =>
+        case ListPrepend(projectionExpression, list)                           =>
           AliasMapRender.getOrInsert(list).map(v => s"list_append($v, $projectionExpression)")
-        case IfNotExists(projectionExpression: ProjectionExpression, value) =>
+        case IfNotExists(projectionExpression: ProjectionExpression[_], value) =>
           AliasMapRender.getOrInsert(value).map(v => s"if_not_exists($projectionExpression, $v)")
       }
 
   }
   object SetOperand {
+
     private[dynamodb] final case class Minus(left: SetOperand, right: SetOperand) extends SetOperand
     private[dynamodb] final case class Plus(left: SetOperand, right: SetOperand)  extends SetOperand
     private[dynamodb] final case class ValueOperand(value: AttributeValue)        extends SetOperand
-    private[dynamodb] final case class PathOperand(path: ProjectionExpression)    extends SetOperand
+    private[dynamodb] final case class PathOperand(path: ProjectionExpression[_]) extends SetOperand
 
     // functions
     // list_append takes two arguments, currently just assuming that we'll be using this to append to an existing item
-    private[dynamodb] final case class ListAppend(projectionExpression: ProjectionExpression, list: AttributeValue.List)
-        extends SetOperand
-    private[dynamodb] final case class ListPrepend(
-      projectionExpression: ProjectionExpression,
+    private[dynamodb] final case class ListAppend(
+      projectionExpression: ProjectionExpression[_],
       list: AttributeValue.List
-    )                                                                                                 extends SetOperand
-    private[dynamodb] final case class IfNotExists(path: ProjectionExpression, value: AttributeValue) extends SetOperand
+    ) extends SetOperand
+    private[dynamodb] final case class ListPrepend(
+      projectionExpression: ProjectionExpression[_],
+      list: AttributeValue.List
+    ) extends SetOperand
+    private[dynamodb] final case class IfNotExists(path: ProjectionExpression[_], value: AttributeValue)
+        extends SetOperand
   }
 }

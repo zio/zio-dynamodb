@@ -119,9 +119,9 @@ object ConditionExpression {
 
   object Operand {
 
-    private[dynamodb] final case class ProjectionExpressionOperand(pe: ProjectionExpression) extends Operand
-    private[dynamodb] final case class ValueOperand(value: AttributeValue)                   extends Operand
-    private[dynamodb] final case class Size(path: ProjectionExpression)                      extends Operand
+    private[dynamodb] final case class ProjectionExpressionOperand(pe: ProjectionExpression[_]) extends Operand
+    private[dynamodb] final case class ValueOperand(value: AttributeValue)                      extends Operand
+    private[dynamodb] final case class Size(path: ProjectionExpression[_])                      extends Operand
 
   }
 
@@ -130,13 +130,13 @@ object ConditionExpression {
   private[dynamodb] final case class In(left: Operand, values: Set[AttributeValue]) extends ConditionExpression
 
   // functions
-  private[dynamodb] final case class AttributeExists(path: ProjectionExpression)    extends ConditionExpression
-  private[dynamodb] final case class AttributeNotExists(path: ProjectionExpression) extends ConditionExpression
-  private[dynamodb] final case class AttributeType(path: ProjectionExpression, attributeType: AttributeValueType)
+  private[dynamodb] final case class AttributeExists(path: ProjectionExpression[_])    extends ConditionExpression
+  private[dynamodb] final case class AttributeNotExists(path: ProjectionExpression[_]) extends ConditionExpression
+  private[dynamodb] final case class AttributeType(path: ProjectionExpression[_], attributeType: AttributeValueType)
       extends ConditionExpression
-  private[dynamodb] final case class Contains(path: ProjectionExpression, value: AttributeValue)
+  private[dynamodb] final case class Contains(path: ProjectionExpression[_], value: AttributeValue)
       extends ConditionExpression
-  private[dynamodb] final case class BeginsWith(path: ProjectionExpression, value: AttributeValue)
+  private[dynamodb] final case class BeginsWith(path: ProjectionExpression[_], value: AttributeValue)
       extends ConditionExpression
 
   // logical operators
