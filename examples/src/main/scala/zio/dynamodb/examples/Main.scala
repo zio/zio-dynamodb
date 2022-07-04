@@ -1,7 +1,7 @@
 package zio.dynamodb.examples
 
 import zio.aws.core.config
-import zio.aws.{ dynamodb, http4s }
+import zio.aws.{ dynamodb, netty }
 import zio.dynamodb.DynamoDBQuery.{ get, put }
 import zio.dynamodb.{ DynamoDBExecutor, PrimaryKey }
 import zio.schema.{ DeriveSchema, Schema }
@@ -24,7 +24,7 @@ object Main extends ZIOAppDefault {
   override def run = {
 
     val dynamoDbLayer =
-      http4s.Http4sClient.default >>> config.AwsConfig.default >>> dynamodb.DynamoDb.live // uses real AWS dynamodb
+      netty.NettyHttpClient.default >>> config.AwsConfig.default >>> dynamodb.DynamoDb.live // uses real AWS dynamodb
     val executorLayer = dynamoDbLayer >>> DynamoDBExecutor.live
 
     program.provide(executorLayer)
