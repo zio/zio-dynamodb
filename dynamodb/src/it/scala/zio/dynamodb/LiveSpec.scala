@@ -462,11 +462,8 @@ object LiveSpec extends ZIOSpecDefault {
           test("update name") {
             withDefaultTable { tableName =>
               for {
-                updatedResponse <- updateItem(tableName, pk(adamItem))($(name).setValue(notAdam)).execute
-                updated         <- getItem(
-                                     tableName,
-                                     pk(adamItem)
-                                   ).execute
+                updatedResponse <- updateItem(tableName, pk(adamItem))($(name).set(notAdam)).execute
+                updated         <- getItem(tableName, pk(adamItem)).execute
               } yield assert(updated)(equalTo(Some(Item(name -> notAdam, id -> second, number -> 2)))) && assert(
                 updatedResponse
               )(isNone)
@@ -475,7 +472,7 @@ object LiveSpec extends ZIOSpecDefault {
           test("update name return updated old") {
             withDefaultTable { tableName =>
               for {
-                updatedResponse <- updateItem(tableName, pk(adamItem))($(name).setValue(notAdam))
+                updatedResponse <- updateItem(tableName, pk(adamItem))($(name).set(notAdam))
                                      .returns(ReturnValues.UpdatedOld)
                                      .execute
                 updated         <- getItem(
@@ -489,7 +486,7 @@ object LiveSpec extends ZIOSpecDefault {
           test("update name return all old") {
             withDefaultTable { tableName =>
               for {
-                updatedResponse <- updateItem(tableName, pk(adamItem))($(name).setValue(notAdam))
+                updatedResponse <- updateItem(tableName, pk(adamItem))($(name).set(notAdam))
                                      .returns(ReturnValues.AllOld)
                                      .execute
                 updated         <- getItem(
@@ -504,7 +501,7 @@ object LiveSpec extends ZIOSpecDefault {
             withDefaultTable { tableName =>
               val updatedItem = Some(Item(name -> notAdam, id -> second, number -> 2))
               for {
-                updatedResponse <- updateItem(tableName, pk(adamItem))($(name).setValue(notAdam))
+                updatedResponse <- updateItem(tableName, pk(adamItem))($(name).set(notAdam))
                                      .returns(ReturnValues.AllNew)
                                      .execute
                 updated         <- getItem(
@@ -518,7 +515,7 @@ object LiveSpec extends ZIOSpecDefault {
           test("update name return updated new") {
             withDefaultTable { tableName =>
               for {
-                updatedResponse <- updateItem(tableName, pk(adamItem))($(name).setValue(notAdam))
+                updatedResponse <- updateItem(tableName, pk(adamItem))($(name).set(notAdam))
                                      .returns(ReturnValues.UpdatedNew)
                                      .execute
                 updated         <- getItem(
@@ -532,8 +529,8 @@ object LiveSpec extends ZIOSpecDefault {
           test("insert item into list") {
             withDefaultTable { tableName =>
               for {
-                _       <- updateItem(tableName, pk(adamItem))($("listThing").setValue(List(1))).execute
-                _       <- updateItem(tableName, pk(adamItem))($("listThing[1]").setValue(2)).execute
+                _       <- updateItem(tableName, pk(adamItem))($("listThing").set(List(1))).execute
+                _       <- updateItem(tableName, pk(adamItem))($("listThing[1]").set(2)).execute
                 updated <- getItem(
                              tableName,
                              pk(adamItem)
@@ -547,7 +544,7 @@ object LiveSpec extends ZIOSpecDefault {
             withDefaultTable {
               tableName =>
                 for {
-                  _       <- updateItem(tableName, pk(adamItem))($("listThing").setValue(List(1))).execute
+                  _       <- updateItem(tableName, pk(adamItem))($("listThing").set(List(1))).execute
                   _       <- updateItem(tableName, pk(adamItem))($("listThing").appendList(Chunk(2, 3, 4))).execute
                   updated <- getItem(tableName, pk(adamItem)).execute
                 } yield assert(
@@ -563,7 +560,7 @@ object LiveSpec extends ZIOSpecDefault {
             withDefaultTable {
               tableName =>
                 for {
-                  _       <- updateItem(tableName, pk(adamItem))($("listThing").setValue(List(1))).execute
+                  _       <- updateItem(tableName, pk(adamItem))($("listThing").set(List(1))).execute
                   _       <- updateItem(tableName, pk(adamItem))($("listThing").prependList(Chunk(-1, 0))).execute
                   updated <- getItem(tableName, pk(adamItem)).execute
                 } yield assert(
@@ -776,7 +773,7 @@ object LiveSpec extends ZIOSpecDefault {
               val updateItem = UpdateItem(
                 key = pk(avi3Item),
                 tableName = TableName(tableName),
-                updateExpression = UpdateExpression($(name).setValue(notAdam))
+                updateExpression = UpdateExpression($(name).set(notAdam))
               )
               for {
                 _       <- updateItem.transaction.execute
@@ -799,7 +796,7 @@ object LiveSpec extends ZIOSpecDefault {
                 val updateItem     = UpdateItem(
                   key = pk(avi3Item),
                   tableName = TableName(tableName),
-                  updateExpression = UpdateExpression($(name).setValue(notAdam))
+                  updateExpression = UpdateExpression($(name).set(notAdam))
                 )
                 val deleteItem     = DeleteItem(
                   key = pk(avi2Item),
@@ -822,13 +819,13 @@ object LiveSpec extends ZIOSpecDefault {
                 val updateItem1 = UpdateItem(
                   key = pk(avi3Item),
                   tableName = TableName(tableName),
-                  updateExpression = UpdateExpression($(name).setValue("abc"))
+                  updateExpression = UpdateExpression($(name).set("abc"))
                 )
 
                 val updateItem2 = UpdateItem(
                   key = pk(avi3Item),
                   tableName = TableName(tableName),
-                  updateExpression = UpdateExpression($(name).setValue("shouldFail"))
+                  updateExpression = UpdateExpression($(name).set("shouldFail"))
                 )
 
                 assertM(updateItem1.zip(updateItem2).transaction.execute.exit)(
@@ -842,13 +839,13 @@ object LiveSpec extends ZIOSpecDefault {
                 val updateItem = UpdateItem(
                   key = pk(avi3Item),
                   tableName = TableName(tableName),
-                  updateExpression = UpdateExpression($(name).setValue(notAdam))
+                  updateExpression = UpdateExpression($(name).set(notAdam))
                 ).transaction.withClientRequestToken("test-token")
 
                 val updateItem2 = UpdateItem(
                   key = pk(avi3Item),
                   tableName = TableName(tableName),
-                  updateExpression = UpdateExpression($(name).setValue("BOOOOOOO"))
+                  updateExpression = UpdateExpression($(name).set("BOOOOOOO"))
                 ).transaction.withClientRequestToken("test-token")
 
                 val program = for {
