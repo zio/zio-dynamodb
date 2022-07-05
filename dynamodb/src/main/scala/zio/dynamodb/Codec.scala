@@ -197,13 +197,6 @@ private[dynamodb] object Codec {
         }
       }
 
-    private def yearEncoder[A]: Encoder[A] =
-      (a: A) => {
-        val year      = a.asInstanceOf[Year]
-        val formatted = year.format(yearFormatter)
-        AttributeValue.String(formatted)
-      }
-
     private def primitiveEncoder[A](standardType: StandardType[A]): Encoder[A] =
       standardType match {
         case StandardType.UnitType                      => _ => AttributeValue.Null
@@ -236,6 +229,14 @@ private[dynamodb] object Codec {
         case StandardType.ZoneIdType                    => (a: A) => AttributeValue.String(a.toString)
         case StandardType.ZoneOffsetType                => (a: A) => AttributeValue.String(a.toString)
       }
+
+    private def yearEncoder[A]: Encoder[A] =
+      (a: A) => {
+        val year      = a.asInstanceOf[Year]
+        val formatted = year.format(yearFormatter)
+        AttributeValue.String(formatted)
+      }
+
     private def transformEncoder[A, B](schema: Schema[A], g: B => Either[String, A]): Encoder[B] = { (b: B) =>
       g(b) match {
         case Right(a) =>
