@@ -1,6 +1,5 @@
 package zio.dynamodb
 
-import zio.Random
 import zio.dynamodb.ProjectionExpression.{ $, parse, ListElement, MapElement, Root }
 import zio.test.Assertion._
 import zio.test._
@@ -9,23 +8,23 @@ import scala.annotation.tailrec
 
 object ProjectionExpressionParserSpec extends ZIOSpecDefault {
   object Generators {
-    private val maxFields                                                                                          = 20
-    private val validCharGens                                                                                      = List(Gen.const('_'), Gen.char('a', 'z'), Gen.char('A', 'Z'), Gen.char('0', '9'))
-    private def fieldName                                                                                          = Gen.stringBounded(0, 10)(Gen.oneOf(validCharGens: _*))
-    private def index                                                                                              = Gen.int(0, 10)
-    private def root: Gen[Random with Sized, ProjectionExpression[_]]                                              =
+    private val maxFields                                                                              = 20
+    private val validCharGens                                                                          = List(Gen.const('_'), Gen.char('a', 'z'), Gen.char('A', 'Z'), Gen.char('0', '9'))
+    private def fieldName                                                                              = Gen.stringBounded(0, 10)(Gen.oneOf(validCharGens: _*))
+    private def index                                                                                  = Gen.int(0, 10)
+    private def root: Gen[Sized, ProjectionExpression[_]]                                              =
       fieldName.map(ProjectionExpression.MapElement(Root, _))
-    private def mapElement(parent: => ProjectionExpression[_])                                                     = fieldName.map(MapElement(parent, _))
-    private def listElement(parent: => ProjectionExpression[_])                                                    = index.map(ListElement(parent, _))
-    private def mapOrListElement(parent: ProjectionExpression[_]): Gen[Random with Sized, ProjectionExpression[_]] =
+    private def mapElement(parent: => ProjectionExpression[_])                                         = fieldName.map(MapElement(parent, _))
+    private def listElement(parent: => ProjectionExpression[_])                                        = index.map(ListElement(parent, _))
+    private def mapOrListElement(parent: ProjectionExpression[_]): Gen[Sized, ProjectionExpression[_]] =
       Gen.oneOf(mapElement(parent), listElement(parent))
 
-    def projectionExpression: Gen[Random with Sized, ProjectionExpression[_]] = {
+    def projectionExpression: Gen[Sized, ProjectionExpression[_]] = {
       @tailrec
       def loop(
-        parentGen: Gen[Random with Sized, ProjectionExpression[_]],
+        parentGen: Gen[Sized, ProjectionExpression[_]],
         counter: Int
-      ): Gen[Random with Sized, ProjectionExpression[_]] =
+      ): Gen[Sized, ProjectionExpression[_]] =
         if (counter == 0)
           parentGen
         else
