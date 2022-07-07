@@ -197,13 +197,6 @@ private[dynamodb] object Codec {
         }
       }
 
-    private def yearEncoder[A]: Encoder[A] =
-      (a: A) => {
-        val year      = a.asInstanceOf[Year]
-        val formatted = year.format(yearFormatter)
-        AttributeValue.String(formatted)
-      }
-
     private def primitiveEncoder[A](standardType: StandardType[A]): Encoder[A] =
       standardType match {
         case StandardType.UnitType                      => _ => AttributeValue.Null
@@ -236,6 +229,14 @@ private[dynamodb] object Codec {
         case StandardType.ZoneIdType                    => (a: A) => AttributeValue.String(a.toString)
         case StandardType.ZoneOffsetType                => (a: A) => AttributeValue.String(a.toString)
       }
+
+    private def yearEncoder[A]: Encoder[A] =
+      (a: A) => {
+        val year      = a.asInstanceOf[Year]
+        val formatted = year.format(yearFormatter)
+        AttributeValue.String(formatted)
+      }
+
     private def transformEncoder[A, B](schema: Schema[A], g: B => Either[String, A]): Encoder[B] = { (b: B) =>
       g(b) match {
         case Right(a) =>
@@ -377,6 +378,31 @@ private[dynamodb] object Codec {
   } // end Encoder
 
   private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
+
+    sealed trait ContainerField
+    object ContainerField {
+      case object Optional extends ContainerField
+      case object List     extends ContainerField
+      case object Map      extends ContainerField
+      case object Set      extends ContainerField
+      case object Scalar   extends ContainerField
+
+      def containerField[B](schema: Schema[B]): ContainerField =
+        schema match {
+          case l @ Schema.Lazy(_)         =>
+            containerField(l.schema)
+          case _: Schema.Optional[_]      =>
+            Optional
+          case _: Schema.MapSchema[_, _]  =>
+            Map
+          case _: Schema.SetSchema[_]     =>
+            Set
+          case _: Schema.Collection[_, _] =>
+            List
+          case _                          =>
+            Scalar
+        }
+    }
 
     def apply[A](schema: Schema[A]): Decoder[A] = decoder(schema)
 
@@ -811,26 +837,12 @@ private[dynamodb] object Codec {
         }
     }
 
-    private[dynamodb] def decodeFields(av: AttributeValue, fields: Schema.Field[_]*): Either[String, List[Any]] = {
-      @tailrec
-      def unwrapLazySchema[B](schema: Schema[B]): Schema[B] =
-        schema match {
-          case l @ Schema.Lazy(_) => unwrapLazySchema(l.schema)
-          case s                  => s
-        }
-
-      def isOptional[B](schema: Schema[B]): Boolean =
-        schema match {
-          case _: Schema.Optional[a] => true
-          case _                     => false
-        }
-
+    private[dynamodb] def decodeFields(av: AttributeValue, fields: Schema.Field[_]*): Either[String, List[Any]] =
       av match {
         case AttributeValue.Map(map) =>
           EitherUtil
             .forEach(fields) {
               case Schema.Field(key, schema, annotations) =>
-                val isOpt                       = isOptional(unwrapLazySchema(schema)) // legacy databases may use missing data for None
                 val dec                         = decoder(schema)
                 val k                           = maybeId(annotations).getOrElse(key)
                 val maybeValue                  = map.get(AttributeValue.String(k))
@@ -839,8 +851,15 @@ private[dynamodb] object Codec {
                   decoder <- maybeDecoder
                   decoded <- decoder
                 } yield decoded
-                if (maybeValue.isEmpty && isOpt)
-                  Right(None)
+
+                if (maybeValue.isEmpty)
+                  ContainerField.containerField(schema) match {
+                    case ContainerField.Optional => Right(None)
+                    case ContainerField.List     => Right(List.empty)
+                    case ContainerField.Map      => Right(Map.empty)
+                    case ContainerField.Set      => Right(Set.empty)
+                    case ContainerField.Scalar   => either
+                  }
                 else
                   either
             }
@@ -848,7 +867,6 @@ private[dynamodb] object Codec {
         case _                       =>
           Left(s"$av is not an AttributeValue.Map")
       }
-    }
 
   } // end Decoder
 

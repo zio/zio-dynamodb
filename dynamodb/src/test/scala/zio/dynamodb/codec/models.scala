@@ -38,6 +38,8 @@ final case class CaseClassOfStatus(status: Status)
 
 final case class CaseClassOfMapOfInt(map: Map[String, Int])
 
+final case class CaseClassOfSetOfInt(set: Set[Int])
+
 final case class CaseClassOfTuple2(tuple2: (String, Int))
 
 @discriminator(name = "funkyDiscriminator")

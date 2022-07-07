@@ -94,7 +94,7 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       assert(item)(equalTo(expected))
     },
     test("encodes map") {
-      val expectedItem: Item = AttrMap(Map("map" -> toAvList(toAvTuple("One", 1), toAvTuple("Two", 2))))
+      val expectedItem: Item = Item("map" -> Map("One" -> 1, "Two" -> 2))
 
       val item = DynamoDBQuery.toItem(CaseClassOfMapOfInt(Map("One" -> 1, "Two" -> 2)))
 
