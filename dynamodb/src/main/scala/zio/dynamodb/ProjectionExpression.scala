@@ -592,12 +592,18 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     override type Prism[From, To]     = ProjectionExpression.Typed[From, To]
     override type Traversal[From, To] = Unit
 
+    /*
+    FIXME
+    if there is an ID annotation on that field then use  MapElement(Root, <AnnotationNameforElement>)
+     */
     override def makeLens[S, A](product: Schema.Record[S], term: Schema.Field[A]): Lens[S, A] =
       ProjectionExpression.MapElement(Root, term.label).asInstanceOf[Lens[S, A]]
 
     /*
+    FIXME
     need to respect enum annotations
-    may need PE.identity case object => we do not need Root anymore
+    look for discriminator annotation, if exists then makePrism will return Root ie not more levels to nest into
+    look at ID for prism
      */
     override def makePrism[S, A](sum: Schema.Enum[S], term: Schema.Case[A, S]): Prism[S, A] =
       ProjectionExpression.MapElement(Root, term.id).asInstanceOf[Prism[S, A]]
