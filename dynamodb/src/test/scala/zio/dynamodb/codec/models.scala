@@ -1,6 +1,7 @@
 package zio.dynamodb.codec
 
 import zio.dynamodb.Annotations.{ discriminator, enumOfCaseObjects, id }
+import zio.dynamodb.ProjectionExpression
 import zio.schema.{ DeriveSchema, Schema }
 
 import java.time.Instant
