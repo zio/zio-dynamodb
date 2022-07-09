@@ -4,7 +4,7 @@ import zio.Chunk
 import zio.dynamodb.ConditionExpression.Operand.ProjectionExpressionOperand
 import zio.dynamodb.ProjectionExpression.{ ListElement, MapElement, Root }
 import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand }
-import zio.dynamodb.proofs.{ Addable, Containable, ListRemovable, RefersTo, Sizable }
+import zio.dynamodb.proofs.{ Addable, Containable, ListRemoveable, RefersTo, Sizable }
 import zio.schema.{ AccessorBuilder, Schema }
 
 import scala.annotation.tailrec
@@ -35,7 +35,7 @@ sealed trait ProjectionExpression[To] { self =>
   /**
    * Removes an element at the specified index from a list. Note that index is zero based
    */
-  def remove(index: Int)(implicit ev: ListRemovable[To]): UpdateExpression.Action.RemoveAction = {
+  def remove(index: Int)(implicit ev: ListRemoveable[To]): UpdateExpression.Action.RemoveAction = {
     val _ = ev
     UpdateExpression.Action.RemoveAction(ProjectionExpression.ListElement(self, index))
   }
