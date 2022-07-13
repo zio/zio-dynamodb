@@ -28,7 +28,7 @@ object ProjectionExpressionSpec extends ZIOSpecDefault {
     implicit val schema: Schema.CaseClass7[String, String, Int, String, List[String], Set[String], Payment, Student] =
       DeriveSchema.gen[Student]
     val (email, subject, studentNumber, collegeName, addresses, groups, payment)                                     =
-      ProjectionExpression.accessors[Student](schema)
+      ProjectionExpression.accessors[Student]
   }
 
   override def spec =
