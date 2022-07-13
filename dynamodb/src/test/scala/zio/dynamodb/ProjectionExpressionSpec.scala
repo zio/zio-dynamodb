@@ -2,7 +2,7 @@ package zio.dynamodb
 
 import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.dynamodb.ProjectionExpression.{ $, mapElement, MapElement, Root }
-import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema }
+import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema, Schema }
 import zio.test.{ assertTrue, ZIOSpecDefault }
 
 object ProjectionExpressionSpec extends ZIOSpecDefault {
@@ -25,8 +25,9 @@ object ProjectionExpressionSpec extends ZIOSpecDefault {
     payment: Payment
   )
   object Student extends DefaultJavaTimeSchemas {
-    implicit val schema                                                          = DeriveSchema.gen[Student]
-    val (email, subject, studentNumber, collegeName, addresses, groups, payment) =
+    implicit val schema: Schema.CaseClass7[String, String, Int, String, List[String], Set[String], Payment, Student] =
+      DeriveSchema.gen[Student]
+    val (email, subject, studentNumber, collegeName, addresses, groups, payment)                                     =
       ProjectionExpression.accessors[Student](schema)
   }
 
