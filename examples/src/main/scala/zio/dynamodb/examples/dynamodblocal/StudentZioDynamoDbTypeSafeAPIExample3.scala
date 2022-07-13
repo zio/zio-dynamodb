@@ -78,28 +78,28 @@ object StudentZioDynamoDbTypeSafeAPIExample3 extends App {
     .identity[Has[Blocking.Service]] >>> LocalDdbServer.inMemoryLayer)
 
   private val program = for {
-    _         <- createTable("box", KeySchema("id", "code"), BillingMode.PayPerRequest)(
-                   AttributeDefinition.attrDefnNumber("id"),
-                   AttributeDefinition.attrDefnNumber("code")
-                 ).execute
-    boxOfGreen = Box(1, 1, Green(1))
-    boxOfAmber = Box(1, 2, Amber(1))
-    _         <- put[Box]("box", boxOfGreen).execute
-    _         <- put[Box]("box", boxOfAmber).execute
+    _                 <- createTable("box", KeySchema("id", "code"), BillingMode.PayPerRequest)(
+                           AttributeDefinition.attrDefnNumber("id"),
+                           AttributeDefinition.attrDefnNumber("code")
+                         ).execute
+    boxOfGreen         = Box(1, 1, Green(1))
+    boxOfAmber         = Box(1, 2, Amber(1))
+    _                 <- put[Box]("box", boxOfGreen).execute
+    _                 <- put[Box]("box", boxOfAmber).execute
     //    found     <- get[Box]("box", PrimaryKey("id" -> 1)).execute
-    query      = queryAll[Box]("box").whereKey(Box.id === 1).filter(Box.trafficLightColour === Green(1))
-    root       = ProjectionExpression.mapElement(Root, "trafficLightColour")
-    rgb        = ProjectionExpression.mapElement(root, "rgb")
-    condEprn   = ConditionExpression
-                   .Equals(ProjectionExpressionOperand(rgb), ValueOperand(AttributeValue.Number(BigDecimal(1))))
-    query2     = queryAllItem("box")
-                   .whereKey(PartitionKey("id") === 1 && SortKey("code") === 1)
-                   .filter(condEprn)
+    query              = queryAll[Box]("box").whereKey(Box.id === 1).filter(Box.trafficLightColour === Green(1))
+    trafficLightColour = ProjectionExpression.mapElement(Root, "trafficLightColour")
+    rgb                = ProjectionExpression.mapElement(trafficLightColour, "rgb")
+    condEprn           = ConditionExpression
+                           .Equals(ProjectionExpressionOperand(rgb), ValueOperand(AttributeValue.Number(BigDecimal(1))))
+    query2             = queryAllItem("box")
+                           .whereKey(PartitionKey("id") === 1 && SortKey("code") === 1)
+                           .filter(condEprn)
     // Green.rgb === 1 does not work. I think we may need to compose RO PEs somehow eg "Box.trafficLightColour + Green.rgb"
-    _         <- ZIO.debug(s"query=$query\nquery2=$query2")
-    stream    <- query2.execute
-    list      <- stream.runCollect
-    _         <- ZIO.debug(s"boxes=$list")
+    _                 <- ZIO.debug(s"query=$query\nquery2=$query2")
+    stream            <- query2.execute
+    list              <- stream.runCollect
+    _                 <- ZIO.debug(s"boxes=$list")
   } yield ()
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = program.provideCustomLayer(layer).exitCode
