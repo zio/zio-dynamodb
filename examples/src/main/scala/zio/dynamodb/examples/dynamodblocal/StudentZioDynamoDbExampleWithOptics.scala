@@ -84,29 +84,29 @@ object StudentZioDynamoDbExampleWithOptics extends ZIOAppDefault {
                     .tap(student => Console.printLine(s"student=$student"))
                     .runDrain
     _          <- scanAll[Student]("student").filter {
-                    enrollmentDate === enrolDate.toString && payment === "PayPal"
+                    enrollmentDate === Some(enrolDate) && payment === Payment.CreditCard
                   }.execute.map(_.runCollect)
     _          <- queryAll[Student]("student")
                     .filter(
-                      enrollmentDate === enrolDate.toString && payment === Payment.PayPal.toString
+                      enrollmentDate === Some(enrolDate) && payment === Payment.CreditCard
                     )
                     .whereKey(email === "avi@gmail.com" && subject === "maths")
                     .execute
                     .map(_.runCollect)
     _          <- put[Student]("student", avi)
                     .where(
-                      enrollmentDate === enrolDate.toString && email === "avi@gmail.com" && payment === Payment.PayPal.toString
+                      enrollmentDate === Some(enrolDate) && email === "avi@gmail.com" && payment === Payment.CreditCard
                     )
                     .execute
     _          <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
-                    enrollmentDate.setValue(enrolDate2.toString) + payment.setValue(Payment.PayPal.toString) + address
-                      .set[Option[Address]]( // Note we are setting a case class directly here
+                    enrollmentDate.set(Some(enrolDate2)) + payment.set(Payment.PayPal) + address
+                      .set(
                         Some(Address("line1", "postcode1"))
                       )
                   }.execute
     _          <- deleteItem("student", PrimaryKey("email" -> "adam@gmail.com", "subject" -> "english"))
                     .where(
-                      enrollmentDate === enrolDate.toString && payment === Payment.CreditCard.toString
+                      enrollmentDate === Some(enrolDate) && payment === Payment.CreditCard
                     )
                     .execute
     _          <- scanAll[Student]("student").execute
