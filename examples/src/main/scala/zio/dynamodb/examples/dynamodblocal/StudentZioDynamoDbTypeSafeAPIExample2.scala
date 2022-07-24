@@ -18,6 +18,7 @@ import zio.{ App, ExitCode, Has, URIO, ZIO, ZLayer }
 
 import java.net.URI
 
+// example without discriminator
 object StudentZioDynamoDbTypeSafeAPIExample2 extends App {
 
   sealed trait TrafficLight
@@ -27,13 +28,12 @@ object StudentZioDynamoDbTypeSafeAPIExample2 extends App {
       implicit val schema = DeriveSchema.gen[Green]
       val rgb             = ProjectionExpression.accessors[Green]
     }
-    //  @id("red_traffic_light")
     final case class Red(rgb: Int) extends TrafficLight
     object Red   {
       implicit val schema = DeriveSchema.gen[Red]
       val rgb             = ProjectionExpression.accessors[Red]
     }
-    final case class Amber( /*@id("red_green_blue")*/ rgb: Int) extends TrafficLight
+    final case class Amber(rgb: Int) extends TrafficLight
     object Amber {
       implicit val schema = DeriveSchema.gen[Amber]
       val rgb             = ProjectionExpression.accessors[Amber]
@@ -74,8 +74,10 @@ object StudentZioDynamoDbTypeSafeAPIExample2 extends App {
     boxOfAmber = Box(1, 2, Amber(1))
     _         <- put[Box]("box", boxOfGreen).execute
     _         <- put[Box]("box", boxOfAmber).execute
-    //    found     <- get[Box]("box", PrimaryKey("id" -> 1)).execute
+    // this query works as we use a top level lens for trafficLightColour and compare against a complete instance
     query      = queryAll[Box]("box").whereKey(Box.id === 1).filter(Box.trafficLightColour === Green(1))
+    // if we wand to dig into the enum we need to traverse from top level Root all the way to "rgb"
+    // I don't think we have a way to do this with existing Reified Optics - for instance TrafficLight prism is unaware of Box lens
     root       = ProjectionExpression.mapElement(Root, "trafficLightColour")
     green      = ProjectionExpression.mapElement(root, "Green")
     rgb        = ProjectionExpression.mapElement(green, "rgb")
@@ -92,3 +94,4 @@ object StudentZioDynamoDbTypeSafeAPIExample2 extends App {
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = program.provideCustomLayer(layer).exitCode
 }
+// example without discriminator

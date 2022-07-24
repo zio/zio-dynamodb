@@ -88,6 +88,8 @@ object StudentZioDynamoDbTypeSafeAPIExample3 extends App {
     _                 <- put[Box]("box", boxOfAmber).execute
     //    found     <- get[Box]("box", PrimaryKey("id" -> 1)).execute
     query              = queryAll[Box]("box").whereKey(Box.id === 1).filter(Box.trafficLightColour === Green(1))
+    // with a discriminator we still  need to traverse from top level Root all the way to "rgb", however there is no intermediate map
+    // I don't think we have a way to do this with existing Reified Optics - for instance TrafficLight prism is unaware of Box lens
     trafficLightColour = ProjectionExpression.mapElement(Root, "trafficLightColour")
     rgb                = ProjectionExpression.mapElement(trafficLightColour, "rgb")
     condEprn           = ConditionExpression
@@ -95,6 +97,7 @@ object StudentZioDynamoDbTypeSafeAPIExample3 extends App {
     query2             = queryAllItem("box")
                            .whereKey(PartitionKey("id") === 1 && SortKey("code") === 1)
                            .filter(condEprn)
+//                           .filter(Green.rgb === 1)
     // Green.rgb === 1 does not work. I think we may need to compose RO PEs somehow eg "Box.trafficLightColour + Green.rgb"
     _                 <- ZIO.debug(s"query=$query\nquery2=$query2")
     stream            <- query2.execute
@@ -104,3 +107,4 @@ object StudentZioDynamoDbTypeSafeAPIExample3 extends App {
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = program.provideCustomLayer(layer).exitCode
 }
+// example with discriminator
