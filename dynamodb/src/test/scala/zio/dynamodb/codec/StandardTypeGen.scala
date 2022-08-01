@@ -5,7 +5,6 @@ import zio.test.{ Gen, Sized }
 import zio.schema._
 
 import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
 
 object StandardTypeGen {
 
@@ -23,7 +22,7 @@ object StandardTypeGen {
       (StandardType.BigIntegerType),
       (StandardType.CharType),
       (StandardType.DayOfWeekType),
-      (StandardType.Duration(ChronoUnit.SECONDS)),
+      (StandardType.DurationType),
       (StandardType.InstantType(
         DateTimeFormatter.ISO_INSTANT
       )), // TODO: original uses (StandardType.Instant(DateTimeFormatter.ISO_DATE_TIME)),
@@ -61,7 +60,7 @@ object StandardTypeGen {
       case typ: StandardType.BigDecimalType.type => typ -> Gen.anyDouble.map(d => java.math.BigDecimal.valueOf(d))
       case typ: StandardType.BigIntegerType.type => typ -> Gen.anyLong.map(n => java.math.BigInteger.valueOf(n))
       case typ: StandardType.DayOfWeekType.type  => typ -> JavaTimeGen.anyDayOfWeek
-      case typ: StandardType.Duration            => typ -> JavaTimeGen.anyDuration
+      case typ: StandardType.DurationType.type   => typ -> JavaTimeGen.anyDuration
       case typ: StandardType.InstantType         => typ -> JavaTimeGen.anyInstant
       case typ: StandardType.LocalDateType       => typ -> JavaTimeGen.anyLocalDate
       case typ: StandardType.LocalDateTimeType   => typ -> JavaTimeGen.anyLocalDateTime
