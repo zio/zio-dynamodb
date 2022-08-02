@@ -76,8 +76,10 @@ object StudentZioDynamoDbTypeSafeAPIExample2 extends App {
     _         <- put[Box]("box", boxOfAmber).execute
     // this query works as we use a top level lens for trafficLightColour and compare against a complete instance
     query      = queryAll[Box]("box").whereKey(Box.id === 1).filter(Box.trafficLightColour === Green(1))
-    // if we wand to dig into the enum we need to traverse from top level Root all the way to "rgb"
+    // if we want to dig into the enum we need to traverse from top level Root all the way to "rgb"
     // I don't think we have a way to do this with existing Reified Optics - for instance TrafficLight prism is unaware of Box lens
+    // eg
+    // Map(trafficLightColour -> Map(String(Green) -> Map(String(rgb) -> Number(42))))
     root       = ProjectionExpression.mapElement(Root, "trafficLightColour")
     green      = ProjectionExpression.mapElement(root, "Green")
     rgb        = ProjectionExpression.mapElement(green, "rgb")
@@ -86,6 +88,7 @@ object StudentZioDynamoDbTypeSafeAPIExample2 extends App {
     query2     = queryAll[Box]("box")
                    .whereKey(Box.id === 1)
                    .filter(condEprn)
+// Green.rgb === 1 does not work. I think we may need to compose RO PEs somehow eg "Box.trafficLightColour / Green.rgb === 42"
     _         <- ZIO.debug(s"query=$query\nquery2=$query2")
     stream    <- query2.execute
     list      <- stream.runCollect
