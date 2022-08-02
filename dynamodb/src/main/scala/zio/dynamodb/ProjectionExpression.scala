@@ -1,6 +1,7 @@
 package zio.dynamodb
 
 import zio.Chunk
+import zio.dynamodb.Annotations.id
 import zio.dynamodb.ConditionExpression.Operand.ProjectionExpressionOperand
 import zio.dynamodb.ProjectionExpression.{ ListElement, MapElement, Root }
 import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand }
@@ -12,7 +13,24 @@ import scala.annotation.unused
 
 // The maximum depth for a document path is 32
 sealed trait ProjectionExpression[To] { self =>
-  type From
+  type From // needs to become a type parameter as it will lose type info as it is
+
+  //  def >>>[To2](that: ProjectionExpression.Typed[To, To2]): ProjectionExpression.Typed[From, To2] =
+  def >>>[To2](that: ProjectionExpression[_]): ProjectionExpression.Typed[From, To2] =
+    that match {
+      case ProjectionExpression.Root                       =>
+        self.asInstanceOf[ProjectionExpression.Typed[From, To2]]
+      case ProjectionExpression.MapElement(parent, key)    =>
+        println(s"XXXX MapElement $parent $key")
+        ProjectionExpression
+          .mapElement(self >>> parent, key)
+          .asInstanceOf[ProjectionExpression.Typed[ProjectionExpression.this.From, To2]]
+      case ProjectionExpression.ListElement(parent, index) =>
+        println(s"XXXX ListElement  $parent $index")
+        ProjectionExpression
+          .listElement(self >>> parent, index)
+          .asInstanceOf[ProjectionExpression.Typed[ProjectionExpression.this.From, To2]]
+    }
 
   def unsafeTo[To2]: ProjectionExpression.Typed[From, To2] = self.asInstanceOf[ProjectionExpression.Typed[From, To2]]
 
@@ -420,6 +438,22 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     type From = From0
   }
 
+  /*
+  PHASE1 - capturing info we have and making it available in a PE
+  we going to add a Meta to every PE eg when you generate something using $ -> lens
+  when using R/O you will be using the correct version of Meta
+  eg when makeLens if there was a discriminator defined then we are going to use that
+  PHASE2
+  we are going to leverage that when we turn PE into AWS API
+   */
+  sealed trait OpticType
+  object OpticType {
+    case object Lens                                extends OpticType
+    case class Prism(discriminator: Option[String]) extends OpticType
+  }
+
+  final case class Meta(opticType: OpticType)
+
   implicit class ProjectionExpressionSyntax(self: ProjectionExpression[Unknown]) {
 
     /**
@@ -595,9 +629,22 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     /*
     FIXME
     if there is an ID annotation on that field then use  MapElement(Root, <AnnotationNameforElement>)
+    If there is an ID annotation, then instead of generating .age, for example, we will generate
+    .<ID>
      */
-    override def makeLens[S, A](product: Schema.Record[S], term: Schema.Field[A]): Lens[S, A] =
-      ProjectionExpression.MapElement(Root, term.label).asInstanceOf[Lens[S, A]]
+    override def makeLens[S, A](product: Schema.Record[S], term: Schema.Field[A]): Lens[S, A] = {
+      // TODO: extract annotation based functions to an object for reuse
+      def maybeId(annotations: Chunk[Any]): Option[String] =
+        annotations.toList match {
+          case id(name) :: _ =>
+            Some(name)
+          case _             =>
+            None
+        }
+
+      val label = maybeId(term.annotations).getOrElse(term.label)
+      ProjectionExpression.MapElement(Root, label).asInstanceOf[Lens[S, A]]
+    }
 
     /*
     FIXME
@@ -607,6 +654,17 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
      */
     override def makePrism[S, A](sum: Schema.Enum[S], term: Schema.Case[A, S]): Prism[S, A] =
       ProjectionExpression.MapElement(Root, term.id).asInstanceOf[Prism[S, A]]
+    /*
+    If there is a Discriminator annotation on Schema Enum, then we know we will NOT descend
+    into the sum name (e.g. .Green.rgb), but rather, we will assume it is flat and stored at
+    the same level (e.g. .rgb), because the term id is stored in the discriminator field at that
+    level (e.g. .light_type = Green).
+
+    So if there is a discriminator, we will return ProjectionExpression.Identity
+
+    If there is NO discriminator, but there is an ID, then instead of generating .Green, for example,
+    we will generate .<ID>.
+     */
 
     override def makeTraversal[S, A](collection: Schema.Collection[S, A], element: Schema[A]): Traversal[S, A] = ()
   }
