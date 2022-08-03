@@ -142,12 +142,19 @@ object OpticsShouldRespectAnnotationsSpec extends DefaultRunnableSpec {
         println(x)
         assert(BoxOfCaseObjectOnlyEnum.sumType.toString)(equalTo("enum"))
       },
-      test("composition using >>>") {
+      test("composition using >>> without a discriminator") {
         // Box = Map( String(trafficLightColour) -> Map(String(Red) -> Map(String(rgb) -> Number(42))) )
         val pe =
-          TrafficLightDiscriminated.Box.trafficLightColour >>> TrafficLightDiscriminated.red >>> TrafficLightDiscriminated.Red.rgb
+          TrafficLight.Box.trafficLightColour >>> TrafficLight.red >>> TrafficLight.Red.rgb
         println(s"XXXXXXXXXXX x=$pe")
         assert(pe.toString)(equalTo("trafficLightColour.Red.rgb"))
+      },
+      test("but >>> is not type safe WRT composition ATM") {
+        // Box = Map( String(trafficLightColour) -> Map(String(Red) -> Map(String(rgb) -> Number(42))) )
+        val pe =
+          TrafficLight.Red.rgb >>> TrafficLight.red >>> TrafficLight.Box.trafficLightColour
+        println(s"XXXXXXXXXXX x=$pe")
+        assert(pe.toString)(equalTo("rgb.Red.trafficLightColour"))
       }
     )
 
