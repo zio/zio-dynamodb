@@ -1,6 +1,8 @@
 package zio.dynamodb
 
 import zio.dynamodb.Annotations.{ discriminator, id }
+//import zio.dynamodb.OpticsShouldRespectAnnotationsSpec.TrafficLight
+//import zio.dynamodb.ProjectionExpression.Typed
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test.Assertion.equalTo
 import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
@@ -144,18 +146,22 @@ object OpticsShouldRespectAnnotationsSpec extends DefaultRunnableSpec {
       },
       test("composition using >>> without a discriminator") {
         // Box = Map( String(trafficLightColour) -> Map(String(Red) -> Map(String(rgb) -> Number(42))) )
-        val pe =
+        val x: ProjectionExpression[TrafficLight]     = TrafficLight.Box.trafficLightColour
+        val y: ProjectionExpression[TrafficLight.Red] = TrafficLight.red
+        val z: ProjectionExpression[Int]              = TrafficLight.Red.rgb
+        val pe: Any                                   =
           TrafficLight.Box.trafficLightColour >>> TrafficLight.red >>> TrafficLight.Red.rgb
-        println(s"XXXXXXXXXXX x=$pe")
+        println(s"XXXXXXXXXXX pe=$pe x=$x y=$y z=$z")
         assert(pe.toString)(equalTo("trafficLightColour.Red.rgb"))
-      },
-      test("but >>> is not type safe WRT composition ATM") {
-        // Box = Map( String(trafficLightColour) -> Map(String(Red) -> Map(String(rgb) -> Number(42))) )
-        val pe =
-          TrafficLight.Red.rgb >>> TrafficLight.red >>> TrafficLight.Box.trafficLightColour
-        println(s"XXXXXXXXXXX x=$pe")
-        assert(pe.toString)(equalTo("rgb.Red.trafficLightColour"))
       }
+// This fails to complile which is good!
+//      test("but >>> is not type safe WRT composition  - we do the above in reverse order!") {
+//        // Box = Map( String(trafficLightColour) -> Map(String(Red) -> Map(String(rgb) -> Number(42))) )
+//        val pe =
+//          TrafficLight.Red.rgb >>> TrafficLight.red >>> TrafficLight.Box.trafficLightColour
+//        println(s"XXXXXXXXXXX x=$pe")
+//        assert(pe.toString)(equalTo("rgb.Red.trafficLightColour"))
+//      }
     )
 
 }

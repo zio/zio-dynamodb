@@ -16,19 +16,18 @@ sealed trait ProjectionExpression[To] { self =>
   type From // needs to become a type parameter as it will lose type info as it is
 
   //  def >>>[To2](that: ProjectionExpression.Typed[To, To2]): ProjectionExpression.Typed[From, To2] =
-  def >>>[To2](that: ProjectionExpression[_]): ProjectionExpression.Typed[From, To2] =
+  def >>>[To2](that: ProjectionExpression[_])(implicit ev: that.From <:< To): ProjectionExpression.Typed[From, To2] =
+    // could we use "=:=" ?
     that match {
       case ProjectionExpression.Root                       =>
         self.asInstanceOf[ProjectionExpression.Typed[From, To2]]
       case ProjectionExpression.MapElement(parent, key)    =>
-        println(s"XXXX MapElement $parent $key")
         ProjectionExpression
-          .mapElement(self >>> parent, key)
+          .mapElement(self >>> parent.asInstanceOf[ProjectionExpression.Typed[To, _]], key)
           .asInstanceOf[ProjectionExpression.Typed[ProjectionExpression.this.From, To2]]
       case ProjectionExpression.ListElement(parent, index) =>
-        println(s"XXXX ListElement  $parent $index")
         ProjectionExpression
-          .listElement(self >>> parent, index)
+          .listElement(self >>> parent.asInstanceOf[ProjectionExpression.Typed[To, _]], index)
           .asInstanceOf[ProjectionExpression.Typed[ProjectionExpression.this.From, To2]]
     }
 
