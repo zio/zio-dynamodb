@@ -23,11 +23,11 @@ sealed trait ProjectionExpression[To] { self =>
         self.asInstanceOf[ProjectionExpression.Typed[From, To2]]
       case ProjectionExpression.MapElement(parent, key)    =>
         ProjectionExpression
-          .mapElement(self >>> parent.asInstanceOf[ProjectionExpression.Typed[To, _]], key)
+          .mapElement(self >>> parent.asInstanceOf[ProjectionExpression.Typed[To, _]], key) // bypass constraint
           .asInstanceOf[ProjectionExpression.Typed[ProjectionExpression.this.From, To2]]
       case ProjectionExpression.ListElement(parent, index) =>
         ProjectionExpression
-          .listElement(self >>> parent.asInstanceOf[ProjectionExpression.Typed[To, _]], index)
+          .listElement(self >>> parent.asInstanceOf[ProjectionExpression.Typed[To, _]], index) // bypass constraint
           .asInstanceOf[ProjectionExpression.Typed[ProjectionExpression.this.From, To2]]
     }
 
