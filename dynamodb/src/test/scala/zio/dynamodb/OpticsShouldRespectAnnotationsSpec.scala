@@ -150,13 +150,21 @@ object OpticsShouldRespectAnnotationsSpec extends DefaultRunnableSpec {
         val x: ProjectionExpression[TrafficLight]     = TrafficLight.Box.trafficLightColour
         val y: ProjectionExpression[TrafficLight.Red] = TrafficLight.red
         val z: ProjectionExpression[Int]              = TrafficLight.Red.rgb
-        val pe: Any                                   =
+        val pe = {
+          /*
+          INTERESTING
+          only valid traversals can now be constructed, and only in strict order regardless of annotations
+          Map( String(trafficLightColour) -> Map(String(Red) -> Map(String(rgb) -> Number(42))) )
+          Map( String(trafficLightColour) -> Map(String(rgb) -> Number(42), String(light_type) -> String(Red)) )
+          in the case when @discriminator is in play we would want outcome to be "trafficLightColour.rgb"
+           */
           TrafficLight.Box.trafficLightColour >>> TrafficLight.red >>> TrafficLight.Red.rgb
+        }
         println(s"XXXXXXXXXXX pe=$pe x=$x y=$y z=$z")
         assert(pe.toString)(equalTo("trafficLightColour.Red.rgb"))
       }
-// This fails to compile which is good!
-//      test("but >>> is not type safe WRT composition  - we do the above in reverse order!") {
+// The reverse fails to compile which is good!
+//      test("TrafficLight.Red.rgb >>> TrafficLight.red >>> TrafficLight.Box.trafficLightColour") {
 //        // Box = Map( String(trafficLightColour) -> Map(String(Red) -> Map(String(rgb) -> Number(42))) )
 //        val pe =
 //          TrafficLight.Red.rgb >>> TrafficLight.red >>> TrafficLight.Box.trafficLightColour

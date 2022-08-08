@@ -15,6 +15,15 @@ import scala.annotation.unused
 sealed trait ProjectionExpression[To] { self =>
   type From // needs to become a type parameter as it will lose type info as it is
 
+  /*
+  could not match on "that: ProjectionExpression.Typed[To, To2]" - got compile error
+  /home/avinder/Workspaces/git/zio-dynamodb/dynamodb/src/main/scala/zio/dynamodb/ProjectionExpression.scala:24:33
+pattern type is incompatible with expected type;
+ found   : zio.dynamodb.ProjectionExpression.Root.type
+ required: zio.dynamodb.ProjectionExpression.Typed[To,To2]
+    (which expands to)  zio.dynamodb.ProjectionExpression[To2]{type From = To}
+      case ProjectionExpression.Root                       =>
+   */
   //  def >>>[To2](that: ProjectionExpression.Typed[To, To2]): ProjectionExpression.Typed[From, To2] =
   def >>>[To2](that: ProjectionExpression[_])(implicit ev: that.From <:< To): ProjectionExpression.Typed[From, To2] =
     // could we use "=:=" ?
