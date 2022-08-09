@@ -25,7 +25,6 @@ pattern type is incompatible with expected type;
    */
   //  def >>>[To2](that: ProjectionExpression.Typed[To, To2]): ProjectionExpression.Typed[From, To2] =
   def >>>[To2](that: ProjectionExpression[To, To2]): ProjectionExpression[From, To2] =
-    // could we use "=:=" ?
     that match {
       case _: ProjectionExpression.Root.type        =>
         self.asInstanceOf[ProjectionExpression[From, To2]]
