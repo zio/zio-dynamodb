@@ -1,7 +1,7 @@
 package zio.dynamodb
 
 import zio.Chunk
-import zio.dynamodb.Annotations.id
+import zio.dynamodb.Annotations.{ discriminator, id }
 import zio.dynamodb.ConditionExpression.Operand.ProjectionExpressionOperand
 import zio.dynamodb.ProjectionExpression.{ ListElement, MapElement, Root }
 import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand }
@@ -25,7 +25,7 @@ pattern type is incompatible with expected type;
       case ProjectionExpression.Root                       =>
    */
   //  def >>>[To2](that: ProjectionExpression.Typed[To, To2]): ProjectionExpression.Typed[From, To2] =
-  def >>>[To2](that: ProjectionExpression[_])(implicit ev: that.From <:< To): ProjectionExpression.Typed[From, To2] =
+  def >>>[To2](that: ProjectionExpression[To2])(implicit ev: that.From <:< To): ProjectionExpression.Typed[From, To2] =
     // could we use "=:=" ?
     that match {
       case ProjectionExpression.Root                       =>
@@ -634,45 +634,25 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     override type Prism[From, To]     = ProjectionExpression.Typed[From, To]
     override type Traversal[From, To] = Unit
 
-    /*
-    FIXME
-    if there is an ID annotation on that field then use  MapElement(Root, <AnnotationNameforElement>)
-    If there is an ID annotation, then instead of generating .age, for example, we will generate
-    .<ID>
-     */
+    // respects @id annotation
     override def makeLens[S, A](product: Schema.Record[S], term: Schema.Field[A]): Lens[S, A] = {
-      // TODO: extract annotation based functions to an object for reuse
-      def maybeId(annotations: Chunk[Any]): Option[String] =
-        annotations.toList match {
-          case id(name) :: _ =>
-            Some(name)
-          case _             =>
-            None
-        }
+      val maybeId = term.annotations.collect { case id(name) => name }.headOption
 
-      val label = maybeId(term.annotations).getOrElse(term.label)
+      val label = maybeId.getOrElse(term.label)
       ProjectionExpression.MapElement(Root, label).asInstanceOf[Lens[S, A]]
     }
 
-    /*
-    FIXME
-    need to respect enum annotations
-    look for discriminator annotation, if exists then makePrism will return Root ie not more levels to nest into
-    look at ID for prism
-     */
-    override def makePrism[S, A](sum: Schema.Enum[S], term: Schema.Case[A, S]): Prism[S, A] =
-      ProjectionExpression.MapElement(Root, term.id).asInstanceOf[Prism[S, A]]
-    /*
-    If there is a Discriminator annotation on Schema Enum, then we know we will NOT descend
-    into the sum name (e.g. .Green.rgb), but rather, we will assume it is flat and stored at
-    the same level (e.g. .rgb), because the term id is stored in the discriminator field at that
-    level (e.g. .light_type = Green).
+    // respects @discriminator annotation
+    override def makePrism[S, A](sum: Schema.Enum[S], term: Schema.Case[A, S]): Prism[S, A] = {
+      val maybeDiscriminator = sum.annotations.collect { case discriminator(name) => name }.headOption
+      maybeDiscriminator match {
+        case Some(_) =>
+          ProjectionExpression.Root.asInstanceOf[Prism[S, A]]
+        case None    =>
+          ProjectionExpression.MapElement(Root, term.id).asInstanceOf[Prism[S, A]]
+      }
 
-    So if there is a discriminator, we will return ProjectionExpression.Identity
-
-    If there is NO discriminator, but there is an ID, then instead of generating .Green, for example,
-    we will generate .<ID>.
-     */
+    }
 
     override def makeTraversal[S, A](collection: Schema.Collection[S, A], element: Schema[A]): Traversal[S, A] = ()
   }
