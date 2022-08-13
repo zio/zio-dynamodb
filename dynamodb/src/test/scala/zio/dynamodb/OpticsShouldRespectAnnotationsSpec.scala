@@ -113,7 +113,18 @@ object OpticsShouldRespectAnnotationsSpec extends DefaultRunnableSpec {
   override def spec: ZSpec[Environment, Failure] =
     suite("OpticsShouldRespectAnnotationsSpec")(nonDiscriminatedSuite, discriminatedSuite)
 
-  val discriminatedSuite =
+  val discriminatedSuite = {
+    val conditionExpressionSuite =
+      suite("ConditionExpression suite")(
+        test("TrafficLight.Box.trafficLightColour >>> TrafficLight.red >>> TrafficLight.Red.rgb === 1") {
+          val ce =
+            TrafficLightDiscriminated.Box.trafficLightColour >>> TrafficLightDiscriminated.red >>> TrafficLightDiscriminated.Red.rgb === 1
+          assert(ce.toString)(
+            equalTo("Equals(ProjectionExpressionOperand(trafficLightColour.rgb),ValueOperand(Number(1)))")
+          )
+        }
+      )
+
     suite("with @discriminated annotation")(
       test("composition using >>> should bypass intermediate Map") {
         val pe =
@@ -131,10 +142,22 @@ object OpticsShouldRespectAnnotationsSpec extends DefaultRunnableSpec {
         val pe =
           TrafficLightDiscriminated.Box.trafficLightColour >>> TrafficLightDiscriminated.amber >>> TrafficLightDiscriminated.Amber.rgb
         assert(pe.toString)(equalTo("trafficLightColour.red_green_blue"))
-      }
+      },
+      conditionExpressionSuite
     )
+  }
 
-  val nonDiscriminatedSuite =
+  val nonDiscriminatedSuite = {
+    val conditionExpressionSuite =
+      suite("ConditionExpression suite")(
+        test("TrafficLight.Box.trafficLightColour >>> TrafficLight.red >>> TrafficLight.Red.rgb === 1") {
+          val ce = TrafficLight.Box.trafficLightColour >>> TrafficLight.red >>> TrafficLight.Red.rgb === 1
+          assert(ce.toString)(
+            equalTo("Equals(ProjectionExpressionOperand(trafficLightColour.Red.rgb),ValueOperand(Number(1)))")
+          )
+        }
+      )
+
     suite("without @discriminated annotation")(
       test("composition using >>> should use intermediate Map") {
         val pe = TrafficLight.Box.trafficLightColour >>> TrafficLight.red >>> TrafficLight.Red.rgb
@@ -149,7 +172,9 @@ object OpticsShouldRespectAnnotationsSpec extends DefaultRunnableSpec {
         val pe =
           TrafficLightDiscriminated.Box.trafficLightColour >>> TrafficLightDiscriminated.amber >>> TrafficLightDiscriminated.Amber.rgb
         assert(pe.toString)(equalTo("trafficLightColour.red_green_blue"))
-      }
+      },
+      conditionExpressionSuite
     )
+  }
 
 }
