@@ -46,6 +46,7 @@ object StudentZioDynamoDbTypeSafeAPIExample2 extends App {
 
     implicit val schema = DeriveSchema.gen[TrafficLight]
 
+    val (amber, green, red) = ProjectionExpression.accessors[TrafficLight]
   }
 
   private val awsConfig = ZLayer.succeed(
@@ -85,9 +86,14 @@ object StudentZioDynamoDbTypeSafeAPIExample2 extends App {
     rgb        = ProjectionExpression.mapElement(green, "rgb")
     condEprn   = ConditionExpression
                    .Equals(ProjectionExpressionOperand(rgb), ValueOperand(AttributeValue.Number(BigDecimal(1))))
+    x          = Box.id
+    y          = Box.id === 1
+    z          = Box.trafficLightColour >>> TrafficLight.green >>> Green.rgb
+    zz         = (Box.trafficLightColour >>> TrafficLight.green >>> Green.rgb) === 1
+    _          = println(s"$x $y $z $zz $condEprn")
     query2     = queryAll[Box]("box")
                    .whereKey(Box.id === 1)
-                   .filter(condEprn)
+                   .filter(zz)
 // Green.rgb === 1 does not work. I think we may need to compose RO PEs somehow eg "Box.trafficLightColour / Green.rgb === 42"
     _         <- ZIO.debug(s"query=$query\nquery2=$query2")
     stream    <- query2.execute
