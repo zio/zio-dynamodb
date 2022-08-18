@@ -21,8 +21,8 @@ const users = [
 ];
 
 const siteConfig = {
-  title: 'ZIO Actors',
-  tagline: 'High-performance, purely-functional library for building and supervising typed actors backed by ZIO',
+  title: 'ZIO DynamoDB',
+  tagline: 'Simple, type-safe, and efficient access to DynamoDB',
   url: 'https://zio.github.io',
   baseUrl: '/zio-dynamodb/',
 
