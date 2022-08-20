@@ -17,13 +17,13 @@ sealed trait ProjectionExpression[-From, To] { self =>
   //  def >>>[To2](that: ProjectionExpression.Typed[To, To2]): ProjectionExpression.Typed[From, To2] =
   def >>>[To2](that: ProjectionExpression[To, To2]): ProjectionExpression[From, To2] =
     that match {
-      case ProjectionExpression.Root                =>
+      case ProjectionExpression.Root                    =>
         self.asInstanceOf[ProjectionExpression[From, To2]]
-      case m: ProjectionExpression.MapElement[To2]  =>
+      case ProjectionExpression.MapElement(parent, key) =>
         ProjectionExpression
-          .mapElement(self >>> m.parent.asInstanceOf[ProjectionExpression[To, _]], m.key)
+          .mapElement(self >>> parent.asInstanceOf[ProjectionExpression[To, _]], key)
           .asInstanceOf[ProjectionExpression[From, To2]]
-      case l: ProjectionExpression.ListElement[To2] =>
+      case l: ProjectionExpression.ListElement[To2]     =>
         ProjectionExpression
           .listElement(self >>> l.parent.asInstanceOf[ProjectionExpression[To, _]], l.index)
           .asInstanceOf[ProjectionExpression[From, To2]]
