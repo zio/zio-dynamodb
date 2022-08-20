@@ -58,6 +58,8 @@ jobs:
         uses: coursier/cache-action@v6
       - name: Check Document Generation
         run: ./sbt docs/docusaurusCreateSite
+      - name: Publish docs to Github
+        run: ./sbt docs/docusaurusPublishGhpages
 
   publish:
     runs-on: ubuntu-20.04
