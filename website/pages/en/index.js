@@ -94,7 +94,7 @@ class Index extends React.Component {
             <div
                 className="productShowcaseSection paddingBottom"
                 style={{textAlign: 'center'}}>
-                <h2>Welcome to zio-dynamodb</h2>
+                <h2>Welcome to ZIO DynamoDB</h2>
                 <MarkdownBlock>
                   Simple, type-safe, and efficient access to DynamoDB.
                 </MarkdownBlock>
