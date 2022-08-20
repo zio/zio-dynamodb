@@ -12,29 +12,20 @@ import scala.annotation.tailrec
 import scala.annotation.unused
 
 // The maximum depth for a document path is 32
-sealed trait ProjectionExpression[From, To] { self =>
+sealed trait ProjectionExpression[-From, To] { self =>
 
-  /*
-  could not match on "that: ProjectionExpression.Typed[To, To2]" - got compile error
-  /home/avinder/Workspaces/git/zio-dynamodb/dynamodb/src/main/scala/zio/dynamodb/ProjectionExpression.scala:24:33
-pattern type is incompatible with expected type;
- found   : zio.dynamodb.ProjectionExpression.Root.type
- required: zio.dynamodb.ProjectionExpression.Typed[To,To2]
-    (which expands to)  zio.dynamodb.ProjectionExpression[To2]{type From = To}
-      case ProjectionExpression.Root                       =>
-   */
   //  def >>>[To2](that: ProjectionExpression.Typed[To, To2]): ProjectionExpression.Typed[From, To2] =
   def >>>[To2](that: ProjectionExpression[To, To2]): ProjectionExpression[From, To2] =
     that match {
-      case _: ProjectionExpression.Root.type        =>
+      case ProjectionExpression.Root                =>
         self.asInstanceOf[ProjectionExpression[From, To2]]
       case m: ProjectionExpression.MapElement[To2]  =>
         ProjectionExpression
-          .mapElement(self >>> m.parent.asInstanceOf[ProjectionExpression[To, _]], m.key) // bypass constraint
+          .mapElement(self >>> m.parent.asInstanceOf[ProjectionExpression[To, _]], m.key)
           .asInstanceOf[ProjectionExpression[From, To2]]
       case l: ProjectionExpression.ListElement[To2] =>
         ProjectionExpression
-          .listElement(self >>> l.parent.asInstanceOf[ProjectionExpression[To, _]], l.index) // bypass constraint
+          .listElement(self >>> l.parent.asInstanceOf[ProjectionExpression[To, _]], l.index)
           .asInstanceOf[ProjectionExpression[From, To2]]
     }
 
