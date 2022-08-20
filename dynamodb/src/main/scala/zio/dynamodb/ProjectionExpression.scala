@@ -12,7 +12,7 @@ import scala.annotation.tailrec
 import scala.annotation.unused
 
 // The maximum depth for a document path is 32
-sealed trait ProjectionExpression[-From, To] { self =>
+sealed trait ProjectionExpression[-From, +To] { self =>
 
   def >>>[To2](that: ProjectionExpression[To, To2]): ProjectionExpression[From, To2] =
     that match {
