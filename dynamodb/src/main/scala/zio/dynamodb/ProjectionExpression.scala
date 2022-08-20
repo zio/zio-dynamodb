@@ -17,16 +17,14 @@ sealed trait ProjectionExpression[-From, To] { self =>
   //  def >>>[To2](that: ProjectionExpression.Typed[To, To2]): ProjectionExpression.Typed[From, To2] =
   def >>>[To2](that: ProjectionExpression[To, To2]): ProjectionExpression[From, To2] =
     that match {
-      case ProjectionExpression.Root                    =>
+      case ProjectionExpression.Root                       =>
         self.asInstanceOf[ProjectionExpression[From, To2]]
-      case ProjectionExpression.MapElement(parent, key) =>
+      case ProjectionExpression.MapElement(parent, key)    =>
         ProjectionExpression
-          .mapElement(self >>> parent.asInstanceOf[ProjectionExpression[To, _]], key)
-          .asInstanceOf[ProjectionExpression[From, To2]]
-      case l: ProjectionExpression.ListElement[To2]     =>
+          .MapElement(self >>> parent.asInstanceOf[ProjectionExpression[To, _]], key)
+      case ProjectionExpression.ListElement(parent, index) =>
         ProjectionExpression
-          .listElement(self >>> l.parent.asInstanceOf[ProjectionExpression[To, _]], l.index)
-          .asInstanceOf[ProjectionExpression[From, To2]]
+          .ListElement(self >>> parent.asInstanceOf[ProjectionExpression[To, _]], index)
     }
 
   def unsafeTo[To2]: ProjectionExpression[From, To2] = self.asInstanceOf[ProjectionExpression[From, To2]]
