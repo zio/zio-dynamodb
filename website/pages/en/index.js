@@ -63,8 +63,7 @@ class HomeSplash extends React.Component {
                 <div className="inner">
                     <ProjectTitle siteConfig={siteConfig}/>
                     <PromoSection>
-                        <Button href={docUrl('overview/overview_index')}>Overview</Button>
-                        <Button href={docUrl('usecases/usecases_index')}>Use Cases</Button>
+                        <Button href={docUrl('overview/overview_index.html')}>Overview</Button>
                         <Button href="https://github.com/zio/zio-dynamodb" target="_blank">GitHub</Button>
                     </PromoSection>
                 </div>
@@ -97,71 +96,29 @@ class Index extends React.Component {
                 style={{textAlign: 'center'}}>
                 <h2>Welcome to ZIO DynamoDB</h2>
                 <MarkdownBlock>
-                    A high-performance, purely-functional library for building, composing, and supervising typed actors
-                    backed by `ZIO`.
-                </MarkdownBlock>
-
-                <MarkdownBlock>
-                    The [Actor Model](https://en.wikipedia.org/wiki/Actor_model) is used to build distributed highly
-                    scalable applications.
-                    The core concept behind the actor model is the ability to create multiple actors which run
-                    concurrently.
-                    The actor would receive a message do some computation on the message and then output a new message.
-                    Each actor runs independently of each other with no shared state between them and as such failure of
-                    one actor won't have an affect on the running of another.
-                    In its simplest form the goal of this project is to provide the ability to write actors in
-                    Functional Way that are typed leveraging [ZIO](https://github.com/zio/zio).
-                </MarkdownBlock>
-
-                <h2>
-                    ZIO Actors current alternatives
-                </h2>
-
-                <MarkdownBlock>
-                    - [Akka](https://akka.io) (Scala & Java)
-                </MarkdownBlock>
-
-                <MarkdownBlock>
-                    - [Akka .net](https://getakka.net) (C#)
-                </MarkdownBlock>
-
-                <MarkdownBlock>
-                    - [Orleans](https://dotnet.github.io/orleans/) (C#)
-                </MarkdownBlock>
-
-                <MarkdownBlock>
-                    - [Erlang/Otp](http://www.erlang.org) (Erlang)
-                </MarkdownBlock>
-
-                <MarkdownBlock>
-                    - [Elixir](https://elixir-lang.org) (Elixir)
-                </MarkdownBlock>
-
-                <MarkdownBlock>
-                    We differentiate ourselves from the above competition by having the following benefits:
-                    * Purely Functional
-                    * Everything Typed
-                    * Light Weight
+                  Simple, type-safe, and efficient access to DynamoDB.
                 </MarkdownBlock>
             </div>
         );
 
         const Features = () => (
             <Block layout="fourColumn">
-                {[
+                {
+                [
                     {
-                        content: 'Model actors\' communication without side effects',
+                        content: 'TODO: Content 1',
                         image: `${baseUrl}img/undraw_tweetstorm.svg`,
                         imageAlign: 'top',
-                        title: 'Effectful',
+                        title: 'TODO: Title 1',
                     },
                     {
-                        content: 'Fully typed - with message, response and error type',
+                        content: 'TODO: Content 2',
                         image: `${baseUrl}img/undraw_operating_system.svg`,
                         imageAlign: 'top',
-                        title: 'Typed',
+                        title: 'TODO: Title 2',
                     },
-                ]}
+                ]
+                }
             </Block>
         );
 
@@ -169,7 +126,6 @@ class Index extends React.Component {
             <div>
                 <HomeSplash siteConfig={siteConfig} language={language}/>
                 <div className="mainContainer">
-                    <Features/>
                     <FeatureCallout/>
                 </div>
             </div>
