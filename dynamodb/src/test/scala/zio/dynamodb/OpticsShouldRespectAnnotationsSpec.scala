@@ -132,7 +132,7 @@ object OpticsShouldRespectAnnotationsSpec extends DefaultRunnableSpec {
           TrafficLightDiscriminated.Box.trafficLightColour >>> TrafficLightDiscriminated.green >>> TrafficLightDiscriminated.Green.rgb
         assert(pe.toString)(equalTo("trafficLightColour.rgb"))
       },
-      test("@id annotations at class level do not affect traversal as they are bypassed") {
+      test("@id annotations at class level do not affect traversal as they are bypassed ie trafficLightColour.rgb") {
         // Map(String(rgb) -> Number(42), String(light_type) -> String(red_traffic_light))
         val pe =
           TrafficLightDiscriminated.Box.trafficLightColour >>> TrafficLightDiscriminated.red >>> TrafficLightDiscriminated.Red.rgb
@@ -151,10 +151,18 @@ object OpticsShouldRespectAnnotationsSpec extends DefaultRunnableSpec {
   val nonDiscriminatedSuite = {
     val conditionExpressionSuite =
       suite("ConditionExpression suite")(
-        test("TrafficLight.Box.trafficLightColour >>> TrafficLight.green >>> TrafficLight.Green.rgb === 1") {
+        test("Path with no @id at class or field level results in a PE of trafficLightColour.Green.rgb") {
           val ce = TrafficLight.Box.trafficLightColour >>> TrafficLight.green >>> TrafficLight.Green.rgb === 1
           assert(ce.toString)(
             equalTo("Equals(ProjectionExpressionOperand(trafficLightColour.Green.rgb),ValueOperand(Number(1)))")
+          )
+        },
+        test("Path with @id at class but not field level results in a PE of trafficLightColour.red_traffic_light.rgb") {
+          val ce = TrafficLight.Box.trafficLightColour >>> TrafficLight.red >>> TrafficLight.Red.rgb === 1
+          assert(ce.toString)(
+            equalTo(
+              "Equals(ProjectionExpressionOperand(trafficLightColour.red_traffic_light.rgb),ValueOperand(Number(1)))"
+            )
           )
         }
       )
