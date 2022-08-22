@@ -1,15 +1,14 @@
 package zio.dynamodb
 
 import zio.Chunk
-import zio.dynamodb.Annotations.{ discriminator, id }
+import zio.dynamodb.Annotations.{ maybeDiscriminator, maybeId }
 import zio.dynamodb.ConditionExpression.Operand.ProjectionExpressionOperand
 import zio.dynamodb.ProjectionExpression.{ ListElement, MapElement, Root }
 import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand }
-import zio.dynamodb.proofs.{ Addable, Containable, ListRemoveable, RefersTo, Sizable }
+import zio.dynamodb.proofs._
 import zio.schema.{ AccessorBuilder, Schema }
 
-import scala.annotation.tailrec
-import scala.annotation.unused
+import scala.annotation.{ tailrec, unused }
 
 // The maximum depth for a document path is 32
 sealed trait ProjectionExpression[-From, +To] { self =>
@@ -626,29 +625,19 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
 
     // respects @id annotation
     override def makeLens[S, A](product: Schema.Record[S], term: Schema.Field[A]): Lens[S, A] = {
-      val maybeId = term.annotations.collect {
-        case id(name) =>
-          name
-      }.headOption
 
-      val label = maybeId.getOrElse(term.label)
+      val label = maybeId(term.annotations).getOrElse(term.label)
       ProjectionExpression.MapElement(Root, label).asInstanceOf[Lens[S, A]]
     }
 
     // respects @discriminator and @id (at class level) annotations
-    override def makePrism[S, A](sum: Schema.Enum[S], term: Schema.Case[A, S]): Prism[S, A] = {
-      // TODO: extract maybeId function and use
-      val maybeDiscriminator = sum.annotations.collect { case discriminator(name) => name }.headOption
-      val maybeId            = term.annotations.collect { case id(name) => name }.headOption
-
-      maybeDiscriminator match {
+    override def makePrism[S, A](sum: Schema.Enum[S], term: Schema.Case[A, S]): Prism[S, A] =
+      maybeDiscriminator(sum.annotations) match {
         case Some(_) =>
           ProjectionExpression.Root.asInstanceOf[Prism[S, A]]
         case None    =>
-          ProjectionExpression.MapElement(Root, maybeId.getOrElse(term.id)).asInstanceOf[Prism[S, A]]
+          ProjectionExpression.MapElement(Root, maybeId(term.annotations).getOrElse(term.id)).asInstanceOf[Prism[S, A]]
       }
-
-    }
 
     override def makeTraversal[S, A](collection: Schema.Collection[S, A], element: Schema[A]): Traversal[S, A] = ()
   }

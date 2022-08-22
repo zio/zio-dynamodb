@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.Annotations.{ discriminator, enumOfCaseObjects, id }
+import zio.dynamodb.Annotations.{ discriminator, enumOfCaseObjects, id, maybeDiscriminator, maybeId }
 import zio.schema.Schema.{ Optional, Primitive, Transform }
 import zio.schema.ast.SchemaAst
 import zio.schema.{ FieldSet, Schema, StandardType }
@@ -266,7 +266,7 @@ private[dynamodb] object Codec {
 
     private def enumEncoder[A](annotations: Chunk[Any], cases: Schema.Case[_, A]*): Encoder[A] =
       if (isAlternateEnumCodec(annotations))
-        alternateEnumEncoder(discriminator(annotations), cases: _*)
+        alternateEnumEncoder(discriminatorWithDefault(annotations), cases: _*)
       else
         defaultEnumEncoder(cases: _*)
 
@@ -783,7 +783,7 @@ private[dynamodb] object Codec {
 
     private def enumDecoder[A](annotations: Chunk[Any], cases: Schema.Case[_, A]*): Decoder[A] =
       if (isAlternateEnumCodec(annotations))
-        alternateEnumDecoder(discriminator(annotations), cases: _*)
+        alternateEnumDecoder(discriminatorWithDefault(annotations), cases: _*)
       else
         defaultEnumDecoder(cases: _*)
 
@@ -882,23 +882,8 @@ private[dynamodb] object Codec {
         false
     }
 
-  private def discriminator(annotations: Chunk[Any]): String =
-    annotations.toList match {
-      case discriminator(name) :: _      =>
-        name
-      case _ :: discriminator(name) :: _ =>
-        name
-      case _                             =>
-        "discriminator"
-    }
-
-  private def maybeId(annotations: Chunk[Any]): Option[String] =
-    annotations.toList match {
-      case id(name) :: _ =>
-        Some(name)
-      case _             =>
-        None
-    }
+  private def discriminatorWithDefault(annotations: Chunk[Any]): String =
+    maybeDiscriminator(annotations).getOrElse("discriminator")
 
   private def isAlternateEnumCodec(annotations: Chunk[Any]): Boolean =
     annotations.exists {
