@@ -626,20 +626,26 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
 
     // respects @id annotation
     override def makeLens[S, A](product: Schema.Record[S], term: Schema.Field[A]): Lens[S, A] = {
-      val maybeId = term.annotations.collect { case id(name) => name }.headOption
+      val maybeId = term.annotations.collect {
+        case id(name) =>
+          name
+      }.headOption
 
       val label = maybeId.getOrElse(term.label)
       ProjectionExpression.MapElement(Root, label).asInstanceOf[Lens[S, A]]
     }
 
-    // respects @discriminator annotation
+    // respects @discriminator and @id (at class level) annotations
     override def makePrism[S, A](sum: Schema.Enum[S], term: Schema.Case[A, S]): Prism[S, A] = {
+      // TODO: extract maybeId function and use
       val maybeDiscriminator = sum.annotations.collect { case discriminator(name) => name }.headOption
+      val maybeId            = term.annotations.collect { case id(name) => name }.headOption
+
       maybeDiscriminator match {
         case Some(_) =>
           ProjectionExpression.Root.asInstanceOf[Prism[S, A]]
         case None    =>
-          ProjectionExpression.MapElement(Root, term.id).asInstanceOf[Prism[S, A]]
+          ProjectionExpression.MapElement(Root, maybeId.getOrElse(term.id)).asInstanceOf[Prism[S, A]]
       }
 
     }

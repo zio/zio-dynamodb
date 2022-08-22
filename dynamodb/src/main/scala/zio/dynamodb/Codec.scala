@@ -277,7 +277,8 @@ private[dynamodb] object Codec {
           val case_ = cases(fieldIndex)
           val enc   = encoder(case_.codec.asInstanceOf[Schema[Any]])
           val av    = enc(a)
-          AttributeValue.Map(Map.empty + (AttributeValue.String(case_.id) -> av))
+          val id    = maybeId(case_.annotations).getOrElse(case_.id)
+          AttributeValue.Map(Map.empty + (AttributeValue.String(id) -> av))
         } else
           AttributeValue.Null
       }
@@ -794,7 +795,9 @@ private[dynamodb] object Codec {
             // TODO: think about being stricter and rejecting Maps with > 1 entry ???
             map.toList.headOption.fold[Either[String, A]](Left(s"map $av is empty")) {
               case (AttributeValue.String(subtype), av) =>
-                cases.find(_.id == subtype) match {
+                cases.find { c =>
+                  maybeId(c.annotations).fold(c.id == subtype)(_ == subtype)
+                } match {
                   case Some(c) =>
                     decoder(c.codec)(av).map(_.asInstanceOf[A])
                   case None    =>

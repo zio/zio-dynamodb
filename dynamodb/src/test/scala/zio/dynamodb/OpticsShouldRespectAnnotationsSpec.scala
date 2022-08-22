@@ -1,7 +1,6 @@
 package zio.dynamodb
 
 import zio.dynamodb.Annotations.{ discriminator, id }
-import zio.test.TestAspect
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test.Assertion.equalTo
 import zio.test.{ assert, DefaultRunnableSpec, ZSpec }
@@ -30,15 +29,15 @@ object OpticsShouldRespectAnnotationsSpec extends DefaultRunnableSpec {
       val rgb             = ProjectionExpression.accessors[Green]
     }
 
+    @id("red_traffic_light")
     final case class Red(rgb: Int) extends TrafficLight
 
-    @id("red_traffic_light")
     object Red {
       implicit val schema = DeriveSchema.gen[Red]
       val rgb             = ProjectionExpression.accessors[Red]
     }
 
-    final case class Amber( /*@id("red_green_blue")*/ rgb: Int) extends TrafficLight
+    final case class Amber(@id("red_green_blue") rgb: Int) extends TrafficLight
 
     object Amber {
       implicit val schema = DeriveSchema.gen[Amber]
@@ -117,6 +116,7 @@ object OpticsShouldRespectAnnotationsSpec extends DefaultRunnableSpec {
     val conditionExpressionSuite =
       suite("ConditionExpression suite")(
         test("TrafficLight.Box.trafficLightColour >>> TrafficLight.red >>> TrafficLight.Red.rgb === 1") {
+          // Map(String(rgb) -> Number(42), String(light_type) -> String(red_traffic_light))
           val ce =
             TrafficLightDiscriminated.Box.trafficLightColour >>> TrafficLightDiscriminated.red >>> TrafficLightDiscriminated.Red.rgb === 1
           assert(ce.toString)(
@@ -127,18 +127,19 @@ object OpticsShouldRespectAnnotationsSpec extends DefaultRunnableSpec {
 
     suite("with @discriminated annotation")(
       test("composition using >>> should bypass intermediate Map") {
+        // Map(String(rgb) -> Number(42), String(light_type) -> String(Green))
+        val pe =
+          TrafficLightDiscriminated.Box.trafficLightColour >>> TrafficLightDiscriminated.green >>> TrafficLightDiscriminated.Green.rgb
+        assert(pe.toString)(equalTo("trafficLightColour.rgb"))
+      },
+      test("@id annotations at class level do not affect traversal as they are bypassed") {
+        // Map(String(rgb) -> Number(42), String(light_type) -> String(red_traffic_light))
         val pe =
           TrafficLightDiscriminated.Box.trafficLightColour >>> TrafficLightDiscriminated.red >>> TrafficLightDiscriminated.Red.rgb
         assert(pe.toString)(equalTo("trafficLightColour.rgb"))
       },
-      test("@id annotations at class level are ignored as they do not affect traversal") { // TODO
-        // Map(String(rgb) -> Number(42), String(light_type) -> String(red_traffic_light)) // looks this this is never surfaced using RO API
-        val pe =
-          TrafficLightDiscriminated.Box.trafficLightColour >>> TrafficLightDiscriminated.red
-        assert(pe.toString)(equalTo("rgb"))
-      } @@ TestAspect.ignore,
       test("@id annotations at field level are honoured") {
-        // Map(String(rgb) -> Number(42), String(light_type) -> String(red_traffic_light))
+        // Map(String(rgb) -> Number(42), String(light_type) -> String(Amber))
         val pe =
           TrafficLightDiscriminated.Box.trafficLightColour >>> TrafficLightDiscriminated.amber >>> TrafficLightDiscriminated.Amber.rgb
         assert(pe.toString)(equalTo("trafficLightColour.red_green_blue"))
@@ -150,28 +151,29 @@ object OpticsShouldRespectAnnotationsSpec extends DefaultRunnableSpec {
   val nonDiscriminatedSuite = {
     val conditionExpressionSuite =
       suite("ConditionExpression suite")(
-        test("TrafficLight.Box.trafficLightColour >>> TrafficLight.red >>> TrafficLight.Red.rgb === 1") {
-          val ce = TrafficLight.Box.trafficLightColour >>> TrafficLight.red >>> TrafficLight.Red.rgb === 1
+        test("TrafficLight.Box.trafficLightColour >>> TrafficLight.green >>> TrafficLight.Green.rgb === 1") {
+          val ce = TrafficLight.Box.trafficLightColour >>> TrafficLight.green >>> TrafficLight.Green.rgb === 1
           assert(ce.toString)(
-            equalTo("Equals(ProjectionExpressionOperand(trafficLightColour.Red.rgb),ValueOperand(Number(1)))")
+            equalTo("Equals(ProjectionExpressionOperand(trafficLightColour.Green.rgb),ValueOperand(Number(1)))")
           )
         }
       )
 
     suite("without @discriminated annotation")(
       test("composition using >>> should use intermediate Map") {
-        val pe = TrafficLight.Box.trafficLightColour >>> TrafficLight.red >>> TrafficLight.Red.rgb
-        assert(pe.toString)(equalTo("trafficLightColour.Red.rgb"))
+        val pe = TrafficLight.Box.trafficLightColour >>> TrafficLight.green >>> TrafficLight.Green.rgb
+        assert(pe.toString)(equalTo("trafficLightColour.Green.rgb"))
       },
-      test("@id annotations at class level are ignored as they do not affect traversal") {
-        // Map(String(rgb) -> Number(42), String(light_type) -> String(red_traffic_light))
-        assert(TrafficLightDiscriminated.Red.rgb.toString)(equalTo("rgb"))
+      test("@id annotations at class level are honoured") {
+        // Map(trafficLightColour -> Map(String(red_traffic_light) -> Map(String(rgb) -> Number(42))))
+        val pe =
+          TrafficLight.Box.trafficLightColour >>> TrafficLight.red >>> TrafficLight.Red.rgb
+        assert(pe.toString)(equalTo("trafficLightColour.red_traffic_light.rgb"))
       },
       test("@id annotations at field level are honoured") {
-        // Map(String(rgb) -> Number(42), String(light_type) -> String(red_traffic_light))
         val pe =
-          TrafficLightDiscriminated.Box.trafficLightColour >>> TrafficLightDiscriminated.amber >>> TrafficLightDiscriminated.Amber.rgb
-        assert(pe.toString)(equalTo("trafficLightColour.red_green_blue"))
+          TrafficLight.Box.trafficLightColour >>> TrafficLight.amber >>> TrafficLight.Amber.rgb
+        assert(pe.toString)(equalTo("trafficLightColour.Amber.red_green_blue"))
       },
       conditionExpressionSuite
     )
