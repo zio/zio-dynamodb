@@ -430,8 +430,6 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
 
   type Untyped = ProjectionExpression[_, _]
 
-//  type Typed[From0, To0] = ProjectionExpression[From0, To0]
-
   /*
   PHASE1 - capturing info we have and making it available in a PE
   we going to add a Meta to every PE eg when you generate something using $ -> lens
