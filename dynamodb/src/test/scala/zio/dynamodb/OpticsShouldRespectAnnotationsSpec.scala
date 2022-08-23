@@ -53,7 +53,6 @@ object OpticsShouldRespectAnnotationsSpec extends DefaultRunnableSpec {
 
     implicit val schema = DeriveSchema.gen[TrafficLight]
 
-    // PROBLEM: zio-schema SORTS sum type members alphabetically, NOT in the order they are defined
     val (amber, green, red) = ProjectionExpression.accessors[TrafficLight]
 
   }
@@ -92,22 +91,9 @@ object OpticsShouldRespectAnnotationsSpec extends DefaultRunnableSpec {
     }
 
     implicit val schema     = DeriveSchema.gen[TrafficLightDiscriminated]
-    // PROBLEM 1: zio-schema SORTS sum type members alphabetically, NOT in the order they are defined
     val (amber, green, red) = ProjectionExpression.accessors[TrafficLightDiscriminated]
 
   }
-
-  /*
-  TEST CASES
-  - nested
-    - with/without @discriminator
-      - @id field level
-      - @id at class level
-  - non nested
-    - with/without @discriminator
-      - @id field level
-      - @id at class level
-   */
 
   override def spec: ZSpec[Environment, Failure] =
     suite("OpticsShouldRespectAnnotationsSpec")(nonDiscriminatedSuite, discriminatedSuite)
