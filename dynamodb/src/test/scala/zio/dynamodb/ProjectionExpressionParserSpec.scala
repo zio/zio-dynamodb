@@ -9,23 +9,25 @@ import scala.annotation.tailrec
 
 object ProjectionExpressionParserSpec extends DefaultRunnableSpec {
   object Generators {
-    private val maxFields                                                                                          = 20
-    private val validCharGens                                                                                      = List(Gen.const('_'), Gen.char('a', 'z'), Gen.char('A', 'Z'), Gen.char('0', '9'))
-    private def fieldName                                                                                          = Gen.stringBounded(0, 10)(Gen.oneOf(validCharGens: _*))
-    private def index                                                                                              = Gen.int(0, 10)
-    private def root: Gen[Random with Sized, ProjectionExpression[_]]                                              =
+    private val maxFields                                                = 20
+    private val validCharGens                                            = List(Gen.const('_'), Gen.char('a', 'z'), Gen.char('A', 'Z'), Gen.char('0', '9'))
+    private def fieldName                                                = Gen.stringBounded(0, 10)(Gen.oneOf(validCharGens: _*))
+    private def index                                                    = Gen.int(0, 10)
+    private def root: Gen[Random with Sized, ProjectionExpression[_, _]] =
       fieldName.map(ProjectionExpression.MapElement(Root, _))
-    private def mapElement(parent: => ProjectionExpression[_])                                                     = fieldName.map(MapElement(parent, _))
-    private def listElement(parent: => ProjectionExpression[_])                                                    = index.map(ListElement(parent, _))
-    private def mapOrListElement(parent: ProjectionExpression[_]): Gen[Random with Sized, ProjectionExpression[_]] =
+    private def mapElement(parent: => ProjectionExpression[_, _])        = fieldName.map(MapElement(parent, _))
+    private def listElement(parent: => ProjectionExpression[_, _])       = index.map(ListElement(parent, _))
+    private def mapOrListElement(
+      parent: ProjectionExpression[_, _]
+    ): Gen[Random with Sized, ProjectionExpression[_, _]]                =
       Gen.oneOf(mapElement(parent), listElement(parent))
 
-    def projectionExpression: Gen[Random with Sized, ProjectionExpression[_]] = {
+    def projectionExpression: Gen[Random with Sized, ProjectionExpression[_, _]] = {
       @tailrec
       def loop(
-        parentGen: Gen[Random with Sized, ProjectionExpression[_]],
+        parentGen: Gen[Random with Sized, ProjectionExpression[_, _]],
         counter: Int
-      ): Gen[Random with Sized, ProjectionExpression[_]] =
+      ): Gen[Random with Sized, ProjectionExpression[_, _]] =
         if (counter == 0)
           parentGen
         else
@@ -97,7 +99,7 @@ object ProjectionExpressionParserSpec extends DefaultRunnableSpec {
     )
 
   @tailrec
-  private def anyEmptyName(pe: ProjectionExpression[_]): Boolean =
+  private def anyEmptyName(pe: ProjectionExpression[_, _]): Boolean =
     pe match {
       case Root                                        =>
         throw new IllegalStateException(s"$pe is a Root, this should never happen")

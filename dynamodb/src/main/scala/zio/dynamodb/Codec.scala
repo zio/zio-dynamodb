@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.Annotations.{ discriminator, enumOfCaseObjects, id }
+import zio.dynamodb.Annotations.{ discriminator, enumOfCaseObjects, id, maybeDiscriminator, maybeId }
 import zio.schema.Schema.{ Optional, Primitive, Transform }
 import zio.schema.ast.SchemaAst
 import zio.schema.{ FieldSet, Schema, StandardType }
@@ -265,8 +265,8 @@ private[dynamodb] object Codec {
       (col: Col) => AttributeValue.List(from(col).map(encoder))
 
     private def enumEncoder[A](annotations: Chunk[Any], cases: Schema.Case[_, A]*): Encoder[A] =
-      if (isAlternateEnumCodec(annotations))
-        alternateEnumEncoder(discriminator(annotations), cases: _*)
+      if (isEnumWithDiscriminatorOrCaseObjectAnnotationCodec(annotations))
+        enumWithDiscriminatorOrCaseObjectAnnotationEncoder(discriminatorWithDefault(annotations), cases: _*)
       else
         defaultEnumEncoder(cases: _*)
 
@@ -277,12 +277,16 @@ private[dynamodb] object Codec {
           val case_ = cases(fieldIndex)
           val enc   = encoder(case_.codec.asInstanceOf[Schema[Any]])
           val av    = enc(a)
-          AttributeValue.Map(Map.empty + (AttributeValue.String(case_.id) -> av))
+          val id    = maybeId(case_.annotations).getOrElse(case_.id)
+          AttributeValue.Map(Map.empty + (AttributeValue.String(id) -> av))
         } else
           AttributeValue.Null
       }
 
-    private def alternateEnumEncoder[A](discriminator: String, cases: Schema.Case[_, A]*): Encoder[A] =
+    private def enumWithDiscriminatorOrCaseObjectAnnotationEncoder[A](
+      discriminator: String,
+      cases: Schema.Case[_, A]*
+    ): Encoder[A] =
       (a: A) => {
         val fieldIndex = cases.indexWhere(c => c.deconstruct(a).isDefined)
         if (fieldIndex > -1) {
@@ -781,8 +785,8 @@ private[dynamodb] object Codec {
       }
 
     private def enumDecoder[A](annotations: Chunk[Any], cases: Schema.Case[_, A]*): Decoder[A] =
-      if (isAlternateEnumCodec(annotations))
-        alternateEnumDecoder(discriminator(annotations), cases: _*)
+      if (isEnumWithDiscriminatorOrCaseObjectAnnotationCodec(annotations))
+        enumWithDisciminatorOrCaseObjectAnnotationDecoder(discriminatorWithDefault(annotations), cases: _*)
       else
         defaultEnumDecoder(cases: _*)
 
@@ -794,7 +798,9 @@ private[dynamodb] object Codec {
             // TODO: think about being stricter and rejecting Maps with > 1 entry ???
             map.toList.headOption.fold[Either[String, A]](Left(s"map $av is empty")) {
               case (AttributeValue.String(subtype), av) =>
-                cases.find(_.id == subtype) match {
+                cases.find { c =>
+                  maybeId(c.annotations).fold(c.id == subtype)(_ == subtype)
+                } match {
                   case Some(c) =>
                     decoder(c.codec)(av).map(_.asInstanceOf[A])
                   case None    =>
@@ -805,36 +811,38 @@ private[dynamodb] object Codec {
             Left(s"invalid AttributeValue $av")
         }
 
-    private def alternateEnumDecoder[A](discriminator: String, cases: Schema.Case[_, A]*): Decoder[A] = {
-      (av: AttributeValue) =>
-        def findCase(value: String): Either[String, Schema.Case[_, A]] =
-          cases.find {
-            case Schema.Case(_, _, _, Chunk(id(const))) => const == value
-            case Schema.Case(id, _, _, _)               => id == value
-          }.toRight(s"type name '$value' not found in schema cases")
+    private def enumWithDisciminatorOrCaseObjectAnnotationDecoder[A](
+      discriminator: String,
+      cases: Schema.Case[_, A]*
+    ): Decoder[A] = { (av: AttributeValue) =>
+      def findCase(value: String): Either[String, Schema.Case[_, A]] =
+        cases.find {
+          case Schema.Case(_, _, _, Chunk(id(const))) => const == value
+          case Schema.Case(id, _, _, _)               => id == value
+        }.toRight(s"type name '$value' not found in schema cases")
 
-        def decode(id: String): Either[String, A] =
-          findCase(id).flatMap { c =>
-            val dec = decoder(c.codec)
-            dec(av).map(_.asInstanceOf[A])
-          }
-
-        av match {
-          case AttributeValue.String(id) =>
-            if (allCaseObjects(cases))
-              decode(id)
-            else
-              Left(s"Error: not all enumeration elements are case objects. Found $cases")
-          case AttributeValue.Map(map)   =>
-            map
-              .get(AttributeValue.String(discriminator))
-              .fold[Either[String, A]](Left(s"map $av does not contain discriminator field '$discriminator'")) {
-                case AttributeValue.String(typeName) =>
-                  decode(typeName)
-                case av                              => Left(s"expected string type but found $av")
-              }
-          case _                         => Left(s"unexpected AttributeValue type $av")
+      def decode(id: String): Either[String, A] =
+        findCase(id).flatMap { c =>
+          val dec = decoder(c.codec)
+          dec(av).map(_.asInstanceOf[A])
         }
+
+      av match {
+        case AttributeValue.String(id) =>
+          if (allCaseObjects(cases))
+            decode(id)
+          else
+            Left(s"Error: not all enumeration elements are case objects. Found $cases")
+        case AttributeValue.Map(map)   =>
+          map
+            .get(AttributeValue.String(discriminator))
+            .fold[Either[String, A]](Left(s"map $av does not contain discriminator field '$discriminator'")) {
+              case AttributeValue.String(typeName) =>
+                decode(typeName)
+              case av                              => Left(s"expected string type but found $av")
+            }
+        case _                         => Left(s"unexpected AttributeValue type $av")
+      }
     }
 
     private[dynamodb] def decodeFields(av: AttributeValue, fields: Schema.Field[_]*): Either[String, List[Any]] =
@@ -879,25 +887,10 @@ private[dynamodb] object Codec {
         false
     }
 
-  private def discriminator(annotations: Chunk[Any]): String =
-    annotations.toList match {
-      case discriminator(name) :: _      =>
-        name
-      case _ :: discriminator(name) :: _ =>
-        name
-      case _                             =>
-        "discriminator"
-    }
+  private def discriminatorWithDefault(annotations: Chunk[Any]): String =
+    maybeDiscriminator(annotations).getOrElse("discriminator")
 
-  private def maybeId(annotations: Chunk[Any]): Option[String] =
-    annotations.toList match {
-      case id(name) :: _ =>
-        Some(name)
-      case _             =>
-        None
-    }
-
-  private def isAlternateEnumCodec(annotations: Chunk[Any]): Boolean =
+  private def isEnumWithDiscriminatorOrCaseObjectAnnotationCodec(annotations: Chunk[Any]): Boolean =
     annotations.exists {
       case discriminator(_) | enumOfCaseObjects() => true
       case _                                      => false

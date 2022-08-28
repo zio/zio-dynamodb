@@ -526,7 +526,7 @@ case object DynamoDBExecutorImpl {
         .toSet
 
     maybeProjectionExpressions
-      .map(a => TableGet(keySet, a.asInstanceOf[Set[ProjectionExpression[_]]]))
+      .map(a => TableGet(keySet, a.asInstanceOf[Set[ProjectionExpression[_, _]]]))
       .getOrElse(TableGet(keySet, Set.empty))
   }
 
@@ -781,7 +781,7 @@ case object DynamoDBExecutorImpl {
   }
 
   private[dynamodb] def awsProjectionExpression(
-    projectionExpressions: Iterable[ProjectionExpression[_]]
+    projectionExpressions: Iterable[ProjectionExpression[_, _]]
   ): String =
     projectionExpressions.mkString(", ")
 

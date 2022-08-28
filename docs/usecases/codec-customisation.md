@@ -31,14 +31,14 @@ The default encoding for `Box(GREEN)` is:
 Here an intermediate map is used to identify the member of `TraficLight` ie `Map(String(GREEN) -> Null)`
 Note that the `Null` is used as in this case we do not care about the value.
 
-# Alternate encodings
+# Customising encodings via annotations
 Encodings can be customised through the use of the following annotations `@discriminator`, `@enumOfCaseObjects` and `@id`.
 These annotations are useful when working with a legacy DynamoDB database.
 
-The alternate encodings do not introduce another map for the purposes of identification and this leads to a more compact
-encoding that may be more intuitive to work with.
+The `@discriminator` encodings does not introduce another map for the purposes of identification but rather adds another 
+discriminator field to the attribute Map.
 
-The advantage of the default encoding is that it is more uniform and scalable.
+Concrete examples of using the `@discriminator`, `@enumOfCaseObjects` and `@id` annotations can be seen below.
 
 ## Sealed trait members that are case classes
 
@@ -56,7 +56,7 @@ encoding for an instance of `Box(Green(42))` would be:
 
 `Map(trafficLightColour -> Map(String(rgb) -> Number(42), String(light_type) -> String(Green)))`
 
-We can specify the field name used to identify the case class through the `@discriminator` annotation. The alternate
+We can specify the field name used to identify the case class through the `@discriminator` annotation. The discriminator
 encoding removes the intermediate map and inserts a new field with a name specified by discriminator annotation and a
 value that identifies the member which defaults to the class name.
 

@@ -299,15 +299,15 @@ object ItemDecoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(WithCaseObjectOnlyEnum(WithCaseObjectOnlyEnum.TWO))))
     },
-    test("decodes enum and ignores @id annotation at case class level when there is no @discriminator annotation") {
-      val item: Item = Item("enum" -> Item(Map("ONE" -> AttributeValue.Null)))
+    test("decodes enum and honours @id annotation at case class level when there is no @discriminator annotation") {
+      val item: Item = Item("enum" -> Item(Map("1" -> AttributeValue.Null)))
 
       val actual = DynamoDBQuery.fromItem[WithEnumWithoutDiscriminator](item)
 
       assert(actual)(isRight(equalTo(WithEnumWithoutDiscriminator(WithEnumWithoutDiscriminator.ONE))))
     },
     test("decodes enum without @discriminator annotation and uses @id field level annotation") {
-      val item: Item = Item("enum" -> Item(Map("ONE" -> AttributeValue.Null)))
+      val item: Item = Item("enum" -> Item(Map("1" -> AttributeValue.Null)))
 
       val actual = DynamoDBQuery.fromItem[WithEnumWithoutDiscriminator](item)
 

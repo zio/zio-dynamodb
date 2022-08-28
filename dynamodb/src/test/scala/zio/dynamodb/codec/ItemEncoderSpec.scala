@@ -232,8 +232,8 @@ object ItemEncoderSpec extends DefaultRunnableSpec with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes enum and ignores @id annotation when there is no @enumOfCaseObjects annotation") {
-      val expectedItem: Item = Item("enum" -> Item(Map("ONE" -> AttributeValue.Null)))
+    test("encodes enum and honours @id annotation when there is no @enumOfCaseObjects annotation") {
+      val expectedItem: Item = Item("enum" -> Item(Map("1" -> AttributeValue.Null)))
 
       val item = DynamoDBQuery.toItem(WithEnumWithoutDiscriminator(WithEnumWithoutDiscriminator.ONE))
 

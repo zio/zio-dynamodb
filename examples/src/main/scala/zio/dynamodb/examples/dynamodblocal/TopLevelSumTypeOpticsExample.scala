@@ -6,7 +6,7 @@ import zio.dynamodb.{ DynamoDBQuery, ProjectionExpression }
 import zio.schema.DeriveSchema
 import zio.stream
 
-object TopLevelSumTypeOpticsExample {
+object TopLevelSumTypeOpticsExample extends App {
   sealed trait Invoice {
     def id: String
   }
@@ -30,6 +30,11 @@ object TopLevelSumTypeOpticsExample {
       val (id, sku, amount) = ProjectionExpression.accessors[BilledInvoice]
     }
 
+    final case class Box(invoice: Invoice)
+    object Box {
+      implicit val schema = DeriveSchema.gen[Box]
+      val invoice         = ProjectionExpression.accessors[Box]
+    }
   }
 
   def polymorphicQueryByExample(invoice: Invoice): DynamoDBQuery[stream.Stream[Throwable, Invoice]] =
@@ -48,4 +53,6 @@ object TopLevelSumTypeOpticsExample {
           )
     }
 
+  val x = polymorphicQueryByExample(BilledInvoice("1", "sku1", 0.1))
+  println(x)
 }
