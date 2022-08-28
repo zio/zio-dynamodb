@@ -7,24 +7,24 @@ import zio.schema.Schema
 sealed trait AttributeValue { self =>
   def decode[A](implicit schema: Schema[A]): Either[String, A] = Codec.decoder(schema)(self)
 
-  def ===(that: Operand.Size): ConditionExpression = Equals(ValueOperand(self), that)
-  def <>(that: Operand.Size): ConditionExpression  = NotEqual(ValueOperand(self), that)
-  def <(that: Operand.Size): ConditionExpression   = LessThan(ValueOperand(self), that)
-  def <=(that: Operand.Size): ConditionExpression  = LessThanOrEqual(ValueOperand(self), that)
-  def >(that: Operand.Size): ConditionExpression   = GreaterThanOrEqual(ValueOperand(self), that)
-  def >=(that: Operand.Size): ConditionExpression  = GreaterThanOrEqual(ValueOperand(self), that)
+  def ===(that: Operand.Size): ConditionExpression[_] = Equals(ValueOperand(self), that)
+  def <>(that: Operand.Size): ConditionExpression[_]  = NotEqual(ValueOperand(self), that)
+  def <(that: Operand.Size): ConditionExpression[_]   = LessThan(ValueOperand(self), that)
+  def <=(that: Operand.Size): ConditionExpression[_]  = LessThanOrEqual(ValueOperand(self), that)
+  def >(that: Operand.Size): ConditionExpression[_]   = GreaterThanOrEqual(ValueOperand(self), that)
+  def >=(that: Operand.Size): ConditionExpression[_]  = GreaterThanOrEqual(ValueOperand(self), that)
 
-  def ===(that: ProjectionExpression[_, _]): ConditionExpression =
+  def ===(that: ProjectionExpression[_, _]): ConditionExpression[_] =
     Equals(ValueOperand(self), ProjectionExpressionOperand(that))
-  def <>(that: ProjectionExpression[_, _]): ConditionExpression  =
+  def <>(that: ProjectionExpression[_, _]): ConditionExpression[_]  =
     NotEqual(ValueOperand(self), ProjectionExpressionOperand(that))
-  def <(that: ProjectionExpression[_, _]): ConditionExpression   =
+  def <(that: ProjectionExpression[_, _]): ConditionExpression[_]   =
     LessThan(ValueOperand(self), ProjectionExpressionOperand(that))
-  def <=(that: ProjectionExpression[_, _]): ConditionExpression  =
+  def <=(that: ProjectionExpression[_, _]): ConditionExpression[_]  =
     LessThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))
-  def >(that: ProjectionExpression[_, _]): ConditionExpression   =
+  def >(that: ProjectionExpression[_, _]): ConditionExpression[_]   =
     GreaterThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))
-  def >=(that: ProjectionExpression[_, _]): ConditionExpression  =
+  def >=(that: ProjectionExpression[_, _]): ConditionExpression[_]  =
     GreaterThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))
 }
 

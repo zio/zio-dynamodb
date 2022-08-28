@@ -135,7 +135,8 @@ sealed trait DynamoDBQuery[+A] { self =>
       case _                          => self
     }
 
-  def where(conditionExpression: ConditionExpression): DynamoDBQuery[A] =
+  // TODO: Avi - add type param A and pass to ConditionExpression
+  def where(conditionExpression: ConditionExpression[_]): DynamoDBQuery[A] =
     self match {
       case Zip(left, right, zippable) =>
         Zip(left.where(conditionExpression), right.where(conditionExpression), zippable)
@@ -179,7 +180,8 @@ sealed trait DynamoDBQuery[+A] { self =>
   /**
    * Filter a Scan or a Query
    */
-  def filter(filterExpression: FilterExpression): DynamoDBQuery[A] =
+  // TODO: Avi - add type param A and pass to ConditionExpression
+  def filter(filterExpression: FilterExpression[_]): DynamoDBQuery[A] =
     self match {
       case Zip(left, right, zippable) => Zip(left.filter(filterExpression), right.filter(filterExpression), zippable)
       case Map(query, mapper)         => Map(query.filter(filterExpression), mapper)
@@ -313,7 +315,8 @@ sealed trait DynamoDBQuery[+A] { self =>
    * val newQuery = query.whereKey(email === "avi@gmail.com" && subject === "maths")
    * }}}
    */
-  def whereKey(conditionExpression: ConditionExpression): DynamoDBQuery[A] = {
+  // TODO: Avi - add type param A and pass to ConditionExpression
+  def whereKey(conditionExpression: ConditionExpression[_]): DynamoDBQuery[A] = {
     val keyConditionExpression: KeyConditionExpression =
       KeyConditionExpression.fromConditionExpressionUnsafe(conditionExpression)
     self match {
@@ -571,7 +574,7 @@ object DynamoDBQuery {
   def conditionCheck(
     tableName: TableName,
     primaryKey: PrimaryKey,
-    conditionExpression: ConditionExpression
+    conditionExpression: ConditionExpression[_]
   ): ConditionCheck =
     ConditionCheck(
       tableName,
@@ -758,7 +761,7 @@ object DynamoDBQuery {
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
       None,                                                     // allows client to control start position - eg for client managed paging
-    filterExpression: Option[FilterExpression] = None,
+    filterExpression: Option[FilterExpression[_]] = None,
     projections: List[ProjectionExpression[_, _]] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None                               // if ProjectExpression supplied then only valid value is SpecificAttributes
@@ -771,7 +774,7 @@ object DynamoDBQuery {
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
       None,                                                     // allows client to control start position - eg for client managed paging
-    filterExpression: Option[FilterExpression] = None,
+    filterExpression: Option[FilterExpression[_]] = None,
     keyConditionExpression: Option[KeyConditionExpression] = None,
     projections: List[ProjectionExpression[_, _]] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
@@ -786,7 +789,7 @@ object DynamoDBQuery {
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
       None,                                                     // allows client to control start position - eg for client managed paging
-    filterExpression: Option[FilterExpression] = None,
+    filterExpression: Option[FilterExpression[_]] = None,
     projections: List[ProjectionExpression[_, _]] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None,                              // if ProjectExpression supplied then only valid value is SpecificAttributes
@@ -804,7 +807,7 @@ object DynamoDBQuery {
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
       None,                                                     // allows client to control start position - eg for client managed paging
-    filterExpression: Option[FilterExpression] = None,
+    filterExpression: Option[FilterExpression[_]] = None,
     keyConditionExpression: Option[KeyConditionExpression] = None,
     projections: List[ProjectionExpression[_, _]] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
@@ -815,7 +818,7 @@ object DynamoDBQuery {
   private[dynamodb] final case class PutItem(
     tableName: TableName,
     item: Item,
-    conditionExpression: Option[ConditionExpression] = None,
+    conditionExpression: Option[ConditionExpression[_]] = None,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues = ReturnValues.None // PutItem does not recognize any values other than NONE or ALL_OLD.
@@ -825,7 +828,7 @@ object DynamoDBQuery {
     tableName: TableName,
     key: PrimaryKey,
     updateExpression: UpdateExpression,
-    conditionExpression: Option[ConditionExpression] = None,
+    conditionExpression: Option[ConditionExpression[_]] = None,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues = ReturnValues.None
@@ -834,13 +837,13 @@ object DynamoDBQuery {
   private[dynamodb] final case class ConditionCheck(
     tableName: TableName,
     primaryKey: PrimaryKey,
-    conditionExpression: ConditionExpression
+    conditionExpression: ConditionExpression[_]
   ) extends Constructor[Unit]
 
   private[dynamodb] final case class DeleteItem(
     tableName: TableName,
     key: PrimaryKey,
-    conditionExpression: Option[ConditionExpression] = None,
+    conditionExpression: Option[ConditionExpression[_]] = None,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues =
