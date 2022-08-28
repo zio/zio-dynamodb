@@ -265,8 +265,8 @@ private[dynamodb] object Codec {
       (col: Col) => AttributeValue.List(from(col).map(encoder))
 
     private def enumEncoder[A](annotations: Chunk[Any], cases: Schema.Case[_, A]*): Encoder[A] =
-      if (isEnumWithDiscriminatorOrCaseObjectAnnotationsCodec(annotations))
-        enumWithDiscriminatorOrCaseObjectAnnotationsEncoder(discriminatorWithDefault(annotations), cases: _*)
+      if (isEnumWithDiscriminatorOrCaseObjectAnnotationCodec(annotations))
+        enumWithDiscriminatorOrCaseObjectAnnotationEncoder(discriminatorWithDefault(annotations), cases: _*)
       else
         defaultEnumEncoder(cases: _*)
 
@@ -283,7 +283,7 @@ private[dynamodb] object Codec {
           AttributeValue.Null
       }
 
-    private def enumWithDiscriminatorOrCaseObjectAnnotationsEncoder[A](
+    private def enumWithDiscriminatorOrCaseObjectAnnotationEncoder[A](
       discriminator: String,
       cases: Schema.Case[_, A]*
     ): Encoder[A] =
@@ -785,8 +785,8 @@ private[dynamodb] object Codec {
       }
 
     private def enumDecoder[A](annotations: Chunk[Any], cases: Schema.Case[_, A]*): Decoder[A] =
-      if (isEnumWithDiscriminatorOrCaseObjectAnnotationsCodec(annotations))
-        enumWithDisciminatorOrCaseObjectAnnotationsDecoder(discriminatorWithDefault(annotations), cases: _*)
+      if (isEnumWithDiscriminatorOrCaseObjectAnnotationCodec(annotations))
+        enumWithDisciminatorOrCaseObjectAnnotationDecoder(discriminatorWithDefault(annotations), cases: _*)
       else
         defaultEnumDecoder(cases: _*)
 
@@ -811,7 +811,7 @@ private[dynamodb] object Codec {
             Left(s"invalid AttributeValue $av")
         }
 
-    private def enumWithDisciminatorOrCaseObjectAnnotationsDecoder[A](
+    private def enumWithDisciminatorOrCaseObjectAnnotationDecoder[A](
       discriminator: String,
       cases: Schema.Case[_, A]*
     ): Decoder[A] = { (av: AttributeValue) =>
@@ -890,7 +890,7 @@ private[dynamodb] object Codec {
   private def discriminatorWithDefault(annotations: Chunk[Any]): String =
     maybeDiscriminator(annotations).getOrElse("discriminator")
 
-  private def isEnumWithDiscriminatorOrCaseObjectAnnotationsCodec(annotations: Chunk[Any]): Boolean =
+  private def isEnumWithDiscriminatorOrCaseObjectAnnotationCodec(annotations: Chunk[Any]): Boolean =
     annotations.exists {
       case discriminator(_) | enumOfCaseObjects() => true
       case _                                      => false
