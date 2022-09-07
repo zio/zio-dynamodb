@@ -1,7 +1,5 @@
 ---
 id: usecases_index
-title: "Contents"
+title: "Use Cases"
 ---
 
-[Codec Cusomisation](./codec-customisation.md)
-[Transactions](./transactions.md)

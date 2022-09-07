@@ -1,6 +1,6 @@
 ---
 id: about_contributing
-title:  "ZIO-Dynamodb Contributor Guidelines"
+title:  "ZIO-DynamoDB Contributor Guidelines"
 ---
 
 Thank you for your interest in contributing to ZIO-DynamoDB, which is a small, zero-dependency library for doing type-safe, composable concurrent and asynchronous programming!
@@ -31,7 +31,7 @@ To clone your forked repository, first make sure you have installed [Git](https:
 git clone git@github.com:your-user-name/zio-dynamodb.git .
 ```
 
-If these steps were successful, then congratulations, you now have a complete copy of the ZIO DynamoDB project!
+If these steps were successful, then congratulations, you now have a complete copy of the ZIO-DynamoDB project!
 
 The next step is to build the project on your machine, to ensure you know how to compile the project and run tests.
 

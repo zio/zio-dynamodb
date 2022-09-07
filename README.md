@@ -66,7 +66,7 @@ and [StudentZioDynamoDbExample](examples/src/main/scala/zio/dynamodb/examples/dy
 
 Under the hood we use the excellent [ZIO AWS](https://github.com/zio/zio-aws) library for type-safe DynamoDB access, and
 the awesome [ZIO Schema](https://github.com/zio/zio-schema) library for schema derived codecs (see here for documentation
-on how to [customise these through annotations](docs/usecases/codec-customisation.md)).
+on how to [customise these through annotations](docs/usecases/codec_customisation.md)).
 
 Microsite content to come soon.
 

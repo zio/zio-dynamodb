@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: ['initial-docs']
+  release:
+    types:
+      - published
+
+jobs:
+  mdoc:
+    runs-on: ubuntu-20.04
+    timeout-minutes: 30
+    if: github.ref == 'refs/heads/initial-docs'
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v2.4.0
+      - name: Setup Scala and Java
+        uses: olafurpg/setup-scala@v13
+      - name: Setup GPG
+        uses: olafurpg/setup-gpg@v3
+      - name: Cache scala dependencies
+        uses: coursier/cache-action@v6
+      - name: Check Document Generation
+        run: ./sbt docs/docusaurusCreateSite
+      - name: Publish docs to Github
+        run: ./sbt docs/docusaurusPublishGhpages
+        env:
+          GIT_DEPLOY_KEY: ${{ secrets.GIT_DEPLOY_KEY }}

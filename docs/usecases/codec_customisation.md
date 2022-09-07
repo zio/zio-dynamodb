@@ -1,3 +1,8 @@
+---
+id: usecases_codec_customisation
+title: "Codec Customisation"
+---
+
 # Default encoding
 
 ## Sealed trait members that are case classes

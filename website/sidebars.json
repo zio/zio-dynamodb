@@ -1,18 +1,14 @@
 {
   "overview-sidebar": {
     "Overview": [
-      "overview/overview_index",
-      "overview/overview_basics",
-      "overview/overview_supervision",
-      "overview/overview_remoting",
-      "overview/overview_persistence",
-      "overview/overview_akkainterop"
+      "overview/overview_index"
     ]
   },
   "usecases-sidebar": {
     "Use Cases": [
       "usecases/usecases_index",
-      "usecases/usecases_pingpong"
+      "usecases/codec-customisation",
+      "usecases/transactions"
     ]
   },
   "about-sidebar": {
