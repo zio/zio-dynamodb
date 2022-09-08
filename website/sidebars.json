@@ -8,6 +8,7 @@
     "Use Cases": [
       "usecases/usecases_index",
       "usecases/transactions_index",
+      "usecases/usecases_transactions",
       "usecases/transactions"
     ]
   },
