@@ -107,7 +107,7 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
         UpdateExpression.SetOperand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(a))
       )
 
-    def set(pe: ProjectionExpression[_, To]): UpdateExpression.Action.SetAction =
+    def set(pe: ProjectionExpression[From, To]): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(self, PathOperand(pe))
 
     /**
@@ -151,17 +151,19 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
       )
 
     // TODO: Avi - what type to pass to ConditionExpression?
-    def between(minValue: To, maxValue: To): ConditionExpression[_] =
+    def between(minValue: To, maxValue: To): ConditionExpression[From] =
       ConditionExpression.Operand
         .ProjectionExpressionOperand(self)
         .between(
           implicitly[ToAttributeValue[To]].toAttributeValue(minValue),
           implicitly[ToAttributeValue[To]].toAttributeValue(maxValue)
         )
+        .asInstanceOf[ConditionExpression[From]]
 
     /**
      * Remove all elements of parameter `set` from this set attribute
      */
+    // TODO: Avi - replace wildcard for Set[_]
     def deleteFromSet(set: To)(implicit ev: To <:< Set[_]): UpdateExpression.Action.DeleteAction = {
       val _ = ev
       UpdateExpression.Action.DeleteAction(self, implicitly[ToAttributeValue[To]].toAttributeValue(set))
@@ -184,7 +186,7 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
     /**
      * Applies to a String or Set
      */
-    def contains[A](av: A)(implicit ev: Containable[To, A], to: ToAttributeValue[A]): ConditionExpression[_] = {
+    def contains[A](av: A)(implicit ev: Containable[To, A], to: ToAttributeValue[A]): ConditionExpression[From] = {
       val _ = ev
       ConditionExpression.Contains(self, to.toAttributeValue(av))
     }
