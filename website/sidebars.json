@@ -7,7 +7,7 @@
   "usecases-sidebar": {
     "Use Cases": [
       "usecases/usecases_index",
-      "usecases/codec_customisation",
+      "usecases/transactions_index",
       "usecases/transactions"
     ]
   },
