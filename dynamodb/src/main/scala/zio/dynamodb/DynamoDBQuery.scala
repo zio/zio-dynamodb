@@ -26,6 +26,17 @@ import zio.schema.Schema
 import zio.stream.Stream
 import zio.{ Chunk, Has, NonEmptyChunk, Schedule, ZIO }
 
+sealed trait CanFilter[A, -B]
+// create lowPriorityCanFilter
+// prefer Stream one
+object CanFilter {
+  implicit def subtypeCanFilter[A, B](implicit ev: B <:< A): CanFilter[A, B] = new CanFilter[A, B] {}
+  implicit def subtypeStreamCanFilter[A, B](implicit ev: CanFilter[A, B]): CanFilter[A, Stream[Throwable, B]] = {
+    val _ = ev
+    new CanFilter[A, Stream[Throwable, B]] {}
+  }
+}
+
 sealed trait DynamoDBQuery[+A] { self =>
 
   final def <*[B](that: DynamoDBQuery[B]): DynamoDBQuery[A] = zipLeft(that)
@@ -179,18 +190,25 @@ sealed trait DynamoDBQuery[+A] { self =>
 
   /**
    * Filter a Scan or a Query
-   */
-  // TODO: Avi - add type param A and pass to ConditionExpression
-  def filter(filterExpression: FilterExpression[_]): DynamoDBQuery[A] =
+   */ // TODO: why do we have CanFilter[B, A] rather than CanFilter[A, B]? Isn't "A" the super type here eg DynamoDBQuery[Student] ?
+  def filter[B](filterExpression: FilterExpression[B])(implicit ev: CanFilter[B, A]): DynamoDBQuery[A] = {
+    val _ = ev
     self match {
-      case Zip(left, right, zippable) => Zip(left.filter(filterExpression), right.filter(filterExpression), zippable)
-      case Map(query, mapper)         => Map(query.filter(filterExpression), mapper)
-      case s: ScanSome                => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[A]]
-      case s: ScanAll                 => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[A]]
-      case s: QuerySome               => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[A]]
-      case s: QueryAll                => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[A]]
-      case _                          => self
+      case zip @ Zip(left, right, zippable) =>
+        Zip(
+          left.filter(filterExpression.asInstanceOf[FilterExpression[zip.Left]]),
+          right.filter(filterExpression.asInstanceOf[FilterExpression[zip.Right]]),
+          zippable
+        )
+      case map @ Map(query, mapper)         =>
+        Map(query.filter(filterExpression.asInstanceOf[FilterExpression[map.Old]]), mapper)
+      case s: ScanSome                      => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[A]]
+      case s: ScanAll                       => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[A]]
+      case s: QuerySome                     => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[A]]
+      case s: QueryAll                      => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[A]]
+      case _                                => self
     }
+  }
 
   /**
    * Parallel executes a DynamoDB Scan in parallel.
@@ -865,8 +883,13 @@ object DynamoDBQuery {
     left: DynamoDBQuery[A],
     right: DynamoDBQuery[B],
     zippable: Zippable.Out[A, B, C]
-  )                                                                                     extends DynamoDBQuery[C]
-  private[dynamodb] final case class Map[A, B](query: DynamoDBQuery[A], mapper: A => B) extends DynamoDBQuery[B]
+  )                                                                                     extends DynamoDBQuery[C] {
+    type Left  = A
+    type Right = B
+  }
+  private[dynamodb] final case class Map[A, B](query: DynamoDBQuery[A], mapper: A => B) extends DynamoDBQuery[B] {
+    type Old = A
+  }
 
   def apply[A](a: => A): DynamoDBQuery[A] = Succeed(() => a)
 

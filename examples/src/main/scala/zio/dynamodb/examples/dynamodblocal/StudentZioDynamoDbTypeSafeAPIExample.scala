@@ -163,7 +163,7 @@ object StudentZioDynamoDbTypeSafeAPIExample extends App {
                     )
                     .execute
     _          <- scanAll[Student]("student")
-                    .filter(payment.in(Payment.PayPal) && payment.inSet(Set(Payment.PayPal)))
+                    .filter[Student](payment.in(Payment.PayPal) && payment.inSet(Set(Payment.PayPal)))
                     .execute
                     .tap(_.tap(student => console.putStrLn(s"scanAll - student=$student")).runDrain)
   } yield ()

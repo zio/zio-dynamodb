@@ -27,6 +27,8 @@ sealed trait ProjectionExpression[-From, +To] { self =>
 
   def unsafeTo[To2]: ProjectionExpression[From, To2] = self.asInstanceOf[ProjectionExpression[From, To2]]
 
+  def unsafeFrom[From2]: ProjectionExpression[From2, To] = self.asInstanceOf[ProjectionExpression[From2, To]]
+
   def apply(index: Int): ProjectionExpression[_, _] = ProjectionExpression.ListElement(self, index)
 
   def apply(key: String): ProjectionExpression[_, _] = ProjectionExpression.MapElement(self, key)
@@ -98,7 +100,7 @@ sealed trait ProjectionExpression[-From, +To] { self =>
 
 trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowPriorityImplicits1 {
 
-  implicit class ProjectionExpressionSyntax0[To: ToAttributeValue](self: ProjectionExpression[_, To]) {
+  implicit class ProjectionExpressionSyntax0[From, To: ToAttributeValue](self: ProjectionExpression[From, To]) {
     def set(a: To): UpdateExpression.Action.SetAction =
       UpdateExpression.Action.SetAction(
         self,
@@ -165,16 +167,18 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
       UpdateExpression.Action.DeleteAction(self, implicitly[ToAttributeValue[To]].toAttributeValue(set))
     }
 
-    def inSet(values: Set[To]): ConditionExpression[_] =
+    def inSet(values: Set[To]): ConditionExpression[From] =
       ConditionExpression.Operand
         .ProjectionExpressionOperand(self)
         .in(values.map(implicitly[ToAttributeValue[To]].toAttributeValue))
+        .asInstanceOf[ConditionExpression[From]]
 
-    def in(value: To, values: To*): ConditionExpression[_] = {
+    def in(value: To, values: To*): ConditionExpression[From] = {
       val set: Set[To] = values.toSet + value
       ConditionExpression.Operand
         .ProjectionExpressionOperand(self)
         .in(set.map(implicitly[ToAttributeValue[To]].toAttributeValue))
+        .asInstanceOf[ConditionExpression[From]]
     }
 
     /**
@@ -203,67 +207,67 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
       UpdateExpression.Action.AddAction(self, implicitly[ToAttributeValue[To]].toAttributeValue(set.asInstanceOf[To]))
     }
 
-    def ===(that: To): ConditionExpression[_]                          =
+    def ===(that: To): ConditionExpression[From]                             =
       ConditionExpression.Equals(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(that))
       )
-    def ===(that: ProjectionExpression[_, To]): ConditionExpression[_] =
+    def ===(that: ProjectionExpression[From, To]): ConditionExpression[From] =
       ConditionExpression.Equals(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ProjectionExpressionOperand(that)
       )
 
-    def <>(that: To): ConditionExpression[_]                          =
+    def <>(that: To): ConditionExpression[From]                             =
       ConditionExpression.NotEqual(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(that))
       )
-    def <>(that: ProjectionExpression[_, To]): ConditionExpression[_] =
+    def <>(that: ProjectionExpression[From, To]): ConditionExpression[From] =
       ConditionExpression.NotEqual(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ProjectionExpressionOperand(that)
       )
 
-    def <(that: To): ConditionExpression[_]                          =
+    def <(that: To): ConditionExpression[From]                             =
       ConditionExpression.LessThan(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(that))
       )
-    def <(that: ProjectionExpression[_, To]): ConditionExpression[_] =
+    def <(that: ProjectionExpression[From, To]): ConditionExpression[From] =
       ConditionExpression.LessThan(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ProjectionExpressionOperand(that)
       )
 
-    def <=(that: To): ConditionExpression[_]                          =
+    def <=(that: To): ConditionExpression[From]                             =
       ConditionExpression.LessThanOrEqual(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(that))
       )
-    def <=(that: ProjectionExpression[_, To]): ConditionExpression[_] =
+    def <=(that: ProjectionExpression[From, To]): ConditionExpression[From] =
       ConditionExpression.LessThanOrEqual(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ProjectionExpressionOperand(that)
       )
 
-    def >(that: To): ConditionExpression[_]                          =
+    def >(that: To): ConditionExpression[From]                             =
       ConditionExpression.GreaterThan(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(that))
       )
-    def >(that: ProjectionExpression[_, To]): ConditionExpression[_] =
+    def >(that: ProjectionExpression[From, To]): ConditionExpression[From] =
       ConditionExpression.GreaterThan(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ProjectionExpressionOperand(that)
       )
 
-    def >=(that: To): ConditionExpression[_]                          =
+    def >=(that: To): ConditionExpression[From]                             =
       ConditionExpression.GreaterThanOrEqual(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(that))
       )
-    def >=(that: ProjectionExpression[_, To]): ConditionExpression[_] =
+    def >=(that: ProjectionExpression[From, To]): ConditionExpression[From] =
       ConditionExpression.GreaterThanOrEqual(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ProjectionExpressionOperand(that)
@@ -273,7 +277,7 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
 }
 
 trait ProjectionExpressionLowPriorityImplicits1 {
-  implicit class ProjectionExpressionSyntax1[To](self: ProjectionExpression[_, To]) {
+  implicit class ProjectionExpressionSyntax1[From, To](self: ProjectionExpression[From, To]) {
 
     /**
      * Modify or Add an item Attribute
@@ -673,9 +677,9 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
    * Unsafe version of `parse` that throws an exception rather than returning an Either
    * @see [[parse]]
    */
-  def $(s: String): ProjectionExpression[_, Unknown] =
+  def $(s: String): ProjectionExpression[Any, Unknown] =
     parse(s) match {
-      case Right(a)  => a.unsafeTo[Unknown]
+      case Right(a)  => a.unsafeFrom[Any].unsafeTo[Unknown]
       case Left(msg) => throw new IllegalStateException(msg)
     }
 

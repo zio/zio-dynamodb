@@ -12,7 +12,7 @@ import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb._
 import zio.dynamodb.examples.LocalDdbServer
 import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema }
-import zio.stream.ZStream
+import zio.stream.Stream
 import zio.{ console, App, ExitCode, Has, URIO, ZIO, ZLayer }
 
 import java.net.URI
@@ -46,8 +46,24 @@ object StudentZioDynamoDbExampleWithOptics extends App {
     address: Option[Address] = None
   )
   object Student extends DefaultJavaTimeSchemas {
-    implicit val schema                                    = DeriveSchema.gen[Student]
-    val (email, subject, enrollmentDate, payment, address) = ProjectionExpression.accessors[Student]
+    implicit val schema                                          = DeriveSchema.gen[Student]
+    val (email, subject, enrollmentDate, payment, address)       = ProjectionExpression.accessors[Student]
+    // TODO: Avi - confirm we have expected PE type
+    val expected: ProjectionExpression[Student, Option[Instant]] = enrollmentDate
+    println(expected)
+    val ce: FilterExpression[Student]                            = expected === Some(Instant.now)
+    val ceAnd: FilterExpression[Student]                         = expected === Some(Instant.now) && expected === Some(Instant.now)
+    val ceOr: FilterExpression[Student]                          = expected === Some(Instant.now) || expected === Some(Instant.now)
+    val ceNot: FilterExpression[Student]                         = !(expected === Some(Instant.now) && expected === Some(Instant.now))
+  }
+
+  final case class Elephant(
+    email: String,
+    subject: String
+  )
+  object Elephant {
+    implicit val schema  = DeriveSchema.gen[Elephant]
+    val (email, subject) = ProjectionExpression.accessors[Elephant]
   }
 
   private val awsConfig = ZLayer.succeed(
@@ -78,18 +94,36 @@ object StudentZioDynamoDbExampleWithOptics extends App {
     enrolDate2 <- ZIO.effect(Instant.parse("2022-03-20T01:39:33Z"))
     avi         = Student("avi@gmail.com", "maths", Some(enrolDate), Payment.DebitCard)
     adam        = Student("adam@gmail.com", "english", Some(enrolDate), Payment.CreditCard)
-    _          <- batchWriteFromStream(ZStream(avi, adam)) { student =>
+    _          <- batchWriteFromStream(Stream(avi, adam)) { student =>
                     put("student", student)
                   }.runDrain
     _          <- put("student", avi.copy(payment = Payment.CreditCard)).execute
-    _          <- batchReadFromStream("student", ZStream(avi, adam))(s => PrimaryKey("email" -> s.email, "subject" -> s.subject))
+    _          <- batchReadFromStream("student", Stream(avi, adam))(s => PrimaryKey("email" -> s.email, "subject" -> s.subject))
                     .tap(student => console.putStrLn(s"student=$student"))
                     .runDrain
-    _          <- scanAll[Student]("student").filter {
-                    enrollmentDate === Some(enrolDate) && payment === Payment.CreditCard
-                  }.execute.map(_.runCollect)
+    /*
+sealed trait CanFilter[A, -B]
+object CanFilter {
+  implicit def subtypeCanFilter[A, B](implicit ev: B <:< A): CanFilter[A, B]                          = new CanFilter[A, B] {}
+  implicit def subtypeStreamCanFilter[A, B](implicit ev: B <:< A): CanFilter[A, Stream[Throwable, B]] =
+    new CanFilter[A, Stream[Throwable, B]] {}
+}
+could not find implicit value for parameter ev: CanFilter[Option[java.time.Instant],zio.stream.ZStream[Any,Throwable, Student]]
+     */
+    _          <- scanAll[Student]("student")
+                    .filter[Student] {                     // [Stream[Throwable, Student]]
+                      // take a look at === and && and see why we do not get a ConditionExpression[Student]
+                      // could be that === && ops are not holding on to type information
+//                    (enrollmentDate === Some(enrolDate)) //: ConditionExpression[Option[Instant]]
+                      (enrollmentDate === Some(
+                        enrolDate
+                      ) && payment === Payment.CreditCard) //: ConditionExpression[Student]
+//                      Elephant.email === "elephant@gmail.com"
+                    }
+                    .execute
+                    .map(_.runCollect)
     _          <- queryAll[Student]("student")
-                    .filter(
+                    .filter( // [Stream[Throwable, Student]]
                       enrollmentDate === Some(enrolDate) && payment === Payment.CreditCard
                     )
                     .whereKey(email === "avi@gmail.com" && subject === "maths")
