@@ -3,11 +3,11 @@ id: usecases_index
 title: "Use Cases"
 ---
 
-# Codec Customisation
+## Codec Customisation
 
-## Default encoding
+### Default encoding
 
-### Sealed trait members that are case classes
+#### Sealed trait members that are case classes
 
 ```scala
 sealed trait TrafficLight
@@ -38,7 +38,7 @@ The default encoding for `Box(GREEN)` is:
 Here an intermediate map is used to identify the member of `TraficLight` ie `Map(String(GREEN) -> Null)`
 Note that the `Null` is used as in this case we do not care about the value.
 
-## Alternate encodings
+### Alternate encodings
 Encodings can be customised through the use of the following annotations `@discriminator`, `@enumOfCaseObjects` and `@id`.
 These annotations are useful when working with a legacy DynamoDB database.
 
@@ -47,7 +47,7 @@ encoding that may be more intuitive to work with.
 
 The advantage of the default encoding is that it is more uniform and scalable.
 
-### Sealed trait members that are case classes
+#### Sealed trait members that are case classes
 
 ```scala
 @discriminator("light_type")
@@ -76,7 +76,7 @@ The encoding for case class field names can also be customised via `@id` - encod
 `Map(trafficLightColour -> Map(String(red_green_blue) -> Number(42), String(light_type) -> String(Amber)))`
 
 
-### Sealed trait members that are all case objects
+#### Sealed trait members that are all case objects
 
 ```scala
 @enumOfCaseObjects
@@ -96,11 +96,10 @@ This can be further customised by using the `@id` annotation again - encoding fo
 
 `Map(trafficLightColour -> String(red_traffic_light))`
 
-# DynamoDB Transactions
+## DynamoDB Transactions
 
 Transactions are as simple as calling the `.transact` method on a `DynamoDBQuery`. As long as every component of the query is a valid transaction item and the `DyanmoDBQuery` does not have a mix of get and write transaction items. A list of valid items for both types of queries is listed below.
 
-## Examples
 
 ### Write Transactions
 ```scala
@@ -135,7 +134,7 @@ val putClasses = put("enrolledClass", maths101) zip put("enrolledClass", maths10
 val enrollAvi = (putAvi zip putClasses).transaction
 ```
 
-## Transaction Failures
+### Transaction Failures
 
 DynamoDBQueries using the `.transaction` method will fail at runtime if there are invalid transaction actions such as creating a table, scanning for items, or querying. The [DynamoDB documentation] has a limited number of actions that can be performed for either a read or a write transaction. There is a `.safeTransaction` method that is also available that will return `Either[Throwable, DynamoDBQuery[A]]`.
 
@@ -158,7 +157,7 @@ There are more examples in our [integration tests](../../dynamodb/src/it/scala/z
 
 ## Using Streams to Read or Write
 
-There are a pair of APIs to read or write large streams of data to/from DynamoDB. These APIs are provided to avoid exceeding the maximum limit of 25 items in batch get/write requests.
+There are a pair of APIs to read or write large streams of data to/from DynamoDB. These APIs are provided to avoid exceeding the maximum limit of 25 items in batch get/write requests. Zipping over 25 requests together into a single `BatchGetItem` will result in a runtime error from AWS. In the event that you need to make a large number of requests you should use these streaming methods which will group your requests into chunks of 25 items and batch those.
 
 ```scala
 final case class Person(id: Int, name: String)
