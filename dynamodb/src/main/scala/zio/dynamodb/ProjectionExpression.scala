@@ -36,9 +36,9 @@ sealed trait ProjectionExpression[-From, +To] { self =>
   // unary ConditionExpressions
 
   // applies to all types
-  def exists: ConditionExpression[_]    = ConditionExpression.AttributeExists(self)
+  def exists: ConditionExpression[From]    = ConditionExpression.AttributeExists(self)
   // applies to all types
-  def notExists: ConditionExpression[_] = ConditionExpression.AttributeNotExists(self)
+  def notExists: ConditionExpression[From] = ConditionExpression.AttributeNotExists(self)
   // Applies to all types except Number and Boolean
   def size(implicit ev: Sizable[To]): ConditionExpression.Operand.Size = {
     val _ = ev
@@ -54,24 +54,24 @@ sealed trait ProjectionExpression[-From, +To] { self =>
   }
 
   // apply to all types
-  def isBinary: ConditionExpression[_]    = isType(AttributeValueType.Binary)
-  def isNumber: ConditionExpression[_]    = isType(AttributeValueType.Number)
-  def isString: ConditionExpression[_]    = isType(AttributeValueType.String)
-  def isBool: ConditionExpression[_]      = isType(AttributeValueType.Bool)
-  def isBinarySet: ConditionExpression[_] = isType(AttributeValueType.BinarySet)
-  def isList: ConditionExpression[_]      = isType(AttributeValueType.List)
-  def isMap: ConditionExpression[_]       = isType(AttributeValueType.Map)
-  def isNumberSet: ConditionExpression[_] = isType(AttributeValueType.NumberSet)
-  def isNull: ConditionExpression[_]      = isType(AttributeValueType.Null)
-  def isStringSet: ConditionExpression[_] = isType(AttributeValueType.StringSet)
+  def isBinary: ConditionExpression[From]    = isType(AttributeValueType.Binary)
+  def isNumber: ConditionExpression[From]    = isType(AttributeValueType.Number)
+  def isString: ConditionExpression[From]    = isType(AttributeValueType.String)
+  def isBool: ConditionExpression[From]      = isType(AttributeValueType.Bool)
+  def isBinarySet: ConditionExpression[From] = isType(AttributeValueType.BinarySet)
+  def isList: ConditionExpression[From]      = isType(AttributeValueType.List)
+  def isMap: ConditionExpression[From]       = isType(AttributeValueType.Map)
+  def isNumberSet: ConditionExpression[From] = isType(AttributeValueType.NumberSet)
+  def isNull: ConditionExpression[From]      = isType(AttributeValueType.Null)
+  def isStringSet: ConditionExpression[From] = isType(AttributeValueType.StringSet)
 
-  private def isType(attributeType: AttributeValueType): ConditionExpression[_] = // TODO: private so move down
+  private def isType(attributeType: AttributeValueType): ConditionExpression[From] = // TODO: private so move down
     ConditionExpression.AttributeType(self, attributeType)
 
   /**
    * Only applies to a string attribute
    */
-  def beginsWith(av: String)(implicit ev: RefersTo[String, To]): ConditionExpression[_] = {
+  def beginsWith(av: String)(implicit ev: RefersTo[String, To]): ConditionExpression[From] = {
     val _ = ev
     ConditionExpression.BeginsWith(self, AttributeValue.String(av))
   }
