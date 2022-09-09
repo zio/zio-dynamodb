@@ -1,15 +1,17 @@
 {
   "overview-sidebar": {
     "Overview": [
-      "overview/overview_index"
+      "overview/overview_index",
+      "overview/overview_batching",
+      "overview/overview_parallelisation"
     ]
   },
   "usecases-sidebar": {
     "Use Cases": [
       "usecases/usecases_index",
-      "usecases/transactions_index",
       "usecases/usecases_transactions",
-      "usecases/transactions"
+      "usecases/usecases_codec_cusomisation",
+      "usecases/usecases_streams"
     ]
   },
   "about-sidebar": {
