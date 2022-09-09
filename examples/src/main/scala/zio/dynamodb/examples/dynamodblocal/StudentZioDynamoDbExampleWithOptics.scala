@@ -114,7 +114,6 @@ could not find implicit value for parameter ev: CanFilter[Option[java.time.Insta
                     .filter[Student] {                     // [Stream[Throwable, Student]]
                       // take a look at === and && and see why we do not get a ConditionExpression[Student]
                       // could be that === && ops are not holding on to type information
-//                    (enrollmentDate === Some(enrolDate)) //: ConditionExpression[Option[Instant]]
                       (enrollmentDate === Some(
                         enrolDate
                       ) && payment === Payment.CreditCard) //: ConditionExpression[Student]

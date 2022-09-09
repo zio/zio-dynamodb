@@ -378,13 +378,15 @@ trait ProjectionExpressionLowPriorityImplicits1 {
       UpdateExpression.Action.AddAction(self, implicitly[ToAttributeValue[To]].toAttributeValue(set))
     }
 
-    def ===[To: ToAttributeValue](that: To): ConditionExpression[_] =
+    def ===[To: ToAttributeValue](that: To): ConditionExpression[From] =
       ConditionExpression.Equals(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(that))
       )
 
-    def ===[To2](that: ProjectionExpression[_, To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression[_] = {
+    def ===[To2](
+      that: ProjectionExpression[_, To2]
+    )(implicit refersTo: RefersTo[To, To2]): ConditionExpression[From] = {
       val _ = refersTo
       ConditionExpression.Equals(
         ProjectionExpressionOperand(self),
@@ -393,35 +395,35 @@ trait ProjectionExpressionLowPriorityImplicits1 {
     }
 
     // TODO: think about using != instead
-    def <>[To2](that: ProjectionExpression[_, To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression[_] = {
+    def <>[To2](that: ProjectionExpression[_, To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression[From] = {
       val _ = refersTo
       ConditionExpression.NotEqual(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ProjectionExpressionOperand(that)
       )
     }
-    def <[To2](that: ProjectionExpression[_, To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression[_] = {
+    def <[To2](that: ProjectionExpression[_, To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression[From] = {
       val _ = refersTo
       ConditionExpression.LessThan(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ProjectionExpressionOperand(that)
       )
     }
-    def <=[To2](that: ProjectionExpression[_, To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression[_] = {
+    def <=[To2](that: ProjectionExpression[_, To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression[From] = {
       val _ = refersTo
       ConditionExpression.LessThanOrEqual(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ProjectionExpressionOperand(that)
       )
     }
-    def >[To2](that: ProjectionExpression[_, To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression[_] = {
+    def >[To2](that: ProjectionExpression[_, To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression[From] = {
       val _ = refersTo
       ConditionExpression.GreaterThan(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ProjectionExpressionOperand(that)
       )
     }
-    def >=[To2](that: ProjectionExpression[_, To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression[_] = {
+    def >=[To2](that: ProjectionExpression[_, To2])(implicit refersTo: RefersTo[To, To2]): ConditionExpression[From] = {
       val _ = refersTo
       ConditionExpression.GreaterThanOrEqual(
         ProjectionExpressionOperand(self),
