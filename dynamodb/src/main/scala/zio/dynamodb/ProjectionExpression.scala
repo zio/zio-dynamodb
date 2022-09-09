@@ -335,10 +335,11 @@ trait ProjectionExpressionLowPriorityImplicits1 {
         ListPrepend(self, AttributeValue.List(xs.map(a => implicitly[ToAttributeValue[To]].toAttributeValue(a))))
       )
 
-    def between[To](minValue: To, maxValue: To)(implicit to: ToAttributeValue[To]): ConditionExpression[_] =
+    def between[To](minValue: To, maxValue: To)(implicit to: ToAttributeValue[To]): ConditionExpression[From] =
       ConditionExpression.Operand
         .ProjectionExpressionOperand(self)
         .between(to.toAttributeValue(minValue), to.toAttributeValue(maxValue))
+        .asInstanceOf[ConditionExpression[From]]
 
     /**
      * Remove all elements of parameter "set" from this set
@@ -350,18 +351,24 @@ trait ProjectionExpressionLowPriorityImplicits1 {
       UpdateExpression.Action.DeleteAction(self, to.toAttributeValue(set))
     }
 
-    def inSet[To](values: Set[To])(implicit to: ToAttributeValue[To]): ConditionExpression[_] =
-      ConditionExpression.Operand.ProjectionExpressionOperand(self).in(values.map(to.toAttributeValue))
+    def inSet[To](values: Set[To])(implicit to: ToAttributeValue[To]): ConditionExpression[From] =
+      ConditionExpression.Operand
+        .ProjectionExpressionOperand(self)
+        .in(values.map(to.toAttributeValue))
+        .asInstanceOf[ConditionExpression[From]]
 
-    def in[To](value: To, values: To*)(implicit to: ToAttributeValue[To]): ConditionExpression[_] = {
+    def in[To](value: To, values: To*)(implicit to: ToAttributeValue[To]): ConditionExpression[From] = {
       val set: Set[To] = values.toSet + value
-      ConditionExpression.Operand.ProjectionExpressionOperand(self).in(set.map(to.toAttributeValue))
+      ConditionExpression.Operand
+        .ProjectionExpressionOperand(self)
+        .in(set.map(to.toAttributeValue))
+        .asInstanceOf[ConditionExpression[From]]
     }
 
     /**
      * Applies to a String or Set
      */
-    def contains[To](av: To)(implicit to: ToAttributeValue[To]): ConditionExpression[_] =
+    def contains[To](av: To)(implicit to: ToAttributeValue[To]): ConditionExpression[From] =
       ConditionExpression.Contains(self, to.toAttributeValue(av))
 
     /**
