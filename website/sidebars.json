@@ -10,7 +10,7 @@
     "Use Cases": [
       "usecases/usecases_index",
       "usecases/usecases_transactions",
-      "usecases/usecases_codec_cusomisation",
+      "usecases/usecases_codec_customisation",
       "usecases/usecases_streams"
     ]
   },
