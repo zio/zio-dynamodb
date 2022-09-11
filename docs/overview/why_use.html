@@ -1,0 +1,154 @@
+<!DOCTYPE html><html lang="en"><head><meta charSet="utf-8"/><meta http-equiv="X-UA-Compatible" content="IE=edge"/><title>Why ZIO-DynamoDB · ZIO DynamoDB</title><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="generator" content="Docusaurus"/><meta name="description" content="ZIO-DynamoDB provides one of the best boilerplate free APIs for interacting with DynamoDB. Compared to the Java SDK you will see a massive reduction in code that you need to maintain. Below we have an example spread out across a few different code blocks. Each block is an incremental step towards using DynamoDB with the Java SDK."/><meta name="docsearch:language" content="en"/><meta property="og:title" content="Why ZIO-DynamoDB · ZIO DynamoDB"/><meta property="og:type" content="website"/><meta property="og:url" content="https://zio.github.io/zio-dynamodb/"/><meta property="og:description" content="ZIO-DynamoDB provides one of the best boilerplate free APIs for interacting with DynamoDB. Compared to the Java SDK you will see a massive reduction in code that you need to maintain. Below we have an example spread out across a few different code blocks. Each block is an incremental step towards using DynamoDB with the Java SDK."/><meta property="og:image" content="https://zio.github.io/zio-dynamodb/img/undraw_online.svg"/><meta name="twitter:card" content="summary"/><meta name="twitter:image" content="https://zio.github.io/zio-dynamodb/img/undraw_tweetstorm.svg"/><link rel="shortcut icon" href="/zio-dynamodb/img/favicon.png"/><link rel="stylesheet" href="https://cdn.jsdelivr.net/docsearch.js/1/docsearch.min.css"/><link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/default.min.css"/><script type="text/javascript" src="https://buttons.github.io/buttons.js"></script><script src="https://unpkg.com/vanilla-back-to-top@7.1.14/dist/vanilla-back-to-top.min.js"></script><script>
+        document.addEventListener('DOMContentLoaded', function() {
+          addBackToTop(
+            {"zIndex":100,"cornerOffset":100}
+          )
+        });
+        </script><script src="/zio-dynamodb/js/scrollSpy.js"></script><link rel="stylesheet" href="/zio-dynamodb/css/main.css"/><script src="/zio-dynamodb/js/codetabs.js"></script></head><body class="sideNavVisible separateOnPageNav"><div class="fixedHeaderContainer"><div class="headerWrapper wrapper"><header><a href="/zio-dynamodb/"><img class="logo" src="/zio-dynamodb/img/navbar_brand2x.png" alt="ZIO DynamoDB"/><h2 class="headerTitleWithLogo">ZIO DynamoDB</h2></a><div class="navigationWrapper navigationSlider"><nav class="slidingNav"><ul class="nav-site nav-site-internal"><li class=""><a href="/zio-dynamodb/docs/overview/overview_index" target="_self">Overview</a></li><li class=""><a href="/zio-dynamodb/docs/usecases/usecases_index" target="_self">Use Cases</a></li><li class=""><a href="/zio-dynamodb/docs/about/about_index" target="_self">About</a></li><li class="navSearchWrapper reactNavSearchWrapper"><input type="text" id="search_input_react" placeholder="Search" title="Search"/></li></ul></nav></div></header></div></div><div class="navPusher"><div class="docMainWrapper wrapper"><div class="container mainContainer docsContainer"><div class="wrapper"><div class="post"><header class="postHeader"><h1 id="__docusaurus" class="postHeaderTitle">Why ZIO-DynamoDB</h1></header><article><div><span><p>ZIO-DynamoDB provides one of the best boilerplate free APIs for interacting with DynamoDB. Compared to the Java SDK you will see a massive reduction in code that you need to maintain. Below we have an example spread out across a few different code blocks. Each block is an incremental step towards using DynamoDB with the Java SDK.</p>
+<pre><code class="hljs css language-scala"><span class="hljs-keyword">final</span> <span class="hljs-keyword">case</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">Student</span>(<span class="hljs-params">
+  email: <span class="hljs-type">String</span>,            // partition key 
+  subject: <span class="hljs-type">String</span>,          // sort key
+  enrollmentDate: <span class="hljs-type">Option</span>[<span class="hljs-type">Instant</span>], 
+  payment: <span class="hljs-type">Payment</span>
+</span>)</span>
+
+<span class="hljs-keyword">sealed</span> <span class="hljs-class"><span class="hljs-keyword">trait</span> <span class="hljs-title">Payment</span></span>
+<span class="hljs-class"><span class="hljs-keyword">object</span> <span class="hljs-title">Payment</span> </span>{
+  <span class="hljs-keyword">final</span> <span class="hljs-keyword">case</span> <span class="hljs-class"><span class="hljs-keyword">object</span> <span class="hljs-title">DebitCard</span>  <span class="hljs-keyword">extends</span> <span class="hljs-title">Payment</span></span>
+  <span class="hljs-keyword">final</span> <span class="hljs-keyword">case</span> <span class="hljs-class"><span class="hljs-keyword">object</span> <span class="hljs-title">CreditCard</span> <span class="hljs-keyword">extends</span> <span class="hljs-title">Payment</span></span>
+  <span class="hljs-keyword">final</span> <span class="hljs-keyword">case</span> <span class="hljs-class"><span class="hljs-keyword">object</span> <span class="hljs-title">PayPal</span>     <span class="hljs-keyword">extends</span> <span class="hljs-title">Payment</span></span>
+}
+</code></pre>
+<p>Our case class for the example. We plan on writing a few students to DynamoDB. Note we have an optional field, <code>enrollmentDate</code> as well as a sealed trait <code>payment</code>.</p>
+<p>In order to write a Student to DynamoDB we need to build a <code>PutItemRequest</code> for our case class.</p>
+<pre><code class="hljs css language-scala"><span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">putStudentRequest</span></span>(student: <span class="hljs-type">Student</span>): <span class="hljs-type">PutItemRequest</span> =
+  <span class="hljs-type">PutItemRequest</span>.builder
+    .tableName(<span class="hljs-string">"student"</span>)
+    .item(toAttributeValueMap(student).asJava) <span class="hljs-comment">//Item: Map[String, AttributeValue]</span>
+    .build
+
+<span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">toAttributeValueMap</span></span>(student: <span class="hljs-type">Student</span>): <span class="hljs-type">Map</span>[<span class="hljs-type">String</span>, <span class="hljs-type">AttributeValue</span>] = {
+  <span class="hljs-keyword">val</span> mandatoryFields                                     = <span class="hljs-type">Map</span>(
+    <span class="hljs-string">"email"</span>   -&gt; <span class="hljs-type">AttributeValue</span>.builder.s(student.email).build,
+    <span class="hljs-string">"subject"</span> -&gt; <span class="hljs-type">AttributeValue</span>.builder.s(student.subject).build,
+    <span class="hljs-string">"payment"</span> -&gt; <span class="hljs-type">AttributeValue</span>.builder.s { <span class="hljs-comment">// serialize sum type</span>
+      student.payment <span class="hljs-keyword">match</span> {
+        <span class="hljs-keyword">case</span> <span class="hljs-type">DebitCard</span>  =&gt; <span class="hljs-string">"DebitCard"</span>
+        <span class="hljs-keyword">case</span> <span class="hljs-type">CreditCard</span> =&gt; <span class="hljs-string">"CreditCard"</span>
+        <span class="hljs-keyword">case</span> <span class="hljs-type">PayPal</span>     =&gt; <span class="hljs-string">"PayPal"</span>
+      }
+    }.build
+  )
+
+  <span class="hljs-keyword">val</span> nonEmptyOptionalFields: <span class="hljs-type">Map</span>[<span class="hljs-type">String</span>, <span class="hljs-type">AttributeValue</span>] = <span class="hljs-type">Map</span>(
+    <span class="hljs-string">"enrollmentDate"</span> -&gt; student.enrollmentDate.map(instant =&gt;
+      <span class="hljs-type">AttributeValue</span>.builder.s(instant.toString).build)
+  ).filter(_._2.nonEmpty).map { <span class="hljs-keyword">case</span> (k, v) =&gt; (k, v.get) }
+
+  mandatoryFields ++ nonEmptyOptionalFields
+}
+</code></pre>
+<p>Here we have written some helper functions to serialize a Student into a <code>PutItemRequest</code> for the Java SDK.</p>
+<p>Now that we can write a Student to DynamoDB we need to be able to read them back and deserialize them.</p>
+<pre><code class="hljs css language-scala"><span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">getStudentRequest</span></span>(email: <span class="hljs-type">String</span>, subject: <span class="hljs-type">String</span>): <span class="hljs-type">GetItemRequest</span> = {
+  <span class="hljs-type">GetItemRequest</span>.builder
+    .tableName(<span class="hljs-string">"student"</span>)
+    .key(
+      <span class="hljs-type">Map</span>(
+        <span class="hljs-string">"email"</span> -&gt; <span class="hljs-type">AttributeValue</span>.builder.s(email).build,
+        <span class="hljs-string">"subject"</span> -&gt; <span class="hljs-type">AttributeValue</span>.builder.s(subject).build
+      ).asJava
+    )
+    .build()
+}
+
+<span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">getString</span></span>(map: <span class="hljs-type">Map</span>[<span class="hljs-type">String</span>, <span class="hljs-type">AttributeValue</span>],
+              name: <span class="hljs-type">String</span>): <span class="hljs-type">Either</span>[<span class="hljs-type">String</span>, <span class="hljs-type">String</span>] =
+  map.get(name).toRight(<span class="hljs-string">s"mandatory field <span class="hljs-subst">$name</span> not found"</span>).map(_.s)
+
+<span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">getStringOpt</span></span>(map: <span class="hljs-type">Map</span>[<span class="hljs-type">String</span>, <span class="hljs-type">AttributeValue</span>],
+                 name: <span class="hljs-type">String</span>): <span class="hljs-type">Either</span>[<span class="hljs-type">Nothing</span>, <span class="hljs-type">Option</span>[<span class="hljs-type">String</span>]] =
+  <span class="hljs-type">Right</span>(map.get(name).map(_.s))
+
+<span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">parseInstant</span></span>(s: <span class="hljs-type">String</span>): <span class="hljs-type">Either</span>[<span class="hljs-type">String</span>, <span class="hljs-type">Instant</span>] =
+  <span class="hljs-type">Try</span>(<span class="hljs-type">Instant</span>.parse(s)).toEither.left.map(_.getMessage)
+
+<span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">attributeValueMapToStudent</span></span>(item: <span class="hljs-type">Map</span>[<span class="hljs-type">String</span>, <span class="hljs-type">AttributeValue</span>])
+: <span class="hljs-type">Either</span>[<span class="hljs-type">String</span>, <span class="hljs-type">Student</span>] =
+  <span class="hljs-keyword">for</span> {
+    email                 &lt;- getString(item, <span class="hljs-string">"email"</span>)
+    subject               &lt;- getString(item, <span class="hljs-string">"subject"</span>)
+    maybeEnrollmentDateAV &lt;- getStringOpt(item, <span class="hljs-string">"enrollmentDate"</span>)
+    maybeEnrollmentDate   &lt;-
+      maybeEnrollmentDateAV.fold[<span class="hljs-type">Either</span>[<span class="hljs-type">String</span>, <span class="hljs-type">Option</span>[<span class="hljs-type">Instant</span>]]](<span class="hljs-type">Right</span>(<span class="hljs-type">None</span>))(s =&gt;
+        parseInstant(s).map(i =&gt; <span class="hljs-type">Some</span>(i))
+      )
+    payment               &lt;- getString(item, <span class="hljs-string">"payment"</span>)
+    paymentType           &lt;- payment <span class="hljs-keyword">match</span> {
+      <span class="hljs-keyword">case</span> <span class="hljs-string">"DebitCard"</span>  =&gt; <span class="hljs-type">Right</span>(<span class="hljs-type">DebitCard</span>)
+      <span class="hljs-keyword">case</span> <span class="hljs-string">"CreditCard"</span> =&gt; <span class="hljs-type">Right</span>(<span class="hljs-type">CreditCard</span>)
+      <span class="hljs-keyword">case</span> <span class="hljs-string">"PayPal"</span>     =&gt; <span class="hljs-type">Right</span>(<span class="hljs-type">PayPal</span>)
+      <span class="hljs-keyword">case</span> _            =&gt; <span class="hljs-type">Left</span>(<span class="hljs-string">"invalid payment type"</span>)
+    }
+  } <span class="hljs-keyword">yield</span> <span class="hljs-type">Student</span>(email, subject, maybeEnrollmentDate, paymentType)
+</code></pre>
+<p>In this code block we have setup a number of functions to assist with creating a <code>GetItemRequest</code> as well as deserialize the response to a Student.</p>
+<p>Let's put all of these functions together to create a full program.</p>
+<pre><code class="hljs css language-scala"><span class="hljs-keyword">val</span> program = 
+<span class="hljs-keyword">for</span> {
+  client            &lt;- <span class="hljs-type">ZIO</span>.service[<span class="hljs-type">DynamoDbAsyncClient</span>]
+  student            = <span class="hljs-type">Student</span>(<span class="hljs-string">"avi@gmail.com"</span>, <span class="hljs-string">"maths"</span>, <span class="hljs-type">Instant</span>.now, 
+                       <span class="hljs-type">Payment</span>.<span class="hljs-type">DebitCard</span>)
+
+  putRequest         = putStudentRequest(student)
+  _                 &lt;- <span class="hljs-type">ZIO</span>.fromCompletionStage(client.putItem(putRequest))
+  getItemRequest     = getStudentRequest(student.email, student.subject)
+  getItemResponse   &lt;- <span class="hljs-type">ZIO</span>.fromCompletionStage(client.getItem(getItemRequest))
+  studentItem        = getItemResponse.item.asScala.toMap
+  foundStudent       = deserialise(studentItem)
+} <span class="hljs-keyword">yield</span> foundStudent
+</code></pre>
+<p>Excluding the case class definition and the full program, that's 65 additional lines of code exclusively for handling writing to and reading from DynamoDB. It doesn't even begin to cover the more complex query types, automatic batching, and automatic parallaisation that ZIO-DynamoDB provides.</p>
+<p>Let's look at the same program using ZIO-DynamoDB instead of using the Java SDK.</p>
+<pre><code class="hljs css language-scala"><span class="hljs-keyword">val</span> liveDynamoDBExecutorLayer = ...
+
+<span class="hljs-class"><span class="hljs-keyword">object</span> <span class="hljs-title">Student</span> </span>{
+  <span class="hljs-keyword">implicit</span> <span class="hljs-keyword">lazy</span> <span class="hljs-keyword">val</span> schema: <span class="hljs-type">Schema</span>[<span class="hljs-type">Student</span>] = <span class="hljs-type">DeriveSchema</span>.gen[<span class="hljs-type">Student</span>]
+}
+
+<span class="hljs-keyword">val</span> errorOrListOfStudent = (<span class="hljs-keyword">for</span> {
+  avi          = <span class="hljs-type">Student</span>(<span class="hljs-string">"avi@gmail.com"</span>, <span class="hljs-string">"maths"</span>, ...)
+  adam         = <span class="hljs-type">Student</span>(<span class="hljs-string">"adam@gmail.com"</span>, <span class="hljs-string">"english"</span>, ...)
+
+  _            &lt;- (put[<span class="hljs-type">Student</span>](<span class="hljs-string">"student"</span>, avi) zip put[<span class="hljs-type">Student</span>](<span class="hljs-string">"student"</span>, adam)).execute
+
+  listOfErrorOrStudent &lt;- forEach(<span class="hljs-type">List</span>(avi, adam)) { st =&gt;
+      get[<span class="hljs-type">Student</span>](<span class="hljs-string">"student"</span>,
+        <span class="hljs-type">PrimaryKey</span>(<span class="hljs-string">"email"</span> -&gt; st.email, <span class="hljs-string">"subject"</span> -&gt; st.subject)
+      )}.execute
+
+} <span class="hljs-keyword">yield</span> <span class="hljs-type">EitherUtil</span>.collectAll(listOfErrorOrStudent))
+  .provideLayer(liveDynamoDBExecutorLayer)
+</code></pre>
+<p>ZIO-DynamoDB leverages ZIO-Schema to provide serialization for developers out of the box. The amount of boilerplate code ZIO-DynamoDB removes for your code base means engineers have more time writing business logic and less time maintaining their integration with DynamoDB.</p>
+<p>There was also a talk at <a href="https://www.youtube.com/watch?v=fKUIfb5ufxw&amp;t=7047s">Functional Scala 2021</a> that covers the drastic reduction in code that results from migrating to ZIO-DynamoDB from the Java SDK.</p>
+</span></div></article></div><div class="docs-prevnext"></div></div></div><nav class="onPageNav"></nav></div><footer class="nav-footer" id="footer"><section class="sitemap"><a href="/zio-dynamodb/" class="nav-home"><img src="/zio-dynamodb/img/sidebar_brand2x.png" alt="ZIO DynamoDB"/></a><div><h5>GitHub</h5><a class="github-button" href="https://github.com/zio/zio-dynamodb" data-icon="octicon-star" data-count-href="/zio/zio-dynamodb/stargazers" data-show-count="true" data-count-aria-label="# stargazers on GitHub" aria-label="Star this project on GitHub">Star</a></div><div><h5>Chat with us on Discord</h5><a href="https://discord.gg/2ccFBr4"><img src="/zio-dynamodb//img/discord.png" width="120" alt="discord"/></a></div><div><h5>Additional resources</h5><a href="/zio-dynamodb/api/index.html">Scaladoc of zio-dynamodb</a></div></section><section class="copyright">Copyright © 2022 ZIO Maintainers</section></footer></div><script type="text/javascript" src="https://cdn.jsdelivr.net/docsearch.js/1/docsearch.min.js"></script><script>
+                document.addEventListener('keyup', function(e) {
+                  if (e.target !== document.body) {
+                    return;
+                  }
+                  // keyCode for '/' (slash)
+                  if (e.keyCode === 191) {
+                    const search = document.getElementById('search_input_react');
+                    search && search.focus();
+                  }
+                });
+              </script><script>
+              var search = docsearch({
+                
+                apiKey: 'b7978c4d7d28a5a9181d2eea975b0e99',
+                indexName: 'zio-dynamodb',
+                inputSelector: '#search_input_react',
+                algoliaOptions: {}
+              });
+            </script></body></html>
