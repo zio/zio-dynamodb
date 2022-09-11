@@ -1,5 +1,5 @@
 ---
-id: why_use
+id: overview_why_use
 title: "Why ZIO-DynamoDB"
 ---
 
