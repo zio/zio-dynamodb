@@ -2,6 +2,7 @@
   "overview-sidebar": {
     "Overview": [
       "overview/overview_index",
+      "overview/overview_why_use",
       "overview/overview_batching",
       "overview/overview_parallelisation"
     ]

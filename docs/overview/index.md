@@ -5,9 +5,9 @@ title: "Overview"
 
 ZIO-DynamoDB is a library that is used for type-safe, efficient, and boilerplate free access to AWS's DynamoDB service. It provides a type-safe API for many query types and the number of type-safe APIs is expanding.
 
-# Getting Started
+## Getting Started
 
-## Add the dependency to your build.sbt file
+### Add the dependency to your build.sbt file
 
 ```scala
 libraryDependencies += "dev.zio" %% "zio-dynamodb" % <version>
@@ -41,7 +41,7 @@ object Main extends App {
 
   def run(args: List[String]) = {
     (for {
-      _ <- (put("student", avi) zip put("student", adam)).execute
+      _ <- (put[Student]("student", avi) zip put[Student]("student", adam)).execute
       listOfStudentsOrError <- forEach(List(avi, adam)) { student =>
         get[Student]("student",
           PrimaryKey("email" -> student.email, "subject" -> student.subject)
@@ -52,3 +52,7 @@ object Main extends App {
   }
 }
 ```
+
+There are also a large number of examples [in the repository](https://github.com/zio/zio-dynamodb/tree/master/examples/src/main/scala/zio/dynamodb/examples) that cover a number of more complex queries and use cases.
+
+

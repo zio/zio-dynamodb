@@ -45,18 +45,3 @@ def putAndDelete(): ZIO[DynamoDBExecutor, Throwable, (Unit, Unit)] = {
   } yield result
 }
 ```
-
-
-# Parallelisation
-
-ZIO-DynamoDB also supports zipping queries that are not batchable according to AWS's docs. Instead of building a single batch request for these zipped queries we instead batch what we can and execute multiple requests in parallel. 
-
-```scala
-
-
-
-```
-
-
-
-
