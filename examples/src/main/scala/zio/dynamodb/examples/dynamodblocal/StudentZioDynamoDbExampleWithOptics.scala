@@ -9,6 +9,7 @@ import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.dynamodb.DynamoDBQuery._
+import zio.dynamodb.UpdateExpression.Action
 import zio.dynamodb._
 import zio.dynamodb.examples.LocalDdbServer
 import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema }
@@ -35,7 +36,8 @@ object StudentZioDynamoDbExampleWithOptics extends App {
   }
   final case class Address(addr1: String, postcode: String)
   object Address {
-    implicit val schema = DeriveSchema.gen[Address]
+    implicit val schema   = DeriveSchema.gen[Address]
+    val (addr1, postcode) = ProjectionExpression.accessors[Address]
   }
 
   final case class Student(
@@ -43,18 +45,31 @@ object StudentZioDynamoDbExampleWithOptics extends App {
     subject: String,
     enrollmentDate: Option[Instant],
     payment: Payment,
-    address: Option[Address] = None
+    address: Address,
+    address2: Option[Address] = None
   )
   object Student extends DefaultJavaTimeSchemas {
-    implicit val schema                                          = DeriveSchema.gen[Student]
-    val (email, subject, enrollmentDate, payment, address)       = ProjectionExpression.accessors[Student]
-    // TODO: Avi - confirm we have expected PE type
-    val expected: ProjectionExpression[Student, Option[Instant]] = enrollmentDate
+    implicit val schema                                              = DeriveSchema.gen[Student]
+    val (email, subject, enrollmentDate, payment, address, address2) = ProjectionExpression.accessors[Student]
+    val expected: ProjectionExpression[Student, Option[Instant]]     = enrollmentDate
+    val addr: ProjectionExpression[Student, Option[Address]]         = address2
     println(expected)
-    val ce: FilterExpression[Student]                            = expected === Some(Instant.now)
-    val ceAnd: FilterExpression[Student]                         = expected === Some(Instant.now) && expected === Some(Instant.now)
-    val ceOr: FilterExpression[Student]                          = expected === Some(Instant.now) || expected === Some(Instant.now)
-    val ceNot: FilterExpression[Student]                         = !(expected === Some(Instant.now) && expected === Some(Instant.now))
+    val x: Action.SetAction[Student, Option[Instant]]                = expected.set(Some(Instant.now))
+    val ce: ConditionExpression[Student]                             = expected === Some(Instant.now)
+    val ceAnd: ConditionExpression[Student]                          = expected === Some(Instant.now) && expected === Some(Instant.now)
+    val ceOr: ConditionExpression[Student]                           = expected === Some(Instant.now) || expected === Some(Instant.now)
+    val ceNot: ConditionExpression[Student]                          = !(expected === Some(Instant.now) && expected === Some(Instant.now))
+    val peAddressToPostcode: ProjectionExpression[Student, String]   = Student.address >>> Address.postcode
+    val ceAddress: ConditionExpression[Student]                      = peAddressToPostcode === "postcode1"
+    val peAddress2: ProjectionExpression[Student, String]            =
+      Student.address2 >>> ProjectionExpression.some >>> Address.postcode
+    val xxx: Action[Student]                                         = expected.set(Some(Instant.now))
+    val xxxx: Action[Student]                                        = enrollmentDate.set(Some(Instant.now)) + payment.set(Payment.PayPal) + address2
+      .set(
+        Some(Address("line1", "postcode1"))
+      ) // + Elephant.email.set("XXXX")
+//    val removeAction: Action[Student] =
+//      enrollmentDate.remove // TODO: remove changes structure to have less information - what do we do in this case?
   }
 
   final case class Elephant(
@@ -85,6 +100,8 @@ object StudentZioDynamoDbExampleWithOptics extends App {
 
   import zio.dynamodb.examples.dynamodblocal.StudentZioDynamoDbExampleWithOptics.Student._
 
+  val enrollmentDateTyped: ProjectionExpression[Student, Option[Instant]] = enrollmentDate
+
   private val program = for {
     _          <- createTable("student", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
                     AttributeDefinition.attrDefnString("email"),
@@ -92,8 +109,8 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                   ).execute
     enrolDate  <- ZIO.effect(Instant.parse("2021-03-20T01:39:33Z"))
     enrolDate2 <- ZIO.effect(Instant.parse("2022-03-20T01:39:33Z"))
-    avi         = Student("avi@gmail.com", "maths", Some(enrolDate), Payment.DebitCard)
-    adam        = Student("adam@gmail.com", "english", Some(enrolDate), Payment.CreditCard)
+    avi         = Student("avi@gmail.com", "maths", Some(enrolDate), Payment.DebitCard, Address("addr1", "postcode1"))
+    adam        = Student("adam@gmail.com", "english", Some(enrolDate), Payment.CreditCard, Address("addr2", "postcode2"))
     _          <- batchWriteFromStream(Stream(avi, adam)) { student =>
                     put("student", student)
                   }.runDrain
@@ -101,23 +118,11 @@ object StudentZioDynamoDbExampleWithOptics extends App {
     _          <- batchReadFromStream("student", Stream(avi, adam))(s => PrimaryKey("email" -> s.email, "subject" -> s.subject))
                     .tap(student => console.putStrLn(s"student=$student"))
                     .runDrain
-    /*
-sealed trait CanFilter[A, -B]
-object CanFilter {
-  implicit def subtypeCanFilter[A, B](implicit ev: B <:< A): CanFilter[A, B]                          = new CanFilter[A, B] {}
-  implicit def subtypeStreamCanFilter[A, B](implicit ev: B <:< A): CanFilter[A, Stream[Throwable, B]] =
-    new CanFilter[A, Stream[Throwable, B]] {}
-}
-could not find implicit value for parameter ev: CanFilter[Option[java.time.Instant],zio.stream.ZStream[Any,Throwable, Student]]
-     */
     _          <- scanAll[Student]("student")
-                    .filter[Student] {                     // [Stream[Throwable, Student]]
-                      // take a look at === and && and see why we do not get a ConditionExpression[Student]
-                      // could be that === && ops are not holding on to type information
-                      (enrollmentDate === Some(
+                    .filter[Student] {
+                      enrollmentDate === Some(
                         enrolDate
-                      ) && payment === Payment.CreditCard) //: ConditionExpression[Student]
-//                      Elephant.email === "elephant@gmail.com"
+                      ) && payment === Payment.CreditCard // && Elephant.email === "elephant@gmail.com"
                     }
                     .execute
                     .map(_.runCollect)
@@ -133,11 +138,11 @@ could not find implicit value for parameter ev: CanFilter[Option[java.time.Insta
                       enrollmentDate === Some(enrolDate) && email === "avi@gmail.com" && payment === Payment.CreditCard
                     )
                     .execute
-    _          <- updateItem("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
-                    enrollmentDate.set(Some(enrolDate2)) + payment.set(Payment.PayPal) + address
+    _          <- updateItem[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
+                    enrollmentDate.set(Some(enrolDate2)) + payment.set(Payment.PayPal) + address2
                       .set(
                         Some(Address("line1", "postcode1"))
-                      )
+                      ) // + Elephant.email.set("XXXXXXXXXXX")
                   }.execute
     _          <- deleteItem("student", PrimaryKey("email" -> "adam@gmail.com", "subject" -> "english"))
                     .where(

@@ -48,7 +48,7 @@ sealed trait ProjectionExpression[-From, +To] { self =>
   /**
    * Removes an element at the specified index from a list. Note that index is zero based
    */
-  def remove(index: Int)(implicit ev: ListRemoveable[To]): UpdateExpression.Action.RemoveAction = {
+  def remove(index: Int)(implicit ev: ListRemoveable[To]): UpdateExpression.Action.RemoveAction[Any] = {
     val _ = ev
     UpdateExpression.Action.RemoveAction(ProjectionExpression.ListElement(self, index))
   }
@@ -81,7 +81,8 @@ sealed trait ProjectionExpression[-From, +To] { self =>
   /**
    * Removes this PathExpression from an item
    */
-  def remove: UpdateExpression.Action.RemoveAction =
+  // TODO: Avi - what type should this be? Do we have type safe examples of this
+  def remove: UpdateExpression.Action.RemoveAction[_] =
     UpdateExpression.Action.RemoveAction(self)
 
   override def toString: String = {
@@ -99,27 +100,28 @@ sealed trait ProjectionExpression[-From, +To] { self =>
 }
 
 trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowPriorityImplicits1 {
-
   implicit class ProjectionExpressionSyntax0[From, To: ToAttributeValue](self: ProjectionExpression[From, To]) {
-    def set(a: To): UpdateExpression.Action.SetAction =
+    def set(a: To): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
         self,
         UpdateExpression.SetOperand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(a))
       )
 
-    def set(pe: ProjectionExpression[From, To]): UpdateExpression.Action.SetAction =
+    def set(pe: ProjectionExpression[From, To]): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(self, PathOperand(pe))
 
     /**
      *  Set attribute if it does not exists
      */
-    def setIfNotExists(a: To): UpdateExpression.Action.SetAction =
+    def setIfNotExists(a: To): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(self, IfNotExists(self, implicitly[ToAttributeValue[To]].toAttributeValue(a)))
 
     /**
      * Append `a` to this list attribute
      */
-    def append[A](a: A)(implicit ev: To <:< Iterable[A], to: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
+    def append[A](
+      a: A
+    )(implicit ev: To <:< Iterable[A], to: ToAttributeValue[A]): UpdateExpression.Action.SetAction[From, To] =
       appendList(List(a).asInstanceOf[To])
 
     /**
@@ -127,7 +129,7 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
      */
     def appendList[A](
       xs: To
-    )(implicit ev: To <:< Iterable[A], to: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
+    )(implicit ev: To <:< Iterable[A], to: ToAttributeValue[A]): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
         self,
         ListAppend(self, AttributeValue.List(xs.map(a => to.toAttributeValue(a))))
@@ -136,7 +138,9 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
     /**
      * Prepend `a` to this list attribute
      */
-    def prepend[A](a: A)(implicit ev: To <:< Iterable[A], to: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
+    def prepend[A](
+      a: A
+    )(implicit ev: To <:< Iterable[A], to: ToAttributeValue[A]): UpdateExpression.Action.SetAction[From, To] =
       prependList(List(a).asInstanceOf[To])
 
     /**
@@ -144,7 +148,7 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
      */
     def prependList[A](
       xs: To
-    )(implicit ev: To <:< Iterable[A], to: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
+    )(implicit ev: To <:< Iterable[A], to: ToAttributeValue[A]): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
         self,
         ListPrepend(self, AttributeValue.List(xs.map(a => to.toAttributeValue(a))))
@@ -164,7 +168,7 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
      * Remove all elements of parameter `set` from this set attribute
      */
     // TODO: Avi - replace wildcard for Set[_]
-    def deleteFromSet(set: To)(implicit ev: To <:< Set[_]): UpdateExpression.Action.DeleteAction = {
+    def deleteFromSet(set: To)(implicit ev: To <:< Set[_]): UpdateExpression.Action.DeleteAction[From] = {
       val _ = ev
       UpdateExpression.Action.DeleteAction(self, implicitly[ToAttributeValue[To]].toAttributeValue(set))
     }
@@ -194,7 +198,7 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
     /**
      * adds this value as a number attribute if it does not exists, else adds the numeric value to the existing attribute
      */
-    def add(a: To)(implicit ev: Addable[To, To]): UpdateExpression.Action.AddAction = {
+    def add(a: To)(implicit ev: Addable[To, To]): UpdateExpression.Action.AddAction[From] = {
       val _ = ev
       UpdateExpression.Action.AddAction(self, implicitly[ToAttributeValue[To]].toAttributeValue(a))
     }
@@ -204,9 +208,12 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
      */
     def addSet[A](
       set: Set[A]
-    )(implicit ev: Addable[To, A], @unused evSet: To <:< Set[A]): UpdateExpression.Action.AddAction = {
+    )(implicit ev: Addable[To, A], @unused evSet: Set[A] <:< To): UpdateExpression.Action.AddAction[From] = {
       val _ = ev
-      UpdateExpression.Action.AddAction(self, implicitly[ToAttributeValue[To]].toAttributeValue(set.asInstanceOf[To]))
+      UpdateExpression.Action.AddAction(
+        self,
+        implicitly[ToAttributeValue[To]].toAttributeValue(evSet(set))
+      )
     }
 
     def ===(that: To): ConditionExpression[From]                             =
@@ -284,20 +291,23 @@ trait ProjectionExpressionLowPriorityImplicits1 {
     /**
      * Modify or Add an item Attribute
      */
-    def set[To: ToAttributeValue](a: To): UpdateExpression.Action.SetAction =
+    def set[To: ToAttributeValue](a: To): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
-        self,
+        self.asInstanceOf[ProjectionExpression[From, To]],
         UpdateExpression.SetOperand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(a))
       )
 
-    def set(that: ProjectionExpression[_, To]): UpdateExpression.Action.SetAction =
+    def set(that: ProjectionExpression[_, To]): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(self, PathOperand(that))
 
     /**
      * Add item attribute if it does not exists
      */
-    def setIfNotExists[To: ToAttributeValue](a: To): UpdateExpression.Action.SetAction =
-      UpdateExpression.Action.SetAction(self, IfNotExists(self, implicitly[ToAttributeValue[To]].toAttributeValue(a)))
+    def setIfNotExists[To: ToAttributeValue](a: To): UpdateExpression.Action.SetAction[From, To] =
+      UpdateExpression.Action.SetAction(
+        self.asInstanceOf[ProjectionExpression[From, To]],
+        IfNotExists(self, implicitly[ToAttributeValue[To]].toAttributeValue(a))
+      )
 
     /**
      * Add item attribute if it does not exists
@@ -305,39 +315,43 @@ trait ProjectionExpressionLowPriorityImplicits1 {
     def setIfNotExists[To: ToAttributeValue](
       that: ProjectionExpression[_, _],
       a: To
-    ): UpdateExpression.Action.SetAction =
-      UpdateExpression.Action.SetAction(self, IfNotExists(that, implicitly[ToAttributeValue[To]].toAttributeValue(a)))
+    ): UpdateExpression.Action.SetAction[From, To] =
+      UpdateExpression.Action
+        .SetAction(
+          self.asInstanceOf[ProjectionExpression[From, To]],
+          IfNotExists(that, implicitly[ToAttributeValue[To]].toAttributeValue(a))
+        )
 
-    def append[A](a: A)(implicit to: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
+    def append[A](a: A)(implicit to: ToAttributeValue[A]): UpdateExpression.Action.SetAction[From, A] =
       appendList(List(a))
 
     /**
      * Add list `xs` to the end of this list attribute
      */
-    def appendList[To: ToAttributeValue](xs: Iterable[To]): UpdateExpression.Action.SetAction =
+    def appendList[To: ToAttributeValue](xs: Iterable[To]): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
-        self,
+        self.asInstanceOf[ProjectionExpression[From, To]],
         ListAppend(self, AttributeValue.List(xs.map(a => implicitly[ToAttributeValue[To]].toAttributeValue(a))))
       )
 
     /**
      * Prepend `a` to this list attribute
      */
-    def prepend[To: ToAttributeValue](a: To): UpdateExpression.Action.SetAction =
+    def prepend[To: ToAttributeValue](a: To): UpdateExpression.Action.SetAction[From, To] =
       prependList(List(a))
 
     /**
      * Add list `xs` to the beginning of this list attribute
      */
-    def prependList[To: ToAttributeValue](xs: Iterable[To]): UpdateExpression.Action.SetAction =
+    def prependList[To: ToAttributeValue](xs: Iterable[To]): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
-        self,
+        self.asInstanceOf[ProjectionExpression[From, To]],
         ListPrepend(self, AttributeValue.List(xs.map(a => implicitly[ToAttributeValue[To]].toAttributeValue(a))))
       )
 
     def between[To](minValue: To, maxValue: To)(implicit to: ToAttributeValue[To]): ConditionExpression[From] =
       ConditionExpression.Operand
-        .ProjectionExpressionOperand(self)
+        .ProjectionExpressionOperand(self.asInstanceOf[ProjectionExpression[From, To]])
         .between(to.toAttributeValue(minValue), to.toAttributeValue(maxValue))
         .asInstanceOf[ConditionExpression[From]]
 
@@ -346,9 +360,9 @@ trait ProjectionExpressionLowPriorityImplicits1 {
      */
     def deleteFromSet[To](
       set: To
-    )(implicit ev: To <:< Set[_], to: ToAttributeValue[To]): UpdateExpression.Action.DeleteAction = {
+    )(implicit ev: To <:< Set[_], to: ToAttributeValue[To]): UpdateExpression.Action.DeleteAction[From] = {
       val _ = ev
-      UpdateExpression.Action.DeleteAction(self, to.toAttributeValue(set))
+      UpdateExpression.Action.DeleteAction(self.asInstanceOf[ProjectionExpression[From, To]], to.toAttributeValue(set))
     }
 
     def inSet[To](values: Set[To])(implicit to: ToAttributeValue[To]): ConditionExpression[From] =
@@ -374,15 +388,18 @@ trait ProjectionExpressionLowPriorityImplicits1 {
     /**
      * adds a number attribute if it does not exists, else adds the numeric value to the existing attribute
      */
-    def add[To](a: To)(implicit to: ToAttributeValue[To]): UpdateExpression.Action.AddAction =
-      UpdateExpression.Action.AddAction(self, to.toAttributeValue(a))
+    def add[To](a: To)(implicit to: ToAttributeValue[To]): UpdateExpression.Action.AddAction[From] =
+      UpdateExpression.Action.AddAction(self.asInstanceOf[ProjectionExpression[From, To]], to.toAttributeValue(a))
 
     /**
      * adds a set attribute if it does not exists, else if it exists it adds the elements of the set
      */
-    def addSet[To: ToAttributeValue](set: To)(implicit ev: To <:< Set[_]): UpdateExpression.Action.AddAction = {
+    def addSet[To: ToAttributeValue](set: To)(implicit ev: To <:< Set[_]): UpdateExpression.Action.AddAction[From] = {
       val _ = ev
-      UpdateExpression.Action.AddAction(self, implicitly[ToAttributeValue[To]].toAttributeValue(set))
+      UpdateExpression.Action.AddAction(
+        self.asInstanceOf[ProjectionExpression[From, To]],
+        implicitly[ToAttributeValue[To]].toAttributeValue(set)
+      )
     }
 
     def ===[To: ToAttributeValue](that: To): ConditionExpression[From] =
@@ -446,6 +463,9 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
 
   type Untyped = ProjectionExpression[_, _]
 
+  def some[A]: ProjectionExpression[Option[A], A] =
+    ProjectionExpression.root.asInstanceOf[ProjectionExpression[Option[A], A]]
+
   /*
   PHASE1 - capturing info we have and making it available in a PE
   we going to add a Meta to every PE eg when you generate something using $ -> lens
@@ -467,23 +487,26 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     /**
      * Modify or Add an item Attribute
      */
-    def set[To: ToAttributeValue](a: To): UpdateExpression.Action.SetAction =
+    def set[To: ToAttributeValue](a: To): UpdateExpression.Action.SetAction[Any, To] =
       UpdateExpression.Action.SetAction(
-        self,
+        self.asInstanceOf[ProjectionExpression[Any, To]],
         UpdateExpression.SetOperand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(a))
       )
 
     /**
      * Modify or Add an item Attribute
      */
-    def set(that: ProjectionExpression[_, _]): UpdateExpression.Action.SetAction =
-      UpdateExpression.Action.SetAction(self, PathOperand(that))
+    def set(that: ProjectionExpression[_, _]): UpdateExpression.Action.SetAction[Any, Any] =
+      UpdateExpression.Action.SetAction(self.asInstanceOf[ProjectionExpression[Any, Any]], PathOperand(that))
 
     /**
      * Add item attribute if it does not exists
      */
-    def setIfNotExists[To: ToAttributeValue](a: To): UpdateExpression.Action.SetAction =
-      UpdateExpression.Action.SetAction(self, IfNotExists(self, implicitly[ToAttributeValue[To]].toAttributeValue(a)))
+    def setIfNotExists[To: ToAttributeValue](a: To): UpdateExpression.Action.SetAction[Any, To] =
+      UpdateExpression.Action.SetAction(
+        self.asInstanceOf[ProjectionExpression[Any, To]],
+        IfNotExists(self, implicitly[ToAttributeValue[To]].toAttributeValue(a))
+      )
 
     /**
      * Add item attribute if it does not exists
@@ -491,33 +514,36 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     def setIfNotExists[To: ToAttributeValue](
       that: ProjectionExpression[_, _],
       a: To
-    ): UpdateExpression.Action.SetAction =
-      UpdateExpression.Action.SetAction(self, IfNotExists(that, implicitly[ToAttributeValue[To]].toAttributeValue(a)))
+    ): UpdateExpression.Action.SetAction[Any, To] =
+      UpdateExpression.Action.SetAction(
+        self.asInstanceOf[ProjectionExpression[Any, To]],
+        IfNotExists(that, implicitly[ToAttributeValue[To]].toAttributeValue(a))
+      )
 
-    def append[A](a: A)(implicit to: ToAttributeValue[A]): UpdateExpression.Action.SetAction =
+    def append[A](a: A)(implicit to: ToAttributeValue[A]): UpdateExpression.Action.SetAction[Any, A] =
       appendList(List(a))
 
     /**
      * Add list `xs` to the end of this list attribute
      */
-    def appendList[To: ToAttributeValue](xs: Iterable[To]): UpdateExpression.Action.SetAction =
+    def appendList[To: ToAttributeValue](xs: Iterable[To]): UpdateExpression.Action.SetAction[Any, To] =
       UpdateExpression.Action.SetAction(
-        self,
+        self.asInstanceOf[ProjectionExpression[Any, To]],
         ListAppend(self, AttributeValue.List(xs.map(a => implicitly[ToAttributeValue[To]].toAttributeValue(a))))
       )
 
     /**
      * Prepend `a` to this list attribute
      */
-    def prepend[To: ToAttributeValue](a: To): UpdateExpression.Action.SetAction =
+    def prepend[To: ToAttributeValue](a: To): UpdateExpression.Action.SetAction[Any, To] =
       prependList(List(a))
 
     /**
      * Add list `xs` to the beginning of this list attribute
      */
-    def prependList[To: ToAttributeValue](xs: Iterable[To]): UpdateExpression.Action.SetAction =
+    def prependList[To: ToAttributeValue](xs: Iterable[To]): UpdateExpression.Action.SetAction[Any, To] =
       UpdateExpression.Action.SetAction(
-        self,
+        self.asInstanceOf[ProjectionExpression[Any, To]],
         ListPrepend(self, AttributeValue.List(xs.map(a => implicitly[ToAttributeValue[To]].toAttributeValue(a))))
       )
 
@@ -532,9 +558,9 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
      */
     def deleteFromSet[To](
       set: To
-    )(implicit ev: To <:< Set[_], to: ToAttributeValue[To]): UpdateExpression.Action.DeleteAction = {
+    )(implicit ev: To <:< Set[_], to: ToAttributeValue[To]): UpdateExpression.Action.DeleteAction[To] = {
       val _ = ev
-      UpdateExpression.Action.DeleteAction(self, to.toAttributeValue(set))
+      UpdateExpression.Action.DeleteAction(self.asInstanceOf[ProjectionExpression[Any, To]], to.toAttributeValue(set))
     }
 
     def inSet[To](values: Set[To])(implicit to: ToAttributeValue[To]): ConditionExpression[Any] =
@@ -560,15 +586,18 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     /**
      * adds a number attribute if it does not exists, else adds the numeric value to the existing attribute
      */
-    def add[To](a: To)(implicit to: ToAttributeValue[To]): UpdateExpression.Action.AddAction =
-      UpdateExpression.Action.AddAction(self, to.toAttributeValue(a))
+    def add[To](a: To)(implicit to: ToAttributeValue[To]): UpdateExpression.Action.AddAction[To] =
+      UpdateExpression.Action.AddAction(self.asInstanceOf[ProjectionExpression[Any, To]], to.toAttributeValue(a))
 
     /**
      * adds a set attribute if it does not exists, else if it exists it adds the elements of the set
      */
-    def addSet[To: ToAttributeValue](set: To)(implicit ev: To <:< Set[_]): UpdateExpression.Action.AddAction = {
+    def addSet[To: ToAttributeValue](set: To)(implicit ev: To <:< Set[_]): UpdateExpression.Action.AddAction[To] = {
       val _ = ev
-      UpdateExpression.Action.AddAction(self, implicitly[ToAttributeValue[To]].toAttributeValue(set))
+      UpdateExpression.Action.AddAction(
+        self.asInstanceOf[ProjectionExpression[Any, To]],
+        implicitly[ToAttributeValue[To]].toAttributeValue(set)
+      )
     }
 
     def ===[To: ToAttributeValue](that: To): ConditionExpression[Any] =

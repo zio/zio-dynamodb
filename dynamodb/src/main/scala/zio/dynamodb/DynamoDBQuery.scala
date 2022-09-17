@@ -471,8 +471,24 @@ object DynamoDBQuery {
       .fromAttributeValue(AttributeValue.encode(a)(schema))
       .getOrElse(throw new Exception(s"error encoding $a"))
 
-  def updateItem(tableName: String, key: PrimaryKey)(action: Action): DynamoDBQuery[Option[Item]] =
-    UpdateItem(TableName(tableName), key, UpdateExpression(action))
+  // TODO: - Avi: we return Option[A] as based on ReturnValues: NONE | ALL_OLD | UPDATED_OLD | ALL_NEW | UPDATED_NEW -  default is None
+  // see https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html#DDB-UpdateItem-request-ReturnValues
+  // 90% of the time we are not interested in the return value of the update as that data is already in hand
+  // All we want is confirmation that the update succeeded
+  // whole thing will be A, part will be _
+  def updateItem[A](tableName: String, key: PrimaryKey)(action: Action[A]): DynamoDBQuery[Option[Item]] =
+    UpdateItem(
+      TableName(tableName),
+      key,
+      UpdateExpression(action)
+    )
+
+  // TODO: Avi - does it event make sense to make return type type safe like this? probably not as mapping of attributes
+  //  to A may not be possible eg there may be missing mandatory fields for A
+  // zio-schema - if fields are not specified we can use their default values
+  // maybe we could return None if all attributes are not returned, else Some of A
+  def update[A: Schema](tableName: String, key: PrimaryKey)(action: Action[A]): DynamoDBQuery[Option[A]] =
+    updateItem(tableName, key)(action).map(_.flatMap(item => fromItem(item).toOption))
 
   def deleteItem(tableName: String, key: PrimaryKey): Write[Unit] = DeleteItem(TableName(tableName), key)
 
@@ -845,7 +861,7 @@ object DynamoDBQuery {
   private[dynamodb] final case class UpdateItem(
     tableName: TableName,
     key: PrimaryKey,
-    updateExpression: UpdateExpression,
+    updateExpression: UpdateExpression[_],
     conditionExpression: Option[ConditionExpression[_]] = None,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
