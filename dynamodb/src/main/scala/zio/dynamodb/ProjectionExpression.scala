@@ -81,9 +81,8 @@ sealed trait ProjectionExpression[-From, +To] { self =>
   /**
    * Removes this PathExpression from an item
    */
-  // TODO: Avi - what type should this be? Do we have type safe examples of this
-  def remove: UpdateExpression.Action.RemoveAction[_] =
-    UpdateExpression.Action.RemoveAction(self)
+  def remove[From2 <: From]: UpdateExpression.Action.RemoveAction[From2] =
+    UpdateExpression.Action.RemoveAction[From2](self)
 
   override def toString: String = {
     @tailrec

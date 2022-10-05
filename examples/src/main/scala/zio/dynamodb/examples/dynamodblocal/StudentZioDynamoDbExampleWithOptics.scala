@@ -9,7 +9,6 @@ import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.dynamodb.DynamoDBQuery._
-import zio.dynamodb.UpdateExpression.Action
 import zio.dynamodb._
 import zio.dynamodb.examples.LocalDdbServer
 import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema }
@@ -51,34 +50,6 @@ object StudentZioDynamoDbExampleWithOptics extends App {
   object Student extends DefaultJavaTimeSchemas {
     implicit val schema                                              = DeriveSchema.gen[Student]
     val (email, subject, enrollmentDate, payment, address, address2) = ProjectionExpression.accessors[Student]
-    val expected: ProjectionExpression[Student, Option[Instant]]     = enrollmentDate
-    val addr: ProjectionExpression[Student, Option[Address]]         = address2
-    println(expected)
-    val x: Action.SetAction[Student, Option[Instant]]                = expected.set(Some(Instant.now))
-    val ce: ConditionExpression[Student]                             = expected === Some(Instant.now)
-    val ceAnd: ConditionExpression[Student]                          = expected === Some(Instant.now) && expected === Some(Instant.now)
-    val ceOr: ConditionExpression[Student]                           = expected === Some(Instant.now) || expected === Some(Instant.now)
-    val ceNot: ConditionExpression[Student]                          = !(expected === Some(Instant.now) && expected === Some(Instant.now))
-    val peAddressToPostcode: ProjectionExpression[Student, String]   = Student.address >>> Address.postcode
-    val ceAddress: ConditionExpression[Student]                      = peAddressToPostcode === "postcode1"
-    val peAddress2: ProjectionExpression[Student, String]            =
-      Student.address2 >>> ProjectionExpression.some >>> Address.postcode
-    val xxx: Action[Student]                                         = expected.set(Some(Instant.now))
-    val xxxx: Action[Student]                                        = enrollmentDate.set(Some(Instant.now)) + payment.set(Payment.PayPal) + address2
-      .set(
-        Some(Address("line1", "postcode1"))
-      ) // + Elephant.email.set("XXXX")
-//    val removeAction: Action[Student] =
-//      enrollmentDate.remove // TODO: remove changes structure to have less information - what do we do in this case?
-  }
-
-  final case class Elephant(
-    email: String,
-    subject: String
-  )
-  object Elephant {
-    implicit val schema  = DeriveSchema.gen[Elephant]
-    val (email, subject) = ProjectionExpression.accessors[Elephant]
   }
 
   private val awsConfig = ZLayer.succeed(
@@ -127,7 +98,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     .execute
                     .map(_.runCollect)
     _          <- queryAll[Student]("student")
-                    .filter( // [Stream[Throwable, Student]]
+                    .filter(
                       enrollmentDate === Some(enrolDate) && payment === Payment.CreditCard
                     )
                     .whereKey(email === "avi@gmail.com" && subject === "maths")
@@ -135,14 +106,16 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                     .map(_.runCollect)
     _          <- put[Student]("student", avi)
                     .where(
-                      enrollmentDate === Some(enrolDate) && email === "avi@gmail.com" && payment === Payment.CreditCard
+                      enrollmentDate === Some(
+                        enrolDate
+                      ) && email === "avi@gmail.com" && payment === Payment.CreditCard
                     )
                     .execute
     _          <- updateItem[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
                     enrollmentDate.set(Some(enrolDate2)) + payment.set(Payment.PayPal) + address2
                       .set(
                         Some(Address("line1", "postcode1"))
-                      ) // + Elephant.email.set("XXXXXXXXXXX")
+                      )
                   }.execute
     _          <- deleteItem("student", PrimaryKey("email" -> "adam@gmail.com", "subject" -> "english"))
                     .where(

@@ -120,12 +120,12 @@ object TransactionModelSpec extends DefaultRunnableSpec {
       .or(batchWriteItem)
   private val clockLayer                         = ZLayer.identity[Has[Clock.Service]]
 
-  private def invalidTransactionActionsContains(action: DynamoDBQuery[Any]): Assertion[Any] =
+  private def invalidTransactionActionsContains(action: DynamoDBQuery[Any, Any]): Assertion[Any] =
     isSubtype[InvalidTransactionActions](
       hasField(
         "invalidActions",
         a => {
-          val b: Iterable[DynamoDBQuery[Any]] = a.invalidActions.toIterable
+          val b: Iterable[DynamoDBQuery[Any, Any]] = a.invalidActions.toIterable
           b
         },
         contains(action)

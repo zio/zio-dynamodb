@@ -19,7 +19,7 @@ package object dynamodb {
   type Encoder[A]  = A => AttributeValue
   type Decoder[+A] = AttributeValue => Either[String, A]
 
-  private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[A]): ZIO[Has[DynamoDBExecutor], Throwable, A] =
+  private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[_, A]): ZIO[Has[DynamoDBExecutor], Throwable, A] =
     ZIO.serviceWith[DynamoDBExecutor](_.execute(query))
 
   /**
@@ -33,10 +33,10 @@ package object dynamodb {
    * @tparam B Type of DynamoDBQuery returned by `f`
    * @return A stream of results from the `DynamoDBQuery` write's
    */
-  def batchWriteFromStream[R, A, B](
+  def batchWriteFromStream[R, A, In, B](
     stream: ZStream[R, Throwable, A],
     mPar: Int = 10
-  )(f: A => DynamoDBQuery[B]): ZStream[Has[DynamoDBExecutor] with R with Clock, Throwable, B] =
+  )(f: A => DynamoDBQuery[In, B]): ZStream[Has[DynamoDBExecutor] with R with Clock, Throwable, B] =
     stream
       .aggregateAsync(Transducer.collectAllN(25))
       .mapMPar(mPar) { chunk =>
@@ -71,7 +71,7 @@ package object dynamodb {
     stream
       .aggregateAsync(Transducer.collectAllN(100))
       .mapMPar(mPar) { chunk =>
-        val batchGetItem: DynamoDBQuery[Chunk[Option[Item]]] = DynamoDBQuery
+        val batchGetItem: DynamoDBQuery[_, Chunk[Option[Item]]] = DynamoDBQuery
           .forEach(chunk)(a => DynamoDBQuery.getItem(tableName, pk(a)))
           .map(Chunk.fromIterable)
         for {
