@@ -1,16 +1,8 @@
 package zio.dynamodb.examples
 
 import zio.console.{ putStrLn, Console }
-import zio.dynamodb.DynamoDBQuery.putItem
-import zio.dynamodb.{
-  batchReadFromStream,
-  batchReadItemFromStream,
-  batchWriteFromStream,
-  DynamoDBExecutor,
-  Item,
-  PrimaryKey,
-  TestDynamoDBExecutor
-}
+import zio.dynamodb.DynamoDBQuery.put
+import zio.dynamodb._
 import zio.schema.{ DeriveSchema, Schema }
 import zio.stream.{ UStream, ZStream }
 import zio.{ App, ExitCode, URIO }
@@ -29,9 +21,10 @@ object BatchFromStreamExamples extends App {
     (for {
       _ <- TestDynamoDBExecutor.addTable("person", "id")
       // write to DB using the stream as the source of the data to write
+      // note put query uses type safe API to save a Person case class directly using Schema derived codecs
       // write queries will automatically be batched using BatchWriteItem when calling DynamoDB
       _ <- batchWriteFromStream(personStream) { person =>
-             putItem("person", Item("id" -> person.id, "name" -> person.name))
+             put("person", Person(person.id, person.name))
            }.runDrain
 
       // read from the DB using the stream as the source of the primary key
