@@ -53,7 +53,7 @@ sealed trait ConditionExpression[-From] extends Renderable { self =>
           min <- AliasMapRender.getOrInsert(between.minValue)
           max <- AliasMapRender.getOrInsert(between.maxValue)
         } yield s"$l BETWEEN $min AND $max"
-      case in: In /*(left, values)*/                       =>
+      case in: In                                          =>
         for {
           l    <- in.left.render
           vals <- in.values
@@ -66,25 +66,25 @@ sealed trait ConditionExpression[-From] extends Renderable { self =>
                         }
                     }
         } yield s"$l IN ($vals)"
-      case ae: AttributeExists /*(path)*/                  => AliasMapRender.succeed(s"attribute_exists(${ae.path})")
-      case ane: AttributeNotExists /*(path)*/              => AliasMapRender.succeed(s"attribute_not_exists(${ane.path})")
-      case at: AttributeType /*(path, attributeType)*/     =>
+      case ae: AttributeExists                             => AliasMapRender.succeed(s"attribute_exists(${ae.path})")
+      case ane: AttributeNotExists                         => AliasMapRender.succeed(s"attribute_not_exists(${ane.path})")
+      case at: AttributeType                               =>
         at.attributeType.render.map(v => s"attribute_type(${at.path}, $v)")
-      case c: Contains /*(path, value)*/                   => AliasMapRender.getOrInsert(c.value).map(v => s"contains(${c.path}, $v)")
-      case bw: BeginsWith /*(path, value)*/                =>
+      case c: Contains                                     => AliasMapRender.getOrInsert(c.value).map(v => s"contains(${c.path}, $v)")
+      case bw: BeginsWith                                  =>
         AliasMapRender.getOrInsert(bw.value).map(v => s"begins_with(${bw.path}, $v)")
-      case and: And /*(left, right)*/                      => and.left.render.zipWith(and.right.render) { case (l, r) => s"($l) AND ($r)" }
-      case or: Or /*(left, right)*/                        => or.left.render.zipWith(or.right.render) { case (l, r) => s"($l) OR ($r)" }
-      case not: Not /*(exprn)*/                            => not.exprn.render.map(v => s"NOT ($v)")
-      case eq: Equals /*(left, right)*/                    => eq.left.render.zipWith(eq.right.render) { case (l, r) => s"($l) = ($r)" }
-      case neq: NotEqual /*(left, right)*/                 =>
+      case and: And                                        => and.left.render.zipWith(and.right.render) { case (l, r) => s"($l) AND ($r)" }
+      case or: Or                                          => or.left.render.zipWith(or.right.render) { case (l, r) => s"($l) OR ($r)" }
+      case not: Not                                        => not.exprn.render.map(v => s"NOT ($v)")
+      case eq: Equals                                      => eq.left.render.zipWith(eq.right.render) { case (l, r) => s"($l) = ($r)" }
+      case neq: NotEqual                                   =>
         neq.left.render.zipWith(neq.right.render) { case (l, r) => s"($l) <> ($r)" }
-      case lt: LessThan /*(left, right)*/                  => lt.left.render.zipWith(lt.right.render) { case (l, r) => s"($l) < ($r)" }
-      case gt: GreaterThan /*(left, right)*/               =>
+      case lt: LessThan                                    => lt.left.render.zipWith(lt.right.render) { case (l, r) => s"($l) < ($r)" }
+      case gt: GreaterThan                                 =>
         gt.left.render.zipWith(gt.right.render) { case (l, r) => s"($l) > ($r)" }
-      case lteq: LessThanOrEqual /*(left, right)*/         =>
+      case lteq: LessThanOrEqual                           =>
         lteq.left.render.zipWith(lteq.right.render) { case (l, r) => s"($l) <= ($r)" }
-      case gteq: GreaterThanOrEqual /*(left, right)*/      =>
+      case gteq: GreaterThanOrEqual                        =>
         gteq.left.render.zipWith(gteq.right.render) { case (l, r) => s"($l) >= ($r)" }
     }
 

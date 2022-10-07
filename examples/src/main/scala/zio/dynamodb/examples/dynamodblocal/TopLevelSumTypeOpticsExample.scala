@@ -1,7 +1,10 @@
 package zio.dynamodb.examples.dynamodblocal
 
-import zio.dynamodb.ProjectionExpression
+import zio.dynamodb.DynamoDBQuery.queryAll
+import zio.dynamodb.examples.dynamodblocal.TopLevelSumTypeOpticsExample.Invoice.{ BilledInvoice, PreBilledInvoice }
+import zio.dynamodb.{ DynamoDBQuery, ProjectionExpression }
 import zio.schema.DeriveSchema
+import zio.stream
 
 object TopLevelSumTypeOpticsExample extends App {
   sealed trait Invoice {
@@ -34,22 +37,24 @@ object TopLevelSumTypeOpticsExample extends App {
     }
   }
 
-//  def polymorphicQueryByExample(invoice: Invoice): DynamoDBQuery[stream.Stream[Throwable, Invoice]] =
-//    invoice match {
-//      case PreBilledInvoice(id_, sku_)       =>
-//        import PreBilledInvoice._
-//        queryAll[PreBilledInvoice]("invoice")
-//          .filter( // Scan/Query
-//            id > id_ && sku < sku_
-//          )
-//      case BilledInvoice(id_, sku_, amount_) =>
-//        import BilledInvoice._
-//        queryAll[BilledInvoice]("invoice")
-//          .filter( // Scan/Query
-//            id >= id_ && sku === sku_ && amount <= amount_
-//          )
-//    }
+  def polymorphicQueryByExample(
+    invoice: Invoice
+  ): DynamoDBQuery[PreBilledInvoice with BilledInvoice, stream.Stream[Throwable, Invoice]] =
+    invoice match {
+      case PreBilledInvoice(id_, sku_)       =>
+        import PreBilledInvoice._
+        queryAll[PreBilledInvoice]("invoice")
+          .filter( // Scan/Query
+            id > id_ && sku < sku_
+          )
+      case BilledInvoice(id_, sku_, amount_) =>
+        import BilledInvoice._
+        queryAll[BilledInvoice]("invoice")
+          .filter( // Scan/Query
+            id >= id_ && sku === sku_ && amount <= amount_
+          )
+    }
 
-//  val x = polymorphicQueryByExample(BilledInvoice("1", "sku1", 0.1))
-//  println(x)
+  val x = polymorphicQueryByExample(BilledInvoice("1", "sku1", 0.1))
+  println(x)
 }

@@ -338,7 +338,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
    * val newQuery = query.whereKey(email === "avi@gmail.com" && subject === "maths")
    * }}}
    */
-  def whereKey(conditionExpression: ConditionExpression[_]): DynamoDBQuery[In, Out] = {
+  def whereKey[In2 <: In](conditionExpression: ConditionExpression[In2]): DynamoDBQuery[In, Out] = {
     val keyConditionExpression: KeyConditionExpression =
       KeyConditionExpression.fromConditionExpressionUnsafe(conditionExpression)
     self match {

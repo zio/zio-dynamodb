@@ -7,7 +7,7 @@ import zio.dynamodb.ProjectionExpression.$
 
 object UpdateItemExamples {
 
-  val pi1: DynamoDBQuery[_, Option[Item]] = updateItem("tableName1", PrimaryKey("field1" -> 1)) {
+  val pi1: DynamoDBQuery[Nothing, Option[Item]] = updateItem("tableName1", PrimaryKey("field1" -> 1)) {
     $("foo.bar").set("a_value") +
       $("bar.foo").remove +
       $("foo.foo").appendList(Chunk("s")) +
