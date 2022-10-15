@@ -757,29 +757,29 @@ object DynamoDBQuery {
   // I have removed these fields on the assumption that the library will take care of these concerns
   private[dynamodb] final case class ScanSome(
     tableName: TableName,
-    limit: Int,                                              // TODO: should this be a long to match AWS API?
+    limit: Int,                                                 // TODO: should this be a long to match AWS API?
     indexName: Option[IndexName] = None,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
-      None,                                                  // allows client to control start position - eg for client managed paging
+      None,                                                     // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
     projections: List[ProjectionExpression[_, _]] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    select: Option[Select] = None                            // if ProjectExpression supplied then only valid value is SpecificAttributes
+    select: Option[Select] = None                               // if ProjectExpression supplied then only valid value is SpecificAttributes
   ) extends Constructor[(Chunk[Item], LastEvaluatedKey)]
 
   private[dynamodb] final case class QuerySome(
     tableName: TableName,
-    limit: Int,                                              // TODO: should this be a long to match AWS API?
+    limit: Int,                                                 // TODO: should this be a long to match AWS API?
     indexName: Option[IndexName] = None,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
-      None,                                                  // allows client to control start position - eg for client managed paging
+      None,                                                     // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
     keyConditionExpression: Option[KeyConditionExpression] = None,
     projections: List[ProjectionExpression[_, _]] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    select: Option[Select] = None,                           // if ProjectExpression supplied then only valid value is SpecificAttributes
+    select: Option[Select] = None,                              // if ProjectExpression supplied then only valid value is SpecificAttributes
     ascending: Boolean = true
   ) extends Constructor[(Chunk[Item], LastEvaluatedKey)]
 
@@ -789,11 +789,11 @@ object DynamoDBQuery {
     limit: Option[Int] = None,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
-      None,                                                  // allows client to control start position - eg for client managed paging
+      None,                                                     // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
     projections: List[ProjectionExpression[_, _]] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    select: Option[Select] = None,                           // if ProjectExpression supplied then only valid value is SpecificAttributes
+    select: Option[Select] = None,                              // if ProjectExpression supplied then only valid value is SpecificAttributes
     totalSegments: Int = 1
   ) extends Constructor[Stream[Throwable, Item]]
 
@@ -807,12 +807,12 @@ object DynamoDBQuery {
     limit: Option[Int] = None,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
-      None,                                                  // allows client to control start position - eg for client managed paging
+      None,                                                     // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression] = None,
     keyConditionExpression: Option[KeyConditionExpression] = None,
     projections: List[ProjectionExpression[_, _]] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    select: Option[Select] = None,                           // if ProjectExpression supplied then only valid value is SpecificAttributes
+    select: Option[Select] = None,                              // if ProjectExpression supplied then only valid value is SpecificAttributes
     ascending: Boolean = true
   ) extends Constructor[Stream[Throwable, Item]]
 

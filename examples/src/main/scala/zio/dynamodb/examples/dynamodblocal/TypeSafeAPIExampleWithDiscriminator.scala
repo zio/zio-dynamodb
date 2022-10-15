@@ -4,14 +4,14 @@ import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
 import software.amazon.awssdk.regions.Region
 import zio.aws.core.config
 import zio.aws.dynamodb.DynamoDb
-import zio.aws.{dynamodb, netty}
+import zio.aws.{ dynamodb, netty }
 import zio.dynamodb.Annotations.discriminator
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb._
 import zio.dynamodb.examples.LocalDdbServer
-import zio.dynamodb.examples.dynamodblocal.TypeSafeAPIExampleWithDiscriminator.TrafficLight.{Amber, Box, Green}
+import zio.dynamodb.examples.dynamodblocal.TypeSafeAPIExampleWithDiscriminator.TrafficLight.{ Amber, Box, Green }
 import zio.schema.DeriveSchema
-import zio.{ZIO, ZIOAppDefault, ZLayer}
+import zio.{ ZIO, ZIOAppDefault, ZLayer }
 
 import java.net.URI
 
