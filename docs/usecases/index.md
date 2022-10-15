@@ -3,4 +3,5 @@ id: usecases_index
 title: "Contents"
 ---
 
-TODO
+[Codec Cusomisation](./codec-customisation.md)
+[Transactions](./transactions.md)
