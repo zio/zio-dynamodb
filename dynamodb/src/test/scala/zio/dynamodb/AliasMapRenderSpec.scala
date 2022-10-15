@@ -14,13 +14,13 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
   val name   = AttributeValue.String("name")
   val list   = AttributeValue.List(List(one, two, three))
 
-  val between                                               = ConditionExpression
+  val between                                                  = ConditionExpression
     .Between(
       ConditionExpression.Operand.ValueOperand(two),
       one,
       three
     )
-  val in                                                    = ConditionExpression
+  val in                                                       = ConditionExpression
     .In(
       ConditionExpression.Operand.ValueOperand(one),
       Set(one, two)
@@ -31,12 +31,12 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
   val attributeNotExists                                       = ConditionExpression.AttributeNotExists(projectionExpression)
   val attributeType                                            = ConditionExpression
     .AttributeType(projectionExpression, AttributeValueType.Number)
-  val contains                                              = ConditionExpression
+  val contains                                                 = ConditionExpression
     .Contains(
       projectionExpression,
       one
     )
-  val beginsWith                                            = ConditionExpression
+  val beginsWith                                               = ConditionExpression
     .BeginsWith(
       projectionExpression,
       name
