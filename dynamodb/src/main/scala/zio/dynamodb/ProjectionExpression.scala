@@ -1,14 +1,14 @@
 package zio.dynamodb
 
 import zio.Chunk
-import zio.dynamodb.Annotations.{ maybeDiscriminator, maybeId }
+import zio.dynamodb.Annotations.{maybeDiscriminator, maybeId}
 import zio.dynamodb.ConditionExpression.Operand.ProjectionExpressionOperand
-import zio.dynamodb.ProjectionExpression.{ ListElement, MapElement, Root }
-import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand }
+import zio.dynamodb.ProjectionExpression.{ListElement, MapElement, Root}
+import zio.dynamodb.UpdateExpression.SetOperand.{IfNotExists, ListAppend, ListPrepend, PathOperand}
 import zio.dynamodb.proofs._
-import zio.schema.{ AccessorBuilder, Schema }
+import zio.schema.{AccessorBuilder, Schema}
 
-import scala.annotation.{ tailrec, unused }
+import scala.annotation.{tailrec, unused}
 
 // The maximum depth for a document path is 32
 sealed trait ProjectionExpression[-From, +To] { self =>
@@ -40,9 +40,11 @@ sealed trait ProjectionExpression[-From, +To] { self =>
   // applies to all types
   def notExists: ConditionExpression[From] = ConditionExpression.AttributeNotExists(self)
   // Applies to all types except Number and Boolean
-  def size(implicit ev: Sizable[To]): ConditionExpression.Operand.Size = {
+  // TODO propgate size[From](...) type params
+  // Operand[From, Int]
+  def size[To2 >: To](implicit ev: Sizable[To2]): ConditionExpression.Operand.Size[From, To2] = {
     val _ = ev
-    ConditionExpression.Operand.Size(self)
+    ConditionExpression.Operand.Size(self, ev)
   }
 
   /**
@@ -465,6 +467,12 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
   def some[A]: ProjectionExpression[Option[A], A] =
     ProjectionExpression.root.asInstanceOf[ProjectionExpression[Option[A], A]]
 
+  sealed trait OpticType
+  object OpticType {
+    case object Lens                                extends OpticType
+    case class Prism(discriminator: Option[String]) extends OpticType
+  }
+
   /*
   PHASE1 - capturing info we have and making it available in a PE
   we going to add a Meta to every PE eg when you generate something using $ -> lens
@@ -473,12 +481,6 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
   PHASE2
   we are going to leverage that when we turn PE into AWS API
    */
-  sealed trait OpticType
-  object OpticType {
-    case object Lens                                extends OpticType
-    case class Prism(discriminator: Option[String]) extends OpticType
-  }
-
   final case class Meta(opticType: OpticType)
 
   implicit class ProjectionExpressionSyntax(self: ProjectionExpression[_, Unknown]) {

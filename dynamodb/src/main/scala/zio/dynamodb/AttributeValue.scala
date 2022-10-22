@@ -5,32 +5,45 @@ import zio.dynamodb.ConditionExpression._
 import zio.schema.Schema
 
 sealed trait AttributeValue { self =>
+  type ScalaType
+
   def decode[A](implicit schema: Schema[A]): Either[String, A] = Codec.decoder(schema)(self)
 
-  def ===(that: Operand.Size): ConditionExpression[_] = Equals(ValueOperand(self), that)
-  def <>(that: Operand.Size): ConditionExpression[_]  = NotEqual(ValueOperand(self), that)
-  def <(that: Operand.Size): ConditionExpression[_]   = LessThan(ValueOperand(self), that)
-  def <=(that: Operand.Size): ConditionExpression[_]  = LessThanOrEqual(ValueOperand(self), that)
-  def >(that: Operand.Size): ConditionExpression[_]   = GreaterThanOrEqual(ValueOperand(self), that)
-  def >=(that: Operand.Size): ConditionExpression[_]  = GreaterThanOrEqual(ValueOperand(self), that)
+  def ===[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From]                  = Equals(ValueOperand(self), that)
+  def <>[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From]                   = NotEqual(ValueOperand(self), that)
+  def <[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From]                    =
+    LessThan(ValueOperand(self), that)
+  def <=[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From]                   =
+    LessThanOrEqual(ValueOperand(self), that)
+  // TODO: Avi - ScalaType here is causing compile error
+//  def >[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From]   =
+//    GreaterThanOrEqual(ValueOperand(self), that)
+  // TODO: Avi - added type ProjectionExpression.Unknown to bypass compile error for now
+  def >[From](that: Operand.Size[From, ProjectionExpression.Unknown]): ConditionExpression[From] =
+    GreaterThanOrEqual(ValueOperand(self), that)
 
-  def ===(that: ProjectionExpression[_, _]): ConditionExpression[_] =
+  def >=[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From] =
+    GreaterThanOrEqual(ValueOperand(self), that)
+
+  def ===[From](that: ProjectionExpression[From, _]): ConditionExpression[From] =
     Equals(ValueOperand(self), ProjectionExpressionOperand(that))
-  def <>(that: ProjectionExpression[_, _]): ConditionExpression[_]  =
+  def <>[From](that: ProjectionExpression[From, _]): ConditionExpression[From]  =
     NotEqual(ValueOperand(self), ProjectionExpressionOperand(that))
-  def <(that: ProjectionExpression[_, _]): ConditionExpression[_]   =
+  def <[From](that: ProjectionExpression[From, _]): ConditionExpression[From]   =
     LessThan(ValueOperand(self), ProjectionExpressionOperand(that))
-  def <=(that: ProjectionExpression[_, _]): ConditionExpression[_]  =
+  def <=[From](that: ProjectionExpression[From, _]): ConditionExpression[From]  =
     LessThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))
-  def >(that: ProjectionExpression[_, _]): ConditionExpression[_]   =
+  def >[From](that: ProjectionExpression[From, _]): ConditionExpression[From]   =
     GreaterThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))
-  def >=(that: ProjectionExpression[_, _]): ConditionExpression[_]  =
+  def >=[From](that: ProjectionExpression[From, _]): ConditionExpression[From]  =
     GreaterThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))
 }
 
 object AttributeValue {
   import Predef.{ String => ScalaString }
   import scala.collection.immutable.{ Map => ScalaMap }
+
+  type WithScalaType[X] = AttributeValue { type ScalaType = X }
 
   private[dynamodb] final case class Binary(value: Iterable[Byte])              extends AttributeValue
   private[dynamodb] final case class BinarySet(value: Iterable[Iterable[Byte]]) extends AttributeValue
@@ -45,7 +58,8 @@ object AttributeValue {
   private[dynamodb] final case class String(value: ScalaString)         extends AttributeValue
   private[dynamodb] final case class StringSet(value: Set[ScalaString]) extends AttributeValue
 
-  def apply[A](a: A)(implicit ev: ToAttributeValue[A]): AttributeValue = ev.toAttributeValue(a)
+  def apply[A](a: A)(implicit ev: ToAttributeValue[A]): AttributeValue.WithScalaType[A] =
+    ev.toAttributeValue(a).asInstanceOf[AttributeValue.WithScalaType[A]]
 
   def encode[A](a: A)(implicit schema: Schema[A]): AttributeValue = Codec.encoder(schema)(a)
 

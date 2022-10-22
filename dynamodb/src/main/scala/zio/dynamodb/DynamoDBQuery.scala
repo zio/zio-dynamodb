@@ -26,6 +26,34 @@ import zio.schema.Schema
 import zio.stream.Stream
 import zio.{ Chunk, Has, NonEmptyChunk, Schedule, ZIO }
 
+//sealed trait SubtypeOrUnit[A, -B]
+//object SubtypeOrUnit {
+//  implicit def x[A, B](implicit ev: B <:< A) =
+//}
+
+// TODO
+/*sealed*/
+trait CanWhere[A, -B]
+
+trait CanWhereLowPriorityImplicits1 {
+  implicit def subtypeCanWhere[A, B](implicit ev: B <:< A): CanWhere[A, B] = new CanWhere[A, B] {}
+
+}
+
+object CanWhere extends CanWhereLowPriorityImplicits1 {
+
+  implicit def subtypeCanWhereUnit[A]: CanWhere[A, Unit] = new CanWhere[A, Unit] {}
+
+//  implicit def subtypeCanWhereUnit[A, B >: Unit](implicit ev: CanWhere[A, B]): CanWhere[A, B] = {
+//    val _ = ev
+//    new CanWhere[A, B] {}
+//  }
+
+//  implicit def subtypeCanWhereUnit[A, B <: Unit](implicit ev: B <:< A): CanWhere[A, B] =
+//    new CanWhere[A, B] {}
+
+}
+
 sealed trait CanFilter[A, -B]
 // create lowPriorityCanFilter, prefer Stream one
 object CanFilter {
@@ -145,7 +173,16 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                          => self
     }
 
-  def where[In2 <: In](conditionExpression: ConditionExpression[In2]): DynamoDBQuery[In2, Out] =
+  /*
+  /**
+   * Filter a Scan or a Query
+   */
+  def filter[B](filterExpression: FilterExpression[B])(implicit ev: CanFilter[B, Out]): DynamoDBQuery[In, Out] = ???
+   */
+
+//  def where[B](conditionExpression: ConditionExpression[B])(implicit ev: CanWhere[B, Out]): DynamoDBQuery[In, Out] = {
+  def where[B](conditionExpression: ConditionExpression[B])(implicit ev: CanWhere[B, Out]): DynamoDBQuery[In, Out] = {
+    val _ = ev
     self match {
       case zip @ Zip(left, right, zippable) =>
         Zip(
@@ -156,13 +193,14 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case map @ Map(query, mapper)         =>
         Map(query.where(conditionExpression.asInstanceOf[ConditionExpression[map.Old]]), mapper)
       case p: PutItem                       =>
-        p.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[In2, Out]]
+        p.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case u: UpdateItem                    =>
-        u.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[In2, Out]]
+        u.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case d: DeleteItem                    =>
-        d.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[In2, Out]]
+        d.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                                => self
     }
+  }
 
   def metrics(itemMetrics: ReturnItemCollectionMetrics): DynamoDBQuery[In, Out] =
     self match {

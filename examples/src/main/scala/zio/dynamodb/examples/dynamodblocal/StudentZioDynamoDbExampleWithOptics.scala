@@ -2,7 +2,7 @@ package zio.dynamodb.examples.dynamodblocal
 
 import io.github.vigoo.zioaws.core.config
 import io.github.vigoo.zioaws.dynamodb.DynamoDb
-import io.github.vigoo.zioaws.{ dynamodb, http4s }
+import io.github.vigoo.zioaws.{dynamodb, http4s}
 import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
 import software.amazon.awssdk.regions.Region
 import zio.blocking.Blocking
@@ -11,9 +11,9 @@ import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb._
 import zio.dynamodb.examples.LocalDdbServer
-import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema }
+import zio.schema.{DefaultJavaTimeSchemas, DeriveSchema}
 import zio.stream.Stream
-import zio.{ console, App, ExitCode, Has, URIO, ZIO, ZLayer }
+import zio.{App, ExitCode, Has, URIO, ZIO, ZLayer, console}
 
 import java.net.URI
 import java.time.Instant
@@ -89,19 +89,18 @@ object StudentZioDynamoDbExampleWithOptics extends App {
     _          <- batchReadFromStream("student", Stream(avi, adam))(s => PrimaryKey("email" -> s.email, "subject" -> s.subject))
                     .tap(student => console.putStrLn(s"student=$student"))
                     .runDrain
-    _          <- scanAll[Student]("student")
-                    .filter[Student] {
-                      enrollmentDate === Some(
-                        enrolDate
-                      ) && payment === Payment.CreditCard // && Elephant.email === "elephant@gmail.com"
-                    }
-                    .execute
+    _          <- scanAll[Student]("student").filter {
+                    enrollmentDate === Some(
+                      enrolDate
+                    ) && payment === Payment.CreditCard
+                    // TODO: Avi - "&& Elephant.email === "elephant@gmail.com"" fails to compile as expected
+                  }.execute
                     .map(_.runCollect)
     _          <- queryAll[Student]("student")
-                    .filter(
+                    .filter( // TODO: Avi - "&& Elephant.email === "elephant@gmail.com"" fails to compile as expected
                       enrollmentDate === Some(enrolDate) && payment === Payment.CreditCard
                     )
-                    .whereKey(email === "avi@gmail.com" && subject === "maths")
+                    .whereKey(email === "avi@gmail.com" && subject === "maths" /* && Elephant.email === "elephant@gmail.com" */ )
                     .execute
                     .map(_.runCollect)
     _          <- put[Student]("student", avi)
@@ -119,7 +118,9 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                   }.execute
     _          <- deleteItem("student", PrimaryKey("email" -> "adam@gmail.com", "subject" -> "english"))
                     .where(
-                      enrollmentDate === Some(enrolDate) && payment === Payment.CreditCard
+                      enrollmentDate === Some(
+                        enrolDate
+                      ) && payment === Payment.CreditCard /* && Elephant.email === "elephant@gmail.com" */
                     )
                     .execute
     _          <- scanAll[Student]("student").execute

@@ -131,7 +131,7 @@ object AliasMapRenderSpec extends DefaultRunnableSpec {
             val (aliasMap, expression) = ConditionExpression
               .Equals(
                 ConditionExpression.Operand.ValueOperand(two),
-                ConditionExpression.Operand.Size(projectionExpression)
+                ConditionExpression.Operand.Size(projectionExpression, null)
               )
               .render
               .execute
@@ -155,7 +155,7 @@ object AliasMapRenderSpec extends DefaultRunnableSpec {
             val (aliasMap, expression) = ConditionExpression
               .NotEqual(
                 ConditionExpression.Operand.ValueOperand(two),
-                ConditionExpression.Operand.Size(projectionExpression)
+                ConditionExpression.Operand.Size(projectionExpression, null)
               )
               .render
               .execute

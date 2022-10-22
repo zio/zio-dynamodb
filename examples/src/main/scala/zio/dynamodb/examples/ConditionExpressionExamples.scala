@@ -1,13 +1,19 @@
 package zio.dynamodb.examples
 
+import zio.dynamodb.AttributeValue.WithScalaType
+import zio.dynamodb.ConditionExpression.Operand
 import zio.dynamodb.ProjectionExpression._
 import zio.dynamodb._
 
 object ConditionExpressionExamples {
 
-  val sizeOnRhs: ConditionExpression[_] = AttributeValue(1) > $("col2").size
-  val avToCond1: ConditionExpression[_] = AttributeValue("2") > $("col1")
-  val avToCond2: ConditionExpression[_] = AttributeValue("2") < $("col1")
+  val x: ProjectionExpression[Any, Unknown] = $("col2")
+  val xx: Operand.Size[Any, Unknown]        = x.size
+  val y: WithScalaType[Int]                 = AttributeValue(1)
+  val sizeOnRhs2                            = AttributeValue(1) > x.size
+  val sizeOnRhs                             = AttributeValue(1) > $("col2").size
+  val avToCond1: ConditionExpression[_]     = AttributeValue("2") > $("col1")
+  val avToCond2: ConditionExpression[_]     = AttributeValue("2") < $("col1")
 
   val exists: ConditionExpression[_]     = $("col1").exists
   val notExists: ConditionExpression[_]  = $("col1").notExists

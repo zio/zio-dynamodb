@@ -10,7 +10,7 @@ import zio.clock.Clock
 import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb._
-import zio.dynamodb.examples.LocalDdbServer
+import zio.dynamodb.examples.{ Elephant, LocalDdbServer }
 import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema }
 import zio.stream.ZStream
 import zio.{ console, App, ExitCode, Has, URIO, ZIO, ZLayer }
@@ -74,6 +74,18 @@ object StudentZioDynamoDbTypeSafeAPIExample extends App {
     .identity[Has[Blocking.Service]] >>> LocalDdbServer.inMemoryLayer)
 
   import StudentZioDynamoDbTypeSafeAPIExample.Student._
+
+  val x: ConditionExpression[Student] =
+    enrollmentDate === Some(Instant.now) && payment <> Payment.PayPal && studentNumber
+      .between(1, 3) && groups.contains("group1") && collegeName.contains(
+      "college1"
+    )
+
+  val ce1: ConditionExpression.Operand.Size[Student, String]            = collegeName.size // compiles
+  val ce2: ConditionExpression[Student]                                 = ce1 > 1
+  val ceElephant: ConditionExpression[Elephant]                         = Elephant.email === "XXXX"
+  val ceStudentWithElephant: ConditionExpression[Student with Elephant] = ce2 && ceElephant
+//  implicit val testImplicit: CanWhere[Student, Unit] = new CanWhere[Student, Unit] {}
 
   private val program = for {
     _          <- createTable("student", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
@@ -156,10 +168,10 @@ object StudentZioDynamoDbTypeSafeAPIExample extends App {
                   }.execute
     _          <- deleteItem("student", PrimaryKey("email" -> "adam@gmail.com", "subject" -> "english"))
                     .where(
-                      enrollmentDate === Some(enrolDate) && payment <> Payment.PayPal && studentNumber
+                      (enrollmentDate === Some(enrolDate) && payment <> Payment.PayPal && studentNumber
                         .between(1, 3) && groups.contains("group1") && collegeName.contains(
                         "college1"
-                      ) && collegeName.size > 1 && groups.size > 1
+                      ) && collegeName.size > 1 && groups.size > 1 /* && Elephant.email === "XXXXXXX" */ )
                     )
                     .execute
     _          <- scanAll[Student]("student")
