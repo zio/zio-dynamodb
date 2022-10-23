@@ -82,7 +82,7 @@ object StudentZioDynamoDbTypeSafeAPIExample extends App {
     )
 
   val ce1: ConditionExpression.Operand.Size[Student, String]            = collegeName.size // compiles
-  val ce2: ConditionExpression[Student]                                 = ce1 > 1
+  val ce2: ConditionExpression[Student]                                 = ce1 <= 2
   val ceElephant: ConditionExpression[Elephant]                         = Elephant.email === "XXXX"
   val ceStudentWithElephant: ConditionExpression[Student with Elephant] = ce2 && ceElephant
 //  implicit val testImplicit: CanWhere[Student, Unit] = new CanWhere[Student, Unit] {}

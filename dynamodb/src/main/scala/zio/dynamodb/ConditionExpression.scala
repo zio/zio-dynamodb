@@ -101,6 +101,7 @@ object ConditionExpression {
       Between(self.asInstanceOf[Operand[From, To]], minValue, maxValue)
     def in(values: Set[AttributeValue]): ConditionExpression[From]                          = In(self.asInstanceOf[Operand[From, To]], values)
 
+    // TODO: Avi - these comparison operators do not seem to be used
     // TODO: should be "===" rather than "=="
     def ==[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2] =
       Equals(self.asInstanceOf[Operand[From2, To2]], that)
@@ -115,23 +116,22 @@ object ConditionExpression {
     def >=[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2] =
       GreaterThanOrEqual(self.asInstanceOf[Operand[From2, To2]], that)
 
-    // TODO: we should never return existentials
     // TODO: should be "===" rather than "=="
-    def ==[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[_] =
+    def ==[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2] =
       Equals(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
-    def <>[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[_] =
+    def <>[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2] =
       NotEqual(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
-    def <[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[_]  =
+    def <[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2]  =
       LessThan(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
-    def <=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[_] =
+    def <=[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2] =
       LessThanOrEqual(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
 
 //    def >[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[_] =
 //      GreaterThan(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
 
-    def >[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2] =
+    def >[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2]  =
       GreaterThan(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
-    def >=[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[_]                   =
+    def >=[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2] =
       GreaterThanOrEqual(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
 
     def render: AliasMapRender[String] =
