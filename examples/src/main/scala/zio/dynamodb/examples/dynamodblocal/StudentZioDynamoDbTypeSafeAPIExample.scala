@@ -146,7 +146,9 @@ object StudentZioDynamoDbTypeSafeAPIExample extends App {
                     .map(_.runCollect)
     _          <- put[Student]("student", avi)
                     .where(
-                      enrollmentDate === Some(enrolDate) && email === "avi@gmail.com" && payment === Payment.CreditCard
+                      enrollmentDate === Some(
+                        enrolDate
+                      ) && email === "avi@gmail.com" && payment === Payment.CreditCard
                     )
                     .execute
     _          <- updateItem[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {

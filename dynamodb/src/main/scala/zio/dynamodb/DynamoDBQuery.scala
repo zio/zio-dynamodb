@@ -26,19 +26,12 @@ import zio.schema.Schema
 import zio.stream.Stream
 import zio.{ Chunk, Has, NonEmptyChunk, Schedule, ZIO }
 
-//sealed trait SubtypeOrUnit[A, -B]
-//object SubtypeOrUnit {
-//  implicit def x[A, B](implicit ev: B <:< A) =
-//}
+import scala.annotation.implicitNotFound
 
-// TODO
-/*sealed*/
-trait CanWhere[A, -B]
-
-trait CanWhereLowPriorityImplicits1 {
-//  implicit def subtypeCanWhere[A, B](implicit ev: B <:< A): CanWhere[A, B] = new CanWhere[A, B] {}
-
-}
+@implicitNotFound(
+  "Mixed types for the condition expression found - ${A}"
+)
+sealed trait CanWhere[A, -B]
 
 object CanWhere {
   implicit def subtypeCanWhere[A, B](implicit ev: B <:< A): CanWhere[A, B] = new CanWhere[A, B] {}
@@ -48,18 +41,11 @@ object CanWhere {
     new CanWhere[A, Option[B]] {}
   }
 
-  //  implicit def subtypeCanWhereUnit[A]: CanWhere[A, Unit] = new CanWhere[A, Unit] {}
-
-//  implicit def subtypeCanWhereUnit[A, B >: Unit](implicit ev: CanWhere[A, B]): CanWhere[A, B] = {
-//    val _ = ev
-//    new CanWhere[A, B] {}
-//  }
-
-//  implicit def subtypeCanWhereUnit[A, B <: Unit](implicit ev: B <:< A): CanWhere[A, B] =
-//    new CanWhere[A, B] {}
-
 }
 
+@implicitNotFound(
+  "Mixed types for the filter expression found - ${A}"
+)
 sealed trait CanFilter[A, -B]
 // create lowPriorityCanFilter, prefer Stream one
 object CanFilter {
@@ -67,6 +53,18 @@ object CanFilter {
   implicit def subtypeStreamCanFilter[A, B](implicit ev: CanFilter[A, B]): CanFilter[A, Stream[Throwable, B]] = {
     val _ = ev
     new CanFilter[A, Stream[Throwable, B]] {}
+  }
+}
+
+@implicitNotFound(
+  "Mixed types for the key condition expression found - ${A}"
+)
+sealed trait CanWhereKey[A, -B]
+object CanWhereKey {
+  implicit def subtypeCanFilter[A, B](implicit ev: B <:< A): CanWhereKey[A, B] = new CanWhereKey[A, B] {}
+  implicit def subtypeStreamCanFilter[A, B](implicit ev: CanWhereKey[A, B]): CanWhereKey[A, Stream[Throwable, B]] = {
+    val _ = ev
+    new CanWhereKey[A, Stream[Throwable, B]] {}
   }
 }
 
@@ -382,7 +380,14 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
    * val newQuery = query.whereKey(email === "avi@gmail.com" && subject === "maths")
    * }}}
    */
-  def whereKey[In2 <: In](conditionExpression: ConditionExpression[In2]): DynamoDBQuery[In, Out] = {
+  /*
+  def where[B](conditionExpression: ConditionExpression[B])(implicit ev: CanWhere[B, Out]): DynamoDBQuery[In, Out] = {
+  def filter[B](filterExpression: FilterExpression[B])(implicit ev: CanFilter[B, Out]): DynamoDBQuery[In, Out] = {
+   */
+  def whereKey[B](
+    conditionExpression: ConditionExpression[B]
+  )(implicit ev: CanWhereKey[B, Out]): DynamoDBQuery[In, Out] = {
+    val _                                              = ev
     val keyConditionExpression: KeyConditionExpression =
       KeyConditionExpression.fromConditionExpressionUnsafe(conditionExpression)
     self match {
@@ -463,8 +468,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 }
 
 object DynamoDBQuery {
-  import scala.collection.immutable.{ Map => ScalaMap }
-  import scala.collection.immutable.{ Set => ScalaSet }
+  import scala.collection.immutable.{ Map => ScalaMap, Set => ScalaSet }
 
   sealed trait Constructor[-In, +A] extends DynamoDBQuery[In, A]
   sealed trait Write[-In, +A]       extends Constructor[In, A]
