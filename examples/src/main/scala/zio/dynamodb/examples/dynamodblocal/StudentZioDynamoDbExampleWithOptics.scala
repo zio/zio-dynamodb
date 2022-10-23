@@ -2,7 +2,7 @@ package zio.dynamodb.examples.dynamodblocal
 
 import io.github.vigoo.zioaws.core.config
 import io.github.vigoo.zioaws.dynamodb.DynamoDb
-import io.github.vigoo.zioaws.{dynamodb, http4s}
+import io.github.vigoo.zioaws.{ dynamodb, http4s }
 import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
 import software.amazon.awssdk.regions.Region
 import zio.blocking.Blocking
@@ -11,9 +11,9 @@ import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb._
 import zio.dynamodb.examples.LocalDdbServer
-import zio.schema.{DefaultJavaTimeSchemas, DeriveSchema}
+import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema }
 import zio.stream.Stream
-import zio.{App, ExitCode, Has, URIO, ZIO, ZLayer, console}
+import zio.{ console, App, ExitCode, Has, URIO, ZIO, ZLayer }
 
 import java.net.URI
 import java.time.Instant
@@ -97,7 +97,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                   }.execute
                     .map(_.runCollect)
     _          <- queryAll[Student]("student")
-                    .filter( // TODO: Avi - "&& Elephant.email === "elephant@gmail.com"" fails to compile as expected
+                    .filter(                              // TODO: Avi - "&& Elephant.email === "elephant@gmail.com"" fails to compile as expected
                       enrollmentDate === Some(enrolDate) && payment === Payment.CreditCard
                     )
                     .whereKey(email === "avi@gmail.com" && subject === "maths" /* && Elephant.email === "elephant@gmail.com" */ )
@@ -116,11 +116,11 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                         Some(Address("line1", "postcode1"))
                       )
                   }.execute
-    _          <- deleteItem("student", PrimaryKey("email" -> "adam@gmail.com", "subject" -> "english"))
+    _          <- delete("student", PrimaryKey("email" -> "adam@gmail.com", "subject" -> "english"))
                     .where(
                       enrollmentDate === Some(
                         enrolDate
-                      ) && payment === Payment.CreditCard /* && Elephant.email === "elephant@gmail.com" */
+                      ) && payment === Payment.CreditCard // && zio.dynamodb.examples.Elephant.email === "elephant@gmail.com"
                     )
                     .execute
     _          <- scanAll[Student]("student").execute

@@ -24,10 +24,10 @@ object ParallelizeSpec extends DefaultRunnableSpec with DynamoDBFixtures {
       },
       test("should process Zipped writes") {
         val (constructors, assembler) = parallelize[Any, Any](putItemT1 zip deleteItemT1)
-        val assembled                 = assembler(Chunk())
+        val assembled                 = assembler(Chunk(None, None))
 
         assert(constructors)(equalTo(Chunk(putItemT1, deleteItemT1))) &&
-        assert(assembled)(equalTo(()))
+        assert(assembled)(equalTo((None, None)))
       },
       test("should process Map constructor") {
         val map                       = Map(

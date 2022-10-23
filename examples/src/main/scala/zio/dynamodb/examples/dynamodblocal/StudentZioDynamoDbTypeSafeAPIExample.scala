@@ -166,14 +166,15 @@ object StudentZioDynamoDbTypeSafeAPIExample extends App {
     _          <- updateItem[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
                     addresses.remove(1)
                   }.execute
-    _          <- deleteItem("student", PrimaryKey("email" -> "adam@gmail.com", "subject" -> "english"))
-                    .where(
-                      (enrollmentDate === Some(enrolDate) && payment <> Payment.PayPal && studentNumber
-                        .between(1, 3) && groups.contains("group1") && collegeName.contains(
-                        "college1"
-                      ) && collegeName.size > 1 && groups.size > 1 /* && Elephant.email === "XXXXXXX" */ )
-                    )
-                    .execute
+    _          <-
+      delete("student", PrimaryKey("email" -> "adam@gmail.com", "subject" -> "english"))
+        .where(
+          (enrollmentDate === Some(enrolDate) && payment <> Payment.PayPal && studentNumber
+            .between(1, 3) && groups.contains("group1") && collegeName.contains(
+            "college1"
+          ) && collegeName.size > 1 && groups.size > 1 /* && zio.dynamodb.examples.Elephant.email === "elephant@gmail.com" */ )
+        )
+        .execute
     _          <- scanAll[Student]("student")
                     .filter[Student](payment.in(Payment.PayPal) && payment.inSet(Set(Payment.PayPal)))
                     .execute

@@ -76,7 +76,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
       case c: ScanAll        => executeScanAll(c)
       case c: ScanSome       => executeScanSome(c)
       case c: UpdateItem     => executeUpdateItem(c)
-      case _: ConditionCheck => ZIO.unit
+      case _: ConditionCheck => ZIO.none //ZIO.unit
       case c: CreateTable    => executeCreateTable(c)
       case c: DeleteItem     => executeDeleteItem(c)
       case c: DeleteTable    => executeDeleteTable(c)
@@ -97,14 +97,18 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
   private def executeCreateTable(createTable: CreateTable): ZIO[Any, Throwable, Unit] =
     dynamoDb.createTable(awsCreateTableRequest(createTable)).mapError(_.toThrowable).unit
 
-  private def executeDeleteItem(deleteItem: DeleteItem): ZIO[Any, Throwable, Unit] =
-    dynamoDb.deleteItem(awsDeleteItemRequest(deleteItem)).mapError(_.toThrowable).unit
+  private def executeDeleteItem(deleteItem: DeleteItem): ZIO[Any, Throwable, Option[Item]] =
+//    dynamoDb.deleteItem(awsDeleteItemRequest(deleteItem)).mapError(_.toThrowable).unit
+    dynamoDb.deleteItem(awsDeleteItemRequest(deleteItem)).mapBoth(_.toThrowable, _.attributesValue.map(dynamoDBItem(_)))
 
   private def executeDeleteTable(deleteTable: DeleteTable): ZIO[Any, Throwable, Unit] =
     dynamoDb.deleteTable(DeleteTableRequest(deleteTable.tableName.value)).mapError(_.toThrowable).unit
 
-  private def executePutItem(putItem: PutItem): ZIO[Any, Throwable, Unit] =
-    dynamoDb.putItem(awsPutItemRequest(putItem)).unit.mapError(_.toThrowable)
+  private def executePutItem(putItem: PutItem): ZIO[Any, Throwable, Option[Item]] =
+//    dynamoDb.putItem(awsPutItemRequest(putItem)).unit.mapError(_.toThrowable)
+    dynamoDb
+      .putItem(awsPutItemRequest(putItem))
+      .mapBoth(_.toThrowable, _.attributesValue.map(dynamoDBItem(_)))
 
   private def executeGetItem(getItem: GetItem): ZIO[Any, Throwable, Option[Item]] =
     dynamoDb
@@ -191,7 +195,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (clock: Clock.Se
                                                     case Right(transactWriteItems) =>
                                                       dynamoDb
                                                         .transactWriteItems(transactWriteItems)
-                                                        .mapBoth(_.toThrowable, _ => Chunk.fill(transactionActions.length)(()))
+//                                                        .mapBoth(_.toThrowable, _ => Chunk.fill(transactionActions.length)(()))
+                                                        .mapBoth(_.toThrowable, _ => Chunk.fill(transactionActions.length)(None))
                                                   }
     } yield transactionMapping(a)
 

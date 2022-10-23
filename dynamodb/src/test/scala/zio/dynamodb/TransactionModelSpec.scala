@@ -220,10 +220,10 @@ object TransactionModelSpec extends DefaultRunnableSpec {
         assertM(simpleUpdateItem.transaction.execute)(equalTo(None))
       },
       testM("delete item") {
-        assertM(simpleDeleteItem.transaction.execute)(equalTo(()))
+        assertM(simpleDeleteItem.transaction.execute)(equalTo(None))
       },
       testM("put item") {
-        assertM(simplePutItem.transaction.execute)(equalTo(()))
+        assertM(simplePutItem.transaction.execute)(equalTo(None))
       },
       testM("batch write item") {
         assertM(simpleBatchWrite.transaction.execute)(equalTo(BatchWriteItem.Response(None)))

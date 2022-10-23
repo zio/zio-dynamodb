@@ -107,18 +107,18 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private (
       maybeItem     <- tableMap.get(pk)
     } yield maybeItem).commit
 
-  private def fakePut(tableName: String, item: Item): IO[DatabaseError, Unit] =
+  private def fakePut(tableName: String, item: Item): ZIO[Any, DatabaseError, Option[Item]] =
     (for {
       (tableMap, pkName) <- tableMapAndPkName(tableName)
       pk                  = pkForItem(item, pkName)
-      result             <- tableMap.put(pk, item)
-    } yield result).commit
+      _                  <- tableMap.put(pk, item)
+    } yield None).commit
 
-  private def fakeDelete(tableName: String, pk: PrimaryKey): IO[DatabaseError, Unit] =
+  private def fakeDelete(tableName: String, pk: PrimaryKey): IO[DatabaseError, Option[Item]] =
     (for {
       (tableMap, _) <- tableMapAndPkName(tableName)
-      result        <- tableMap.delete(pk)
-    } yield result).commit
+      _             <- tableMap.delete(pk)
+    } yield None).commit
 
   private def fakeScanSome(
     tableName: String,

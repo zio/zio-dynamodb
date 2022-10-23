@@ -843,15 +843,16 @@ object LiveSpec extends DefaultRunnableSpec {
       suite("transactions")(
         suite("transact write items")(
           testM("put item") {
-            withDefaultTable { tableName =>
-              val putItem = PutItem(
-                item = Item(id -> first, name -> avi3, number -> 10),
-                tableName = TableName(tableName)
-              )
-              for {
-                _ <- putItem.transaction.execute
-                written <- getItem(tableName, PrimaryKey(id -> first, number -> 10)).execute
-              } yield assert(written)(isSome(equalTo(putItem.item)))
+            withDefaultTable {
+              tableName =>
+                val putItem = PutItem(
+                  item = Item(id -> first, name -> avi3, number -> 10),
+                  tableName = TableName(tableName)
+                )
+                for {
+                  _       <- putItem.transaction.execute
+                  written <- getItem(tableName, PrimaryKey(id -> first, number -> 10)).execute
+                } yield assert(written)(isSome(equalTo(putItem.item)))
             }
           },
           testM("condition check succeeds") {

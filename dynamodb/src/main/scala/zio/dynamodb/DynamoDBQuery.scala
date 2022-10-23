@@ -36,13 +36,19 @@ import zio.{ Chunk, Has, NonEmptyChunk, Schedule, ZIO }
 trait CanWhere[A, -B]
 
 trait CanWhereLowPriorityImplicits1 {
-  implicit def subtypeCanWhere[A, B](implicit ev: B <:< A): CanWhere[A, B] = new CanWhere[A, B] {}
+//  implicit def subtypeCanWhere[A, B](implicit ev: B <:< A): CanWhere[A, B] = new CanWhere[A, B] {}
 
 }
 
-object CanWhere extends CanWhereLowPriorityImplicits1 {
+object CanWhere {
+  implicit def subtypeCanWhere[A, B](implicit ev: B <:< A): CanWhere[A, B] = new CanWhere[A, B] {}
 
-  implicit def subtypeCanWhereUnit[A]: CanWhere[A, Unit] = new CanWhere[A, Unit] {}
+  implicit def subtypeCanWhereReturnOption[A, B](implicit ev: CanWhere[A, B]): CanWhere[A, Option[B]] = {
+    val _ = ev
+    new CanWhere[A, Option[B]] {}
+  }
+
+  //  implicit def subtypeCanWhereUnit[A]: CanWhere[A, Unit] = new CanWhere[A, Unit] {}
 
 //  implicit def subtypeCanWhereUnit[A, B >: Unit](implicit ev: CanWhere[A, B]): CanWhere[A, B] = {
 //    val _ = ev
@@ -87,7 +93,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       ddbExecute(batchGetItem).map(resp => batchGetItem.toGetItemResponses(resp) zip batchGetIndexes)
 
     val indexedWriteResults =
-      ddbExecute(batchWriteItem).as(batchWriteItem.addList.map(_ => ()) zip batchWriteIndexes)
+      ddbExecute(batchWriteItem).as(batchWriteItem.addList.map(_ => /* TODO: Avi */ None) zip batchWriteIndexes)
 
     (indexedNonBatchedResults zipPar indexedGetResults zipPar indexedWriteResults).map {
       case ((nonBatched, batchedGets), batchedWrites) =>
@@ -505,10 +511,10 @@ object DynamoDBQuery {
     av.decode(Schema[A])
   }
 
-  def putItem(tableName: String, item: Item): DynamoDBQuery[Any, Unit] = PutItem(TableName(tableName), item)
+  def putItem(tableName: String, item: Item): DynamoDBQuery[Any, Option[Item]] = PutItem(TableName(tableName), item)
 
-  def put[A: Schema](tableName: String, a: A): DynamoDBQuery[A, Unit] =
-    putItem(tableName, toItem(a))
+  def put[A: Schema](tableName: String, a: A): DynamoDBQuery[A, Option[A]] =
+    putItem(tableName, toItem(a)).map(_.flatMap(item => fromItem(item).toOption))
 
   private[dynamodb] def toItem[A](a: A)(implicit schema: Schema[A]): Item =
     FromAttributeValue.attrMapFromAttributeValue
@@ -530,9 +536,10 @@ object DynamoDBQuery {
   def update[A: Schema](tableName: String, key: PrimaryKey)(action: Action[A]): DynamoDBQuery[A, Option[A]] =
     updateItem(tableName, key)(action).map(_.flatMap(item => fromItem(item).toOption))
 
-  def deleteItem(tableName: String, key: PrimaryKey): Write[Any, Unit] = DeleteItem(TableName(tableName), key)
+  def deleteItem(tableName: String, key: PrimaryKey): Write[Any, Option[Item]] = DeleteItem(TableName(tableName), key)
 
-  def delete[A: Schema](tableName: String, key: PrimaryKey): Write[A, Unit] = DeleteItem(TableName(tableName), key)
+  def delete[A: Schema](tableName: String, key: PrimaryKey): DynamoDBQuery[Any, Option[A]] =
+    deleteItem(tableName, key).map(_.flatMap(item => fromItem(item).toOption))
 
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
@@ -898,7 +905,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues = ReturnValues.None // PutItem does not recognize any values other than NONE or ALL_OLD.
-  ) extends Write[Any, Unit]
+  ) extends Write[Any, Option[Item]]
 
   private[dynamodb] final case class UpdateItem(
     tableName: TableName,
@@ -914,7 +921,7 @@ object DynamoDBQuery {
     tableName: TableName,
     primaryKey: PrimaryKey,
     conditionExpression: ConditionExpression[_]
-  ) extends Constructor[Any, Unit]
+  ) extends Constructor[Any, Option[Item]]
 
   private[dynamodb] final case class DeleteItem(
     tableName: TableName,
@@ -924,7 +931,7 @@ object DynamoDBQuery {
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues =
       ReturnValues.None // DeleteItem does not recognize any values other than NONE or ALL_OLD.
-  ) extends Write[Any, Unit]
+  ) extends Write[Any, Option[Item]]
 
   private[dynamodb] final case class CreateTable(
     tableName: TableName,
@@ -958,7 +965,7 @@ object DynamoDBQuery {
   ): (Chunk[(Constructor[In, Any], Int)], (BatchGetItem, Chunk[Int]), (BatchWriteItem, Chunk[Int])) = {
     type IndexedConstructor = (Constructor[In, Any], Int)
     type IndexedGetItem     = (GetItem, Int)
-    type IndexedWriteItem   = (Write[Any, Unit], Int)
+    type IndexedWriteItem   = (Write[Any, Option[Any]], Int)
 
     val (nonBatched, gets, writes) =
       constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem], Chunk[IndexedWriteItem])](
