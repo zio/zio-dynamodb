@@ -102,33 +102,30 @@ object ConditionExpression {
     def in(values: Set[AttributeValue]): ConditionExpression[From]                          = In(self.asInstanceOf[Operand[From, To]], values)
 
     // TODO: Avi - these comparison operators do not seem to be used
-    // TODO: should be "===" rather than "=="
-    def ==[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2] =
+    def ===[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2] =
       Equals(self.asInstanceOf[Operand[From2, To2]], that)
-    def <>[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2] =
+    def <>[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2]  =
       NotEqual(self.asInstanceOf[Operand[From, To2]], that)
-    def <[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2]  =
+    def <[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2]   =
       LessThan(self.asInstanceOf[Operand[From2, To2]], that)
-    def <=[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2] =
+    def <=[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2]  =
       LessThanOrEqual(self.asInstanceOf[Operand[From2, To2]], that)
-    def >[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2]  =
+    def >[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2]   =
       GreaterThanOrEqual(self.asInstanceOf[Operand[From2, To2]], that)
-    def >=[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2] =
+    def >=[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2]  =
       GreaterThanOrEqual(self.asInstanceOf[Operand[From2, To2]], that)
 
-    // TODO: should be "===" rather than "=="
-    def ==[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2] =
+    def ===[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2] =
       Equals(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
-    def <>[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2] =
+    def <>[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2]  =
       NotEqual(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
-    def <[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2]  =
+    def <[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2]   =
       LessThan(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
-    def <=[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2] =
+    def <=[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2]  =
       LessThanOrEqual(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
 
 //    def >[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[_] =
 //      GreaterThan(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
-
     def >[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2]  =
       GreaterThan(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
     def >=[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2] =
@@ -136,12 +133,9 @@ object ConditionExpression {
 
     def render: AliasMapRender[String] =
       self match {
-//        case Operand.ProjectionExpressionOperand(pe) => AliasMapRender.succeed(pe.toString)
-//        case Operand.ValueOperand(value)             => AliasMapRender.getOrInsert(value).map(identity)
-//        case Operand.Size(path)                      => AliasMapRender.succeed(s"size($path)")
-        case x: Operand.ProjectionExpressionOperand[_] => AliasMapRender.succeed(x.pe.toString)
-        case x: Operand.ValueOperand[_]                => AliasMapRender.getOrInsert(x.value).map(identity)
-        case x: Operand.Size[_, _]                     => AliasMapRender.succeed(s"size(${x.path})")
+        case op: Operand.ProjectionExpressionOperand[_] => AliasMapRender.succeed(op.pe.toString)
+        case op: Operand.ValueOperand[_]                => AliasMapRender.getOrInsert(op.value).map(identity)
+        case op: Operand.Size[_, _]                     => AliasMapRender.succeed(s"size(${op.path})")
       }
   }
 

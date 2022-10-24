@@ -4,8 +4,24 @@ import zio.dynamodb.AttributeValue.WithScalaType
 import zio.dynamodb.ConditionExpression.Operand
 import zio.dynamodb.ProjectionExpression._
 import zio.dynamodb._
+import zio.schema.DeriveSchema
 
 object ConditionExpressionExamples {
+
+  final case class Student(
+    email: String,
+    subject: String,
+    count1: Int,
+    count2: Int
+  )
+  object Student {
+    implicit val schema                  = DeriveSchema.gen[Student]
+    val (email, subject, count1, count2) = ProjectionExpression.accessors[Student]
+  }
+
+  val peOpticNum1: ProjectionExpression[Student, Int] = Student.count1
+  val peOpticNum2: ProjectionExpression[Student, Int] = Student.count2
+  val ceOptic1: ConditionExpression[Student]          = peOpticNum1 > peOpticNum2
 
   val x: ProjectionExpression[Any, Unknown] = $("col2")
   val xx: Operand.Size[Any, Unknown]        = x.size
@@ -20,7 +36,7 @@ object ConditionExpressionExamples {
   val beginsWith: ConditionExpression[_] = $("col1").beginsWith("1")
   val contains: ConditionExpression[_]   = $("col1").contains("1")
   val sizeOnLhs: ConditionExpression[_]  = $("col2").size > 1
-  val sizeOnLhs2: ConditionExpression[_] = $("col2").size == 1
+  val sizeOnLhs2: ConditionExpression[_] = $("col2").size === 1
   val isType: ConditionExpression[_]     = $("col1").isNumber
   val between: ConditionExpression[_]    = $("col1").between(1, 2)
   val in: ConditionExpression[_]         = $("col1").in(1, 2)

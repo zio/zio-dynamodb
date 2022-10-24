@@ -530,6 +530,8 @@ object DynamoDBQuery {
   // 90% of the time we are not interested in the return value of the update as that data is already in hand
   // All we want is confirmation that the update succeeded
   // whole thing will be A, part will be _
+  // TODO: Avi - I think this should be:
+  //    def updateItem(tableName: String, key: PrimaryKey)(action: Action[Item]): DynamoDBQuery[A, Option[Item]] =
   def updateItem[A](tableName: String, key: PrimaryKey)(action: Action[A]): DynamoDBQuery[A, Option[Item]] =
     UpdateItem(
       TableName(tableName),
