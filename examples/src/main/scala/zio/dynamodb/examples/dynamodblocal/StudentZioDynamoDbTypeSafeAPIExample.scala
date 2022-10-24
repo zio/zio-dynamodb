@@ -151,21 +151,21 @@ object StudentZioDynamoDbTypeSafeAPIExample extends App {
                       ) && email === "avi@gmail.com" && payment === Payment.CreditCard
                     )
                     .execute
-    _          <- updateItem[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
+    _          <- update[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
                     altPayment.set(Payment.PayPal) + addresses.prependList(List(Address("line0", "postcode0"))) + studentNumber
                       .add(1000) + groups.addSet(Set("group3"))
                   }.execute
-    _          <- updateItem[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
+    _          <- update[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
                     altPayment.set(Payment.PayPal) + addresses.appendList(List(Address("line3", "postcode3"))) + groups
                       .deleteFromSet(Set("group1"))
                   }.execute
-    _          <- updateItem[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
+    _          <- update[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
                     enrollmentDate.setIfNotExists(Some(enrolDate2)) + payment.set(altPayment) + address
                       .set(
                         Some(Address("line1", "postcode1"))
                       )
                   }.execute
-    _          <- updateItem[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
+    _          <- update[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
                     addresses.remove(1)
                   }.execute
     _          <-

@@ -110,7 +110,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
                       ) && email === "avi@gmail.com" && payment === Payment.CreditCard
                     )
                     .execute
-    _          <- updateItem[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
+    _          <- update[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
                     enrollmentDate.set(Some(enrolDate2)) + payment.set(Payment.PayPal) + address2
                       .set(
                         Some(Address("line1", "postcode1"))
