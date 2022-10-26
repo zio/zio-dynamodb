@@ -11,8 +11,7 @@ import zio.{ console, App, ExitCode, URIO }
 import java.time.Instant
 
 /**
- * An equivalent app to [[StudentJavaSdkExample]] but using `zio-dynamodb` - note the reduction in boiler plate code!
- * It also uses the type safe query and update API.
+ * Type safe API example
  */
 object StudentZioDynamoDbExampleWithOptics extends App {
 

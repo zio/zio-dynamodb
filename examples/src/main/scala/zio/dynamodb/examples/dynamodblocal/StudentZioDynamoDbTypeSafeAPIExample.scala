@@ -7,11 +7,10 @@ import zio.dynamodb.examples.dynamodblocal.DynamoDB._
 import zio.dynamodb.examples.model.Student._
 import zio.dynamodb.examples.model._
 import zio.stream.ZStream
-import zio.{App, ExitCode, URIO, console}
+import zio.{ console, App, ExitCode, URIO }
 
 /**
- * An equivalent app to [[StudentJavaSdkExample]] but using `zio-dynamodb` - note the reduction in boiler plate code!
- * It also uses the type safe query and update API.
+ * Type safe API example
  */
 object StudentZioDynamoDbTypeSafeAPIExample extends App {
 

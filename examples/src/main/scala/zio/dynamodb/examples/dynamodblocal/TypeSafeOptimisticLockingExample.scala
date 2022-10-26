@@ -9,10 +9,6 @@ import zio.dynamodb.examples.model._
 import zio.stream.ZStream
 import zio.{ console, App, ExitCode, URIO }
 
-/**
- * An equivalent app to [[StudentJavaSdkExample]] but using `zio-dynamodb` - note the reduction in boiler plate code!
- * It also uses the type safe query and update API.
- */
 object TypeSafeOptimisticLockingExample extends App {
 
   def optimisticUpdateStudent(primaryKey: PrimaryKey)(actions: Action[Student]) =
