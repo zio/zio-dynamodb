@@ -14,17 +14,17 @@ sealed trait AttributeValue { self =>
   def >(that: Operand.Size): ConditionExpression   = GreaterThanOrEqual(ValueOperand(self), that)
   def >=(that: Operand.Size): ConditionExpression  = GreaterThanOrEqual(ValueOperand(self), that)
 
-  def ===(that: ProjectionExpression[_]): ConditionExpression =
+  def ===(that: ProjectionExpression[_, _]): ConditionExpression =
     Equals(ValueOperand(self), ProjectionExpressionOperand(that))
-  def <>(that: ProjectionExpression[_]): ConditionExpression  =
+  def <>(that: ProjectionExpression[_, _]): ConditionExpression  =
     NotEqual(ValueOperand(self), ProjectionExpressionOperand(that))
-  def <(that: ProjectionExpression[_]): ConditionExpression   =
+  def <(that: ProjectionExpression[_, _]): ConditionExpression   =
     LessThan(ValueOperand(self), ProjectionExpressionOperand(that))
-  def <=(that: ProjectionExpression[_]): ConditionExpression  =
+  def <=(that: ProjectionExpression[_, _]): ConditionExpression  =
     LessThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))
-  def >(that: ProjectionExpression[_]): ConditionExpression   =
+  def >(that: ProjectionExpression[_, _]): ConditionExpression   =
     GreaterThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))
-  def >=(that: ProjectionExpression[_]): ConditionExpression  =
+  def >=(that: ProjectionExpression[_, _]): ConditionExpression  =
     GreaterThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))
 }
 
