@@ -7,13 +7,13 @@ import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
 import software.amazon.awssdk.regions.Region
 import zio.blocking.Blocking
 import zio.clock.Clock
-import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb._
 import zio.dynamodb.examples.LocalDdbServer
-import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema }
+import zio.dynamodb.examples.model.Student._
+import zio.dynamodb.examples.model._
 import zio.stream.Stream
-import zio.{ console, App, ExitCode, Has, URIO, ZIO, ZLayer }
+import zio.{ console, App, ExitCode, Has, URIO, ZLayer }
 
 import java.net.URI
 import java.time.Instant
@@ -23,34 +23,6 @@ import java.time.Instant
  * It also uses the type safe query and update API.
  */
 object StudentZioDynamoDbExampleWithOptics extends App {
-
-  @enumOfCaseObjects
-  sealed trait Payment
-  object Payment {
-    final case object DebitCard  extends Payment
-    final case object CreditCard extends Payment
-    final case object PayPal     extends Payment
-
-    implicit val schema = DeriveSchema.gen[Payment]
-  }
-  final case class Address(addr1: String, postcode: String)
-  object Address {
-    implicit val schema   = DeriveSchema.gen[Address]
-    val (addr1, postcode) = ProjectionExpression.accessors[Address]
-  }
-
-  final case class Student(
-    email: String,
-    subject: String,
-    enrollmentDate: Option[Instant],
-    payment: Payment,
-    address: Address,
-    address2: Option[Address] = None
-  )
-  object Student extends DefaultJavaTimeSchemas {
-    implicit val schema                                              = DeriveSchema.gen[Student]
-    val (email, subject, enrollmentDate, payment, address, address2) = ProjectionExpression.accessors[Student]
-  }
 
   private val awsConfig = ZLayer.succeed(
     config.CommonAwsConfig(
@@ -69,62 +41,56 @@ object StudentZioDynamoDbExampleWithOptics extends App {
   private val layer = ((dynamoDbLayer ++ ZLayer.identity[Has[Clock.Service]]) >>> DynamoDBExecutor.live) ++ (ZLayer
     .identity[Has[Blocking.Service]] >>> LocalDdbServer.inMemoryLayer)
 
-  import zio.dynamodb.examples.dynamodblocal.StudentZioDynamoDbExampleWithOptics.Student._
-
   val enrollmentDateTyped: ProjectionExpression[Student, Option[Instant]] = enrollmentDate
 
   private val program = for {
-    _          <- createTable("student", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
-                    AttributeDefinition.attrDefnString("email"),
-                    AttributeDefinition.attrDefnString("subject")
-                  ).execute
-    enrolDate  <- ZIO.effect(Instant.parse("2021-03-20T01:39:33Z"))
-    enrolDate2 <- ZIO.effect(Instant.parse("2022-03-20T01:39:33Z"))
-    avi         = Student("avi@gmail.com", "maths", Some(enrolDate), Payment.DebitCard, Address("addr1", "postcode1"))
-    adam        = Student("adam@gmail.com", "english", Some(enrolDate), Payment.CreditCard, Address("addr2", "postcode2"))
-    _          <- batchWriteFromStream(Stream(avi, adam)) { student =>
-                    put("student", student)
-                  }.runDrain
-    _          <- put("student", avi.copy(payment = Payment.CreditCard)).execute
-    _          <- batchReadFromStream("student", Stream(avi, adam))(s => PrimaryKey("email" -> s.email, "subject" -> s.subject))
-                    .tap(student => console.putStrLn(s"student=$student"))
-                    .runDrain
-    _          <- scanAll[Student]("student").filter {
-                    enrollmentDate === Some(
-                      enrolDate
-                    ) && payment === Payment.CreditCard
-                    // TODO: Avi - "&& Elephant.email === "elephant@gmail.com"" fails to compile as expected
-                  }.execute
-                    .map(_.runCollect)
-    _          <- queryAll[Student]("student")
-                    .filter(                              // TODO: Avi - "&& Elephant.email === "elephant@gmail.com"" fails to compile as expected
-                      enrollmentDate === Some(enrolDate) && payment === Payment.CreditCard
-                    )
-                    .whereKey(email === "avi@gmail.com" && subject === "maths" /* && Elephant.email === "elephant@gmail.com" */ )
-                    .execute
-                    .map(_.runCollect)
-    _          <- put[Student]("student", avi)
-                    .where(
-                      enrollmentDate === Some(
-                        enrolDate
-                      ) && email === "avi@gmail.com" && payment === Payment.CreditCard
-                    )
-                    .execute
-    _          <- update[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
-                    enrollmentDate.set(Some(enrolDate2)) + payment.set(Payment.PayPal) + address2
-                      .set(
-                        Some(Address("line1", "postcode1"))
-                      )
-                  }.execute
-    _          <- delete("student", PrimaryKey("email" -> "adam@gmail.com", "subject" -> "english"))
-                    .where(
-                      enrollmentDate === Some(
-                        enrolDate
-                      ) && payment === Payment.CreditCard // && zio.dynamodb.examples.Elephant.email === "elephant@gmail.com"
-                    )
-                    .execute
-    _          <- scanAll[Student]("student").execute
-                    .tap(_.tap(student => console.putStrLn(s"scanAll - student=$student")).runDrain)
+    _ <- createTable("student", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
+           AttributeDefinition.attrDefnString("email"),
+           AttributeDefinition.attrDefnString("subject")
+         ).execute
+    _ <- batchWriteFromStream(Stream(avi, adam)) { student =>
+           put("student", student)
+         }.runDrain
+    _ <- put("student", avi.copy(payment = Payment.CreditCard)).execute
+    _ <- batchReadFromStream("student", Stream(avi, adam))(s => PrimaryKey("email" -> s.email, "subject" -> s.subject))
+           .tap(student => console.putStrLn(s"student=$student"))
+           .runDrain
+    _ <- scanAll[Student]("student").filter {
+           enrollmentDate === Some(
+             enrolDate
+           ) && payment === Payment.CreditCard
+           // TODO: Avi - "&& Elephant.email === "elephant@gmail.com"" fails to compile as expected
+         }.execute
+           .map(_.runCollect)
+    _ <- queryAll[Student]("student")
+           .filter(                              // TODO: Avi - "&& Elephant.email === "elephant@gmail.com"" fails to compile as expected
+             enrollmentDate === Some(enrolDate) && payment === Payment.CreditCard
+           )
+           .whereKey(email === "avi@gmail.com" && subject === "maths" /* && Elephant.email === "elephant@gmail.com" */ )
+           .execute
+           .map(_.runCollect)
+    _ <- put[Student]("student", avi)
+           .where(
+             enrollmentDate === Some(
+               enrolDate
+             ) && email === "avi@gmail.com" && payment === Payment.CreditCard
+           )
+           .execute
+    _ <- update[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
+           enrollmentDate.set(Some(enrolDate2)) + payment.set(Payment.PayPal) + address
+             .set(
+               Some(Address("line1", "postcode1"))
+             )
+         }.execute
+    _ <- delete("student", PrimaryKey("email" -> "adam@gmail.com", "subject" -> "english"))
+           .where(
+             enrollmentDate === Some(
+               enrolDate
+             ) && payment === Payment.CreditCard // && zio.dynamodb.examples.Elephant.email === "elephant@gmail.com"
+           )
+           .execute
+    _ <- scanAll[Student]("student").execute
+           .tap(_.tap(student => console.putStrLn(s"scanAll - student=$student")).runDrain)
   } yield ()
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = program.provideCustomLayer(layer).exitCode

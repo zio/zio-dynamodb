@@ -35,11 +35,56 @@ final case class Student(
   collegeName: String,
   address: Option[Address] = None,
   addresses: List[Address] = List.empty[Address],
-  groups: Set[String] = Set.empty[String]
+  groups: Set[String] = Set.empty[String],
+  version: Int = 0
 )
 
 object Student extends DefaultJavaTimeSchemas {
-  implicit val schema                                                                                               = DeriveSchema.gen[Student]
-  val (email, subject, enrollmentDate, payment, altPayment, studentNumber, collegeName, address, addresses, groups) =
+  implicit val schema = DeriveSchema.gen[Student]
+  val (
+    email,
+    subject,
+    enrollmentDate,
+    payment,
+    altPayment,
+    studentNumber,
+    collegeName,
+    address,
+    addresses,
+    groups,
+    version
+  )                   =
     ProjectionExpression.accessors[Student]
+
+  val enrolDate  = Instant.parse("2021-03-20T01:39:33Z")
+  val enrolDate2 = Instant.parse("2022-03-20T01:39:33Z")
+
+  val avi  = Student(
+    "avi@gmail.com",
+    "maths",
+    Some(enrolDate),
+    Payment.DebitCard,
+    Payment.CreditCard,
+    1,
+    "college1",
+    None,
+    List(Address("line2", "postcode2")),
+    Set("group1", "group2")
+  )
+  val adam = Student(
+    "adam@gmail.com",
+    "english",
+    Some(enrolDate),
+    Payment.CreditCard,
+    Payment.DebitCard,
+    2,
+    "college1",
+    None,
+    List.empty,
+    Set(
+      "group1",
+      "group2"
+    )
+  )
+
 }

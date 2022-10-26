@@ -2,7 +2,7 @@ package zio.dynamodb.examples.dynamodblocal
 
 import io.github.vigoo.zioaws.core.config
 import io.github.vigoo.zioaws.dynamodb.DynamoDb
-import io.github.vigoo.zioaws.{ dynamodb, http4s }
+import io.github.vigoo.zioaws.{dynamodb, http4s}
 import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
 import software.amazon.awssdk.regions.Region
 import zio.blocking.Blocking
@@ -10,11 +10,11 @@ import zio.clock.Clock
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.ProjectionExpression.$
 import zio.dynamodb._
-import zio.dynamodb.examples.model._
-import zio.dynamodb.examples.model.Student._
 import zio.dynamodb.examples.LocalDdbServer
+import zio.dynamodb.examples.model.Student._
+import zio.dynamodb.examples.model._
 import zio.stream.ZStream
-import zio.{ console, App, ExitCode, Has, URIO, ZIO, ZLayer }
+import zio.{App, ExitCode, Has, URIO, ZLayer, console}
 
 import java.net.URI
 import java.time.Instant
@@ -54,91 +54,62 @@ object StudentZioDynamoDbTypeSafeAPIExample extends App {
   val ceStudentWithElephant: ConditionExpression[Student with Elephant] = ce2 && ceElephant
 
   private val program = for {
-    _          <- createTable("student", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
-                    AttributeDefinition.attrDefnString("email"),
-                    AttributeDefinition.attrDefnString("subject")
-                  ).execute
-    enrolDate  <- ZIO.effect(Instant.parse("2021-03-20T01:39:33Z"))
-    enrolDate2 <- ZIO.effect(Instant.parse("2022-03-20T01:39:33Z"))
-    avi         = Student(
-                    "avi@gmail.com",
-                    "maths",
-                    Some(enrolDate),
-                    Payment.DebitCard,
-                    Payment.CreditCard,
-                    1,
-                    "college1",
-                    None,
-                    List(Address("line2", "postcode2")),
-                    Set("group1", "group2")
-                  )
-    adam        = Student(
-                    "adam@gmail.com",
-                    "english",
-                    Some(enrolDate),
-                    Payment.CreditCard,
-                    Payment.DebitCard,
-                    2,
-                    "college1",
-                    None,
-                    List.empty,
-                    Set(
-                      "group1",
-                      "group2"
-                    )
-                  )
-    _          <- batchWriteFromStream(ZStream(avi, adam)) { student =>
-                    put("student", student)
-                  }.runDrain
-    _          <- put("student", avi.copy(payment = Payment.CreditCard)).execute
-    _          <- batchReadFromStream("student", ZStream(avi, adam))(student =>
-                    PrimaryKey("email" -> student.email, "subject" -> student.subject)
-                  )
-                    .tap(student => console.putStrLn(s"student=$student"))
-                    .runDrain
-    _          <- scanAll[Student]("student")
-                    .parallel(10)
-                    .filter {
-                      enrollmentDate === Some(enrolDate) && payment === Payment.PayPal && payment === altPayment && $(
-                        "payment"
-                      ) === "PayPal"
-                    }
-                    .execute
-                    .map(_.runCollect)
-    _          <- queryAll[Student]("student")
-                    .filter(
-                      enrollmentDate === Some(enrolDate) && payment === Payment.PayPal
-                    )
-                    .whereKey(email === "avi@gmail.com" && subject === "maths")
-                    .execute
-                    .map(_.runCollect)
-    _          <- put[Student]("student", avi)
-                    .where(
-                      enrollmentDate === Some(
-                        enrolDate
-                      ) && email === "avi@gmail.com" && payment === Payment.CreditCard && $(
-                        "payment"
-                      ) === "CreditCard"
-                    )
-                    .execute
-    _          <- update[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
-                    altPayment.set(Payment.PayPal) + addresses.prependList(List(Address("line0", "postcode0"))) + studentNumber
-                      .add(1000) + groups.addSet(Set("group3"))
-                  }.execute
-    _          <- update[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
-                    altPayment.set(Payment.PayPal) + addresses.appendList(List(Address("line3", "postcode3"))) + groups
-                      .deleteFromSet(Set("group1"))
-                  }.execute
-    _          <- update[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
-                    enrollmentDate.setIfNotExists(Some(enrolDate2)) + payment.set(altPayment) + address
-                      .set(
-                        Some(Address("line1", "postcode1"))
-                      )
-                  }.execute
-    _          <- update[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
-                    addresses.remove(1)
-                  }.execute
-    _          <-
+    _ <- createTable("student", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
+           AttributeDefinition.attrDefnString("email"),
+           AttributeDefinition.attrDefnString("subject")
+         ).execute
+    _ <- batchWriteFromStream(ZStream(avi, adam)) { student =>
+           put("student", student)
+         }.runDrain
+    _ <- put("student", avi.copy(payment = Payment.CreditCard)).execute
+    _ <- batchReadFromStream("student", ZStream(avi, adam))(student =>
+           PrimaryKey("email" -> student.email, "subject" -> student.subject)
+         )
+           .tap(student => console.putStrLn(s"student=$student"))
+           .runDrain
+    _ <- scanAll[Student]("student")
+           .parallel(10)
+           .filter {
+             enrollmentDate === Some(enrolDate) && payment === Payment.PayPal && payment === altPayment && $(
+               "payment"
+             ) === "PayPal"
+           }
+           .execute
+           .map(_.runCollect)
+    _ <- queryAll[Student]("student")
+           .filter(
+             enrollmentDate === Some(enrolDate) && payment === Payment.PayPal
+           )
+           .whereKey(email === "avi@gmail.com" && subject === "maths")
+           .execute
+           .map(_.runCollect)
+    _ <- put[Student]("student", avi)
+           .where(
+             enrollmentDate === Some(
+               enrolDate
+             ) && email === "avi@gmail.com" && payment === Payment.CreditCard && $(
+               "payment"
+             ) === "CreditCard"
+           )
+           .execute
+    _ <- update[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
+           altPayment.set(Payment.PayPal) + addresses.prependList(List(Address("line0", "postcode0"))) + studentNumber
+             .add(1000) + groups.addSet(Set("group3"))
+         }.execute
+    _ <- update[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
+           altPayment.set(Payment.PayPal) + addresses.appendList(List(Address("line3", "postcode3"))) + groups
+             .deleteFromSet(Set("group1"))
+         }.execute
+    _ <- update[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
+           enrollmentDate.setIfNotExists(Some(enrolDate2)) + payment.set(altPayment) + address
+             .set(
+               Some(Address("line1", "postcode1"))
+             )
+         }.execute
+    _ <- update[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
+           addresses.remove(1)
+         }.execute
+    _ <-
       delete("student", PrimaryKey("email" -> "adam@gmail.com", "subject" -> "english"))
         .where(
           (enrollmentDate === Some(enrolDate) && payment <> Payment.PayPal && studentNumber
@@ -147,10 +118,10 @@ object StudentZioDynamoDbTypeSafeAPIExample extends App {
           ) && collegeName.size > 1 && groups.size > 1 /* && zio.dynamodb.examples.Elephant.email === "elephant@gmail.com" */ )
         )
         .execute
-    _          <- scanAll[Student]("student")
-                    .filter[Student](payment.in(Payment.PayPal) && payment.inSet(Set(Payment.PayPal)))
-                    .execute
-                    .tap(_.tap(student => console.putStrLn(s"scanAll - student=$student")).runDrain)
+    _ <- scanAll[Student]("student")
+           .filter[Student](payment.in(Payment.PayPal) && payment.inSet(Set(Payment.PayPal)))
+           .execute
+           .tap(_.tap(student => console.putStrLn(s"scanAll - student=$student")).runDrain)
   } yield ()
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = program.provideCustomLayer(layer).exitCode
