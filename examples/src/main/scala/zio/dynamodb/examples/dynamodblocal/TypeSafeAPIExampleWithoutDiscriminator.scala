@@ -1,20 +1,11 @@
 package zio.dynamodb.examples.dynamodblocal
 
-import io.github.vigoo.zioaws.core.config
-import io.github.vigoo.zioaws.dynamodb.DynamoDb
-import io.github.vigoo.zioaws.{ dynamodb, http4s }
-import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
-import software.amazon.awssdk.regions.Region
-import zio.blocking.Blocking
-import zio.clock.Clock
+import zio.dynamodb.examples.dynamodblocal.DynamoDB._
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb._
-import zio.dynamodb.examples.LocalDdbServer
 import zio.dynamodb.examples.dynamodblocal.TypeSafeAPIExampleWithoutDiscriminator.TrafficLight.{ Amber, Box, Green }
 import zio.schema.DeriveSchema
-import zio.{ App, ExitCode, Has, URIO, ZIO, ZLayer }
-
-import java.net.URI
+import zio.{ App, ExitCode, URIO, ZIO }
 
 object TypeSafeAPIExampleWithoutDiscriminator extends App {
 
@@ -45,23 +36,6 @@ object TypeSafeAPIExampleWithoutDiscriminator extends App {
 
     val (amber, green, red) = ProjectionExpression.accessors[TrafficLight]
   }
-
-  private val awsConfig = ZLayer.succeed(
-    config.CommonAwsConfig(
-      region = None,
-      credentialsProvider = SystemPropertyCredentialsProvider.create(),
-      endpointOverride = None,
-      commonClientConfig = None
-    )
-  )
-
-  private val dynamoDbLayer: ZLayer[Any, Throwable, DynamoDb] =
-    (http4s.default ++ awsConfig) >>> config.configured() >>> dynamodb.customized { builder =>
-      builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
-    }
-
-  private val layer = ((dynamoDbLayer ++ ZLayer.identity[Has[Clock.Service]]) >>> DynamoDBExecutor.live) ++ (ZLayer
-    .identity[Has[Blocking.Service]] >>> LocalDdbServer.inMemoryLayer)
 
   private val program = for {
     _         <- createTable("box", KeySchema("id", "code"), BillingMode.PayPerRequest)(
