@@ -1,4 +1,4 @@
-package zio.dynamodb.examples
+package zio.dynamodb.examples.model
 
 import zio.dynamodb.ProjectionExpression
 import zio.schema.DeriveSchema

@@ -530,14 +530,17 @@ object DynamoDBQuery {
   // 90% of the time we are not interested in the return value of the update as that data is already in hand
   // All we want is confirmation that the update succeeded
   // whole thing will be A, part will be _
-  // TODO: Avi - I think this should be:
-  //    def updateItem(tableName: String, key: PrimaryKey)(action: Action[Item]): DynamoDBQuery[A, Option[Item]] =
+  // TODO: Avi - Check type signature on this type unsafe method:
   def updateItem[A](tableName: String, key: PrimaryKey)(action: Action[A]): DynamoDBQuery[A, Option[Item]] =
     UpdateItem(
       TableName(tableName),
       key,
       UpdateExpression(action)
     )
+
+  /*
+  update[Student]("t1"){ email.set("XXXX") }.pk(email).sortKey(subject)
+   */
 
   def update[A: Schema](tableName: String, key: PrimaryKey)(action: Action[A]): DynamoDBQuery[A, Option[A]] =
     updateItem(tableName, key)(action).map(_.flatMap(item => fromItem(item).toOption))

@@ -7,11 +7,12 @@ import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
 import software.amazon.awssdk.regions.Region
 import zio.blocking.Blocking
 import zio.clock.Clock
-import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.dynamodb.DynamoDBQuery._
+import zio.dynamodb.ProjectionExpression.$
 import zio.dynamodb._
-import zio.dynamodb.examples.{ Elephant, LocalDdbServer }
-import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema }
+import zio.dynamodb.examples.model._
+import zio.dynamodb.examples.model.Student._
+import zio.dynamodb.examples.LocalDdbServer
 import zio.stream.ZStream
 import zio.{ console, App, ExitCode, Has, URIO, ZIO, ZLayer }
 
@@ -23,38 +24,6 @@ import java.time.Instant
  * It also uses the type safe query and update API.
  */
 object StudentZioDynamoDbTypeSafeAPIExample extends App {
-
-  @enumOfCaseObjects
-  sealed trait Payment
-  object Payment {
-    final case object DebitCard  extends Payment
-    final case object CreditCard extends Payment
-    final case object PayPal     extends Payment
-
-    implicit val schema = DeriveSchema.gen[Payment]
-  }
-  final case class Address(addr1: String, postcode: String)
-  object Address {
-    implicit val schema = DeriveSchema.gen[Address]
-  }
-
-  final case class Student(
-    email: String,
-    subject: String,
-    enrollmentDate: Option[Instant],
-    payment: Payment,
-    altPayment: Payment,
-    studentNumber: Int,
-    collegeName: String,
-    address: Option[Address] = None,
-    addresses: List[Address] = List.empty[Address],
-    groups: Set[String] = Set.empty[String]
-  )
-  object Student extends DefaultJavaTimeSchemas {
-    implicit val schema                                                                                               = DeriveSchema.gen[Student]
-    val (email, subject, enrollmentDate, payment, altPayment, studentNumber, collegeName, address, addresses, groups) =
-      ProjectionExpression.accessors[Student]
-  }
 
   private val awsConfig = ZLayer.succeed(
     config.CommonAwsConfig(
@@ -73,8 +42,6 @@ object StudentZioDynamoDbTypeSafeAPIExample extends App {
   private val layer = ((dynamoDbLayer ++ ZLayer.identity[Has[Clock.Service]]) >>> DynamoDBExecutor.live) ++ (ZLayer
     .identity[Has[Blocking.Service]] >>> LocalDdbServer.inMemoryLayer)
 
-  import StudentZioDynamoDbTypeSafeAPIExample.Student._
-
   val x: ConditionExpression[Student] =
     enrollmentDate === Some(Instant.now) && payment <> Payment.PayPal && studentNumber
       .between(1, 3) && groups.contains("group1") && collegeName.contains(
@@ -85,7 +52,6 @@ object StudentZioDynamoDbTypeSafeAPIExample extends App {
   val ce2: ConditionExpression[Student]                                 = ce1 <= 2
   val ceElephant: ConditionExpression[Elephant]                         = Elephant.email === "XXXX"
   val ceStudentWithElephant: ConditionExpression[Student with Elephant] = ce2 && ceElephant
-//  implicit val testImplicit: CanWhere[Student, Unit] = new CanWhere[Student, Unit] {}
 
   private val program = for {
     _          <- createTable("student", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
@@ -133,7 +99,9 @@ object StudentZioDynamoDbTypeSafeAPIExample extends App {
     _          <- scanAll[Student]("student")
                     .parallel(10)
                     .filter {
-                      enrollmentDate === Some(enrolDate) && payment === Payment.PayPal
+                      enrollmentDate === Some(enrolDate) && payment === Payment.PayPal && payment === altPayment && $(
+                        "payment"
+                      ) === "PayPal"
                     }
                     .execute
                     .map(_.runCollect)
@@ -148,7 +116,9 @@ object StudentZioDynamoDbTypeSafeAPIExample extends App {
                     .where(
                       enrollmentDate === Some(
                         enrolDate
-                      ) && email === "avi@gmail.com" && payment === Payment.CreditCard
+                      ) && email === "avi@gmail.com" && payment === Payment.CreditCard && $(
+                        "payment"
+                      ) === "CreditCard"
                     )
                     .execute
     _          <- update[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
