@@ -530,7 +530,7 @@ object DynamoDBQuery {
   // 90% of the time we are not interested in the return value of the update as that data is already in hand
   // All we want is confirmation that the update succeeded
   // whole thing will be A, part will be _
-  // TODO: Avi - Check type signature on this type unsafe method:
+  // TODO: Avi - Check type signature on this type unsafe method - it contains type `A`
   def updateItem[A](tableName: String, key: PrimaryKey)(action: Action[A]): DynamoDBQuery[A, Option[Item]] =
     UpdateItem(
       TableName(tableName),

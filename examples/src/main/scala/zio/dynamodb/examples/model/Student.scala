@@ -1,7 +1,7 @@
 package zio.dynamodb.examples.model
 
 import zio.dynamodb.Annotations.enumOfCaseObjects
-import zio.dynamodb.ProjectionExpression
+import zio.dynamodb.{ PrimaryKey, ProjectionExpression }
 import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema }
 
 import java.time.Instant
@@ -55,6 +55,8 @@ object Student extends DefaultJavaTimeSchemas {
     version
   )                   =
     ProjectionExpression.accessors[Student]
+
+  def primaryKey(email: String, subject: String): PrimaryKey = PrimaryKey("email" -> email, "subject" -> subject)
 
   val enrolDate  = Instant.parse("2021-03-20T01:39:33Z")
   val enrolDate2 = Instant.parse("2022-03-20T01:39:33Z")

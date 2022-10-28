@@ -29,15 +29,15 @@ object TypeSafeOptimisticLockingExample extends App {
               }.runDrain
 
     // STEP 1 - get version
-    before <- get[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")).execute.right
+    before <- get[Student]("student", primaryKey("avi@gmail.com", "maths")).execute.right
 
     // STEP 2 - simulate contention
-    _ <- update[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
+    _ <- update[Student]("student", primaryKey("avi@gmail.com", "maths")) {
            version.add(1)
          }.execute
 
     // STEP 3 - make updates and check version is still the same
-    _ <- update[Student]("student", PrimaryKey("email" -> "avi@gmail.com", "subject" -> "maths")) {
+    _ <- update[Student]("student", primaryKey("avi@gmail.com", "maths")) {
            altPayment.set(Payment.PayPal) + version.add(1)
          }.where(Student.version === before.version)
            .execute

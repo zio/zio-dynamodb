@@ -1,12 +1,12 @@
 package zio.dynamodb.examples.dynamodblocal
 
-import zio.dynamodb.DynamoDBQuery.{createTable, put}
+import zio.dynamodb.DynamoDBQuery.{ createTable, put }
 import zio.dynamodb._
 import zio.dynamodb.examples.dynamodblocal.DynamoDB._
 import zio.dynamodb.examples.model.Student._
 import zio.dynamodb.examples.model._
 import zio.stream.ZStream
-import zio.{App, ExitCode, URIO, console}
+import zio.{ console, App, ExitCode, URIO }
 
 /**
  * An equivalent app to [[StudentJavaSdkExample]] but using `zio-dynamodb` - note the reduction in boiler plate code!
@@ -22,7 +22,7 @@ object StudentZioDynamoDbExample extends App {
            put("student", student)
          }.runDrain
     _ <- put("student", avi.copy(payment = Payment.CreditCard)).execute
-    _ <- batchReadFromStream("student", ZStream(avi, adam))(s => PrimaryKey("email" -> s.email, "subject" -> s.subject))
+    _ <- batchReadFromStream("student", ZStream(avi, adam))(s => primaryKey(s.email, s.subject))
            .tap(student => console.putStrLn(s"student=$student"))
            .runDrain
   } yield ()
