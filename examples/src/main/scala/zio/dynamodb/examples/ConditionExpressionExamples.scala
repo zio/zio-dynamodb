@@ -58,4 +58,7 @@ object ConditionExpressionExamples {
   val peFnToCond2: ConditionExpression[_] = $("col1").inSet(Set("1", "2"))
   val peFnToCond3: ConditionExpression[_] = $("col1").in("1", "2")
 
+  val sizeOpsEq: ConditionExpression[_] = $("col2").size === $("col3").size
+  val gtOpsEq: ConditionExpression[_] = $("col2").size > $("col3").size
+
 }

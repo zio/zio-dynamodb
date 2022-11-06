@@ -49,9 +49,9 @@ final case class UpdateExpression[-A](action: Action[A]) extends Renderable { se
 
 object UpdateExpression {
 
-  sealed trait Action[-A] { self =>
+  sealed trait Action[-From] { self =>
 
-    def +[A1 <: A](that: RenderableAction[A1]): Action[A1]
+    def +[A1 <: From](that: RenderableAction[A1]): Action[A1]
 
     def render: AliasMapRender[String] = {
       def generateActionsStatements[A <: RenderableAction[_]](chunk: Chunk[A]) =

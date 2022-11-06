@@ -2,6 +2,7 @@ package zio.dynamodb.examples.dynamodblocal
 
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.ProjectionExpression.$
+import zio.dynamodb.UpdateExpression.Action
 import zio.dynamodb._
 import zio.dynamodb.examples.dynamodblocal.DynamoDB._
 import zio.dynamodb.examples.model.Student._
@@ -16,8 +17,9 @@ object StudentZioDynamoDbTypeSafeAPIExample extends App {
 
   val ce1: ConditionExpression.Operand.Size[Student, String]            = collegeName.size // compiles
   val ce2: ConditionExpression[Student]                                 = ce1 <= 2
-  val ceElephant: ConditionExpression[Elephant]                         = Elephant.email === "XXXX"
-  val ceStudentWithElephant: ConditionExpression[Student with Elephant] = ce2 && ceElephant
+  val elephantCe: ConditionExpression[Elephant]                         = Elephant.email === "XXXX"
+  val elephantAction: Action[Elephant]                                  = Elephant.email.set("XXXX")
+  val ceStudentWithElephant: ConditionExpression[Student with Elephant] = ce2 && elephantCe
 
   private val program = for {
     _ <- createTable("student", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
@@ -42,9 +44,9 @@ object StudentZioDynamoDbTypeSafeAPIExample extends App {
            .map(_.runCollect)
     _ <- queryAll[Student]("student")
            .filter(
-             enrollmentDate === Some(enrolDate) && payment === Payment.PayPal
+             enrollmentDate === Some(enrolDate) && payment === Payment.PayPal // && elephantAction
            )
-           .whereKey(email === "avi@gmail.com" && subject === "maths")
+           .whereKey(email === "avi@gmail.com" && subject === "maths" /* && elephantCe */ )
            .execute
            .map(_.runCollect)
     _ <- put[Student]("student", avi)
@@ -53,12 +55,12 @@ object StudentZioDynamoDbTypeSafeAPIExample extends App {
                enrolDate
              ) && email === "avi@gmail.com" && payment === Payment.CreditCard && $(
                "payment"
-             ) === "CreditCard"
+             ) === "CreditCard" /* && elephantCe */
            )
            .execute
     _ <- update[Student]("student", primaryKey("avi@gmail.com", "maths")) {
            altPayment.set(Payment.PayPal) + addresses.prependList(List(Address("line0", "postcode0"))) + studentNumber
-             .add(1000) + groups.addSet(Set("group3"))
+             .add(1000) + groups.addSet(Set("group3")) // + elephantAction
          }.execute
 
     _ <- update[Student]("student", primaryKey("avi@gmail.com", "maths")) {
@@ -70,7 +72,7 @@ object StudentZioDynamoDbTypeSafeAPIExample extends App {
            enrollmentDate.setIfNotExists(Some(enrolDate2)) + payment.set(altPayment) + address
              .set(
                Some(Address("line1", "postcode1"))
-             )
+             ) // + elephantAction
          }.execute
     _ <- update[Student]("student", primaryKey("avi@gmail.com", "maths")) {
            addresses.remove(1)

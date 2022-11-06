@@ -36,6 +36,14 @@ sealed trait CanWhere[A, -B]
 object CanWhere {
   implicit def subtypeCanWhere[A, B](implicit ev: B <:< A): CanWhere[A, B] = new CanWhere[A, B] {}
 
+  /*
+  Problem was that mutating query types returned Unit ie B = Unit and this lead to implicit resolution problems
+
+  implicit def subtypeCanWhereUnit[A]: CanWhere[A, Unit] = new CanWhere[A, Unit] {}
+
+  So I changed these query types to return Option[B] and hard coded to None (for now)
+
+   */
   implicit def subtypeCanWhereReturnOption[A, B](implicit ev: CanWhere[A, B]): CanWhere[A, Option[B]] = {
     val _ = ev
     new CanWhere[A, Option[B]] {}

@@ -41,10 +41,10 @@ sealed trait ConditionExpression[-From] extends Renderable { self =>
   import ConditionExpression._
 
   def &&[From1 <: From](that: ConditionExpression[From1]): ConditionExpression[From1] =
-    And(self, that).asInstanceOf[ConditionExpression[From1]]
+    And(self, that)
   def ||[From1 <: From](that: ConditionExpression[From1]): ConditionExpression[From1] =
-    Or(self, that).asInstanceOf[ConditionExpression[From1]]
-  def unary_![From1 <: From]: ConditionExpression[From1]                              = Not(self).asInstanceOf[ConditionExpression[From1]]
+    Or(self, that)
+  def unary_![From1 <: From]: ConditionExpression[From1]                              = Not(self)
 
   def render: AliasMapRender[String] =
     self match {
@@ -68,16 +68,16 @@ sealed trait ConditionExpression[-From] extends Renderable { self =>
                         }
                     }
         } yield s"$l IN ($vals)"
-      case ae: AttributeExists                                => AliasMapRender.succeed(s"attribute_exists(${ae.path})")
-      case ane: AttributeNotExists                            => AliasMapRender.succeed(s"attribute_not_exists(${ane.path})")
-      case at: AttributeType                                  =>
+      case ae: AttributeExists[_]                                => AliasMapRender.succeed(s"attribute_exists(${ae.path})")
+      case ane: AttributeNotExists[_]                            => AliasMapRender.succeed(s"attribute_not_exists(${ane.path})")
+      case at: AttributeType[_]                                  =>
         at.attributeType.render.map(v => s"attribute_type(${at.path}, $v)")
-      case c: Contains                                        => AliasMapRender.getOrInsert(c.value).map(v => s"contains(${c.path}, $v)")
-      case bw: BeginsWith                                     =>
+      case c: Contains[_]                                        => AliasMapRender.getOrInsert(c.value).map(v => s"contains(${c.path}, $v)")
+      case bw: BeginsWith[_]                                     =>
         AliasMapRender.getOrInsert(bw.value).map(v => s"begins_with(${bw.path}, $v)")
-      case and: And                                           => and.left.render.zipWith(and.right.render) { case (l, r) => s"($l) AND ($r)" }
-      case or: Or                                             => or.left.render.zipWith(or.right.render) { case (l, r) => s"($l) OR ($r)" }
-      case not: Not                                           => not.exprn.render.map(v => s"NOT ($v)")
+      case and: And[_]                                           => and.left.render.zipWith(and.right.render) { case (l, r) => s"($l) AND ($r)" }
+      case or: Or[_]                                             => or.left.render.zipWith(or.right.render) { case (l, r) => s"($l) OR ($r)" }
+      case not: Not[_]                                           => not.exprn.render.map(v => s"NOT ($v)")
       case eq: Equals[_]                                      => eq.left.render.zipWith(eq.right.render) { case (l, r) => s"($l) = ($r)" }
       case neq: NotEqual[_]                                   =>
         neq.left.render.zipWith(neq.right.render) { case (l, r) => s"($l) <> ($r)" }
@@ -97,11 +97,10 @@ object ConditionExpression {
   // we need 2 type params to Operand
   // CE will be on 1st param
   private[dynamodb] sealed trait Operand[-From, +To] { self =>
-    def between(minValue: AttributeValue, maxValue: AttributeValue): ConditionExpression[_] =
+    def between(minValue: AttributeValue, maxValue: AttributeValue): ConditionExpression[From] =
       Between(self.asInstanceOf[Operand[From, To]], minValue, maxValue)
     def in(values: Set[AttributeValue]): ConditionExpression[From]                          = In(self.asInstanceOf[Operand[From, To]], values)
 
-    // TODO: Avi - these comparison operators do not seem to be used
     def ===[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2] =
       Equals(self.asInstanceOf[Operand[From2, To2]], that)
     def <>[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2]  =
@@ -155,27 +154,30 @@ object ConditionExpression {
     left: Operand[From, Any],
     minValue: AttributeValue,
     maxValue: AttributeValue
-  ) extends ConditionExpression[Any]
+  ) extends ConditionExpression[From]
   private[dynamodb] final case class In[From](left: Operand[From, Any], values: Set[AttributeValue])
-      extends ConditionExpression[Any]
+      extends ConditionExpression[From]
 
   // functions
-  private[dynamodb] final case class AttributeExists(path: ProjectionExpression[_, _]) extends ConditionExpression[Any]
-  private[dynamodb] final case class AttributeNotExists(path: ProjectionExpression[_, _])
-      extends ConditionExpression[Any]
-  private[dynamodb] final case class AttributeType(path: ProjectionExpression[_, _], attributeType: AttributeValueType)
-      extends ConditionExpression[Any]
-  private[dynamodb] final case class Contains(path: ProjectionExpression[_, _], value: AttributeValue)
-      extends ConditionExpression[Any]
-  private[dynamodb] final case class BeginsWith(path: ProjectionExpression[_, _], value: AttributeValue)
-      extends ConditionExpression[Any]
+  private[dynamodb] final case class AttributeExists[From](path: ProjectionExpression[From, _])
+      extends ConditionExpression[From]
+  private[dynamodb] final case class AttributeNotExists[From](path: ProjectionExpression[From, _])
+      extends ConditionExpression[From]
+  private[dynamodb] final case class AttributeType[From](
+    path: ProjectionExpression[From, _],
+    attributeType: AttributeValueType
+  ) extends ConditionExpression[From]
+  private[dynamodb] final case class Contains[From](path: ProjectionExpression[From, _], value: AttributeValue)
+      extends ConditionExpression[From]
+  private[dynamodb] final case class BeginsWith[From](path: ProjectionExpression[From, _], value: AttributeValue)
+      extends ConditionExpression[From]
 
   // logical operators
-  private[dynamodb] final case class And(left: ConditionExpression[_], right: ConditionExpression[_])
-      extends ConditionExpression[Any]
-  private[dynamodb] final case class Or(left: ConditionExpression[_], right: ConditionExpression[_])
-      extends ConditionExpression[Any]
-  private[dynamodb] final case class Not(exprn: ConditionExpression[_]) extends ConditionExpression[Any]
+  private[dynamodb] final case class And[From](left: ConditionExpression[From], right: ConditionExpression[From])
+      extends ConditionExpression[From]
+  private[dynamodb] final case class Or[From](left: ConditionExpression[From], right: ConditionExpression[From])
+      extends ConditionExpression[From]
+  private[dynamodb] final case class Not[From](exprn: ConditionExpression[From]) extends ConditionExpression[From]
 
   // comparators
   private[dynamodb] final case class Equals[From](left: Operand[From, Any], right: Operand[From, Any])

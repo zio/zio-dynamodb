@@ -33,7 +33,7 @@ object TypeSafeOptimisticLockingExample extends App {
 
     // STEP 2 - simulate contention
     _ <- update[Student]("student", primaryKey("avi@gmail.com", "maths")) {
-           version.add(1)
+           altPayment.set(Payment.CreditCard) + version.add(1)
          }.execute
 
     // STEP 3 - make updates and check version is still the same
