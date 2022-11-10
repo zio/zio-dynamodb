@@ -44,7 +44,7 @@ object StudentZioDynamoDbTypeSafeAPIExample extends App {
            .map(_.runCollect)
     _ <- queryAll[Student]("student")
            .filter(
-             enrollmentDate === Some(enrolDate) && payment === Payment.PayPal // && elephantAction
+             enrollmentDate === Some(enrolDate) && payment === Payment.PayPal //&& elephantCe
            )
            .whereKey(email === "avi@gmail.com" && subject === "maths" /* && elephantCe */ )
            .execute
