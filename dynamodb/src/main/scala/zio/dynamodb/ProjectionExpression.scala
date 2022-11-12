@@ -19,20 +19,24 @@ sealed trait ProjectionExpression[-From, +To] { self =>
         self.asInstanceOf[ProjectionExpression[From, To2]]
       case ProjectionExpression.MapElement(parent, key)    =>
         ProjectionExpression
-          .MapElement(self >>> parent.asInstanceOf[ProjectionExpression[To, _]], key)
+          .MapElement(self >>> parent, key)
       case ProjectionExpression.ListElement(parent, index) =>
         ProjectionExpression
-          .ListElement(self >>> parent.asInstanceOf[ProjectionExpression[To, _]], index)
+          .ListElement(self >>> parent, index)
     }
 
-  def unsafeTo[To2]: ProjectionExpression[From, To2] =
-    self.asInstanceOf[ProjectionExpression[From, To2]] // TODO use these instead of casting
+  // TODO: use these instead of casting
+  def unsafeTo[To2](implicit ev: To <:< ProjectionExpression.Unknown): ProjectionExpression[From, To2] =
+    self.asInstanceOf[ProjectionExpression[From, To2]]
 
-  def unsafeFrom[From2]: ProjectionExpression[From2, To] = self.asInstanceOf[ProjectionExpression[From2, To]]
+  def unsafeFrom[From2]: ProjectionExpression[From2, To] =
+    self.asInstanceOf[ProjectionExpression[From2, To]]
 
-  def apply(index: Int): ProjectionExpression[_, _] = ProjectionExpression.ListElement(self, index)
+  def apply(index: Int): ProjectionExpression[From, ProjectionExpression.Unknown] =
+    ProjectionExpression.listElement(self, index)
 
-  def apply(key: String): ProjectionExpression[_, _] = ProjectionExpression.MapElement(self, key)
+  def apply(key: String): ProjectionExpression[From, ProjectionExpression.Unknown] =
+    ProjectionExpression.mapElement(self, key)
 
   // unary ConditionExpressions
 
@@ -363,7 +367,7 @@ trait ProjectionExpressionLowPriorityImplicits1 {
     /**
      * Remove all elements of parameter "set" from this set
      */
-    def deleteFromSet[To](
+    def deleteFromSet[To]( // TODO: fix Warning: Suspicious shadowing by a Type Parameter: To
       set: To
     )(implicit ev: To <:< Set[_], to: ToAttributeValue[To]): UpdateExpression.Action.DeleteAction[From] = {
       val _ = ev
@@ -493,27 +497,28 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
      */
     def set[To: ToAttributeValue](a: To): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
-        self.unsafeTo,
+        self.unsafeTo[To],
         UpdateExpression.SetOperand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(a))
       )
 
     /**
      * Modify or Add an item Attribute
      */
-    /*
-def set(that: ProjectionExpression[_, _]): UpdateExpression.Action.SetAction[Any, Any] =
-UpdateExpression.Action.SetAction(self.asInstanceOf[ProjectionExpression[Any, Any]], PathOperand(that))
-
-    def set[To](that: ProjectionExpression[From, To]): UpdateExpression.Action.SetAction[From, To] =
-      UpdateExpression.Action.SetAction(
-        self.unsafeTo, //asInstanceOf[ProjectionExpression[From, To]],
-        PathOperand(that)
-      )                //TODO tried .unsafeTo
-
-     */
     def set(that: ProjectionExpression[_, _]): UpdateExpression.Action.SetAction[Any, Any] =
       UpdateExpression.Action.SetAction(self.asInstanceOf[ProjectionExpression[Any, Any]], PathOperand(that))
 
+    /*
+[info] compiling 2 Scala sources to /home/avinder/Workspaces/git/zio-dynamodb/dynamodb/target/scala-2.13/test-classes ...
+[error] /home/avinder/Workspaces/git/zio-dynamodb/dynamodb/src/test/scala/zio/dynamodb/ProjectionExpressionSpec.scala:285:42:
+could not find implicit value for evidence parameter of type
+zio.dynamodb.ToAttributeValue[zio.dynamodb.ProjectionExpression.builder.Lens[zio.dynamodb.ProjectionExpressionSpec.Student,Int]]
+[error]           val ex = $("studentNumber").set(Student.studentNumber)
+     */
+//    def set[To](that: ProjectionExpression[From, To]): UpdateExpression.Action.SetAction[From, To] =
+//      UpdateExpression.Action.SetAction(
+//        self.unsafeTo[To], //asInstanceOf[ProjectionExpression[From, To]],
+//        PathOperand(that)
+//      )                    //TODO tried .unsafeTo
 
     /**
      * Add item attribute if it does not exists
@@ -721,29 +726,18 @@ UpdateExpression.Action.SetAction(self.asInstanceOf[ProjectionExpression[Any, An
 
   private[dynamodb] case object Root extends ProjectionExpression[Any, Any] // [Any, Nothing] ?
 
-//  private[dynamodb] final case class MapElement[From, To](parent: ProjectionExpression[From, _], key: String)
-//      extends ProjectionExpression[From, To]
-//
-//  private[dynamodb] final case class ListElement[From, To](parent: ProjectionExpression[From, _], index: Int)
-//      extends ProjectionExpression[From, To]
-//
-//  def root                                                                                   = Root
-//  def mapElement(parent: ProjectionExpression[ProjectionExpression.Unknown, _], key: String) =
-//    MapElement[ProjectionExpression.Unknown, _](parent, key)
-//  def listElement(parent: ProjectionExpression[ProjectionExpression.Unknown, _], index: Int) =
-//    ListElement[ProjectionExpression.Unknown, _](parent, index)
+  private[dynamodb] final case class MapElement[From, To](parent: ProjectionExpression[From, _], key: String)
+      extends ProjectionExpression[From, To]
 
-  private[dynamodb] final case class MapElement[To](parent: ProjectionExpression[_, _], key: String)
-      extends ProjectionExpression[Any, To]
+  private[dynamodb] final case class ListElement[From, To](parent: ProjectionExpression[From, _], index: Int)
+      extends ProjectionExpression[From, To]
 
-  private[dynamodb] final case class ListElement[To](parent: ProjectionExpression[_, _], index: Int)
-      extends ProjectionExpression[Any, To]
+  private[dynamodb] def root: ProjectionExpression[Any, Any]                           = Root
+  private[dynamodb] def mapElement[A](parent: ProjectionExpression[A, _], key: String) =
+    MapElement[A, ProjectionExpression.Unknown](parent, key)
 
-  def root                                                        = Root
-  def mapElement(parent: ProjectionExpression[_, _], key: String) =
-    MapElement[ProjectionExpression.Unknown](parent, key)
-  def listElement(parent: ProjectionExpression[_, _], index: Int) =
-    ListElement[ProjectionExpression.Unknown](parent, index)
+  private[dynamodb] def listElement[A](parent: ProjectionExpression[A, _], index: Int) =
+    ListElement[A, ProjectionExpression.Unknown](parent, index)
 
   /**
    * Unsafe version of `parse` that throws an exception rather than returning an Either
@@ -770,9 +764,9 @@ UpdateExpression.Action.SetAction(self.asInstanceOf[ProjectionExpression[Any, An
    * @param s Projection expression as a string
    * @return either a `Right` of ProjectionExpression if successful, else a list of errors in a string
    */
-  def parse(s: String): Either[String, ProjectionExpression[_, _]] = {
+  def parse(s: String): Either[String, ProjectionExpression[Unknown, Unknown]] = {
 
-    final case class Builder(pe: Option[Either[Chunk[String], ProjectionExpression[_, _]]] = None) { self =>
+    final case class Builder(pe: Option[Either[Chunk[String], ProjectionExpression[Unknown, Unknown]]] = None) { self =>
 
       def mapElement(name: String): Builder =
         Builder(self.pe match {
@@ -786,7 +780,10 @@ UpdateExpression.Action.SetAction(self.asInstanceOf[ProjectionExpression[Any, An
 
       def listElement(name: String, indexes: List[Int]): Builder = {
         @tailrec
-        def multiDimPe(pe: ProjectionExpression[_, _], indexes: List[Int]): ProjectionExpression[_, _] =
+        def multiDimPe(
+          pe: ProjectionExpression[ProjectionExpression.Unknown, ProjectionExpression.Unknown],
+          indexes: List[Int]
+        ): ProjectionExpression[ProjectionExpression.Unknown, ProjectionExpression.Unknown] =
           if (indexes == Nil)
             pe
           else
@@ -810,7 +807,8 @@ UpdateExpression.Action.SetAction(self.asInstanceOf[ProjectionExpression[Any, An
             Some(Left(chunk :+ s"error with '$s'"))
         })
 
-      def either: Either[Chunk[String], ProjectionExpression[_, _]] =
+      def either
+        : Either[Chunk[String], ProjectionExpression[ProjectionExpression.Unknown, ProjectionExpression.Unknown]] =
         self.pe.getOrElse(Left(Chunk("error - at least one element must be specified")))
     }
 
