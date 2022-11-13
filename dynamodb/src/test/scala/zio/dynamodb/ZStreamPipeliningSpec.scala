@@ -26,8 +26,10 @@ object ZStreamPipeliningSpec extends DefaultRunnableSpec {
                            put("person", person)
                          }.runDrain
           refPeople   <- Ref.make(List.empty[Person])
-          _           <- batchReadFromStream[Console, Person]("person", personStream)(person => PrimaryKey("id" -> person.id))
-                           .mapM(person => refPeople.update(xs => xs :+ person))
+          _           <- batchReadFromStream[Console, Person, Person]("person", personStream)(person =>
+                           PrimaryKey("id" -> person.id)
+                         )
+                           .mapM(pair => refPeople.update(xs => xs :+ pair._2))
                            .runDrain
           foundPeople <- refPeople.get
         } yield assert(foundPeople)(equalTo(people))
@@ -41,10 +43,10 @@ object ZStreamPipeliningSpec extends DefaultRunnableSpec {
                            PrimaryKey("id" -> 2) -> Item("id" -> 2, "boom!" -> "de-serialisation-error-expected")
                          )
           refPeople   <- Ref.make(List.empty[Person])
-          either      <- batchReadFromStream[Console, Person]("person", personStream.take(2))(person =>
+          either      <- batchReadFromStream[Console, Person, Person]("person", personStream.take(2))(person =>
                            PrimaryKey("id" -> person.id)
                          )
-                           .mapM(person => refPeople.update(xs => xs :+ person))
+                           .mapM(pair => refPeople.update(xs => xs :+ pair._2))
                            .runDrain
                            .either
           foundPeople <- refPeople.get

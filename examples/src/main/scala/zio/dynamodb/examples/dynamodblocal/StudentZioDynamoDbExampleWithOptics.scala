@@ -27,7 +27,7 @@ object StudentZioDynamoDbExampleWithOptics extends App {
          }.runDrain
     _ <- put("student", avi.copy(payment = Payment.CreditCard)).execute
     _ <- batchReadFromStream("student", Stream(avi, adam))(s => primaryKey(s.email, s.subject))
-           .tap(student => console.putStrLn(s"student=$student"))
+           .tap(pair => console.putStrLn(s"student=${pair._2}"))
            .runDrain
     _ <- scanAll[Student]("student").filter {
            enrollmentDate === Some(

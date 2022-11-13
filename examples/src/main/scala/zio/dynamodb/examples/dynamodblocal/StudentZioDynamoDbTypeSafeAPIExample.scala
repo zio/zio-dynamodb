@@ -31,7 +31,7 @@ object StudentZioDynamoDbTypeSafeAPIExample extends App {
          }.runDrain
     _ <- put("student", avi.copy(payment = Payment.CreditCard)).execute
     _ <- batchReadFromStream("student", ZStream(avi, adam))(student => primaryKey(student.email, student.subject))
-           .tap(student => console.putStrLn(s"student=$student"))
+           .tap(pair => console.putStrLn(s"student=${pair._2}"))
            .runDrain
     _ <- scanAll[Student]("student")
            .parallel(10)
