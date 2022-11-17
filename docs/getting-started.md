@@ -1,12 +1,12 @@
 ---
-id: quickstart_index
-title:  "Quick Start"
+id: getting-started
+title: "Getting Started"
 ---
 
 ## Add the dependency to your build.sbt file
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-dynamodb" % <version>
+libraryDependencies += "dev.zio" %% "zio-dynamodb" % @VERSION@
 ```
 
 ### Read & write data to/from DynamoDB
