@@ -533,7 +533,7 @@ zio.dynamodb.ToAttributeValue[zio.dynamodb.ProjectionExpression.builder.Lens[zio
      * Add item attribute if it does not exists
      */
     def setIfNotExists[To: ToAttributeValue](
-      that: ProjectionExpression[From, _],
+      that: ProjectionExpression[From, ProjectionExpression.Unknown],
       a: To
     ): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
