@@ -39,14 +39,6 @@ object CanWhere {
     new CanWhere[A, B] {}
   }
 
-  /*
-  Problem was that mutating query types returned Unit ie B = Unit and this lead to implicit resolution problems
-
-  implicit def subtypeCanWhereUnit[A]: CanWhere[A, Unit] = new CanWhere[A, Unit] {}
-
-  So I changed these query types to return Option[B] and hard coded to None (for now)
-
-   */
   implicit def subtypeCanWhereReturnOption[A, B](implicit ev: CanWhere[A, B]): CanWhere[A, Option[B]] = {
     val _ = ev
     new CanWhere[A, Option[B]] {}
@@ -194,14 +186,6 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                          => self
     }
 
-  /*
-  /**
-   * Filter a Scan or a Query
-   */
-  def filter[B](filterExpression: FilterExpression[B])(implicit ev: CanFilter[B, Out]): DynamoDBQuery[In, Out] = ???
-   */
-
-//  def where[B](conditionExpression: ConditionExpression[B])(implicit ev: CanWhere[B, Out]): DynamoDBQuery[In, Out] = {
   def where[B](conditionExpression: ConditionExpression[B])(implicit ev: CanWhere[B, Out]): DynamoDBQuery[In, Out] = {
     val _ = ev
     self match {
@@ -397,10 +381,6 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
    * val newQuery = query.whereKey(email === "avi@gmail.com" && subject === "maths")
    * }}}
    */
-  /*
-  def where[B](conditionExpression: ConditionExpression[B])(implicit ev: CanWhere[B, Out]): DynamoDBQuery[In, Out] = {
-  def filter[B](filterExpression: FilterExpression[B])(implicit ev: CanFilter[B, Out]): DynamoDBQuery[In, Out] = {
-   */
   def whereKey[B](
     conditionExpression: ConditionExpression[B]
   )(implicit ev: CanWhereKey[B, Out]): DynamoDBQuery[In, Out] = {
@@ -542,22 +522,12 @@ object DynamoDBQuery {
       .fromAttributeValue(AttributeValue.encode(a)(schema))
       .getOrElse(throw new Exception(s"error encoding $a"))
 
-  // TODO: - Avi: we return Option[A] as based on ReturnValues: NONE | ALL_OLD | UPDATED_OLD | ALL_NEW | UPDATED_NEW -  default is None
-  // see https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html#DDB-UpdateItem-request-ReturnValues
-  // 90% of the time we are not interested in the return value of the update as that data is already in hand
-  // All we want is confirmation that the update succeeded
-  // whole thing will be A, part will be _
-  // TODO: Avi - Check type signature on this type unsafe method - it contains type `A`
   def updateItem[A](tableName: String, key: PrimaryKey)(action: Action[A]): DynamoDBQuery[A, Option[Item]] =
     UpdateItem(
       TableName(tableName),
       key,
       UpdateExpression(action)
     )
-
-  /*
-  update[Student]("t1"){ email.set("XXXX") }.pk(email).sortKey(subject)
-   */
 
   def update[A: Schema](tableName: String, key: PrimaryKey)(action: Action[A]): DynamoDBQuery[A, Option[A]] =
     updateItem(tableName, key)(action).map(_.flatMap(item => fromItem(item).toOption))

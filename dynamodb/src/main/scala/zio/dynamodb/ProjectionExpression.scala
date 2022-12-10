@@ -46,8 +46,6 @@ sealed trait ProjectionExpression[-From, +To] { self =>
   // applies to all types
   def notExists: ConditionExpression[From] = ConditionExpression.AttributeNotExists(self)
   // Applies to all types except Number and Boolean
-  // TODO propgate size[From](...) type params
-  // Operand[From, Int]
   def size[To2 >: To](implicit ev: Sizable[To2]): ConditionExpression.Operand.Size[From, To2] = {
     val _ = ev
     ConditionExpression.Operand.Size(self, ev)
