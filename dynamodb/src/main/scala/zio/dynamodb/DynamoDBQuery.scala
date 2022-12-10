@@ -108,7 +108,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       ddbExecute(batchGetItem).map(resp => batchGetItem.toGetItemResponses(resp) zip batchGetIndexes)
 
     val indexedWriteResults =
-      ddbExecute(batchWriteItem).as(batchWriteItem.addList.map(_ => /* TODO: Avi */ None) zip batchWriteIndexes)
+      ddbExecute(batchWriteItem).as(batchWriteItem.addList.map(_ => None) zip batchWriteIndexes)
 
     (indexedNonBatchedResults zipPar indexedGetResults zipPar indexedWriteResults).map {
       case ((nonBatched, batchedGets), batchedWrites) =>
