@@ -48,7 +48,7 @@ sealed trait ConditionExpression[-From] extends Renderable { self =>
 
   def render: AliasMapRender[String] =
     self match {
-      case between: Between[_] /*(left, minValue, maxValue)*/ =>
+      case between: Between[_] =>
         AliasMapRender.getOrInsert(between.minValue)
         for {
           l   <- between.left.render
@@ -94,8 +94,6 @@ sealed trait ConditionExpression[-From] extends Renderable { self =>
 
 // BNF  https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
 object ConditionExpression {
-  // we need 2 type params to Operand
-  // CE will be on 1st param
   private[dynamodb] sealed trait Operand[-From, +To] { self =>
     def between(minValue: AttributeValue, maxValue: AttributeValue): ConditionExpression[From] =
       Between(self.asInstanceOf[Operand[From, To]], minValue, maxValue)
@@ -123,8 +121,6 @@ object ConditionExpression {
     def <=[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2]  =
       LessThanOrEqual(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
 
-//    def >[A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[_] =
-//      GreaterThan(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
     def >[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2]  =
       GreaterThan(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
     def >=[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2] =
