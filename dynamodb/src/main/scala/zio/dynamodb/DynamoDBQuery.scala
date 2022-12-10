@@ -34,7 +34,10 @@ import scala.annotation.implicitNotFound
 sealed trait CanWhere[A, -B]
 
 object CanWhere {
-  implicit def subtypeCanWhere[A, B](implicit ev: B <:< A): CanWhere[A, B] = new CanWhere[A, B] {}
+  implicit def subtypeCanWhere[A, B](implicit ev: B <:< A): CanWhere[A, B] = {
+    val _ = ev
+    new CanWhere[A, B] {}
+  }
 
   /*
   Problem was that mutating query types returned Unit ie B = Unit and this lead to implicit resolution problems
@@ -57,7 +60,10 @@ object CanWhere {
 sealed trait CanFilter[A, -B]
 // create lowPriorityCanFilter, prefer Stream one
 object CanFilter {
-  implicit def subtypeCanFilter[A, B](implicit ev: B <:< A): CanFilter[A, B] = new CanFilter[A, B] {}
+  implicit def subtypeCanFilter[A, B](implicit ev: B <:< A): CanFilter[A, B] = {
+    val _ = ev
+    new CanFilter[A, B] {}
+  }
   implicit def subtypeStreamCanFilter[A, B](implicit ev: CanFilter[A, B]): CanFilter[A, Stream[Throwable, B]] = {
     val _ = ev
     new CanFilter[A, Stream[Throwable, B]] {}
@@ -69,7 +75,10 @@ object CanFilter {
 )
 sealed trait CanWhereKey[A, -B]
 object CanWhereKey {
-  implicit def subtypeCanFilter[A, B](implicit ev: B <:< A): CanWhereKey[A, B] = new CanWhereKey[A, B] {}
+  implicit def subtypeCanFilter[A, B](implicit ev: B <:< A): CanWhereKey[A, B] = {
+    val _ = ev
+    new CanWhereKey[A, B] {}
+  }
   implicit def subtypeStreamCanFilter[A, B](implicit ev: CanWhereKey[A, B]): CanWhereKey[A, Stream[Throwable, B]] = {
     val _ = ev
     new CanWhereKey[A, Stream[Throwable, B]] {}

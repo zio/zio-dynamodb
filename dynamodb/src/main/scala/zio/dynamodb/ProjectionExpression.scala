@@ -25,8 +25,10 @@ sealed trait ProjectionExpression[-From, +To] { self =>
           .ListElement(self >>> parent, index)
     }
 
-  def unsafeTo[To2](implicit ev: To <:< ProjectionExpression.Unknown): ProjectionExpression[From, To2] =
+  def unsafeTo[To2](implicit ev: To <:< ProjectionExpression.Unknown): ProjectionExpression[From, To2] = {
+    val _ = ev
     self.asInstanceOf[ProjectionExpression[From, To2]]
+  }
 
   def unsafeFrom[From2]: ProjectionExpression[From2, To] =
     self.asInstanceOf[ProjectionExpression[From2, To]]
@@ -147,11 +149,13 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
      */
     def prepend[A](
       a: A
-    )(implicit ev: To <:< Iterable[A], to: ToAttributeValue[A]): UpdateExpression.Action.SetAction[From, To] =
+    )(implicit ev: To <:< Iterable[A], to: ToAttributeValue[A]): UpdateExpression.Action.SetAction[From, To] = {
+      val _ = ev
       UpdateExpression.Action.SetAction(
         self,
         ListPrepend(self, AttributeValue.List(List(a).map(a => to.toAttributeValue(a))))
       )
+    }
 
     /**
      * Add list `xs` to the beginning of this list attribute
@@ -514,7 +518,6 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
      */
     def set[From1 <: From, To](that: ProjectionExpression[From1, To]): UpdateExpression.Action.SetAction[From1, To] =
       UpdateExpression.Action.SetAction(self.unsafeTo, PathOperand(that))
-
 
     /**
      * Add item attribute if it does not exists
