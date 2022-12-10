@@ -131,10 +131,12 @@ object BatchingDSLSpec extends DefaultRunnableSpec with DynamoDBFixtures {
   private val batchingSuite = suite("batching should")(
     testM("batch putItem1 zip putItem1_2") {
       for {
-        _           <- TestDynamoDBExecutor.addTable(tableName1.value, "k1")
-        putItemsResults      <- (putItemT1 zip putItemT1_2).execute
+        _               <- TestDynamoDBExecutor.addTable(tableName1.value, "k1")
+        putItemsResults <- (putItemT1 zip putItemT1_2).execute
         getItemsResults <- (getItemT1 zip getItemT1_2).execute
-      } yield assert(putItemsResults)(equalTo((None, None))) && assert(getItemsResults)(equalTo((Some(itemT1), Some(itemT1_2))))
+      } yield assert(putItemsResults)(equalTo((None, None))) && assert(getItemsResults)(
+        equalTo((Some(itemT1), Some(itemT1_2)))
+      )
     },
     testM("batch getItem1 zip getItem2 zip getItem3 returns 3 items that are found") {
       for {
@@ -150,11 +152,11 @@ object BatchingDSLSpec extends DefaultRunnableSpec with DynamoDBFixtures {
     } @@ beforeAddTable1,
     testM("batch putItem1 zip getItem1 zip getItem2 zip deleteItem1") {
       for {
-        mixedOpsResults      <- (putItemT3_2 zip getItemT1 zip getItemT1_2 zip deleteItemT3).execute
-        mixedOpsExpected     = (None, Some(itemT1), Some(itemT1_2), None)
-        getsResults <- (getItemT3 zip getItemT3_2).execute
-        _            = println(getsResults)
-        _            = println(s"result=$mixedOpsResults")
+        mixedOpsResults <- (putItemT3_2 zip getItemT1 zip getItemT1_2 zip deleteItemT3).execute
+        mixedOpsExpected = (None, Some(itemT1), Some(itemT1_2), None)
+        getsResults     <- (getItemT3 zip getItemT3_2).execute
+        _                = println(getsResults)
+        _                = println(s"result=$mixedOpsResults")
       } yield assert(mixedOpsResults)(equalTo(mixedOpsExpected)) && assert(getsResults)(equalTo((None, Some(itemT3_2))))
     } @@ beforeAddTable1AndTable2,
     testM("should execute forEach of GetItems (resulting in a batched request)") {
