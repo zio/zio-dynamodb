@@ -8,7 +8,7 @@ import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListP
 import zio.dynamodb.proofs._
 import zio.schema.{ AccessorBuilder, Schema }
 
-import scala.annotation.{ tailrec, unused }
+import scala.annotation.tailrec
 
 // The maximum depth for a document path is 32
 sealed trait ProjectionExpression[-From, +To] { self =>
@@ -218,8 +218,8 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
      */
     def addSet[A](
       set: Set[A]
-    )(implicit ev: Addable[To, A], @unused evSet: Set[A] <:< To): UpdateExpression.Action.AddAction[From] = {
-      val _ = ev
+    )(implicit ev: Addable[To, A], evSet: Set[A] <:< To): UpdateExpression.Action.AddAction[From] = {
+      val (_, _) = (ev, evSet)
       UpdateExpression.Action.AddAction(
         self,
         implicitly[ToAttributeValue[To]].toAttributeValue(evSet(set))
