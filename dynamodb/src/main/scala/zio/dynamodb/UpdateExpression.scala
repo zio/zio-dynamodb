@@ -89,7 +89,7 @@ object UpdateExpression {
     }
 
     def collectActions(actions: Chunk[RenderableAction[_]]) = {
-      val sets    = ChunkBuilder.make[Action.SetAction[_, _]]() // add a bunch of underscores
+      val sets    = ChunkBuilder.make[Action.SetAction[_, _]]()
       val removes = ChunkBuilder.make[Action.RemoveAction[_]]()
       val adds    = ChunkBuilder.make[Action.AddAction[_]]()
       val deletes = ChunkBuilder.make[Action.DeleteAction[_]]()

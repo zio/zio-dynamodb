@@ -123,7 +123,6 @@ object KeyConditionExpressionSpec extends DefaultRunnableSpec {
         // TODO: generate joining ops
         val condEx     = xs.tail.foldRight(first) {
           case ((name, op), acc) =>
-            // TODO: Avi - get rid of .asInstanceOf[ConditionExpression[Any]] cast
             acc.asInstanceOf[ConditionExpression[Any]] && conditionExpression(name, op)
               .asInstanceOf[ConditionExpression[Any]]
         }

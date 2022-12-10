@@ -17,8 +17,8 @@ object StudentZioDynamoDbTypeSafeAPIExample extends App {
 
   val ce1: ConditionExpression.Operand.Size[Student, String]            = collegeName.size // compiles
   val ce2: ConditionExpression[Student]                                 = ce1 <= 2
-  val elephantCe: ConditionExpression[Elephant]                         = Elephant.email === "XXXX"
-  val elephantAction: Action[Elephant]                                  = Elephant.email.set("XXXX")
+  val elephantCe: ConditionExpression[Elephant]                         = Elephant.email === "elephant@gmail.com"
+  val elephantAction: Action[Elephant]                                  = Elephant.email.set("ele@gmail.com")
   val ceStudentWithElephant: ConditionExpression[Student with Elephant] = ce2 && elephantCe
 
   private val program = for {

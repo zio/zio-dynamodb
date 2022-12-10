@@ -168,7 +168,6 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
         ListPrepend(self, AttributeValue.List(xs.map(a => to.toAttributeValue(a))))
       )
 
-    // TODO: Avi - what type to pass to ConditionExpression?
     def between(minValue: To, maxValue: To): ConditionExpression[From] =
       ConditionExpression.Operand
         .ProjectionExpressionOperand(self)

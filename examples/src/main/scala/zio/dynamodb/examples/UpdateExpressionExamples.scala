@@ -10,11 +10,11 @@ object UpdateExpressionExamples extends App {
   val set3: SetAction[Any, String]     = $("one[2]").setIfNotExists($("two"), "v2")
   val set4: SetAction[Any, String]     = $("one[2]").appendList(List("1"))
   val set5: SetAction[Any, String]     = $("one[2]").prependList(List("1"))
-  val add: AddAction[Any]              = $("one[2]").add("V2")                // TODO: was AddAction[String]
-  val addSet: AddAction[Any]           = $("one[2]").addSet(Set("V2"))        // TODO: was AddAction[Set[String]]
+  val add: AddAction[Any]              = $("one[2]").add("V2")
+  val addSet: AddAction[Any]           = $("one[2]").addSet(Set("V2"))
   val remove: RemoveAction[_]          = $("one[2]").remove
   val removeAtIndex: RemoveAction[Any] = $("one[2]").remove(1)
-  val delete                           = $("one[2]").deleteFromSet(Set("v2")) // TODO: was DeleteAction[Set[String]]
+  val delete                           = $("one[2]").deleteFromSet(Set("v2"))
   val pe8: SetAction[Any, PrimaryKey]  = $("one[2]").set(Item("x" -> "x"))
 
   val ops =
