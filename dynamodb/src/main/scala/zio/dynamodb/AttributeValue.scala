@@ -15,27 +15,23 @@ sealed trait AttributeValue { self =>
     LessThan(ValueOperand(self), that)
   def <=[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From]                   =
     LessThanOrEqual(ValueOperand(self), that)
-  // TODO: Avi - ScalaType here is causing compile error
-//  def >[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From]   =
-//    GreaterThanOrEqual(ValueOperand(self), that)
-  // TODO: Avi - added type ProjectionExpression.Unknown to bypass compile error for now
   def >[From](that: Operand.Size[From, ProjectionExpression.Unknown]): ConditionExpression[From] =
     GreaterThanOrEqual(ValueOperand(self), that)
 
   def >=[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From] =
     GreaterThanOrEqual(ValueOperand(self), that)
 
-  def ===[From](that: ProjectionExpression[From, _]): ConditionExpression[From] =
+  def ===[From](that: ProjectionExpression[From, ProjectionExpression.Unknown]): ConditionExpression[From] =
     Equals(ValueOperand(self), ProjectionExpressionOperand(that))
-  def <>[From](that: ProjectionExpression[From, _]): ConditionExpression[From]  =
+  def <>[From](that: ProjectionExpression[From, ProjectionExpression.Unknown]): ConditionExpression[From]  =
     NotEqual(ValueOperand(self), ProjectionExpressionOperand(that))
-  def <[From](that: ProjectionExpression[From, _]): ConditionExpression[From]   =
+  def <[From](that: ProjectionExpression[From, ProjectionExpression.Unknown]): ConditionExpression[From]   =
     LessThan(ValueOperand(self), ProjectionExpressionOperand(that))
-  def <=[From](that: ProjectionExpression[From, _]): ConditionExpression[From]  =
+  def <=[From](that: ProjectionExpression[From, ProjectionExpression.Unknown]): ConditionExpression[From]  =
     LessThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))
-  def >[From](that: ProjectionExpression[From, _]): ConditionExpression[From]   =
+  def >[From](that: ProjectionExpression[From, ProjectionExpression.Unknown]): ConditionExpression[From]   =
     GreaterThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))
-  def >=[From](that: ProjectionExpression[From, _]): ConditionExpression[From]  =
+  def >=[From](that: ProjectionExpression[From, ProjectionExpression.Unknown]): ConditionExpression[From]  =
     GreaterThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))
 }
 
