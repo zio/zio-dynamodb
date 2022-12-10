@@ -25,7 +25,6 @@ sealed trait ProjectionExpression[-From, +To] { self =>
           .ListElement(self >>> parent, index)
     }
 
-  // TODO: use these instead of casting
   def unsafeTo[To2](implicit ev: To <:< ProjectionExpression.Unknown): ProjectionExpression[From, To2] =
     self.asInstanceOf[ProjectionExpression[From, To2]]
 
@@ -304,8 +303,7 @@ trait ProjectionExpressionLowPriorityImplicits1 {
         UpdateExpression.SetOperand.ValueOperand(to.toAttributeValue(a))
       )
 
-    // TODO: introduce a From1 <: From to align types
-    def set(that: ProjectionExpression[_, To]): UpdateExpression.Action.SetAction[From, To] =
+    def set[From1 <: From](that: ProjectionExpression[From1, To]): UpdateExpression.Action.SetAction[From1, To] =
       UpdateExpression.Action.SetAction(self, PathOperand(that))
 
     /**
