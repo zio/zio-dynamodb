@@ -48,14 +48,14 @@ sealed trait ConditionExpression[-From] extends Renderable { self =>
 
   def render: AliasMapRender[String] =
     self match {
-      case between: Between[_] =>
+      case between: Between[_]         =>
         AliasMapRender.getOrInsert(between.minValue)
         for {
           l   <- between.left.render
           min <- AliasMapRender.getOrInsert(between.minValue)
           max <- AliasMapRender.getOrInsert(between.maxValue)
         } yield s"$l BETWEEN $min AND $max"
-      case in: In[_]                                          =>
+      case in: In[_]                   =>
         for {
           l    <- in.left.render
           vals <- in.values
@@ -68,25 +68,25 @@ sealed trait ConditionExpression[-From] extends Renderable { self =>
                         }
                     }
         } yield s"$l IN ($vals)"
-      case ae: AttributeExists[_]                                => AliasMapRender.succeed(s"attribute_exists(${ae.path})")
-      case ane: AttributeNotExists[_]                            => AliasMapRender.succeed(s"attribute_not_exists(${ane.path})")
-      case at: AttributeType[_]                                  =>
+      case ae: AttributeExists[_]      => AliasMapRender.succeed(s"attribute_exists(${ae.path})")
+      case ane: AttributeNotExists[_]  => AliasMapRender.succeed(s"attribute_not_exists(${ane.path})")
+      case at: AttributeType[_]        =>
         at.attributeType.render.map(v => s"attribute_type(${at.path}, $v)")
-      case c: Contains[_]                                        => AliasMapRender.getOrInsert(c.value).map(v => s"contains(${c.path}, $v)")
-      case bw: BeginsWith[_]                                     =>
+      case c: Contains[_]              => AliasMapRender.getOrInsert(c.value).map(v => s"contains(${c.path}, $v)")
+      case bw: BeginsWith[_]           =>
         AliasMapRender.getOrInsert(bw.value).map(v => s"begins_with(${bw.path}, $v)")
-      case and: And[_]                                           => and.left.render.zipWith(and.right.render) { case (l, r) => s"($l) AND ($r)" }
-      case or: Or[_]                                             => or.left.render.zipWith(or.right.render) { case (l, r) => s"($l) OR ($r)" }
-      case not: Not[_]                                           => not.exprn.render.map(v => s"NOT ($v)")
-      case eq: Equals[_]                                      => eq.left.render.zipWith(eq.right.render) { case (l, r) => s"($l) = ($r)" }
-      case neq: NotEqual[_]                                   =>
+      case and: And[_]                 => and.left.render.zipWith(and.right.render) { case (l, r) => s"($l) AND ($r)" }
+      case or: Or[_]                   => or.left.render.zipWith(or.right.render) { case (l, r) => s"($l) OR ($r)" }
+      case not: Not[_]                 => not.exprn.render.map(v => s"NOT ($v)")
+      case eq: Equals[_]               => eq.left.render.zipWith(eq.right.render) { case (l, r) => s"($l) = ($r)" }
+      case neq: NotEqual[_]            =>
         neq.left.render.zipWith(neq.right.render) { case (l, r) => s"($l) <> ($r)" }
-      case lt: LessThan[_]                                    => lt.left.render.zipWith(lt.right.render) { case (l, r) => s"($l) < ($r)" }
-      case gt: GreaterThan[_]                                 =>
+      case lt: LessThan[_]             => lt.left.render.zipWith(lt.right.render) { case (l, r) => s"($l) < ($r)" }
+      case gt: GreaterThan[_]          =>
         gt.left.render.zipWith(gt.right.render) { case (l, r) => s"($l) > ($r)" }
-      case lteq: LessThanOrEqual[_]                           =>
+      case lteq: LessThanOrEqual[_]    =>
         lteq.left.render.zipWith(lteq.right.render) { case (l, r) => s"($l) <= ($r)" }
-      case gteq: GreaterThanOrEqual[_]                        =>
+      case gteq: GreaterThanOrEqual[_] =>
         gteq.left.render.zipWith(gteq.right.render) { case (l, r) => s"($l) >= ($r)" }
     }
 
@@ -97,7 +97,7 @@ object ConditionExpression {
   private[dynamodb] sealed trait Operand[-From, +To] { self =>
     def between(minValue: AttributeValue, maxValue: AttributeValue): ConditionExpression[From] =
       Between(self.asInstanceOf[Operand[From, To]], minValue, maxValue)
-    def in(values: Set[AttributeValue]): ConditionExpression[From]                          = In(self.asInstanceOf[Operand[From, To]], values)
+    def in(values: Set[AttributeValue]): ConditionExpression[From]                             = In(self.asInstanceOf[Operand[From, To]], values)
 
     def ===[From2 <: From, To2 >: To](that: Operand[From2, To2]): ConditionExpression[From2] =
       Equals(self.asInstanceOf[Operand[From2, To2]], that)
