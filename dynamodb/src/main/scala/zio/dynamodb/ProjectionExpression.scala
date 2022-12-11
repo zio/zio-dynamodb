@@ -366,21 +366,21 @@ trait ProjectionExpressionLowPriorityImplicits1 {
     /**
      * Remove all elements of parameter "set" from this set
      */
-    def deleteFromSet[To]( // TODO: fix Warning: Suspicious shadowing by a Type Parameter: To
-      set: To
-    )(implicit ev: To <:< Set[_], to: ToAttributeValue[To]): UpdateExpression.Action.DeleteAction[From] = {
+    def deleteFromSet[To2](
+      set: To2
+    )(implicit ev: To2 <:< Set[_], to: ToAttributeValue[To2]): UpdateExpression.Action.DeleteAction[From] = {
       val _ = ev
       UpdateExpression.Action.DeleteAction(self, to.toAttributeValue(set))
     }
 
-    def inSet[To](values: Set[To])(implicit to: ToAttributeValue[To]): ConditionExpression[From] =
+    def inSet[To2](values: Set[To2])(implicit to: ToAttributeValue[To2]): ConditionExpression[From] =
       ConditionExpression.Operand
         .ProjectionExpressionOperand(self)
         .in(values.map(to.toAttributeValue))
         .asInstanceOf[ConditionExpression[From]]
 
-    def in[To](value: To, values: To*)(implicit to: ToAttributeValue[To]): ConditionExpression[From] = {
-      val set: Set[To] = values.toSet + value
+    def in[To2](value: To2, values: To2*)(implicit to: ToAttributeValue[To2]): ConditionExpression[From] = {
+      val set: Set[To2] = values.toSet + value
       ConditionExpression.Operand
         .ProjectionExpressionOperand(self)
         .in(set.map(to.toAttributeValue))
@@ -389,30 +389,30 @@ trait ProjectionExpressionLowPriorityImplicits1 {
     /**
      * Applies to a String or Set
      */
-    def contains[To](av: To)(implicit to: ToAttributeValue[To]): ConditionExpression[From] =
+    def contains[To2](av: To2)(implicit to: ToAttributeValue[To2]): ConditionExpression[From] =
       ConditionExpression.Contains(self, to.toAttributeValue(av))
 
     /**
      * adds a number attribute if it does not exists, else adds the numeric value to the existing attribute
      */
-    def add[To](a: To)(implicit to: ToAttributeValue[To]): UpdateExpression.Action.AddAction[From] =
+    def add[To2](a: To2)(implicit to: ToAttributeValue[To2]): UpdateExpression.Action.AddAction[From] =
       UpdateExpression.Action.AddAction(self, to.toAttributeValue(a))
 
     /**
      * adds a set attribute if it does not exists, else if it exists it adds the elements of the set
      */
-    def addSet[To: ToAttributeValue](set: To)(implicit ev: To <:< Set[_]): UpdateExpression.Action.AddAction[From] = {
+    def addSet[To2: ToAttributeValue](set: To2)(implicit ev: To2 <:< Set[_]): UpdateExpression.Action.AddAction[From] = {
       val _ = ev
       UpdateExpression.Action.AddAction(
         self,
-        implicitly[ToAttributeValue[To]].toAttributeValue(set)
+        implicitly[ToAttributeValue[To2]].toAttributeValue(set)
       )
     }
 
-    def ===[To: ToAttributeValue](that: To): ConditionExpression[From] =
+    def ===[To2: ToAttributeValue](that: To2): ConditionExpression[From] =
       ConditionExpression.Equals(
         ProjectionExpressionOperand(self),
-        ConditionExpression.Operand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(that))
+        ConditionExpression.Operand.ValueOperand(implicitly[ToAttributeValue[To2]].toAttributeValue(that))
       )
 
     def ===[To2](
