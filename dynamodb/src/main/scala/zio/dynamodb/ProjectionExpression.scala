@@ -401,7 +401,9 @@ trait ProjectionExpressionLowPriorityImplicits1 {
     /**
      * adds a set attribute if it does not exists, else if it exists it adds the elements of the set
      */
-    def addSet[To2: ToAttributeValue](set: To2)(implicit ev: To2 <:< Set[_]): UpdateExpression.Action.AddAction[From] = {
+    def addSet[To2: ToAttributeValue](
+      set: To2
+    )(implicit ev: To2 <:< Set[_]): UpdateExpression.Action.AddAction[From] = {
       val _ = ev
       UpdateExpression.Action.AddAction(
         self,
