@@ -13,37 +13,37 @@ object AliasMapRenderSpec extends DefaultRunnableSpec {
   val name   = AttributeValue.String("name")
   val list   = AttributeValue.List(List(one, two, three))
 
-  val between                                                  = ConditionExpression
+  val between                                                          = ConditionExpression
     .Between(
       ConditionExpression.Operand.ValueOperand(two),
       one,
       three
     )
-  val in                                                       = ConditionExpression
+  val in                                                               = ConditionExpression
     .In(
       ConditionExpression.Operand.ValueOperand(one),
       Set(one, two)
     )
-  private val projection                                       = "projection"
-  private val projectionExpression: ProjectionExpression[_, _] = $(projection)
-  val attributeExists                                          = ConditionExpression.AttributeExists(projectionExpression)
-  val attributeNotExists                                       = ConditionExpression.AttributeNotExists(projectionExpression)
-  val attributeType                                            = ConditionExpression
+  private val projection                                               = "projection"
+  private val projectionExpression: ProjectionExpression[Any, Unknown] = $(projection)
+  val attributeExists                                                  = ConditionExpression.AttributeExists(projectionExpression)
+  val attributeNotExists                                               = ConditionExpression.AttributeNotExists(projectionExpression)
+  val attributeType                                                    = ConditionExpression
     .AttributeType(projectionExpression, AttributeValueType.Number)
-  val contains                                                 = ConditionExpression
+  val contains                                                         = ConditionExpression
     .Contains(
       projectionExpression,
       one
     )
-  val beginsWith                                               = ConditionExpression
+  val beginsWith                                                       = ConditionExpression
     .BeginsWith(
       projectionExpression,
       name
     )
 
-  val setOperandValueOne   = UpdateExpression.SetOperand.ValueOperand(one)
-  val setOperandValueTwo   = UpdateExpression.SetOperand.ValueOperand(two)
-  val setOperandValueThree = UpdateExpression.SetOperand.ValueOperand(three)
+  val setOperandValueOne   = UpdateExpression.SetOperand.ValueOperand[Any](one)
+  val setOperandValueTwo   = UpdateExpression.SetOperand.ValueOperand[Any](two)
+  val setOperandValueThree = UpdateExpression.SetOperand.ValueOperand[Any](three)
 
   override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
     suite("AliasMapRender")(
@@ -131,7 +131,7 @@ object AliasMapRenderSpec extends DefaultRunnableSpec {
             val (aliasMap, expression) = ConditionExpression
               .Equals(
                 ConditionExpression.Operand.ValueOperand(two),
-                ConditionExpression.Operand.Size(projectionExpression)
+                ConditionExpression.Operand.Size(projectionExpression, null)
               )
               .render
               .execute
@@ -155,7 +155,7 @@ object AliasMapRenderSpec extends DefaultRunnableSpec {
             val (aliasMap, expression) = ConditionExpression
               .NotEqual(
                 ConditionExpression.Operand.ValueOperand(two),
-                ConditionExpression.Operand.Size(projectionExpression)
+                ConditionExpression.Operand.Size(projectionExpression, null)
               )
               .render
               .execute
@@ -364,9 +364,9 @@ object AliasMapRenderSpec extends DefaultRunnableSpec {
           test("Set and Remove") {
             val (aliasMap, expression) =
               UpdateExpression(
-                UpdateExpression.Action.Actions(
+                UpdateExpression.Action.Actions[Any](
                   Chunk(
-                    UpdateExpression.Action.SetAction(
+                    UpdateExpression.Action.SetAction[Any, Any](
                       $(projection),
                       UpdateExpression.SetOperand.IfNotExists(
                         projectionExpression,
@@ -400,7 +400,7 @@ object AliasMapRenderSpec extends DefaultRunnableSpec {
               UpdateExpression(
                 UpdateExpression.Action.SetAction(
                   $(projection),
-                  UpdateExpression.SetOperand.Minus(
+                  UpdateExpression.SetOperand.Minus[Any](
                     setOperandValueOne,
                     setOperandValueTwo
                   )

@@ -1,5 +1,12 @@
 {
     "files.watcherExclude": {
         "**/target": true
-    }
+    },
+
+    "workbench.colorCustomizations": {
+        // "list.errorForeground": "#b3e5ec",
+        // "list.warningForeground": "#00d9ff",
+        "gitDecoration.modifiedResourceForeground": "#589bda",
+        "gitDecoration.untrackedResourceForeground": "#b42929"
+    }    
 }

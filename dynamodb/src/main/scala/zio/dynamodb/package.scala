@@ -6,9 +6,9 @@ import zio.stream.{ Transducer, ZStream }
 
 package object dynamodb {
   // Filter expression is the same as a ConditionExpression but when used with Query but does not allow key attributes
-  type FilterExpression = ConditionExpression
-  type LastEvaluatedKey = Option[PrimaryKey]
-  type PrimaryKey       = AttrMap
+  type FilterExpression[-From] = ConditionExpression[From]
+  type LastEvaluatedKey        = Option[PrimaryKey]
+  type PrimaryKey              = AttrMap
   val PrimaryKey = AttrMap
   type Item = AttrMap
   val Item = AttrMap
@@ -19,7 +19,7 @@ package object dynamodb {
   type Encoder[A]  = A => AttributeValue
   type Decoder[+A] = AttributeValue => Either[String, A]
 
-  private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[A]): ZIO[Has[DynamoDBExecutor], Throwable, A] =
+  private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[_, A]): ZIO[Has[DynamoDBExecutor], Throwable, A] =
     ZIO.serviceWith[DynamoDBExecutor](_.execute(query))
 
   /**
@@ -33,10 +33,10 @@ package object dynamodb {
    * @tparam B Type of DynamoDBQuery returned by `f`
    * @return A stream of results from the `DynamoDBQuery` write's
    */
-  def batchWriteFromStream[R, A, B](
+  def batchWriteFromStream[R, A, In, B](
     stream: ZStream[R, Throwable, A],
     mPar: Int = 10
-  )(f: A => DynamoDBQuery[B]): ZStream[Has[DynamoDBExecutor] with R with Clock, Throwable, B] =
+  )(f: A => DynamoDBQuery[In, B]): ZStream[Has[DynamoDBExecutor] with R with Clock, Throwable, B] =
     stream
       .aggregateAsync(Transducer.collectAllN(25))
       .mapMPar(mPar) { chunk =>
@@ -59,7 +59,7 @@ package object dynamodb {
    * @param pk Function to determine the primary key
    * @tparam R Environment
    * @tparam A
-   * @return A stream of Item
+   * @return A stream of (A, Item)
    */
   def batchReadItemFromStream[R, A](
     tableName: String,
@@ -67,15 +67,20 @@ package object dynamodb {
     mPar: Int = 10
   )(
     pk: A => PrimaryKey
-  ): ZStream[R with Has[DynamoDBExecutor] with Clock, Throwable, Item] =
+  ): ZStream[R with Has[DynamoDBExecutor] with Clock, Throwable, (A, Item)] =
     stream
       .aggregateAsync(Transducer.collectAllN(100))
       .mapMPar(mPar) { chunk =>
-        val batchGetItem: DynamoDBQuery[Chunk[Option[Item]]] = DynamoDBQuery
-          .forEach(chunk)(a => DynamoDBQuery.getItem(tableName, pk(a)))
+        val batchGetItem: DynamoDBQuery[_, Chunk[Option[(A, Item)]]] = DynamoDBQuery
+          .forEach(chunk)(a =>
+            DynamoDBQuery.getItem(tableName, pk(a)).map {
+              case Some(item) => Some((a, item))
+              case None       => None
+            }
+          )
           .map(Chunk.fromIterable)
         for {
-          r    <- ZIO.environment[Has[DynamoDBExecutor]]
+          r <- ZIO.environment[Has[DynamoDBExecutor]]
           list <- batchGetItem.execute.provide(r)
         } yield list
       }
@@ -85,24 +90,27 @@ package object dynamodb {
   /**
    * Reads `stream` using function `pk` to determine the primary key which is then used to create a BatchGetItem request.
    * Stream is batched into groups of 100 items in a BatchGetItem and executed using the provided `DynamoDBExecutor` service
+   *
    * @param tableName
    * @param stream
    * @param mPar Level of parallelism for the stream processing
    * @param pk Function to determine the primary key
    * @tparam R Environment
-   * @tparam A implicit Schema[A]
-   * @return stream of A, or fails on first error to convert an item to A
+   * @tparam A Input stream element type
+   * @tparam B implicit Schema[B]
+   * @return stream of (A, B), or fails on first error to convert an item to A
    */
-  def batchReadFromStream[R, A: Schema](
+  def batchReadFromStream[R, A, B: Schema](
     tableName: String,
     stream: ZStream[R, Throwable, A],
     mPar: Int = 10
-  )(pk: A => PrimaryKey): ZStream[R with Has[DynamoDBExecutor] with Clock, Throwable, A] =
-    batchReadItemFromStream(tableName, stream, mPar)(pk).mapM { item =>
-      DynamoDBQuery.fromItem(item) match {
-        case Right(a) => ZIO.succeedNow(a)
-        case Left(s)  => ZIO.fail(new IllegalStateException(s)) // TODO: think about error model
-      }
+  )(pk: A => PrimaryKey): ZStream[R with Has[DynamoDBExecutor] with Clock, Throwable, (A, B)] =
+    batchReadItemFromStream(tableName, stream, mPar)(pk).mapM {
+      case (a, item) =>
+        DynamoDBQuery.fromItem(item) match {
+          case Right(b) => ZIO.succeedNow((a, b))
+          case Left(s)  => ZIO.fail(new IllegalStateException(s)) // TODO: think about error model
+        }
     }
 
 }

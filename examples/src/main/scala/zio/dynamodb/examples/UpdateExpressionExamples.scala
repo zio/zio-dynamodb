@@ -1,23 +1,23 @@
 package zio.dynamodb.examples
 
 import zio.dynamodb.ProjectionExpression.$
-import zio.dynamodb.UpdateExpression.Action.{ AddAction, DeleteAction, RemoveAction, SetAction }
+import zio.dynamodb.UpdateExpression.Action.{ AddAction, RemoveAction, SetAction }
 import zio.dynamodb._
 
 object UpdateExpressionExamples extends App {
-  val set1: SetAction             = $("one[2]").set(1)
-  val set2: SetAction             = $("one[2]").set($("two"))
-  val set3: SetAction             = $("one[2]").setIfNotExists($("two"), "v2")
-  val set4: SetAction             = $("one[2]").appendList(List("1"))
-  val set5: SetAction             = $("one[2]").prependList(List("1"))
-  val add: AddAction              = $("one[2]").add("V2")
-  val addSet: AddAction           = $("one[2]").addSet(Set("V2"))
-  val remove: RemoveAction        = $("one[2]").remove
-  val removeAtIndex: RemoveAction = $("one[2]").remove(1)
-  val delete: DeleteAction        = $("one[2]").deleteFromSet(Set("v2"))
-  val pe8: SetAction              = $("one[2]").set(Item("x" -> "x"))
+  val set1: SetAction[Any, Int]        = $("one[2]").set(1)
+  val set2: SetAction[Any, Any]        = $("one[2]").set($("two"))
+  val set3: SetAction[Any, String]     = $("one[2]").setIfNotExists($("two"), "v2")
+  val set4: SetAction[Any, String]     = $("one[2]").appendList(List("1"))
+  val set5: SetAction[Any, String]     = $("one[2]").prependList(List("1"))
+  val add: AddAction[Any]              = $("one[2]").add("V2")
+  val addSet: AddAction[Any]           = $("one[2]").addSet(Set("V2"))
+  val remove: RemoveAction[_]          = $("one[2]").remove
+  val removeAtIndex: RemoveAction[Any] = $("one[2]").remove(1)
+  val delete                           = $("one[2]").deleteFromSet(Set("v2"))
+  val pe8: SetAction[Any, PrimaryKey]  = $("one[2]").set(Item("x" -> "x"))
 
-  val ops: UpdateExpression =
+  val ops =
     UpdateExpression(
       $("one[2]").set(1) +
         $("one[2]").set($("two")) +

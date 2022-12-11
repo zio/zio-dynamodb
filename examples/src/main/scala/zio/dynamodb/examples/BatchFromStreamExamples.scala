@@ -1,16 +1,8 @@
 package zio.dynamodb.examples
 
 import zio.console.{ putStrLn, Console }
-import zio.dynamodb.DynamoDBQuery.putItem
-import zio.dynamodb.{
-  batchReadFromStream,
-  batchReadItemFromStream,
-  batchWriteFromStream,
-  DynamoDBExecutor,
-  Item,
-  PrimaryKey,
-  TestDynamoDBExecutor
-}
+import zio.dynamodb.DynamoDBQuery.put
+import zio.dynamodb._
 import zio.schema.{ DeriveSchema, Schema }
 import zio.stream.{ UStream, ZStream }
 import zio.{ App, ExitCode, URIO }
@@ -22,6 +14,9 @@ object BatchFromStreamExamples extends App {
     implicit val schema: Schema[Person] = DeriveSchema.gen[Person]
   }
 
+  private val personIdStream: UStream[Int] =
+    ZStream.fromIterable(1 to 20)
+
   private val personStream: UStream[Person] =
     ZStream.fromIterable(1 to 20).map(i => Person(i, s"name$i"))
 
@@ -29,19 +24,20 @@ object BatchFromStreamExamples extends App {
     (for {
       _ <- TestDynamoDBExecutor.addTable("person", "id")
       // write to DB using the stream as the source of the data to write
+      // note put query uses type safe API to save a Person case class directly using Schema derived codecs
       // write queries will automatically be batched using BatchWriteItem when calling DynamoDB
       _ <- batchWriteFromStream(personStream) { person =>
-             putItem("person", Item("id" -> person.id, "name" -> person.name))
+             put("person", Person(person.id, person.name))
            }.runDrain
 
       // read from the DB using the stream as the source of the primary key
       // read queries will automatically be batched using BatchGetItem when calling DynamoDB
-      _ <- batchReadItemFromStream[Console, Person]("person", personStream)(person => PrimaryKey("id" -> person.id))
+      _ <- batchReadItemFromStream("person", personIdStream)(id => PrimaryKey("id" -> id))
              .mapMPar(4)(item => putStrLn(s"item=$item"))
              .runDrain
 
       // same again but use Schema derived codecs to convert an Item to a Person
-      _ <- batchReadFromStream[Console, Person]("person", personStream)(person => PrimaryKey("id" -> person.id))
+      _ <- batchReadFromStream[Console, Int, Person]("person", personIdStream)(id => PrimaryKey("id" -> id))
              .mapMPar(4)(person => putStrLn(s"person=$person"))
              .runDrain
     } yield ()).provideCustomLayer(DynamoDBExecutor.test).exitCode
