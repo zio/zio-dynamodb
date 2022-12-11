@@ -1,7 +1,7 @@
 package zio.dynamodb
 
 import zio.duration._
-import zio.dynamodb.proofs.{CanFilter, CanWhere, CanWhereKey}
+import zio.dynamodb.proofs.{ CanFilter, CanWhere, CanWhereKey }
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put }
 import zio.dynamodb.DynamoDBQuery.{

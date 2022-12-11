@@ -19,5 +19,3 @@ object CanWhere {
   }
 
 }
-
-
