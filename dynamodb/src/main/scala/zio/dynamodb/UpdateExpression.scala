@@ -42,19 +42,19 @@ delete-action ::=
 
 // Note this implementation does not preserve the original order of actions ie after "Set field1 = 1, field1 = 2"
 // if this turns out to be a problem we could change the internal implementation
-final case class UpdateExpression(action: Action) extends Renderable { self =>
+final case class UpdateExpression[-A](action: Action[A]) extends Renderable { self =>
   def render: AliasMapRender[String] =
     action.render
 }
 
 object UpdateExpression {
 
-  sealed trait Action { self =>
+  sealed trait Action[-From] { self =>
 
-    def +(that: RenderableAction): Action
+    def +[A1 <: From](that: RenderableAction[A1]): Action[A1]
 
     def render: AliasMapRender[String] = {
-      def generateActionsStatements[A <: RenderableAction](chunk: Chunk[A]) =
+      def generateActionsStatements[A <: RenderableAction[_]](chunk: Chunk[A]) =
         chunk.foldLeft(AliasMapRender.empty.map(_ => "")) {
           case (acc, action) =>
             acc.zipWith(action.miniRender) {
@@ -88,26 +88,26 @@ object UpdateExpression {
       }
     }
 
-    def collectActions(actions: Chunk[RenderableAction]) = {
-      val sets    = ChunkBuilder.make[Action.SetAction]()
-      val removes = ChunkBuilder.make[Action.RemoveAction]()
-      val adds    = ChunkBuilder.make[Action.AddAction]()
-      val deletes = ChunkBuilder.make[Action.DeleteAction]()
+    def collectActions(actions: Chunk[RenderableAction[_]]) = {
+      val sets    = ChunkBuilder.make[Action.SetAction[_, _]]()
+      val removes = ChunkBuilder.make[Action.RemoveAction[_]]()
+      val adds    = ChunkBuilder.make[Action.AddAction[_]]()
+      val deletes = ChunkBuilder.make[Action.DeleteAction[_]]()
 
       actions.foreach {
-        case set: Action.SetAction       => sets += set
-        case remove: Action.RemoveAction => removes += remove
-        case add: Action.AddAction       => adds += add
-        case delete: Action.DeleteAction => deletes += delete
+        case set: Action.SetAction[_, _]    => sets += set
+        case remove: Action.RemoveAction[_] => removes += remove
+        case add: Action.AddAction[_]       => adds += add
+        case delete: Action.DeleteAction[_] => deletes += delete
       }
       (sets.result(), removes.result(), adds.result(), deletes.result())
     }
 
   }
 
-  sealed trait RenderableAction extends Action { self =>
-    override def +(that: RenderableAction): Action = Actions(Chunk(self, that))
-    def miniRender: AliasMapRender[String]         =
+  sealed trait RenderableAction[-A] extends Action[A] { self =>
+    override def +[A1 <: A](that: RenderableAction[A1]): Action[A1] = Actions(Chunk(self, that))
+    def miniRender: AliasMapRender[String]                          =
       self match {
         case Action.SetAction(path, operand)  =>
           operand.render.map(s => s"$path = $s")
@@ -120,41 +120,41 @@ object UpdateExpression {
   }
   object Action {
 
-    private[dynamodb] final case class Actions(actions: Chunk[RenderableAction]) extends Action { self =>
-      override def +(that: RenderableAction): Action = Actions(actions :+ that)
+    private[dynamodb] final case class Actions[A](actions: Chunk[RenderableAction[A]]) extends Action[A] { self =>
+      override def +[A1 <: A](that: RenderableAction[A1]): Action[A1] = Actions(actions :+ that)
 
-      def ++(that: Actions): Actions = Actions(actions ++ that.actions)
+      def ++[A1 <: A](that: Actions[A1]): Actions[A1] = Actions(actions ++ that.actions)
     }
 
     /**
      * Modifying or Adding item Attributes
      */
-    private[dynamodb] final case class SetAction(path: ProjectionExpression[_, _], operand: SetOperand)
-        extends RenderableAction
+    private[dynamodb] final case class SetAction[From, A](path: ProjectionExpression[From, A], operand: SetOperand[A])
+        extends RenderableAction[From]
 
     /**
      * Removing Attributes from an item
      */
-    private[dynamodb] final case class RemoveAction(path: ProjectionExpression[_, _]) extends RenderableAction
+    private[dynamodb] final case class RemoveAction[A](path: ProjectionExpression[A, _]) extends RenderableAction[A]
 
     /**
      * Updating Numbers and Sets
      */
-    private[dynamodb] final case class AddAction(path: ProjectionExpression[_, _], value: AttributeValue)
-        extends RenderableAction
+    private[dynamodb] final case class AddAction[A](path: ProjectionExpression[A, _], value: AttributeValue)
+        extends RenderableAction[A]
 
     /**
      * Delete Elements from a Set
      */
-    private[dynamodb] final case class DeleteAction(path: ProjectionExpression[_, _], value: AttributeValue)
-        extends RenderableAction
+    private[dynamodb] final case class DeleteAction[A](path: ProjectionExpression[A, _], value: AttributeValue)
+        extends RenderableAction[A]
   }
 
-  sealed trait SetOperand { self =>
+  sealed trait SetOperand[-To] { self =>
     import SetOperand._
 
-    def +(that: SetOperand): SetOperand = Plus(self, that)
-    def -(that: SetOperand): SetOperand = Minus(self, that)
+    def +[A <: To](that: SetOperand[A]): SetOperand[A] = Plus(self, that)
+    def -[A <: To](that: SetOperand[A]): SetOperand[A] = Minus(self, that)
 
     def render: AliasMapRender[String] =
       self match {
@@ -177,22 +177,22 @@ object UpdateExpression {
   }
   object SetOperand {
 
-    private[dynamodb] final case class Minus(left: SetOperand, right: SetOperand)    extends SetOperand
-    private[dynamodb] final case class Plus(left: SetOperand, right: SetOperand)     extends SetOperand
-    private[dynamodb] final case class ValueOperand(value: AttributeValue)           extends SetOperand
-    private[dynamodb] final case class PathOperand(path: ProjectionExpression[_, _]) extends SetOperand
+    private[dynamodb] final case class Minus[A](left: SetOperand[A], right: SetOperand[A]) extends SetOperand[A]
+    private[dynamodb] final case class Plus[A](left: SetOperand[A], right: SetOperand[A])  extends SetOperand[A]
+    private[dynamodb] final case class ValueOperand[A](value: AttributeValue)              extends SetOperand[A]
+    private[dynamodb] final case class PathOperand[A](path: ProjectionExpression[_, A])    extends SetOperand[A]
 
     // functions
     // list_append takes two arguments, currently just assuming that we'll be using this to append to an existing item
-    private[dynamodb] final case class ListAppend(
-      projectionExpression: ProjectionExpression[_, _],
+    private[dynamodb] final case class ListAppend[A](
+      projectionExpression: ProjectionExpression[_, A],
       list: AttributeValue.List
-    ) extends SetOperand
-    private[dynamodb] final case class ListPrepend(
-      projectionExpression: ProjectionExpression[_, _],
+    ) extends SetOperand[A]
+    private[dynamodb] final case class ListPrepend[A](
+      projectionExpression: ProjectionExpression[_, A],
       list: AttributeValue.List
-    ) extends SetOperand
-    private[dynamodb] final case class IfNotExists(path: ProjectionExpression[_, _], value: AttributeValue)
-        extends SetOperand
+    ) extends SetOperand[A]
+    private[dynamodb] final case class IfNotExists[A](path: ProjectionExpression[_, A], value: AttributeValue)
+        extends SetOperand[A]
   }
 }

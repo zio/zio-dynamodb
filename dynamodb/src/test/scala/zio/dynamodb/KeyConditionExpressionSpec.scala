@@ -75,7 +75,7 @@ object KeyConditionExpressionSpec extends ZIOSpecDefault {
     })
 
   def assertConditionExpression(
-    condExprn: ConditionExpression,
+    condExprn: ConditionExpression[_],
     seedDataList: List[SeedData],
     printCondExprn: Boolean = false
   ): TestResult = {
@@ -115,16 +115,20 @@ object KeyConditionExpressionSpec extends ZIOSpecDefault {
       )
     final case class FieldNameAndComparisonOp(fieldName: String, op: ComparisonOp)
     type SeedData = (String, ComparisonOp)
-    val genConditionExpression: Gen[Sized, (ConditionExpression, List[SeedData])] =
+    val genConditionExpression: Gen[Sized, (ConditionExpression[_], List[SeedData])] =
       genFieldNameAndOpList.filter(_.nonEmpty).map { xs =>
         val (name, op) = xs.head
         val first      = conditionExpression(name, op)
         // TODO: generate joining ops
-        val condEx     = xs.tail.foldRight(first) { case ((name, op), acc) => acc && conditionExpression(name, op) }
+        val condEx     = xs.tail.foldRight(first) {
+          case ((name, op), acc) =>
+            acc.asInstanceOf[ConditionExpression[Any]] && conditionExpression(name, op)
+              .asInstanceOf[ConditionExpression[Any]]
+        }
         (condEx, xs)
       }
 
-    def conditionExpression(name: String, op: ComparisonOp): ConditionExpression =
+    def conditionExpression(name: String, op: ComparisonOp): ConditionExpression[_] =
       op match {
         case ComparisonOp.Equals             =>
           ConditionExpression.Equals(

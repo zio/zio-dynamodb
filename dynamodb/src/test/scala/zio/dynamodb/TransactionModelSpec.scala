@@ -118,12 +118,12 @@ object TransactionModelSpec extends ZIOSpecDefault {
       .or(putItem)
       .or(batchWriteItem)
 
-  private def invalidTransactionActionsContains(action: DynamoDBQuery[Any]): Assertion[Any] =
+  private def invalidTransactionActionsContains(action: DynamoDBQuery[Any, Any]): Assertion[Any] =
     isSubtype[InvalidTransactionActions](
       hasField(
         "invalidActions",
         a => {
-          val b: Iterable[DynamoDBQuery[Any]] = a.invalidActions.toIterable
+          val b: Iterable[DynamoDBQuery[Any, Any]] = a.invalidActions.toIterable
           b
         },
         contains(action)
@@ -218,10 +218,10 @@ object TransactionModelSpec extends ZIOSpecDefault {
         assertZIO(simpleUpdateItem.transaction.execute)(equalTo(None))
       },
       test("delete item") {
-        assertZIO(simpleDeleteItem.transaction.execute)(equalTo(()))
+        assertZIO(simpleDeleteItem.transaction.execute)(equalTo(None))
       },
       test("put item") {
-        assertZIO(simplePutItem.transaction.execute)(equalTo(()))
+        assertZIO(simplePutItem.transaction.execute)(equalTo(None))
       },
       test("batch write item") {
         assertZIO(simpleBatchWrite.transaction.execute)(equalTo(BatchWriteItem.Response(None)))

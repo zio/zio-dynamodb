@@ -46,12 +46,12 @@ object KeyConditionExpression {
    * val keyConditionExprn = filterKey(email === "avi@gmail.com" && subject === "maths")
    * }}}
    */
-  private[dynamodb] def fromConditionExpressionUnsafe(c: ConditionExpression): KeyConditionExpression =
+  private[dynamodb] def fromConditionExpressionUnsafe(c: ConditionExpression[_]): KeyConditionExpression =
     KeyConditionExpression(c).getOrElse(
       throw new IllegalStateException(s"Error: invalid key condition expression $c")
     )
 
-  private[dynamodb] def apply(c: ConditionExpression): Either[String, KeyConditionExpression] =
+  private[dynamodb] def apply(c: ConditionExpression[_]): Either[String, KeyConditionExpression] =
     c match {
       case ConditionExpression.Equals(
             ProjectionExpressionOperand(MapElement(Root, partitionKey)),

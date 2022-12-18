@@ -39,8 +39,8 @@ private[dynamodb] object Codec {
           tupleEncoder(encoder(l), encoder(r))
         case s: Schema.Sequence[col, a, _]                                                                                                                                                                                                                                                  =>
           sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
-        case Schema.SetSchema(ks, _)                                                                                                                                                                                                                                                        =>
-          setEncoder(ks)
+        case Schema.SetSchema(s, _)                                                                                                                                                                                                                                                         =>
+          setEncoder(s)
         case Schema.MapSchema(ks, vs, _)                                                                                                                                                                                                                                                    =>
           mapEncoder(ks, vs)
         case Schema.Transform(c, _, g, _, _)                                                                                                                                                                                                                                                =>
@@ -59,7 +59,7 @@ private[dynamodb] object Codec {
         case Schema.Dynamic(_)                                                                                                                                                                                                                                                              =>
           dynamicEncoder
         case Schema.SemiDynamic(_, _)                                                                                                                                                                                                                                                       =>
-          _ => AttributeValue.Null
+          _ => AttributeValue.Null // TODO: Avi
         case Schema.CaseClass1(f, _, ext, _)                                                                                                                                                                                                                                                =>
           caseClassEncoder(f -> ext)
         case Schema.CaseClass2(f1, f2, _, ext1, ext2, _)                                                                                                                                                                                                                                    =>
@@ -424,14 +424,13 @@ private[dynamodb] object Codec {
         case l @ Schema.Lazy(_)                                                                                                                                               =>
           lazy val dec = decoder(l.schema)
           (av: AttributeValue) => dec(av)
-        case Schema.Meta(_, _)                                                                                                                                                =>
-          astDecoder
+        case Schema.Meta(_, _)                                                                                                                                                => astDecoder
         case Schema.Dynamic(_)                                                                                                                                                =>
           dynamicDecoder
         case Schema.SemiDynamic(_, _)                                                                                                                                         =>
           _ => Left("Semi-dynamic decoder not supported")
-        case Schema.SetSchema(ks, _)                                                                                                                                          =>
-          setDecoder(ks).asInstanceOf[Decoder[A]]
+        case Schema.SetSchema(s, _)                                                                                                                                           =>
+          setDecoder(s).asInstanceOf[Decoder[A]]
         case Schema.MapSchema(ks, vs, _)                                                                                                                                      =>
           mapDecoder(ks, vs).asInstanceOf[Decoder[A]]
         case s @ Schema.CaseClass1(_, _, _, _)                                                                                                                                => caseClass1Decoder(s)
