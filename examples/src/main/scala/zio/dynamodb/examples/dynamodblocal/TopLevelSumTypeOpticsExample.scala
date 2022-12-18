@@ -37,7 +37,9 @@ object TopLevelSumTypeOpticsExample extends App {
     }
   }
 
-  def polymorphicQueryByExample(invoice: Invoice): DynamoDBQuery[stream.Stream[Throwable, Invoice]] =
+  def polymorphicQueryByExample(
+    invoice: Invoice
+  ): DynamoDBQuery[PreBilledInvoice with BilledInvoice, stream.Stream[Throwable, Invoice]] =
     invoice match {
       case PreBilledInvoice(id_, sku_)       =>
         import PreBilledInvoice._

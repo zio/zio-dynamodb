@@ -3,7 +3,9 @@ package zio.dynamodb
 import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.dynamodb.ProjectionExpression.{ $, mapElement, MapElement, Root }
 import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema, Schema }
-import zio.test.{ assertTrue, ZIOSpecDefault }
+import zio.test.{ assert, assertTrue, ZIOSpecDefault }
+import zio.test.Assertion._ 
+
 
 object ProjectionExpressionSpec extends ZIOSpecDefault {
   @enumOfCaseObjects
@@ -103,11 +105,11 @@ object ProjectionExpressionSpec extends ZIOSpecDefault {
         },
         test("size for a set") {
           val ex = MapElement(Root, "groups").size
-          assertTrue(ex.toString == "Size(groups)")
+          assert(ex.toString)(startsWithString("Size(groups,"))
         },
         test("size for a list") {
           val ex = $("addresses").size
-          assertTrue(ex.toString == "Size(addresses)")
+          assert(ex.toString)(startsWithString("Size(addresses,"))
         },
         test("isBinary") {
           val ex = MapElement(Root, "groups").isBinary
@@ -323,11 +325,11 @@ object ProjectionExpressionSpec extends ZIOSpecDefault {
         },
         test("size for a set") {
           val ex = $("groups").size
-          assertTrue(ex.toString == "Size(groups)")
+          assert(ex.toString)(startsWithString("Size(groups,"))
         },
         test("size for a list") {
           val ex = $("addresses").size
-          assertTrue(ex.toString == "Size(addresses)")
+          assert(ex.toString)(startsWithString("Size(addresses,"))
         },
         test("isBinary") {
           val ex = $("groups").isBinary
@@ -542,11 +544,11 @@ object ProjectionExpressionSpec extends ZIOSpecDefault {
         },
         test("size for a set") {
           val ex = Student.groups.size
-          assertTrue(ex.toString == "Size(groups)")
+          assert(ex.toString)(startsWithString("Size(groups,"))
         },
         test("size for a list") {
           val ex = Student.addresses.size
-          assertTrue(ex.toString == "Size(addresses)")
+          assert(ex.toString)(startsWithString("Size(addresses,"))
         },
         test("isBinary") {
           val ex = Student.groups.isBinary

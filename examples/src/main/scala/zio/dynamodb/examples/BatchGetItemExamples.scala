@@ -30,7 +30,7 @@ object BatchGetItemExamples {
     ) === "X")
 
   // We can use ZipRight `*>` and ZipLeft `<*` if we wish to ignore the result on one side
-  val excludeFromBatchWithZipRight: DynamoDBQuery[(Option[Item], Option[Item])] =
+  val excludeFromBatchWithZipRight: DynamoDBQuery[Any, (Option[Item], Option[Item])] =
     getItem("T1", PrimaryKey("primaryKey" -> "1"), $("a.b"), $("c.b")) *>
       getItem("T2", PrimaryKey("primaryKey" -> "2"), $("a.b"), $("c.b")) <*>
       getItem("T3", PrimaryKey("primaryKey" -> "3"), $("a.b"), $("c.b"))

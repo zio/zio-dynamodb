@@ -92,13 +92,13 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   def executeZip[A, B, C](zip: Zip[A, B, C]): ZIO[Any, Throwable, C] =
     execute(zip.left).zipWith(execute(zip.right))(zip.zippable.zip)
 
-  def executeConstructor[A](constructor: Constructor[A]): ZIO[Any, Throwable, A] =
+  def executeConstructor[A](constructor: Constructor[_, A]): ZIO[Any, Throwable, A] =
     constructor match {
       case c: GetItem        => executeGetItem(c)
       case c: PutItem        => executePutItem(c)
       case c: BatchGetItem   => executeBatchGetItem(c)
       case c: BatchWriteItem => executeBatchWriteItem(c)
-      case _: ConditionCheck => ZIO.unit
+      case _: ConditionCheck => ZIO.none
       case c: ScanAll        => executeScanAll(c)
       case c: ScanSome       => executeScanSome(c)
       case c: UpdateItem     => executeUpdateItem(c)
@@ -112,11 +112,11 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case Succeed(c)        => ZIO.succeed(c())
     }
 
-  override def execute[A](atomicQuery: DynamoDBQuery[A]): ZIO[Any, Throwable, A] =
+  override def execute[A](atomicQuery: DynamoDBQuery[_, A]): ZIO[Any, Throwable, A] =
     atomicQuery match {
-      case constructor: Constructor[_] => executeConstructor(constructor)
-      case zip @ Zip(_, _, _)          => executeZip(zip)
-      case map @ Map(_, _)             => executeMap(map)
+      case constructor: Constructor[_, A] => executeConstructor(constructor)
+      case zip @ Zip(_, _, _)             => executeZip(zip)
+      case map @ Map(_, _)                => executeMap(map)
     }
 
   private def executeCreateTable(createTable: CreateTable): ZIO[Any, Throwable, Unit] =
@@ -125,8 +125,10 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       .mapError(_.toThrowable)
       .unit
 
-  private def executeDeleteItem(deleteItem: DeleteItem): ZIO[Any, Throwable, Unit] =
-    dynamoDb.deleteItem(awsDeleteItemRequest(deleteItem)).mapError(_.toThrowable).unit
+  private def executeDeleteItem(deleteItem: DeleteItem): ZIO[Any, Throwable, Option[Item]] =
+    dynamoDb
+      .deleteItem(awsDeleteItemRequest(deleteItem))
+      .mapBoth(_.toThrowable, _.attributes.toOption.map(dynamoDBItem(_)))
 
   private def executeDeleteTable(deleteTable: DeleteTable): ZIO[Any, Throwable, Unit] =
     dynamoDb
@@ -134,8 +136,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       .mapError(_.toThrowable)
       .unit
 
-  private def executePutItem(putItem: PutItem): ZIO[Any, Throwable, Unit] =
-    dynamoDb.putItem(awsPutItemRequest(putItem)).unit.mapError(_.toThrowable)
+  private def executePutItem(putItem: PutItem): ZIO[Any, Throwable, Option[Item]] =
+    dynamoDb.putItem(awsPutItemRequest(putItem)).mapBoth(_.toThrowable, _.attributes.toOption.map(dynamoDBItem(_)))
 
   private def executeGetItem(getItem: GetItem): ZIO[Any, Throwable, Option[Item]] =
     dynamoDb
@@ -239,7 +241,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
                                                     .transactWriteItems(transactWriteItems)
                                                     .mapBoth(
                                                       _.toThrowable,
-                                                      _ => Chunk.fill(transactionActionsAndTransactionType._1.length)(())
+                                                      _ => Chunk.fill(transactionActionsAndTransactionType._1.length)(None)
                                                     )
                                               }
       itemChunk                            <- transactionZIO
@@ -336,8 +338,8 @@ case object DynamoDBExecutorImpl {
 
   // Need to go through the chunk and make sure we don't have mixed transaction actions
   private[dynamodb] def filterMixedTransactions[A](
-    actions: Chunk[Constructor[A]]
-  ): Either[Throwable, (Chunk[Constructor[A]], TransactionType)] =
+    actions: Chunk[Constructor[Any, A]]
+  ): Either[Throwable, (Chunk[Constructor[Any, A]], TransactionType)] =
     if (actions.isEmpty) Left(EmptyTransaction())
     else {
       val headConstructor = constructorToTransactionType(actions.head)
@@ -356,7 +358,7 @@ case object DynamoDBExecutorImpl {
     }
 
   private def constructorMatch[A](
-    constructor: Constructor[A],
+    constructor: Constructor[Any, A],
     transactionType: TransactionType
   ): Either[Throwable, TransactionType] =
     constructorToTransactionType(constructor)
@@ -368,7 +370,7 @@ case object DynamoDBExecutorImpl {
         Left(InvalidTransactionActions(NonEmptyChunk(constructor)))
       )
 
-  private def constructorToTransactionType[A](constructor: Constructor[A]): Option[TransactionType] =
+  private def constructorToTransactionType[A](constructor: Constructor[_, A]): Option[TransactionType] =
     constructor match {
       case _: DeleteItem     => Some(TransactionType.Write)
       case _: PutItem        => Some(TransactionType.Write)
@@ -381,13 +383,13 @@ case object DynamoDBExecutorImpl {
     }
 
   private[dynamodb] def buildTransaction[A](
-    query: DynamoDBQuery[A]
+    query: DynamoDBQuery[_, A]
   ): Either[
     Throwable,
-    (Chunk[Constructor[Any]], Chunk[Any] => A)
+    (Chunk[Constructor[Any, Any]], Chunk[Any] => A)
   ] =
     query match {
-      case constructor: Constructor[A] =>
+      case constructor: Constructor[_, A] =>
         constructor match {
           case s: PutItem                  => Right((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
           case s: DeleteItem               => Right((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
@@ -396,7 +398,7 @@ case object DynamoDBExecutorImpl {
               (
                 Chunk(s),
                 chunk => {
-                  val maybeItem = chunk(0).asInstanceOf[Option[Item]] // may have an empty AttrMap
+                  val maybeItem = chunk(0).asInstanceOf[Option[AttrMap]] // may have an empty AttrMap
                   maybeItem.flatMap(item => if (item.map.isEmpty) None else Some(item)).asInstanceOf[A]
                 }
               )
@@ -433,9 +435,9 @@ case object DynamoDBExecutorImpl {
               (Chunk(s), _ => None.asInstanceOf[A])
             ) // we don't get data back from transactWrites, return None here
           case s: ConditionCheck           => Right((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s                           => Left(InvalidTransactionActions(NonEmptyChunk(s)))
+          case s                           => Left(InvalidTransactionActions(NonEmptyChunk(s.asInstanceOf[DynamoDBQuery[Any, Any]])))
         }
-      case Zip(left, right, zippable)  =>
+      case Zip(left, right, zippable)     =>
         for {
           l <- buildTransaction(left)
           r <- buildTransaction(right)
@@ -451,14 +453,14 @@ case object DynamoDBExecutorImpl {
             zippable.zip(leftValue, rightValue)
           }
         )
-      case Map(query, mapper)          =>
+      case Map(query, mapper)             =>
         buildTransaction(query).map {
           case (constructors, construct) => (constructors, chunk => mapper.asInstanceOf[Any => A](construct(chunk)))
         }
     }
 
   private[dynamodb] def constructTransaction[A](
-    actions: Chunk[Constructor[A]],
+    actions: Chunk[Constructor[Any, A]],
     transactionType: TransactionType,
     clientRequestToken: Option[String],
     itemCollectionMetrics: ReturnItemCollectionMetrics,
@@ -471,7 +473,7 @@ case object DynamoDBExecutorImpl {
     }
 
   private[dynamodb] def constructGetTransaction[A](
-    actions: Chunk[Constructor[A]],
+    actions: Chunk[Constructor[Any, A]],
     returnConsumedCapacity: ReturnConsumedCapacity
   ): TransactGetItemsRequest = {
     val getActions: Chunk[TransactGetItem] = actions.flatMap {
@@ -510,7 +512,7 @@ case object DynamoDBExecutorImpl {
   }
 
   private[dynamodb] def constructWriteTransaction[A](
-    actions: Chunk[Constructor[A]],
+    actions: Chunk[Constructor[Any, A]],
     clientRequestToken: Option[String],
     returnConsumedCapacity: ReturnConsumedCapacity,
     itemCollectionMetrics: ReturnItemCollectionMetrics
@@ -804,7 +806,7 @@ case object DynamoDBExecutorImpl {
     )
   }
 
-  private def awsTransactWriteItem[A](action: Constructor[A]): Option[TransactWriteItem] =
+  private def awsTransactWriteItem[A](action: Constructor[_, A]): Option[TransactWriteItem] =
     action match {
       case conditionCheck: ConditionCheck =>
         Some(TransactWriteItem(conditionCheck = Some(awsConditionCheck(conditionCheck))))

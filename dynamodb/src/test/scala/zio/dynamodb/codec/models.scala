@@ -22,7 +22,6 @@ final case class CaseClassOfList(nums: List[Int])
 final case class CaseClassOfListOfCaseClass(elements: List[SimpleCaseClass3])
 
 final case class CaseClassOfOption(opt: Option[Int])
-final case class CaseClass2OfOption(num: Int, opt: Option[Int])
 
 final case class CaseClassOfNestedOption(opt: Option[Option[Int]])
 
