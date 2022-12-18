@@ -4,8 +4,7 @@ import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.dynamodb.ProjectionExpression.{ $, mapElement, MapElement, Root }
 import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema, Schema }
 import zio.test.{ assert, assertTrue, ZIOSpecDefault }
-import zio.test.Assertion._ 
-
+import zio.test.Assertion._
 
 object ProjectionExpressionSpec extends ZIOSpecDefault {
   @enumOfCaseObjects
