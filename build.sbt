@@ -54,8 +54,7 @@ def copyJarSetting(dir: String) =
     }
   )
 
-val zioVersion       = "1.0.13"
-val zioConfigVersion = "1.0.6"
+val zioVersion       = "1.0.17"
 val zioAwsVersion    = "3.17.87.2"
 
 lazy val root =
@@ -324,4 +323,3 @@ lazy val docs = project
     )
   )
   .enablePlugins(WebsitePlugin)
-
