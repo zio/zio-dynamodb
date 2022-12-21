@@ -132,8 +132,8 @@ object TransactionModelSpec extends ZIOSpecDefault {
 
   override def spec =
     suite("Transaction builder suite")(
-      failureSuite.provideCustomLayer(emptyDynamoDB >>> DynamoDBExecutor.live),
-      successfulSuite.provideCustomLayer(successCaseLayer >>> DynamoDBExecutor.live)
+      failureSuite.provideLayer(emptyDynamoDB >>> DynamoDBExecutor.live),
+      successfulSuite.provideLayer(successCaseLayer >>> DynamoDBExecutor.live)
     )
 
   val failureSuite = suite("transaction construction failures")(

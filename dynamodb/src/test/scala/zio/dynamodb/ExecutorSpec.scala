@@ -143,7 +143,7 @@ object ExecutorSpec extends ZIOSpecDefault with DynamoDBFixtures {
         } yield assert(response.responses.get(TableName(mockBatches)))(
           equalTo(Some(Set(itemOne, Item("k1" -> "v2", "k2" -> "v23"))))
         )
-      }).provideCustomLayer(successfulMockBatchGet >>> DynamoDBExecutor.live),
+      }).provideLayer(successfulMockBatchGet >>> DynamoDBExecutor.live),
       suite("failed batch gets")(test("should return keys we did not get") {
         for {
           response <- batchGetItem.execute
@@ -152,7 +152,7 @@ object ExecutorSpec extends ZIOSpecDefault with DynamoDBFixtures {
             getRequestItems
           )
         )
-      }).provideCustomLayer(failedMockBatchGet >>> DynamoDBExecutor.live)
+      }).provideLayer(failedMockBatchGet >>> DynamoDBExecutor.live)
     )
 
   private val itemOneWriteRequest                    = Set(
@@ -212,12 +212,12 @@ object ExecutorSpec extends ZIOSpecDefault with DynamoDBFixtures {
             )
           )
         }
-      ).provideCustomLayer(failedMockBatchWrite >>> DynamoDBExecutor.live),
+      ).provideLayer(failedMockBatchWrite >>> DynamoDBExecutor.live),
       suite("successful batch write")(test("should return no unprocessedItems") {
         for {
           response <- batchWriteRequest.execute
         } yield assert(response.unprocessedItems)(isNone)
-      }).provideCustomLayer(successfulMockBatchWrite >>> DynamoDBExecutor.live)
+      }).provideLayer(successfulMockBatchWrite >>> DynamoDBExecutor.live)
     )
 
   private val batchRetries = suite("Batch retries")(

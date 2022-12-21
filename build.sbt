@@ -54,7 +54,7 @@ def copyJarSetting(dir: String) =
     }
   )
 
-val zioVersion       = "2.0.0"
+val zioVersion       = "2.0.5"
 val zioAwsVersion    = "5.17.224.4"
 val zioSchemaVersion = "0.2.0"
 
