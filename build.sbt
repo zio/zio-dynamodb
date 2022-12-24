@@ -23,7 +23,7 @@ inThisBuild(
     pgpPublicRing := file("/tmp/public.asc"),
     pgpSecretRing := file("/tmp/secret.asc"),
     scmInfo := Some(
-      ScmInfo(url("https://github.com/googley42/zio-dynamodb"), "scm:git:git@github.com:googley42/zio-dynamodb.git")
+      ScmInfo(url("https://github.com/zio/zio-dynamodb"), "scm:git:git@github.com:zio/zio-dynamodb.git")
     )
   )
 )
@@ -54,8 +54,8 @@ def copyJarSetting(dir: String) =
     }
   )
 
-val zioVersion       = "1.0.17"
-val zioAwsVersion    = "3.17.87.2"
+val zioVersion    = "1.0.17"
+val zioAwsVersion = "3.17.87.2"
 
 lazy val root =
   project
@@ -320,6 +320,14 @@ lazy val docs = project
     scalacOptions -= "-Xfatal-warnings",
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio" % zioVersion
-    )
+    ),
+    projectName := "ZIO DynamoDB",
+    badgeInfo := Some(
+      BadgeInfo(
+        artifact = "zio-dynamodb_2.12",
+        projectStage = ProjectStage.Experimental
+      )
+    ),
+    docsPublishBranch := "master"
   )
   .enablePlugins(WebsitePlugin)
