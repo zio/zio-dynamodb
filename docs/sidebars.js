@@ -1,9 +1,16 @@
 const sidebars = {
   sidebar: [
-    "index",
-    "getting-started",
-    "codec-customization",
-    "transactions",
+    {
+      type: "category",
+      label: "ZIO DynamoDB",
+      collapsed: false,
+      link: { type: "doc", id: "index" },
+      items: [ 
+        "getting-started",
+        "codec-customization",
+        "transactions",
+      ]
+    }
   ]
 };
 
