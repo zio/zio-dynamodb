@@ -685,24 +685,36 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
   }
 
   val builder = new AccessorBuilder {
-    override type Lens[From, To]      = ProjectionExpression[From, To]
-    override type Prism[From, To]     = ProjectionExpression[From, To]
+    // override type Lens[From, To]      = ProjectionExpression[From, To]
+    // override type Prism[From, To]     = ProjectionExpression[From, To]
+    override type Lens[F, From, To]   = ProjectionExpression[From, To]
+    override type Prism[F, From, To]  = ProjectionExpression[From, To]
     override type Traversal[From, To] = Unit
 
     // respects @id annotation
-    override def makeLens[S, A](product: Schema.Record[S], term: Schema.Field[A]): Lens[S, A] = {
+//    override def makeLens[S, A](product: Schema.Record[S], term: Schema.Field[A]): Lens[S, A] = {
+    override def makeLens[F, S, A](product: Schema.Record[S], term: Schema.Field[S, A]): Lens[F, S, A] = {
 
-      val label = maybeId(term.annotations).getOrElse(term.label)
+      val label = maybeId(term.annotations).getOrElse(term.name)
       ProjectionExpression.MapElement(Root, label) //.asInstanceOf[Lens[S, A]]
     }
 
     // respects @discriminator and @id (at class level) annotations
-    override def makePrism[S, A](sum: Schema.Enum[S], term: Schema.Case[A, S]): Prism[S, A] =
+    // override def makePrism[F, S, A](sum: Schema.Enum[S], term: Schema.Case[S, A]): Prism[F, S, A] =
+    //   maybeDiscriminator(sum.annotations) match {
+    //     case Some(_) =>
+    //       ProjectionExpression.Root.asInstanceOf[Prism[F, S, A]]
+    //     case None    =>
+    //       ProjectionExpression.MapElement(Root, maybeId(term.annotations).getOrElse(term.id)).asInstanceOf[Prism[F, S, A]]
+    //   }
+    def makePrism[F, S, A](sum: Schema.Enum[S], term: Schema.Case[S, A]): Prism[F, S, A] =
       maybeDiscriminator(sum.annotations) match {
         case Some(_) =>
-          ProjectionExpression.Root.asInstanceOf[Prism[S, A]]
+          ProjectionExpression.Root.asInstanceOf[Prism[F, S, A]]
         case None    =>
-          ProjectionExpression.MapElement(Root, maybeId(term.annotations).getOrElse(term.id)).asInstanceOf[Prism[S, A]]
+          ProjectionExpression
+            .MapElement(Root, maybeId(term.annotations).getOrElse(term.id))
+            .asInstanceOf[Prism[F, S, A]]
       }
 
     override def makeTraversal[S, A](collection: Schema.Collection[S, A], element: Schema[A]): Traversal[S, A] = ()

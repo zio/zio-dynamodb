@@ -1,9 +1,9 @@
 package zio.dynamodb.codec
 
-import zio.test.Gen
-
 import java.time._
 import java.time.temporal.ChronoField
+
+import zio.test.Gen
 
 object JavaTimeGen {
 
@@ -69,7 +69,7 @@ object JavaTimeGen {
 
   val anyPeriod: Gen[Any, Period] =
     for {
-      years  <- Gen.int
+      years  <- Gen.int(-99999, 99999)
       months <- Gen.int
       days   <- Gen.int
     } yield Period.of(years, months, days)
@@ -105,8 +105,7 @@ object JavaTimeGen {
   //  for {
   //    ids      <- regionZoneIds
   //    all      = ids ++ zoneOffsets
-  //    random   <- ZIO.service[Random.Service]
-  //    shuffled <- random.shuffle(all.toList)
+  //    shuffled <- Random.shuffle(all.toList)
   //  } yield shuffled
 
   //FIXME Sampling causes some sort of pathological performance issue.

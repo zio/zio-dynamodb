@@ -5,22 +5,51 @@ import zio.schema.CaseSet.caseOf
 import zio.schema.{ CaseSet, DeriveSchema, Schema, StandardType }
 
 import java.time.Instant
-import java.time.format.DateTimeFormatter
 import scala.collection.immutable.ListMap
+import zio.schema.TypeId
 
 trait CodecTestFixtures {
 
+  // val recordSchema: Schema[ListMap[String, _]] = Schema.record(
+  //   Schema.Field("foo", Schema.Primitive(StandardType.StringType)),
+  //   Schema.Field("bar", Schema.Primitive(StandardType.IntType))
+  // )
+
   val recordSchema: Schema[ListMap[String, _]] = Schema.record(
-    Schema.Field("foo", Schema.Primitive(StandardType.StringType)),
-    Schema.Field("bar", Schema.Primitive(StandardType.IntType))
+    TypeId.Structural,
+    Schema.Field(
+      "foo",
+      Schema.Primitive(StandardType.StringType),
+      get0 = (p: ListMap[String, _]) => p("foo").asInstanceOf[String],
+      set0 = (p: ListMap[String, _], v: String) => p.updated("foo", v)
+    ),
+    Schema
+      .Field(
+        "bar",
+        Schema.Primitive(StandardType.IntType),
+        get0 = (p: ListMap[String, _]) => p("bar").asInstanceOf[Int],
+        set0 = (p: ListMap[String, _], v: Int) => p.updated("bar", v)
+      )
   )
 
+  // val enumSchema: Schema[Any] = Schema.enumeration[Any, CaseSet.Aux[Any]](
+  //   caseOf[String, Any]("string")(_.asInstanceOf[String]) ++ caseOf[Int, Any]("int")(_.asInstanceOf[Int]) ++ caseOf[
+  //     Boolean,
+  //     Any
+  //   ]("boolean")(_.asInstanceOf[Boolean])
+  // )
   val enumSchema: Schema[Any] = Schema.enumeration[Any, CaseSet.Aux[Any]](
-    caseOf[String, Any]("string")(_.asInstanceOf[String]) ++ caseOf[Int, Any]("int")(_.asInstanceOf[Int]) ++ caseOf[
+    TypeId.Structural,
+    caseOf[String, Any]("string")(_.asInstanceOf[String])(_.asInstanceOf[Any])(_.isInstanceOf[String]) ++ caseOf[
+      Int,
+      Any
+    ]("int")(_.asInstanceOf[Int])(_.asInstanceOf[Any])(_.isInstanceOf[Int]) ++ caseOf[
       Boolean,
       Any
-    ]("boolean")(_.asInstanceOf[Boolean])
+    ]("boolean")(_.asInstanceOf[Boolean])(_.asInstanceOf[Any])(_.isInstanceOf[Boolean])
   )
+
+
 
   lazy implicit val nestedCaseClass2Schema: Schema[NestedCaseClass2]               = DeriveSchema.gen[NestedCaseClass2]
   lazy implicit val simpleCaseClass3Schema: Schema[SimpleCaseClass3]               = DeriveSchema.gen[SimpleCaseClass3]
@@ -35,7 +64,7 @@ trait CodecTestFixtures {
   lazy implicit val caseClassOfTuple2: Schema[CaseClassOfTuple2]                   = DeriveSchema.gen[CaseClassOfTuple2]
   lazy implicit val caseClassOfTuple3: Schema[CaseClassOfTuple3]                   = DeriveSchema.gen[CaseClassOfTuple3]
   lazy implicit val instantSchema: Schema.Primitive[Instant]                       =
-    Schema.Primitive(StandardType.InstantType(DateTimeFormatter.ISO_INSTANT))
+    Schema.Primitive(StandardType.InstantType)
   lazy implicit val caseClassOfInstant: Schema[CaseClassOfInstant]                 = DeriveSchema.gen[CaseClassOfInstant]
   lazy implicit val caseClassOfStatus: Schema[CaseClassOfStatus]                   = DeriveSchema.gen[CaseClassOfStatus]
 

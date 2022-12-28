@@ -20,6 +20,11 @@ object FromAttributeValue {
     case av                       => Left(s"Error getting binary value. Expected AttributeValue.Binary but found $av")
   }
 
+  implicit val byteFromAttributeValue: FromAttributeValue[Byte] = {
+    case AttributeValue.Binary(b) => Right(b.head) // TODO: Avi - check this implementation
+    case av                       => Left(s"Error getting byte value. Expected AttributeValue.Binary but found $av")
+  }
+
   implicit def binarySetFromAttributeValue: FromAttributeValue[Iterable[Iterable[Byte]]] = {
     case AttributeValue.BinarySet(set) => Right(set)
     case av                            => Left(s"Error getting binary set value. Expected AttributeValue.BinarySet but found $av")

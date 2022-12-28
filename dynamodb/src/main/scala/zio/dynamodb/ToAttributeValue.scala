@@ -18,9 +18,14 @@ object ToAttributeValue extends ToAttributeValueLowPriorityImplicits0 {
   }
 
   implicit def binaryToAttributeValue[Col[A] <: Iterable[A]]: ToAttributeValue[Col[Byte]] = AttributeValue.Binary(_)
+
+  // TODO Avi - check implementation
+  implicit def byteToAttributeValue[Col[A] <: Iterable[A]]: ToAttributeValue[Byte] =
+    a => AttributeValue.Binary(Chunk(a))
+
   implicit def binarySetToAttributeValue[Col1[A] <: Iterable[A], Col2[B] <: Iterable[B]]
-    : ToAttributeValue[Col1[Col2[Byte]]]                                                  = AttributeValue.BinarySet(_)
-  implicit val boolToAttributeValue: ToAttributeValue[Boolean]                            = AttributeValue.Bool(_)
+    : ToAttributeValue[Col1[Col2[Byte]]]                       = AttributeValue.BinarySet(_)
+  implicit val boolToAttributeValue: ToAttributeValue[Boolean] = AttributeValue.Bool(_)
 
   implicit val attrMapToAttributeValue: ToAttributeValue[AttrMap] =
     (attrMap: AttrMap) =>

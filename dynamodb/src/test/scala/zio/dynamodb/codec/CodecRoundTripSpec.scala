@@ -8,6 +8,8 @@ import zio.{ Chunk, ZIO }
 
 import scala.collection.immutable.ListMap
 import zio.test.{ Gen, Sized, ZIOSpecDefault }
+import zio.schema.TypeId
+import java.time.ZoneOffset
 
 object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
 
@@ -37,7 +39,7 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
           left  <- SchemaGen.anyTupleAndValue
           right <- SchemaGen.anyTupleAndValue
         } yield (
-          Schema.EitherSchema(left._1.asInstanceOf[Schema[(Any, Any)]], right._1.asInstanceOf[Schema[(Any, Any)]]),
+          Schema.Either(left._1.asInstanceOf[Schema[(Any, Any)]], right._1.asInstanceOf[Schema[(Any, Any)]]),
           Right(right._2)
         )
       ) {
@@ -50,7 +52,7 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
           left  <- SchemaGen.anySequenceAndValue
           right <- SchemaGen.anySequenceAndValue
         } yield (
-          Schema.EitherSchema(left._1.asInstanceOf[Schema[Chunk[Any]]], right._1.asInstanceOf[Schema[Chunk[Any]]]),
+          Schema.Either(left._1.asInstanceOf[Schema[Chunk[Any]]], right._1.asInstanceOf[Schema[Chunk[Any]]]),
           Left(left._2)
         )
       ) {
@@ -59,9 +61,9 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
     },
     test("of records") {
       check(for {
-        (left, a)       <- SchemaGen.anyRecordAndValue
+        (left, a)       <- SchemaGen.anyRecordAndValue()
         primitiveSchema <- SchemaGen.anyPrimitive
-      } yield (Schema.EitherSchema(left, primitiveSchema), Left(a))) {
+      } yield (Schema.Either(left, primitiveSchema), Left(a))) {
         case (schema, value) => assertEncodesThenDecodes(schema, value)
       }
     },
@@ -69,7 +71,7 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
       check(for {
         (left, _)  <- SchemaGen.anyRecordOfRecordsAndValue
         (right, b) <- SchemaGen.anyRecordOfRecordsAndValue
-      } yield (Schema.EitherSchema(left, right), Right(b))) {
+      } yield (Schema.Either(left, right), Right(b))) {
         case (schema, value) =>
           assertEncodesThenDecodes(schema, value)
       }
@@ -78,7 +80,7 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
       check(for {
         (left, _)      <- SchemaGen.anyEnumerationAndValue
         (right, value) <- SchemaGen.anySequenceAndValue
-      } yield (Schema.EitherSchema(left, right), Right(value))) {
+      } yield (Schema.Either(left, right), Right(value))) {
         case (schema, value) => assertEncodesThenDecodes(schema, value)
       }
     }
@@ -98,7 +100,7 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
       }
     },
     test("of record") {
-      check(SchemaGen.anyRecordAndValue) {
+      check(SchemaGen.anyRecordAndValue()) {
         case (schema, value) =>
           assertEncodesThenDecodes(Schema.Optional(schema), Some(value)) &>
             assertEncodesThenDecodes(Schema.Optional(schema), None)
@@ -156,15 +158,24 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
 
   private val recordSuite = suite("record")(
     test("any") {
-      check(SchemaGen.anyRecordAndValue) {
+      check(SchemaGen.anyRecordAndValue()) {
         case (schema, value) => assertEncodesThenDecodes(schema, value)
       }
     },
     test("minimal test case") {
-      SchemaGen.anyRecordAndValue.runHead.flatMap {
+      SchemaGen.anyRecordAndValue().runHead.flatMap {
         case Some((schema, value)) =>
           val key      = new String(Array('\u0007', '\n'))
-          val embedded = Schema.record(Schema.Field(key, schema))
+          val embedded = Schema.record(
+            TypeId.Structural,
+            Schema
+              .Field[ListMap[String, _], ListMap[String, _]](
+                key,
+                schema,
+                get0 = (p: ListMap[String, _]) => p(key).asInstanceOf[ListMap[String, _]],
+                set0 = (p: ListMap[String, _], v: ListMap[String, _]) => p.updated(key, v)
+              )
+          )
           assertEncodesThenDecodes(embedded, ListMap(key -> value))
         case None                  => ZIO.fail("Should never happen!")
       }
@@ -176,14 +187,22 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
       }
     },
     test("of primitives") {
-      check(SchemaGen.anyRecordAndValue) {
+      check(SchemaGen.anyRecordAndValue()) {
         case (schema, value) => assertEncodesThenDecodes(schema, value)
       }
     },
     test("of ZoneOffsets") {
       check(JavaTimeGen.anyZoneOffset) { zoneOffset =>
         assertEncodesThenDecodes(
-          Schema.record(Schema.Field("zoneOffset", Schema.Primitive(StandardType.ZoneOffsetType))),
+          Schema.record(
+            TypeId.parse("java.time.ZoneOffset"),
+            Schema.Field(
+              "zoneOffset",
+              Schema.Primitive(StandardType.ZoneOffsetType),
+              get0 = (p: ListMap[String, _]) => p("zoneOffset").asInstanceOf[ZoneOffset],
+              set0 = (p: ListMap[String, _], v: ZoneOffset) => p.updated("zoneOffset", v)
+            )
+          ),
           ListMap[String, Any]("zoneOffset" -> zoneOffset)
         )
       }
@@ -210,6 +229,18 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
       ) &> assertEncodesThenDecodes(Schema[Enumeration], Enumeration(IntValue(-1))) &> assertEncodesThenDecodes(
         Schema[Enumeration],
         Enumeration(BooleanValue(false))
+      )
+    },
+    test("ADT with annotation") {
+      assertEncodesThenDecodes(
+        Schema[Enumeration2],
+        Enumeration2(StringValue2("foo"))
+      ) &> assertEncodesThenDecodes(
+        Schema[Enumeration2],
+        Enumeration2(StringValue2Multi("foo", "bar"))
+      ) &> assertEncodesThenDecodes(Schema[Enumeration2], Enumeration2(IntValue2(-1))) &> assertEncodesThenDecodes(
+        Schema[Enumeration2],
+        Enumeration2(BooleanValue2(false))
       )
     }
   )
@@ -358,14 +389,41 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
     implicit val schema: Schema[Enumeration] = DeriveSchema.gen[Enumeration]
   }
 
+  sealed trait OneOf2
+  case class StringValue2(value: String)                       extends OneOf2
+  case class IntValue2(value: Int)                             extends OneOf2
+  case class BooleanValue2(value: Boolean)                     extends OneOf2
+  case class StringValue2Multi(value1: String, value2: String) extends OneOf2
+
+  case class Enumeration2(oneOf: OneOf2)
+
+  object Enumeration2 {
+    implicit val schema: Schema[Enumeration2] = DeriveSchema.gen[Enumeration2]
+  }
+
   case object Singleton
   implicit val schemaObject: Schema[Singleton.type] = DeriveSchema.gen[Singleton.type]
 
+  // val nestedRecordSchema: Schema[ListMap[String, _]] = Schema.record(
+  //   Schema.Field("l1", Schema.Primitive(StandardType.StringType)),
+  //   Schema.Field("l2", recordSchema)
+  // )
   val nestedRecordSchema: Schema[ListMap[String, _]] = Schema.record(
-    Schema.Field("l1", Schema.Primitive(StandardType.StringType)),
-    Schema.Field("l2", recordSchema)
+    TypeId.Structural,
+    Schema.Field(
+      "l1",
+      Schema.Primitive(StandardType.StringType),
+      get0 = (p: ListMap[String, _]) => p("l1").asInstanceOf[String],
+      set0 = (p: ListMap[String, _], v: String) => p.updated("l1", v)
+    ),
+    Schema.Field(
+      "l2",
+      recordSchema,
+      get0 = (p: ListMap[String, _]) => p("l2").asInstanceOf[ListMap[String, _]],
+      set0 = (p: ListMap[String, _], v: ListMap[String, _]) => p.updated("l2", v)
+    )
   )
-
+  
   final case class Value(first: Int, second: Boolean)
   object Value {
     implicit lazy val schema: Schema[Value] = DeriveSchema.gen[Value]

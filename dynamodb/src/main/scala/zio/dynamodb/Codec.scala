@@ -1,8 +1,7 @@
 package zio.dynamodb
 
 import zio.dynamodb.Annotations.{ discriminator, enumOfCaseObjects, id, maybeDiscriminator, maybeId }
-import zio.schema.Schema.{ Optional, Primitive, Transform }
-import zio.schema.ast.SchemaAst
+import zio.schema.Schema.{ Optional, Primitive }
 import zio.schema.{ FieldSet, Schema, StandardType }
 import zio.{ schema, Chunk }
 
@@ -31,138 +30,150 @@ private[dynamodb] object Codec {
     //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
     private def encoder[A](schema: Schema[A]): Encoder[A] =
       schema match {
-        case s: Schema.Optional[a]                                                                                                                                                                                                                                                          =>
-          optionalEncoder[a](encoder(s.codec))
-        case Schema.Fail(_, _)                                                                                                                                                                                                                                                              =>
+        case s: Schema.Optional[a]                                                                                                              =>
+          optionalEncoder[a](encoder(s.schema))
+        case Schema.Fail(_, _)                                                                                                                  =>
           _ => AttributeValue.Null
-        case Schema.Tuple(l, r, _)                                                                                                                                                                                                                                                          =>
+        case Schema.Tuple2(l, r, _) /* TODO: Avi - checkout example useage of Tuple2 */                                                         =>
           tupleEncoder(encoder(l), encoder(r))
-        case s: Schema.Sequence[col, a, _]                                                                                                                                                                                                                                                  =>
-          sequenceEncoder[col, a](encoder(s.schemaA), s.toChunk)
-        case Schema.SetSchema(s, _)                                                                                                                                                                                                                                                         =>
+        case s: Schema.Sequence[col, a, _]                                                                                                      =>
+          sequenceEncoder[col, a](encoder(s.elementSchema), s.toChunk)
+        case Schema.Set(s, _)                                                                                                                   =>
           setEncoder(s)
-        case Schema.MapSchema(ks, vs, _)                                                                                                                                                                                                                                                    =>
+        case Schema.Map(ks, vs, _)                                                                                                              =>
           mapEncoder(ks, vs)
-        case Schema.Transform(c, _, g, _, _)                                                                                                                                                                                                                                                =>
+        case Schema.Transform(c, _, g, _, _)                                                                                                    =>
           transformEncoder(c, g)
-        case Schema.Primitive(standardType, _)                                                                                                                                                                                                                                              =>
+        case Schema.Primitive(standardType, _)                                                                                                  =>
           primitiveEncoder(standardType)
-        case Schema.GenericRecord(structure, _)                                                                                                                                                                                                                                             =>
+        case Schema.GenericRecord(_, structure, _)                                                                                              =>
           genericRecordEncoder(structure)
-        case Schema.EitherSchema(l, r, _)                                                                                                                                                                                                                                                   =>
+        case Schema.Either(l, r, _)                                                                                                             =>
           eitherEncoder(encoder(l), encoder(r))
-        case l @ Schema.Lazy(_)                                                                                                                                                                                                                                                             =>
+        case l @ Schema.Lazy(_)                                                                                                                 =>
           lazy val enc = encoder(l.schema)
-          (a: A) => enc(a)
-        case Schema.Meta(_, _)                                                                                                                                                                                                                                                              =>
-          astEncoder
-        case Schema.Dynamic(_)                                                                                                                                                                                                                                                              =>
+          (a: A) =>
+            enc(a)
+          // case Schema.Meta(_, _)                                                                                                                                                                                                                                                              =>
+          //   astEncoder
+        case Schema.Dynamic(_)                                                                                                                  =>
           dynamicEncoder
-        case Schema.SemiDynamic(_, _)                                                                                                                                                                                                                                                       =>
-          _ => AttributeValue.Null // TODO: Avi
-        case Schema.CaseClass1(f, _, ext, _)                                                                                                                                                                                                                                                =>
-          caseClassEncoder(f -> ext)
-        case Schema.CaseClass2(f1, f2, _, ext1, ext2, _)                                                                                                                                                                                                                                    =>
-          caseClassEncoder(f1 -> ext1, f2 -> ext2)
-        case Schema.CaseClass3(f1, f2, f3, _, ext1, ext2, ext3, _)                                                                                                                                                                                                                          =>
-          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3)
-        case Schema.CaseClass4(f1, f2, f3, f4, _, ext1, ext2, ext3, ext4, _)                                                                                                                                                                                                                =>
-          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4)
-        case Schema.CaseClass5(f1, f2, f3, f4, f5, _, ext1, ext2, ext3, ext4, ext5, _)                                                                                                                                                                                                      =>
-          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4, f5 -> ext5)
-        case Schema.CaseClass6(f1, f2, f3, f4, f5, f6, _, ext1, ext2, ext3, ext4, ext5, ext6, _)                                                                                                                                                                                            =>
-          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4, f5 -> ext5, f6 -> ext6)
-        case Schema.CaseClass7(f1, f2, f3, f4, f5, f6, f7, _, ext1, ext2, ext3, ext4, ext5, ext6, ext7, _)                                                                                                                                                                                  =>
-          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4, f5 -> ext5, f6 -> ext6, f7 -> ext7)
-        case Schema.CaseClass8(f1, f2, f3, f4, f5, f6, f7, f8, _, ext1, ext2, ext3, ext4, ext5, ext6, ext7, ext8, _)                                                                                                                                                                        =>
-          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4, f5 -> ext5, f6 -> ext6, f7 -> ext7, f8 -> ext8)
+        // case Schema.SemiDynamic(_, _)                                                                                                                                                                                                                                                       =>
+        //   _ => AttributeValue.Null // TODO: Avi
+        case Schema.CaseClass0(_, _, _)                                                                                                         =>
+          caseClassEncoder2()
+        case Schema.CaseClass1(_, f, _, _)                                                                                                      =>
+          // case s: Schema.CaseClass1[A, _]                                                                                                                                                                                                                                                     =>
+          /*
+    private def caseClassEncoder[A](fields: (Schema.Field[_, _], A => Any)*): Encoder[A] =
+           */
+//          caseClassEncoder(s.field -> s.defaultConstruct)
+          caseClassEncoder2(f)
+        case Schema.CaseClass2(_, f1, f2, _, _)                                                                                                 =>
+          caseClassEncoder2(f1, f2)
+        case Schema.CaseClass3(_, f1, f2, f3, _, _)                                                                                             =>
+          caseClassEncoder2(f1, f2, f3)
+        case Schema.CaseClass4(_, f1, f2, f3, f4, _, _)                                                                                         =>
+          caseClassEncoder2(f1, f2, f3, f4)
+        case Schema.CaseClass5(_, f1, f2, f3, f4, f5, _, _)                                                                                     =>
+          caseClassEncoder2(f1, f2, f3, f4, f5)
+        case Schema.CaseClass6(_, f1, f2, f3, f4, f5, f6, _, _)                                                                                 =>
+          caseClassEncoder2(f1, f2, f3, f4, f5, f6)
+        case Schema.CaseClass7(_, f1, f2, f3, f4, f5, f6, f7, _, _)                                                                             =>
+          caseClassEncoder2(f1, f2, f3, f4, f5, f6, f7)
+        case Schema.CaseClass8(_, f1, f2, f3, f4, f5, f6, f7, f8, _, _)                                                                         =>
+          caseClassEncoder2(f1, f2, f3, f4, f5, f6, f7, f8)
         case Schema
-              .CaseClass9(f1, f2, f3, f4, f5, f6, f7, f8, f9, _, ext1, ext2, ext3, ext4, ext5, ext6, ext7, ext8, ext9, _) =>
-          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4, f5 -> ext5, f6 -> ext6, f7 -> ext7, f8 -> ext8, f9 -> ext9)
-        case Schema.CaseClass10(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, _, ext1, ext2, ext3, ext4, ext5, ext6, ext7, ext8, ext9, ext10, _)                                                                                                                                                 =>
-          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4, f5 -> ext5, f6 -> ext6, f7 -> ext7, f8 -> ext8, f9 -> ext9, f10 -> ext10)
-        case Schema.CaseClass11(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, _, ext1, ext2, ext3, ext4, ext5, ext6, ext7, ext8, ext9, ext10, ext11, _)                                                                                                                                     =>
-          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4, f5 -> ext5, f6 -> ext6, f7 -> ext7, f8 -> ext8, f9 -> ext9, f10 -> ext10, f11 -> ext11)
-        case Schema.CaseClass12(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, _, ext1, ext2, ext3, ext4, ext5, ext6, ext7, ext8, ext9, ext10, ext11, ext12, _)                                                                                                                         =>
-          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4, f5 -> ext5, f6 -> ext6, f7 -> ext7, f8 -> ext8, f9 -> ext9, f10 -> ext10, f11 -> ext11, f12 -> ext12)
-        case Schema.CaseClass13(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, _, ext1, ext2, ext3, ext4, ext5, ext6, ext7, ext8, ext9, ext10, ext11, ext12, ext13, _)                                                                                                             =>
-          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4, f5 -> ext5, f6 -> ext6, f7 -> ext7, f8 -> ext8, f9 -> ext9, f10 -> ext10, f11 -> ext11, f12 -> ext12, f13 -> ext13)
-        case Schema.CaseClass14(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, _, ext1, ext2, ext3, ext4, ext5, ext6, ext7, ext8, ext9, ext10, ext11, ext12, ext13, ext14, _)                                                                                                 =>
-          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4, f5 -> ext5, f6 -> ext6, f7 -> ext7, f8 -> ext8, f9 -> ext9, f10 -> ext10, f11 -> ext11, f12 -> ext12, f13 -> ext13, f14 -> ext14)
-        case Schema.CaseClass15(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, _, ext1, ext2, ext3, ext4, ext5, ext6, ext7, ext8, ext9, ext10, ext11, ext12, ext13, ext14, ext15, _)                                                                                     =>
-          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4, f5 -> ext5, f6 -> ext6, f7 -> ext7, f8 -> ext8, f9 -> ext9, f10 -> ext10, f11 -> ext11, f12 -> ext12, f13 -> ext13, f14 -> ext14, f15 -> ext15)
-        case Schema.CaseClass16(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, _, ext1, ext2, ext3, ext4, ext5, ext6, ext7, ext8, ext9, ext10, ext11, ext12, ext13, ext14, ext15, ext16, _)                                                                         =>
-          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4, f5 -> ext5, f6 -> ext6, f7 -> ext7, f8 -> ext8, f9 -> ext9, f10 -> ext10, f11 -> ext11, f12 -> ext12, f13 -> ext13, f14 -> ext14, f15 -> ext15, f16 -> ext16)
-        case Schema.CaseClass17(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, _, ext1, ext2, ext3, ext4, ext5, ext6, ext7, ext8, ext9, ext10, ext11, ext12, ext13, ext14, ext15, ext16, ext17, _)                                                             =>
-          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4, f5 -> ext5, f6 -> ext6, f7 -> ext7, f8 -> ext8, f9 -> ext9, f10 -> ext10, f11 -> ext11, f12 -> ext12, f13 -> ext13, f14 -> ext14, f15 -> ext15, f16 -> ext16, f17 -> ext17)
-        case Schema.CaseClass18(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, _, ext1, ext2, ext3, ext4, ext5, ext6, ext7, ext8, ext9, ext10, ext11, ext12, ext13, ext14, ext15, ext16, ext17, ext18, _)                                                 =>
-          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4, f5 -> ext5, f6 -> ext6, f7 -> ext7, f8 -> ext8, f9 -> ext9, f10 -> ext10, f11 -> ext11, f12 -> ext12, f13 -> ext13, f14 -> ext14, f15 -> ext15, f16 -> ext16, f17 -> ext17, f18 -> ext18)
-        case Schema.CaseClass19(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, _, ext1, ext2, ext3, ext4, ext5, ext6, ext7, ext8, ext9, ext10, ext11, ext12, ext13, ext14, ext15, ext16, ext17, ext18, ext19, _)                                     =>
-          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4, f5 -> ext5, f6 -> ext6, f7 -> ext7, f8 -> ext8, f9 -> ext9, f10 -> ext10, f11 -> ext11, f12 -> ext12, f13 -> ext13, f14 -> ext14, f15 -> ext15, f16 -> ext16, f17 -> ext17, f18 -> ext18, f19 -> ext19)
-        case Schema.CaseClass20(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, _, ext1, ext2, ext3, ext4, ext5, ext6, ext7, ext8, ext9, ext10, ext11, ext12, ext13, ext14, ext15, ext16, ext17, ext18, ext19, ext20, _)                         =>
-          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4, f5 -> ext5, f6 -> ext6, f7 -> ext7, f8 -> ext8, f9 -> ext9, f10 -> ext10, f11 -> ext11, f12 -> ext12, f13 -> ext13, f14 -> ext14, f15 -> ext15, f16 -> ext16, f17 -> ext17, f18 -> ext18, f19 -> ext19, f20 -> ext20)
-        case Schema.CaseClass21(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, _, ext1, ext2, ext3, ext4, ext5, ext6, ext7, ext8, ext9, ext10, ext11, ext12, ext13, ext14, ext15, ext16, ext17, ext18, ext19, ext20, ext21, _)             =>
-          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4, f5 -> ext5, f6 -> ext6, f7 -> ext7, f8 -> ext8, f9 -> ext9, f10 -> ext10, f11 -> ext11, f12 -> ext12, f13 -> ext13, f14 -> ext14, f15 -> ext15, f16 -> ext16, f17 -> ext17, f18 -> ext18, f19 -> ext19, f20 -> ext20, f21 -> ext21)
-        case Schema.CaseClass22(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, _, ext1, ext2, ext3, ext4, ext5, ext6, ext7, ext8, ext9, ext10, ext11, ext12, ext13, ext14, ext15, ext16, ext17, ext18, ext19, ext20, ext21, ext22, _) =>
-          caseClassEncoder(f1 -> ext1, f2 -> ext2, f3 -> ext3, f4 -> ext4, f5 -> ext5, f6 -> ext6, f7 -> ext7, f8 -> ext8, f9 -> ext9, f10 -> ext10, f11 -> ext11, f12 -> ext12, f13 -> ext13, f14 -> ext14, f15 -> ext15, f16 -> ext16, f17 -> ext17, f18 -> ext18, f19 -> ext19, f20 -> ext20, f21 -> ext21, f22 -> ext22)
-        case Schema.Enum1(c, annotations)                                                                                                                                                                                                                                                   =>
-          enumEncoder(annotations, c)
-        case Schema.Enum2(c1, c2, annotations)                                                                                                                                                                                                                                              =>
-          enumEncoder(annotations, c1, c2)
-        case Schema.Enum3(c1, c2, c3, annotations)                                                                                                                                                                                                                                          =>
-          enumEncoder(annotations, c1, c2, c3)
-        case Schema.Enum4(c1, c2, c3, c4, annotations)                                                                                                                                                                                                                                      =>
-          enumEncoder(annotations, c1, c2, c3, c4)
-        case Schema.Enum5(c1, c2, c3, c4, c5, annotations)                                                                                                                                                                                                                                  =>
-          enumEncoder(annotations, c1, c2, c3, c4, c5)
-        case Schema.Enum6(c1, c2, c3, c4, c5, c6, annotations)                                                                                                                                                                                                                              =>
-          enumEncoder(annotations, c1, c2, c3, c4, c5, c6)
-        case Schema.Enum7(c1, c2, c3, c4, c5, c6, c7, annotations)                                                                                                                                                                                                                          =>
-          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7)
-        case Schema.Enum8(c1, c2, c3, c4, c5, c6, c7, c8, annotations)                                                                                                                                                                                                                      =>
-          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8)
-        case Schema.Enum9(c1, c2, c3, c4, c5, c6, c7, c8, c9, annotations)                                                                                                                                                                                                                  =>
-          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9)
-        case Schema.Enum10(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, annotations)                                                                                                                                                                                                            =>
-          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10)
-        case Schema.Enum11(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, annotations)                                                                                                                                                                                                       =>
-          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11)
-        case Schema.Enum12(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, annotations)                                                                                                                                                                                                  =>
-          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12)
-        case Schema.Enum13(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, annotations)                                                                                                                                                                                             =>
-          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13)
-        case Schema.Enum14(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, annotations)                                                                                                                                                                                        =>
-          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14)
-        case Schema.Enum15(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, annotations)                                                                                                                                                                                   =>
-          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15)
-        case Schema.Enum16(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, annotations)                                                                                                                                                                              =>
-          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16)
-        case Schema.Enum17(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, annotations)                                                                                                                                                                         =>
-          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17)
-        case Schema.Enum18(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, annotations)                                                                                                                                                                    =>
-          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18)
-        case Schema.Enum19(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, annotations)                                                                                                                                                               =>
-          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19)
+              .CaseClass9(_, f1, f2, f3, f4, f5, f6, f7, f8, f9, _, _) =>
+          caseClassEncoder2(f1, f2, f3, f4, f5, f6, f7, f8, f9)
+        case Schema.CaseClass10(_, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, _, _)                                                               =>
+          caseClassEncoder2(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10)
+        case Schema.CaseClass11(_, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, _, _)                                                          =>
+          caseClassEncoder2(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11)
+        case Schema.CaseClass12(_, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, _, _)                                                     =>
+          caseClassEncoder2(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12)
+        case Schema.CaseClass13(_, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, _, _)                                                =>
+          caseClassEncoder2(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13)
+        case Schema.CaseClass14(_, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, _, _)                                           =>
+          caseClassEncoder2(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14)
+        case Schema.CaseClass15(_, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, _, _)                                      =>
+          caseClassEncoder2(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15)
+        case Schema.CaseClass16(_, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, _, _)                                 =>
+          caseClassEncoder2(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16)
+        case Schema.CaseClass17(_, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, _, _)                            =>
+          caseClassEncoder2(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17)
+        case Schema.CaseClass18(_, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, _, _)                       =>
+          caseClassEncoder2(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18)
+        case Schema.CaseClass19(_, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, _, _)                  =>
+          caseClassEncoder2(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19)
+        case Schema.CaseClass20(_, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, _)                =>
+          caseClassEncoder2(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20)
+        case Schema.CaseClass21(_, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, tail)             =>
+          caseClassEncoder2(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, tail._1)
+        case Schema.CaseClass22(_, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, tail)             =>
+          caseClassEncoder2(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, tail._1, tail._2)
+        /*
+sealed case class Enum1[A, Z](id: TypeId, case1: Case[Z, A], annotations: Chunk[Any] = Chunk.empty) extends Enum[Z] {
+         */
+        case Schema.Enum1(_, c, annotations)                                                                                                    =>
+          enumEncoder2(annotations, c)
+        case Schema.Enum2(_, c1, c2, annotations)                                                                                               =>
+          enumEncoder2(annotations, c1, c2)
+        case Schema.Enum3(_, c1, c2, c3, annotations)                                                                                           =>
+          enumEncoder2(annotations, c1, c2, c3)
+        case Schema.Enum4(_, c1, c2, c3, c4, annotations)                                                                                       =>
+          enumEncoder2(annotations, c1, c2, c3, c4)
+        case Schema.Enum5(_, c1, c2, c3, c4, c5, annotations)                                                                                   =>
+          enumEncoder2(annotations, c1, c2, c3, c4, c5)
+        case Schema.Enum6(_, c1, c2, c3, c4, c5, c6, annotations)                                                                               =>
+          enumEncoder2(annotations, c1, c2, c3, c4, c5, c6)
+        case Schema.Enum7(_, c1, c2, c3, c4, c5, c6, c7, annotations)                                                                           =>
+          enumEncoder2(annotations, c1, c2, c3, c4, c5, c6, c7)
+        case Schema.Enum8(_, c1, c2, c3, c4, c5, c6, c7, c8, annotations)                                                                       =>
+          enumEncoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8)
+        case Schema.Enum9(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, annotations)                                                                   =>
+          enumEncoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9)
+        case Schema.Enum10(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, annotations)                                                             =>
+          enumEncoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10)
+        case Schema.Enum11(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, annotations)                                                        =>
+          enumEncoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11)
+        case Schema.Enum12(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, annotations)                                                   =>
+          enumEncoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12)
+        case Schema.Enum13(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, annotations)                                              =>
+          enumEncoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13)
+        case Schema.Enum14(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, annotations)                                         =>
+          enumEncoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14)
+        case Schema.Enum15(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, annotations)                                    =>
+          enumEncoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15)
+        case Schema.Enum16(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, annotations)                               =>
+          enumEncoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16)
+        case Schema.Enum17(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, annotations)                          =>
+          enumEncoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17)
+        case Schema.Enum18(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, annotations)                     =>
+          enumEncoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18)
+        case Schema.Enum19(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, annotations)                =>
+          enumEncoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19)
         case Schema
-              .Enum20(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, annotations) =>
-          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20)
+              .Enum20(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, annotations) =>
+          enumEncoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20)
         case Schema
-              .Enum21(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, annotations) =>
-          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21)
-        case Schema.Enum22(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, annotations)                                                                                                                                                =>
-          enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22)
-        case Schema.EnumN(cs, annotations)                                                                                                                                                                                                                                                  =>
-          enumEncoder(annotations, cs.toSeq: _*)
+              .Enum21(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, annotations) =>
+          enumEncoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21)
+        case Schema.Enum22(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, annotations) =>
+          enumEncoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22)
+        case Schema.EnumN(_, cs, annotations)                                                                                                   =>
+          enumEncoder2(annotations, cs.toSeq: _*)
       }
     //scalafmt: { maxColumn = 120, optIn.configStyleArguments = true }
 
-    private val astEncoder: Encoder[Schema[_]] =
-      (schema: Schema[_]) => encoder(Schema[SchemaAst])(SchemaAst.fromSchema(schema))
+    // TODO: Avi - figure out why this is not rfereenced anymore
+    // private val astEncoder: Encoder[Schema[_]] =
+    //   (schema: Schema[_]) => encoder(Schema[MetaSchema])(MetaSchema.fromSchema(schema))
 
     private def genericRecordEncoder(structure: FieldSet): Encoder[ListMap[String, _]] =
       (valuesMap: ListMap[String, _]) => {
         structure.toChunk.foldRight(AttributeValue.Map(ListMap.empty)) {
-          case (Schema.Field(key, schema: Schema[a], _), avMap) =>
+          case (Schema.Field(key, schema: Schema[a], _, _, _, _), avMap) =>
             val value              = valuesMap(key)
             val enc                = encoder[a](schema)
             val av: AttributeValue = enc(value.asInstanceOf[a])
@@ -173,61 +184,97 @@ private[dynamodb] object Codec {
     private def dynamicEncoder[A]: Encoder[A] =
       encoder(Schema.dynamicValue).asInstanceOf[Encoder[A]]
 
-    private def caseClassEncoder[A](fields: (Schema.Field[_], A => Any)*): Encoder[A] =
-      (a: A) => {
-        fields.foldRight[AttributeValue.Map](AttributeValue.Map(Map.empty)) {
-          case ((Schema.Field(key, schema, annotations), ext), acc) =>
-            val enc                 = encoder(schema)
-            val extractedFieldValue = ext(a)
-            val av                  = enc(extractedFieldValue)
-            val k                   = maybeId(annotations).getOrElse(key)
+    private def caseClassEncoder2[Z](fields: Schema.Field[Z, _]*): Encoder[Z] = { (a: Z) =>
+      fields.foldRight[AttributeValue.Map](AttributeValue.Map(Map.empty)) {
+        case s: (Schema.Field[Z, _], AttributeValue.Map) =>
+          val enc                 = encoder(s._1.schema)
+          val extractedFieldValue = s._1.get(a)
+          val av                  = enc(extractedFieldValue)
+          val k                   = maybeId(s._1.annotations).getOrElse(s._1.name)
 
-            @tailrec
-            def appendToMap[B](schema: Schema[B]): AttributeValue.Map =
-              schema match {
-                case l @ Schema.Lazy(_)                                                 =>
-                  appendToMap(l.schema)
-                case _: Schema.Optional[_] if av.isInstanceOf[AttributeValue.Null.type] =>
-                  AttributeValue.Map(acc.value)
-                case _                                                                  =>
-                  AttributeValue.Map(acc.value + (AttributeValue.String(k) -> av))
-              }
+          @tailrec
+          def appendToMap[B](schema: Schema[B]): AttributeValue.Map =
+            schema match {
+              // TODO: Avi - revist this lazy case - probably should be taken care of in the top level pattern match
+              case l @ Schema.Lazy(_)                                                 =>
+                appendToMap(l.schema)
+              case _: Schema.Optional[_] if av.isInstanceOf[AttributeValue.Null.type] =>
+                AttributeValue.Map(s._2.value)
+              case _                                                                  =>
+                AttributeValue.Map(s._2.value + (AttributeValue.String(k) -> av))
+            }
 
-            appendToMap(schema)
-        }
+          appendToMap(s._1.schema)
       }
+
+    }
+
+    // private def caseClassEncoder[A](fields: (Schema.Field[_, _], A => Any)*): Encoder[A] =
+    //   (a: A) => {
+    //     fields.foldRight[AttributeValue.Map](AttributeValue.Map(Map.empty)) {
+    //       case ((Schema.Field(key, schema, annotations, _, _, _), ext), acc) =>
+    //         val enc                 = encoder(schema)
+    //         val extractedFieldValue = ext(a)
+    //         val av                  = enc(extractedFieldValue)
+    //         val k                   = maybeId(annotations).getOrElse(key)
+
+    //         @tailrec
+    //         def appendToMap[B](schema: Schema[B]): AttributeValue.Map =
+    //           schema match {
+    //             case l @ Schema.Lazy(_)                                                 =>
+    //               appendToMap(l.schema)
+    //             case _: Schema.Optional[_] if av.isInstanceOf[AttributeValue.Null.type] =>
+    //               AttributeValue.Map(acc.value)
+    //             case _                                                                  =>
+    //               AttributeValue.Map(acc.value + (AttributeValue.String(k) -> av))
+    //           }
+
+    //         appendToMap(schema)
+    //     }
+    //   }
 
     private def primitiveEncoder[A](standardType: StandardType[A]): Encoder[A] =
       standardType match {
-        case StandardType.UnitType                      => _ => AttributeValue.Null
-        case StandardType.CharType                      => (a: A) => AttributeValue.String(Character.toString(a))
-        case StandardType.StringType                    => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.BoolType                      => (a: A) => AttributeValue.Bool(a.asInstanceOf[Boolean])
-        case StandardType.BinaryType                    => (a: A) => AttributeValue.Binary(a)
-        case StandardType.ShortType                     => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-        case StandardType.IntType                       => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-        case StandardType.LongType                      => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-        case StandardType.FloatType                     => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-        case StandardType.DoubleType                    => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-        case StandardType.BigDecimalType                => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-        case StandardType.BigIntegerType                => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-        case StandardType.UUIDType                      => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.DayOfWeekType                 => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.DurationType                  => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.InstantType(formatter)        => (a: A) => AttributeValue.String(formatter.format(a))
-        case StandardType.LocalDateType(formatter)      => (a: A) => AttributeValue.String(formatter.format(a))
-        case StandardType.LocalDateTimeType(formatter)  => (a: A) => AttributeValue.String(formatter.format(a))
-        case StandardType.LocalTimeType(formatter)      => (a: A) => AttributeValue.String(formatter.format(a))
-        case StandardType.MonthType                     => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.MonthDayType                  => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.OffsetDateTimeType(formatter) => (a: A) => AttributeValue.String(formatter.format(a))
-        case StandardType.OffsetTimeType(formatter)     => (a: A) => AttributeValue.String(formatter.format(a))
-        case StandardType.PeriodType                    => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.YearType                      => yearEncoder
-        case StandardType.YearMonthType                 => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.ZonedDateTimeType(formatter)  => (a: A) => AttributeValue.String(formatter.format(a))
-        case StandardType.ZoneIdType                    => (a: A) => AttributeValue.String(a.toString)
-        case StandardType.ZoneOffsetType                => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.UnitType           => _ => AttributeValue.Null
+        case StandardType.CharType           => (a: A) => AttributeValue.String(Character.toString(a))
+        case StandardType.StringType         => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.BoolType           => (a: A) => AttributeValue.Bool(a.asInstanceOf[Boolean])
+        case StandardType.ByteType           => (a: A) => AttributeValue.Binary(Chunk(a))
+        case StandardType.BinaryType         => (a: A) => AttributeValue.Binary(a)
+        case StandardType.ShortType          => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+        case StandardType.IntType            => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+        case StandardType.LongType           => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+        case StandardType.FloatType          => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+        case StandardType.DoubleType         => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+        case StandardType.BigDecimalType     => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+        case StandardType.BigIntegerType     => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+        case StandardType.UUIDType           => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.DayOfWeekType      => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.DurationType       =>
+          (a: A) =>
+            AttributeValue.String(a.toString)
+// TODO: Avi - investigate is there is a formatter anywhere
+//        case StandardType.InstantType(formatter)        => (a: A) => AttributeValue.String(formatter.format(a))
+        case StandardType.InstantType        => (a: A) => AttributeValue.String(a.toString)
+//        case StandardType.LocalDateType(formatter)      => (a: A) => AttributeValue.String(formatter.format(a))
+        case StandardType.LocalDateType      => (a: A) => AttributeValue.String(a.toString)
+//        case StandardType.LocalDateTimeType(formatter)  => (a: A) => AttributeValue.String(formatter.format(a))
+        case StandardType.LocalDateTimeType  => (a: A) => AttributeValue.String(a.toString)
+//        case StandardType.LocalTimeType(formatter)      => (a: A) => AttributeValue.String(formatter.format(a))
+        case StandardType.LocalTimeType      => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.MonthType          => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.MonthDayType       => (a: A) => AttributeValue.String(a.toString)
+//        case StandardType.OffsetDateTimeType(formatter) => (a: A) => AttributeValue.String(formatter.format(a))
+        case StandardType.OffsetDateTimeType => (a: A) => AttributeValue.String(a.toString)
+//        case StandardType.OffsetTimeType(formatter)     => (a: A) => AttributeValue.String(formatter.format(a))
+        case StandardType.OffsetTimeType     => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.PeriodType         => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.YearType           => yearEncoder
+        case StandardType.YearMonthType      => (a: A) => AttributeValue.String(a.toString)
+//        case StandardType.ZonedDateTimeType(formatter)  => (a: A) => AttributeValue.String(formatter.format(a))
+        case StandardType.ZonedDateTimeType  => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.ZoneIdType         => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.ZoneOffsetType     => (a: A) => AttributeValue.String(a.toString)
       }
 
     private def yearEncoder[A]: Encoder[A] =
@@ -264,18 +311,24 @@ private[dynamodb] object Codec {
     private def sequenceEncoder[Col, A](encoder: Encoder[A], from: Col => Chunk[A]): Encoder[Col] =
       (col: Col) => AttributeValue.List(from(col).map(encoder))
 
-    private def enumEncoder[A](annotations: Chunk[Any], cases: Schema.Case[_, A]*): Encoder[A] =
+    private def enumEncoder2[Z](annotations: Chunk[Any], cases: Schema.Case[Z, _]*): Encoder[Z] =
       if (isEnumWithDiscriminatorOrCaseObjectAnnotationCodec(annotations))
-        enumWithDiscriminatorOrCaseObjectAnnotationEncoder(discriminatorWithDefault(annotations), cases: _*)
+        enumWithDiscriminatorOrCaseObjectAnnotationEncoder2(discriminatorWithDefault(annotations), cases: _*)
       else
-        defaultEnumEncoder(cases: _*)
+        defaultEnumEncoder2(cases: _*)
 
-    private def defaultEnumEncoder[A](cases: Schema.Case[_, A]*): Encoder[A] =
-      (a: A) => {
-        val fieldIndex = cases.indexWhere(c => c.deconstruct(a).isDefined)
+    // private def enumEncoder[A](annotations: Chunk[Any], cases: Schema.Case[_, A]*): Encoder[A] =
+    //   if (isEnumWithDiscriminatorOrCaseObjectAnnotationCodec(annotations))
+    //     enumWithDiscriminatorOrCaseObjectAnnotationEncoder(discriminatorWithDefault(annotations), cases: _*)
+    //   else
+    //     defaultEnumEncoder(cases: _*)
+
+    private def defaultEnumEncoder2[Z](cases: Schema.Case[Z, _]*): Encoder[Z] =
+      (a: Z) => {
+        val fieldIndex = cases.indexWhere(c => c.deconstructOption(a).isDefined)
         if (fieldIndex > -1) {
           val case_ = cases(fieldIndex)
-          val enc   = encoder(case_.codec.asInstanceOf[Schema[Any]])
+          val enc   = encoder(case_.schema.asInstanceOf[Schema[Any]])
           val av    = enc(a)
           val id    = maybeId(case_.annotations).getOrElse(case_.id)
           AttributeValue.Map(Map.empty + (AttributeValue.String(id) -> av))
@@ -283,15 +336,29 @@ private[dynamodb] object Codec {
           AttributeValue.Null
       }
 
-    private def enumWithDiscriminatorOrCaseObjectAnnotationEncoder[A](
+    // TODO: Avi - remove
+    // private def defaultEnumEncoder[A](cases: Schema.Case[_, A]*): Encoder[A] =
+    //   (a: A) => {
+    //     val fieldIndex = cases.indexWhere(c => c.deconstruct(a).isDefined)
+    //     if (fieldIndex > -1) {
+    //       val case_ = cases(fieldIndex)
+    //       val enc   = encoder(case_.codec.asInstanceOf[Schema[Any]])
+    //       val av    = enc(a)
+    //       val id    = maybeId(case_.annotations).getOrElse(case_.id)
+    //       AttributeValue.Map(Map.empty + (AttributeValue.String(id) -> av))
+    //     } else
+    //       AttributeValue.Null
+    //   }
+
+    private def enumWithDiscriminatorOrCaseObjectAnnotationEncoder2[Z](
       discriminator: String,
-      cases: Schema.Case[_, A]*
-    ): Encoder[A] =
-      (a: A) => {
-        val fieldIndex = cases.indexWhere(c => c.deconstruct(a).isDefined)
+      cases: Schema.Case[Z, _]*
+    ): Encoder[Z] =
+      (a: Z) => {
+        val fieldIndex = cases.indexWhere(c => c.deconstructOption(a).isDefined)
         if (fieldIndex > -1) {
           val case_   = cases(fieldIndex)
-          val enc     = encoder(case_.codec.asInstanceOf[Schema[Any]])
+          val enc     = encoder(case_.schema.asInstanceOf[Schema[Any]])
           lazy val id = maybeId(case_.annotations).getOrElse(case_.id)
           val av      = enc(a)
           av match { // TODO: review all pattern matches inside of a lambda
@@ -301,7 +368,7 @@ private[dynamodb] object Codec {
               )
             case AttributeValue.Null     =>
               val av2 = AttributeValue.String(id)
-              if (allCaseObjects(cases))
+              if (allCaseObjects2(cases))
                 av2
               else
                 // these are case objects and are a special case - they need to wrapped in an AttributeValue.Map
@@ -311,6 +378,35 @@ private[dynamodb] object Codec {
         } else
           AttributeValue.Null
       }
+
+    // private def enumWithDiscriminatorOrCaseObjectAnnotationEncoder[A](
+    //   discriminator: String,
+    //   cases: Schema.Case[_, A]*
+    // ): Encoder[A] =
+    //   (a: A) => {
+    //     val fieldIndex = cases.indexWhere(c => c.deconstruct(a).isDefined)
+    //     if (fieldIndex > -1) {
+    //       val case_   = cases(fieldIndex)
+    //       val enc     = encoder(case_.codec.asInstanceOf[Schema[Any]])
+    //       lazy val id = maybeId(case_.annotations).getOrElse(case_.id)
+    //       val av      = enc(a)
+    //       av match { // TODO: review all pattern matches inside of a lambda
+    //         case AttributeValue.Map(map) =>
+    //           AttributeValue.Map(
+    //             map + (AttributeValue.String(discriminator) -> AttributeValue.String(id))
+    //           )
+    //         case AttributeValue.Null     =>
+    //           val av2 = AttributeValue.String(id)
+    //           if (allCaseObjects(cases))
+    //             av2
+    //           else
+    //             // these are case objects and are a special case - they need to wrapped in an AttributeValue.Map
+    //             AttributeValue.Map(Map(AttributeValue.String(discriminator) -> av2))
+    //         case av                      => throw new IllegalStateException(s"unexpected state $av")
+    //       }
+    //     } else
+    //       AttributeValue.Null
+    //   }
 
     private def setEncoder[A](s: Schema[A]): Encoder[Set[A]] =
       s match {
@@ -397,9 +493,9 @@ private[dynamodb] object Codec {
             containerField(l.schema)
           case _: Schema.Optional[_]      =>
             Optional
-          case _: Schema.MapSchema[_, _]  =>
+          case _: Schema.Map[_, _]        =>
             Map
-          case _: Schema.SetSchema[_]     =>
+          case _: Schema.Set[_]           =>
             Set
           case _: Schema.Collection[_, _] =>
             List
@@ -410,118 +506,128 @@ private[dynamodb] object Codec {
 
     def apply[A](schema: Schema[A]): Decoder[A] = decoder(schema)
 
+    // TODO: Avi - move to generated code
+    def caseClass0Decoder[Z](schema: Schema.CaseClass0[Z]): Decoder[Z] = { _ =>
+      Right(schema.defaultConstruct()) // TODO: Avi - this does not look right
+    }
+
     //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
     private[dynamodb] def decoder[A](schema: Schema[A]): Decoder[A] =
       schema match {
-        case s: Optional[a]                                                                                                                                                   => optionalDecoder[a](decoder(s.codec))
-        case Schema.Fail(s, _)                                                                                                                                                => _ => Left(s)
-        case Schema.GenericRecord(structure, _)                                                                                                                               => genericRecordDecoder(structure).asInstanceOf[Decoder[A]]
-        case Schema.Tuple(l, r, _)                                                                                                                                            => tupleDecoder(decoder(l), decoder(r))
-        case Schema.Transform(codec, f, _, _, _)                                                                                                                              => transformDecoder(codec, f)
-        case s: Schema.Sequence[col, a, _]                                                                                                                                    => sequenceDecoder[col, a](decoder(s.schemaA), s.fromChunk)
-        case Schema.EitherSchema(l, r, _)                                                                                                                                     => eitherDecoder(decoder(l), decoder(r))
-        case Primitive(standardType, _)                                                                                                                                       => primitiveDecoder(standardType)
-        case l @ Schema.Lazy(_)                                                                                                                                               =>
+        case s: Optional[a]                        => optionalDecoder[a](decoder(s.schema))
+        case Schema.Fail(s, _)                     => _ => Left(s)
+        case Schema.GenericRecord(_, structure, _) => genericRecordDecoder(structure).asInstanceOf[Decoder[A]]
+        case Schema.Tuple2(l, r, _)                => tupleDecoder(decoder(l), decoder(r))
+        case Schema.Transform(codec, f, _, _, _)   => transformDecoder(codec, f)
+        case s: Schema.Sequence[col, a, _]         => sequenceDecoder[col, a](decoder(s.elementSchema), s.fromChunk)
+        case Schema.Either(l, r, _)                => eitherDecoder(decoder(l), decoder(r))
+        case Primitive(standardType, _)            => primitiveDecoder(standardType)
+        case l @ Schema.Lazy(_)                    =>
           lazy val dec = decoder(l.schema)
-          (av: AttributeValue) => dec(av)
-        case Schema.Meta(_, _)                                                                                                                                                => astDecoder
-        case Schema.Dynamic(_)                                                                                                                                                =>
+          (av: AttributeValue) =>
+            dec(av)
+          // case Schema.Meta(_, _)                                                                                                                                                => astDecoder
+        case Schema.Dynamic(_)                     =>
           dynamicDecoder
-        case Schema.SemiDynamic(_, _)                                                                                                                                         =>
-          _ => Left("Semi-dynamic decoder not supported")
-        case Schema.SetSchema(s, _)                                                                                                                                           =>
+        // case Schema.SemiDynamic(_, _)                                                                                                                                         =>
+        //   _ => Left("Semi-dynamic decoder not supported")
+        case Schema.Set(s, _)                      =>
           setDecoder(s).asInstanceOf[Decoder[A]]
-        case Schema.MapSchema(ks, vs, _)                                                                                                                                      =>
+        case Schema.Map(ks, vs, _)                 =>
           mapDecoder(ks, vs).asInstanceOf[Decoder[A]]
-        case s @ Schema.CaseClass1(_, _, _, _)                                                                                                                                => caseClass1Decoder(s)
-        case s @ Schema.CaseClass2(_, _, _, _, _, _)                                                                                                                          => caseClass2Decoder(s)
-        case s @ Schema.CaseClass3(_, _, _, _, _, _, _, _)                                                                                                                    => caseClass3Decoder(s)
-        case s @ Schema.CaseClass4(_, _, _, _, _, _, _, _, _, _)                                                                                                              => caseClass4Decoder(s)
-        case s @ Schema.CaseClass5(_, _, _, _, _, _, _, _, _, _, _, _)                                                                                                        => caseClass5Decoder(s)
-        case s @ Schema.CaseClass6(_, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                                                                  => caseClass6Decoder(s)
-        case s @ Schema.CaseClass7(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                                                            => caseClass7Decoder(s)
-        case s @ Schema.CaseClass8(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                                                      => caseClass8Decoder(s)
-        case s @ Schema.CaseClass9(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                                                => caseClass9Decoder(s)
-        case s @ Schema.CaseClass10(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                                         => caseClass10Decoder(s)
-        case s @ Schema.CaseClass11(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                                   =>
+
+        case s @ Schema.CaseClass0(_, _, _)        => caseClass0Decoder(s)
+
+        case s @ Schema.CaseClass1(_, _, _, _)                                                                                                  => caseClass1Decoder(s)
+        case s @ Schema.CaseClass2(_, _, _, _, _)                                                                                               => caseClass2Decoder(s)
+        case s @ Schema.CaseClass3(_, _, _, _, _, _)                                                                                            => caseClass3Decoder(s)
+        case s @ Schema.CaseClass4(_, _, _, _, _, _, _)                                                                                         => caseClass4Decoder(s)
+        case s @ Schema.CaseClass5(_, _, _, _, _, _, _, _)                                                                                      => caseClass5Decoder(s)
+        case s @ Schema.CaseClass6(_, _, _, _, _, _, _, _, _)                                                                                   => caseClass6Decoder(s)
+        case s @ Schema.CaseClass7(_, _, _, _, _, _, _, _, _, _)                                                                                => caseClass7Decoder(s)
+        case s @ Schema.CaseClass8(_, _, _, _, _, _, _, _, _, _, _)                                                                             => caseClass8Decoder(s)
+        case s @ Schema.CaseClass9(_, _, _, _, _, _, _, _, _, _, _, _)                                                                          => caseClass9Decoder(s)
+        case s @ Schema.CaseClass10(_, _, _, _, _, _, _, _, _, _, _, _, _)                                                                      => caseClass10Decoder(s)
+        case s @ Schema.CaseClass11(_, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                                   =>
           caseClass11Decoder(s)
-        case s @ Schema.CaseClass12(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                             =>
+        case s @ Schema.CaseClass12(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                                =>
           caseClass12Decoder(s)
-        case s @ Schema.CaseClass13(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                       =>
+        case s @ Schema.CaseClass13(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                             =>
           caseClass13Decoder(s)
         case s @ Schema
-              .CaseClass14(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
+              .CaseClass14(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
           caseClass14Decoder(s)
         case s @ Schema
-              .CaseClass15(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
+              .CaseClass15(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
           caseClass15Decoder(s)
-        case s @ Schema.CaseClass16(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                     =>
+        case s @ Schema.CaseClass16(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                    =>
           caseClass16Decoder(s)
-        case s @ Schema.CaseClass17(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                               =>
+        case s @ Schema.CaseClass17(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                                 =>
           caseClass17Decoder(s)
-        case s @ Schema.CaseClass18(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                         =>
+        case s @ Schema.CaseClass18(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                              =>
           caseClass18Decoder(s)
-        case s @ Schema.CaseClass19(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                   =>
+        case s @ Schema.CaseClass19(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                           =>
           caseClass19Decoder(s)
-        case s @ Schema.CaseClass20(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)             =>
+        case s @ Schema.CaseClass20(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                           =>
           caseClass20Decoder(s)
-        case s @ Schema.CaseClass21(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)       =>
+        case s @ Schema.CaseClass21(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                           =>
           caseClass21Decoder(s)
-        case s @ Schema.CaseClass22(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =>
+        case s @ Schema.CaseClass22(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)                                           =>
           caseClass22Decoder(s)
-        case Schema.Enum1(c, annotations)                                                                                                                                     =>
-          enumDecoder(annotations, c)
-        case Schema.Enum2(c1, c2, annotations)                                                                                                                                =>
-          enumDecoder(annotations, c1, c2)
-        case Schema.Enum3(c1, c2, c3, annotations)                                                                                                                            =>
-          enumDecoder(annotations, c1, c2, c3)
-        case Schema.Enum4(c1, c2, c3, c4, annotations)                                                                                                                        =>
-          enumDecoder(annotations, c1, c2, c3, c4)
-        case Schema.Enum5(c1, c2, c3, c4, c5, annotations)                                                                                                                    =>
-          enumDecoder(annotations, c1, c2, c3, c4, c5)
-        case Schema.Enum6(c1, c2, c3, c4, c5, c6, annotations)                                                                                                                =>
-          enumDecoder(annotations, c1, c2, c3, c4, c5, c6)
-        case Schema.Enum7(c1, c2, c3, c4, c5, c6, c7, annotations)                                                                                                            =>
-          enumDecoder(annotations, c1, c2, c3, c4, c5, c6, c7)
-        case Schema.Enum8(c1, c2, c3, c4, c5, c6, c7, c8, annotations)                                                                                                        =>
-          enumDecoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8)
-        case Schema.Enum9(c1, c2, c3, c4, c5, c6, c7, c8, c9, annotations)                                                                                                    =>
-          enumDecoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9)
-        case Schema.Enum10(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, annotations)                                                                                              =>
-          enumDecoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10)
-        case Schema.Enum11(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, annotations)                                                                                         =>
-          enumDecoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11)
-        case Schema.Enum12(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, annotations)                                                                                    =>
-          enumDecoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12)
-        case Schema.Enum13(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, annotations)                                                                               =>
-          enumDecoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13)
-        case Schema.Enum14(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, annotations)                                                                          =>
-          enumDecoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14)
-        case Schema.Enum15(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, annotations)                                                                     =>
-          enumDecoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15)
-        case Schema.Enum16(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, annotations)                                                                =>
-          enumDecoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16)
-        case Schema.Enum17(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, annotations)                                                           =>
-          enumDecoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17)
-        case Schema.Enum18(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, annotations)                                                      =>
-          enumDecoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18)
-        case Schema.Enum19(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, annotations)                                                 =>
-          enumDecoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19)
+        case Schema.Enum1(_, c, annotations)                                                                                                    =>
+          enumDecoder2(annotations, c)
+        case Schema.Enum2(_, c1, c2, annotations)                                                                                               =>
+          enumDecoder2(annotations, c1, c2)
+        case Schema.Enum3(_, c1, c2, c3, annotations)                                                                                           =>
+          enumDecoder2(annotations, c1, c2, c3)
+        case Schema.Enum4(_, c1, c2, c3, c4, annotations)                                                                                       =>
+          enumDecoder2(annotations, c1, c2, c3, c4)
+        case Schema.Enum5(_, c1, c2, c3, c4, c5, annotations)                                                                                   =>
+          enumDecoder2(annotations, c1, c2, c3, c4, c5)
+        case Schema.Enum6(_, c1, c2, c3, c4, c5, c6, annotations)                                                                               =>
+          enumDecoder2(annotations, c1, c2, c3, c4, c5, c6)
+        case Schema.Enum7(_, c1, c2, c3, c4, c5, c6, c7, annotations)                                                                           =>
+          enumDecoder2(annotations, c1, c2, c3, c4, c5, c6, c7)
+        case Schema.Enum8(_, c1, c2, c3, c4, c5, c6, c7, c8, annotations)                                                                       =>
+          enumDecoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8)
+        case Schema.Enum9(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, annotations)                                                                   =>
+          enumDecoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9)
+        case Schema.Enum10(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, annotations)                                                             =>
+          enumDecoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10)
+        case Schema.Enum11(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, annotations)                                                        =>
+          enumDecoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11)
+        case Schema.Enum12(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, annotations)                                                   =>
+          enumDecoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12)
+        case Schema.Enum13(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, annotations)                                              =>
+          enumDecoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13)
+        case Schema.Enum14(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, annotations)                                         =>
+          enumDecoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14)
+        case Schema.Enum15(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, annotations)                                    =>
+          enumDecoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15)
+        case Schema.Enum16(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, annotations)                               =>
+          enumDecoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16)
+        case Schema.Enum17(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, annotations)                          =>
+          enumDecoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17)
+        case Schema.Enum18(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, annotations)                     =>
+          enumDecoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18)
+        case Schema.Enum19(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, annotations)                =>
+          enumDecoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19)
         case Schema
-              .Enum20(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, annotations) =>
-          enumDecoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20)
-        case Schema.Enum21(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, annotations)                                       =>
-          enumDecoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21)
-        case Schema.Enum22(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, annotations)                                  =>
-          enumDecoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22)
-        case Schema.EnumN(cs, annotations)                                                                                                                                    =>
-          enumDecoder(annotations, cs.toSeq: _*)
+              .Enum20(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, annotations) =>
+          enumDecoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20)
+        case Schema.Enum21(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, annotations)      =>
+          enumDecoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21)
+        case Schema.Enum22(_, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, annotations) =>
+          enumDecoder2(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22)
+        case Schema.EnumN(_, cs, annotations)                                                                                                   =>
+          enumDecoder2(annotations, cs.toSeq: _*)
 
       }
     //scalafmt: { maxColumn = 120, optIn.configStyleArguments = true }
 
-    private val astDecoder: Decoder[Schema[_]] =
-      (av: AttributeValue) => decoder(Schema[SchemaAst])(av).map(_.toSchema)
+    // TODO: Avi - figure out why this is not referenced any more
+    // private val astDecoder: Decoder[Schema[_]] =
+    //   (av: AttributeValue) => decoder(Schema[MetaSchema])(av).map(_.toSchema)
 
     private def dynamicDecoder[A]: Decoder[A] = // TODO: Avi
       decoder(Schema.dynamicValue).asInstanceOf[Decoder[A]]
@@ -531,8 +637,8 @@ private[dynamodb] object Codec {
         av match {
           case AttributeValue.Map(map) =>
             EitherUtil
-              .forEach[schema.Schema.Field[_], (String, Any)](structure.toChunk) {
-                case Schema.Field(key, schema: Schema[a], _) =>
+              .forEach[schema.Schema.Field[_, _], (String, Any)](structure.toChunk) {
+                case Schema.Field(key, schema: Schema[a], _, _, _, _) =>
                   val av  = map(AttributeValue.String(key))
                   val dec = decoder(schema)
                   dec(av) match {
@@ -546,37 +652,41 @@ private[dynamodb] object Codec {
 
     private def primitiveDecoder[A](standardType: StandardType[A]): Decoder[A] =
       standardType match {
-        case StandardType.UnitType                      => _ => Right(())
-        case StandardType.StringType                    =>
+        case StandardType.UnitType           => _ => Right(())
+        case StandardType.StringType         =>
           (av: AttributeValue) => FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av)
-        case StandardType.BoolType                      =>
+        case StandardType.BoolType           =>
           (av: AttributeValue) => FromAttributeValue.booleanFromAttributeValue.fromAttributeValue(av)
-        case StandardType.ShortType                     =>
+        case StandardType.ShortType          =>
           (av: AttributeValue) => FromAttributeValue.shortFromAttributeValue.fromAttributeValue(av)
-        case StandardType.IntType                       =>
+        case StandardType.IntType            =>
           (av: AttributeValue) => FromAttributeValue.intFromAttributeValue.fromAttributeValue(av)
-        case StandardType.LongType                      =>
+        case StandardType.LongType           =>
           (av: AttributeValue) => FromAttributeValue.longFromAttributeValue.fromAttributeValue(av)
-        case StandardType.FloatType                     =>
+        case StandardType.FloatType          =>
           (av: AttributeValue) => FromAttributeValue.floatFromAttributeValue.fromAttributeValue(av)
-        case StandardType.DoubleType                    =>
+        case StandardType.DoubleType         =>
           (av: AttributeValue) => FromAttributeValue.doubleFromAttributeValue.fromAttributeValue(av)
-        case StandardType.BigDecimalType                =>
+        case StandardType.BigDecimalType     =>
           (av: AttributeValue) =>
             FromAttributeValue.bigDecimalFromAttributeValue
               .fromAttributeValue(av)
               .map(_.bigDecimal)
-        case StandardType.BigIntegerType                =>
+        case StandardType.BigIntegerType     =>
           (av: AttributeValue) =>
             FromAttributeValue.bigDecimalFromAttributeValue
               .fromAttributeValue(av)
               .map(_.toBigInt.bigInteger)
-        case StandardType.BinaryType                    =>
+        case StandardType.BinaryType         =>
           (av: AttributeValue) =>
             FromAttributeValue.binaryFromAttributeValue
               .fromAttributeValue(av)
               .map(Chunk.fromIterable(_))
-        case StandardType.CharType                      =>
+        case StandardType.ByteType           =>
+          (av: AttributeValue) => // TODO: Avi - check implementation
+            FromAttributeValue.byteFromAttributeValue
+              .fromAttributeValue(av)
+        case StandardType.CharType           =>
           (av: AttributeValue) =>
             FromAttributeValue.stringFromAttributeValue
               .fromAttributeValue(av)
@@ -584,42 +694,49 @@ private[dynamodb] object Codec {
                 val array = s.toCharArray
                 array(0)
               }
-        case StandardType.UUIDType                      =>
+        case StandardType.UUIDType           =>
           (av: AttributeValue) =>
             FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av).flatMap { s =>
               Try(UUID.fromString(s)).toEither.left.map(iae => s"Invalid UUID: ${iae.getMessage}")
             }
-        case StandardType.DayOfWeekType                 =>
+        case StandardType.DayOfWeekType      =>
           (av: AttributeValue) => javaTimeStringParser(av)(DayOfWeek.valueOf(_))
-        case StandardType.DurationType                  =>
+        case StandardType.DurationType       =>
           (av: AttributeValue) => javaTimeStringParser(av)(Duration.parse(_))
-        case StandardType.InstantType(formatter)        =>
-          (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, Instant.from(_)))
-        case StandardType.LocalDateType(formatter)      =>
-          (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, LocalDate.from(_)))
-        case StandardType.LocalDateTimeType(formatter)  =>
-          (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, LocalDateTime.from(_)))
-        case StandardType.LocalTimeType(formatter)      =>
-          (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, LocalTime.from(_)))
-        case StandardType.MonthType                     =>
+        case StandardType.InstantType        =>
+//          (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, Instant.from(_)))
+          (av: AttributeValue) => javaTimeStringParser(av)(Instant.parse)
+        case StandardType.LocalDateType      =>
+//          (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, LocalDate.from(_)))
+          (av: AttributeValue) => javaTimeStringParser(av)(LocalDate.parse)
+        case StandardType.LocalDateTimeType  =>
+//          (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, LocalDateTime.from(_)))
+          (av: AttributeValue) => javaTimeStringParser(av)(LocalDateTime.parse)
+        case StandardType.LocalTimeType      =>
+//          (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, LocalTime.from(_)))
+          (av: AttributeValue) => javaTimeStringParser(av)(LocalTime.parse)
+        case StandardType.MonthType          =>
           (av: AttributeValue) => javaTimeStringParser(av)(Month.valueOf(_))
-        case StandardType.MonthDayType                  =>
+        case StandardType.MonthDayType       =>
           (av: AttributeValue) => javaTimeStringParser(av)(MonthDay.parse(_))
-        case StandardType.OffsetDateTimeType(formatter) =>
-          (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, OffsetDateTime.from(_)))
-        case StandardType.OffsetTimeType(formatter)     =>
-          (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, OffsetTime.from(_)))
-        case StandardType.PeriodType                    =>
+        case StandardType.OffsetDateTimeType =>
+//          (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, OffsetDateTime.from(_)))
+          (av: AttributeValue) => javaTimeStringParser(av)(OffsetDateTime.parse)
+        case StandardType.OffsetTimeType     =>
+//          (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, OffsetTime.from(_)))
+          (av: AttributeValue) => javaTimeStringParser(av)(OffsetTime.parse)
+        case StandardType.PeriodType         =>
           (av: AttributeValue) => javaTimeStringParser(av)(Period.parse(_))
-        case StandardType.YearType                      =>
+        case StandardType.YearType           =>
           (av: AttributeValue) => javaTimeStringParser(av)(Year.parse(_))
-        case StandardType.YearMonthType                 =>
+        case StandardType.YearMonthType      =>
           (av: AttributeValue) => javaTimeStringParser(av)(YearMonth.parse(_))
-        case StandardType.ZonedDateTimeType(formatter)  =>
-          (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, ZonedDateTime.from(_)))
-        case StandardType.ZoneIdType                    =>
+        case StandardType.ZonedDateTimeType  =>
+//          (av: AttributeValue) => javaTimeStringParser(av)(formatter.parse(_, ZonedDateTime.from(_)))
+          (av: AttributeValue) => javaTimeStringParser(av)(ZonedDateTime.parse)
+        case StandardType.ZoneIdType         =>
           (av: AttributeValue) => javaTimeStringParser(av)(ZoneId.of(_))
-        case StandardType.ZoneOffsetType                =>
+        case StandardType.ZoneOffsetType     =>
           (av: AttributeValue) => javaTimeStringParser(av)(ZoneOffset.of(_))
       }
 
@@ -783,25 +900,25 @@ private[dynamodb] object Codec {
         }
       }
 
-    private def enumDecoder[A](annotations: Chunk[Any], cases: Schema.Case[_, A]*): Decoder[A] =
+    private def enumDecoder2[Z](annotations: Chunk[Any], cases: Schema.Case[Z, _]*): Decoder[Z] =
       if (isEnumWithDiscriminatorOrCaseObjectAnnotationCodec(annotations))
-        enumWithDisciminatorOrCaseObjectAnnotationDecoder(discriminatorWithDefault(annotations), cases: _*)
+        enumWithDisciminatorOrCaseObjectAnnotationDecoder2(discriminatorWithDefault(annotations), cases: _*)
       else
-        defaultEnumDecoder(cases: _*)
+        defaultEnumDecoder2(cases: _*)
 
-    private def defaultEnumDecoder[A](cases: Schema.Case[_, A]*): Decoder[A] =
+    private def defaultEnumDecoder2[Z](cases: Schema.Case[Z, _]*): Decoder[Z] =
       (av: AttributeValue) =>
         av match {
           case AttributeValue.Map(map) =>
             // default enum encoding uses a Map with a single entry that denotes the type
             // TODO: think about being stricter and rejecting Maps with > 1 entry ???
-            map.toList.headOption.fold[Either[String, A]](Left(s"map $av is empty")) {
+            map.toList.headOption.fold[Either[String, Z]](Left(s"map $av is empty")) {
               case (AttributeValue.String(subtype), av) =>
                 cases.find { c =>
                   maybeId(c.annotations).fold(c.id == subtype)(_ == subtype)
                 } match {
                   case Some(c) =>
-                    decoder(c.codec)(av).map(_.asInstanceOf[A])
+                    decoder(c.schema)(av).map(_.asInstanceOf[Z])
                   case None    =>
                     Left(s"subtype $subtype not found")
                 }
@@ -810,32 +927,59 @@ private[dynamodb] object Codec {
             Left(s"invalid AttributeValue $av")
         }
 
-    private def enumWithDisciminatorOrCaseObjectAnnotationDecoder[A](
+    // private def enumDecoder[A](annotations: Chunk[Any], cases: Schema.Case[_, A]*): Decoder[A] =
+    //   if (isEnumWithDiscriminatorOrCaseObjectAnnotationCodec(annotations))
+    //     enumWithDisciminatorOrCaseObjectAnnotationDecoder(discriminatorWithDefault(annotations), cases: _*)
+    //   else
+    //     defaultEnumDecoder(cases: _*)
+
+    // private def defaultEnumDecoder[A](cases: Schema.Case[_, A]*): Decoder[A] =
+    //   (av: AttributeValue) =>
+    //     av match {
+    //       case AttributeValue.Map(map) =>
+    //         // default enum encoding uses a Map with a single entry that denotes the type
+    //         // TODO: think about being stricter and rejecting Maps with > 1 entry ???
+    //         map.toList.headOption.fold[Either[String, A]](Left(s"map $av is empty")) {
+    //           case (AttributeValue.String(subtype), av) =>
+    //             cases.find { c =>
+    //               maybeId(c.annotations).fold(c.id == subtype)(_ == subtype)
+    //             } match {
+    //               case Some(c) =>
+    //                 decoder(c.codec)(av).map(_.asInstanceOf[A])
+    //               case None    =>
+    //                 Left(s"subtype $subtype not found")
+    //             }
+    //         }
+    //       case _                       =>
+    //         Left(s"invalid AttributeValue $av")
+    //     }
+
+    private def enumWithDisciminatorOrCaseObjectAnnotationDecoder2[Z](
       discriminator: String,
-      cases: Schema.Case[_, A]*
-    ): Decoder[A] = { (av: AttributeValue) =>
-      def findCase(value: String): Either[String, Schema.Case[_, A]] =
+      cases: Schema.Case[Z, _]*
+    ): Decoder[Z] = { (av: AttributeValue) =>
+      def findCase(value: String): Either[String, Schema.Case[Z, _]] =
         cases.find {
-          case Schema.Case(_, _, _, Chunk(id(const))) => const == value
-          case Schema.Case(id, _, _, _)               => id == value
+          case Schema.Case(_, _, _, _, _, Chunk(id(const))) => const == value
+          case Schema.Case(id, _, _, _, _, _)               => id == value
         }.toRight(s"type name '$value' not found in schema cases")
 
-      def decode(id: String): Either[String, A] =
+      def decode(id: String): Either[String, Z] =
         findCase(id).flatMap { c =>
-          val dec = decoder(c.codec)
-          dec(av).map(_.asInstanceOf[A])
+          val dec = decoder(c.schema)
+          dec(av).map(_.asInstanceOf[Z])
         }
 
       av match {
         case AttributeValue.String(id) =>
-          if (allCaseObjects(cases))
+          if (allCaseObjects2(cases))
             decode(id)
           else
             Left(s"Error: not all enumeration elements are case objects. Found $cases")
         case AttributeValue.Map(map)   =>
           map
             .get(AttributeValue.String(discriminator))
-            .fold[Either[String, A]](Left(s"map $av does not contain discriminator field '$discriminator'")) {
+            .fold[Either[String, Z]](Left(s"map $av does not contain discriminator field '$discriminator'")) {
               case AttributeValue.String(typeName) =>
                 decode(typeName)
               case av                              => Left(s"expected string type but found $av")
@@ -844,12 +988,47 @@ private[dynamodb] object Codec {
       }
     }
 
-    private[dynamodb] def decodeFields(av: AttributeValue, fields: Schema.Field[_]*): Either[String, List[Any]] =
+    // private def enumWithDisciminatorOrCaseObjectAnnotationDecoder[A](
+    //   discriminator: String,
+    //   cases: Schema.Case[_, A]*
+    // ): Decoder[A] = { (av: AttributeValue) =>
+    //   def findCase(value: String): Either[String, Schema.Case[_, A]] =
+    //     cases.find {
+    //       case Schema.Case(_, _, _, Chunk(id(const))) => const == value
+    //       case Schema.Case(id, _, _, _)               => id == value
+    //     }.toRight(s"type name '$value' not found in schema cases")
+
+    //   def decode(id: String): Either[String, A] =
+    //     findCase(id).flatMap { c =>
+    //       val dec = decoder(c.codec)
+    //       dec(av).map(_.asInstanceOf[A])
+    //     }
+
+    //   av match {
+    //     case AttributeValue.String(id) =>
+    //       if (allCaseObjects(cases))
+    //         decode(id)
+    //       else
+    //         Left(s"Error: not all enumeration elements are case objects. Found $cases")
+    //     case AttributeValue.Map(map)   =>
+    //       map
+    //         .get(AttributeValue.String(discriminator))
+    //         .fold[Either[String, A]](Left(s"map $av does not contain discriminator field '$discriminator'")) {
+    //           case AttributeValue.String(typeName) =>
+    //             decode(typeName)
+    //           case av                              => Left(s"expected string type but found $av")
+    //         }
+    //     case _                         => Left(s"unexpected AttributeValue type $av")
+    //   }
+    // }
+
+    // TODO: Avi - is this actually used
+    private[dynamodb] def decodeFields(av: AttributeValue, fields: Schema.Field[_, _]*): Either[String, List[Any]] =
       av match {
         case AttributeValue.Map(map) =>
           EitherUtil
             .forEach(fields) {
-              case Schema.Field(key, schema, annotations) =>
+              case Schema.Field(key, schema, annotations, _, _, _) =>
                 val dec                         = decoder(schema)
                 val k                           = maybeId(annotations).getOrElse(key)
                 val maybeValue                  = map.get(AttributeValue.String(k))
@@ -877,14 +1056,33 @@ private[dynamodb] object Codec {
 
   } // end Decoder
 
-  private def allCaseObjects[A](cases: Seq[Schema.Case[_, A]]): Boolean =
+  // private def allCaseObjects2[Z](cases: Seq[Schema.Case[Z, _]]): Boolean = {
+  //   println(s"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX cases='$cases'")
+  //   cases.forall {
+  //     case Schema.Case(_, Transform(Primitive(standardType, _), _, _, _, _), _, _, _, _)
+  //         if standardType == StandardType.UnitType =>
+  //       true
+  //     case _ =>
+  //       false
+  //   }
+  // }
+
+  def allCaseObjects2[Z](cases: Seq[Schema.Case[Z, _]]): Boolean =
     cases.forall {
-      case Schema.Case(_, Transform(Primitive(standardType, _), _, _, _, _), _, _)
-          if standardType == StandardType.UnitType =>
+      case Schema.Case(_, Schema.CaseClass0(_, _, _), _, _, _, _) =>
         true
-      case _ =>
+      case _                                                      =>
         false
     }
+
+  // private def allCaseObjects[A](cases: Seq[Schema.Case[_, A]]): Boolean =
+  //   cases.forall {
+  //     case Schema.Case(_, Transform(Primitive(standardType, _), _, _, _, _), _, _)
+  //         if standardType == StandardType.UnitType =>
+  //       true
+  //     case _ =>
+  //       false
+  //   }
 
   private def discriminatorWithDefault(annotations: Chunk[Any]): String =
     maybeDiscriminator(annotations).getOrElse("discriminator")

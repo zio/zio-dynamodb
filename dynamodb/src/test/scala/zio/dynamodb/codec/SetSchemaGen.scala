@@ -37,15 +37,15 @@ object SetSchemaGen {
     case (s: Schema.Primitive[_], gen) => (s, gen, setType(s.standardType))
   }
 
-  type SetAndGenWithSetType[A] = (Schema.SetSchema[A], Gen[Sized, Set[A]], SetType)
+  type SetAndGenWithSetType[A] = (Schema.Set[A], Gen[Sized, Set[A]], SetType)
 
   val anySetAndGenWithSetType: Gen[Sized, SetAndGenWithSetType[_]] =
     primitiveAndGenWithSetType.map {
       case (schema, gen, setType) =>
-        (Schema.SetSchema(schema, Chunk.empty), Gen.setOf(gen), setType)
+        (Schema.Set(schema, Chunk.empty), Gen.setOf(gen), setType)
     }
 
-  type SetAndValueWithSetType[A] = (Schema.SetSchema[A], Set[A], SetType)
+  type SetAndValueWithSetType[A] = (Schema.Set[A], Set[A], SetType)
 
   val anySetAndValueWithSetType: Gen[Sized, SetAndValueWithSetType[_]] =
     for {
