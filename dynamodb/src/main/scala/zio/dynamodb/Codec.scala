@@ -61,7 +61,8 @@ private[dynamodb] object Codec {
         // case Schema.SemiDynamic(_, _)                                                                                                                                                                                                                                                       =>
         //   _ => AttributeValue.Null // TODO: Avi
         case Schema.CaseClass0(_, _, _)                                                                                                         =>
-          caseClassEncoder2()
+//          caseClassEncoder2()
+          caseClassEncoder0
         case Schema.CaseClass1(_, f, _, _)                                                                                                      =>
           // case s: Schema.CaseClass1[A, _]                                                                                                                                                                                                                                                     =>
           /*
@@ -183,6 +184,8 @@ sealed case class Enum1[A, Z](id: TypeId, case1: Case[Z, A], annotations: Chunk[
 
     private def dynamicEncoder[A]: Encoder[A] =
       encoder(Schema.dynamicValue).asInstanceOf[Encoder[A]]
+
+    private def caseClassEncoder0[Z]: Encoder[Z] = _ => AttributeValue.Null
 
     private def caseClassEncoder2[Z](fields: Schema.Field[Z, _]*): Encoder[Z] = { (a: Z) =>
       fields.foldRight[AttributeValue.Map](AttributeValue.Map(Map.empty)) {
