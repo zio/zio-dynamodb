@@ -431,7 +431,7 @@ sealed case class Enum1[A, Z](id: TypeId, case1: Case[Z, A], annotations: Chunk[
         case Schema.Primitive(StandardType.BigDecimalType, _) =>
           (a: Set[A]) =>
             AttributeValue.NumberSet(
-              a.asInstanceOf[Set[java.math.BigDecimal]].map(bd => BigDecimal(bd.doubleValue))
+              a.asInstanceOf[Set[java.math.BigDecimal]].map(bd => BigDecimal(bd))
             )
         // DerivedGen will wrap a java BigDecimal with a Transform for a scala BigDecimal so we need to peek ahead here
         case Schema.Transform(Schema.Primitive(bigDecimal, _), _, _, _, _)
