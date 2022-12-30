@@ -167,7 +167,6 @@ private[dynamodb] object Codec {
     private def dynamicEncoder[A]: Encoder[A] =
       encoder(Schema.dynamicValue).asInstanceOf[Encoder[A]]
 
-    // TODO: Avi - move to generated code
     private def caseClassEncoder0[Z]: Encoder[Z] = _ => AttributeValue.Null
 
     private def caseClassEncoder[Z](fields: Schema.Field[Z, _]*): Encoder[Z] = { (a: Z) =>
@@ -408,11 +407,6 @@ private[dynamodb] object Codec {
 
     def apply[A](schema: Schema[A]): Decoder[A] = decoder(schema)
 
-    // TODO: Avi - move to generated code
-    def caseClass0Decoder[Z](schema: Schema.CaseClass0[Z]): Decoder[Z] = { _ =>
-      Right(schema.defaultConstruct()) // TODO: Avi - this does not look right
-    }
-
     //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
     private[dynamodb] def decoder[A](schema: Schema[A]): Decoder[A] =
       schema match {
@@ -522,6 +516,8 @@ private[dynamodb] object Codec {
 
       }
     //scalafmt: { maxColumn = 120, optIn.configStyleArguments = true }
+
+    private[dynamodb] def caseClass0Decoder[Z](schema: Schema.CaseClass0[Z]): Decoder[Z] = _ => Right(schema.defaultConstruct())
 
     private def dynamicDecoder[A]: Decoder[A] = // TODO: Avi
       decoder(Schema.dynamicValue).asInstanceOf[Decoder[A]]
