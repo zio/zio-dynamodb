@@ -21,7 +21,7 @@ object TypeSafeRoundTripSerialisationExample extends ZIOAppDefault {
   sealed trait Invoice                              {
     def id: String
   }
-  object Invoice /*extends DefaultJavaTimeSchemas*/ {
+  object Invoice {
     @enumOfCaseObjects
     sealed trait PaymentType
     object PaymentType {

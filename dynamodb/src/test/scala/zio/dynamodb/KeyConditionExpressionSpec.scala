@@ -15,7 +15,7 @@ object KeyConditionExpressionSpec extends ZIOSpecDefault {
     subject: String,
     enrollmentDate: Option[Instant]
   )
-  object Student /*extends DefaultJavaTimeSchemas*/ {
+  object Student {
     implicit val schema = DeriveSchema.gen[Student]
   }
 

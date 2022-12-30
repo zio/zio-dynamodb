@@ -404,10 +404,6 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
   case object Singleton
   implicit val schemaObject: Schema[Singleton.type] = DeriveSchema.gen[Singleton.type]
 
-  // val nestedRecordSchema: Schema[ListMap[String, _]] = Schema.record(
-  //   Schema.Field("l1", Schema.Primitive(StandardType.StringType)),
-  //   Schema.Field("l2", recordSchema)
-  // )
   val nestedRecordSchema: Schema[ListMap[String, _]] = Schema.record(
     TypeId.Structural,
     Schema.Field(

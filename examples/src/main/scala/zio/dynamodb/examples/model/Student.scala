@@ -39,7 +39,7 @@ final case class Student(
   version: Int = 0
 )
 
-object Student /*extends DefaultJavaTimeSchemas*/ {
+object Student {
   implicit val schema = DeriveSchema.gen[Student]
   val (
     email,

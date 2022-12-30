@@ -566,7 +566,6 @@ object SchemaGen {
         .zip(Gen.string(Gen.alphaChar).map(TypeId.parse))
         .map(z => Schema.record(z._2, z._1)),
       Gen.const(Schema[Json]),
-//      anyEnumeration(anyPrimitive).map(toCaseSet).map(Schema.enumeration[Any, CaseSet.Aux[Any]](_)),
       anyCaseClassSchema,
       anyEnumSchema
     )
@@ -589,7 +588,6 @@ object SchemaGen {
           .map(z => Schema.record(z._2, z._1)),
         Gen.const(Schema[Json]),
         anyDynamic
-//        anyEnumeration(anyTree(depth - 1)).map(toCaseSet).map(Schema.enumeration[Any, CaseSet.Aux[Any]](_))
       )
 
   type SchemaAndDerivedValue[A, B] = (Schema[A], Schema[B], Chunk[scala.util.Either[A, B]])

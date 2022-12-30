@@ -25,7 +25,7 @@ object ProjectionExpressionSpec extends ZIOSpecDefault {
     groups: Set[String] = Set.empty[String],
     payment: Payment
   )
-  object Student /*extends DefaultJavaTimeSchemas*/ {
+  object Student {
     implicit val schema: Schema.CaseClass7[String, String, Int, String, List[String], Set[String], Payment, Student] =
       DeriveSchema.gen[Student]
     val (email, subject, studentNumber, collegeName, addresses, groups, payment)                                     =

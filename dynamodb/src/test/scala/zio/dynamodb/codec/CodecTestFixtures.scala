@@ -10,11 +10,6 @@ import zio.schema.TypeId
 
 trait CodecTestFixtures {
 
-  // val recordSchema: Schema[ListMap[String, _]] = Schema.record(
-  //   Schema.Field("foo", Schema.Primitive(StandardType.StringType)),
-  //   Schema.Field("bar", Schema.Primitive(StandardType.IntType))
-  // )
-
   val recordSchema: Schema[ListMap[String, _]] = Schema.record(
     TypeId.Structural,
     Schema.Field(
@@ -32,12 +27,6 @@ trait CodecTestFixtures {
       )
   )
 
-  // val enumSchema: Schema[Any] = Schema.enumeration[Any, CaseSet.Aux[Any]](
-  //   caseOf[String, Any]("string")(_.asInstanceOf[String]) ++ caseOf[Int, Any]("int")(_.asInstanceOf[Int]) ++ caseOf[
-  //     Boolean,
-  //     Any
-  //   ]("boolean")(_.asInstanceOf[Boolean])
-  // )
   val enumSchema: Schema[Any] = Schema.enumeration[Any, CaseSet.Aux[Any]](
     TypeId.Structural,
     caseOf[String, Any]("string")(_.asInstanceOf[String])(_.asInstanceOf[Any])(_.isInstanceOf[String]) ++ caseOf[

@@ -10,18 +10,7 @@ import scala.collection.immutable.ListMap
 import zio.test.ZIOSpecDefault
 
 object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
-  override def spec = suite("ItemEncoder Suite")(mainSuite, debugSuite @@ TestAspect.ignore)
-
-  // TODO: Avi - delete
-  val debugSuite = suite("debug")(
-    test("encodes Pending case object ADT") {
-      val expectedItem: Item = Item("status" -> Item("Pending" -> null))
-
-      val item = DynamoDBQuery.toItem(CaseClassOfStatus(Pending))
-
-      assert(item)(equalTo(expectedItem))
-    }
-  )
+  override def spec = suite("ItemEncoder Suite")(mainSuite)
 
   val mainSuite = suite("Main Suite")(
     test("encodes generic record") {

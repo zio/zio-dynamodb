@@ -19,7 +19,6 @@ object ToAttributeValue extends ToAttributeValueLowPriorityImplicits0 {
 
   implicit def binaryToAttributeValue[Col[A] <: Iterable[A]]: ToAttributeValue[Col[Byte]] = AttributeValue.Binary(_)
 
-  // TODO Avi - check implementation
   implicit def byteToAttributeValue[Col[A] <: Iterable[A]]: ToAttributeValue[Byte] =
     a => AttributeValue.Binary(Chunk(a))
 
