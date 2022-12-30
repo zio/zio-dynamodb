@@ -517,7 +517,8 @@ private[dynamodb] object Codec {
       }
     //scalafmt: { maxColumn = 120, optIn.configStyleArguments = true }
 
-    private[dynamodb] def caseClass0Decoder[Z](schema: Schema.CaseClass0[Z]): Decoder[Z] = _ => Right(schema.defaultConstruct())
+    private[dynamodb] def caseClass0Decoder[Z](schema: Schema.CaseClass0[Z]): Decoder[Z] =
+      _ => Right(schema.defaultConstruct())
 
     private def dynamicDecoder[A]: Decoder[A] = // TODO: Avi
       decoder(Schema.dynamicValue).asInstanceOf[Decoder[A]]
