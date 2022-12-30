@@ -3,7 +3,6 @@ package zio.dynamodb.codec
 import java.math.{ BigDecimal => JBigDecimal, BigInteger => JBigInt }
 
 import zio.test.{ Gen, Sized }
-import zio.dynamodb.codec.JavaTimeGen
 import zio.schema.StandardType
 
 object StandardTypeGen {
