@@ -18,10 +18,10 @@ import java.time.Instant
 object TypeSafeRoundTripSerialisationExample extends ZIOAppDefault {
 
   @discriminator("invoiceType")
-  sealed trait Invoice                              {
+  sealed trait Invoice {
     def id: String
   }
-  object Invoice {
+  object Invoice       {
     @enumOfCaseObjects
     sealed trait PaymentType
     object PaymentType {

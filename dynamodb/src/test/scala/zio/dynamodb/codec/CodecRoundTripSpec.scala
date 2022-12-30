@@ -419,7 +419,7 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
       set0 = (p: ListMap[String, _], v: ListMap[String, _]) => p.updated("l2", v)
     )
   )
-  
+
   final case class Value(first: Int, second: Boolean)
   object Value {
     implicit lazy val schema: Schema[Value] = DeriveSchema.gen[Value]

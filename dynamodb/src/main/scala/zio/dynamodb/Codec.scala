@@ -34,7 +34,7 @@ private[dynamodb] object Codec {
           optionalEncoder[a](encoder(s.schema))
         case Schema.Fail(_, _)                                                                                                                  =>
           _ => AttributeValue.Null
-        case Schema.Tuple2(l, r, _)                                                         =>
+        case Schema.Tuple2(l, r, _)                                                                                                             =>
           tupleEncoder(encoder(l), encoder(r))
         case s: Schema.Sequence[col, a, _]                                                                                                      =>
           sequenceEncoder[col, a](encoder(s.elementSchema), s.toChunk)
@@ -429,7 +429,7 @@ sealed case class Enum1[A, Z](id: TypeId, case1: Case[Z, A], annotations: Chunk[
         case Primitive(standardType, _)            => primitiveDecoder(standardType)
         case l @ Schema.Lazy(_)                    =>
           lazy val dec = decoder(l.schema)
-          (av: AttributeValue)                     => dec(av)
+          (av: AttributeValue) => dec(av)
         case Schema.Dynamic(_)                     =>
           dynamicDecoder
         case Schema.Set(s, _)                      =>
