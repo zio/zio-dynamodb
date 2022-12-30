@@ -21,7 +21,7 @@ object FromAttributeValue {
   }
 
   implicit val byteFromAttributeValue: FromAttributeValue[Byte] = {
-    case AttributeValue.Binary(b) => Right(b.head) // TODO: Avi - check this implementation
+    case AttributeValue.Binary(b) => b.headOption.toRight("Error: byte array is empty")
     case av                       => Left(s"Error getting byte value. Expected AttributeValue.Binary but found $av")
   }
 
