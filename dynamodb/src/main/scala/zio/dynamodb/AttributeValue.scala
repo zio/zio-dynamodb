@@ -57,7 +57,6 @@ object AttributeValue {
   def apply[A](a: A)(implicit ev: ToAttributeValue[A]): AttributeValue.WithScalaType[A] =
     ev.toAttributeValue(a).asInstanceOf[AttributeValue.WithScalaType[A]]
 
-  // TODO: Avi - see if we can move to trait
   def encode[A](a: A)(implicit schema: Schema[A]): AttributeValue = Codec.encoder(schema)(a)
 
   implicit val attributeValueToAttributeValue: ToAttributeValue[AttributeValue] = identity(_)
