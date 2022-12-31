@@ -693,7 +693,7 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     override def makeLens[F, S, A](product: Schema.Record[S], term: Schema.Field[S, A]): Lens[F, S, A] = {
 
       val label = maybeId(term.annotations).getOrElse(term.name)
-      ProjectionExpression.MapElement(Root, label) //.asInstanceOf[Lens[S, A]]
+      ProjectionExpression.MapElement(Root, label)
     }
 
     def makePrism[F, S, A](sum: Schema.Enum[S], term: Schema.Case[S, A]): Prism[F, S, A] =
