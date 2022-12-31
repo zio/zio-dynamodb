@@ -77,14 +77,12 @@ object DynamicValueGen {
       case Schema.Map(ks, vs, _)                                                                                                                                                                      => Gen.chunkOfBounded(0, 2)(anyDynamicValueOfSchema(ks).zip(anyDynamicValueOfSchema(vs))).map(DynamicValue.Dictionary(_))
       case Schema.Set(ks, _)                                                                                                                                                                          => Gen.setOfBounded(0, 2)(anyDynamicValueOfSchema(ks)).map(DynamicValue.SetValue(_))
       case Schema.Dynamic(_)                                                                                                                                                                          => Gen.oneOf(anyDynamicValueOfSchema(Schema.dynamicValue))
-      // case Schema.SemiDynamic(_, _)                                                                                                                                                                => Gen.const(DynamicValue.Error("SemiDynamic is not supported"))
       case Schema.Optional(schema, _)                                                                                                                                                                 => Gen.oneOf(anyDynamicSomeValueOfSchema(schema), Gen.const(DynamicValue.NoneValue))
       case Schema.Tuple2(left, right, _)                                                                                                                                                              => anyDynamicTupleValue(left, right)
       case Schema.Either(left, right, _)                                                                                                                                                              => Gen.oneOf(anyDynamicLeftValueOfSchema(left), anyDynamicRightValueOfSchema(right))
       case Schema.Transform(schema, _, _, _, _)                                                                                                                                                       => anyDynamicValueOfSchema(schema)
       case Schema.Fail(message, _)                                                                                                                                                                    => Gen.const(DynamicValue.Error(message))
       case l @ Schema.Lazy(_)                                                                                                                                                                         => anyDynamicValueOfSchema(l.schema)
-      // case Schema.Meta(meta, _)                                                                                                                                                                    => anyDynamicValueOfSchema(meta.toSchema)
     }
   //scalafmt: { maxColumn = 120 }
 
