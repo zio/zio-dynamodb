@@ -520,7 +520,7 @@ private[dynamodb] object Codec {
     private[dynamodb] def caseClass0Decoder[Z](schema: Schema.CaseClass0[Z]): Decoder[Z] =
       _ => Right(schema.defaultConstruct())
 
-    private def dynamicDecoder[A]: Decoder[A] = // TODO: Avi
+    private def dynamicDecoder[A]: Decoder[A] =
       decoder(Schema.dynamicValue).asInstanceOf[Decoder[A]]
 
     private def genericRecordDecoder(structure: FieldSet): Decoder[Any] =
@@ -574,7 +574,7 @@ private[dynamodb] object Codec {
               .fromAttributeValue(av)
               .map(Chunk.fromIterable(_))
         case StandardType.ByteType           =>
-          (av: AttributeValue) => // TODO: Avi - check implementation
+          (av: AttributeValue) =>
             FromAttributeValue.byteFromAttributeValue
               .fromAttributeValue(av)
         case StandardType.CharType           =>
