@@ -9,7 +9,7 @@ name: Website
     - published
   push:
     branches:
-    - series/1.x
+    - series/2.x
 jobs:
   publish-docs:
     name: Publish Docs
