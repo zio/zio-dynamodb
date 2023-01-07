@@ -34,7 +34,7 @@ object TypeSafeAPIExampleWithoutDiscriminator extends ZIOAppDefault {
 
     implicit val schema = DeriveSchema.gen[TrafficLight]
 
-    val (amber, green, red) = ProjectionExpression.accessors[TrafficLight]
+    val (green, red, amber) = ProjectionExpression.accessors[TrafficLight]
   }
 
   private val program = for {

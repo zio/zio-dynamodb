@@ -25,16 +25,16 @@ object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
     final case class Green(rgb: Int) extends TrafficLight
 
     object Green {
-      implicit val schema = DeriveSchema.gen[Green]
-      val rgb             = ProjectionExpression.accessors[Green]
+      implicit val schema                       = DeriveSchema.gen[Green]
+      val rgb: ProjectionExpression[Green, Int] = ProjectionExpression.accessors[Green]
     }
 
     @id("red_traffic_light")
     final case class Red(rgb: Int) extends TrafficLight
 
     object Red {
-      implicit val schema = DeriveSchema.gen[Red]
-      val rgb             = ProjectionExpression.accessors[Red]
+      implicit val schema                     = DeriveSchema.gen[Red]
+      val rgb: ProjectionExpression[Red, Int] = ProjectionExpression.accessors[Red]
     }
 
     final case class Amber(@id("red_green_blue") rgb: Int) extends TrafficLight
@@ -53,7 +53,7 @@ object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
 
     implicit val schema = DeriveSchema.gen[TrafficLight]
 
-    val (amber, green, red) = ProjectionExpression.accessors[TrafficLight]
+    val (green, red, amber) = ProjectionExpression.accessors[TrafficLight]
 
   }
 
@@ -64,34 +64,34 @@ object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
     final case class Green(rgb: Int) extends TrafficLightDiscriminated
 
     object Green {
-      implicit val schema = DeriveSchema.gen[Green]
-      val rgb             = ProjectionExpression.accessors[Green]
+      implicit val schema                       = DeriveSchema.gen[Green]
+      val rgb: ProjectionExpression[Green, Int] = ProjectionExpression.accessors[Green]
     }
 
     @id("red_traffic_light")
     final case class Red(rgb: Int) extends TrafficLightDiscriminated
 
     object Red {
-      implicit val schema = DeriveSchema.gen[Red]
-      val rgb             = ProjectionExpression.accessors[Red]
+      implicit val schema                     = DeriveSchema.gen[Red]
+      val rgb: ProjectionExpression[Red, Int] = ProjectionExpression.accessors[Red]
     }
 
     final case class Amber(@id("red_green_blue") rgb: Int) extends TrafficLightDiscriminated
 
     object Amber {
-      implicit val schema = DeriveSchema.gen[Amber]
-      val rgb             = ProjectionExpression.accessors[Amber]
+      implicit val schema                       = DeriveSchema.gen[Amber]
+      val rgb: ProjectionExpression[Amber, Int] = ProjectionExpression.accessors[Amber]
     }
 
     final case class Box(trafficLightColour: TrafficLightDiscriminated)
 
     object Box {
-      implicit val schema    = DeriveSchema.gen[Box]
-      val trafficLightColour = ProjectionExpression.accessors[Box]
+      implicit val schema                                                          = DeriveSchema.gen[Box]
+      val trafficLightColour: ProjectionExpression[Box, TrafficLightDiscriminated] = ProjectionExpression.accessors[Box]
     }
 
     implicit val schema     = DeriveSchema.gen[TrafficLightDiscriminated]
-    val (amber, green, red) = ProjectionExpression.accessors[TrafficLightDiscriminated]
+    val (green, red, amber) = ProjectionExpression.accessors[TrafficLightDiscriminated]
 
   }
 

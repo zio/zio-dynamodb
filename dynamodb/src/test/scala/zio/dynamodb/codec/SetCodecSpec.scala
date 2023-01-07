@@ -49,7 +49,7 @@ object SetCodecSpec extends ZIOSpecDefault {
               HasJavaBigDecimalSet(Set(new java.math.BigDecimal(1), new java.math.BigDecimal(2)))
             )
 
-          assert(actual.toString)(equalTo("Map(Map(String(set) -> NumberSet(Set(1.0, 2.0))))"))
+          assert(actual.toString)(equalTo("Map(Map(String(set) -> NumberSet(Set(1, 2))))"))
         },
         test("encodes set of BigInt natively") {
 

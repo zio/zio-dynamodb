@@ -2,7 +2,7 @@ package zio.dynamodb.examples.model
 
 import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.dynamodb.{ PrimaryKey, ProjectionExpression }
-import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema }
+import zio.schema.DeriveSchema
 
 import java.time.Instant
 
@@ -39,7 +39,7 @@ final case class Student(
   version: Int = 0
 )
 
-object Student extends DefaultJavaTimeSchemas {
+object Student {
   implicit val schema = DeriveSchema.gen[Student]
   val (
     email,

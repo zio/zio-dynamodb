@@ -56,7 +56,7 @@ def copyJarSetting(dir: String) =
 
 val zioVersion       = "2.0.5"
 val zioAwsVersion    = "5.17.224.4"
-val zioSchemaVersion = "0.2.0"
+val zioSchemaVersion = "0.4.1"
 
 lazy val root =
   project
@@ -260,9 +260,10 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
             .mkString(", ")
           val fieldParams       = (1 to i).map(p => s"schema.field${if (i == 1) "" else p.toString}").mkString(",")
           val fieldTypes        = (1 to i).map(p => s"${upperAlpha(p)}").mkString(", ")
+          val schemaConstruct   = if (i == 1) "schema.defaultConstruct" else "schema.construct"
           s"""def caseClass${i}Decoder[$fieldTypes, Z](schema: Schema.CaseClass${i}[$fieldTypes, Z]): Decoder[Z] =  { (av: AttributeValue) =>
              |    Codec.Decoder.decodeFields(av, $fieldParams).map { xs =>
-             |      schema.construct($constructorParams)
+             |      $schemaConstruct($constructorParams)
              |    }
              |  }""".stripMargin
       }

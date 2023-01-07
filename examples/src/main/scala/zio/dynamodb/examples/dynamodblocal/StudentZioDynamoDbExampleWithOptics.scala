@@ -33,14 +33,13 @@ object StudentZioDynamoDbExampleWithOptics extends ZIOAppDefault {
            enrollmentDate === Some(
              enrolDate
            ) && payment === Payment.CreditCard
-           // TODO: Avi - "&& Elephant.email === "elephant@gmail.com"" fails to compile as expected
          }.execute
            .map(_.runCollect)
     _ <- queryAll[Student]("student")
-           .filter(                              // TODO: Avi - "&& Elephant.email === "elephant@gmail.com"" fails to compile as expected
+           .filter(
              enrollmentDate === Some(enrolDate) && payment === Payment.CreditCard
            )
-           .whereKey(email === "avi@gmail.com" && subject === "maths" /* && Elephant.email === "elephant@gmail.com" */ )
+           .whereKey(email === "avi@gmail.com" && subject === "maths")
            .execute
            .map(_.runCollect)
     _ <- put[Student]("student", avi)

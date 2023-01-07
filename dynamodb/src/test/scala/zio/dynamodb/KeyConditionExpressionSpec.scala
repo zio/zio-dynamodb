@@ -2,7 +2,7 @@ package zio.dynamodb
 
 import zio.dynamodb.ConditionExpression.Operand.ProjectionExpressionOperand
 import zio.dynamodb.ProjectionExpression.{ MapElement, Root }
-import zio.schema.{ DefaultJavaTimeSchemas, DeriveSchema }
+import zio.schema.DeriveSchema
 import zio.test.Assertion.{ isLeft, isRight }
 import zio.test._
 
@@ -15,7 +15,7 @@ object KeyConditionExpressionSpec extends ZIOSpecDefault {
     subject: String,
     enrollmentDate: Option[Instant]
   )
-  object Student extends DefaultJavaTimeSchemas {
+  object Student {
     implicit val schema = DeriveSchema.gen[Student]
   }
 
