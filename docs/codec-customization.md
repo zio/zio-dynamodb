@@ -1,3 +1,8 @@
+---
+id: codec-customization
+title: "Codec Customization"
+---
+
 # Default encoding
 
 ## Sealed trait members that are case classes
