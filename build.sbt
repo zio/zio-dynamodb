@@ -330,6 +330,6 @@ lazy val docs = project
         projectStage = ProjectStage.Experimental
       )
     ),
-    docsPublishBranch := "master"
+    docsPublishBranch := "series/2.x"
   )
   .enablePlugins(WebsitePlugin)
