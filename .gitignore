@@ -464,6 +464,7 @@ project/metals.sbt
 # mdoc
 website/node_modules
 website/build
+website/yarn.lock
 website/i18n/en.json
 website/static/api
 
@@ -477,3 +478,4 @@ shell.nix
 # direnv
 .envrc
 .direnv
+/.vscode/
