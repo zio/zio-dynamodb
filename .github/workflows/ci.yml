@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: ['master', 'zio2']
+    branches: ['series/2.x']
   release:
     types:
       - published
@@ -46,10 +46,33 @@ jobs:
     - name: Run integration tests
       run: sbt -J-XX:+UseG1GC -J-Xmx6g -J-Xms6g -J-Xss16m ++${{ matrix.scala }}! it:test
 
+  mdoc:
+    runs-on: ubuntu-20.04
+    timeout-minutes: 30
+    if: github.event_name != 'pull_request'
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v2.4.0
+      - name: Setup Scala and Java
+        uses: olafurpg/setup-scala@v13
+      - name: Setup GPG
+        uses: olafurpg/setup-gpg@v3
+      - name: Cache scala dependencies
+        uses: coursier/cache-action@v6
+      - name: Check Document Generation
+        run: ./sbt docs/compileDocs
+
+  ci:
+    runs-on: ubuntu-20.04
+    needs: [build, lint, mdoc]
+    steps:
+      - name: Report successful build
+        run: echo "ci passed"
+
   publish:
     runs-on: ubuntu-20.04
     timeout-minutes: 30
-    needs: [build,lint]
+    needs: [ci]
     if: github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v2.3.4
