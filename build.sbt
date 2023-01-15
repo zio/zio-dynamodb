@@ -324,12 +324,10 @@ lazy val docs = project
       "dev.zio" %% "zio" % zioVersion
     ),
     projectName := "ZIO DynamoDB",
-    badgeInfo := Some(
-      BadgeInfo(
-        artifact = "zio-dynamodb_2.12",
-        projectStage = ProjectStage.Experimental
-      )
-    ),
+    mainModuleName := (zioDynamodb / moduleName).value,
+    projectStage := ProjectStage.Experimental,
+    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(zioDynamodb),
     docsPublishBranch := "series/2.x"
   )
+  .dependsOn(zioDynamodb)
   .enablePlugins(WebsitePlugin)
