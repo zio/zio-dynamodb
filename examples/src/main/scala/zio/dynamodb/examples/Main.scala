@@ -16,17 +16,16 @@ object Main extends ZIOAppDefault {
   val examplePerson = Person(1, "avi")
 
   private val program = for {
-    _      <- put("tableName", examplePerson).execute
-    person <- get[Person]("tableName", PrimaryKey("id" -> 1)).execute
+    _      <- put("personTable", examplePerson).execute
+    person <- get[Person]("personTable", PrimaryKey("id" -> 1)).execute
     _      <- zio.Console.printLine(s"hello $person")
   } yield ()
 
-  override def run = {
-
-    val dynamoDbLayer =
-      netty.NettyHttpClient.default >>> config.AwsConfig.default >>> dynamodb.DynamoDb.live // uses real AWS dynamodb
-    val executorLayer = dynamoDbLayer >>> DynamoDBExecutor.live
-
-    program.provide(executorLayer)
-  }
+  override def run =
+    program.provide(
+      netty.NettyHttpClient.default,
+      config.AwsConfig.default, // uses real AWS dynamodb
+      dynamodb.DynamoDb.live,
+      DynamoDBExecutor.live
+    )
 }
