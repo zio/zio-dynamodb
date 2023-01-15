@@ -22,7 +22,7 @@ To use ZIO DynamoDB, we need to add the following lines to our `build.sbt` file:
 
 ```scala
 libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb" % "0.2.3"
+  "dev.zio" %% "zio-dynamodb" % "0.2.4"
 )
 ```
 
