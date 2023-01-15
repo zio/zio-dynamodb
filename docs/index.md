@@ -1,6 +1,7 @@
 ---
 id: index
-title: "Overview"
+title: "Introduction to ZIO DynamoDB"
+sidebar_title: "ZIO DynamoDB"
 ---
 
 Simple, type-safe, and efficient access to DynamoDB
