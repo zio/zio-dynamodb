@@ -316,7 +316,6 @@ def module(moduleName: String, fileName: String): Project =
 lazy val docs = project
   .in(file("zio-dynamodb-docs"))
   .settings(
-    skip.in(publish) := true,
     moduleName := "zio-dynamodb-docs",
     scalacOptions -= "-Yno-imports",
     scalacOptions -= "-Xfatal-warnings",
