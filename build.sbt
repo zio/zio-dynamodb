@@ -316,20 +316,15 @@ def module(moduleName: String, fileName: String): Project =
 lazy val docs = project
   .in(file("zio-dynamodb-docs"))
   .settings(
-    skip.in(publish) := true,
     moduleName := "zio-dynamodb-docs",
     scalacOptions -= "-Yno-imports",
     scalacOptions -= "-Xfatal-warnings",
-    libraryDependencies ++= Seq(
-      "dev.zio" %% "zio" % zioVersion
-    ),
+    libraryDependencies ++= Seq("dev.zio" %% "zio" % zioVersion),
     projectName := "ZIO DynamoDB",
-    badgeInfo := Some(
-      BadgeInfo(
-        artifact = "zio-dynamodb_2.12",
-        projectStage = ProjectStage.Experimental
-      )
-    ),
+    mainModuleName := (zioDynamodb / moduleName).value,
+    projectStage := ProjectStage.Experimental,
+    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(zioDynamodb),
     docsPublishBranch := "series/2.x"
   )
+  .dependsOn(zioDynamodb)
   .enablePlugins(WebsitePlugin)
