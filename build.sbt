@@ -320,9 +320,7 @@ lazy val docs = project
     moduleName := "zio-dynamodb-docs",
     scalacOptions -= "-Yno-imports",
     scalacOptions -= "-Xfatal-warnings",
-    libraryDependencies ++= Seq(
-      "dev.zio" %% "zio" % zioVersion
-    ),
+    libraryDependencies ++= Seq("dev.zio" %% "zio" % zioVersion),
     projectName := "ZIO DynamoDB",
     mainModuleName := (zioDynamodb / moduleName).value,
     projectStage := ProjectStage.Experimental,
