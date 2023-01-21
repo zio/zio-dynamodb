@@ -29,16 +29,14 @@ libraryDependencies ++= Seq(
 For examples please see [examples sbt module](../examples/src/main/scala/zio/dynamodb/examples). Below is `Main.scala` from that module:
 
 ```scala
-import io.github.vigoo.zioaws.http4s
-import zio.{ App, ExitCode, Has, URIO, ZLayer }
+import zio.aws.core.config
+import zio.aws.{ dynamodb, netty }
 import zio.dynamodb.DynamoDBQuery.{ get, put }
 import zio.dynamodb.{ DynamoDBExecutor, PrimaryKey }
 import zio.schema.{ DeriveSchema, Schema }
-import io.github.vigoo.zioaws.core.config
-import io.github.vigoo.zioaws.dynamodb
-import zio.clock.Clock
+import zio.ZIOAppDefault
 
-object Main extends App {
+object Main extends ZIOAppDefault {
 
   final case class Person(id: Int, firstName: String)
   object Person {
@@ -47,18 +45,18 @@ object Main extends App {
   val examplePerson = Person(1, "avi")
 
   private val program = for {
-    _      <- put("tableName", examplePerson).execute
-    person <- get[Person]("tableName", PrimaryKey("id" -> 1)).execute
-    _      <- zio.console.putStrLn(s"hello $person")
+    _      <- put("personTable", examplePerson).execute
+    person <- get[Person]("personTable", PrimaryKey("id" -> 1)).execute
+    _      <- zio.Console.printLine(s"hello $person")
   } yield ()
 
-  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
-
-    val dynamoDbLayer = http4s.default >>> config.default >>> dynamodb.live // uses real AWS dynamodb
-    val executorLayer = (dynamoDbLayer ++ ZLayer.identity[Has[Clock.Service]]) >>> DynamoDBExecutor.live
-
-    program.provideCustomLayer(executorLayer).exitCode
-  }
+  override def run =
+    program.provide(
+      netty.NettyHttpClient.default,
+      config.AwsConfig.default, // uses real AWS dynamodb
+      dynamodb.DynamoDb.live,
+      DynamoDBExecutor.live
+    )
 }
 ```
 
