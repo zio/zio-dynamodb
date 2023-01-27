@@ -60,8 +60,8 @@ object Main extends ZIOAppDefault {
 }
 ```
 
-For examples on how to use the DynamoDBLocal in memory database please see the [integration tests](../dynamodb/src/it/scala/zio/dynamodb/LiveSpec.scala)
-and [StudentZioDynamoDbExample](../examples/src/main/scala/zio/dynamodb/examples/dynamodblocal/StudentZioDynamoDbExample.scala)
+For examples on how to use the DynamoDBLocal in memory database please see the [integration tests](docs/../dynamodb/src/it/scala/zio/dynamodb/LiveSpec.scala)
+and [StudentZioDynamoDbExample](docs/../examples/src/main/scala/zio/dynamodb/examples/dynamodblocal/StudentZioDynamoDbExample.scala)
 
 ## Documentation
 
