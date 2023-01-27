@@ -265,7 +265,11 @@ private[dynamodb] object Codec {
 
     private def enumEncoder[Z](annotations: Chunk[Any], cases: Schema.Case[Z, _]*): Encoder[Z] =
       if (isEnumWithDiscriminatorOrCaseObjectAnnotationCodec(annotations))
-        enumWithDiscriminatorOrCaseObjectAnnotationEncoder(discriminatorWithDefault(annotations), cases: _*)
+        enumWithDiscriminatorOrCaseObjectAnnotationEncoder(
+          isCaseObjectAnnotationCodec(annotations),
+          discriminatorWithDefault(annotations),
+          cases: _*
+        )
       else
         defaultEnumEncoder(cases: _*)
 
@@ -283,6 +287,7 @@ private[dynamodb] object Codec {
       }
 
     private def enumWithDiscriminatorOrCaseObjectAnnotationEncoder[Z](
+      hasEnumOnlyAnnotation: Boolean,
       discriminator: String,
       cases: Schema.Case[Z, _]*
     ): Encoder[Z] =
@@ -300,7 +305,9 @@ private[dynamodb] object Codec {
               )
             case AttributeValue.Null     =>
               val av2 = AttributeValue.String(id)
-              if (allCaseObjects(cases))
+              if (
+                hasEnumOnlyAnnotation && allCaseObjects(cases)
+              ) // TODO return error if hasEnumOnlyAnnotation && !allCaseObjects
                 av2
               else
                 // these are case objects and are a special case - they need to wrapped in an AttributeValue.Map
@@ -788,7 +795,11 @@ private[dynamodb] object Codec {
 
     private def enumDecoder[Z](annotations: Chunk[Any], cases: Schema.Case[Z, _]*): Decoder[Z] =
       if (isEnumWithDiscriminatorOrCaseObjectAnnotationCodec(annotations))
-        enumWithDisciminatorOrCaseObjectAnnotationDecoder(discriminatorWithDefault(annotations), cases: _*)
+        enumWithDisciminatorOrCaseObjectAnnotationDecoder(
+          isCaseObjectAnnotationCodec(annotations),
+          discriminatorWithDefault(annotations),
+          cases: _*
+        )
       else
         defaultEnumDecoder(cases: _*)
 
@@ -814,6 +825,7 @@ private[dynamodb] object Codec {
         }
 
     private def enumWithDisciminatorOrCaseObjectAnnotationDecoder[Z](
+      hasCaseObjectAnnotationCodec: Boolean,
       discriminator: String,
       cases: Schema.Case[Z, _]*
     ): Decoder[Z] = { (av: AttributeValue) =>
@@ -831,7 +843,7 @@ private[dynamodb] object Codec {
 
       av match {
         case AttributeValue.String(id) =>
-          if (allCaseObjects(cases))
+          if (hasCaseObjectAnnotationCodec || allCaseObjects(cases)) // TODO - return error is invalid combo
             decode(id)
           else
             Left(DecodingError(s"Error: not all enumeration elements are case objects. Found $cases"))
@@ -900,6 +912,12 @@ private[dynamodb] object Codec {
     annotations.exists {
       case discriminator(_) | enumOfCaseObjects() => true
       case _                                      => false
+    }
+
+  private def isCaseObjectAnnotationCodec(annotations: Chunk[Any]): Boolean =
+    annotations.exists {
+      case enumOfCaseObjects() => true
+      case _                   => false
     }
 
 } // end Codec

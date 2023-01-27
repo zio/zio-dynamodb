@@ -10,7 +10,17 @@ import scala.collection.immutable.ListMap
 import zio.test.ZIOSpecDefault
 
 object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
-  override def spec = suite("ItemEncoder Suite")(mainSuite)
+  override def spec = suite("ItemEncoder Suite")(mainSuite, debugSuite)
+
+  val debugSuite = suite("debug") {
+    test("encodes case object only enum with @enumOfCaseObjects annotation and @id annotation of '2'") {
+      val expectedItem: Item = Item(Map("enum" -> AttributeValue.String("2")))
+
+      val item = DynamoDBQuery.toItem(WithCaseObjectOnlyEnum(WithCaseObjectOnlyEnum.TWO))
+
+      assert(item)(equalTo(expectedItem))
+    }
+  }
 
   val mainSuite = suite("Main Suite")(
     test("encodes generic record") {
