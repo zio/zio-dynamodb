@@ -1,6 +1,7 @@
 package zio.dynamodb
 
-import zio.dynamodb.Annotations.{ discriminator, id }
+import zio.dynamodb.Annotations.{ discriminator }
+import zio.schema.annotation.{ caseName, fieldName }
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test.Assertion.equalTo
 import zio.test.{ assert, ZIOSpecDefault }
@@ -12,7 +13,7 @@ object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
   object BoxOfCaseObjectOnlyEnum {
 
     case object ONE extends CaseObjectOnlyEnum
-    @id("2")
+    @caseName("2")
     case object TWO extends CaseObjectOnlyEnum
     implicit val schema: Schema[BoxOfCaseObjectOnlyEnum] = DeriveSchema.gen[BoxOfCaseObjectOnlyEnum]
     val sumType                                          = ProjectionExpression.accessors[BoxOfCaseObjectOnlyEnum]
@@ -29,7 +30,7 @@ object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
       val rgb: ProjectionExpression[Green, Int] = ProjectionExpression.accessors[Green]
     }
 
-    @id("red_traffic_light")
+    @caseName("red_traffic_light")
     final case class Red(rgb: Int) extends TrafficLight
 
     object Red {
@@ -37,7 +38,7 @@ object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
       val rgb: ProjectionExpression[Red, Int] = ProjectionExpression.accessors[Red]
     }
 
-    final case class Amber(@id("red_green_blue") rgb: Int) extends TrafficLight
+    final case class Amber(@fieldName("red_green_blue") rgb: Int) extends TrafficLight
 
     object Amber {
       implicit val schema = DeriveSchema.gen[Amber]
@@ -68,7 +69,7 @@ object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
       val rgb: ProjectionExpression[Green, Int] = ProjectionExpression.accessors[Green]
     }
 
-    @id("red_traffic_light")
+    @caseName("red_traffic_light")
     final case class Red(rgb: Int) extends TrafficLightDiscriminated
 
     object Red {
@@ -76,7 +77,7 @@ object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
       val rgb: ProjectionExpression[Red, Int] = ProjectionExpression.accessors[Red]
     }
 
-    final case class Amber(@id("red_green_blue") rgb: Int) extends TrafficLightDiscriminated
+    final case class Amber(@fieldName("red_green_blue") rgb: Int) extends TrafficLightDiscriminated
 
     object Amber {
       implicit val schema                       = DeriveSchema.gen[Amber]

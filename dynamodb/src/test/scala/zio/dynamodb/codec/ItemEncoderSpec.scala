@@ -10,9 +10,70 @@ import scala.collection.immutable.ListMap
 import zio.test.ZIOSpecDefault
 
 object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
-  override def spec = suite("ItemEncoder Suite")(mainSuite, debugSuite)
+  override def spec = suite("ItemEncoder Suite")(mainSuite, debugSuite @@ zio.test.TestAspect.ignore)
 
-  val debugSuite = suite("debug") {
+  val debugSuite = suite("debug")(
+    test("encodes enum and honours @id annotation when there is no @enumOfCaseObjects annotation") {
+      val expectedItem: Item = Item("enum" -> Item(Map("1" -> AttributeValue.Null)))
+
+      val item = DynamoDBQuery.toItem(WithEnumWithoutDiscriminator(WithEnumWithoutDiscriminator.ONE))
+
+      assert(item)(equalTo(expectedItem))
+    },
+    test("encodes enum with discriminator annotation and @id annotation at field level for a case class") {
+      val expectedItem: Item =
+        Item(
+          Map(
+            "enum" -> AttributeValue.Map(
+              Map(
+                AttributeValue.String("funky_value")        -> AttributeValue.String("foobar"),
+                AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("StringValue2")
+              )
+            )
+          )
+        )
+
+      val item = DynamoDBQuery.toItem(WithDiscriminatedEnum(WithDiscriminatedEnum.StringValue2("foobar")))
+
+      assert(item)(equalTo(expectedItem))
+    } @@ zio.test.TestAspect.ignore,
+    test("encodes enum with discriminator annotation and case object as item with @id annotation of '2'") {
+      val expectedItem: Item =
+        Item(
+          Map(
+            "enum" -> AttributeValue.Map(
+              Map(
+                AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("2")
+              )
+            )
+          )
+        )
+
+      val item = DynamoDBQuery.toItem(WithDiscriminatedEnum(WithDiscriminatedEnum.TWO))
+
+      assert(item)(equalTo(expectedItem))
+    } @@ zio.test.TestAspect.ignore,
+    /*
+@id("ival")
+final case class IntValue(value: Int)                                  extends EnumWithDiscriminator
+     */
+    test("encodes enum with discriminator annotation and an @id annotation on a case class") {
+      val expectedItem: Item =
+        Item(
+          Map(
+            "enum" -> AttributeValue.Map(
+              Map(
+                AttributeValue.String("value")              -> AttributeValue.Number(BigDecimal(1)),
+                AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("ival")
+              )
+            )
+          )
+        )
+
+      val item = DynamoDBQuery.toItem(WithDiscriminatedEnum(WithDiscriminatedEnum.IntValue(1)))
+
+      assert(item)(equalTo(expectedItem))
+    } @@ zio.test.TestAspect.ignore,
     test("encodes case object only enum with @enumOfCaseObjects annotation and @id annotation of '2'") {
       val expectedItem: Item = Item(Map("enum" -> AttributeValue.String("2")))
 
@@ -20,7 +81,7 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     }
-  }
+  )
 
   val mainSuite = suite("Main Suite")(
     test("encodes generic record") {

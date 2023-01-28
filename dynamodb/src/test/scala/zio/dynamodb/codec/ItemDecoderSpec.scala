@@ -10,7 +10,34 @@ import scala.collection.immutable.ListMap
 import zio.test.ZIOSpecDefault
 
 object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
-  override def spec = suite("ItemDecoder Suite")(mainSuite)
+  override def spec = suite("ItemDecoder Suite")(mainSuite, debugSuite @@ zio.test.TestAspect.ignore)
+
+  val debugSuite = suite("debug")(
+    test("decodes enum with discriminator annotation and an id annotation on a case class") {
+      val item: Item =
+        Item(
+          Map(
+            "enum" -> AttributeValue.Map(
+              Map(
+                AttributeValue.String("value")              -> AttributeValue.Number(BigDecimal(1)),
+                AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("ival")
+              )
+            )
+          )
+        )
+
+      val actual = DynamoDBQuery.fromItem[WithDiscriminatedEnum](item)
+
+      assert(actual)(isRight(equalTo(WithDiscriminatedEnum(WithDiscriminatedEnum.IntValue(1)))))
+    } @@ zio.test.TestAspect.ignore,
+    test("decodes enum without @discriminator annotation and uses @id field level annotation") {
+      val item: Item = Item("enum" -> Item(Map("1" -> AttributeValue.Null)))
+
+      val actual = DynamoDBQuery.fromItem[WithEnumWithoutDiscriminator](item)
+
+      assert(actual)(isRight(equalTo(WithEnumWithoutDiscriminator(WithEnumWithoutDiscriminator.ONE))))
+    }
+  )
 
   val mainSuite = suite("Decoder Suite")(
     test("decodes generic record") {
