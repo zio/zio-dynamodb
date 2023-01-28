@@ -16,7 +16,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
     test("decodes generic record") {
       val expected: Map[String, Any] = ListMap("foo" -> "FOO", "bar" -> 1)
 
-      val actual: Either[String, Map[String, Any]] = Codec.decoder(recordSchema)(
+      val actual: Either[DynamoDBError, Map[String, Any]] = Codec.decoder(recordSchema)(
         AttributeValue.Map(Map(toAvString("foo") -> toAvString("FOO"), toAvString("bar") -> toAvNum(1)))
       )
 

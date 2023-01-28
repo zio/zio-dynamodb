@@ -8,7 +8,7 @@ object AttributeValueRoundTripSerialisationSpec extends ZIOSpecDefault {
     check(genSerializable) { s =>
       check(s.genA) { (a: s.Element) =>
         val av: AttributeValue           = s.to.toAttributeValue(a)
-        val v: Either[String, s.Element] = s.from.fromAttributeValue(av)
+        val v: Either[DynamoDBError, s.Element] = s.from.fromAttributeValue(av)
         assert(v)(isRight(equalTo(a)))
       }
     }

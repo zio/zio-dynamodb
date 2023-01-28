@@ -3,9 +3,9 @@ package zio.dynamodb
 import scala.annotation.tailrec
 
 object EitherUtil {
-  def forEach[A, B](list: Iterable[A])(f: A => Either[String, B]): Either[String, Iterable[B]] = {
+  def forEach[A, B, E](list: Iterable[A])(f: A => Either[E, B]): Either[E, Iterable[B]] = {
     @tailrec
-    def loop[A2, B2](xs: Iterable[A2], acc: List[B2])(f: A2 => Either[String, B2]): Either[String, Iterable[B2]] =
+    def loop[A2, B2, E2](xs: Iterable[A2], acc: List[B2])(f: A2 => Either[E2, B2]): Either[E2, Iterable[B2]] =
       xs match {
         case head :: tail =>
           f(head) match {
@@ -18,5 +18,5 @@ object EitherUtil {
     loop(list.toList, List.empty)(f)
   }
 
-  def collectAll[A](list: Iterable[Either[String, A]]): Either[String, Iterable[A]] = forEach(list)(identity)
+  def collectAll[A, E](list: Iterable[Either[E, A]]): Either[E, Iterable[A]] = forEach(list)(identity)
 }

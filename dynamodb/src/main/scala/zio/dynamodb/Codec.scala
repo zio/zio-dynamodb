@@ -1,12 +1,14 @@
 package zio.dynamodb
 
-import zio.dynamodb.Annotations.{ discriminator, enumOfCaseObjects, id, maybeDiscriminator, maybeId }
-import zio.schema.Schema.{ Optional, Primitive }
-import zio.schema.{ FieldSet, Schema, StandardType }
-import zio.{ schema, Chunk }
+import zio.dynamodb.Annotations.{discriminator, enumOfCaseObjects, id, maybeDiscriminator, maybeId}
+import zio.dynamodb.DynamoDBError.DecodingError
+import zio.schema.Schema.{Optional, Primitive}
+import zio.schema.{FieldSet, Schema, StandardType}
+import zio.{Chunk, schema}
 
+import java.math.BigInteger
 import java.time._
-import java.time.format.{ DateTimeFormatterBuilder, SignStyle }
+import java.time.format.{DateTimeFormatterBuilder, SignStyle}
 import java.time.temporal.ChronoField.YEAR
 import java.util.UUID
 import scala.annotation.tailrec
@@ -411,7 +413,7 @@ private[dynamodb] object Codec {
     private[dynamodb] def decoder[A](schema: Schema[A]): Decoder[A] =
       schema match {
         case s: Optional[a]                        => optionalDecoder[a](decoder(s.schema))
-        case Schema.Fail(s, _)                     => _ => Left(s)
+        case Schema.Fail(s, _)                     => _ => Left(DecodingError(s))
         case Schema.GenericRecord(_, structure, _) => genericRecordDecoder(structure).asInstanceOf[Decoder[A]]
         case Schema.Tuple2(l, r, _)                => tupleDecoder(decoder(l), decoder(r))
         case Schema.Transform(codec, f, _, _, _)   => transformDecoder(codec, f)
@@ -528,7 +530,7 @@ private[dynamodb] object Codec {
         av match {
           case AttributeValue.Map(map) =>
             EitherUtil
-              .forEach[schema.Schema.Field[_, _], (String, Any)](structure.toChunk) {
+              .forEach[schema.Schema.Field[_, _], (String, Any), DynamoDBError](structure.toChunk) {
                 case Schema.Field(key, schema: Schema[a], _, _, _, _) =>
                   val av  = map(AttributeValue.String(key))
                   val dec = decoder(schema)
@@ -538,7 +540,7 @@ private[dynamodb] object Codec {
                   }
               }
               .map(ls => ListMap.newBuilder.++=(ls).result())
-          case av                      => Left(s"Expected AttributeValue.Map but found $av")
+          case av                      => Left(DecodingError(s"Expected AttributeValue.Map but found $av"))
         }
 
     private def primitiveDecoder[A](standardType: StandardType[A]): Decoder[A] =
@@ -588,7 +590,7 @@ private[dynamodb] object Codec {
         case StandardType.UUIDType           =>
           (av: AttributeValue) =>
             FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av).flatMap { s =>
-              Try(UUID.fromString(s)).toEither.left.map(iae => s"Invalid UUID: ${iae.getMessage}")
+              Try(UUID.fromString(s)).toEither.left.map(iae => DecodingError(s"Invalid UUID: ${iae.getMessage}"))
             }
         case StandardType.DayOfWeekType      =>
           (av: AttributeValue) => javaTimeStringParser(av)(DayOfWeek.valueOf(_))
@@ -624,16 +626,16 @@ private[dynamodb] object Codec {
           (av: AttributeValue) => javaTimeStringParser(av)(ZoneOffset.of(_))
       }
 
-    private def javaTimeStringParser[A](av: AttributeValue)(unsafeParse: String => A): Either[String, A] =
+    private def javaTimeStringParser[A](av: AttributeValue)(unsafeParse: String => A): Either[DynamoDBError, A] =
       FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av).flatMap { s =>
         val stringOrA = Try(unsafeParse(s)).toEither.left
-          .map(e => s"error parsing string '$s': ${e.getMessage}")
+          .map(e => DecodingError(s"error parsing string '$s': ${e.getMessage}"))
         stringOrA
       }
 
     private def transformDecoder[A, B](codec: Schema[A], f: A => Either[String, B]): Decoder[B] = {
       val dec = decoder(codec)
-      (a: AttributeValue) => dec(a).flatMap(f)
+      (a: AttributeValue) => dec(a).flatMap(f(_).left.map(DecodingError))
     }
 
     private def optionalDecoder[A](decoder: Decoder[A]): Decoder[Option[A]] = {
@@ -649,9 +651,9 @@ private[dynamodb] object Codec {
           case (AttributeValue.String("Right"), b) :: Nil =>
             decR(b).map(Right(_))
           case av                                         =>
-            Left(s"AttributeValue.Map map element $av not expected.")
+            Left(DecodingError(s"AttributeValue.Map map element $av not expected."))
         }
-      case av                      => Left(s"Expected AttributeValue.Map but found $av")
+      case av                      => Left(DecodingError(s"Expected AttributeValue.Map but found $av"))
     }
 
     private def tupleDecoder[A, B](decL: Decoder[A], decR: Decoder[B]): Decoder[(A, B)] =
@@ -665,13 +667,13 @@ private[dynamodb] object Codec {
               b <- decR(avB)
             } yield (a, b)
           case av                                                               =>
-            Left(s"Expected an AttributeValue.List of two elements but found $av")
+            Left(DecodingError(s"Expected an AttributeValue.List of two elements but found $av"))
         }
 
     private def sequenceDecoder[Col, A](decoder: Decoder[A], to: Chunk[A] => Col): Decoder[Col] = {
       case AttributeValue.List(list) =>
         EitherUtil.forEach(list)(decoder(_)).map(xs => to(Chunk.fromIterable(xs)))
-      case av                        => Left(s"unable to decode $av as a list")
+      case av                        => Left(DecodingError(s"unable to decode $av as a list"))
     }
 
     private def setDecoder[A](s: Schema[A]): Decoder[Set[A]] = {
@@ -679,14 +681,14 @@ private[dynamodb] object Codec {
         case AttributeValue.StringSet(stringSet) =>
           Right(stringSet.asInstanceOf[Set[A]])
         case av                                  =>
-          Left(s"Error: expected a string set but found '$av'")
+          Left(DecodingError(s"Error: expected a string set but found '$av'"))
       }
 
       def nativeNumberSetDecoder[A](f: BigDecimal => A): Decoder[Set[A]] = {
         case AttributeValue.NumberSet(numberSet) =>
           Right(numberSet.map(f))
         case av                                  =>
-          Left(s"Error: expected a number set but found '$av'")
+          Left(DecodingError(s"Error: expected a number set but found '$av'"))
       }
 
       def nativeBinarySetDecoder[A]: Decoder[Set[A]] = {
@@ -694,7 +696,7 @@ private[dynamodb] object Codec {
           val set: Set[Chunk[Byte]] = setOfChunkOfByte.toSet.map((xs: Iterable[Byte]) => Chunk.fromIterable(xs))
           Right(set.asInstanceOf[Set[A]])
         case av                                         =>
-          Left(s"Error: expected a Set of Chunk of Byte but found '$av'")
+          Left(DecodingError(s"Error: expected a Set of Chunk of Byte but found '$av'"))
       }
 
       s match {
@@ -719,7 +721,7 @@ private[dynamodb] object Codec {
             if bigDecimal.isInstanceOf[StandardType.BigDecimalType.type] =>
           nativeNumberSetDecoder[BigDecimal](_.bigDecimal).asInstanceOf[Decoder[Set[A]]]
         case Schema.Primitive(StandardType.BigIntegerType, _) =>
-          nativeNumberSetDecoder(bd => bd.toBigInt.bigInteger)
+          nativeNumberSetDecoder[BigInteger](bd => bd.toBigInt.bigInteger)
         case Schema.Transform(Schema.Primitive(bigInt, _), _, _, _, _)
             if bigInt.isInstanceOf[StandardType.BigIntegerType.type] =>
           nativeNumberSetDecoder[BigInt](_.toBigInt).asInstanceOf[Decoder[Set[A]]]
@@ -741,7 +743,7 @@ private[dynamodb] object Codec {
             decA(av)
           }
           errorOrList.map(_.toSet)
-        case av                            => Left(s"Error: expected AttributeValue.List but found $av")
+        case av                            => Left(DecodingError(s"Error: expected AttributeValue.List but found $av"))
       }
     }
 
@@ -757,7 +759,7 @@ private[dynamodb] object Codec {
       (av: AttributeValue) => {
         av match {
           case AttributeValue.Map(map) =>
-            val xs: Iterable[Either[String, (String, V)]] = map.map {
+            val xs: Iterable[Either[DynamoDBError, (String, V)]] = map.map {
               case (k, v) =>
                 dec(v) match {
                   case Right(decV) => Right((k.value, decV))
@@ -765,7 +767,7 @@ private[dynamodb] object Codec {
                 }
             }
             EitherUtil.collectAll(xs).map(_.toMap)
-          case av                      => Left(s"Error: expected AttributeValue.Map but found $av")
+          case av                      => Left(DecodingError(s"Error: expected AttributeValue.Map but found $av"))
         }
       }
 
@@ -777,10 +779,10 @@ private[dynamodb] object Codec {
               case avList @ AttributeValue.List(_) =>
                 tupleDecoder(decA, decB)(avList)
               case av                              =>
-                Left(s"Error: expected AttributeValue.List but found $av")
+                Left(DecodingError(s"Error: expected AttributeValue.List but found $av"))
             }
             errorOrListOfTuple.map(_.toMap)
-          case av                            => Left(s"Error: expected AttributeValue.List but found $av")
+          case av                            => Left(DecodingError(s"Error: expected AttributeValue.List but found $av"))
         }
       }
 
@@ -796,7 +798,7 @@ private[dynamodb] object Codec {
           case AttributeValue.Map(map) =>
             // default enum encoding uses a Map with a single entry that denotes the type
             // TODO: think about being stricter and rejecting Maps with > 1 entry ???
-            map.toList.headOption.fold[Either[String, Z]](Left(s"map $av is empty")) {
+            map.toList.headOption.fold[Either[DynamoDBError, Z]](Left(DecodingError(s"map $av is empty"))) {
               case (AttributeValue.String(subtype), av) =>
                 cases.find { c =>
                   maybeId(c.annotations).fold(c.id == subtype)(_ == subtype)
@@ -804,24 +806,24 @@ private[dynamodb] object Codec {
                   case Some(c) =>
                     decoder(c.schema)(av).map(_.asInstanceOf[Z])
                   case None    =>
-                    Left(s"subtype $subtype not found")
+                    Left(DecodingError(s"subtype $subtype not found"))
                 }
             }
           case _                       =>
-            Left(s"invalid AttributeValue $av")
+            Left(DecodingError(s"invalid AttributeValue $av"))
         }
 
     private def enumWithDisciminatorOrCaseObjectAnnotationDecoder[Z](
       discriminator: String,
       cases: Schema.Case[Z, _]*
     ): Decoder[Z] = { (av: AttributeValue) =>
-      def findCase(value: String): Either[String, Schema.Case[Z, _]] =
+      def findCase(value: String): Either[DynamoDBError, Schema.Case[Z, _]] =
         cases.find {
           case Schema.Case(_, _, _, _, _, Chunk(id(const))) => const == value
           case Schema.Case(id, _, _, _, _, _)               => id == value
-        }.toRight(s"type name '$value' not found in schema cases")
+        }.toRight(DecodingError(s"type name '$value' not found in schema cases"))
 
-      def decode(id: String): Either[String, Z] =
+      def decode(id: String): Either[DynamoDBError, Z] =
         findCase(id).flatMap { c =>
           val dec = decoder(c.schema)
           dec(av).map(_.asInstanceOf[Z])
@@ -832,20 +834,20 @@ private[dynamodb] object Codec {
           if (allCaseObjects(cases))
             decode(id)
           else
-            Left(s"Error: not all enumeration elements are case objects. Found $cases")
+            Left(DecodingError(s"Error: not all enumeration elements are case objects. Found $cases"))
         case AttributeValue.Map(map)   =>
           map
             .get(AttributeValue.String(discriminator))
-            .fold[Either[String, Z]](Left(s"map $av does not contain discriminator field '$discriminator'")) {
+            .fold[Either[DynamoDBError, Z]](Left(DecodingError(s"map $av does not contain discriminator field '$discriminator'"))) {
               case AttributeValue.String(typeName) =>
                 decode(typeName)
-              case av                              => Left(s"expected string type but found $av")
+              case av                              => Left(DecodingError(s"expected string type but found $av"))
             }
-        case _                         => Left(s"unexpected AttributeValue type $av")
+        case _                         => Left(DecodingError(s"unexpected AttributeValue type $av"))
       }
     }
 
-    private[dynamodb] def decodeFields(av: AttributeValue, fields: Schema.Field[_, _]*): Either[String, List[Any]] =
+    private[dynamodb] def decodeFields(av: AttributeValue, fields: Schema.Field[_, _]*): Either[DynamoDBError, List[Any]] =
       av match {
         case AttributeValue.Map(map) =>
           EitherUtil
@@ -854,8 +856,8 @@ private[dynamodb] object Codec {
                 val dec                         = decoder(schema)
                 val k                           = maybeId(annotations).getOrElse(key)
                 val maybeValue                  = map.get(AttributeValue.String(k))
-                val maybeDecoder                = maybeValue.map(dec).toRight(s"field '$k' not found in $av")
-                val either: Either[String, Any] = for {
+                val maybeDecoder                = maybeValue.map(dec).toRight(DecodingError(s"field '$k' not found in $av"))
+                val either: Either[DynamoDBError, Any] = for {
                   decoder <- maybeDecoder
                   decoded <- decoder
                 } yield decoded
@@ -873,7 +875,7 @@ private[dynamodb] object Codec {
             }
             .map(_.toList)
         case _                       =>
-          Left(s"$av is not an AttributeValue.Map")
+          Left(DecodingError(s"$av is not an AttributeValue.Map"))
       }
 
   } // end Decoder

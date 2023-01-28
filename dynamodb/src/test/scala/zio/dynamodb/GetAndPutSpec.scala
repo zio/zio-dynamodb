@@ -1,10 +1,11 @@
 package zio.dynamodb
 
-import zio.dynamodb.DynamoDBQuery.{ get, put }
+import zio.dynamodb.DynamoDBError.{DecodingError, ValueNotFound}
+import zio.dynamodb.DynamoDBQuery.{get, put}
 import zio.dynamodb.codec.Invoice
 import zio.dynamodb.codec.Invoice.PreBilled
-import zio.schema.{ DeriveSchema, Schema }
-import zio.test.{ assertTrue, ZIOSpecDefault }
+import zio.schema.{DeriveSchema, Schema}
+import zio.test.{ZIOSpecDefault, assertTrue}
 
 object GetAndPutSpec extends ZIOSpecDefault {
   final case class SimpleCaseClass2(id: Int, name: String)
@@ -29,13 +30,13 @@ object GetAndPutSpec extends ZIOSpecDefault {
     test("that does not exists") {
       for {
         found <- get[SimpleCaseClass2]("table1", primaryKey1).execute
-      } yield assertTrue(found == Left("value with key AttrMap(Map(id -> Number(1))) not found"))
+      } yield assertTrue(found == Left(ValueNotFound("value with key AttrMap(Map(id -> Number(1))) not found")))
     },
     test("with missing attributes results in an error") {
       for {
         _     <- TestDynamoDBExecutor.addItems("table1", primaryKey1 -> Item("id" -> 1))
         found <- get[SimpleCaseClass2]("table1", primaryKey1).execute
-      } yield assertTrue(found == Left("field 'name' not found in Map(Map(String(id) -> Number(1)))"))
+      } yield assertTrue(found == Left(DecodingError("field 'name' not found in Map(Map(String(id) -> Number(1)))")))
     },
     test("batched") {
       for {
