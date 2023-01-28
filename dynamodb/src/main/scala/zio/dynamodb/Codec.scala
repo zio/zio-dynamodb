@@ -297,7 +297,6 @@ private[dynamodb] object Codec {
         if (fieldIndex > -1) {
           val case_ = cases(fieldIndex)
           val enc   = encoder(case_.schema.asInstanceOf[Schema[Any]])
-//          val id    = maybeId(case_.annotations).getOrElse(case_.id)
           val av    = enc(a)
           av match { // TODO: review all pattern matches inside of a lambda
             case AttributeValue.Map(map) =>
