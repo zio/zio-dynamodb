@@ -1,8 +1,8 @@
 package zio.dynamodb.codec
 
-import zio.dynamodb.Annotations.{ discriminator, enumOfCaseObjects }
-import zio.schema.annotation.{ caseName, fieldName }
-import zio.schema.{ DeriveSchema, Schema }
+import zio.dynamodb.Annotations.enumOfCaseObjects
+import zio.schema.annotation.{caseName, discriminatorName, fieldName}
+import zio.schema.{DeriveSchema, Schema}
 
 import java.time.Instant
 
@@ -42,7 +42,7 @@ final case class CaseClassOfSetOfInt(set: Set[Int])
 
 final case class CaseClassOfTuple2(tuple2: (String, Int))
 
-@discriminator(name = "funkyDiscriminator")
+@discriminatorName(tag = "funkyDiscriminator")
 sealed trait EnumWithDiscriminator
 final case class WithDiscriminatedEnum(enum: EnumWithDiscriminator)
 object WithDiscriminatedEnum {
@@ -78,7 +78,7 @@ object WithEnumWithoutDiscriminator {
   implicit val schema: Schema[WithEnumWithoutDiscriminator] = DeriveSchema.gen[WithEnumWithoutDiscriminator]
 }
 
-@discriminator(name = "funkyDiscriminator")
+@discriminatorName(tag = "funkyDiscriminator")
 sealed trait Invoice {
   def id: Int
 }

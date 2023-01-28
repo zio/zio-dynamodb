@@ -9,7 +9,7 @@ import zio.{ schema, Chunk }
 
 import java.math.BigInteger
 import java.time._
-import java.time.format.{ DateTimeFormatterBuilder, SignStyle }
+import java.time.format.{DateTimeFormatterBuilder, SignStyle}
 import java.time.temporal.ChronoField.YEAR
 import java.util.UUID
 import scala.annotation.tailrec
@@ -853,21 +853,18 @@ private[dynamodb] object Codec {
         case AttributeValue.Map(map)   =>
           map
             .get(AttributeValue.String(discriminator))
-            .fold[Either[DynamoDBError, Z]](
-              Left(DecodingError(s"map $av does not contain discriminator field '$discriminator'"))
-            ) {
+            .fold[Either[DynamoDBError, Z]](Left(DecodingError(s"map $av does not contain discriminator field '$discriminator'"))) {
               case AttributeValue.String(typeName) =>
                 decode(typeName)
-              case av                              => Left(DecodingError(s"expected string type but found $av"))
+              case av                              =>
+                Left(DecodingError("expected string type but found $av"))
             }
-        case _                         => Left(DecodingError(s"unexpected AttributeValue type $av"))
+        case _                         =>
+          Left(DecodingError(s"unexpected AttributeValue type $av"))
       }
     }
 
-    private[dynamodb] def decodeFields(
-      av: AttributeValue,
-      fields: Schema.Field[_, _]*
-    ): Either[DynamoDBError, List[Any]] =
+    private[dynamodb] def decodeFields(av: AttributeValue, fields: Schema.Field[_, _]*): Either[String, List[Any]] =
       av match {
         case AttributeValue.Map(map) =>
           EitherUtil
@@ -913,8 +910,8 @@ private[dynamodb] object Codec {
 
   private def isEnumWithDiscriminatorOrCaseObjectAnnotationCodec(annotations: Chunk[Any]): Boolean =
     annotations.exists {
-      case discriminator(_) | enumOfCaseObjects() => true
-      case _                                      => false
+      case discriminatorName(_) | enumOfCaseObjects() => true
+      case _                                          => false
     }
 
   private def isCaseObjectAnnotationCodec(annotations: Chunk[Any]): Boolean =

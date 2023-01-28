@@ -1,10 +1,9 @@
 package zio.dynamodb
 
-import zio.dynamodb.Annotations.{ discriminator }
-import zio.schema.annotation.{ caseName, fieldName }
-import zio.schema.{ DeriveSchema, Schema }
+import zio.schema.annotation.{caseName, discriminatorName, fieldName}
+import zio.schema.{DeriveSchema, Schema}
 import zio.test.Assertion.equalTo
-import zio.test.{ assert, ZIOSpecDefault }
+import zio.test.{ZIOSpecDefault, assert}
 
 object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
 
@@ -58,7 +57,7 @@ object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
 
   }
 
-  @discriminator("light_type")
+  @discriminatorName("light_type")
   sealed trait TrafficLightDiscriminated
 
   object TrafficLightDiscriminated {
