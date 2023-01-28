@@ -323,8 +323,11 @@ lazy val docs = project
     projectName := "ZIO DynamoDB",
     mainModuleName := (zioDynamodb / moduleName).value,
     projectStage := ProjectStage.Experimental,
-    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(zioDynamodb),
-    docsPublishBranch := "series/2.x"
+    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(),
+    docsPublishBranch := "series/2.x",
+    publish := {},
+    publishLocal := {},
+    publishArtifact := false,
+    publish / skip := true
   )
-  .dependsOn(zioDynamodb)
   .enablePlugins(WebsitePlugin)
