@@ -123,7 +123,7 @@ object TransactionModelSpec extends ZIOSpecDefault {
       hasField(
         "invalidActions",
         a => {
-          val b: Iterable[DynamoDBQuery[Any, Any]] = a.invalidActions.toIterable
+          val b: Iterable[DynamoDBQuery[Any, Any]] = a.invalidActions.toList
           b
         },
         contains(action)

@@ -8,7 +8,7 @@ import zio.test.{ assert, ZIOSpecDefault }
 object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
 
   sealed trait CaseObjectOnlyEnum
-  final case class BoxOfCaseObjectOnlyEnum(enum: CaseObjectOnlyEnum)
+  final case class BoxOfCaseObjectOnlyEnum(enumr: CaseObjectOnlyEnum)
   object BoxOfCaseObjectOnlyEnum {
 
     case object ONE extends CaseObjectOnlyEnum

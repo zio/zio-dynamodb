@@ -192,7 +192,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       val item: Item =
         Item(
           Map(
-            "enum" -> AttributeValue.Map(
+            "enumr" -> AttributeValue.Map(
               Map(
                 AttributeValue.String("value")              -> AttributeValue.String("foobar"),
                 AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("StringValue")
@@ -209,7 +209,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       val item: Item =
         Item(
           Map(
-            "enum" -> AttributeValue.Map(
+            "enumr" -> AttributeValue.Map(
               Map(
                 AttributeValue.String("funky_value")        -> AttributeValue.String("foobar"),
                 AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("StringValue2")
@@ -226,7 +226,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       val item: Item =
         Item(
           Map(
-            "enum" -> AttributeValue.Map(
+            "enumr" -> AttributeValue.Map(
               Map(
                 AttributeValue.String("value")              -> AttributeValue.Number(BigDecimal(1)),
                 AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("ival")
@@ -243,7 +243,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       val item: Item =
         Item(
           Map(
-            "enum" -> AttributeValue.Map(
+            "enumr" -> AttributeValue.Map(
               Map(
                 AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("ONE")
               )
@@ -259,7 +259,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       val item: Item =
         Item(
           Map(
-            "enum" -> AttributeValue.Map(
+            "enumr" -> AttributeValue.Map(
               Map(
                 AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("2")
               )
@@ -286,28 +286,28 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       assert(actual)(isRight(equalTo(PreBilled(id = 1, s = "foobar"))))
     },
     test("decodes case object only enum with id annotation") {
-      val item: Item = Item(Map("enum" -> AttributeValue.String("ONE")))
+      val item: Item = Item(Map("enumr" -> AttributeValue.String("ONE")))
 
       val actual = DynamoDBQuery.fromItem[WithCaseObjectOnlyEnum](item)
 
       assert(actual)(isRight(equalTo(WithCaseObjectOnlyEnum(WithCaseObjectOnlyEnum.ONE))))
     },
     test("decodes case object only enum with enumNameAsValue annotation and id annotation of '2'") {
-      val item: Item = Item(Map("enum" -> AttributeValue.String("2")))
+      val item: Item = Item(Map("enumr" -> AttributeValue.String("2")))
 
       val actual = DynamoDBQuery.fromItem[WithCaseObjectOnlyEnum](item)
 
       assert(actual)(isRight(equalTo(WithCaseObjectOnlyEnum(WithCaseObjectOnlyEnum.TWO))))
     },
     test("decodes enum and honours @id annotation at case class level when there is no @discriminator annotation") {
-      val item: Item = Item("enum" -> Item(Map("1" -> AttributeValue.Null)))
+      val item: Item = Item("enumr" -> Item(Map("1" -> AttributeValue.Null)))
 
       val actual = DynamoDBQuery.fromItem[WithEnumWithoutDiscriminator](item)
 
       assert(actual)(isRight(equalTo(WithEnumWithoutDiscriminator(WithEnumWithoutDiscriminator.ONE))))
     },
     test("decodes enum without @discriminator annotation and uses @id field level annotation") {
-      val item: Item = Item("enum" -> Item(Map("1" -> AttributeValue.Null)))
+      val item: Item = Item("enumr" -> Item(Map("1" -> AttributeValue.Null)))
 
       val actual = DynamoDBQuery.fromItem[WithEnumWithoutDiscriminator](item)
 

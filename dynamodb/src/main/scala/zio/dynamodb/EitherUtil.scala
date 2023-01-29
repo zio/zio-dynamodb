@@ -13,6 +13,7 @@ object EitherUtil {
             case Right(a) => loop(tail, a :: acc)(f)
           }
         case Nil          => Right(acc.reverse)
+        case x            => throw new Exception(s"Unexpected input $x") // TODO
       }
 
     loop(list.toList, List.empty)(f)

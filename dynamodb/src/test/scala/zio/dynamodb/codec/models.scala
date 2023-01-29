@@ -43,7 +43,7 @@ final case class CaseClassOfTuple2(tuple2: (String, Int))
 
 @discriminator(name = "funkyDiscriminator")
 sealed trait EnumWithDiscriminator
-final case class WithDiscriminatedEnum(enum: EnumWithDiscriminator)
+final case class WithDiscriminatedEnum(enumr: EnumWithDiscriminator)
 object WithDiscriminatedEnum {
   final case class StringValue(value: String)                     extends EnumWithDiscriminator
   final case class StringValue2(@id("funky_value") value: String) extends EnumWithDiscriminator
@@ -58,7 +58,7 @@ object WithDiscriminatedEnum {
 
 @enumOfCaseObjects
 sealed trait CaseObjectOnlyEnum
-final case class WithCaseObjectOnlyEnum(enum: CaseObjectOnlyEnum)
+final case class WithCaseObjectOnlyEnum(enumr: CaseObjectOnlyEnum)
 object WithCaseObjectOnlyEnum {
   case object ONE extends CaseObjectOnlyEnum
   @id("2")
@@ -67,7 +67,7 @@ object WithCaseObjectOnlyEnum {
 }
 
 sealed trait EnumWithoutDiscriminator
-final case class WithEnumWithoutDiscriminator(enum: EnumWithoutDiscriminator)
+final case class WithEnumWithoutDiscriminator(enumr: EnumWithoutDiscriminator)
 object WithEnumWithoutDiscriminator {
   @id("1") // this should get ignored as there is no annotation at the trait level
   case object ONE                                    extends EnumWithoutDiscriminator

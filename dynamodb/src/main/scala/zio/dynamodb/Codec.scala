@@ -150,6 +150,11 @@ private[dynamodb] object Codec {
           enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22)
         case Schema.EnumN(_, cs, annotations)                                                                                                   =>
           enumEncoder(annotations, cs.toSeq: _*)
+        case _                                                                                                                                  =>
+          if (schema eq null)
+            throw new Exception(s"A captured schema is null, most likely due to wrong field initialization order")
+          else
+            throw new Exception(s"Missing a handler for encoding of schema ${schema.toString()}.")
       }
     //scalafmt: { maxColumn = 120, optIn.configStyleArguments = true }
 
@@ -513,7 +518,7 @@ private[dynamodb] object Codec {
           enumDecoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22)
         case Schema.EnumN(_, cs, annotations)                                                                                                   =>
           enumDecoder(annotations, cs.toSeq: _*)
-
+        case _                                                                                                                                  => throw new Exception(s"Missing a handler for decoding of schema ${schema.toString()}.")
       }
     //scalafmt: { maxColumn = 120, optIn.configStyleArguments = true }
 
