@@ -1,15 +1,15 @@
 package zio.dynamodb
 
-import zio.dynamodb.Annotations.{ discriminator, enumOfCaseObjects, maybeCaseName, maybeDiscriminator }
+import zio.dynamodb.Annotations.{ enumOfCaseObjects, maybeCaseName, maybeDiscriminator }
 import zio.dynamodb.DynamoDBError.DecodingError
 import zio.schema.Schema.{ Optional, Primitive }
-import zio.schema.annotation.caseName
+import zio.schema.annotation.{ caseName, discriminatorName }
 import zio.schema.{ FieldSet, Schema, StandardType }
 import zio.{ schema, Chunk }
 
 import java.math.BigInteger
 import java.time._
-import java.time.format.{DateTimeFormatterBuilder, SignStyle}
+import java.time.format.{ DateTimeFormatterBuilder, SignStyle }
 import java.time.temporal.ChronoField.YEAR
 import java.util.UUID
 import scala.annotation.tailrec

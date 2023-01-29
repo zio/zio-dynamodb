@@ -3,10 +3,16 @@ package zio.dynamodb.examples
 import zio.Console.printLine
 import zio.ZIOAppDefault
 import zio.dynamodb.Annotations.enumOfCaseObjects
-import zio.dynamodb.examples.TypeSafeRoundTripSerialisationExample.Invoice.{Address, Billed, LineItem, PaymentType, Product}
-import zio.dynamodb.{DynamoDBExecutor, DynamoDBQuery, PrimaryKey}
-import zio.schema.annotation.{caseName, discriminatorName}
-import zio.schema.{DeriveSchema, Schema}
+import zio.dynamodb.examples.TypeSafeRoundTripSerialisationExample.Invoice.{
+  Address,
+  Billed,
+  LineItem,
+  PaymentType,
+  Product
+}
+import zio.dynamodb.{ DynamoDBExecutor, DynamoDBQuery, PrimaryKey }
+import zio.schema.annotation.{ caseName, discriminatorName }
+import zio.schema.{ DeriveSchema, Schema }
 
 import java.time.Instant
 

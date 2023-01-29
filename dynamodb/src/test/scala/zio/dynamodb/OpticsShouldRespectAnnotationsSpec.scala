@@ -1,9 +1,9 @@
 package zio.dynamodb
 
-import zio.schema.annotation.{caseName, discriminatorName, fieldName}
-import zio.schema.{DeriveSchema, Schema}
+import zio.schema.annotation.{ caseName, discriminatorName, fieldName }
+import zio.schema.{ DeriveSchema, Schema }
 import zio.test.Assertion.equalTo
-import zio.test.{ZIOSpecDefault, assert}
+import zio.test.{ assert, ZIOSpecDefault }
 
 object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
 

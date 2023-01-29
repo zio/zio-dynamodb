@@ -1,10 +1,10 @@
 package zio.dynamodb.examples.dynamodblocal
 
-import zio.{ZIO, ZIOAppDefault}
+import zio.{ ZIO, ZIOAppDefault }
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb._
 import zio.dynamodb.examples.dynamodblocal.DynamoDB._
-import zio.dynamodb.examples.dynamodblocal.TypeSafeAPIExampleWithDiscriminator.TrafficLight.{Amber, Box, Green}
+import zio.dynamodb.examples.dynamodblocal.TypeSafeAPIExampleWithDiscriminator.TrafficLight.{ Amber, Box, Green }
 import zio.schema.DeriveSchema
 import zio.schema.annotation.discriminatorName
 
