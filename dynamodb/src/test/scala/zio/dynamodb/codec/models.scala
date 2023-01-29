@@ -1,8 +1,8 @@
 package zio.dynamodb.codec
 
 import zio.dynamodb.Annotations.enumOfCaseObjects
-import zio.schema.annotation.{caseName, discriminatorName, fieldName}
-import zio.schema.{DeriveSchema, Schema}
+import zio.schema.annotation.{ caseName, discriminatorName, fieldName }
+import zio.schema.{ DeriveSchema, Schema }
 
 import java.time.Instant
 
@@ -71,7 +71,7 @@ object WithCaseObjectOnlyEnum {
 sealed trait EnumWithoutDiscriminator
 final case class WithEnumWithoutDiscriminator(enum: EnumWithoutDiscriminator)
 object WithEnumWithoutDiscriminator {
-  @caseName("1") // this should get ignored as there is no annotation at the trait level
+  @caseName("1")
   case object ONE                                           extends EnumWithoutDiscriminator
   case object TWO                                           extends EnumWithoutDiscriminator
   case class Three(@fieldName("funky_value") value: String) extends EnumWithoutDiscriminator

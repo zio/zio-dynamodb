@@ -188,7 +188,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(expected)))
     },
-    test("decodes enum with discriminator annotation") {
+    test("decodes enum with @discriminatorName annotation") {
       val item: Item =
         Item(
           Map(
@@ -205,7 +205,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(WithDiscriminatedEnum(WithDiscriminatedEnum.StringValue("foobar")))))
     },
-    test("decodes enum with discriminator annotation and id annotation on a case class field ") {
+    test("decodes enum with @discriminatorName annotation and @fieldName annotation on a case class field ") {
       val item: Item =
         Item(
           Map(
@@ -222,7 +222,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(WithDiscriminatedEnum(WithDiscriminatedEnum.StringValue2("foobar")))))
     },
-    test("decodes enum with discriminator annotation and an id annotation on a case class") {
+    test("decodes enum with @discriminatorName annotation and an @caseName annotation on a case class") {
       val item: Item =
         Item(
           Map(
@@ -239,7 +239,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(WithDiscriminatedEnum(WithDiscriminatedEnum.IntValue(1)))))
     },
-    test("decodes enum with discriminator annotation and case object as item without a id annotation") {
+    test("decodes enum with @discriminatorName annotation and case object as item without a @caseName annotation") {
       val item: Item =
         Item(
           Map(
@@ -255,7 +255,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(WithDiscriminatedEnum(WithDiscriminatedEnum.ONE))))
     },
-    test("decodes enum with discriminator annotation and case object as item with a id annotation of '2'") {
+    test("decodes enum with @discriminatorName annotation and case object as item with a @caseName annotation of '2'") {
       val item: Item =
         Item(
           Map(
@@ -271,7 +271,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(WithDiscriminatedEnum(WithDiscriminatedEnum.TWO))))
     },
-    test("decodes top level enum with discriminator annotation") {
+    test("decodes top level enum with @discriminatorName annotation") {
       val item: Item =
         Item(
           Map(
@@ -285,28 +285,30 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(PreBilled(id = 1, s = "foobar"))))
     },
-    test("decodes case object only enum with id annotation") {
+    test("decodes case object only enum with @enumOfCaseObjects annotation and without @caseName annotation") {
       val item: Item = Item(Map("enum" -> AttributeValue.String("ONE")))
 
       val actual = DynamoDBQuery.fromItem[WithCaseObjectOnlyEnum](item)
 
       assert(actual)(isRight(equalTo(WithCaseObjectOnlyEnum(WithCaseObjectOnlyEnum.ONE))))
     },
-    test("decodes case object only enum with enumNameAsValue annotation and id annotation of '2'") {
+    test("decodes case object only enum with @enumOfCaseObjects annotation and @caseName annotation of '2'") {
       val item: Item = Item(Map("enum" -> AttributeValue.String("2")))
 
       val actual = DynamoDBQuery.fromItem[WithCaseObjectOnlyEnum](item)
 
       assert(actual)(isRight(equalTo(WithCaseObjectOnlyEnum(WithCaseObjectOnlyEnum.TWO))))
     },
-    test("decodes enum and honours @id annotation at case class level when there is no @discriminator annotation") {
+    test(
+      "decodes enum and honours @caseName annotation at case class level when there is no @discriminatorName annotation"
+    ) {
       val item: Item = Item("enum" -> Item(Map("1" -> AttributeValue.Null)))
 
       val actual = DynamoDBQuery.fromItem[WithEnumWithoutDiscriminator](item)
 
       assert(actual)(isRight(equalTo(WithEnumWithoutDiscriminator(WithEnumWithoutDiscriminator.ONE))))
     },
-    test("decodes enum without @discriminator annotation and uses @id field level annotation") {
+    test("decodes enum without @discriminatorName annotation and uses @caseName annotation") {
       val item: Item = Item("enum" -> Item(Map("1" -> AttributeValue.Null)))
 
       val actual = DynamoDBQuery.fromItem[WithEnumWithoutDiscriminator](item)
