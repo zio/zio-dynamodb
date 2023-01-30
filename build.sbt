@@ -323,8 +323,7 @@ lazy val docs = project
     projectName := "ZIO DynamoDB",
     mainModuleName := (zioDynamodb / moduleName).value,
     projectStage := ProjectStage.Experimental,
-//    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(zioDynamodb),
-    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(), // disable Unidoc
+    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(zioDynamodb),
     docsPublishBranch := "series/2.x"
   )
   .dependsOn(zioDynamodb)
