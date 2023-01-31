@@ -1,14 +1,14 @@
 package zio.dynamodb
 
-import zio.dynamodb.Annotations.{discriminator, enumOfCaseObjects, id, maybeDiscriminator, maybeId}
+import zio.dynamodb.Annotations.{ discriminator, enumOfCaseObjects, id, maybeDiscriminator, maybeId }
 import zio.dynamodb.DynamoDBError.DecodingError
-import zio.schema.Schema.{Optional, Primitive}
-import zio.schema.{FieldSet, Schema, StandardType}
-import zio.{Chunk, schema}
+import zio.schema.Schema.{ Optional, Primitive }
+import zio.schema.{ FieldSet, Schema, StandardType }
+import zio.{ schema, Chunk }
 
 import java.math.BigInteger
 import java.time._
-import java.time.format.{DateTimeFormatterBuilder, SignStyle}
+import java.time.format.{ DateTimeFormatterBuilder, SignStyle }
 import java.time.temporal.ChronoField.YEAR
 import java.util.UUID
 import scala.annotation.tailrec
@@ -838,7 +838,9 @@ private[dynamodb] object Codec {
         case AttributeValue.Map(map)   =>
           map
             .get(AttributeValue.String(discriminator))
-            .fold[Either[DynamoDBError, Z]](Left(DecodingError(s"map $av does not contain discriminator field '$discriminator'"))) {
+            .fold[Either[DynamoDBError, Z]](
+              Left(DecodingError(s"map $av does not contain discriminator field '$discriminator'"))
+            ) {
               case AttributeValue.String(typeName) =>
                 decode(typeName)
               case av                              => Left(DecodingError(s"expected string type but found $av"))
@@ -847,16 +849,19 @@ private[dynamodb] object Codec {
       }
     }
 
-    private[dynamodb] def decodeFields(av: AttributeValue, fields: Schema.Field[_, _]*): Either[DynamoDBError, List[Any]] =
+    private[dynamodb] def decodeFields(
+      av: AttributeValue,
+      fields: Schema.Field[_, _]*
+    ): Either[DynamoDBError, List[Any]] =
       av match {
         case AttributeValue.Map(map) =>
           EitherUtil
             .forEach(fields) {
               case Schema.Field(key, schema, annotations, _, _, _) =>
-                val dec                         = decoder(schema)
-                val k                           = maybeId(annotations).getOrElse(key)
-                val maybeValue                  = map.get(AttributeValue.String(k))
-                val maybeDecoder                = maybeValue.map(dec).toRight(DecodingError(s"field '$k' not found in $av"))
+                val dec                                = decoder(schema)
+                val k                                  = maybeId(annotations).getOrElse(key)
+                val maybeValue                         = map.get(AttributeValue.String(k))
+                val maybeDecoder                       = maybeValue.map(dec).toRight(DecodingError(s"field '$k' not found in $av"))
                 val either: Either[DynamoDBError, Any] = for {
                   decoder <- maybeDecoder
                   decoded <- decoder

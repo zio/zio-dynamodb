@@ -1,9 +1,9 @@
 package zio.dynamodb.examples
 
 import zio.dynamodb.DynamoDBError.DecodingError
-import zio.dynamodb.{AttrMap, DynamoDBError, Item}
+import zio.dynamodb.{ AttrMap, DynamoDBError, Item }
 
-import java.time.{Instant, ZoneOffset}
+import java.time.{ Instant, ZoneOffset }
 import scala.util.Try
 
 object RoundTripSerialisationExample extends App {

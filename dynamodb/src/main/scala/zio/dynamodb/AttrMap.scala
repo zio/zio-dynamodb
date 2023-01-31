@@ -23,7 +23,9 @@ final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFrom
   def getOptionalItem[A](
     field: String
   )(f: AttrMap => Either[DynamoDBError, A]): Either[DynamoDBError, Option[A]] =
-    getOptional[Item](field).flatMap(_.fold[Either[DynamoDBError, Option[A]]](Right(None))(item => f(item).map(Some(_))))
+    getOptional[Item](field).flatMap(
+      _.fold[Either[DynamoDBError, Option[A]]](Right(None))(item => f(item).map(Some(_)))
+    )
 
   // convenience method so that user does not have to transform between a List and an Either
   def getIterableItem[A](field: String)(f: AttrMap => Either[DynamoDBError, A]): Either[DynamoDBError, Iterable[A]] =

@@ -1,11 +1,11 @@
 package zio.dynamodb
 
-import zio.dynamodb.DynamoDBError.{DecodingError, ValueNotFound}
-import zio.dynamodb.DynamoDBQuery.{get, put}
+import zio.dynamodb.DynamoDBError.{ DecodingError, ValueNotFound }
+import zio.dynamodb.DynamoDBQuery.{ get, put }
 import zio.dynamodb.codec.Invoice
 import zio.dynamodb.codec.Invoice.PreBilled
-import zio.schema.{DeriveSchema, Schema}
-import zio.test.{ZIOSpecDefault, assertTrue}
+import zio.schema.{ DeriveSchema, Schema }
+import zio.test.{ assertTrue, ZIOSpecDefault }
 
 object GetAndPutSpec extends ZIOSpecDefault {
   final case class SimpleCaseClass2(id: Int, name: String)

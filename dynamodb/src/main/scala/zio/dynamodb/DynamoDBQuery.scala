@@ -1,14 +1,31 @@
 package zio.dynamodb
 
 import zio.dynamodb.DynamoDBError.ValueNotFound
-import zio.dynamodb.proofs.{CanFilter, CanWhere, CanWhereKey}
+import zio.dynamodb.proofs.{ CanFilter, CanWhere, CanWhereKey }
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
-import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{Delete, Put}
-import zio.dynamodb.DynamoDBQuery.{BatchGetItem, BatchWriteItem, CreateTable, DeleteItem, GetItem, Map, PutItem, QueryAll, QuerySome, ScanAll, ScanSome, Transaction, UpdateItem, Zip, batched, parallelize}
+import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put }
+import zio.dynamodb.DynamoDBQuery.{
+  batched,
+  parallelize,
+  BatchGetItem,
+  BatchWriteItem,
+  CreateTable,
+  DeleteItem,
+  GetItem,
+  Map,
+  PutItem,
+  QueryAll,
+  QuerySome,
+  ScanAll,
+  ScanSome,
+  Transaction,
+  UpdateItem,
+  Zip
+}
 import zio.dynamodb.UpdateExpression.Action
 import zio.schema.Schema
 import zio.stream.Stream
-import zio.{Chunk, NonEmptyChunk, Schedule, ZIO, _}
+import zio.{ Chunk, NonEmptyChunk, Schedule, ZIO, _ }
 
 sealed trait DynamoDBQuery[-In, +Out] { self =>
 
