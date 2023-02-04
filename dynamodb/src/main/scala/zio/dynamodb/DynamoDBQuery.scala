@@ -1,5 +1,6 @@
 package zio.dynamodb
 
+import zio.dynamodb.DynamoDBError.ValueNotFound
 import zio.dynamodb.proofs.{ CanFilter, CanWhere, CanWhereKey }
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put }
@@ -449,14 +450,14 @@ object DynamoDBQuery {
     tableName: String,
     key: PrimaryKey,
     projections: ProjectionExpression[_, _]*
-  ): DynamoDBQuery[A, Either[String, A]] =
+  ): DynamoDBQuery[A, Either[DynamoDBError, A]] =
     getItem(tableName, key, projections: _*).map {
       case Some(item) =>
         fromItem(item)
-      case None       => Left(s"value with key $key not found")
+      case None       => Left(ValueNotFound(s"value with key $key not found"))
     }
 
-  private[dynamodb] def fromItem[A: Schema](item: Item): Either[String, A] = {
+  private[dynamodb] def fromItem[A: Schema](item: Item): Either[DynamoDBError, A] = {
     val av = ToAttributeValue.attrMapToAttributeValue.toAttributeValue(item)
     av.decode(Schema[A])
   }
@@ -504,7 +505,7 @@ object DynamoDBQuery {
     tableName: String,
     limit: Int,
     projections: ProjectionExpression[_, _]*
-  ): DynamoDBQuery[A, Either[String, (Chunk[A], LastEvaluatedKey)]] =
+  ): DynamoDBQuery[A, Either[DynamoDBError, (Chunk[A], LastEvaluatedKey)]] =
     scanSomeItem(tableName, limit, projections: _*).map {
       case (itemsChunk, lek) =>
         EitherUtil.forEach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
@@ -552,7 +553,7 @@ object DynamoDBQuery {
     tableName: String,
     limit: Int,
     projections: ProjectionExpression[_, _]*
-  ): DynamoDBQuery[A, Either[String, (Chunk[A], LastEvaluatedKey)]] =
+  ): DynamoDBQuery[A, Either[DynamoDBError, (Chunk[A], LastEvaluatedKey)]] =
     querySomeItem(tableName, limit, projections: _*).map {
       case (itemsChunk, lek) =>
         EitherUtil.forEach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {

@@ -1,6 +1,7 @@
 package zio.dynamodb.examples
 
-import zio.dynamodb.{ AttrMap, Item }
+import zio.dynamodb.DynamoDBError.DecodingError
+import zio.dynamodb.{ AttrMap, DynamoDBError, Item }
 
 import java.time.{ Instant, ZoneOffset }
 import scala.util.Try
@@ -73,12 +74,12 @@ object RoundTripSerialisationExample extends App {
 
   println("invoiceToAttrMap: " + invoiceToAttrMap(invoice1))
 
-  def attrMapToInvoice(m: AttrMap): Either[String, Invoice] =
+  def attrMapToInvoice(m: AttrMap): Either[DynamoDBError, Invoice] =
     for {
       id            <- m.get[String]("id")
       sequence      <- m.get[Int]("sequence")
       dueDateString <- m.get[String]("dueDate")
-      dueDate       <- stringToDate(dueDateString)
+      dueDate       <- stringToDate(dueDateString).left.map(DecodingError)
       total         <- m.get[BigDecimal]("total")
       isTest        <- m.get[Boolean]("isTest")
       categoryMap   <- m.get[Map[String, String]]("categoryMap")

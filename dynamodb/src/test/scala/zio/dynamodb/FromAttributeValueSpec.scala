@@ -1,5 +1,6 @@
 package zio.dynamodb
 
+import zio.dynamodb.DynamoDBError.DecodingError
 import zio.test.Assertion._
 import zio.test.{ ZIOSpecDefault, _ }
 
@@ -14,7 +15,7 @@ object FromAttributeValueSpec extends ZIOSpecDefault {
     },
     test("get[String] should return a Left of String when it does not exists") {
       val attrMap = AttrMap.empty
-      assert(attrMap.get[String]("f1"))(isLeft(equalTo("field 'f1' not found")))
+      assert(attrMap.get[String]("f1"))(isLeft(equalTo(DecodingError("field 'f1' not found"))))
     },
     test("getOptional[String] should return a Right of Some String when it exists") {
       val attrMap = AttrMap("f1" -> "a")
@@ -34,8 +35,8 @@ object FromAttributeValueSpec extends ZIOSpecDefault {
     },
     test("getOptItem should return a Right of Some(Foo) when it exists in the AttrMap") {
       final case class Foo(s: String, o: Option[String])
-      val attrMap                             = AttrMap("f1" -> AttrMap("f2" -> "a", "f3" -> "b"))
-      val either: Either[String, Option[Foo]] = for {
+      val attrMap                                    = AttrMap("f1" -> AttrMap("f2" -> "a", "f3" -> "b"))
+      val either: Either[DynamoDBError, Option[Foo]] = for {
         maybe <- attrMap.getOptionalItem("f1") { m =>
                    for {
                      s <- m.get[String]("f2")
@@ -47,8 +48,8 @@ object FromAttributeValueSpec extends ZIOSpecDefault {
     },
     test("getItemList should return a Right of Iterable[Foo] when it exists in the AttrMap") {
       final case class Foo(s: String, o: Option[String])
-      val attrMap                               = AttrMap("f1" -> List(AttrMap("f2" -> "a", "f3" -> "b"), AttrMap("f2" -> "c", "f3" -> "d")))
-      val either: Either[String, Iterable[Foo]] = for {
+      val attrMap                                      = AttrMap("f1" -> List(AttrMap("f2" -> "a", "f3" -> "b"), AttrMap("f2" -> "c", "f3" -> "d")))
+      val either: Either[DynamoDBError, Iterable[Foo]] = for {
         xs <- attrMap.getIterableItem[Foo]("f1") { m =>
                 for {
                   s <- m.get[String]("f2")
@@ -60,8 +61,8 @@ object FromAttributeValueSpec extends ZIOSpecDefault {
     },
     test("getOptionalIterableItem should return a Right of Option[Iterable[Foo]] when it exists in the AttrMap") {
       final case class Foo(s: String, o: Option[String])
-      val attrMap                                       = AttrMap("f1" -> List(AttrMap("f2" -> "a", "f3" -> "b"), AttrMap("f2" -> "c", "f3" -> "d")))
-      val either: Either[String, Option[Iterable[Foo]]] = for {
+      val attrMap                                              = AttrMap("f1" -> List(AttrMap("f2" -> "a", "f3" -> "b"), AttrMap("f2" -> "c", "f3" -> "d")))
+      val either: Either[DynamoDBError, Option[Iterable[Foo]]] = for {
         xs <- attrMap.getOptionalIterableItem[Foo]("f1") { m =>
                 for {
                   s <- m.get[String]("f2")
