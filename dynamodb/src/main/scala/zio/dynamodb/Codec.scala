@@ -833,7 +833,7 @@ private[dynamodb] object Codec {
         cases.find {
           case Schema.Case(_, _, _, _, _, Chunk(caseName(const))) => const == value
           case Schema.Case(id, _, _, _, _, _)                     => id == value
-        }.toRight(s"type name '$value' not found in schema cases")
+        }.toRight(DecodingError(s"type name '$value' not found in schema cases"))
 
       def decode(id: String): Either[DynamoDBError, Z] =
         findCase(id).flatMap { c =>
@@ -854,14 +854,14 @@ private[dynamodb] object Codec {
               case AttributeValue.String(typeName) =>
                 decode(typeName)
               case av                              =>
-                Left(DecodingError("expected string type but found $av"))
+                Left(DecodingError(s"expected string type but found $av"))
             }
         case _                         =>
           Left(DecodingError(s"unexpected AttributeValue type $av"))
       }
     }
 
-    private[dynamodb] def decodeFields(av: AttributeValue, fields: Schema.Field[_, _]*): Either[String, List[Any]] =
+    private[dynamodb] def decodeFields(av: AttributeValue, fields: Schema.Field[_, _]*): Either[DynamoDBError, List[Any]] =
       av match {
         case AttributeValue.Map(map) =>
           EitherUtil
