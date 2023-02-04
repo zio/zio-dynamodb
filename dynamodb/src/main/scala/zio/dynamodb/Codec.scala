@@ -299,22 +299,20 @@ private[dynamodb] object Codec {
           val enc   = encoder(case_.schema.asInstanceOf[Schema[Any]])
           val av    = enc(a)
           av match { // TODO: review all pattern matches inside of a lambda
-            case AttributeValue.Map(map) =>
+            case AttributeValue.Map(map)                                                                           =>
               val id = maybeCaseName(case_.annotations).getOrElse(case_.id)
               AttributeValue.Map(
                 map + (AttributeValue.String(discriminator) -> AttributeValue.String(id))
               )
-            case AttributeValue.Null     =>
+            case AttributeValue.Null if (hasEnumOnlyAnnotation && allCaseObjects(cases)) || !hasEnumOnlyAnnotation =>
               val id  = maybeCaseName(case_.annotations).getOrElse(case_.id)
               val av2 = AttributeValue.String(id)
-              if (
-                hasEnumOnlyAnnotation && allCaseObjects(cases)
-              ) // TODO return error if hasEnumOnlyAnnotation && !allCaseObjects
+              if (allCaseObjects(cases))
                 av2
               else
                 // these are case objects and are a special case - they need to wrapped in an AttributeValue.Map
                 AttributeValue.Map(Map(AttributeValue.String(discriminator) -> av2))
-            case av                      => throw new IllegalStateException(s"unexpected state $av")
+            case av                                                                                                => throw new IllegalStateException(s"unexpected state $av")
           }
         } else
           AttributeValue.Null
