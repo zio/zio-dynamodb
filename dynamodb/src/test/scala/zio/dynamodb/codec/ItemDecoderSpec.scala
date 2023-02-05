@@ -9,13 +9,7 @@ import java.time.Instant
 import scala.collection.immutable.ListMap
 
 object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
-  override def spec = suite("ItemDecoder Suite")(mainSuite, debugSuite @@ TestAspect.ignore)
-
-  val debugSuite = suite("debugSuite")(
-    test("one") {
-      assertCompletes
-    }
-  )
+  override def spec = suite("ItemDecoder Suite")(mainSuite)
 
   val mainSuite = suite("Decoder Suite")(
     test("decodes generic record") {

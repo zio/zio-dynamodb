@@ -11,11 +11,7 @@ import zio.test.ZIOSpecDefault
 import scala.util.Try
 
 object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
-  override def spec = suite("ItemEncoder Suite")(mainSuite, debugSuite @@ TestAspect.ignore)
-
-  val debugSuite = suite("debugSuite")(test("one") {
-    assertCompletes
-  })
+  override def spec = suite("ItemEncoder Suite")(mainSuite)
 
   val mainSuite = suite("Main Suite")(
     test("encodes generic record") {
