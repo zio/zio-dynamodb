@@ -307,7 +307,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
         isLeft(
           hasMessage(
             equalTo(
-              "Error: can not decode enum String(ONE) - @enumOfCaseObjects annotation present when all instances are not case objects."
+              "Can not decode enum String(ONE) - @enumOfCaseObjects annotation present when all instances are not case objects."
             )
           )
         )

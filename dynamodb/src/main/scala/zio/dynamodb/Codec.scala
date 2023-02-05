@@ -314,7 +314,7 @@ private[dynamodb] object Codec {
                 AttributeValue.Map(Map(AttributeValue.String(discriminator) -> av2))
             case _ if (hasEnumOfCaseObjectsAnnotation && !allCaseObjects(cases)) =>
               throw new IllegalStateException(
-                s"Error: can not encode enum ${case_.id} - @enumOfCaseObjects annotation present when all instances are not case objects."
+                s"Can not encode enum ${case_.id} - @enumOfCaseObjects annotation present when all instances are not case objects."
               )
             case av                                                              => throw new IllegalStateException(s"unexpected state $av")
           }
@@ -863,7 +863,7 @@ private[dynamodb] object Codec {
         case _ if hasEnumOfCaseObjectsAnnotation && !allCaseObjects(cases) =>
           Left(
             DecodingError(
-              s"Error: can not decode enum $av - @enumOfCaseObjects annotation present when all instances are not case objects."
+              s"Can not decode enum $av - @enumOfCaseObjects annotation present when all instances are not case objects."
             )
           )
         case _                                                             =>

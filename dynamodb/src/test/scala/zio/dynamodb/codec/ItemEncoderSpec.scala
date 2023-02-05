@@ -241,7 +241,7 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
         isFailure(
           hasMessage(
             equalTo(
-              "Error: can not encode enum ONE - @enumOfCaseObjects annotation present when all instances are not case objects."
+              "Can not encode enum ONE - @enumOfCaseObjects annotation present when all instances are not case objects."
             )
           )
         )
