@@ -58,6 +58,17 @@ object WithDiscriminatedEnum {
   implicit val schema: Schema[WithDiscriminatedEnum] = DeriveSchema.gen[WithDiscriminatedEnum]
 }
 
+@enumOfCaseObjects // should fail runtime validation as Three is not a case object
+sealed trait CaseObjectOnlyEnum2
+final case class WithCaseObjectOnlyEnum2(enum: CaseObjectOnlyEnum2)
+object WithCaseObjectOnlyEnum2 {
+  case object ONE                                           extends CaseObjectOnlyEnum2
+  @caseName("2")
+  case object TWO                                           extends CaseObjectOnlyEnum2
+  case class Three(@fieldName("funky_value") value: String) extends CaseObjectOnlyEnum2
+  implicit val schema: Schema[WithCaseObjectOnlyEnum2] = DeriveSchema.gen[WithCaseObjectOnlyEnum2]
+}
+
 @enumOfCaseObjects
 sealed trait CaseObjectOnlyEnum
 final case class WithCaseObjectOnlyEnum(enum: CaseObjectOnlyEnum)

@@ -8,9 +8,14 @@ import zio.test._
 import java.time.Instant
 import scala.collection.immutable.ListMap
 import zio.test.ZIOSpecDefault
+import scala.util.Try
 
 object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
-  override def spec = suite("ItemEncoder Suite")(mainSuite)
+  override def spec = suite("ItemEncoder Suite")(mainSuite, debugSuite @@ TestAspect.ignore)
+
+  val debugSuite = suite("debugSuite")(test("one") {
+    assertCompletes
+  })
 
   val mainSuite = suite("Main Suite")(
     test("encodes generic record") {
@@ -231,6 +236,20 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       val item = DynamoDBQuery.toItem(WithCaseObjectOnlyEnum(WithCaseObjectOnlyEnum.TWO))
 
       assert(item)(equalTo(expectedItem))
+    },
+    test("fails encoding of enum with @enumOfCaseObjects annotation that does not have all case objects") {
+
+      val item = Try(DynamoDBQuery.toItem(WithCaseObjectOnlyEnum2(WithCaseObjectOnlyEnum2.ONE)))
+
+      assert(item)(
+        isFailure(
+          hasMessage(
+            equalTo(
+              "Error: can not encode enum ONE - @enumOfCaseObjects annotation present when all instances are not case objects."
+            )
+          )
+        )
+      )
     },
     test("encodes enum and honours @caseName annotation when there is no @enumOfCaseObjects annotation") {
       val expectedItem: Item = Item("enum" -> Item(Map("1" -> AttributeValue.Null)))

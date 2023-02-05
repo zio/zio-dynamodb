@@ -312,6 +312,10 @@ private[dynamodb] object Codec {
               else
                 // these are case objects and are a special case - they need to wrapped in an AttributeValue.Map
                 AttributeValue.Map(Map(AttributeValue.String(discriminator) -> av2))
+            case _ if (hasEnumOnlyAnnotation && !allCaseObjects(cases))                                            =>
+              throw new IllegalStateException(
+                s"Error: can not encode enum ${case_.id} - @enumOfCaseObjects annotation present when all instances are not case objects."
+              )
             case av                                                                                                => throw new IllegalStateException(s"unexpected state $av")
           }
         } else
@@ -825,7 +829,7 @@ private[dynamodb] object Codec {
         }
 
     private def enumWithDisciminatorOrCaseObjectAnnotationDecoder[Z](
-      hasCaseObjectAnnotationCodec: Boolean,
+      hasEnumOnlyAnnotation: Boolean,
       discriminator: String,
       cases: Schema.Case[Z, _]*
     ): Decoder[Z] = { (av: AttributeValue) =>
@@ -842,12 +846,9 @@ private[dynamodb] object Codec {
         }
 
       av match {
-        case AttributeValue.String(id) =>
-          if (hasCaseObjectAnnotationCodec || allCaseObjects(cases)) // TODO - return error is invalid combo
-            decode(id)
-          else
-            Left(DecodingError(s"Error: not all enumeration elements are case objects. Found $cases"))
-        case AttributeValue.Map(map)   =>
+        case AttributeValue.String(id) if (hasEnumOnlyAnnotation && allCaseObjects(cases)) || !hasEnumOnlyAnnotation =>
+          decode(id)
+        case AttributeValue.Map(map)                                                                                 =>
           map
             .get(AttributeValue.String(discriminator))
             .fold[Either[DynamoDBError, Z]](
@@ -858,7 +859,13 @@ private[dynamodb] object Codec {
               case av                              =>
                 Left(DecodingError(s"expected string type but found $av"))
             }
-        case _                         =>
+        case _ if hasEnumOnlyAnnotation && !allCaseObjects(cases)                                                    =>
+          Left(
+            DecodingError(
+              s"Error: can not decode enum $av - @enumOfCaseObjects annotation present when all instances are not case objects."
+            )
+          )
+        case _                                                                                                       =>
           Left(DecodingError(s"unexpected AttributeValue type $av"))
       }
     }

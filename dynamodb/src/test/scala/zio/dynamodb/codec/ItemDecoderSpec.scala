@@ -3,14 +3,19 @@ package zio.dynamodb.codec
 import zio.dynamodb._
 import zio.dynamodb.codec.Invoice.PreBilled
 import zio.test.Assertion._
-import zio.test._
+import zio.test.{ ZIOSpecDefault, _ }
 
 import java.time.Instant
 import scala.collection.immutable.ListMap
-import zio.test.ZIOSpecDefault
 
 object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
-  override def spec = suite("ItemDecoder Suite")(mainSuite)
+  override def spec = suite("ItemDecoder Suite")(mainSuite, debugSuite @@ TestAspect.ignore)
+
+  val debugSuite = suite("debugSuite")(
+    test("one") {
+      assertCompletes
+    }
+  )
 
   val mainSuite = suite("Decoder Suite")(
     test("decodes generic record") {
@@ -298,6 +303,21 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       val actual = DynamoDBQuery.fromItem[WithCaseObjectOnlyEnum](item)
 
       assert(actual)(isRight(equalTo(WithCaseObjectOnlyEnum(WithCaseObjectOnlyEnum.TWO))))
+    },
+    test("fails decoding of enum with @enumOfCaseObjects annotation that does not have all case objects") {
+      val item: Item = Item(Map("enum" -> AttributeValue.String("ONE")))
+
+      val actual = DynamoDBQuery.fromItem[WithCaseObjectOnlyEnum2](item)
+
+      assert(actual)(
+        isLeft(
+          hasMessage(
+            equalTo(
+              "Error: can not decode enum String(ONE) - @enumOfCaseObjects annotation present when all instances are not case objects."
+            )
+          )
+        )
+      )
     },
     test(
       "decodes enum and honours @caseName annotation at case class level when there is no @discriminatorName annotation"
