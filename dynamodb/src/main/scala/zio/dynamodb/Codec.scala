@@ -850,7 +850,9 @@ private[dynamodb] object Codec {
         case AttributeValue.Map(map)   =>
           map
             .get(AttributeValue.String(discriminator))
-            .fold[Either[DynamoDBError, Z]](Left(DecodingError(s"map $av does not contain discriminator field '$discriminator'"))) {
+            .fold[Either[DynamoDBError, Z]](
+              Left(DecodingError(s"map $av does not contain discriminator field '$discriminator'"))
+            ) {
               case AttributeValue.String(typeName) =>
                 decode(typeName)
               case av                              =>
@@ -861,16 +863,19 @@ private[dynamodb] object Codec {
       }
     }
 
-    private[dynamodb] def decodeFields(av: AttributeValue, fields: Schema.Field[_, _]*): Either[DynamoDBError, List[Any]] =
+    private[dynamodb] def decodeFields(
+      av: AttributeValue,
+      fields: Schema.Field[_, _]*
+    ): Either[DynamoDBError, List[Any]] =
       av match {
         case AttributeValue.Map(map) =>
           EitherUtil
             .forEach(fields) {
               case Schema.Field(key, schema, _, _, _, _) =>
-                val dec                         = decoder(schema)
-                val k                           = key // @fieldName is respected by the zio-schema macro
-                val maybeValue                  = map.get(AttributeValue.String(k))
-                val maybeDecoder                = maybeValue.map(dec).toRight(DecodingError(s"field '$k' not found in $av"))
+                val dec                                = decoder(schema)
+                val k                                  = key // @fieldName is respected by the zio-schema macro
+                val maybeValue                         = map.get(AttributeValue.String(k))
+                val maybeDecoder                       = maybeValue.map(dec).toRight(DecodingError(s"field '$k' not found in $av"))
                 val either: Either[DynamoDBError, Any] = for {
                   decoder <- maybeDecoder
                   decoded <- decoder
