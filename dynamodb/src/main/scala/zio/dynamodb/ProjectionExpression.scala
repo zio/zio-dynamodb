@@ -689,7 +689,7 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     override type Prism[F, From, To]  = ProjectionExpression[From, To]
     override type Traversal[From, To] = Unit
 
-    // respects @id annotation
+    // respects @caseName annotation
     override def makeLens[F, S, A](product: Schema.Record[S], term: Schema.Field[S, A]): Lens[F, S, A] = {
 
       val label = maybeCaseName(term.annotations).getOrElse(term.name)
