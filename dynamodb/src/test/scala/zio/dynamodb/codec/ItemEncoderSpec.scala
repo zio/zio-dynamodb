@@ -145,7 +145,7 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
           Map(
             "enum" -> AttributeValue.Map(
               Map(
-                AttributeValue.String("funky_value")        -> AttributeValue.String("foobar"),
+                AttributeValue.String("funky_field_name")   -> AttributeValue.String("foobar"),
                 AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("StringValue2")
               )
             )
@@ -260,7 +260,7 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
           "enum" -> AttributeValue.Map(
             Map(
               AttributeValue.String("Three") -> AttributeValue.Map(
-                Map(AttributeValue.String("funky_value") -> AttributeValue.String("value"))
+                Map(AttributeValue.String("funky_field_name") -> AttributeValue.String("value"))
               )
             )
           )

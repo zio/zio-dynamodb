@@ -210,7 +210,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
           Map(
             "enum" -> AttributeValue.Map(
               Map(
-                AttributeValue.String("funky_value")        -> AttributeValue.String("foobar"),
+                AttributeValue.String("funky_field_name")        -> AttributeValue.String("foobar"),
                 AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("StringValue2")
               )
             )
