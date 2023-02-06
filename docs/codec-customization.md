@@ -37,23 +37,23 @@ Here an intermediate map is used to identify the member of `TraficLight` ie `Map
 Note that the `Null` is used as in this case we do not care about the value.
 
 # Customising encodings via annotations
-Encodings can be customised through the use of the following annotations `@discriminator`, `@enumOfCaseObjects` and `@id`.
+Encodings can be customised through the use of the following annotations `@discriminatorName`, `@enumOfCaseObjects` and `@fieldName`.
 These annotations are useful when working with a legacy DynamoDB database.
 
-The `@discriminator` encodings does not introduce another map for the purposes of identification but rather adds another 
+The `@discriminatorName` encodings does not introduce another map for the purposes of identification but rather adds another 
 discriminator field to the attribute Map.
 
-Concrete examples of using the `@discriminator`, `@enumOfCaseObjects` and `@id` annotations can be seen below.
+Concrete examples of using the `@discriminatorName`, `@enumOfCaseObjects` and `@field` annotations can be seen below.
 
 ## Sealed trait members that are case classes
 
 ```scala
-@discriminator("light_type")
+@discriminatorName("light_type")
 sealed trait TrafficLight
 final case class Green(rgb: Int) extends TrafficLight
-@id("red_traffic_light")
+@caseName("red_traffic_light")
 final case class Red(rgb: Int) extends TrafficLight
-final case class Amber(@id("red_green_blue") rgb: Int) extends TrafficLight
+final case class Amber(@fieldName("red_green_blue") rgb: Int) extends TrafficLight
 final case class Box(trafficLightColour: TrafficLight)
 ```
 
@@ -61,15 +61,15 @@ encoding for an instance of `Box(Green(42))` would be:
 
 `Map(trafficLightColour -> Map(String(rgb) -> Number(42), String(light_type) -> String(Green)))`
 
-We can specify the field name used to identify the case class through the `@discriminator` annotation. The discriminator
+We can specify the field name used to identify the case class through the `@discriminatorName` annotation. The discriminator
 encoding removes the intermediate map and inserts a new field with a name specified by discriminator annotation and a
 value that identifies the member which defaults to the class name.
 
-This can be further customised using the `@id` annotation - encoding for an instance of `Box(Red(42))` would be:
+This can be further customised using the `@caseName` annotation - encoding for an instance of `Box(Red(42))` would be:
 
 `Map(trafficLightColour -> Map(String(rgb) -> Number(42), String(light_type) -> String(red_traffic_light)))`
 
-The encoding for case class field names can also be customised via `@id` - encoding for an instance of `Box(Amber(42))` would be:
+The encoding for case class field names can also be customised via `@fieldName` - encoding for an instance of `Box(Amber(42))` would be:
 
 `Map(trafficLightColour -> Map(String(red_green_blue) -> Number(42), String(light_type) -> String(Amber)))`
 
@@ -80,7 +80,7 @@ The encoding for case class field names can also be customised via `@id` - encod
 @enumOfCaseObjects
 sealed trait TrafficLight
 case object GREEN extends TrafficLight 
-@id("red_traffic_light")
+@caseName("red_traffic_light")
 case object RED extends TrafficLight
 final case class Box(trafficLightColour: TrafficLight)
 ```
@@ -90,7 +90,7 @@ annotation which encodes to just a value that is the member name. Encoding for a
 
 `Map(trafficLightColour -> String(GREEN))`
 
-This can be further customised by using the `@id` annotation again - encoding for `Box(RED)` would be
+This can be further customised by using the `@caseName` annotation again - encoding for `Box(RED)` would be
 
 `Map(trafficLightColour -> String(red_traffic_light))`
 

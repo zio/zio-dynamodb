@@ -8,6 +8,7 @@ import zio.test._
 import java.time.Instant
 import scala.collection.immutable.ListMap
 import zio.test.ZIOSpecDefault
+import scala.util.Try
 
 object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
   override def spec = suite("ItemEncoder Suite")(mainSuite)
@@ -121,7 +122,7 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes enum with discriminator annotation") {
+    test("encodes enum with @discriminatorName annotation") {
       val expectedItem: Item =
         Item(
           Map(
@@ -138,13 +139,13 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes enum with discriminator annotation and @id annotation at field level for a case class") {
+    test("encodes enum with @discriminatorName annotation and @fieldName annotation for a case class") {
       val expectedItem: Item =
         Item(
           Map(
             "enum" -> AttributeValue.Map(
               Map(
-                AttributeValue.String("funky_value")        -> AttributeValue.String("foobar"),
+                AttributeValue.String("funky_field_name")   -> AttributeValue.String("foobar"),
                 AttributeValue.String("funkyDiscriminator") -> AttributeValue.String("StringValue2")
               )
             )
@@ -155,7 +156,7 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes enum with discriminator annotation and an @id annotation on a case class") {
+    test("encodes enum with @discriminatorName annotation and an @caseName annotation on a case class") {
       val expectedItem: Item =
         Item(
           Map(
@@ -172,7 +173,7 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes enum with discriminator annotation and case object as item without a @id annotation") {
+    test("encodes enum with @discriminatorName annotation and case object as item without a @caseName annotation") {
       val expectedItem: Item =
         Item(
           Map(
@@ -188,7 +189,7 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes enum with discriminator annotation and case object as item with @id annotation of '2'") {
+    test("encodes enum with @discriminatorName annotation and case object as item with @caseName annotation of '2'") {
       val expectedItem: Item =
         Item(
           Map(
@@ -204,7 +205,7 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes top level enum with discriminator annotation") {
+    test("encodes top level enum with @discriminatorName annotation") {
       val expectedItem: Item =
         Item(
           Map(
@@ -225,27 +226,41 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes case object only enum with @enumOfCaseObjects annotation and @id annotation of '2'") {
+    test("encodes case object only enum with @enumOfCaseObjects annotation and @caseName annotation of '2'") {
       val expectedItem: Item = Item(Map("enum" -> AttributeValue.String("2")))
 
       val item = DynamoDBQuery.toItem(WithCaseObjectOnlyEnum(WithCaseObjectOnlyEnum.TWO))
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes enum and honours @id annotation when there is no @enumOfCaseObjects annotation") {
+    test("fails encoding of enum with @enumOfCaseObjects annotation that does not have all case objects") {
+
+      val item = Try(DynamoDBQuery.toItem(WithCaseObjectOnlyEnum2(WithCaseObjectOnlyEnum2.ONE)))
+
+      assert(item)(
+        isFailure(
+          hasMessage(
+            equalTo(
+              "Can not encode enum ONE - @enumOfCaseObjects annotation present when all instances are not case objects."
+            )
+          )
+        )
+      )
+    },
+    test("encodes enum and honours @caseName annotation when there is no @enumOfCaseObjects annotation") {
       val expectedItem: Item = Item("enum" -> Item(Map("1" -> AttributeValue.Null)))
 
       val item = DynamoDBQuery.toItem(WithEnumWithoutDiscriminator(WithEnumWithoutDiscriminator.ONE))
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes enum without @discriminator annotation and uses @id field level annotation") {
+    test("encodes enum without @discriminatorName annotation and uses @fieldName field level annotation") {
       val expectedItem: Item = Item(
         Map(
           "enum" -> AttributeValue.Map(
             Map(
               AttributeValue.String("Three") -> AttributeValue.Map(
-                Map(AttributeValue.String("funky_value") -> AttributeValue.String("value"))
+                Map(AttributeValue.String("funky_field_name") -> AttributeValue.String("value"))
               )
             )
           )

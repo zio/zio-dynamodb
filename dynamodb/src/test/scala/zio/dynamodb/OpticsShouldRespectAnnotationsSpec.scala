@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.Annotations.{ discriminator, id }
+import zio.schema.annotation.{ caseName, discriminatorName, fieldName }
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test.Assertion.equalTo
 import zio.test.{ assert, ZIOSpecDefault }
@@ -12,7 +12,7 @@ object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
   object BoxOfCaseObjectOnlyEnum {
 
     case object ONE extends CaseObjectOnlyEnum
-    @id("2")
+    @caseName("2")
     case object TWO extends CaseObjectOnlyEnum
     implicit val schema: Schema[BoxOfCaseObjectOnlyEnum] = DeriveSchema.gen[BoxOfCaseObjectOnlyEnum]
     val sumType                                          = ProjectionExpression.accessors[BoxOfCaseObjectOnlyEnum]
@@ -29,7 +29,7 @@ object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
       val rgb: ProjectionExpression[Green, Int] = ProjectionExpression.accessors[Green]
     }
 
-    @id("red_traffic_light")
+    @caseName("red_traffic_light")
     final case class Red(rgb: Int) extends TrafficLight
 
     object Red {
@@ -37,7 +37,7 @@ object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
       val rgb: ProjectionExpression[Red, Int] = ProjectionExpression.accessors[Red]
     }
 
-    final case class Amber(@id("red_green_blue") rgb: Int) extends TrafficLight
+    final case class Amber(@fieldName("red_green_blue") rgb: Int) extends TrafficLight
 
     object Amber {
       implicit val schema = DeriveSchema.gen[Amber]
@@ -57,7 +57,7 @@ object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
 
   }
 
-  @discriminator("light_type")
+  @discriminatorName("light_type")
   sealed trait TrafficLightDiscriminated
 
   object TrafficLightDiscriminated {
@@ -68,7 +68,7 @@ object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
       val rgb: ProjectionExpression[Green, Int] = ProjectionExpression.accessors[Green]
     }
 
-    @id("red_traffic_light")
+    @caseName("red_traffic_light")
     final case class Red(rgb: Int) extends TrafficLightDiscriminated
 
     object Red {
@@ -76,7 +76,7 @@ object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
       val rgb: ProjectionExpression[Red, Int] = ProjectionExpression.accessors[Red]
     }
 
-    final case class Amber(@id("red_green_blue") rgb: Int) extends TrafficLightDiscriminated
+    final case class Amber(@fieldName("red_green_blue") rgb: Int) extends TrafficLightDiscriminated
 
     object Amber {
       implicit val schema                       = DeriveSchema.gen[Amber]
@@ -118,13 +118,15 @@ object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
           TrafficLightDiscriminated.Box.trafficLightColour >>> TrafficLightDiscriminated.green >>> TrafficLightDiscriminated.Green.rgb
         assert(pe.toString)(equalTo("trafficLightColour.rgb"))
       },
-      test("@id annotations at class level do not affect traversal as they are bypassed ie trafficLightColour.rgb") {
+      test(
+        "@caseName annotations at class level do not affect traversal as they are bypassed ie trafficLightColour.rgb"
+      ) {
         // Map(String(rgb) -> Number(42), String(light_type) -> String(red_traffic_light))
         val pe =
           TrafficLightDiscriminated.Box.trafficLightColour >>> TrafficLightDiscriminated.red >>> TrafficLightDiscriminated.Red.rgb
         assert(pe.toString)(equalTo("trafficLightColour.rgb"))
       },
-      test("@id annotations at field level are honoured") {
+      test("@fieldName annotations are honoured") {
         // Map(String(rgb) -> Number(42), String(light_type) -> String(Amber))
         val pe =
           TrafficLightDiscriminated.Box.trafficLightColour >>> TrafficLightDiscriminated.amber >>> TrafficLightDiscriminated.Amber.rgb
@@ -137,13 +139,13 @@ object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
   val nonDiscriminatedSuite = {
     val conditionExpressionSuite =
       suite("ConditionExpression suite")(
-        test("Path with no @id at class or field level results in a PE of trafficLightColour.Green.rgb") {
+        test("Path with no @caseName or @fieldName annotations results in a PE of trafficLightColour.Green.rgb") {
           val ce = TrafficLight.Box.trafficLightColour >>> TrafficLight.green >>> TrafficLight.Green.rgb === 1
           assert(ce.toString)(
             equalTo("Equals(ProjectionExpressionOperand(trafficLightColour.Green.rgb),ValueOperand(Number(1)))")
           )
         },
-        test("Path with @id at class but not field level results in a PE of trafficLightColour.red_traffic_light.rgb") {
+        test("Path with @caseName but no @fieldName results in a PE of trafficLightColour.red_traffic_light.rgb") {
           val ce = TrafficLight.Box.trafficLightColour >>> TrafficLight.red >>> TrafficLight.Red.rgb === 1
           assert(ce.toString)(
             equalTo(
@@ -158,13 +160,13 @@ object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
         val pe = TrafficLight.Box.trafficLightColour >>> TrafficLight.green >>> TrafficLight.Green.rgb
         assert(pe.toString)(equalTo("trafficLightColour.Green.rgb"))
       },
-      test("@id annotations at class level are honoured") {
+      test("@caseName annotations are honoured") {
         // Map(trafficLightColour -> Map(String(red_traffic_light) -> Map(String(rgb) -> Number(42))))
         val pe =
           TrafficLight.Box.trafficLightColour >>> TrafficLight.red >>> TrafficLight.Red.rgb
         assert(pe.toString)(equalTo("trafficLightColour.red_traffic_light.rgb"))
       },
-      test("@id annotations at field level are honoured") {
+      test("@fieldName annotations are honoured") {
         val pe =
           TrafficLight.Box.trafficLightColour >>> TrafficLight.amber >>> TrafficLight.Amber.rgb
         assert(pe.toString)(equalTo("trafficLightColour.Amber.red_green_blue"))

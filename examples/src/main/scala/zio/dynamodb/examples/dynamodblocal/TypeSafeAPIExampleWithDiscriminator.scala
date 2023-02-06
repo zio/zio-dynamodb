@@ -1,17 +1,16 @@
 package zio.dynamodb.examples.dynamodblocal
 
-import zio.dynamodb.examples.dynamodblocal.DynamoDB._
-import zio.dynamodb.Annotations.discriminator
+import zio.{ ZIO, ZIOAppDefault }
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb._
+import zio.dynamodb.examples.dynamodblocal.DynamoDB._
 import zio.dynamodb.examples.dynamodblocal.TypeSafeAPIExampleWithDiscriminator.TrafficLight.{ Amber, Box, Green }
 import zio.schema.DeriveSchema
-import zio.ZIOAppDefault
-import zio.ZIO
+import zio.schema.annotation.discriminatorName
 
 object TypeSafeAPIExampleWithDiscriminator extends ZIOAppDefault {
 
-  @discriminator("light_type")
+  @discriminatorName("light_type")
   sealed trait TrafficLight
 
   object TrafficLight {

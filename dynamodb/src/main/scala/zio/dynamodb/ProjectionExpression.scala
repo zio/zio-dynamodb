@@ -1,7 +1,7 @@
 package zio.dynamodb
 
 import zio.Chunk
-import zio.dynamodb.Annotations.{ maybeDiscriminator, maybeId }
+import zio.dynamodb.Annotations.{ maybeCaseName, maybeDiscriminator }
 import zio.dynamodb.ConditionExpression.Operand.ProjectionExpressionOperand
 import zio.dynamodb.ProjectionExpression.{ ListElement, MapElement, Root }
 import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListPrepend, PathOperand }
@@ -689,10 +689,10 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     override type Prism[F, From, To]  = ProjectionExpression[From, To]
     override type Traversal[From, To] = Unit
 
-    // respects @id annotation
+    // respects @caseName annotation
     override def makeLens[F, S, A](product: Schema.Record[S], term: Schema.Field[S, A]): Lens[F, S, A] = {
 
-      val label = maybeId(term.annotations).getOrElse(term.name)
+      val label = maybeCaseName(term.annotations).getOrElse(term.name)
       ProjectionExpression.MapElement(Root, label)
     }
 
@@ -702,7 +702,7 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
           ProjectionExpression.Root.asInstanceOf[Prism[F, S, A]]
         case None    =>
           ProjectionExpression
-            .MapElement(Root, maybeId(term.annotations).getOrElse(term.id))
+            .MapElement(Root, maybeCaseName(term.annotations).getOrElse(term.id))
             .asInstanceOf[Prism[F, S, A]]
       }
 
