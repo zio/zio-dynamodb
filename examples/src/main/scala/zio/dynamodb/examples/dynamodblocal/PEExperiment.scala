@@ -9,12 +9,6 @@ import zio.schema.annotation.fieldName
 
 object PEExperiment extends ZIOAppDefault {
 
-  /*
-  Possible fixes:
-  1) @fieldName("myTtl") ttl: Option[Long] - works
-  2) @fieldName("ttl") myTtl: Option[Long] - does not work
-   */
-
   final case class RecordWithTtl(
     email: String,
     @fieldName("alt_ttl") ttl: Option[Long]
