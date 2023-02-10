@@ -97,6 +97,7 @@ sealed trait ProjectionExpression[-From, +To] { self =>
     def loop(pe: ProjectionExpression[_, _], acc: List[String]): List[String] =
       pe match {
         case Root                                        => acc // identity
+        // TODO: maybe we can inject subst here?
         case ProjectionExpression.MapElement(Root, name) => acc :+ s"$name"
         case MapElement(parent, key)                     => loop(parent, acc :+ s".$key")
         case ListElement(parent, index)                  => loop(parent, acc :+ s"[$index]")

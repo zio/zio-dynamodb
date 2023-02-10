@@ -1,5 +1,8 @@
 package zio.dynamodb
 
+// map is AV -> aliasName
+// index is the next index to use
+// alias name s":v${self.index}
 private[dynamodb] final case class AliasMap private (map: Map[AttributeValue, String], index: Int) { self =>
   private def +(entry: AttributeValue): (AliasMap, String) = {
     val variableAlias = s":v${self.index}"
