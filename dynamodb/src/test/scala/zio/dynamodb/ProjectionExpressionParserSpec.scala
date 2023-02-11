@@ -45,7 +45,7 @@ object ProjectionExpressionParserSpec extends ZIOSpecDefault {
 
   }
 
-  override def spec = suite("main")(mainSuite @@ TestAspect.ignore, debugSuite)
+  override def spec = suite("main")(mainSuite, debugSuite)
 
   private val debugSuite = suite("debug")(
     test("toString on a ProjectionExpression of filter.float[9].ttl") {

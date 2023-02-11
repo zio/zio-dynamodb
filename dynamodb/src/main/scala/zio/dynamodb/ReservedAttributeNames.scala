@@ -3,7 +3,7 @@ package zio.dynamodb
 import scala.collection.immutable.HashSet
 
 private[dynamodb] object ReservedAttributeNames {
-  val reservedWords: Set[String] = HashSet("FILTER", "FLOAT", "TTL")
+  val reservedWords: Set[String] = HashSet("FILTER", "FLOAT", "TTL") // TODO: complete with all reserved words
   val Prefix: String             = "~~~~~~~~~~~~"
   val boundaryCharRegex          = "[\\.|\\[]$".r
   private val pathRegex          = s"($Prefix\\S+\\.|$Prefix\\S+\\[|$Prefix\\S+)".r
@@ -25,6 +25,7 @@ private[dynamodb] object ReservedAttributeNames {
       case (acc, (sub, _, s)) => acc.replace(s, sub)
     }
     val map     = replacements.map { case (sub, rep, _) => (sub, rep) }.toMap
+
     (map, escaped)
   }
 }
