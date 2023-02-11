@@ -4,6 +4,7 @@ import zio.aws.dynamodb.DynamoDb
 import zio.aws.dynamodb.model.primitives.{
   BinaryAttributeValue,
   BooleanAttributeValue,
+  ExpressionAttributeNameVariable,
   KMSMasterKeyId,
   NonKeyAttributeName,
   NullAttributeValue,
@@ -55,6 +56,7 @@ import zio.aws.dynamodb.model.{
   UpdateItemRequest,
   UpdateItemResponse,
   WriteRequest,
+  primitives,
   AttributeDefinition => ZIOAwsAttributeDefinition,
   AttributeValue => ZIOAwsAttributeValue,
   BillingMode => ZIOAwsBillingMode,
@@ -618,20 +620,48 @@ case object DynamoDBExecutorImpl {
       item.map.flatMap { case (k, v) => awsAttributeValue(v).map(a => (ZIOAwsAttributeName(k.toString), a)) }
   }
 
-  private def awsPutItemRequest(putItem: PutItem): PutItemRequest = {
-    val maybeAliasMap = putItem.conditionExpression.map(_.render.execute)
+  private def exprnAttrNamesAndReplaced(
+    maybeAliasMap: Option[(AliasMap, String)]
+  ): Option[(ScalaMap[primitives.ExpressionAttributeNameVariable.Type, ZIOAwsAttributeName.Type], String)] = {
+//    val x = maybeAliasMap.map { case (_, s) => ReservedAttributeNames.escape(s) }
+    val y =
+      for {
+        expression     <- maybeAliasMap.map(_._2)
+        (map, replaced) = ReservedAttributeNames.parse(expression)
+        awsMap          = map.map { case (k, v) => (ExpressionAttributeNameVariable(k), ZIOAwsAttributeName(v)) }
+      } yield (awsMap, replaced)
+//    val x = y.flatMap {
+//      case (map, _) if map.isEmpty => None
+//      case t                       => Some(t)
+//    }
+    println(s"XXXXXXXXXXXXXXXXXXXXXXX exprnAttrNamesAndReplaced=$y")
+    y
+  }
 
+  private def awsPutItemRequest(putItem: PutItem): PutItemRequest = {
+    val maybeAliasMap                                                                                            = putItem.conditionExpression.map(_.render.execute)
+//    val x: Option[String]                             = maybeAliasMap.map { case (_, s) => ReservedAttributeNames.escape(s) }
+//    val y: Option[(ScalaMap[String, String], String)] = x.map(ReservedAttributeNames.parse).map {
+//      case (map, sub) =>
+//        (map.map { case (k, v) => (ExpressionAttributeNameVariable(k), AttributeName(v)) }, sub)
+//    }
+    val x: Option[(ScalaMap[primitives.ExpressionAttributeNameVariable.Type, ZIOAwsAttributeName.Type], String)] =
+      exprnAttrNamesAndReplaced(maybeAliasMap)
     PutItemRequest(
       tableName = ZIOAwsTableName(putItem.tableName.value),
       item = awsAttributeValueMap(putItem.item.map),
       returnConsumedCapacity = Some(awsConsumedCapacity(putItem.capacity)),
       returnItemCollectionMetrics = Some(ReturnItemCollectionMetrics.toZioAws(putItem.itemMetrics)),
-      conditionExpression = maybeAliasMap.map(c => ZIOAwsConditionExpression(c._2)),
+      conditionExpression = x.map { t =>
+        println(s"XXXXXXXXXXXXXXXXXXXXXXXXXXX conditionExpression='${t._2}'")
+        ZIOAwsConditionExpression(t._2)
+      },
       // Optional[Map[ExpressionAttributeValueVariable, zio.aws.dynamodb.model.AttributeValue]]
       // eg ":v0" -> AV
       expressionAttributeValues = maybeAliasMap.flatMap(m => aliasMapToExpressionZIOAwsAttributeValues(m._1)),
       // Optional[Map[ExpressionAttributeNameVariable, AttributeName]]
-      expressionAttributeNames = None, // TODO: Avi - inject substitutions here
+      expressionAttributeNames =
+        x.flatMap(t => if (t._1.isEmpty) None else Some(t._1)), // TODO: Avi - inject substitutions here
       returnValues = Some(awsReturnValues(putItem.returnValues))
     )
   }
