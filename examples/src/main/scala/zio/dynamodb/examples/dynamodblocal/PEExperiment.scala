@@ -5,13 +5,13 @@ import zio.dynamodb._
 import zio.dynamodb.examples.dynamodblocal.DynamoDB._
 import zio.schema.DeriveSchema
 import zio.{ Console, ZIOAppDefault }
-import zio.schema.annotation.fieldName
 
 object PEExperiment extends ZIOAppDefault {
 
   final case class RecordWithTtl(
     email: String,
-    @fieldName("alt_ttl") ttl: Option[Long]
+    // @fieldName("alt_ttl")
+    ttl: Option[Long]
   )
 
   object RecordWithTtl {
