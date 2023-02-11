@@ -105,6 +105,24 @@ sealed trait ProjectionExpression[-From, +To] { self =>
 
     loop(self, List.empty).reverse.mkString("")
   }
+
+  def toStringEscaped: String = {
+    @tailrec
+    def loop(pe: ProjectionExpression[_, _], acc: List[String]): List[String] =
+      pe match {
+        case Root                                        => 
+          acc // identity
+        case ProjectionExpression.MapElement(Root, name) => 
+          acc :+ ReservedAttributeNames.escape(s"$name")
+        case MapElement(parent, key)                     => 
+          loop(parent, acc :+ "." + ReservedAttributeNames.escape(s"$key"))
+        case ListElement(parent, index)                  => 
+          loop(parent, acc :+ s"[$index]")
+      }
+
+    loop(self, List.empty).reverse.mkString("")
+  }
+
 }
 
 trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowPriorityImplicits1 {
