@@ -11,7 +11,7 @@ object PEExperiment extends ZIOAppDefault {
   final case class RecordWithTtl(
     email: String,
     // @fieldName("alt_ttl")
-    N0_ttl: Option[Long]
+    ttl: Option[Long]
   )
 
   object RecordWithTtl {

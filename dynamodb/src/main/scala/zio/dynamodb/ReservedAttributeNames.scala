@@ -5,7 +5,7 @@ import scala.collection.immutable.HashSet
 private[dynamodb] object ReservedAttributeNames {
   val reservedWords: Set[String] = HashSet("FILTER", "FLOAT", "TTL") // TODO: complete with all reserved words
   val Prefix: String             = "~~~~~~~~~~~~"
-  val boundaryCharRegex          = "[\\.|\\[]$".r
+  val boundaryCharRegex          = "[\\.|\\[|\\)]$".r
   private val pathRegex          = s"($Prefix\\S+\\.|$Prefix\\S+\\[|$Prefix\\S+)".r
 
   def escape(pathSegment: String): String =
@@ -18,14 +18,20 @@ private[dynamodb] object ReservedAttributeNames {
     val replacements: List[(String, String, String)] = targetsToEscape.foldLeft(List.empty[(String, String, String)]) {
       case (acc, s) =>
         val replaced = s.replace(Prefix, "")
-        acc :+ ((s"#N${acc.size}_$replaced", replaced, s))
+        acc :+ ((s"N$replaced", replaced, s)) // ${acc.size}
     }
 
     val escaped = replacements.foldLeft(expression) {
-      case (acc, (sub, _, s)) => acc.replace(s, sub)
+      case (acc, (sub, _, s)) =>
+        val x = acc.replace(s, "#" + sub)
+        x
     }
-    val map     = replacements.map { case (sub, rep, _) => (sub, rep) }.toMap
+    val map     = replacements.map {
+      case (sub, rep, _) =>
+        ("#" + sub, rep)
+    }.toMap
 
-    (map, escaped)
+    val x = (map, escaped)
+    x
   }
 }
