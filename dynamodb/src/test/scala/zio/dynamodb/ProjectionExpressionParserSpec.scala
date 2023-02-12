@@ -45,7 +45,7 @@ object ProjectionExpressionParserSpec extends ZIOSpecDefault {
 
   }
 
-  override def spec = suite("main")(mainSuite @@ TestAspect.ignore, debugSuite)
+  override def spec = suite("main")(mainSuite, debugSuite)
 
   private val debugSuite = suite("debug")(
     test("toString on a ProjectionExpression of filter.float[9].ttl") {
@@ -58,8 +58,8 @@ object ProjectionExpressionParserSpec extends ZIOSpecDefault {
     },
     test("parse") {
       val (map, s) = ReservedAttributeNames.parse("~~~~~~~~~~~~ttl) ~~~~~~~~~~~~filter.~~~~~~~~~~~~float[9]")
-      assert(s)(equalTo("#Nttl) #Nfilter.#Nfloat[9]")) && assert(map)(
-        equalTo(Map("#Nfilter" -> "filter", "#Nfloat" -> "float", "#Nttl" -> "ttl"))
+      assert(s)(equalTo("#N0_ttl) #N1_filter.#N2_float[9]")) && assert(map)(
+        equalTo(Map("#N0_ttl" -> "ttl", "#N1_filter" -> "filter", "#N2_float" -> "float"))
       )
     }
   )
