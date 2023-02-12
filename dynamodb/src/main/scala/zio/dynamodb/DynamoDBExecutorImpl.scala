@@ -659,7 +659,7 @@ case object DynamoDBExecutorImpl {
       // eg ":v0" -> AV
       expressionAttributeValues = maybeAliasMap.flatMap(m => aliasMapToExpressionZIOAwsAttributeValues(m._1)),
       // Optional[Map[ExpressionAttributeNameVariable, AttributeName]]
-      expressionAttributeNames = maybeNames, // TODO: Avi - inject substitutions here
+      expressionAttributeNames = maybeNames,
       returnValues = Some(awsReturnValues(putItem.returnValues))
     )
   }
