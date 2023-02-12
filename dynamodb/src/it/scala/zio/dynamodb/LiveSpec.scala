@@ -125,6 +125,8 @@ object LiveSpec extends ZIOSpecDefault {
         } yield TableName(tableName)
       )(tName => deleteTable(tName.value).execute.orDie)
 
+  // TODO: Avi - fix problem with inference of this function when splitting suites    
+  // "a type was inferred to be `Any`; this may indicate a programming error."
   private def withTemporaryTable[R](
     tableDefinition: String => CreateTable,
     f: String => ZIO[DynamoDBExecutor with R, Throwable, TestResult]
@@ -156,7 +158,7 @@ object LiveSpec extends ZIOSpecDefault {
     ConditionExpression.Operand.ValueOperand(AttributeValue(id))
   )
 
-  override def spec: Spec[TestEnvironment, Any] = suite("all")(mainSuite @@TestAspect.ignore , exprnAttrNamesSuite)
+  override def spec: Spec[TestEnvironment, Any] = mainSuite
 
   final case class ExpressionAttrNames(id: String, num: Int, ttl: Option[Long])
   object ExpressionAttrNames {
@@ -164,38 +166,34 @@ object LiveSpec extends ZIOSpecDefault {
     val (id, num, ttl)  = ProjectionExpression.accessors[ExpressionAttrNames]
   }
 
-  val exprnAttrNamesSuite: Spec[TestEnvironment, Any] = suite("keywords in expression attribute names")(
-    suite("using high level api")(
-      test("scan should handle keyword") {
-        withDefaultTable { tableName =>
-          val query = DynamoDBQuery
-            .scanAll[ExpressionAttrNames](tableName)
-            .filter(ExpressionAttrNames.ttl.notExists)
-          query.execute.flatMap(_.runDrain).exit.map { result =>
-            assert(result)(succeeds(isUnit))
-          }
-        }
-      }
-    ),
-    suite("using low level api")(
-      test("scan should handle keyword") {
-        withDefaultTable { tableName =>
-          val query = DynamoDBQuery
-            .scanAll[ExpressionAttrNames](tableName)
-            .filter($("ttl").notExists)
-          query.execute.flatMap(_.runDrain).exit.map { result =>
-            assert(result)(succeeds(isUnit))
-          }
-        }
-      }
-    )
-  )
-    .provideSomeLayerShared[TestEnvironment](
-      testLayer.orDie
-    ) @@ nondeterministic
-
   val mainSuite: Spec[TestEnvironment, Any] =
     suite("live test")(
+      suite("keywords in expression attribute names")(
+        suite("using high level api")(
+          test("scan should handle keyword") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .scanAll[ExpressionAttrNames](tableName)
+                .filter(ExpressionAttrNames.ttl.notExists)
+              query.execute.flatMap(_.runDrain).exit.map { result =>
+                assert(result)(succeeds(isUnit))
+              }
+            }
+          }
+        ),
+        suite("using low level api")(
+          test("scan should handle keyword") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .scanAll[ExpressionAttrNames](tableName)
+                .filter($("ttl").notExists)
+              query.execute.flatMap(_.runDrain).exit.map { result =>
+                assert(result)(succeeds(isUnit))
+              }
+            }
+          }
+        )
+      ),
       suite("basic usage")(
         test("put and get item") {
           withDefaultTable { tableName =>
