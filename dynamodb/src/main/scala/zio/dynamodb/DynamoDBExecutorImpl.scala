@@ -820,8 +820,8 @@ case object DynamoDBExecutorImpl {
       limit = scanAll.limit.map(PositiveIntegerObject(_)),
       projectionExpression =
         toOption(scanAll.projections).map(awsProjectionExpression).map(ZIOAwsProjectionExpression(_)),
-      filterExpression = Some(ZIOAwsConditionExpression("#Nttl = (:v0)")),
-      //maybeCondExprn,                      //zioAwsFilterExpression, // filterExpression.map(_._2).map(ZIOAwsConditionExpression(_)),
+      filterExpression =
+        maybeCondExprn,                      //zioAwsFilterExpression, // filterExpression.map(_._2).map(ZIOAwsConditionExpression(_)),
       expressionAttributeValues = filterExpression
         .flatMap(a => aliasMapToExpressionZIOAwsAttributeValues(a._1))
         .map(_.map { case (k, v) => (ZIOAwsExpressionAttributeValueVariable(k), v) }),

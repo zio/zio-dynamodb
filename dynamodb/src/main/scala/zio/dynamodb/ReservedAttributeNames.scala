@@ -3,10 +3,10 @@ package zio.dynamodb
 import scala.collection.immutable.HashSet
 
 private[dynamodb] object ReservedAttributeNames {
-  val reservedWords: Set[String] = HashSet("FILTER", "FLOAT", "TTL") // TODO: complete with all reserved words
+  val reservedWords: Set[String] = HashSet("FILTER", "FLOAT", "TTL")                // TODO: complete with all reserved words
   val Prefix: String             = "~~~~~~~~~~~~"
   val boundaryCharRegex          = "[\\.|\\[|\\)]$".r
-  private val pathRegex          = s"($Prefix\\S+\\.|$Prefix\\S+\\[|$Prefix\\S+)".r
+  private val pathRegex          = s"($Prefix\\S+\\.|$Prefix\\S+\\[|$Prefix\\S+)".r // TODO: add ")" ????
 
   def escape(pathSegment: String): String =
     if (reservedWords.contains(pathSegment.toUpperCase)) s"$Prefix$pathSegment" else pathSegment
