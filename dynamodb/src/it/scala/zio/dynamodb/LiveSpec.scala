@@ -162,10 +162,8 @@ object LiveSpec extends ZIOSpecDefault {
 
   final case class ExpressionAttrNames(id: String, num: Int, ttl: Option[Long])
   object ExpressionAttrNames {
-    implicit val schema
-      : Schema.CaseClass3.WithFields["id", "num", "ttl", String, Int, Option[Long], ExpressionAttrNames] =
-      DeriveSchema.gen[ExpressionAttrNames]
-    val (id, num, ttl)                                                                                   = ProjectionExpression.accessors[ExpressionAttrNames]
+    implicit val schema = DeriveSchema.gen[ExpressionAttrNames]
+    val (id, num, ttl)  = ProjectionExpression.accessors[ExpressionAttrNames]
   }
 
   val mainSuite: Spec[TestEnvironment, Any] =
@@ -182,6 +180,7 @@ object LiveSpec extends ZIOSpecDefault {
               }
             }
           },
+          // TODO: Avi scanSome
           test("delete should handle keyword") {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery

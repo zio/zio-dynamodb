@@ -18,4 +18,5 @@ object CanFilter {
     val _ = ev
     new CanFilter[A, Stream[Throwable, B]] {}
   }
+  // TODO: Avi deal with Either[DynamoDBError, (Chunk[A], LastEvaluatedKey)]
 }
