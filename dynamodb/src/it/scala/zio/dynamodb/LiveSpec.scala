@@ -125,7 +125,7 @@ object LiveSpec extends ZIOSpecDefault {
         } yield TableName(tableName)
       )(tName => deleteTable(tName.value).execute.orDie)
 
-  // TODO: Avi - fix problem with inference of this function when splitting suites    
+  // TODO: Avi - fix problem with inference of this function when splitting suites
   // "a type was inferred to be `Any`; this may indicate a programming error."
   private def withTemporaryTable[R](
     tableDefinition: String => CreateTable,
@@ -162,8 +162,10 @@ object LiveSpec extends ZIOSpecDefault {
 
   final case class ExpressionAttrNames(id: String, num: Int, ttl: Option[Long])
   object ExpressionAttrNames {
-    implicit val schema = DeriveSchema.gen[ExpressionAttrNames]
-    val (id, num, ttl)  = ProjectionExpression.accessors[ExpressionAttrNames]
+    implicit val schema
+      : Schema.CaseClass3.WithFields["id", "num", "ttl", String, Int, Option[Long], ExpressionAttrNames] =
+      DeriveSchema.gen[ExpressionAttrNames]
+    val (id, num, ttl)                                                                                   = ProjectionExpression.accessors[ExpressionAttrNames]
   }
 
   val mainSuite: Spec[TestEnvironment, Any] =
@@ -179,9 +181,29 @@ object LiveSpec extends ZIOSpecDefault {
                 assert(result)(succeeds(isUnit))
               }
             }
+          },
+          test("delete should handle keyword") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .delete[ExpressionAttrNames](tableName, PrimaryKey("id" -> "id1", "num" -> 1))
+                .where(ExpressionAttrNames.ttl.notExists)
+              query.execute.exit.map { result =>
+                assert(result)(succeeds(isNone))
+              }
+            }
+          },
+          test("put should handle keyword") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .put[ExpressionAttrNames](tableName, ExpressionAttrNames("id1", 1, None))
+                .where(ExpressionAttrNames.ttl.notExists)
+              query.execute.exit.map { result =>
+                assert(result)(succeeds(isNone))
+              }
+            }
           }
         ),
-        suite("using low level api")(
+        suite("using $ function")(
           test("scan should handle keyword") {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery

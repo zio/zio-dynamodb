@@ -694,14 +694,16 @@ case object DynamoDBExecutorImpl {
     )
 
   private def awsDeleteItemRequest(deleteItem: DeleteItem): DeleteItemRequest = {
-    val maybeAliasMap = deleteItem.conditionExpression.map(_.render.execute)
+    // Option[(AliasMap, String)]
+    val maybeAliasMap                = deleteItem.conditionExpression.map(_.render.execute)
+    val (maybeNames, maybeCondExprn) = exprnAttrNamesAndReplaced(maybeAliasMap)
 
     DeleteItemRequest(
       tableName = ZIOAwsTableName(deleteItem.tableName.value),
       key = deleteItem.key.toZioAwsMap(),
-      conditionExpression = maybeAliasMap.map(c => ZIOAwsConditionExpression(c._2)),
+      conditionExpression = maybeCondExprn,
       expressionAttributeValues = maybeAliasMap.flatMap(m => aliasMapToExpressionZIOAwsAttributeValues(m._1)),
-      expressionAttributeNames = None, // TODO: Avi - inject substitutions here
+      expressionAttributeNames = maybeNames,
       returnConsumedCapacity = Some(awsConsumedCapacity(deleteItem.capacity)),
       returnItemCollectionMetrics = Some(awsReturnItemCollectionMetrics(deleteItem.itemMetrics)),
       returnValues = Some(awsReturnValues(deleteItem.returnValues))
@@ -735,6 +737,7 @@ case object DynamoDBExecutorImpl {
     )
 
   private def awsUpdateItemRequest(updateItem: UpdateItem): UpdateItemRequest = {
+    // (aliasMap, String, Option[String])
     val (aliasMap, (updateExpr, maybeConditionExpr)) = (for {
       updateExpr    <- updateItem.updateExpression.render
       conditionExpr <- AliasMapRender.collectAll(updateItem.conditionExpression.map(_.render))
@@ -756,10 +759,12 @@ case object DynamoDBExecutorImpl {
   }
 
   private def awsQueryRequest(queryAll: QueryAll): QueryRequest = {
+    // (AliasMap, (Option[String], Option[String]))
     val (aliasMap, (maybeFilterExpr, maybeKeyExpr)) = (for {
       filter  <- AliasMapRender.collectAll(queryAll.filterExpression.map(_.render))
       keyExpr <- AliasMapRender.collectAll(queryAll.keyConditionExpression.map(_.render))
     } yield (filter, keyExpr)).execute
+//    val (maybeNames, maybeCondExprn)                = exprnAttrNamesAndReplaced(aliasMap)
 
     QueryRequest(
       tableName = ZIOAwsTableName(queryAll.tableName.value),
@@ -782,6 +787,7 @@ case object DynamoDBExecutorImpl {
   }
 
   private def awsQueryRequest(querySome: QuerySome): QueryRequest = {
+    // (AliasMap, (Option[String], Option[String]))
     val (aliasMap, (maybeFilterExpr, maybeKeyExpr)) = (for {
       filter  <- AliasMapRender.collectAll(querySome.filterExpression.map(_.render))
       keyExpr <- AliasMapRender.collectAll(querySome.keyConditionExpression.map(_.render))
@@ -807,8 +813,6 @@ case object DynamoDBExecutorImpl {
   }
   private def awsScanRequest(scanAll: ScanAll, segment: Option[ScanAll.Segment]): ScanRequest = {
     val filterExpression: Option[(AliasMap, String)] = scanAll.filterExpression.map(fe => fe.render.execute)
-//    val zioAwsFilterExpression: Option[ZIOAwsConditionExpression.Type] =
-//      filterExpression.map(_._2).map(ZIOAwsConditionExpression(_))
     val (maybeNames, maybeCondExprn)                 = exprnAttrNamesAndReplaced(filterExpression)
 
     val x = ScanRequest(
@@ -821,11 +825,11 @@ case object DynamoDBExecutorImpl {
       projectionExpression =
         toOption(scanAll.projections).map(awsProjectionExpression).map(ZIOAwsProjectionExpression(_)),
       filterExpression =
-        maybeCondExprn,                      //zioAwsFilterExpression, // filterExpression.map(_._2).map(ZIOAwsConditionExpression(_)),
+        maybeCondExprn, //zioAwsFilterExpression, // filterExpression.map(_._2).map(ZIOAwsConditionExpression(_)),
       expressionAttributeValues = filterExpression
         .flatMap(a => aliasMapToExpressionZIOAwsAttributeValues(a._1))
         .map(_.map { case (k, v) => (ZIOAwsExpressionAttributeValueVariable(k), v) }),
-      expressionAttributeNames = maybeNames, // TODO: Avi - inject substitutions here
+      expressionAttributeNames = maybeNames,
       consistentRead = Some(toBoolean(scanAll.consistency)).map(ZIOAwsConsistentRead(_)),
       totalSegments = segment.map(_.total).map(ScanTotalSegments(_)),
       segment = segment.map(_.number).map(ScanSegment(_))
@@ -837,6 +841,7 @@ case object DynamoDBExecutorImpl {
   }
 
   private def awsScanRequest(scanSome: ScanSome): ScanRequest = {
+    // Option[(AliasMap, String)]
     val filterExpression = scanSome.filterExpression.map(fe => fe.render.execute)
     ScanRequest(
       tableName = ZIOAwsTableName(scanSome.tableName.value),
@@ -867,6 +872,7 @@ case object DynamoDBExecutorImpl {
     }
 
   private def awsConditionCheck(conditionCheck: ConditionCheck): ZIOAwsConditionCheck = {
+    // (AliasMap, String)
     val (aliasMap, conditionExpression) = conditionCheck.conditionExpression.render.execute
 
     ZIOAwsConditionCheck(
@@ -879,6 +885,7 @@ case object DynamoDBExecutorImpl {
   }
 
   private def awsTransactPutItem(put: PutItem): ZIOAwsPut = {
+    // (AliasMap, String)
     val (aliasMap, conditionExpression) = AliasMapRender.collectAll(put.conditionExpression.map(_.render)).execute
 
     ZIOAwsPut(
@@ -891,6 +898,7 @@ case object DynamoDBExecutorImpl {
   }
 
   private def awsTransactDeleteItem(delete: DeleteItem): ZIOAwsDelete = {
+    // (AliasMap, Option[String])
     val (aliasMap, conditionExpression) = AliasMapRender.collectAll(delete.conditionExpression.map(_.render)).execute
 
     ZIOAwsDelete(
@@ -903,6 +911,7 @@ case object DynamoDBExecutorImpl {
   }
 
   private def awsTransactUpdateItem(update: UpdateItem): ZIOAwsUpdate = {
+    // (AliasMap, (String, Option[String]))
     val (aliasMap, (updateExpr, maybeConditionExpr)) = (for {
       updateExpr    <- update.updateExpression.render
       conditionExpr <- AliasMapRender.collectAll(update.conditionExpression.map(_.render))
