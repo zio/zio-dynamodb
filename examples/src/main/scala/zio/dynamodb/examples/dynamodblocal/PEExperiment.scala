@@ -20,13 +20,13 @@ object PEExperiment extends ZIOAppDefault {
   }
 
   private val program = for {
-    _    <- createTable("withttl", KeySchema("email"), BillingMode.PayPerRequest)(
-              AttributeDefinition.attrDefnString("email")
-            ).execute
-    _    <- put("withttl", RecordWithTtl("email1", Some(10L))).execute
-    rec  <- get[RecordWithTtl]("withttl", PrimaryKey("email" -> "email1")).execute.absolve
-    s    <- scanAll[RecordWithTtl]("withttl").filter(RecordWithTtl.myTtl === Some(10L)).execute.flatMap(_.runCollect)
-    _    <- Console.printLine(s"XXXXXXXXXXXXX $s")
+    _   <- createTable("withttl", KeySchema("email"), BillingMode.PayPerRequest)(
+             AttributeDefinition.attrDefnString("email")
+           ).execute
+    _   <- put("withttl", RecordWithTtl("email1", Some(10L))).execute
+    rec <- get[RecordWithTtl]("withttl", PrimaryKey("email" -> "email1")).execute.absolve
+    s   <- scanAll[RecordWithTtl]("withttl").filter(RecordWithTtl.myTtl === Some(10L)).execute.flatMap(_.runCollect)
+    _   <- Console.printLine(s"XXXXXXXXXXXXX $s")
   } yield rec
 
   override def run = program.provide(layer)
