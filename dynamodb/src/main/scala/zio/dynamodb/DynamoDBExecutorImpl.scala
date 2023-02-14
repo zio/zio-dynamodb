@@ -823,15 +823,15 @@ case object DynamoDBExecutorImpl {
 
   private def awsUpdateItemRequest(updateItem: UpdateItem): UpdateItemRequest = {
     // (aliasMap, String, Option[String])
-    val (aliasMap, (updateExpr, maybeConditionExpr)) = (for {
+    val (aliasMap, (updateExpr, maybeConditionExpr))                               = (for {
       updateExpr    <- updateItem.updateExpression.render
       conditionExpr <- AliasMapRender.collectAll(updateItem.conditionExpression.map(_.render))
     } yield (updateExpr, conditionExpr)).execute
-    val (maybeAwsNamesMap, maybeAwsCondition)        = exprnAttrNamesAndReplaced2(maybeConditionExpr)
-//    val (maybeAwsNamesMap, maybeAwsUpdateExprn, maybeAwsCondition) =
-//      awsExprnAttrNamesAndReplaced3(updateExpr, maybeConditionExpr)
+    val (maybeAwsNamesMap, maybeAwsCondition)                                      = exprnAttrNamesAndReplaced2(maybeConditionExpr)
+    val ( /*maybeAwsNamesMap2*/ _, maybeAwsUpdateExprn2, /*maybeAwsCondition2*/ _) =
+      awsExprnAttrNamesAndReplaced3(updateExpr, maybeConditionExpr)
     println(
-      s"ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ maybeAwsNamesMap=$maybeAwsNamesMap maybeAwsCondition=$maybeAwsCondition"
+      s"ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ updateExpr=$updateExpr maybeAwsUpdateExprn2=$maybeAwsUpdateExprn2"
     )
 
     UpdateItemRequest(
