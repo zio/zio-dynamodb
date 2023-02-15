@@ -647,7 +647,7 @@ case object DynamoDBExecutorImpl {
   }
 
   // TODO: make private
-  def exprnAttrNamesAndReplaced2(
+  def awsExprnAttrNamesAndReplaced2(
     maybeEscapedExpression: Option[String]
   ): (
     Option[ScalaMap[primitives.ExpressionAttributeNameVariable.Type, ZIOAwsAttributeName.Type]],
@@ -744,7 +744,7 @@ case object DynamoDBExecutorImpl {
 
   private def awsPutItemRequest(putItem: PutItem): PutItemRequest = {
     val maybeAliasMap                         = putItem.conditionExpression.map(_.render.execute)
-    val (maybeAwsNamesMap, maybeAwsCondition) = exprnAttrNamesAndReplaced2(maybeAliasMap.map(_._2))
+    val (maybeAwsNamesMap, maybeAwsCondition) = awsExprnAttrNamesAndReplaced2(maybeAliasMap.map(_._2))
     PutItemRequest(
       tableName = ZIOAwsTableName(putItem.tableName.value),
       item = awsAttributeValueMap(putItem.item.map),
@@ -792,7 +792,7 @@ case object DynamoDBExecutorImpl {
   private def awsDeleteItemRequest(deleteItem: DeleteItem): DeleteItemRequest = {
     // Option[(AliasMap, String)]
     val maybeAliasMap                         = deleteItem.conditionExpression.map(_.render.execute)
-    val (maybeAwsNamesMap, maybeAwsCondition) = exprnAttrNamesAndReplaced2(maybeAliasMap.map(_._2))
+    val (maybeAwsNamesMap, maybeAwsCondition) = awsExprnAttrNamesAndReplaced2(maybeAliasMap.map(_._2))
     DeleteItemRequest(
       tableName = ZIOAwsTableName(deleteItem.tableName.value),
       key = deleteItem.key.toZioAwsMap(),
@@ -833,16 +833,12 @@ case object DynamoDBExecutorImpl {
 
   private def awsUpdateItemRequest(updateItem: UpdateItem): UpdateItemRequest = {
     // (aliasMap, String, Option[String])
-    val (aliasMap, (updateExpr, maybeConditionExpr))                  = (for {
+    val (aliasMap, (updateExpr, maybeConditionExpr))               = (for {
       updateExpr    <- updateItem.updateExpression.render
       conditionExpr <- AliasMapRender.collectAll(updateItem.conditionExpression.map(_.render))
     } yield (updateExpr, conditionExpr)).execute
-//    val (maybeAwsNamesMap, maybeAwsCondition)                         = exprnAttrNamesAndReplaced2(maybeConditionExpr)
-    val (maybeAwsNamesMap2, maybeAwsUpdateExprn2, maybeAwsCondition2) =
+    val (maybeAwsNamesMap, maybeAwsUpdateExprn, maybeAwsCondition) =
       awsExprnAttrNamesAndReplaced3(updateExpr, maybeConditionExpr)
-    println(
-      s"ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ updateExpr=$updateExpr maybeAwsUpdateExprn2=$maybeAwsUpdateExprn2"
-    )
 
     UpdateItemRequest(
       tableName = ZIOAwsTableName(updateItem.tableName.value),
@@ -850,12 +846,12 @@ case object DynamoDBExecutorImpl {
       returnValues = Some(awsReturnValues(updateItem.returnValues)),
       returnConsumedCapacity = Some(awsConsumedCapacity(updateItem.capacity)),
       returnItemCollectionMetrics = Some(awsReturnItemCollectionMetrics(updateItem.itemMetrics)),
-      updateExpression = maybeAwsUpdateExprn2,      //Some(updateExpr).map(ZIOAwsUpdateExpression(_)),
+      updateExpression = maybeAwsUpdateExprn,
       expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap).map(_.map {
         case (k, v) => (ZIOAwsExpressionAttributeValueVariable(k), v)
       }),
-      expressionAttributeNames = maybeAwsNamesMap2, //maybeAwsNamesMap,
-      conditionExpression = maybeAwsCondition2      //maybeAwsCondition
+      expressionAttributeNames = maybeAwsNamesMap,
+      conditionExpression = maybeAwsCondition
     )
   }
 
@@ -865,6 +861,10 @@ case object DynamoDBExecutorImpl {
       filter  <- AliasMapRender.collectAll(queryAll.filterExpression.map(_.render))
       keyExpr <- AliasMapRender.collectAll(queryAll.keyConditionExpression.map(_.render))
     } yield (filter, keyExpr)).execute
+    val mapAndExprn                                 = awsExprnAttrNamesAndReplaced2(maybeFilterExpr)
+    println(
+      s"ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ maybeKeyExpr=$maybeKeyExpr queryAll=$queryAll"
+    )
 
     QueryRequest(
       tableName = ZIOAwsTableName(queryAll.tableName.value),
@@ -877,11 +877,11 @@ case object DynamoDBExecutorImpl {
       projectionExpression =
         toOption(queryAll.projections).map(awsProjectionExpression).map(ZIOAwsProjectionExpression(_)),
       returnConsumedCapacity = Some(awsConsumedCapacity(queryAll.capacity)),
-      filterExpression = maybeFilterExpr.map(ZIOAwsConditionExpression(_)),
+      filterExpression = mapAndExprn._2,
       expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap).map(m =>
         m.map { case (k, v) => (ZIOAwsExpressionAttributeValueVariable(k), v) }
       ),
-      expressionAttributeNames = None, // TODO: Avi - inject substitutions here
+      expressionAttributeNames = mapAndExprn._1,
       keyConditionExpression = maybeKeyExpr.map(ZIOAwsKeyExpression(_))
     )
   }

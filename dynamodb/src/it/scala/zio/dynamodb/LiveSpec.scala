@@ -166,6 +166,23 @@ object LiveSpec extends ZIOSpecDefault {
     val (id, num, ttl)  = ProjectionExpression.accessors[ExpressionAttrNames]
   }
 
+  val debugSuite =
+    suite("using $ function")(
+      test("queryAll should handle keyword") {
+        withDefaultTable { tableName =>
+          val query = DynamoDBQuery
+            .queryAll[ExpressionAttrNames](tableName)
+            .whereKey(ExpressionAttrNames.id === "id")
+          query.execute.flatMap(_.runDrain).exit.map { result =>
+            assert(result)(succeeds(isUnit))
+          }
+        }
+      }
+    )
+      .provideSomeLayerShared[TestEnvironment](
+        testLayer.orDie
+      ) @@ nondeterministic
+
   val mainSuite: Spec[TestEnvironment, Any] =
     suite("live test")(
       suite("keywords in expression attribute names")(
@@ -174,6 +191,17 @@ object LiveSpec extends ZIOSpecDefault {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
                 .scanAll[ExpressionAttrNames](tableName)
+                .filter(ExpressionAttrNames.ttl.notExists)
+              query.execute.flatMap(_.runDrain).exit.map { result =>
+                assert(result)(succeeds(isUnit))
+              }
+            }
+          },
+          test("queryAll should handle keyword") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .queryAll[ExpressionAttrNames](tableName)
+                .whereKey(ExpressionAttrNames.id === "id")
                 .filter(ExpressionAttrNames.ttl.notExists)
               query.execute.flatMap(_.runDrain).exit.map { result =>
                 assert(result)(succeeds(isUnit))
@@ -228,6 +256,17 @@ object LiveSpec extends ZIOSpecDefault {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
                 .scanAll[ExpressionAttrNames](tableName)
+                .filter($("ttl").notExists)
+              query.execute.flatMap(_.runDrain).exit.map { result =>
+                assert(result)(succeeds(isUnit))
+              }
+            }
+          },
+          test("queryAll should handle keyword") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .queryAllItem(tableName)
+                .whereKey($("id") === "id")
                 .filter($("ttl").notExists)
               query.execute.flatMap(_.runDrain).exit.map { result =>
                 assert(result)(succeeds(isUnit))
