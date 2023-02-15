@@ -262,6 +262,16 @@ object LiveSpec extends ZIOSpecDefault {
               }
             }
           },
+          test("scanSomeItem should handle keyword") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .scanSomeItem(tableName, 1)
+                .filter($("ttl").notExists)
+              query.execute.exit.map { result =>
+                assert(result.isSuccess)(isTrue)
+              }
+            }
+          },
           test("queryAll should handle keyword") {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
