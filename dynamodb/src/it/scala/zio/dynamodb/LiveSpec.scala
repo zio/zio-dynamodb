@@ -272,7 +272,7 @@ object LiveSpec extends ZIOSpecDefault {
               }
             }
           },
-          test("queryAll should handle keyword") {
+          test("queryAllItem should handle keyword") {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
                 .queryAllItem(tableName)
@@ -282,7 +282,19 @@ object LiveSpec extends ZIOSpecDefault {
                 assert(result)(succeeds(isUnit))
               }
             }
+          },
+          test("querySome should handle keyword") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .querySomeItem(tableName, 1)
+                .whereKey($("id") === "id")
+                .filter($("ttl").notExists)
+              query.execute.exit.map { result =>
+                assert(result.isSuccess)(isTrue)
+              }
+            }
           }
+
         )
       ),
       suite("basic usage")(

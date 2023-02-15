@@ -862,9 +862,6 @@ case object DynamoDBExecutorImpl {
       keyExpr <- AliasMapRender.collectAll(queryAll.keyConditionExpression.map(_.render))
     } yield (filter, keyExpr)).execute
     val mapAndExprn                                 = awsExprnAttrNamesAndReplaced2(maybeFilterExpr)
-    println(
-      s"ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ maybeKeyExpr=$maybeKeyExpr queryAll=$queryAll"
-    )
 
     QueryRequest(
       tableName = ZIOAwsTableName(queryAll.tableName.value),
@@ -892,6 +889,11 @@ case object DynamoDBExecutorImpl {
       filter  <- AliasMapRender.collectAll(querySome.filterExpression.map(_.render))
       keyExpr <- AliasMapRender.collectAll(querySome.keyConditionExpression.map(_.render))
     } yield (filter, keyExpr)).execute
+    val mapAndExprn                                 = awsExprnAttrNamesAndReplaced2(maybeFilterExpr)
+    println(
+      s"ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ maybeKeyExpr=$maybeKeyExpr queryAll=$querySome"
+    )
+
     QueryRequest(
       tableName = ZIOAwsTableName(querySome.tableName.value),
       indexName = querySome.indexName.map(_.value).map(ZIOAwsIndexName(_)),
@@ -903,11 +905,11 @@ case object DynamoDBExecutorImpl {
       returnConsumedCapacity = Some(awsConsumedCapacity(querySome.capacity)),
       projectionExpression =
         toOption(querySome.projections).map(awsProjectionExpression).map(ZIOAwsProjectionExpression(_)),
-      filterExpression = maybeFilterExpr.map(ZIOAwsConditionExpression(_)),
+      filterExpression = mapAndExprn._2, //maybeFilterExpr.map(ZIOAwsConditionExpression(_)),
       expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap).map(_.map {
         case (k, v) => (ZIOAwsExpressionAttributeValueVariable(k), v)
       }),
-      expressionAttributeNames = None, // TODO: Avi - inject substitutions here
+      expressionAttributeNames = mapAndExprn._1,
       keyConditionExpression = maybeKeyExpr.map(ZIOAwsKeyExpression(_))
     )
   }
