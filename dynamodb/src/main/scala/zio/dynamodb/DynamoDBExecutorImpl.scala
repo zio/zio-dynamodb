@@ -662,6 +662,11 @@ case object DynamoDBExecutorImpl {
     (mapAndReplaced.map(_._1).flatten, mapAndReplaced.map(_._2))
   }
 
+  /*
+  1) call exprnAttrNamesAndReplaced2 with expression twice in parallel
+  2) merge 2 Option of map's
+  3) return Tuple3
+   */
   def awsExprnAttrNamesAndReplaced3(
     updateExprn: String,
     maybeEscapedConditionExpression: Option[String]
@@ -670,33 +675,38 @@ case object DynamoDBExecutorImpl {
     Option[ZIOAwsUpdateExpression],
     Option[ZIOAwsConditionExpression]
   ) = {
-    val mapAndReplaced: Option[(ScalaMap[String, String], String, String)] =
+    val (map1, replacedUpdateExprn) = ReservedAttributeNames.parse(updateExprn)
+
+    val maybeCondMapAndExprn: Option[(ScalaMap[String, String], String)] = {
       for {
-        condExprn                          <- maybeEscapedConditionExpression
-        (maybeAwsMap1, replacedUpdateExprn) = exprnAttrNamesAndReplaced2(updateExprn)
-        (maybeAwsMap2, replacedCondExprn)   = exprnAttrNamesAndReplaced2(condExprn)
+        condExprn                <- maybeEscapedConditionExpression
+        (map2, replacedCondExprn) = ReservedAttributeNames.parse(condExprn)
       } yield (
-        maybeAwsMap1.getOrElse(ScalaMap.empty) ++ maybeAwsMap2.getOrElse(ScalaMap.empty),
-        replacedUpdateExprn,
+        map2,
         replacedCondExprn
       )
+    }
 
-    val awsMap = mapAndReplaced.flatMap(t => // TODO: extract AWS transform part
-      if (t._1.isEmpty)
-        None
-      else
-        Some(t._1.map {
-          case (k, v) =>
-            (ExpressionAttributeNameVariable(k), ZIOAwsAttributeName(v))
-        })
-    )
+    val mapFinal = maybeCondMapAndExprn.map(_._1).getOrElse(ScalaMap.empty) ++ map1
+    val maybeAwsMap = {
+      val m = toAwsNamesMap(mapFinal)
+      if (m.isEmpty) None else Some(m)
+    }
 
     (
-      awsMap,
-      mapAndReplaced.map(t => ZIOAwsUpdateExpression(t._2)),
-      mapAndReplaced.map(t => ZIOAwsConditionExpression(t._3))
+      maybeAwsMap,
+      Some(ZIOAwsUpdateExpression(replacedUpdateExprn)),
+      maybeCondMapAndExprn.map(t => ZIOAwsConditionExpression(t._2))
     )
   }
+
+  private def toAwsNamesMap(
+    map: ScalaMap[String, String]
+  ): ScalaMap[primitives.ExpressionAttributeNameVariable.Type, ZIOAwsAttributeName.Type] =
+    map.map { // TODO: this should handle empty => None mapping as its an AWS concern
+      case (k, v) =>
+        (ExpressionAttributeNameVariable(k), ZIOAwsAttributeName(v))
+    }
 
   private def awsExprnAttrNamesAndReplaced2(
     escapedExpression: String

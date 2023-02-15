@@ -170,7 +170,7 @@ object LiveSpec extends ZIOSpecDefault {
     suite("live test")(
       suite("keywords in expression attribute names")(
         suite("using high level api")(
-          test("scan should handle keyword") {
+          test("scanAll should handle keyword") {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
                 .scanAll[ExpressionAttrNames](tableName)
@@ -180,7 +180,16 @@ object LiveSpec extends ZIOSpecDefault {
               }
             }
           },
-          // TODO: Avi scanSome
+          // test("scanSome should handle keyword") {
+          //   withDefaultTable { tableName =>
+          //     val query = DynamoDBQuery
+          //       .scanSome[ExpressionAttrNames](tableName, 1)
+          //       .filter(ExpressionAttrNames.ttl.notExists)
+          //     query.execute.flatMap(_.runDrain).exit.map { result =>
+          //       assert(result)(succeeds(isUnit))
+          //     }
+          //   }
+          // },
           test("delete should handle keyword") {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
