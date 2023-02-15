@@ -662,11 +662,6 @@ case object DynamoDBExecutorImpl {
     (mapAndReplaced.map(_._1).flatten, mapAndReplaced.map(_._2))
   }
 
-  /*
-  1) call exprnAttrNamesAndReplaced2 with expression twice in parallel
-  2) merge 2 Option of map's
-  3) return Tuple3
-   */
   def awsExprnAttrNamesAndReplaced3(
     updateExprn: String,
     maybeEscapedConditionExpression: Option[String]
