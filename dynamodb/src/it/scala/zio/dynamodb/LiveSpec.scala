@@ -209,19 +209,19 @@ object LiveSpec extends ZIOSpecDefault {
                 assert(result)(succeeds(isNone))
               }
             }
-          } //,
-//          test("update should handle keyword") {
-//            withDefaultTable { tableName =>
-//              val query = DynamoDBQuery
-//                .update[ExpressionAttrNames](tableName, PrimaryKey("id" -> "1", "num" -> 1))(
-//                  ExpressionAttrNames.ttl.set(Some(42L))
-//                )
-//                .where(ExpressionAttrNames.ttl.notExists)
-//              query.execute.exit.map { result =>
-//                assert(result)(succeeds(isNone))
-//              }
-//            }
-//          }
+          },
+          test("update should handle keyword") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .update[ExpressionAttrNames](tableName, PrimaryKey("id" -> "1", "num" -> 1))(
+                  ExpressionAttrNames.ttl.set(Some(42L))
+                )
+                .where(ExpressionAttrNames.ttl.notExists)
+              query.execute.exit.map { result =>
+                assert(result)(succeeds(isNone))
+              }
+            }
+          }
         ),
         suite("using $ function")(
           test("scan should handle keyword") {

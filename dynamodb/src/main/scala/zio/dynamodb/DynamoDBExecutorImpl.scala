@@ -833,12 +833,12 @@ case object DynamoDBExecutorImpl {
 
   private def awsUpdateItemRequest(updateItem: UpdateItem): UpdateItemRequest = {
     // (aliasMap, String, Option[String])
-    val (aliasMap, (updateExpr, maybeConditionExpr))                               = (for {
+    val (aliasMap, (updateExpr, maybeConditionExpr))                  = (for {
       updateExpr    <- updateItem.updateExpression.render
       conditionExpr <- AliasMapRender.collectAll(updateItem.conditionExpression.map(_.render))
     } yield (updateExpr, conditionExpr)).execute
-    val (maybeAwsNamesMap, maybeAwsCondition)                                      = exprnAttrNamesAndReplaced2(maybeConditionExpr)
-    val ( /*maybeAwsNamesMap2*/ _, maybeAwsUpdateExprn2, /*maybeAwsCondition2*/ _) =
+//    val (maybeAwsNamesMap, maybeAwsCondition)                         = exprnAttrNamesAndReplaced2(maybeConditionExpr)
+    val (maybeAwsNamesMap2, maybeAwsUpdateExprn2, maybeAwsCondition2) =
       awsExprnAttrNamesAndReplaced3(updateExpr, maybeConditionExpr)
     println(
       s"ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ updateExpr=$updateExpr maybeAwsUpdateExprn2=$maybeAwsUpdateExprn2"
@@ -850,12 +850,12 @@ case object DynamoDBExecutorImpl {
       returnValues = Some(awsReturnValues(updateItem.returnValues)),
       returnConsumedCapacity = Some(awsConsumedCapacity(updateItem.capacity)),
       returnItemCollectionMetrics = Some(awsReturnItemCollectionMetrics(updateItem.itemMetrics)),
-      updateExpression = Some(updateExpr).map(ZIOAwsUpdateExpression(_)),
+      updateExpression = maybeAwsUpdateExprn2,      //Some(updateExpr).map(ZIOAwsUpdateExpression(_)),
       expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap).map(_.map {
         case (k, v) => (ZIOAwsExpressionAttributeValueVariable(k), v)
       }),
-      expressionAttributeNames = maybeAwsNamesMap,
-      conditionExpression = maybeAwsCondition
+      expressionAttributeNames = maybeAwsNamesMap2, //maybeAwsNamesMap,
+      conditionExpression = maybeAwsCondition2      //maybeAwsCondition
     )
   }
 
