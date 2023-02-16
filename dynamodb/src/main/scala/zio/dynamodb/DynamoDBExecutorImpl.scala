@@ -620,32 +620,6 @@ case object DynamoDBExecutorImpl {
       item.map.flatMap { case (k, v) => awsAttributeValue(v).map(a => (ZIOAwsAttributeName(k.toString), a)) }
   }
 
-  private def exprnAttrNamesAndReplaced(
-    maybeAliasMap: Option[(AliasMap, String)]
-  ): (
-    Option[ScalaMap[primitives.ExpressionAttributeNameVariable.Type, ZIOAwsAttributeName.Type]],
-    Option[ZIOAwsConditionExpression]
-  ) = {
-    val mapAndReplaced                                                                                 =
-      for {
-        expression     <- maybeAliasMap.map(_._2)
-        _               = println(s"XXXXXXXXXXXXXXXXXXXXXXX exprnAttrNamesAndReplaced expression=$expression")
-        (map, replaced) = ReservedAttributeNames.parse(expression)
-        awsMap          = map.map {
-                            case (k, v) =>
-                              println(s"XXXXXXXXXXXXXXXXXXXXXXX exprnAttrNamesAndReplaced k=$k")
-                              (ExpressionAttributeNameVariable(k), ZIOAwsAttributeName(v))
-                          }
-      } yield (awsMap, replaced)
-    val x: Option[ScalaMap[primitives.ExpressionAttributeNameVariable.Type, ZIOAwsAttributeName.Type]] =
-      mapAndReplaced.flatMap {
-        case (map, _) if map.isEmpty => None
-        case t                       => Some(t._1)
-      }
-    println(s"XXXXXXXXXXXXXXXXXXXXXXX exprnAttrNamesAndReplaced y=$mapAndReplaced")
-    (x, mapAndReplaced.map(t => ZIOAwsConditionExpression(t._2)))
-  }
-
   // TODO: make private
   def awsExprnAttrNamesAndReplaced2(
     maybeEscapedExpression: Option[String]
@@ -907,7 +881,7 @@ case object DynamoDBExecutorImpl {
   }
   private def awsScanRequest(scanAll: ScanAll, segment: Option[ScanAll.Segment]): ScanRequest = {
     val filterExpression: Option[(AliasMap, String)] = scanAll.filterExpression.map(fe => fe.render.execute)
-    val (maybeNames, maybeCondExprn)                 = exprnAttrNamesAndReplaced(filterExpression)
+    val (maybeNames, maybeCondExprn)                 = awsExprnAttrNamesAndReplaced2(filterExpression.map(_._2))
 
     ScanRequest(
       tableName = ZIOAwsTableName(scanAll.tableName.value),
@@ -933,7 +907,7 @@ case object DynamoDBExecutorImpl {
   private def awsScanRequest(scanSome: ScanSome): ScanRequest = {
     // Option[(AliasMap, String)]
     val filterExpression             = scanSome.filterExpression.map(fe => fe.render.execute)
-    val (maybeNames, maybeCondExprn) = exprnAttrNamesAndReplaced(filterExpression)
+    val (maybeNames, maybeCondExprn) = awsExprnAttrNamesAndReplaced2(filterExpression.map(_._2))
     ScanRequest(
       tableName = ZIOAwsTableName(scanSome.tableName.value),
       indexName = scanSome.indexName.map(_.value).map(ZIOAwsIndexName(_)),
