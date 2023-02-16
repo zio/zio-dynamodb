@@ -626,7 +626,13 @@ case object DynamoDBExecutorImpl {
     Option[ScalaMap[primitives.ExpressionAttributeNameVariable.Type, ZIOAwsAttributeName.Type]],
     ZIOAwsConditionExpression
   ) =
-    exprnAttrNamesAndReplaced2(escapedExpression) match {
+    (ReservedAttributeNames.parse(escapedExpression) match {
+      case (map, replaced) =>
+        if (map.isEmpty)
+          (None, replaced)
+        else
+          (Some(map), replaced)
+    }) match {
       case (Some(map), replaced) =>
         val awsReplaced = ZIOAwsConditionExpression(replaced)
         val awsMap      = map.map {
@@ -695,20 +701,6 @@ case object DynamoDBExecutorImpl {
     map.map { // TODO: this should handle empty => None mapping as its an AWS concern
       case (k, v) =>
         (ExpressionAttributeNameVariable(k), ZIOAwsAttributeName(v))
-    }
-
-  def exprnAttrNamesAndReplaced2(
-    escapedExpression: String
-  ): (
-    Option[ScalaMap[String, String]],
-    String
-  ) =
-    ReservedAttributeNames.parse(escapedExpression) match {
-      case (map, replaced) =>
-        if (map.isEmpty) // TODO: move this to parse method and return Option from that, then call parse directly
-          (None, replaced)
-        else
-          (Some(map), replaced)
     }
 
   private def awsPutItemRequest(putItem: PutItem): PutItemRequest = {
