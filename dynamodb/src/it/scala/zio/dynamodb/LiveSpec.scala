@@ -214,6 +214,17 @@ object LiveSpec extends ZIOSpecDefault {
             assert(result.isSuccess)(isTrue)
           }
         }
+      } @@ TestAspect.ignore,
+      test("transact update item should handle keyword") {
+        withDefaultTable { tableName =>
+          val u = update[ExpressionAttrNames](
+            tableName = tableName,
+            key = pk(avi3Item)
+          )(ExpressionAttrNames.ttl.set(None)).where(ExpressionAttrNames.ttl.notExists)
+          u.transaction.execute.exit.map { result =>
+            assert(result.isSuccess)(isTrue)
+          }
+        }
       }
     )
       .provideSomeLayerShared[TestEnvironment](
@@ -1126,6 +1137,17 @@ object LiveSpec extends ZIOSpecDefault {
                 _       <- deleteItem.transaction.execute
                 written <- getItem(tableName, PrimaryKey(id -> first, number -> 7)).execute
               } yield assert(written)(isNone)
+            }
+          },
+          test("transact update item should handle keyword") {
+            withDefaultTable { tableName =>
+              val u = update[ExpressionAttrNames](
+                tableName = tableName,
+                key = pk(avi3Item)
+              )(ExpressionAttrNames.ttl.set(None)).where(ExpressionAttrNames.ttl.notExists)
+              u.transaction.execute.exit.map { result =>
+                assert(result.isSuccess)(isTrue)
+              }
             }
           },
           test("update item") {
