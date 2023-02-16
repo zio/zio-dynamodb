@@ -203,6 +203,17 @@ object LiveSpec extends ZIOSpecDefault {
             assert(result.isSuccess)(isTrue)
           }
         }
+      } @@ TestAspect.ignore,
+      test("delete item") {
+        withDefaultTable { tableName =>
+          val d = delete[ExpressionAttrNames](
+            tableName = tableName,
+            key = pk(avi3Item)
+          ).where(ExpressionAttrNames.ttl.notExists)
+          d.transaction.execute.exit.map { result =>
+            assert(result.isSuccess)(isTrue)
+          }
+        }
       }
     )
       .provideSomeLayerShared[TestEnvironment](
@@ -1092,6 +1103,17 @@ object LiveSpec extends ZIOSpecDefault {
                     )
                   )
                 )
+            }
+          },
+          test("delete item handles keyword") {
+            withDefaultTable { tableName =>
+              val d = delete[ExpressionAttrNames](
+                tableName = tableName,
+                key = pk(avi3Item)
+              ).where(ExpressionAttrNames.ttl.notExists)
+              d.transaction.execute.exit.map { result =>
+                assert(result.isSuccess)(isTrue)
+              }
             }
           },
           test("delete item") {

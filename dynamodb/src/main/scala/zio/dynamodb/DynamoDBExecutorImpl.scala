@@ -980,9 +980,6 @@ case object DynamoDBExecutorImpl {
     // (AliasMap, String)
     val (aliasMap, conditionExpression)           = AliasMapRender.collectAll(put.conditionExpression.map(_.render)).execute
     val (maybeAwsNameMap, maybeAwsSubstCondition) = awsExprnAttrNamesAndReplaced2(conditionExpression)
-    println(
-      s"ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ awsSubstCondition=$maybeAwsSubstCondition maybeAwsNameMap=$maybeAwsNameMap"
-    )
 
     ZIOAwsPut(
       item = put.item.toZioAwsMap(),
@@ -995,14 +992,18 @@ case object DynamoDBExecutorImpl {
 
   private def awsTransactDeleteItem(delete: DeleteItem): ZIOAwsDelete = {
     // (AliasMap, Option[String])
-    val (aliasMap, conditionExpression) = AliasMapRender.collectAll(delete.conditionExpression.map(_.render)).execute
+    val (aliasMap, conditionExpression)           = AliasMapRender.collectAll(delete.conditionExpression.map(_.render)).execute
+    val (maybeAwsNameMap, maybeAwsSubstCondition) = awsExprnAttrNamesAndReplaced2(conditionExpression)
+    println(
+      s"ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ awsSubstCondition=$maybeAwsSubstCondition maybeAwsNameMap=$maybeAwsNameMap"
+    )
 
     ZIOAwsDelete(
       key = delete.key.toZioAwsMap(),
       tableName = ZIOAwsTableName(delete.tableName.value),
-      conditionExpression = conditionExpression.map(ZIOAwsConditionExpression(_)),
+      conditionExpression = maybeAwsSubstCondition,
       expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap),
-      expressionAttributeNames = None // TODO: Avi - inject substitutions here
+      expressionAttributeNames = maybeAwsNameMap
     )
   }
 
