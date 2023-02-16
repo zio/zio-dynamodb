@@ -602,7 +602,7 @@ object DynamoDBQuery {
 
   def conditionCheck(
     tableName: String,
-    primaryKey: PrimaryKey,
+    primaryKey: PrimaryKey
   )(conditionExpression: ConditionExpression[_]): ConditionCheck =
     ConditionCheck(
       TableName(tableName),
