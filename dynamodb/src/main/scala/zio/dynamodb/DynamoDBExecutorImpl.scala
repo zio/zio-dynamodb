@@ -885,9 +885,6 @@ case object DynamoDBExecutorImpl {
       keyExpr <- AliasMapRender.collectAll(querySome.keyConditionExpression.map(_.render))
     } yield (filter, keyExpr)).execute
     val mapAndExprn                                 = awsExprnAttrNamesAndReplaced2(maybeFilterExpr)
-    println(
-      s"ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ maybeKeyExpr=$maybeKeyExpr queryAll=$querySome"
-    )
 
     QueryRequest(
       tableName = ZIOAwsTableName(querySome.tableName.value),
@@ -967,14 +964,18 @@ case object DynamoDBExecutorImpl {
 
   private def awsConditionCheck(conditionCheck: ConditionCheck): ZIOAwsConditionCheck = {
     // (AliasMap, String)
-    val (aliasMap, conditionExpression) = conditionCheck.conditionExpression.render.execute
+    val (aliasMap, conditionExpression)      = conditionCheck.conditionExpression.render.execute
+    val (maybeAwsNameMap, awsSubstCondition) = awsExprnAttrNamesAndReplaced2(conditionExpression)
+    println(
+      s"ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ awsSubstCondition=$awsSubstCondition maybeAwsNameMap=$maybeAwsNameMap"
+    )
 
     ZIOAwsConditionCheck(
       key = conditionCheck.primaryKey.toZioAwsMap(),
       tableName = ZIOAwsTableName(conditionCheck.tableName.value),
-      conditionExpression = ZIOAwsConditionExpression(conditionExpression),
+      conditionExpression = awsSubstCondition, //ZIOAwsConditionExpression(conditionExpression),
       expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap),
-      expressionAttributeNames = None // TODO: Avi - inject substitutions here
+      expressionAttributeNames = maybeAwsNameMap
     )
   }
 

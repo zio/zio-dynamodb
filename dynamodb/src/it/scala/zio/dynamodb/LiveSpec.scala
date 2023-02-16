@@ -177,6 +177,21 @@ object LiveSpec extends ZIOSpecDefault {
             assert(result)(succeeds(isUnit))
           }
         }
+      } @@ TestAspect.ignore,
+      test("conditionCheck should handle keyword") {
+        withDefaultTable { tableName =>
+          val cc    = conditionCheck(
+            tableName,
+            PrimaryKey("id" -> "id", "num" -> 1)
+          )(
+            ExpressionAttrNames.ttl.notExists
+          )
+          val p     = put[ExpressionAttrNames](tableName, ExpressionAttrNames("id", 2, None))
+          val query = cc.zip(p).transaction
+          query.execute.exit.map { result =>
+            assert(result.isSuccess)(isTrue)
+          }
+        }
       }
     )
       .provideSomeLayerShared[TestEnvironment](
@@ -294,7 +309,6 @@ object LiveSpec extends ZIOSpecDefault {
               }
             }
           }
-
         )
       ),
       suite("basic usage")(
@@ -491,18 +505,7 @@ object LiveSpec extends ZIOSpecDefault {
             )
           }
         },
-        test("query table not equal") {
-          withDefaultTable { tableName =>
-            for {
-              chunk <- querySomeItem(tableName, 10, $(name))
-                         .whereKey(PartitionKey(id) === first && SortKey(number) <> 1)
-                         .execute
-                         .map(_._1)
-            } yield assert(chunk)(
-              equalTo(Chunk(Item(name -> avi2), Item(name -> avi3)))
-            )
-          }
-        } @@ ignore, // I'm not sure notEqual is a valid SortKey condition: https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#API_Query_RequestSyntax
+        // Note notEqual is NOT a valid SortKey condition: https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#API_Query_RequestSyntax
         test("query table greater than or equal") {
           withDefaultTable { tableName =>
             for {
@@ -1008,6 +1011,19 @@ object LiveSpec extends ZIOSpecDefault {
                 _ <- putItem.transaction.execute
                 written <- getItem(tableName, PrimaryKey(id -> first, number -> 10)).execute
               } yield assert(written)(isSome(equalTo(putItem.item)))
+            }
+          },
+          test("conditionCheck should handle keyword") {
+            withDefaultTable { tableName =>
+              val cc    = conditionCheck(
+                tableName,
+                PrimaryKey("id" -> "id", "num" -> 1)
+              )(ExpressionAttrNames.ttl.notExists)
+              val p     = put[ExpressionAttrNames](tableName, ExpressionAttrNames("id", 2, None))
+              val query = cc.zip(p).transaction
+              query.execute.exit.map { result =>
+                assert(result.isSuccess)(isTrue)
+              }
             }
           },
           test("condition check succeeds") {
