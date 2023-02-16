@@ -966,14 +966,11 @@ case object DynamoDBExecutorImpl {
     // (AliasMap, String)
     val (aliasMap, conditionExpression)      = conditionCheck.conditionExpression.render.execute
     val (maybeAwsNameMap, awsSubstCondition) = awsExprnAttrNamesAndReplaced2(conditionExpression)
-    println(
-      s"ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ awsSubstCondition=$awsSubstCondition maybeAwsNameMap=$maybeAwsNameMap"
-    )
 
     ZIOAwsConditionCheck(
       key = conditionCheck.primaryKey.toZioAwsMap(),
       tableName = ZIOAwsTableName(conditionCheck.tableName.value),
-      conditionExpression = awsSubstCondition, //ZIOAwsConditionExpression(conditionExpression),
+      conditionExpression = awsSubstCondition,
       expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap),
       expressionAttributeNames = maybeAwsNameMap
     )
@@ -981,14 +978,18 @@ case object DynamoDBExecutorImpl {
 
   private def awsTransactPutItem(put: PutItem): ZIOAwsPut = {
     // (AliasMap, String)
-    val (aliasMap, conditionExpression) = AliasMapRender.collectAll(put.conditionExpression.map(_.render)).execute
+    val (aliasMap, conditionExpression)           = AliasMapRender.collectAll(put.conditionExpression.map(_.render)).execute
+    val (maybeAwsNameMap, maybeAwsSubstCondition) = awsExprnAttrNamesAndReplaced2(conditionExpression)
+    println(
+      s"ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ awsSubstCondition=$maybeAwsSubstCondition maybeAwsNameMap=$maybeAwsNameMap"
+    )
 
     ZIOAwsPut(
       item = put.item.toZioAwsMap(),
       tableName = ZIOAwsTableName(put.tableName.value),
-      conditionExpression = conditionExpression.map(ZIOAwsConditionExpression(_)),
+      conditionExpression = maybeAwsSubstCondition,
       expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap),
-      expressionAttributeNames = None // TODO: Avi - inject substitutions here
+      expressionAttributeNames = maybeAwsNameMap
     )
   }
 

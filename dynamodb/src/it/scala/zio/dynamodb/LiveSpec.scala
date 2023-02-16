@@ -192,6 +192,17 @@ object LiveSpec extends ZIOSpecDefault {
             assert(result.isSuccess)(isTrue)
           }
         }
+      } @@ TestAspect.ignore,
+      test("transact put item should handle key word") {
+        withDefaultTable { tableName =>
+          val p = put[ExpressionAttrNames](
+            tableName = tableName,
+            ExpressionAttrNames("id", 10, None)
+          ).where(ExpressionAttrNames.ttl.notExists)
+          p.transaction.execute.exit.map { result =>
+            assert(result.isSuccess)(isTrue)
+          }
+        }
       }
     )
       .provideSomeLayerShared[TestEnvironment](
@@ -1001,6 +1012,17 @@ object LiveSpec extends ZIOSpecDefault {
       },
       suite("transactions")(
         suite("transact write items")(
+          test("transact put item should handle key word") {
+            withDefaultTable { tableName =>
+              val p = put[ExpressionAttrNames](
+                tableName = tableName,
+                ExpressionAttrNames("id", 10, None)
+              ).where(ExpressionAttrNames.ttl.notExists)
+              p.transaction.execute.exit.map { result =>
+                assert(result.isSuccess)(isTrue)
+              }
+            }
+          },
           test("put item") {
             withDefaultTable { tableName =>
               val putItem = PutItem(
