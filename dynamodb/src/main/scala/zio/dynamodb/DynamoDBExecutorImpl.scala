@@ -582,8 +582,9 @@ case object DynamoDBExecutorImpl {
   private[dynamodb] def tableGetToKeysAndAttributes(tableGet: TableGet): KeysAndAttributes = {
     val maybeProjectionExprn                             = toOption(tableGet.projectionExpressionSet).map(awsProjectionExpression)
     val (maybeAwsNamesMap, maybeProjectionExprnReplaced) = awsExprnAttrNamesAndReplaced(maybeProjectionExprn)
+    val keys                                             = tableGet.keysSet.map(set => set.toZioAwsMap())
     println(
-      s"TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT exprn=${maybeProjectionExprn} awsNamesMap=$maybeAwsNamesMap exprnReplaced=$maybeProjectionExprnReplaced"
+      s"TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT keys=$keys exprn=${maybeProjectionExprn} awsNamesMap=$maybeAwsNamesMap exprnReplaced=$maybeProjectionExprnReplaced"
     )
 
     KeysAndAttributes(

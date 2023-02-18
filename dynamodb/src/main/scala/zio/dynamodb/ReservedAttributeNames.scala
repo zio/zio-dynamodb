@@ -5,8 +5,8 @@ import scala.collection.immutable.HashSet
 private[dynamodb] object ReservedAttributeNames {
   val reservedWords: Set[String] = HashSet("FILTER", "FLOAT", "TTL") // TODO: complete with all reserved words
   val Prefix: String             = "~~~~~~~~~~~~"
-  val boundaryCharRegex          = "[\\.|\\[|\\)]$".r
-  private val pathRegex          = s"($Prefix\\S+\\.|$Prefix\\S+\\[|$Prefix\\S+\\)|$Prefix\\S+)".r
+  val boundaryCharRegex          = "[\\.|\\[|\\)|\\,]$".r
+  private val pathRegex          = s"($Prefix\\S+\\,|$Prefix\\S+\\.|$Prefix\\S+\\[|$Prefix\\S+\\)|$Prefix\\S+)".r
 
   // if a path contains a keyword it gets escaped
   def escape(pathSegment: String): String =

@@ -56,9 +56,15 @@ object ProjectionExpressionParserSpec extends ZIOSpecDefault {
       val pe = MapElement(ListElement(MapElement(Root("foo"), "bar"), 9), "ttl")
       assert(pe.toStringEscaped)(equalTo("foo.bar[9].~~~~~~~~~~~~ttl"))
     },
-    test("parse") {
+    test("parse with space separator") {
       val (map, s) = ReservedAttributeNames.parse("~~~~~~~~~~~~ttl) ~~~~~~~~~~~~filter.~~~~~~~~~~~~float[9]")
       assert(s)(equalTo("#N0_ttl) #N1_filter.#N2_float[9]")) && assert(map)(
+        equalTo(Map("#N0_ttl" -> "ttl", "#N1_filter" -> "filter", "#N2_float" -> "float"))
+      )
+    },
+    test("parse with comma separator") {
+      val (map, s) = ReservedAttributeNames.parse("~~~~~~~~~~~~ttl, ~~~~~~~~~~~~filter.~~~~~~~~~~~~float[9]")
+      assert(s)(equalTo("#N0_ttl, #N1_filter.#N2_float[9]")) && assert(map)(
         equalTo(Map("#N0_ttl" -> "ttl", "#N1_filter" -> "filter", "#N2_float" -> "float"))
       )
     }
