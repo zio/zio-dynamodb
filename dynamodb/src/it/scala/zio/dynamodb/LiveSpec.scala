@@ -167,7 +167,7 @@ object LiveSpec extends ZIOSpecDefault {
   }
 
   val debugSuite =
-    suite("using $ function")(
+    suite("debug suite")(
       test("queryAll should handle keyword") {
         withDefaultTable { tableName =>
           val query = DynamoDBQuery
@@ -224,6 +224,14 @@ object LiveSpec extends ZIOSpecDefault {
           u.transaction.execute.exit.map { result =>
             assert(result.isSuccess)(isTrue)
           }
+        }
+      } @@ TestAspect.ignore,
+      test("get item handles keyword in projection expression") {
+        withDefaultTable { tableName =>
+          for {
+            _    <- putItem(tableName, Item(id -> first, number -> 1, "ttl" -> 42L)).execute
+            item <- getItem(tableName, pk(aviItem), $(id), $(number), $("ttl")).execute
+          } yield assert(item)(equalTo(Some(Item(id -> first, number -> 1, "ttl" -> 42L))))
         }
       }
     )
@@ -385,6 +393,14 @@ object LiveSpec extends ZIOSpecDefault {
                 equalTo(Some(allAttributeTypeItem))
               )
           )
+        },
+        test("get item handles keyword in projection expression") {
+          withDefaultTable { tableName =>
+            for {
+              _    <- putItem(tableName, Item(id -> first, number -> 1, "ttl" -> 42L)).execute
+              item <- getItem(tableName, pk(aviItem), $(id), $(number), $("ttl")).execute
+            } yield assert(item)(equalTo(Some(Item(id -> first, number -> 1, "ttl" -> 42L))))
+          }
         },
         test("get into case class") {
           withDefaultTable { tableName =>

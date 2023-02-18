@@ -579,13 +579,22 @@ case object DynamoDBExecutorImpl {
           x
       })
 
-  private[dynamodb] def tableGetToKeysAndAttributes(tableGet: TableGet): KeysAndAttributes =
+  private[dynamodb] def tableGetToKeysAndAttributes(tableGet: TableGet): KeysAndAttributes = {
+    val maybeProjectionExprn                             = toOption(tableGet.projectionExpressionSet).map(awsProjectionExpression)
+    val (maybeAwsNamesMap, maybeProjectionExprnReplaced) = awsExprnAttrNamesAndReplaced(maybeProjectionExprn)
+    println(
+      s"TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT exprn=${maybeProjectionExprn} awsNamesMap=$maybeAwsNamesMap exprnReplaced=$maybeProjectionExprnReplaced"
+    )
+
     KeysAndAttributes(
       keys = tableGet.keysSet.map(set => set.toZioAwsMap()),
-      projectionExpression = toOption(tableGet.projectionExpressionSet)
-        .map(awsProjectionExpression)
-        .map(ZIOAwsProjectionExpression(_))
+//      projectionExpression = toOption(tableGet.projectionExpressionSet)
+//        .map(awsProjectionExpression)
+//        .map(ZIOAwsProjectionExpression(_)),
+      projectionExpression = maybeProjectionExprnReplaced.map(ZIOAwsProjectionExpression(_)),
+      expressionAttributeNames = maybeAwsNamesMap // TODO: Avi
     )
+  }
 
   private[dynamodb] def writeRequestToBatchWrite(writeRequest: WriteRequest.ReadOnly): Option[BatchWriteItem.Write] =
     writeRequest.putRequest.toOption.map(put => BatchWriteItem.Put(item = AttrMap(awsAttrMapToAttrMap(put.item))))
@@ -721,7 +730,8 @@ case object DynamoDBExecutorImpl {
     )
   }
 
-  private def awsGetItemRequest(getItem: GetItem): GetItemRequest =
+  private def awsGetItemRequest(getItem: GetItem): GetItemRequest = {
+    println(s"XXXXXXXXXXXXXXXXXXXXXXXXXXXX getItem.projections=${getItem.projections}")
     GetItemRequest(
       tableName = ZIOAwsTableName(getItem.tableName.value),
       key = getItem.key.toZioAwsMap(),
@@ -730,6 +740,7 @@ case object DynamoDBExecutorImpl {
       projectionExpression =
         toOption(getItem.projections).map(awsProjectionExpression).map(ZIOAwsProjectionExpression(_))
     )
+  }
 
   private[dynamodb] def awsBatchWriteItemRequest(batchWriteItem: BatchWriteItem): BatchWriteItemRequest =
     BatchWriteItemRequest(
