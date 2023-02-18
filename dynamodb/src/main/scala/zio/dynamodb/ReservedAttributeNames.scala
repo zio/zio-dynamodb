@@ -3,7 +3,7 @@ package zio.dynamodb
 import scala.collection.immutable.HashSet
 
 private[dynamodb] object ReservedAttributeNames {
-  val reservedWords: Set[String] = HashSet("FILTER", "FLOAT", "TTL") // TODO: complete with all reserved words
+  val reservedWords: Set[String] = HashSet("NAME", "FILTER", "FLOAT", "TTL") // TODO: complete with all reserved words
   val Prefix: String             = "~~~~~~~~~~~~"
   val boundaryCharRegex          = "[\\.|\\[|\\)|\\,]$".r
   private val pathRegex          = s"($Prefix\\S+\\,|$Prefix\\S+\\.|$Prefix\\S+\\[|$Prefix\\S+\\)|$Prefix\\S+)".r
@@ -20,7 +20,8 @@ private[dynamodb] object ReservedAttributeNames {
     val replacements: List[(String, String, String)] = targetsToEscape.foldLeft(List.empty[(String, String, String)]) {
       case (acc, s) =>
         val replaced = s.replace(Prefix, "")
-        acc :+ ((s"N${acc.size}_$replaced", replaced, s))
+//        acc :+ ((s"N${acc.size}_$replaced", replaced, s))
+        acc :+ ((s"N_$replaced", replaced, s))
     }
 
     val escaped = replacements.foldLeft(escapedExpression) {

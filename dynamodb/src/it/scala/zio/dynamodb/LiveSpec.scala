@@ -233,6 +233,49 @@ object LiveSpec extends ZIOSpecDefault {
             item <- getItem(tableName, pk(aviItem), $(id), $(number), $("ttl")).execute
           } yield assert(item)(equalTo(Some(Item(id -> first, number -> 1, "ttl" -> 42L))))
         }
+      } @@ TestAspect.ignore,
+      test("prepend to list") {
+        withDefaultTable {
+          tableName =>
+            for {
+              _       <- updateItem(tableName, pk(adamItem))($("listThing").set(List(1))).execute
+              _        = println(s"1. XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+              _       <- updateItem(tableName, pk(adamItem))($("listThing").prependList(Chunk(-1, 0))).execute
+              _        = println(s"2. XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+              updated <- getItem(tableName, pk(adamItem)).execute
+              _        = println(s"3. XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+            } yield assert(
+              updated.map(a =>
+                a.get("listThing")(
+                  FromAttributeValue.iterableFromAttributeValue(FromAttributeValue.intFromAttributeValue)
+                )
+              )
+            )(equalTo(Some(Right(List(-1, 0, 1)))))
+        }
+      } @@ TestAspect.ignore,
+      test("query all projection expressions should handle keyword") {
+        withDefaultTable { tableName =>
+          val query =
+            queryAllItem(tableName, $(name), $("ttl")).whereKey(
+              PartitionKey(id) === first && SortKey(number) > 0
+            )
+
+          query.execute.flatMap(_.runDrain).map { _ =>
+            assertCompletes
+          }
+        }
+      },
+      test("query some projection expressions should handle keyword") {
+        withDefaultTable { tableName =>
+          for {
+            chunk <- querySomeItem(tableName, 10, $(name), $("ttl"))
+                       .whereKey(PartitionKey(id) === first && SortKey(number) > 0)
+                       .execute
+                       .map(_._1)
+          } yield assert(chunk)(
+            equalTo(Chunk(Item(name -> avi), Item(name -> avi2), Item(name -> avi3)))
+          )
+        }
       }
     )
       .provideSomeLayerShared[TestEnvironment](
@@ -530,6 +573,30 @@ object LiveSpec extends ZIOSpecDefault {
         }
       ),
       suite("query tables")(
+        test("query all projection expressions should handle keyword") {
+          withDefaultTable { tableName =>
+            val query =
+              queryAllItem(tableName, $(name), $("ttl")).whereKey(
+                PartitionKey(id) === first && SortKey(number) > 0
+              )
+
+            query.execute.flatMap(_.runDrain).map { _ =>
+              assertCompletes
+            }
+          }
+        },
+        test("query some projection expressions should handle keyword") {
+          withDefaultTable { tableName =>
+            for {
+              chunk <- querySomeItem(tableName, 10, $(name), $("ttl"))
+                         .whereKey(PartitionKey(id) === first && SortKey(number) > 0)
+                         .execute
+                         .map(_._1)
+            } yield assert(chunk)(
+              equalTo(Chunk(Item(name -> avi), Item(name -> avi2), Item(name -> avi3)))
+            )
+          }
+        },
         test("query less than") {
           withDefaultTable { tableName =>
             for {
