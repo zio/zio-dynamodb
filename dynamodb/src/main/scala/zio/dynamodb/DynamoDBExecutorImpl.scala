@@ -859,7 +859,6 @@ case object DynamoDBExecutorImpl {
   }
 
   private def awsQueryRequest(queryAll: QueryAll): QueryRequest = {
-    // (AliasMap, (Option[String], Option[String]))
     val (aliasMap, (maybeFilterExpr, maybeKeyExpr)) = (for {
       filter  <- AliasMapRender.collectAll(queryAll.filterExpression.map(_.render))
       keyExpr <- AliasMapRender.collectAll(queryAll.keyConditionExpression.map(_.render))
@@ -867,9 +866,7 @@ case object DynamoDBExecutorImpl {
     val mapAndExprn                                 = awsExprnAttrNamesAndReplaced(maybeFilterExpr)
     val maybeProjectionExpressions                  = toOption(queryAll.projections).map(awsProjectionExpression)
     val mapAndProjectionExprn                       = awsExprnAttrNamesAndReplaced2(maybeProjectionExpressions)(ZIOAwsProjectionExpression(_))
-    val awsNamesMap                                 = toOption(
-      mapAndExprn._1.getOrElse(ScalaMap.empty) ++ mapAndProjectionExprn._1.getOrElse(ScalaMap.empty)
-    )
+    val awsNamesMap                                 = mergeOptionalMaps(mapAndExprn._1, mapAndProjectionExprn._1)
 
     QueryRequest(
       tableName = ZIOAwsTableName(queryAll.tableName.value),
@@ -900,9 +897,7 @@ case object DynamoDBExecutorImpl {
     val mapAndExprn                                 = awsExprnAttrNamesAndReplaced(maybeFilterExpr)
     val maybeProjectionExpressions                  = toOption(querySome.projections).map(awsProjectionExpression)
     val mapAndProjectionExprn                       = awsExprnAttrNamesAndReplaced2(maybeProjectionExpressions)(ZIOAwsProjectionExpression(_))
-    val awsNamesMap                                 = toOption(
-      mapAndExprn._1.getOrElse(ScalaMap.empty) ++ mapAndProjectionExprn._1.getOrElse(ScalaMap.empty)
-    )
+    val awsNamesMap                                 = mergeOptionalMaps(mapAndExprn._1, mapAndProjectionExprn._1)
 
     QueryRequest(
       tableName = ZIOAwsTableName(querySome.tableName.value),
@@ -914,8 +909,7 @@ case object DynamoDBExecutorImpl {
       exclusiveStartKey = querySome.exclusiveStartKey.map(m => awsAttributeValueMap(m.map)),
       returnConsumedCapacity = Some(awsConsumedCapacity(querySome.capacity)),
       projectionExpression = mapAndProjectionExprn._2,
-//        toOption(querySome.projections).map(awsProjectionExpression).map(ZIOAwsProjectionExpression(_)),
-      filterExpression = mapAndExprn._2, //maybeFilterExpr.map(ZIOAwsConditionExpression(_)),
+      filterExpression = mapAndExprn._2,
       expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap).map(_.map {
         case (k, v) => (ZIOAwsExpressionAttributeValueVariable(k), v)
       }),
@@ -1263,6 +1257,12 @@ case object DynamoDBExecutorImpl {
 
   private def toOption[A, B](map: ScalaMap[A, B]): Option[ScalaMap[A, B]] =
     if (map.isEmpty) None else Some(map)
+
+  private def mergeOptionalMaps[K, V](
+    map1: Option[ScalaMap[K, V]],
+    map2: Option[ScalaMap[K, V]]
+  ): Option[ScalaMap[K, V]] =
+    toOption(map1.getOrElse(ScalaMap.empty) ++ map2.getOrElse(ScalaMap.empty))
 
   private def mapOfListToMapOfSet[A, B](map: ScalaMap[TableName, List[A]])(f: A => Option[B]): MapOfSet[TableName, B] =
     map.foldLeft(MapOfSet.empty[TableName, B]) {
