@@ -368,6 +368,15 @@ object LiveSpec extends ZIOSpecDefault {
               }
             }
           },
+          test("scanSomeItem should handle keyword in projection") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .scanSomeItem(tableName, 1, $("ttl"))
+              query.execute.exit.map { result =>
+                assert(result.isSuccess)(isTrue)
+              }
+            }
+          },
           test("queryAllItem should handle keyword") {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
@@ -385,6 +394,16 @@ object LiveSpec extends ZIOSpecDefault {
                 .querySomeItem(tableName, 1)
                 .whereKey($("id") === "id")
                 .filter($("ttl").notExists)
+              query.execute.exit.map { result =>
+                assert(result.isSuccess)(isTrue)
+              }
+            }
+          },
+          test("querySome should handle keyword in projection") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .querySomeItem(tableName, 1, $("ttl"))
+                .whereKey($("id") === "id")
               query.execute.exit.map { result =>
                 assert(result.isSuccess)(isTrue)
               }
@@ -512,17 +531,6 @@ object LiveSpec extends ZIOSpecDefault {
         }
       ),
       suite("scan tables")(
-        test("scan table with projection that is a keyword") {
-          withDefaultTable { tableName =>
-            val program = for {
-              stream <- scanAllItem(tableName, $(id), $("ttl")).execute
-              _      <- stream.runDrain
-            } yield ()
-            program.exit.map { result =>
-              assert(result.isSuccess)(isTrue)
-            }
-          }
-        },
         test("scan table") {
           withDefaultTable { tableName =>
             for {
