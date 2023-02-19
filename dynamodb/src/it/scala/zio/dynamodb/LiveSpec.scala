@@ -348,7 +348,7 @@ object LiveSpec extends ZIOSpecDefault {
           }
         ),
         suite("using $ function")(
-          test("scan should handle keyword") {
+          test("scanAll should handle keyword") {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
                 .scanAll[ExpressionAttrNames](tableName)
@@ -512,6 +512,17 @@ object LiveSpec extends ZIOSpecDefault {
         }
       ),
       suite("scan tables")(
+        test("scan table with projection that is a keyword") {
+          withDefaultTable { tableName =>
+            val program = for {
+              stream <- scanAllItem(tableName, $(id), $("ttl")).execute
+              _      <- stream.runDrain
+            } yield ()
+            program.exit.map { result =>
+              assert(result.isSuccess)(isTrue)
+            }
+          }
+        },
         test("scan table") {
           withDefaultTable { tableName =>
             for {
