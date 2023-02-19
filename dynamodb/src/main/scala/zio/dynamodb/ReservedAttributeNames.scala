@@ -1,16 +1,12 @@
 package zio.dynamodb
 
-import scala.collection.immutable.HashSet
-
+// TODO: Avi - rename
 private[dynamodb] object ReservedAttributeNames {
-  val reservedWords: Set[String] = HashSet("NAME", "FILTER", "FLOAT", "TTL") // TODO: complete with all reserved words
-  val Prefix: String             = "~~~~~~~~~~~~"
-  val boundaryCharRegex          = "[\\.|\\[|\\)|\\,]$".r
-  private val pathRegex          = s"($Prefix\\S+\\,|$Prefix\\S+\\.|$Prefix\\S+\\[|$Prefix\\S+\\)|$Prefix\\S+)".r
+  val Prefix: String    = "~~~~~~~~~~~~"
+  val boundaryCharRegex = "[\\.|\\[|\\)|\\,]$".r
+  private val pathRegex = s"($Prefix\\S+\\,|$Prefix\\S+\\.|$Prefix\\S+\\[|$Prefix\\S+\\)|$Prefix\\S+)".r
 
-  // if a path contains a keyword it gets escaped
-  def escape(pathSegment: String): String =
-    if (reservedWords.contains(pathSegment.toUpperCase)) s"$Prefix$pathSegment" else pathSegment
+  def escape(pathSegment: String): String = s"$Prefix$pathSegment"
 
   // returns Map of substituted name to actual name, and substituted expression
   def parse(escapedExpression: String): (Map[String, String], String) = {
@@ -20,7 +16,6 @@ private[dynamodb] object ReservedAttributeNames {
     val replacements: List[(String, String, String)] = targetsToEscape.foldLeft(List.empty[(String, String, String)]) {
       case (acc, s) =>
         val replaced = s.replace(Prefix, "")
-//        acc :+ ((s"N${acc.size}_$replaced", replaced, s))
         acc :+ ((s"N_$replaced", replaced, s))
     }
 

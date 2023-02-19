@@ -172,12 +172,12 @@ object LiveSpec extends ZIOSpecDefault {
         withDefaultTable { tableName =>
           val query = DynamoDBQuery
             .queryAll[ExpressionAttrNames](tableName)
-            .whereKey(ExpressionAttrNames.id === "id")
+            .whereKey(ExpressionAttrNames.id === "ttl")
           query.execute.flatMap(_.runDrain).exit.map { result =>
             assert(result)(succeeds(isUnit))
           }
         }
-      } @@ TestAspect.ignore,
+      },
       test("conditionCheck should handle keyword") {
         withDefaultTable { tableName =>
           val cc    = conditionCheck(

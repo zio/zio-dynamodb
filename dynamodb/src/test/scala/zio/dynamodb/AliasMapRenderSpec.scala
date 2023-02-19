@@ -2,6 +2,7 @@ package zio.dynamodb
 import zio.Chunk
 import zio.test._
 import zio.dynamodb.ProjectionExpression._
+import zio.dynamodb.ReservedAttributeNames.Prefix
 import zio.test.Assertion._
 import zio.test.ZIOSpecDefault
 
@@ -25,8 +26,10 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
       ConditionExpression.Operand.ValueOperand(one),
       Set(one, two)
     )
-  private val projection                                               = "projection"
-  private val projectionExpression: ProjectionExpression[Any, Unknown] = $(projection)
+  private val projection                                               = s"${Prefix}projection"
+  private val otherProjection                                          = s"${Prefix}otherProjection"
+  private val lastProjection                                           = s"${Prefix}lastProjection"
+  private val projectionExpression: ProjectionExpression[Any, Unknown] = $("projection")
   val attributeExists                                                  = ConditionExpression.AttributeExists(projectionExpression)
   val attributeNotExists                                               = ConditionExpression.AttributeNotExists(projectionExpression)
   val attributeType                                                    = ConditionExpression
@@ -53,13 +56,13 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
       val (aliasMap, expression) =
         UpdateExpression(
           UpdateExpression.Action.AddAction(
-            $(projection),
+            $("projection"),
             one
           )
         ).render.execute
 
       assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
-      assert(expression)(equalTo("add projection :v0"))
+      assert(expression)(equalTo(s"add $projection :v0"))
     }
   )
 
@@ -122,7 +125,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               .execute
 
             assert(aliasMap)(equalTo(AliasMap(Map(two -> ":v0", one -> ":v1", three -> ":v2", number -> ":v3"), 4))) &&
-            assert(expression)(equalTo("(:v0 BETWEEN :v1 AND :v2) AND (attribute_type(projection, :v3))"))
+            assert(expression)(equalTo(s"(:v0 BETWEEN :v1 AND :v2) AND (attribute_type($projection, :v3))"))
           },
           test("Or") {
             val (aliasMap, expression) = ConditionExpression
@@ -134,7 +137,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               .execute
 
             assert(aliasMap)(equalTo(AliasMap(Map(two -> ":v0", one -> ":v1", three -> ":v2", number -> ":v3"), 4))) &&
-            assert(expression)(equalTo("(:v0 BETWEEN :v1 AND :v2) OR (attribute_type(projection, :v3))"))
+            assert(expression)(equalTo(s"(:v0 BETWEEN :v1 AND :v2) OR (attribute_type($projection, :v3))"))
           },
           test("Not") {
             val (aliasMap, expression) = ConditionExpression
@@ -385,7 +388,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
                 UpdateExpression.Action.Actions[Any](
                   Chunk(
                     UpdateExpression.Action.SetAction[Any, Any](
-                      $(projection),
+                      $("projection"),
                       UpdateExpression.SetOperand.IfNotExists(
                         projectionExpression,
                         one
@@ -397,19 +400,19 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               ).render.execute
 
             assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
-            assert(expression)(equalTo("set projection = if_not_exists(projection, :v0) remove otherProjection"))
+            assert(expression)(equalTo(s"set $projection = if_not_exists($projection, :v0) remove $otherProjection"))
           },
           test("Two Sets") {
 
             val (aliasMap, expression) =
-              (UpdateExpression.Action.SetAction($(projection), UpdateExpression.SetOperand.ValueOperand(one)) +
+              (UpdateExpression.Action.SetAction($("projection"), UpdateExpression.SetOperand.ValueOperand(one)) +
                 UpdateExpression.Action.SetAction(
                   $("otherProjection"),
                   UpdateExpression.SetOperand.ValueOperand(one)
                 ) + UpdateExpression.Action.AddAction($("lastProjection"), one)).render.execute
 
             assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
-            assert(expression)(equalTo("set projection = :v0,otherProjection = :v0 add lastProjection :v0"))
+            assert(expression)(equalTo(s"set $projection = :v0,$otherProjection = :v0 add $lastProjection :v0"))
           }
         ),
         suite("Set")(
@@ -417,7 +420,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
             val (aliasMap, expression) =
               UpdateExpression(
                 UpdateExpression.Action.SetAction(
-                  $(projection),
+                  $("projection"),
                   UpdateExpression.SetOperand.Minus[Any](
                     setOperandValueOne,
                     setOperandValueTwo
@@ -426,13 +429,13 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               ).render.execute
 
             assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0", two -> ":v1"), 2))) &&
-            assert(expression)(equalTo("set projection = :v0 - :v1"))
+            assert(expression)(equalTo(s"set $projection = :v0 - :v1"))
           },
           test("Plus") {
             val (aliasMap, expression) =
               UpdateExpression(
                 UpdateExpression.Action.SetAction(
-                  $(projection),
+                  $("projection"),
                   UpdateExpression.SetOperand.Plus(
                     setOperandValueOne,
                     setOperandValueTwo
@@ -441,27 +444,27 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               ).render.execute
 
             assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0", two -> ":v1"), 2))) &&
-            assert(expression)(equalTo("set projection = :v0 + :v1"))
+            assert(expression)(equalTo(s"set $projection = :v0 + :v1"))
 
           },
           test("ValueOperand") {
             val (aliasMap, expression) =
               UpdateExpression(
                 UpdateExpression.Action.SetAction(
-                  $(projection),
+                  $("projection"),
                   UpdateExpression.SetOperand.ValueOperand(one)
                 )
               ).render.execute
 
             assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
-            assert(expression)(equalTo("set projection = :v0"))
+            assert(expression)(equalTo(s"set $projection = :v0"))
 
           },
           test("PathOperand") {
             val (aliasMap, expression) =
               UpdateExpression(
                 UpdateExpression.Action.SetAction(
-                  $(projection),
+                  $("projection"),
                   UpdateExpression.SetOperand.PathOperand(
                     projectionExpression
                   )
@@ -469,14 +472,14 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               ).render.execute
 
             assert(aliasMap.map)(isEmpty) &&
-            assert(expression)(equalTo("set projection = projection"))
+            assert(expression)(equalTo(s"set $projection = $projection"))
 
           },
           test("ListAppend") {
             val (aliasMap, expression) =
               UpdateExpression(
                 UpdateExpression.Action.SetAction(
-                  $(projection),
+                  $("projection"),
                   UpdateExpression.SetOperand.ListAppend(
                     projectionExpression,
                     list
@@ -485,14 +488,14 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               ).render.execute
 
             assert(aliasMap)(equalTo(AliasMap(Map(list -> ":v0"), 1))) &&
-            assert(expression)(equalTo("set projection = list_append(projection, :v0)"))
+            assert(expression)(equalTo(s"set $projection = list_append($projection, :v0)"))
 
           },
           test("ListPrepend") {
             val (aliasMap, expression) =
               UpdateExpression(
                 UpdateExpression.Action.SetAction(
-                  $(projection),
+                  $("projection"),
                   UpdateExpression.SetOperand.ListPrepend(
                     projectionExpression,
                     list
@@ -501,14 +504,14 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               ).render.execute
 
             assert(aliasMap)(equalTo(AliasMap(Map(list -> ":v0"), 1))) &&
-            assert(expression)(equalTo("set projection = list_append(:v0, projection)"))
+            assert(expression)(equalTo(s"set $projection = list_append(:v0, $projection)"))
 
           },
           test("IfNotExists") {
             val (aliasMap, expression) =
               UpdateExpression(
                 UpdateExpression.Action.SetAction(
-                  $(projection),
+                  $("projection"),
                   UpdateExpression.SetOperand.IfNotExists(
                     projectionExpression,
                     one
@@ -517,7 +520,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               ).render.execute
 
             assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
-            assert(expression)(equalTo("set projection = if_not_exists(projection, :v0)"))
+            assert(expression)(equalTo(s"set $projection = if_not_exists($projection, :v0)"))
 
           }
         ),
@@ -526,12 +529,12 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
             val (aliasMap, expression) =
               UpdateExpression(
                 UpdateExpression.Action.RemoveAction(
-                  $(projection)
+                  $("projection")
                 )
               ).render.execute
 
             assert(aliasMap.map)(isEmpty) &&
-            assert(expression)(equalTo("remove projection"))
+            assert(expression)(equalTo(s"remove $projection"))
           }
         ),
         suite("Add")(
@@ -539,13 +542,13 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
             val (aliasMap, expression) =
               UpdateExpression(
                 UpdateExpression.Action.AddAction(
-                  $(projection),
+                  $("projection"),
                   one
                 )
               ).render.execute
 
             assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
-            assert(expression)(equalTo("add projection :v0"))
+            assert(expression)(equalTo(s"add $projection :v0"))
           }
         ),
         suite("Delete")(
@@ -553,13 +556,13 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
             val (aliasMap, expression) =
               UpdateExpression(
                 UpdateExpression.Action.DeleteAction(
-                  $(projection),
+                  $("projection"),
                   one
                 )
               ).render.execute
 
             assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
-            assert(expression)(equalTo("delete projection :v0"))
+            assert(expression)(equalTo(s"delete $projection :v0"))
           }
         )
       )
