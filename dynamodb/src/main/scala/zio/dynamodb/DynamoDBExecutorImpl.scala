@@ -636,7 +636,7 @@ case object DynamoDBExecutorImpl {
     Option[ScalaMap[primitives.ExpressionAttributeNameVariable.Type, ZIOAwsAttributeName.Type]],
     A
   ) =
-    (ReservedAttributeNames.parse(escapedExpression) match {
+    (ExpressionAttributeNames.parse(escapedExpression) match {
       case (map, replaced) =>
         if (map.isEmpty)
           (None, replaced)
@@ -662,7 +662,7 @@ case object DynamoDBExecutorImpl {
     Option[ScalaMap[primitives.ExpressionAttributeNameVariable.Type, ZIOAwsAttributeName.Type]],
     ZIOAwsConditionExpression
   ) =
-    (ReservedAttributeNames.parse(escapedExpression) match {
+    (ExpressionAttributeNames.parse(escapedExpression) match {
       case (map, replaced) =>
         if (map.isEmpty)
           (None, replaced)
@@ -721,12 +721,12 @@ case object DynamoDBExecutorImpl {
     ZIOAwsUpdateExpression,
     Option[ZIOAwsConditionExpression]
   ) = {
-    val (map1, replacedUpdateExprn) = ReservedAttributeNames.parse(updateExprn)
+    val (map1, replacedUpdateExprn) = ExpressionAttributeNames.parse(updateExprn)
 
     val maybeCondMapAndExprn: Option[(ScalaMap[String, String], String)] = {
       for {
         condExprn                <- maybeEscapedConditionExpression
-        (map2, replacedCondExprn) = ReservedAttributeNames.parse(condExprn)
+        (map2, replacedCondExprn) = ExpressionAttributeNames.parse(condExprn)
       } yield (
         map2,
         replacedCondExprn

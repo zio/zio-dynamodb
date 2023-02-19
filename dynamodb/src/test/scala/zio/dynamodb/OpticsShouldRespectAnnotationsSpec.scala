@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.ReservedAttributeNames.Prefix
+import zio.dynamodb.ExpressionAttributeNames.Prefix
 import zio.schema.annotation.{ caseName, discriminatorName, fieldName }
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test.Assertion.equalTo

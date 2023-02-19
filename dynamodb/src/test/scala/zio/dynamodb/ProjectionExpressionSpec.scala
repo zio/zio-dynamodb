@@ -2,7 +2,7 @@ package zio.dynamodb
 
 import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.dynamodb.ProjectionExpression.{ $, mapElement, MapElement, Root }
-import zio.dynamodb.ReservedAttributeNames.Prefix
+import zio.dynamodb.ExpressionAttributeNames.Prefix
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test.Assertion._
 import zio.test.{ assert, assertTrue, ZIOSpecDefault }

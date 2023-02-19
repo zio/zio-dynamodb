@@ -2,7 +2,7 @@ package zio.dynamodb
 import zio.Chunk
 import zio.test._
 import zio.dynamodb.ProjectionExpression._
-import zio.dynamodb.ReservedAttributeNames.Prefix
+import zio.dynamodb.ExpressionAttributeNames.Prefix
 import zio.test.Assertion._
 import zio.test.ZIOSpecDefault
 

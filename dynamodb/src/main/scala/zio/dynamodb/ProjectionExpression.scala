@@ -115,9 +115,9 @@ sealed trait ProjectionExpression[-From, +To] { self =>
         case Root                                        =>
           acc // identity
         case ProjectionExpression.MapElement(Root, name) =>
-          acc :+ ReservedAttributeNames.escape(s"$name")
+          acc :+ ExpressionAttributeNames.escape(s"$name")
         case MapElement(parent, key)                     =>
-          loop(parent, acc :+ "." + ReservedAttributeNames.escape(s"$key"))
+          loop(parent, acc :+ "." + ExpressionAttributeNames.escape(s"$key"))
         case ListElement(parent, index)                  =>
           loop(parent, acc :+ s"[$index]")
       }
