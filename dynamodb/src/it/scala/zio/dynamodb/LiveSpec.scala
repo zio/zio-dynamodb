@@ -239,11 +239,8 @@ object LiveSpec extends ZIOSpecDefault {
           tableName =>
             for {
               _       <- updateItem(tableName, pk(adamItem))($("listThing").set(List(1))).execute
-              _        = println(s"1. XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
               _       <- updateItem(tableName, pk(adamItem))($("listThing").prependList(Chunk(-1, 0))).execute
-              _        = println(s"2. XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
               updated <- getItem(tableName, pk(adamItem)).execute
-              _        = println(s"3. XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
             } yield assert(
               updated.map(a =>
                 a.get("listThing")(
