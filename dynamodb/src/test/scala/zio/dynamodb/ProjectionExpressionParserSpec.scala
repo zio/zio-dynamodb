@@ -50,11 +50,11 @@ object ProjectionExpressionParserSpec extends ZIOSpecDefault {
   private val debugSuite = suite("debug")(
     test("toString on a ProjectionExpression of filter.float[9].ttl") {
       val pe = MapElement(ListElement(MapElement(Root("filter"), "float"), 9), "ttl")
-      assert(pe.toStringEscaped)(equalTo("~~~~~~~~~~~~filter.~~~~~~~~~~~~float[9].~~~~~~~~~~~~ttl"))
+      assert(pe.toString)(equalTo("~~~~~~~~~~~~filter.~~~~~~~~~~~~float[9].~~~~~~~~~~~~ttl"))
     },
     test("toString on a ProjectionExpression of foo.bar[9].ttl") {
       val pe = MapElement(ListElement(MapElement(Root("foo"), "bar"), 9), "ttl")
-      assert(pe.toStringEscaped)(equalTo("~~~~~~~~~~~~foo.~~~~~~~~~~~~bar[9].~~~~~~~~~~~~ttl"))
+      assert(pe.toString)(equalTo("~~~~~~~~~~~~foo.~~~~~~~~~~~~bar[9].~~~~~~~~~~~~ttl"))
     },
     test("parse with space separator") {
       val (map, s) = ExpressionAttributeNames.parse("~~~~~~~~~~~~ttl) ~~~~~~~~~~~~filter.~~~~~~~~~~~~float[9]")
@@ -78,7 +78,7 @@ object ProjectionExpressionParserSpec extends ZIOSpecDefault {
       },
       test("should parse valid expressions and return a Left for any invalid expressions") {
         check(Generators.projectionExpression) { pe =>
-          assert(parse(pe.toStringOld))(
+          assert(parse(pe.toStringUnescaped))(
             if (anyEmptyName(pe)) isLeft
             else isRight(equalTo(pe))
           )
@@ -89,7 +89,7 @@ object ProjectionExpressionParserSpec extends ZIOSpecDefault {
       },
       test("toString on a ProjectionExpression of foo.bar[9].baz") {
         val pe = MapElement(ListElement(MapElement(Root("foo"), "bar"), 9), "baz")
-        assert(pe.toStringOld)(equalTo("foo.bar[9].baz"))
+        assert(pe.toStringUnescaped)(equalTo("foo.bar[9].baz"))
       },
       test("returns error for null") {
         val actual = parse(null)

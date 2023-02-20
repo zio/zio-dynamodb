@@ -92,32 +92,22 @@ sealed trait ProjectionExpression[-From, +To] { self =>
   def remove[From2 <: From]: UpdateExpression.Action.RemoveAction[From2] =
     UpdateExpression.Action.RemoveAction[From2](self)
 
-  def toStringOld: String = {
-    @tailrec
-    def loop(pe: ProjectionExpression[_, _], acc: List[String]): List[String] =
-      pe match {
-        case Root                                        => acc // identity
-        // TODO: maybe we can inject subst here?
-        case ProjectionExpression.MapElement(Root, name) => acc :+ s"$name"
-        case MapElement(parent, key)                     => loop(parent, acc :+ s".$key")
-        case ListElement(parent, index)                  => loop(parent, acc :+ s"[$index]")
-      }
+  override def toString: String = toStringEscaped(escape = true)
 
-    loop(self, List.empty).reverse.mkString("")
-  }
+  private[dynamodb] def toStringUnescaped: String = toStringEscaped(escape = false)
 
-  override def toString: String = toStringEscaped
-
-  private[dynamodb] def toStringEscaped: String = {
+  private[dynamodb] def toStringEscaped(escape: Boolean): String = {
     @tailrec
     def loop(pe: ProjectionExpression[_, _], acc: List[String]): List[String] =
       pe match {
         case Root                                        =>
           acc // identity
         case ProjectionExpression.MapElement(Root, name) =>
-          acc :+ ExpressionAttributeNames.escape(s"$name")
+          val pathSegment = if (escape) ExpressionAttributeNames.escape(name) else name
+          acc :+ pathSegment
         case MapElement(parent, key)                     =>
-          loop(parent, acc :+ "." + ExpressionAttributeNames.escape(s"$key"))
+          val pathSegment = if (escape) ExpressionAttributeNames.escape(key) else key
+          loop(parent, acc :+ "." + pathSegment)
         case ListElement(parent, index)                  =>
           loop(parent, acc :+ s"[$index]")
       }
