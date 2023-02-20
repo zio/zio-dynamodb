@@ -70,13 +70,13 @@ object LiveSpec extends ZIOSpecDefault {
   private val avi2Person = Person(first, avi2, 4)
   private val avi3Person = Person(first, avi3, 7)
 
-  private val aviItem  = Item(id -> first, name -> avi, number -> 1, "mapp" -> ScalaMap("abc" -> 1, "123" -> 2))
+  private val aviItem  = Item(id -> first, name -> avi, number -> 1, "map" -> ScalaMap("abc" -> 1, "123" -> 2))
   private val avi2Item = Item(id -> first, name -> avi2, number -> 4)
   private val avi3Item = Item(id -> first, name -> avi3, number -> 7)
 
   private val adamItem  = Item(id -> second, name -> adam, number -> 2)
   private val adam2Item = Item(id -> second, name -> adam2, number -> 5)
-  private val adam3Item = Item(id -> second, name -> adam3, number -> 8, "listt" -> List(1, 2, 3))
+  private val adam3Item = Item(id -> second, name -> adam3, number -> 8, "list" -> List(1, 2, 3))
 
   private val johnItem  = Item(id -> third, name -> john, number -> 3)
   private val john2Item = Item(id -> third, name -> john2, number -> 6)
@@ -125,6 +125,8 @@ object LiveSpec extends ZIOSpecDefault {
         } yield TableName(tableName)
       )(tName => deleteTable(tName.value).execute.orDie)
 
+  // TODO: Avi - fix problem with inference of this function when splitting suites
+  // "a type was inferred to be `Any`; this may indicate a programming error."
   private def withTemporaryTable[R](
     tableDefinition: String => CreateTable,
     f: String => ZIO[DynamoDBExecutor with R, Throwable, TestResult]
@@ -156,8 +158,136 @@ object LiveSpec extends ZIOSpecDefault {
     ConditionExpression.Operand.ValueOperand(AttributeValue(id))
   )
 
-  override def spec: Spec[TestEnvironment, Any] =
+  override def spec: Spec[TestEnvironment, Any] = mainSuite
+
+  final case class ExpressionAttrNames(id: String, num: Int, ttl: Option[Long])
+  object ExpressionAttrNames {
+    implicit val schema = DeriveSchema.gen[ExpressionAttrNames]
+    val (id, num, ttl)  = ProjectionExpression.accessors[ExpressionAttrNames]
+  }
+
+  val mainSuite: Spec[TestEnvironment, Any] =
     suite("live test")(
+      suite("keywords in expression attribute names")(
+        suite("using high level api")(
+          test("scanAll should handle keyword") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .scanAll[ExpressionAttrNames](tableName)
+                .filter(ExpressionAttrNames.ttl.notExists)
+              query.execute.flatMap(_.runDrain).exit.map { result =>
+                assert(result)(succeeds(isUnit))
+              }
+            }
+          },
+          test("queryAll should handle keyword") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .queryAll[ExpressionAttrNames](tableName)
+                .whereKey(ExpressionAttrNames.id === "id")
+                .filter(ExpressionAttrNames.ttl.notExists)
+              query.execute.flatMap(_.runDrain).exit.map { result =>
+                assert(result)(succeeds(isUnit))
+              }
+            }
+          },
+          test("delete should handle keyword") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .delete[ExpressionAttrNames](tableName, PrimaryKey("id" -> "id", "num" -> 1))
+                .where(ExpressionAttrNames.ttl.notExists)
+              query.execute.exit.map { result =>
+                assert(result)(succeeds(isNone))
+              }
+            }
+          },
+          test("put should handle keyword") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .put[ExpressionAttrNames](tableName, ExpressionAttrNames("id", 1, None))
+                .where(ExpressionAttrNames.ttl.notExists)
+              query.execute.exit.map { result =>
+                assert(result)(succeeds(isNone))
+              }
+            }
+          },
+          test("update should handle keyword") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .update[ExpressionAttrNames](tableName, PrimaryKey("id" -> "1", "num" -> 1))(
+                  ExpressionAttrNames.ttl.set(Some(42L))
+                )
+                .where(ExpressionAttrNames.ttl.notExists)
+              query.execute.exit.map { result =>
+                assert(result)(succeeds(isNone))
+              }
+            }
+          }
+        ),
+        suite("using $ function")(
+          test("scanAll should handle keyword") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .scanAll[ExpressionAttrNames](tableName)
+                .filter($("ttl").notExists)
+              query.execute.flatMap(_.runDrain).exit.map { result =>
+                assert(result)(succeeds(isUnit))
+              }
+            }
+          },
+          test("scanSomeItem should handle keyword") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .scanSomeItem(tableName, 1)
+                .filter($("ttl").notExists)
+              query.execute.exit.map { result =>
+                assert(result.isSuccess)(isTrue)
+              }
+            }
+          },
+          test("scanSomeItem should handle keyword in projection") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .scanSomeItem(tableName, 1, $("ttl"))
+              query.execute.exit.map { result =>
+                assert(result.isSuccess)(isTrue)
+              }
+            }
+          },
+          test("queryAllItem should handle keyword") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .queryAllItem(tableName)
+                .whereKey($("id") === "id")
+                .filter($("ttl").notExists)
+              query.execute.flatMap(_.runDrain).exit.map { result =>
+                assert(result)(succeeds(isUnit))
+              }
+            }
+          },
+          test("querySome should handle keyword") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .querySomeItem(tableName, 1)
+                .whereKey($("id") === "id")
+                .filter($("ttl").notExists)
+              query.execute.exit.map { result =>
+                assert(result.isSuccess)(isTrue)
+              }
+            }
+          },
+          test("querySome should handle keyword in projection") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .querySomeItem(tableName, 1, $("ttl"))
+                .whereKey($("id") === "id")
+              query.execute.exit.map { result =>
+                assert(result.isSuccess)(isTrue)
+              }
+            }
+          }
+        )
+      ),
       suite("basic usage")(
         test("put and get item") {
           withDefaultTable { tableName =>
@@ -177,7 +307,7 @@ object LiveSpec extends ZIOSpecDefault {
             "binSet"    -> Set(Chunk.fromArray("abc".getBytes)),
             "boolean"   -> true,
             "list"      -> List(1, 2, 3),
-            "mapp"      -> ScalaMap(
+            "map"       -> ScalaMap(
               "a" -> true,
               "b" -> false,
               "c" -> false
@@ -200,6 +330,14 @@ object LiveSpec extends ZIOSpecDefault {
               )
           )
         },
+        test("get item handles keyword in projection expression") {
+          withDefaultTable { tableName =>
+            for {
+              _    <- putItem(tableName, Item(id -> first, number -> 1, "ttl" -> 42L)).execute
+              item <- getItem(tableName, pk(aviItem), $(id), $(number), $("ttl")).execute
+            } yield assert(item)(equalTo(Some(Item(id -> first, number -> 1, "ttl" -> 42L))))
+          }
+        },
         test("get into case class") {
           withDefaultTable { tableName =>
             get[Person](tableName, secondPrimaryKey).execute.map(person =>
@@ -210,8 +348,8 @@ object LiveSpec extends ZIOSpecDefault {
         test("get data from map") {
           withDefaultTable { tableName =>
             for {
-              item <- getItem(tableName, pk(aviItem), $(id), $(number), $("mapp.abc")).execute
-            } yield assert(item)(equalTo(Some(Item(id -> first, number -> 1, "mapp" -> ScalaMap("abc" -> 1)))))
+              item <- getItem(tableName, pk(aviItem), $(id), $(number), $("map.abc")).execute
+            } yield assert(item)(equalTo(Some(Item(id -> first, number -> 1, "map" -> ScalaMap("abc" -> 1)))))
           }
         },
         test("get nonexistant returns empty") {
@@ -328,6 +466,30 @@ object LiveSpec extends ZIOSpecDefault {
         }
       ),
       suite("query tables")(
+        test("query all projection expressions should handle keyword") {
+          withDefaultTable { tableName =>
+            val query =
+              queryAllItem(tableName, $(name), $("ttl")).whereKey(
+                PartitionKey(id) === first && SortKey(number) > 0
+              )
+
+            query.execute.flatMap(_.runDrain).map { _ =>
+              assertCompletes
+            }
+          }
+        },
+        test("query some projection expressions should handle keyword") {
+          withDefaultTable { tableName =>
+            for {
+              chunk <- querySomeItem(tableName, 10, $(name), $("ttl"))
+                         .whereKey(PartitionKey(id) === first && SortKey(number) > 0)
+                         .execute
+                         .map(_._1)
+            } yield assert(chunk)(
+              equalTo(Chunk(Item(name -> avi), Item(name -> avi2), Item(name -> avi3)))
+            )
+          }
+        },
         test("query less than") {
           withDefaultTable { tableName =>
             for {
@@ -352,18 +514,7 @@ object LiveSpec extends ZIOSpecDefault {
             )
           }
         },
-        test("query table not equal") {
-          withDefaultTable { tableName =>
-            for {
-              chunk <- querySomeItem(tableName, 10, $(name))
-                         .whereKey(PartitionKey(id) === first && SortKey(number) <> 1)
-                         .execute
-                         .map(_._1)
-            } yield assert(chunk)(
-              equalTo(Chunk(Item(name -> avi2), Item(name -> avi3)))
-            )
-          }
-        } @@ ignore, // I'm not sure notEqual is a valid SortKey condition: https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#API_Query_RequestSyntax
+        // Note notEqual is NOT a valid SortKey condition: https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#API_Query_RequestSyntax
         test("query table greater than or equal") {
           withDefaultTable { tableName =>
             for {
@@ -681,13 +832,13 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             val key = PrimaryKey(id -> second, number -> 8)
             for {
-              _       <- updateItem(tableName, key)($("listt[1]").remove).execute
+              _       <- updateItem(tableName, key)($("list[1]").remove).execute
               updated <- getItem(
                            tableName,
                            key
                          ).execute
             } yield assert(updated)(
-              equalTo(Some(Item(id -> second, number -> 8, name -> adam3, "listt" -> List(1, 3))))
+              equalTo(Some(Item(id -> second, number -> 8, name -> adam3, "list" -> List(1, 3))))
             )
           }
         },
@@ -695,13 +846,13 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             val key = PrimaryKey(id -> second, number -> 8)
             for {
-              _       <- updateItem(tableName, key)($("listt").remove(1)).execute
+              _       <- updateItem(tableName, key)($("list").remove(1)).execute
               updated <- getItem(
                            tableName,
                            key
                          ).execute
             } yield assert(updated)(
-              equalTo(Some(Item(id -> second, number -> 8, name -> adam3, "listt" -> List(1, 3))))
+              equalTo(Some(Item(id -> second, number -> 8, name -> adam3, "list" -> List(1, 3))))
             )
           }
         },
@@ -711,10 +862,10 @@ object LiveSpec extends ZIOSpecDefault {
               createTable(tableName, KeySchema(id), BillingMode.PayPerRequest)(AttributeDefinition.attrDefnNumber(id)),
             tableName =>
               for {
-                _       <- putItem(tableName, Item(id -> 1, "sett" -> Set(1, 2, 3))).execute
-                _       <- updateItem(tableName, PrimaryKey(id -> 1))($("sett").add(Set(4))).execute
+                _       <- putItem(tableName, Item(id -> 1, "set" -> Set(1, 2, 3))).execute
+                _       <- updateItem(tableName, PrimaryKey(id -> 1))($("set").add(Set(4))).execute
                 updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
-              } yield assert(updated)(equalTo(Some(Item(id -> 1, "sett" -> Set(1, 2, 3, 4)))))
+              } yield assert(updated)(equalTo(Some(Item(id -> 1, "set" -> Set(1, 2, 3, 4)))))
           )
         },
         test("delete elements from a set") {
@@ -723,10 +874,10 @@ object LiveSpec extends ZIOSpecDefault {
               createTable(tableName, KeySchema(id), BillingMode.PayPerRequest)(AttributeDefinition.attrDefnNumber(id)),
             tableName =>
               for {
-                _       <- putItem(tableName, Item(id -> 1, "sett" -> Set(1, 2, 3))).execute
-                _       <- updateItem(tableName, PrimaryKey(id -> 1))($("sett").deleteFromSet(Set(3))).execute
+                _       <- putItem(tableName, Item(id -> 1, "set" -> Set(1, 2, 3))).execute
+                _       <- updateItem(tableName, PrimaryKey(id -> 1))($("set").deleteFromSet(Set(3))).execute
                 updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
-              } yield assert(updated)(equalTo(Some(Item(id -> 1, "sett" -> Set(1, 2)))))
+              } yield assert(updated)(equalTo(Some(Item(id -> 1, "set" -> Set(1, 2)))))
           )
         },
         test("`in` using a range of set when field is a set") {
@@ -735,16 +886,16 @@ object LiveSpec extends ZIOSpecDefault {
               createTable(tableName, KeySchema(id), BillingMode.PayPerRequest)(AttributeDefinition.attrDefnNumber(id)),
             tableName =>
               for {
-                _       <- putItem(tableName, Item(id -> 1, "sett" -> Set(1, 2))).execute
-                _       <- updateItem(tableName, PrimaryKey(id -> 1))($("sett").addSet(Set(3)))
+                _       <- putItem(tableName, Item(id -> 1, "set" -> Set(1, 2))).execute
+                _       <- updateItem(tableName, PrimaryKey(id -> 1))($("set").addSet(Set(3)))
                              .where(
                                ConditionExpression.Operand
-                                 .ProjectionExpressionOperand($("sett"))
+                                 .ProjectionExpressionOperand($("set"))
                                  .in(Set(AttributeValue(Set(1, 2))))
                              )
                              .execute
                 updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
-              } yield assert(updated)(equalTo(Some(Item(id -> 1, "sett" -> Set(1, 2, 3)))))
+              } yield assert(updated)(equalTo(Some(Item(id -> 1, "set" -> Set(1, 2, 3)))))
           )
         },
         test("`in` using a range of scalar when field is a scalar") {
@@ -859,6 +1010,17 @@ object LiveSpec extends ZIOSpecDefault {
       },
       suite("transactions")(
         suite("transact write items")(
+          test("transact put item should handle key word") {
+            withDefaultTable { tableName =>
+              val p = put[ExpressionAttrNames](
+                tableName = tableName,
+                ExpressionAttrNames("id", 10, None)
+              ).where(ExpressionAttrNames.ttl.notExists)
+              p.transaction.execute.exit.map { result =>
+                assert(result.isSuccess)(isTrue)
+              }
+            }
+          },
           test("put item") {
             withDefaultTable { tableName =>
               val putItem = PutItem(
@@ -869,6 +1031,19 @@ object LiveSpec extends ZIOSpecDefault {
                 _ <- putItem.transaction.execute
                 written <- getItem(tableName, PrimaryKey(id -> first, number -> 10)).execute
               } yield assert(written)(isSome(equalTo(putItem.item)))
+            }
+          },
+          test("conditionCheck should handle keyword") {
+            withDefaultTable { tableName =>
+              val cc    = conditionCheck(
+                tableName,
+                PrimaryKey("id" -> "id", "num" -> 1)
+              )(ExpressionAttrNames.ttl.notExists)
+              val p     = put[ExpressionAttrNames](tableName, ExpressionAttrNames("id", 2, None))
+              val query = cc.zip(p).transaction
+              query.execute.exit.map { result =>
+                assert(result.isSuccess)(isTrue)
+              }
             }
           },
           test("condition check succeeds") {
@@ -917,6 +1092,17 @@ object LiveSpec extends ZIOSpecDefault {
                 )
             }
           },
+          test("delete item handles keyword") {
+            withDefaultTable { tableName =>
+              val d = delete[ExpressionAttrNames](
+                tableName = tableName,
+                key = pk(avi3Item)
+              ).where(ExpressionAttrNames.ttl.notExists)
+              d.transaction.execute.exit.map { result =>
+                assert(result.isSuccess)(isTrue)
+              }
+            }
+          },
           test("delete item") {
             withDefaultTable { tableName =>
               val deleteItem = DeleteItem(
@@ -927,6 +1113,17 @@ object LiveSpec extends ZIOSpecDefault {
                 _       <- deleteItem.transaction.execute
                 written <- getItem(tableName, PrimaryKey(id -> first, number -> 7)).execute
               } yield assert(written)(isNone)
+            }
+          },
+          test("transact update item should handle keyword") {
+            withDefaultTable { tableName =>
+              val u = update[ExpressionAttrNames](
+                tableName = tableName,
+                key = pk(avi3Item)
+              )(ExpressionAttrNames.ttl.set(None)).where(ExpressionAttrNames.ttl.notExists)
+              u.transaction.execute.exit.map { result =>
+                assert(result.isSuccess)(isTrue)
+              }
             }
           },
           test("update item") {
