@@ -191,16 +191,6 @@ object LiveSpec extends ZIOSpecDefault {
               }
             }
           },
-          // test("scanSome should handle keyword") {
-          //   withDefaultTable { tableName =>
-          //     val query = DynamoDBQuery
-          //       .scanSome[ExpressionAttrNames](tableName, 1)
-          //       .filter(ExpressionAttrNames.ttl.notExists)
-          //     query.execute.flatMap(_.runDrain).exit.map { result =>
-          //       assert(result)(succeeds(isUnit))
-          //     }
-          //   }
-          // },
           test("delete should handle keyword") {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
