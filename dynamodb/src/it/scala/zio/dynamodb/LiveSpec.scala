@@ -70,13 +70,13 @@ object LiveSpec extends ZIOSpecDefault {
   private val avi2Person = Person(first, avi2, 4)
   private val avi3Person = Person(first, avi3, 7)
 
-  private val aviItem  = Item(id -> first, name -> avi, number -> 1, "mapp" -> ScalaMap("abc" -> 1, "123" -> 2))
+  private val aviItem  = Item(id -> first, name -> avi, number -> 1, "map" -> ScalaMap("abc" -> 1, "123" -> 2))
   private val avi2Item = Item(id -> first, name -> avi2, number -> 4)
   private val avi3Item = Item(id -> first, name -> avi3, number -> 7)
 
   private val adamItem  = Item(id -> second, name -> adam, number -> 2)
   private val adam2Item = Item(id -> second, name -> adam2, number -> 5)
-  private val adam3Item = Item(id -> second, name -> adam3, number -> 8, "listt" -> List(1, 2, 3))
+  private val adam3Item = Item(id -> second, name -> adam3, number -> 8, "list" -> List(1, 2, 3))
 
   private val johnItem  = Item(id -> third, name -> john, number -> 3)
   private val john2Item = Item(id -> third, name -> john2, number -> 6)
@@ -307,7 +307,7 @@ object LiveSpec extends ZIOSpecDefault {
             "binSet"    -> Set(Chunk.fromArray("abc".getBytes)),
             "boolean"   -> true,
             "list"      -> List(1, 2, 3),
-            "mapp"      -> ScalaMap(
+            "map"       -> ScalaMap(
               "a" -> true,
               "b" -> false,
               "c" -> false
@@ -348,8 +348,8 @@ object LiveSpec extends ZIOSpecDefault {
         test("get data from map") {
           withDefaultTable { tableName =>
             for {
-              item <- getItem(tableName, pk(aviItem), $(id), $(number), $("mapp.abc")).execute
-            } yield assert(item)(equalTo(Some(Item(id -> first, number -> 1, "mapp" -> ScalaMap("abc" -> 1)))))
+              item <- getItem(tableName, pk(aviItem), $(id), $(number), $("map.abc")).execute
+            } yield assert(item)(equalTo(Some(Item(id -> first, number -> 1, "map" -> ScalaMap("abc" -> 1)))))
           }
         },
         test("get nonexistant returns empty") {
@@ -832,13 +832,13 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             val key = PrimaryKey(id -> second, number -> 8)
             for {
-              _       <- updateItem(tableName, key)($("listt[1]").remove).execute
+              _       <- updateItem(tableName, key)($("list[1]").remove).execute
               updated <- getItem(
                            tableName,
                            key
                          ).execute
             } yield assert(updated)(
-              equalTo(Some(Item(id -> second, number -> 8, name -> adam3, "listt" -> List(1, 3))))
+              equalTo(Some(Item(id -> second, number -> 8, name -> adam3, "list" -> List(1, 3))))
             )
           }
         },
@@ -846,13 +846,13 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             val key = PrimaryKey(id -> second, number -> 8)
             for {
-              _       <- updateItem(tableName, key)($("listt").remove(1)).execute
+              _       <- updateItem(tableName, key)($("list").remove(1)).execute
               updated <- getItem(
                            tableName,
                            key
                          ).execute
             } yield assert(updated)(
-              equalTo(Some(Item(id -> second, number -> 8, name -> adam3, "listt" -> List(1, 3))))
+              equalTo(Some(Item(id -> second, number -> 8, name -> adam3, "list" -> List(1, 3))))
             )
           }
         },
@@ -862,10 +862,10 @@ object LiveSpec extends ZIOSpecDefault {
               createTable(tableName, KeySchema(id), BillingMode.PayPerRequest)(AttributeDefinition.attrDefnNumber(id)),
             tableName =>
               for {
-                _       <- putItem(tableName, Item(id -> 1, "sett" -> Set(1, 2, 3))).execute
-                _       <- updateItem(tableName, PrimaryKey(id -> 1))($("sett").add(Set(4))).execute
+                _       <- putItem(tableName, Item(id -> 1, "set" -> Set(1, 2, 3))).execute
+                _       <- updateItem(tableName, PrimaryKey(id -> 1))($("set").add(Set(4))).execute
                 updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
-              } yield assert(updated)(equalTo(Some(Item(id -> 1, "sett" -> Set(1, 2, 3, 4)))))
+              } yield assert(updated)(equalTo(Some(Item(id -> 1, "set" -> Set(1, 2, 3, 4)))))
           )
         },
         test("delete elements from a set") {
@@ -874,10 +874,10 @@ object LiveSpec extends ZIOSpecDefault {
               createTable(tableName, KeySchema(id), BillingMode.PayPerRequest)(AttributeDefinition.attrDefnNumber(id)),
             tableName =>
               for {
-                _       <- putItem(tableName, Item(id -> 1, "sett" -> Set(1, 2, 3))).execute
-                _       <- updateItem(tableName, PrimaryKey(id -> 1))($("sett").deleteFromSet(Set(3))).execute
+                _       <- putItem(tableName, Item(id -> 1, "set" -> Set(1, 2, 3))).execute
+                _       <- updateItem(tableName, PrimaryKey(id -> 1))($("set").deleteFromSet(Set(3))).execute
                 updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
-              } yield assert(updated)(equalTo(Some(Item(id -> 1, "sett" -> Set(1, 2)))))
+              } yield assert(updated)(equalTo(Some(Item(id -> 1, "set" -> Set(1, 2)))))
           )
         },
         test("`in` using a range of set when field is a set") {
@@ -886,16 +886,16 @@ object LiveSpec extends ZIOSpecDefault {
               createTable(tableName, KeySchema(id), BillingMode.PayPerRequest)(AttributeDefinition.attrDefnNumber(id)),
             tableName =>
               for {
-                _       <- putItem(tableName, Item(id -> 1, "sett" -> Set(1, 2))).execute
-                _       <- updateItem(tableName, PrimaryKey(id -> 1))($("sett").addSet(Set(3)))
+                _       <- putItem(tableName, Item(id -> 1, "set" -> Set(1, 2))).execute
+                _       <- updateItem(tableName, PrimaryKey(id -> 1))($("set").addSet(Set(3)))
                              .where(
                                ConditionExpression.Operand
-                                 .ProjectionExpressionOperand($("sett"))
+                                 .ProjectionExpressionOperand($("set"))
                                  .in(Set(AttributeValue(Set(1, 2))))
                              )
                              .execute
                 updated <- getItem(tableName, PrimaryKey(id -> 1)).execute
-              } yield assert(updated)(equalTo(Some(Item(id -> 1, "sett" -> Set(1, 2, 3)))))
+              } yield assert(updated)(equalTo(Some(Item(id -> 1, "set" -> Set(1, 2, 3)))))
           )
         },
         test("`in` using a range of scalar when field is a scalar") {
