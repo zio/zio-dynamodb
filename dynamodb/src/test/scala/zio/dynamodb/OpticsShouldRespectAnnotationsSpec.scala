@@ -7,15 +7,14 @@ import zio.test.Assertion.equalTo
 import zio.test.{ assert, ZIOSpecDefault }
 
 object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
-  val prefix = Prefix
+  private val prefix = Prefix
 
-  // TODO: AVi - make private
-  val trafficLightColour = s"${prefix}trafficLightColour"
-  val Green              = s"${prefix}Green"
-  val Amber              = s"${prefix}Amber"
-  val rgb                = s"${prefix}rgb"
-  val red_traffic_light  = s"${prefix}red_traffic_light"
-  val red_green_blue     = s"${prefix}red_green_blue"
+  private val trafficLightColour = s"${prefix}trafficLightColour"
+  private val Green              = s"${prefix}Green"
+  private val Amber              = s"${prefix}Amber"
+  private val rgb                = s"${prefix}rgb"
+  private val red_traffic_light  = s"${prefix}red_traffic_light"
+  private val red_green_blue     = s"${prefix}red_green_blue"
 
   sealed trait CaseObjectOnlyEnum
   final case class BoxOfCaseObjectOnlyEnum(enum: CaseObjectOnlyEnum)
