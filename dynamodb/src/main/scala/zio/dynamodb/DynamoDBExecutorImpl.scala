@@ -574,14 +574,13 @@ case object DynamoDBExecutorImpl {
     else
       Some(aliasMap.map.flatMap {
         case (attrVal, str) =>
-          val x: Option[(ZIOAwsExpressionAttributeValueVariable.Type, ZIOAwsAttributeValue)] =
-            awsAttributeValue(attrVal).map(a => (ZIOAwsExpressionAttributeValueVariable(str), a))
-          x
+          awsAttributeValue(attrVal).map(a => (ZIOAwsExpressionAttributeValueVariable(str), a))
       })
 
   private[dynamodb] def tableGetToKeysAndAttributes(tableGet: TableGet): KeysAndAttributes = {
     val maybeProjectionExprn                             = toOption(tableGet.projectionExpressionSet).map(awsProjectionExpression)
-    val (maybeAwsNamesMap, maybeProjectionExprnReplaced) = awsExprnAttrNamesAndReplaced(maybeProjectionExprn)
+    val (maybeAwsNamesMap, maybeProjectionExprnReplaced) =
+      awsExprnAttrNamesAndReplacedFn(maybeProjectionExprn)(ZIOAwsConditionExpression(_))
 
     KeysAndAttributes(
       keys = tableGet.keysSet.map(set => set.toZioAwsMap()),
@@ -663,20 +662,6 @@ case object DynamoDBExecutorImpl {
         (None, awsReplaced)
     }
 
-  private def awsExprnAttrNamesAndReplaced(
-    escapedExpression: String
-  ): (
-    Option[ScalaMap[primitives.ExpressionAttributeNameVariable.Type, ZIOAwsAttributeName.Type]],
-    ZIOAwsConditionExpression
-  ) = awsExprnAttrNamesAndReplacedFn(escapedExpression)(ZIOAwsConditionExpression(_))
-
-  private def awsExprnAttrNamesAndReplaced(
-    maybeEscapedExpression: Option[String]
-  ): (
-    Option[ScalaMap[primitives.ExpressionAttributeNameVariable.Type, ZIOAwsAttributeName.Type]],
-    Option[ZIOAwsConditionExpression]
-  ) = awsExprnAttrNamesAndReplacedFn(maybeEscapedExpression)(ZIOAwsConditionExpression(_))
-
   def awsExprnAttrNamesAndReplaced(
     updateExprn: String,
     maybeEscapedConditionExpression: Option[String]
@@ -720,7 +705,8 @@ case object DynamoDBExecutorImpl {
 
   private def awsPutItemRequest(putItem: PutItem): PutItemRequest = {
     val maybeAliasMap                         = putItem.conditionExpression.map(_.render.execute)
-    val (maybeAwsNamesMap, maybeAwsCondition) = awsExprnAttrNamesAndReplaced(maybeAliasMap.map(_._2))
+    val (maybeAwsNamesMap, maybeAwsCondition) =
+      awsExprnAttrNamesAndReplacedFn(maybeAliasMap.map(_._2))(ZIOAwsConditionExpression(_))
     PutItemRequest(
       tableName = ZIOAwsTableName(putItem.tableName.value),
       item = awsAttributeValueMap(putItem.item.map),
@@ -764,7 +750,8 @@ case object DynamoDBExecutorImpl {
 
   private def awsDeleteItemRequest(deleteItem: DeleteItem): DeleteItemRequest = {
     val maybeAliasMap                         = deleteItem.conditionExpression.map(_.render.execute)
-    val (maybeAwsNamesMap, maybeAwsCondition) = awsExprnAttrNamesAndReplaced(maybeAliasMap.map(_._2))
+    val (maybeAwsNamesMap, maybeAwsCondition) =
+      awsExprnAttrNamesAndReplacedFn(maybeAliasMap.map(_._2))(ZIOAwsConditionExpression(_))
     DeleteItemRequest(
       tableName = ZIOAwsTableName(deleteItem.tableName.value),
       key = deleteItem.key.toZioAwsMap(),
@@ -831,7 +818,7 @@ case object DynamoDBExecutorImpl {
       filter  <- AliasMapRender.collectAll(queryAll.filterExpression.map(_.render))
       keyExpr <- AliasMapRender.collectAll(queryAll.keyConditionExpression.map(_.render))
     } yield (filter, keyExpr)).execute
-    val mapAndExprn                                 = awsExprnAttrNamesAndReplaced(maybeFilterExpr)
+    val mapAndExprn                                 = awsExprnAttrNamesAndReplacedFn(maybeFilterExpr)(ZIOAwsConditionExpression(_))
     val maybeProjectionExpressions                  = toOption(queryAll.projections).map(awsProjectionExpression)
     val mapAndProjectionExprn                       =
       awsExprnAttrNamesAndReplacedFn(maybeProjectionExpressions)(ZIOAwsProjectionExpression(_))
@@ -861,7 +848,7 @@ case object DynamoDBExecutorImpl {
       filter  <- AliasMapRender.collectAll(querySome.filterExpression.map(_.render))
       keyExpr <- AliasMapRender.collectAll(querySome.keyConditionExpression.map(_.render))
     } yield (filter, keyExpr)).execute
-    val mapAndExprn                                 = awsExprnAttrNamesAndReplaced(maybeFilterExpr)
+    val mapAndExprn                                 = awsExprnAttrNamesAndReplacedFn(maybeFilterExpr)(ZIOAwsConditionExpression(_))
     val maybeProjectionExpressions                  = toOption(querySome.projections).map(awsProjectionExpression)
     val mapAndProjectionExprn                       =
       awsExprnAttrNamesAndReplacedFn(maybeProjectionExpressions)(ZIOAwsProjectionExpression(_))
@@ -887,7 +874,8 @@ case object DynamoDBExecutorImpl {
   }
   private def awsScanRequest(scanAll: ScanAll, segment: Option[ScanAll.Segment]): ScanRequest = {
     val filterExpression: Option[(AliasMap, String)] = scanAll.filterExpression.map(fe => fe.render.execute)
-    val (maybeNames, maybeCondExprn)                 = awsExprnAttrNamesAndReplaced(filterExpression.map(_._2))
+    val (maybeNames, maybeCondExprn)                 =
+      awsExprnAttrNamesAndReplacedFn(filterExpression.map(_._2))(ZIOAwsConditionExpression(_))
     val maybeProjectionExpressions                   = toOption(scanAll.projections).map(awsProjectionExpression)
     val mapAndProjectionExprn                        =
       awsExprnAttrNamesAndReplacedFn(maybeProjectionExpressions)(ZIOAwsProjectionExpression(_))
@@ -914,7 +902,8 @@ case object DynamoDBExecutorImpl {
 
   private def awsScanRequest(scanSome: ScanSome): ScanRequest = {
     val filterExpression             = scanSome.filterExpression.map(fe => fe.render.execute)
-    val (maybeNames, maybeCondExprn) = awsExprnAttrNamesAndReplaced(filterExpression.map(_._2))
+    val (maybeNames, maybeCondExprn) =
+      awsExprnAttrNamesAndReplacedFn(filterExpression.map(_._2))(ZIOAwsConditionExpression(_))
     val maybeProjectionExpressions   = toOption(scanSome.projections).map(awsProjectionExpression)
     val mapAndProjectionExprn        =
       awsExprnAttrNamesAndReplacedFn(maybeProjectionExpressions)(ZIOAwsProjectionExpression(_))
@@ -950,7 +939,8 @@ case object DynamoDBExecutorImpl {
   private def awsConditionCheck(conditionCheck: ConditionCheck): ZIOAwsConditionCheck = {
     // (AliasMap, String)
     val (aliasMap, conditionExpression)      = conditionCheck.conditionExpression.render.execute
-    val (maybeAwsNameMap, awsSubstCondition) = awsExprnAttrNamesAndReplaced(conditionExpression)
+    val (maybeAwsNameMap, awsSubstCondition) =
+      awsExprnAttrNamesAndReplacedFn(conditionExpression)(ZIOAwsConditionExpression(_))
 
     ZIOAwsConditionCheck(
       key = conditionCheck.primaryKey.toZioAwsMap(),
@@ -964,7 +954,8 @@ case object DynamoDBExecutorImpl {
   private def awsTransactPutItem(put: PutItem): ZIOAwsPut = {
     // (AliasMap, String)
     val (aliasMap, conditionExpression)           = AliasMapRender.collectAll(put.conditionExpression.map(_.render)).execute
-    val (maybeAwsNameMap, maybeAwsSubstCondition) = awsExprnAttrNamesAndReplaced(conditionExpression)
+    val (maybeAwsNameMap, maybeAwsSubstCondition) =
+      awsExprnAttrNamesAndReplacedFn(conditionExpression)(ZIOAwsConditionExpression(_))
 
     ZIOAwsPut(
       item = put.item.toZioAwsMap(),
@@ -977,7 +968,8 @@ case object DynamoDBExecutorImpl {
 
   private def awsTransactDeleteItem(delete: DeleteItem): ZIOAwsDelete = {
     val (aliasMap, conditionExpression)           = AliasMapRender.collectAll(delete.conditionExpression.map(_.render)).execute
-    val (maybeAwsNameMap, maybeAwsSubstCondition) = awsExprnAttrNamesAndReplaced(conditionExpression)
+    val (maybeAwsNameMap, maybeAwsSubstCondition) =
+      awsExprnAttrNamesAndReplacedFn(conditionExpression)(ZIOAwsConditionExpression(_))
 
     ZIOAwsDelete(
       key = delete.key.toZioAwsMap(),

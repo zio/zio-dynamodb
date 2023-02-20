@@ -45,9 +45,9 @@ object ProjectionExpressionParserSpec extends ZIOSpecDefault {
 
   }
 
-  override def spec = suite("main")(mainSuite, debugSuite)
+  override def spec = suite("main")(mainSuite, keywordsSuite)
 
-  private val debugSuite = suite("debug")(
+  private val keywordsSuite = suite("keywords suite")(
     test("toString on a ProjectionExpression of filter.float[9].ttl") {
       val pe = MapElement(ListElement(MapElement(Root("filter"), "float"), 9), "ttl")
       assert(pe.toString)(equalTo("~~~~~~~~~~~~filter.~~~~~~~~~~~~float[9].~~~~~~~~~~~~ttl"))
