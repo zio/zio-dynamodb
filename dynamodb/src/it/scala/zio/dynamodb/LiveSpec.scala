@@ -158,13 +158,40 @@ object LiveSpec extends ZIOSpecDefault {
     ConditionExpression.Operand.ValueOperand(AttributeValue(id))
   )
 
-  override def spec: Spec[TestEnvironment, Any] = mainSuite
+  override def spec: Spec[TestEnvironment, Any] = debugSuite
 
   final case class ExpressionAttrNames(id: String, num: Int, ttl: Option[Long])
   object ExpressionAttrNames {
     implicit val schema = DeriveSchema.gen[ExpressionAttrNames]
     val (id, num, ttl)  = ProjectionExpression.accessors[ExpressionAttrNames]
   }
+
+  val debugSuite = suite("debug")(
+    test("scanSomeItem should handle keyword") {
+      withDefaultTable { tableName =>
+        val query = DynamoDBQuery
+          .scanSome[ExpressionAttrNames](tableName, 1)
+          .filter(ExpressionAttrNames.ttl.notExists)
+        query.execute.exit.map { result =>
+          assert(result.isSuccess)(isTrue)
+        }
+      }
+    },
+    test("querySome should handle keyword") {
+      withDefaultTable { tableName =>
+        val query = DynamoDBQuery
+          .querySome[ExpressionAttrNames](tableName, 1)
+          .whereKey($("id") === "id")
+          .filter(ExpressionAttrNames.ttl.notExists)
+        query.execute.exit.map { result =>
+          assert(result.isSuccess)(isTrue)
+        }
+      }
+    }
+  )
+    .provideSomeLayerShared[TestEnvironment](
+      testLayer.orDie
+    ) @@ nondeterministic
 
   val mainSuite: Spec[TestEnvironment, Any] =
     suite("live test")(
