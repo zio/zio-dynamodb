@@ -568,14 +568,16 @@ object DynamoDBQuery {
     tableName: String,
     limit: Int,
     projections: ProjectionExpression[_, _]*
-  ): DynamoDBQuery[A, Either[DynamoDBError, (Chunk[A], LastEvaluatedKey)]] =
-    querySomeItem(tableName, limit, projections: _*).map {
-      case (itemsChunk, lek) =>
-        EitherUtil.forEach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
-          case Right(chunk) => Right((chunk, lek))
-          case Left(error)  => Left(error)
-        }
-    }
+  ): DynamoDBQuery[A, (Chunk[A], LastEvaluatedKey)] =
+    DynamoDBQuery.absolve(
+      querySomeItem(tableName, limit, projections: _*).map {
+        case (itemsChunk, lek) =>
+          EitherUtil.forEach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
+            case Right(chunk) => Right((chunk, lek))
+            case Left(error)  => Left(error)
+          }
+      }
+    )
 
   /**
    * when executed will return a ZStream of Item

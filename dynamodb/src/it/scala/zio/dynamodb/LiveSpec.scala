@@ -166,7 +166,6 @@ object LiveSpec extends ZIOSpecDefault {
     val (id, num, ttl)  = ProjectionExpression.accessors[ExpressionAttrNames]
   }
 
-
   val mainSuite: Spec[TestEnvironment, Any] =
     suite("live test")(
       suite("debug")(
@@ -187,12 +186,10 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable {
             tableName =>
               val p: ConditionExpression[ExpressionAttrNames] = ExpressionAttrNames.ttl.notExists
-              val query: DynamoDBQuery[
-                ExpressionAttrNames,
-                Either[DynamoDBError, (Chunk[ExpressionAttrNames], Option[AttrMap])]
-              ]                                               = DynamoDBQuery
-                .querySome[ExpressionAttrNames](tableName, 1)
-                .whereKey($("id") === "id") // TODO: use high level API here
+              val query: DynamoDBQuery[ExpressionAttrNames,(Chunk[ExpressionAttrNames], Option[AttrMap])] =
+                DynamoDBQuery
+                  .querySome[ExpressionAttrNames](tableName, 1)
+                  .whereKey($("id") === "id") // TODO: Avi - add extra CanWhereKey proof
 
               query.filter(p)
 
