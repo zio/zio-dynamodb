@@ -468,10 +468,10 @@ case object DynamoDBExecutorImpl {
         buildTransaction(query).map {
           case (constructors, construct) => (constructors, chunk => mapper.asInstanceOf[Any => A](construct(chunk)))
         }
-      case Absolve(_)                     =>
+      case Absolve(query)                     =>
         Left(
-          new IllegalStateException("Invalid query type Absolve for a transaction")
-        ) // TODO: Avi - create a new DynamDBError constructor for executor impl errors
+          InvalidTransactionActions(NonEmptyChunk(query.asInstanceOf[DynamoDBQuery[Any, Any]]))
+        )
     }
 
   private[dynamodb] def constructTransaction[A](
