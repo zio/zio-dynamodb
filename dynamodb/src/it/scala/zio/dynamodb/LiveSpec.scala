@@ -171,29 +171,27 @@ object LiveSpec extends ZIOSpecDefault {
       suite("debug")(
         test("scanSomeItem should handle keyword") {
           withDefaultTable { tableName =>
-            val query: DynamoDBQuery[ExpressionAttrNames, (Chunk[ExpressionAttrNames], Option[AttrMap])] =
-              DynamoDBQuery
-                .scanSome[ExpressionAttrNames](tableName, 1)
+            val query = DynamoDBQuery
+              .scanSome[ExpressionAttrNames](tableName, 1)
+              .filter(ExpressionAttrNames.ttl.notExists)
 
-            val p: ConditionExpression[ExpressionAttrNames] = ExpressionAttrNames.ttl.notExists
-            val query2                                      = query.filter(p)
-            query2.execute.exit.map { result =>
-              assert(result.isSuccess)(isTrue)
-            }
+            query.execute
+              .exit
+              .map { result =>
+                assert(result.isSuccess)(isTrue)
+              }
           }
         },
         test("querySome should handle keyword") {
-          withDefaultTable {
-            tableName =>
-              val p: ConditionExpression[ExpressionAttrNames] = ExpressionAttrNames.ttl.notExists
-              val query: DynamoDBQuery[ExpressionAttrNames,(Chunk[ExpressionAttrNames], Option[AttrMap])] =
-                DynamoDBQuery
-                  .querySome[ExpressionAttrNames](tableName, 1)
-                  .whereKey($("id") === "id") // TODO: Avi - add extra CanWhereKey proof
-
-              query.filter(p)
-
-              query.execute.exit.map { result =>
+          withDefaultTable { tableName =>
+            val query = DynamoDBQuery
+              .querySome[ExpressionAttrNames](tableName, 1)
+              .whereKey(ExpressionAttrNames.id === "id")
+              .filter(ExpressionAttrNames.ttl.notExists)
+              
+            query.execute
+              .exit
+              .map { result =>
                 assert(result.isSuccess)(isTrue)
               }
           }
