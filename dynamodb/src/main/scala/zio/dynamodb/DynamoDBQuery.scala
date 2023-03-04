@@ -993,8 +993,7 @@ object DynamoDBQuery {
           }
         )
 
-      // TODO: Avi
-      case Absolve(query)     => (Chunk.empty, _ => query.asInstanceOf[A])
+      case Absolve(_)         => (Chunk.empty, _ => ().asInstanceOf[A])
       case Fail(error)        => (Chunk.empty, _ => error().asInstanceOf[A])
 
       case Succeed(value) => (Chunk.empty, _ => value())

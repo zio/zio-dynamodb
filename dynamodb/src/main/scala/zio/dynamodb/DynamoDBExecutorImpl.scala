@@ -120,15 +120,14 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case constructor: Constructor[_, A] => executeConstructor(constructor)
       case zip @ Zip(_, _, _)             => executeZip(zip)
       case map @ Map(_, _)                => executeMap(map)
-      case Absolve(query)                 => 
-        val x: ZIO[Any,Throwable,A] = for {
-          errorOrA <- execute(query)      
-          a <- errorOrA match {
-            case Left(dynamoDbError) => ZIO.fail(dynamoDbError)
-            case Right(a) => ZIO.succeed(a)
-          }  
+      case Absolve(query)                 =>
+        for {
+          errorOrA <- execute(query)
+          a        <- errorOrA match {
+                        case Left(dynamoDbError) => ZIO.fail(dynamoDbError)
+                        case Right(a)            => ZIO.succeed(a)
+                      }
         } yield a
-        x  
     }
 
   private def executeCreateTable(createTable: CreateTable): ZIO[Any, Throwable, Unit] =
@@ -469,7 +468,10 @@ case object DynamoDBExecutorImpl {
         buildTransaction(query).map {
           case (constructors, construct) => (constructors, chunk => mapper.asInstanceOf[Any => A](construct(chunk)))
         }
-      case Absolve(_) => Left(new IllegalStateException("Invalid query type Absolve for a transaction")) // TODO: Avi - create a new DynamDBError constructor for executor Impl errors
+      case Absolve(_)                     =>
+        Left(
+          new IllegalStateException("Invalid query type Absolve for a transaction")
+        ) // TODO: Avi - create a new DynamDBError constructor for executor impl errors
     }
 
   private[dynamodb] def constructTransaction[A](
