@@ -420,7 +420,18 @@ object DynamoDBQuery {
   sealed trait Constructor[-In, +A] extends DynamoDBQuery[In, A]
   sealed trait Write[-In, +A]       extends Constructor[In, A]
 
-  def succeed[In, A](a: => A): DynamoDBQuery[In, A] = Succeed(() => a)
+  def succeed[A](a: => A): DynamoDBQuery[Any, A] = Succeed(() => a)
+
+  def fail(e: => DynamoDBError): DynamoDBQuery[Any, Nothing] = Fail(() => e)
+
+  def absolve[A, B](query: DynamoDBQuery[A, Either[DynamoDBError, B]]): DynamoDBQuery[A, B] =
+    Absolve(query)
+
+  def fromEither[A](or: Either[DynamoDBError, A]): DynamoDBQuery[Any, A] =
+    or match {
+      case Left(error)  => DynamoDBQuery.fail(error)
+      case Right(value) => DynamoDBQuery.succeed(value)
+    }
 
   final case class EmptyTransaction() extends Throwable
 
@@ -457,6 +468,7 @@ object DynamoDBQuery {
       case None       => Left(ValueNotFound(s"value with key $key not found"))
     }
 
+  // TODO: Subsume this error DynamoDB
   private[dynamodb] def fromItem[A: Schema](item: Item): Either[DynamoDBError, A] = {
     val av = ToAttributeValue.attrMapToAttributeValue.toAttributeValue(item)
     av.decode(Schema[A])
@@ -501,18 +513,21 @@ object DynamoDBQuery {
   /**
    * when executed will return a Tuple of {{{Either[String,(Chunk[A], LastEvaluatedKey)]}}}
    */
+
   def scanSome[A: Schema](
     tableName: String,
     limit: Int,
     projections: ProjectionExpression[_, _]*
-  ): DynamoDBQuery[A, Either[DynamoDBError, (Chunk[A], LastEvaluatedKey)]] =
-    scanSomeItem(tableName, limit, projections: _*).map {
-      case (itemsChunk, lek) =>
-        EitherUtil.forEach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
-          case Right(chunk) => Right((chunk, lek))
-          case Left(error)  => Left(error)
-        }
-    }
+  ): DynamoDBQuery[A, (Chunk[A], LastEvaluatedKey)] =
+    DynamoDBQuery.absolve(
+      scanSomeItem(tableName, limit, projections: _*).map {
+        case (itemsChunk, lek) =>
+          EitherUtil.forEach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
+            case Right(chunk) => Right((chunk, lek))
+            case Left(error)  => Left(error)
+          }
+      }
+    )
 
   /**
    * when executed will return a ZStream of Item
@@ -622,6 +637,11 @@ object DynamoDBQuery {
     Some(if (projections.isEmpty) Select.AllAttributes else Select.SpecificAttributes)
 
   private[dynamodb] final case class Succeed[A](value: () => A) extends Constructor[Any, A]
+
+  private[dynamodb] final case class Fail(error: () => DynamoDBError) extends Constructor[Any, Nothing]
+
+  private[dynamodb] final case class Absolve[A, B](query: DynamoDBQuery[A, Either[DynamoDBError, B]])
+      extends DynamoDBQuery[A, B]
 
   private[dynamodb] final case class GetItem(
     tableName: TableName,
@@ -971,7 +991,11 @@ object DynamoDBQuery {
           }
         )
 
-      case Succeed(value)     => (Chunk.empty, _ => value())
+      // TODO: Avi
+      case Absolve(query)     => (Chunk.empty, _ => query.asInstanceOf[A])
+      case Fail(error)        => (Chunk.empty, _ => error().asInstanceOf[A])
+
+      case Succeed(value) => (Chunk.empty, _ => value())
 
       case batchGetItem @ BatchGetItem(_, _, _, _)            =>
         (

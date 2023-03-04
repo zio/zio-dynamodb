@@ -158,7 +158,7 @@ object LiveSpec extends ZIOSpecDefault {
     ConditionExpression.Operand.ValueOperand(AttributeValue(id))
   )
 
-  override def spec: Spec[TestEnvironment, Any] = debugSuite
+  override def spec: Spec[TestEnvironment, Any] = mainSuite
 
   final case class ExpressionAttrNames(id: String, num: Int, ttl: Option[Long])
   object ExpressionAttrNames {
@@ -166,35 +166,42 @@ object LiveSpec extends ZIOSpecDefault {
     val (id, num, ttl)  = ProjectionExpression.accessors[ExpressionAttrNames]
   }
 
-  val debugSuite = suite("debug")(
-    test("scanSomeItem should handle keyword") {
-      withDefaultTable { tableName =>
-        val query = DynamoDBQuery
-          .scanSome[ExpressionAttrNames](tableName, 1)
-          .filter(ExpressionAttrNames.ttl.notExists)
-        query.execute.exit.map { result =>
-          assert(result.isSuccess)(isTrue)
-        }
-      }
-    },
-    test("querySome should handle keyword") {
-      withDefaultTable { tableName =>
-        val query = DynamoDBQuery
-          .querySome[ExpressionAttrNames](tableName, 1)
-          .whereKey($("id") === "id")
-          .filter(ExpressionAttrNames.ttl.notExists)
-        query.execute.exit.map { result =>
-          assert(result.isSuccess)(isTrue)
-        }
-      }
-    }
-  )
-    .provideSomeLayerShared[TestEnvironment](
-      testLayer.orDie
-    ) @@ nondeterministic
 
   val mainSuite: Spec[TestEnvironment, Any] =
     suite("live test")(
+      suite("debug")(
+        test("scanSomeItem should handle keyword") {
+          withDefaultTable { tableName =>
+            val query: DynamoDBQuery[ExpressionAttrNames, (Chunk[ExpressionAttrNames], Option[AttrMap])] =
+              DynamoDBQuery
+                .scanSome[ExpressionAttrNames](tableName, 1)
+
+            val p: ConditionExpression[ExpressionAttrNames] = ExpressionAttrNames.ttl.notExists
+            val query2                                      = query.filter(p)
+            query2.execute.exit.map { result =>
+              assert(result.isSuccess)(isTrue)
+            }
+          }
+        },
+        test("querySome should handle keyword") {
+          withDefaultTable {
+            tableName =>
+              val p: ConditionExpression[ExpressionAttrNames] = ExpressionAttrNames.ttl.notExists
+              val query: DynamoDBQuery[
+                ExpressionAttrNames,
+                Either[DynamoDBError, (Chunk[ExpressionAttrNames], Option[AttrMap])]
+              ]                                               = DynamoDBQuery
+                .querySome[ExpressionAttrNames](tableName, 1)
+                .whereKey($("id") === "id") // TODO: use high level API here
+
+              query.filter(p)
+
+              query.execute.exit.map { result =>
+                assert(result.isSuccess)(isTrue)
+              }
+          }
+        }
+      ),
       suite("keywords in expression attribute names")(
         suite("using high level api")(
           test("scanAll should handle keyword") {

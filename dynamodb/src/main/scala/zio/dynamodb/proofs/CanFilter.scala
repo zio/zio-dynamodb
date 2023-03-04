@@ -3,33 +3,36 @@ package zio.dynamodb.proofs
 import zio.stream.Stream
 import scala.annotation.implicitNotFound
 import zio.dynamodb.DynamoDBError
-import zio.dynamodb.LastEvaluatedKey
 import zio.Chunk
+import zio.dynamodb.AttrMap
+// import zio.dynamodb.DynamoDBError
+// import zio.dynamodb.LastEvaluatedKey
+// import zio.Chunk
 
 @implicitNotFound(
   "Mixed types for the filter expression found - ${A}"
 )
 sealed trait CanFilter[A, -B]
 
-trait CanFilterLowpriorityImplicits0 extends CanFilterLowpriorityImplicits1 {
+trait CanFilterLowpriorityImplicits {
+  // 1.
   implicit def subtypeCanFilter[A, B](implicit ev: B <:< A): CanFilter[A, B] = {
     val _ = ev
     new CanFilter[A, B] {}
   }
 }
-trait CanFilterLowpriorityImplicits1 {
+object CanFilter extends CanFilterLowpriorityImplicits {
+  implicit def scanSomeCanFilter[A]: CanFilter[A, Either[DynamoDBError, (Chunk[A], Option[AttrMap])]] =
+    new CanFilter[A, Either[DynamoDBError, (Chunk[A], Option[AttrMap])]] {}
+
+  implicit def querySomeCanFilter[A]: CanFilter[A, (Chunk[A], Option[AttrMap])] =
+    new CanFilter[A, (Chunk[A], Option[AttrMap])] {}
+
+
+  // 2.
   implicit def subtypeStreamCanFilter[A, B](implicit ev: CanFilter[A, B]): CanFilter[A, Stream[Throwable, B]] = {
     val _ = ev
     new CanFilter[A, Stream[Throwable, B]] {}
-  }
-}
-// create lowPriorityCanFilter, prefer Stream one
-object CanFilter                     extends CanFilterLowpriorityImplicits0 {
-  implicit def subtypeEitherCanFilter[A](implicit
-    ev: CanFilter[A, _]
-  ): CanFilter[A, Either[DynamoDBError, (Chunk[A], LastEvaluatedKey)]] = {
-    val _ = ev
-    new CanFilter[A, Either[DynamoDBError, (Chunk[A], LastEvaluatedKey)]] {}
   }
 }
 /*
