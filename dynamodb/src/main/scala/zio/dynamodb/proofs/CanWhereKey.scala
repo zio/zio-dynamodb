@@ -10,11 +10,14 @@ import zio.dynamodb.AttrMap
 )
 sealed trait CanWhereKey[A, -B]
 
-object CanWhereKey {
+trait CanWhereKeyLowerPriorityImplicit {
   implicit def subtypeCanWhereKey[A, B](implicit ev: B <:< A): CanWhereKey[A, B] = {
     val _ = ev
     new CanWhereKey[A, B] {}
   }
+}
+
+object CanWhereKey extends CanWhereKeyLowerPriorityImplicit {
 
   implicit def scanAndQuerySomeCanWhereKey[A]: CanWhereKey[A, (Chunk[A], Option[AttrMap])] =
     new CanWhereKey[A, (Chunk[A], Option[AttrMap])] {}

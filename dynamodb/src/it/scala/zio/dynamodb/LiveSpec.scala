@@ -168,35 +168,6 @@ object LiveSpec extends ZIOSpecDefault {
 
   val mainSuite: Spec[TestEnvironment, Any] =
     suite("live test")(
-      suite("debug")(
-        test("scanSomeItem should handle keyword") {
-          withDefaultTable { tableName =>
-            val query = DynamoDBQuery
-              .scanSome[ExpressionAttrNames](tableName, 1)
-              .filter(ExpressionAttrNames.ttl.notExists)
-
-            query.execute
-              .exit
-              .map { result =>
-                assert(result.isSuccess)(isTrue)
-              }
-          }
-        },
-        test("querySome should handle keyword") {
-          withDefaultTable { tableName =>
-            val query = DynamoDBQuery
-              .querySome[ExpressionAttrNames](tableName, 1)
-              .whereKey(ExpressionAttrNames.id === "id")
-              .filter(ExpressionAttrNames.ttl.notExists)
-              
-            query.execute
-              .exit
-              .map { result =>
-                assert(result.isSuccess)(isTrue)
-              }
-          }
-        }
-      ),
       suite("keywords in expression attribute names")(
         suite("using high level api")(
           test("scanAll should handle keyword") {
@@ -217,6 +188,29 @@ object LiveSpec extends ZIOSpecDefault {
                 .filter(ExpressionAttrNames.ttl.notExists)
               query.execute.flatMap(_.runDrain).exit.map { result =>
                 assert(result)(succeeds(isUnit))
+              }
+            }
+          },
+          test("scanSome should handle keyword") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .scanSome[ExpressionAttrNames](tableName, 1)
+                .filter(ExpressionAttrNames.ttl.notExists)
+
+              query.execute.exit.map { result =>
+                assert(result.isSuccess)(isTrue)
+              }
+            }
+          },
+          test("querySome should handle keyword") {
+            withDefaultTable { tableName =>
+              val query = DynamoDBQuery
+                .querySome[ExpressionAttrNames](tableName, 1)
+                .whereKey(ExpressionAttrNames.id === "id")
+                .filter(ExpressionAttrNames.ttl.notExists)
+
+              query.execute.exit.map { result =>
+                assert(result.isSuccess)(isTrue)
               }
             }
           },
@@ -254,10 +248,10 @@ object LiveSpec extends ZIOSpecDefault {
           }
         ),
         suite("using $ function")(
-          test("scanAll should handle keyword") {
+          test("scanAllItem should handle keyword") {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
-                .scanAll[ExpressionAttrNames](tableName)
+                .scanAllItem(tableName)
                 .filter($("ttl").notExists)
               query.execute.flatMap(_.runDrain).exit.map { result =>
                 assert(result)(succeeds(isUnit))
@@ -294,7 +288,7 @@ object LiveSpec extends ZIOSpecDefault {
               }
             }
           },
-          test("querySome should handle keyword") {
+          test("querySomeItem should handle keyword") {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
                 .querySomeItem(tableName, 1)
@@ -305,7 +299,7 @@ object LiveSpec extends ZIOSpecDefault {
               }
             }
           },
-          test("querySome should handle keyword in projection") {
+          test("querySomeItem should handle keyword in projection") {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
                 .querySomeItem(tableName, 1, $("ttl"))
