@@ -468,7 +468,7 @@ case object DynamoDBExecutorImpl {
         buildTransaction(query).map {
           case (constructors, construct) => (constructors, chunk => mapper.asInstanceOf[Any => A](construct(chunk)))
         }
-      case Absolve(query)                     =>
+      case Absolve(query)                 =>
         Left(
           InvalidTransactionActions(NonEmptyChunk(query.asInstanceOf[DynamoDBQuery[Any, Any]]))
         )
