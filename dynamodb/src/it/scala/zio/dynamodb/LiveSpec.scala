@@ -196,7 +196,6 @@ object LiveSpec extends ZIOSpecDefault {
               val query = DynamoDBQuery
                 .scanSome[ExpressionAttrNames](tableName, 1)
                 .filter(ExpressionAttrNames.ttl.notExists)
-
               query.execute.exit.map { result =>
                 assert(result.isSuccess)(isTrue)
               }
@@ -208,7 +207,6 @@ object LiveSpec extends ZIOSpecDefault {
                 .querySome[ExpressionAttrNames](tableName, 1)
                 .whereKey(ExpressionAttrNames.id === "id")
                 .filter(ExpressionAttrNames.ttl.notExists)
-
               query.execute.exit.map { result =>
                 assert(result.isSuccess)(isTrue)
               }
