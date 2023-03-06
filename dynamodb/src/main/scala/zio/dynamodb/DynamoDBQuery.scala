@@ -424,7 +424,7 @@ object DynamoDBQuery {
 
   def fail(e: => DynamoDBError): DynamoDBQuery[Any, Nothing] = Fail(() => e)
 
-  private [dynamodb] def absolve[A, B](query: DynamoDBQuery[A, Either[DynamoDBError, B]]): DynamoDBQuery[A, B] =
+  private[dynamodb] def absolve[A, B](query: DynamoDBQuery[A, Either[DynamoDBError, B]]): DynamoDBQuery[A, B] =
     Absolve(query)
 
   def fromEither[A](or: Either[DynamoDBError, A]): DynamoDBQuery[Any, A] =
