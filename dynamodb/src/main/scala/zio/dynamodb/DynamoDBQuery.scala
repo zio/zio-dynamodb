@@ -347,16 +347,16 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     val keyConditionExpression: KeyConditionExpression =
       KeyConditionExpression.fromConditionExpressionUnsafe(conditionExpression)
     self match {
-      case Zip(left, right, zippable) =>
+      case Zip(left, right, zippable)   =>
         Zip(left.whereKey(keyConditionExpression), right.whereKey(keyConditionExpression), zippable)
-      case Map(query, mapper)         => Map(query.whereKey(keyConditionExpression), mapper)
+      case Map(query, mapper)           => Map(query.whereKey(keyConditionExpression), mapper)
       case DynamoDBQuery.Absolve(query) =>
         DynamoDBQuery.Absolve(query.whereKey(keyConditionExpression))
-      case s: QuerySome               =>
+      case s: QuerySome                 =>
         s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case s: QueryAll                =>
+      case s: QueryAll                  =>
         s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                          => self
+      case _                            => self
     }
   }
 
@@ -652,7 +652,8 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class Fail(error: () => DynamoDBError) extends Constructor[Any, Nothing]
 
-  private[dynamodb] final case class Absolve[A, B](query: DynamoDBQuery[A, Either[DynamoDBError, B]]) extends DynamoDBQuery[A, B]
+  private[dynamodb] final case class Absolve[A, B](query: DynamoDBQuery[A, Either[DynamoDBError, B]])
+      extends DynamoDBQuery[A, B]
 
   private[dynamodb] final case class GetItem(
     tableName: TableName,
