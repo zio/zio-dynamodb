@@ -171,7 +171,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       )
       .mapError(_.toThrowable)
 
-  private def executeQuerySome(querySome: QuerySome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] =
+  private def executeQuerySome(querySome: QuerySome): ZIO[Any, Throwable, (Chunk[Item], LastEvaluatedKey)] = {
+    println(s"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX querySome=$querySome")
     dynamoDb
       .queryPaginated(awsQueryRequest(querySome))
       .mapBoth(
@@ -182,6 +183,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
             queryResponse.lastEvaluatedKey.map(dynamoDBItem).toOption
           )
       )
+  }
 
   private def executeQueryAll(queryAll: QueryAll): ZIO[Any, Throwable, Stream[Throwable, Item]] =
     ZIO.succeed(

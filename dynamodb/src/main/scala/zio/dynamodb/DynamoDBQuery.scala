@@ -198,6 +198,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         )
       case map @ Map(query, mapper)         =>
         Map(query.filter(filterExpression.asInstanceOf[FilterExpression[map.Old]]), mapper)
+
       case s: ScanSome                      => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: ScanAll                       => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: QuerySome                     => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
@@ -306,14 +307,22 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
    */
   def whereKey(keyConditionExpression: KeyConditionExpression): DynamoDBQuery[In, Out] =
     self match {
-      case Zip(left, right, zippable) =>
+      case Zip(left, right, zippable)   =>
         Zip(left.whereKey(keyConditionExpression), right.whereKey(keyConditionExpression), zippable)
-      case Map(query, mapper)         => Map(query.whereKey(keyConditionExpression), mapper)
-      case s: QuerySome               =>
+      case Map(query, mapper)           => Map(query.whereKey(keyConditionExpression), mapper)
+      case DynamoDBQuery.Absolve(query) =>
+        DynamoDBQuery.Absolve(query.whereKey(keyConditionExpression))
+
+      case s: QuerySome                 =>
+        val x = s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
+        println(s"whereKey XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX $x")
+        x
+      case s: QueryAll                  =>
         s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case s: QueryAll                =>
-        s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                          => self
+//      case _                          =>
+      case q                            =>
+        println(s"whereKey XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX case _ query=$q")
+        self
     }
 
   /**
@@ -341,6 +350,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Zip(left, right, zippable) =>
         Zip(left.whereKey(keyConditionExpression), right.whereKey(keyConditionExpression), zippable)
       case Map(query, mapper)         => Map(query.whereKey(keyConditionExpression), mapper)
+      case DynamoDBQuery.Absolve(query) =>
+        DynamoDBQuery.Absolve(query.whereKey(keyConditionExpression))
       case s: QuerySome               =>
         s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: QueryAll                =>
@@ -641,8 +652,7 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class Fail(error: () => DynamoDBError) extends Constructor[Any, Nothing]
 
-  private[dynamodb] final case class Absolve[A, B](query: DynamoDBQuery[A, Either[DynamoDBError, B]])
-      extends DynamoDBQuery[A, B]
+  private[dynamodb] final case class Absolve[A, B](query: DynamoDBQuery[A, Either[DynamoDBError, B]]) extends DynamoDBQuery[A, B]
 
   private[dynamodb] final case class GetItem(
     tableName: TableName,
@@ -992,10 +1002,18 @@ object DynamoDBQuery {
           }
         )
 
-      case Absolve(_)         => (Chunk.empty, _ => ().asInstanceOf[A])
-      case Fail(error)        => (Chunk.empty, _ => error().asInstanceOf[A])
+      case Absolve(query)     =>
+        val absolved: DynamoDBQuery[In, A] = query.map {
+          case Left(dynamoDBError) => throw dynamoDBError
+          case Right(a)            => a
+        }
+        parallelize(absolved)
 
-      case Succeed(value) => (Chunk.empty, _ => value())
+      case Fail(error)        =>
+        println("YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY")
+        (Chunk.empty, _ => error().asInstanceOf[A])
+
+      case Succeed(value)     => (Chunk.empty, _ => value())
 
       case batchGetItem @ BatchGetItem(_, _, _, _)            =>
         (
