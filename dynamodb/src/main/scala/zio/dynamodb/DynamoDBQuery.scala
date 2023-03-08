@@ -7,6 +7,7 @@ import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put }
 import zio.dynamodb.DynamoDBQuery.{
   batched,
   parallelize,
+  Absolve,
   BatchGetItem,
   BatchWriteItem,
   CreateTable,
@@ -66,6 +67,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     self match {
       case Zip(left, right, zippable) => Zip(left.indexName(indexName), right.indexName(indexName), zippable)
       case Map(query, mapper)         => Map(query.indexName(indexName), mapper)
+      case Absolve(query)             => Absolve(query.indexName(indexName))
       case q: ScanAll                 =>
         q.copy(indexName = Some(IndexName(indexName))).asInstanceOf[DynamoDBQuery[In, Out]]
       case q: ScanSome                =>
@@ -81,6 +83,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     self match {
       case Zip(left, right, zippable) => Zip(left.capacity(capacity), right.capacity(capacity), zippable)
       case Map(query, mapper)         => Map(query.capacity(capacity), mapper)
+      case Absolve(query)             => Absolve(query.capacity(capacity))
       case g: GetItem                 =>
         g.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
       case b: BatchGetItem            =>
@@ -110,6 +113,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     self match {
       case Zip(left, right, zippable) => Zip(left.consistency(consistency), right.consistency(consistency), zippable)
       case Map(query, mapper)         => Map(query.consistency(consistency), mapper)
+      case Absolve(query)             => Absolve(query.consistency(consistency))
       case g: GetItem                 =>
         g.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[In, Out]]
       case q: ScanAll                 =>
@@ -127,6 +131,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     self match {
       case Zip(left, right, zippable) => Zip(left.returns(returnValues), right.returns(returnValues), zippable)
       case Map(query, mapper)         => Map(query.returns(returnValues), mapper)
+      case Absolve(query)             => Absolve(query.returns(returnValues))
       case p: PutItem                 =>
         p.copy(returnValues = returnValues).asInstanceOf[DynamoDBQuery[In, Out]]
       case u: UpdateItem              =>
@@ -161,6 +166,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     self match {
       case Zip(left, right, zippable) => Zip(left.metrics(itemMetrics), right.metrics(itemMetrics), zippable)
       case Map(query, mapper)         => Map(query.metrics(itemMetrics), mapper)
+      // TODO: Avi
       case p: PutItem                 =>
         p.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[In, Out]]
       case u: UpdateItem              =>
@@ -177,6 +183,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Zip(left, right, zippable) =>
         Zip(left.startKey(exclusiveStartKey), right.startKey(exclusiveStartKey), zippable)
       case Map(query, mapper)         => Map(query.startKey(exclusiveStartKey), mapper)
+      // TODO: Avi
       case s: ScanSome                => s.copy(exclusiveStartKey = exclusiveStartKey).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: ScanAll                 => s.copy(exclusiveStartKey = exclusiveStartKey).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: QuerySome               => s.copy(exclusiveStartKey = exclusiveStartKey).asInstanceOf[DynamoDBQuery[In, Out]]
@@ -198,6 +205,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         )
       case map @ Map(query, mapper)         =>
         Map(query.filter(filterExpression.asInstanceOf[FilterExpression[map.Old]]), mapper)
+      // TODO: Avi
 
       case s: ScanSome                      => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: ScanAll                       => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
@@ -217,6 +225,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     self match {
       case Zip(left, right, zippable) => Zip(left.parallel(n), right.parallel(n), zippable)
       case Map(query, mapper)         => Map(query.parallel(n), mapper)
+      // TODO: Avi
       case s: ScanAll                 => s.copy(totalSegments = n).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                          => self
     }
@@ -237,6 +246,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         )
       case Map(query, mapper)         =>
         Map(query.gsi(indexName, keySchema, projection, readCapacityUnit, writeCapacityUnit), mapper)
+      // TODO: Avi
       case s: CreateTable             =>
         s.copy(globalSecondaryIndexes =
           s.globalSecondaryIndexes + GlobalSecondaryIndex(
@@ -262,6 +272,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
           zippable
         )
       case Map(query, mapper)         => Map(query.gsi(indexName, keySchema, projection), mapper)
+      // TODO: Avi
       case s: CreateTable             =>
         s.copy(globalSecondaryIndexes =
           s.globalSecondaryIndexes + GlobalSecondaryIndex(
@@ -283,6 +294,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Zip(left, right, zippable) =>
         Zip(left.lsi(indexName, keySchema, projection), right.lsi(indexName, keySchema, projection), zippable)
       case Map(query, mapper)         => Map(query.lsi(indexName, keySchema, projection), mapper)
+      // TODO: Avi
       case s: CreateTable             =>
         s.copy(localSecondaryIndexes =
           s.localSecondaryIndexes + LocalSecondaryIndex(
@@ -307,20 +319,19 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
    */
   def whereKey(keyConditionExpression: KeyConditionExpression): DynamoDBQuery[In, Out] =
     self match {
-      case Zip(left, right, zippable)   =>
+      case Zip(left, right, zippable) =>
         Zip(left.whereKey(keyConditionExpression), right.whereKey(keyConditionExpression), zippable)
-      case Map(query, mapper)           => Map(query.whereKey(keyConditionExpression), mapper)
-      case DynamoDBQuery.Absolve(query) =>
-        DynamoDBQuery.Absolve(query.whereKey(keyConditionExpression))
+      case Map(query, mapper)         => Map(query.whereKey(keyConditionExpression), mapper)
+      case Absolve(query)             => Absolve(query.whereKey(keyConditionExpression))
 
-      case s: QuerySome                 =>
+      case s: QuerySome =>
         val x = s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
         println(s"whereKey XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX $x")
         x
-      case s: QueryAll                  =>
+      case s: QueryAll  =>
         s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
 //      case _                          =>
-      case q                            =>
+      case q            =>
         println(s"whereKey XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX case _ query=$q")
         self
     }
@@ -347,16 +358,15 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     val keyConditionExpression: KeyConditionExpression =
       KeyConditionExpression.fromConditionExpressionUnsafe(conditionExpression)
     self match {
-      case Zip(left, right, zippable)   =>
+      case Zip(left, right, zippable) =>
         Zip(left.whereKey(keyConditionExpression), right.whereKey(keyConditionExpression), zippable)
-      case Map(query, mapper)           => Map(query.whereKey(keyConditionExpression), mapper)
-      case DynamoDBQuery.Absolve(query) =>
-        DynamoDBQuery.Absolve(query.whereKey(keyConditionExpression))
-      case s: QuerySome                 =>
+      case Map(query, mapper)         => Map(query.whereKey(keyConditionExpression), mapper)
+      case Absolve(query)             => Absolve(query.whereKey(keyConditionExpression))
+      case s: QuerySome               =>
         s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case s: QueryAll                  =>
+      case s: QueryAll                =>
         s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                            => self
+      case _                          => self
     }
   }
 
@@ -365,6 +375,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Zip(left, right, zippable) =>
         Zip(left.withRetryPolicy(retryPolicy), right.withRetryPolicy(retryPolicy), zippable)
       case Map(query, mapper)         => Map(query.withRetryPolicy(retryPolicy), mapper)
+      // TODO: Avi
       case s: BatchWriteItem          => s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: BatchGetItem            => s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                          => self
@@ -374,6 +385,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     self match {
       case Zip(left, right, zippable) => Zip(left.sortOrder(ascending), right.sortOrder(ascending), zippable)
       case Map(query, mapper)         => Map(query.sortOrder(ascending), mapper)
+      // TODO: Avi
       case s: QuerySome               => s.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: QueryAll                => s.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                          => self
@@ -384,6 +396,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Zip(left, right, zippable) =>
         Zip(left.withClientRequestToken(token), right.withClientRequestToken(token), zippable)
       case Map(query, mapper)         => Map(query.withClientRequestToken(token), mapper)
+      // TODO: Avi
       case s: Transaction[Out]        => s.copy(clientRequestToken = Some(token)).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                          => self
     }
@@ -651,9 +664,6 @@ object DynamoDBQuery {
   private[dynamodb] final case class Succeed[A](value: () => A) extends Constructor[Any, A]
 
   private[dynamodb] final case class Fail(error: () => DynamoDBError) extends Constructor[Any, Nothing]
-
-  private[dynamodb] final case class Absolve[A, B](query: DynamoDBQuery[A, Either[DynamoDBError, B]])
-      extends DynamoDBQuery[A, B]
 
   private[dynamodb] final case class GetItem(
     tableName: TableName,
@@ -934,6 +944,9 @@ object DynamoDBQuery {
       extends DynamoDBQuery[Any, B] {
     type Old = A
   }
+
+  private[dynamodb] final case class Absolve[A, B](query: DynamoDBQuery[A, Either[DynamoDBError, B]])
+      extends DynamoDBQuery[A, B]
 
   def apply[A](a: => A): DynamoDBQuery[Any, A] = Succeed(() => a)
 
