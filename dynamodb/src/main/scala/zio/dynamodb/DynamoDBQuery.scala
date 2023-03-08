@@ -152,6 +152,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         )
       case map @ Map(query, mapper)         =>
         Map(query.where(conditionExpression.asInstanceOf[ConditionExpression[map.Old]]), mapper)
+      case ab @ Absolve(query)              =>
+        Absolve(query.where(conditionExpression.asInstanceOf[ConditionExpression[ab.Old]]))
       case p: PutItem                       =>
         p.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case u: UpdateItem                    =>
@@ -946,7 +948,9 @@ object DynamoDBQuery {
   }
 
   private[dynamodb] final case class Absolve[A, B](query: DynamoDBQuery[A, Either[DynamoDBError, B]])
-      extends DynamoDBQuery[A, B]
+      extends DynamoDBQuery[A, B] {
+    type Old = Either[DynamoDBError, B]
+  }
 
   def apply[A](a: => A): DynamoDBQuery[Any, A] = Succeed(() => a)
 
