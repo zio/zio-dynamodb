@@ -166,42 +166,6 @@ object LiveSpec extends ZIOSpecDefault {
     val (id, num, ttl)  = ProjectionExpression.accessors[ExpressionAttrNames]
   }
 
-  val debugSuite = suite("debug")(
-    test("scanSome should handle keyword") {
-      withDefaultTable { tableName =>
-        val query = DynamoDBQuery
-          .scanSome[ExpressionAttrNames](tableName, 1)
-          .filter(ExpressionAttrNames.ttl.notExists)
-
-        for {
-          result <- query.execute
-        } yield assert(result._1)(hasSize(equalTo(1))) && assert(result._1(0))(
-          equalTo(ExpressionAttrNames(second, 2, None))
-        ) && assert(result._2)(equalTo(Some(PrimaryKey("num" -> 2, "id" -> second))))
-      }
-    },
-    test("querySome should handle keyword2") {
-      withDefaultTable {
-        tableName =>
-          val query = DynamoDBQuery
-            .querySome[ExpressionAttrNames](tableName, 1)
-            .whereKey(PartitionKey(id) === second && SortKey(number) > 0)
-            .filter(ExpressionAttrNames.ttl.notExists)
-
-          for {
-            result <- query.execute
-          } yield assert(result._1)(hasSize(equalTo(1))) && assert(result._1(0))(
-            equalTo(ExpressionAttrNames(second, 2, None))
-          ) && assert(result._2)(
-            equalTo(Some(PrimaryKey("num" -> 2, "id" -> second)))
-          )
-      }
-    }
-  )
-    .provideSomeLayerShared[TestEnvironment](
-      testLayer.orDie
-    ) @@ nondeterministic
-
   val mainSuite: Spec[TestEnvironment, Any] =
     suite("live test")(
       suite("keywords in expression attribute names")(
