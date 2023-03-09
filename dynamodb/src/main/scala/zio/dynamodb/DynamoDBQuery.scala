@@ -168,7 +168,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     self match {
       case Zip(left, right, zippable) => Zip(left.metrics(itemMetrics), right.metrics(itemMetrics), zippable)
       case Map(query, mapper)         => Map(query.metrics(itemMetrics), mapper)
-      case Absolve(query)         => Absolve(query.metrics(itemMetrics))
+      case Absolve(query)             => Absolve(query.metrics(itemMetrics))
       case p: PutItem                 =>
         p.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[In, Out]]
       case u: UpdateItem              =>
@@ -207,7 +207,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         )
       case map @ Map(query, mapper)         =>
         Map(query.filter(filterExpression.asInstanceOf[FilterExpression[map.Old]]), mapper)
-      case ab @ Absolve(query)         =>
+      case ab @ Absolve(query)              =>
         Absolve(query.filter(filterExpression.asInstanceOf[FilterExpression[ab.Old]]))
 
       case s: ScanSome                      => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
