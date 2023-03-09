@@ -207,7 +207,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         )
       case map @ Map(query, mapper)         =>
         Map(query.filter(filterExpression.asInstanceOf[FilterExpression[map.Old]]), mapper)
-      // TODO: Avi
+      case ab @ Absolve(query)         =>
+        Absolve(query.filter(filterExpression.asInstanceOf[FilterExpression[ab.Old]]))
 
       case s: ScanSome                      => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: ScanAll                       => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
