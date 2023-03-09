@@ -190,7 +190,6 @@ object LiveSpec extends ZIOSpecDefault {
 
           for {
             result <- query.execute
-            _       = println(result)
           } yield assert(result._1)(hasSize(equalTo(1))) && assert(result._1(0))(
             equalTo(ExpressionAttrNames(second, 2, None))
           ) && assert(result._2)(
@@ -228,29 +227,6 @@ object LiveSpec extends ZIOSpecDefault {
               }
             }
           },
-          // test("scanSome should handle keyword") {
-          //   withDefaultTable { tableName =>
-          //     val query = DynamoDBQuery
-          //       .scanSome[ExpressionAttrNames](tableName, 1)
-          //       .filter(ExpressionAttrNames.ttl.notExists)
-
-          //     for {
-          //       result <- query.execute
-          //       _       = println(s"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX result=$result")
-          //     } yield assertCompletes
-          //   }
-          // },
-          // test("querySome should handle keyword") {
-          //   withDefaultTable { tableName =>
-          //     val query = DynamoDBQuery
-          //       .querySome[ExpressionAttrNames](tableName, 1)
-          //       .whereKey(ExpressionAttrNames.id === "id")
-          //       .filter(ExpressionAttrNames.ttl.notExists)
-          //     query.execute.exit.map { result =>
-          //       assert(result.isSuccess)(isTrue)
-          //     }
-          //   }
-          // },
           test("scanSome should handle keyword") {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
@@ -274,7 +250,6 @@ object LiveSpec extends ZIOSpecDefault {
 
                 for {
                   result <- query.execute
-                  _       = println(result)
                 } yield assert(result._1)(hasSize(equalTo(1))) && assert(result._1(0))(
                   equalTo(ExpressionAttrNames(second, 2, None))
                 ) && assert(result._2)(

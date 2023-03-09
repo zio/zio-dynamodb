@@ -329,15 +329,10 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Absolve(query)             => Absolve(query.whereKey(keyConditionExpression))
 
       case s: QuerySome =>
-        val x = s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-        println(s"whereKey XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX $x")
-        x
+        s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: QueryAll  =>
         s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-//      case _                          =>
-      case q            =>
-        println(s"whereKey XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX case _ query=$q")
-        self
+      case _            => self
     }
 
   /**
@@ -1031,7 +1026,6 @@ object DynamoDBQuery {
         parallelize(absolved)
 
       case Fail(error)        =>
-        println("YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY")
         (Chunk.empty, _ => error().asInstanceOf[A])
 
       case Succeed(value)     => (Chunk.empty, _ => value())
