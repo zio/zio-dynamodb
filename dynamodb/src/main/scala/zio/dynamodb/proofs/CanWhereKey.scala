@@ -3,7 +3,7 @@ package zio.dynamodb.proofs
 import zio.stream.Stream
 import scala.annotation.implicitNotFound
 import zio.Chunk
-import zio.dynamodb.AttrMap
+import zio.dynamodb.LastEvaluatedKey
 
 @implicitNotFound(
   "Mixed types for the key condition expression found - ${A}"
@@ -19,8 +19,8 @@ trait CanWhereKeyLowerPriorityImplicit {
 
 object CanWhereKey extends CanWhereKeyLowerPriorityImplicit {
 
-  implicit def scanAndQuerySomeCanWhereKey[A]: CanWhereKey[A, (Chunk[A], Option[AttrMap])] =
-    new CanWhereKey[A, (Chunk[A], Option[AttrMap])] {}
+  implicit def scanAndQuerySomeCanWhereKey[A]: CanWhereKey[A, (Chunk[A], LastEvaluatedKey)] =
+    new CanWhereKey[A, (Chunk[A], LastEvaluatedKey)] {}
 
   implicit def subtypeStreamCanWhereKey[A, B](implicit ev: CanWhereKey[A, B]): CanWhereKey[A, Stream[Throwable, B]] = {
     val _ = ev
