@@ -249,7 +249,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         )
       case Map(query, mapper)         =>
         Map(query.gsi(indexName, keySchema, projection, readCapacityUnit, writeCapacityUnit), mapper)
-      // TODO: Avi
+      case Absolve(query)             =>
+        Absolve(query.gsi(indexName, keySchema, projection, readCapacityUnit, writeCapacityUnit))
       case s: CreateTable             =>
         s.copy(globalSecondaryIndexes =
           s.globalSecondaryIndexes + GlobalSecondaryIndex(
@@ -275,7 +276,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
           zippable
         )
       case Map(query, mapper)         => Map(query.gsi(indexName, keySchema, projection), mapper)
-      // TODO: Avi
+      case Absolve(query)             => Absolve(query.gsi(indexName, keySchema, projection))
       case s: CreateTable             =>
         s.copy(globalSecondaryIndexes =
           s.globalSecondaryIndexes + GlobalSecondaryIndex(
@@ -297,7 +298,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Zip(left, right, zippable) =>
         Zip(left.lsi(indexName, keySchema, projection), right.lsi(indexName, keySchema, projection), zippable)
       case Map(query, mapper)         => Map(query.lsi(indexName, keySchema, projection), mapper)
-      // TODO: Avi
+      case Absolve(query)             => Absolve(query.lsi(indexName, keySchema, projection))
       case s: CreateTable             =>
         s.copy(localSecondaryIndexes =
           s.localSecondaryIndexes + LocalSecondaryIndex(
@@ -378,7 +379,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Zip(left, right, zippable) =>
         Zip(left.withRetryPolicy(retryPolicy), right.withRetryPolicy(retryPolicy), zippable)
       case Map(query, mapper)         => Map(query.withRetryPolicy(retryPolicy), mapper)
-      // TODO: Avi
+      case Absolve(query)             => Absolve(query.withRetryPolicy(retryPolicy))
       case s: BatchWriteItem          => s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: BatchGetItem            => s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                          => self
@@ -388,7 +389,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     self match {
       case Zip(left, right, zippable) => Zip(left.sortOrder(ascending), right.sortOrder(ascending), zippable)
       case Map(query, mapper)         => Map(query.sortOrder(ascending), mapper)
-      // TODO: Avi
+      case Absolve(query)             => Absolve(query.sortOrder(ascending))
       case s: QuerySome               => s.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: QueryAll                => s.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                          => self
@@ -399,7 +400,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Zip(left, right, zippable) =>
         Zip(left.withClientRequestToken(token), right.withClientRequestToken(token), zippable)
       case Map(query, mapper)         => Map(query.withClientRequestToken(token), mapper)
-      // TODO: Avi
+      case Absolve(query)             => Absolve(query.withClientRequestToken(token))
       case s: Transaction[Out]        => s.copy(clientRequestToken = Some(token)).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                          => self
     }
@@ -420,6 +421,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     self match {
       case Zip(left, right, zippable) => Zip(left.select(select), right.select(select), zippable)
       case Map(query, mapper)         => Map(query.select(select), mapper)
+      case Absolve(query)             => Absolve(query.select(select))
       case s: ScanSome                => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: ScanAll                 => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: QuerySome               => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[In, Out]]
