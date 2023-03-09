@@ -228,7 +228,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     self match {
       case Zip(left, right, zippable) => Zip(left.parallel(n), right.parallel(n), zippable)
       case Map(query, mapper)         => Map(query.parallel(n), mapper)
-      // TODO: Avi
+      case Absolve(query)             => Absolve(query.parallel(n))
       case s: ScanAll                 => s.copy(totalSegments = n).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                          => self
     }
