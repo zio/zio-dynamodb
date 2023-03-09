@@ -168,7 +168,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     self match {
       case Zip(left, right, zippable) => Zip(left.metrics(itemMetrics), right.metrics(itemMetrics), zippable)
       case Map(query, mapper)         => Map(query.metrics(itemMetrics), mapper)
-      // TODO: Avi
+      case Absolve(query)         => Absolve(query.metrics(itemMetrics))
       case p: PutItem                 =>
         p.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[In, Out]]
       case u: UpdateItem              =>
@@ -185,7 +185,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Zip(left, right, zippable) =>
         Zip(left.startKey(exclusiveStartKey), right.startKey(exclusiveStartKey), zippable)
       case Map(query, mapper)         => Map(query.startKey(exclusiveStartKey), mapper)
-      // TODO: Avi
+      case Absolve(query)             => Absolve(query.startKey(exclusiveStartKey))
       case s: ScanSome                => s.copy(exclusiveStartKey = exclusiveStartKey).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: ScanAll                 => s.copy(exclusiveStartKey = exclusiveStartKey).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: QuerySome               => s.copy(exclusiveStartKey = exclusiveStartKey).asInstanceOf[DynamoDBQuery[In, Out]]
