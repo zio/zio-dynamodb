@@ -455,6 +455,7 @@ project/plugins/project/
 *.class
 *.log
 
+metals.sbt
 .metals/
 .bloop/
 .bsp/
