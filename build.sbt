@@ -77,14 +77,14 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
     libraryDependencies ++= Seq(
       "dev.zio"       %% "zio"                   % zioVersion,
       "dev.zio"       %% "zio-streams"           % zioVersion,
-      "dev.zio"       %% "zio-test"              % zioVersion % "it,test",
-      "dev.zio"       %% "zio-test-sbt"          % zioVersion % "it,test",
+      "dev.zio"       %% "zio-test"              % zioVersion   % "it,test",
+      "dev.zio"       %% "zio-test-sbt"          % zioVersion   % "it,test",
       "dev.zio"       %% "zio-schema"            % zioSchemaVersion,
       "dev.zio"       %% "zio-schema-derivation" % zioSchemaVersion,
       "dev.zio"       %% "zio-aws-netty"         % zioAwsVersion,
       "dev.zio"       %% "zio-aws-dynamodb"      % zioAwsVersion,
       "org.scala-lang" % "scala-reflect"         % scalaVersion.value,
-      "com.amazonaws"  % "DynamoDBLocal"         % "1.17.0"   % "it,test"
+      "com.amazonaws"  % "DynamoDBLocal"         % "[1.12,2.0)" % "it,test"
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework")),
     Compile / sourceGenerators += Def.task {
