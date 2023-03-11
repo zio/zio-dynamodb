@@ -96,22 +96,23 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
 
   def executeConstructor[A](constructor: Constructor[_, A]): ZIO[Any, Throwable, A] =
     constructor match {
-      case c: GetItem        => executeGetItem(c)
-      case c: PutItem        => executePutItem(c)
-      case c: BatchGetItem   => executeBatchGetItem(c)
-      case c: BatchWriteItem => executeBatchWriteItem(c)
-      case _: ConditionCheck => ZIO.none
-      case c: ScanAll        => executeScanAll(c)
-      case c: ScanSome       => executeScanSome(c)
-      case c: UpdateItem     => executeUpdateItem(c)
-      case c: CreateTable    => executeCreateTable(c)
-      case c: DeleteItem     => executeDeleteItem(c)
-      case c: DeleteTable    => executeDeleteTable(c)
-      case c: DescribeTable  => executeDescribeTable(c)
-      case c: QuerySome      => executeQuerySome(c)
-      case c: QueryAll       => executeQueryAll(c)
-      case c: Transaction[_] => executeTransaction(c)
-      case Succeed(c)        => ZIO.succeed(c())
+      case c: GetItem          => executeGetItem(c)
+      case c: PutItem          => executePutItem(c)
+      case c: BatchGetItem     => executeBatchGetItem(c)
+      case c: BatchWriteItem   => executeBatchWriteItem(c)
+      case _: ConditionCheck   => ZIO.none
+      case c: ScanAll          => executeScanAll(c)
+      case c: ScanSome         => executeScanSome(c)
+      case c: UpdateItem       => executeUpdateItem(c)
+      case c: CreateTable      => executeCreateTable(c)
+      case c: DeleteItem       => executeDeleteItem(c)
+      case c: DeleteTable      => executeDeleteTable(c)
+      case c: DescribeTable    => executeDescribeTable(c)
+      case c: QuerySome        => executeQuerySome(c)
+      case c: QueryAll         => executeQueryAll(c)
+      case c: Transaction[_]   => executeTransaction(c)
+      case Succeed(c)          => ZIO.succeed(c())
+      case Fail(dynamoDBError) => ZIO.fail(dynamoDBError())
     }
 
   override def execute[A](atomicQuery: DynamoDBQuery[_, A]): ZIO[Any, Throwable, A] =
@@ -119,6 +120,14 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
       case constructor: Constructor[_, A] => executeConstructor(constructor)
       case zip @ Zip(_, _, _)             => executeZip(zip)
       case map @ Map(_, _)                => executeMap(map)
+      case Absolve(query)                 =>
+        for {
+          errorOrA <- execute(query)
+          a        <- errorOrA match {
+                        case Left(dynamoDbError) => ZIO.fail(dynamoDbError)
+                        case Right(a)            => ZIO.succeed(a)
+                      }
+        } yield a
     }
 
   private def executeCreateTable(createTable: CreateTable): ZIO[Any, Throwable, Unit] =
@@ -459,6 +468,10 @@ case object DynamoDBExecutorImpl {
         buildTransaction(query).map {
           case (constructors, construct) => (constructors, chunk => mapper.asInstanceOf[Any => A](construct(chunk)))
         }
+      case Absolve(query)                 =>
+        Left(
+          InvalidTransactionActions(NonEmptyChunk(query.asInstanceOf[DynamoDBQuery[Any, Any]]))
+        )
     }
 
   private[dynamodb] def constructTransaction[A](
