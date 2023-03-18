@@ -7,7 +7,7 @@ import zio.aws.core.config
 import zio.aws.dynamodb.DynamoDb
 import zio.aws.{ dynamodb, netty }
 import zio.dynamodb.DynamoDBExecutor
-import zio.dynamodb.examples.LocalDdbServer
+//import zio.dynamodb.examples.LocalDdbServer
 
 import java.net.URI
 
@@ -28,5 +28,5 @@ object DynamoDB {
     }
 
   val layer =
-    (dynamoDbLayer >>> DynamoDBExecutor.live) ++ LocalDdbServer.inMemoryLayer
+    (dynamoDbLayer >>> DynamoDBExecutor.live) //++ LocalDdbServer.inMemoryLayer
 }

@@ -24,6 +24,10 @@ import scala.collection.immutable.{ Map => ScalaMap }
 
 object LiveSpec extends ZIOSpecDefault {
 
+  java.lang.System.setProperty("aws.accessKeyId", "dummy-key")
+  java.lang.System.setProperty("aws.secretKey", "dummy-key")
+  java.lang.System.setProperty("aws.secretAccessKey", "dummy-key")
+
   private val awsConfig = ZLayer.succeed(
     config.CommonAwsConfig(
       region = None,
@@ -40,7 +44,7 @@ object LiveSpec extends ZIOSpecDefault {
     }
 
   private val testLayer =
-    (dynamoDbLayer >>> DynamoDBExecutor.live) ++ LocalDdbServer.inMemoryLayer
+    (dynamoDbLayer >>> DynamoDBExecutor.live) // ++ LocalDdbServer.inMemoryLayer
 
   private val id       = "id"
   private val first    = "first"
