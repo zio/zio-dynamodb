@@ -236,6 +236,5 @@ object StudentJavaSdkExample extends ZIOAppDefault {
     _                    <- Console.printLine(s"result=$errorOrStudents")
   } yield errorOrStudents
 
-  override def run =
-    program.provide( /* LocalDdbServer.inMemoryLayer ++ */ DdbHelper.ddbLayer).exitCode
+  override def run = program.provide(DdbHelper.ddbLayer).exitCode
 }
