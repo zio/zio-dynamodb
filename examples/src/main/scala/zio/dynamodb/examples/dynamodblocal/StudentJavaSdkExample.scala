@@ -4,7 +4,6 @@ import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.dynamodb.model._
 import zio.dynamodb.EitherUtil
-//import zio.dynamodb.examples.LocalDdbServer
 import zio.{ Console, ULayer, ZIO, ZIOAppDefault, ZLayer }
 
 import java.net.URI
