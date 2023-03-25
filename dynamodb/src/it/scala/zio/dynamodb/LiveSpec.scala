@@ -154,6 +154,19 @@ object LiveSpec extends ZIOSpecDefault {
       }
     }
 
+  def withDefaultAndNumberTables(
+    f: (String, String) => ZIO[DynamoDBExecutor, Throwable, TestResult]
+  ) =
+    ZIO.scoped {
+      for {
+        table1 <- managedTable(defaultTable)  
+        table2 <- managedTable(numberTable)  
+        _      <- insertData(table1.value).execute
+        result <- f(table1.value, table2.value)
+      } yield result
+    }
+
+
   private def assertDynamoDbException(substring: String): Assertion[Any] =
     isSubtype[DynamoDbException](hasMessage(containsString(substring)))
 
@@ -1294,16 +1307,14 @@ object LiveSpec extends ZIOSpecDefault {
             }
           },
           test("missing item in other table") {
-            withDefaultTable {
-              tableName =>
-                val secondTable = numberTable("some-table")
+            withDefaultAndNumberTables {
+              (tableName, secondTable) =>
                 val getItems    = BatchGetItem().addAll(
                   GetItem(TableName(tableName), pk(avi3Item)),
                   GetItem(TableName(tableName), pk(adam2Item)),
-                  GetItem(TableName("some-table"), Item(id -> 5))
+                  GetItem(TableName(secondTable), Item(id -> 5))
                 )
                 for {
-                  _ <- secondTable.execute
                   a <- getItems.transaction.execute
                 } yield assert(a)(
                   equalTo(
