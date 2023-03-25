@@ -43,6 +43,8 @@ jobs:
       uses: coursier/cache-action@v6
     - name: Run tests
       run: sbt -J-XX:+UseG1GC -J-Xmx6g -J-Xms6g -J-Xss16m ++${{ matrix.scala }}! test
+    - name: Run DynamoDBLocal
+      run: docker-compose -f docker/docker-compose.yml up -d      
     - name: Run integration tests
       run: sbt -J-XX:+UseG1GC -J-Xmx6g -J-Xms6g -J-Xss16m ++${{ matrix.scala }}! it:test
 

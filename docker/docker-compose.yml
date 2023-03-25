@@ -2,11 +2,9 @@ version: '3.7'
 services:
   dynamodb:
     image:  amazon/dynamodb-local
-    container_name: my-dynamodb
+    container_name: dynamodb-local
     hostname: dynamodb
     restart: always
-    volumes:
-      -  ./my-dynamodb-data:/home/dynamodblocal/data
     ports:
       - 8000:8000
     command: "-jar DynamoDBLocal.jar -inMemory"
