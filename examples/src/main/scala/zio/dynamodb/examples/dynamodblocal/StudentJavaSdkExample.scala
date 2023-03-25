@@ -237,5 +237,5 @@ object StudentJavaSdkExample extends ZIOAppDefault {
   } yield errorOrStudents
 
   override def run =
-    program.provide(/* LocalDdbServer.inMemoryLayer ++ */DdbHelper.ddbLayer).exitCode
+    program.provide( /* LocalDdbServer.inMemoryLayer ++ */ DdbHelper.ddbLayer).exitCode
 }
