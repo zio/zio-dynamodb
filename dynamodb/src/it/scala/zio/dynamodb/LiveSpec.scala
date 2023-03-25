@@ -2,7 +2,8 @@ package zio.dynamodb
 
 import zio.aws.core.config
 import zio.aws.dynamodb.DynamoDb
-import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
 import software.amazon.awssdk.services.dynamodb.model.{ DynamoDbException, IdempotentParameterMismatchException }
 import zio.dynamodb.UpdateExpression.Action.SetAction
 import zio.dynamodb.UpdateExpression.SetOperand
@@ -27,7 +28,7 @@ object LiveSpec extends ZIOSpecDefault {
   private val awsConfig = ZLayer.succeed(
     config.CommonAwsConfig(
       region = None,
-      credentialsProvider = SystemPropertyCredentialsProvider.create(),
+      credentialsProvider = StaticCredentialsProvider.create(AwsBasicCredentials.create("dummy", "dummy")),
       endpointOverride = None,
       commonClientConfig = None
     )
@@ -39,16 +40,7 @@ object LiveSpec extends ZIOSpecDefault {
         builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
     }
 
-  val initDynamoKeysLayer: ZLayer[Any, Throwable, Unit] = ZLayer{
-    for {
-      _ <- ZIO.attempt(java.lang.System.setProperty("aws.accessKeyId", "dummy-key"))
-      _ <- ZIO.attempt(java.lang.System.setProperty("aws.secretKey", "dummy-key"))
-      _ <- ZIO.attempt(java.lang.System.setProperty("aws.secretAccessKey", "dummy-key"))
-    } yield ()
-  }
-
-  private val testLayer =
-    initDynamoKeysLayer ++ (dynamoDbLayer >>> DynamoDBExecutor.live)
+  private val testLayer = (dynamoDbLayer >>> DynamoDBExecutor.live)
 
   private val id       = "id"
   private val first    = "first"

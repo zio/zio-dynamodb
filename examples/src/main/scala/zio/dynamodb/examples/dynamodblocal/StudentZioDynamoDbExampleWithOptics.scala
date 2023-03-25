@@ -17,6 +17,7 @@ object StudentZioDynamoDbExampleWithOptics extends ZIOAppDefault {
 
   val enrollmentDateTyped: ProjectionExpression[Student, Option[Instant]] = enrollmentDate
 
+  // TODO: Avi - create resource aware function for table creation
   private val program = for {
     _ <- createTable("student", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
            AttributeDefinition.attrDefnString("email"),
@@ -64,6 +65,7 @@ object StudentZioDynamoDbExampleWithOptics extends ZIOAppDefault {
            .execute
     _ <- scanAll[Student]("student").execute
            .tap(_.tap(student => Console.printLine(s"scanAll - student=$student")).runDrain)
+    _ <- deleteTable("student").execute
   } yield ()
 
   override def run = program.provide(layer)

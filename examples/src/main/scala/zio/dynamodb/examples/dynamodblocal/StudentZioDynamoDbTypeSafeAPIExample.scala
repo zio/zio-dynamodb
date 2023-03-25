@@ -90,6 +90,7 @@ object StudentZioDynamoDbTypeSafeAPIExample extends ZIOAppDefault {
            .filter[Student](payment.in(Payment.PayPal) && payment.inSet(Set(Payment.PayPal)))
            .execute
            .tap(_.tap(student => Console.printLine(s"scanAll - student=$student")).runDrain)
+    _ <- deleteTable("student").execute
   } yield ()
 
   override def run = program.provide(layer).exitCode
