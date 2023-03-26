@@ -61,7 +61,18 @@ object Main extends ZIOAppDefault {
 ```
 
 For examples on how to use the DynamoDBLocal in memory database please see the [integration tests](docs/../dynamodb/src/it/scala/zio/dynamodb/LiveSpec.scala)
-and [StudentZioDynamoDbExample](docs/../examples/src/main/scala/zio/dynamodb/examples/dynamodblocal/StudentZioDynamoDbExample.scala)
+and [StudentZioDynamoDbExample](docs/../examples/src/main/scala/zio/dynamodb/examples/dynamodblocal/StudentZioDynamoDbExample.scala) .
+Note before you run these you must first run the DynamoDBLocal docker container using the provided docker-compose file:
+
+```
+docker-compose -f docker/docker-compose.yml up -d
+```
+
+Dont forget to shut down the container after you have finished
+
+```
+docker-compose -f docker/docker-compose.yml down
+```
 
 ## Documentation
 

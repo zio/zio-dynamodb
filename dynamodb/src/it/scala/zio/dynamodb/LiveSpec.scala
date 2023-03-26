@@ -2,7 +2,8 @@ package zio.dynamodb
 
 import zio.aws.core.config
 import zio.aws.dynamodb.DynamoDb
-import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
 import software.amazon.awssdk.services.dynamodb.model.{ DynamoDbException, IdempotentParameterMismatchException }
 import zio.dynamodb.UpdateExpression.Action.SetAction
 import zio.dynamodb.UpdateExpression.SetOperand
@@ -27,7 +28,7 @@ object LiveSpec extends ZIOSpecDefault {
   private val awsConfig = ZLayer.succeed(
     config.CommonAwsConfig(
       region = None,
-      credentialsProvider = SystemPropertyCredentialsProvider.create(),
+      credentialsProvider = StaticCredentialsProvider.create(AwsBasicCredentials.create("dummy", "dummy")),
       endpointOverride = None,
       commonClientConfig = None
     )
@@ -39,8 +40,7 @@ object LiveSpec extends ZIOSpecDefault {
         builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
     }
 
-  private val testLayer =
-    (dynamoDbLayer >>> DynamoDBExecutor.live) ++ LocalDdbServer.inMemoryLayer
+  private val testLayer = (dynamoDbLayer >>> DynamoDBExecutor.live)
 
   private val id       = "id"
   private val first    = "first"
@@ -149,6 +149,19 @@ object LiveSpec extends ZIOSpecDefault {
         } yield result
       }
     }
+
+  def withDefaultAndNumberTables(
+    f: (String, String) => ZIO[DynamoDBExecutor, Throwable, TestResult]
+  ) =
+    ZIO.scoped {
+      for {
+        table1 <- managedTable(defaultTable)  
+        table2 <- managedTable(numberTable)  
+        _      <- insertData(table1.value).execute
+        result <- f(table1.value, table2.value)
+      } yield result
+    }
+
 
   private def assertDynamoDbException(substring: String): Assertion[Any] =
     isSubtype[DynamoDbException](hasMessage(containsString(substring)))
@@ -1290,16 +1303,14 @@ object LiveSpec extends ZIOSpecDefault {
             }
           },
           test("missing item in other table") {
-            withDefaultTable {
-              tableName =>
-                val secondTable = numberTable("some-table")
+            withDefaultAndNumberTables {
+              (tableName, secondTable) =>
                 val getItems    = BatchGetItem().addAll(
                   GetItem(TableName(tableName), pk(avi3Item)),
                   GetItem(TableName(tableName), pk(adam2Item)),
-                  GetItem(TableName("some-table"), Item(id -> 5))
+                  GetItem(TableName(secondTable), Item(id -> 5))
                 )
                 for {
-                  _ <- secondTable.execute
                   a <- getItems.transaction.execute
                 } yield assert(a)(
                   equalTo(

@@ -25,6 +25,7 @@ object StudentZioDynamoDbExample extends ZIOAppDefault {
     _ <- batchReadFromStream("student", ZStream(avi, adam))(s => primaryKey(s.email, s.subject))
            .tap(pair => Console.printLine(s"student=${pair._2}"))
            .runDrain
+    _ <- DynamoDBQuery.deleteTable("student").execute
   } yield ()
 
   override def run = program.provide(layer)
