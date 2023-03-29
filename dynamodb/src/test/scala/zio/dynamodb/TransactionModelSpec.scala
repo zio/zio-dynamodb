@@ -1,5 +1,6 @@
 package zio.dynamodb
 
+import com.github.ghik.silencer.silent
 import zio.aws.dynamodb.DynamoDb
 import zio.aws.dynamodb.DynamoDbMock
 import zio.{ Chunk, ULayer }
@@ -118,6 +119,7 @@ object TransactionModelSpec extends ZIOSpecDefault {
       .or(putItem)
       .or(batchWriteItem)
 
+  @silent("toIterable")
   private def invalidTransactionActionsContains(action: DynamoDBQuery[Any, Any]): Assertion[Any] =
     isSubtype[InvalidTransactionActions](
       hasField(
@@ -145,9 +147,10 @@ object TransactionModelSpec extends ZIOSpecDefault {
           updateExpression = UpdateExpression($("name").set(""))
         )
 
-        val getItem = GetItem(tableName, item)
+        val getItem                                                       = GetItem(tableName, item)
+        val query: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap])] = updateItem.zip(getItem)
 
-        assertZIO(updateItem.zip(getItem).transaction.execute.exit)(
+        assertZIO(query.transaction.execute.exit)(
           fails(isSubtype[MixedTransactionTypes](Assertion.anything))
         )
       }

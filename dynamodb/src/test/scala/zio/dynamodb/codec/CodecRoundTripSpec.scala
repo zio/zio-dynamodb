@@ -192,19 +192,20 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
       }
     },
     test("of ZoneOffsets") {
-      check(JavaTimeGen.anyZoneOffset) { zoneOffset =>
-        assertEncodesThenDecodes(
-          Schema.record(
-            TypeId.parse("java.time.ZoneOffset"),
-            Schema.Field(
-              "zoneOffset",
-              Schema.Primitive(StandardType.ZoneOffsetType),
-              get0 = (p: ListMap[String, _]) => p("zoneOffset").asInstanceOf[ZoneOffset],
-              set0 = (p: ListMap[String, _], v: ZoneOffset) => p.updated("zoneOffset", v)
-            )
-          ),
-          ListMap[String, Any]("zoneOffset" -> zoneOffset)
-        )
+      check(JavaTimeGen.anyZoneOffset) {
+        zoneOffset =>
+          assertEncodesThenDecodes(
+            Schema.record(
+              TypeId.parse("java.time.ZoneOffset"),
+              Schema.Field(
+                "zoneOffset",
+                Schema.Primitive(StandardType.ZoneOffsetType),
+                get0 = (p: ListMap[String, _]) => p("zoneOffset").asInstanceOf[ZoneOffset],
+                set0 = (p: ListMap[String, _], v: ZoneOffset) => (p.updated("zoneOffset", v): ListMap[String, _])
+              )
+            ),
+            ListMap[String, Any]("zoneOffset" -> zoneOffset)
+          )
       }
     },
     test("of record") {

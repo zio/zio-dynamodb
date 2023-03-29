@@ -2,6 +2,7 @@ package zio.dynamodb.codec
 
 import scala.collection.immutable.ListMap
 
+import com.github.ghik.silencer.silent
 import zio.Chunk
 import zio.test.{ Gen, Sized }
 import zio.schema._
@@ -482,8 +483,9 @@ object SchemaGen {
     f24: Int = 24
   ) extends Arity
 
+  @silent("inferred")
   object Arity24 {
-    implicit val schema: Schema[Arity24] = DeriveSchema.gen[Arity24]
+    implicit val schema: Schema[Arity24] = DeriveSchema.gen[Arity24].asInstanceOf[Schema[Arity24]]
   }
 
   object Arity {

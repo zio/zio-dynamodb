@@ -17,7 +17,7 @@ object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
   private val red_green_blue     = s"${prefix}red_green_blue"
 
   sealed trait CaseObjectOnlyEnum
-  final case class BoxOfCaseObjectOnlyEnum(enum: CaseObjectOnlyEnum)
+  final case class BoxOfCaseObjectOnlyEnum(`enum`: CaseObjectOnlyEnum)
   object BoxOfCaseObjectOnlyEnum {
 
     case object ONE extends CaseObjectOnlyEnum

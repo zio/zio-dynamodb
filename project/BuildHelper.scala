@@ -13,17 +13,20 @@ object BuildHelper {
     "-encoding",
     "UTF-8",
     "-explaintypes",
-    "-Yrangepos",
     "-feature",
     "-language:higherKinds",
     "-language:existentials",
-    "-Xlint:_,-type-parameter-shadow",
-    "-Xsource:2.13",
-    "-Ywarn-numeric-widen",
-    "-Ywarn-value-discard",
     "-unchecked",
     "-deprecation",
     "-Xfatal-warnings"
+  )
+
+  private val stdOpts2 = Seq(
+    "-Yrangepos",
+    "-Xlint:_,-type-parameter-shadow",
+    "-Xsource:2.13",
+    "-Ywarn-numeric-widen",
+    "-Ywarn-value-discard"
   )
 
   private val stdOpts213 = Seq(
@@ -54,7 +57,7 @@ object BuildHelper {
           "-Xignore-scala2-macros"
         )
       case Some((2, 13)) =>
-        stdOpts213
+        stdOpts213 ++ stdOpts2
       case Some((2, 12)) =>
         Seq(
           "-opt-warnings",
@@ -63,9 +66,9 @@ object BuildHelper {
           "-Ywarn-unused:imports",
           "-opt:l:inline",
           "-opt-inline-from:<source>"
-        ) ++ stdOptsUpto212
+        ) ++ stdOptsUpto212 ++ stdOpts2
       case _             =>
-        Seq("-Xexperimental") ++ stdOptsUpto212
+        Seq("-Xexperimental") ++ stdOptsUpto212 ++ stdOpts2
     }
 
   def buildInfoSettings(packageName: String) =
@@ -79,7 +82,7 @@ object BuildHelper {
     Seq(
       name := s"$prjName",
       crossScalaVersions := Seq(Scala212, Scala213, Scala3),
-      scalaVersion in ThisBuild := Scala213,
+      ThisBuild / scalaVersion := Scala213,
       scalacOptions := stdOptions ++ extraOptions(scalaVersion.value),
       libraryDependencies ++= {
         if (scalaVersion.value == Scala3) Seq()
