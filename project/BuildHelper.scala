@@ -6,6 +6,7 @@ import BuildInfoKeys._
 object BuildHelper {
   private val Scala212        = "2.12.12"
   private val Scala213        = "2.13.3"
+  private val Scala3          = "3.2.2"
   private val SilencerVersion = "1.7.1"
 
   private val stdOptions = Seq(
@@ -47,6 +48,11 @@ object BuildHelper {
 
   private def extraOptions(scalaVersion: String) =
     CrossVersion.partialVersion(scalaVersion) match {
+      case Some((3, 2))  =>
+        List(
+          "-language:implicitConversions",
+          "-Xignore-scala2-macros"
+        )
       case Some((2, 13)) =>
         stdOpts213
       case Some((2, 12)) =>
@@ -72,7 +78,7 @@ object BuildHelper {
   def stdSettings(prjName: String) =
     Seq(
       name := s"$prjName",
-      crossScalaVersions := Seq(Scala212, Scala213),
+      crossScalaVersions := Seq(Scala212, Scala213, Scala3),
       scalaVersion in ThisBuild := Scala213,
       scalacOptions := stdOptions ++ extraOptions(scalaVersion.value),
       libraryDependencies ++=
