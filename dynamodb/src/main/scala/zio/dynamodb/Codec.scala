@@ -1,5 +1,6 @@
 package zio.dynamodb
 
+import com.github.ghik.silencer.silent
 import zio.dynamodb.Annotations.{ enumOfCaseObjects, maybeCaseName, maybeDiscriminator }
 import zio.dynamodb.DynamoDBError.DecodingError
 import zio.schema.Schema.{ Optional, Primitive }
@@ -31,6 +32,7 @@ private[dynamodb] object Codec {
     def apply[A](schema: Schema[A]): Encoder[A] = encoder(schema)
 
     //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
+    @silent("CaseClass1")
     private def encoder[A](schema: Schema[A]): Encoder[A] =
       schema match {
         case s: Schema.Optional[a]                                                                                                              =>
@@ -421,6 +423,7 @@ private[dynamodb] object Codec {
     def apply[A](schema: Schema[A]): Decoder[A] = decoder(schema)
 
     //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
+    @silent("CaseClass1")
     private[dynamodb] def decoder[A](schema: Schema[A]): Decoder[A] =
       schema match {
         case s: Optional[a]                        => optionalDecoder[a](decoder(s.schema))
