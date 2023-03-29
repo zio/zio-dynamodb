@@ -4,9 +4,9 @@ import sbtbuildinfo._
 import BuildInfoKeys._
 
 object BuildHelper {
-  private val Scala212        = "2.12.17"
-  private val Scala213        = "2.13.10"
-  private val Scala3          = "3.2.2"
+  val Scala212                = "2.12.17"
+  val Scala213                = "2.13.10"
+  val Scala3                  = "3.2.2"
   private val SilencerVersion = "1.7.12"
 
   private val stdOptions = Seq(
@@ -81,13 +81,16 @@ object BuildHelper {
       crossScalaVersions := Seq(Scala212, Scala213, Scala3),
       scalaVersion in ThisBuild := Scala213,
       scalacOptions := stdOptions ++ extraOptions(scalaVersion.value),
-      libraryDependencies ++=
-        Seq(
-          ("com.github.ghik"                % "silencer-lib"    % SilencerVersion % Provided)
-            .cross(CrossVersion.full),
-          compilerPlugin(("com.github.ghik" % "silencer-plugin" % SilencerVersion).cross(CrossVersion.full)),
-          compilerPlugin("org.typelevel" %% "kind-projector" % "0.10.3")
-        ),
+      libraryDependencies ++= {
+        if (scalaVersion.value == Scala3) Seq()
+        else
+          Seq(
+            ("com.github.ghik"                % "silencer-lib"    % SilencerVersion % Provided)
+              .cross(CrossVersion.full),
+            compilerPlugin(("com.github.ghik" % "silencer-plugin" % SilencerVersion).cross(CrossVersion.full)),
+            compilerPlugin("org.typelevel" %% "kind-projector" % "0.10.3")
+          )
+      },
       incOptions ~= (_.withLogRecompileOnMacro(false))
     )
 }
