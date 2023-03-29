@@ -1,14 +1,12 @@
 package zio.dynamodb
 
-import com.github.ghik.silencer.silent
 import scala.annotation.tailrec
 
 object EitherUtil {
   def forEach[A, B, E](list: Iterable[A])(f: A => Either[E, B]): Either[E, Iterable[B]] = {
     @tailrec
-    @silent("Iterable")
     def loop[A2, B2, E2](xs: Iterable[A2], acc: List[B2])(f: A2 => Either[E2, B2]): Either[E2, Iterable[B2]] =
-      xs match {
+      xs.toList match {
         case head :: tail =>
           f(head) match {
             case Left(e)  => Left(e)

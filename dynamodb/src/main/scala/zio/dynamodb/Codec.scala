@@ -1,6 +1,5 @@
 package zio.dynamodb
 
-import com.github.ghik.silencer.silent
 import zio.dynamodb.Annotations.{ enumOfCaseObjects, maybeCaseName, maybeDiscriminator }
 import zio.dynamodb.DynamoDBError.DecodingError
 import zio.schema.Schema.{ Optional, Primitive }
@@ -32,7 +31,6 @@ private[dynamodb] object Codec {
     def apply[A](schema: Schema[A]): Encoder[A] = encoder(schema)
 
     //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
-    @silent("CaseClass1")
     private def encoder[A](schema: Schema[A]): Encoder[A] =
       schema match {
         case s: Schema.Optional[a]                                                                                                              =>
@@ -155,6 +153,7 @@ private[dynamodb] object Codec {
           enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22)
         case Schema.EnumN(_, cs, annotations)                                                                                                   =>
           enumEncoder(annotations, cs.toSeq: _*)
+        case _                                                                                                                                  => throw new Exception("Match was non-exhaustive")
       }
     //scalafmt: { maxColumn = 120, optIn.configStyleArguments = true }
 
@@ -423,7 +422,6 @@ private[dynamodb] object Codec {
     def apply[A](schema: Schema[A]): Decoder[A] = decoder(schema)
 
     //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
-    @silent("CaseClass1")
     private[dynamodb] def decoder[A](schema: Schema[A]): Decoder[A] =
       schema match {
         case s: Optional[a]                        => optionalDecoder[a](decoder(s.schema))
@@ -529,6 +527,7 @@ private[dynamodb] object Codec {
           enumDecoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22)
         case Schema.EnumN(_, cs, annotations)                                                                                                   =>
           enumDecoder(annotations, cs.toSeq: _*)
+        case _                                                                                                                                  => throw new Exception("Match was non-exhaustive")
 
       }
     //scalafmt: { maxColumn = 120, optIn.configStyleArguments = true }
@@ -649,7 +648,7 @@ private[dynamodb] object Codec {
 
     private def transformDecoder[A, B](codec: Schema[A], f: A => Either[String, B]): Decoder[B] = {
       val dec = decoder(codec)
-      (a: AttributeValue) => dec(a).flatMap(f(_).left.map(DecodingError))
+      (a: AttributeValue) => dec(a).flatMap(f(_).left.map(DecodingError.apply))
     }
 
     private def optionalDecoder[A](decoder: Decoder[A]): Decoder[Option[A]] = {

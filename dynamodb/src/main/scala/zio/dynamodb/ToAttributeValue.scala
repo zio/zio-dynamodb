@@ -3,6 +3,8 @@ package zio.dynamodb
 import zio.Chunk
 import zio.schema.Schema
 
+import scala.collection.immutable._
+
 trait ToAttributeValue[A] {
   def toAttributeValue(a: A): AttributeValue
 }
@@ -36,7 +38,7 @@ object ToAttributeValue extends ToAttributeValueLowPriorityImplicits0 {
 
   implicit def mapToAttributeValue[A](implicit ev: ToAttributeValue[A]): ToAttributeValue[Map[ScalaString, A]] =
     (map: Map[ScalaString, A]) =>
-      AttributeValue.Map(map.map { case (k, v) => AttributeValue.String(k) -> ev.toAttributeValue(v) })
+      AttributeValue.Map(map.map { case (k, v) => (AttributeValue.String(k), ev.toAttributeValue(v)) })
 
   implicit val stringToAttributeValue: ToAttributeValue[ScalaString]                                           = AttributeValue.String(_)
   implicit val stringSetToAttributeValue: ToAttributeValue[Set[ScalaString]]                                   =

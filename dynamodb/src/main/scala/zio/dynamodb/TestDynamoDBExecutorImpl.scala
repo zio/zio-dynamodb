@@ -7,7 +7,7 @@ import zio.stm.{ STM, TMap, ZSTM }
 import zio.stream.{ Stream, ZStream }
 import zio.{ Chunk, IO, UIO, ZIO }
 
-private[dynamodb] final case class TestDynamoDBExecutorImpl private (
+private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
   tableMap: TMap[String, TMap[PrimaryKey, Item]],
   tablePkNameMap: TMap[String, String]
 ) extends DynamoDBExecutor

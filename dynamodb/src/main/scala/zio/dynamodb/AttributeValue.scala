@@ -4,6 +4,8 @@ import zio.dynamodb.ConditionExpression.Operand._
 import zio.dynamodb.ConditionExpression._
 import zio.schema.Schema
 
+import scala.collection.immutable._
+
 sealed trait AttributeValue { self =>
   type ScalaType
 
@@ -59,5 +61,5 @@ object AttributeValue {
 
   def encode[A](a: A)(implicit schema: Schema[A]): AttributeValue = Codec.encoder(schema)(a)
 
-  implicit val attributeValueToAttributeValue: ToAttributeValue[AttributeValue] = identity(_)
+  implicit val attributeValueToAttributeValue: ToAttributeValue[AttributeValue] = scala.Predef.identity(_)
 }

@@ -26,7 +26,7 @@ import zio.dynamodb.DynamoDBQuery.{
 import zio.dynamodb.UpdateExpression.Action
 import zio.schema.Schema
 import zio.stream.Stream
-import zio.{ Chunk, NonEmptyChunk, Schedule, ZIO, _ }
+import zio.{ Chunk, NonEmptyChunk, Schedule, ZIO, Zippable => _, _ }
 
 sealed trait DynamoDBQuery[-In, +Out] { self =>
 

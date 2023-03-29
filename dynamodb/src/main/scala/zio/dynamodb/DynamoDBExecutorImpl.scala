@@ -85,7 +85,8 @@ import zio.{ Chunk, NonEmptyChunk, ZIO }
 
 import scala.collection.immutable.{ Map => ScalaMap }
 
-private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: DynamoDb) extends DynamoDBExecutor {
+private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynamoDb: DynamoDb)
+    extends DynamoDBExecutor {
   import DynamoDBExecutorImpl._
 
   def executeMap[A, B](map: Map[A, B]): ZIO[Any, Throwable, B] =
@@ -347,8 +348,8 @@ case object DynamoDBExecutorImpl {
 
   sealed trait TransactionType
   object TransactionType {
-    final case object Write extends TransactionType
-    final case object Get   extends TransactionType
+    case object Write extends TransactionType
+    case object Get   extends TransactionType
   }
 
   // Need to go through the chunk and make sure we don't have mixed transaction actions
@@ -1005,7 +1006,7 @@ case object DynamoDBExecutorImpl {
 
   private def awsAttrValToAttrVal(attributeValue: ZIOAwsAttributeValue.ReadOnly): Option[AttributeValue] =
     attributeValue.s
-      .map(AttributeValue.String)
+      .map(AttributeValue.String.apply)
       .orElse {
         attributeValue.n.map(n => AttributeValue.Number(BigDecimal(n)))
       } // TODO(adam): Does the BigDecimal need a try wrapper?
@@ -1042,7 +1043,7 @@ case object DynamoDBExecutorImpl {
         )
       }
       .orElse(attributeValue.nul.map(_ => AttributeValue.Null))
-      .orElse(attributeValue.bool.map(AttributeValue.Bool))
+      .orElse(attributeValue.bool.map(AttributeValue.Bool.apply))
       .toOption
 
   private def awsReturnItemCollectionMetrics(metrics: ReturnItemCollectionMetrics): ZIOAwsReturnItemCollectionMetrics =
