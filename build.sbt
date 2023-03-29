@@ -55,8 +55,8 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
       "dev.zio"       %% "zio-test-sbt"          % zioVersion % "it,test",
       "dev.zio"       %% "zio-schema"            % zioSchemaVersion,
       "dev.zio"       %% "zio-schema-derivation" % zioSchemaVersion,
-      "dev.zio"        % "zio-aws-netty_3"       % zioAwsVersion,
-      "dev.zio"        % "zio-aws-dynamodb_3"    % zioAwsVersion,
+      "dev.zio"       %% "zio-aws-netty"         % zioAwsVersion,
+      "dev.zio"       %% "zio-aws-dynamodb"      % zioAwsVersion,
       "org.scala-lang" % "scala-reflect"         % scalaVersion.value
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework")),
