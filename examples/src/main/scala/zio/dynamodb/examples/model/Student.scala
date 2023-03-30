@@ -42,7 +42,31 @@ final case class Student(
 )
 
 object Student {
-  implicit val schema = DeriveSchema.gen[Student]
+  implicit val schema: Schema.CaseClass11.WithFields[
+    "email",
+    "subject",
+    "enrollmentDate",
+    "payment",
+    "altPayment",
+    "studentNumber",
+    "collegeName",
+    "address",
+    "addresses",
+    "groups",
+    "version",
+    String,
+    String,
+    Option[Instant],
+    Payment,
+    Payment,
+    Int,
+    String,
+    Option[Address],
+    List[Address],
+    Set[String],
+    Int,
+    Student
+  ] = DeriveSchema.gen[Student]
   val (
     email,
     subject,
@@ -55,7 +79,7 @@ object Student {
     addresses,
     groups,
     version
-  )                   =
+  ) =
     ProjectionExpression.accessors[Student]
 
   def primaryKey(email: String, subject: String): PrimaryKey = PrimaryKey("email" -> email, "subject" -> subject)
