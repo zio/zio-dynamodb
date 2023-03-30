@@ -24,7 +24,7 @@ object ProjectionExpressionSpec extends ZIOSpecDefault {
     final case object CreditCard extends Payment
     final case object PayPal     extends Payment
 
-    implicit val schema = DeriveSchema.gen[Payment]
+    implicit val schema: Schema.Enum3[DebitCard.type, CreditCard.type, PayPal.type, Payment] = DeriveSchema.gen[Payment]
   }
   final case class Student(
     email: String,
