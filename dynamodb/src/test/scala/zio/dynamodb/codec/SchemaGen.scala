@@ -2,7 +2,6 @@ package zio.dynamodb.codec
 
 import scala.collection.immutable.ListMap
 
-import com.github.ghik.silencer.silent
 import zio.Chunk
 import zio.test.{ Gen, Sized }
 import zio.schema._
@@ -150,7 +149,7 @@ object SchemaGen {
   val anySequenceAndGen: Gen[Sized, SequenceAndGen[_]] =
     anyPrimitiveAndGen.map {
       case (schema, gen) =>
-        Schema.chunk(schema) -> Gen.chunkOf(gen)
+        Schema.chunk(schema).asInstanceOf[Schema[Chunk[Any]]] -> Gen.chunkOf(gen)
     }
 
   type SequenceAndValue[A] = (Schema[Chunk[A]], Chunk[A])
@@ -309,7 +308,7 @@ object SchemaGen {
   val anySequenceTransformAndGen: Gen[Sized, SequenceTransformAndGen[_]] =
     anyPrimitiveAndGen.map {
       case (schema, gen) =>
-        transformSequence(Schema.chunk(schema)) -> Gen.listOf(gen)
+        transformSequence(Schema.chunk(schema)).asInstanceOf[SchemaGen.SequenceTransform[Any]] -> Gen.listOf(gen)
     }
 
   // TODO: Add some random Left values.
@@ -483,7 +482,6 @@ object SchemaGen {
     f24: Int = 24
   ) extends Arity
 
-  @silent("inferred")
   object Arity24 {
     implicit val schema: Schema[Arity24] = DeriveSchema.gen[Arity24].asInstanceOf[Schema[Arity24]]
   }

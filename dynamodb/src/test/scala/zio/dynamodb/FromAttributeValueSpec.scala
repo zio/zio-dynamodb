@@ -77,7 +77,7 @@ object FromAttributeValueSpec extends ZIOSpecDefault {
       final case class Address(line1: String, line2: Option[String])
       val item   = Item("address" -> Item("line1" -> "line1", "line2" -> "line2"))
       val actual = for {
-        address <- item.getItem("address")(m => m.as("line1", "line2")(Address))
+        address <- item.getItem("address")(m => m.as("line1", "line2")(Address.apply))
       } yield Person(address)
       assert(actual)(isRight(equalTo(Person(Address("line1", Some("line2"))))))
     },
@@ -86,7 +86,7 @@ object FromAttributeValueSpec extends ZIOSpecDefault {
       final case class Address(line1: String, line2: Option[String])
       val item   = Item("address" -> Item("line1" -> "line1", "line2" -> null))
       val actual = for {
-        address <- item.getItem("address")(m => m.as("line1", "line2")(Address))
+        address <- item.getItem("address")(m => m.as("line1", "line2")(Address.apply))
       } yield Person(address)
       assert(actual)(isRight(equalTo(Person(Address("line1", None)))))
     }

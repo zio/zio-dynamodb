@@ -4,7 +4,7 @@ import zio.dynamodb.Codec
 import zio.schema.{ DeriveSchema, Schema, StandardType }
 import zio.test.Assertion.{ equalTo, isRight }
 import zio.test._
-import zio.{ Chunk, ZIO }
+import zio.{ Chunk, UIO, ZIO }
 
 import scala.collection.immutable.ListMap
 import zio.test.{ Gen, Sized, ZIOSpecDefault }
@@ -30,7 +30,10 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
     test("a primitive") {
       check(SchemaGen.anyEitherAndGen) {
         case (schema, gen) =>
-          assertEncodesThenDecodesWithGen(schema, gen)
+          assertEncodesThenDecodesWithGen(
+            schema.asInstanceOf[Schema[Either[Any, Any]]],
+            gen.asInstanceOf[Gen[Sized, Either[Any, Any]]]
+          )
       }
     },
     test("of tuples") {
@@ -89,14 +92,20 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
   private val optionalSuite = suite("optional suite")(
     test("of primitive") {
       check(SchemaGen.anyOptionalAndValue) {
-        case (schema, value) => assertEncodesThenDecodes(schema, value)
+        case (schema, value) => assertEncodesThenDecodes(schema.asInstanceOf[Schema[Any]], value.asInstanceOf[Any])
       }
     },
     test("of tuple") {
       check(SchemaGen.anyTupleAndValue) {
         case (schema, value) =>
-          assertEncodesThenDecodes(Schema.Optional(schema), Some(value)) &>
-            assertEncodesThenDecodes(Schema.Optional(schema), None)
+          assertEncodesThenDecodes(
+            Schema.Optional(schema).asInstanceOf[Schema[Option[Any]]],
+            Some(value).asInstanceOf[Option[Any]]
+          ) &>
+            assertEncodesThenDecodes(
+              Schema.Optional(schema).asInstanceOf[Schema[Option[Any]]],
+              None.asInstanceOf[Option[Any]]
+            )
       }
     },
     test("of record") {
@@ -131,7 +140,10 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
     test("of records") {
       check(SchemaGen.anyCaseClassAndValue) {
         case (schema, value) =>
-          assertEncodesThenDecodes(Schema.chunk(schema), Chunk.fill(3)(value))
+          assertEncodesThenDecodes(
+            Schema.chunk(schema).asInstanceOf[Schema[Chunk[Any]]],
+            Chunk.fill(3)(value).asInstanceOf[Chunk[Any]]
+          )
       }
     },
     test("of java.time.ZoneOffset") {
@@ -250,7 +262,7 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
     test("any") {
       check(SchemaGen.anyTransformAndValue) {
         case (schema, value) =>
-          assertEncodesThenDecodes(schema, value)
+          assertEncodesThenDecodes(schema.asInstanceOf[Schema[Any]], value.asInstanceOf[Any])
       }
     }
   )
@@ -262,13 +274,13 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
     test("a primitive") {
       check(SchemaGen.anyPrimitiveAndGen) {
         case (schema, gen) =>
-          assertEncodesThenDecodesWithGen(schema, gen)
+          assertEncodesThenDecodesWithGen(schema.asInstanceOf[Schema[Any]], gen)
       }
     },
     test("either of primitive") {
       check(SchemaGen.anyEitherAndGen) {
         case (schema, gen) =>
-          assertEncodesThenDecodesWithGen(schema, gen)
+          assertEncodesThenDecodesWithGen(schema.asInstanceOf[Schema[Either[Any, Any]]], gen)
       }
     },
     test("of enumeration") {
@@ -280,13 +292,13 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
     test("optional of primitive") {
       check(SchemaGen.anyOptionalAndGen) {
         case (schema, gen) =>
-          assertEncodesThenDecodesWithGen(schema, gen)
+          assertEncodesThenDecodesWithGen(schema.asInstanceOf[Schema[Option[Any]]], gen)
       }
     },
     test("tuple of primitive") {
       check(SchemaGen.anyTupleAndGen) {
         case (schema, gen) =>
-          assertEncodesThenDecodesWithGen(schema, gen)
+          assertEncodesThenDecodesWithGen(schema.asInstanceOf[Schema[(Any, Any)]], gen)
       }
     },
     test("sequence of primitive") {
@@ -299,8 +311,8 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
       check(SchemaGen.anyPrimitiveAndGen) {
         case (s, gen) =>
           val mapSchema = Schema.map(Schema[String], s)
-          val enc       = Codec.encoder(mapSchema)
-          val dec       = Codec.decoder(mapSchema)
+          val enc       = Codec.encoder(mapSchema).asInstanceOf[zio.dynamodb.Encoder[Any]]
+          val dec       = Codec.decoder(mapSchema).asInstanceOf[zio.dynamodb.Decoder[Any]]
 
           check(gen) { a =>
             val initialMap = Map("StringKey" -> a)
@@ -313,7 +325,7 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
     test("any Map") {
       check(SchemaGen.anyMapAndValue) {
         case (schema, value) =>
-          assertEncodesThenDecodes(schema, value)
+          assertEncodesThenDecodes(schema.asInstanceOf[Schema[Map[Any, Any]]], value.asInstanceOf[Map[Any, Any]])
       }
     },
     test("any Set") {
@@ -321,7 +333,7 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       check(anySetAndValueWithSetType) {
         case (schema, value, setType) =>
-          assertEncodesThenDecodesSet(schema, value, setType)
+          assertEncodesThenDecodesSet(schema.asInstanceOf[Schema[Set[Any]]], value.asInstanceOf[Set[Any]], setType)
       }
     }
   )
@@ -330,19 +342,19 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
     test("leaf") {
       check(SchemaGen.anyLeafAndValue) {
         case (schema, value) =>
-          assertEncodesThenDecodes(schema, value)
+          assertEncodesThenDecodes(schema.asInstanceOf[Schema[Any]], value.asInstanceOf[Any])
       }
     },
     test("recursive schema") {
       check(SchemaGen.anyTreeAndValue) {
         case (schema, value) =>
-          assertEncodesThenDecodes(schema, value)
+          assertEncodesThenDecodes(schema.asInstanceOf[Schema[Any]], value.asInstanceOf[Any])
       }
     },
     test("recursive data type") {
       check(SchemaGen.anyRecursiveTypeAndValue) {
         case (schema, value) =>
-          assertEncodesThenDecodes(schema, value)
+          assertEncodesThenDecodes(schema.asInstanceOf[Schema[Any]], value.asInstanceOf[Any])
       }
     }
   )
@@ -362,7 +374,7 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
     assert(decoded)(isRight(equalTo(a)))
   }
 
-  private def assertEncodesThenDecodes[A](schema: Schema[A], a: A) =
+  private def assertEncodesThenDecodes[A](schema: Schema[A], a: A): UIO[TestResult] =
     ZIO.succeed(assertEncodesThenDecodesPure(schema, a))
 
   case class SearchRequest(query: String, pageNumber: Int, resultPerPage: Int)

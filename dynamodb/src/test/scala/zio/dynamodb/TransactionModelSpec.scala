@@ -1,6 +1,5 @@
 package zio.dynamodb
 
-import com.github.ghik.silencer.silent
 import zio.aws.dynamodb.DynamoDb
 import zio.aws.dynamodb.DynamoDbMock
 import zio.{ Chunk, ULayer }
@@ -119,7 +118,6 @@ object TransactionModelSpec extends ZIOSpecDefault {
       .or(putItem)
       .or(batchWriteItem)
 
-  @silent("toIterable")
   private def invalidTransactionActionsContains(action: DynamoDBQuery[Any, Any]): Assertion[Any] =
     isSubtype[InvalidTransactionActions](
       hasField(
