@@ -58,13 +58,13 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           test("Between") {
             val (aliasMap, expression) = between.render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(two -> ":v0", one -> ":v1", three -> ":v2"), 3))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(two -> ":v0", one -> ":v1", three -> ":v2"), 3))) &&
             assert(expression)(equalTo(":v0 BETWEEN :v1 AND :v2"))
           },
           test("In") {
             val (aliasMap, expression) = in.render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(one -> ":v0", two -> ":v1"), 2))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0", two -> ":v1"), 2))) &&
             assert(expression)(equalTo(":v0 IN (:v0, :v1)"))
           },
           test("AttributeExists") {
@@ -84,19 +84,19 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           test("AttributeType") {
             val (aliasMap, expression) = attributeType.render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(number -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(number -> ":v0"), 1))) &&
             assert(expression)(equalTo(s"attribute_type($projection, :v0)"))
           },
           test("Contains") {
             val (aliasMap, expression) = contains.render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(one -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
             assert(expression)(equalTo(s"contains($projection, :v0)"))
           },
           test("BeginsWith") {
             val (aliasMap, expression) = beginsWith.render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(name -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(name -> ":v0"), 1))) &&
             assert(expression)(equalTo(s"begins_with($projection, :v0)"))
           },
           test("And") {
@@ -109,9 +109,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               .render
               .execute
 
-            assert(aliasMap)(
-              equalTo(AliasMap.apply(Map(two -> ":v0", one -> ":v1", three -> ":v2", number -> ":v3"), 4))
-            ) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(two -> ":v0", one -> ":v1", three -> ":v2", number -> ":v3"), 4))) &&
             assert(expression)(equalTo(s"(:v0 BETWEEN :v1 AND :v2) AND (attribute_type($projection, :v3))"))
           },
           test("Or") {
@@ -123,9 +121,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               .render
               .execute
 
-            assert(aliasMap)(
-              equalTo(AliasMap.apply(Map(two -> ":v0", one -> ":v1", three -> ":v2", number -> ":v3"), 4))
-            ) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(two -> ":v0", one -> ":v1", three -> ":v2", number -> ":v3"), 4))) &&
             assert(expression)(equalTo(s"(:v0 BETWEEN :v1 AND :v2) OR (attribute_type($projection, :v3))"))
           },
           test("Not") {
@@ -134,7 +130,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               .render
               .execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(name -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(name -> ":v0"), 1))) &&
             assert(expression)(equalTo(s"NOT (begins_with($projection, :v0))"))
           },
           test("Equals") {
@@ -146,7 +142,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               .render
               .execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(two -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(two -> ":v0"), 1))) &&
             assert(expression)(equalTo(s"(:v0) = (size($projection))"))
           },
           test("Equals with duplicates") {
@@ -158,7 +154,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               .render
               .execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(two -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(two -> ":v0"), 1))) &&
             assert(expression)(equalTo(s"(:v0) = (:v0)"))
           },
           test("NotEqual") {
@@ -170,7 +166,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               .render
               .execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(two -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(two -> ":v0"), 1))) &&
             assert(expression)(equalTo(s"(:v0) <> (size($projection))"))
           },
           test("LessThan") {
@@ -182,7 +178,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               .render
               .execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(one -> ":v0", three -> ":v1"), 2))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0", three -> ":v1"), 2))) &&
             assert(expression)(equalTo("(:v0) < (:v1)"))
           },
           test("GreaterThan") {
@@ -194,7 +190,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               .render
               .execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(one -> ":v0", three -> ":v1"), 2))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0", three -> ":v1"), 2))) &&
             assert(expression)(equalTo("(:v0) > (:v1)"))
           },
           test("LessThanOrEqual") {
@@ -206,7 +202,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               .render
               .execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(one -> ":v0", three -> ":v1"), 2))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0", three -> ":v1"), 2))) &&
             assert(expression)(equalTo("(:v0) <= (:v1)"))
           },
           test("GreaterThanOrEqual") {
@@ -218,7 +214,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               .render
               .execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(one -> ":v0", three -> ":v1"), 2))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0", three -> ":v1"), 2))) &&
             assert(expression)(equalTo("(:v0) >= (:v1)"))
           }
         )
@@ -229,56 +225,56 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
             val (aliasMap, expression) =
               SortKeyExpression.Equals(SortKeyExpression.SortKey("num"), one).render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(one -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
             assert(expression)(equalTo("num = :v0"))
           },
           test("LessThan") {
             val (aliasMap, expression) =
               SortKeyExpression.LessThan(SortKeyExpression.SortKey("num"), one).render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(one -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
             assert(expression)(equalTo("num < :v0"))
           },
           test("NotEqual") {
             val (aliasMap, expression) =
               SortKeyExpression.NotEqual(SortKeyExpression.SortKey("num"), one).render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(one -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
             assert(expression)(equalTo("num <> :v0"))
           },
           test("GreaterThan") {
             val (aliasMap, expression) =
               SortKeyExpression.GreaterThan(SortKeyExpression.SortKey("num"), one).render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(one -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
             assert(expression)(equalTo("num > :v0"))
           },
           test("LessThanOrEqual") {
             val (aliasMap, expression) =
               SortKeyExpression.LessThanOrEqual(SortKeyExpression.SortKey("num"), one).render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(one -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
             assert(expression)(equalTo("num <= :v0"))
           },
           test("GreaterThanOrEqual") {
             val (aliasMap, expression) =
               SortKeyExpression.GreaterThanOrEqual(SortKeyExpression.SortKey("num"), one).render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(one -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
             assert(expression)(equalTo("num >= :v0"))
           },
           test("Between") {
             val (aliasMap, expression) =
               SortKeyExpression.Between(SortKeyExpression.SortKey("num"), one, two).render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(one -> ":v0", two -> ":v1"), 2))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0", two -> ":v1"), 2))) &&
             assert(expression)(equalTo("num BETWEEN :v0 AND :v1"))
           },
           test("BeginsWith") {
             val (aliasMap, expression) =
               SortKeyExpression.BeginsWith(SortKeyExpression.SortKey("num"), name).render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(name -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(name -> ":v0"), 1))) &&
             assert(expression)(equalTo("begins_with(num, :v0)"))
           }
         ),
@@ -289,7 +285,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               .render
               .execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(one -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
             assert(expression)(equalTo("num = :v0"))
           }
         ),
@@ -303,7 +299,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
             .render
             .execute
 
-          assert(aliasMap)(equalTo(AliasMap.apply(Map(two -> ":v0", one -> ":v1", three -> ":v2"), 3))) &&
+          assert(aliasMap)(equalTo(AliasMap(Map(two -> ":v0", one -> ":v1", three -> ":v2"), 3))) &&
           assert(expression)(equalTo("num = :v0 AND num BETWEEN :v1 AND :v2"))
         }
       ),
@@ -311,61 +307,61 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
         test("Bool") {
           val (aliasMap, expression) = AttributeValueType.Bool.render.execute
 
-          assert(aliasMap)(equalTo(AliasMap.apply(Map(AttributeValue.String("BOOL") -> ":v0"), 1))) &&
+          assert(aliasMap)(equalTo(AliasMap(Map(AttributeValue.String("BOOL") -> ":v0"), 1))) &&
           assert(expression)(equalTo(":v0"))
         },
         test("BinarySet") {
           val (aliasMap, expression) = AttributeValueType.BinarySet.render.execute
 
-          assert(aliasMap)(equalTo(AliasMap.apply(Map(AttributeValue.String("BS") -> ":v0"), 1))) &&
+          assert(aliasMap)(equalTo(AliasMap(Map(AttributeValue.String("BS") -> ":v0"), 1))) &&
           assert(expression)(equalTo(":v0"))
         },
         test("List") {
           val (aliasMap, expression) = AttributeValueType.List.render.execute
 
-          assert(aliasMap)(equalTo(AliasMap.apply(Map(AttributeValue.String("L") -> ":v0"), 1))) &&
+          assert(aliasMap)(equalTo(AliasMap(Map(AttributeValue.String("L") -> ":v0"), 1))) &&
           assert(expression)(equalTo(":v0"))
         },
         test("Map") {
           val (aliasMap, expression) = AttributeValueType.Map.render.execute
 
-          assert(aliasMap)(equalTo(AliasMap.apply(Map(AttributeValue.String("M") -> ":v0"), 1))) &&
+          assert(aliasMap)(equalTo(AliasMap(Map(AttributeValue.String("M") -> ":v0"), 1))) &&
           assert(expression)(equalTo(":v0"))
         },
         test("NumberSet") {
           val (aliasMap, expression) = AttributeValueType.NumberSet.render.execute
 
-          assert(aliasMap)(equalTo(AliasMap.apply(Map(AttributeValue.String("NS") -> ":v0"), 1))) &&
+          assert(aliasMap)(equalTo(AliasMap(Map(AttributeValue.String("NS") -> ":v0"), 1))) &&
           assert(expression)(equalTo(":v0"))
         },
         test("Null") {
           val (aliasMap, expression) = AttributeValueType.Null.render.execute
 
-          assert(aliasMap)(equalTo(AliasMap.apply(Map(AttributeValue.String("NULL") -> ":v0"), 1))) &&
+          assert(aliasMap)(equalTo(AliasMap(Map(AttributeValue.String("NULL") -> ":v0"), 1))) &&
           assert(expression)(equalTo(":v0"))
         },
         test("StringSet") {
           val (aliasMap, expression) = AttributeValueType.StringSet.render.execute
 
-          assert(aliasMap)(equalTo(AliasMap.apply(Map(AttributeValue.String("SS") -> ":v0"), 1))) &&
+          assert(aliasMap)(equalTo(AliasMap(Map(AttributeValue.String("SS") -> ":v0"), 1))) &&
           assert(expression)(equalTo(":v0"))
         },
         test("Binary") {
           val (aliasMap, expression) = AttributeValueType.Binary.render.execute
 
-          assert(aliasMap)(equalTo(AliasMap.apply(Map(AttributeValue.String("B") -> ":v0"), 1))) &&
+          assert(aliasMap)(equalTo(AliasMap(Map(AttributeValue.String("B") -> ":v0"), 1))) &&
           assert(expression)(equalTo(":v0"))
         },
         test("Number") {
           val (aliasMap, expression) = AttributeValueType.Number.render.execute
 
-          assert(aliasMap)(equalTo(AliasMap.apply(Map(AttributeValue.String("N") -> ":v0"), 1))) &&
+          assert(aliasMap)(equalTo(AliasMap(Map(AttributeValue.String("N") -> ":v0"), 1))) &&
           assert(expression)(equalTo(":v0"))
         },
         test("String") {
           val (aliasMap, expression) = AttributeValueType.String.render.execute
 
-          assert(aliasMap)(equalTo(AliasMap.apply(Map(AttributeValue.String("S") -> ":v0"), 1))) &&
+          assert(aliasMap)(equalTo(AliasMap(Map(AttributeValue.String("S") -> ":v0"), 1))) &&
           assert(expression)(equalTo(":v0"))
         }
       ),
@@ -388,7 +384,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
                 )
               ).render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(one -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
             assert(expression)(equalTo(s"set $projection = if_not_exists($projection, :v0) remove $otherProjection"))
           },
           test("Two Sets") {
@@ -400,7 +396,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
                   UpdateExpression.SetOperand.ValueOperand(one)
                 ) + UpdateExpression.Action.AddAction($("lastProjection"), one)).render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(one -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
             assert(expression)(equalTo(s"set $projection = :v0,$otherProjection = :v0 add $lastProjection :v0"))
           }
         ),
@@ -417,7 +413,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
                 )
               ).render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(one -> ":v0", two -> ":v1"), 2))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0", two -> ":v1"), 2))) &&
             assert(expression)(equalTo(s"set $projection = :v0 - :v1"))
           },
           test("Plus") {
@@ -432,7 +428,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
                 )
               ).render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(one -> ":v0", two -> ":v1"), 2))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0", two -> ":v1"), 2))) &&
             assert(expression)(equalTo(s"set $projection = :v0 + :v1"))
 
           },
@@ -445,7 +441,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
                 )
               ).render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(one -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
             assert(expression)(equalTo(s"set $projection = :v0"))
 
           },
@@ -476,7 +472,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
                 )
               ).render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(list -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(list -> ":v0"), 1))) &&
             assert(expression)(equalTo(s"set $projection = list_append($projection, :v0)"))
 
           },
@@ -492,7 +488,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
                 )
               ).render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(list -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(list -> ":v0"), 1))) &&
             assert(expression)(equalTo(s"set $projection = list_append(:v0, $projection)"))
 
           },
@@ -508,7 +504,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
                 )
               ).render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(one -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
             assert(expression)(equalTo(s"set $projection = if_not_exists($projection, :v0)"))
 
           }
@@ -536,7 +532,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
                 )
               ).render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(one -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
             assert(expression)(equalTo(s"add $projection :v0"))
           }
         ),
@@ -550,7 +546,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
                 )
               ).render.execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(one -> ":v0"), 1))) &&
+            assert(aliasMap)(equalTo(AliasMap(Map(one -> ":v0"), 1))) &&
             assert(expression)(equalTo(s"delete $projection :v0"))
           }
         )
