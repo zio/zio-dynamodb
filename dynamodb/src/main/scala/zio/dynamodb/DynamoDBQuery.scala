@@ -392,12 +392,12 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   def withClientRequestToken(token: String): DynamoDBQuery[In, Out] =
     self match {
-      case Zip(left, right, zippable) =>
+      case Zip(left, right, zippable)  =>
         Zip(left.withClientRequestToken(token), right.withClientRequestToken(token), zippable)
-      case Map(query, mapper)         => Map(query.withClientRequestToken(token), mapper)
-      case Absolve(query)             => Absolve(query.withClientRequestToken(token))
-      case s: Transaction[Out]        => s.copy(clientRequestToken = Some(token)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                          => self
+      case Map(query, mapper)          => Map(query.withClientRequestToken(token), mapper)
+      case Absolve(query)              => Absolve(query.withClientRequestToken(token))
+      case s @ Transaction(_, _, _, _) => s.copy(clientRequestToken = Some(token)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case _                           => self
     }
 
   final def map[B](f: Out => B): DynamoDBQuery[In, B] = DynamoDBQuery.Map(self, f)
