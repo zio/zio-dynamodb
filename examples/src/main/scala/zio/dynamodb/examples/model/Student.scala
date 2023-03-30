@@ -10,11 +10,11 @@ import java.time.Instant
 sealed trait Payment
 
 object Payment {
-  final case object DebitCard extends Payment
+  case object DebitCard extends Payment
 
-  final case object CreditCard extends Payment
+  case object CreditCard extends Payment
 
-  final case object PayPal extends Payment
+  case object PayPal extends Payment
 
   implicit val schema = DeriveSchema.gen[Payment]
 }

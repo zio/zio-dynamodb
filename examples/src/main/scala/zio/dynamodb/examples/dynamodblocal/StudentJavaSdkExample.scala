@@ -21,9 +21,9 @@ object StudentJavaSdkExample extends ZIOAppDefault {
 
   sealed trait Payment
   object Payment {
-    final case object DebitCard  extends Payment
-    final case object CreditCard extends Payment
-    final case object PayPal     extends Payment
+    case object DebitCard  extends Payment
+    case object CreditCard extends Payment
+    case object PayPal     extends Payment
   }
   final case class Student(email: String, subject: String, enrollmentDate: Option[Instant], payment: Payment)
 

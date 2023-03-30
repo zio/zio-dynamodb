@@ -11,10 +11,10 @@ object SetSchemaGen {
 
   sealed trait SetType
   object SetType {
-    final case object None      extends SetType
-    final case object StringSet extends SetType
-    final case object NumberSet extends SetType
-    final case object BinarySet extends SetType
+    case object None      extends SetType
+    case object StringSet extends SetType
+    case object NumberSet extends SetType
+    case object BinarySet extends SetType
   }
 
   def setType[A](standardType: StandardType[A]): SetType =
