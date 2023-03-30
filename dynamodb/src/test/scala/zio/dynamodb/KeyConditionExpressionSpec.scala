@@ -7,6 +7,7 @@ import zio.test.Assertion.{ isLeft, isRight }
 import zio.test._
 
 import java.time.Instant
+import zio.schema.Schema
 
 object KeyConditionExpressionSpec extends ZIOSpecDefault {
 
@@ -16,7 +17,9 @@ object KeyConditionExpressionSpec extends ZIOSpecDefault {
     enrollmentDate: Option[Instant]
   )
   object Student {
-    implicit val schema = DeriveSchema.gen[Student]
+    implicit val schema
+      : Schema.CaseClass3.WithFields["email", "subject", "enrollmentDate", String, String, Option[Instant], Student] =
+      DeriveSchema.gen[Student]
   }
 
   val (email, subject, enrollmentDate) = ProjectionExpression.accessors[Student]
