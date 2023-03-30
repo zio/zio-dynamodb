@@ -396,7 +396,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         Zip(left.withClientRequestToken(token), right.withClientRequestToken(token), zippable)
       case Map(query, mapper)          => Map(query.withClientRequestToken(token), mapper)
       case Absolve(query)              => Absolve(query.withClientRequestToken(token))
-      case s @ Transaction(_, _, _, _) => s.copy(clientRequestToken = Some(token)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case s @ Transaction(_, _, _, _) => s.copy(clientRequestToken = Some(token))
       case _                           => self
     }
 
