@@ -109,7 +109,9 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               .render
               .execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(two -> ":v0", one -> ":v1", three -> ":v2", number -> ":v3"), 4))) &&
+            assert(aliasMap)(
+              equalTo(AliasMap.apply(Map(two -> ":v0", one -> ":v1", three -> ":v2", number -> ":v3"), 4))
+            ) &&
             assert(expression)(equalTo(s"(:v0 BETWEEN :v1 AND :v2) AND (attribute_type($projection, :v3))"))
           },
           test("Or") {
@@ -121,7 +123,9 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               .render
               .execute
 
-            assert(aliasMap)(equalTo(AliasMap.apply(Map(two -> ":v0", one -> ":v1", three -> ":v2", number -> ":v3"), 4))) &&
+            assert(aliasMap)(
+              equalTo(AliasMap.apply(Map(two -> ":v0", one -> ":v1", three -> ":v2", number -> ":v3"), 4))
+            ) &&
             assert(expression)(equalTo(s"(:v0 BETWEEN :v1 AND :v2) OR (attribute_type($projection, :v3))"))
           },
           test("Not") {
