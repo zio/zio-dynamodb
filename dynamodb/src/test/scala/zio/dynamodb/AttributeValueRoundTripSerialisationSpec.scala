@@ -74,10 +74,12 @@ object AttributeValueRoundTripSerialisationSpec extends ZIOSpecDefault {
   ): Serializable =
     Serializable(Gen.mapOf(Gen.string, genV), ToAttributeValue[Map[String, V]], FromAttributeValue[Map[String, V]])
 
-  private def serializableList[V: ToAttributeValue: FromAttributeValue](
+  private def serializableList[V: ToAttributeValue: FromAttributeValue: Schema](
     genV: Gen[Sized, V]
-  ): Serializable =
+  ): Serializable = {
+    val _ = implicitly[ToAttributeValue[V]]
     Serializable(Gen.listOf(genV), ToAttributeValue[Iterable[V]], FromAttributeValue[Iterable[V]])
+  }
 
   private val serializableStringSet: Serializable =
     Serializable(Gen.setOf(Gen.string), ToAttributeValue[Set[String]], FromAttributeValue[Set[String]])

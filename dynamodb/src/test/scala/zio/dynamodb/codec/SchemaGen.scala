@@ -483,6 +483,7 @@ object SchemaGen {
   ) extends Arity
 
   object Arity24 {
+    @scala.annotation.nowarn
     implicit val schema: Schema[Arity24] = DeriveSchema.gen[Arity24].asInstanceOf[Schema[Arity24]]
   }
 
