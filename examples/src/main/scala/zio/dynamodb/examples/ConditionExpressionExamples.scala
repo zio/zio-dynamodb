@@ -16,8 +16,10 @@ object ConditionExpressionExamples {
     count2: Int
   )
   object Student {
-    implicit val schema: Schema.CaseClass4.WithFields["email","subject","count1","count2",String,String,Int,Int,Student]                  = DeriveSchema.gen[Student]
-    val (email, subject, count1, count2) = ProjectionExpression.accessors[Student]
+    implicit val schema
+      : Schema.CaseClass4.WithFields["email", "subject", "count1", "count2", String, String, Int, Int, Student] =
+      DeriveSchema.gen[Student]
+    val (email, subject, count1, count2)                                                                        = ProjectionExpression.accessors[Student]
   }
 
   val peOpticNum1: ProjectionExpression[Student, Int] = Student.count1
