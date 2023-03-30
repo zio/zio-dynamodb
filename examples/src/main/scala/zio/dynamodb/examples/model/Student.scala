@@ -23,7 +23,7 @@ object Payment {
 final case class Address(addr1: String, postcode: String)
 
 object Address {
-  implicit val schema: Schema.CaseClass2.WithFields["addr1", "postcode", String, String, Address] =
+  implicit val schema: Schema.CaseClass2[String, String, Address] =
     DeriveSchema.gen[Address]
 }
 
@@ -42,18 +42,7 @@ final case class Student(
 )
 
 object Student {
-  implicit val schema: Schema.CaseClass11.WithFields[
-    "email",
-    "subject",
-    "enrollmentDate",
-    "payment",
-    "altPayment",
-    "studentNumber",
-    "collegeName",
-    "address",
-    "addresses",
-    "groups",
-    "version",
+  implicit val schema: Schema.CaseClass11[
     String,
     String,
     Option[Instant],

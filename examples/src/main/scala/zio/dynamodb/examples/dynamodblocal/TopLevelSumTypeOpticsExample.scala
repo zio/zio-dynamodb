@@ -17,9 +17,9 @@ object TopLevelSumTypeOpticsExample extends App {
       sku: String
     ) extends Invoice
     object PreBilledInvoice {
-      implicit val schema: Schema.CaseClass2.WithFields["id", "sku", String, String, PreBilledInvoice] =
+      implicit val schema: Schema.CaseClass2[String, String, PreBilledInvoice] =
         DeriveSchema.gen[PreBilledInvoice]
-      val (id, sku)                                                                                    = ProjectionExpression.accessors[PreBilledInvoice]
+      val (id, sku)                                                            = ProjectionExpression.accessors[PreBilledInvoice]
     }
 
     final case class BilledInvoice(
@@ -28,15 +28,15 @@ object TopLevelSumTypeOpticsExample extends App {
       amount: Double
     ) extends Invoice
     object BilledInvoice {
-      implicit val schema: Schema.CaseClass3.WithFields["id", "sku", "amount", String, String, Double, BilledInvoice] =
+      implicit val schema: Schema.CaseClass3[String, String, Double, BilledInvoice] =
         DeriveSchema.gen[BilledInvoice]
-      val (id, sku, amount)                                                                                           = ProjectionExpression.accessors[BilledInvoice]
+      val (id, sku, amount)                                                         = ProjectionExpression.accessors[BilledInvoice]
     }
 
     final case class Box(invoice: Invoice)
     object Box {
-      implicit val schema: Schema.CaseClass1.WithFields["invoice", Invoice, Box] = DeriveSchema.gen[Box]
-      val invoice                                                                = ProjectionExpression.accessors[Box]
+      implicit val schema: Schema.CaseClass1[Invoice, Box] = DeriveSchema.gen[Box]
+      val invoice                                          = ProjectionExpression.accessors[Box]
     }
   }
 

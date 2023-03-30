@@ -7,7 +7,7 @@ import zio.schema.Schema
 final case class Elephant(id: String, email: String)
 
 object Elephant {
-  implicit val schema: Schema.CaseClass2.WithFields["id", "email", String, String, Elephant] =
+  implicit val schema: Schema.CaseClass2[String, String, Elephant] =
     DeriveSchema.gen[Elephant]
-  val (id, email)                                                                            = ProjectionExpression.accessors[Elephant]
+  val (id, email)                                                  = ProjectionExpression.accessors[Elephant]
 }

@@ -1,7 +1,7 @@
 package zio.dynamodb.examples
 
 import zio.dynamodb.ProjectionExpression.$
-import zio.dynamodb.UpdateExpression.Action
+import zio.dynamodb.UpdateExpression._
 import zio.dynamodb.UpdateExpression.Action.{ AddAction, RemoveAction, SetAction }
 import zio.dynamodb._
 
@@ -26,7 +26,7 @@ object UpdateExpressionExamples extends App {
   val expr6              = expr5 + $("one[2]").prependList(List("x", "x2"))
   val expr7              = expr6 + $("one[2]").add(1)
   // scala 3 needs type hint
-  val expr8: Action[Any] = expr7 + $("one[2]").remove
+  val expr8: Action[Any] = expr7 + $("one[2]").remove.asInstanceOf[RenderableAction[Any]]
   val expr9              = expr8 + $("one[2]").deleteFromSet(Set(1))
 
   val ops = UpdateExpression(expr9)

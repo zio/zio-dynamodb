@@ -39,10 +39,10 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
     test("of tuples") {
       check(
         for {
-          left  <- SchemaGen.anyTupleAndValue
-          right <- SchemaGen.anyTupleAndValue
+          left  <- SchemaGen.anyTupleAndValue[Any, Any]
+          right <- SchemaGen.anyTupleAndValue[Any, Any]
         } yield (
-          Schema.Either(left._1.asInstanceOf[Schema[(Any, Any)]], right._1.asInstanceOf[Schema[(Any, Any)]]),
+          Schema.Either(left._1, right._1),
           Right(right._2)
         )
       ) {
@@ -52,8 +52,8 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
     test("of sequence") {
       check(
         for {
-          left  <- SchemaGen.anySequenceAndValue
-          right <- SchemaGen.anySequenceAndValue
+          left  <- SchemaGen.anySequenceAndValue[Any]
+          right <- SchemaGen.anySequenceAndValue[Any]
         } yield (
           Schema.Either(left._1.asInstanceOf[Schema[Chunk[Any]]], right._1.asInstanceOf[Schema[Chunk[Any]]]),
           Left(left._2)
@@ -65,7 +65,7 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
     test("of records") {
       check(for {
         (left, a)       <- SchemaGen.anyRecordAndValue()
-        primitiveSchema <- SchemaGen.anyPrimitive
+        primitiveSchema <- SchemaGen.anyPrimitive[Any]
       } yield (Schema.Either(left, primitiveSchema), Left(a))) {
         case (schema, value) => assertEncodesThenDecodes(schema, value)
       }
@@ -82,7 +82,7 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
     test("mixed") {
       check(for {
         (left, _)      <- SchemaGen.anyEnumerationAndValue
-        (right, value) <- SchemaGen.anySequenceAndValue
+        (right, value) <- SchemaGen.anySequenceAndValue[Any]
       } yield (Schema.Either(left, right), Right(value))) {
         case (schema, value) => assertEncodesThenDecodes(schema, value)
       }
@@ -141,7 +141,7 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
       check(SchemaGen.anyCaseClassAndValue) {
         case (schema, value) =>
           assertEncodesThenDecodes(
-            Schema.chunk(schema).asInstanceOf[Schema[Chunk[Any]]],
+            Schema.chunk(schema.asInstanceOf[Schema[Any]]),
             Chunk.fill(3)(value).asInstanceOf[Chunk[Any]]
           )
       }
@@ -308,7 +308,7 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
       }
     },
     test("Map of string to primitive value") {
-      check(SchemaGen.anyPrimitiveAndGen) {
+      check(SchemaGen.anyPrimitiveAndGen[Any]) {
         case (s, gen) =>
           val mapSchema = Schema.map(Schema[String], s)
           val enc       = Codec.encoder(mapSchema).asInstanceOf[zio.dynamodb.Encoder[Any]]

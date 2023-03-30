@@ -34,30 +34,30 @@ object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
     final case class Green(rgb: Int) extends TrafficLight
 
     object Green {
-      implicit val schema: Schema.CaseClass1.WithFields["rgb", Int, Green] = DeriveSchema.gen[Green]
-      val rgb: ProjectionExpression[Green, Int]                            = ProjectionExpression.accessors[Green]
+      implicit val schema: Schema.CaseClass1[Int, Green] = DeriveSchema.gen[Green]
+      val rgb: ProjectionExpression[Green, Int]          = ProjectionExpression.accessors[Green]
     }
 
     @caseName("red_traffic_light")
     final case class Red(rgb: Int) extends TrafficLight
 
     object Red {
-      implicit val schema: Schema.CaseClass1.WithFields["rgb", Int, Red] = DeriveSchema.gen[Red]
-      val rgb: ProjectionExpression[Red, Int]                            = ProjectionExpression.accessors[Red]
+      implicit val schema: Schema.CaseClass1[Int, Red] = DeriveSchema.gen[Red]
+      val rgb: ProjectionExpression[Red, Int]          = ProjectionExpression.accessors[Red]
     }
 
     final case class Amber(@fieldName("red_green_blue") rgb: Int) extends TrafficLight
 
     object Amber {
-      implicit val schema: Schema.CaseClass1.WithFields["red_green_blue", Int, Amber] = DeriveSchema.gen[Amber]
-      val rgb                                                                         = ProjectionExpression.accessors[Amber]
+      implicit val schema: Schema.CaseClass1[Int, Amber] = DeriveSchema.gen[Amber]
+      val rgb                                            = ProjectionExpression.accessors[Amber]
     }
 
     final case class Box(trafficLightColour: TrafficLight)
 
     object Box {
-      implicit val schema: Schema.CaseClass1.WithFields["trafficLightColour", TrafficLight, Box] = DeriveSchema.gen[Box]
-      val trafficLightColour                                                                     = ProjectionExpression.accessors[Box]
+      implicit val schema: Schema.CaseClass1[TrafficLight, Box] = DeriveSchema.gen[Box]
+      val trafficLightColour                                    = ProjectionExpression.accessors[Box]
     }
 
     implicit val schema: Schema.Enum3[Green, Red, Amber, TrafficLight] = DeriveSchema.gen[TrafficLight]
@@ -73,31 +73,31 @@ object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
     final case class Green(rgb: Int) extends TrafficLightDiscriminated
 
     object Green {
-      implicit val schema: Schema.CaseClass1.WithFields["rgb", Int, Green] = DeriveSchema.gen[Green]
-      val rgb: ProjectionExpression[Green, Int]                            = ProjectionExpression.accessors[Green]
+      implicit val schema: Schema.CaseClass1[Int, Green] = DeriveSchema.gen[Green]
+      val rgb: ProjectionExpression[Green, Int]          = ProjectionExpression.accessors[Green]
     }
 
     @caseName("red_traffic_light")
     final case class Red(rgb: Int) extends TrafficLightDiscriminated
 
     object Red {
-      implicit val schema: Schema.CaseClass1.WithFields["rgb", Int, Red] = DeriveSchema.gen[Red]
-      val rgb: ProjectionExpression[Red, Int]                            = ProjectionExpression.accessors[Red]
+      implicit val schema: Schema.CaseClass1[Int, Red] = DeriveSchema.gen[Red]
+      val rgb: ProjectionExpression[Red, Int]          = ProjectionExpression.accessors[Red]
     }
 
     final case class Amber(@fieldName("red_green_blue") rgb: Int) extends TrafficLightDiscriminated
 
     object Amber {
-      implicit val schema: Schema.CaseClass1.WithFields["red_green_blue", Int, Amber] = DeriveSchema.gen[Amber]
-      val rgb: ProjectionExpression[Amber, Int]                                       = ProjectionExpression.accessors[Amber]
+      implicit val schema: Schema.CaseClass1[Int, Amber] = DeriveSchema.gen[Amber]
+      val rgb: ProjectionExpression[Amber, Int]          = ProjectionExpression.accessors[Amber]
     }
 
     final case class Box(trafficLightColour: TrafficLightDiscriminated)
 
     object Box {
-      implicit val schema: Schema.CaseClass1.WithFields["trafficLightColour", TrafficLightDiscriminated, Box] =
+      implicit val schema: Schema.CaseClass1[TrafficLightDiscriminated, Box]       =
         DeriveSchema.gen[Box]
-      val trafficLightColour: ProjectionExpression[Box, TrafficLightDiscriminated]                            = ProjectionExpression.accessors[Box]
+      val trafficLightColour: ProjectionExpression[Box, TrafficLightDiscriminated] = ProjectionExpression.accessors[Box]
     }
 
     implicit val schema: Schema.Enum3[Green, Red, Amber, TrafficLightDiscriminated] =

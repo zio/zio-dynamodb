@@ -84,18 +84,18 @@ object AttributeValueRoundTripSerialisationSpec extends ZIOSpecDefault {
   private val serializableStringSet: Serializable =
     Serializable(Gen.setOf(Gen.string), ToAttributeValue[Set[String]], FromAttributeValue[Set[String]])
 
-  implicit def iterableSchema[A: Schema]: Schema[Iterable[A]] =
-    Schema.Sequence[Iterable[A], A, String](
+  implicit def iterableSchema[A: Schema, Col[A] <: Iterable[A]]: Schema[Col[A]] =
+    Schema.Sequence[Col[A], A, String](
       implicitly[Schema[A]],
-      identity,
+      identity(_).asInstanceOf[Col[A]],
       Chunk.fromIterable(_),
       Chunk.empty,
       "Iterable"
     )
 
-  implicit def iterableToAttributeValue[V](implicit
-    s: Schema[Iterable[V]]
-  ): ToAttributeValue[Iterable[V]] =
+  implicit def iterableToAttributeValue[A, Col[A] <: Iterable[A]](implicit
+    s: Schema[Col[A]]
+  ): ToAttributeValue[Col[A]] =
     ToAttributeValue.schemaToAttributeValue(s)
 
   private val serializableBinarySet: Serializable =

@@ -17,8 +17,7 @@ object KeyConditionExpressionSpec extends ZIOSpecDefault {
     enrollmentDate: Option[Instant]
   )
   object Student {
-    implicit val schema
-      : Schema.CaseClass3.WithFields["email", "subject", "enrollmentDate", String, String, Option[Instant], Student] =
+    implicit val schema: Schema.CaseClass3[String, String, Option[Instant], Student] =
       DeriveSchema.gen[Student]
   }
 
