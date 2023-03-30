@@ -23,7 +23,7 @@ object BuildHelper {
 
   private val stdOpts2 = Seq(
     "-Yrangepos",
-    "-Xlint:_,-type-parameter-shadow",
+    "-Xlint:_,-type-parameter-shadow,-unused",
     "-Xsource:2.13",
     "-Ywarn-numeric-widen",
     "-Ywarn-value-discard"
