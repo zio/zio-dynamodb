@@ -2,6 +2,8 @@ package zio.dynamodb
 
 import zio.test.Assertion.{ equalTo, isRight }
 import zio.test._
+import zio.schema.Schema
+import zio.Chunk
 
 object AttributeValueRoundTripSerialisationSpec extends ZIOSpecDefault {
   private val serialisationSuite = suite("AttributeValue Serialisation suite")(test("round trip serialisation") {
@@ -79,6 +81,20 @@ object AttributeValueRoundTripSerialisationSpec extends ZIOSpecDefault {
 
   private val serializableStringSet: Serializable =
     Serializable(Gen.setOf(Gen.string), ToAttributeValue[Set[String]], FromAttributeValue[Set[String]])
+
+  implicit def iterableSchema[A: Schema]: Schema[Iterable[A]] =
+    Schema.Sequence[Iterable[A], A, String](
+      implicitly[Schema[A]],
+      identity,
+      Chunk.fromIterable(_),
+      Chunk.empty,
+      "Iterable"
+    )
+
+  implicit def iterableToAttributeValue[V](implicit
+    s: Schema[Iterable[V]]
+  ): ToAttributeValue[Iterable[V]] =
+    ToAttributeValue.schemaToAttributeValue(s)
 
   private val serializableBinarySet: Serializable =
     Serializable(
