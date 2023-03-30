@@ -50,9 +50,9 @@ object WithDiscriminatedEnum {
   final case class StringValue2(@fieldName("funky_field_name") value: String) extends EnumWithDiscriminator
   @caseName("ival")
   final case class IntValue(value: Int)                                       extends EnumWithDiscriminator
-  case object ONE                                                       extends EnumWithDiscriminator
+  case object ONE                                                             extends EnumWithDiscriminator
   @caseName("2")
-  case object TWO                                                       extends EnumWithDiscriminator
+  case object TWO                                                             extends EnumWithDiscriminator
 
   implicit val schema: Schema[WithDiscriminatedEnum] = DeriveSchema.gen[WithDiscriminatedEnum]
 }
