@@ -2,8 +2,6 @@ package zio.dynamodb
 
 import zio.test.Assertion.{ equalTo, isRight }
 import zio.test._
-import zio.schema.Schema
-import zio.Chunk
 
 object AttributeValueRoundTripSerialisationSpec extends ZIOSpecDefault {
   private val serialisationSuite = suite("AttributeValue Serialisation suite")(test("round trip serialisation") {
@@ -74,29 +72,13 @@ object AttributeValueRoundTripSerialisationSpec extends ZIOSpecDefault {
   ): Serializable =
     Serializable(Gen.mapOf(Gen.string, genV), ToAttributeValue[Map[String, V]], FromAttributeValue[Map[String, V]])
 
-  private def serializableList[V: ToAttributeValue: FromAttributeValue: Schema](
+  private def serializableList[V: ToAttributeValue: FromAttributeValue](
     genV: Gen[Sized, V]
-  ): Serializable = {
-    val _ = implicitly[ToAttributeValue[V]]
+  ): Serializable =
     Serializable(Gen.listOf(genV), ToAttributeValue[Iterable[V]], FromAttributeValue[Iterable[V]])
-  }
 
   private val serializableStringSet: Serializable =
     Serializable(Gen.setOf(Gen.string), ToAttributeValue[Set[String]], FromAttributeValue[Set[String]])
-
-  implicit def iterableSchema[A: Schema, Col[A] <: Iterable[A]]: Schema[Col[A]] =
-    Schema.Sequence[Col[A], A, String](
-      implicitly[Schema[A]],
-      identity(_).asInstanceOf[Col[A]],
-      Chunk.fromIterable(_),
-      Chunk.empty,
-      "Iterable"
-    )
-
-  implicit def iterableToAttributeValue[A, Col[A] <: Iterable[A]](implicit
-    s: Schema[Col[A]]
-  ): ToAttributeValue[Col[A]] =
-    ToAttributeValue.schemaToAttributeValue(s)
 
   private val serializableBinarySet: Serializable =
     Serializable(
