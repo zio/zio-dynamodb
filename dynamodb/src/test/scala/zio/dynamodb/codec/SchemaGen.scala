@@ -60,104 +60,103 @@ object SchemaGen {
   def anyEnumeration[A](schema: Schema[A]): Gen[Sized, ListMap[String, Schema[A]]] =
     Gen.setOfBounded(1, 3)(anyLabel.map(_ -> schema)).map(ListMap.empty ++ _)
 
-  def anyPrimitive[A]: Gen[Any, Schema.Primitive[A]]                               =
-    StandardTypeGen.anyStandardType.map(s => Schema.Primitive(s.asInstanceOf[StandardType[A]], Chunk.empty))
+  val anyPrimitive: Gen[Any, Schema.Primitive[_]]                                  =
+    StandardTypeGen.anyStandardType.map(Schema.Primitive(_, Chunk.empty))
 
   type PrimitiveAndGen[A] = (Schema.Primitive[A], Gen[Sized, A])
 
-  def anyPrimitiveAndGen[A]: Gen[Any, PrimitiveAndGen[A]] =
-    StandardTypeGen.anyStandardTypeAndGen[A].map {
-      case (standardType, gen) =>
-        (Schema.Primitive[A](standardType, Chunk.empty) -> gen).asInstanceOf[PrimitiveAndGen[A]]
+  val anyPrimitiveAndGen: Gen[Any, PrimitiveAndGen[_]] =
+    StandardTypeGen.anyStandardTypeAndGen.map {
+      case (standardType, gen) => Schema.Primitive(standardType, Chunk.empty) -> gen
     }
 
   type PrimitiveAndValue[A] = (Schema.Primitive[A], A)
 
-  def anyPrimitiveAndValue[A]: Gen[Sized, PrimitiveAndValue[A]] =
+  val anyPrimitiveAndValue: Gen[Sized, PrimitiveAndValue[_]] =
     for {
-      (schema, gen) <- anyPrimitiveAndGen[A]
+      (schema, gen) <- anyPrimitiveAndGen
       value         <- gen
     } yield schema -> value
 
   def anyOptional(
     schemaGen: Gen[Sized, Schema[_]]
-  ): Gen[Sized, Schema.Optional[_]]                             =
+  ): Gen[Sized, Schema.Optional[_]]                          =
     schemaGen.map(Schema.Optional(_))
 
   type OptionalAndGen[A] = (Schema.Optional[A], Gen[Sized, Option[A]])
 
-  def anyOptionalAndGen[A]: Gen[Sized, OptionalAndGen[A]] =
-    anyPrimitiveAndGen[A].map {
+  val anyOptionalAndGen: Gen[Sized, OptionalAndGen[_]] =
+    anyPrimitiveAndGen.map {
       case (schema, gen) => Schema.Optional(schema) -> Gen.option(gen)
     }
 
   type OptionalAndValue[A] = (Schema.Optional[A], Option[A])
 
-  def anyOptionalAndValue[A]: Gen[Sized, OptionalAndValue[A]] =
+  val anyOptionalAndValue: Gen[Sized, OptionalAndValue[_]] =
     for {
-      (schema, gen) <- anyOptionalAndGen[A]
+      (schema, gen) <- anyOptionalAndGen
       value         <- gen
     } yield schema -> value
 
-  def anyEither[A, B]: Gen[Sized, Schema.Either[A, B]]        =
+  val anyEither: Gen[Sized, Schema.Either[_, _]]           =
     for {
-      left  <- anyPrimitive[A]
-      right <- anyPrimitive[B]
+      left  <- anyPrimitive
+      right <- anyPrimitive
     } yield Schema.Either(left, right)
 
   type EitherAndGen[A, B] = (Schema.Either[A, B], Gen[Sized, scala.util.Either[A, B]])
 
-  def anyEitherAndGen[A, B]: Gen[Sized, EitherAndGen[A, B]] =
+  val anyEitherAndGen: Gen[Sized, EitherAndGen[_, _]] =
     for {
-      (leftSchema, leftGen)   <- anyPrimitiveAndGen[A]
-      (rightSchema, rightGen) <- anyPrimitiveAndGen[B]
+      (leftSchema, leftGen)   <- anyPrimitiveAndGen
+      (rightSchema, rightGen) <- anyPrimitiveAndGen
     } yield (Schema.Either(leftSchema, rightSchema), Gen.either(leftGen, rightGen))
 
   type EitherAndValue[A, B] = (Schema.Either[A, B], scala.util.Either[A, B])
 
-  def anyEitherAndValue[A, B]: Gen[Sized, EitherAndValue[A, B]] =
+  val anyEitherAndValue: Gen[Sized, EitherAndValue[_, _]] =
     for {
-      (schema, gen) <- anyEitherAndGen[A, B]
+      (schema, gen) <- anyEitherAndGen
       value         <- gen
     } yield (schema, value)
 
-  def anyTuple[A, B]: Gen[Sized, Schema.Tuple2[A, B]] =
-    anySchema[A].zipWith(anySchema[B]) { (a, b) =>
+  lazy val anyTuple: Gen[Sized, Schema.Tuple2[_, _]] =
+    anySchema.zipWith(anySchema) { (a, b) =>
       Schema.Tuple2(a, b)
     }
 
   type TupleAndGen[A, B] = (Schema.Tuple2[A, B], Gen[Sized, (A, B)])
 
-  def anyTupleAndGen[A, B]: Gen[Sized, TupleAndGen[A, B]] =
+  val anyTupleAndGen: Gen[Sized, TupleAndGen[_, _]] =
     for {
-      (schemaA, genA) <- anyPrimitiveAndGen[A]
-      (schemaB, genB) <- anyPrimitiveAndGen[B]
+      (schemaA, genA) <- anyPrimitiveAndGen
+      (schemaB, genB) <- anyPrimitiveAndGen
     } yield Schema.Tuple2(schemaA, schemaB) -> genA.zip(genB)
 
   type TupleAndValue[A, B] = (Schema.Tuple2[A, B], (A, B))
 
-  def anyTupleAndValue[A, B]: Gen[Sized, TupleAndValue[A, B]] =
+  val anyTupleAndValue: Gen[Sized, TupleAndValue[_, _]] =
     for {
-      (schema, gen)    <- anyTupleAndGen[A, B]
+      (schema, gen)    <- anyTupleAndGen
       (valueA, valueB) <- gen
     } yield schema -> ((valueA, valueB))
 
-  def anySequence[A]: Gen[Sized, Schema[Chunk[A]]]            =
-    anySchema[A].map(Schema.chunk(_).asInstanceOf[Schema[Chunk[A]]])
+  val anySequence: Gen[Sized, Schema[Chunk[Any]]]       =
+    anySchema.map(Schema.chunk(_).asInstanceOf[Schema[Chunk[Any]]])
 
   type SequenceAndGen[A] = (Schema[Chunk[A]], Gen[Sized, Chunk[A]])
 
-  def anySequenceAndGen[A]: Gen[Sized, SequenceAndGen[A]] =
-    anyPrimitiveAndGen[A].map {
+  val anySequenceAndGen: Gen[Sized, SequenceAndGen[_]] =
+    anyPrimitiveAndGen.map {
       case (schema, gen) =>
-        (Schema.chunk(schema) -> Gen.chunkOf(gen)).asInstanceOf[SequenceAndGen[A]]
+        Schema.chunk(schema) -> Gen.chunkOf(gen)
     }
 
   type SequenceAndValue[A] = (Schema[Chunk[A]], Chunk[A])
 
-  def anySequenceAndValue[A]: Gen[Sized, SequenceAndValue[A]]        =
+  val anySequenceAndValue: Gen[Sized, SequenceAndValue[_]]           =
     for {
-      (schema, gen) <- anySequenceAndGen[A]
+      (schema, gen) <- anySequenceAndGen
       value         <- gen
     } yield schema -> value
 
@@ -175,46 +174,46 @@ object SchemaGen {
         CaseSet.Cons(_case, acc)
     }
 
-  def anyMap[K, V]: Gen[Sized, Schema.Map[K, V]] =
-    anySchema[K].zipWith(anySchema[V]) { (a, b) =>
+  lazy val anyMap: Gen[Sized, Schema.Map[_, _]] =
+    anySchema.zipWith(anySchema) { (a, b) =>
       Schema.Map(a, b, Chunk.empty)
     }
   type MapAndGen[K, V] = (Schema.Map[K, V], Gen[Sized, Map[K, V]])
 
-  def anyMapAndGen[K, V]: Gen[Sized, MapAndGen[K, V]] =
+  val anyMapAndGen: Gen[Sized, MapAndGen[_, _]] =
     for {
-      (schemaK, genK) <- anyPrimitiveAndGen[K]
-      (schemaV, genV) <- anyPrimitiveAndGen[V]
-    } yield Schema.Map[K, V](schemaK, schemaV, Chunk.empty) -> (genK.flatMap(k =>
-      genV.map(v => scala.collection.immutable.Map[K, V]((k -> v).asInstanceOf[(K, V)]))
+      (schemaK, genK) <- anyPrimitiveAndGen
+      (schemaV, genV) <- anyPrimitiveAndGen
+    } yield Schema.Map(schemaK, schemaV, Chunk.empty) -> (genK.flatMap(k =>
+      genV.map(v => scala.collection.immutable.Map(k -> v))
     )
     )
 
   type MapAndValue[K, V] = (Schema.Map[K, V], Map[K, V])
 
-  def anyMapAndValue[K, V]: Gen[Sized, MapAndValue[K, V]] =
+  val anyMapAndValue: Gen[Sized, MapAndValue[_, _]] =
     for {
-      (schema, gen) <- anyMapAndGen[K, V]
+      (schema, gen) <- anyMapAndGen
       map           <- gen
     } yield schema -> map
 
   type SetAndGen[A] = (Schema.Set[A], Gen[Sized, scala.collection.immutable.Set[A]])
 
-  def anySetAndGen[A]: Gen[Sized, SetAndGen[A]] =
-    anyPrimitiveAndGen[A].map {
+  val anySetAndGen: Gen[Sized, SetAndGen[_]] =
+    anyPrimitiveAndGen.map {
       case (schema, gen) =>
-        (Schema.Set(schema, Chunk.empty) -> Gen.setOf(gen)).asInstanceOf[SetAndGen[A]]
+        Schema.Set(schema, Chunk.empty) -> Gen.setOf(gen)
     }
 
   type SetAndValue[A] = (Schema.Set[A], scala.collection.immutable.Set[A])
 
-  def anySetAndValue[A]: Gen[Sized, SetAndValue[A]] =
+  val anySetAndValue: Gen[Sized, SetAndValue[_]] =
     for {
-      (schema, gen) <- anySetAndGen[A]
+      (schema, gen) <- anySetAndGen
       value         <- gen
     } yield schema -> value
 
-  val anyEnumeration: Gen[Sized, Schema[Any]]       =
+  val anyEnumeration: Gen[Sized, Schema[Any]]    =
     for {
       caseSet <- anyEnumeration(anySchema).map(toCaseSet)
       id      <- Gen.string(Gen.alphaChar).map(TypeId.parse)
@@ -222,9 +221,9 @@ object SchemaGen {
 
   type EnumerationAndGen = (Schema[Any], Gen[Sized, Any])
 
-  def anyEnumerationAndGen[A]: Gen[Sized, EnumerationAndGen] =
+  val anyEnumerationAndGen: Gen[Sized, EnumerationAndGen] =
     for {
-      primitiveAndGen <- anyPrimitiveAndGen[A]
+      primitiveAndGen <- anyPrimitiveAndGen
       structure       <- anyEnumeration(primitiveAndGen._1)
       primitiveValue  <- primitiveAndGen._2
       id              <- Gen.string(Gen.alphaChar).map(TypeId.parse)
@@ -249,9 +248,9 @@ object SchemaGen {
 
   type GenericRecordAndGen = (Schema[ListMap[String, _]], Gen[Sized, ListMap[String, _]])
 
-  def anyGenericRecordAndGen[A](maxFieldCount: Int = 3): Gen[Sized, GenericRecordAndGen] =
+  def anyGenericRecordAndGen(maxFieldCount: Int = 3): Gen[Sized, GenericRecordAndGen] =
     for {
-      (schema, gen) <- anyPrimitiveAndGen[A]
+      (schema, gen) <- anyPrimitiveAndGen
       name          <- Gen.string(Gen.alphaChar).map(TypeId.parse)
       structure     <- anyStructure(schema, maxFieldCount)
     } yield {
@@ -301,15 +300,15 @@ object SchemaGen {
 
   type SequenceTransform[A] = Schema.Transform[Chunk[A], List[A], String]
 
-  def anySequenceTransform[A]: Gen[Sized, SequenceTransform[A]] =
-    anySequence[A].map(schema => transformSequence(schema).asInstanceOf[SequenceTransform[A]])
+  val anySequenceTransform: Gen[Sized, SequenceTransform[_]] =
+    anySequence.map(schema => transformSequence(schema))
 
   type SequenceTransformAndGen[A] = (SequenceTransform[A], Gen[Sized, List[A]])
 
-  def anySequenceTransformAndGen[A]: Gen[Sized, SequenceTransformAndGen[A]] =
-    anyPrimitiveAndGen[A].map {
+  val anySequenceTransformAndGen: Gen[Sized, SequenceTransformAndGen[_]] =
+    anyPrimitiveAndGen.map {
       case (schema, gen) =>
-        (transformSequence(Schema.chunk(schema)) -> Gen.listOf(gen)).asInstanceOf[SequenceTransformAndGen[A]]
+        transformSequence(Schema.chunk(schema)) -> Gen.listOf(gen)
     }
 
   // TODO: Add some random Left values.
@@ -324,21 +323,21 @@ object SchemaGen {
 
   type SequenceTransformAndValue[A] = (SequenceTransform[A], List[A])
 
-  def anySequenceTransformAndValue[A]: Gen[Sized, SequenceTransformAndValue[A]] =
+  val anySequenceTransformAndValue: Gen[Sized, SequenceTransformAndValue[_]] =
     for {
-      (schema, gen) <- anySequenceTransformAndGen[A]
+      (schema, gen) <- anySequenceTransformAndGen
       value         <- gen
     } yield schema -> value
 
   type RecordTransform[A] = Schema.Transform[ListMap[String, _], A, String]
 
-  def anyRecordTransform[A]: Gen[Sized, RecordTransform[A]] =
+  val anyRecordTransform: Gen[Sized, RecordTransform[_]] =
     anyRecord.map(schema => transformRecord(schema))
 
   type RecordTransformAndGen[A] = (RecordTransform[A], Gen[Sized, A])
 
   // TODO: How do we generate a value of a type that we know nothing about?
-  def anyRecordTransformAndGen[A]: Gen[Sized, RecordTransformAndGen[A]] =
+  val anyRecordTransformAndGen: Gen[Sized, RecordTransformAndGen[_]] =
     Gen.empty
   //    anyRecordAndGen.map {
   //      case (schema, gen) => transformRecord(schema) -> gen
@@ -356,21 +355,21 @@ object SchemaGen {
 
   type RecordTransformAndValue[A] = (RecordTransform[A], A)
 
-  def anyRecordTransformAndValue[A]: Gen[Sized, RecordTransformAndValue[A]] =
+  val anyRecordTransformAndValue: Gen[Sized, RecordTransformAndValue[_]] =
     for {
-      (schema, gen) <- anyRecordTransformAndGen[A]
+      (schema, gen) <- anyRecordTransformAndGen
       value         <- gen
-    } yield (schema -> value).asInstanceOf[RecordTransformAndValue[A]]
+    } yield schema -> value
 
   type EnumerationTransform[A] = Schema.Transform[Any, A, String]
 
-  def anyEnumerationTransform[A]: Gen[Sized, EnumerationTransform[A]] =
-    anyEnumeration.map(schema => transformEnumeration(schema).asInstanceOf[EnumerationTransform[A]])
+  val anyEnumerationTransform: Gen[Sized, EnumerationTransform[_]] =
+    anyEnumeration.map(schema => transformEnumeration(schema))
 
   type EnumerationTransformAndGen[A] = (EnumerationTransform[A], Gen[Sized, A])
 
   // TODO: How do we generate a value of a type that we know nothing about?
-  def anyEnumerationTransformAndGen[A]: Gen[Sized, EnumerationTransformAndGen[A]] =
+  val anyEnumerationTransformAndGen: Gen[Sized, EnumerationTransformAndGen[_]] =
     Gen.empty
   //    anyEnumerationAndGen.map {
   //      case (schema, gen) => transformEnumeration(schema) -> gen
@@ -388,42 +387,41 @@ object SchemaGen {
 
   type EnumerationTransformAndValue[A] = (EnumerationTransform[A], A)
 
-  def anyEnumerationTransformAndValue[A]: Gen[Sized, EnumerationTransformAndValue[A]] =
+  val anyEnumerationTransformAndValue: Gen[Sized, EnumerationTransformAndValue[_]] =
     for {
-      (schema, gen) <- anyEnumerationTransformAndGen[A]
+      (schema, gen) <- anyEnumerationTransformAndGen
       value         <- gen
     } yield schema -> value
 
-  def anyTransform[A]: Gen[Sized, Schema.Transform[_, A, _]]                          =
-    Gen.oneOf(
-      anySequenceTransform[A].asInstanceOf[Gen[Sized, Schema.Transform[_, A, _]]],
-      anyRecordTransform[A],
-      anyEnumerationTransform[A]
-    )
+  val anyTransform: Gen[Sized, Schema.Transform[_, _, _]]                          = Gen.oneOf(
+    anySequenceTransform,
+    anyRecordTransform,
+    anyEnumerationTransform
+  )
 
   type TransformAndValue[A] = (Schema.Transform[_, A, String], A)
 
-  def anyTransformAndValue[A]: Gen[Sized, TransformAndValue[A]] =
-    Gen.oneOf[Sized, TransformAndValue[A]](
-      anySequenceTransformAndValue[A].asInstanceOf[Gen[Sized, TransformAndValue[A]]]
+  val anyTransformAndValue: Gen[Sized, TransformAndValue[_]] =
+    Gen.oneOf[Sized, TransformAndValue[_]](
+      anySequenceTransformAndValue
       // anyRecordTransformAndValue,
       // anyEnumerationTransformAndValue
     )
 
   type TransformAndGen[A] = (Schema.Transform[_, A, String], Gen[Sized, A])
 
-  def anyTransformAndGen[A]: Gen[Sized, TransformAndGen[A]] =
-    Gen.oneOf[Sized, TransformAndGen[A]](
-      anySequenceTransformAndGen[A].asInstanceOf[Gen[Sized, TransformAndGen[A]]],
-      anyRecordTransformAndGen[A],
-      anyEnumerationTransformAndGen[A]
+  val anyTransformAndGen: Gen[Sized, TransformAndGen[_]] =
+    Gen.oneOf[Sized, TransformAndGen[_]](
+      anySequenceTransformAndGen,
+      anyRecordTransformAndGen,
+      anyEnumerationTransformAndGen
     )
 
-  def anySchema[A]: Gen[Sized, Schema[A]] =
+  lazy val anySchema: Gen[Sized, Schema[_]] =
     for {
       treeDepth <- Gen.bounded(0, 2)(Gen.const(_))
-      tree      <- anyTree[A](treeDepth)
-    } yield tree.asInstanceOf[Schema[A]]
+      tree      <- anyTree(treeDepth)
+    } yield tree
 
   def anyValueForSchema[A](schema: Schema[A]): Gen[Sized, (Schema[A], A)] =
     DynamicValueGen
@@ -434,11 +432,11 @@ object SchemaGen {
 
   type SchemaAndValue[A] = (Schema[A], A)
 
-  def anySchemaAndValue[A]: Gen[Sized, SchemaAndValue[A]] =
+  lazy val anySchemaAndValue: Gen[Sized, SchemaAndValue[_]] =
     for {
-      schema  <- anySchema[A]
+      schema  <- anySchema
       dynamic <- DynamicValueGen.anyDynamicValueOfSchema(schema)
-    } yield (schema -> schema.fromDynamic(dynamic).toOption.get).asInstanceOf[SchemaAndValue[A]]
+    } yield (schema -> schema.fromDynamic(dynamic).toOption.get).asInstanceOf[SchemaAndValue[Any]]
 
   sealed trait Arity
   case object Arity0 extends Arity
@@ -485,8 +483,7 @@ object SchemaGen {
   ) extends Arity
 
   object Arity24 {
-    @scala.annotation.nowarn("msg=inferred")
-    implicit val schema: Schema[Arity24] = DeriveSchema.gen[Arity24].asInstanceOf[Schema[Arity24]]
+    implicit val schema: Schema[Arity24] = DeriveSchema.gen[Arity24]
   }
 
   object Arity {
@@ -521,29 +518,27 @@ object SchemaGen {
 
   type CaseClassAndValue[A] = (Schema[A], A)
 
-  def anyCaseClassSchema[A]: Gen[Sized, Schema[A]] =
-    Gen
-      .oneOf(
-        Gen.const(Schema[Arity1]),
-        Gen.const(Schema[Arity2]),
-        Gen.const(Schema[Arity3]),
-        Gen.const(Schema[Arity24])
-      )
-      .asInstanceOf[Gen[Sized, Schema[A]]]
+  lazy val anyCaseClassSchema: Gen[Sized, Schema[_]] =
+    Gen.oneOf(
+      Gen.const(Schema[Arity1]),
+      Gen.const(Schema[Arity2]),
+      Gen.const(Schema[Arity3]),
+      Gen.const(Schema[Arity24])
+    )
 
-  def anyCaseClassAndGen[A]: Gen[Sized, CaseClassAndGen[A]] =
-    anyCaseClassSchema[A].map {
-      case s @ Schema.CaseClass1(_, _, _, _)       => (s -> anyArity1).asInstanceOf[CaseClassAndGen[A]]
-      case s @ Schema.CaseClass2(_, _, _, _, _)    => (s -> anyArity2).asInstanceOf[CaseClassAndGen[A]]
-      case s @ Schema.CaseClass3(_, _, _, _, _, _) => (s -> anyArity3).asInstanceOf[CaseClassAndGen[A]]
-      case s                                       => (s -> anyArity24).asInstanceOf[CaseClassAndGen[A]]
+  val anyCaseClassAndGen: Gen[Sized, CaseClassAndGen[_]] =
+    anyCaseClassSchema.map {
+      case s @ Schema.CaseClass1(_, _, _, _)       => (s -> anyArity1).asInstanceOf[CaseClassAndGen[Any]]
+      case s @ Schema.CaseClass2(_, _, _, _, _)    => (s -> anyArity2).asInstanceOf[CaseClassAndGen[Any]]
+      case s @ Schema.CaseClass3(_, _, _, _, _, _) => (s -> anyArity3).asInstanceOf[CaseClassAndGen[Any]]
+      case s                                       => (s -> anyArity24).asInstanceOf[CaseClassAndGen[Any]]
     }
 
-  def anyCaseClassAndValue[A]: Gen[Sized, CaseClassAndValue[A]] =
+  val anyCaseClassAndValue: Gen[Sized, CaseClassAndValue[_]] =
     for {
-      (schema, gen) <- anyCaseClassAndGen[A]
+      (schema, gen) <- anyCaseClassAndGen
       value         <- gen
-    } yield (schema -> value).asInstanceOf[CaseClassAndValue[A]]
+    } yield (schema -> value)
 
   type EnumAndGen[A] = (Schema[A], Gen[Sized, A])
 
@@ -551,67 +546,63 @@ object SchemaGen {
 
   lazy val anyEnumSchema: Gen[Any, Schema.Enum[Arity]] = Gen.const(Arity.arityEnumSchema)
 
-  def anyEnumAndGen[A]: Gen[Sized, EnumAndGen[A]]     =
-    anyEnumSchema.map(s => (s -> anyArity).asInstanceOf[EnumAndGen[A]])
+  val anyEnumAndGen: Gen[Sized, EnumAndGen[_]]     =
+    anyEnumSchema.map(_ -> anyArity)
 
-  def anyEnumAndValue[A]: Gen[Sized, EnumAndValue[A]] =
+  val anyEnumAndValue: Gen[Sized, EnumAndValue[_]] =
     for {
-      (schema, gen) <- anyEnumAndGen[A]
+      (schema, gen) <- anyEnumAndGen
       value         <- gen
-    } yield (schema -> value).asInstanceOf[EnumAndValue[A]]
+    } yield schema -> value
 
-  def anyLeaf[A]: Gen[Sized, Schema[A]]               =
+  lazy val anyLeaf: Gen[Sized, Schema[_]]          =
     Gen.oneOf(
-      anyPrimitive[A],
-      anyPrimitive[A].map(Schema.list(_).asInstanceOf[Schema[A]]),
-      anyPrimitive[A].map(_.optional.asInstanceOf[Schema[A]]),
-      anyPrimitive[A].zip(anyPrimitive[A]).map { case (l, r) => Schema.either(l, r).asInstanceOf[Schema[A]] },
-      anyPrimitive[A].zip(anyPrimitive[A]).map { case (l, r) => Schema.tuple2(l, r).asInstanceOf[Schema[A]] },
-      anyStructure(anyPrimitive[A])
+      anyPrimitive,
+      anyPrimitive.map(Schema.list(_)),
+      anyPrimitive.map(_.optional),
+      anyPrimitive.zip(anyPrimitive).map { case (l, r) => Schema.either(l, r) },
+      anyPrimitive.zip(anyPrimitive).map { case (l, r) => Schema.tuple2(l, r) },
+      anyStructure(anyPrimitive)
         .zip(Gen.string(Gen.alphaChar).map(TypeId.parse))
-        .map(z => Schema.record(z._2, z._1).asInstanceOf[Schema[A]]),
-      Gen.const(Schema[Json].asInstanceOf[Schema[A]]),
+        .map(z => Schema.record(z._2, z._1)),
+      Gen.const(Schema[Json]),
       anyCaseClassSchema,
-      anyEnumSchema.map(_.asInstanceOf[Schema[A]])
+      anyEnumSchema
     )
 
-  def anyTree[A](depth: Int): Gen[Sized, Schema[A]] =
+  def anyTree(depth: Int): Gen[Sized, Schema[_]] =
     if (depth == 0)
-      anyLeaf[A]
+      anyLeaf
     else
       Gen.oneOf(
-        anyTree[A](depth - 1).map(Schema.list(_).asInstanceOf[Schema[A]]),
+        anyTree(depth - 1).map(Schema.list(_)),
         // Nested optional cause some issues. Ignore them for now: See https://github.com/zio/zio-schema/issues/68
-        anyTree[A](depth - 1).map {
+        anyTree(depth - 1).map {
           case s @ Schema.Optional(_, _) => s
-          case s                         => Schema.option(s).asInstanceOf[Schema[A]]
+          case s                         => Schema.option(s)
         },
-        anyTree[A](depth - 1).zip(anyTree[A](depth - 1)).map {
-          case (l, r) => Schema.either(l, r).asInstanceOf[Schema[A]]
-        },
-        anyTree[A](depth - 1).zip(anyTree[A](depth - 1)).map {
-          case (l, r) => Schema.tuple2(l, r).asInstanceOf[Schema[A]]
-        },
-        anyStructure(anyTree[A](depth - 1))
+        anyTree(depth - 1).zip(anyTree(depth - 1)).map { case (l, r) => Schema.either(l, r) },
+        anyTree(depth - 1).zip(anyTree(depth - 1)).map { case (l, r) => Schema.tuple2(l, r) },
+        anyStructure(anyTree(depth - 1))
           .zip(Gen.string(Gen.alphaChar).map(TypeId.parse))
-          .map(z => Schema.record(z._2, z._1).asInstanceOf[Schema[A]]),
-        Gen.const(Schema[Json].asInstanceOf[Schema[A]]),
-        anyDynamic.map(_.asInstanceOf[Schema[A]])
+          .map(z => Schema.record(z._2, z._1)),
+        Gen.const(Schema[Json]),
+        anyDynamic
       )
 
   type SchemaAndDerivedValue[A, B] = (Schema[A], Schema[B], Chunk[scala.util.Either[A, B]])
 
-  def anyLeafAndValue[A]: Gen[Sized, SchemaAndValue[A]] =
+  lazy val anyLeafAndValue: Gen[Sized, SchemaAndValue[_]] =
     for {
-      schema <- anyLeaf[A]
+      schema <- anyLeaf
       value  <- DynamicValueGen.anyDynamicValueOfSchema(schema)
-    } yield (schema -> schema.fromDynamic(value).toOption.get).asInstanceOf[SchemaAndValue[A]]
+    } yield (schema -> schema.fromDynamic(value).toOption.get).asInstanceOf[SchemaAndValue[Any]]
 
-  def anyTreeAndValue[A]: Gen[Sized, SchemaAndValue[A]] =
+  lazy val anyTreeAndValue: Gen[Sized, SchemaAndValue[_]] =
     for {
-      schema <- anyTree[A](1)
+      schema <- anyTree(1)
       value  <- DynamicValueGen.anyDynamicValueOfSchema(schema)
-    } yield (schema -> schema.fromDynamic(value).toOption.get).asInstanceOf[SchemaAndValue[A]]
+    } yield (schema -> schema.fromDynamic(value).toOption.get).asInstanceOf[SchemaAndValue[Any]]
 
   sealed trait Json
   case object JNull extends Json
@@ -651,20 +642,20 @@ object SchemaGen {
       }
   }
 
-  def anyRecursiveType[A]: Gen[Sized, Schema[A]] =
-    Gen.const(Schema[Json].asInstanceOf[Schema[A]])
+  lazy val anyRecursiveType: Gen[Sized, Schema[_]] =
+    Gen.const(Schema[Json])
 
-  def anyRecursiveTypeAndValue[A]: Gen[Sized, SchemaAndValue[A]] =
+  lazy val anyRecursiveTypeAndValue: Gen[Sized, SchemaAndValue[_]] =
     for {
       schema <- Gen.const(Schema[Json])
       value  <- Json.gen
-    } yield (schema.asInstanceOf[Schema[A]], value.asInstanceOf[A])
+    } yield (schema, value)
 
-  def anyDeepRecursiveTypeAndValue[A]: Gen[Sized, SchemaAndValue[A]] =
+  lazy val anyDeepRecursiveTypeAndValue: Gen[Sized, SchemaAndValue[_]] =
     for {
       schema <- Gen.const(Schema[Json])
       value  <- Json.genDeep
-    } yield (schema.asInstanceOf[Schema[A]], value.asInstanceOf[A])
+    } yield (schema, value)
 
   lazy val anyDynamic: Gen[Any, Schema[DynamicValue]] = Gen.const(Schema.dynamicValue)
 

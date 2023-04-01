@@ -11,10 +11,10 @@ object SetSchemaGen {
 
   sealed trait SetType
   object SetType {
-    case object None      extends SetType
-    case object StringSet extends SetType
-    case object NumberSet extends SetType
-    case object BinarySet extends SetType
+    final case object None      extends SetType
+    final case object StringSet extends SetType
+    final case object NumberSet extends SetType
+    final case object BinarySet extends SetType
   }
 
   def setType[A](standardType: StandardType[A]): SetType =
@@ -33,27 +33,25 @@ object SetSchemaGen {
 
   type PrimitiveAndGenWithSetType[A] = (Schema.Primitive[A], Gen[Sized, A], SetType)
 
-  def primitiveAndGenWithSetType[A]: Gen[Any, PrimitiveAndGenWithSetType[A]] =
-    anyPrimitiveAndGen[A].collect {
-      case (s: Schema.Primitive[A], gen) =>
-        (s, gen, setType(s.standardType)).asInstanceOf[PrimitiveAndGenWithSetType[A]]
-    }
+  val primitiveAndGenWithSetType: Gen[Any, PrimitiveAndGenWithSetType[_]] = anyPrimitiveAndGen.collect {
+    case (s: Schema.Primitive[_], gen) => (s, gen, setType(s.standardType))
+  }
 
   type SetAndGenWithSetType[A] = (Schema.Set[A], Gen[Sized, Set[A]], SetType)
 
-  def anySetAndGenWithSetType[A]: Gen[Sized, SetAndGenWithSetType[A]] =
-    primitiveAndGenWithSetType[A].map {
+  val anySetAndGenWithSetType: Gen[Sized, SetAndGenWithSetType[_]] =
+    primitiveAndGenWithSetType.map {
       case (schema, gen, setType) =>
-        (Schema.Set(schema, Chunk.empty), Gen.setOf(gen), setType).asInstanceOf[SetAndGenWithSetType[A]]
+        (Schema.Set(schema, Chunk.empty), Gen.setOf(gen), setType)
     }
 
   type SetAndValueWithSetType[A] = (Schema.Set[A], Set[A], SetType)
 
-  def anySetAndValueWithSetType[A]: Gen[Sized, SetAndValueWithSetType[A]] =
+  val anySetAndValueWithSetType: Gen[Sized, SetAndValueWithSetType[_]] =
     for {
-      (schema, gen, setType) <- anySetAndGenWithSetType[A]
+      (schema, gen, setType) <- anySetAndGenWithSetType
       value                  <- gen
-    } yield (schema, value, setType).asInstanceOf[SetAndValueWithSetType[A]]
+    } yield (schema, value, setType)
 
   def assertEncodesThenDecodesSet[A](schema: Schema[A], a: A, setType: SetType) = {
     val enc     = Codec.encoder(schema)
