@@ -18,16 +18,15 @@ object UpdateExpressionExamples extends App {
   val delete                           = $("one[2]").deleteFromSet(Set("v2"))
   val pe8: SetAction[Any, PrimaryKey]  = $("one[2]").set(Item("x" -> "x"))
 
-  val expr1              = $("one[2]").set(1)
-  val expr2              = expr1 + $("one[2]").set($("two"))
-  val expr3              = expr2 + $("one[2]").setIfNotExists("v2")
-  val expr4              = expr3 + $("one[2]").setIfNotExists($("two"), "v2")
-  val expr5              = expr4 + $("one[2]").appendList(List("x1", "x2"))
-  val expr6              = expr5 + $("one[2]").prependList(List("x", "x2"))
-  val expr7              = expr6 + $("one[2]").add(1)
-  // scala 3 needs type hint
-  val expr8: Action[Any] = expr7 + $("one[2]").remove.asInstanceOf[RenderableAction[Any]]
-  val expr9              = expr8 + $("one[2]").deleteFromSet(Set(1))
+  val expr1 = $("one[2]").set(1)
+  val expr2 = expr1 + $("one[2]").set($("two"))
+  val expr3 = expr2 + $("one[2]").setIfNotExists("v2")
+  val expr4 = expr3 + $("one[2]").setIfNotExists($("two"), "v2")
+  val expr5 = expr4 + $("one[2]").appendList(List("x1", "x2"))
+  val expr6 = expr5 + $("one[2]").prependList(List("x", "x2"))
+  val expr7 = expr6 + $("one[2]").add(1)
+  val expr8 = expr7 + $("one[2]").remove.asInstanceOf[RenderableAction[Any]]
+  val expr9 = expr8 + $("one[2]").deleteFromSet(Set(1))
 
   val ops = UpdateExpression(expr9)
 

@@ -3,6 +3,7 @@ package zio.dynamodb
 import zio.dynamodb.ConditionExpression.Operand._
 import zio.dynamodb.ConditionExpression._
 import zio.schema.Schema
+import scala.collection.immutable.Set
 
 sealed trait AttributeValue { self =>
   type ScalaType

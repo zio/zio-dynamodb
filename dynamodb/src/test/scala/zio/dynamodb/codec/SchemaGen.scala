@@ -308,7 +308,7 @@ object SchemaGen {
   val anySequenceTransformAndGen: Gen[Sized, SequenceTransformAndGen[_]] =
     anyPrimitiveAndGen.map {
       case (schema, gen) =>
-        transformSequence(Schema.chunk(schema)) -> Gen.listOf(gen)
+        transformSequence(Schema.chunk(schema)).asInstanceOf[SequenceTransform[Any]] -> Gen.listOf(gen)
     }
 
   // TODO: Add some random Left values.

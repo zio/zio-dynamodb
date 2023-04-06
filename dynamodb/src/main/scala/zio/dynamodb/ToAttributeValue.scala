@@ -2,6 +2,7 @@ package zio.dynamodb
 
 import zio.Chunk
 import zio.schema.Schema
+import scala.collection.immutable.{ Map, Set }
 
 trait ToAttributeValue[A] {
   def toAttributeValue(a: A): AttributeValue
