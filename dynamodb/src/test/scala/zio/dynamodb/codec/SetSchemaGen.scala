@@ -33,23 +33,28 @@ object SetSchemaGen {
 
   type PrimitiveAndGenWithSetType[A] = (Schema.Primitive[A], Gen[Sized, A], SetType)
 
-  val primitiveAndGenWithSetType: Gen[Any, PrimitiveAndGenWithSetType[_]] = anyPrimitiveAndGen.collect {
-    case (s: Schema.Primitive[_], gen) => (s, gen, setType(s.standardType))
-  }
+  def primitiveAndGenWithSetType[A]: Gen[Any, PrimitiveAndGenWithSetType[A]] =
+    anyPrimitiveAndGen[A].collect[SetSchemaGen.PrimitiveAndGenWithSetType[A]] {
+      case (s: Schema.Primitive[A], gen) => (s, gen, setType(s.standardType))
+    }
 
   type SetAndGenWithSetType[A] = (Schema.Set[A], Gen[Sized, Set[A]], SetType)
 
-  val anySetAndGenWithSetType: Gen[Sized, SetAndGenWithSetType[_]] =
-    primitiveAndGenWithSetType.map {
+  def anySetAndGenWithSetType[A]: Gen[Sized, SetAndGenWithSetType[A]] =
+    primitiveAndGenWithSetType[A].map {
       case (schema, gen, setType) =>
-        (Schema.Set(schema, Chunk.empty), Gen.setOf(gen), setType)
+        (
+          Schema.Set(schema, Chunk.empty),
+          Gen.setOf(gen),
+          setType
+        )
     }
 
   type SetAndValueWithSetType[A] = (Schema.Set[A], Set[A], SetType)
 
-  val anySetAndValueWithSetType: Gen[Sized, SetAndValueWithSetType[_]] =
+  def anySetAndValueWithSetType[A]: Gen[Sized, SetAndValueWithSetType[A]] =
     for {
-      (schema, gen, setType) <- anySetAndGenWithSetType
+      (schema, gen, setType) <- anySetAndGenWithSetType[A]
       value                  <- gen
     } yield (schema, value, setType)
 
