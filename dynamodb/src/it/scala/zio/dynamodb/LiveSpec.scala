@@ -175,7 +175,7 @@ object LiveSpec extends ZIOSpecDefault {
 
   final case class ExpressionAttrNames(id: String, num: Int, ttl: Option[Long])
   object ExpressionAttrNames {
-    implicit val schema = DeriveSchema.gen[ExpressionAttrNames]
+    implicit val schema: Schema.CaseClass3[String, Int, Option[Long], ExpressionAttrNames] = DeriveSchema.gen[ExpressionAttrNames]
     val (id, num, ttl)  = ProjectionExpression.accessors[ExpressionAttrNames]
   }
 
