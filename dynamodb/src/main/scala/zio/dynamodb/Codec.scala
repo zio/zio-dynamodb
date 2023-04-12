@@ -361,6 +361,9 @@ private[dynamodb] object Codec {
         case Schema.Primitive(StandardType.BinaryType, _)     =>
           (a: Set[A]) => AttributeValue.BinarySet(a.asInstanceOf[Set[Chunk[Byte]]])
 
+        case l @ Schema.Lazy(_) =>
+          setEncoder(l.schema)
+
         // Non native set
         case schema                                           =>
           sequenceEncoder[Chunk[A], A](encoder(schema), (c: Iterable[A]) => Chunk.fromIterable(c))
@@ -371,6 +374,8 @@ private[dynamodb] object Codec {
       ks match {
         case Schema.Primitive(StandardType.StringType, _) =>
           nativeMapEncoder(encoder(vs))
+        case l @ Schema.Lazy(_) =>
+          mapEncoder(l.schema, vs)
         case _                                            =>
           nonNativeMapEncoder(encoder(ks), encoder(vs))
       }
@@ -743,6 +748,9 @@ private[dynamodb] object Codec {
         case Schema.Primitive(StandardType.BinaryType, _)     =>
           nativeBinarySetDecoder
 
+        case l @ Schema.Lazy(_) =>
+          setDecoder(l.schema)
+
         // non native set
         case _                                                =>
           nonNativeSetDecoder(decoder(s))
@@ -760,11 +768,13 @@ private[dynamodb] object Codec {
       }
     }
 
-    private def mapDecoder[K, V](ks: Schema[K], vs: Schema[V]) =
+    private def mapDecoder[K, V](ks: Schema[K], vs: Schema[V]): Decoder[Map[_, V]] =
       ks match {
         case Schema.Primitive(StandardType.StringType, _) =>
           nativeMapDecoder(decoder(vs))
-        case _                                            =>
+        case l @ Schema.Lazy(_) =>
+          mapDecoder(l.schema, vs)
+        case _ =>
           nonNativeMapDecoder(decoder(ks), decoder(vs))
       }
 
