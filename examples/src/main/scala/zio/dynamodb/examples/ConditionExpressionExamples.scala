@@ -5,6 +5,7 @@ import zio.dynamodb.ConditionExpression.Operand
 import zio.dynamodb.ProjectionExpression._
 import zio.dynamodb._
 import zio.schema.DeriveSchema
+import zio.schema.Schema
 
 object ConditionExpressionExamples {
 
@@ -15,8 +16,9 @@ object ConditionExpressionExamples {
     count2: Int
   )
   object Student {
-    implicit val schema                  = DeriveSchema.gen[Student]
-    val (email, subject, count1, count2) = ProjectionExpression.accessors[Student]
+    implicit val schema: Schema.CaseClass4[String, String, Int, Int, Student] =
+      DeriveSchema.gen[Student]
+    val (email, subject, count1, count2)                                      = ProjectionExpression.accessors[Student]
   }
 
   val peOpticNum1: ProjectionExpression[Student, Int] = Student.count1
