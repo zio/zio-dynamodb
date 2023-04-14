@@ -7,7 +7,7 @@ object BuildHelper {
   // Align with zio-schema since we have a deep dependency on it
   val Scala212                = "2.12.17"
   val Scala213                = "2.13.8"
-  val Scala3                  = "3.2.1"
+  val Scala3                  = "3.2.2"
   private val SilencerVersion = "1.7.12"
 
   private val stdOptions = Seq(
