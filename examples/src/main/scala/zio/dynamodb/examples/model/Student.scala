@@ -5,24 +5,26 @@ import zio.dynamodb.{ PrimaryKey, ProjectionExpression }
 import zio.schema.DeriveSchema
 
 import java.time.Instant
+import zio.schema.Schema
 
 @enumOfCaseObjects
 sealed trait Payment
 
 object Payment {
-  final case object DebitCard extends Payment
+  case object DebitCard extends Payment
 
-  final case object CreditCard extends Payment
+  case object CreditCard extends Payment
 
-  final case object PayPal extends Payment
+  case object PayPal extends Payment
 
-  implicit val schema = DeriveSchema.gen[Payment]
+  implicit val schema: Schema.Enum3[DebitCard.type, CreditCard.type, PayPal.type, Payment] = DeriveSchema.gen[Payment]
 }
 
 final case class Address(addr1: String, postcode: String)
 
 object Address {
-  implicit val schema = DeriveSchema.gen[Address]
+  implicit val schema: Schema.CaseClass2[String, String, Address] =
+    DeriveSchema.gen[Address]
 }
 
 final case class Student(
@@ -40,7 +42,20 @@ final case class Student(
 )
 
 object Student {
-  implicit val schema = DeriveSchema.gen[Student]
+  implicit val schema: Schema.CaseClass11[
+    String,
+    String,
+    Option[Instant],
+    Payment,
+    Payment,
+    Int,
+    String,
+    Option[Address],
+    List[Address],
+    Set[String],
+    Int,
+    Student
+  ] = DeriveSchema.gen[Student]
   val (
     email,
     subject,
@@ -53,7 +68,7 @@ object Student {
     addresses,
     groups,
     version
-  )                   =
+  ) =
     ProjectionExpression.accessors[Student]
 
   def primaryKey(email: String, subject: String): PrimaryKey = PrimaryKey("email" -> email, "subject" -> subject)

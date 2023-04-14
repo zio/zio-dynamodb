@@ -44,22 +44,22 @@ final case class CaseClassOfTuple2(tuple2: (String, Int))
 
 @discriminatorName(tag = "funkyDiscriminator")
 sealed trait EnumWithDiscriminator
-final case class WithDiscriminatedEnum(enum: EnumWithDiscriminator)
+final case class WithDiscriminatedEnum(`enum`: EnumWithDiscriminator)
 object WithDiscriminatedEnum {
   final case class StringValue(value: String)                                 extends EnumWithDiscriminator
   final case class StringValue2(@fieldName("funky_field_name") value: String) extends EnumWithDiscriminator
   @caseName("ival")
   final case class IntValue(value: Int)                                       extends EnumWithDiscriminator
-  final case object ONE                                                       extends EnumWithDiscriminator
+  case object ONE                                                             extends EnumWithDiscriminator
   @caseName("2")
-  final case object TWO                                                       extends EnumWithDiscriminator
+  case object TWO                                                             extends EnumWithDiscriminator
 
   implicit val schema: Schema[WithDiscriminatedEnum] = DeriveSchema.gen[WithDiscriminatedEnum]
 }
 
 @enumOfCaseObjects // should fail runtime validation as Three is not a case object
 sealed trait CaseObjectOnlyEnum2
-final case class WithCaseObjectOnlyEnum2(enum: CaseObjectOnlyEnum2)
+final case class WithCaseObjectOnlyEnum2(`enum`: CaseObjectOnlyEnum2)
 object WithCaseObjectOnlyEnum2 {
   case object ONE                                                extends CaseObjectOnlyEnum2
   @caseName("2")
@@ -70,7 +70,7 @@ object WithCaseObjectOnlyEnum2 {
 
 @enumOfCaseObjects
 sealed trait CaseObjectOnlyEnum
-final case class WithCaseObjectOnlyEnum(enum: CaseObjectOnlyEnum)
+final case class WithCaseObjectOnlyEnum(`enum`: CaseObjectOnlyEnum)
 object WithCaseObjectOnlyEnum {
   case object ONE extends CaseObjectOnlyEnum
   @caseName("2")
@@ -79,7 +79,7 @@ object WithCaseObjectOnlyEnum {
 }
 
 sealed trait EnumWithoutDiscriminator
-final case class WithEnumWithoutDiscriminator(enum: EnumWithoutDiscriminator)
+final case class WithEnumWithoutDiscriminator(`enum`: EnumWithoutDiscriminator)
 object WithEnumWithoutDiscriminator {
   @caseName("1")
   case object ONE                                                extends EnumWithoutDiscriminator

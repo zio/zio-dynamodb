@@ -123,7 +123,7 @@ object TransactionModelSpec extends ZIOSpecDefault {
       hasField(
         "invalidActions",
         a => {
-          val b: Iterable[DynamoDBQuery[Any, Any]] = a.invalidActions.toIterable
+          val b: Iterable[DynamoDBQuery[Any, Any]] = a.invalidActions.toList
           b
         },
         contains(action)
@@ -145,9 +145,10 @@ object TransactionModelSpec extends ZIOSpecDefault {
           updateExpression = UpdateExpression($("name").set(""))
         )
 
-        val getItem = GetItem(tableName, item)
+        val getItem                                                       = GetItem(tableName, item)
+        val query: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap])] = updateItem.zip(getItem)
 
-        assertZIO(updateItem.zip(getItem).transaction.execute.exit)(
+        assertZIO(query.transaction.execute.exit)(
           fails(isSubtype[MixedTransactionTypes](Assertion.anything))
         )
       }
