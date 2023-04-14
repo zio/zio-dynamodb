@@ -31,9 +31,9 @@ inThisBuild(
 addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
 
-val zioVersion       = "2.0.6"
-val zioAwsVersion    = "5.19.26.1"
-val zioSchemaVersion = "0.4.9"
+val zioVersion       = "2.0.10"
+val zioAwsVersion    = "5.20.32.1"
+val zioSchemaVersion = "0.4.10"
 
 lazy val root =
   project
@@ -49,16 +49,22 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
     Defaults.itSettings,
     resolvers += Resolver.sonatypeRepo("releases"),
     libraryDependencies ++= Seq(
-      "dev.zio"       %% "zio"                   % zioVersion,
-      "dev.zio"       %% "zio-streams"           % zioVersion,
-      "dev.zio"       %% "zio-test"              % zioVersion   % "it,test",
-      "dev.zio"       %% "zio-test-sbt"          % zioVersion   % "it,test",
-      "dev.zio"       %% "zio-schema"            % zioSchemaVersion,
-      "dev.zio"       %% "zio-schema-derivation" % zioSchemaVersion,
-      "dev.zio"       %% "zio-aws-netty"         % zioAwsVersion,
-      "dev.zio"       %% "zio-aws-dynamodb"      % zioAwsVersion,
-      "org.scala-lang" % "scala-reflect"         % scalaVersion.value
+      "dev.zio" %% "zio"                   % zioVersion,
+      "dev.zio" %% "zio-streams"           % zioVersion,
+      "dev.zio" %% "zio-test"              % zioVersion % "it,test",
+      "dev.zio" %% "zio-test-sbt"          % zioVersion % "it,test",
+      "dev.zio" %% "zio-schema"            % zioSchemaVersion,
+      "dev.zio" %% "zio-schema-derivation" % zioSchemaVersion,
+      "dev.zio" %% "zio-aws-netty"         % zioAwsVersion,
+      "dev.zio" %% "zio-aws-dynamodb"      % zioAwsVersion
     ),
+    libraryDependencies ++= {
+      if (scalaVersion.value == Scala3) Seq()
+      else
+        Seq(
+          "org.scala-lang" % "scala-reflect" % scalaVersion.value
+        )
+    },
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework")),
     Compile / sourceGenerators += Def.task {
       val dir                      = (Compile / sourceManaged).value
@@ -264,9 +270,9 @@ lazy val examples = module("zio-dynamodb-examples", "examples")
     skip in publish := true,
     fork := true,
     libraryDependencies ++= Seq(
-      "dev.zio"               %% "zio-test"      % zioVersion % "test",
-      "dev.zio"               %% "zio-test-sbt"  % zioVersion % "test",
-      "software.amazon.awssdk" % "dynamodb"      % "2.17.166"
+      "dev.zio"               %% "zio-test"     % zioVersion % "test",
+      "dev.zio"               %% "zio-test-sbt" % zioVersion % "test",
+      "software.amazon.awssdk" % "dynamodb"     % "2.17.166"
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )

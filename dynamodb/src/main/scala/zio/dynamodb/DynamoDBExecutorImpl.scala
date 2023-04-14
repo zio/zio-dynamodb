@@ -85,7 +85,8 @@ import zio.{ Chunk, NonEmptyChunk, ZIO }
 
 import scala.collection.immutable.{ Map => ScalaMap }
 
-private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: DynamoDb) extends DynamoDBExecutor {
+private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynamoDb: DynamoDb)
+    extends DynamoDBExecutor {
   import DynamoDBExecutorImpl._
 
   def executeMap[A, B](map: Map[A, B]): ZIO[Any, Throwable, B] =
@@ -195,9 +196,14 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
 
   private def executeBatchWriteItem(batchWriteItem: BatchWriteItem): ZIO[Any, Throwable, BatchWriteItem.Response] =
     if (batchWriteItem.requestItems.isEmpty) ZIO.succeed(BatchWriteItem.Response(None))
-    else
+    else {
+      // need to explicitly type this for Scala 3 compiler
+      val t: zio.Schedule[Any, Throwable, Any] = batchWriteItem.retryPolicy.whileInput {
+        case BatchRetryError() => true
+        case _                 => false
+      }
       for {
-        ref         <- zio.Ref.make[MapOfSet[TableName, BatchWriteItem.Write]](batchWriteItem.requestItems)
+        ref <- zio.Ref.make[MapOfSet[TableName, BatchWriteItem.Write]](batchWriteItem.requestItems)
         _           <- (for {
                            unprocessedItems           <- ref.get
                            response                   <- dynamoDb
@@ -221,13 +227,11 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
                                                            .when(responseUnprocessedItemsOpt.exists(_.nonEmpty))
 
                          } yield ())
-                         .retry(batchWriteItem.retryPolicy.whileInput {
-                           case BatchRetryError() => true
-                           case _                 => false
-                         })
+                         .retry(t)
                          .catchSome(catchBatchRetryError)
         unprocessed <- ref.get
       } yield BatchWriteItem.Response(unprocessed.toOption)
+    }
 
   private def executeTransaction[A](transaction: Transaction[A]): ZIO[Any, Throwable, A] =
     for {
@@ -300,51 +304,52 @@ private[dynamodb] final case class DynamoDBExecutorImpl private (dynamoDb: Dynam
   private def executeBatchGetItem(batchGetItem: BatchGetItem): ZIO[Any, Throwable, BatchGetItem.Response] =
     if (batchGetItem.requestItems.isEmpty)
       ZIO.succeed(BatchGetItem.Response())
-    else
+    else {
+      val t: zio.Schedule[Any, Throwable, Any] = batchGetItem.retryPolicy.whileInput {
+        case BatchRetryError() => true
+        case _                 => false
+      }
       for {
         unprocessedKeys <- zio.Ref.make[ScalaMap[TableName, TableGet]](batchGetItem.requestItems)
-        collectedItems  <- zio.Ref.make[MapOfSet[TableName, Item]](MapOfSet.empty)
-        _               <- (for {
-                               unprocessed           <- unprocessedKeys.get
-                               currentCollection     <- collectedItems.get
-                               response              <- dynamoDb
-                                                          .batchGetItem(awsBatchGetItemRequest(batchGetItem.copy(requestItems = unprocessed)))
-                                                          .mapError(_.toThrowable)
-                               responseUnprocessedOpt = response.unprocessedKeys
-                                                          .map(_.map { case (k, v) => (TableName(k), keysAndAttrsToTableGet(v)) })
-                                                          .toOption
-                               _                     <- responseUnprocessedOpt match {
-                                                          case Some(responseUnprocessed) => unprocessedKeys.set(responseUnprocessed)
-                                                          case None                      => ZIO.unit
-                                                        }
-                               retrievedItemsOpt      = response.responses.toOption
-                               _                     <- retrievedItemsOpt match {
-                                                          case Some(retrievedItems) =>
-                                                            collectedItems.set(currentCollection ++ tableItemsMapToResponse(retrievedItems.map {
-                                                              case (k, v) => (TableName(k.toString), v)
-                                                            }))
-                                                          case None                 => collectedItems.set(currentCollection)
-                                                        }
-                               _                     <- ZIO.fail(BatchRetryError()).when(responseUnprocessedOpt.exists(_.nonEmpty))
-                             } yield ())
-                             .retry(batchGetItem.retryPolicy.whileInput {
-                               case BatchRetryError() => true
-                               case _                 => false
-                             })
-                             .catchSome(catchBatchRetryError)
+        collectedItems <- zio.Ref.make[MapOfSet[TableName, Item]](MapOfSet.empty)
+        _              <- (for {
+                              unprocessed           <- unprocessedKeys.get
+                              currentCollection     <- collectedItems.get
+                              response              <- dynamoDb
+                                                         .batchGetItem(awsBatchGetItemRequest(batchGetItem.copy(requestItems = unprocessed)))
+                                                         .mapError(_.toThrowable)
+                              responseUnprocessedOpt = response.unprocessedKeys
+                                                         .map(_.map { case (k, v) => (TableName(k), keysAndAttrsToTableGet(v)) })
+                                                         .toOption
+                              _                     <- responseUnprocessedOpt match {
+                                                         case Some(responseUnprocessed) => unprocessedKeys.set(responseUnprocessed)
+                                                         case None                      => ZIO.unit
+                                                       }
+                              retrievedItemsOpt      = response.responses.toOption
+                              _                     <- retrievedItemsOpt match {
+                                                         case Some(retrievedItems) =>
+                                                           collectedItems.set(currentCollection ++ tableItemsMapToResponse(retrievedItems.map {
+                                                             case (k, v) => (TableName(k.toString), v)
+                                                           }))
+                                                         case None                 => collectedItems.set(currentCollection)
+                                                       }
+                              _                     <- ZIO.fail(BatchRetryError()).when(responseUnprocessedOpt.exists(_.nonEmpty))
+                            } yield ())
+                            .retry(t)
+                            .catchSome(catchBatchRetryError)
 
-        retrievedItems  <- collectedItems.get
-        unprocessed     <- unprocessedKeys.get
+        retrievedItems <- collectedItems.get
+        unprocessed    <- unprocessedKeys.get
       } yield BatchGetItem.Response(responses = retrievedItems, unprocessedKeys = unprocessed)
-
+    }
 }
 
 case object DynamoDBExecutorImpl {
 
   sealed trait TransactionType
   object TransactionType {
-    final case object Write extends TransactionType
-    final case object Get   extends TransactionType
+    case object Write extends TransactionType
+    case object Get   extends TransactionType
   }
 
   // Need to go through the chunk and make sure we don't have mixed transaction actions
@@ -1001,7 +1006,7 @@ case object DynamoDBExecutorImpl {
 
   private def awsAttrValToAttrVal(attributeValue: ZIOAwsAttributeValue.ReadOnly): Option[AttributeValue] =
     attributeValue.s
-      .map(AttributeValue.String)
+      .map(AttributeValue.String.apply)
       .orElse {
         attributeValue.n.map(n => AttributeValue.Number(BigDecimal(n)))
       } // TODO(adam): Does the BigDecimal need a try wrapper?
@@ -1038,7 +1043,7 @@ case object DynamoDBExecutorImpl {
         )
       }
       .orElse(attributeValue.nul.map(_ => AttributeValue.Null))
-      .orElse(attributeValue.bool.map(AttributeValue.Bool))
+      .orElse(attributeValue.bool.map(AttributeValue.Bool.apply))
       .toOption
 
   private def awsReturnItemCollectionMetrics(metrics: ReturnItemCollectionMetrics): ZIOAwsReturnItemCollectionMetrics =

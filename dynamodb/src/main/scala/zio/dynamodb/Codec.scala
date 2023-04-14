@@ -153,6 +153,7 @@ private[dynamodb] object Codec {
           enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22)
         case Schema.EnumN(_, cs, annotations)                                                                                                   =>
           enumEncoder(annotations, cs.toSeq: _*)
+        case _                                                                                                                                  => throw new Exception("Match was non-exhaustive")
       }
     //scalafmt: { maxColumn = 120, optIn.configStyleArguments = true }
 
@@ -360,6 +361,9 @@ private[dynamodb] object Codec {
         case Schema.Primitive(StandardType.BinaryType, _)     =>
           (a: Set[A]) => AttributeValue.BinarySet(a.asInstanceOf[Set[Chunk[Byte]]])
 
+        case l @ Schema.Lazy(_)                               =>
+          setEncoder(l.schema)
+
         // Non native set
         case schema                                           =>
           sequenceEncoder[Chunk[A], A](encoder(schema), (c: Iterable[A]) => Chunk.fromIterable(c))
@@ -370,6 +374,8 @@ private[dynamodb] object Codec {
       ks match {
         case Schema.Primitive(StandardType.StringType, _) =>
           nativeMapEncoder(encoder(vs))
+        case l @ Schema.Lazy(_)                           =>
+          mapEncoder(l.schema, vs)
         case _                                            =>
           nonNativeMapEncoder(encoder(ks), encoder(vs))
       }
@@ -526,6 +532,7 @@ private[dynamodb] object Codec {
           enumDecoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22)
         case Schema.EnumN(_, cs, annotations)                                                                                                   =>
           enumDecoder(annotations, cs.toSeq: _*)
+        case _                                                                                                                                  => throw new Exception("Match was non-exhaustive")
 
       }
     //scalafmt: { maxColumn = 120, optIn.configStyleArguments = true }
@@ -646,7 +653,7 @@ private[dynamodb] object Codec {
 
     private def transformDecoder[A, B](codec: Schema[A], f: A => Either[String, B]): Decoder[B] = {
       val dec = decoder(codec)
-      (a: AttributeValue) => dec(a).flatMap(f(_).left.map(DecodingError))
+      (a: AttributeValue) => dec(a).flatMap(f(_).left.map(DecodingError.apply))
     }
 
     private def optionalDecoder[A](decoder: Decoder[A]): Decoder[Option[A]] = {
@@ -741,6 +748,9 @@ private[dynamodb] object Codec {
         case Schema.Primitive(StandardType.BinaryType, _)     =>
           nativeBinarySetDecoder
 
+        case l @ Schema.Lazy(_)                               =>
+          setDecoder(l.schema)
+
         // non native set
         case _                                                =>
           nonNativeSetDecoder(decoder(s))
@@ -758,10 +768,12 @@ private[dynamodb] object Codec {
       }
     }
 
-    private def mapDecoder[K, V](ks: Schema[K], vs: Schema[V]) =
+    private def mapDecoder[K, V](ks: Schema[K], vs: Schema[V]): Decoder[Map[_, V]] =
       ks match {
         case Schema.Primitive(StandardType.StringType, _) =>
           nativeMapDecoder(decoder(vs))
+        case l @ Schema.Lazy(_)                           =>
+          mapDecoder(l.schema, vs)
         case _                                            =>
           nonNativeMapDecoder(decoder(ks), decoder(vs))
       }

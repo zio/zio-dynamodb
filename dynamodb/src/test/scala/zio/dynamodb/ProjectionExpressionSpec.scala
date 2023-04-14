@@ -20,11 +20,11 @@ object ProjectionExpressionSpec extends ZIOSpecDefault {
   @enumOfCaseObjects
   sealed trait Payment
   object Payment {
-    final case object DebitCard  extends Payment
-    final case object CreditCard extends Payment
-    final case object PayPal     extends Payment
+    case object CreditCard extends Payment
+    case object DebitCard  extends Payment
+    case object PayPal     extends Payment
 
-    implicit val schema = DeriveSchema.gen[Payment]
+    implicit val schema: Schema.Enum3[CreditCard.type, DebitCard.type, PayPal.type, Payment] = DeriveSchema.gen[Payment]
   }
   final case class Student(
     email: String,

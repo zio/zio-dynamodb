@@ -150,7 +150,7 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
     )(implicit ev: To <:< Iterable[A], to: ToAttributeValue[A]): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
         self,
-        ListAppend(self, AttributeValue.List(xs.map(a => to.toAttributeValue(a))))
+        ListAppend(self, AttributeValue.List(xs.toList.map(a => to.toAttributeValue(a))))
       )
 
     /**
@@ -174,7 +174,7 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
     )(implicit ev: To <:< Iterable[A], to: ToAttributeValue[A]): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
         self,
-        ListPrepend(self, AttributeValue.List(xs.map(a => to.toAttributeValue(a))))
+        ListPrepend(self, AttributeValue.List(xs.toList.map(a => to.toAttributeValue(a))))
       )
 
     def between(minValue: To, maxValue: To): ConditionExpression[From] =
@@ -351,7 +351,7 @@ trait ProjectionExpressionLowPriorityImplicits1 {
     def appendList(xs: Iterable[To])(implicit to: ToAttributeValue[To]): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
         self,
-        ListAppend(self, AttributeValue.List(xs.map(a => to.toAttributeValue(a))))
+        ListAppend(self, AttributeValue.List(xs.toList.map(a => to.toAttributeValue(a))))
       )
 
     /**
@@ -366,7 +366,7 @@ trait ProjectionExpressionLowPriorityImplicits1 {
     def prependList(xs: Iterable[To])(implicit to: ToAttributeValue[To]): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
         self,
-        ListPrepend(self, AttributeValue.List(xs.map(a => to.toAttributeValue(a))))
+        ListPrepend(self, AttributeValue.List(xs.toList.map(a => to.toAttributeValue(a))))
       )
 
     def between(minValue: To, maxValue: To)(implicit to: ToAttributeValue[To]): ConditionExpression[From] =
@@ -559,7 +559,7 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     def appendList[To: ToAttributeValue](xs: Iterable[To]): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
         self.unsafeTo,
-        ListAppend(self, AttributeValue.List(xs.map(a => implicitly[ToAttributeValue[To]].toAttributeValue(a))))
+        ListAppend(self, AttributeValue.List(xs.toList.map(a => implicitly[ToAttributeValue[To]].toAttributeValue(a))))
       )
 
     /**
@@ -574,7 +574,7 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     def prependList[To: ToAttributeValue](xs: Iterable[To]): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
         self.unsafeTo,
-        ListPrepend(self, AttributeValue.List(xs.map(a => implicitly[ToAttributeValue[To]].toAttributeValue(a))))
+        ListPrepend(self, AttributeValue.List(xs.toList.map(a => implicitly[ToAttributeValue[To]].toAttributeValue(a))))
       )
 
     def between[To](minValue: To, maxValue: To)(implicit to: ToAttributeValue[To]): ConditionExpression[From] =
