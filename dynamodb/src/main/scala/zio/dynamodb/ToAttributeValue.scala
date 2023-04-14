@@ -2,6 +2,7 @@ package zio.dynamodb
 
 import zio.Chunk
 import zio.schema.Schema
+import scala.collection.immutable.{ Map, Set }
 
 trait ToAttributeValue[A] {
   def toAttributeValue(a: A): AttributeValue
@@ -17,13 +18,14 @@ object ToAttributeValue extends ToAttributeValueLowPriorityImplicits0 {
     case Some(a) => ev.toAttributeValue(a)
   }
 
-  implicit def binaryToAttributeValue[Col[A] <: Iterable[A]]: ToAttributeValue[Col[Byte]] = AttributeValue.Binary(_)
+  implicit def binaryToAttributeValue[Col[A] <: Iterable[A], A <: Byte]: ToAttributeValue[Col[A]] =
+    x => AttributeValue.Binary(x)
 
-  implicit def byteToAttributeValue[Col[A] <: Iterable[A]]: ToAttributeValue[Byte] =
+  implicit def byteToAttributeValue: ToAttributeValue[Byte] =
     a => AttributeValue.Binary(Chunk(a))
 
-  implicit def binarySetToAttributeValue[Col1[A] <: Iterable[A], Col2[B] <: Iterable[B]]
-    : ToAttributeValue[Col1[Col2[Byte]]]                       = AttributeValue.BinarySet(_)
+  implicit def binarySetToAttributeValue[Col1[A] <: Iterable[A], Col2[B] <: Iterable[B], B <: Byte]
+    : ToAttributeValue[Col1[Col2[B]]]                          = AttributeValue.BinarySet(_)
   implicit val boolToAttributeValue: ToAttributeValue[Boolean] = AttributeValue.Bool(_)
 
   implicit val attrMapToAttributeValue: ToAttributeValue[AttrMap] =
@@ -36,7 +38,7 @@ object ToAttributeValue extends ToAttributeValueLowPriorityImplicits0 {
 
   implicit def mapToAttributeValue[A](implicit ev: ToAttributeValue[A]): ToAttributeValue[Map[ScalaString, A]] =
     (map: Map[ScalaString, A]) =>
-      AttributeValue.Map(map.map { case (k, v) => AttributeValue.String(k) -> ev.toAttributeValue(v) })
+      AttributeValue.Map(map.map { case (k, v) => (AttributeValue.String(k), ev.toAttributeValue(v)) })
 
   implicit val stringToAttributeValue: ToAttributeValue[ScalaString]                                           = AttributeValue.String(_)
   implicit val stringSetToAttributeValue: ToAttributeValue[Set[ScalaString]]                                   =

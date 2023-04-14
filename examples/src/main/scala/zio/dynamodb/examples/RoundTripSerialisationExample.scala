@@ -79,21 +79,21 @@ object RoundTripSerialisationExample extends App {
       id            <- m.get[String]("id")
       sequence      <- m.get[Int]("sequence")
       dueDateString <- m.get[String]("dueDate")
-      dueDate       <- stringToDate(dueDateString).left.map(DecodingError)
+      dueDate       <- stringToDate(dueDateString).left.map(DecodingError.apply)
       total         <- m.get[BigDecimal]("total")
       isTest        <- m.get[Boolean]("isTest")
       categoryMap   <- m.get[Map[String, String]]("categoryMap")
       categorySet   <- m.get[Set[String]]("categorySet")
       optSet        <- m.getOptional[Set[String]]("optSet")
       address       <- m.getOptionalItem("address") { m2 =>
-                         m2.as("line1", "line2", "country")(Address)
+                         m2.as("line1", "line2", "country")(Address.apply)
                        }
       lineItems     <- m.getIterableItem[LineItem]("lineItems") { m2 =>
                          for {
                            itemId  <- m2.get[String]("itemId")
                            price   <- m2.get[BigDecimal]("price")
                            product <- m2.getItem[Product]("product") { m =>
-                                        m.as("sku", "name")(Product)
+                                        m.as("sku", "name")(Product.apply)
                                       }
                          } yield LineItem(itemId, price, product)
                        }
