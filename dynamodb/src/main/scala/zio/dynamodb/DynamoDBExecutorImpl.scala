@@ -594,6 +594,17 @@ case object DynamoDBExecutorImpl {
         case (attrVal, str) =>
           awsAttributeValue(attrVal).map(a => (ZIOAwsExpressionAttributeValueVariable(str), a))
       })
+  def aliasMapToExpressionZIOAwsAttributeValues2(
+    aliasMap: AliasMap2
+  ): Option[ScalaMap[ZIOAwsExpressionAttributeValueVariable, ZIOAwsAttributeValue]] =
+    if (aliasMap.isEmpty) None
+    else
+      Some(aliasMap.map.flatMap {
+        case (AliasMap2.AttributeValueKey(attrVal), str) =>
+          awsAttributeValue(attrVal).map(a => (ZIOAwsExpressionAttributeValueVariable(str), a))
+        case (AliasMap2.PathKey(_), _) => // TODO: implement
+          None
+      })
 
   private[dynamodb] def tableGetToKeysAndAttributes(tableGet: TableGet): KeysAndAttributes = {
     val maybeProjectionExprn                             = toOption(tableGet.projectionExpressionSet).map(awsProjectionExpression)
@@ -699,7 +710,7 @@ case object DynamoDBExecutorImpl {
   }
 
   private def awsPutItemRequest(putItem: PutItem): PutItemRequest = {
-    val maybeAliasMap                         = putItem.conditionExpression.map(_.render.execute)
+    val maybeAliasMap: Option[(AliasMap, String)] = putItem.conditionExpression.map(_.render.execute)
     val (maybeAwsNamesMap, maybeAwsCondition) =
       awsExprnAttrNamesAndReplacedFn(maybeAliasMap.map(_._2))(ZIOAwsConditionExpression(_))
     PutItemRequest(
@@ -744,7 +755,7 @@ case object DynamoDBExecutorImpl {
     )
 
   private def awsDeleteItemRequest(deleteItem: DeleteItem): DeleteItemRequest = {
-    val maybeAliasMap                         = deleteItem.conditionExpression.map(_.render.execute)
+    val maybeAliasMap: Option[(AliasMap, String)] = deleteItem.conditionExpression.map(_.render.execute)
     val (maybeAwsNamesMap, maybeAwsCondition) =
       awsExprnAttrNamesAndReplacedFn(maybeAliasMap.map(_._2))(ZIOAwsConditionExpression(_))
     DeleteItemRequest(

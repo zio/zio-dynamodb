@@ -37,7 +37,7 @@ function ::=
     | size (path)
  */
 
-sealed trait ConditionExpression[-From] extends Renderable { self =>
+sealed trait ConditionExpression[-From] extends Renderable with Renderable2 { self =>
   import ConditionExpression._
 
   def &&[From1 <: From](that: ConditionExpression[From1]): ConditionExpression[From1] =
@@ -90,6 +90,60 @@ sealed trait ConditionExpression[-From] extends Renderable { self =>
         gteq.left.render.zipWith(gteq.right.render) { case (l, r) => s"($l) >= ($r)" }
     }
 
+  def render2: AliasMapRender2[String] =
+    self match {
+      case between: Between[_]         =>
+        AliasMapRender2.getOrInsert(between.minValue)
+        for {
+          l   <- between.left.render2
+          min <- AliasMapRender2.getOrInsert(between.minValue)
+          max <- AliasMapRender2.getOrInsert(between.maxValue)
+        } yield s"$l BETWEEN $min AND $max"
+      case in: In[_]                   =>
+        for {
+          l    <- in.left.render2
+          vals <- in.values
+                    .foldLeft(AliasMapRender2.empty.map(_ => "")) {
+                      case (acc, value) =>
+                        acc.zipWith(AliasMapRender2.getOrInsert(value)) {
+                          case (acc, action) =>
+                            if (acc.isEmpty) action
+                            else s"$acc, $action"
+                        }
+                    }
+        } yield s"$l IN ($vals)"
+      case ae: AttributeExists[_]      => AliasMapRender2.getOrInsert(ae.path).map(n => s"attribute_exists($n)")
+      case ane: AttributeNotExists[_]  => AliasMapRender2.getOrInsert(ane.path).map(n => s"attribute_not_exists($n)")
+      case at: AttributeType[_]        =>
+        for {
+          v <- at.attributeType.render2
+          n <- AliasMapRender2.getOrInsert(at.path)
+        } yield s"attribute_type($n, $v)"
+      case c: Contains[_]              =>
+        for {
+          v <- AliasMapRender2.getOrInsert(c.value)
+          n <- AliasMapRender2.getOrInsert(c.path)
+        } yield s"contains($n, $v)"
+      case bw: BeginsWith[_]           =>
+        for {
+          v <- AliasMapRender2.getOrInsert(bw.value)
+          n <- AliasMapRender2.getOrInsert(bw.path)
+        } yield s"begins_with($n, $v)"
+      case and: And[_]                 => and.left.render2.zipWith(and.right.render2) { case (l, r) => s"($l) AND ($r)" }
+      case or: Or[_]                   => or.left.render2.zipWith(or.right.render2) { case (l, r) => s"($l) OR ($r)" }
+      case not: Not[_]                 => not.exprn.render2.map(v => s"NOT ($v)")
+      case eq: Equals[_]               => eq.left.render2.zipWith(eq.right.render2) { case (l, r) => s"($l) = ($r)" }
+      case neq: NotEqual[_]            =>
+        neq.left.render2.zipWith(neq.right.render2) { case (l, r) => s"($l) <> ($r)" }
+      case lt: LessThan[_]             => lt.left.render2.zipWith(lt.right.render2) { case (l, r) => s"($l) < ($r)" }
+      case gt: GreaterThan[_]          =>
+        gt.left.render2.zipWith(gt.right.render2) { case (l, r) => s"($l) > ($r)" }
+      case lteq: LessThanOrEqual[_]    =>
+        lteq.left.render2.zipWith(lteq.right.render2) { case (l, r) => s"($l) <= ($r)" }
+      case gteq: GreaterThanOrEqual[_] =>
+        gteq.left.render2.zipWith(gteq.right.render2) { case (l, r) => s"($l) >= ($r)" }
+    }
+
 }
 
 // BNF  https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
@@ -126,11 +180,17 @@ object ConditionExpression {
     def >=[From2 <: From, A](that: A)(implicit t: ToAttributeValue[A]): ConditionExpression[From2] =
       GreaterThanOrEqual(self.asInstanceOf[Operand[From, To]], Operand.ValueOperand(t.toAttributeValue(that)))
 
-    def render: AliasMapRender[String] =
+    def render: AliasMapRender[String]   =
       self match {
         case op: Operand.ProjectionExpressionOperand[_] => AliasMapRender.succeed(op.pe.toString)
         case op: Operand.ValueOperand[_]                => AliasMapRender.getOrInsert(op.value).map(identity)
         case op: Operand.Size[_, _]                     => AliasMapRender.succeed(s"size(${op.path})")
+      }
+    def render2: AliasMapRender2[String] =
+      self match {
+        case op: Operand.ProjectionExpressionOperand[_] => AliasMapRender2.succeed(op.pe.toString)
+        case op: Operand.ValueOperand[_]                => AliasMapRender2.getOrInsert(op.value).map(identity)
+        case op: Operand.Size[_, _]                     => AliasMapRender2.succeed(s"size(${op.path})")
       }
   }
 
