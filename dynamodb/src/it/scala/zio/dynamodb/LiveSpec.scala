@@ -179,6 +179,31 @@ object LiveSpec extends ZIOSpecDefault {
     val (id, num, ttl)                                                                     = ProjectionExpression.accessors[ExpressionAttrNames]
   }
 
+  val debugSuite: Spec[TestEnvironment, Any] = suite("debug")(
+    test("delete should handle keyword") {
+      withDefaultTable { tableName =>
+        val query = DynamoDBQuery
+          .delete[ExpressionAttrNames](tableName, PrimaryKey("id" -> "id", "num" -> 1))
+          .where(ExpressionAttrNames.ttl.notExists)
+        query.execute.exit.map { result =>
+          assert(result)(succeeds(isNone))
+        }
+      }
+    },
+    test("put should handle keyword") {
+      withDefaultTable { tableName =>
+        val query = DynamoDBQuery
+          .put[ExpressionAttrNames](tableName, ExpressionAttrNames("id", 1, None))
+          .where(ExpressionAttrNames.ttl.notExists)
+        query.execute.exit.map { result =>
+          assert(result)(succeeds(isNone))
+        }
+      }
+    },
+  ).provideSomeLayerShared[TestEnvironment](
+        testLayer.orDie
+      ) @@ nondeterministic
+
   val mainSuite: Spec[TestEnvironment, Any] =
     suite("live test")(
       suite("keywords in expression attribute names")(

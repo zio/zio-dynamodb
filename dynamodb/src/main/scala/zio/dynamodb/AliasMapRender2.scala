@@ -31,10 +31,12 @@ private[dynamodb] final case class AliasMapRender2[+A](
 
   def execute: (AliasMap2, A) = self.render(AliasMap2.empty)
 
+  def execute(map: AliasMap2): (AliasMap2, A) = self.render(map)
+
 }
 
 private[dynamodb] object AliasMapRender2 {
-  def getOrInsert(entry: AttributeValue): AliasMapRender2[String] =
+  def getOrInsert(entry: AttributeValue): AliasMapRender2[String]                           =
     AliasMapRender2 { aliasMap =>
       aliasMap.getOrInsert(entry)
     }

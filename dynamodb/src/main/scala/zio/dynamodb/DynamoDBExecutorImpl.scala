@@ -585,25 +585,44 @@ case object DynamoDBExecutorImpl {
   private def optionalItem(updateItemResponse: UpdateItemResponse.ReadOnly): Option[Item] =
     updateItemResponse.attributes.toOption.flatMap(m => toOption(m).map(dynamoDBItem))
 
+  // creates a reverse lookup needed by AWS
   private def aliasMapToExpressionZIOAwsAttributeValues(
     aliasMap: AliasMap
-  ): Option[ScalaMap[ZIOAwsExpressionAttributeValueVariable, ZIOAwsAttributeValue]] =
+  ): Option[ScalaMap[ZIOAwsExpressionAttributeValueVariable, ZIOAwsAttributeValue]]              =
     if (aliasMap.isEmpty) None
     else
       Some(aliasMap.map.flatMap {
         case (attrVal, str) =>
           awsAttributeValue(attrVal).map(a => (ZIOAwsExpressionAttributeValueVariable(str), a))
       })
+  // creates a reverse lookup needed by AWS
   def aliasMapToExpressionZIOAwsAttributeValues2(
     aliasMap: AliasMap2
-  ): Option[ScalaMap[ZIOAwsExpressionAttributeValueVariable, ZIOAwsAttributeValue]] =
+  ): Option[ScalaMap[ZIOAwsExpressionAttributeValueVariable, ZIOAwsAttributeValue]]              =
+    if (aliasMap.isEmpty) None
+    else {
+      val map = aliasMap.map.flatMap {
+        case (AliasMap2.AttributeValueKey(attrVal), str) =>
+          awsAttributeValue(attrVal).map(a => (ZIOAwsExpressionAttributeValueVariable(str), a))
+        case (AliasMap2.PathElement(_), _)               =>
+          None
+        case (AliasMap2.FullPath(_), _)                  =>
+          None
+      }
+      if (map.isEmpty) None else Some(map)
+    }
+  def aliasMapToExpressionZIOAwsAttributeNames(
+    aliasMap: AliasMap2
+  ): Option[ScalaMap[primitives.ExpressionAttributeNameVariable.Type, ZIOAwsAttributeName.Type]] =
     if (aliasMap.isEmpty) None
     else
       Some(aliasMap.map.flatMap {
-        case (AliasMap2.AttributeValueKey(attrVal), str) =>
-          awsAttributeValue(attrVal).map(a => (ZIOAwsExpressionAttributeValueVariable(str), a))
-        case (AliasMap2.PathKey(_), _) => // TODO: implement
+        case (AliasMap2.AttributeValueKey(_), _)   =>
           None
+        case (AliasMap2.FullPath(_), _)            =>
+          None
+        case (AliasMap2.PathElement(segment), str) =>
+          Some((ExpressionAttributeNameVariable(str), ZIOAwsAttributeName(segment)))
       })
 
   private[dynamodb] def tableGetToKeysAndAttributes(tableGet: TableGet): KeysAndAttributes = {
@@ -710,17 +729,19 @@ case object DynamoDBExecutorImpl {
   }
 
   private def awsPutItemRequest(putItem: PutItem): PutItemRequest = {
-    val maybeAliasMap: Option[(AliasMap, String)] = putItem.conditionExpression.map(_.render.execute)
-    val (maybeAwsNamesMap, maybeAwsCondition) =
-      awsExprnAttrNamesAndReplacedFn(maybeAliasMap.map(_._2))(ZIOAwsConditionExpression(_))
+    val maybeAliasMap: Option[(AliasMap2, String)] = putItem.conditionExpression.map(_.render2.execute)
+    println(s"XXXXXXXXXXXXXXXXXXX awsPutItemRequest maybeAliasMap=$maybeAliasMap")
+    val x                                          = maybeAliasMap.flatMap(m => aliasMapToExpressionZIOAwsAttributeNames(m._1))
+    // val (maybeAwsNamesMap, maybeAwsCondition) =
+    //   awsExprnAttrNamesAndReplacedFn(maybeAliasMap.map(_._2))(ZIOAwsConditionExpression(_))
     PutItemRequest(
       tableName = ZIOAwsTableName(putItem.tableName.value),
       item = awsAttributeValueMap(putItem.item.map),
       returnConsumedCapacity = Some(awsConsumedCapacity(putItem.capacity)),
       returnItemCollectionMetrics = Some(ReturnItemCollectionMetrics.toZioAws(putItem.itemMetrics)),
-      conditionExpression = maybeAwsCondition,
-      expressionAttributeValues = maybeAliasMap.flatMap(m => aliasMapToExpressionZIOAwsAttributeValues(m._1)),
-      expressionAttributeNames = maybeAwsNamesMap,
+      conditionExpression = maybeAliasMap.map(m => ZIOAwsConditionExpression(m._2)),
+      expressionAttributeValues = maybeAliasMap.flatMap(m => aliasMapToExpressionZIOAwsAttributeValues2(m._1)),
+      expressionAttributeNames = maybeAliasMap.flatMap(m => aliasMapToExpressionZIOAwsAttributeNames(m._1)),
       returnValues = Some(awsReturnValues(putItem.returnValues))
     )
   }
@@ -755,15 +776,18 @@ case object DynamoDBExecutorImpl {
     )
 
   private def awsDeleteItemRequest(deleteItem: DeleteItem): DeleteItemRequest = {
-    val maybeAliasMap: Option[(AliasMap, String)] = deleteItem.conditionExpression.map(_.render.execute)
-    val (maybeAwsNamesMap, maybeAwsCondition) =
-      awsExprnAttrNamesAndReplacedFn(maybeAliasMap.map(_._2))(ZIOAwsConditionExpression(_))
+    val maybeAliasMap: Option[(AliasMap2, String)] = deleteItem.conditionExpression.map(_.render2.execute)
+    println(s"XXXXXXXXXXXXXX maybeAliasMap=${maybeAliasMap}")
+    val x                                          = maybeAliasMap.flatMap(m => aliasMapToExpressionZIOAwsAttributeValues2(m._1))
+    println(s"XXXXXXXXXXXXXX AVs=$x")
+    // val (maybeAwsNamesMap, maybeAwsCondition)      =
+    //   awsExprnAttrNamesAndReplacedFn(maybeAliasMap.map(_._2))(ZIOAwsConditionExpression(_))
     DeleteItemRequest(
       tableName = ZIOAwsTableName(deleteItem.tableName.value),
       key = deleteItem.key.toZioAwsMap(),
-      conditionExpression = maybeAwsCondition,
-      expressionAttributeValues = maybeAliasMap.flatMap(m => aliasMapToExpressionZIOAwsAttributeValues(m._1)),
-      expressionAttributeNames = maybeAwsNamesMap,
+      conditionExpression = maybeAliasMap.map(m => ZIOAwsConditionExpression(m._2)), //maybeAwsCondition,
+      expressionAttributeValues = maybeAliasMap.flatMap(m => aliasMapToExpressionZIOAwsAttributeValues2(m._1)),
+      expressionAttributeNames = maybeAliasMap.flatMap(m => aliasMapToExpressionZIOAwsAttributeNames(m._1)),
       returnConsumedCapacity = Some(awsConsumedCapacity(deleteItem.capacity)),
       returnItemCollectionMetrics = Some(awsReturnItemCollectionMetrics(deleteItem.itemMetrics)),
       returnValues = Some(awsReturnValues(deleteItem.returnValues))

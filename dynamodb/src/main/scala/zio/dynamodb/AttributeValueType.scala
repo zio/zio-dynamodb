@@ -1,7 +1,7 @@
 package zio.dynamodb
 
 sealed trait AttributeValueType { self =>
-  def render: AliasMapRender[String] =
+  def render: AliasMapRender[String]   =
     self match {
       case valueType: PrimitiveValueType => valueType.render
       case AttributeValueType.Bool       => AliasMapRender.getOrInsert(AttributeValue.String("BOOL"))
@@ -25,7 +25,7 @@ sealed trait AttributeValueType { self =>
     }
 }
 sealed trait PrimitiveValueType extends AttributeValueType { self =>
-  override def render: AliasMapRender[String] =
+  override def render: AliasMapRender[String]   =
     self match {
       case AttributeValueType.Binary => AliasMapRender.getOrInsert(AttributeValue.String("B"))
       case AttributeValueType.Number => AliasMapRender.getOrInsert(AttributeValue.String("N"))
