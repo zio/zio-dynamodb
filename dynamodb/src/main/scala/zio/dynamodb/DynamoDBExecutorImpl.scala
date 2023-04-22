@@ -604,7 +604,7 @@ case object DynamoDBExecutorImpl {
       val map = aliasMap.map.flatMap {
         case (AliasMap2.AttributeValueKey(attrVal), str) =>
           awsAttributeValue(attrVal).map(a => (ZIOAwsExpressionAttributeValueVariable(str), a))
-        case (AliasMap2.PathSegment(_), _)               =>
+        case (AliasMap2.PathSegment(_, _), _)               =>
           None
         case (AliasMap2.FullPath(_), _)                  =>
           None
@@ -621,7 +621,7 @@ case object DynamoDBExecutorImpl {
           None
         case (AliasMap2.FullPath(_), _)            =>
           None
-        case (AliasMap2.PathSegment(segment), str) =>
+        case (AliasMap2.PathSegment(_, segment), str) =>
           Some((ExpressionAttributeNameVariable(str), ZIOAwsAttributeName(segment)))
       }
       if (map.isEmpty) None else Some(map)
