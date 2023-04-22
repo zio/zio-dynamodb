@@ -52,11 +52,11 @@ private[dynamodb] final case class AliasMap2 private[dynamodb] (map: Map[AliasMa
 private[dynamodb] object AliasMap2 {
 
   sealed trait Key
-  final case class AttributeValueKey(av: AttributeValue)                    extends Key
+  final case class AttributeValueKey(av: AttributeValue)                                          extends Key
   // we include parent to disambiguate PathSegment as a Map key for cases where the same segment name is used multiple times
-  final case class PathSegment[From, To](parent: ProjectionExpression[From, To], segment: String)  extends Key
+  final case class PathSegment[From, To](parent: ProjectionExpression[From, To], segment: String) extends Key
   // used to cache the final substituted path - is this necessary????
-  final case class FullPath[From, To](path: ProjectionExpression[From, To]) extends Key
+  final case class FullPath[From, To](path: ProjectionExpression[From, To])                       extends Key
 
   def empty: AliasMap2 = AliasMap2(Map.empty, 0)
 }
