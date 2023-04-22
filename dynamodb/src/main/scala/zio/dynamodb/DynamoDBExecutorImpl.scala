@@ -871,10 +871,12 @@ case object DynamoDBExecutorImpl {
   }
 
   def awsQueryRequest(queryAll: QueryAll): QueryRequest = {
-    val (aliasMapTmp, (maybeFilterExpr, maybeKeyExpr))       = (for {
+    val (aliasMapTmp, (maybeFilterExpr, maybeKeyExpr)) = (for {
       filter  <- AliasMapRender2.collectAll(queryAll.filterExpression.map(_.render2))
       keyExpr <- AliasMapRender2.collectAll(queryAll.keyConditionExpression.map(_.render2))
     } yield (filter, keyExpr)).execute
+
+    // TODO: Avi - improve type inference
     val (aliasMap: AliasMap2, projections: List[String]) = AliasMapRender2.forEach(queryAll.projections)(aliasMapTmp)
 
     QueryRequest(
