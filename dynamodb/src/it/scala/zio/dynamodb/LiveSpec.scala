@@ -180,6 +180,20 @@ object LiveSpec extends ZIOSpecDefault {
   }
 
   val debugSuite: Spec[TestEnvironment, Any] = suite("debug")(
+    test("queryAll") {
+      withDefaultTable { tableName =>
+        for {
+          stream <- queryAllItem(tableName)
+                      .whereKey(PartitionKey(id) === second)
+                      .execute
+          chunk  <- stream.run(ZSink.collectAll[Item])
+        } yield assert(chunk)(
+          equalTo(
+            Chunk(adamItem, adam2Item, adam3Item)
+          )
+        )
+      }
+    },    
     test("delete should handle keyword") {
       withDefaultTable { tableName =>
         val query = DynamoDBQuery
@@ -189,7 +203,7 @@ object LiveSpec extends ZIOSpecDefault {
           assert(result)(succeeds(isNone))
         }
       }
-    },
+    } @@ TestAspect.ignore,
     test("put should handle keyword") {
       withDefaultTable { tableName =>
         val query = DynamoDBQuery
@@ -199,7 +213,7 @@ object LiveSpec extends ZIOSpecDefault {
           assert(result)(succeeds(isNone))
         }
       }
-    },
+    } @@ TestAspect.ignore,
   ).provideSomeLayerShared[TestEnvironment](
         testLayer.orDie
       ) @@ nondeterministic

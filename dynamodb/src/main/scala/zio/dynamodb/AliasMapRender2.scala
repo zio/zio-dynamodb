@@ -45,6 +45,15 @@ private[dynamodb] object AliasMapRender2 {
       aliasMap.getOrInsert(entry)
     }
 
+  def forEach(paths: List[ProjectionExpression[_, _]])(aliasMap: AliasMap2): (AliasMap2, List[String]) = {
+    val (am, pathStrings) = paths.foldLeft((aliasMap, List.empty[String])) {
+      case ((am, acc), path) =>
+        val (am2, str) = am.getOrInsert(path)
+        (am2, acc :+ str)
+    }
+    (am, pathStrings)
+  }
+
   def empty: AliasMapRender2[Unit] = AliasMapRender2.addMap(AliasMap2.empty)
 
   def succeed[A](a: => A): AliasMapRender2[A] = AliasMapRender2(aliasMap => (aliasMap, a))
