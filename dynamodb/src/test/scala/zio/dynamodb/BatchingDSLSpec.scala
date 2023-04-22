@@ -126,30 +126,43 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
   private val batchingSuite = suite("batching should")(
     test("batch putItem1 zip putItem1_2") {
       for {
-        _               <- TestDynamoDBExecutor.addTable(tableName1.value, "k1")
-        putItemsResults <- (putItemT1 zip putItemT1_2).execute
-        getItemsResults <- (getItemT1 zip getItemT1_2).execute
+        _                                                             <- TestDynamoDBExecutor.addTable(tableName1.value, "k1")
+        query1: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap])] = putItemT1 zip putItemT1_2
+        query2: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap])] = getItemT1 zip getItemT1_2
+        putItemsResults                                               <- query1.execute
+        getItemsResults                                               <- query2.execute
       } yield assert(putItemsResults)(equalTo((None, None))) && assert(getItemsResults)(
         equalTo((Some(itemT1), Some(itemT1_2)))
       )
     },
     test("batch getItem1 zip getItem2 zip getItem3 returns 3 items that are found") {
+      val query1: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap])]                  = getItemT1 zip getItemT1_2
+      val query2: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap], Option[AttrMap])] = query1 zip getItemT3
       for {
-        result  <- (getItemT1 zip getItemT1_2 zip getItemT3).execute
+        result  <- query2.execute
         expected = (Some(itemT1), Some(itemT1_2), Some(itemT3))
       } yield assert(result)(equalTo(expected))
     } @@ beforeAddTable1AndTable2,
     test("batch getItem1 zip getItem2 zip getItem3 returns 2 items that are found") {
+      val query1: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap])]                  = getItemT1 zip getItemT1_2
+      val query2: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap], Option[AttrMap])] =
+        query1 zip getItemT1_NotExists
       for {
-        result  <- (getItemT1 zip getItemT1_2 zip getItemT1_NotExists).execute
+        result  <- query2.execute
         expected = (Some(itemT1), Some(itemT1_2), None)
       } yield assert(result)(equalTo(expected))
     } @@ beforeAddTable1,
     test("batch putItem1 zip getItem1 zip getItem2 zip deleteItem1") {
+      val query1: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap])]                                   = putItemT3_2 zip getItemT1
+      val query2: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap], Option[AttrMap])]                  = query1 zip getItemT1_2
+      val query3: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap], Option[AttrMap], Option[AttrMap])] =
+        query2 zip deleteItemT3
+
+      val nextQuery: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap])] = getItemT3 zip getItemT3_2
       for {
-        mixedOpsResults <- (putItemT3_2 zip getItemT1 zip getItemT1_2 zip deleteItemT3).execute
+        mixedOpsResults <- query3.execute
         mixedOpsExpected = (None, Some(itemT1), Some(itemT1_2), None)
-        getsResults     <- (getItemT3 zip getItemT3_2).execute
+        getsResults     <- nextQuery.execute
       } yield assert(mixedOpsResults)(equalTo(mixedOpsExpected)) && assert(getsResults)(equalTo((None, Some(itemT3_2))))
     } @@ beforeAddTable1AndTable2,
     test("should execute forEach of GetItems (resulting in a batched request)") {
