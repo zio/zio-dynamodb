@@ -732,9 +732,6 @@ case object DynamoDBExecutorImpl {
 
   private def awsPutItemRequest(putItem: PutItem): PutItemRequest = {
     val maybeAliasMap: Option[(AliasMap2, String)] = putItem.conditionExpression.map(_.render2.execute)
-    val x                                          = maybeAliasMap.flatMap(m => aliasMapToExpressionZIOAwsAttributeNames(m._1))
-    // val (maybeAwsNamesMap, maybeAwsCondition) =
-    //   awsExprnAttrNamesAndReplacedFn(maybeAliasMap.map(_._2))(ZIOAwsConditionExpression(_))
     PutItemRequest(
       tableName = ZIOAwsTableName(putItem.tableName.value),
       item = awsAttributeValueMap(putItem.item.map),
