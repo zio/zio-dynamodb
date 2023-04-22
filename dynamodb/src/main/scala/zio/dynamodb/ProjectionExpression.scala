@@ -830,18 +830,17 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
 
       val elements: List[String] = s.split("\\.").toList
 
-      val builder = elements.foldLeft(Builder()) {
-        case (accBuilder, s) =>
-          s match {
-            case regexIndexedElement(name, _) =>
-              val indexesString = s.substring(s.indexOf('['))
-              val indexes       = regexGroupedIndexes.findAllMatchIn(indexesString).map(_.group(2).toInt).toList
-              accBuilder.listElement(name, indexes)
-            case regexMapElement(name)        =>
-              accBuilder.mapElement(name)
-            case _                            =>
-              accBuilder.addError(s)
-          }
+      val builder = elements.foldLeft(Builder()) { case (accBuilder, s) =>
+        s match {
+          case regexIndexedElement(name, _) =>
+            val indexesString = s.substring(s.indexOf('['))
+            val indexes       = regexGroupedIndexes.findAllMatchIn(indexesString).map(_.group(2).toInt).toList
+            accBuilder.listElement(name, indexes)
+          case regexMapElement(name)        =>
+            accBuilder.mapElement(name)
+          case _                            =>
+            accBuilder.addError(s)
+        }
       }
 
       builder.either.left.map(_.mkString(","))

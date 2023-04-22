@@ -59,13 +59,11 @@ sealed trait ConditionExpression[-From] extends Renderable { self =>
         for {
           l    <- in.left.render
           vals <- in.values
-                    .foldLeft(AliasMapRender.empty.map(_ => "")) {
-                      case (acc, value) =>
-                        acc.zipWith(AliasMapRender.getOrInsert(value)) {
-                          case (acc, action) =>
-                            if (acc.isEmpty) action
-                            else s"$acc, $action"
-                        }
+                    .foldLeft(AliasMapRender.empty.map(_ => "")) { case (acc, value) =>
+                      acc.zipWith(AliasMapRender.getOrInsert(value)) { case (acc, action) =>
+                        if (acc.isEmpty) action
+                        else s"$acc, $action"
+                      }
                     }
         } yield s"$l IN ($vals)"
       case ae: AttributeExists[_]      => AliasMapRender.succeed(s"attribute_exists(${ae.path})")

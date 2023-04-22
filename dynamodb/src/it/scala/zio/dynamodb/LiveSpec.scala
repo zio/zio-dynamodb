@@ -1068,7 +1068,7 @@ object LiveSpec extends ZIOSpecDefault {
                 tableName = TableName(tableName)
               )
               for {
-                _ <- putItem.transaction.execute
+                _       <- putItem.transaction.execute
                 written <- getItem(tableName, PrimaryKey(id -> first, number -> 10)).execute
               } yield assert(written)(isSome(equalTo(putItem.item)))
             }
