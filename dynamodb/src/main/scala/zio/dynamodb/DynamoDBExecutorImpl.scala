@@ -896,15 +896,11 @@ case object DynamoDBExecutorImpl {
   }
 
   private def awsQueryRequest(querySome: QuerySome): QueryRequest = {
-    val (aliasMap, (maybeFilterExpr, maybeKeyExpr)) = (for {
-      filter  <- AliasMapRender.collectAll(querySome.filterExpression.map(_.render))
-      keyExpr <- AliasMapRender.collectAll(querySome.keyConditionExpression.map(_.render))
+    val (aliasMapTmp, (maybeFilterExpr, maybeKeyExpr))   = (for {
+      filter  <- AliasMapRender2.collectAll(querySome.filterExpression.map(_.render2))
+      keyExpr <- AliasMapRender2.collectAll(querySome.keyConditionExpression.map(_.render2))
     } yield (filter, keyExpr)).execute
-    val mapAndExprn                                 = awsExprnAttrNamesAndReplacedFn(maybeFilterExpr)(ZIOAwsConditionExpression(_))
-    val maybeProjectionExpressions                  = toOption(querySome.projections).map(awsProjectionExpression)
-    val mapAndProjectionExprn                       =
-      awsExprnAttrNamesAndReplacedFn(maybeProjectionExpressions)(ZIOAwsProjectionExpression(_))
-    val awsNamesMap                                 = mergeOptionalMaps(mapAndExprn._1, mapAndProjectionExprn._1)
+    val (aliasMap: AliasMap2, projections: List[String]) = AliasMapRender2.forEach(querySome.projections)(aliasMapTmp)
 
     QueryRequest(
       tableName = ZIOAwsTableName(querySome.tableName.value),
@@ -915,12 +911,12 @@ case object DynamoDBExecutorImpl {
       scanIndexForward = Some(querySome.ascending),
       exclusiveStartKey = querySome.exclusiveStartKey.map(m => awsAttributeValueMap(m.map)),
       returnConsumedCapacity = Some(awsConsumedCapacity(querySome.capacity)),
-      projectionExpression = mapAndProjectionExprn._2,
-      filterExpression = mapAndExprn._2,
-      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap).map(_.map {
-        case (k, v) => (ZIOAwsExpressionAttributeValueVariable(k), v)
-      }),
-      expressionAttributeNames = awsNamesMap,
+      projectionExpression = toOption(projections).map(_.mkString(", ")).map(ZIOAwsProjectionExpression(_)),
+      filterExpression = maybeFilterExpr.map(ZIOAwsConditionExpression(_)),
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues2(aliasMap).map(m =>
+        m.map { case (k, v) => (ZIOAwsExpressionAttributeValueVariable(k), v) }
+      ),
+      expressionAttributeNames = aliasMapToExpressionZIOAwsAttributeNames(aliasMap),
       keyConditionExpression = maybeKeyExpr.map(ZIOAwsKeyExpression(_))
     )
   }
