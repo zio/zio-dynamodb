@@ -967,14 +967,16 @@ case object DynamoDBExecutorImpl {
   private def awsTransactWriteItem[A](action: Constructor[_, A]): Option[TransactWriteItem] =
     action match {
       case conditionCheck: ConditionCheck =>
-        Some(TransactWriteItem(conditionCheck = Some(awsConditionCheck(conditionCheck))))
+        Some(TransactWriteItem(conditionCheck = Some(awsConditionCheck2(conditionCheck))))
+        Some(TransactWriteItem(conditionCheck = Some(awsConditionCheck2(conditionCheck))))
       case put: PutItem                   => Some(TransactWriteItem(put = Some(awsTransactPutItem(put))))
       case delete: DeleteItem             => Some(TransactWriteItem(delete = Some(awsTransactDeleteItem(delete))))
       case update: UpdateItem             => Some(TransactWriteItem(update = Some(awsTransactUpdateItem(update))))
       case _                              => None
     }
 
-  private def awsConditionCheck(conditionCheck: ConditionCheck): ZIOAwsConditionCheck = {
+  // TODO: Avi - delete
+  def awsConditionCheck(conditionCheck: ConditionCheck): ZIOAwsConditionCheck = {
     // (AliasMap, String)
     val (aliasMap, conditionExpression)      = conditionCheck.conditionExpression.render.execute
     val (maybeAwsNameMap, awsSubstCondition) =
@@ -986,6 +988,22 @@ case object DynamoDBExecutorImpl {
       conditionExpression = awsSubstCondition,
       expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap),
       expressionAttributeNames = maybeAwsNameMap
+    )
+  }
+
+  private def awsConditionCheck2(conditionCheck: ConditionCheck): ZIOAwsConditionCheck = {
+
+    // (AliasMap, String)
+    val (aliasMap, conditionExpression) = conditionCheck.conditionExpression.render2.execute
+
+    ZIOAwsConditionCheck(
+      key = conditionCheck.primaryKey.toZioAwsMap(),
+      tableName = ZIOAwsTableName(conditionCheck.tableName.value),
+      conditionExpression = ZIOAwsConditionExpression(conditionExpression),
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues2(aliasMap).map(m =>
+        m.map { case (k, v) => (ZIOAwsExpressionAttributeValueVariable(k), v) }
+      ),
+      expressionAttributeNames = aliasMapToExpressionZIOAwsAttributeNames(aliasMap)
     )
   }
 
