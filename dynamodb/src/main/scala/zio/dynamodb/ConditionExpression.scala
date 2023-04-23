@@ -188,9 +188,9 @@ object ConditionExpression {
       }
     def render2: AliasMapRender2[String] =
       self match {
-        case op: Operand.ProjectionExpressionOperand[_] => AliasMapRender2.succeed(op.pe.toString)
+        case op: Operand.ProjectionExpressionOperand[_] => AliasMapRender2.getOrInsert(op.pe)
         case op: Operand.ValueOperand[_]                => AliasMapRender2.getOrInsert(op.value).map(identity)
-        case op: Operand.Size[_, _]                     => AliasMapRender2.succeed(s"size(${op.path})")
+        case op: Operand.Size[_, _]                     => AliasMapRender2.getOrInsert(op.path).map(s => s"size($s)")
       }
   }
 

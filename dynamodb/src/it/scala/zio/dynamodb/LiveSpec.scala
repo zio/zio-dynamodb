@@ -180,6 +180,23 @@ object LiveSpec extends ZIOSpecDefault {
   }
 
   val debugSuite: Spec[TestEnvironment, Any] = suite("debug")(
+    test("scan table with filter") {
+      withDefaultTable { tableName =>
+        for {
+          stream <- scanAll[ExpressionAttrNames](tableName)
+                      .filter(ExpressionAttrNames.id === first)
+                      // .filter(
+                      //   ConditionExpression.Equals(
+                      //     ConditionExpression.Operand.ProjectionExpressionOperand($(id)),
+                      //     ConditionExpression.Operand.ValueOperand(AttributeValue(first))
+                      //   )
+                      // )
+                      .execute
+          chunk  <- stream.runCollect
+        } yield assert(chunk)(hasSize(equalTo(3)))
+//        } yield assert(chunk)(equalTo(Chunk(aviPerson, avi2Person, avi3Person)))
+      }
+    },
     test("queryAll") {
       withDefaultTable { tableName =>
         for {
@@ -193,7 +210,7 @@ object LiveSpec extends ZIOSpecDefault {
           )
         )
       }
-    },    
+    } @@ TestAspect.ignore,
     test("delete should handle keyword") {
       withDefaultTable { tableName =>
         val query = DynamoDBQuery
@@ -213,10 +230,10 @@ object LiveSpec extends ZIOSpecDefault {
           assert(result)(succeeds(isNone))
         }
       }
-    } @@ TestAspect.ignore,
+    } @@ TestAspect.ignore
   ).provideSomeLayerShared[TestEnvironment](
-        testLayer.orDie
-      ) @@ nondeterministic
+    testLayer.orDie
+  ) @@ nondeterministic
 
   val mainSuite: Spec[TestEnvironment, Any] =
     suite("live test")(
