@@ -32,7 +32,7 @@ private[dynamodb] final case class AliasMap2 private[dynamodb] (map: Map[AliasMa
     (aliasMap, xs.reverse.mkString)
   }
 
-  def getOrInsert(entry: AttributeValue): (AliasMap2, String)                           =
+  def getOrInsert(entry: AttributeValue): (AliasMap2, String) =
     self.map.get(AliasMap2.AttributeValueKey(entry)).map(varName => (self, varName)).getOrElse {
       self + entry
     }

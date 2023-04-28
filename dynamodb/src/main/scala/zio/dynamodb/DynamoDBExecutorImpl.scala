@@ -805,11 +805,10 @@ case object DynamoDBExecutorImpl {
 
   private def awsUpdateItemRequest(updateItem: UpdateItem): UpdateItemRequest = {
 
-    val (aliasMap, (updateExpr, maybeConditionExpr))          = (for {
+    val (aliasMap, (updateExpr, maybeConditionExpr)) = (for {
       updateExpr    <- updateItem.updateExpression.render2
       conditionExpr <- AliasMapRender2.collectAll(updateItem.conditionExpression.map(_.render2))
     } yield (updateExpr, conditionExpr)).execute
-
 
     UpdateItemRequest(
       tableName = ZIOAwsTableName(updateItem.tableName.value),
@@ -822,7 +821,7 @@ case object DynamoDBExecutorImpl {
         case (k, v) => (ZIOAwsExpressionAttributeValueVariable(k), v)
       }),
       expressionAttributeNames = aliasMapToExpressionZIOAwsAttributeNames(aliasMap),
-      conditionExpression = maybeConditionExpr.map(ZIOAwsConditionExpression(_)),
+      conditionExpression = maybeConditionExpr.map(ZIOAwsConditionExpression(_))
     )
   }
 
@@ -951,7 +950,8 @@ case object DynamoDBExecutorImpl {
   }
 
   private def awsTransactPutItem(put: PutItem): ZIOAwsPut = {
-    val (aliasMap, maybeConditionExpression)           = AliasMapRender2.collectAll(put.conditionExpression.map(_.render2)).execute
+    val (aliasMap, maybeConditionExpression) =
+      AliasMapRender2.collectAll(put.conditionExpression.map(_.render2)).execute
 
     ZIOAwsPut(
       item = put.item.toZioAwsMap(),
@@ -963,7 +963,8 @@ case object DynamoDBExecutorImpl {
   }
 
   private def awsTransactDeleteItem(delete: DeleteItem): ZIOAwsDelete = {
-    val (aliasMap, maybeConditionExpression)           = AliasMapRender2.collectAll(delete.conditionExpression.map(_.render2)).execute
+    val (aliasMap, maybeConditionExpression) =
+      AliasMapRender2.collectAll(delete.conditionExpression.map(_.render2)).execute
 
     ZIOAwsDelete(
       key = delete.key.toZioAwsMap(),
@@ -976,7 +977,7 @@ case object DynamoDBExecutorImpl {
 
   private def awsTransactUpdateItem(update: UpdateItem): ZIOAwsUpdate = {
 
-    val (aliasMap, (updateExpr, maybeConditionExpr))          = (for {
+    val (aliasMap, (updateExpr, maybeConditionExpr)) = (for {
       updateExpr    <- update.updateExpression.render2
       conditionExpr <- AliasMapRender2.collectAll(update.conditionExpression.map(_.render2))
     } yield (updateExpr, conditionExpr)).execute

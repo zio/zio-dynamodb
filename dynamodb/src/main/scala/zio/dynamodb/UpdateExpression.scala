@@ -256,13 +256,13 @@ object UpdateExpression {
         case PathOperand(path)                                                    => AliasMapRender2.getOrInsert(path)
         case ListAppend(projectionExpression, list)                               =>
           for {
-            pe <- AliasMapRender2.getOrInsert(projectionExpression)
-            list                 <- AliasMapRender2.getOrInsert(list)
+            pe   <- AliasMapRender2.getOrInsert(projectionExpression)
+            list <- AliasMapRender2.getOrInsert(list)
           } yield s"list_append($pe, $list)"
         case ListPrepend(projectionExpression, list)                              =>
           for {
-            pe <- AliasMapRender2.getOrInsert(projectionExpression)
-            list                 <- AliasMapRender2.getOrInsert(list)
+            pe   <- AliasMapRender2.getOrInsert(projectionExpression)
+            list <- AliasMapRender2.getOrInsert(list)
           } yield s"list_append($list, $pe)"
         case IfNotExists(projectionExpression: ProjectionExpression[_, _], value) =>
           for {
