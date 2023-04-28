@@ -712,7 +712,7 @@ case object DynamoDBExecutorImpl {
         (None, awsReplaced)
     }
 
-  private def awsExprnAttrNamesAndReplaced(
+  def awsExprnAttrNamesAndReplaced(
     updateExprn: String,
     maybeEscapedConditionExpression: Option[String]
   ): (
@@ -814,12 +814,12 @@ case object DynamoDBExecutorImpl {
     )
 
   private def awsUpdateItemRequest(updateItem: UpdateItem): UpdateItemRequest = {
+
     val (aliasMap, (updateExpr, maybeConditionExpr))          = (for {
-      updateExpr    <- updateItem.updateExpression.render
-      conditionExpr <- AliasMapRender.collectAll(updateItem.conditionExpression.map(_.render))
+      updateExpr    <- updateItem.updateExpression.render2
+      conditionExpr <- AliasMapRender2.collectAll(updateItem.conditionExpression.map(_.render2))
     } yield (updateExpr, conditionExpr)).execute
-    val (maybeAwsNamesMap, awsUpdateExprn, maybeAwsCondition) =
-      awsExprnAttrNamesAndReplaced(updateExpr, maybeConditionExpr)
+
 
     UpdateItemRequest(
       tableName = ZIOAwsTableName(updateItem.tableName.value),
@@ -827,12 +827,12 @@ case object DynamoDBExecutorImpl {
       returnValues = Some(awsReturnValues(updateItem.returnValues)),
       returnConsumedCapacity = Some(awsConsumedCapacity(updateItem.capacity)),
       returnItemCollectionMetrics = Some(awsReturnItemCollectionMetrics(updateItem.itemMetrics)),
-      updateExpression = Some(awsUpdateExprn),
-      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap).map(_.map {
+      updateExpression = Some(ZIOAwsUpdateExpression(updateExpr)),
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues2(aliasMap).map(_.map {
         case (k, v) => (ZIOAwsExpressionAttributeValueVariable(k), v)
       }),
-      expressionAttributeNames = maybeAwsNamesMap,
-      conditionExpression = maybeAwsCondition
+      expressionAttributeNames = aliasMapToExpressionZIOAwsAttributeNames(aliasMap),
+      conditionExpression = maybeConditionExpr.map(ZIOAwsConditionExpression(_)),
     )
   }
 
@@ -1037,21 +1037,19 @@ case object DynamoDBExecutorImpl {
   }
 
   private def awsTransactUpdateItem(update: UpdateItem): ZIOAwsUpdate = {
-    // (AliasMap, (String, Option[String]))
+
     val (aliasMap, (updateExpr, maybeConditionExpr))          = (for {
-      updateExpr    <- update.updateExpression.render
-      conditionExpr <- AliasMapRender.collectAll(update.conditionExpression.map(_.render))
+      updateExpr    <- update.updateExpression.render2
+      conditionExpr <- AliasMapRender2.collectAll(update.conditionExpression.map(_.render2))
     } yield (updateExpr, conditionExpr)).execute
-    val (maybeAwsNamesMap, awsUpdateExprn, maybeAwsCondition) =
-      awsExprnAttrNamesAndReplaced(updateExpr, maybeConditionExpr)
 
     ZIOAwsUpdate(
       key = update.key.toZioAwsMap(),
       tableName = ZIOAwsTableName(update.tableName.value),
-      conditionExpression = maybeAwsCondition,
-      updateExpression = awsUpdateExprn,
-      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap),
-      expressionAttributeNames = maybeAwsNamesMap
+      conditionExpression = maybeConditionExpr.map(ZIOAwsConditionExpression(_)),
+      updateExpression = ZIOAwsUpdateExpression(updateExpr),
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues2(aliasMap),
+      expressionAttributeNames = aliasMapToExpressionZIOAwsAttributeNames(aliasMap)
     )
   }
 

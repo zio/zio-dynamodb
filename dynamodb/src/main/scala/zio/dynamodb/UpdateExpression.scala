@@ -42,9 +42,12 @@ delete-action ::=
 
 // Note this implementation does not preserve the original order of actions ie after "Set field1 = 1, field1 = 2"
 // if this turns out to be a problem we could change the internal implementation
-final case class UpdateExpression[-A](action: Action[A]) extends Renderable { self =>
+final case class UpdateExpression[-A](action: Action[A]) extends Renderable with Renderable2 { self =>
   def render: AliasMapRender[String] =
     action.render
+
+  def render2: AliasMapRender2[String] =
+    action.render2
 }
 
 object UpdateExpression {
@@ -88,6 +91,50 @@ object UpdateExpression {
       }
     }
 
+    def render2: AliasMapRender2[String] = {
+      def generateActionsStatements[A <: RenderableAction[_]](chunk: Chunk[A]) =
+        chunk.foldLeft(AliasMapRender2.empty.map(_ => "")) {
+          case (acc, action) =>
+            acc.zipWith(action.miniRender2) {
+              case (acc, action) =>
+                if (acc.isEmpty) action
+                else acc ++ "," ++ action
+            }
+        }
+
+      self match {
+        case Actions(actions)                 =>
+          val (sets, removes, adds, deletes) = collectActions(actions)
+
+          for {
+            set    <- generateActionsStatements(sets)
+                        .map(s => if (s.isEmpty) s else "set " ++ s)
+            remove <- generateActionsStatements(removes)
+                        .map(s => if (s.isEmpty) s else "remove " ++ s)
+            add    <- generateActionsStatements(adds)
+                        .map(s => if (s.isEmpty) s else "add " ++ s)
+            delete <- generateActionsStatements(deletes)
+                        .map(s => if (s.isEmpty) s else "delete " ++ s)
+          } yield List(set, remove, add, delete).filter(_.nonEmpty).mkString(" ")
+        case Action.SetAction(path, operand)  =>
+          for {
+            s    <- operand.render2
+            path <- AliasMapRender2.getOrInsert(path)
+          } yield s"set $path = $s"
+        case Action.RemoveAction(path)        => AliasMapRender2.getOrInsert(path).map(path => s"remove $path")
+        case Action.AddAction(path, value)    =>
+          for {
+            path <- AliasMapRender2.getOrInsert(path)
+            v    <- AliasMapRender2.getOrInsert(value)
+          } yield s"add $path $v"
+        case Action.DeleteAction(path, value) =>
+          for {
+            path <- AliasMapRender2.getOrInsert(path)
+            v    <- AliasMapRender2.getOrInsert(value)
+          } yield s"delete $path $v"
+      }
+    }
+
     def collectActions(actions: Chunk[RenderableAction[_]]) = {
       val sets    = ChunkBuilder.make[Action.SetAction[_, _]]()
       val removes = ChunkBuilder.make[Action.RemoveAction[_]]()
@@ -117,6 +164,29 @@ object UpdateExpression {
         case Action.DeleteAction(path, value) =>
           AliasMapRender.getOrInsert(value).map(s => s"$path $s")
       }
+
+    def miniRender2: AliasMapRender2[String] =
+      self match {
+        case Action.SetAction(path, operand)  =>
+          for {
+            path <- AliasMapRender2.getOrInsert(path)
+            s    <- operand.render2
+          } yield s"$path = $s"
+        case Action.RemoveAction(path)        => AliasMapRender2.getOrInsert(path)
+        case Action.AddAction(path, value)    =>
+          for {
+            path <- AliasMapRender2.getOrInsert(path)
+            v    <- AliasMapRender2.getOrInsert(value)
+          } yield s"$path $v"
+//          AliasMapRender2.getOrInsert(value).map(v => s"$path $v")
+        case Action.DeleteAction(path, value) =>
+          for {
+            path <- AliasMapRender2.getOrInsert(path)
+            v    <- AliasMapRender2.getOrInsert(value)
+          } yield s"$path $v"
+//          AliasMapRender2.getOrInsert(value).map(s => s"$path $s")
+      }
+
   }
   object Action {
 
@@ -174,6 +244,33 @@ object UpdateExpression {
           AliasMapRender.getOrInsert(value).map(v => s"if_not_exists($projectionExpression, $v)")
       }
 
+    def render2: AliasMapRender2[String] =
+      self match {
+        case Minus(left, right)                                                   =>
+          left.render2
+            .zipWith(right.render2) { case (l, r) => s"$l - $r" }
+        case Plus(left, right)                                                    =>
+          left.render2
+            .zipWith(right.render2) { case (l, r) => s"$l + $r" }
+        case ValueOperand(value)                                                  => AliasMapRender2.getOrInsert(value).map(identity)
+        case PathOperand(path)                                                    => AliasMapRender2.getOrInsert(path)
+        case ListAppend(projectionExpression, list)                               =>
+          for {
+            pe <- AliasMapRender2.getOrInsert(projectionExpression)
+            list                 <- AliasMapRender2.getOrInsert(list)
+          } yield s"list_append($pe, $list)"
+        case ListPrepend(projectionExpression, list)                              =>
+          for {
+            pe <- AliasMapRender2.getOrInsert(projectionExpression)
+            list                 <- AliasMapRender2.getOrInsert(list)
+          } yield s"list_append($list, $pe)"
+        case IfNotExists(projectionExpression: ProjectionExpression[_, _], value) =>
+          for {
+            pe <- AliasMapRender2.getOrInsert(projectionExpression)
+            v  <- AliasMapRender2.getOrInsert(value)
+          } yield s"if_not_exists($pe, $v)"
+      }
+
   }
   object SetOperand {
 
@@ -195,4 +292,5 @@ object UpdateExpression {
     private[dynamodb] final case class IfNotExists[A](path: ProjectionExpression[_, A], value: AttributeValue)
         extends SetOperand[A]
   }
+
 }

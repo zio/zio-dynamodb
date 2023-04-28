@@ -56,6 +56,7 @@ private[dynamodb] object AliasMapRender2 {
 
   def empty: AliasMapRender2[Unit] = AliasMapRender2.addMap(AliasMap2.empty)
 
+  // TODO: check all usages of this
   def succeed[A](a: => A): AliasMapRender2[A] = AliasMapRender2(aliasMap => (aliasMap, a))
 
   val getMap: AliasMapRender2[AliasMap2] = AliasMapRender2(aliasMap => (aliasMap, aliasMap))

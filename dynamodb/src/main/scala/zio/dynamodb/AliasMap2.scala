@@ -8,7 +8,7 @@ private[dynamodb] final case class AliasMap2 private[dynamodb] (map: Map[AliasMa
     (AliasMap2(self.map + ((AliasMap2.AttributeValueKey(entry), variableAlias)), self.index + 1), variableAlias)
   }
 
-  def +[From, To](entry: ProjectionExpression[From, To]): (AliasMap2, String) = {
+  private def +[From, To](entry: ProjectionExpression[From, To]): (AliasMap2, String) = {
     @tailrec
     def loop(pe: ProjectionExpression[_, _], acc: (AliasMap2, List[String])): (AliasMap2, List[String]) =
       pe match {
@@ -18,7 +18,7 @@ private[dynamodb] final case class AliasMap2 private[dynamodb] (map: Map[AliasMa
           val nameAlias = s"#n${acc._1.index}"
           val mapTmp    = acc._1.map + ((AliasMap2.PathSegment(ProjectionExpression.Root, name), nameAlias))
           val xs        = acc._2 :+ nameAlias
-          val map       = mapTmp + ((AliasMap2.FullPath(pe), xs.reverse.mkString(""))) // cache final result
+          val map       = mapTmp + ((AliasMap2.FullPath(pe), xs.reverse.mkString)) // cache final result
           (AliasMap2(map, self.index + 1), xs)
         case ProjectionExpression.MapElement(parent, key)                     =>
           val nameAlias = s"#n${acc._1.index}"
@@ -29,13 +29,14 @@ private[dynamodb] final case class AliasMap2 private[dynamodb] (map: Map[AliasMa
       }
 
     val (aliasMap, xs) = loop(entry, (self, List.empty))
-    (aliasMap, xs.reverse.mkString(""))
+    (aliasMap, xs.reverse.mkString)
   }
 
   def getOrInsert(entry: AttributeValue): (AliasMap2, String)                           =
     self.map.get(AliasMap2.AttributeValueKey(entry)).map(varName => (self, varName)).getOrElse {
       self + entry
     }
+
   def getOrInsert[From, To](entry: ProjectionExpression[From, To]): (AliasMap2, String) =
     self.map.get(AliasMap2.FullPath(entry)).map(varName => (self, varName)).getOrElse {
       self + entry

@@ -112,7 +112,7 @@ sealed trait ProjectionExpression[-From, +To] { self =>
           loop(parent, acc :+ s"[$index]")
       }
 
-    loop(self, List.empty).reverse.mkString("")
+    loop(self, List.empty).reverse.mkString
   }
 
 }
