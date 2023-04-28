@@ -24,6 +24,7 @@ import zio.dynamodb.DynamoDBQuery.{
   Zip
 }
 import zio.dynamodb.UpdateExpression.Action
+import zio.prelude.ForEachOps
 import zio.schema.Schema
 import zio.stream.Stream
 import zio.{ Chunk, NonEmptyChunk, Schedule, ZIO, Zippable => _, _ }
@@ -545,7 +546,7 @@ object DynamoDBQuery {
     DynamoDBQuery.absolve(
       scanSomeItem(tableName, limit, projections: _*).map {
         case (itemsChunk, lek) =>
-          EitherUtil.forEach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
+          itemsChunk.forEach(item => fromItem(item)).map(Chunk.fromIterable) match {
             case Right(chunk) => Right((chunk, lek))
             case Left(error)  => Left(error)
           }
@@ -595,7 +596,7 @@ object DynamoDBQuery {
     DynamoDBQuery.absolve(
       querySomeItem(tableName, limit, projections: _*).map {
         case (itemsChunk, lek) =>
-          EitherUtil.forEach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
+          itemsChunk.forEach(item => fromItem(item)).map(Chunk.fromIterable) match {
             case Right(chunk) => Right((chunk, lek))
             case Left(error)  => Left(error)
           }

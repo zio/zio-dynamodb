@@ -1,6 +1,7 @@
 package zio.dynamodb
 
 import zio.dynamodb.DynamoDBError.DecodingError
+import zio.prelude.ForEachOps
 
 trait FromAttributeValue[+A] {
   def fromAttributeValue(av: AttributeValue): Either[DynamoDBError, A]
@@ -93,11 +94,10 @@ object FromAttributeValue {
 
   implicit def mapFromAttributeValue[A](implicit ev: FromAttributeValue[A]): FromAttributeValue[Map[String, A]] = {
     case AttributeValue.Map(map) =>
-      EitherUtil
-        .forEach(map.toMap.toList) {
-          case (avK, avV) =>
-            ev.fromAttributeValue(avV).map(v => (avK.value, v))
-        }
+      map.toList.forEach {
+        case (avK, avV) =>
+          ev.fromAttributeValue(avV).map(v => (avK.value, v))
+      }
         .map(_.toMap)
     case av                      => Left(DecodingError(s"Error getting map value. Expected AttributeValue.Map but found $av"))
   }
@@ -115,7 +115,7 @@ object FromAttributeValue {
 
   implicit def iterableFromAttributeValue[A](implicit ev: FromAttributeValue[A]): FromAttributeValue[Iterable[A]] = {
     case AttributeValue.List(list) =>
-      EitherUtil.forEach(list)(ev.fromAttributeValue)
+      list.forEach(ev.fromAttributeValue)
     case av                        => Left(DecodingError(s"Error getting iterable value. Expected AttributeValue.List but found $av"))
   }
 
