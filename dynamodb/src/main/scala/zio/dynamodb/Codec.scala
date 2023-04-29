@@ -257,8 +257,9 @@ private[dynamodb] object Codec {
       case Right(b) => AttributeValue.Map(Map.empty + (AttributeValue.String("Right") -> encR(b)))
     }
 
-    private def tupleEncoder[A, B](encL: Encoder[A], encR: Encoder[B]): Encoder[(A, B)] = { case (a, b) =>
-      AttributeValue.List(Chunk(encL(a), encR(b)))
+    private def tupleEncoder[A, B](encL: Encoder[A], encR: Encoder[B]): Encoder[(A, B)] = {
+      case (a, b) =>
+        AttributeValue.List(Chunk(encL(a), encR(b)))
     }
 
     private def sequenceEncoder[Col, A](encoder: Encoder[A], from: Col => Chunk[A]): Encoder[Col] =
@@ -360,11 +361,11 @@ private[dynamodb] object Codec {
         case Schema.Primitive(StandardType.BinaryType, _)     =>
           (a: Set[A]) => AttributeValue.BinarySet(a.asInstanceOf[Set[Chunk[Byte]]])
 
-        case l @ Schema.Lazy(_) =>
+        case l @ Schema.Lazy(_)                               =>
           setEncoder(l.schema)
 
         // Non native set
-        case schema             =>
+        case schema                                           =>
           sequenceEncoder[Chunk[A], A](encoder(schema), (c: Iterable[A]) => Chunk.fromIterable(c))
             .asInstanceOf[Encoder[Set[A]]]
       }
@@ -382,8 +383,9 @@ private[dynamodb] object Codec {
     private def nativeMapEncoder[A, V](encoderV: Encoder[V]) =
       (a: A) => {
         val m = a.asInstanceOf[Map[String, V]]
-        AttributeValue.Map(m.map { case (k, v) =>
-          (stringEncoder(k), encoderV(v))
+        AttributeValue.Map(m.map {
+          case (k, v) =>
+            (stringEncoder(k), encoderV(v))
         }.asInstanceOf[Map[AttributeValue.String, AttributeValue]])
       }
 
@@ -445,7 +447,7 @@ private[dynamodb] object Codec {
         case Schema.Map(ks, vs, _)                 =>
           mapDecoder(ks, vs).asInstanceOf[Decoder[A]]
 
-        case s @ Schema.CaseClass0(_, _, _) => caseClass0Decoder(s)
+        case s @ Schema.CaseClass0(_, _, _)        => caseClass0Decoder(s)
 
         case s @ Schema.CaseClass1(_, _, _, _)                                                                                                  => caseClass1Decoder(s)
         case s @ Schema.CaseClass2(_, _, _, _, _)                                                                                               => caseClass2Decoder(s)
@@ -746,11 +748,11 @@ private[dynamodb] object Codec {
         case Schema.Primitive(StandardType.BinaryType, _)     =>
           nativeBinarySetDecoder
 
-        case l @ Schema.Lazy(_) =>
+        case l @ Schema.Lazy(_)                               =>
           setDecoder(l.schema)
 
         // non native set
-        case _                  =>
+        case _                                                =>
           nonNativeSetDecoder(decoder(s))
       }
     }
@@ -780,11 +782,12 @@ private[dynamodb] object Codec {
       (av: AttributeValue) => {
         av match {
           case AttributeValue.Map(map) =>
-            val xs: Iterable[Either[DynamoDBError, (String, V)]] = map.map { case (k, v) =>
-              dec(v) match {
-                case Right(decV) => Right((k.value, decV))
-                case Left(s)     => Left(s)
-              }
+            val xs: Iterable[Either[DynamoDBError, (String, V)]] = map.map {
+              case (k, v) =>
+                dec(v) match {
+                  case Right(decV) => Right((k.value, decV))
+                  case Left(s)     => Left(s)
+                }
             }
             EitherUtil.collectAll(xs).map(_.toMap)
           case av                      => Left(DecodingError(s"Error: expected AttributeValue.Map but found $av"))
@@ -887,26 +890,27 @@ private[dynamodb] object Codec {
       av match {
         case AttributeValue.Map(map) =>
           EitherUtil
-            .forEach(fields) { case Schema.Field(key, schema, _, _, _, _) =>
-              val dec                                = decoder(schema)
-              val k                                  = key // @fieldName is respected by the zio-schema macro
-              val maybeValue                         = map.get(AttributeValue.String(k))
-              val maybeDecoder                       = maybeValue.map(dec).toRight(DecodingError(s"field '$k' not found in $av"))
-              val either: Either[DynamoDBError, Any] = for {
-                decoder <- maybeDecoder
-                decoded <- decoder
-              } yield decoded
+            .forEach(fields) {
+              case Schema.Field(key, schema, _, _, _, _) =>
+                val dec                                = decoder(schema)
+                val k                                  = key // @fieldName is respected by the zio-schema macro
+                val maybeValue                         = map.get(AttributeValue.String(k))
+                val maybeDecoder                       = maybeValue.map(dec).toRight(DecodingError(s"field '$k' not found in $av"))
+                val either: Either[DynamoDBError, Any] = for {
+                  decoder <- maybeDecoder
+                  decoded <- decoder
+                } yield decoded
 
-              if (maybeValue.isEmpty)
-                ContainerField.containerField(schema) match {
-                  case ContainerField.Optional => Right(None)
-                  case ContainerField.List     => Right(List.empty)
-                  case ContainerField.Map      => Right(Map.empty)
-                  case ContainerField.Set      => Right(Set.empty)
-                  case ContainerField.Scalar   => either
-                }
-              else
-                either
+                if (maybeValue.isEmpty)
+                  ContainerField.containerField(schema) match {
+                    case ContainerField.Optional => Right(None)
+                    case ContainerField.List     => Right(List.empty)
+                    case ContainerField.Map      => Right(Map.empty)
+                    case ContainerField.Set      => Right(Set.empty)
+                    case ContainerField.Scalar   => either
+                  }
+                else
+                  either
             }
             .map(_.toList)
         case _                       =>

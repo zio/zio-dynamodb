@@ -94,8 +94,9 @@ object FromAttributeValue {
   implicit def mapFromAttributeValue[A](implicit ev: FromAttributeValue[A]): FromAttributeValue[Map[String, A]] = {
     case AttributeValue.Map(map) =>
       EitherUtil
-        .forEach(map.toMap.toList) { case (avK, avV) =>
-          ev.fromAttributeValue(avV).map(v => (avK.value, v))
+        .forEach(map.toMap.toList) {
+          case (avK, avV) =>
+            ev.fromAttributeValue(avV).map(v => (avK.value, v))
         }
         .map(_.toMap)
     case av                      => Left(DecodingError(s"Error getting map value. Expected AttributeValue.Map but found $av"))

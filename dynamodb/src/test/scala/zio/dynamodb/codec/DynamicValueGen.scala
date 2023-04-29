@@ -96,8 +96,8 @@ object DynamicValueGen {
     anyDynamicValueOfSchema(schema).map(DynamicValue.SomeValue(_))
 
   def anyDynamicTupleValue[A, B](left: Schema[A], right: Schema[B]): Gen[Sized, DynamicValue.Tuple] =
-    anyDynamicValueOfSchema(left).zip(anyDynamicValueOfSchema(right)).map { case (l, r) =>
-      DynamicValue.Tuple(l, r)
+    anyDynamicValueOfSchema(left).zip(anyDynamicValueOfSchema(right)).map {
+      case (l, r) => DynamicValue.Tuple(l, r)
     }
 
   def anyDynamicValueOfEnum[A](cases: Chunk[Schema.Case[A, _]]): Gen[Sized, DynamicValue.Enumeration]        =

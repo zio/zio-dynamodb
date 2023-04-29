@@ -18,11 +18,13 @@ private[dynamodb] object ExpressionAttributeNames {
         acc :+ ((s"N_$replaced", replaced, s))
     }
 
-    val escaped = replacements.foldLeft(escapedExpression) { case (acc, (sub, _, s)) =>
-      acc.replace(s, "#" + sub)
+    val escaped = replacements.foldLeft(escapedExpression) {
+      case (acc, (sub, _, s)) =>
+        acc.replace(s, "#" + sub)
     }
-    val map     = replacements.map { case (sub, rep, _) =>
-      ("#" + sub, rep)
+    val map     = replacements.map {
+      case (sub, rep, _) =>
+        ("#" + sub, rep)
     }.toMap
 
     (map, escaped)

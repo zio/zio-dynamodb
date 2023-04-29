@@ -18,15 +18,16 @@ object SchemaGen {
         FieldSet(
           keySet
             .zip(schemas)
-            .map { case (label, schema) =>
-              Schema
-                .Field[ListMap[String, A], A](
-                  label,
-                  schema.asInstanceOf[Schema[A]],
-                  get0 = _(label),
-                  set0 = (a, b) => a + (label -> b)
-                )
-                .asInstanceOf[Schema.Field[ListMap[String, _], _]]
+            .map {
+              case (label, schema) =>
+                Schema
+                  .Field[ListMap[String, A], A](
+                    label,
+                    schema.asInstanceOf[Schema[A]],
+                    get0 = _(label),
+                    set0 = (a, b) => a + (label -> b)
+                  )
+                  .asInstanceOf[Schema.Field[ListMap[String, _], _]]
             }
             .toSeq: _*
         )
@@ -65,8 +66,8 @@ object SchemaGen {
   type PrimitiveAndGen[A] = (Schema.Primitive[A], Gen[Sized, A])
 
   def anyPrimitiveAndGen[A]: Gen[Any, PrimitiveAndGen[A]] =
-    StandardTypeGen.anyStandardTypeAndGen[A].map { case (standardType, gen) =>
-      Schema.Primitive(standardType, Chunk.empty) -> gen
+    StandardTypeGen.anyStandardTypeAndGen[A].map {
+      case (standardType, gen) => Schema.Primitive(standardType, Chunk.empty) -> gen
     }
 
   type PrimitiveAndValue[A] = (Schema.Primitive[A], A)
@@ -85,8 +86,8 @@ object SchemaGen {
   type OptionalAndGen[A] = (Schema.Optional[A], Gen[Sized, Option[A]])
 
   def anyOptionalAndGen[A]: Gen[Sized, OptionalAndGen[A]] =
-    anyPrimitiveAndGen[A].map { case (schema, gen) =>
-      Schema.Optional(schema) -> Gen.option(gen)
+    anyPrimitiveAndGen[A].map {
+      case (schema, gen) => Schema.Optional(schema) -> Gen.option(gen)
     }
 
   type OptionalAndValue[A] = (Schema.Optional[A], Option[A])
@@ -146,8 +147,9 @@ object SchemaGen {
   type SequenceAndGen[A] = (Schema[Chunk[A]], Gen[Sized, Chunk[A]])
 
   def anySequenceAndGen[A]: Gen[Sized, SequenceAndGen[A]] =
-    anyPrimitiveAndGen[A].map { case (schema, gen) =>
-      Schema.chunk(schema) -> Gen.chunkOf(gen)
+    anyPrimitiveAndGen[A].map {
+      case (schema, gen) =>
+        Schema.chunk(schema) -> Gen.chunkOf(gen)
     }
 
   type SequenceAndValue[A] = (Schema[Chunk[A]], Chunk[A])
@@ -159,16 +161,17 @@ object SchemaGen {
     } yield schema -> value
 
   def toCaseSet[A](cases: ListMap[String, Schema[_]]): CaseSet.Aux[A] =
-    cases.foldRight[CaseSet.Aux[A]](CaseSet.Empty[A]()) { case ((id, codec), acc) =>
-      val _case = Schema.Case[A, Any](
-        id,
-        codec.asInstanceOf[Schema[Any]],
-        _.asInstanceOf[Any],
-        _.asInstanceOf[A],
-        _.isInstanceOf[Any],
-        Chunk.empty
-      )
-      CaseSet.Cons(_case, acc)
+    cases.foldRight[CaseSet.Aux[A]](CaseSet.Empty[A]()) {
+      case ((id, codec), acc) =>
+        val _case = Schema.Case[A, Any](
+          id,
+          codec.asInstanceOf[Schema[Any]],
+          _.asInstanceOf[Any],
+          _.asInstanceOf[A],
+          _.isInstanceOf[Any],
+          Chunk.empty
+        )
+        CaseSet.Cons(_case, acc)
     }
 
   def anyMap[K, V]: Gen[Sized, Schema.Map[K, V]] =
@@ -197,8 +200,9 @@ object SchemaGen {
   type SetAndGen[A] = (Schema.Set[A], Gen[Sized, scala.collection.immutable.Set[A]])
 
   def anySetAndGen[A]: Gen[Sized, SetAndGen[A]] =
-    anyPrimitiveAndGen[A].map { case (schema, gen) =>
-      Schema.Set(schema, Chunk.empty) -> Gen.setOf(gen)
+    anyPrimitiveAndGen[A].map {
+      case (schema, gen) =>
+        Schema.Set(schema, Chunk.empty) -> Gen.setOf(gen)
     }
 
   type SetAndValue[A] = (Schema.Set[A], scala.collection.immutable.Set[A])
@@ -254,8 +258,9 @@ object SchemaGen {
         Gen
           .const(structure.map(_.name.toString()))
           .zip(Gen.listOfN(structure.size)(gen))
-          .map { case (labels, values) =>
-            labels.zip(values)
+          .map {
+            case (labels, values) =>
+              labels.zip(values)
           }
           .map(ListMap.empty ++ _)
 
@@ -301,8 +306,9 @@ object SchemaGen {
   type SequenceTransformAndGen[A] = (SequenceTransform[A], Gen[Sized, List[A]])
 
   def anySequenceTransformAndGen[A]: Gen[Sized, SequenceTransformAndGen[A]] =
-    anyPrimitiveAndGen[A].map { case (schema, gen) =>
-      transformSequence(Schema.chunk(schema)) -> Gen.listOf(gen)
+    anyPrimitiveAndGen[A].map {
+      case (schema, gen) =>
+        transformSequence(Schema.chunk(schema)) -> Gen.listOf(gen)
     }
 
   // TODO: Add some random Left values.
@@ -630,8 +636,9 @@ object SchemaGen {
       Gen.sized { max =>
         Gen.bounded(1, max) { depth =>
           leafGen.map { leaf =>
-            (1 to depth).foldLeft(leaf) { case (gen, n) =>
-              JObject(List(n.toString -> gen))
+            (1 to depth).foldLeft(leaf) {
+              case (gen, n) =>
+                JObject(List(n.toString -> gen))
             }
           }
         }

@@ -71,8 +71,8 @@ object KeyConditionExpressionSpec extends ZIOSpecDefault {
 
   val pbtSuite =
     suite("property based suite")(test("conversion of ConditionExpression to KeyConditionExpression must be valid") {
-      check(genConditionExpression) { case (condExprn, seedDataList) =>
-        assertConditionExpression(condExprn, seedDataList)
+      check(genConditionExpression) {
+        case (condExprn, seedDataList) => assertConditionExpression(condExprn, seedDataList)
       }
     })
 
@@ -122,9 +122,10 @@ object KeyConditionExpressionSpec extends ZIOSpecDefault {
         val (name, op) = xs.head
         val first      = conditionExpression(name, op)
         // TODO: generate joining ops
-        val condEx     = xs.tail.foldRight(first) { case ((name, op), acc) =>
-          acc.asInstanceOf[ConditionExpression[Any]] && conditionExpression(name, op)
-            .asInstanceOf[ConditionExpression[Any]]
+        val condEx     = xs.tail.foldRight(first) {
+          case ((name, op), acc) =>
+            acc.asInstanceOf[ConditionExpression[Any]] && conditionExpression(name, op)
+              .asInstanceOf[ConditionExpression[Any]]
         }
         (condEx, xs)
       }

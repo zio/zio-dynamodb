@@ -28,8 +28,9 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
 
   private val eitherSuite = suite("either suite")(
     test("a primitive") {
-      check(SchemaGen.anyEitherAndGen) { case (schema, gen) =>
-        assertEncodesThenDecodesWithGen(schema.asInstanceOf[Schema.Either[Any, Any]], gen)
+      check(SchemaGen.anyEitherAndGen) {
+        case (schema, gen) =>
+          assertEncodesThenDecodesWithGen(schema.asInstanceOf[Schema.Either[Any, Any]], gen)
       }
     },
     test("of tuples") {
@@ -41,8 +42,8 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
           Schema.Either(left._1.asInstanceOf[Schema[(Any, Any)]], right._1.asInstanceOf[Schema[(Any, Any)]]),
           Right(right._2)
         )
-      ) { case (schema, value) =>
-        assertEncodesThenDecodes(schema, value)
+      ) {
+        case (schema, value) => assertEncodesThenDecodes(schema, value)
       }
     },
     test("of sequence") {
@@ -54,77 +55,83 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
           Schema.Either(left._1.asInstanceOf[Schema[Chunk[Any]]], right._1.asInstanceOf[Schema[Chunk[Any]]]),
           Left(left._2)
         )
-      ) { case (schema, value) =>
-        assertEncodesThenDecodes(schema, value)
+      ) {
+        case (schema, value) => assertEncodesThenDecodes(schema, value)
       }
     },
     test("of records") {
       check(for {
         (left, a)       <- SchemaGen.anyRecordAndValue()
         primitiveSchema <- SchemaGen.anyPrimitive[Any]
-      } yield (Schema.Either(left, primitiveSchema), Left(a))) { case (schema, value) =>
-        assertEncodesThenDecodes(schema, value)
+      } yield (Schema.Either(left, primitiveSchema), Left(a))) {
+        case (schema, value) => assertEncodesThenDecodes(schema, value)
       }
     },
     test("of records of records") {
       check(for {
         (left, _)  <- SchemaGen.anyRecordOfRecordsAndValue
         (right, b) <- SchemaGen.anyRecordOfRecordsAndValue
-      } yield (Schema.Either(left, right), Right(b))) { case (schema, value) =>
-        assertEncodesThenDecodes(schema, value)
+      } yield (Schema.Either(left, right), Right(b))) {
+        case (schema, value) =>
+          assertEncodesThenDecodes(schema, value)
       }
     },
     test("mixed") {
       check(for {
         (left, _)      <- SchemaGen.anyEnumerationAndValue
         (right, value) <- SchemaGen.anySequenceAndValue[Any]
-      } yield (Schema.Either(left, right), Right(value))) { case (schema, value) =>
-        assertEncodesThenDecodes(schema, value)
+      } yield (Schema.Either(left, right), Right(value))) {
+        case (schema, value) => assertEncodesThenDecodes(schema, value)
       }
     }
   )
 
   private val optionalSuite = suite("optional suite")(
     test("of primitive") {
-      check(SchemaGen.anyOptionalAndValue) { case (schema, value) =>
-        assertEncodesThenDecodes(schema.asInstanceOf[Schema.Optional[Any]], value)
+      check(SchemaGen.anyOptionalAndValue) {
+        case (schema, value) => assertEncodesThenDecodes(schema.asInstanceOf[Schema.Optional[Any]], value)
       }
     },
     test("of tuple") {
-      check(SchemaGen.anyTupleAndValue) { case (schema, value) =>
-        assertEncodesThenDecodes(Schema.Optional(schema.asInstanceOf[Schema.Tuple2[Any, Any]]), Some(value)) &>
-          assertEncodesThenDecodes(Schema.Optional(schema.asInstanceOf[Schema.Tuple2[Any, Any]]), None)
+      check(SchemaGen.anyTupleAndValue) {
+        case (schema, value) =>
+          assertEncodesThenDecodes(Schema.Optional(schema.asInstanceOf[Schema.Tuple2[Any, Any]]), Some(value)) &>
+            assertEncodesThenDecodes(Schema.Optional(schema.asInstanceOf[Schema.Tuple2[Any, Any]]), None)
       }
     },
     test("of record") {
-      check(SchemaGen.anyRecordAndValue()) { case (schema, value) =>
-        assertEncodesThenDecodes(Schema.Optional(schema), Some(value)) &>
-          assertEncodesThenDecodes(Schema.Optional(schema), None)
+      check(SchemaGen.anyRecordAndValue()) {
+        case (schema, value) =>
+          assertEncodesThenDecodes(Schema.Optional(schema), Some(value)) &>
+            assertEncodesThenDecodes(Schema.Optional(schema), None)
       }
     },
     test("of enumeration") {
-      check(SchemaGen.anyEnumerationAndValue) { case (schema, value) =>
-        assertEncodesThenDecodes(Schema.Optional(schema), Some(value)) &>
-          assertEncodesThenDecodes(Schema.Optional(schema), None)
+      check(SchemaGen.anyEnumerationAndValue) {
+        case (schema, value) =>
+          assertEncodesThenDecodes(Schema.Optional(schema), Some(value)) &>
+            assertEncodesThenDecodes(Schema.Optional(schema), None)
       }
     },
     test("of sequence") {
-      check(SchemaGen.anySequenceAndValue) { case (schema, value) =>
-        assertEncodesThenDecodes(Schema.Optional(schema), Some(value)) &>
-          assertEncodesThenDecodes(Schema.Optional(schema), None)
+      check(SchemaGen.anySequenceAndValue) {
+        case (schema, value) =>
+          assertEncodesThenDecodes(Schema.Optional(schema), Some(value)) &>
+            assertEncodesThenDecodes(Schema.Optional(schema), None)
       }
     }
   )
 
   private val sequenceSuite = suite("sequence")(
     test("of primitives") {
-      check(SchemaGen.anySequenceAndValue) { case (schema, value) =>
-        assertEncodesThenDecodes(schema, value)
+      check(SchemaGen.anySequenceAndValue) {
+        case (schema, value) => assertEncodesThenDecodes(schema, value)
       }
     },
     test("of records") {
-      check(SchemaGen.anyCaseClassAndValue[Any]) { case (schema, value) =>
-        assertEncodesThenDecodes(Schema.chunk(schema.asInstanceOf[Schema[Any]]), Chunk.fill(3)(value))
+      check(SchemaGen.anyCaseClassAndValue[Any]) {
+        case (schema, value) =>
+          assertEncodesThenDecodes(Schema.chunk(schema.asInstanceOf[Schema[Any]]), Chunk.fill(3)(value))
       }
     },
     test("of java.time.ZoneOffset") {
@@ -151,8 +158,8 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
 
   private val recordSuite = suite("record")(
     test("any") {
-      check(SchemaGen.anyRecordAndValue()) { case (schema, value) =>
-        assertEncodesThenDecodes(schema, value)
+      check(SchemaGen.anyRecordAndValue()) {
+        case (schema, value) => assertEncodesThenDecodes(schema, value)
       }
     },
     test("minimal test case") {
@@ -174,13 +181,14 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
       }
     },
     test("record of records") {
-      check(SchemaGen.anyRecordOfRecordsAndValue) { case (schema, value) =>
-        assertEncodesThenDecodes(schema, value)
+      check(SchemaGen.anyRecordOfRecordsAndValue) {
+        case (schema, value) =>
+          assertEncodesThenDecodes(schema, value)
       }
     },
     test("of primitives") {
-      check(SchemaGen.anyRecordAndValue()) { case (schema, value) =>
-        assertEncodesThenDecodes(schema, value)
+      check(SchemaGen.anyRecordAndValue()) {
+        case (schema, value) => assertEncodesThenDecodes(schema, value)
       }
     },
     test("of ZoneOffsets") {
@@ -239,8 +247,9 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
 
   private val transformSuite = suite("transform")(
     test("any") {
-      check(SchemaGen.anyTransformAndValue[Any]) { case (schema, value) =>
-        assertEncodesThenDecodes(schema.asInstanceOf[Schema.Transform[Any, Any, String]], value)
+      check(SchemaGen.anyTransformAndValue[Any]) {
+        case (schema, value) =>
+          assertEncodesThenDecodes(schema.asInstanceOf[Schema.Transform[Any, Any, String]], value)
       }
     }
   )
@@ -250,77 +259,89 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
       assertEncodesThenDecodesPure(Schema[Unit], ())
     },
     test("a primitive") {
-      check(SchemaGen.anyPrimitiveAndGen[Any]) { case (schema, gen) =>
-        assertEncodesThenDecodesWithGen(schema.asInstanceOf[Schema.Primitive[Any]], gen)
+      check(SchemaGen.anyPrimitiveAndGen[Any]) {
+        case (schema, gen) =>
+          assertEncodesThenDecodesWithGen(schema.asInstanceOf[Schema.Primitive[Any]], gen)
       }
     },
     test("either of primitive") {
-      check(SchemaGen.anyEitherAndGen) { case (schema, gen) =>
-        assertEncodesThenDecodesWithGen(schema.asInstanceOf[Schema.Either[Any, Any]], gen)
+      check(SchemaGen.anyEitherAndGen) {
+        case (schema, gen) =>
+          assertEncodesThenDecodesWithGen(schema.asInstanceOf[Schema.Either[Any, Any]], gen)
       }
     },
     test("of enumeration") {
-      check(SchemaGen.anyEnumerationAndGen) { case (schema, gen) =>
-        assertEncodesThenDecodesWithGen(schema, gen)
+      check(SchemaGen.anyEnumerationAndGen) {
+        case (schema, gen) =>
+          assertEncodesThenDecodesWithGen(schema, gen)
       }
     },
     test("optional of primitive") {
-      check(SchemaGen.anyOptionalAndGen) { case (schema, gen) =>
-        assertEncodesThenDecodesWithGen(schema.asInstanceOf[Schema.Optional[Any]], gen)
+      check(SchemaGen.anyOptionalAndGen) {
+        case (schema, gen) =>
+          assertEncodesThenDecodesWithGen(schema.asInstanceOf[Schema.Optional[Any]], gen)
       }
     },
     test("tuple of primitive") {
-      check(SchemaGen.anyTupleAndGen) { case (schema, gen) =>
-        assertEncodesThenDecodesWithGen(schema.asInstanceOf[Schema.Tuple2[Any, Any]], gen)
+      check(SchemaGen.anyTupleAndGen) {
+        case (schema, gen) =>
+          assertEncodesThenDecodesWithGen(schema.asInstanceOf[Schema.Tuple2[Any, Any]], gen)
       }
     },
     test("sequence of primitive") {
-      check(SchemaGen.anySequenceAndGen) { case (schema, gen) =>
-        assertEncodesThenDecodesWithGen(schema, gen)
+      check(SchemaGen.anySequenceAndGen) {
+        case (schema, gen) =>
+          assertEncodesThenDecodesWithGen(schema, gen)
       }
     },
     test("Map of string to primitive value") {
-      check(SchemaGen.anyPrimitiveAndGen[Any]) { case (s, gen) =>
-        val mapSchema = Schema.map(Schema[String], s.asInstanceOf[Schema[Any]])
-        val enc       = Codec.encoder(mapSchema)
-        val dec       = Codec.decoder(mapSchema)
+      check(SchemaGen.anyPrimitiveAndGen[Any]) {
+        case (s, gen) =>
+          val mapSchema = Schema.map(Schema[String], s.asInstanceOf[Schema[Any]])
+          val enc       = Codec.encoder(mapSchema)
+          val dec       = Codec.decoder(mapSchema)
 
-        check(gen) { a =>
-          val initialMap = Map("StringKey" -> a)
-          val encoded    = enc(initialMap)
-          val decoded    = dec(encoded)
-          assert(decoded)(isRight(equalTo(initialMap)))
-        }
+          check(gen) { a =>
+            val initialMap = Map("StringKey" -> a)
+            val encoded    = enc(initialMap)
+            val decoded    = dec(encoded)
+            assert(decoded)(isRight(equalTo(initialMap)))
+          }
       }
     },
     test("any Map") {
-      check(SchemaGen.anyMapAndValue) { case (schema, value) =>
-        assertEncodesThenDecodes(schema.asInstanceOf[Schema.Map[Any, Any]], value.asInstanceOf[Map[Any, Any]])
+      check(SchemaGen.anyMapAndValue) {
+        case (schema, value) =>
+          assertEncodesThenDecodes(schema.asInstanceOf[Schema.Map[Any, Any]], value.asInstanceOf[Map[Any, Any]])
       }
     },
     test("any Set") {
       import SetSchemaGen._
 
-      check(anySetAndValueWithSetType) { case (schema, value, setType) =>
-        assertEncodesThenDecodesSet(schema.asInstanceOf[Schema.Set[Any]], value.asInstanceOf[Set[Any]], setType)
+      check(anySetAndValueWithSetType) {
+        case (schema, value, setType) =>
+          assertEncodesThenDecodesSet(schema.asInstanceOf[Schema.Set[Any]], value.asInstanceOf[Set[Any]], setType)
       }
     }
   )
 
   private val anySchemaSuite = suite("any schema")(
     test("leaf") {
-      check(SchemaGen.anyLeafAndValue[Any]) { case (schema, value) =>
-        assertEncodesThenDecodes(schema.asInstanceOf[Schema[Any]], value)
+      check(SchemaGen.anyLeafAndValue[Any]) {
+        case (schema, value) =>
+          assertEncodesThenDecodes(schema.asInstanceOf[Schema[Any]], value)
       }
     },
     test("recursive schema") {
-      check(SchemaGen.anyTreeAndValue[Any]) { case (schema, value) =>
-        assertEncodesThenDecodes(schema.asInstanceOf[Schema[Any]], value)
+      check(SchemaGen.anyTreeAndValue[Any]) {
+        case (schema, value) =>
+          assertEncodesThenDecodes(schema.asInstanceOf[Schema[Any]], value)
       }
     },
     test("recursive data type") {
-      check(SchemaGen.anyRecursiveTypeAndValue[Any]) { case (schema, value) =>
-        assertEncodesThenDecodes(schema.asInstanceOf[Schema[Any]], value)
+      check(SchemaGen.anyRecursiveTypeAndValue[Any]) {
+        case (schema, value) =>
+          assertEncodesThenDecodes(schema.asInstanceOf[Schema[Any]], value)
       }
     }
   )

@@ -42,8 +42,9 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       batched(constructors)
 
     val indexedNonBatchedResults =
-      ZIO.foreachPar(indexedConstructors) { case (constructor, index) =>
-        ddbExecute(constructor).map(result => (result, index))
+      ZIO.foreachPar(indexedConstructors) {
+        case (constructor, index) =>
+          ddbExecute(constructor).map(result => (result, index))
       }
 
     val indexedGetResults =
@@ -54,8 +55,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
     (indexedNonBatchedResults zipPar indexedGetResults zipPar indexedWriteResults).map {
       case (nonBatched, batchedGets, batchedWrites) =>
-        val combined = (nonBatched ++ batchedGets ++ batchedWrites).sortBy { case (_, index) =>
-          index
+        val combined = (nonBatched ++ batchedGets ++ batchedWrites).sortBy {
+          case (_, index) => index
         }.map { case (value, _) => value }
         assembler(combined)
     }
@@ -209,11 +210,11 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case ab @ Absolve(query)              =>
         Absolve(query.filter(filterExpression.asInstanceOf[FilterExpression[ab.Old]]))
 
-      case s: ScanSome  => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case s: ScanAll   => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case s: QuerySome => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case s: QueryAll  => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _            => self
+      case s: ScanSome                      => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case s: ScanAll                       => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case s: QuerySome                     => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case s: QueryAll                      => s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case _                                => self
     }
   }
 
@@ -429,8 +430,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     val transaction = Transaction(self)
     DynamoDBExecutorImpl
       .buildTransaction(transaction)
-      .flatMap { case (actions, _) =>
-        DynamoDBExecutorImpl.filterMixedTransactions(actions)
+      .flatMap {
+        case (actions, _) => DynamoDBExecutorImpl.filterMixedTransactions(actions)
       }
       .map(_ => transaction)
   }
@@ -469,8 +470,8 @@ object DynamoDBQuery {
    * allowed by the AWS API.
    */
   def forEach[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery[In, List[B]] =
-    values.foldRight[DynamoDBQuery[In, List[B]]](succeed(Nil)) { case (a, query) =>
-      body(a).zipWith(query)(_ :: _)
+    values.foldRight[DynamoDBQuery[In, List[B]]](succeed(Nil)) {
+      case (a, query) => body(a).zipWith(query)(_ :: _)
     }
 
   def getItem(
@@ -542,11 +543,12 @@ object DynamoDBQuery {
     projections: ProjectionExpression[_, _]*
   ): DynamoDBQuery[A, (Chunk[A], LastEvaluatedKey)] =
     DynamoDBQuery.absolve(
-      scanSomeItem(tableName, limit, projections: _*).map { case (itemsChunk, lek) =>
-        EitherUtil.forEach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
-          case Right(chunk) => Right((chunk, lek))
-          case Left(error)  => Left(error)
-        }
+      scanSomeItem(tableName, limit, projections: _*).map {
+        case (itemsChunk, lek) =>
+          EitherUtil.forEach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
+            case Right(chunk) => Right((chunk, lek))
+            case Left(error)  => Left(error)
+          }
       }
     )
 
@@ -591,11 +593,12 @@ object DynamoDBQuery {
     projections: ProjectionExpression[_, _]*
   ): DynamoDBQuery[A, (Chunk[A], LastEvaluatedKey)] =
     DynamoDBQuery.absolve(
-      querySomeItem(tableName, limit, projections: _*).map { case (itemsChunk, lek) =>
-        EitherUtil.forEach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
-          case Right(chunk) => Right((chunk, lek))
-          case Left(error)  => Left(error)
-        }
+      querySomeItem(tableName, limit, projections: _*).map {
+        case (itemsChunk, lek) =>
+          EitherUtil.forEach(itemsChunk)(item => fromItem(item)).map(Chunk.fromIterable) match {
+            case Right(chunk) => Right((chunk, lek))
+            case Left(error)  => Left(error)
+          }
       }
     )
 
@@ -702,8 +705,8 @@ object DynamoDBQuery {
     }
 
     def addAll(entries: GetItem*): BatchGetItem =
-      entries.foldLeft(self) { case (batch, getItem) =>
-        batch + getItem
+      entries.foldLeft(self) {
+        case (batch, getItem) => batch + getItem
       }
 
     /*
@@ -753,7 +756,8 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     addList: Chunk[BatchWriteItem.Write] = Chunk.empty,
-    retryPolicy: Schedule[Any, Throwable, Any] = Schedule.recurs(5) && Schedule.exponential(30.seconds)
+    retryPolicy: Schedule[Any, Throwable, Any] =
+      Schedule.recurs(5) && Schedule.exponential(30.seconds)
   ) extends Constructor[Any, BatchWriteItem.Response] { self =>
     def +[A](writeItem: Write[Any, A]): BatchWriteItem =
       writeItem match {
@@ -776,8 +780,8 @@ object DynamoDBQuery {
       }
 
     def addAll[A](entries: Write[Any, A]*): BatchWriteItem =
-      entries.foldLeft(self) { case (batch, write) =>
-        batch + write
+      entries.foldLeft(self) {
+        case (batch, write) => batch + write
       }
   }
 
@@ -1014,19 +1018,19 @@ object DynamoDBQuery {
           }
         )
 
-      case Absolve(query) =>
+      case Absolve(query)     =>
         val absolved: DynamoDBQuery[In, A] = query.map {
           case Left(dynamoDBError) => throw dynamoDBError
           case Right(a)            => a
         }
         parallelize(absolved)
 
-      case Fail(error) =>
+      case Fail(error)        =>
         (Chunk.empty, _ => error().asInstanceOf[A])
 
-      case Succeed(value) => (Chunk.empty, _ => value())
+      case Succeed(value)     => (Chunk.empty, _ => value())
 
-      case batchGetItem @ BatchGetItem(_, _, _, _) =>
+      case batchGetItem @ BatchGetItem(_, _, _, _)            =>
         (
           Chunk(batchGetItem),
           (results: Chunk[Any]) => {
@@ -1034,7 +1038,7 @@ object DynamoDBQuery {
           }
         )
 
-      case batchWriteItem @ BatchWriteItem(_, _, _, _, _) =>
+      case batchWriteItem @ BatchWriteItem(_, _, _, _, _)     =>
         (
           Chunk(batchWriteItem),
           (results: Chunk[Any]) => {
@@ -1042,7 +1046,7 @@ object DynamoDBQuery {
           }
         )
 
-      case deleteTable @ DeleteTable(_) =>
+      case deleteTable @ DeleteTable(_)                       =>
         (
           Chunk(deleteTable),
           (results: Chunk[Any]) => {
@@ -1050,7 +1054,7 @@ object DynamoDBQuery {
           }
         )
 
-      case describeTable @ DescribeTable(_) =>
+      case describeTable @ DescribeTable(_)                   =>
         (
           Chunk(describeTable),
           (results: Chunk[Any]) => {
@@ -1059,7 +1063,7 @@ object DynamoDBQuery {
         )
 
       // condition check is not a real query, it is only used in transactions
-      case _ @ConditionCheck(_, _, _)       =>
+      case _ @ConditionCheck(_, _, _)                         =>
         (
           Chunk[Constructor[In, Any]](),
           (_: Chunk[Any]) => {
@@ -1067,7 +1071,7 @@ object DynamoDBQuery {
           }
         )
 
-      case getItem @ GetItem(_, _, _, _, _) =>
+      case getItem @ GetItem(_, _, _, _, _)                   =>
         (
           Chunk(getItem),
           (results: Chunk[Any]) => {
@@ -1075,7 +1079,7 @@ object DynamoDBQuery {
           }
         )
 
-      case putItem @ PutItem(_, _, _, _, _, _) =>
+      case putItem @ PutItem(_, _, _, _, _, _)                =>
         (
           Chunk(putItem),
           (results: Chunk[Any]) => {
@@ -1083,7 +1087,7 @@ object DynamoDBQuery {
           }
         )
 
-      case transaction @ Transaction(_, _, _, _) =>
+      case transaction @ Transaction(_, _, _, _)              =>
         (
           Chunk(transaction),
           (results: Chunk[Any]) => {
@@ -1091,7 +1095,7 @@ object DynamoDBQuery {
           }
         )
 
-      case updateItem @ UpdateItem(_, _, _, _, _, _, _) =>
+      case updateItem @ UpdateItem(_, _, _, _, _, _, _)       =>
         (
           Chunk(updateItem),
           (results: Chunk[Any]) => {
@@ -1099,7 +1103,7 @@ object DynamoDBQuery {
           }
         )
 
-      case deleteItem @ DeleteItem(_, _, _, _, _, _) =>
+      case deleteItem @ DeleteItem(_, _, _, _, _, _)          =>
         (
           Chunk(deleteItem),
           (results: Chunk[Any]) => {
@@ -1107,7 +1111,7 @@ object DynamoDBQuery {
           }
         )
 
-      case scan @ ScanSome(_, _, _, _, _, _, _, _, _) =>
+      case scan @ ScanSome(_, _, _, _, _, _, _, _, _)         =>
         (
           Chunk(scan),
           (results: Chunk[Any]) => {
@@ -1115,7 +1119,7 @@ object DynamoDBQuery {
           }
         )
 
-      case scan @ ScanAll(_, _, _, _, _, _, _, _, _, _) =>
+      case scan @ ScanAll(_, _, _, _, _, _, _, _, _, _)       =>
         (
           Chunk(scan),
           (results: Chunk[Any]) => {
@@ -1131,7 +1135,7 @@ object DynamoDBQuery {
           }
         )
 
-      case query @ QueryAll(_, _, _, _, _, _, _, _, _, _, _) =>
+      case query @ QueryAll(_, _, _, _, _, _, _, _, _, _, _)  =>
         (
           Chunk(query),
           (results: Chunk[Any]) => {
@@ -1139,7 +1143,7 @@ object DynamoDBQuery {
           }
         )
 
-      case createTable @ CreateTable(_, _, _, _, _, _, _, _) =>
+      case createTable @ CreateTable(_, _, _, _, _, _, _, _)  =>
         (
           Chunk(createTable),
           (results: Chunk[Any]) => {

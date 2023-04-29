@@ -17,9 +17,9 @@ object DynamoDBExecutor {
   lazy val test: ULayer[DynamoDBExecutor with TestDynamoDBExecutor] = {
     val effect = for {
       test <- (for {
-                tableMap       <- TMap.empty[String, TMap[PrimaryKey, Item]]
-                tablePkNameMap <- TMap.empty[String, String]
-              } yield TestDynamoDBExecutorImpl(tableMap, tablePkNameMap)).commit
+                  tableMap       <- TMap.empty[String, TMap[PrimaryKey, Item]]
+                  tablePkNameMap <- TMap.empty[String, String]
+                } yield TestDynamoDBExecutorImpl(tableMap, tablePkNameMap)).commit
     } yield test
     ZLayer.fromZIO(effect)
   }
@@ -27,16 +27,17 @@ object DynamoDBExecutor {
   def test(tableDefs: TableNameAndPK*): ULayer[DynamoDBExecutor with TestDynamoDBExecutor] = {
     val effect = for {
       test <- (for {
-                tableMap       <- TMap.empty[String, TMap[PrimaryKey, Item]]
-                tablePkNameMap <- TMap.empty[String, String]
-                _              <- STM.foreach(tableDefs) { case (tableName, pkFieldName) =>
-                                    for {
-                                      _           <- tablePkNameMap.put(tableName, pkFieldName)
-                                      pkToItemMap <- TMap.empty[PrimaryKey, Item]
-                                      _           <- tableMap.put(tableName, pkToItemMap)
-                                    } yield ()
-                                  }
-              } yield TestDynamoDBExecutorImpl(tableMap, tablePkNameMap)).commit
+                  tableMap       <- TMap.empty[String, TMap[PrimaryKey, Item]]
+                  tablePkNameMap <- TMap.empty[String, String]
+                  _              <- STM.foreach(tableDefs) {
+                                      case (tableName, pkFieldName) =>
+                                        for {
+                                          _           <- tablePkNameMap.put(tableName, pkFieldName)
+                                          pkToItemMap <- TMap.empty[PrimaryKey, Item]
+                                          _           <- tableMap.put(tableName, pkToItemMap)
+                                        } yield ()
+                                    }
+                } yield TestDynamoDBExecutorImpl(tableMap, tablePkNameMap)).commit
     } yield test
     ZLayer.fromZIO(effect)
   }

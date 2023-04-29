@@ -69,9 +69,9 @@ object GetAndPutSpec extends ZIOSpecDefault {
     test("""batched SimpleCaseClass2(1, "Avi") and SimpleCaseClass2(2, "Tarlochan")""") {
       for {
         _      <- (put[SimpleCaseClass2]("table1", SimpleCaseClass2(1, "Avi")) zip put[SimpleCaseClass2](
-                    "table1",
-                    SimpleCaseClass2(2, "Tarlochan")
-                  )).execute
+                      "table1",
+                      SimpleCaseClass2(2, "Tarlochan")
+                    )).execute
         found1 <- get[SimpleCaseClass2]("table1", primaryKey1).execute
         found2 <- get[SimpleCaseClass2]("table1", primaryKey2).execute
       } yield assertTrue(found1 == Right(SimpleCaseClass2(1, "Avi"))) && assertTrue(
