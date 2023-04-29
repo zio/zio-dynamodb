@@ -79,7 +79,7 @@ package object dynamodb {
           )
           .map(Chunk.fromIterable)
         for {
-          r <- ZIO.environment[DynamoDBExecutor]
+          r    <- ZIO.environment[DynamoDBExecutor]
           list <- batchGetItem.execute.provideEnvironment(r)
         } yield list
       }
@@ -104,12 +104,11 @@ package object dynamodb {
     stream: ZStream[R, Throwable, A],
     mPar: Int = 10
   )(pk: A => PrimaryKey): ZStream[R with DynamoDBExecutor, Throwable, (A, B)] =
-    batchReadItemFromStream(tableName, stream, mPar)(pk).mapZIO {
-      case (a, item) =>
-        DynamoDBQuery.fromItem(item) match {
-          case Right(b) => ZIO.succeed((a, b))
-          case Left(s)  => ZIO.fail(new IllegalStateException(s)) // TODO: think about error model
-        }
+    batchReadItemFromStream(tableName, stream, mPar)(pk).mapZIO { case (a, item) =>
+      DynamoDBQuery.fromItem(item) match {
+        case Right(b) => ZIO.succeed((a, b))
+        case Left(s)  => ZIO.fail(new IllegalStateException(s)) // TODO: think about error model
+      }
     }
 
 }

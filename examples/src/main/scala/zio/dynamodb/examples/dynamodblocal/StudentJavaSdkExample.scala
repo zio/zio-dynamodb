@@ -103,12 +103,11 @@ object StudentJavaSdkExample extends ZIOAppDefault {
   def batchGetItemRequest(studentPks: Seq[(String, String)]): BatchGetItemRequest = {
     val keysAndAttributes = KeysAndAttributes.builder
       .keys(
-        studentPks.map {
-          case (email, subject) =>
-            Map(
-              "email"   -> AttributeValue.builder().s(email).build(),
-              "subject" -> AttributeValue.builder().s(subject).build()
-            ).asJava
+        studentPks.map { case (email, subject) =>
+          Map(
+            "email"   -> AttributeValue.builder().s(email).build(),
+            "subject" -> AttributeValue.builder().s(subject).build()
+          ).asJava
         }.asJava
       )
       .build()

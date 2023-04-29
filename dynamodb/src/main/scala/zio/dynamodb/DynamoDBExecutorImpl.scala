@@ -203,30 +203,30 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
         case _                 => false
       }
       for {
-        ref <- zio.Ref.make[MapOfSet[TableName, BatchWriteItem.Write]](batchWriteItem.requestItems)
+        ref         <- zio.Ref.make[MapOfSet[TableName, BatchWriteItem.Write]](batchWriteItem.requestItems)
         _           <- (for {
-                           unprocessedItems           <- ref.get
-                           response                   <- dynamoDb
-                                                           .batchWriteItem(
-                                                             awsBatchWriteItemRequest(batchWriteItem.copy(requestItems = unprocessedItems))
-                                                           )
-                                                           .mapError(_.toThrowable)
-                           responseUnprocessedItemsOpt = response.unprocessedItems
-                                                           .map(map =>
-                                                             mapOfListToMapOfSet(map.map {
-                                                               case (k, v) => (TableName(k.toString), v)
-                                                             })(writeRequestToBatchWrite)
-                                                           )
-                                                           .toOption
-                           _                          <- responseUnprocessedItemsOpt match {
-                                                           case Some(responseUnprocessedItems) => ref.set(responseUnprocessedItems)
-                                                           case None                           => ZIO.unit
-                                                         }
-                           _                          <- ZIO
-                                                           .fail(BatchRetryError())
-                                                           .when(responseUnprocessedItemsOpt.exists(_.nonEmpty))
+                         unprocessedItems           <- ref.get
+                         response                   <- dynamoDb
+                                                         .batchWriteItem(
+                                                           awsBatchWriteItemRequest(batchWriteItem.copy(requestItems = unprocessedItems))
+                                                         )
+                                                         .mapError(_.toThrowable)
+                         responseUnprocessedItemsOpt = response.unprocessedItems
+                                                         .map(map =>
+                                                           mapOfListToMapOfSet(map.map { case (k, v) =>
+                                                             (TableName(k.toString), v)
+                                                           })(writeRequestToBatchWrite)
+                                                         )
+                                                         .toOption
+                         _                          <- responseUnprocessedItemsOpt match {
+                                                         case Some(responseUnprocessedItems) => ref.set(responseUnprocessedItems)
+                                                         case None                           => ZIO.unit
+                                                       }
+                         _                          <- ZIO
+                                                         .fail(BatchRetryError())
+                                                         .when(responseUnprocessedItemsOpt.exists(_.nonEmpty))
 
-                         } yield ())
+                       } yield ())
                          .retry(t)
                          .catchSome(catchBatchRetryError)
         unprocessed <- ref.get
@@ -311,32 +311,32 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
       }
       for {
         unprocessedKeys <- zio.Ref.make[ScalaMap[TableName, TableGet]](batchGetItem.requestItems)
-        collectedItems <- zio.Ref.make[MapOfSet[TableName, Item]](MapOfSet.empty)
-        _              <- (for {
-                              unprocessed           <- unprocessedKeys.get
-                              currentCollection     <- collectedItems.get
-                              response              <- dynamoDb
-                                                         .batchGetItem(awsBatchGetItemRequest(batchGetItem.copy(requestItems = unprocessed)))
-                                                         .mapError(_.toThrowable)
-                              responseUnprocessedOpt = response.unprocessedKeys
-                                                         .map(_.map { case (k, v) => (TableName(k), keysAndAttrsToTableGet(v)) })
-                                                         .toOption
-                              _                     <- responseUnprocessedOpt match {
-                                                         case Some(responseUnprocessed) => unprocessedKeys.set(responseUnprocessed)
-                                                         case None                      => ZIO.unit
-                                                       }
-                              retrievedItemsOpt      = response.responses.toOption
-                              _                     <- retrievedItemsOpt match {
-                                                         case Some(retrievedItems) =>
-                                                           collectedItems.set(currentCollection ++ tableItemsMapToResponse(retrievedItems.map {
-                                                             case (k, v) => (TableName(k.toString), v)
-                                                           }))
-                                                         case None                 => collectedItems.set(currentCollection)
-                                                       }
-                              _                     <- ZIO.fail(BatchRetryError()).when(responseUnprocessedOpt.exists(_.nonEmpty))
-                            } yield ())
-                            .retry(t)
-                            .catchSome(catchBatchRetryError)
+        collectedItems  <- zio.Ref.make[MapOfSet[TableName, Item]](MapOfSet.empty)
+        _               <- (for {
+                             unprocessed           <- unprocessedKeys.get
+                             currentCollection     <- collectedItems.get
+                             response              <- dynamoDb
+                                                        .batchGetItem(awsBatchGetItemRequest(batchGetItem.copy(requestItems = unprocessed)))
+                                                        .mapError(_.toThrowable)
+                             responseUnprocessedOpt = response.unprocessedKeys
+                                                        .map(_.map { case (k, v) => (TableName(k), keysAndAttrsToTableGet(v)) })
+                                                        .toOption
+                             _                     <- responseUnprocessedOpt match {
+                                                        case Some(responseUnprocessed) => unprocessedKeys.set(responseUnprocessed)
+                                                        case None                      => ZIO.unit
+                                                      }
+                             retrievedItemsOpt      = response.responses.toOption
+                             _                     <- retrievedItemsOpt match {
+                                                        case Some(retrievedItems) =>
+                                                          collectedItems.set(currentCollection ++ tableItemsMapToResponse(retrievedItems.map {
+                                                            case (k, v) => (TableName(k.toString), v)
+                                                          }))
+                                                        case None                 => collectedItems.set(currentCollection)
+                                                      }
+                             _                     <- ZIO.fail(BatchRetryError()).when(responseUnprocessedOpt.exists(_.nonEmpty))
+                           } yield ())
+                             .retry(t)
+                             .catchSome(catchBatchRetryError)
 
         retrievedItems <- collectedItems.get
         unprocessed    <- unprocessedKeys.get
@@ -363,12 +363,11 @@ case object DynamoDBExecutorImpl {
         .getOrElse(Left(InvalidTransactionActions(NonEmptyChunk(actions.head)))) // TODO: Grab all that are invalid
       actions
         .drop(1)                                                                 // dropping 1 because we have the head element as the base case of the fold
-        .foldLeft(headConstructor: Either[Throwable, TransactionType]) {
-          case (acc, constructor) =>
-            acc match {
-              case l @ Left(_)            => l // Should also continue collecting other failures
-              case Right(transactionType) => constructorMatch(constructor, transactionType)
-            }
+        .foldLeft(headConstructor: Either[Throwable, TransactionType]) { case (acc, constructor) =>
+          acc match {
+            case l @ Left(_)            => l // Should also continue collecting other failures
+            case Right(transactionType) => constructorMatch(constructor, transactionType)
+          }
         }
         .map(transactionType => (actions, transactionType))
     }
@@ -407,9 +406,9 @@ case object DynamoDBExecutorImpl {
     query match {
       case constructor: Constructor[_, A] =>
         constructor match {
-          case s: PutItem                  => Right((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: DeleteItem               => Right((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s: GetItem                  =>
+          case s: PutItem      => Right((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: DeleteItem   => Right((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
+          case s: GetItem      =>
             Right(
               (
                 Chunk(s),
@@ -419,24 +418,23 @@ case object DynamoDBExecutorImpl {
                 }
               )
             )
-          case s: BatchGetItem             =>
+          case s: BatchGetItem =>
             Right(
               (
                 Chunk(s),
                 chunk => {
-                  val b: Seq[(TableName, Int)] = s.requestItems.toSeq.flatMap {
-                    case (tName, items) => Seq.fill(items.keysSet.size)(tName)
+                  val b: Seq[(TableName, Int)] = s.requestItems.toSeq.flatMap { case (tName, items) =>
+                    Seq.fill(items.keysSet.size)(tName)
                   }.zipWithIndex
-                  val responses                = b.foldLeft(MapOfSet.empty[TableName, Item]) {
-                    case (acc, (tableName, index)) =>
-                      val maybeItem = chunk(index).asInstanceOf[Option[AttrMap]]
-                      maybeItem match {
-                        case Some(value) =>
-                          if (value.map.isEmpty) // may have an empty AttrMap
-                            acc
-                          else acc.addAll((tableName, value))
-                        case None        => acc
-                      }
+                  val responses                = b.foldLeft(MapOfSet.empty[TableName, Item]) { case (acc, (tableName, index)) =>
+                    val maybeItem = chunk(index).asInstanceOf[Option[AttrMap]]
+                    maybeItem match {
+                      case Some(value) =>
+                        if (value.map.isEmpty) // may have an empty AttrMap
+                          acc
+                        else acc.addAll((tableName, value))
+                      case None        => acc
+                    }
                   }
 
                   BatchGetItem.Response(responses = responses).asInstanceOf[A]
@@ -470,8 +468,8 @@ case object DynamoDBExecutorImpl {
           }
         )
       case Map(query, mapper)             =>
-        buildTransaction(query).map {
-          case (constructors, construct) => (constructors, chunk => mapper.asInstanceOf[Any => A](construct(chunk)))
+        buildTransaction(query).map { case (constructors, construct) =>
+          (constructors, chunk => mapper.asInstanceOf[Any => A](construct(chunk)))
         }
       case Absolve(query)                 =>
         Left(
@@ -509,19 +507,18 @@ case object DynamoDBExecutorImpl {
           )
         )
       case s: BatchGetItem =>
-        s.requestItems.flatMap {
-          case (tableName, items) =>
-            items.keysSet.map { key =>
-              TransactGetItem(
-                Get(
-                  key = key.toZioAwsMap(),
-                  tableName = ZIOAwsTableName(tableName.value),
-                  projectionExpression = toOption(items.projectionExpressionSet)
-                    .map(awsProjectionExpression)
-                    .map(ZIOAwsProjectionExpression(_))
-                )
+        s.requestItems.flatMap { case (tableName, items) =>
+          items.keysSet.map { key =>
+            TransactGetItem(
+              Get(
+                key = key.toZioAwsMap(),
+                tableName = ZIOAwsTableName(tableName.value),
+                projectionExpression = toOption(items.projectionExpressionSet)
+                  .map(awsProjectionExpression)
+                  .map(ZIOAwsProjectionExpression(_))
               )
-            }
+            )
+          }
         }
       case _               => None
     }
@@ -541,29 +538,28 @@ case object DynamoDBExecutorImpl {
       case s: DeleteItem     => awsTransactWriteItem(s)
       case s: PutItem        => awsTransactWriteItem(s)
       case s: BatchWriteItem =>
-        s.requestItems.flatMap {
-          case (table, items) =>
-            val something = items.map {
-              case BatchWriteItem.Delete(key) =>
-                TransactWriteItem(delete =
-                  Some(
-                    ZIOAwsDelete(
-                      key = key.toZioAwsMap(),
-                      tableName = ZIOAwsTableName(table.value)
-                    )
+        s.requestItems.flatMap { case (table, items) =>
+          val something = items.map {
+            case BatchWriteItem.Delete(key) =>
+              TransactWriteItem(delete =
+                Some(
+                  ZIOAwsDelete(
+                    key = key.toZioAwsMap(),
+                    tableName = ZIOAwsTableName(table.value)
                   )
                 )
-              case BatchWriteItem.Put(item)   =>
-                TransactWriteItem(put =
-                  Some(
-                    ZIOAwsPut(
-                      item = item.toZioAwsMap(),
-                      tableName = ZIOAwsTableName(table.value)
-                    )
+              )
+            case BatchWriteItem.Put(item)   =>
+              TransactWriteItem(put =
+                Some(
+                  ZIOAwsPut(
+                    item = item.toZioAwsMap(),
+                    tableName = ZIOAwsTableName(table.value)
                   )
                 )
-            }
-            Chunk.fromIterable(something)
+              )
+          }
+          Chunk.fromIterable(something)
         }
       case s: UpdateItem     => awsTransactWriteItem(s)
       case s: ConditionCheck => awsTransactWriteItem(s)
@@ -590,9 +586,8 @@ case object DynamoDBExecutorImpl {
   ): Option[ScalaMap[ZIOAwsExpressionAttributeValueVariable, ZIOAwsAttributeValue]] =
     if (aliasMap.isEmpty) None
     else
-      Some(aliasMap.map.flatMap {
-        case (attrVal, str) =>
-          awsAttributeValue(attrVal).map(a => (ZIOAwsExpressionAttributeValueVariable(str), a))
+      Some(aliasMap.map.flatMap { case (attrVal, str) =>
+        awsAttributeValue(attrVal).map(a => (ZIOAwsExpressionAttributeValueVariable(str), a))
       })
 
   private[dynamodb] def tableGetToKeysAndAttributes(tableGet: TableGet): KeysAndAttributes = {
@@ -627,9 +622,8 @@ case object DynamoDBExecutorImpl {
   private def tableItemsMapToResponse(
     tableItems: ScalaMap[TableName, List[ScalaMap[ZIOAwsAttributeName, ZIOAwsAttributeValue.ReadOnly]]]
   ) =
-    tableItems.foldLeft(MapOfSet.empty[TableName, Item]) {
-      case (acc, (tableName, list)) =>
-        acc ++ ((tableName, list.map(dynamoDBItem)))
+    tableItems.foldLeft(MapOfSet.empty[TableName, Item]) { case (acc, (tableName, list)) =>
+      acc ++ ((tableName, list.map(dynamoDBItem)))
     }
 
   private def dynamoDBItem(attrMap: ScalaMap[ZIOAwsAttributeName, ZIOAwsAttributeValue.ReadOnly]): Item =
@@ -670,9 +664,8 @@ case object DynamoDBExecutorImpl {
     }) match {
       case (Some(map), replaced) =>
         val awsReplaced = f(replaced)
-        val awsMap      = map.map {
-          case (k, v) =>
-            (ExpressionAttributeNameVariable(k), ZIOAwsAttributeName(v))
+        val awsMap      = map.map { case (k, v) =>
+          (ExpressionAttributeNameVariable(k), ZIOAwsAttributeName(v))
         }
         (Some(awsMap), awsReplaced)
       case (None, replaced)      =>
@@ -726,9 +719,8 @@ case object DynamoDBExecutorImpl {
 
   private[dynamodb] def awsBatchWriteItemRequest(batchWriteItem: BatchWriteItem): BatchWriteItemRequest =
     BatchWriteItemRequest(
-      requestItems = batchWriteItem.requestItems.map {
-        case (tableName, items) =>
-          (ZIOAwsTableName(tableName.value), items.map(awsWriteRequest))
+      requestItems = batchWriteItem.requestItems.map { case (tableName, items) =>
+        (ZIOAwsTableName(tableName.value), items.map(awsWriteRequest))
       }.toMap, // TODO(adam): MapOfSet uses iterable, maybe we should add a mapKeyValues?
       returnConsumedCapacity = Some(awsConsumedCapacity(batchWriteItem.capacity)),
       returnItemCollectionMetrics = Some(awsReturnItemCollectionMetrics(batchWriteItem.itemMetrics))
@@ -736,9 +728,8 @@ case object DynamoDBExecutorImpl {
 
   private[dynamodb] def awsBatchGetItemRequest(batchGetItem: BatchGetItem): BatchGetItemRequest =
     BatchGetItemRequest(
-      requestItems = batchGetItem.requestItems.map {
-        case (tableName, tableGet) =>
-          (ZIOAwsTableName(tableName.value), tableGetToKeysAndAttributes(tableGet))
+      requestItems = batchGetItem.requestItems.map { case (tableName, tableGet) =>
+        (ZIOAwsTableName(tableName.value), tableGetToKeysAndAttributes(tableGet))
       },
       returnConsumedCapacity = Some(awsConsumedCapacity(batchGetItem.capacity))
     )
@@ -800,8 +791,8 @@ case object DynamoDBExecutorImpl {
       returnConsumedCapacity = Some(awsConsumedCapacity(updateItem.capacity)),
       returnItemCollectionMetrics = Some(awsReturnItemCollectionMetrics(updateItem.itemMetrics)),
       updateExpression = Some(awsUpdateExprn),
-      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap).map(_.map {
-        case (k, v) => (ZIOAwsExpressionAttributeValueVariable(k), v)
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap).map(_.map { case (k, v) =>
+        (ZIOAwsExpressionAttributeValueVariable(k), v)
       }),
       expressionAttributeNames = maybeAwsNamesMap,
       conditionExpression = maybeAwsCondition
@@ -860,8 +851,8 @@ case object DynamoDBExecutorImpl {
       returnConsumedCapacity = Some(awsConsumedCapacity(querySome.capacity)),
       projectionExpression = mapAndProjectionExprn._2,
       filterExpression = mapAndExprn._2,
-      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap).map(_.map {
-        case (k, v) => (ZIOAwsExpressionAttributeValueVariable(k), v)
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap).map(_.map { case (k, v) =>
+        (ZIOAwsExpressionAttributeValueVariable(k), v)
       }),
       expressionAttributeNames = awsNamesMap,
       keyConditionExpression = maybeKeyExpr.map(ZIOAwsKeyExpression(_))
@@ -1029,9 +1020,8 @@ case object DynamoDBExecutorImpl {
         attributeValue.m.flatMap(m =>
           toOption(m).map(m =>
             AttributeValue.Map(
-              m.flatMap {
-                case (k, v) =>
-                  awsAttrValToAttrVal(v).map(attrVal => (AttributeValue.String(k), attrVal))
+              m.flatMap { case (k, v) =>
+                awsAttrValToAttrVal(v).map(attrVal => (AttributeValue.String(k), attrVal))
               }
             )
           )
@@ -1186,8 +1176,8 @@ case object DynamoDBExecutorImpl {
       case AttributeValue.Bool(value)      => Some(ZIOAwsAttributeValue(bool = Some(value).map(BooleanAttributeValue(_))))
       case AttributeValue.List(value)      => Some(ZIOAwsAttributeValue(l = Some(value.flatMap(awsAttributeValue))))
       case AttributeValue.Map(value)       =>
-        Some(ZIOAwsAttributeValue(m = Some(value.flatMap {
-          case (k, v) => awsAttributeValue(v).map(r => (ZIOAwsAttributeName(k.value), r))
+        Some(ZIOAwsAttributeValue(m = Some(value.flatMap { case (k, v) =>
+          awsAttributeValue(v).map(r => (ZIOAwsAttributeName(k.value), r))
         })))
       case AttributeValue.Number(value)    =>
         Some(ZIOAwsAttributeValue(n = Some(value.toString()).map(NumberAttributeValue(_))))
@@ -1225,8 +1215,7 @@ case object DynamoDBExecutorImpl {
     toOption(map1.getOrElse(ScalaMap.empty) ++ map2.getOrElse(ScalaMap.empty))
 
   private def mapOfListToMapOfSet[A, B](map: ScalaMap[TableName, List[A]])(f: A => Option[B]): MapOfSet[TableName, B] =
-    map.foldLeft(MapOfSet.empty[TableName, B]) {
-      case (acc, (tableName, l)) =>
-        acc ++ ((tableName, l.map(f).flatten)) // TODO: Better way to make this compatible with 2.12 & 2.13?
+    map.foldLeft(MapOfSet.empty[TableName, B]) { case (acc, (tableName, l)) =>
+      acc ++ ((tableName, l.map(f).flatten)) // TODO: Better way to make this compatible with 2.12 & 2.13?
     }
 }
