@@ -618,14 +618,13 @@ case object DynamoDBExecutorImpl {
     }
 
   private[dynamodb] def tableGetToKeysAndAttributes(tableGet: TableGet): KeysAndAttributes = {
-    val maybeProjectionExprn                             = toOption(tableGet.projectionExpressionSet).map(awsProjectionExpression)
-    val (maybeAwsNamesMap, maybeProjectionExprnReplaced) =
-      awsExprnAttrNamesAndReplacedFn(maybeProjectionExprn)(ZIOAwsConditionExpression(_))
-
+    val (aliasMap: AliasMap2, projections: List[String]) =
+      AliasMapRender2.forEach(tableGet.projectionExpressionSet.toList)(AliasMap2.empty)
+    val names                                            = aliasMapToExpressionZIOAwsAttributeNames(aliasMap)
     KeysAndAttributes(
       keys = tableGet.keysSet.map(set => set.toZioAwsMap()),
-      projectionExpression = maybeProjectionExprnReplaced.map(ZIOAwsProjectionExpression(_)),
-      expressionAttributeNames = maybeAwsNamesMap
+      projectionExpression = toOption(projections).map(xs => ZIOAwsProjectionExpression(xs.mkString(", "))),
+      expressionAttributeNames = names
     )
   }
 

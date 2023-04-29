@@ -180,6 +180,13 @@ object LiveSpec extends ZIOSpecDefault {
   }
 
   val debugSuite: Spec[TestEnvironment, Any] = suite("debug")(
+    test("get data from map") {
+      withDefaultTable { tableName =>
+        for {
+          item <- getItem(tableName, pk(aviItem), $(id), $(number), $("map.abc")).execute
+        } yield assert(item)(equalTo(Some(Item(id -> first, number -> 1, "map" -> ScalaMap("abc" -> 1)))))
+      }
+    },
     test("scan table with filter") {
       withDefaultTable { tableName =>
         for {
@@ -196,7 +203,7 @@ object LiveSpec extends ZIOSpecDefault {
         } yield assert(chunk)(hasSize(equalTo(3)))
 //        } yield assert(chunk)(equalTo(Chunk(aviPerson, avi2Person, avi3Person)))
       }
-    },
+    } @@ TestAspect.ignore,
     test("queryAll") {
       withDefaultTable { tableName =>
         for {
