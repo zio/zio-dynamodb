@@ -3,7 +3,7 @@ package zio.dynamodb.examples.dynamodblocal
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.dynamodb.model._
-import zio.dynamodb.EitherUtil
+import zio.prelude._
 import zio.{ Console, ULayer, ZIO, ZIOAppDefault, ZLayer }
 
 import java.net.URI
@@ -231,7 +231,7 @@ object StudentJavaSdkExample extends ZIOAppDefault {
             javaList.asScala.map(m => attributeValueMapToStudent(m.asScala.toMap)).toList
           listOfErrorOrStudent
       }
-    errorOrStudents       = EitherUtil.collectAll(listOfErrorOrStudent)
+    errorOrStudents       = listOfErrorOrStudent.flip
     _                    <- Console.printLine(s"result=$errorOrStudents")
   } yield errorOrStudents
 

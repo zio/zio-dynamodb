@@ -31,9 +31,10 @@ inThisBuild(
 addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
 
-val zioVersion       = "2.0.10"
-val zioAwsVersion    = "5.20.32.2"
-val zioSchemaVersion = "0.4.10"
+val zioVersion        = "2.0.10"
+val zioAwsVersion     = "5.20.32.2"
+val zioSchemaVersion  = "0.4.10"
+val zioPreludeVersion = "1.0.0-RC18"
 
 lazy val root =
   project
@@ -50,6 +51,7 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
     resolvers += Resolver.sonatypeRepo("releases"),
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio"                   % zioVersion,
+      "dev.zio" %% "zio-prelude"           % zioPreludeVersion,
       "dev.zio" %% "zio-streams"           % zioVersion,
       "dev.zio" %% "zio-test"              % zioVersion % "it,test",
       "dev.zio" %% "zio-test-sbt"          % zioVersion % "it,test",

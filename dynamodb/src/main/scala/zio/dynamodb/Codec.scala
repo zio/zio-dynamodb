@@ -2,10 +2,11 @@ package zio.dynamodb
 
 import zio.dynamodb.Annotations.{ enumOfCaseObjects, maybeCaseName, maybeDiscriminator }
 import zio.dynamodb.DynamoDBError.DecodingError
+import zio.prelude.{ FlipOps, ForEachOps }
 import zio.schema.Schema.{ Optional, Primitive }
 import zio.schema.annotation.{ caseName, discriminatorName }
 import zio.schema.{ FieldSet, Schema, StandardType }
-import zio.{ schema, Chunk }
+import zio.{ Chunk }
 
 import java.math.BigInteger
 import java.time._
@@ -547,16 +548,15 @@ private[dynamodb] object Codec {
       (av: AttributeValue) =>
         av match {
           case AttributeValue.Map(map) =>
-            EitherUtil
-              .forEach[schema.Schema.Field[_, _], (String, Any), DynamoDBError](structure.toChunk) {
-                case Schema.Field(key, schema: Schema[a], _, _, _, _) =>
-                  val av  = map(AttributeValue.String(key))
-                  val dec = decoder(schema)
-                  dec(av) match {
-                    case Right(value) => Right(key -> value)
-                    case Left(s)      => Left(s)
-                  }
-              }
+            structure.toChunk.forEach {
+              case Schema.Field(key, schema: Schema[a], _, _, _, _) =>
+                val av  = map(AttributeValue.String(key))
+                val dec = decoder(schema)
+                dec(av) match {
+                  case Right(value) => Right(key -> value)
+                  case Left(s)      => Left(s)
+                }
+            }
               .map(ls => ListMap.newBuilder.++=(ls).result())
           case av                      => Left(DecodingError(s"Expected AttributeValue.Map but found $av"))
         }
@@ -690,7 +690,7 @@ private[dynamodb] object Codec {
 
     private def sequenceDecoder[Col, A](decoder: Decoder[A], to: Chunk[A] => Col): Decoder[Col] = {
       case AttributeValue.List(list) =>
-        EitherUtil.forEach(list)(decoder(_)).map(xs => to(Chunk.fromIterable(xs)))
+        list.forEach(decoder(_)).map(xs => to(Chunk.fromIterable(xs)))
       case av                        => Left(DecodingError(s"unable to decode $av as a list"))
     }
 
@@ -760,7 +760,7 @@ private[dynamodb] object Codec {
     private def nonNativeSetDecoder[A](decA: Decoder[A]): Decoder[Set[A]] = { (av: AttributeValue) =>
       av match {
         case AttributeValue.List(listOfAv) =>
-          val errorOrList = EitherUtil.forEach(listOfAv) { av =>
+          val errorOrList = listOfAv.forEach { av =>
             decA(av)
           }
           errorOrList.map(_.toSet)
@@ -789,7 +789,7 @@ private[dynamodb] object Codec {
                   case Left(s)     => Left(s)
                 }
             }
-            EitherUtil.collectAll(xs).map(_.toMap)
+            xs.flip.map(_.toMap)
           case av                      => Left(DecodingError(s"Error: expected AttributeValue.Map but found $av"))
         }
       }
@@ -798,7 +798,7 @@ private[dynamodb] object Codec {
       (av: AttributeValue) => {
         av match {
           case AttributeValue.List(listOfAv) =>
-            val errorOrListOfTuple = EitherUtil.forEach(listOfAv) {
+            val errorOrListOfTuple = listOfAv.forEach {
               case avList @ AttributeValue.List(_) =>
                 tupleDecoder(decA, decB)(avList)
               case av                              =>
@@ -889,29 +889,28 @@ private[dynamodb] object Codec {
     ): Either[DynamoDBError, List[Any]] =
       av match {
         case AttributeValue.Map(map) =>
-          EitherUtil
-            .forEach(fields) {
-              case Schema.Field(key, schema, _, _, _, _) =>
-                val dec                                = decoder(schema)
-                val k                                  = key // @fieldName is respected by the zio-schema macro
-                val maybeValue                         = map.get(AttributeValue.String(k))
-                val maybeDecoder                       = maybeValue.map(dec).toRight(DecodingError(s"field '$k' not found in $av"))
-                val either: Either[DynamoDBError, Any] = for {
-                  decoder <- maybeDecoder
-                  decoded <- decoder
-                } yield decoded
+          fields.toList.forEach {
+            case Schema.Field(key, schema, _, _, _, _) =>
+              val dec                                = decoder(schema)
+              val k                                  = key // @fieldName is respected by the zio-schema macro
+              val maybeValue                         = map.get(AttributeValue.String(k))
+              val maybeDecoder                       = maybeValue.map(dec).toRight(DecodingError(s"field '$k' not found in $av"))
+              val either: Either[DynamoDBError, Any] = for {
+                decoder <- maybeDecoder
+                decoded <- decoder
+              } yield decoded
 
-                if (maybeValue.isEmpty)
-                  ContainerField.containerField(schema) match {
-                    case ContainerField.Optional => Right(None)
-                    case ContainerField.List     => Right(List.empty)
-                    case ContainerField.Map      => Right(Map.empty)
-                    case ContainerField.Set      => Right(Set.empty)
-                    case ContainerField.Scalar   => either
-                  }
-                else
-                  either
-            }
+              if (maybeValue.isEmpty)
+                ContainerField.containerField(schema) match {
+                  case ContainerField.Optional => Right(None)
+                  case ContainerField.List     => Right(List.empty)
+                  case ContainerField.Map      => Right(Map.empty)
+                  case ContainerField.Set      => Right(Set.empty)
+                  case ContainerField.Scalar   => either
+                }
+              else
+                either
+          }
             .map(_.toList)
         case _                       =>
           Left(DecodingError(s"$av is not an AttributeValue.Map"))

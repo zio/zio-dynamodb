@@ -1,6 +1,7 @@
 package zio.dynamodb
 
 import zio.dynamodb.DynamoDBError.DecodingError
+import zio.prelude.ForEachOps
 
 final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFromAttributeValueAs { self =>
 
@@ -29,7 +30,7 @@ final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFrom
 
   // convenience method so that user does not have to transform between a List and an Either
   def getIterableItem[A](field: String)(f: AttrMap => Either[DynamoDBError, A]): Either[DynamoDBError, Iterable[A]] =
-    get[Iterable[Item]](field).flatMap[DynamoDBError, Iterable[A]](xs => EitherUtil.forEach(xs)(f))
+    get[Iterable[Item]](field).flatMap[DynamoDBError, Iterable[A]](xs => xs.forEach(f))
 
   // convenience method so that user does not have to transform between an Option, List and an Either
   def getOptionalIterableItem[A](
@@ -38,7 +39,7 @@ final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFrom
     def maybeTransform(maybeItems: Option[Iterable[Item]]): Either[DynamoDBError, Option[Iterable[A]]] =
       maybeItems match {
         case None     => Right(None)
-        case Some(xs) => EitherUtil.forEach(xs)(f).map(Some(_))
+        case Some(xs) => xs.forEach(f).map(Some(_))
       }
     getOptional[Iterable[Item]](field: String).flatMap(maybeTransform)
   }
