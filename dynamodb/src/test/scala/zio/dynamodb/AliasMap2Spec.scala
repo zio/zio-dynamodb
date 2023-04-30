@@ -15,7 +15,10 @@ object AliasMap2Spec extends ZIOSpecDefault {
   override def spec: Spec[TestEnvironment with Scope, Any] =
     suite("AliasMap2")(
       test("renders a simple projection expression") {
-        val map = Map(rootPathSegment("abc") -> "#n0", fullPath($("abc")) -> "#n0")
+        val map = Map(
+          rootPathSegment("abc") -> "#n0",
+          fullPath($("abc"))     -> "#n0"
+        )
 
         val (aliasMap, s) = AliasMap2.empty.getOrInsert($("abc"))
 
