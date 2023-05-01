@@ -15,7 +15,6 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
   val list   = AttributeValue.List(List(one, two, three))
   val bool   = AttributeValue.String("BOOL")
 
-  // TODO: Avi
   val root: ProjectionExpression[Any, Any]                                    = ProjectionExpression.Root
   def rootPathSegment(path: String)                                           = pathSegment(root, path)
   def pathSegment[From, To](pe: ProjectionExpression[From, To], path: String) = AliasMap.PathSegment(pe, path)
