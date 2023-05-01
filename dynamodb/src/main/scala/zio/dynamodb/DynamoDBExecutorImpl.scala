@@ -662,19 +662,16 @@ case object DynamoDBExecutorImpl {
   }
 
   private def awsPutItemRequest(putItem: PutItem): PutItemRequest = {
-    val maybeAliasMap: Option[(AliasMap, String)] = putItem.conditionExpression.map(_.render.execute)
+    val (aliasMap, maybeCondExprn) = AliasMapRender.collectAll(putItem.conditionExpression.map(_.render)).execute
+
     PutItemRequest(
       tableName = ZIOAwsTableName(putItem.tableName.value),
       item = awsAttributeValueMap(putItem.item.map),
       returnConsumedCapacity = Some(awsConsumedCapacity(putItem.capacity)),
       returnItemCollectionMetrics = Some(ReturnItemCollectionMetrics.toZioAws(putItem.itemMetrics)),
-      conditionExpression = maybeAliasMap.map { case (_, s) => ZIOAwsConditionExpression(s) },
-      expressionAttributeValues = maybeAliasMap.flatMap {
-        case (aliasMap, _) => aliasMapToExpressionZIOAwsAttributeValues(aliasMap)
-      },
-      expressionAttributeNames = maybeAliasMap.flatMap {
-        case (aliasMap, _) => aliasMapToExpressionZIOAwsAttributeNames(aliasMap)
-      },
+      conditionExpression = maybeCondExprn.map(ZIOAwsConditionExpression(_)),
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap),
+      expressionAttributeNames = aliasMapToExpressionZIOAwsAttributeNames(aliasMap),
       returnValues = Some(awsReturnValues(putItem.returnValues))
     )
   }
