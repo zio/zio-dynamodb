@@ -179,69 +179,6 @@ object LiveSpec extends ZIOSpecDefault {
     val (id, num, ttl)                                                                     = ProjectionExpression.accessors[ExpressionAttrNames]
   }
 
-  val debugSuite: Spec[TestEnvironment, Any] = suite("debug")(
-    test("get data from map") {
-      withDefaultTable { tableName =>
-        for {
-          item <- getItem(tableName, pk(aviItem), $(id), $(number), $("map.abc")).execute
-        } yield assert(item)(equalTo(Some(Item(id -> first, number -> 1, "map" -> ScalaMap("abc" -> 1)))))
-      }
-    },
-    test("scan table with filter") {
-      withDefaultTable { tableName =>
-        for {
-          stream <- scanAll[ExpressionAttrNames](tableName)
-                      .filter(ExpressionAttrNames.id === first)
-                      // .filter(
-                      //   ConditionExpression.Equals(
-                      //     ConditionExpression.Operand.ProjectionExpressionOperand($(id)),
-                      //     ConditionExpression.Operand.ValueOperand(AttributeValue(first))
-                      //   )
-                      // )
-                      .execute
-          chunk  <- stream.runCollect
-        } yield assert(chunk)(hasSize(equalTo(3)))
-//        } yield assert(chunk)(equalTo(Chunk(aviPerson, avi2Person, avi3Person)))
-      }
-    } @@ TestAspect.ignore,
-    test("queryAll") {
-      withDefaultTable { tableName =>
-        for {
-          stream <- queryAllItem(tableName)
-                      .whereKey(PartitionKey(id) === second)
-                      .execute
-          chunk  <- stream.run(ZSink.collectAll[Item])
-        } yield assert(chunk)(
-          equalTo(
-            Chunk(adamItem, adam2Item, adam3Item)
-          )
-        )
-      }
-    } @@ TestAspect.ignore,
-    test("delete should handle keyword") {
-      withDefaultTable { tableName =>
-        val query = DynamoDBQuery
-          .delete[ExpressionAttrNames](tableName, PrimaryKey("id" -> "id", "num" -> 1))
-          .where(ExpressionAttrNames.ttl.notExists)
-        query.execute.exit.map { result =>
-          assert(result)(succeeds(isNone))
-        }
-      }
-    } @@ TestAspect.ignore,
-    test("put should handle keyword") {
-      withDefaultTable { tableName =>
-        val query = DynamoDBQuery
-          .put[ExpressionAttrNames](tableName, ExpressionAttrNames("id", 1, None))
-          .where(ExpressionAttrNames.ttl.notExists)
-        query.execute.exit.map { result =>
-          assert(result)(succeeds(isNone))
-        }
-      }
-    } @@ TestAspect.ignore
-  ).provideSomeLayerShared[TestEnvironment](
-    testLayer.orDie
-  ) @@ nondeterministic
-
   val mainSuite: Spec[TestEnvironment, Any] =
     suite("live test")(
       suite("keywords in expression attribute names")(

@@ -74,7 +74,6 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
             $("otherProjection"),
             UpdateExpression.SetOperand.ValueOperand(one)
           ) + UpdateExpression.Action.AddAction($("lastProjection"), one)).render.execute
-      println(s"XXXXXXXXXXXX aliasMap=$aliasMap")
 
       assert(aliasMap)(equalTo(AliasMap(map, 7))) && // TODO: Avi resolve 7
       assert(expression)(equalTo(s"set #n0 = :v1,#n2 = :v1 add #n5 :v1"))
