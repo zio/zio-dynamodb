@@ -767,8 +767,8 @@ case object DynamoDBExecutorImpl {
 
   def awsQueryRequest(queryAll: QueryAll): QueryRequest = {
     val (aliasMap, (maybeFilterExpr, maybeKeyExpr, projections)) = (for {
-      filter  <- AliasMapRender.collectAll(queryAll.filterExpression.map(_.render))
-      keyExpr <- AliasMapRender.collectAll(queryAll.keyConditionExpression.map(_.render))
+      filter      <- AliasMapRender.collectAll(queryAll.filterExpression.map(_.render))
+      keyExpr     <- AliasMapRender.collectAll(queryAll.keyConditionExpression.map(_.render))
       projections <- AliasMapRender.forEach(queryAll.projections)
     } yield (filter, keyExpr, projections)).execute
 
@@ -790,9 +790,9 @@ case object DynamoDBExecutorImpl {
   }
 
   private def awsQueryRequest(querySome: QuerySome): QueryRequest = {
-    val (aliasMap, (maybeFilterExpr, maybeKeyExpr, projections))  = (for {
-      filter  <- AliasMapRender.collectAll(querySome.filterExpression.map(_.render))
-      keyExpr <- AliasMapRender.collectAll(querySome.keyConditionExpression.map(_.render))
+    val (aliasMap, (maybeFilterExpr, maybeKeyExpr, projections)) = (for {
+      filter      <- AliasMapRender.collectAll(querySome.filterExpression.map(_.render))
+      keyExpr     <- AliasMapRender.collectAll(querySome.keyConditionExpression.map(_.render))
       projections <- AliasMapRender.forEach(querySome.projections)
     } yield (filter, keyExpr, projections)).execute
 
@@ -813,9 +813,9 @@ case object DynamoDBExecutorImpl {
     )
   }
   private def awsScanRequest(scanAll: ScanAll, segment: Option[ScanAll.Segment]): ScanRequest = {
-    val (aliasMap, (maybeFilterExpr, projections))                  = (for {
+    val (aliasMap, (maybeFilterExpr, projections)) = (for {
       maybeFilterExpr <- AliasMapRender.collectAll(scanAll.filterExpression.map(_.render))
-      projections <- AliasMapRender.forEach(scanAll.projections)
+      projections     <- AliasMapRender.forEach(scanAll.projections)
     } yield (maybeFilterExpr, projections)).execute
 
     ScanRequest(
@@ -836,9 +836,9 @@ case object DynamoDBExecutorImpl {
   }
 
   private def awsScanRequest(scanSome: ScanSome): ScanRequest = {
-    val (aliasMap, (maybeFilterExpr, projections))                  = (for {
+    val (aliasMap, (maybeFilterExpr, projections)) = (for {
       maybeFilterExpr <- AliasMapRender.collectAll(scanSome.filterExpression.map(_.render))
-      projections <- AliasMapRender.forEach(scanSome.projections)
+      projections     <- AliasMapRender.forEach(scanSome.projections)
     } yield (maybeFilterExpr, projections)).execute
 
     ScanRequest(
