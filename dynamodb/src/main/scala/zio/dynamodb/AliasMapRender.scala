@@ -31,8 +31,6 @@ private[dynamodb] final case class AliasMapRender[+A](
 
   def execute: (AliasMap, A) = self.render(AliasMap.empty)
 
-  def execute(map: AliasMap): (AliasMap, A) = self.render(map)
-
 }
 
 private[dynamodb] object AliasMapRender {

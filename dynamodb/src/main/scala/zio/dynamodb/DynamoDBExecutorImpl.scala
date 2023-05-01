@@ -860,7 +860,6 @@ case object DynamoDBExecutorImpl {
     action match {
       case conditionCheck: ConditionCheck =>
         Some(TransactWriteItem(conditionCheck = Some(awsConditionCheck(conditionCheck))))
-        Some(TransactWriteItem(conditionCheck = Some(awsConditionCheck(conditionCheck))))
       case put: PutItem                   => Some(TransactWriteItem(put = Some(awsTransactPutItem(put))))
       case delete: DeleteItem             => Some(TransactWriteItem(delete = Some(awsTransactDeleteItem(delete))))
       case update: UpdateItem             => Some(TransactWriteItem(update = Some(awsTransactUpdateItem(update))))

@@ -57,7 +57,7 @@ object UpdateExpression {
       def generateActionsStatements[A <: RenderableAction[_]](chunk: Chunk[A]) =
         chunk.foldLeft(AliasMapRender.empty.map(_ => "")) {
           case (acc, action) =>
-            acc.zipWith(action.miniRender2) {
+            acc.zipWith(action.miniRender) {
               case (acc, action) =>
                 if (acc.isEmpty) action
                 else acc ++ "," ++ action
@@ -117,7 +117,7 @@ object UpdateExpression {
   sealed trait RenderableAction[-A] extends Action[A] { self =>
     override def +[A1 <: A](that: RenderableAction[A1]): Action[A1] = Actions(Chunk(self, that))
 
-    def miniRender2: AliasMapRender[String] =
+    def miniRender: AliasMapRender[String] =
       self match {
         case Action.SetAction(path, operand)  =>
           for {
