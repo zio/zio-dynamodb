@@ -45,6 +45,7 @@ private[dynamodb] object AliasMapRender {
       aliasMap.getOrInsert(entry)
     }
 
+  // TODO: Avi - improve type inference
   def forEach(paths: List[ProjectionExpression[_, _]])(aliasMap: AliasMap): (AliasMap, List[String]) = {
     val (am, pathStrings) = paths.foldLeft((aliasMap, List.empty[String])) {
       case ((am, acc), path) =>
