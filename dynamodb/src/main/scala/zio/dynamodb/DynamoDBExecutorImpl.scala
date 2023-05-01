@@ -619,7 +619,7 @@ case object DynamoDBExecutorImpl {
 
   private[dynamodb] def tableGetToKeysAndAttributes(tableGet: TableGet): KeysAndAttributes = {
     val (aliasMap: AliasMap, projections: List[String]) =
-      AliasMapRender.forEach(tableGet.projectionExpressionSet.toList)(AliasMap.empty)
+      AliasMapRender.forEach(tableGet.projectionExpressionSet.toList).execute
     KeysAndAttributes(
       keys = tableGet.keysSet.map(set => set.toZioAwsMap()),
       projectionExpression = toOption(projections).map(xs => ZIOAwsProjectionExpression(xs.mkString(", "))),
@@ -766,12 +766,11 @@ case object DynamoDBExecutorImpl {
   }
 
   def awsQueryRequest(queryAll: QueryAll): QueryRequest = {
-    val (aliasMapTmp, (maybeFilterExpr, maybeKeyExpr)) = (for {
+    val (aliasMap, (maybeFilterExpr, maybeKeyExpr, projections)) = (for {
       filter  <- AliasMapRender.collectAll(queryAll.filterExpression.map(_.render))
       keyExpr <- AliasMapRender.collectAll(queryAll.keyConditionExpression.map(_.render))
-    } yield (filter, keyExpr)).execute
-
-    val (aliasMap: AliasMap, projections: List[String]) = AliasMapRender.forEach(queryAll.projections)(aliasMapTmp)
+      projections <- AliasMapRender.forEach(queryAll.projections)
+    } yield (filter, keyExpr, projections)).execute
 
     QueryRequest(
       tableName = ZIOAwsTableName(queryAll.tableName.value),
@@ -791,11 +790,11 @@ case object DynamoDBExecutorImpl {
   }
 
   private def awsQueryRequest(querySome: QuerySome): QueryRequest = {
-    val (aliasMapTmp, (maybeFilterExpr, maybeKeyExpr))  = (for {
+    val (aliasMap, (maybeFilterExpr, maybeKeyExpr, projections))  = (for {
       filter  <- AliasMapRender.collectAll(querySome.filterExpression.map(_.render))
       keyExpr <- AliasMapRender.collectAll(querySome.keyConditionExpression.map(_.render))
-    } yield (filter, keyExpr)).execute
-    val (aliasMap: AliasMap, projections: List[String]) = AliasMapRender.forEach(querySome.projections)(aliasMapTmp)
+      projections <- AliasMapRender.forEach(querySome.projections)
+    } yield (filter, keyExpr, projections)).execute
 
     QueryRequest(
       tableName = ZIOAwsTableName(querySome.tableName.value),
@@ -814,8 +813,10 @@ case object DynamoDBExecutorImpl {
     )
   }
   private def awsScanRequest(scanAll: ScanAll, segment: Option[ScanAll.Segment]): ScanRequest = {
-    val (aliasMapTmp, maybeFilterExpr)                  = AliasMapRender.collectAll(scanAll.filterExpression.map(_.render)).execute
-    val (aliasMap: AliasMap, projections: List[String]) = AliasMapRender.forEach(scanAll.projections)(aliasMapTmp)
+    val (aliasMap, (maybeFilterExpr, projections))                  = (for {
+      maybeFilterExpr <- AliasMapRender.collectAll(scanAll.filterExpression.map(_.render))
+      projections <- AliasMapRender.forEach(scanAll.projections)
+    } yield (maybeFilterExpr, projections)).execute
 
     ScanRequest(
       tableName = ZIOAwsTableName(scanAll.tableName.value),
@@ -835,8 +836,10 @@ case object DynamoDBExecutorImpl {
   }
 
   private def awsScanRequest(scanSome: ScanSome): ScanRequest = {
-    val (aliasMapTmp, maybeFilterExpr)                  = AliasMapRender.collectAll(scanSome.filterExpression.map(_.render)).execute
-    val (aliasMap: AliasMap, projections: List[String]) = AliasMapRender.forEach(scanSome.projections)(aliasMapTmp)
+    val (aliasMap, (maybeFilterExpr, projections))                  = (for {
+      maybeFilterExpr <- AliasMapRender.collectAll(scanSome.filterExpression.map(_.render))
+      projections <- AliasMapRender.forEach(scanSome.projections)
+    } yield (maybeFilterExpr, projections)).execute
 
     ScanRequest(
       tableName = ZIOAwsTableName(scanSome.tableName.value),
