@@ -706,17 +706,14 @@ case object DynamoDBExecutorImpl {
     )
 
   private def awsDeleteItemRequest(deleteItem: DeleteItem): DeleteItemRequest = {
-    val maybeAliasMap: Option[(AliasMap, String)] = deleteItem.conditionExpression.map(_.render.execute)
+    val (aliasMap, maybeCondExprn) = AliasMapRender.collectAll(deleteItem.conditionExpression.map(_.render)).execute
+
     DeleteItemRequest(
       tableName = ZIOAwsTableName(deleteItem.tableName.value),
       key = deleteItem.key.toZioAwsMap(),
-      conditionExpression = maybeAliasMap.map { case (_, s) => ZIOAwsConditionExpression(s) },
-      expressionAttributeValues = maybeAliasMap.flatMap {
-        case (aliasMap, _) => aliasMapToExpressionZIOAwsAttributeValues(aliasMap)
-      },
-      expressionAttributeNames = maybeAliasMap.flatMap {
-        case (aliasMap, _) => aliasMapToExpressionZIOAwsAttributeNames(aliasMap)
-      },
+      conditionExpression = maybeCondExprn.map(ZIOAwsConditionExpression(_)),
+      expressionAttributeValues = aliasMapToExpressionZIOAwsAttributeValues(aliasMap),
+      expressionAttributeNames = aliasMapToExpressionZIOAwsAttributeNames(aliasMap),
       returnConsumedCapacity = Some(awsConsumedCapacity(deleteItem.capacity)),
       returnItemCollectionMetrics = Some(awsReturnItemCollectionMetrics(deleteItem.itemMetrics)),
       returnValues = Some(awsReturnValues(deleteItem.returnValues))
@@ -869,8 +866,6 @@ case object DynamoDBExecutorImpl {
     }
 
   private def awsConditionCheck(conditionCheck: ConditionCheck): ZIOAwsConditionCheck = {
-
-    // (AliasMap, String)
     val (aliasMap, conditionExpression) = conditionCheck.conditionExpression.render.execute
 
     ZIOAwsConditionCheck(
