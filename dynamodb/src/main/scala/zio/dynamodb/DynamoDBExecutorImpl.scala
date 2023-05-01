@@ -620,11 +620,10 @@ case object DynamoDBExecutorImpl {
   private[dynamodb] def tableGetToKeysAndAttributes(tableGet: TableGet): KeysAndAttributes = {
     val (aliasMap: AliasMap, projections: List[String]) =
       AliasMapRender.forEach(tableGet.projectionExpressionSet.toList)(AliasMap.empty)
-    val names                                           = aliasMapToExpressionZIOAwsAttributeNames(aliasMap)
     KeysAndAttributes(
       keys = tableGet.keysSet.map(set => set.toZioAwsMap()),
       projectionExpression = toOption(projections).map(xs => ZIOAwsProjectionExpression(xs.mkString(", "))),
-      expressionAttributeNames = names
+      expressionAttributeNames = aliasMapToExpressionZIOAwsAttributeNames(aliasMap)
     )
   }
 
@@ -904,7 +903,6 @@ case object DynamoDBExecutorImpl {
   }
 
   private def awsTransactUpdateItem(update: UpdateItem): ZIOAwsUpdate = {
-
     val (aliasMap, (updateExpr, maybeConditionExpr)) = (for {
       updateExpr    <- update.updateExpression.render
       conditionExpr <- AliasMapRender.collectAll(update.conditionExpression.map(_.render))
