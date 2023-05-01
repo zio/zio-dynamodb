@@ -31,13 +31,28 @@ private[dynamodb] final case class AliasMapRender[+A](
 
   def execute: (AliasMap, A) = self.render(AliasMap.empty)
 
+  def execute(map: AliasMap): (AliasMap, A) = self.render(map)
+
 }
 
 private[dynamodb] object AliasMapRender {
-  def getOrInsert(entry: AttributeValue): AliasMapRender[String] =
+  def getOrInsert(entry: AttributeValue): AliasMapRender[String]                           =
     AliasMapRender { aliasMap =>
       aliasMap.getOrInsert(entry)
     }
+  def getOrInsert[From, To](entry: ProjectionExpression[From, To]): AliasMapRender[String] =
+    AliasMapRender { aliasMap =>
+      aliasMap.getOrInsert(entry)
+    }
+
+  def forEach(paths: List[ProjectionExpression[_, _]])(aliasMap: AliasMap): (AliasMap, List[String]) = {
+    val (am, pathStrings) = paths.foldLeft((aliasMap, List.empty[String])) {
+      case ((am, acc), path) =>
+        val (am2, str) = am.getOrInsert(path)
+        (am2, acc :+ str)
+    }
+    (am, pathStrings)
+  }
 
   def empty: AliasMapRender[Unit] = AliasMapRender.addMap(AliasMap.empty)
 

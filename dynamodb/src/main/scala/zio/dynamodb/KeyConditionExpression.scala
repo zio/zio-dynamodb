@@ -15,7 +15,7 @@ comparisons operators are the same as for Condition
 
  */
 
-sealed trait KeyConditionExpression extends Renderable with Renderable2 { self =>
+sealed trait KeyConditionExpression extends Renderable { self =>
   def render: AliasMapRender[String] =
     self match {
       case KeyConditionExpression.And(left, right) =>
@@ -24,16 +24,6 @@ sealed trait KeyConditionExpression extends Renderable with Renderable2 { self =
             right.render
           ) { case (l, r) => s"$l AND $r" }
       case expression: PartitionKeyExpression      => expression.render
-    }
-
-  def render2: AliasMapRender2[String] =
-    self match {
-      case KeyConditionExpression.And(left, right) =>
-        left.render2
-          .zipWith(
-            right.render2
-          ) { case (l, r) => s"$l AND $r" }
-      case expression: PartitionKeyExpression      => expression.render2
     }
 
 }
@@ -168,12 +158,6 @@ sealed trait PartitionKeyExpression extends KeyConditionExpression { self =>
       case PartitionKeyExpression.Equals(left, right) =>
         AliasMapRender.getOrInsert(right).map(v => s"${left.keyName} = $v")
     }
-
-  override def render2: AliasMapRender2[String] =
-    self match {
-      case PartitionKeyExpression.Equals(left, right) =>
-        AliasMapRender2.getOrInsert(right).map(v => s"${left.keyName} = $v")
-    }
 }
 object PartitionKeyExpression {
   final case class PartitionKey(keyName: String) { self =>
@@ -184,60 +168,6 @@ object PartitionKeyExpression {
 }
 
 sealed trait SortKeyExpression { self =>
-  def render2: AliasMapRender2[String] =
-    self match {
-      case SortKeyExpression.Equals(left, right)             =>
-        AliasMapRender2
-          .getOrInsert(right)
-          .map { v =>
-            s"${left.keyName} = $v"
-          }
-      case SortKeyExpression.LessThan(left, right)           =>
-        AliasMapRender2
-          .getOrInsert(right)
-          .map { v =>
-            s"${left.keyName} < $v"
-          }
-      case SortKeyExpression.NotEqual(left, right)           =>
-        AliasMapRender2
-          .getOrInsert(right)
-          .map { v =>
-            s"${left.keyName} <> $v"
-          }
-      case SortKeyExpression.GreaterThan(left, right)        =>
-        AliasMapRender2
-          .getOrInsert(right)
-          .map { v =>
-            s"${left.keyName} > $v"
-          }
-      case SortKeyExpression.LessThanOrEqual(left, right)    =>
-        AliasMapRender2
-          .getOrInsert(right)
-          .map { v =>
-            s"${left.keyName} <= $v"
-          }
-      case SortKeyExpression.GreaterThanOrEqual(left, right) =>
-        AliasMapRender2
-          .getOrInsert(right)
-          .map { v =>
-            s"${left.keyName} >= $v"
-          }
-      case SortKeyExpression.Between(left, min, max)         =>
-        AliasMapRender2
-          .getOrInsert(min)
-          .flatMap(min =>
-            AliasMapRender2.getOrInsert(max).map { max =>
-              s"${left.keyName} BETWEEN $min AND $max"
-            }
-          )
-      case SortKeyExpression.BeginsWith(left, value)         =>
-        AliasMapRender2
-          .getOrInsert(value)
-          .map { v =>
-            s"begins_with(${left.keyName}, $v)"
-          }
-    }
-
   def render: AliasMapRender[String] =
     self match {
       case SortKeyExpression.Equals(left, right)             =>
@@ -291,6 +221,7 @@ sealed trait SortKeyExpression { self =>
             s"begins_with(${left.keyName}, $v)"
           }
     }
+
 }
 
 object SortKeyExpression {
