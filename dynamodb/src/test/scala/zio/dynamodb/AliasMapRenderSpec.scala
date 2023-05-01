@@ -56,30 +56,6 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
 
   override def spec: Spec[_root_.zio.test.TestEnvironment, Any] = main
 
-  val debug = suite("debug")(
-    test("Two Sets") {
-      val map = Map(
-        rootPathSegment("projection")      -> "#n0",
-        fullPath($("projection"))          -> "#n0",
-        avKey(one)                         -> ":v1",
-        rootPathSegment("otherProjection") -> "#n2",
-        fullPath($("otherProjection"))     -> "#n2",
-        rootPathSegment("lastProjection")  -> "#n5",
-        fullPath($("lastProjection"))      -> "#n5"
-      )
-
-      val (aliasMap, expression) =
-        (UpdateExpression.Action.SetAction($("projection"), UpdateExpression.SetOperand.ValueOperand(one)) +
-          UpdateExpression.Action.SetAction(
-            $("otherProjection"),
-            UpdateExpression.SetOperand.ValueOperand(one)
-          ) + UpdateExpression.Action.AddAction($("lastProjection"), one)).render.execute
-
-      assert(aliasMap)(equalTo(AliasMap(map, 7))) && // TODO: Avi resolve 7
-      assert(expression)(equalTo(s"set #n0 = :v1,#n2 = :v1 add #n5 :v1"))
-    }
-  )
-
   val main: Spec[_root_.zio.test.TestEnvironment, Any] =
     suite("AliasMapRender")(
       suite("ConditionExpression")(
