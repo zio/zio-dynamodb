@@ -92,21 +92,18 @@ sealed trait ProjectionExpression[-From, +To] { self =>
   def remove[From2 <: From]: UpdateExpression.Action.RemoveAction[From2] =
     UpdateExpression.Action.RemoveAction[From2](self)
 
-  override def toString: String = toStringEscaped
-
-  private[dynamodb] def toStringEscaped: String = {
+  override def toString: String = {
     @tailrec
     def loop(pe: ProjectionExpression[_, _], acc: List[String]): List[String] =
       pe match {
-        case Root                                        =>
+        case Root =>
           acc // identity
-        case ProjectionExpression.MapElement(Root, name) =>
-          val pathSegment = name
-          acc :+ pathSegment
-        case MapElement(parent, key)                     =>
+        case ProjectionExpression.MapElement(Root, pathSegment) =>
+          loop(Root, acc :+ pathSegment)
+        case MapElement(parent, key) =>
           val pathSegment = key
           loop(parent, acc :+ "." + pathSegment)
-        case ListElement(parent, index)                  =>
+        case ListElement(parent, index) =>
           loop(parent, acc :+ s"[$index]")
       }
 
