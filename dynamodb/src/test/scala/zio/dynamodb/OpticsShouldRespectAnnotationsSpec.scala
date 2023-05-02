@@ -1,20 +1,18 @@
 package zio.dynamodb
 
-import zio.dynamodb.ExpressionAttributeNames.Prefix
 import zio.schema.annotation.{ caseName, discriminatorName, fieldName }
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test.Assertion.equalTo
 import zio.test.{ assert, ZIOSpecDefault }
 
 object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
-  private val prefix = Prefix
 
-  private val trafficLightColour = s"${prefix}trafficLightColour"
-  private val Green              = s"${prefix}Green"
-  private val Amber              = s"${prefix}Amber"
-  private val rgb                = s"${prefix}rgb"
-  private val red_traffic_light  = s"${prefix}red_traffic_light"
-  private val red_green_blue     = s"${prefix}red_green_blue"
+  private val trafficLightColour = "trafficLightColour"
+  private val Green              = "Green"
+  private val Amber              = "Amber"
+  private val rgb                = "rgb"
+  private val red_traffic_light  = "red_traffic_light"
+  private val red_green_blue     = "red_green_blue"
 
   sealed trait CaseObjectOnlyEnum
   final case class BoxOfCaseObjectOnlyEnum(`enum`: CaseObjectOnlyEnum)

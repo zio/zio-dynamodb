@@ -68,13 +68,23 @@ sealed trait ConditionExpression[-From] extends Renderable { self =>
                         }
                     }
         } yield s"$l IN ($vals)"
-      case ae: AttributeExists[_]      => AliasMapRender.succeed(s"attribute_exists(${ae.path})")
-      case ane: AttributeNotExists[_]  => AliasMapRender.succeed(s"attribute_not_exists(${ane.path})")
+      case ae: AttributeExists[_]      => AliasMapRender.getOrInsert(ae.path).map(n => s"attribute_exists($n)")
+      case ane: AttributeNotExists[_]  => AliasMapRender.getOrInsert(ane.path).map(n => s"attribute_not_exists($n)")
       case at: AttributeType[_]        =>
-        at.attributeType.render.map(v => s"attribute_type(${at.path}, $v)")
-      case c: Contains[_]              => AliasMapRender.getOrInsert(c.value).map(v => s"contains(${c.path}, $v)")
+        for {
+          v <- at.attributeType.render
+          n <- AliasMapRender.getOrInsert(at.path)
+        } yield s"attribute_type($n, $v)"
+      case c: Contains[_]              =>
+        for {
+          v <- AliasMapRender.getOrInsert(c.value)
+          n <- AliasMapRender.getOrInsert(c.path)
+        } yield s"contains($n, $v)"
       case bw: BeginsWith[_]           =>
-        AliasMapRender.getOrInsert(bw.value).map(v => s"begins_with(${bw.path}, $v)")
+        for {
+          v <- AliasMapRender.getOrInsert(bw.value)
+          n <- AliasMapRender.getOrInsert(bw.path)
+        } yield s"begins_with($n, $v)"
       case and: And[_]                 => and.left.render.zipWith(and.right.render) { case (l, r) => s"($l) AND ($r)" }
       case or: Or[_]                   => or.left.render.zipWith(or.right.render) { case (l, r) => s"($l) OR ($r)" }
       case not: Not[_]                 => not.exprn.render.map(v => s"NOT ($v)")
@@ -128,9 +138,9 @@ object ConditionExpression {
 
     def render: AliasMapRender[String] =
       self match {
-        case op: Operand.ProjectionExpressionOperand[_] => AliasMapRender.succeed(op.pe.toString)
+        case op: Operand.ProjectionExpressionOperand[_] => AliasMapRender.getOrInsert(op.pe)
         case op: Operand.ValueOperand[_]                => AliasMapRender.getOrInsert(op.value).map(identity)
-        case op: Operand.Size[_, _]                     => AliasMapRender.succeed(s"size(${op.path})")
+        case op: Operand.Size[_, _]                     => AliasMapRender.getOrInsert(op.path).map(s => s"size($s)")
       }
   }
 
