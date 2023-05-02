@@ -96,14 +96,14 @@ sealed trait ProjectionExpression[-From, +To] { self =>
     @tailrec
     def loop(pe: ProjectionExpression[_, _], acc: List[String]): List[String] =
       pe match {
-        case Root =>
+        case Root                                               =>
           acc // identity
         case ProjectionExpression.MapElement(Root, pathSegment) =>
           loop(Root, acc :+ pathSegment)
-        case MapElement(parent, key) =>
+        case MapElement(parent, key)                            =>
           val pathSegment = key
           loop(parent, acc :+ "." + pathSegment)
-        case ListElement(parent, index) =>
+        case ListElement(parent, index)                         =>
           loop(parent, acc :+ s"[$index]")
       }
 
