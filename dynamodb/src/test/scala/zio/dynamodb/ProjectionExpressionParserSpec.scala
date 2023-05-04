@@ -45,30 +45,7 @@ object ProjectionExpressionParserSpec extends ZIOSpecDefault {
 
   }
 
-  override def spec = suite("main")(mainSuite, keywordsSuite)
-
-  private val keywordsSuite = suite("keywords suite")(
-    test("toString on a ProjectionExpression of filter.float[9].ttl") {
-      val pe = MapElement(ListElement(MapElement(Root("filter"), "float"), 9), "ttl")
-      assert(pe.toString)(equalTo("~~~~~~~~~~~~filter.~~~~~~~~~~~~float[9].~~~~~~~~~~~~ttl"))
-    },
-    test("toString on a ProjectionExpression of foo.bar[9].ttl") {
-      val pe = MapElement(ListElement(MapElement(Root("foo"), "bar"), 9), "ttl")
-      assert(pe.toString)(equalTo("~~~~~~~~~~~~foo.~~~~~~~~~~~~bar[9].~~~~~~~~~~~~ttl"))
-    },
-    test("parse with space separator") {
-      val (map, s) = ExpressionAttributeNames.parse("~~~~~~~~~~~~ttl) ~~~~~~~~~~~~filter.~~~~~~~~~~~~float[9]")
-      assert(s)(equalTo("#N_ttl) #N_filter.#N_float[9]")) && assert(map)(
-        equalTo(Map("#N_ttl" -> "ttl", "#N_filter" -> "filter", "#N_float" -> "float"))
-      )
-    },
-    test("parse with comma separator") {
-      val (map, s) = ExpressionAttributeNames.parse("~~~~~~~~~~~~ttl, ~~~~~~~~~~~~filter.~~~~~~~~~~~~float[9]")
-      assert(s)(equalTo("#N_ttl, #N_filter.#N_float[9]")) && assert(map)(
-        equalTo(Map("#N_ttl" -> "ttl", "#N_filter" -> "filter", "#N_float" -> "float"))
-      )
-    }
-  )
+  override def spec = suite("main")(mainSuite)
 
   private val mainSuite: Spec[Sized with TestConfig, Nothing] =
     suite("ProjectionExpression Parser")(
@@ -78,7 +55,7 @@ object ProjectionExpressionParserSpec extends ZIOSpecDefault {
       },
       test("should parse valid expressions and return a Left for any invalid expressions") {
         check(Generators.projectionExpression) { pe =>
-          assert(parse(pe.toStringUnescaped))(
+          assert(parse(pe.toString))(
             if (anyEmptyName(pe)) isLeft
             else isRight(equalTo(pe))
           )
@@ -89,7 +66,7 @@ object ProjectionExpressionParserSpec extends ZIOSpecDefault {
       },
       test("toString on a ProjectionExpression of foo.bar[9].baz") {
         val pe = MapElement(ListElement(MapElement(Root("foo"), "bar"), 9), "baz")
-        assert(pe.toStringUnescaped)(equalTo("foo.bar[9].baz"))
+        assert(pe.toString)(equalTo("foo.bar[9].baz"))
       },
       test("returns error for null") {
         val actual = parse(null)
