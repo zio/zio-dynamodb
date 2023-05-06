@@ -25,6 +25,7 @@ sealed trait KeyConditionExpression extends Renderable { self =>
           ) { case (l, r) => s"$l AND $r" }
       case expression: PartitionKeyExpression      => expression.render
     }
+
 }
 
 object KeyConditionExpression {
@@ -220,6 +221,7 @@ sealed trait SortKeyExpression { self =>
             s"begins_with(${left.keyName}, $v)"
           }
     }
+
 }
 
 object SortKeyExpression {

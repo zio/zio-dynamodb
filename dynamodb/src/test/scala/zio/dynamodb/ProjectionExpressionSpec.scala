@@ -2,20 +2,18 @@ package zio.dynamodb
 
 import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.dynamodb.ProjectionExpression.{ $, mapElement, MapElement, Root }
-import zio.dynamodb.ExpressionAttributeNames.Prefix
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test.Assertion._
 import zio.test.{ assert, assertTrue, ZIOSpecDefault }
 
 object ProjectionExpressionSpec extends ZIOSpecDefault {
-  private val prefix = Prefix
 
-  private val email         = s"${prefix}email"
-  private val studentNumber = s"${prefix}studentNumber"
-  private val collegeName   = s"${prefix}collegeName"
-  private val addresses     = s"${prefix}addresses"
-  private val groups        = s"${prefix}groups"
-  private val payment       = s"${prefix}payment"
+  private val email         = "email"
+  private val studentNumber = "studentNumber"
+  private val collegeName   = "collegeName"
+  private val addresses     = "addresses"
+  private val groups        = "groups"
+  private val payment       = "payment"
 
   @enumOfCaseObjects
   sealed trait Payment
