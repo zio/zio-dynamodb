@@ -1,14 +1,15 @@
 package zio.dynamodb
 
-import zio.Ref
 import zio.dynamodb.DynamoDBQuery.put
 import zio.schema.{ DeriveSchema, Schema }
 import zio.stream.ZStream
 import zio.test.Assertion.{ equalTo, isLeft }
 import zio.test.{ assert, ZIOSpecDefault }
+import zio.{ Ref, ZIO }
 
 object ZStreamPipeliningSpec extends ZIOSpecDefault {
   final case class Person(id: Int, name: String)
+
   object Person {
     implicit val schema: Schema[Person] = DeriveSchema.gen[Person]
   }
@@ -26,7 +27,9 @@ object ZStreamPipeliningSpec extends ZIOSpecDefault {
                          }.runDrain
           refPeople   <- Ref.make(List.empty[Person])
           _           <- batchReadFromStream[Any, Person, Person]("person", personStream)(person => PrimaryKey("id" -> person.id))
-                           .mapZIO(pair => refPeople.update(xs => xs :+ pair._2))
+                           .mapZIO(ZIO.whenCase(_) {
+                             case (_, Some(foundPerson)) => refPeople.update(_ :+ foundPerson)
+                           })
                            .runDrain
           foundPeople <- refPeople.get
         } yield assert(foundPeople)(equalTo(people))
@@ -43,7 +46,10 @@ object ZStreamPipeliningSpec extends ZIOSpecDefault {
           either      <- batchReadFromStream[Any, Person, Person]("person", personStream.take(2))(person =>
                            PrimaryKey("id" -> person.id)
                          )
-                           .mapZIO(pair => refPeople.update(xs => xs :+ pair._2))
+                           .mapZIO(ZIO.whenCase(_) {
+                             case (_, Some(foundPerson)) =>
+                               refPeople.update(_ :+ foundPerson)
+                           })
                            .runDrain
                            .either
           foundPeople <- refPeople.get
