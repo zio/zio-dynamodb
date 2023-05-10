@@ -32,15 +32,15 @@ object ZStreamPipeliningSpec extends ZIOSpecDefault {
       },
       test("surfaces successfully found items as Right elements and errors as Left elements in the ZStream") {
         for {
-          _      <- TestDynamoDBExecutor.addTable(
-                      "person",
-                      "id",
-                      PrimaryKey("id" -> 1) -> Item("id" -> 1, "name" -> "Avi"),
-                      PrimaryKey("id" -> 2) -> Item("id" -> 2, "boom!" -> "de-serialisation-error-expected")
-                    )
+          _            <- TestDynamoDBExecutor.addTable(
+                            "person",
+                            "id",
+                            PrimaryKey("id" -> 1) -> Item("id" -> 1, "name" -> "Avi"),
+                            PrimaryKey("id" -> 2) -> Item("id" -> 2, "boom!" -> "de-serialisation-error-expected")
+                          )
           actualPeople <- batchReadFromStream[Any, Person, Person]("person", personStream.take(3))(person =>
-                      PrimaryKey("id" -> person.id)
-                    ).runCollect
+                            PrimaryKey("id" -> person.id)
+                          ).runCollect
         } yield assertTrue(
           actualPeople == Chunk(
             Right(Person(1, "Avi")),
