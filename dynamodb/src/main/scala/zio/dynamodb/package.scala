@@ -88,7 +88,7 @@ package object dynamodb {
   /**
    * Reads `stream` using function `pk` to determine the primary key which is then used to create a BatchGetItem request.
    * Stream is batched into groups of 100 items in a BatchGetItem and executed using the provided `DynamoDBExecutor` service
-   * Returns a tuple of (A, B) if successful else a DynamoDBError via an Either - returning both (A, B) allows "LEFT outer
+   * Returns a tuple of (A, B) if successful else a DynamoDBError via an Either - this enables "LEFT outer
    * join" like functionality
    *
    * @param tableName
