@@ -95,22 +95,27 @@ package object dynamodb {
    * @param pk Function to determine the primary key
    * @tparam R Environment
    * @tparam A Input stream element type
-   * @tparam B implicit Schema[B]
-   * @return stream of (A, Option[B]), or fails on first error to convert an item to A
+   * @tparam B implicit Schema[B] where B is the type of the element in the returned stream
+   * @return stream of Either[DynamoDBError, B]
    */
   def batchReadFromStream[R, A, B: Schema](
     tableName: String,
     stream: ZStream[R, Throwable, A],
     mPar: Int = 10
-  )(pk: A => PrimaryKey): ZStream[R with DynamoDBExecutor, Throwable, (A, Option[B])] =
-    batchReadItemFromStream(tableName, stream, mPar)(pk).mapZIOPar(mPar) {
-      case (a, Some(item)) =>
-        DynamoDBQuery.fromItem(item) match {
-          case Right(b) => ZIO.succeed((a, Some(b)))
-          case Left(s)  => ZIO.fail(new IllegalStateException(s)) // TODO: think about error model
-        }
-      case (a, None)       =>
-        ZIO.succeed((a, None))
-    }
+  )(pk: A => PrimaryKey): ZStream[R with DynamoDBExecutor, Throwable, Either[DynamoDBError, B]] =
+    stream
+      .aggregateAsync(ZSink.collectAllN[A](100))
+      .mapZIOPar(mPar) { chunk =>
+        val batchGetItem: DynamoDBQuery[B, Chunk[Either[DynamoDBError, B]]] = DynamoDBQuery
+          .forEach(chunk) { a =>
+            DynamoDBQuery.get(tableName, pk(a))
+          }
+          .map(Chunk.fromIterable)
+        for {
+          r    <- ZIO.environment[DynamoDBExecutor]
+          list <- batchGetItem.execute.provideEnvironment(r)
+        } yield list
+      }
+      .flattenChunks
 
 }
