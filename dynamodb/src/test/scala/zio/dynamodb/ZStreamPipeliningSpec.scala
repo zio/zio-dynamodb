@@ -28,7 +28,7 @@ object ZStreamPipeliningSpec extends ZIOSpecDefault {
           actualPeople <- batchReadFromStream[Any, Person, Person]("person", personStream)(person =>
                             PrimaryKey("id" -> person.id)
                           ).right.runCollect
-        } yield assert(actualPeople.toList)(equalTo(people))
+        } yield assert(actualPeople.toList.map(_._2))(equalTo(people))
       },
       test("surfaces successfully found items as Right elements and errors as Left elements in the ZStream") {
         for {
@@ -42,7 +42,7 @@ object ZStreamPipeliningSpec extends ZIOSpecDefault {
                             PrimaryKey("id" -> person.id)
                           ).runCollect
         } yield assertTrue(
-          actualPeople == Chunk(
+          actualPeople.map(_.map(_._2)) == Chunk(
             Right(Person(1, "Avi")),
             Left(
               DynamoDBError.DecodingError(message =

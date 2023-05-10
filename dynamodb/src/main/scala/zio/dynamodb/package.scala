@@ -88,6 +88,8 @@ package object dynamodb {
   /**
    * Reads `stream` using function `pk` to determine the primary key which is then used to create a BatchGetItem request.
    * Stream is batched into groups of 100 items in a BatchGetItem and executed using the provided `DynamoDBExecutor` service
+   * Returns a tuple of (A, B) if successful else a DynamoDBError via an Either - this enables "LEFT outer
+   * join" like functionality
    *
    * @param tableName
    * @param stream
@@ -96,19 +98,19 @@ package object dynamodb {
    * @tparam R Environment
    * @tparam A Input stream element type
    * @tparam B implicit Schema[B] where B is the type of the element in the returned stream
-   * @return stream of Either[DynamoDBError, B]
+   * @return stream of Either[DynamoDBError, (A, B)]
    */
   def batchReadFromStream[R, A, B: Schema](
     tableName: String,
     stream: ZStream[R, Throwable, A],
     mPar: Int = 10
-  )(pk: A => PrimaryKey): ZStream[R with DynamoDBExecutor, Throwable, Either[DynamoDBError, B]] =
+  )(pk: A => PrimaryKey): ZStream[R with DynamoDBExecutor, Throwable, Either[DynamoDBError, (A, B)]] =
     stream
       .aggregateAsync(ZSink.collectAllN[A](100))
       .mapZIOPar(mPar) { chunk =>
-        val batchGetItem: DynamoDBQuery[B, Chunk[Either[DynamoDBError, B]]] = DynamoDBQuery
+        val batchGetItem: DynamoDBQuery[B, Chunk[Either[DynamoDBError, (A, B)]]] = DynamoDBQuery
           .forEach(chunk) { a =>
-            DynamoDBQuery.get(tableName, pk(a))
+            DynamoDBQuery.get(tableName, pk(a)).map(_.map((a, _)))
           }
           .map(Chunk.fromIterable)
         for {
