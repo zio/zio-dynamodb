@@ -493,6 +493,13 @@ object DynamoDBQuery {
       case None       => Left(ValueNotFound(s"value with key $key not found"))
     }
 
+  def getOpt[A: Schema](
+    tableName: String,
+    key: PrimaryKey,
+    projections: ProjectionExpression[_, _]*
+  ): DynamoDBQuery[A, Either[DynamoDBError.DecodingError, Option[A]]] = ???
+
+
   private[dynamodb] def fromItem[A: Schema](item: Item): Either[DynamoDBError, A] = {
     val av = ToAttributeValue.attrMapToAttributeValue.toAttributeValue(item)
     av.decode(Schema[A])
