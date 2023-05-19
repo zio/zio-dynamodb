@@ -5,7 +5,6 @@ import zio.dynamodb._
 import zio.dynamodb.examples.model.Student._
 import zio.dynamodb.examples.model._
 import zio.dynamodb.examples.dynamodblocal.DynamoDB._
-import zio.dynamodb.ProjectionExpression.$
 import zio.stream.ZStream
 import zio.{ Console, ZIOAppDefault }
 
@@ -36,14 +35,13 @@ object StudentZioDynamoDbExampleWithOptics extends ZIOAppDefault {
            ) && payment === Payment.CreditCard
          }.execute
            .map(_.runCollect)
-    _ <-
-      queryAll[Student]("student")
-        .filter(                                 // TODO: typesafe way of doing $("primary.postcode") === "postcode1", also array access
-          enrollmentDate === Some(enrolDate) && payment === Payment.CreditCard && $("primary.postcode") === "postcode1"
-        )
-        .whereKey(email === "avi@gmail.com" && subject === "maths")
-        .execute
-        .map(_.runCollect)
+    _ <- queryAll[Student]("student")
+           .filter(
+             enrollmentDate === Some(enrolDate) && payment === Payment.CreditCard
+           )
+           .whereKey(email === "avi@gmail.com" && subject === "maths")
+           .execute
+           .map(_.runCollect)
     _ <- put[Student]("student", avi)
            .where(
              enrollmentDate === Some(

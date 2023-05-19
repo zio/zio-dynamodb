@@ -25,6 +25,40 @@ sealed trait ProjectionExpression[-From, +To] { self =>
           .ListElement(self >>> parent, index)
     }
 
+  def elementAt[To2](
+    index: Int
+  )(implicit ev: To <:< Iterable[To2]): ProjectionExpression[From, To2] =
+    // always return this in all cases
+    ProjectionExpression
+      .ListElement(self, index)
+      .asInstanceOf[ProjectionExpression[From, To2]]
+
+  // self match {
+  //   case ProjectionExpression.MapElement(_, _) =>
+  //     // always return this in all cases
+  //     ProjectionExpression
+  //       .ListElement(self, index)
+  //       .asInstanceOf[ProjectionExpression[From, To2]]
+  //   case _                                     =>
+  //     self.asInstanceOf[ProjectionExpression[From, To2]]
+  // }
+  /*
+  DDB keys must be strings - so user's map key must be a string
+   */
+  def valueAt[To2](key: String)(implicit ev: To <:< Map[String, To2]): ProjectionExpression[From, To2] =
+    ProjectionExpression
+      .MapElement(self, key)
+      .asInstanceOf[ProjectionExpression[From, To2]]
+
+  // self match {
+  //   case ProjectionExpression.MapElement(_, _) =>
+  //     ProjectionExpression
+  //       .MapElement(self, key)
+  //       .asInstanceOf[ProjectionExpression[From, To2]]
+  //   case _                                     =>
+  //     self.asInstanceOf[ProjectionExpression[From, To2]]
+  // }
+
   def unsafeTo[To2](implicit ev: To <:< ProjectionExpression.Unknown): ProjectionExpression[From, To2] = {
     val _ = ev
     self.asInstanceOf[ProjectionExpression[From, To2]]
@@ -848,6 +882,10 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     else {
 
       val elements: List[String] = regexDotOutsideBackticks.split(s).toList
+
+      // val elements: List[String] = s.split("\\.").toList // split on . OR backtick filter out empty strings eg "(\\.|`)+"
+      //   .filter(_.nonEmpty)
+      //   .map(_.replace("`", ""))
 
       val builder = elements.foldLeft(Builder()) {
         case (accBuilder, s) =>

@@ -25,13 +25,21 @@ object Payment {
 
 // }
 
-final case class Address(addr1: String = "UK", postcode: String = "DE24 3JG")
+final case class Address(addr1: String = "UK", postcode: String = "DE24 3JG", number: Int = 1)
 
 object Address {
-  implicit val schema: Schema.CaseClass2[String, String, Address] =
+  implicit val schema: Schema.CaseClass3[String, String, Int, Address] =
     DeriveSchema.gen[Address]
 
-  val (addr1, postcode) = ProjectionExpression.accessors[Address]
+  val (addr1, postcode, number) = ProjectionExpression.accessors[Address]
+}
+
+final case class Vehicle(registration: String, make: String)
+
+object Vehicle {
+  implicit val schema: Schema.CaseClass2[String, String, Vehicle] = DeriveSchema.gen[Vehicle]
+
+  val (registration, make) = ProjectionExpression.accessors[Vehicle]
 }
 
 final case class Student(
@@ -46,11 +54,12 @@ final case class Student(
   addresses: List[Address] = List.empty[Address],
   groups: Set[String] = Set.empty[String],
   version: Int = 0,
-  primary: Address = Address()
+  primary: Address = Address(),
+  addressMap: Map[String, Address] = Map.empty[String, Address]
 )
 
 object Student {
-  implicit val schema: Schema.CaseClass12[
+  implicit val schema: Schema.CaseClass13[
     String,
     String,
     Option[Instant],
@@ -63,6 +72,7 @@ object Student {
     Set[String],
     Int,
     Address,
+    Map[String, Address],
     Student
   ] = DeriveSchema.gen[Student]
   val (
@@ -78,6 +88,7 @@ object Student {
     groups,
     version,
     primary,
+    addressMap
   ) =
     ProjectionExpression.accessors[Student]
 
@@ -87,28 +98,28 @@ object Student {
   val enrolDate2 = Instant.parse("2022-03-20T01:39:33Z")
 
   val avi  = Student(
-    "avi@gmail.com",
-    "maths",
-    Some(enrolDate),
-    Payment.DebitCard,
-    Payment.CreditCard,
-    1,
-    "college1",
-    None,
-    List(Address("line2", "postcode2")),
-    Set("group1", "group2")
+    email = "avi@gmail.com",
+    subject = "maths",
+    enrollmentDate = Some(enrolDate),
+    payment = Payment.DebitCard,
+    altPayment = Payment.CreditCard,
+    studentNumber = 1,
+    collegeName = "college1",
+    address = None,
+    addresses = List(Address("line2", "postcode2")),
+    groups = Set("group1", "group2")
   )
   val adam = Student(
-    "adam@gmail.com",
-    "english",
-    Some(enrolDate),
-    Payment.CreditCard,
-    Payment.DebitCard,
-    2,
-    "college1",
-    None,
-    List.empty,
-    Set(
+    email = "adam@gmail.com",
+    subject = "english",
+    enrollmentDate = Some(enrolDate),
+    payment = Payment.CreditCard,
+    altPayment = Payment.DebitCard,
+    studentNumber = 2,
+    collegeName = "college1",
+    address = None,
+    addresses = List.empty,
+    groups = Set(
       "group1",
       "group2"
     )
