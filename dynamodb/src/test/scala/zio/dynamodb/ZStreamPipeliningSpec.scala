@@ -28,7 +28,7 @@ object ZStreamPipeliningSpec extends ZIOSpecDefault {
           xs          <- batchReadFromStream[Any, Person, Person]("person", personStream)(person =>
                            PrimaryKey("id" -> person.id)
                          ).right.runCollect
-          actualPeople = xs.toList.map(_._2).collect { case Some(b) => b }
+          actualPeople = xs.toList.map { case (_, p) => p }.collect { case Some(b) => b }
         } yield assert(actualPeople)(equalTo(people))
       },
       test(

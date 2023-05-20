@@ -650,6 +650,14 @@ object LiveSpec extends ZIOSpecDefault {
             )
           }
         },
+        test("should get item when projections are present but are missing all primary key attributes") {
+          withDefaultTable { tableName =>
+            for {
+              _     <- putItem(tableName, Item(id -> "1", number -> 1, "field1" -> "field1Value")).execute
+              found <- getItem(tableName, PrimaryKey(id -> "1", number -> 1), $("field1")).execute
+            } yield assert(found)(isSome(equalTo(Item("field1" -> "field1Value"))))
+          }
+        },
         suite("SortKeyCondition")(
           test("SortKeyCondition between") {
             withDefaultTable { tableName =>

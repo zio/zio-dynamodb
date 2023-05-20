@@ -960,12 +960,23 @@ object DynamoDBQuery {
     type IndexedGetItem     = (GetItem, Int)
     type IndexedWriteItem   = (Write[Any, Option[Any]], Int)
 
-    val (nonBatched, gets, writes) =
+    def projectionsContainPrimaryKey(pes: List[ProjectionExpression[_, _]], pk: PrimaryKey): Boolean = {
+      val matchedPrimaryKeys: List[Boolean] = pes.collect {
+        case ProjectionExpression.MapElement(ProjectionExpression.Root, key) if pk.map.keySet.contains(key) => true
+      }
+      val hasNoProjections                  = pes.size == 0 // default is to return all attributes
+      hasNoProjections || matchedPrimaryKeys.filter(_ == true).size == pk.map.size
+    }
+
+    val (indexedNonBatched, indexedGets, indexedWrites) =
       constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem], Chunk[IndexedWriteItem])](
         (Chunk.empty, Chunk.empty, Chunk.empty)
       ) {
-        case ((nonBatched, gets, writes), (get @ GetItem(_, _, _, _, _), index))                            =>
-          (nonBatched, gets :+ (get -> index), writes)
+        case ((nonBatched, gets, writes), (get @ GetItem(_, pk, pes, _, _), index))                         =>
+          if (projectionsContainPrimaryKey(pes, pk))
+            (nonBatched, gets :+ (get -> index), writes)
+          else
+            (nonBatched :+ (get       -> index), gets, writes)
         case ((nonBatched, gets, writes), (put @ PutItem(_, _, conditionExpression, _, _, _), index))       =>
           conditionExpression match {
             case Some(_) => (nonBatched :+ (put -> index), gets, writes)
@@ -980,17 +991,17 @@ object DynamoDBQuery {
           (nonBatched :+ (nonGetItem -> index), gets, writes)
       }
 
-    val indexedBatchGetItem: (BatchGetItem, Chunk[Int]) = gets
+    val indexedBatchGetItem: (BatchGetItem, Chunk[Int]) = indexedGets
       .foldLeft[(BatchGetItem, Chunk[Int])]((BatchGetItem(), Chunk.empty)) {
         case ((batchGetItem, indexes), (getItem, index)) => (batchGetItem + getItem, indexes :+ index)
       }
 
-    val indexedBatchWrite: (BatchWriteItem, Chunk[Int]) = writes
+    val indexedBatchWrite: (BatchWriteItem, Chunk[Int]) = indexedWrites
       .foldLeft[(BatchWriteItem, Chunk[Int])]((BatchWriteItem(), Chunk.empty)) {
         case ((batchWriteItem, indexes), (writeItem, index)) => (batchWriteItem + writeItem, indexes :+ index)
       }
 
-    (nonBatched, indexedBatchGetItem, indexedBatchWrite)
+    (indexedNonBatched, indexedBatchGetItem, indexedBatchWrite)
   }
 
   private[dynamodb] def parallelize[In, A](
