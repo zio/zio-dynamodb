@@ -330,6 +330,39 @@ object LiveSpec extends ZIOSpecDefault {
           }
         )
       ),
+      suite("$ function should handle hypen")(
+        test("handle hyphen when projection expression is not present") {
+          withDefaultTable { tableName =>
+            for {
+              _      <- putItem(tableName, Item(id -> first, "foo-bar" -> "put and get item", number -> 20)).execute
+              result <- getItem(tableName, PrimaryKey(id -> first, number -> 20)).execute
+            } yield assert(result)(
+              equalTo(Some(Item(id -> first, "foo-bar" -> "put and get item", number -> 20)))
+            )
+          }
+        },
+        test("handle hyphen when primary key is not part of projection expression") {
+          withDefaultTable { tableName =>
+            for {
+              _      <- putItem(tableName, Item(id -> first, "foo-bar" -> "put and get item", number -> 20)).execute
+              result <- getItem(tableName, PrimaryKey(id -> first, number -> 20), $("foo-bar")).execute
+            } yield assert(result)(
+              equalTo(Some(Item("foo-bar" -> "put and get item")))
+            )
+          }
+        },
+        test("handle hyphen when primary key is part of projection expression") {
+          withDefaultTable { tableName =>
+            for {
+              _      <- putItem(tableName, Item(id -> first, "foo-bar" -> "put and get item", number -> 20)).execute
+              result <-
+                getItem(tableName, PrimaryKey(id -> first, number -> 20), $(id), $(number), $("foo-bar")).execute
+            } yield assert(result)(
+              equalTo(Some(Item(id -> first, "foo-bar" -> "put and get item", number -> 20)))
+            )
+          }
+        }
+      ),
       suite("basic usage")(
         test("put and get item") {
           withDefaultTable { tableName =>

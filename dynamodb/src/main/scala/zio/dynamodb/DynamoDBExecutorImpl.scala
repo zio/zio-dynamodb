@@ -675,15 +675,19 @@ case object DynamoDBExecutorImpl {
     )
   }
 
-  private def awsGetItemRequest(getItem: GetItem): GetItemRequest =
+  private def awsGetItemRequest(getItem: GetItem): GetItemRequest = {
+    val (aliasMap, projections: List[String]) =
+      AliasMapRender.forEach(getItem.projections.toList).execute
+
     GetItemRequest(
       tableName = ZIOAwsTableName(getItem.tableName.value),
       key = getItem.key.toZioAwsMap(),
       consistentRead = Some(ConsistencyMode.toBoolean(getItem.consistency)).map(ZIOAwsConsistentRead(_)),
       returnConsumedCapacity = Some(awsConsumedCapacity(getItem.capacity)),
-      projectionExpression =
-        toOption(getItem.projections).map(awsProjectionExpression).map(ZIOAwsProjectionExpression(_))
+      projectionExpression = toOption(projections).map(xs => ZIOAwsProjectionExpression(xs.mkString(", "))),
+      expressionAttributeNames = aliasMapToExpressionZIOAwsAttributeNames(aliasMap)
     )
+  }
 
   private[dynamodb] def awsBatchWriteItemRequest(batchWriteItem: BatchWriteItem): BatchWriteItemRequest =
     BatchWriteItemRequest(

@@ -719,8 +719,8 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
   def accessors[A](implicit s: Schema[A]): s.Accessors[builder.Lens, builder.Prism, builder.Traversal] =
     s.makeAccessors(builder)
 
-  private val regexMapElement     = """(^[a-zA-Z0-9_]+)""".r
-  private val regexIndexedElement = """(^[a-zA-Z0-9_]+)(\[[0-9]+])+""".r
+  private val regexMapElement     = """(^[a-zA-Z0-9_-]+)""".r
+  private val regexIndexedElement = """(^[a-zA-Z0-9_-]+)(\[[0-9]+])+""".r
   private val regexGroupedIndexes = """(\[([0-9]+)])""".r
 
   // Note that you can only use a ProjectionExpression if the first character is a-z or A-Z and the second character
