@@ -620,6 +620,7 @@ case object DynamoDBExecutorImpl {
   private[dynamodb] def tableGetToKeysAndAttributes(tableGet: TableGet): KeysAndAttributes = {
     val (aliasMap: AliasMap, projections: List[String]) =
       AliasMapRender.forEach(tableGet.projectionExpressionSet.toList).execute
+
     KeysAndAttributes(
       keys = tableGet.keysSet.map(set => set.toZioAwsMap()),
       projectionExpression = toOption(projections).map(xs => ZIOAwsProjectionExpression(xs.mkString(", "))),
