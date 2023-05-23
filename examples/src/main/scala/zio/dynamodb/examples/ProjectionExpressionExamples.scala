@@ -16,11 +16,15 @@ object ProjectionExpressionExamples extends App {
   val b2 = mapElement(listElement(root("foo"), 42), "bar") === $("foo[42].bar")
   println(b2)
 
-  val peNeVal   = $("col1") <> 1
-  val peLtVal   = $("col1") < 1
-  val peLtEqVal = $("col1") <= 1
-  val peGtVal   = $("col1") > 1
-  val peGtEqVal = $("col1") >= 1
-  val peCompPe1 = $("col1") > $("col2")
-  val peCompPe2 = $("col1") === $("col2")
+  val peNeVal      = $("col1") <> 1
+  val peLtVal      = $("col1") < 1
+  val peLtEqVal    = $("col1") <= 1
+  val peGtVal      = $("col1") > 1
+  val peGtEqVal    = $("col1") >= 1
+  val peCompPe1    = $("col1") > $("col2")
+  val peCompPe2    = $("col1") === $("col2")
+  val peHyphen     = $("foo-bar")
+  val peUnderScore = $("foo_bar")
+  val peEscaped1   = $("`foo.bar`")
+  val peEscaped2   = $("`foo.%$£@?~bar`")
 }

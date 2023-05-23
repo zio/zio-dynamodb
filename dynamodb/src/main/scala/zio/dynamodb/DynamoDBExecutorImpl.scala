@@ -620,6 +620,7 @@ case object DynamoDBExecutorImpl {
   private[dynamodb] def tableGetToKeysAndAttributes(tableGet: TableGet): KeysAndAttributes = {
     val (aliasMap: AliasMap, projections: List[String]) =
       AliasMapRender.forEach(tableGet.projectionExpressionSet.toList).execute
+
     KeysAndAttributes(
       keys = tableGet.keysSet.map(set => set.toZioAwsMap()),
       projectionExpression = toOption(projections).map(xs => ZIOAwsProjectionExpression(xs.mkString(", "))),
@@ -675,15 +676,19 @@ case object DynamoDBExecutorImpl {
     )
   }
 
-  private def awsGetItemRequest(getItem: GetItem): GetItemRequest =
+  private def awsGetItemRequest(getItem: GetItem): GetItemRequest = {
+    val (aliasMap, projections: List[String]) =
+      AliasMapRender.forEach(getItem.projections.toList).execute
+
     GetItemRequest(
       tableName = ZIOAwsTableName(getItem.tableName.value),
       key = getItem.key.toZioAwsMap(),
       consistentRead = Some(ConsistencyMode.toBoolean(getItem.consistency)).map(ZIOAwsConsistentRead(_)),
       returnConsumedCapacity = Some(awsConsumedCapacity(getItem.capacity)),
-      projectionExpression =
-        toOption(getItem.projections).map(awsProjectionExpression).map(ZIOAwsProjectionExpression(_))
+      projectionExpression = toOption(projections).map(xs => ZIOAwsProjectionExpression(xs.mkString(", "))),
+      expressionAttributeNames = aliasMapToExpressionZIOAwsAttributeNames(aliasMap)
     )
+  }
 
   private[dynamodb] def awsBatchWriteItemRequest(batchWriteItem: BatchWriteItem): BatchWriteItemRequest =
     BatchWriteItemRequest(

@@ -3,29 +3,35 @@ package zio.dynamodb
 import scala.annotation.tailrec
 
 private[dynamodb] final case class AliasMap private[dynamodb] (map: Map[AliasMap.Key, String], index: Int) { self =>
+
   private def +(entry: AttributeValue): (AliasMap, String) = {
     val variableAlias = s":v${self.index}"
     (AliasMap(self.map + ((AliasMap.AttributeValueKey(entry), variableAlias)), self.index + 1), variableAlias)
   }
 
   private def +[From, To](entry: ProjectionExpression[From, To]): (AliasMap, String) = {
+    def stripLeadingAndTrailingBackticks(s: String): String =
+      if (s.startsWith("`") && s.endsWith("`") && s.length > 1) s.substring(1, s.length - 1)
+      else s
+
     @tailrec
     def loop(pe: ProjectionExpression[_, _], acc: (AliasMap, List[String])): (AliasMap, List[String]) =
       pe match {
-        case ProjectionExpression.Root                                        =>
+        case ProjectionExpression.Root                                         =>
           acc // identity
-        case ProjectionExpression.MapElement(ProjectionExpression.Root, name) =>
+        case ProjectionExpression.MapElement(ProjectionExpression.Root, found) =>
+          val name      = stripLeadingAndTrailingBackticks(found)
           val nameAlias = s"#n${acc._1.index}"
           val mapTmp    = acc._1.map + ((AliasMap.PathSegment(ProjectionExpression.Root, name), nameAlias))
           val xs        = acc._2 :+ nameAlias
           val map       = mapTmp + ((AliasMap.FullPath(entry), xs.reverse.mkString)) // cache final result
           val t         = (AliasMap(map, acc._1.index + 1), xs)
           loop(ProjectionExpression.Root, t)
-        case ProjectionExpression.MapElement(parent, key)                     =>
+        case ProjectionExpression.MapElement(parent, key)                      =>
           val nameAlias = s"#n${acc._1.index}"
           val next      = AliasMap(acc._1.map + ((AliasMap.PathSegment(parent, key), nameAlias)), acc._1.index + 1)
           loop(parent, (next, acc._2 :+ ("." + nameAlias)))
-        case ProjectionExpression.ListElement(parent, index)                  =>
+        case ProjectionExpression.ListElement(parent, index)                   =>
           loop(parent, (acc._1, acc._2 :+ s"[$index]"))
       }
 

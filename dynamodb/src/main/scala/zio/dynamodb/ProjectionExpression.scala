@@ -719,8 +719,18 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
   def accessors[A](implicit s: Schema[A]): s.Accessors[builder.Lens, builder.Prism, builder.Traversal] =
     s.makeAccessors(builder)
 
-  private val regexMapElement     = """(^[a-zA-Z0-9_]+)""".r
-  private val regexIndexedElement = """(^[a-zA-Z0-9_]+)(\[[0-9]+])+""".r
+  /*
+  \.
+  Matches the dot character.
+
+  (?=(?:[^][^])*(?![^]*))
+  Uses a positive lookahead to assert that the dot is followed by an even number of backticks.
+  This ensures that the dot is outside a character sequence enclosed in backticks.
+   */
+  val regexDotOutsideBackticks = """\.(?=(?:[^`]*`[^`]*`)*(?![^`]*`))""".r
+
+  private val regexMapElement     = """(^[a-zA-Z0-9_-]+|^`[^`]+`)""".r
+  private val regexIndexedElement = """(^[a-zA-Z0-9_-]+|^`[^`]+`)(\[[0-9]+])+""".r
   private val regexGroupedIndexes = """(\[([0-9]+)])""".r
 
   // Note that you can only use a ProjectionExpression if the first character is a-z or A-Z and the second character
@@ -745,7 +755,20 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     ListElement[A, ProjectionExpression.Unknown](parent, index)
 
   /**
-   * Unsafe version of `parse` that throws an exception rather than returning an Either
+   * Unsafe version of `parse` that throws an IllegalStateException rather than returning an Either.
+   * Note all path elements are substituted automatically using the `ExpressionAttributeNames` facility.
+   * The underscore "_" and hypen "-" are allowed in the name without any escaping.
+   * Any other special characters must be escaped with backticks as the first and last characters.
+   *
+   * Examples:
+   * {{{
+   * $("foo")            // simple map element
+   * $("foo.bar[9].baz") // array element with nested access
+   * $("`foo.bar`")      // simple map element with a dot in the name
+   * $("foo_bar")        // simple map element
+   * $("foo-bar")        // simple map element
+   * }}}
+   *
    * @see [[parse]]
    */
   def $(s: String): ProjectionExpression[Any, Unknown] =
@@ -754,11 +777,11 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
       case Left(msg) => throw new IllegalStateException(msg)
     }
 
-  // TODO: Think about Expression Attribute Names for value substitution - do we need this?
-  // TODO: eg "foo.#key.baz"
-  // TODO: see https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ExpressionAttributeNames.html
   /**
    * Parses a string into an ProjectionExpression
+   * Note all path elements are substituted automatically using the `ExpressionAttributeNames` facility.
+   * The underscore "_" and hypen "-" are allowed in the name without any escaping.
+   * Any other special characters must be escaped with backticks as the first and last characters.
    * eg
    * {{{
    * parse("foo.bar[9].baz"")
@@ -771,6 +794,7 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
    */
   def parse(s: String): Either[String, ProjectionExpression[Unknown, Unknown]] = {
 
+    // used to accumulate the Errors or if there are none the ProjectionExpression
     final case class Builder(pe: Option[Either[Chunk[String], ProjectionExpression[Unknown, Unknown]]] = None) { self =>
 
       def mapElement(name: String): Builder =
@@ -823,7 +847,7 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
       Left(s"error - input string '$s' is invalid")
     else {
 
-      val elements: List[String] = s.split("\\.").toList
+      val elements: List[String] = regexDotOutsideBackticks.split(s).toList
 
       val builder = elements.foldLeft(Builder()) {
         case (accBuilder, s) =>
