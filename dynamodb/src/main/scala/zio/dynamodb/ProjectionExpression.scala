@@ -864,10 +864,6 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
 
       val elements: List[String] = regexDotOutsideBackticks.split(s).toList
 
-      // val elements: List[String] = s.split("\\.").toList // split on . OR backtick filter out empty strings eg "(\\.|`)+"
-      //   .filter(_.nonEmpty)
-      //   .map(_.replace("`", ""))
-
       val builder = elements.foldLeft(Builder()) {
         case (accBuilder, s) =>
           s match {
