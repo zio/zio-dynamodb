@@ -28,36 +28,17 @@ sealed trait ProjectionExpression[-From, +To] { self =>
   def elementAt[To2](
     index: Int
   )(implicit ev: To <:< Iterable[To2]): ProjectionExpression[From, To2] =
-    // always return this in all cases
     ProjectionExpression
       .ListElement(self, index)
       .asInstanceOf[ProjectionExpression[From, To2]]
 
-  // self match {
-  //   case ProjectionExpression.MapElement(_, _) =>
-  //     // always return this in all cases
-  //     ProjectionExpression
-  //       .ListElement(self, index)
-  //       .asInstanceOf[ProjectionExpression[From, To2]]
-  //   case _                                     =>
-  //     self.asInstanceOf[ProjectionExpression[From, To2]]
-  // }
-  /*
-  DDB keys must be strings - so user's map key must be a string
+  /**
+   * DDB keys must be strings
    */
   def valueAt[To2](key: String)(implicit ev: To <:< Map[String, To2]): ProjectionExpression[From, To2] =
     ProjectionExpression
       .MapElement(self, key)
       .asInstanceOf[ProjectionExpression[From, To2]]
-
-  // self match {
-  //   case ProjectionExpression.MapElement(_, _) =>
-  //     ProjectionExpression
-  //       .MapElement(self, key)
-  //       .asInstanceOf[ProjectionExpression[From, To2]]
-  //   case _                                     =>
-  //     self.asInstanceOf[ProjectionExpression[From, To2]]
-  // }
 
   def unsafeTo[To2](implicit ev: To <:< ProjectionExpression.Unknown): ProjectionExpression[From, To2] = {
     val _ = ev

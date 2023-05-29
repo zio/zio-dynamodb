@@ -20,18 +20,13 @@ object Payment {
   implicit val schema: Schema.Enum3[DebitCard.type, CreditCard.type, PayPal.type, Payment] = DeriveSchema.gen[Payment]
 }
 
-// final case class Location(country: String, district: String)
-// object Location {
-
-// }
-
-final case class Address(addr1: String = "UK", postcode: String = "DE24 3JG", number: Int = 1)
+final case class Address(addr1: String, postcode: String)
 
 object Address {
-  implicit val schema: Schema.CaseClass3[String, String, Int, Address] =
+  implicit val schema: Schema.CaseClass2[String, String, Address] =
     DeriveSchema.gen[Address]
 
-  val (addr1, postcode, number) = ProjectionExpression.accessors[Address]
+  val (addr1, postcode) = ProjectionExpression.accessors[Address]
 }
 
 final case class Vehicle(registration: String, make: String)
@@ -54,12 +49,11 @@ final case class Student(
   addresses: List[Address] = List.empty[Address],
   groups: Set[String] = Set.empty[String],
   version: Int = 0,
-  primary: Address = Address(),
   addressMap: Map[String, Address] = Map.empty[String, Address]
 )
 
 object Student {
-  implicit val schema: Schema.CaseClass13[
+  implicit val schema: Schema.CaseClass12[
     String,
     String,
     Option[Instant],
@@ -71,7 +65,6 @@ object Student {
     List[Address],
     Set[String],
     Int,
-    Address,
     Map[String, Address],
     Student
   ] = DeriveSchema.gen[Student]
@@ -87,7 +80,6 @@ object Student {
     addresses,
     groups,
     version,
-    primary,
     addressMap
   ) =
     ProjectionExpression.accessors[Student]
