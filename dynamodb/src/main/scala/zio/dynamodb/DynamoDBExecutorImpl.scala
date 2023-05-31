@@ -356,28 +356,28 @@ case object DynamoDBExecutorImpl {
   private[dynamodb] def filterMixedTransactions[A](
     actions: Chunk[Constructor[Any, A]]
   ): Either[Throwable, (Chunk[Constructor[Any, A]], TransactionType)] =
-    if (actions.isEmpty) Left(EmptyTransaction())
-    else {
-      val headConstructor: Ior[ValidationTransactionErrors, TransactionType] =
-        constructorToTransactionType(actions.head)
-          .map(RightIor(_))
-          .getOrElse(LeftIor(ValidationTransactionErrors.fromAction(actions.head)))
+    actions.headOption match {
+      case Some(actionHead) =>
+        val headConstructor: Ior[ValidationTransactionErrors, TransactionType] =
+          constructorToTransactionType(actionHead)
+            .map(RightIor(_))
+            .getOrElse(LeftIor(ValidationTransactionErrors.fromAction(actionHead)))
 
-      actions
-        .drop(1) // dropping 1 because we have the head element as the base case of the fold
-        .foldLeft(headConstructor: Ior[ValidationTransactionErrors, TransactionType]) {
-          case (acc, constructor) =>
-            acc match {
-              case LeftIor(validationTransactionErrors) => checkType(constructor, validationTransactionErrors)
-              case RightIor(transactionType)            => checkIfNotErrorsYet(constructor, transactionType)
-              case BothIor(errors, transactionType)     =>
-                checkIfHasTransactionTypeAndErrors(constructor, transactionType, errors)
-            }
-        } match {
-        case LeftIor(value) => Left(value)
-        case RightIor(value)    => Right((actions, value))
-        case BothIor(valueA, _) => Left(valueA)
-      }
+        actions.tail
+          .foldLeft(headConstructor: Ior[ValidationTransactionErrors, TransactionType]) {
+            case (acc, constructor) =>
+              acc match {
+                case LeftIor(validationTransactionErrors) => checkType(constructor, validationTransactionErrors)
+                case RightIor(transactionType)            => checkIfNotErrorsYet(constructor, transactionType)
+                case BothIor(errors, transactionType)     =>
+                  checkIfHasTransactionTypeAndErrors(constructor, transactionType, errors)
+              }
+          } match {
+          case LeftIor(value)     => Left(value)
+          case RightIor(value)    => Right((actions, value))
+          case BothIor(valueA, _) => Left(valueA)
+        }
+      case None             => Left(EmptyTransaction())
     }
 
   private def checkType[A](
