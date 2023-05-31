@@ -748,9 +748,35 @@ object DynamoDBQuery {
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None
   ) extends Constructor[Any, A]
 
-  private[dynamodb] final case class MixedTransactionTypes() extends Throwable
-  private[dynamodb] final case class InvalidTransactionActions(invalidActions: NonEmptyChunk[DynamoDBQuery[Any, Any]])
-      extends Throwable
+  sealed trait ValidationTransactionError extends Throwable
+
+  private[dynamodb] final case class MixedTransactionTypes() extends ValidationTransactionError
+
+  private[dynamodb] final case class InvalidTransactionAction(invalidAction: DynamoDBQuery[Any, Any])
+      extends ValidationTransactionError
+
+  private[dynamodb] final case class ValidationTransactionErrors(
+    invalidActions: Chunk[InvalidTransactionAction],
+    mixedTransactionTypes: Option[MixedTransactionTypes]
+  ) extends Throwable
+
+  object ValidationTransactionErrors {
+    def fromAction(action: DynamoDBQuery[Any, Any]): ValidationTransactionErrors =
+      ValidationTransactionErrors(NonEmptyChunk(InvalidTransactionAction(action)), None)
+
+    def fromMixedTypes: ValidationTransactionErrors =
+      ValidationTransactionErrors(Chunk.empty, Some(MixedTransactionTypes()))
+
+    implicit class ValidationTransactionErrorsOps(validationTransactionErrors: ValidationTransactionErrors) {
+      def addInvalidAction(action: DynamoDBQuery[Any, Any]): ValidationTransactionErrors =
+        validationTransactionErrors.copy(invalidActions =
+          validationTransactionErrors.invalidActions.appended(InvalidTransactionAction(action))
+        )
+
+      def addMixedTypes(): ValidationTransactionErrors =
+        validationTransactionErrors.copy(mixedTransactionTypes = Some(MixedTransactionTypes()))
+    }
+  }
 
   private[dynamodb] final case class BatchWriteItem(
     requestItems: MapOfSet[TableName, BatchWriteItem.Write] = MapOfSet.empty,
