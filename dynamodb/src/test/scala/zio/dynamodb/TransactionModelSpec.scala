@@ -2,10 +2,10 @@ package zio.dynamodb
 
 import zio.aws.dynamodb.DynamoDb
 import zio.aws.dynamodb.DynamoDbMock
-import zio.{ Chunk, ULayer }
+import zio.{ Chunk, ULayer, ZIO }
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.ProjectionExpression.$
-import zio.test.Assertion.{ contains, equalTo, fails, hasField, isSubtype }
+import zio.test.Assertion.{ equalTo, fails, hasField, hasSameElements, isSome, isSubtype }
 import zio.test._
 import zio.mock.Expectation.value
 import zio.aws.dynamodb.model.{ ItemResponse, TransactGetItemsResponse, TransactWriteItemsResponse }
@@ -118,15 +118,30 @@ object TransactionModelSpec extends ZIOSpecDefault {
       .or(putItem)
       .or(batchWriteItem)
 
-  private def invalidTransactionActionsContains(action: DynamoDBQuery[Any, Any]): Assertion[Any] =
-    isSubtype[InvalidTransactionActions](
+  private def invalidTransactionActionContains(action: DynamoDBQuery[Any, Any]): Assertion[Any] =
+    isSubtype[InvalidTransactionAction](
+      hasField(
+        "invalidAction",
+        _.invalidAction,
+        equalTo(action)
+      )
+    )
+
+  private def mixedTransactionTypesError(): Assertion[Any] =
+    isSubtype[ValidationTransactionErrors](
+      hasField(
+        "mixedTransactionTypes",
+        _.mixedTransactionTypes,
+        isSome(equalTo(MixedTransactionTypes()))
+      )
+    )
+
+  private def invalidTransactionActionsContains(actions: Seq[DynamoDBQuery[Any, Any]]): Assertion[Any] =
+    isSubtype[ValidationTransactionErrors](
       hasField(
         "invalidActions",
-        a => {
-          val b: Iterable[DynamoDBQuery[Any, Any]] = a.invalidActions.toList
-          b
-        },
-        contains(action)
+        _.invalidActions.toList.map(_.invalidAction),
+        hasSameElements(actions)
       )
     )
 
@@ -137,19 +152,35 @@ object TransactionModelSpec extends ZIOSpecDefault {
     )
 
   val failureSuite = suite("transaction construction failures")(
-    suite("mixed transaction types")(
-      test("mixing update and get") {
+    suite("mixed transaction types")(test("mixing update and get") {
+      val updateItem = UpdateItem(
+        key = item,
+        tableName = tableName,
+        updateExpression = UpdateExpression($("name").set(""))
+      )
+
+      val getItem                                                       = GetItem(tableName, item)
+      val query: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap])] = updateItem.zip(getItem)
+
+      assertZIO(query.transaction.execute.exit)(
+        fails(mixedTransactionTypesError())
+      )
+    }),
+    suite("filterMixedTransactions")(
+      test("mixing update and get and invalid actions describe and scan") {
         val updateItem = UpdateItem(
           key = item,
           tableName = tableName,
           updateExpression = UpdateExpression($("name").set(""))
         )
 
-        val getItem                                                       = GetItem(tableName, item)
-        val query: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap])] = updateItem.zip(getItem)
+        val getItem  = GetItem(tableName, item)
+        val describe = DescribeTable(tableName)
+        val scan     = ScanSome(tableName, 4)
+        val query    = Chunk(updateItem, getItem, describe, scan)
 
-        assertZIO(query.transaction.execute.exit)(
-          fails(isSubtype[MixedTransactionTypes](Assertion.anything))
+        assertZIO(ZIO.fromEither(DynamoDBExecutorImpl.filterMixedTransactions(query)).exit)(
+          fails(mixedTransactionTypesError()) && fails(invalidTransactionActionsContains(List(describe, scan)))
         )
       }
     ),
@@ -161,31 +192,31 @@ object TransactionModelSpec extends ZIOSpecDefault {
           attributeDefinitions = NonEmptySet(AttributeDefinition.attrDefnString("name")),
           billingMode = BillingMode.PayPerRequest
         )
-        assertZIO(createTable.transaction.execute.exit)(fails(invalidTransactionActionsContains(createTable)))
+        assertZIO(createTable.transaction.execute.exit)(fails(invalidTransactionActionContains(createTable)))
       },
       test("delete table") {
         val deleteTable = DeleteTable(tableName)
-        assertZIO(deleteTable.transaction.execute.exit)(fails(invalidTransactionActionsContains(deleteTable)))
+        assertZIO(deleteTable.transaction.execute.exit)(fails(invalidTransactionActionContains(deleteTable)))
       },
       test("scan all") {
         val scanAll = ScanAll(tableName)
-        assertZIO(scanAll.transaction.execute.exit)(fails(invalidTransactionActionsContains(scanAll)))
+        assertZIO(scanAll.transaction.execute.exit)(fails(invalidTransactionActionContains(scanAll)))
       },
       test("scan some") {
         val scanSome = ScanSome(tableName, 4)
-        assertZIO(scanSome.transaction.execute.exit)(fails(invalidTransactionActionsContains(scanSome)))
+        assertZIO(scanSome.transaction.execute.exit)(fails(invalidTransactionActionContains(scanSome)))
       },
       test("describe table") {
         val describeTable = DescribeTable(tableName)
-        assertZIO(describeTable.transaction.execute.exit)(fails(invalidTransactionActionsContains(describeTable)))
+        assertZIO(describeTable.transaction.execute.exit)(fails(invalidTransactionActionContains(describeTable)))
       },
       test("query some") {
         val querySome = QuerySome(tableName, 4)
-        assertZIO(querySome.transaction.execute.exit)(fails(invalidTransactionActionsContains(querySome)))
+        assertZIO(querySome.transaction.execute.exit)(fails(invalidTransactionActionContains(querySome)))
       },
       test("query all") {
         val queryAll = QueryAll(tableName)
-        assertZIO(queryAll.transaction.execute.exit)(fails(invalidTransactionActionsContains(queryAll)))
+        assertZIO(queryAll.transaction.execute.exit)(fails(invalidTransactionActionContains(queryAll)))
       }
     )
   )

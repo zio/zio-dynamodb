@@ -78,10 +78,10 @@ import zio.aws.dynamodb.model.{
 }
 import zio.dynamodb.ConsistencyMode.toBoolean
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
-import zio.dynamodb.DynamoDBQuery._
+import zio.dynamodb.DynamoDBQuery.{ ValidationTransactionError, _ }
 import zio.dynamodb.SSESpecification.SSEType
 import zio.stream.{ Stream, ZStream }
-import zio.{ Chunk, NonEmptyChunk, ZIO }
+import zio.{ Chunk, ZIO }
 
 import scala.collection.immutable.{ Map => ScalaMap }
 
@@ -358,32 +358,77 @@ case object DynamoDBExecutorImpl {
   ): Either[Throwable, (Chunk[Constructor[Any, A]], TransactionType)] =
     if (actions.isEmpty) Left(EmptyTransaction())
     else {
-      val headConstructor = constructorToTransactionType(actions.head)
-        .map(Right(_))
-        .getOrElse(Left(InvalidTransactionActions(NonEmptyChunk(actions.head)))) // TODO: Grab all that are invalid
+      val headConstructor: Ior[ValidationTransactionErrors, TransactionType] =
+        constructorToTransactionType(actions.head)
+          .map(RightIor(_))
+          .getOrElse(LeftIor(ValidationTransactionErrors.fromAction(actions.head)))
+
       actions
-        .drop(1)                                                                 // dropping 1 because we have the head element as the base case of the fold
-        .foldLeft(headConstructor: Either[Throwable, TransactionType]) {
+        .drop(1) // dropping 1 because we have the head element as the base case of the fold
+        .foldLeft(headConstructor: Ior[ValidationTransactionErrors, TransactionType]) {
           case (acc, constructor) =>
             acc match {
-              case l @ Left(_)            => l // Should also continue collecting other failures
-              case Right(transactionType) => constructorMatch(constructor, transactionType)
+              case LeftIor(validationTransactionErrors) => checkType(constructor, validationTransactionErrors)
+              case RightIor(transactionType)            => checkIfNotErrorsYet(constructor, transactionType)
+              case BothIor(errors, transactionType)     =>
+                checkIfHasTransactionTypeAndErrors(constructor, transactionType, errors)
             }
+        } match {
+        case LeftIor(value) => Left(value)
+        case RightIor(value)    => Right((actions, value))
+        case BothIor(valueA, _) => Left(valueA)
+      }
+    }
+
+  private def checkType[A](
+    constructor: Constructor[Any, A],
+    validationTransactionErrors: ValidationTransactionErrors
+  ): Ior[ValidationTransactionErrors, TransactionType] =
+    constructorToTransactionType(constructor)
+      .map(x => BothIor(validationTransactionErrors, x))
+      .getOrElse(LeftIor(validationTransactionErrors.addInvalidAction(constructor)))
+
+  private def checkIfNotErrorsYet[A](
+    constructor: Constructor[Any, A],
+    transactionType: TransactionType
+  ): Ior[ValidationTransactionErrors, TransactionType] =
+    constructorMatch(constructor, transactionType) match {
+      case Left(error) =>
+        error match {
+          case MixedTransactionTypes()                 =>
+            BothIor(ValidationTransactionErrors.fromMixedTypes, transactionType)
+          case InvalidTransactionAction(invalidAction) =>
+            BothIor(ValidationTransactionErrors.fromAction(invalidAction), transactionType)
         }
-        .map(transactionType => (actions, transactionType))
+      case Right(_)    => RightIor(transactionType)
+    }
+
+  private def checkIfHasTransactionTypeAndErrors[A](
+    constructor: Constructor[Any, A],
+    transactionType: TransactionType,
+    errors: ValidationTransactionErrors
+  ) =
+    constructorMatch(constructor, transactionType) match {
+      case Left(error) =>
+        error match {
+          case MixedTransactionTypes()                 => BothIor(errors.addMixedTypes(), transactionType)
+          case InvalidTransactionAction(invalidAction) =>
+            BothIor(errors.addInvalidAction(invalidAction), transactionType)
+        }
+      case Right(_)    => BothIor(errors, transactionType)
     }
 
   private def constructorMatch[A](
     constructor: Constructor[Any, A],
     transactionType: TransactionType
-  ): Either[Throwable, TransactionType] =
+  ): Either[ValidationTransactionError, TransactionType] =
     constructorToTransactionType(constructor)
       .map(t =>
         if (t == transactionType) Right(transactionType)
         else Left(MixedTransactionTypes())
       )
       .getOrElse(
-        Left(InvalidTransactionActions(NonEmptyChunk(constructor)))
+        Left(InvalidTransactionAction(constructor))
       )
 
   private def constructorToTransactionType[A](constructor: Constructor[_, A]): Option[TransactionType] =
@@ -451,7 +496,8 @@ case object DynamoDBExecutorImpl {
               (Chunk(s), _ => None.asInstanceOf[A])
             ) // we don't get data back from transactWrites, return None here
           case s: ConditionCheck           => Right((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s                           => Left(InvalidTransactionActions(NonEmptyChunk(s.asInstanceOf[DynamoDBQuery[Any, Any]])))
+          case s                           =>
+            Left(InvalidTransactionAction(s.asInstanceOf[DynamoDBQuery[Any, Any]]))
         }
       case Zip(left, right, zippable)     =>
         for {
@@ -474,9 +520,7 @@ case object DynamoDBExecutorImpl {
           case (constructors, construct) => (constructors, chunk => mapper.asInstanceOf[Any => A](construct(chunk)))
         }
       case Absolve(query)                 =>
-        Left(
-          InvalidTransactionActions(NonEmptyChunk(query.asInstanceOf[DynamoDBQuery[Any, Any]]))
-        )
+        Left(InvalidTransactionAction(query.asInstanceOf[DynamoDBQuery[Any, Any]]))
     }
 
   private[dynamodb] def constructTransaction[A](
