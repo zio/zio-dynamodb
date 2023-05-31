@@ -175,7 +175,6 @@ object TransactionModelSpec extends ZIOSpecDefault {
           tableName = tableName,
           updateExpression = UpdateExpression($("name").set(""))
         )
-
         val getItem  = GetItem(tableName, item)
         val describe = DescribeTable(tableName)
         val scan     = ScanSome(tableName, 4)
