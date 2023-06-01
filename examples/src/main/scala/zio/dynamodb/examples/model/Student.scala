@@ -29,14 +29,6 @@ object Address {
   val (addr1, postcode) = ProjectionExpression.accessors[Address]
 }
 
-final case class Vehicle(registration: String, make: String)
-
-object Vehicle {
-  implicit val schema: Schema.CaseClass2[String, String, Vehicle] = DeriveSchema.gen[Vehicle]
-
-  val (registration, make) = ProjectionExpression.accessors[Vehicle]
-}
-
 final case class Student(
   email: String,
   subject: String,
