@@ -25,6 +25,25 @@ sealed trait ProjectionExpression[-From, +To] { self =>
           .ListElement(self >>> parent, index)
     }
 
+  def elementAt[To2](
+    index: Int
+  )(implicit ev: To <:< Iterable[To2]): ProjectionExpression[From, To2] = {
+    val _ = ev
+    ProjectionExpression
+      .ListElement(self, index)
+      .asInstanceOf[ProjectionExpression[From, To2]]
+  }
+
+  /**
+   * DDB keys must be strings
+   */
+  def valueAt[To2](key: String)(implicit ev: To <:< Map[String, To2]): ProjectionExpression[From, To2] = {
+    val _ = ev
+    ProjectionExpression
+      .MapElement(self, key)
+      .asInstanceOf[ProjectionExpression[From, To2]]
+  }
+
   def unsafeTo[To2](implicit ev: To <:< ProjectionExpression.Unknown): ProjectionExpression[From, To2] = {
     val _ = ev
     self.asInstanceOf[ProjectionExpression[From, To2]]

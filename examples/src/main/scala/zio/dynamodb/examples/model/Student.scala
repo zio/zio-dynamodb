@@ -25,6 +25,8 @@ final case class Address(addr1: String, postcode: String)
 object Address {
   implicit val schema: Schema.CaseClass2[String, String, Address] =
     DeriveSchema.gen[Address]
+
+  val (addr1, postcode) = ProjectionExpression.accessors[Address]
 }
 
 final case class Student(
@@ -38,11 +40,12 @@ final case class Student(
   address: Option[Address] = None,
   addresses: List[Address] = List.empty[Address],
   groups: Set[String] = Set.empty[String],
-  version: Int = 0
+  version: Int = 0,
+  addressMap: Map[String, Address] = Map.empty[String, Address]
 )
 
 object Student {
-  implicit val schema: Schema.CaseClass11[
+  implicit val schema: Schema.CaseClass12[
     String,
     String,
     Option[Instant],
@@ -54,6 +57,7 @@ object Student {
     List[Address],
     Set[String],
     Int,
+    Map[String, Address],
     Student
   ] = DeriveSchema.gen[Student]
   val (
@@ -67,7 +71,8 @@ object Student {
     address,
     addresses,
     groups,
-    version
+    version,
+    addressMap
   ) =
     ProjectionExpression.accessors[Student]
 
@@ -77,28 +82,28 @@ object Student {
   val enrolDate2 = Instant.parse("2022-03-20T01:39:33Z")
 
   val avi  = Student(
-    "avi@gmail.com",
-    "maths",
-    Some(enrolDate),
-    Payment.DebitCard,
-    Payment.CreditCard,
-    1,
-    "college1",
-    None,
-    List(Address("line2", "postcode2")),
-    Set("group1", "group2")
+    email = "avi@gmail.com",
+    subject = "maths",
+    enrollmentDate = Some(enrolDate),
+    payment = Payment.DebitCard,
+    altPayment = Payment.CreditCard,
+    studentNumber = 1,
+    collegeName = "college1",
+    address = None,
+    addresses = List(Address("line2", "postcode2")),
+    groups = Set("group1", "group2")
   )
   val adam = Student(
-    "adam@gmail.com",
-    "english",
-    Some(enrolDate),
-    Payment.CreditCard,
-    Payment.DebitCard,
-    2,
-    "college1",
-    None,
-    List.empty,
-    Set(
+    email = "adam@gmail.com",
+    subject = "english",
+    enrollmentDate = Some(enrolDate),
+    payment = Payment.CreditCard,
+    altPayment = Payment.DebitCard,
+    studentNumber = 2,
+    collegeName = "college1",
+    address = None,
+    addresses = List.empty,
+    groups = Set(
       "group1",
       "group2"
     )

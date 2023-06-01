@@ -24,21 +24,32 @@ object ProjectionExpressionSpec extends ZIOSpecDefault {
 
     implicit val schema: Schema.Enum3[CreditCard.type, DebitCard.type, PayPal.type, Payment] = DeriveSchema.gen[Payment]
   }
+
+  final case class Address(addr1: String)
+  object Address {
+    implicit val schema: Schema.CaseClass1[String, Address] = DeriveSchema.gen[Address]
+    val addr1                                               = ProjectionExpression.accessors[Address]
+  }
   final case class Student(
     email: String,
     subject: String,
     studentNumber: Int,
     collegeName: String,
-    addresses: List[String] = List.empty,
+    addresses: List[Address] = List.empty,
+    addressMap: Map[String, Address] = Map.empty,
     groups: Set[String] = Set.empty[String],
     payment: Payment
   )
   object Student {
-    implicit val schema: Schema.CaseClass7[String, String, Int, String, List[String], Set[String], Payment, Student] =
+    implicit val schema: Schema.CaseClass8[String, String, Int, String, List[Address], Map[String, Address], Set[
+      String
+    ], Payment, Student]                                                                     =
       DeriveSchema.gen[Student]
-    val (email, subject, studentNumber, collegeName, addresses, groups, payment)                                     =
+    val (email, subject, studentNumber, collegeName, addresses, addressMap, groups, payment) =
       ProjectionExpression.accessors[Student]
   }
+
+  private val address1 = Address("Addr1")
 
   override def spec =
     suite("ProjectionExpressionSpec")(
@@ -610,8 +621,10 @@ object ProjectionExpressionSpec extends ZIOSpecDefault {
           assertTrue(ex.toString == s"Between(ProjectionExpressionOperand($studentNumber),Number(1),Number(3))")
         },
         test("inSet for a collection attribute") {
-          val ex = Student.addresses.inSet(Set(List("Addr1")))
-          assertTrue(ex.toString == s"In(ProjectionExpressionOperand($addresses),Set(List(Chunk(String(Addr1)))))")
+          val ex = Student.addresses.inSet(Set(List(address1)))
+          assertTrue(
+            ex.toString == s"In(ProjectionExpressionOperand(addresses),Set(List(Chunk(Map(Map(String(addr1) -> String(Addr1)))))))"
+          )
         },
         test("inSet for a scalar") {
           val ex = Student.studentNumber.inSet(Set(1))
@@ -711,11 +724,52 @@ object ProjectionExpressionSpec extends ZIOSpecDefault {
         }
       )
 
+    private val typeSafeCollectionNavigationSuite =
+      suite("type safe collection navigation suite")(
+        test("navigate an array with elementAt") {
+          val ex = Student.addresses.elementAt(0)
+          assertTrue(
+            ex.toString == s"addresses[0]"
+          )
+        },
+        test("navigate an map with elementAt") {
+          val ex = Student.addressMap.valueAt("UK")
+          assertTrue(
+            ex.toString == s"addressMap.UK"
+          )
+        },
+        test("compare an array element with elementAt") {
+          val ex = Student.addresses.elementAt(0) === Address("Addr1")
+          assertTrue(
+            ex.toString == s"Equals(ProjectionExpressionOperand(addresses[0]),ValueOperand(Map(Map(String(addr1) -> String(Addr1)))))"
+          )
+        },
+        test("compare a map element with valueAt") {
+          val ex = Student.addressMap.valueAt("UK") === Address("Addr1")
+          assertTrue(
+            ex.toString == s"Equals(ProjectionExpressionOperand(addressMap.UK),ValueOperand(Map(Map(String(addr1) -> String(Addr1)))))"
+          )
+        },
+        test("compare an array with elementAt and >>>") {
+          val ex = Student.addresses.elementAt(0) >>> Address.addr1 === "Addr1"
+          assertTrue(
+            ex.toString == s"Equals(ProjectionExpressionOperand(addresses[0].addr1),ValueOperand(String(Addr1)))"
+          )
+        },
+        test("navigate a map with valueAt and >>>") {
+          val ex = Student.addressMap.valueAt("UK") >>> Address.addr1 === "Addr1"
+          assertTrue(
+            ex.toString == s"Equals(ProjectionExpressionOperand(addressMap.UK.addr1),ValueOperand(String(Addr1)))"
+          )
+        }
+      )
+
     val typeSafeSuite =
       suite("type safe suite")(
         typeSafeOpSuite,
         typeSafeFunctionsSuite,
-        typeSafeComparisonSuite
+        typeSafeComparisonSuite,
+        typeSafeCollectionNavigationSuite
       )
   }
 
