@@ -1,7 +1,7 @@
 package zio.dynamodb
 
 import zio.dynamodb.DynamoDBError.ValueNotFound
-import zio.dynamodb.proofs.{ CanFilter, CanWhere, CanWhereKey }
+import zio.dynamodb.proofs.{ CanFilter, CanWhere, CanWhereKey, IsPrimaryKey }
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put }
 import zio.dynamodb.DynamoDBQuery.{
@@ -492,6 +492,19 @@ object DynamoDBQuery {
         fromItem(item)
       case None       => Left(ValueNotFound(s"value with key $key not found"))
     }
+
+  def get[A: Schema, B: IsPrimaryKey](
+    tableName: String,
+    partitionKey: UpdateExpression.Action.SetAction[A, B],
+    projections: ProjectionExpression[_, _]*
+  ): DynamoDBQuery[A, Either[DynamoDBError, A]] = ???
+
+  def get[A: Schema, B: IsPrimaryKey, C: IsPrimaryKey](
+    tableName: String,
+    partitionKey: UpdateExpression.Action.SetAction[A, B],
+    sortKey: UpdateExpression.Action.SetAction[A, C],
+    projections: ProjectionExpression[_, _]*
+  ): DynamoDBQuery[A, Either[DynamoDBError, A]] = ???
 
   private[dynamodb] def fromItem[A: Schema](item: Item): Either[DynamoDBError, A] = {
     val av = ToAttributeValue.attrMapToAttributeValue.toAttributeValue(item)
