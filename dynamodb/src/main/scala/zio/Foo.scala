@@ -36,12 +36,18 @@ object Foo {
   sealed trait ComplexSortKeyEprn
   object SortKeyExprn {
     final case class SortKey(keyName: String) {
-      def ===(value: String): SortKeyEprn      = Equals(this, value)
-      def >(value: String): ComplexSortKeyEprn = GreaterThan(this, value)
+      def ===[To](value: To)(implicit to: ToAttributeValue[To], ev: IsPrimaryKey[To]): SortKeyEprn = {
+        val _ = ev
+        Equals(this, to.toAttributeValue(value))
+      }
+      def >[To](value: To)(implicit to: ToAttributeValue[To], ev: IsPrimaryKey[To]): ComplexSortKeyEprn = {
+        val _ = ev
+        GreaterThan(this, to.toAttributeValue(value))
+      }
       // ... and so on for all the other operators
     }
-    final case class Equals(sortKey: SortKey, value: String) extends SortKeyEprn
-    final case class GreaterThan(sortKey: SortKey, value: String) extends ComplexSortKeyEprn
+    final case class Equals(sortKey: SortKey, value: AttributeValue) extends SortKeyEprn
+    final case class GreaterThan(sortKey: SortKey, value: AttributeValue) extends ComplexSortKeyEprn
   }
 
 }
