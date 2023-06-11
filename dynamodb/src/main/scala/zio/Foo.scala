@@ -3,6 +3,7 @@ package zio.dynamodb
 import zio.schema.Schema
 import zio.schema.DeriveSchema
 import zio.dynamodb.PrimaryKey
+import zio.dynamodb.proofs.IsPrimaryKey
 
 /**
  * This API should only exists in type safe land ie only access is via a PE method (TODO confirm we can do this restriction)
@@ -19,13 +20,16 @@ object Foo {
 
   object PartitionKeyEprn {
     final case class PartitionKey(keyName: String) {
-      def ===(value: String): PartitionKeyEprn = Equals(this, value)
+      def ===[To](value: To)(implicit to: ToAttributeValue[To], ev: IsPrimaryKey[To]): PartitionKeyEprn = {
+        val _ = ev
+        Equals(this, to.toAttributeValue(value))
+      }
     }
 
     final case class And(pk: PartitionKeyEprn, sk: SortKeyEprn)               extends PartitionKeyEprn
     final case class ComplexAnd(pk: PartitionKeyEprn, sk: ComplexSortKeyEprn) extends KeyConditionExpression
 
-    final case class Equals(pk: PartitionKey, value: String) extends PartitionKeyEprn
+    final case class Equals(pk: PartitionKey, value: AttributeValue) extends PartitionKeyEprn
   }
 
   sealed trait SortKeyEprn
@@ -73,7 +77,7 @@ object FooExample extends App {
       case PartitionKeyEprn.ComplexAnd(pk, sk) => println(s"pk=$pk, sk=$sk")
     }
 
-  val x: PartitionKeyEprn       = PartitionKey("email") === "x"
+  val x: PartitionKeyEprn       = PartitionKey("email") === 1
   val y: PartitionKeyEprn       = PartitionKey("email") === "x" && SortKey("subject") === "y"
   val z: KeyConditionExpression = PartitionKey("email") === "x" && SortKey("subject") > "y"
 
