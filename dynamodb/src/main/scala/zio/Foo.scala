@@ -2,7 +2,7 @@ package zio.dynamodb
 
 import zio.schema.Schema
 import zio.schema.DeriveSchema
-//import zio.dynamodb.PrimaryKey
+import zio.dynamodb.PrimaryKey
 
 /**
  * This API should only exists in type safe land ie only access is via a PE method (TODO confirm we can do this restriction)
@@ -47,14 +47,21 @@ object FooExample extends App {
   import Foo.PartitionKeyEprn._
   import Foo.SortKeyExprn._
 
-//   def get(k: PartitionKeyEprn) = {
-//     val pk = k match {
-//       case PartitionKeyEprn.Equals(pk, value) => PrimaryKey(pk.keyName -> value)
-//       case PartitionKeyEprn.And(pk, sk)       => sk match {
-//         case SortKeyExprn.Equals(sk, value) => PrimaryKey(pk.keyName -> value)
-//       }
-//     }
-//   } 
+  // DynamoDbQuery's still use PrimaryKey
+  // typesafe API constructors only expose PartitionKeyEprn
+  def asPk(k: PartitionKeyEprn): PrimaryKey = {
+    val pk = k match {
+      case PartitionKeyEprn.Equals(pk, value) => PrimaryKey(pk.keyName -> value)
+      case PartitionKeyEprn.And(pk, sk)       =>
+        (pk, sk) match {
+          case (PartitionKeyEprn.Equals(pk, value), SortKeyExprn.Equals(sk, value2)) =>
+            PrimaryKey(pk.keyName -> value, sk.keyName -> value2)
+          case _                                                                     =>
+            throw new IllegalArgumentException("This should not happed?????")
+        }
+    }
+    pk
+  }
 
   def where(k: PartitionKeyEprn)       =
     k match {
@@ -80,6 +87,6 @@ object FooExample extends App {
   val pkAndSk: PartitionKeyEprn               = Student.email.primaryKey === "x" && Student.subject.sortKey === "y"
   //val three = Student.email.primaryKey === "x" && Student.subject.sortKey === "y" && Student.subject.sortKey // 3 terms not allowed
   val pkAndSkExtended: KeyConditionExpression = Student.email.primaryKey === "x" && Student.subject.sortKey > "y"
-  println(pkAndSk)
+  println(asPk(pkAndSk))
   println(pkAndSkExtended)
 }
