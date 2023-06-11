@@ -133,6 +133,18 @@ sealed trait ProjectionExpression[-From, +To] { self =>
 
 trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowPriorityImplicits1 {
   implicit class ProjectionExpressionSyntax0[From, To: ToAttributeValue](self: ProjectionExpression[From, To]) {
+    import zio.dynamodb.Foo
+    def primaryKey: Foo.PartitionKeyEprn.PartitionKey =
+      self match {
+        case ProjectionExpression.MapElement(_, key) => Foo.PartitionKeyEprn.PartitionKey(key)
+        case _                                       => throw new IllegalArgumentException("Not a partition key")
+      }
+    def sortKey: Foo.SortKeyExprn.SortKey             =
+      self match {
+        case ProjectionExpression.MapElement(_, key) => Foo.SortKeyExprn.SortKey(key)
+        case _                                       => throw new IllegalArgumentException("Not a partition key")
+      }
+
     def set(a: To): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
         self,
