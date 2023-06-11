@@ -8,8 +8,8 @@ import zio.dynamodb.proofs.IsPrimaryKey
 /**
  * This API should only exists in type safe land ie only access is via a PE method (TODO confirm we can do this restriction)
  * Looks like we can
- * TODO: check how AWS uses filter vs where
- * TODO: propogate From/To type parameters
+ * TODO:
+ * copy render methods from KeyConditionExpression
  */
 object Foo {
   sealed trait PartitionKeyEprn { self =>
@@ -73,12 +73,12 @@ object FooExample extends App {
     pk
   }
 
-  def where(k: PartitionKeyEprn)       =
+  def whereKey(k: PartitionKeyEprn)       =
     k match {
       case PartitionKeyEprn.Equals(pk, value) => println(s"pk=$pk, value=$value")
       case PartitionKeyEprn.And(pk, sk)       => println(s"pk=$pk, sk=$sk")
     }
-  def where(k: KeyConditionExpression) =
+  def whereKey(k: KeyConditionExpression) =
     k match {
       case PartitionKeyEprn.ComplexAnd(pk, sk) => println(s"pk=$pk, sk=$sk")
     }
