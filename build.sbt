@@ -32,7 +32,7 @@ addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
 
 val zioVersion        = "2.0.13"
-val zioAwsVersion     = "5.20.32.2"
+val zioAwsVersion     = "5.20.42.1"
 val zioSchemaVersion  = "0.4.11"
 val zioPreludeVersion = "1.0.0-RC19"
 
@@ -269,7 +269,7 @@ lazy val examples = module("zio-dynamodb-examples", "examples")
     libraryDependencies ++= Seq(
       "dev.zio"               %% "zio-test"     % zioVersion % "test",
       "dev.zio"               %% "zio-test-sbt" % zioVersion % "test",
-      "software.amazon.awssdk" % "dynamodb"     % "2.17.166"
+      "software.amazon.awssdk" % "dynamodb"     % "2.17.295"
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
