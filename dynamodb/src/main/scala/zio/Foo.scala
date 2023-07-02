@@ -6,13 +6,7 @@ import zio.dynamodb.PrimaryKey
 import zio.dynamodb.proofs.IsPrimaryKey
 
 /**
- * This API should only exists in type safe land ie only access is via a PE method (TODO confirm we can do this restriction)
- * Looks like we can
- * TODO:
- * rename PartitionKeyEprn to PrimaryKeyExprn
- * copy render methods from
- * make PartitionKeyEprn/KeyConditionExpression sum types so that they can be stored in the same type on the query class
- * DONE
+ * Typesafe KeyConditionExpression/primary key experiment
  */
 object Foo {
   sealed trait KeyConditionExpression[From] extends Renderable                   { self =>
