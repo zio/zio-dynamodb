@@ -169,8 +169,9 @@ object FooExample extends App {
 //	"type mismatch;\n found   : zio.dynamodb.Foo.SortKeyEprn[Nothing]\n required: zio.dynamodb.Foo.SortKeyEprn[From]\
 //  nNote: Nothing <: From, but trait SortKeyEprn is invariant in type From.\nYou may wish to define From as +From instead. (SLS 4.5)",
 //  val yy                                           = PartitionKey("email") === "x" && SortKey("subject") === "y"
-//  import zio.dynamodb.ProjectionExpression.$
-//  val x6 = $("foo.bar").primaryKey === "x"
+import zio.dynamodb.ProjectionExpression.$
+val x6: CompositePrimaryKeyExprn[Any] = $("foo.bar").primaryKey === "x" && $("foo.baz").sortKey === "y"
+val x7: ExtendedCompositePrimaryKeyExprn[Any] = $("foo.bar").primaryKey === "x" && $("foo.baz").sortKey > "y"
 
   final case class Student(email: String, subject: String, age: Int)
   object Student {
