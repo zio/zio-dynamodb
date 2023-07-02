@@ -158,8 +158,6 @@ object FooExample extends App {
     }
 
   // in low level - non type safe land
-  // TODO: Avi - fix "Nothing <: From, but trait SortKeyEprn is invariant in type From"
-  // otherwise users of the low level API will have to type all eprns with Nothing for From
   import Foo.PartitionKeyExprn._
   import Foo.SortKeyExprn._
   val x1: PartitionKeyExprn[Nothing]                = PartitionKey("email") === "x"
