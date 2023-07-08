@@ -11,7 +11,7 @@ import zio.dynamodb.proofs.IsPrimaryKey
 /*
 TODO
 - Expr - shortning of name everywhere
-*/
+ */
 object Foo {
   sealed trait KeyConditionExpression[-From] extends Renderable                   { self =>
     def render: AliasMapRender[String] // do render in concrete classes
@@ -21,7 +21,8 @@ object Foo {
   // email.primaryKey === "x"
   // Student.email.primaryKey === "x" && Student.subject.sortKey === "y"
   sealed trait PartitionKeyExprn[-From]      extends KeyConditionExpression[From] { self =>
-    def &&[From1 <: From](other: SortKeyEprn[From1]): CompositePrimaryKeyExprn[From1]                 = PartitionKeyExprn.And[From1](self, other)
+    def &&[From1 <: From](other: SortKeyEprn[From1]): CompositePrimaryKeyExprn[From1]                 =
+      PartitionKeyExprn.And[From1](self, other)
     def &&[From1 <: From](other: ExtendedSortKeyEprn[From1]): ExtendedCompositePrimaryKeyExprn[From1] =
       PartitionKeyExprn.ComplexAnd[From1](self, other)
 
@@ -43,7 +44,6 @@ object Foo {
 
   // models "extended" primary key expressions
   // Student.email.primaryKey === "x" && Student.subject.sortKey > "y"
-
 
   sealed trait ExtendedCompositePrimaryKeyExprn[-From] extends KeyConditionExpression[From] { self => }
 
@@ -183,9 +183,10 @@ object FooExample extends App {
   val x4                                            = PartitionKey[Nothing]("email") === "x" && SortKey[Nothing]("subject") === "y"
   val x5: ExtendedCompositePrimaryKeyExprn[Nothing] =
     PartitionKey[Nothing]("email") === "x" && SortKey[Nothing]("subject") > "y"
-//	"type mismatch;\n found   : zio.dynamodb.Foo.SortKeyEprn[Nothing]\n required: zio.dynamodb.Foo.SortKeyEprn[From]\
-//  nNote: Nothing <: From, but trait SortKeyEprn is invariant in type From.\nYou may wish to define From as +From instead. (SLS 4.5)",
-  val yy: CompositePrimaryKeyExprn[Any]                                            = PartitionKey("email") === "x" && SortKey("subject") === "y"
+
+  val y0: PartitionKeyExprn[Any]                = PartitionKey("email") === "x"
+  val y1: CompositePrimaryKeyExprn[Any]         = PartitionKey("email") === "x" && SortKey("subject") === "y"
+  val y2: ExtendedCompositePrimaryKeyExprn[Any] = PartitionKey("email") === "x" && SortKey("subject") > "y"
 
   import zio.dynamodb.ProjectionExpression.$
   val x6: CompositePrimaryKeyExprn[Any]         = $("foo.bar").primaryKey === "x" && $("foo.baz").sortKey === "y"
