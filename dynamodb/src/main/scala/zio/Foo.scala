@@ -110,6 +110,7 @@ object Foo {
     }
   }
 
+  // single member sealed trait - but useful as a type alias
   sealed trait SortKeyEprn[-From]         { self =>
     def render2: AliasMapRender[String] =
       self match {
@@ -119,6 +120,7 @@ object Foo {
             .map(v => s"${sk.keyName} = $v")
       }
   }
+  // single member sealed trait - but useful as a type alias
   sealed trait ExtendedSortKeyEprn[-From] { self =>
     def render2: AliasMapRender[String] =
       self match {
