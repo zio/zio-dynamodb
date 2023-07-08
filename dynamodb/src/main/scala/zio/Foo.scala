@@ -10,12 +10,13 @@ import zio.dynamodb.proofs.IsPrimaryKey
  */
 /*
 TODO
+- consider collapsing 1 member sealed traits
 - make raw constrctors that contain Phamtom types private
   - expose helper methods for them
  */
 object Foo {
-  sealed trait KeyConditionExpr[-From] extends Renderable             { self =>
-    def render: AliasMapRender[String] // do render in concrete classes
+  sealed trait KeyConditionExpr[-From] extends Renderable { self =>
+    def render: AliasMapRender[String]
   }
   object KeyConditionExpr {}
   // models primary key expressions
@@ -40,12 +41,13 @@ object Foo {
       }
   }
 
-  // TODO: colapse single item sum types into a case class
+  // sealed trait has only one member but it is usefull as a type alias to guide the user
+  // for instance And extends it - but having a type called And would make no sense
   sealed trait CompositePrimaryKeyExpr[-From] extends KeyConditionExpr[From] { self => }
 
+  // sealed trait has only one member but it is usefull as a type alias to guide the user
   // models "extended" primary key expressions
   // Student.email.primaryKey === "x" && Student.subject.sortKey > "y"
-
   sealed trait ExtendedCompositePrimaryKeyExpr[-From] extends KeyConditionExpr[From] { self => }
 
   object ExtendedCompositePrimaryKeyExpr {
