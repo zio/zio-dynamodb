@@ -8,18 +8,22 @@ import zio.dynamodb.proofs.IsPrimaryKey
 /**
  * Typesafe KeyConditionExpression/primary key experiment
  */
+/*
+TODO
+- Expr - shortning of name everywhere
+*/
 object Foo {
-  sealed trait KeyConditionExpression[From] extends Renderable                   { self =>
+  sealed trait KeyConditionExpression[-From] extends Renderable                   { self =>
     def render: AliasMapRender[String] // do render in concrete classes
   }
   object KeyConditionExpression {}
   // models primary key expressions
   // email.primaryKey === "x"
   // Student.email.primaryKey === "x" && Student.subject.sortKey === "y"
-  sealed trait PartitionKeyExprn[From]      extends KeyConditionExpression[From] { self =>
-    def &&(other: SortKeyEprn[From]): CompositePrimaryKeyExprn[From]                 = PartitionKeyExprn.And[From](self, other)
-    def &&(other: ExtendedSortKeyEprn[From]): ExtendedCompositePrimaryKeyExprn[From] =
-      PartitionKeyExprn.ComplexAnd[From](self, other)
+  sealed trait PartitionKeyExprn[-From]      extends KeyConditionExpression[From] { self =>
+    def &&[From1 <: From](other: SortKeyEprn[From1]): CompositePrimaryKeyExprn[From1]                 = PartitionKeyExprn.And[From1](self, other)
+    def &&[From1 <: From](other: ExtendedSortKeyEprn[From1]): ExtendedCompositePrimaryKeyExprn[From1] =
+      PartitionKeyExprn.ComplexAnd[From1](self, other)
 
     def render2: AliasMapRender[String] =
       self match {
@@ -34,15 +38,23 @@ object Foo {
       }
   }
 
-  sealed trait CompositePrimaryKeyExprn[From] extends KeyConditionExpression[From] { self => }
+  // TODO: colapse single item sum types into a case class
+  sealed trait CompositePrimaryKeyExprn[-From] extends KeyConditionExpression[From] { self => }
 
   // models "extended" primary key expressions
   // Student.email.primaryKey === "x" && Student.subject.sortKey > "y"
-  sealed trait ExtendedCompositePrimaryKeyExprn[From] extends KeyConditionExpression[From] { self => }
+
+
+  sealed trait ExtendedCompositePrimaryKeyExprn[-From] extends KeyConditionExpression[From] { self => }
+
+  object ExtendedCompositePrimaryKeyExprn {
+    // TODO move ComplexAnd here
+  }
 
   // no overlap between PartitionKeyExprn and ExtendedPartitionKeyExprn
 
   object PartitionKeyExprn {
+    // belongs to the package top level
     final case class PartitionKey[From](keyName: String) {
       def ===[To](value: To)(implicit to: ToAttributeValue[To], ev: IsPrimaryKey[To]): PartitionKeyExprn[From] = {
         val _ = ev
@@ -50,6 +62,7 @@ object Foo {
       }
     }
 
+    // TODO move to companion object
     final case class And[From](pk: PartitionKeyExprn[From], sk: SortKeyEprn[From])
         extends CompositePrimaryKeyExprn[From] {
       self =>
@@ -66,7 +79,9 @@ object Foo {
       // do render in concrete classes
 
     }
-    final case class ComplexAnd[From](pk: PartitionKeyExprn[From], sk: ExtendedSortKeyEprn[From])
+
+    // TODO move to companion object
+    final case class ComplexAnd[-From](pk: PartitionKeyExprn[From], sk: ExtendedSortKeyEprn[From])
         extends ExtendedCompositePrimaryKeyExprn[From] { self =>
 
       override def render: AliasMapRender[String] =
@@ -92,7 +107,7 @@ object Foo {
     }
   }
 
-  sealed trait SortKeyEprn[From]         { self =>
+  sealed trait SortKeyEprn[-From]         { self =>
     def render2: AliasMapRender[String] =
       self match {
         case SortKeyExprn.Equals(sk, value) =>
@@ -101,7 +116,7 @@ object Foo {
             .map(v => s"${sk.keyName} = $v")
       }
   }
-  sealed trait ExtendedSortKeyEprn[From] { self =>
+  sealed trait ExtendedSortKeyEprn[-From] { self =>
     def render2: AliasMapRender[String] =
       self match {
         case SortKeyExprn.GreaterThan(sk, value) =>
@@ -134,6 +149,8 @@ object FooExample extends App {
 
   // DynamoDbQuery's still use PrimaryKey
   // typesafe API constructors only expose PartitionKeyEprn
+
+  // TODO: move to PartitionKeyExprn
   def asPk[From](k: PartitionKeyExprn[From]): PrimaryKey        =
     k match {
       case PartitionKeyExprn.Equals(pk, value) => PrimaryKey(pk.keyName -> value)
@@ -168,10 +185,11 @@ object FooExample extends App {
     PartitionKey[Nothing]("email") === "x" && SortKey[Nothing]("subject") > "y"
 //	"type mismatch;\n found   : zio.dynamodb.Foo.SortKeyEprn[Nothing]\n required: zio.dynamodb.Foo.SortKeyEprn[From]\
 //  nNote: Nothing <: From, but trait SortKeyEprn is invariant in type From.\nYou may wish to define From as +From instead. (SLS 4.5)",
-//  val yy                                           = PartitionKey("email") === "x" && SortKey("subject") === "y"
-import zio.dynamodb.ProjectionExpression.$
-val x6: CompositePrimaryKeyExprn[Any] = $("foo.bar").primaryKey === "x" && $("foo.baz").sortKey === "y"
-val x7: ExtendedCompositePrimaryKeyExprn[Any] = $("foo.bar").primaryKey === "x" && $("foo.baz").sortKey > "y"
+  val yy: CompositePrimaryKeyExprn[Any]                                            = PartitionKey("email") === "x" && SortKey("subject") === "y"
+
+  import zio.dynamodb.ProjectionExpression.$
+  val x6: CompositePrimaryKeyExprn[Any]         = $("foo.bar").primaryKey === "x" && $("foo.baz").sortKey === "y"
+  val x7: ExtendedCompositePrimaryKeyExprn[Any] = $("foo.bar").primaryKey === "x" && $("foo.baz").sortKey > "y"
 
   final case class Student(email: String, subject: String, age: Int)
   object Student {
