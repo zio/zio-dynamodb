@@ -13,6 +13,19 @@ TODO
 - consider collapsing 1 member sealed traits
 - make raw constrctors that contain Phamtom types private
   - expose helper methods for them
+
+Files
+- KeyConditionExpr.scala
+- PartitionKey2.scala
+- SortKey2.scala
+- KeyConditionExpr.scala
+- PartitionKeyExpr.scala
+- CompositePrimaryKeyExpr.scala
+- ExtendedCompositePrimaryKeyExpr.scala
+- SortKeyExpr.scala
+- ExtendedSortKeyExpr.scala
+
+
  */
 object Foo {
 
@@ -65,6 +78,19 @@ object Foo {
         case PartitionKeyExpr.Equals(pk, value) =>
           AliasMapRender.getOrInsert(value).map(v => s"${pk.keyName} = $v")
       }
+  }
+  object PartitionKeyExpr {
+
+    final case class Equals[From](pk: PartitionKey2[From], value: AttributeValue) extends PartitionKeyExpr[From] {
+      self =>
+
+      override def render: AliasMapRender[String] =
+        self match {
+          case PartitionKeyExpr.Equals(pk, value) =>
+            AliasMapRender.getOrInsert(value).map(v => s"${pk.keyName} = $v")
+        }
+
+    }
   }
 
   // sealed trait has only one member but it is usefull as a type alias to guide the user
@@ -128,22 +154,8 @@ object Foo {
 
   // no overlap between PartitionKeyExpr and ExtendedPartitionKeyExpr
 
-  object PartitionKeyExpr {
-
-    final case class Equals[From](pk: PartitionKey2[From], value: AttributeValue) extends PartitionKeyExpr[From] {
-      self =>
-
-      override def render: AliasMapRender[String] =
-        self match {
-          case PartitionKeyExpr.Equals(pk, value) =>
-            AliasMapRender.getOrInsert(value).map(v => s"${pk.keyName} = $v")
-        }
-
-    }
-  }
-
   // single member sealed trait - but useful as a type alias
-  sealed trait SortKeyEprn[-From]         { self =>
+  sealed trait SortKeyEprn[-From] { self =>
     def render2: AliasMapRender[String] =
       self match {
         case SortKeyExpr.Equals(sk, value) =>
@@ -152,6 +164,10 @@ object Foo {
             .map(v => s"${sk.keyName} = $v")
       }
   }
+  object SortKeyExpr              {
+    final case class Equals[From](sortKey: SortKey2[From], value: AttributeValue) extends SortKeyEprn[From]
+  }
+
   // single member sealed trait - but useful as a type alias
   sealed trait ExtendedSortKeyExpr[-From] { self =>
     def render2: AliasMapRender[String] =
@@ -165,10 +181,6 @@ object Foo {
   }
   object ExtendedSortKeyExpr {
     final case class GreaterThan[From](sortKey: SortKey2[From], value: AttributeValue) extends ExtendedSortKeyExpr[From]
-  }
-
-  object SortKeyExpr {
-    final case class Equals[From](sortKey: SortKey2[From], value: AttributeValue) extends SortKeyEprn[From]
   }
 
 }
