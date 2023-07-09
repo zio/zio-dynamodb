@@ -5,6 +5,9 @@ import zio.schema.DeriveSchema
 
 object KeyConditionExprExample extends App {
 
+  import zio.dynamodb.KeyConditionExpr._
+  import zio.dynamodb.KeyConditionExpr.SortKeyExpr
+
   // DynamoDbQuery's still use PrimaryKey
   // typesafe API constructors only expose PartitionKeyEprn
 
@@ -55,7 +58,7 @@ object KeyConditionExprExample extends App {
   }
 
   val pk: PartitionKeyExpr[Student]                             = Student.email.primaryKey === "x"
-  val sk1: SortKeyEprn[Student]                                 = Student.subject.sortKey === "y"
+  val sk1: SortKeyExpr[Student]                                 = Student.subject.sortKey === "y"
   val sk2: ExtendedSortKeyExpr[Student]                         = Student.subject.sortKey > "y"
   val pkAndSk: CompositePrimaryKeyExpr[Student]                 = Student.email.primaryKey === "x" && Student.subject.sortKey === "y"
   //val three = Student.email.primaryKey === "x" && Student.subject.sortKey === "y" && Student.subject.sortKey // 3 terms not allowed
@@ -76,4 +79,15 @@ object KeyConditionExprExample extends App {
   // Render requirements
   val (aliasMap, s) = pkAndSkExtended.render.execute
   println(s"aliasMap=$aliasMap, s=$s")
+}
+
+object Foo {
+  final case class Student(email: String, subject: String, age: Int)
+  object Student {
+    implicit val schema: Schema.CaseClass3[String, String, Int, Student] = DeriveSchema.gen[Student]
+    val (email, subject, age)                                            = ProjectionExpression.accessors[Student]
+  }
+
+  val pkAndSk: KeyConditionExpr.CompositePrimaryKeyExpr[Student]                 = Student.email.primaryKey === "x" && Student.subject.sortKey === "y"
+
 }
