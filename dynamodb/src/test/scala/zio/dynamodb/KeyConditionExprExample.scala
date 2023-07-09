@@ -18,9 +18,9 @@ object KeyConditionExprExample extends App {
     }
   def asPk[From](k: CompositePrimaryKeyExpr[From]): PrimaryKey =
     k match {
-      case CompositePrimaryKeyExpr.And(pk, sk) =>
+      case CompositePrimaryKeyExpr(pk, sk) =>
         (pk, sk) match {
-          case (PartitionKeyExpr.Equals(pk, value), SortKeyExpr.Equals(sk, value2)) =>
+          case (PartitionKeyExpr.Equals(pk, value), SortKeyExpr(sk, value2)) =>
             PrimaryKey(pk.keyName -> value, sk.keyName -> value2)
         }
     }
@@ -28,11 +28,11 @@ object KeyConditionExprExample extends App {
   def whereKey[From](k: KeyConditionExpr[From]) =
     k match {
       // PartitionKeyExpr
-      case PartitionKeyExpr.Equals(pk, value)                 => println(s"pk=$pk, value=$value")
+      case PartitionKeyExpr.Equals(pk, value)      => println(s"pk=$pk, value=$value")
       // CompositePrimaryKeyExpr
-      case CompositePrimaryKeyExpr.And(pk, sk)                => println(s"pk=$pk, sk=$sk")
+      case CompositePrimaryKeyExpr(pk, sk)         => println(s"pk=$pk, sk=$sk")
       // ExtendedCompositePrimaryKeyExpr
-      case ExtendedCompositePrimaryKeyExpr.ComplexAnd(pk, sk) => println(s"pk=$pk, sk=$sk")
+      case ExtendedCompositePrimaryKeyExpr(pk, sk) => println(s"pk=$pk, sk=$sk")
     }
 
   // in low level - non type safe land
@@ -51,8 +51,13 @@ object KeyConditionExprExample extends App {
   val x6: CompositePrimaryKeyExpr[Any]         = $("foo.bar").primaryKey === "x" && $("foo.baz").sortKey === "y"
   val x7: ExtendedCompositePrimaryKeyExpr[Any] = $("foo.bar").primaryKey === "x" && $("foo.baz").sortKey > "y"
 
+  final case class Elephant(email: String, subject: String, age: Int)
+  object Elephant {
+    implicit val schema: Schema.CaseClass3[String, String, Int, Elephant] = DeriveSchema.gen[Elephant]
+    val (email, subject, age)                                             = ProjectionExpression.accessors[Elephant]
+  }
   final case class Student(email: String, subject: String, age: Int)
-  object Student {
+  object Student  {
     implicit val schema: Schema.CaseClass3[String, String, Int, Student] = DeriveSchema.gen[Student]
     val (email, subject, age)                                            = ProjectionExpression.accessors[Student]
   }
@@ -88,6 +93,7 @@ object Foo {
     val (email, subject, age)                                            = ProjectionExpression.accessors[Student]
   }
 
-  val pkAndSk: KeyConditionExpr.CompositePrimaryKeyExpr[Student]                 = Student.email.primaryKey === "x" && Student.subject.sortKey === "y"
+  val pkAndSk: KeyConditionExpr.CompositePrimaryKeyExpr[Student] =
+    Student.email.primaryKey === "x" && Student.subject.sortKey === "y"
 
 }

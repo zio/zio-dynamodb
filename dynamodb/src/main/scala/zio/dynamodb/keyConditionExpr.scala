@@ -22,8 +22,6 @@ Files
 - ExtendedCompositePrimaryKeyExpr.scala
 - SortKeyExpr.scala
 - ExtendedSortKeyExpr.scala
-
-
  */
 
 import zio.dynamodb.KeyConditionExpr.PartitionKeyExpr
@@ -42,7 +40,7 @@ import zio.dynamodb.KeyConditionExpr.ExtendedSortKeyExpr
 final case class SortKey2[From](keyName: String) {
   def ===[To](value: To)(implicit to: ToAttributeValue[To], ev: IsPrimaryKey[To]): SortKeyExpr[From] = {
     val _ = ev
-    SortKeyExpr.Equals[From](this, to.toAttributeValue(value))
+    SortKeyExpr[From](this, to.toAttributeValue(value))
   }
   def >[To](value: To)(implicit to: ToAttributeValue[To], ev: IsPrimaryKey[To]): ExtendedSortKeyExpr[From] = {
     val _ = ev
@@ -56,14 +54,14 @@ sealed trait KeyConditionExpr[-From] extends Renderable { self =>
 }
 
 object KeyConditionExpr {
-// models primary key expressions
-// email.primaryKey === "x"
-// Student.email.primaryKey === "x" && Student.subject.sortKey === "y"
+  // models primary key expressions
+  // email.primaryKey === "x"
+  // Student.email.primaryKey === "x" && Student.subject.sortKey === "y"
   sealed trait PartitionKeyExpr[-From] extends KeyConditionExpr[From] { self =>
     def &&[From1 <: From](other: SortKeyExpr[From1]): CompositePrimaryKeyExpr[From1]                 =
-      CompositePrimaryKeyExpr.And[From1](self, other)
+      CompositePrimaryKeyExpr[From1](self, other)
     def &&[From1 <: From](other: ExtendedSortKeyExpr[From1]): ExtendedCompositePrimaryKeyExpr[From1] =
-      ExtendedCompositePrimaryKeyExpr.ComplexAnd[From1](self, other)
+      ExtendedCompositePrimaryKeyExpr[From1](self, other)
 
     def render2: AliasMapRender[String] =
       self match {
@@ -96,82 +94,47 @@ object KeyConditionExpr {
     }
   }
 
-// sealed trait has only one member but it is usefull as a type alias to guide the user
-// for instance And extends it - but having a type called And would make no sense
-  sealed trait CompositePrimaryKeyExpr[-From] extends KeyConditionExpr[From] { self =>
+  final case class SortKeyExpr[From](sortKey: SortKey2[From], value: AttributeValue) { self =>
+    def render2: AliasMapRender[String] =
+      AliasMapRender
+        .getOrInsert(value)
+        .map(v => s"${sortKey.keyName} = $v")
+  }
+
+  final case class CompositePrimaryKeyExpr[From](pk: PartitionKeyExpr[From], sk: SortKeyExpr[From])
+      extends KeyConditionExpr[From] {
+    self =>
+
     def asAttrVal: PrimaryKey =
-      self match {
-        case CompositePrimaryKeyExpr.And(pk, sk) =>
+      self match { // TODO: delete match
+        case CompositePrimaryKeyExpr(pk, sk) =>
           (pk, sk) match {
-            case (PartitionKeyExpr.Equals(pk, value), SortKeyExpr.Equals(sk, value2)) =>
+            case (PartitionKeyExpr.Equals(pk, value), SortKeyExpr(sk, value2)) =>
               PrimaryKey(pk.keyName -> value, sk.keyName -> value2)
           }
       }
 
-  }
-
-  object CompositePrimaryKeyExpr {
-    // TODO move to companion object
-    final case class And[From](pk: PartitionKeyExpr[From], sk: SortKeyExpr[From])
-        extends CompositePrimaryKeyExpr[From] {
-      self =>
-
-      override def render: AliasMapRender[String] =
-        self match {
-          case CompositePrimaryKeyExpr.And(pk, sk) =>
-            for {
-              pkStr <- pk.render2
-              skStr <- sk.render2
-            } yield s"$pkStr AND $skStr"
-        }
-
-      // do render in concrete classes
-
-    }
+    override def render: AliasMapRender[String] =
+      for {
+        pkStr <- pk.render2
+        skStr <- sk.render2
+      } yield s"$pkStr AND $skStr"
 
   }
+  final case class ExtendedCompositePrimaryKeyExpr[-From](pk: PartitionKeyExpr[From], sk: ExtendedSortKeyExpr[From])
+      extends KeyConditionExpr[From] {
+    self =>
 
-// sealed trait has only one member but it is usefull as a type alias to guide the user
-// models "extended" primary key expressions
-// Student.email.primaryKey === "x" && Student.subject.sortKey > "y"
-  sealed trait ExtendedCompositePrimaryKeyExpr[-From] extends KeyConditionExpr[From] { self => }
-
-  object ExtendedCompositePrimaryKeyExpr {
-    // TODO move ComplexAnd here
-    // TODO move to companion object
-    final case class ComplexAnd[-From](pk: PartitionKeyExpr[From], sk: ExtendedSortKeyExpr[From])
-        extends ExtendedCompositePrimaryKeyExpr[From] { self =>
-
-      override def render: AliasMapRender[String] =
-        self match {
-          case ExtendedCompositePrimaryKeyExpr.ComplexAnd(pk, sk) =>
-            for {
-              pkStr <- pk.render2
-              skStr <- sk.render2
-            } yield s"$pkStr AND $skStr"
-        }
-
-    }
+    def render: AliasMapRender[String] =
+      for {
+        pkStr <- pk.render2
+        skStr <- sk.render2
+      } yield s"$pkStr AND $skStr"
 
   }
+  // no overlap between PartitionKeyExpr and ExtendedPartitionKeyExpr
 
-// no overlap between PartitionKeyExpr and ExtendedPartitionKeyExpr
-
-// single member sealed trait - but useful as a type alias
-  sealed trait SortKeyExpr[-From] { self =>
-    def render2: AliasMapRender[String] =
-      self match {
-        case SortKeyExpr.Equals(sk, value) =>
-          AliasMapRender
-            .getOrInsert(value)
-            .map(v => s"${sk.keyName} = $v")
-      }
-  }
-  object SortKeyExpr              {
-    final case class Equals[From](sortKey: SortKey2[From], value: AttributeValue) extends SortKeyExpr[From]
-  }
-
-  // single member sealed trait - but useful as a type alias
+  // single member sealed trait ATM but will have more members
   sealed trait ExtendedSortKeyExpr[-From] { self =>
     def render2: AliasMapRender[String] =
       self match {
@@ -184,6 +147,7 @@ object KeyConditionExpr {
   }
   object ExtendedSortKeyExpr {
     final case class GreaterThan[From](sortKey: SortKey2[From], value: AttributeValue) extends ExtendedSortKeyExpr[From]
+    // TODO add other extended operators
   }
 
 }
