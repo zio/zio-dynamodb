@@ -133,19 +133,18 @@ sealed trait ProjectionExpression[-From, +To] { self =>
 
 trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowPriorityImplicits1 {
   implicit class ProjectionExpressionSyntax0[From, To: ToAttributeValue](self: ProjectionExpression[From, To]) {
-    import zio.dynamodb.Foo
 
-    def primaryKey(implicit ev: IsPrimaryKey[To]): Foo.PartitionKey2[From] = {
+    def primaryKey(implicit ev: IsPrimaryKey[To]): PartitionKey2[From] = {
       val _ = ev
       self match {
-        case ProjectionExpression.MapElement(_, key) => Foo.PartitionKey2[From](key)
+        case ProjectionExpression.MapElement(_, key) => PartitionKey2[From](key)
         case _                                       => throw new IllegalArgumentException("Not a partition key") // should not happen
       }
     }
-    def sortKey(implicit ev: IsPrimaryKey[To]): Foo.SortKey2[From] = {
+    def sortKey(implicit ev: IsPrimaryKey[To]): SortKey2[From] = {
       val _ = ev
       self match {
-        case ProjectionExpression.MapElement(_, key) => Foo.SortKey2[From](key)
+        case ProjectionExpression.MapElement(_, key) => SortKey2[From](key)
         case _                                       => throw new IllegalArgumentException("Not a partition key") // should not happen
       }
     }
@@ -545,14 +544,14 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
 
   implicit class ProjectionExpressionSyntax[From](self: ProjectionExpression[From, Unknown]) {
 
-    def primaryKey: Foo.PartitionKey2[From] =
+    def primaryKey: PartitionKey2[From] =
       self match {
-        case ProjectionExpression.MapElement(_, key) => Foo.PartitionKey2[From](key)
+        case ProjectionExpression.MapElement(_, key) => PartitionKey2[From](key)
         case _                                       => throw new IllegalArgumentException("Not a partition key") // should not happen
       }
-    def sortKey: Foo.SortKey2[From]         =
+    def sortKey: SortKey2[From]         =
       self match {
-        case ProjectionExpression.MapElement(_, key) => Foo.SortKey2[From](key)
+        case ProjectionExpression.MapElement(_, key) => SortKey2[From](key)
         case _                                       => throw new IllegalArgumentException("Not a partition key") // should not happen
       }
 
