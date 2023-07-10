@@ -27,7 +27,7 @@ Files
 import zio.dynamodb.KeyConditionExpr.PartitionKeyExpr
 
 // belongs to the package top level
-final case class PartitionKey2[From](keyName: String) {
+private[dynamodb] final case class PartitionKey2[From](keyName: String) {
   def ===[To](value: To)(implicit to: ToAttributeValue[To], ev: IsPrimaryKey[To]): PartitionKeyExpr[From] = {
     val _ = ev
     PartitionKeyExpr.Equals(this, to.toAttributeValue(value))
@@ -37,7 +37,7 @@ final case class PartitionKey2[From](keyName: String) {
 import zio.dynamodb.KeyConditionExpr.SortKeyExpr
 import zio.dynamodb.KeyConditionExpr.ExtendedSortKeyExpr
 
-final case class SortKey2[From](keyName: String) {
+private[dynamodb] final case class SortKey2[From](keyName: String) {
   def ===[To](value: To)(implicit to: ToAttributeValue[To], ev: IsPrimaryKey[To]): SortKeyExpr[From] = {
     val _ = ev
     SortKeyExpr[From](this, to.toAttributeValue(value))
@@ -82,7 +82,8 @@ object KeyConditionExpr {
   }
   object PartitionKeyExpr {
 
-    final case class Equals[From](pk: PartitionKey2[From], value: AttributeValue) extends PartitionKeyExpr[From] {
+    private[dynamodb] final case class Equals[From](pk: PartitionKey2[From], value: AttributeValue)
+        extends PartitionKeyExpr[From] {
       self =>
 
       override def render: AliasMapRender[String] =
@@ -94,18 +95,18 @@ object KeyConditionExpr {
     }
   }
 
-  final case class SortKeyExpr[From](sortKey: SortKey2[From], value: AttributeValue) { self =>
+  private[dynamodb] final case class SortKeyExpr[From](sortKey: SortKey2[From], value: AttributeValue) { self =>
     def render2: AliasMapRender[String] =
       AliasMapRender
         .getOrInsert(value)
         .map(v => s"${sortKey.keyName} = $v")
   }
 
-  final case class CompositePrimaryKeyExpr[From](pk: PartitionKeyExpr[From], sk: SortKeyExpr[From])
+  private[dynamodb] final case class CompositePrimaryKeyExpr[From](pk: PartitionKeyExpr[From], sk: SortKeyExpr[From])
       extends KeyConditionExpr[From] {
     self =>
 
-    def asAttrVal: PrimaryKey =
+    def asAttrVal: AttrMap =
       self match { // TODO: delete match
         case CompositePrimaryKeyExpr(pk, sk) =>
           (pk, sk) match {
@@ -121,8 +122,10 @@ object KeyConditionExpr {
       } yield s"$pkStr AND $skStr"
 
   }
-  final case class ExtendedCompositePrimaryKeyExpr[-From](pk: PartitionKeyExpr[From], sk: ExtendedSortKeyExpr[From])
-      extends KeyConditionExpr[From] {
+  private[dynamodb] final case class ExtendedCompositePrimaryKeyExpr[-From](
+    pk: PartitionKeyExpr[From],
+    sk: ExtendedSortKeyExpr[From]
+  ) extends KeyConditionExpr[From] {
     self =>
 
     def render: AliasMapRender[String] =
@@ -132,7 +135,6 @@ object KeyConditionExpr {
       } yield s"$pkStr AND $skStr"
 
   }
-  // no overlap between PartitionKeyExpr and ExtendedPartitionKeyExpr
 
   // single member sealed trait ATM but will have more members
   sealed trait ExtendedSortKeyExpr[-From] { self =>
@@ -146,7 +148,8 @@ object KeyConditionExpr {
 
   }
   object ExtendedSortKeyExpr {
-    final case class GreaterThan[From](sortKey: SortKey2[From], value: AttributeValue) extends ExtendedSortKeyExpr[From]
+    private[dynamodb] final case class GreaterThan[From](sortKey: SortKey2[From], value: AttributeValue)
+        extends ExtendedSortKeyExpr[From]
     // TODO add other extended operators
   }
 

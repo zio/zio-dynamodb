@@ -1,4 +1,8 @@
-package zio.dynamodb
+package zio.dynamodb.examples
+
+import zio.dynamodb.PrimaryKey
+import zio.dynamodb.KeyConditionExpr
+import zio.dynamodb.ProjectionExpression
 
 import zio.schema.Schema
 import zio.schema.DeriveSchema
