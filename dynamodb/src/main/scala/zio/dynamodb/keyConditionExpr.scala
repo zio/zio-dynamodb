@@ -13,9 +13,9 @@ TODO
   - expose helper methods for them
 
 Files
-- KeyConditionExpr.scala
 - PartitionKey2.scala
 - SortKey2.scala
+- KeyConditionExpr.scala
 - KeyConditionExpr.scala
 - PartitionKeyExpr.scala
 - CompositePrimaryKeyExpr.scala
@@ -83,14 +83,7 @@ object KeyConditionExpr {
       extends KeyConditionExpr[From] {
     self =>
 
-    def asAttrVal: AttrMap =
-      self match { // TODO: delete match
-        case CompositePrimaryKeyExpr(pk, sk) =>
-          (pk, sk) match {
-            case (PartitionKeyExpr(pk, value), SortKeyExpr(sk, value2)) =>
-              PrimaryKey(pk.keyName -> value, sk.keyName -> value2)
-          }
-      }
+    def asAttrVal: AttrMap = PrimaryKey(pk.pk.keyName -> pk.value, sk.sortKey.keyName -> sk.value)
 
     override def render: AliasMapRender[String] =
       for {
@@ -113,6 +106,21 @@ object KeyConditionExpr {
 
   }
 
+  /*
+  TODO: add all:
+    def <>[A](that: A)(implicit t: ToAttributeValue[A]): SortKeyExpression             = NotEqual(self, t.toAttributeValue(that))
+    def <[A](that: A)(implicit t: ToAttributeValue[A]): SortKeyExpression              = LessThan(self, t.toAttributeValue(that))
+    def <=[A](that: A)(implicit t: ToAttributeValue[A]): SortKeyExpression             =
+      LessThanOrEqual(self, t.toAttributeValue(that))
+    def >[A](that: A)(implicit t: ToAttributeValue[A]): SortKeyExpression              =
+      GreaterThanOrEqual(self, t.toAttributeValue(that))
+    def >=[A](that: A)(implicit t: ToAttributeValue[A]): SortKeyExpression             =
+      GreaterThanOrEqual(self, t.toAttributeValue(that))
+    def between[A](min: A, max: A)(implicit t: ToAttributeValue[A]): SortKeyExpression =
+      Between(self, t.toAttributeValue(min), t.toAttributeValue(max))
+    def beginsWith[A](value: A)(implicit t: ToAttributeValue[A]): SortKeyExpression    =
+      BeginsWith(self, t.toAttributeValue(value))
+   */
   // single member sealed trait ATM but will have more members
   sealed trait ExtendedSortKeyExpr[-From] { self =>
     def render2: AliasMapRender[String] =
