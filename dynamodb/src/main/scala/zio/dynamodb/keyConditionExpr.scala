@@ -83,7 +83,7 @@ object KeyConditionExpr {
       extends KeyConditionExpr[From] {
     self =>
 
-    def asAttrVal: AttrMap = PrimaryKey(pk.pk.keyName -> pk.value, sk.sortKey.keyName -> sk.value)
+    def asAttrMap: AttrMap = PrimaryKey(pk.pk.keyName -> pk.value, sk.sortKey.keyName -> sk.value)
 
     override def render: AliasMapRender[String] =
       for {
