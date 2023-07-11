@@ -18,13 +18,13 @@ object KeyConditionExprExample extends App {
   // TODO: move to PartitionKeyExpr
   def asPk[From](k: PartitionKeyExpr[From]): PrimaryKey        =
     k match {
-      case PartitionKeyExpr.Equals(pk, value) => PrimaryKey(pk.keyName -> value)
+      case PartitionKeyExpr(pk, value) => PrimaryKey(pk.keyName -> value)
     }
   def asPk[From](k: CompositePrimaryKeyExpr[From]): PrimaryKey =
     k match {
       case CompositePrimaryKeyExpr(pk, sk) =>
         (pk, sk) match {
-          case (PartitionKeyExpr.Equals(pk, value), SortKeyExpr(sk, value2)) =>
+          case (PartitionKeyExpr(pk, value), SortKeyExpr(sk, value2)) =>
             PrimaryKey(pk.keyName -> value, sk.keyName -> value2)
         }
     }
@@ -32,7 +32,7 @@ object KeyConditionExprExample extends App {
   def whereKey[From](k: KeyConditionExpr[From]) =
     k match {
       // PartitionKeyExpr
-      case PartitionKeyExpr.Equals(pk, value)      => println(s"pk=$pk, value=$value")
+      case PartitionKeyExpr(pk, value)      => println(s"pk=$pk, value=$value")
       // CompositePrimaryKeyExpr
       case CompositePrimaryKeyExpr(pk, sk)         => println(s"pk=$pk, sk=$sk")
       // ExtendedCompositePrimaryKeyExpr

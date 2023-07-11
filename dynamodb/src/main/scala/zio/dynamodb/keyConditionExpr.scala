@@ -27,10 +27,10 @@ Files
 import zio.dynamodb.KeyConditionExpr.PartitionKeyExpr
 
 // belongs to the package top level
-private[dynamodb] final case class PartitionKey2[From](keyName: String) {
+private[dynamodb] final case class PartitionKey2[-From](keyName: String) {
   def ===[To](value: To)(implicit to: ToAttributeValue[To], ev: IsPrimaryKey[To]): PartitionKeyExpr[From] = {
     val _ = ev
-    PartitionKeyExpr.Equals(this, to.toAttributeValue(value))
+    PartitionKeyExpr(this, to.toAttributeValue(value))
   }
 }
 
@@ -57,42 +57,19 @@ object KeyConditionExpr {
   // models primary key expressions
   // email.primaryKey === "x"
   // Student.email.primaryKey === "x" && Student.subject.sortKey === "y"
-  sealed trait PartitionKeyExpr[-From] extends KeyConditionExpr[From] { self =>
+
+  private[dynamodb] final case class PartitionKeyExpr[-From](pk: PartitionKey2[From], value: AttributeValue)
+      extends KeyConditionExpr[From] { self =>
+
     def &&[From1 <: From](other: SortKeyExpr[From1]): CompositePrimaryKeyExpr[From1]                 =
       CompositePrimaryKeyExpr[From1](self, other)
     def &&[From1 <: From](other: ExtendedSortKeyExpr[From1]): ExtendedCompositePrimaryKeyExpr[From1] =
       ExtendedCompositePrimaryKeyExpr[From1](self, other)
 
-    def render2: AliasMapRender[String] =
-      self match {
-        case PartitionKeyExpr.Equals(pk, value) =>
-          AliasMapRender.getOrInsert(value).map(v => s"${pk.keyName} = $v")
-      }
+    def asAttrMap: AttrMap = AttrMap(pk.keyName -> value)
 
-    def asAttrMap: AttrMap =
-      self match {
-        case PartitionKeyExpr.Equals(pk, value) => AttrMap(pk.keyName -> value)
-      }
-
-    def render: AliasMapRender[String] =
-      self match {
-        case PartitionKeyExpr.Equals(pk, value) =>
-          AliasMapRender.getOrInsert(value).map(v => s"${pk.keyName} = $v")
-      }
-  }
-  object PartitionKeyExpr {
-
-    private[dynamodb] final case class Equals[From](pk: PartitionKey2[From], value: AttributeValue)
-        extends PartitionKeyExpr[From] {
-      self =>
-
-      override def render: AliasMapRender[String] =
-        self match {
-          case PartitionKeyExpr.Equals(pk, value) =>
-            AliasMapRender.getOrInsert(value).map(v => s"${pk.keyName} = $v")
-        }
-
-    }
+    override def render: AliasMapRender[String] =
+      AliasMapRender.getOrInsert(value).map(v => s"${pk.keyName} = $v")
   }
 
   private[dynamodb] final case class SortKeyExpr[From](sortKey: SortKey2[From], value: AttributeValue) { self =>
@@ -110,14 +87,14 @@ object KeyConditionExpr {
       self match { // TODO: delete match
         case CompositePrimaryKeyExpr(pk, sk) =>
           (pk, sk) match {
-            case (PartitionKeyExpr.Equals(pk, value), SortKeyExpr(sk, value2)) =>
+            case (PartitionKeyExpr(pk, value), SortKeyExpr(sk, value2)) =>
               PrimaryKey(pk.keyName -> value, sk.keyName -> value2)
           }
       }
 
     override def render: AliasMapRender[String] =
       for {
-        pkStr <- pk.render2
+        pkStr <- pk.render
         skStr <- sk.render2
       } yield s"$pkStr AND $skStr"
 
@@ -130,7 +107,7 @@ object KeyConditionExpr {
 
     def render: AliasMapRender[String] =
       for {
-        pkStr <- pk.render2
+        pkStr <- pk.render
         skStr <- sk.render2
       } yield s"$pkStr AND $skStr"
 
