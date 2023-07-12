@@ -46,6 +46,10 @@ private[dynamodb] final case class SortKey2[From](keyName: String) {
     val _ = ev
     ExtendedSortKeyExpr.GreaterThan(this, to.toAttributeValue(value))
   }
+  def <[To](value: To)(implicit to: ToAttributeValue[To], ev: IsPrimaryKey[To]): ExtendedSortKeyExpr[From] = {
+    val _ = ev
+    ExtendedSortKeyExpr.LessThan(this, to.toAttributeValue(value))
+  }
   // ... and so on for all the other extended operators
 }
 
@@ -121,7 +125,6 @@ object KeyConditionExpr {
     def beginsWith[A](value: A)(implicit t: ToAttributeValue[A]): SortKeyExpression    =
       BeginsWith(self, t.toAttributeValue(value))
    */
-  // single member sealed trait ATM but will have more members
   sealed trait ExtendedSortKeyExpr[-From] { self =>
     def render2: AliasMapRender[String] =
       self match {
@@ -129,11 +132,17 @@ object KeyConditionExpr {
           AliasMapRender
             .getOrInsert(value)
             .map(v => s"${sk.keyName} > $v")
+        case ExtendedSortKeyExpr.LessThan(sk, value)    =>
+          AliasMapRender
+            .getOrInsert(value)
+            .map(v => s"${sk.keyName} < $v")
       }
 
   }
   object ExtendedSortKeyExpr {
     private[dynamodb] final case class GreaterThan[From](sortKey: SortKey2[From], value: AttributeValue)
+        extends ExtendedSortKeyExpr[From]
+    private[dynamodb] final case class LessThan[From](sortKey: SortKey2[From], value: AttributeValue)
         extends ExtendedSortKeyExpr[From]
     // TODO add other extended operators
   }
