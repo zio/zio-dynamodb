@@ -32,7 +32,7 @@ object KeyConditionExprExample extends App {
   def whereKey[From](k: KeyConditionExpr[From]) =
     k match {
       // PartitionKeyExpr
-      case PartitionKeyExpr(pk, value)      => println(s"pk=$pk, value=$value")
+      case PartitionKeyExpr(pk, value)             => println(s"pk=$pk, value=$value")
       // CompositePrimaryKeyExpr
       case CompositePrimaryKeyExpr(pk, sk)         => println(s"pk=$pk, sk=$sk")
       // ExtendedCompositePrimaryKeyExpr
@@ -66,13 +66,17 @@ object KeyConditionExprExample extends App {
     val (email, subject, age)                                            = ProjectionExpression.accessors[Student]
   }
 
-  val pk: PartitionKeyExpr[Student]                             = Student.email.primaryKey === "x"
-  val sk1: SortKeyExpr[Student]                                 = Student.subject.sortKey === "y"
-  val sk2: ExtendedSortKeyExpr[Student]                         = Student.subject.sortKey > "y"
-  val pkAndSk: CompositePrimaryKeyExpr[Student]                 = Student.email.primaryKey === "x" && Student.subject.sortKey === "y"
+  val pk: PartitionKeyExpr[Student]                               = Student.email.primaryKey === "x"
+  val sk1: SortKeyExpr[Student]                                   = Student.subject.sortKey === "y"
+  val sk2: ExtendedSortKeyExpr[Student]                           = Student.subject.sortKey > "y"
+  val pkAndSk: CompositePrimaryKeyExpr[Student]                   = Student.email.primaryKey === "x" && Student.subject.sortKey === "y"
   //val three = Student.email.primaryKey === "x" && Student.subject.sortKey === "y" && Student.subject.sortKey // 3 terms not allowed
-  val pkAndSkExtended: ExtendedCompositePrimaryKeyExpr[Student] =
+  val pkAndSkExtended1: ExtendedCompositePrimaryKeyExpr[Student]  =
     Student.email.primaryKey === "x" && Student.subject.sortKey > "y"
+  val pkAndSkExtended2: ExtendedCompositePrimaryKeyExpr[Student] =
+    Student.email.primaryKey === "x" && Student.subject.sortKey >= "y" 
+  val pkAndSkExtended3: ExtendedCompositePrimaryKeyExpr[Student] =
+    Student.email.primaryKey === "x" && Student.subject.sortKey.between(1, 2)
 
   // GetItem Query will have three overridden versions
   // 1) takes AttrMap/PriamaryKey - for users of low level API
@@ -86,7 +90,7 @@ object KeyConditionExprExample extends App {
   // println(pkAndSkExtended)
 
   // Render requirements
-  val (aliasMap, s) = pkAndSkExtended.render.execute
+  val (aliasMap, s) = pkAndSkExtended1.render.execute
   println(s"aliasMap=$aliasMap, s=$s")
 }
 

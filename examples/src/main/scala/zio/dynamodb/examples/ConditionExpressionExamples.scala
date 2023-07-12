@@ -24,6 +24,7 @@ object ConditionExpressionExamples {
   val peOpticNum1: ProjectionExpression[Student, Int] = Student.count1
   val peOpticNum2: ProjectionExpression[Student, Int] = Student.count2
   val ceOptic1: ConditionExpression[Student]          = peOpticNum1 > peOpticNum2
+  val ceOptic2: ConditionExpression[Student]          = Student.subject.between("a", "b")
 
   val x: ProjectionExpression[Any, Unknown] = $("col2")
   val xx: Operand.Size[Any, Unknown]        = x.size
