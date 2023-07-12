@@ -73,10 +73,10 @@ object KeyConditionExprExample extends App {
   //val three = Student.email.primaryKey === "x" && Student.subject.sortKey === "y" && Student.subject.sortKey // 3 terms not allowed
   val pkAndSkExtended1: ExtendedCompositePrimaryKeyExpr[Student]  =
     Student.email.primaryKey === "x" && Student.subject.sortKey > "y"
-  val pkAndSkExtended2: ExtendedCompositePrimaryKeyExpr[Student] =
-    Student.email.primaryKey === "x" && Student.subject.sortKey >= "y" 
-  val pkAndSkExtended3: ExtendedCompositePrimaryKeyExpr[Student] =
-    Student.email.primaryKey === "x" && Student.subject.sortKey.between(1, 2)
+  // val pkAndSkExtended2: ExtendedCompositePrimaryKeyExpr[Student] =
+  //   Student.email.primaryKey === "x" && Student.subject.sortKey >= "y" 
+  // val pkAndSkExtended3: ExtendedCompositePrimaryKeyExpr[Student] =
+  //   Student.email.primaryKey === "x" && Student.subject.sortKey.between(1, 2)
 
   // GetItem Query will have three overridden versions
   // 1) takes AttrMap/PriamaryKey - for users of low level API

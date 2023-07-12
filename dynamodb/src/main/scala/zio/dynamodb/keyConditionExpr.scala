@@ -33,25 +33,24 @@ private[dynamodb] final case class SortKey2[From](keyName: String) { self =>
     val _ = ev
     ExtendedSortKeyExpr.GreaterThan(self, to.toAttributeValue(value))
   }
-  def <[To](value: To)(implicit to: ToAttributeValue[To], ev: IsPrimaryKey[To]): ExtendedSortKeyExpr[From] = {
-    val _ = ev
-    ExtendedSortKeyExpr.LessThan(self, to.toAttributeValue(value))
-  }
-  def <>[To](value: To)(implicit to: ToAttributeValue[To], ev: IsPrimaryKey[To]): ExtendedSortKeyExpr[From] = {
-    val _ = ev
-    ExtendedSortKeyExpr.NotEqual(self, to.toAttributeValue(value))
-  }
-  def <=[To](value: To)(implicit to: ToAttributeValue[To], ev: IsPrimaryKey[To]): ExtendedSortKeyExpr[From] = {
-    val _ = ev
-    ExtendedSortKeyExpr.LessThanOrEqual(self, to.toAttributeValue(value))
-  }
-  def >=[To](value: To)(implicit to: ToAttributeValue[To], ev: IsPrimaryKey[To]): ExtendedSortKeyExpr[From] = {
-    val _ = ev
-    ExtendedSortKeyExpr.GreaterThanOrEqual(self, to.toAttributeValue(value))
-  }
-  def between[To](min: To, max: To)(implicit t: ToAttributeValue[To]): ExtendedSortKeyExpr[From] =
-    ExtendedSortKeyExpr.Between[From](self, t.toAttributeValue(min), t.toAttributeValue(max))
-  // ... and so on for all the other extended operators
+  // def <[To](value: To)(implicit to: ToAttributeValue[To], ev: IsPrimaryKey[To]): ExtendedSortKeyExpr[From] = {
+  //   val _ = ev
+  //   ExtendedSortKeyExpr.LessThan(self, to.toAttributeValue(value))
+  // }
+  // def <>[To](value: To)(implicit to: ToAttributeValue[To], ev: IsPrimaryKey[To]): ExtendedSortKeyExpr[From] = {
+  //   val _ = ev
+  //   ExtendedSortKeyExpr.NotEqual(self, to.toAttributeValue(value))
+  // }
+  // def <=[To](value: To)(implicit to: ToAttributeValue[To], ev: IsPrimaryKey[To]): ExtendedSortKeyExpr[From] = {
+  //   val _ = ev
+  //   ExtendedSortKeyExpr.LessThanOrEqual(self, to.toAttributeValue(value))
+  // }
+  // def >=[To](value: To)(implicit to: ToAttributeValue[To], ev: IsPrimaryKey[To]): ExtendedSortKeyExpr[From] = {
+  //   val _ = ev
+  //   ExtendedSortKeyExpr.GreaterThanOrEqual(self, to.toAttributeValue(value))
+  // }
+  // def between[To](min: To, max: To)(implicit t: ToAttributeValue[To]): ExtendedSortKeyExpr[From] =
+  //   ExtendedSortKeyExpr.Between[From](self, t.toAttributeValue(min), t.toAttributeValue(max))
 }
 
 sealed trait KeyConditionExpr[-From] extends Renderable { self =>
@@ -114,58 +113,58 @@ object KeyConditionExpr {
   sealed trait ExtendedSortKeyExpr[-From] { self =>
     def render2: AliasMapRender[String] =
       self match {
-        case ExtendedSortKeyExpr.GreaterThan(sk, value)        =>
+        case ExtendedSortKeyExpr.GreaterThan(sk, value) =>
           AliasMapRender
             .getOrInsert(value)
             .map(v => s"${sk.keyName} > $v")
-        case ExtendedSortKeyExpr.LessThan(sk, value)           =>
-          AliasMapRender
-            .getOrInsert(value)
-            .map(v => s"${sk.keyName} < $v")
-        case ExtendedSortKeyExpr.NotEqual(sk, value)           =>
-          AliasMapRender
-            .getOrInsert(value)
-            .map(v => s"${sk.keyName} <> $v")
-        case ExtendedSortKeyExpr.LessThanOrEqual(sk, value)    =>
-          AliasMapRender
-            .getOrInsert(value)
-            .map(v => s"${sk.keyName} <= $v")
-        case ExtendedSortKeyExpr.GreaterThanOrEqual(sk, value) =>
-          AliasMapRender
-            .getOrInsert(value)
-            .map(v => s"${sk.keyName} >= $v")
-        case ExtendedSortKeyExpr.Between(left, min, max)       =>
-          AliasMapRender
-            .getOrInsert(min)
-            .flatMap(min =>
-              AliasMapRender.getOrInsert(max).map { max =>
-                s"${left.keyName} BETWEEN $min AND $max"
-              }
-            )
-        case ExtendedSortKeyExpr.BeginsWith(left, value)       =>
-          AliasMapRender
-            .getOrInsert(value)
-            .map { v =>
-              s"begins_with(${left.keyName}, $v)"
-            }
+        // case ExtendedSortKeyExpr.LessThan(sk, value)           =>
+        //   AliasMapRender
+        //     .getOrInsert(value)
+        //     .map(v => s"${sk.keyName} < $v")
+        // case ExtendedSortKeyExpr.NotEqual(sk, value)           =>
+        //   AliasMapRender
+        //     .getOrInsert(value)
+        //     .map(v => s"${sk.keyName} <> $v")
+        // case ExtendedSortKeyExpr.LessThanOrEqual(sk, value)    =>
+        //   AliasMapRender
+        //     .getOrInsert(value)
+        //     .map(v => s"${sk.keyName} <= $v")
+        // case ExtendedSortKeyExpr.GreaterThanOrEqual(sk, value) =>
+        //   AliasMapRender
+        //     .getOrInsert(value)
+        //     .map(v => s"${sk.keyName} >= $v")
+        // case ExtendedSortKeyExpr.Between(left, min, max)       =>
+        //   AliasMapRender
+        //     .getOrInsert(min)
+        //     .flatMap(min =>
+        //       AliasMapRender.getOrInsert(max).map { max =>
+        //         s"${left.keyName} BETWEEN $min AND $max"
+        //       }
+        //     )
+        // case ExtendedSortKeyExpr.BeginsWith(left, value)       =>
+        //   AliasMapRender
+        //     .getOrInsert(value)
+        //     .map { v =>
+        //       s"begins_with(${left.keyName}, $v)"
+        //     }
       }
 
   }
   object ExtendedSortKeyExpr {
     private[dynamodb] final case class GreaterThan[From](sortKey: SortKey2[From], value: AttributeValue)
         extends ExtendedSortKeyExpr[From]
-    private[dynamodb] final case class LessThan[From](sortKey: SortKey2[From], value: AttributeValue)
-        extends ExtendedSortKeyExpr[From]
-    private[dynamodb] final case class NotEqual[From](sortKey: SortKey2[From], value: AttributeValue)
-        extends ExtendedSortKeyExpr[From]
-    private[dynamodb] final case class LessThanOrEqual[From](sortKey: SortKey2[From], value: AttributeValue)
-        extends ExtendedSortKeyExpr[From]
-    private[dynamodb] final case class GreaterThanOrEqual[From](sortKey: SortKey2[From], value: AttributeValue)
-        extends ExtendedSortKeyExpr[From]
-    private[dynamodb] final case class Between[From](left: SortKey2[From], min: AttributeValue, max: AttributeValue)
-        extends ExtendedSortKeyExpr[From]
-    private[dynamodb] final case class BeginsWith[From](left: SortKey2[From], value: AttributeValue)
-        extends ExtendedSortKeyExpr[From]
+    // private[dynamodb] final case class LessThan[From](sortKey: SortKey2[From], value: AttributeValue)
+    //     extends ExtendedSortKeyExpr[From]
+    // private[dynamodb] final case class NotEqual[From](sortKey: SortKey2[From], value: AttributeValue)
+    //     extends ExtendedSortKeyExpr[From]
+    // private[dynamodb] final case class LessThanOrEqual[From](sortKey: SortKey2[From], value: AttributeValue)
+    //     extends ExtendedSortKeyExpr[From]
+    // private[dynamodb] final case class GreaterThanOrEqual[From](sortKey: SortKey2[From], value: AttributeValue)
+    //     extends ExtendedSortKeyExpr[From]
+    // private[dynamodb] final case class Between[From](left: SortKey2[From], min: AttributeValue, max: AttributeValue)
+    //     extends ExtendedSortKeyExpr[From]
+    // private[dynamodb] final case class BeginsWith[From](left: SortKey2[From], value: AttributeValue)
+    //     extends ExtendedSortKeyExpr[From]
   }
 
 }
