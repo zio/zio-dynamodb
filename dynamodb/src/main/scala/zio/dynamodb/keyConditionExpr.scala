@@ -100,7 +100,7 @@ private[dynamodb] final case class SortKey2[-From, To](keyName: String) { self =
 
 */
   // beginsWith applies to: Strings, Binary values
-  def beginsWith[To2: ToAttributeValue, IsPrimaryKey](prefix: To2)(implicit ev: CanSortKeyBeginsWith[To, To]): ExtendedSortKeyExpr[From, To2]    = {
+  def beginsWith[To2: ToAttributeValue, IsPrimaryKey](prefix: To2)(implicit ev: CanSortKeyBeginsWith[To, To2]): ExtendedSortKeyExpr[From, To2]    = {
     val _ = ev
     ExtendedSortKeyExpr.BeginsWith[From, To2](
       self.asInstanceOf[SortKey2[From, To2]],
