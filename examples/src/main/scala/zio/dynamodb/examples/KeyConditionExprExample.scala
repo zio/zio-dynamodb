@@ -1,6 +1,5 @@
 package zio.dynamodb.examples
 
-import zio.dynamodb.PrimaryKey
 import zio.dynamodb.KeyConditionExpr
 import zio.dynamodb.ProjectionExpression
 
@@ -15,19 +14,6 @@ object KeyConditionExprExample extends App {
   // DynamoDbQuery's still use PrimaryKey
   // typesafe API constructors only expose PartitionKeyEprn
 
-  // TODO: move to PartitionKeyExpr
-  def asPk[From](k: PartitionKeyExpr[From]): PrimaryKey        =
-    k match {
-      case PartitionKeyExpr(pk, value) => PrimaryKey(pk.keyName -> value)
-    }
-  def asPk[From](k: CompositePrimaryKeyExpr[From]): PrimaryKey =
-    k match {
-      case CompositePrimaryKeyExpr(pk, sk) =>
-        (pk, sk) match {
-          case (PartitionKeyExpr(pk, value), SortKeyExpr(sk, value2)) =>
-            PrimaryKey(pk.keyName -> value, sk.keyName -> value2)
-        }
-    }
 
   def whereKey[From](k: KeyConditionExpr[From]) =
     k match {
@@ -40,7 +26,7 @@ object KeyConditionExprExample extends App {
     }
 
   // in low level - non type safe land
-  // val x1: PartitionKeyExpr[Nothing]                = PartitionKey("email") === "x"
+  //val x1: PartitionKeyExpr[Nothing]                = PartitionKey("email") === "x"
   // val x2: SortKeyEprn[Nothing]                     = SortKey("subject") === "y"
   // val x3: CompositePrimaryKeyExpr[Nothing]         = x1 && x2
   // val x4                                           = PartitionKey[Nothing]("email") === "x" && SortKey[Nothing]("subject") === "y"
@@ -52,31 +38,43 @@ object KeyConditionExprExample extends App {
   // val y2: ExtendedCompositePrimaryKeyExpr[Any] = PartitionKey("email") === "x" && SortKey("subject") > "y"
 
   import zio.dynamodb.ProjectionExpression.$
-  val x6: CompositePrimaryKeyExpr[Any]         = $("foo.bar").primaryKey === "x" && $("foo.baz").sortKey === "y"
-  val x7: ExtendedCompositePrimaryKeyExpr[Any] = $("foo.bar").primaryKey === "x" && $("foo.baz").sortKey > "y"
+// TODO: Avi
+//inferred type arguments [String] do not conform to method ==='s type parameter bounds [To2 <: zio.dynamodb.ProjectionExpression.Unknown]
+  val x6: CompositePrimaryKeyExpr[Any, String]      = $("foo.bar").primaryKey === 1 && $("foo.baz").sortKey === "y"
+  val x7                                            = $("foo.bar").primaryKey === 1 && $("foo.baz").sortKey > 1
+  val x8: ExtendedCompositePrimaryKeyExpr[Any, Int] =
+    $("foo.bar").primaryKey === 1 && $("foo.baz").sortKey.between(1, 2)
+  val x9                                            =
+    $("foo.bar").primaryKey === 1 && $("foo.baz").sortKey.beginsWith(1L)
 
   final case class Elephant(email: String, subject: String, age: Int)
   object Elephant {
     implicit val schema: Schema.CaseClass3[String, String, Int, Elephant] = DeriveSchema.gen[Elephant]
     val (email, subject, age)                                             = ProjectionExpression.accessors[Elephant]
   }
-  final case class Student(email: String, subject: String, age: Int)
+  final case class Student(email: String, subject: String, age: Long, binary: List[Byte])
   object Student  {
-    implicit val schema: Schema.CaseClass3[String, String, Int, Student] = DeriveSchema.gen[Student]
-    val (email, subject, age)                                            = ProjectionExpression.accessors[Student]
+    implicit val schema: Schema.CaseClass4[String, String, Long, List[Byte], Student] = DeriveSchema.gen[Student]
+    val (email, subject, age, binary)                                                 = ProjectionExpression.accessors[Student]
   }
 
-  val pk: PartitionKeyExpr[Student]                               = Student.email.primaryKey === "x"
-  val sk1: SortKeyExpr[Student]                                   = Student.subject.sortKey === "y"
-  val sk2: ExtendedSortKeyExpr[Student]                           = Student.subject.sortKey > "y"
-  val pkAndSk: CompositePrimaryKeyExpr[Student]                   = Student.email.primaryKey === "x" && Student.subject.sortKey === "y"
+  val pk: PartitionKeyExpr[Student, String]     = Student.email.primaryKey === "x"
+//  val pkX: PartitionKeyExpr[Student, String]     = Student.age.primaryKey === "x" // as expected does not compile
+  val sk1: SortKeyExpr[Student, String]         = Student.subject.sortKey === "y"
+  val sk2: ExtendedSortKeyExpr[Student, String] = Student.subject.sortKey > "y"
+  val pkAndSk                                   = Student.email.primaryKey === "x" && Student.subject.sortKey === "y"
   //val three = Student.email.primaryKey === "x" && Student.subject.sortKey === "y" && Student.subject.sortKey // 3 terms not allowed
-  val pkAndSkExtended1: ExtendedCompositePrimaryKeyExpr[Student]  =
+  val pkAndSkExtended1                          =
     Student.email.primaryKey === "x" && Student.subject.sortKey > "y"
-  // val pkAndSkExtended2: ExtendedCompositePrimaryKeyExpr[Student] =
-  //   Student.email.primaryKey === "x" && Student.subject.sortKey >= "y" 
-  // val pkAndSkExtended3: ExtendedCompositePrimaryKeyExpr[Student] =
-  //   Student.email.primaryKey === "x" && Student.subject.sortKey.between(1, 2)
+  val pkAndSkExtended2                          =
+    Student.email.primaryKey === "x" && Student.subject.sortKey < "y"
+  val pkAndSkExtended3                          =
+    Student.email.primaryKey === "x" && Student.subject.sortKey.between("1", "2")
+  val pkAndSkExtended4                          =
+    Student.email.primaryKey === "x" && Student.subject.sortKey.beginsWith("1")
+  val pkAndSkExtended5                          =
+    Student.email.primaryKey === "x" && Student.binary.sortKey.beginsWith(List(1.toByte))
+  // TODO: Avi - fix ToAttrubuteValue interop with Array[Byte]
 
   // GetItem Query will have three overridden versions
   // 1) takes AttrMap/PriamaryKey - for users of low level API
@@ -101,7 +99,7 @@ object Foo {
     val (email, subject, age)                                            = ProjectionExpression.accessors[Student]
   }
 
-  val pkAndSk: KeyConditionExpr.CompositePrimaryKeyExpr[Student] =
+  val pkAndSk =
     Student.email.primaryKey === "x" && Student.subject.sortKey === "y"
 
 }
