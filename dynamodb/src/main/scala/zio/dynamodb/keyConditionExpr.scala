@@ -28,7 +28,7 @@ import zio.dynamodb.KeyConditionExpr.SortKeyExpr
 import zio.dynamodb.KeyConditionExpr.ExtendedSortKeyExpr
 
 private[dynamodb] final case class SortKey2[-From, To](keyName: String) { self =>
-  // all comparion ops apply to: Strings, Numbers, Binary values
+  // all comparison ops apply to: Strings, Numbers, Binary values
   def ===[To2: ToAttributeValue, IsPrimaryKey](value: To2)(implicit ev: RefersTo[To, To2]): SortKeyExpr[From, To2] = {
     val _ = ev
     SortKeyExpr[From, To2](
@@ -89,16 +89,6 @@ private[dynamodb] final case class SortKey2[-From, To](keyName: String) { self =
       implicitly[ToAttributeValue[To]].toAttributeValue(max)
     )
 
-/*
-    /**
-     * Applies to a String or Set
-     */
-    def contains[A](av: A)(implicit ev: Containable[To, A], to: ToAttributeValue[A]): ConditionExpression[From] = {
-      val _ = ev
-      ConditionExpression.Contains(self, to.toAttributeValue(av))
-    }
-
-*/
   // beginsWith applies to: Strings, Binary values
   def beginsWith[To2: ToAttributeValue, IsPrimaryKey](prefix: To2)(implicit ev: CanSortKeyBeginsWith[To, To2]): ExtendedSortKeyExpr[From, To2]    = {
     val _ = ev
@@ -107,15 +97,6 @@ private[dynamodb] final case class SortKey2[-From, To](keyName: String) { self =
       implicitly[ToAttributeValue[To2]].toAttributeValue(prefix)
     )
   }
-
-  // // beginsWith applies to: Strings, Binary values
-  // def beginsWith[To: ToAttributeValue, IsPrimaryKey](prefix: To)(implicit ev: RefersTo[String, To]): ExtendedSortKeyExpr[From, To]    = {
-  //   val _ = ev
-  //   ExtendedSortKeyExpr.BeginsWith[From, To](
-  //     self.asInstanceOf[SortKey2[From, To]],
-  //     implicitly[ToAttributeValue[To]].toAttributeValue(prefix)
-  //   )
-  // }
 
 }
 

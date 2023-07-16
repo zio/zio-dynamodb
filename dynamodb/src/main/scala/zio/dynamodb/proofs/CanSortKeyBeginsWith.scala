@@ -4,7 +4,7 @@ import zio.dynamodb.ProjectionExpression
 import scala.annotation.implicitNotFound
 
 @implicitNotFound(
-  "DynamoDB does not support 'beginsWith' on type ${A}. This operator only applies to binary and string fields"
+  "For fields of type ${X}, DynamoDB does not support 'beginsWith' for type ${A}."
 )
 sealed trait CanSortKeyBeginsWith[X, -A]
 trait CanSortKeyBeginsWith0 extends CanSortKeyBeginsWith1 {
