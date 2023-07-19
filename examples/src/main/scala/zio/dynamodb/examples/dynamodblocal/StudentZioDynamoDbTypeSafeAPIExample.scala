@@ -22,13 +22,13 @@ object StudentZioDynamoDbTypeSafeAPIExample extends ZIOAppDefault {
   val ceStudentWithElephant: ConditionExpression[Student with Elephant] = ce2 && elephantCe
 
   private val program = for {
-    _     <- createTable("student", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
-               AttributeDefinition.attrDefnString("email"),
-               AttributeDefinition.attrDefnString("subject")
-             ).execute
-    _     <- batchWriteFromStream(ZStream(avi, adam)) { student =>
-               put("student", student)
-             }.runDrain
+    _ <- createTable("student", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
+           AttributeDefinition.attrDefnString("email"),
+           AttributeDefinition.attrDefnString("subject")
+         ).execute
+    _ <- batchWriteFromStream(ZStream(avi, adam)) { student =>
+           put("student", student)
+         }.runDrain
     /*
   - must be a scalar
     - mandatory Partition Key and Optional sort key
@@ -39,8 +39,8 @@ object StudentZioDynamoDbTypeSafeAPIExample extends ZIOAppDefault {
     Student.email.partitionKey === "x" && Student.subject.sortKey === "y" // qualifies as a both a PK and a WhereKeyExpression
     Student.email.partitionKey === "x" && Student.subject.sortKey > 1     // qualifies as only a WhereKeyExpression
      */
-    found <- get("table", Student.email.set("x"), Student.subject.set("y")).execute
-    _      = println(s"XXXXXXXX found=$found")
+//    found <- get("table", Student.email.set("x"), Student.subject.set("y")).execute
+//    _      = println(s"XXXXXXXX found=$found")
 
     _ <- put("student", avi.copy(payment = Payment.CreditCard)).execute
     _ <- batchReadFromStream("student", ZStream(avi, adam))(student => primaryKey(student.email, student.subject))

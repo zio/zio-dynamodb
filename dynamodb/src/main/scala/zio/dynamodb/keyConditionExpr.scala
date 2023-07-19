@@ -4,102 +4,7 @@ import zio.dynamodb.PrimaryKey
 
 /**
  * Typesafe KeyConditionExpr/primary key experiment
- *
- * TODO break out files
- * - PartitionKey2.scala
- * - SortKey2.scala
- * - KeyConditionExpr.scala
  */
-import zio.dynamodb.KeyConditionExpr.PartitionKeyExpr
-import zio.dynamodb.proofs.RefersTo
-import zio.dynamodb.proofs.CanSortKeyBeginsWith
-
-// belongs to the package top level
-private[dynamodb] final case class PartitionKey2[-From, To](keyName: String) { self =>
-  def ===[To2: ToAttributeValue, IsPrimaryKey](
-    value: To2
-  )(implicit ev: RefersTo[To, To2]): PartitionKeyExpr[From, To] = {
-    val _ = ev
-    PartitionKeyExpr(self, implicitly[ToAttributeValue[To2]].toAttributeValue(value))
-  }
-}
-
-import zio.dynamodb.KeyConditionExpr.SortKeyExpr
-import zio.dynamodb.KeyConditionExpr.ExtendedSortKeyExpr
-
-private[dynamodb] final case class SortKey2[-From, To](keyName: String) { self =>
-  // all comparison ops apply to: Strings, Numbers, Binary values
-  def ===[To2: ToAttributeValue, IsPrimaryKey](value: To2)(implicit ev: RefersTo[To, To2]): SortKeyExpr[From, To2] = {
-    val _ = ev
-    SortKeyExpr[From, To2](
-      self.asInstanceOf[SortKey2[From, To2]],
-      implicitly[ToAttributeValue[To2]].toAttributeValue(value)
-    )
-  }
-  def >[To2: ToAttributeValue, IsPrimaryKey](
-    value: To2
-  )(implicit ev: RefersTo[To, To2]): ExtendedSortKeyExpr[From, To2] = {
-    val _ = ev
-    ExtendedSortKeyExpr.GreaterThan(
-      self.asInstanceOf[SortKey2[From, To2]],
-      implicitly(ToAttributeValue[To2]).toAttributeValue(value)
-    )
-  }
-  def <[To2: ToAttributeValue, IsPrimaryKey](
-    value: To2
-  )(implicit ev: RefersTo[To, To2]): ExtendedSortKeyExpr[From, To2] = {
-    val _ = ev
-    ExtendedSortKeyExpr.LessThan(
-      self.asInstanceOf[SortKey2[From, To2]],
-      implicitly[ToAttributeValue[To2]].toAttributeValue(value)
-    )
-  }
-  def <>[To2: ToAttributeValue, IsPrimaryKey](
-    value: To2
-  )(implicit ev: RefersTo[To, To2]): ExtendedSortKeyExpr[From, To2] = {
-    val _ = ev
-    ExtendedSortKeyExpr.NotEqual(
-      self.asInstanceOf[SortKey2[From, To2]],
-      implicitly(ToAttributeValue[To2]).toAttributeValue(value)
-    )
-  }
-  def <=[To2: ToAttributeValue, IsPrimaryKey](
-    value: To2
-  )(implicit ev: RefersTo[To, To2]): ExtendedSortKeyExpr[From, To2] = {
-    val _ = ev
-    ExtendedSortKeyExpr.LessThanOrEqual(
-      self.asInstanceOf[SortKey2[From, To2]],
-      implicitly[ToAttributeValue[To2]].toAttributeValue(value)
-    )
-  }
-  def >=[To2: ToAttributeValue, IsPrimaryKey](
-    value: To2
-  )(implicit ev: RefersTo[To, To2]): ExtendedSortKeyExpr[From, To2] = {
-    val _ = ev
-    ExtendedSortKeyExpr.GreaterThanOrEqual(
-      self.asInstanceOf[SortKey2[From, To2]],
-      implicitly[ToAttributeValue[To2]].toAttributeValue(value)
-    )
-  }
-  // applies to all PK types
-  def between[To: ToAttributeValue, IsPrimaryKey](min: To, max: To): ExtendedSortKeyExpr[From, To] =
-    ExtendedSortKeyExpr.Between[From, To](
-      self.asInstanceOf[SortKey2[From, To]],
-      implicitly[ToAttributeValue[To]].toAttributeValue(min),
-      implicitly[ToAttributeValue[To]].toAttributeValue(max)
-    )
-
-  // beginsWith applies to: Strings, Binary values
-  def beginsWith[To2: ToAttributeValue, IsPrimaryKey](prefix: To2)(implicit ev: CanSortKeyBeginsWith[To, To2]): ExtendedSortKeyExpr[From, To2]    = {
-    val _ = ev
-    ExtendedSortKeyExpr.BeginsWith[From, To2](
-      self.asInstanceOf[SortKey2[From, To2]],
-      implicitly[ToAttributeValue[To2]].toAttributeValue(prefix)
-    )
-  }
-
-}
-
 sealed trait KeyConditionExpr[-From] extends Renderable { self =>
   def render: AliasMapRender[String]
 }
@@ -221,3 +126,27 @@ object KeyConditionExpr {
   }
 
 }
+
+// object Foo {
+//   import zio.schema.Schema
+//   import zio.dynamodb.DynamoDBQuery.get
+
+//   def get2[A: Schema, B](
+//     tableName: String,
+//     partitionKeyExpr: KeyConditionExpr.PartitionKeyExpr[A, B],
+//     projections: ProjectionExpression[_, _]*
+//   )(implicit ev: IsPrimaryKey[B]): DynamoDBQuery[A, Either[DynamoDBError, A]] = {
+//     val _ = ev
+//     get(tableName, partitionKeyExpr.asAttrMap, projections: _*)
+//   }
+
+//   def get2[A: Schema, B](
+//     tableName: String,
+//     compositeKeyExpr: KeyConditionExpr.CompositePrimaryKeyExpr[A, B],
+//     projections: ProjectionExpression[_, _]*
+//   )(implicit ev: IsPrimaryKey[B]): DynamoDBQuery[A, Either[DynamoDBError, A]] = {
+//     val _ = ev
+//     get(tableName, compositeKeyExpr.asAttrMap, projections: _*)
+//   }
+
+// }

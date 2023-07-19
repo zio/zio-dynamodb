@@ -1,7 +1,7 @@
 package zio.dynamodb
 
 import zio.dynamodb.DynamoDBError.ValueNotFound
-import zio.dynamodb.proofs.{ CanFilter, CanWhere, CanWhereKey, IsPrimaryKey }
+import zio.dynamodb.proofs.{ CanFilter, CanWhere, CanWhereKey }
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put }
 import zio.dynamodb.DynamoDBQuery.{
@@ -28,6 +28,7 @@ import zio.prelude.ForEachOps
 import zio.schema.Schema
 import zio.stream.Stream
 import zio.{ Chunk, NonEmptyChunk, Schedule, ZIO, Zippable => _, _ }
+import zio.dynamodb.proofs.IsPrimaryKey
 
 sealed trait DynamoDBQuery[-In, +Out] { self =>
 
@@ -493,18 +494,23 @@ object DynamoDBQuery {
       case None       => Left(ValueNotFound(s"value with key $key not found"))
     }
 
-  def get[A: Schema, B: IsPrimaryKey](
+  def get2[A: Schema, B](
     tableName: String,
-    partitionKey: UpdateExpression.Action.SetAction[A, B],
+    partitionKeyExpr: KeyConditionExpr.PartitionKeyExpr[A, B],
     projections: ProjectionExpression[_, _]*
-  ): DynamoDBQuery[A, Either[DynamoDBError, A]] = ???
+  )(implicit ev: IsPrimaryKey[B]): DynamoDBQuery[A, Either[DynamoDBError, A]] = {
+    val _ = ev
+    get(tableName, partitionKeyExpr.asAttrMap, projections: _*)
+  }
 
-  def get[A: Schema, B: IsPrimaryKey, C: IsPrimaryKey](
+  def get2[A: Schema, B](
     tableName: String,
-    partitionKey: UpdateExpression.Action.SetAction[A, B],
-    sortKey: UpdateExpression.Action.SetAction[A, C],
+    compositeKeyExpr: KeyConditionExpr.CompositePrimaryKeyExpr[A, B],
     projections: ProjectionExpression[_, _]*
-  ): DynamoDBQuery[A, Either[DynamoDBError, A]] = ???
+  )(implicit ev: IsPrimaryKey[B]): DynamoDBQuery[A, Either[DynamoDBError, A]] = {
+    val _ = ev
+    get(tableName, compositeKeyExpr.asAttrMap, projections: _*)
+  }
 
   private[dynamodb] def fromItem[A: Schema](item: Item): Either[DynamoDBError, A] = {
     val av = ToAttributeValue.attrMapToAttributeValue.toAttributeValue(item)
