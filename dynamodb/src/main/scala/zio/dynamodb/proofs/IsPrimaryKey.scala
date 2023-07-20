@@ -15,5 +15,6 @@ object IsPrimaryKey {
   // binary data
   implicit val binaryIsPrimaryKey  = new IsPrimaryKey[Iterable[Byte]] {}
   implicit val binaryIsPrimaryKey2 = new IsPrimaryKey[List[Byte]] {}
+  implicit val binaryIsPrimaryKey3 = new IsPrimaryKey[Vector[Byte]] {}
   // TODO: Avi - other collection types
 }
