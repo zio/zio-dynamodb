@@ -110,7 +110,7 @@ object TypeSafeRoundTripSerialisationExample2 extends ZIOAppDefault {
     def genericFindById[A <: Invoice2](
       pkExpr: KeyConditionExpr.PartitionKeyExpr[A, String]
     )(implicit ev: Schema[A]): ZIO[DynamoDBExecutor, Throwable, Either[DynamoDBError, Invoice2]] =
-      DynamoDBQuery.get2("table1", pkExpr).execute
+      DynamoDBQuery.get("table1", pkExpr).execute
 
     def genericSave[A <: Invoice2](
       invoice: A

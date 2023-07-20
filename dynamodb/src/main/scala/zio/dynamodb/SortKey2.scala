@@ -6,54 +6,56 @@ import zio.dynamodb.proofs.CanSortKeyBeginsWith
 import zio.dynamodb.KeyConditionExpr.SortKeyExpr
 import zio.dynamodb.KeyConditionExpr.ExtendedSortKeyExpr
 
-private[dynamodb] final case class SortKey2[-From, To](keyName: String) { self =>
+private[dynamodb] final case class SortKey2[-From, +To](keyName: String) { self =>
   // all comparison ops apply to: Strings, Numbers, Binary values
-  def ===[To2: ToAttributeValue, IsPrimaryKey](value: To2)(implicit ev: RefersTo[To, To2]): SortKeyExpr[From, To2] = {
+  def ===[To1 >: To, To2: ToAttributeValue, IsPrimaryKey](
+    value: To2
+  )(implicit ev: RefersTo[To1, To2]): SortKeyExpr[From, To2] = {
     val _ = ev
     SortKeyExpr[From, To2](
       self.asInstanceOf[SortKey2[From, To2]],
       implicitly[ToAttributeValue[To2]].toAttributeValue(value)
     )
   }
-  def >[To2: ToAttributeValue, IsPrimaryKey](
+  def >[To1 >: To, To2: ToAttributeValue, IsPrimaryKey](
     value: To2
-  )(implicit ev: RefersTo[To, To2]): ExtendedSortKeyExpr[From, To2] = {
+  )(implicit ev: RefersTo[To1, To2]): ExtendedSortKeyExpr[From, To2] = {
     val _ = ev
     ExtendedSortKeyExpr.GreaterThan(
       self.asInstanceOf[SortKey2[From, To2]],
       implicitly(ToAttributeValue[To2]).toAttributeValue(value)
     )
   }
-  def <[To2: ToAttributeValue, IsPrimaryKey](
+  def <[To1 >: To, To2: ToAttributeValue, IsPrimaryKey](
     value: To2
-  )(implicit ev: RefersTo[To, To2]): ExtendedSortKeyExpr[From, To2] = {
+  )(implicit ev: RefersTo[To1, To2]): ExtendedSortKeyExpr[From, To2] = {
     val _ = ev
     ExtendedSortKeyExpr.LessThan(
       self.asInstanceOf[SortKey2[From, To2]],
       implicitly[ToAttributeValue[To2]].toAttributeValue(value)
     )
   }
-  def <>[To2: ToAttributeValue, IsPrimaryKey](
+  def <>[To1 >: To, To2: ToAttributeValue, IsPrimaryKey](
     value: To2
-  )(implicit ev: RefersTo[To, To2]): ExtendedSortKeyExpr[From, To2] = {
+  )(implicit ev: RefersTo[To1, To2]): ExtendedSortKeyExpr[From, To2] = {
     val _ = ev
     ExtendedSortKeyExpr.NotEqual(
       self.asInstanceOf[SortKey2[From, To2]],
       implicitly(ToAttributeValue[To2]).toAttributeValue(value)
     )
   }
-  def <=[To2: ToAttributeValue, IsPrimaryKey](
+  def <=[To1 >: To, To2: ToAttributeValue, IsPrimaryKey](
     value: To2
-  )(implicit ev: RefersTo[To, To2]): ExtendedSortKeyExpr[From, To2] = {
+  )(implicit ev: RefersTo[To1, To2]): ExtendedSortKeyExpr[From, To2] = {
     val _ = ev
     ExtendedSortKeyExpr.LessThanOrEqual(
       self.asInstanceOf[SortKey2[From, To2]],
       implicitly[ToAttributeValue[To2]].toAttributeValue(value)
     )
   }
-  def >=[To2: ToAttributeValue, IsPrimaryKey](
+  def >=[To1 >: To, To2: ToAttributeValue, IsPrimaryKey](
     value: To2
-  )(implicit ev: RefersTo[To, To2]): ExtendedSortKeyExpr[From, To2] = {
+  )(implicit ev: RefersTo[To1, To2]): ExtendedSortKeyExpr[From, To2] = {
     val _ = ev
     ExtendedSortKeyExpr.GreaterThanOrEqual(
       self.asInstanceOf[SortKey2[From, To2]],
@@ -69,9 +71,9 @@ private[dynamodb] final case class SortKey2[-From, To](keyName: String) { self =
     )
 
   // beginsWith applies to: Strings, Binary values
-  def beginsWith[To2: ToAttributeValue, IsPrimaryKey](
+  def beginsWith[To1 >: To, To2: ToAttributeValue, IsPrimaryKey](
     prefix: To2
-  )(implicit ev: CanSortKeyBeginsWith[To, To2]): ExtendedSortKeyExpr[From, To2] = {
+  )(implicit ev: CanSortKeyBeginsWith[To1, To2]): ExtendedSortKeyExpr[From, To2] = {
     val _ = ev
     ExtendedSortKeyExpr.BeginsWith[From, To2](
       self.asInstanceOf[SortKey2[From, To2]],

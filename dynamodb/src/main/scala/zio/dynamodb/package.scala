@@ -2,6 +2,7 @@ package zio
 
 import zio.schema.Schema
 import zio.stream.{ ZSink, ZStream }
+import zio.dynamodb.proofs.IsPrimaryKey
 
 package object dynamodb {
   // Filter expression is the same as a ConditionExpression but when used with Query but does not allow key attributes
@@ -111,6 +112,33 @@ package object dynamodb {
       .aggregateAsync(ZSink.collectAllN[A](100))
       .mapZIOPar(mPar) { chunk =>
         val batchGetItem: DynamoDBQuery[B, Chunk[Either[DynamoDBError.DecodingError, (A, Option[B])]]] = DynamoDBQuery
+          .forEach(chunk) { a =>
+            DynamoDBQuery.get(tableName, pk(a)).map {
+              case Right(b)                                 => Right((a, Some(b)))
+              case Left(DynamoDBError.ValueNotFound(_))     => Right((a, None))
+              case Left(e @ DynamoDBError.DecodingError(_)) => Left(e)
+            }
+          }
+          .map(Chunk.fromIterable)
+        for {
+          r <- ZIO.environment[DynamoDBExecutor]
+          list <- batchGetItem.execute.provideEnvironment(r)
+        } yield list
+      }
+      .flattenChunks
+
+
+  def batchReadFromStream2[R, A, From: Schema, To: IsPrimaryKey](
+    tableName: String,
+    stream: ZStream[R, Throwable, A],
+    mPar: Int = 10
+  )(
+    pk: A => KeyConditionExpr.PartitionKeyExpr[From, To]
+  ): ZStream[R with DynamoDBExecutor, Throwable, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
+    stream
+      .aggregateAsync(ZSink.collectAllN[A](100))
+      .mapZIOPar(mPar) { chunk =>
+        val batchGetItem: DynamoDBQuery[From, Chunk[Either[DynamoDBError.DecodingError, (A, Option[From])]]] = DynamoDBQuery
           .forEach(chunk) { a =>
             DynamoDBQuery.get(tableName, pk(a)).map {
               case Right(b)                                 => Right((a, Some(b)))

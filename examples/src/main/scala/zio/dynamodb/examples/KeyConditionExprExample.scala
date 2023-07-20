@@ -1,6 +1,5 @@
 package zio.dynamodb.examples
 
-import zio.dynamodb.KeyConditionExpr
 import zio.dynamodb.ProjectionExpression
 
 import zio.schema.Schema
@@ -15,15 +14,15 @@ object KeyConditionExprExample extends App {
   // typesafe API constructors only expose PartitionKeyEprn
 
 
-  def whereKey[From](k: KeyConditionExpr[From]) =
-    k match {
-      // PartitionKeyExpr
-      case PartitionKeyExpr(pk, value)             => println(s"pk=$pk, value=$value")
-      // CompositePrimaryKeyExpr
-      case CompositePrimaryKeyExpr(pk, sk)         => println(s"pk=$pk, sk=$sk")
-      // ExtendedCompositePrimaryKeyExpr
-      case ExtendedCompositePrimaryKeyExpr(pk, sk) => println(s"pk=$pk, sk=$sk")
-    }
+  // def whereKey[From](k: KeyConditionExpr[From]) =
+  //   k match {
+  //     // PartitionKeyExpr
+  //     case PartitionKeyExpr(pk, value)             => println(s"pk=$pk, value=$value")
+  //     // CompositePrimaryKeyExpr
+  //     case CompositePrimaryKeyExpr(pk, sk)         => println(s"pk=$pk, sk=$sk")
+  //     // ExtendedCompositePrimaryKeyExpr
+  //     case ExtendedCompositePrimaryKeyExpr(pk, sk) => println(s"pk=$pk, sk=$sk")
+  //   }
 
   // in low level - non type safe land
   //val x1: PartitionKeyExpr[Nothing]                = PartitionKey("email") === "x"

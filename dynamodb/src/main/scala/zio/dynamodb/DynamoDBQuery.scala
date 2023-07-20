@@ -483,6 +483,7 @@ object DynamoDBQuery {
   ): DynamoDBQuery[Any, Option[Item]] =
     GetItem(TableName(tableName), key, projections.toList)
 
+  // TODO: Avi - make private?
   def get[A: Schema](
     tableName: String,
     key: PrimaryKey,
@@ -494,20 +495,20 @@ object DynamoDBQuery {
       case None       => Left(ValueNotFound(s"value with key $key not found"))
     }
 
-  def get2[A: Schema, B](
+  def get[From: Schema, To](
     tableName: String,
-    partitionKeyExpr: KeyConditionExpr.PartitionKeyExpr[A, B],
+    partitionKeyExpr: KeyConditionExpr.PartitionKeyExpr[From, To],
     projections: ProjectionExpression[_, _]*
-  )(implicit ev: IsPrimaryKey[B]): DynamoDBQuery[A, Either[DynamoDBError, A]] = {
+  )(implicit ev: IsPrimaryKey[To]): DynamoDBQuery[From, Either[DynamoDBError, From]] = {
     val _ = ev
     get(tableName, partitionKeyExpr.asAttrMap, projections: _*)
   }
 
-  def get2[A: Schema, B](
+  def get[From: Schema, To](
     tableName: String,
-    compositeKeyExpr: KeyConditionExpr.CompositePrimaryKeyExpr[A, B],
+    compositeKeyExpr: KeyConditionExpr.CompositePrimaryKeyExpr[From, To],
     projections: ProjectionExpression[_, _]*
-  )(implicit ev: IsPrimaryKey[B]): DynamoDBQuery[A, Either[DynamoDBError, A]] = {
+  )(implicit ev: IsPrimaryKey[To]): DynamoDBQuery[From, Either[DynamoDBError, From]] = {
     val _ = ev
     get(tableName, compositeKeyExpr.asAttrMap, projections: _*)
   }

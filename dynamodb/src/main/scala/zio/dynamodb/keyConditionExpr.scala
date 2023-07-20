@@ -5,7 +5,7 @@ import zio.dynamodb.PrimaryKey
 /**
  * Typesafe KeyConditionExpr/primary key experiment
  */
-sealed trait KeyConditionExpr[-From] extends Renderable { self =>
+sealed trait KeyConditionExpr[-From, +To] extends Renderable { self =>
   def render: AliasMapRender[String]
 }
 
@@ -14,8 +14,8 @@ object KeyConditionExpr {
   // email.primaryKey === "x"
   // Student.email.primaryKey === "x" && Student.subject.sortKey === "y"
 
-  private[dynamodb] final case class PartitionKeyExpr[-From, To](pk: PartitionKey2[From, To], value: AttributeValue)
-      extends KeyConditionExpr[From] { self =>
+  private[dynamodb] final case class PartitionKeyExpr[-From, +To](pk: PartitionKey2[From, To], value: AttributeValue)
+      extends KeyConditionExpr[From, To] { self =>
 
     def &&[From1 <: From, To2](other: SortKeyExpr[From1, To2]): CompositePrimaryKeyExpr[From1, To2]                 =
       CompositePrimaryKeyExpr[From1, To2](self.asInstanceOf[PartitionKeyExpr[From1, To2]], other)
@@ -28,7 +28,7 @@ object KeyConditionExpr {
       AliasMapRender.getOrInsert(value).map(v => s"${pk.keyName} = $v")
   }
 
-  private[dynamodb] final case class SortKeyExpr[-From, To](sortKey: SortKey2[From, To], value: AttributeValue) {
+  private[dynamodb] final case class SortKeyExpr[-From, +To](sortKey: SortKey2[From, To], value: AttributeValue) {
     self =>
     def render2: AliasMapRender[String] =
       AliasMapRender
@@ -36,10 +36,10 @@ object KeyConditionExpr {
         .map(v => s"${sortKey.keyName} = $v")
   }
 
-  private[dynamodb] final case class CompositePrimaryKeyExpr[-From, To](
+  private[dynamodb] final case class CompositePrimaryKeyExpr[-From, +To](
     pk: PartitionKeyExpr[From, To],
     sk: SortKeyExpr[From, To]
-  ) extends KeyConditionExpr[From] {
+  ) extends KeyConditionExpr[From, To] {
     self =>
 
     def asAttrMap: AttrMap = PrimaryKey(pk.pk.keyName -> pk.value, sk.sortKey.keyName -> sk.value)
@@ -51,10 +51,10 @@ object KeyConditionExpr {
       } yield s"$pkStr AND $skStr"
 
   }
-  private[dynamodb] final case class ExtendedCompositePrimaryKeyExpr[-From, To](
+  private[dynamodb] final case class ExtendedCompositePrimaryKeyExpr[-From, +To](
     pk: PartitionKeyExpr[From, To],
     sk: ExtendedSortKeyExpr[From, To]
-  ) extends KeyConditionExpr[From] {
+  ) extends KeyConditionExpr[From, To] {
     self =>
 
     def render: AliasMapRender[String] =
@@ -65,7 +65,7 @@ object KeyConditionExpr {
 
   }
 
-  sealed trait ExtendedSortKeyExpr[-From, To] { self =>
+  sealed trait ExtendedSortKeyExpr[-From, +To] { self =>
     def render2: AliasMapRender[String] =
       self match {
         case ExtendedSortKeyExpr.GreaterThan(sk, value)        =>
@@ -106,47 +106,23 @@ object KeyConditionExpr {
 
   }
   object ExtendedSortKeyExpr {
-    private[dynamodb] final case class GreaterThan[From, To](sortKey: SortKey2[From, To], value: AttributeValue)
+    private[dynamodb] final case class GreaterThan[From, +To](sortKey: SortKey2[From, To], value: AttributeValue)
         extends ExtendedSortKeyExpr[From, To]
-    private[dynamodb] final case class LessThan[From, To](sortKey: SortKey2[From, To], value: AttributeValue)
+    private[dynamodb] final case class LessThan[From, +To](sortKey: SortKey2[From, To], value: AttributeValue)
         extends ExtendedSortKeyExpr[From, To]
-    private[dynamodb] final case class NotEqual[From, To](sortKey: SortKey2[From, To], value: AttributeValue)
+    private[dynamodb] final case class NotEqual[From, +To](sortKey: SortKey2[From, To], value: AttributeValue)
         extends ExtendedSortKeyExpr[From, To]
-    private[dynamodb] final case class LessThanOrEqual[From, To](sortKey: SortKey2[From, To], value: AttributeValue)
+    private[dynamodb] final case class LessThanOrEqual[From, +To](sortKey: SortKey2[From, To], value: AttributeValue)
         extends ExtendedSortKeyExpr[From, To]
-    private[dynamodb] final case class GreaterThanOrEqual[From, To](sortKey: SortKey2[From, To], value: AttributeValue)
+    private[dynamodb] final case class GreaterThanOrEqual[From, +To](sortKey: SortKey2[From, To], value: AttributeValue)
         extends ExtendedSortKeyExpr[From, To]
-    private[dynamodb] final case class Between[From, To](
+    private[dynamodb] final case class Between[From, +To](
       left: SortKey2[From, To],
       min: AttributeValue,
       max: AttributeValue
     ) extends ExtendedSortKeyExpr[From, To]
-    private[dynamodb] final case class BeginsWith[From, To](left: SortKey2[From, To], value: AttributeValue)
+    private[dynamodb] final case class BeginsWith[From, +To](left: SortKey2[From, To], value: AttributeValue)
         extends ExtendedSortKeyExpr[From, To]
   }
 
 }
-
-// object Foo {
-//   import zio.schema.Schema
-//   import zio.dynamodb.DynamoDBQuery.get
-
-//   def get2[A: Schema, B](
-//     tableName: String,
-//     partitionKeyExpr: KeyConditionExpr.PartitionKeyExpr[A, B],
-//     projections: ProjectionExpression[_, _]*
-//   )(implicit ev: IsPrimaryKey[B]): DynamoDBQuery[A, Either[DynamoDBError, A]] = {
-//     val _ = ev
-//     get(tableName, partitionKeyExpr.asAttrMap, projections: _*)
-//   }
-
-//   def get2[A: Schema, B](
-//     tableName: String,
-//     compositeKeyExpr: KeyConditionExpr.CompositePrimaryKeyExpr[A, B],
-//     projections: ProjectionExpression[_, _]*
-//   )(implicit ev: IsPrimaryKey[B]): DynamoDBQuery[A, Either[DynamoDBError, A]] = {
-//     val _ = ev
-//     get(tableName, compositeKeyExpr.asAttrMap, projections: _*)
-//   }
-
-// }
