@@ -12,12 +12,12 @@ object KeyConditionExprExample extends App {
   import zio.dynamodb.KeyConditionExpr.SortKeyEquals
   import zio.dynamodb.ProjectionExpression.$
 
-  val x6: CompositePrimaryKeyExpr[Any, String]      = $("foo.bar").primaryKey === 1 && $("foo.baz").sortKey === "y"
-  val x7                                            = $("foo.bar").primaryKey === 1 && $("foo.baz").sortKey > 1
+  val x6: CompositePrimaryKeyExpr[Any, String]      = $("foo.bar").partitionKey === 1 && $("foo.baz").sortKey === "y"
+  val x7                                            = $("foo.bar").partitionKey === 1 && $("foo.baz").sortKey > 1
   val x8: ExtendedCompositePrimaryKeyExpr[Any, Int] =
-    $("foo.bar").primaryKey === 1 && $("foo.baz").sortKey.between(1, 2)
+    $("foo.bar").partitionKey === 1 && $("foo.baz").sortKey.between(1, 2)
   val x9                                            =
-    $("foo.bar").primaryKey === 1 && $("foo.baz").sortKey.beginsWith(1L)
+    $("foo.bar").partitionKey === 1 && $("foo.baz").sortKey.beginsWith(1L)
 
   final case class Elephant(email: String, subject: String, age: Int)
   object Elephant {
@@ -54,5 +54,5 @@ object KeyConditionExprExample extends App {
   val (aliasMap, s) = pkAndSkExtended1.render.execute
   println(s"aliasMap=$aliasMap, s=$s")
 
-  val get = DynamoDBQuery.queryAllItem("table").whereKey($("foo.bar").primaryKey === 1 && $("foo.baz").sortKey > 1)
+  val get = DynamoDBQuery.queryAllItem("table").whereKey($("foo.bar").partitionKey === 1 && $("foo.baz").sortKey > 1)
 }

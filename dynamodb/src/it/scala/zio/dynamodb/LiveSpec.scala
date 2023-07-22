@@ -219,7 +219,7 @@ object LiveSpec extends ZIOSpecDefault {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
                 .querySome[ExpressionAttrNames](tableName, 1)
-                .whereKey($(id).primaryKey === second && $(number).sortKey > 0)
+                .whereKey($(id).partitionKey === second && $(number).sortKey > 0)
                 .filter(ExpressionAttrNames.ttl.notExists)
 
               for {
@@ -360,7 +360,7 @@ object LiveSpec extends ZIOSpecDefault {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
                 .queryAllItem(tableName)
-                .whereKey($("id").primaryKey === "id")
+                .whereKey($("id").partitionKey === "id")
                 .filter($("ttl").notExists)
               query.execute.flatMap(_.runDrain).exit.map { result =>
                 assert(result)(succeeds(isUnit))
@@ -371,7 +371,7 @@ object LiveSpec extends ZIOSpecDefault {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
                 .querySomeItem(tableName, 1)
-                .whereKey($("id").primaryKey === "id")
+                .whereKey($("id").partitionKey === "id")
                 .filter($("ttl").notExists)
               query.execute.exit.map { result =>
                 assert(result.isSuccess)(isTrue)
@@ -382,7 +382,7 @@ object LiveSpec extends ZIOSpecDefault {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
                 .querySomeItem(tableName, 1, $("ttl"))
-                .whereKey($("id").primaryKey === "id")
+                .whereKey($("id").partitionKey === "id")
               query.execute.exit.map { result =>
                 assert(result.isSuccess)(isTrue)
               }
@@ -605,7 +605,7 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             val query =
               queryAllItem(tableName, $(name), $("ttl")).whereKey(
-                $(id).primaryKey === first && $(number).sortKey > 0
+                $(id).partitionKey === first && $(number).sortKey > 0
               )
 
             query.execute.flatMap(_.runDrain).map { _ =>
@@ -617,7 +617,7 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             for {
               chunk <- querySomeItem(tableName, 10, $(name), $("ttl"))
-                         .whereKey($(id).primaryKey === first && $(number).sortKey > 0)
+                         .whereKey($(id).partitionKey === first && $(number).sortKey > 0)
                          .execute
                          .map(_._1)
             } yield assert(chunk)(
@@ -629,7 +629,7 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             for {
               chunk <- querySomeItem(tableName, 10, $(name))
-                         .whereKey($(id).primaryKey === first && $(number).sortKey < 2)
+                         .whereKey($(id).partitionKey === first && $(number).sortKey < 2)
                          .execute
                          .map(_._1)
             } yield assert(chunk)(
@@ -641,7 +641,7 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             for {
               chunk <- querySomeItem(tableName, 10, $(name))
-                         .whereKey($(id).primaryKey === first && $(number).sortKey > 0)
+                         .whereKey($(id).partitionKey === first && $(number).sortKey > 0)
                          .execute
                          .map(_._1)
             } yield assert(chunk)(
@@ -654,7 +654,7 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             for {
               chunk <- querySomeItem(tableName, 10, $(name))
-                         .whereKey($(id).primaryKey === first && $(number).sortKey >= 4)
+                         .whereKey($(id).partitionKey === first && $(number).sortKey >= 4)
                          .execute
                          .map(_._1)
             } yield assert(chunk)(
@@ -666,7 +666,7 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             for {
               chunk <- querySomeItem(tableName, 10, $(name))
-                         .whereKey($(id).primaryKey === first && $(number).sortKey <= 4)
+                         .whereKey($(id).partitionKey === first && $(number).sortKey <= 4)
                          .execute
                          .map(_._1)
             } yield assert(chunk)(
@@ -678,7 +678,7 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             for {
               chunk <- querySomeItem(tableName, 10, $(name))
-                         .whereKey($(id).primaryKey === "nowhere" && $(number).sortKey > 0)
+                         .whereKey($(id).partitionKey === "nowhere" && $(number).sortKey > 0)
                          .execute
                          .map(_._1)
             } yield assert(chunk)(isEmpty)
@@ -688,7 +688,7 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             for {
               chunk <- querySomeItem(tableName, 1, $(name))
-                         .whereKey($(id).primaryKey === first)
+                         .whereKey($(id).partitionKey === first)
                          .execute
                          .map(_._1)
             } yield assert(chunk)(equalTo(Chunk(Item(name -> avi))))
@@ -698,7 +698,7 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             for {
               chunk <- querySomeItem(tableName, 3, $(name))
-                         .whereKey($(id).primaryKey === first)
+                         .whereKey($(id).partitionKey === first)
                          .execute
                          .map(_._1)
             } yield assert(chunk)(equalTo(Chunk(Item(name -> avi), Item(name -> avi2), Item(name -> avi3))))
@@ -708,7 +708,7 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             for {
               chunk <- querySomeItem(tableName, 4, $(name))
-                         .whereKey($(id).primaryKey === first)
+                         .whereKey($(id).partitionKey === first)
                          .execute
                          .map(_._1)
             } yield assert(chunk)(equalTo(Chunk(Item(name -> avi), Item(name -> avi2), Item(name -> avi3))))
@@ -718,11 +718,11 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             for {
               startKey <- querySomeItem(tableName, 2, $(id), $(number))
-                            .whereKey($(id).primaryKey === first)
+                            .whereKey($(id).partitionKey === first)
                             .execute
                             .map(_._2)
               chunk    <- querySomeItem(tableName, 5, $(name))
-                            .whereKey($(id).primaryKey === first)
+                            .whereKey($(id).partitionKey === first)
                             .startKey(startKey)
                             .execute
                             .map(_._1)
@@ -733,7 +733,7 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             for {
               stream <- queryAllItem(tableName)
-                          .whereKey($(id).primaryKey === second)
+                          .whereKey($(id).partitionKey === second)
                           .execute
               chunk  <- stream.run(ZSink.collectAll[Item])
             } yield assert(chunk)(
@@ -756,7 +756,7 @@ object LiveSpec extends ZIOSpecDefault {
             withDefaultTable { tableName =>
               for {
                 chunk <- querySomeItem(tableName, 10, $(name))
-                           .whereKey($(id).primaryKey === first && $(number).sortKey.between(3, 8))
+                           .whereKey($(id).partitionKey === first && $(number).sortKey.between(3, 8))
                            .execute
                            .map(_._1)
               } yield assert(chunk)(
@@ -771,7 +771,7 @@ object LiveSpec extends ZIOSpecDefault {
                 for {
                   _     <- putItem(tableName, stringSortKeyItem).execute
                   chunk <- querySomeItem(tableName, 10)
-                             .whereKey($(id).primaryKey === adam && $(name).sortKey.beginsWith("ad"))
+                             .whereKey($(id).partitionKey === adam && $(name).sortKey.beginsWith("ad"))
                              .execute
                              .map(_._1)
                 } yield assert(chunk)(equalTo(Chunk(stringSortKeyItem)))

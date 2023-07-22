@@ -420,7 +420,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
             )
 
             val (aliasMap, expression) = KeyConditionExpr
-              .PartitionKeyEquals($("num").primaryKey, one)
+              .PartitionKeyEquals($("num").partitionKey, one)
               .render
               .execute
 
@@ -437,7 +437,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
 
           val (aliasMap, expression) = KeyConditionExpr
             .ExtendedCompositePrimaryKeyExpr(
-              KeyConditionExpr.PartitionKeyEquals($("num").primaryKey, two),
+              KeyConditionExpr.PartitionKeyEquals($("num").partitionKey, two),
               KeyConditionExpr.ExtendedSortKeyExpr.Between($("num").sortKey, one, three)
             )
             .render

@@ -14,7 +14,7 @@ object KeyConditionExpr {
   // email.primaryKey === "x"
   // Student.email.primaryKey === "x" && Student.subject.sortKey === "y"
 
-  private[dynamodb] final case class PartitionKeyEquals[-From, +To](pk: PartitionKey2[From, To], value: AttributeValue)
+  private[dynamodb] final case class PartitionKeyEquals[-From, +To](pk: PartitionKey[From, To], value: AttributeValue)
       extends KeyConditionExpr[From, To] { self =>
 
     def &&[From1 <: From, To2](other: SortKeyEquals[From1, To2]): CompositePrimaryKeyExpr[From1, To2]               =
@@ -28,7 +28,7 @@ object KeyConditionExpr {
       AliasMapRender.getOrInsert(value).map(v => s"${pk.keyName} = $v")
   }
 
-  private[dynamodb] final case class SortKeyEquals[-From, +To](sortKey: SortKey2[From, To], value: AttributeValue) {
+  private[dynamodb] final case class SortKeyEquals[-From, +To](sortKey: SortKey[From, To], value: AttributeValue) {
     self =>
     def render2: AliasMapRender[String] =
       AliasMapRender
@@ -106,22 +106,22 @@ object KeyConditionExpr {
 
   }
   object ExtendedSortKeyExpr {
-    private[dynamodb] final case class GreaterThan[From, +To](sortKey: SortKey2[From, To], value: AttributeValue)
+    private[dynamodb] final case class GreaterThan[From, +To](sortKey: SortKey[From, To], value: AttributeValue)
         extends ExtendedSortKeyExpr[From, To]
-    private[dynamodb] final case class LessThan[From, +To](sortKey: SortKey2[From, To], value: AttributeValue)
+    private[dynamodb] final case class LessThan[From, +To](sortKey: SortKey[From, To], value: AttributeValue)
         extends ExtendedSortKeyExpr[From, To]
-    private[dynamodb] final case class NotEqual[From, +To](sortKey: SortKey2[From, To], value: AttributeValue)
+    private[dynamodb] final case class NotEqual[From, +To](sortKey: SortKey[From, To], value: AttributeValue)
         extends ExtendedSortKeyExpr[From, To]
-    private[dynamodb] final case class LessThanOrEqual[From, +To](sortKey: SortKey2[From, To], value: AttributeValue)
+    private[dynamodb] final case class LessThanOrEqual[From, +To](sortKey: SortKey[From, To], value: AttributeValue)
         extends ExtendedSortKeyExpr[From, To]
-    private[dynamodb] final case class GreaterThanOrEqual[From, +To](sortKey: SortKey2[From, To], value: AttributeValue)
+    private[dynamodb] final case class GreaterThanOrEqual[From, +To](sortKey: SortKey[From, To], value: AttributeValue)
         extends ExtendedSortKeyExpr[From, To]
     private[dynamodb] final case class Between[From, +To](
-      left: SortKey2[From, To],
+      left: SortKey[From, To],
       min: AttributeValue,
       max: AttributeValue
     ) extends ExtendedSortKeyExpr[From, To]
-    private[dynamodb] final case class BeginsWith[From, +To](left: SortKey2[From, To], value: AttributeValue)
+    private[dynamodb] final case class BeginsWith[From, +To](left: SortKey[From, To], value: AttributeValue)
         extends ExtendedSortKeyExpr[From, To]
   }
 

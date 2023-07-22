@@ -17,7 +17,7 @@ object QueryAndScanExamples extends App {
   val queryAll: ZIO[DynamoDBExecutor, Throwable, Stream[Throwable, Item]] =
     queryAllItem("tableName1", $("A"), $("B"), $("C"))
       .whereKey(
-        $("partitionKey1").primaryKey === "x" &&
+        $("partitionKey1").partitionKey === "x" &&
           $("sortKey1").sortKey > "X"
       )
       .execute
@@ -25,7 +25,7 @@ object QueryAndScanExamples extends App {
   val querySome: ZIO[DynamoDBExecutor, Throwable, (Chunk[Item], LastEvaluatedKey)] =
     querySomeItem("tableName1", limit = 10, $("A"), $("B"), $("C"))
       .sortOrder(ascending = false)
-      .whereKey($("partitionKey1").primaryKey === "x" && $("sortKey1").sortKey > "X")
+      .whereKey($("partitionKey1").partitionKey === "x" && $("sortKey1").sortKey > "X")
       .selectCount
       .execute
 
@@ -38,7 +38,7 @@ object QueryAndScanExamples extends App {
         $("B"),
         $("C")
       )
-        .whereKey($("partitionKey1").primaryKey === "x" && $("sortKey1").sortKey > "X")
+        .whereKey($("partitionKey1").partitionKey === "x" && $("sortKey1").sortKey > "X")
         .selectCount).sortOrder(ascending = true)
 
 }
