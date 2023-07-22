@@ -14,13 +14,13 @@ object KeyConditionExpr {
   // email.primaryKey === "x"
   // Student.email.primaryKey === "x" && Student.subject.sortKey === "y"
 
-  private[dynamodb] final case class PartitionKeyExpr[-From, +To](pk: PartitionKey2[From, To], value: AttributeValue)
+  private[dynamodb] final case class PartitionKeyEquals[-From, +To](pk: PartitionKey2[From, To], value: AttributeValue)
       extends KeyConditionExpr[From, To] { self =>
 
-    def &&[From1 <: From, To2](other: SortKeyExpr[From1, To2]): CompositePrimaryKeyExpr[From1, To2]                 =
-      CompositePrimaryKeyExpr[From1, To2](self.asInstanceOf[PartitionKeyExpr[From1, To2]], other)
+    def &&[From1 <: From, To2](other: SortKeyEquals[From1, To2]): CompositePrimaryKeyExpr[From1, To2]               =
+      CompositePrimaryKeyExpr[From1, To2](self.asInstanceOf[PartitionKeyEquals[From1, To2]], other)
     def &&[From1 <: From, To2](other: ExtendedSortKeyExpr[From1, To2]): ExtendedCompositePrimaryKeyExpr[From1, To2] =
-      ExtendedCompositePrimaryKeyExpr[From1, To2](self.asInstanceOf[PartitionKeyExpr[From1, To2]], other)
+      ExtendedCompositePrimaryKeyExpr[From1, To2](self.asInstanceOf[PartitionKeyEquals[From1, To2]], other)
 
     def asAttrMap: AttrMap = AttrMap(pk.keyName -> value)
 
@@ -28,7 +28,7 @@ object KeyConditionExpr {
       AliasMapRender.getOrInsert(value).map(v => s"${pk.keyName} = $v")
   }
 
-  private[dynamodb] final case class SortKeyExpr[-From, +To](sortKey: SortKey2[From, To], value: AttributeValue) {
+  private[dynamodb] final case class SortKeyEquals[-From, +To](sortKey: SortKey2[From, To], value: AttributeValue) {
     self =>
     def render2: AliasMapRender[String] =
       AliasMapRender
@@ -37,8 +37,8 @@ object KeyConditionExpr {
   }
 
   private[dynamodb] final case class CompositePrimaryKeyExpr[-From, +To](
-    pk: PartitionKeyExpr[From, To],
-    sk: SortKeyExpr[From, To]
+    pk: PartitionKeyEquals[From, To],
+    sk: SortKeyEquals[From, To]
   ) extends KeyConditionExpr[From, To] {
     self =>
 
@@ -52,7 +52,7 @@ object KeyConditionExpr {
 
   }
   private[dynamodb] final case class ExtendedCompositePrimaryKeyExpr[-From, +To](
-    pk: PartitionKeyExpr[From, To],
+    pk: PartitionKeyEquals[From, To],
     sk: ExtendedSortKeyExpr[From, To]
   ) extends KeyConditionExpr[From, To] {
     self =>

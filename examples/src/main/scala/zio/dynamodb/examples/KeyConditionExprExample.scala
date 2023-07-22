@@ -9,7 +9,7 @@ import zio.dynamodb.DynamoDBQuery
 object KeyConditionExprExample extends App {
 
   import zio.dynamodb.KeyConditionExpr._
-  import zio.dynamodb.KeyConditionExpr.SortKeyExpr
+  import zio.dynamodb.KeyConditionExpr.SortKeyEquals
   import zio.dynamodb.ProjectionExpression.$
 
   val x6: CompositePrimaryKeyExpr[Any, String]      = $("foo.bar").primaryKey === 1 && $("foo.baz").sortKey === "y"
@@ -31,9 +31,9 @@ object KeyConditionExprExample extends App {
     val (email, subject, age, binary, binary2)                                                      = ProjectionExpression.accessors[Student]
   }
 
-  val pk: PartitionKeyExpr[Student, String]     = Student.email.partitionKey === "x"
+  val pk: PartitionKeyEquals[Student, String]   = Student.email.partitionKey === "x"
 //  val pkX: PartitionKeyExpr[Student, String]     = Student.age.primaryKey === "x" // as expected does not compile
-  val sk1: SortKeyExpr[Student, String]         = Student.subject.sortKey === "y"
+  val sk1: SortKeyEquals[Student, String]       = Student.subject.sortKey === "y"
   val sk2: ExtendedSortKeyExpr[Student, String] = Student.subject.sortKey > "y"
   val pkAndSk                                   = Student.email.partitionKey === "x" && Student.subject.sortKey === "y"
   //val three = Student.email.primaryKey === "x" && Student.subject.sortKey === "y" && Student.subject.sortKey // 3 terms not allowed

@@ -127,26 +127,26 @@ package object dynamodb {
       }
       .flattenChunks
 
-
   def batchReadFromStream2[R, A, From: Schema, To: IsPrimaryKey](
     tableName: String,
     stream: ZStream[R, Throwable, A],
     mPar: Int = 10
   )(
-    pk: A => KeyConditionExpr.PartitionKeyExpr[From, To]
+    pk: A => KeyConditionExpr.PartitionKeyEquals[From, To]
   ): ZStream[R with DynamoDBExecutor, Throwable, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
     stream
       .aggregateAsync(ZSink.collectAllN[A](100))
       .mapZIOPar(mPar) { chunk =>
-        val batchGetItem: DynamoDBQuery[From, Chunk[Either[DynamoDBError.DecodingError, (A, Option[From])]]] = DynamoDBQuery
-          .forEach(chunk) { a =>
-            DynamoDBQuery.get(tableName, pk(a)).map {
-              case Right(b)                                 => Right((a, Some(b)))
-              case Left(DynamoDBError.ValueNotFound(_))     => Right((a, None))
-              case Left(e @ DynamoDBError.DecodingError(_)) => Left(e)
+        val batchGetItem: DynamoDBQuery[From, Chunk[Either[DynamoDBError.DecodingError, (A, Option[From])]]] =
+          DynamoDBQuery
+            .forEach(chunk) { a =>
+              DynamoDBQuery.get(tableName, pk(a)).map {
+                case Right(b)                                 => Right((a, Some(b)))
+                case Left(DynamoDBError.ValueNotFound(_))     => Right((a, None))
+                case Left(e @ DynamoDBError.DecodingError(_)) => Left(e)
+              }
             }
-          }
-          .map(Chunk.fromIterable)
+            .map(Chunk.fromIterable)
         for {
           r <- ZIO.environment[DynamoDBExecutor]
           list <- batchGetItem.execute.provideEnvironment(r)

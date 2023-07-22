@@ -3,16 +3,16 @@ package zio.dynamodb
 import zio.dynamodb.proofs.RefersTo
 import zio.dynamodb.proofs.CanSortKeyBeginsWith
 
-import zio.dynamodb.KeyConditionExpr.SortKeyExpr
+import zio.dynamodb.KeyConditionExpr.SortKeyEquals
 import zio.dynamodb.KeyConditionExpr.ExtendedSortKeyExpr
 
 private[dynamodb] final case class SortKey2[-From, +To](keyName: String) { self =>
   // all comparison ops apply to: Strings, Numbers, Binary values
   def ===[To1 >: To, To2: ToAttributeValue, IsPrimaryKey](
     value: To2
-  )(implicit ev: RefersTo[To1, To2]): SortKeyExpr[From, To2] = {
+  )(implicit ev: RefersTo[To1, To2]): SortKeyEquals[From, To2] = {
     val _ = ev
-    SortKeyExpr[From, To2](
+    SortKeyEquals[From, To2](
       self.asInstanceOf[SortKey2[From, To2]],
       implicitly[ToAttributeValue[To2]].toAttributeValue(value)
     )

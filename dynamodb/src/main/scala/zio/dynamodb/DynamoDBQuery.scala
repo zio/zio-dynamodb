@@ -467,7 +467,7 @@ object DynamoDBQuery {
 
   def get[From: Schema, To](
     tableName: String,
-    partitionKeyExpr: KeyConditionExpr.PartitionKeyExpr[From, To],
+    partitionKeyExpr: KeyConditionExpr.PartitionKeyEquals[From, To],
     projections: ProjectionExpression[_, _]*
   )(implicit ev: IsPrimaryKey[To]): DynamoDBQuery[From, Either[DynamoDBError, From]] = {
     val _ = ev
