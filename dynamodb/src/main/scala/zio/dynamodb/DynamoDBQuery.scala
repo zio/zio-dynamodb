@@ -335,9 +335,9 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Absolve(query)             => Absolve(query.whereKey(keyConditionExpression))
 
       case s: QuerySome =>
-        s.copy(keyConditionExpression2 = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
+        s.copy(keyConditionExpr = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: QueryAll  =>
-        s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
+        s.copy(keyConditionExpr = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case _            => self
     }
 
@@ -836,7 +836,7 @@ object DynamoDBQuery {
     exclusiveStartKey: LastEvaluatedKey =
       None,                                                     // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression[_]] = None,
-    keyConditionExpression2: Option[KeyConditionExpr[_, _]] = None,
+    keyConditionExpr: Option[KeyConditionExpr[_, _]] = None,
     projections: List[ProjectionExpression[_, _]] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None,                              // if ProjectExpression supplied then only valid value is SpecificAttributes
@@ -869,7 +869,7 @@ object DynamoDBQuery {
     exclusiveStartKey: LastEvaluatedKey =
       None,                                                     // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression[_]] = None,
-    keyConditionExpression: Option[KeyConditionExpr[_, _]] = None,
+    keyConditionExpr: Option[KeyConditionExpr[_, _]] = None,
     projections: List[ProjectionExpression[_, _]] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None,                              // if ProjectExpression supplied then only valid value is SpecificAttributes

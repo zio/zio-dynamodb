@@ -773,7 +773,7 @@ case object DynamoDBExecutorImpl {
   def awsQueryRequest(queryAll: QueryAll): QueryRequest = {
     val (aliasMap, (maybeFilterExpr, maybeKeyExpr, projections)) = (for {
       filter      <- AliasMapRender.collectAll(queryAll.filterExpression.map(_.render))
-      keyExpr     <- AliasMapRender.collectAll(queryAll.keyConditionExpression.map(_.render))
+      keyExpr     <- AliasMapRender.collectAll(queryAll.keyConditionExpr.map(_.render))
       projections <- AliasMapRender.forEach(queryAll.projections)
     } yield (filter, keyExpr, projections)).execute
 
@@ -797,7 +797,7 @@ case object DynamoDBExecutorImpl {
   private def awsQueryRequest(querySome: QuerySome): QueryRequest = {
     val (aliasMap, (maybeFilterExpr, maybeKeyExpr, projections)) = (for {
       filter      <- AliasMapRender.collectAll(querySome.filterExpression.map(_.render))
-      keyExpr     <- AliasMapRender.collectAll(querySome.keyConditionExpression2.map(_.render))
+      keyExpr     <- AliasMapRender.collectAll(querySome.keyConditionExpr.map(_.render))
       projections <- AliasMapRender.forEach(querySome.projections)
     } yield (filter, keyExpr, projections)).execute
 
