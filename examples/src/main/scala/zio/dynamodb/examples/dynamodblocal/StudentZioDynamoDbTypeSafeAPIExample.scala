@@ -29,19 +29,6 @@ object StudentZioDynamoDbTypeSafeAPIExample extends ZIOAppDefault {
     _ <- batchWriteFromStream(ZStream(avi, adam)) { student =>
            put("student", student)
          }.runDrain
-    /*
-  - must be a scalar
-    - mandatory Partition Key and Optional sort key
-    - String, Number or Binary
-  - defined once, used many times
-    problem with `Student.email.set("x"), Student.subject.set("y")` is that we can not create a function for this to reuse
-    Student.email.partitionKey === "x"                                    // qualifies as a both a PK and a WhereKeyExpression
-    Student.email.partitionKey === "x" && Student.subject.sortKey === "y" // qualifies as a both a PK and a WhereKeyExpression
-    Student.email.partitionKey === "x" && Student.subject.sortKey > 1     // qualifies as only a WhereKeyExpression
-     */
-//    found <- get("table", Student.email.set("x"), Student.subject.set("y")).execute
-//    _      = println(s"XXXXXXXX found=$found")
-
     _ <- put("student", avi.copy(payment = Payment.CreditCard)).execute
     _ <- batchReadFromStream("student", ZStream(avi, adam))(student => primaryKey(student.email, student.subject))
            .tap(errorOrStudent => Console.printLine(s"student=$errorOrStudent"))

@@ -3,16 +3,19 @@ package zio.dynamodb
 import zio.dynamodb.PrimaryKey
 
 /**
- * Typesafe KeyConditionExpr/primary key experiment
+ * Models:
+ * 1) partition key equality expressions
+ * 2) composite primary key expressions where sort key expression is equality
+ * 3) extended composite primary key expressions where sort key is not equality eg >, <, >=, <=, between, begins_with
+ *
+ * Note 1), 2) and 3) are all valid key condition expressions
+ * BUT only 1) and 2) are valid primary key expressions that can be used in GetItem, UpdateItem and DeleteItem DynamoDB queries
  */
 sealed trait KeyConditionExpr[-From, +To] extends Renderable { self =>
   def render: AliasMapRender[String]
 }
 
 object KeyConditionExpr {
-  // models primary key expressions
-  // email.primaryKey === "x"
-  // Student.email.primaryKey === "x" && Student.subject.sortKey === "y"
 
   private[dynamodb] final case class PartitionKeyEquals[-From, +To](pk: PartitionKey[From, To], value: AttributeValue)
       extends KeyConditionExpr[From, To] { self =>
