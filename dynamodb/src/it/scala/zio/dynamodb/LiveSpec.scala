@@ -195,7 +195,7 @@ object LiveSpec extends ZIOSpecDefault {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
                 .queryAll[ExpressionAttrNames](tableName)
-                .whereKey(ExpressionAttrNames.id.primaryKey === "id")
+                .whereKey(ExpressionAttrNames.id.partitionKey === "id")
                 .filter(ExpressionAttrNames.ttl.notExists)
               query.execute.flatMap(_.runDrain).exit.map { result =>
                 assert(result)(succeeds(isUnit))

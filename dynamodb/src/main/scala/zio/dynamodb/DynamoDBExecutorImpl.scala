@@ -773,7 +773,7 @@ case object DynamoDBExecutorImpl {
   def awsQueryRequest(queryAll: QueryAll): QueryRequest = {
     val (aliasMap, (maybeFilterExpr, maybeKeyExpr, projections)) = (for {
       filter      <- AliasMapRender.collectAll(queryAll.filterExpression.map(_.render))
-      keyExpr     <- AliasMapRender.collectAll(queryAll.keyConditionExpression2.map(_.render))
+      keyExpr     <- AliasMapRender.collectAll(queryAll.keyConditionExpression.map(_.render))
       projections <- AliasMapRender.forEach(queryAll.projections)
     } yield (filter, keyExpr, projections)).execute
 

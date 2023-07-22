@@ -20,7 +20,6 @@ import zio.dynamodb.ProjectionExpression
 import zio.ZIO
 import zio.dynamodb.DynamoDBError
 
-
 object TypeSafeRoundTripSerialisationExample extends ZIOAppDefault {
 
   @discriminatorName("invoiceType")
@@ -71,13 +70,13 @@ object TypeSafeRoundTripSerialisationExample extends ZIOAppDefault {
     object PreBilled {
       implicit val schema: Schema.CaseClass4[String, Int, Instant, BigDecimal, PreBilled] =
         DeriveSchema.gen[PreBilled]
-      val (id, sequence, dueDate, total)                                                   = ProjectionExpression.accessors[PreBilled]
+      val (id, sequence, dueDate, total)                                                  = ProjectionExpression.accessors[PreBilled]
     }
 
     implicit val schema: Schema[Invoice] = DeriveSchema.gen[Invoice]
   }
 
-  private val billedInvoice: Billed                = Billed(
+  private val billedInvoice: Billed               = Billed(
     id = "1",
     sequence = 1,
     dueDate = Instant.now(),
@@ -116,8 +115,8 @@ object TypeSafeRoundTripSerialisationExample extends ZIOAppDefault {
   private val program = for {
     _      <- Repository.genericSave(billedInvoice)
     _      <- Repository.genericSave(preBilledInvoice)
-    found  <- Repository.genericFindById(Billed.id.primaryKey === "1")
-    found2 <- Repository.genericFindById(PreBilled.id.primaryKey === "2")
+    found  <- Repository.genericFindById(Billed.id.partitionKey === "1")
+    found2 <- Repository.genericFindById(PreBilled.id.partitionKey === "2")
     item   <- DynamoDBQuery.getItem("table1", PrimaryKey("id" -> "1")).execute
     _      <- printLine(s"found=$found")
     _      <- printLine(s"found2=$found2")

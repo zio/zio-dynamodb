@@ -134,7 +134,7 @@ sealed trait ProjectionExpression[-From, +To] { self =>
 trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowPriorityImplicits1 {
   implicit class ProjectionExpressionSyntax0[From, To: ToAttributeValue](self: ProjectionExpression[From, To]) {
 
-    def primaryKey(implicit ev: IsPrimaryKey[To]): PartitionKey2[From, To] = {
+    def partitionKey(implicit ev: IsPrimaryKey[To]): PartitionKey2[From, To] = {
       val _ = ev
       self match {
         case ProjectionExpression.MapElement(_, key) => PartitionKey2[From, To](key)

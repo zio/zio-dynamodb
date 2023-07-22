@@ -31,24 +31,24 @@ object KeyConditionExprExample extends App {
     val (email, subject, age, binary, binary2)                                                      = ProjectionExpression.accessors[Student]
   }
 
-  val pk: PartitionKeyExpr[Student, String]     = Student.email.primaryKey === "x"
+  val pk: PartitionKeyExpr[Student, String]     = Student.email.partitionKey === "x"
 //  val pkX: PartitionKeyExpr[Student, String]     = Student.age.primaryKey === "x" // as expected does not compile
   val sk1: SortKeyExpr[Student, String]         = Student.subject.sortKey === "y"
   val sk2: ExtendedSortKeyExpr[Student, String] = Student.subject.sortKey > "y"
-  val pkAndSk                                   = Student.email.primaryKey === "x" && Student.subject.sortKey === "y"
+  val pkAndSk                                   = Student.email.partitionKey === "x" && Student.subject.sortKey === "y"
   //val three = Student.email.primaryKey === "x" && Student.subject.sortKey === "y" && Student.subject.sortKey // 3 terms not allowed
   val pkAndSkExtended1                          =
-    Student.email.primaryKey === "x" && Student.subject.sortKey > "y"
+    Student.email.partitionKey === "x" && Student.subject.sortKey > "y"
   val pkAndSkExtended2                          =
-    Student.email.primaryKey === "x" && Student.subject.sortKey < "y"
+    Student.email.partitionKey === "x" && Student.subject.sortKey < "y"
   val pkAndSkExtended3                          =
-    Student.email.primaryKey === "x" && Student.subject.sortKey.between("1", "2")
+    Student.email.partitionKey === "x" && Student.subject.sortKey.between("1", "2")
   val pkAndSkExtended4                          =
-    Student.email.primaryKey === "x" && Student.subject.sortKey.beginsWith("1")
+    Student.email.partitionKey === "x" && Student.subject.sortKey.beginsWith("1")
   val pkAndSkExtended5                          =
-    Student.email.primaryKey === "x" && Student.binary.sortKey.beginsWith(List(1.toByte))
+    Student.email.partitionKey === "x" && Student.binary.sortKey.beginsWith(List(1.toByte))
   val pkAndSkExtended6                          =
-    Student.email.primaryKey === "x" && Student.binary2.sortKey.beginsWith(List(1.toByte))
+    Student.email.partitionKey === "x" && Student.binary2.sortKey.beginsWith(List(1.toByte))
   // TODO: Avi - fix ToAttrubuteValue interop with Array[Byte]
 
   val (aliasMap, s) = pkAndSkExtended1.render.execute

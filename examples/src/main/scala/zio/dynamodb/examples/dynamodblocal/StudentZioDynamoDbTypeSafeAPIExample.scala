@@ -59,7 +59,7 @@ object StudentZioDynamoDbTypeSafeAPIExample extends ZIOAppDefault {
            .filter(
              enrollmentDate === Some(enrolDate) && payment === Payment.PayPal //&& elephantCe
            )
-           .whereKey(email.primaryKey === "avi@gmail.com" && subject.sortKey === "maths" /* && elephantCe */ )
+           .whereKey(email.partitionKey === "avi@gmail.com" && subject.sortKey === "maths" /* && elephantCe */ )
            .execute
            .map(_.runCollect)
     _ <- put[Student]("student", avi)

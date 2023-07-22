@@ -39,7 +39,7 @@ object StudentZioDynamoDbExampleWithOptics extends ZIOAppDefault {
            .filter(
              enrollmentDate === Some(enrolDate) && payment === Payment.CreditCard
            )
-           .whereKey(email.primaryKey === "avi@gmail.com" && subject.sortKey === "maths")
+           .whereKey(email.partitionKey === "avi@gmail.com" && subject.sortKey === "maths")
            .execute
            .map(_.runCollect)
     _ <- put[Student]("student", avi)

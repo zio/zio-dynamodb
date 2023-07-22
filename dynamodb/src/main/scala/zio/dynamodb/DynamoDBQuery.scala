@@ -317,7 +317,16 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
   def selectSpecificAttributes: DynamoDBQuery[In, Out]     = select(Select.SpecificAttributes)
   def selectCount: DynamoDBQuery[In, Out]                  = select(Select.Count)
 
-  // TOOD: Avi - maybe we can use In?
+  /**
+   * Adds a KeyConditionExpr to a DynamoDBQuery. Example:
+   * {{{
+   * // high level type safe API where "email" and "subject" keys are defined using ProjectionExpression.accessors[Student]
+   * val newQuery = query.whereKey(email.partitionKey === "avi@gmail.com" && subject.sortKey === "maths")
+   *
+   * // low level API
+   * val newQuery = query.whereKey($("email").partitionKey === "avi@gmail.com" && $("subject").sortKey === "maths")
+   * }}}
+   */
   def whereKey[From, To](keyConditionExpression: KeyConditionExpr[From, To]): DynamoDBQuery[In, Out] =
     self match {
       case Zip(left, right, zippable) =>
@@ -328,63 +337,9 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case s: QuerySome =>
         s.copy(keyConditionExpression2 = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: QueryAll  =>
-        s.copy(keyConditionExpression2 = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
+        s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case _            => self
     }
-
-  // /**
-  //  * Adds a KeyConditionExpression to a DynamoDBQuery. Example:
-  //  * {{{
-  //  * val newQuery = query.whereKey(partitionKey("email") === "avi@gmail.com" && sortKey("subject") === "maths")
-  //  * }}}
-  //  */
-  // def whereKey(keyConditionExpression: KeyConditionExpression): DynamoDBQuery[In, Out] =
-  //   self match {
-  //     case Zip(left, right, zippable) =>
-  //       Zip(left.whereKey(keyConditionExpression), right.whereKey(keyConditionExpression), zippable)
-  //     case Map(query, mapper)         => Map(query.whereKey(keyConditionExpression), mapper)
-  //     case Absolve(query)             => Absolve(query.whereKey(keyConditionExpression))
-
-  //     case s: QuerySome =>
-  //       s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-  //     case s: QueryAll  =>
-  //       s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-  //     case _            => self
-  //   }
-
-  // /**
-  //  * Adds a KeyConditionExpression from a ConditionExpression to a DynamoDBQuery
-  //  * Must be in the form of `<Condition1> && <Condition2>` where format of `<Condition1>` is:
-  //  * {{{<ProjectionExpressionForPartitionKey> === <value>}}}
-  //  * and the format of `<Condition2>` is:
-  //  * {{{<ProjectionExpressionForSortKey> <op> <value>}}} where op can be one of `===`, `>`, `>=`, `<`, `<=`, `between`, `beginsWith`
-  //  *
-  //  * Example using type safe API:
-  //  * {{{
-  //  * // email and subject are partition and sort keys respectively
-  //  * val (email, subject, enrollmentDate, payment) = ProjectionExpression.accessors[Student]
-  //  * // ...
-  //  * val newQuery = query.whereKey(email === "avi@gmail.com" && subject === "maths")
-  //  * }}}
-  //  */
-  // def whereKey[B](
-  //   conditionExpression: ConditionExpression[B]
-  // )(implicit ev: CanWhereKey[B, Out]): DynamoDBQuery[In, Out] = {
-  //   val _                                              = ev
-  //   val keyConditionExpression: KeyConditionExpression =
-  //     KeyConditionExpression.fromConditionExpressionUnsafe(conditionExpression)
-  //   self match {
-  //     case Zip(left, right, zippable) =>
-  //       Zip(left.whereKey(keyConditionExpression), right.whereKey(keyConditionExpression), zippable)
-  //     case Map(query, mapper)         => Map(query.whereKey(keyConditionExpression), mapper)
-  //     case Absolve(query)             => Absolve(query.whereKey(keyConditionExpression))
-  //     case s: QuerySome               =>
-  //       s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-  //     case s: QueryAll                =>
-  //       s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-  //     case _                          => self
-  //   }
-  // }
 
   def withRetryPolicy(retryPolicy: Schedule[Any, Throwable, Any]): DynamoDBQuery[In, Out] =
     self match {
@@ -913,14 +868,12 @@ object DynamoDBQuery {
     limit: Option[Int] = None,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
-      None,                                                         // allows client to control start position - eg for client managed paging
+      None,                                                     // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression[_]] = None,
-    // TODO: Avi - delete
-    keyConditionExpression: Option[KeyConditionExpression] = None,
-    keyConditionExpression2: Option[KeyConditionExpr[_, _]] = None, // TODO: Avi - rename
-    projections: List[ProjectionExpression[_, _]] = List.empty,     // if empty all attributes will be returned
+    keyConditionExpression: Option[KeyConditionExpr[_, _]] = None,
+    projections: List[ProjectionExpression[_, _]] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    select: Option[Select] = None,                                  // if ProjectExpression supplied then only valid value is SpecificAttributes
+    select: Option[Select] = None,                              // if ProjectExpression supplied then only valid value is SpecificAttributes
     ascending: Boolean = true
   ) extends Constructor[Any, Stream[Throwable, Item]]
 
@@ -1185,7 +1138,7 @@ object DynamoDBQuery {
           }
         )
 
-      case query @ QueryAll(_, _, _, _, _, _, _, _, _, _, _, _)  =>
+      case query @ QueryAll(_, _, _, _, _, _, _, _, _, _, _)     =>
         (
           Chunk(query),
           (results: Chunk[Any]) => {
