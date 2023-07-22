@@ -31,7 +31,7 @@ object KeyConditionExpr {
 
   private[dynamodb] final case class SortKeyEquals[-From, +To](sortKey: SortKey[From, To], value: AttributeValue) {
     self =>
-    def render2: AliasMapRender[String] =
+    def miniRender: AliasMapRender[String] =
       AliasMapRender
         .getOrInsert(value)
         .map(v => s"${sortKey.keyName} = $v")
@@ -48,7 +48,7 @@ object KeyConditionExpr {
     override def render: AliasMapRender[String] =
       for {
         pkStr <- pk.render
-        skStr <- sk.render2
+        skStr <- sk.miniRender
       } yield s"$pkStr AND $skStr"
 
   }
@@ -61,13 +61,13 @@ object KeyConditionExpr {
     def render: AliasMapRender[String] =
       for {
         pkStr <- pk.render
-        skStr <- sk.render2
+        skStr <- sk.miniRender
       } yield s"$pkStr AND $skStr"
 
   }
 
   sealed trait ExtendedSortKeyExpr[-From, +To] { self =>
-    def render2: AliasMapRender[String] =
+    def miniRender: AliasMapRender[String] =
       self match {
         case ExtendedSortKeyExpr.GreaterThan(sk, value)        =>
           AliasMapRender

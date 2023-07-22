@@ -319,7 +319,6 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           }
         )
       ),
-      // TODO: Avi - create new tests suite just for KeyConditionExpr ???
       suite("KeyConditionExpr")(
         suite("Sort key expressions")(
           test("Equals") {
@@ -328,7 +327,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
             )
 
             val (aliasMap, expression) =
-              KeyConditionExpr.SortKeyEquals($("num").sortKey, one).render2.execute
+              KeyConditionExpr.SortKeyEquals($("num").sortKey, one).miniRender.execute
 
             assert(aliasMap)(equalTo(AliasMap(map, 1))) &&
             assert(expression)(equalTo("num = :v0"))
@@ -339,7 +338,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
             )
 
             val (aliasMap, expression) =
-              KeyConditionExpr.ExtendedSortKeyExpr.LessThan($("num").sortKey, one).render2.execute
+              KeyConditionExpr.ExtendedSortKeyExpr.LessThan($("num").sortKey, one).miniRender.execute
 
             assert(aliasMap)(equalTo(AliasMap(map, 1))) &&
             assert(expression)(equalTo("num < :v0"))
@@ -350,7 +349,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
             )
 
             val (aliasMap, expression) =
-              KeyConditionExpr.ExtendedSortKeyExpr.NotEqual($("num").sortKey, one).render2.execute
+              KeyConditionExpr.ExtendedSortKeyExpr.NotEqual($("num").sortKey, one).miniRender.execute
 
             assert(aliasMap)(equalTo(AliasMap(map, 1))) &&
             assert(expression)(equalTo("num <> :v0"))
@@ -361,7 +360,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
             )
 
             val (aliasMap, expression) =
-              KeyConditionExpr.ExtendedSortKeyExpr.GreaterThan($("num").sortKey, one).render2.execute
+              KeyConditionExpr.ExtendedSortKeyExpr.GreaterThan($("num").sortKey, one).miniRender.execute
 
             assert(aliasMap)(equalTo(AliasMap(map, 1))) &&
             assert(expression)(equalTo("num > :v0"))
@@ -372,7 +371,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
             )
 
             val (aliasMap, expression) =
-              KeyConditionExpr.ExtendedSortKeyExpr.LessThanOrEqual($("num").sortKey, one).render2.execute
+              KeyConditionExpr.ExtendedSortKeyExpr.LessThanOrEqual($("num").sortKey, one).miniRender.execute
 
             assert(aliasMap)(equalTo(AliasMap(map, 1))) &&
             assert(expression)(equalTo("num <= :v0"))
@@ -383,7 +382,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
             )
 
             val (aliasMap, expression) =
-              KeyConditionExpr.ExtendedSortKeyExpr.GreaterThanOrEqual($("num").sortKey, one).render2.execute
+              KeyConditionExpr.ExtendedSortKeyExpr.GreaterThanOrEqual($("num").sortKey, one).miniRender.execute
 
             assert(aliasMap)(equalTo(AliasMap(map, 1))) &&
             assert(expression)(equalTo("num >= :v0"))
@@ -395,7 +394,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
             )
 
             val (aliasMap, expression) =
-              KeyConditionExpr.ExtendedSortKeyExpr.Between($("num").sortKey, one, two).render2.execute
+              KeyConditionExpr.ExtendedSortKeyExpr.Between($("num").sortKey, one, two).miniRender.execute
 
             assert(aliasMap)(equalTo(AliasMap(map, 2))) &&
             assert(expression)(equalTo("num BETWEEN :v0 AND :v1"))
@@ -406,7 +405,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
             )
 
             val (aliasMap, expression) =
-              KeyConditionExpr.ExtendedSortKeyExpr.BeginsWith($("num").sortKey, name).render2.execute
+              KeyConditionExpr.ExtendedSortKeyExpr.BeginsWith($("num").sortKey, name).miniRender.execute
 
             assert(aliasMap)(equalTo(AliasMap(map, 1))) &&
             assert(expression)(equalTo("begins_with(num, :v0)"))
