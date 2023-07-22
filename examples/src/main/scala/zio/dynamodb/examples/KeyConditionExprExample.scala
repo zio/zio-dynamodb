@@ -4,6 +4,7 @@ import zio.dynamodb.ProjectionExpression
 
 import zio.schema.Schema
 import zio.schema.DeriveSchema
+import zio.dynamodb.DynamoDBQuery
 
 object KeyConditionExprExample extends App {
 
@@ -52,4 +53,6 @@ object KeyConditionExprExample extends App {
 
   val (aliasMap, s) = pkAndSkExtended1.render.execute
   println(s"aliasMap=$aliasMap, s=$s")
+
+  val get = DynamoDBQuery.queryAllItem("table").whereKey($("foo.bar").primaryKey === 1 && $("foo.baz").sortKey > 1)
 }

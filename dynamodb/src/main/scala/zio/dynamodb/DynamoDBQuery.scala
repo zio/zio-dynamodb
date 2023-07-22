@@ -1,7 +1,7 @@
 package zio.dynamodb
 
 import zio.dynamodb.DynamoDBError.ValueNotFound
-import zio.dynamodb.proofs.{ CanFilter, CanWhere, CanWhereKey }
+import zio.dynamodb.proofs.{ CanFilter, CanWhere }
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put }
 import zio.dynamodb.DynamoDBQuery.{
@@ -317,13 +317,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
   def selectSpecificAttributes: DynamoDBQuery[In, Out]     = select(Select.SpecificAttributes)
   def selectCount: DynamoDBQuery[In, Out]                  = select(Select.Count)
 
-  /**
-   * Adds a KeyConditionExpression to a DynamoDBQuery. Example:
-   * {{{
-   * val newQuery = query.whereKey(partitionKey("email") === "avi@gmail.com" && sortKey("subject") === "maths")
-   * }}}
-   */
-  def whereKey(keyConditionExpression: KeyConditionExpression): DynamoDBQuery[In, Out] =
+  // TOOD: Avi - maybe we can use In?
+  def whereKey[From, To](keyConditionExpression: KeyConditionExpr[From, To]): DynamoDBQuery[In, Out] =
     self match {
       case Zip(left, right, zippable) =>
         Zip(left.whereKey(keyConditionExpression), right.whereKey(keyConditionExpression), zippable)
@@ -331,45 +326,65 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Absolve(query)             => Absolve(query.whereKey(keyConditionExpression))
 
       case s: QuerySome =>
-        s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
+        s.copy(keyConditionExpression2 = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: QueryAll  =>
-        s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
+        s.copy(keyConditionExpression2 = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case _            => self
     }
 
-  /**
-   * Adds a KeyConditionExpression from a ConditionExpression to a DynamoDBQuery
-   * Must be in the form of `<Condition1> && <Condition2>` where format of `<Condition1>` is:
-   * {{{<ProjectionExpressionForPartitionKey> === <value>}}}
-   * and the format of `<Condition2>` is:
-   * {{{<ProjectionExpressionForSortKey> <op> <value>}}} where op can be one of `===`, `>`, `>=`, `<`, `<=`, `between`, `beginsWith`
-   *
-   * Example using type safe API:
-   * {{{
-   * // email and subject are partition and sort keys respectively
-   * val (email, subject, enrollmentDate, payment) = ProjectionExpression.accessors[Student]
-   * // ...
-   * val newQuery = query.whereKey(email === "avi@gmail.com" && subject === "maths")
-   * }}}
-   */
-  def whereKey[B](
-    conditionExpression: ConditionExpression[B]
-  )(implicit ev: CanWhereKey[B, Out]): DynamoDBQuery[In, Out] = {
-    val _                                              = ev
-    val keyConditionExpression: KeyConditionExpression =
-      KeyConditionExpression.fromConditionExpressionUnsafe(conditionExpression)
-    self match {
-      case Zip(left, right, zippable) =>
-        Zip(left.whereKey(keyConditionExpression), right.whereKey(keyConditionExpression), zippable)
-      case Map(query, mapper)         => Map(query.whereKey(keyConditionExpression), mapper)
-      case Absolve(query)             => Absolve(query.whereKey(keyConditionExpression))
-      case s: QuerySome               =>
-        s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case s: QueryAll                =>
-        s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                          => self
-    }
-  }
+  // /**
+  //  * Adds a KeyConditionExpression to a DynamoDBQuery. Example:
+  //  * {{{
+  //  * val newQuery = query.whereKey(partitionKey("email") === "avi@gmail.com" && sortKey("subject") === "maths")
+  //  * }}}
+  //  */
+  // def whereKey(keyConditionExpression: KeyConditionExpression): DynamoDBQuery[In, Out] =
+  //   self match {
+  //     case Zip(left, right, zippable) =>
+  //       Zip(left.whereKey(keyConditionExpression), right.whereKey(keyConditionExpression), zippable)
+  //     case Map(query, mapper)         => Map(query.whereKey(keyConditionExpression), mapper)
+  //     case Absolve(query)             => Absolve(query.whereKey(keyConditionExpression))
+
+  //     case s: QuerySome =>
+  //       s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
+  //     case s: QueryAll  =>
+  //       s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
+  //     case _            => self
+  //   }
+
+  // /**
+  //  * Adds a KeyConditionExpression from a ConditionExpression to a DynamoDBQuery
+  //  * Must be in the form of `<Condition1> && <Condition2>` where format of `<Condition1>` is:
+  //  * {{{<ProjectionExpressionForPartitionKey> === <value>}}}
+  //  * and the format of `<Condition2>` is:
+  //  * {{{<ProjectionExpressionForSortKey> <op> <value>}}} where op can be one of `===`, `>`, `>=`, `<`, `<=`, `between`, `beginsWith`
+  //  *
+  //  * Example using type safe API:
+  //  * {{{
+  //  * // email and subject are partition and sort keys respectively
+  //  * val (email, subject, enrollmentDate, payment) = ProjectionExpression.accessors[Student]
+  //  * // ...
+  //  * val newQuery = query.whereKey(email === "avi@gmail.com" && subject === "maths")
+  //  * }}}
+  //  */
+  // def whereKey[B](
+  //   conditionExpression: ConditionExpression[B]
+  // )(implicit ev: CanWhereKey[B, Out]): DynamoDBQuery[In, Out] = {
+  //   val _                                              = ev
+  //   val keyConditionExpression: KeyConditionExpression =
+  //     KeyConditionExpression.fromConditionExpressionUnsafe(conditionExpression)
+  //   self match {
+  //     case Zip(left, right, zippable) =>
+  //       Zip(left.whereKey(keyConditionExpression), right.whereKey(keyConditionExpression), zippable)
+  //     case Map(query, mapper)         => Map(query.whereKey(keyConditionExpression), mapper)
+  //     case Absolve(query)             => Absolve(query.whereKey(keyConditionExpression))
+  //     case s: QuerySome               =>
+  //       s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
+  //     case s: QueryAll                =>
+  //       s.copy(keyConditionExpression = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
+  //     case _                          => self
+  //   }
+  // }
 
   def withRetryPolicy(retryPolicy: Schedule[Any, Throwable, Any]): DynamoDBQuery[In, Out] =
     self match {
@@ -867,6 +882,7 @@ object DynamoDBQuery {
       None,                                                     // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression[_]] = None,
     keyConditionExpression: Option[KeyConditionExpression] = None,
+    keyConditionExpression2: Option[KeyConditionExpr[_, _]] = None,
     projections: List[ProjectionExpression[_, _]] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None,                              // if ProjectExpression supplied then only valid value is SpecificAttributes
@@ -897,12 +913,14 @@ object DynamoDBQuery {
     limit: Option[Int] = None,
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     exclusiveStartKey: LastEvaluatedKey =
-      None,                                                     // allows client to control start position - eg for client managed paging
+      None,                                                         // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression[_]] = None,
+    // TODO: Avi - delete
     keyConditionExpression: Option[KeyConditionExpression] = None,
-    projections: List[ProjectionExpression[_, _]] = List.empty, // if empty all attributes will be returned
+    keyConditionExpression2: Option[KeyConditionExpr[_, _]] = None, // TODO: Avi - rename
+    projections: List[ProjectionExpression[_, _]] = List.empty,     // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    select: Option[Select] = None,                              // if ProjectExpression supplied then only valid value is SpecificAttributes
+    select: Option[Select] = None,                                  // if ProjectExpression supplied then only valid value is SpecificAttributes
     ascending: Boolean = true
   ) extends Constructor[Any, Stream[Throwable, Item]]
 
@@ -1062,7 +1080,7 @@ object DynamoDBQuery {
 
       case Succeed(value)     => (Chunk.empty, _ => value())
 
-      case batchGetItem @ BatchGetItem(_, _, _, _)            =>
+      case batchGetItem @ BatchGetItem(_, _, _, _)               =>
         (
           Chunk(batchGetItem),
           (results: Chunk[Any]) => {
@@ -1070,7 +1088,7 @@ object DynamoDBQuery {
           }
         )
 
-      case batchWriteItem @ BatchWriteItem(_, _, _, _, _)     =>
+      case batchWriteItem @ BatchWriteItem(_, _, _, _, _)        =>
         (
           Chunk(batchWriteItem),
           (results: Chunk[Any]) => {
@@ -1078,7 +1096,7 @@ object DynamoDBQuery {
           }
         )
 
-      case deleteTable @ DeleteTable(_)                       =>
+      case deleteTable @ DeleteTable(_)                          =>
         (
           Chunk(deleteTable),
           (results: Chunk[Any]) => {
@@ -1086,7 +1104,7 @@ object DynamoDBQuery {
           }
         )
 
-      case describeTable @ DescribeTable(_)                   =>
+      case describeTable @ DescribeTable(_)                      =>
         (
           Chunk(describeTable),
           (results: Chunk[Any]) => {
@@ -1095,7 +1113,7 @@ object DynamoDBQuery {
         )
 
       // condition check is not a real query, it is only used in transactions
-      case _ @ConditionCheck(_, _, _)                         =>
+      case _ @ConditionCheck(_, _, _)                            =>
         (
           Chunk[Constructor[In, Any]](),
           (_: Chunk[Any]) => {
@@ -1103,7 +1121,7 @@ object DynamoDBQuery {
           }
         )
 
-      case getItem @ GetItem(_, _, _, _, _)                   =>
+      case getItem @ GetItem(_, _, _, _, _)                      =>
         (
           Chunk(getItem),
           (results: Chunk[Any]) => {
@@ -1111,7 +1129,7 @@ object DynamoDBQuery {
           }
         )
 
-      case putItem @ PutItem(_, _, _, _, _, _)                =>
+      case putItem @ PutItem(_, _, _, _, _, _)                   =>
         (
           Chunk(putItem),
           (results: Chunk[Any]) => {
@@ -1119,7 +1137,7 @@ object DynamoDBQuery {
           }
         )
 
-      case transaction @ Transaction(_, _, _, _)              =>
+      case transaction @ Transaction(_, _, _, _)                 =>
         (
           Chunk(transaction),
           (results: Chunk[Any]) => {
@@ -1127,7 +1145,7 @@ object DynamoDBQuery {
           }
         )
 
-      case updateItem @ UpdateItem(_, _, _, _, _, _, _)       =>
+      case updateItem @ UpdateItem(_, _, _, _, _, _, _)          =>
         (
           Chunk(updateItem),
           (results: Chunk[Any]) => {
@@ -1135,7 +1153,7 @@ object DynamoDBQuery {
           }
         )
 
-      case deleteItem @ DeleteItem(_, _, _, _, _, _)          =>
+      case deleteItem @ DeleteItem(_, _, _, _, _, _)             =>
         (
           Chunk(deleteItem),
           (results: Chunk[Any]) => {
@@ -1143,7 +1161,7 @@ object DynamoDBQuery {
           }
         )
 
-      case scan @ ScanSome(_, _, _, _, _, _, _, _, _)         =>
+      case scan @ ScanSome(_, _, _, _, _, _, _, _, _)            =>
         (
           Chunk(scan),
           (results: Chunk[Any]) => {
@@ -1151,7 +1169,7 @@ object DynamoDBQuery {
           }
         )
 
-      case scan @ ScanAll(_, _, _, _, _, _, _, _, _, _)       =>
+      case scan @ ScanAll(_, _, _, _, _, _, _, _, _, _)          =>
         (
           Chunk(scan),
           (results: Chunk[Any]) => {
@@ -1159,7 +1177,7 @@ object DynamoDBQuery {
           }
         )
 
-      case query @ QuerySome(_, _, _, _, _, _, _, _, _, _, _) =>
+      case query @ QuerySome(_, _, _, _, _, _, _, _, _, _, _, _) =>
         (
           Chunk(query),
           (results: Chunk[Any]) => {
@@ -1167,7 +1185,7 @@ object DynamoDBQuery {
           }
         )
 
-      case query @ QueryAll(_, _, _, _, _, _, _, _, _, _, _)  =>
+      case query @ QueryAll(_, _, _, _, _, _, _, _, _, _, _, _)  =>
         (
           Chunk(query),
           (results: Chunk[Any]) => {
@@ -1175,7 +1193,7 @@ object DynamoDBQuery {
           }
         )
 
-      case createTable @ CreateTable(_, _, _, _, _, _, _, _)  =>
+      case createTable @ CreateTable(_, _, _, _, _, _, _, _)     =>
         (
           Chunk(createTable),
           (results: Chunk[Any]) => {

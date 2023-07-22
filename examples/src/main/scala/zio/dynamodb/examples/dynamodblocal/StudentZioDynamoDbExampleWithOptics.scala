@@ -39,7 +39,7 @@ object StudentZioDynamoDbExampleWithOptics extends ZIOAppDefault {
            .filter(
              enrollmentDate === Some(enrolDate) && payment === Payment.CreditCard
            )
-           .whereKey(email === "avi@gmail.com" && subject === "maths")
+           .whereKey(email.primaryKey === "avi@gmail.com" && subject.sortKey === "maths")
            .execute
            .map(_.runCollect)
     _ <- put[Student]("student", avi)
@@ -59,7 +59,7 @@ object StudentZioDynamoDbExampleWithOptics extends ZIOAppDefault {
            .where(
              enrollmentDate === Some(
                enrolDate
-             ) && payment === Payment.CreditCard // && zio.dynamodb.examples.Elephant.email === "elephant@gmail.com"
+             ) && payment === Payment.CreditCard // && zio.dynamodb.amples.Elephant.email === "elephant@gmail.com"
            )
            .execute
     _ <- scanAll[Student]("student").execute

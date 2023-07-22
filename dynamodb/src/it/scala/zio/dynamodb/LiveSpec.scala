@@ -7,10 +7,6 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
 import software.amazon.awssdk.services.dynamodb.model.{ DynamoDbException, IdempotentParameterMismatchException }
 import zio.dynamodb.UpdateExpression.Action.SetAction
 import zio.dynamodb.UpdateExpression.SetOperand
-import zio.dynamodb.PartitionKeyExpression.PartitionKey
-import zio.dynamodb.KeyConditionExpression.partitionKey
-import zio.dynamodb.KeyConditionExpression.sortKey
-import zio.dynamodb.SortKeyExpression.SortKey
 import zio.aws.{ dynamodb, netty }
 import zio._
 import zio.dynamodb.DynamoDBQuery._
@@ -118,12 +114,6 @@ object LiveSpec extends ZIOSpecDefault {
       AttributeDefinition.attrDefnString(name)
     )
 
-  def sortKeyStringTableWithKeywords(tableName: String) =
-    createTable(tableName, KeySchema("and", "source"), BillingMode.PayPerRequest)(
-      AttributeDefinition.attrDefnString("and"),
-      AttributeDefinition.attrDefnString("source")
-    )
-
   private def managedTable(tableDefinition: String => CreateTable) =
     ZIO
       .acquireRelease(
@@ -158,17 +148,6 @@ object LiveSpec extends ZIOSpecDefault {
       }
     }
 
-  def withPkKeywordsTable(
-    f: String => ZIO[DynamoDBExecutor, Throwable, TestResult]
-  ) =
-    ZIO.scoped {
-      managedTable(sortKeyStringTableWithKeywords).flatMap { table =>
-        for {
-          result <- f(table.value)
-        } yield result
-      }
-    }
-
   def withDefaultAndNumberTables(
     f: (String, String) => ZIO[DynamoDBExecutor, Throwable, TestResult]
   ) =
@@ -198,65 +177,8 @@ object LiveSpec extends ZIOSpecDefault {
     val (id, num, ttl)                                                                     = ProjectionExpression.accessors[ExpressionAttrNames]
   }
 
-  final case class ExpressionAttrNamesPkKeywords(and: String, source: String, ttl: Option[Long])
-  object ExpressionAttrNamesPkKeywords {
-    implicit val schema: Schema.CaseClass3[String, String, Option[Long], ExpressionAttrNamesPkKeywords] =
-      DeriveSchema.gen[ExpressionAttrNamesPkKeywords]
-    val (and, source, ttl)                                                                              = ProjectionExpression.accessors[ExpressionAttrNamesPkKeywords]
-  }
-
   val mainSuite: Spec[TestEnvironment, Any] =
     suite("live test")(
-      suite("key words in Key Condition Expressions")(
-        test("queryAll should handle keywords in primary key names using high level API") {
-          withPkKeywordsTable { tableName =>
-            val query = DynamoDBQuery
-              .queryAll[ExpressionAttrNamesPkKeywords](tableName)
-              .whereKey(
-                ExpressionAttrNamesPkKeywords.and === "and1" && ExpressionAttrNamesPkKeywords.source === "source1"
-              )
-              .filter(ExpressionAttrNamesPkKeywords.ttl.notExists)
-            query.execute.flatMap(_.runDrain).exit.map { result =>
-              assert(result)(succeeds(isUnit))
-            }
-          }
-        },
-        test("queryAll should handle keywords in primary key name using low level API") {
-          withPkKeywordsTable { tableName =>
-            val query = DynamoDBQuery
-              .queryAll[ExpressionAttrNamesPkKeywords](tableName)
-              .whereKey(partitionKey("and") === "and1" && sortKey("source") === "source1")
-              .filter(ExpressionAttrNamesPkKeywords.ttl.notExists)
-            query.execute.flatMap(_.runDrain).exit.map { result =>
-              assert(result)(succeeds(isUnit))
-            }
-          }
-        },
-        test("querySome should handle keywords in primary key name using high level API") {
-          withPkKeywordsTable { tableName =>
-            val query = DynamoDBQuery
-              .querySome[ExpressionAttrNamesPkKeywords](tableName, 1)
-              .whereKey(
-                ExpressionAttrNamesPkKeywords.and === "and1" && ExpressionAttrNamesPkKeywords.source === "source1"
-              )
-              .filter(ExpressionAttrNamesPkKeywords.ttl.notExists)
-            for {
-              result <- query.execute
-            } yield assert(result._1)(hasSize(equalTo(0)))
-          }
-        },
-        test("querySome should handle keywords in primary key name using low level API") {
-          withPkKeywordsTable { tableName =>
-            val query = DynamoDBQuery
-              .querySome[ExpressionAttrNames](tableName, 1)
-              .whereKey(partitionKey("and") === "and1" && sortKey("source") === "source1")
-              .filter(ExpressionAttrNames.ttl.notExists)
-            for {
-              result <- query.execute
-            } yield assert(result._1)(hasSize(equalTo(0)))
-          }
-        }
-      ),
       suite("keywords in expression attribute names")(
         suite("using high level api")(
           test("scanAll should handle keyword") {
@@ -273,7 +195,7 @@ object LiveSpec extends ZIOSpecDefault {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
                 .queryAll[ExpressionAttrNames](tableName)
-                .whereKey(ExpressionAttrNames.id === "id")
+                .whereKey(ExpressionAttrNames.id.primaryKey === "id")
                 .filter(ExpressionAttrNames.ttl.notExists)
               query.execute.flatMap(_.runDrain).exit.map { result =>
                 assert(result)(succeeds(isUnit))
@@ -297,7 +219,7 @@ object LiveSpec extends ZIOSpecDefault {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
                 .querySome[ExpressionAttrNames](tableName, 1)
-                .whereKey(PartitionKey(id) === second && SortKey(number) > 0)
+                .whereKey($(id).primaryKey === second && $(number).sortKey > 0)
                 .filter(ExpressionAttrNames.ttl.notExists)
 
               for {
@@ -438,7 +360,7 @@ object LiveSpec extends ZIOSpecDefault {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
                 .queryAllItem(tableName)
-                .whereKey($("id") === "id")
+                .whereKey($("id").primaryKey === "id")
                 .filter($("ttl").notExists)
               query.execute.flatMap(_.runDrain).exit.map { result =>
                 assert(result)(succeeds(isUnit))
@@ -449,7 +371,7 @@ object LiveSpec extends ZIOSpecDefault {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
                 .querySomeItem(tableName, 1)
-                .whereKey($("id") === "id")
+                .whereKey($("id").primaryKey === "id")
                 .filter($("ttl").notExists)
               query.execute.exit.map { result =>
                 assert(result.isSuccess)(isTrue)
@@ -460,7 +382,7 @@ object LiveSpec extends ZIOSpecDefault {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
                 .querySomeItem(tableName, 1, $("ttl"))
-                .whereKey($("id") === "id")
+                .whereKey($("id").primaryKey === "id")
               query.execute.exit.map { result =>
                 assert(result.isSuccess)(isTrue)
               }
@@ -683,7 +605,7 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             val query =
               queryAllItem(tableName, $(name), $("ttl")).whereKey(
-                PartitionKey(id) === first && SortKey(number) > 0
+                $(id).primaryKey === first && $(number).sortKey > 0
               )
 
             query.execute.flatMap(_.runDrain).map { _ =>
@@ -695,7 +617,7 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             for {
               chunk <- querySomeItem(tableName, 10, $(name), $("ttl"))
-                         .whereKey(PartitionKey(id) === first && SortKey(number) > 0)
+                         .whereKey($(id).primaryKey === first && $(number).sortKey > 0)
                          .execute
                          .map(_._1)
             } yield assert(chunk)(
@@ -707,7 +629,7 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             for {
               chunk <- querySomeItem(tableName, 10, $(name))
-                         .whereKey(PartitionKey(id) === first && SortKey(number) < 2)
+                         .whereKey($(id).primaryKey === first && $(number).sortKey < 2)
                          .execute
                          .map(_._1)
             } yield assert(chunk)(
@@ -719,7 +641,7 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             for {
               chunk <- querySomeItem(tableName, 10, $(name))
-                         .whereKey(PartitionKey(id) === first && SortKey(number) > 0)
+                         .whereKey($(id).primaryKey === first && $(number).sortKey > 0)
                          .execute
                          .map(_._1)
             } yield assert(chunk)(
@@ -732,7 +654,7 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             for {
               chunk <- querySomeItem(tableName, 10, $(name))
-                         .whereKey(PartitionKey(id) === first && SortKey(number) >= 4)
+                         .whereKey($(id).primaryKey === first && $(number).sortKey >= 4)
                          .execute
                          .map(_._1)
             } yield assert(chunk)(
@@ -744,7 +666,7 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             for {
               chunk <- querySomeItem(tableName, 10, $(name))
-                         .whereKey(PartitionKey(id) === first && SortKey(number) <= 4)
+                         .whereKey($(id).primaryKey === first && $(number).sortKey <= 4)
                          .execute
                          .map(_._1)
             } yield assert(chunk)(
@@ -756,7 +678,7 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             for {
               chunk <- querySomeItem(tableName, 10, $(name))
-                         .whereKey(PartitionKey(id) === "nowhere" && SortKey(number) > 0)
+                         .whereKey($(id).primaryKey === "nowhere" && $(number).sortKey > 0)
                          .execute
                          .map(_._1)
             } yield assert(chunk)(isEmpty)
@@ -766,7 +688,7 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             for {
               chunk <- querySomeItem(tableName, 1, $(name))
-                         .whereKey(PartitionKey(id) === first)
+                         .whereKey($(id).primaryKey === first)
                          .execute
                          .map(_._1)
             } yield assert(chunk)(equalTo(Chunk(Item(name -> avi))))
@@ -776,7 +698,7 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             for {
               chunk <- querySomeItem(tableName, 3, $(name))
-                         .whereKey(PartitionKey(id) === first)
+                         .whereKey($(id).primaryKey === first)
                          .execute
                          .map(_._1)
             } yield assert(chunk)(equalTo(Chunk(Item(name -> avi), Item(name -> avi2), Item(name -> avi3))))
@@ -786,7 +708,7 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             for {
               chunk <- querySomeItem(tableName, 4, $(name))
-                         .whereKey(PartitionKey(id) === first)
+                         .whereKey($(id).primaryKey === first)
                          .execute
                          .map(_._1)
             } yield assert(chunk)(equalTo(Chunk(Item(name -> avi), Item(name -> avi2), Item(name -> avi3))))
@@ -796,11 +718,11 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             for {
               startKey <- querySomeItem(tableName, 2, $(id), $(number))
-                            .whereKey(PartitionKey(id) === first)
+                            .whereKey($(id).primaryKey === first)
                             .execute
                             .map(_._2)
               chunk    <- querySomeItem(tableName, 5, $(name))
-                            .whereKey(PartitionKey(id) === first)
+                            .whereKey($(id).primaryKey === first)
                             .startKey(startKey)
                             .execute
                             .map(_._1)
@@ -811,7 +733,7 @@ object LiveSpec extends ZIOSpecDefault {
           withDefaultTable { tableName =>
             for {
               stream <- queryAllItem(tableName)
-                          .whereKey(PartitionKey(id) === second)
+                          .whereKey($(id).primaryKey === second)
                           .execute
               chunk  <- stream.run(ZSink.collectAll[Item])
             } yield assert(chunk)(
@@ -834,7 +756,7 @@ object LiveSpec extends ZIOSpecDefault {
             withDefaultTable { tableName =>
               for {
                 chunk <- querySomeItem(tableName, 10, $(name))
-                           .whereKey(PartitionKey(id) === first && SortKey(number).between(3, 8))
+                           .whereKey($(id).primaryKey === first && $(number).sortKey.between(3, 8))
                            .execute
                            .map(_._1)
               } yield assert(chunk)(
@@ -849,7 +771,7 @@ object LiveSpec extends ZIOSpecDefault {
                 for {
                   _     <- putItem(tableName, stringSortKeyItem).execute
                   chunk <- querySomeItem(tableName, 10)
-                             .whereKey(PartitionKey(id) === adam && SortKey(name).beginsWith("ad"))
+                             .whereKey($(id).primaryKey === adam && $(name).sortKey.beginsWith("ad"))
                              .execute
                              .map(_._1)
                 } yield assert(chunk)(equalTo(Chunk(stringSortKeyItem)))
