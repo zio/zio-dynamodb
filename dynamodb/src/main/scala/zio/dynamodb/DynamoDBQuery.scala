@@ -29,6 +29,7 @@ import zio.schema.Schema
 import zio.stream.Stream
 import zio.{ Chunk, NonEmptyChunk, Schedule, ZIO, Zippable => _, _ }
 import zio.dynamodb.proofs.IsPrimaryKey
+import zio.dynamodb.KeyConditionExpr
 
 sealed trait DynamoDBQuery[-In, +Out] { self =>
 
