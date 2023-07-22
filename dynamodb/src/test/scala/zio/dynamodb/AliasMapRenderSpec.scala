@@ -1,7 +1,6 @@
 package zio.dynamodb
 
 import zio.Chunk
-import zio.dynamodb.KeyConditionExpr
 import zio.dynamodb.ProjectionExpression.$
 import zio.dynamodb.ProjectionExpression._
 import zio.test.Assertion._
