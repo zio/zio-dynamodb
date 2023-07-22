@@ -16,7 +16,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
 
   override def execute[A](atomicQuery: DynamoDBQuery[_, A]): ZIO[Any, Exception, A] =
     atomicQuery match {
-      case BatchGetItem(requestItemsMap, _, _, _)                                    =>
+      case BatchGetItem(requestItemsMap, _, _, _)                                 =>
         val requestItems: Seq[(TableName, TableGet)] = requestItemsMap.toList
 
         val foundItems: IO[DatabaseError, Seq[(TableName, Option[Item])]] =
@@ -39,7 +39,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
 
         response
 
-      case BatchWriteItem(requestItems, _, _, _, _)                                  =>
+      case BatchWriteItem(requestItems, _, _, _, _)                               =>
         val results: ZIO[Any, DatabaseError, Unit] = ZIO.foreachDiscard(requestItems.toList) {
           case (tableName, setOfWrite) =>
             ZIO.foreachDiscard(setOfWrite) { write =>
@@ -54,32 +54,32 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
         }
         results.map(_ => BatchWriteItem.Response(None))
 
-      case GetItem(tableName, key, _, _, _)                                          =>
+      case GetItem(tableName, key, _, _, _)                                       =>
         fakeGetItem(tableName.value, key)
 
-      case PutItem(tableName, item, _, _, _, _)                                      =>
+      case PutItem(tableName, item, _, _, _, _)                                   =>
         fakePut(tableName.value, item)
 
       // TODO Note UpdateItem is not currently supported as it uses an UpdateExpression
 
-      case DeleteItem(tableName, key, _, _, _, _)                                    =>
+      case DeleteItem(tableName, key, _, _, _, _)                                 =>
         fakeDelete(tableName.value, key)
 
-      case ScanSome(tableName, limit, _, _, exclusiveStartKey, _, _, _, _)           =>
+      case ScanSome(tableName, limit, _, _, exclusiveStartKey, _, _, _, _)        =>
         fakeScanSome(tableName.value, exclusiveStartKey, Some(limit))
 
-      case ScanAll(tableName, _, maybeLimit, _, _, _, _, _, _, _)                    =>
+      case ScanAll(tableName, _, maybeLimit, _, _, _, _, _, _, _)                 =>
         fakeScanAll(tableName.value, maybeLimit)
 
-      case QuerySome(tableName, limit, _, _, exclusiveStartKey, _, _, _, _, _, _, _) =>
+      case QuerySome(tableName, limit, _, _, exclusiveStartKey, _, _, _, _, _, _) =>
         fakeScanSome(tableName.value, exclusiveStartKey, Some(limit))
 
-      case QueryAll(tableName, _, maybeLimit, _, _, _, _, _, _, _, _)                =>
+      case QueryAll(tableName, _, maybeLimit, _, _, _, _, _, _, _, _)             =>
         fakeScanAll(tableName.value, maybeLimit)
 
       // TODO: implement CreateTable
 
-      case unknown                                                                   =>
+      case unknown                                                                =>
         ZIO.fail(new Exception(s"Constructor $unknown not implemented yet"))
     }
 

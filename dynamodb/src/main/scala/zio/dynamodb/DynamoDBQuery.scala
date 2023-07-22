@@ -221,7 +221,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
   }
 
   /**
-   * Parallel executes a DynamoDB Scan in parallel.
+   * Executes a DynamoDB Scan in parallel.
    * There are no guarantees on order of returned items.
    *
    * @param n The number of parallel requests to make to DynamoDB
@@ -836,7 +836,6 @@ object DynamoDBQuery {
     exclusiveStartKey: LastEvaluatedKey =
       None,                                                     // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression[_]] = None,
-    keyConditionExpression: Option[KeyConditionExpression] = None,
     keyConditionExpression2: Option[KeyConditionExpr[_, _]] = None,
     projections: List[ProjectionExpression[_, _]] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
@@ -1033,7 +1032,7 @@ object DynamoDBQuery {
 
       case Succeed(value)     => (Chunk.empty, _ => value())
 
-      case batchGetItem @ BatchGetItem(_, _, _, _)               =>
+      case batchGetItem @ BatchGetItem(_, _, _, _)            =>
         (
           Chunk(batchGetItem),
           (results: Chunk[Any]) => {
@@ -1041,7 +1040,7 @@ object DynamoDBQuery {
           }
         )
 
-      case batchWriteItem @ BatchWriteItem(_, _, _, _, _)        =>
+      case batchWriteItem @ BatchWriteItem(_, _, _, _, _)     =>
         (
           Chunk(batchWriteItem),
           (results: Chunk[Any]) => {
@@ -1049,7 +1048,7 @@ object DynamoDBQuery {
           }
         )
 
-      case deleteTable @ DeleteTable(_)                          =>
+      case deleteTable @ DeleteTable(_)                       =>
         (
           Chunk(deleteTable),
           (results: Chunk[Any]) => {
@@ -1057,7 +1056,7 @@ object DynamoDBQuery {
           }
         )
 
-      case describeTable @ DescribeTable(_)                      =>
+      case describeTable @ DescribeTable(_)                   =>
         (
           Chunk(describeTable),
           (results: Chunk[Any]) => {
@@ -1066,7 +1065,7 @@ object DynamoDBQuery {
         )
 
       // condition check is not a real query, it is only used in transactions
-      case _ @ConditionCheck(_, _, _)                            =>
+      case _ @ConditionCheck(_, _, _)                         =>
         (
           Chunk[Constructor[In, Any]](),
           (_: Chunk[Any]) => {
@@ -1074,7 +1073,7 @@ object DynamoDBQuery {
           }
         )
 
-      case getItem @ GetItem(_, _, _, _, _)                      =>
+      case getItem @ GetItem(_, _, _, _, _)                   =>
         (
           Chunk(getItem),
           (results: Chunk[Any]) => {
@@ -1082,7 +1081,7 @@ object DynamoDBQuery {
           }
         )
 
-      case putItem @ PutItem(_, _, _, _, _, _)                   =>
+      case putItem @ PutItem(_, _, _, _, _, _)                =>
         (
           Chunk(putItem),
           (results: Chunk[Any]) => {
@@ -1090,7 +1089,7 @@ object DynamoDBQuery {
           }
         )
 
-      case transaction @ Transaction(_, _, _, _)                 =>
+      case transaction @ Transaction(_, _, _, _)              =>
         (
           Chunk(transaction),
           (results: Chunk[Any]) => {
@@ -1098,7 +1097,7 @@ object DynamoDBQuery {
           }
         )
 
-      case updateItem @ UpdateItem(_, _, _, _, _, _, _)          =>
+      case updateItem @ UpdateItem(_, _, _, _, _, _, _)       =>
         (
           Chunk(updateItem),
           (results: Chunk[Any]) => {
@@ -1106,7 +1105,7 @@ object DynamoDBQuery {
           }
         )
 
-      case deleteItem @ DeleteItem(_, _, _, _, _, _)             =>
+      case deleteItem @ DeleteItem(_, _, _, _, _, _)          =>
         (
           Chunk(deleteItem),
           (results: Chunk[Any]) => {
@@ -1114,7 +1113,7 @@ object DynamoDBQuery {
           }
         )
 
-      case scan @ ScanSome(_, _, _, _, _, _, _, _, _)            =>
+      case scan @ ScanSome(_, _, _, _, _, _, _, _, _)         =>
         (
           Chunk(scan),
           (results: Chunk[Any]) => {
@@ -1122,7 +1121,7 @@ object DynamoDBQuery {
           }
         )
 
-      case scan @ ScanAll(_, _, _, _, _, _, _, _, _, _)          =>
+      case scan @ ScanAll(_, _, _, _, _, _, _, _, _, _)       =>
         (
           Chunk(scan),
           (results: Chunk[Any]) => {
@@ -1130,7 +1129,7 @@ object DynamoDBQuery {
           }
         )
 
-      case query @ QuerySome(_, _, _, _, _, _, _, _, _, _, _, _) =>
+      case query @ QuerySome(_, _, _, _, _, _, _, _, _, _, _) =>
         (
           Chunk(query),
           (results: Chunk[Any]) => {
@@ -1138,7 +1137,7 @@ object DynamoDBQuery {
           }
         )
 
-      case query @ QueryAll(_, _, _, _, _, _, _, _, _, _, _)     =>
+      case query @ QueryAll(_, _, _, _, _, _, _, _, _, _, _)  =>
         (
           Chunk(query),
           (results: Chunk[Any]) => {
@@ -1146,7 +1145,7 @@ object DynamoDBQuery {
           }
         )
 
-      case createTable @ CreateTable(_, _, _, _, _, _, _, _)     =>
+      case createTable @ CreateTable(_, _, _, _, _, _, _, _)  =>
         (
           Chunk(createTable),
           (results: Chunk[Any]) => {
