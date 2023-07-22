@@ -465,7 +465,7 @@ object DynamoDBQuery {
       case None       => Left(ValueNotFound(s"value with key $key not found"))
     }
 
- def get[From: Schema, To](
+  def get[From: Schema, To](
     tableName: String,
     partitionKeyExpr: KeyConditionExpr.PartitionKeyEquals[From, To],
     projections: ProjectionExpression[_, _]*

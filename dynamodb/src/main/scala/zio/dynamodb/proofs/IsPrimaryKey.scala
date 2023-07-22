@@ -2,10 +2,9 @@ package zio.dynamodb.proofs
 
 import scala.annotation.implicitNotFound
 
-@implicitNotFound("DynamoDB does not support primary key type ${A}")
+@implicitNotFound("DynamoDB does not support primary key type ${A} - allowed types are: String, Number, Binary")
 sealed trait IsPrimaryKey[A]
 
-// Allowed types for partition and sort keys are: String, Number, Binary
 object IsPrimaryKey {
   implicit val intIsPrimaryKey = new IsPrimaryKey[Int] {}
   // TODO: Avi - support other numeric types
