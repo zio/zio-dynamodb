@@ -1,7 +1,5 @@
 package zio.dynamodb
 
-import zio.dynamodb.PrimaryKey
-
 /**
  * Models:
  * 1) partition key equality expressions
