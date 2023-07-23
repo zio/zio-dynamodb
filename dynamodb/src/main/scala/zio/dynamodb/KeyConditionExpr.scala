@@ -37,14 +37,6 @@ object KeyConditionExpr {
         .map(v => s"${sortKey.keyName} = $v")
   }
 
-  private[dynamodb] final case class CompositePrimaryKeyExpr2[-From](
-    pk: PartitionKeyEquals[From, Any],
-    sk: SortKeyEquals[From, Any]
-  ) extends KeyConditionExpr[From, Any] {
-
-    override def render: AliasMapRender[String] = ???
-  }
-
   private[dynamodb] final case class CompositePrimaryKeyExpr[-From](
     pk: PartitionKeyEquals[From, Any],
     sk: SortKeyEquals[From, Any]
