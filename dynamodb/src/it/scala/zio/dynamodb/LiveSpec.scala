@@ -177,23 +177,26 @@ object LiveSpec extends ZIOSpecDefault {
     val (id, num, ttl)                                                                     = ProjectionExpression.accessors[ExpressionAttrNames]
   }
 
-  final case class ExpressionAttrNamesPkKeyword(ttl: String, num: Int, name: String)
+  final case class ExpressionAttrNamesPkKeyword(ttl: String, num: Int, name: Option[String])
   object ExpressionAttrNamesPkKeyword {
-    implicit val schema: Schema.CaseClass3[String, Int, String, ExpressionAttrNamesPkKeyword] =
+    implicit val schema: Schema.CaseClass3[String, Int, Option[String], ExpressionAttrNamesPkKeyword] =
       DeriveSchema.gen[ExpressionAttrNamesPkKeyword]
-    val (ttl, num, name)                                                                      = ProjectionExpression.accessors[ExpressionAttrNamesPkKeyword]
+    val (ttl, num, name)                                                                              = ProjectionExpression.accessors[ExpressionAttrNamesPkKeyword]
   }
 
-  val x: KeyConditionExpr.CompositePrimaryKeyExpr[ExpressionAttrNamesPkKeyword] =
+  val compositeKey1: KeyConditionExpr.CompositePrimaryKeyExpr[ExpressionAttrNamesPkKeyword] =
     ExpressionAttrNamesPkKeyword.ttl.partitionKey === "id" && ExpressionAttrNamesPkKeyword.num.sortKey === 1
+
+  val compositeKey2: KeyConditionExpr.CompositePrimaryKeyExpr[ExpressionAttrNames] =
+    ExpressionAttrNames.id.partitionKey === "id" && ExpressionAttrNames.num.sortKey === 1
 
   val debugSuite = suite("debug")(
     test("delete should handle keyword") {
       withDefaultTable { tableName =>
         val query = DynamoDBQuery
-          .delete[ExpressionAttrNames](
+          .delete(
             tableName,
-            PrimaryKey("id" -> "id", "num" -> 1)
+            compositeKey2
           )
           .where(ExpressionAttrNames.ttl.notExists)
         query.execute.exit.map { result =>
@@ -202,6 +205,9 @@ object LiveSpec extends ZIOSpecDefault {
       }
     }
   )
+    .provideSomeLayerShared[TestEnvironment](
+      testLayer.orDie
+    ) @@ nondeterministic
 
   val mainSuite: Spec[TestEnvironment, Any] =
     suite("live test")(
