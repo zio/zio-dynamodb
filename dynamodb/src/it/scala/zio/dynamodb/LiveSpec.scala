@@ -177,26 +177,13 @@ object LiveSpec extends ZIOSpecDefault {
     val (id, num, ttl)                                                                     = ProjectionExpression.accessors[ExpressionAttrNames]
   }
 
-  final case class ExpressionAttrNamesPkKeyword(ttl: String, num: Int, name: Option[String])
-  object ExpressionAttrNamesPkKeyword {
-    implicit val schema: Schema.CaseClass3[String, Int, Option[String], ExpressionAttrNamesPkKeyword] =
-      DeriveSchema.gen[ExpressionAttrNamesPkKeyword]
-    val (ttl, num, name)                                                                              = ProjectionExpression.accessors[ExpressionAttrNamesPkKeyword]
-  }
-
-  val compositeKey1: KeyConditionExpr.CompositePrimaryKeyExpr[ExpressionAttrNamesPkKeyword] =
-    ExpressionAttrNamesPkKeyword.ttl.partitionKey === "id" && ExpressionAttrNamesPkKeyword.num.sortKey === 1
-
-  val compositeKey2: KeyConditionExpr.CompositePrimaryKeyExpr[ExpressionAttrNames] =
-    ExpressionAttrNames.id.partitionKey === "id" && ExpressionAttrNames.num.sortKey === 1
-
   val debugSuite = suite("debug")(
     test("delete should handle keyword") {
       withDefaultTable { tableName =>
         val query = DynamoDBQuery
           .delete(
             tableName,
-            compositeKey2
+            ExpressionAttrNames.id.partitionKey === "id" && ExpressionAttrNames.num.sortKey === 1
           )
           .where(ExpressionAttrNames.ttl.notExists)
         query.execute.exit.map { result =>
@@ -227,7 +214,6 @@ object LiveSpec extends ZIOSpecDefault {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
                 .queryAll[ExpressionAttrNames](tableName)
-                .whereKey(ExpressionAttrNames.id.partitionKey === "id")
                 .filter(ExpressionAttrNames.ttl.notExists)
               query.execute.flatMap(_.runDrain).exit.map { result =>
                 assert(result)(succeeds(isUnit))
@@ -266,7 +252,10 @@ object LiveSpec extends ZIOSpecDefault {
           test("delete should handle keyword") {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
-                .delete[ExpressionAttrNames](tableName, PrimaryKey("id" -> "id", "num" -> 1))
+                .delete(
+                  tableName,
+                  ExpressionAttrNames.id.partitionKey === "id" && ExpressionAttrNames.num.sortKey === 1
+                )
                 .where(ExpressionAttrNames.ttl.notExists)
               query.execute.exit.map { result =>
                 assert(result)(succeeds(isNone))
@@ -286,7 +275,10 @@ object LiveSpec extends ZIOSpecDefault {
           test("update should handle keyword") {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
-                .update[ExpressionAttrNames](tableName, PrimaryKey("id" -> "1", "num" -> 1))(
+                .update(
+                  tableName,
+                  ExpressionAttrNames.id.partitionKey === "id" && ExpressionAttrNames.num.sortKey === 1
+                )(
                   ExpressionAttrNames.ttl.set(Some(42L))
                 )
                 .where(ExpressionAttrNames.ttl.notExists)
