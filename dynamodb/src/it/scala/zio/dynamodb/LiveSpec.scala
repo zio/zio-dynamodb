@@ -177,6 +177,29 @@ object LiveSpec extends ZIOSpecDefault {
     val (id, num, ttl)                                                                     = ProjectionExpression.accessors[ExpressionAttrNames]
   }
 
+  final case class ExpressionAttrNamesPkKeyword(ttl: String, num: Int, name: String)
+  object ExpressionAttrNamesPkKeyword {
+    implicit val schema: Schema.CaseClass3[String, Int, String, ExpressionAttrNamesPkKeyword] =
+      DeriveSchema.gen[ExpressionAttrNamesPkKeyword]
+    val (ttl, num, name)                                                                      = ProjectionExpression.accessors[ExpressionAttrNamesPkKeyword]
+  }
+
+  val x: KeyConditionExpr.CompositePrimaryKeyExpr[ExpressionAttrNamesPkKeyword] =
+    ExpressionAttrNamesPkKeyword.ttl.partitionKey === "id" && ExpressionAttrNamesPkKeyword.num.sortKey === 1
+
+  // val debugSuite = suite("debug")(
+  //   test("delete should handle keyword") {
+  //     withDefaultTable { tableName =>
+  //       val query = DynamoDBQuery
+  //         .delete(tableName, ExpressionAttrNamesPkKeyword.ttl.partitionKey === "id" && ExpressionAttrNamesPkKeyword.num.sortKey === 1)
+  //         .where(ExpressionAttrNames.ttl.notExists)
+  //       query.execute.exit.map { result =>
+  //         assert(result)(succeeds(isNone))
+  //       }
+  //     }
+  //   }
+  // )
+
   val mainSuite: Spec[TestEnvironment, Any] =
     suite("live test")(
       suite("keywords in expression attribute names")(

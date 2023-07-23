@@ -18,8 +18,8 @@ object KeyConditionExpr {
   private[dynamodb] final case class PartitionKeyEquals[-From, +To](pk: PartitionKey[From, To], value: AttributeValue)
       extends KeyConditionExpr[From, To] { self =>
 
-    def &&[From1 <: From, To2](other: SortKeyEquals[From1, To2]): CompositePrimaryKeyExpr[From1, To2]               =
-      CompositePrimaryKeyExpr[From1, To2](self.asInstanceOf[PartitionKeyEquals[From1, To2]], other)
+    def &&[From1 <: From, To2](other: SortKeyEquals[From1, To2]): CompositePrimaryKeyExpr[From1]               =
+      CompositePrimaryKeyExpr[From1](self.asInstanceOf[PartitionKeyEquals[From1, To2]], other)
     def &&[From1 <: From, To2](other: ExtendedSortKeyExpr[From1, To2]): ExtendedCompositePrimaryKeyExpr[From1, To2] =
       ExtendedCompositePrimaryKeyExpr[From1, To2](self.asInstanceOf[PartitionKeyEquals[From1, To2]], other)
 
@@ -37,10 +37,18 @@ object KeyConditionExpr {
         .map(v => s"${sortKey.keyName} = $v")
   }
 
-  private[dynamodb] final case class CompositePrimaryKeyExpr[-From, +To](
-    pk: PartitionKeyEquals[From, To],
-    sk: SortKeyEquals[From, To]
-  ) extends KeyConditionExpr[From, To] {
+  private[dynamodb] final case class CompositePrimaryKeyExpr2[-From](
+    pk: PartitionKeyEquals[From, Any],
+    sk: SortKeyEquals[From, Any]
+  ) extends KeyConditionExpr[From, Any] {
+
+    override def render: AliasMapRender[String] = ???
+  }
+
+  private[dynamodb] final case class CompositePrimaryKeyExpr[-From](
+    pk: PartitionKeyEquals[From, Any],
+    sk: SortKeyEquals[From, Any]
+  ) extends KeyConditionExpr[From, Any] {
     self =>
 
     def asAttrMap: AttrMap = PrimaryKey(pk.pk.keyName -> pk.value, sk.sortKey.keyName -> sk.value)

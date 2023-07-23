@@ -476,7 +476,7 @@ object DynamoDBQuery {
 
   def get[From: Schema, To](
     tableName: String,
-    compositeKeyExpr: KeyConditionExpr.CompositePrimaryKeyExpr[From, To],
+    compositeKeyExpr: KeyConditionExpr.CompositePrimaryKeyExpr[From],
     projections: ProjectionExpression[_, _]*
   )(implicit ev: IsPrimaryKey[To]): DynamoDBQuery[From, Either[DynamoDBError, From]] = {
     val _ = ev
@@ -508,10 +508,32 @@ object DynamoDBQuery {
   def update[A: Schema](tableName: String, key: PrimaryKey)(action: Action[A]): DynamoDBQuery[A, Option[A]] =
     updateItem(tableName, key)(action).map(_.flatMap(item => fromItem(item).toOption))
 
+  def update[From: Schema, To](tableName: String, partitionKeyExpr: KeyConditionExpr.PartitionKeyEquals[From, To])(
+    action: Action[From]
+  ): DynamoDBQuery[From, Option[From]] =
+    updateItem(tableName, partitionKeyExpr.asAttrMap)(action).map(_.flatMap(item => fromItem(item).toOption))
+
+  def update[From: Schema, To](tableName: String, compositeKeyExpr: KeyConditionExpr.CompositePrimaryKeyExpr[From])(
+    action: Action[From]
+  ): DynamoDBQuery[From, Option[From]] =
+    updateItem(tableName, compositeKeyExpr.asAttrMap)(action).map(_.flatMap(item => fromItem(item).toOption))
+
   def deleteItem(tableName: String, key: PrimaryKey): Write[Any, Option[Item]] = DeleteItem(TableName(tableName), key)
 
   def delete[A: Schema](tableName: String, key: PrimaryKey): DynamoDBQuery[Any, Option[A]] =
     deleteItem(tableName, key).map(_.flatMap(item => fromItem(item).toOption))
+
+  def delete[From: Schema, To](
+    tableName: String,
+    partitionKeyExpr: KeyConditionExpr.PartitionKeyEquals[From, To]
+  ): DynamoDBQuery[Any, Option[From]] =
+    deleteItem(tableName, partitionKeyExpr.asAttrMap).map(_.flatMap(item => fromItem(item).toOption))
+
+  def delete[From: Schema, To](
+    tableName: String,
+    compositeKeyExpr: KeyConditionExpr.CompositePrimaryKeyExpr[From]
+  ): DynamoDBQuery[Any, Option[From]] =
+    deleteItem(tableName, compositeKeyExpr.asAttrMap).map(_.flatMap(item => fromItem(item).toOption))
 
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
