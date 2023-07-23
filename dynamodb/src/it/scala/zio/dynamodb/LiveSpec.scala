@@ -1284,7 +1284,8 @@ object LiveSpec extends ZIOSpecDefault {
             withDefaultTable { tableName =>
               val u = update(
                 tableName = tableName,
-                compositeKeyExpr = ExpressionAttrNames.id.partitionKey === "first" && ExpressionAttrNames.num.sortKey === 7
+                compositeKeyExpr =
+                  ExpressionAttrNames.id.partitionKey === "first" && ExpressionAttrNames.num.sortKey === 7
               )(ExpressionAttrNames.ttl.set(None)).where(ExpressionAttrNames.ttl.notExists)
               u.transaction.execute.exit.map { result =>
                 assert(result.isSuccess)(isTrue)

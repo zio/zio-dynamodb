@@ -505,7 +505,9 @@ object DynamoDBQuery {
       UpdateExpression(action)
     )
 
-  private[dynamodb] def update[A: Schema](tableName: String, key: PrimaryKey)(action: Action[A]): DynamoDBQuery[A, Option[A]] =
+  private[dynamodb] def update[A: Schema](tableName: String, key: PrimaryKey)(
+    action: Action[A]
+  ): DynamoDBQuery[A, Option[A]] =
     updateItem(tableName, key)(action).map(_.flatMap(item => fromItem(item).toOption))
 
   def update[From: Schema, To](tableName: String, partitionKeyExpr: KeyConditionExpr.PartitionKeyEquals[From, To])(
