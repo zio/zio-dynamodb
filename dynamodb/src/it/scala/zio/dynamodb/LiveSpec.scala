@@ -214,6 +214,7 @@ object LiveSpec extends ZIOSpecDefault {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
                 .queryAll[ExpressionAttrNames](tableName)
+                .whereKey(ExpressionAttrNames.id.partitionKey === "id")
                 .filter(ExpressionAttrNames.ttl.notExists)
               query.execute.flatMap(_.runDrain).exit.map { result =>
                 assert(result)(succeeds(isUnit))
@@ -1257,9 +1258,10 @@ object LiveSpec extends ZIOSpecDefault {
           },
           test("delete item handles keyword") {
             withDefaultTable { tableName =>
-              val d = delete[ExpressionAttrNames](
+              val d = delete(
                 tableName = tableName,
-                key = pk(avi3Item)
+                compositeKeyExpr =
+                  ExpressionAttrNames.id.partitionKey === "first" && ExpressionAttrNames.num.sortKey === 7
               ).where(ExpressionAttrNames.ttl.notExists)
               d.transaction.execute.exit.map { result =>
                 assert(result.isSuccess)(isTrue)
@@ -1280,9 +1282,9 @@ object LiveSpec extends ZIOSpecDefault {
           },
           test("transact update item should handle keyword") {
             withDefaultTable { tableName =>
-              val u = update[ExpressionAttrNames](
+              val u = update(
                 tableName = tableName,
-                key = pk(avi3Item)
+                compositeKeyExpr = ExpressionAttrNames.id.partitionKey === "first" && ExpressionAttrNames.num.sortKey === 7
               )(ExpressionAttrNames.ttl.set(None)).where(ExpressionAttrNames.ttl.notExists)
               u.transaction.execute.exit.map { result =>
                 assert(result.isSuccess)(isTrue)
