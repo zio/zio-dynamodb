@@ -18,7 +18,7 @@ object KeyConditionExpr {
   private[dynamodb] final case class PartitionKeyEquals[-From, +To](pk: PartitionKey[From, To], value: AttributeValue)
       extends KeyConditionExpr[From, To] { self =>
 
-    def &&[From1 <: From, To2](other: SortKeyEquals[From1, To2]): CompositePrimaryKeyExpr[From1]               =
+    def &&[From1 <: From, To2](other: SortKeyEquals[From1, To2]): CompositePrimaryKeyExpr[From1]                    =
       CompositePrimaryKeyExpr[From1](self.asInstanceOf[PartitionKeyEquals[From1, To2]], other)
     def &&[From1 <: From, To2](other: ExtendedSortKeyExpr[From1, To2]): ExtendedCompositePrimaryKeyExpr[From1, To2] =
       ExtendedCompositePrimaryKeyExpr[From1, To2](self.asInstanceOf[PartitionKeyEquals[From1, To2]], other)

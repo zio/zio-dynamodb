@@ -513,7 +513,7 @@ object DynamoDBQuery {
   ): DynamoDBQuery[From, Option[From]] =
     updateItem(tableName, partitionKeyExpr.asAttrMap)(action).map(_.flatMap(item => fromItem(item).toOption))
 
-  def update[From: Schema, To](tableName: String, compositeKeyExpr: KeyConditionExpr.CompositePrimaryKeyExpr[From])(
+  def update[From: Schema](tableName: String, compositeKeyExpr: KeyConditionExpr.CompositePrimaryKeyExpr[From])(
     action: Action[From]
   ): DynamoDBQuery[From, Option[From]] =
     updateItem(tableName, compositeKeyExpr.asAttrMap)(action).map(_.flatMap(item => fromItem(item).toOption))
@@ -529,7 +529,7 @@ object DynamoDBQuery {
   ): DynamoDBQuery[Any, Option[From]] =
     deleteItem(tableName, partitionKeyExpr.asAttrMap).map(_.flatMap(item => fromItem(item).toOption))
 
-  def delete[From: Schema, To](
+  def delete[From: Schema](
     tableName: String,
     compositeKeyExpr: KeyConditionExpr.CompositePrimaryKeyExpr[From]
   ): DynamoDBQuery[Any, Option[From]] =

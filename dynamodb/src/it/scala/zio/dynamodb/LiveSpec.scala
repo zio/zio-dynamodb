@@ -187,18 +187,21 @@ object LiveSpec extends ZIOSpecDefault {
   val x: KeyConditionExpr.CompositePrimaryKeyExpr[ExpressionAttrNamesPkKeyword] =
     ExpressionAttrNamesPkKeyword.ttl.partitionKey === "id" && ExpressionAttrNamesPkKeyword.num.sortKey === 1
 
-  // val debugSuite = suite("debug")(
-  //   test("delete should handle keyword") {
-  //     withDefaultTable { tableName =>
-  //       val query = DynamoDBQuery
-  //         .delete(tableName, ExpressionAttrNamesPkKeyword.ttl.partitionKey === "id" && ExpressionAttrNamesPkKeyword.num.sortKey === 1)
-  //         .where(ExpressionAttrNames.ttl.notExists)
-  //       query.execute.exit.map { result =>
-  //         assert(result)(succeeds(isNone))
-  //       }
-  //     }
-  //   }
-  // )
+  val debugSuite = suite("debug")(
+    test("delete should handle keyword") {
+      withDefaultTable { tableName =>
+        val query = DynamoDBQuery
+          .delete[ExpressionAttrNames](
+            tableName,
+            PrimaryKey("id" -> "id", "num" -> 1)
+          )
+          .where(ExpressionAttrNames.ttl.notExists)
+        query.execute.exit.map { result =>
+          assert(result)(succeeds(isNone))
+        }
+      }
+    }
+  )
 
   val mainSuite: Spec[TestEnvironment, Any] =
     suite("live test")(

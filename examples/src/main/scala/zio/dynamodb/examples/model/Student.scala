@@ -78,7 +78,8 @@ object Student {
 
   def primaryKey(email: String, subject: String): PrimaryKey = PrimaryKey("email" -> email, "subject" -> subject)
 
-  def primaryKey2(email: String, subject: String) = Student.email.partitionKey === email && Student.subject.sortKey === subject
+  def primaryKey2(email: String, subject: String) =
+    Student.email.partitionKey === email && Student.subject.sortKey === subject
 
   val enrolDate  = Instant.parse("2021-03-20T01:39:33Z")
   val enrolDate2 = Instant.parse("2022-03-20T01:39:33Z")
