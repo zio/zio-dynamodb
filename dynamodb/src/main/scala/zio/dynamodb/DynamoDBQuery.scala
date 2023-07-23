@@ -505,7 +505,7 @@ object DynamoDBQuery {
       UpdateExpression(action)
     )
 
-  def update[A: Schema](tableName: String, key: PrimaryKey)(action: Action[A]): DynamoDBQuery[A, Option[A]] =
+  private[dynamodb] def update[A: Schema](tableName: String, key: PrimaryKey)(action: Action[A]): DynamoDBQuery[A, Option[A]] =
     updateItem(tableName, key)(action).map(_.flatMap(item => fromItem(item).toOption))
 
   def update[From: Schema, To](tableName: String, partitionKeyExpr: KeyConditionExpr.PartitionKeyEquals[From, To])(
@@ -520,7 +520,7 @@ object DynamoDBQuery {
 
   def deleteItem(tableName: String, key: PrimaryKey): Write[Any, Option[Item]] = DeleteItem(TableName(tableName), key)
 
-  def delete[A: Schema](tableName: String, key: PrimaryKey): DynamoDBQuery[Any, Option[A]] =
+  private[dynamodb] def delete[A: Schema](tableName: String, key: PrimaryKey): DynamoDBQuery[Any, Option[A]] =
     deleteItem(tableName, key).map(_.flatMap(item => fromItem(item).toOption))
 
   def delete[From: Schema, To](
