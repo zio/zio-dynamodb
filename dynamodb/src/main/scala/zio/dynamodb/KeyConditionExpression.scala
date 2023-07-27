@@ -30,8 +30,8 @@ sealed trait KeyConditionExpression extends Renderable { self =>
 
 object KeyConditionExpression {
 
-  def getOrInsert[From](primaryKeyName: String): AliasMapRender[String] =
-    AliasMapRender.getOrInsert(ProjectionExpression.MapElement[From, String](Root, primaryKeyName))
+  def getOrInsert[From, To](primaryKeyName: String): AliasMapRender[String] =
+    AliasMapRender.getOrInsert(ProjectionExpression.MapElement[From, To](Root, primaryKeyName))
   private[dynamodb] final case class And(left: PartitionKeyExpression, right: SortKeyExpression)
       extends KeyConditionExpression
   def partitionKey(key: String): PartitionKey                           = PartitionKey(key)
