@@ -34,8 +34,8 @@ object KeyConditionExpression {
     AliasMapRender.getOrInsert(ProjectionExpression.MapElement[From, To](Root, primaryKeyName))
   private[dynamodb] final case class And(left: PartitionKeyExpression, right: SortKeyExpression)
       extends KeyConditionExpression
-  def partitionKey(key: String): PartitionKey                           = PartitionKey(key)
-  def sortKey(key: String): SortKey                                     = SortKey(key)
+  def partitionKey(key: String): PartitionKey                               = PartitionKey(key)
+  def sortKey(key: String): SortKey                                         = SortKey(key)
 
   /**
    * Create a KeyConditionExpression from a ConditionExpression

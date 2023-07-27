@@ -202,7 +202,7 @@ object LiveSpec extends ZIOSpecDefault {
   object ExpressionAttrNamesPkKeywords {
     implicit val schema: Schema.CaseClass3[String, String, Option[Long], ExpressionAttrNamesPkKeywords] =
       DeriveSchema.gen[ExpressionAttrNamesPkKeywords]
-    val (and, source, ttl)                                                                     = ProjectionExpression.accessors[ExpressionAttrNamesPkKeywords]
+    val (and, source, ttl)                                                                              = ProjectionExpression.accessors[ExpressionAttrNamesPkKeywords]
   }
 
   val mainSuite: Spec[TestEnvironment, Any] =
@@ -212,7 +212,9 @@ object LiveSpec extends ZIOSpecDefault {
           withPkKeywordsTable { tableName =>
             val query = DynamoDBQuery
               .queryAll[ExpressionAttrNamesPkKeywords](tableName)
-              .whereKey(ExpressionAttrNamesPkKeywords.and === "and1" && ExpressionAttrNamesPkKeywords.source === "source1")
+              .whereKey(
+                ExpressionAttrNamesPkKeywords.and === "and1" && ExpressionAttrNamesPkKeywords.source === "source1"
+              )
               .filter(ExpressionAttrNamesPkKeywords.ttl.notExists)
             query.execute.flatMap(_.runDrain).exit.map { result =>
               assert(result)(succeeds(isUnit))
@@ -234,7 +236,9 @@ object LiveSpec extends ZIOSpecDefault {
           withPkKeywordsTable { tableName =>
             val query = DynamoDBQuery
               .querySome[ExpressionAttrNamesPkKeywords](tableName, 1)
-              .whereKey(ExpressionAttrNamesPkKeywords.and === "and1" && ExpressionAttrNamesPkKeywords.source === "source1")
+              .whereKey(
+                ExpressionAttrNamesPkKeywords.and === "and1" && ExpressionAttrNamesPkKeywords.source === "source1"
+              )
               .filter(ExpressionAttrNamesPkKeywords.ttl.notExists)
             for {
               result <- query.execute
