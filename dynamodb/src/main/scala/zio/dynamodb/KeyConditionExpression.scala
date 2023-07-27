@@ -29,9 +29,13 @@ sealed trait KeyConditionExpression extends Renderable { self =>
 }
 
 object KeyConditionExpression {
+
+  def getOrInsert[From, To](primaryKeyName: String): AliasMapRender[String] =
+    AliasMapRender.getOrInsert(ProjectionExpression.MapElement[From, To](Root, primaryKeyName))
   private[dynamodb] final case class And(left: PartitionKeyExpression, right: SortKeyExpression)
       extends KeyConditionExpression
-  def partitionKey(key: String): PartitionKey = PartitionKey(key)
+  def partitionKey(key: String): PartitionKey                               = PartitionKey(key)
+  def sortKey(key: String): SortKey                                         = SortKey(key)
 
   /**
    * Create a KeyConditionExpression from a ConditionExpression
@@ -156,7 +160,10 @@ sealed trait PartitionKeyExpression extends KeyConditionExpression { self =>
   override def render: AliasMapRender[String] =
     self match {
       case PartitionKeyExpression.Equals(left, right) =>
-        AliasMapRender.getOrInsert(right).map(v => s"${left.keyName} = $v")
+        for {
+          v       <- AliasMapRender.getOrInsert(right)
+          keyName <- KeyConditionExpression.getOrInsert(left.keyName)
+        } yield s"${keyName} = $v"
     }
 }
 object PartitionKeyExpression {
@@ -171,55 +178,46 @@ sealed trait SortKeyExpression { self =>
   def render: AliasMapRender[String] =
     self match {
       case SortKeyExpression.Equals(left, right)             =>
-        AliasMapRender
-          .getOrInsert(right)
-          .map { v =>
-            s"${left.keyName} = $v"
-          }
+        for {
+          v       <- AliasMapRender.getOrInsert(right)
+          keyName <- KeyConditionExpression.getOrInsert(left.keyName)
+        } yield s"${keyName} = $v"
       case SortKeyExpression.LessThan(left, right)           =>
-        AliasMapRender
-          .getOrInsert(right)
-          .map { v =>
-            s"${left.keyName} < $v"
-          }
+        for {
+          v       <- AliasMapRender.getOrInsert(right)
+          keyName <- KeyConditionExpression.getOrInsert(left.keyName)
+        } yield s"${keyName} < $v"
       case SortKeyExpression.NotEqual(left, right)           =>
-        AliasMapRender
-          .getOrInsert(right)
-          .map { v =>
-            s"${left.keyName} <> $v"
-          }
+        for {
+          v       <- AliasMapRender.getOrInsert(right)
+          keyName <- KeyConditionExpression.getOrInsert(left.keyName)
+        } yield s"${keyName} <> $v"
       case SortKeyExpression.GreaterThan(left, right)        =>
-        AliasMapRender
-          .getOrInsert(right)
-          .map { v =>
-            s"${left.keyName} > $v"
-          }
+        for {
+          v       <- AliasMapRender.getOrInsert(right)
+          keyName <- KeyConditionExpression.getOrInsert(left.keyName)
+        } yield s"${keyName} > $v"
       case SortKeyExpression.LessThanOrEqual(left, right)    =>
-        AliasMapRender
-          .getOrInsert(right)
-          .map { v =>
-            s"${left.keyName} <= $v"
-          }
+        for {
+          v       <- AliasMapRender.getOrInsert(right)
+          keyName <- KeyConditionExpression.getOrInsert(left.keyName)
+        } yield s"${keyName} <= $v"
       case SortKeyExpression.GreaterThanOrEqual(left, right) =>
-        AliasMapRender
-          .getOrInsert(right)
-          .map { v =>
-            s"${left.keyName} >= $v"
-          }
+        for {
+          v       <- AliasMapRender.getOrInsert(right)
+          keyName <- KeyConditionExpression.getOrInsert(left.keyName)
+        } yield s"${keyName} >= $v"
       case SortKeyExpression.Between(left, min, max)         =>
-        AliasMapRender
-          .getOrInsert(min)
-          .flatMap(min =>
-            AliasMapRender.getOrInsert(max).map { max =>
-              s"${left.keyName} BETWEEN $min AND $max"
-            }
-          )
+        for {
+          min2    <- AliasMapRender.getOrInsert(min)
+          max2    <- AliasMapRender.getOrInsert(max)
+          keyName <- KeyConditionExpression.getOrInsert(left.keyName)
+        } yield s"${keyName} BETWEEN $min2 AND $max2"
       case SortKeyExpression.BeginsWith(left, value)         =>
-        AliasMapRender
-          .getOrInsert(value)
-          .map { v =>
-            s"begins_with(${left.keyName}, $v)"
-          }
+        for {
+          v       <- AliasMapRender.getOrInsert(value)
+          keyName <- KeyConditionExpression.getOrInsert(left.keyName)
+        } yield s"begins_with(${keyName}, $v)"
     }
 
 }
