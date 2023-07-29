@@ -14,6 +14,9 @@ sealed trait KeyConditionExpr[-From, +To] extends Renderable { self =>
 }
 
 object KeyConditionExpr {
+  def getOrInsert[From, To](primaryKeyName: String): AliasMapRender[String] =
+    // note primary keys must be scalar values, they can't be nested
+    AliasMapRender.getOrInsert(ProjectionExpression.MapElement[From, To](ProjectionExpression.Root, primaryKeyName))
 
   private[dynamodb] final case class PartitionKeyEquals[-From, +To](pk: PartitionKey[From, To], value: AttributeValue)
       extends KeyConditionExpr[From, To] { self =>
@@ -26,15 +29,20 @@ object KeyConditionExpr {
     def asAttrMap: AttrMap = AttrMap(pk.keyName -> value)
 
     override def render: AliasMapRender[String] =
-      AliasMapRender.getOrInsert(value).map(v => s"${pk.keyName} = $v")
+      for {
+        v        <- AliasMapRender.getOrInsert(value)
+        keyAlias <- KeyConditionExpr.getOrInsert(pk.keyName)
+      } yield s"${keyAlias} = $v"
+
   }
 
   private[dynamodb] final case class SortKeyEquals[-From, +To](sortKey: SortKey[From, To], value: AttributeValue) {
     self =>
     def miniRender: AliasMapRender[String] =
-      AliasMapRender
-        .getOrInsert(value)
-        .map(v => s"${sortKey.keyName} = $v")
+      for {
+        v        <- AliasMapRender.getOrInsert(value)
+        keyAlias <- KeyConditionExpr.getOrInsert(sortKey.keyName)
+      } yield s"${keyAlias} = $v"
   }
 
   private[dynamodb] final case class CompositePrimaryKeyExpr[-From](
@@ -70,39 +78,41 @@ object KeyConditionExpr {
     def miniRender: AliasMapRender[String] =
       self match {
         case ExtendedSortKeyExpr.GreaterThan(sk, value)        =>
-          AliasMapRender
-            .getOrInsert(value)
-            .map(v => s"${sk.keyName} > $v")
+          for {
+            v        <- AliasMapRender.getOrInsert(value)
+            keyAlias <- KeyConditionExpr.getOrInsert(sk.keyName)
+          } yield s"${keyAlias} > $v"
         case ExtendedSortKeyExpr.LessThan(sk, value)           =>
-          AliasMapRender
-            .getOrInsert(value)
-            .map(v => s"${sk.keyName} < $v")
+          for {
+            v        <- AliasMapRender.getOrInsert(value)
+            keyAlias <- KeyConditionExpr.getOrInsert(sk.keyName)
+          } yield s"${keyAlias} < $v"
         case ExtendedSortKeyExpr.NotEqual(sk, value)           =>
-          AliasMapRender
-            .getOrInsert(value)
-            .map(v => s"${sk.keyName} <> $v")
+          for {
+            v        <- AliasMapRender.getOrInsert(value)
+            keyAlias <- KeyConditionExpr.getOrInsert(sk.keyName)
+          } yield s"${keyAlias} <> $v"
         case ExtendedSortKeyExpr.LessThanOrEqual(sk, value)    =>
-          AliasMapRender
-            .getOrInsert(value)
-            .map(v => s"${sk.keyName} <= $v")
+          for {
+            v        <- AliasMapRender.getOrInsert(value)
+            keyAlias <- KeyConditionExpr.getOrInsert(sk.keyName)
+          } yield s"${keyAlias} <= $v"
         case ExtendedSortKeyExpr.GreaterThanOrEqual(sk, value) =>
-          AliasMapRender
-            .getOrInsert(value)
-            .map(v => s"${sk.keyName} >= $v")
+          for {
+            v        <- AliasMapRender.getOrInsert(value)
+            keyAlias <- KeyConditionExpr.getOrInsert(sk.keyName)
+          } yield s"${keyAlias} >= $v"
         case ExtendedSortKeyExpr.Between(left, min, max)       =>
-          AliasMapRender
-            .getOrInsert(min)
-            .flatMap(min =>
-              AliasMapRender.getOrInsert(max).map { max =>
-                s"${left.keyName} BETWEEN $min AND $max"
-              }
-            )
+          for {
+            min2     <- AliasMapRender.getOrInsert(min)
+            max2     <- AliasMapRender.getOrInsert(max)
+            keyAlias <- KeyConditionExpr.getOrInsert(left.keyName)
+          } yield s"${keyAlias} BETWEEN $min2 AND $max2"
         case ExtendedSortKeyExpr.BeginsWith(left, value)       =>
-          AliasMapRender
-            .getOrInsert(value)
-            .map { v =>
-              s"begins_with(${left.keyName}, $v)"
-            }
+          for {
+            v        <- AliasMapRender.getOrInsert(value)
+            keyAlias <- KeyConditionExpr.getOrInsert(left.keyName)
+          } yield s"begins_with(${keyAlias}, $v)"
       }
 
   }

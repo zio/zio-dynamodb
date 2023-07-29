@@ -323,98 +323,116 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
         suite("Sort key expressions")(
           test("Equals") {
             val map = Map(
-              avKey(one) -> ":v0"
+              avKey(one)               -> ":v0",
+              pathSegment(Root, "num") -> "#n1",
+              fullPath($("num"))       -> "#n1"
             )
 
             val (aliasMap, expression) =
               KeyConditionExpr.SortKeyEquals($("num").sortKey, one).miniRender.execute
 
-            assert(aliasMap)(equalTo(AliasMap(map, 1))) &&
-            assert(expression)(equalTo("num = :v0"))
+            assert(aliasMap)(equalTo(AliasMap(map, 2))) &&
+            assert(expression)(equalTo("#n1 = :v0"))
           },
           test("LessThan") {
             val map = Map(
-              avKey(one) -> ":v0"
+              avKey(one)               -> ":v0",
+              pathSegment(Root, "num") -> "#n1",
+              fullPath($("num"))       -> "#n1"
             )
 
             val (aliasMap, expression) =
               KeyConditionExpr.ExtendedSortKeyExpr.LessThan($("num").sortKey, one).miniRender.execute
 
-            assert(aliasMap)(equalTo(AliasMap(map, 1))) &&
-            assert(expression)(equalTo("num < :v0"))
+            assert(aliasMap)(equalTo(AliasMap(map, 2))) &&
+            assert(expression)(equalTo("#n1 < :v0"))
           },
           test("NotEqual") {
             val map = Map(
-              avKey(one) -> ":v0"
+              avKey(one)               -> ":v0",
+              pathSegment(Root, "num") -> "#n1",
+              fullPath($("num"))       -> "#n1"
             )
 
             val (aliasMap, expression) =
               KeyConditionExpr.ExtendedSortKeyExpr.NotEqual($("num").sortKey, one).miniRender.execute
 
-            assert(aliasMap)(equalTo(AliasMap(map, 1))) &&
-            assert(expression)(equalTo("num <> :v0"))
+            assert(aliasMap)(equalTo(AliasMap(map, 2))) &&
+            assert(expression)(equalTo("#n1 <> :v0"))
           },
           test("GreaterThan") {
             val map = Map(
-              avKey(one) -> ":v0"
+              avKey(one)               -> ":v0",
+              pathSegment(Root, "num") -> "#n1",
+              fullPath($("num"))       -> "#n1"
             )
 
             val (aliasMap, expression) =
               KeyConditionExpr.ExtendedSortKeyExpr.GreaterThan($("num").sortKey, one).miniRender.execute
 
-            assert(aliasMap)(equalTo(AliasMap(map, 1))) &&
-            assert(expression)(equalTo("num > :v0"))
+            assert(aliasMap)(equalTo(AliasMap(map, 2))) &&
+            assert(expression)(equalTo("#n1 > :v0"))
           },
           test("LessThanOrEqual") {
             val map = Map(
-              avKey(one) -> ":v0"
+              avKey(one)               -> ":v0",
+              pathSegment(Root, "num") -> "#n1",
+              fullPath($("num"))       -> "#n1"
             )
 
             val (aliasMap, expression) =
               KeyConditionExpr.ExtendedSortKeyExpr.LessThanOrEqual($("num").sortKey, one).miniRender.execute
 
-            assert(aliasMap)(equalTo(AliasMap(map, 1))) &&
-            assert(expression)(equalTo("num <= :v0"))
+            assert(aliasMap)(equalTo(AliasMap(map, 2))) &&
+            assert(expression)(equalTo("#n1 <= :v0"))
           },
           test("GreaterThanOrEqual") {
             val map = Map(
-              avKey(one) -> ":v0"
+              avKey(one)               -> ":v0",
+              pathSegment(Root, "num") -> "#n1",
+              fullPath($("num"))       -> "#n1"
             )
 
             val (aliasMap, expression) =
               KeyConditionExpr.ExtendedSortKeyExpr.GreaterThanOrEqual($("num").sortKey, one).miniRender.execute
 
-            assert(aliasMap)(equalTo(AliasMap(map, 1))) &&
-            assert(expression)(equalTo("num >= :v0"))
+            assert(aliasMap)(equalTo(AliasMap(map, 2))) &&
+            assert(expression)(equalTo("#n1 >= :v0"))
           },
           test("Between") {
             val map = Map(
-              avKey(one) -> ":v0",
-              avKey(two) -> ":v1"
+              avKey(one)               -> ":v0",
+              avKey(two)               -> ":v1",
+              pathSegment(Root, "num") -> "#n2",
+              fullPath($("num"))       -> "#n2"
             )
 
             val (aliasMap, expression) =
               KeyConditionExpr.ExtendedSortKeyExpr.Between($("num").sortKey, one, two).miniRender.execute
 
-            assert(aliasMap)(equalTo(AliasMap(map, 2))) &&
-            assert(expression)(equalTo("num BETWEEN :v0 AND :v1"))
+            assert(aliasMap)(equalTo(AliasMap(map, 3))) &&
+            assert(expression)(equalTo("#n2 BETWEEN :v0 AND :v1"))
           },
           test("BeginsWith") {
             val map = Map(
-              avKey(name) -> ":v0"
+              avKey(name)              -> ":v0",
+              pathSegment(Root, "num") -> "#n1",
+              fullPath($("num"))       -> "#n1"
             )
 
             val (aliasMap, expression) =
               KeyConditionExpr.ExtendedSortKeyExpr.BeginsWith($("num").sortKey, name).miniRender.execute
 
-            assert(aliasMap)(equalTo(AliasMap(map, 1))) &&
-            assert(expression)(equalTo("begins_with(num, :v0)"))
+            assert(aliasMap)(equalTo(AliasMap(map, 2))) &&
+            assert(expression)(equalTo("begins_with(#n1, :v0)"))
           }
         ),
         suite("PartitionKeyExpression")(
           test("Equals") {
             val map = Map(
-              avKey(one) -> ":v0"
+              avKey(one)               -> ":v0",
+              pathSegment(Root, "num") -> "#n1",
+              fullPath($("num"))       -> "#n1"
             )
 
             val (aliasMap, expression) = KeyConditionExpr
@@ -422,27 +440,31 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
               .render
               .execute
 
-            assert(aliasMap)(equalTo(AliasMap(map, 1))) &&
-            assert(expression)(equalTo("num = :v0"))
+            assert(aliasMap)(equalTo(AliasMap(map, 2))) &&
+            assert(expression)(equalTo("#n1 = :v0"))
           }
         ),
         test("And") {
           val map = Map(
-            avKey(two)   -> ":v0",
-            avKey(one)   -> ":v1",
-            avKey(three) -> ":v2"
+            avKey(two)                -> ":v0",
+            avKey(one)                -> ":v2",
+            avKey(three)              -> ":v3",
+            pathSegment(Root, "num")  -> "#n1",
+            fullPath($("num"))        -> "#n1",
+            pathSegment(Root, "num2") -> "#n4",
+            fullPath($("num2"))       -> "#n4"
           )
 
           val (aliasMap, expression) = KeyConditionExpr
             .ExtendedCompositePrimaryKeyExpr(
               KeyConditionExpr.PartitionKeyEquals($("num").partitionKey, two),
-              KeyConditionExpr.ExtendedSortKeyExpr.Between($("num").sortKey, one, three)
+              KeyConditionExpr.ExtendedSortKeyExpr.Between($("num2").sortKey, one, three)
             )
             .render
             .execute
 
-          assert(aliasMap)(equalTo(AliasMap(map, 3))) &&
-          assert(expression)(equalTo("num = :v0 AND num BETWEEN :v1 AND :v2"))
+          assert(aliasMap)(equalTo(AliasMap(map, 5))) &&
+          assert(expression)(equalTo("#n1 = :v0 AND #n4 BETWEEN :v2 AND :v3"))
         }
       ),
       suite("AttributeValueType")(

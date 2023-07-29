@@ -114,6 +114,12 @@ object LiveSpec extends ZIOSpecDefault {
       AttributeDefinition.attrDefnString(name)
     )
 
+  private def sortKeyStringTableWithKeywords(tableName: String) =
+    createTable(tableName, KeySchema("and", "source"), BillingMode.PayPerRequest)(
+      AttributeDefinition.attrDefnString("and"),
+      AttributeDefinition.attrDefnString("source")
+    )
+
   private def managedTable(tableDefinition: String => CreateTable) =
     ZIO
       .acquireRelease(
@@ -122,6 +128,17 @@ object LiveSpec extends ZIOSpecDefault {
           _         <- tableDefinition(tableName).execute
         } yield TableName(tableName)
       )(tName => deleteTable(tName.value).execute.orDie)
+
+  private def withPkKeywordsTable(
+    f: String => ZIO[DynamoDBExecutor, Throwable, TestResult]
+  ) =
+    ZIO.scoped {
+      managedTable(sortKeyStringTableWithKeywords).flatMap { table =>
+        for {
+          result <- f(table.value)
+        } yield result
+      }
+    }
 
   // TODO: Avi - fix problem with inference of this function when splitting suites
   // "a type was inferred to be `Any`; this may indicate a programming error."
@@ -177,6 +194,13 @@ object LiveSpec extends ZIOSpecDefault {
     val (id, num, ttl)                                                                     = ProjectionExpression.accessors[ExpressionAttrNames]
   }
 
+  final case class ExpressionAttrNamesPkKeywords(and: String, source: String, ttl: Option[Long])
+  object ExpressionAttrNamesPkKeywords {
+    implicit val schema: Schema.CaseClass3[String, String, Option[Long], ExpressionAttrNamesPkKeywords] =
+      DeriveSchema.gen[ExpressionAttrNamesPkKeywords]
+    val (and, source, ttl)                                                                              = ProjectionExpression.accessors[ExpressionAttrNamesPkKeywords]
+  }
+
   val debugSuite = suite("debug")(
     test("delete should handle keyword") {
       withDefaultTable { tableName =>
@@ -198,6 +222,56 @@ object LiveSpec extends ZIOSpecDefault {
 
   val mainSuite: Spec[TestEnvironment, Any] =
     suite("live test")(
+      suite("key words in Key Condition Expressions")(
+        test("queryAll should handle keywords in primary key names using high level API") {
+          withPkKeywordsTable { tableName =>
+            val query = DynamoDBQuery
+              .queryAll[ExpressionAttrNamesPkKeywords](tableName)
+              .whereKey(
+                ExpressionAttrNamesPkKeywords.and.partitionKey === "and1" && ExpressionAttrNamesPkKeywords.source.sortKey === "source1"
+              )
+              .filter(ExpressionAttrNamesPkKeywords.ttl.notExists)
+            query.execute.flatMap(_.runDrain).exit.map { result =>
+              assert(result)(succeeds(isUnit))
+            }
+          }
+        },
+        test("queryAll should handle keywords in primary key name using low level API") {
+          withPkKeywordsTable { tableName =>
+            val query = DynamoDBQuery
+              .queryAll[ExpressionAttrNamesPkKeywords](tableName)
+              .whereKey($("and").partitionKey === "and1" && $("source").sortKey === "source1")
+              .filter(ExpressionAttrNamesPkKeywords.ttl.notExists)
+            query.execute.flatMap(_.runDrain).exit.map { result =>
+              assert(result)(succeeds(isUnit))
+            }
+          }
+        },
+        test("querySome should handle keywords in primary key name using high level API") {
+          withPkKeywordsTable { tableName =>
+            val query = DynamoDBQuery
+              .querySome[ExpressionAttrNamesPkKeywords](tableName, 1)
+              .whereKey(
+                ExpressionAttrNamesPkKeywords.and.partitionKey === "and1" && ExpressionAttrNamesPkKeywords.source.sortKey === "source1"
+              )
+              .filter(ExpressionAttrNamesPkKeywords.ttl.notExists)
+            for {
+              result <- query.execute
+            } yield assert(result._1)(hasSize(equalTo(0)))
+          }
+        },
+        test("querySome should handle keywords in primary key name using low level API") {
+          withPkKeywordsTable { tableName =>
+            val query = DynamoDBQuery
+              .querySome[ExpressionAttrNames](tableName, 1)
+              .whereKey($("and").partitionKey === "and1" && $("source").sortKey === "source1")
+              .filter(ExpressionAttrNames.ttl.notExists)
+            for {
+              result <- query.execute
+            } yield assert(result._1)(hasSize(equalTo(0)))
+          }
+        }
+      ),
       suite("keywords in expression attribute names")(
         suite("using high level api")(
           test("scanAll should handle keyword") {
