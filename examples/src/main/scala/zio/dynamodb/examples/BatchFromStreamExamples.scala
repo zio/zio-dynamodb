@@ -38,7 +38,7 @@ object BatchFromStreamExamples extends ZIOAppDefault {
              .runDrain
 
       // same again but use Schema derived codecs to convert an Item to a Person
-      _ <- batchReadFromStream2("person", personIdStream)(id => Person.id.partitionKey === id)
+      _ <- batchReadFromStream("person", personIdStream)(id => Person.id.partitionKey === id)
              .mapZIOPar(4)(person => printLine(s"person=$person"))
              .runDrain
     } yield ()).provide(DynamoDBExecutor.test)

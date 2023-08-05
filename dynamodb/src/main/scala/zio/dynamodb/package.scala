@@ -103,12 +103,12 @@ package object dynamodb {
    * @tparam B implicit Schema[B] where B is the type of the element in the returned stream
    * @return stream of Either[DynamoDBError.DecodingError, (A, Option[B])]
    */
-  def batchReadFromStream2[R, A, From: Schema, To1: IsPrimaryKey, To2: IsPrimaryKey](
+  def batchReadFromStream[R, A, From: Schema, Pk: IsPrimaryKey, Sk: IsPrimaryKey](
     tableName: String,
     stream: ZStream[R, Throwable, A],
     mPar: Int = 10
   )(
-    pk: A => PrimaryKeyExpr[From, To1, To2]
+    pk: A => PrimaryKeyExpr[From, Pk, Sk]
   ): ZStream[R with DynamoDBExecutor, Throwable, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
     stream
       .aggregateAsync(ZSink.collectAllN[A](100))

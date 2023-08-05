@@ -26,9 +26,8 @@ object ZStreamPipeliningSpec extends ZIOSpecDefault {
           _           <- batchWriteFromStream(personStream) { person =>
                            put("person", person)
                          }.runDrain
-          xs          <- batchReadFromStream2("person", personStream)(person =>
-                           Person.id.partitionKey === person.id
-                         ).right.runCollect
+          xs          <-
+            batchReadFromStream("person", personStream)(person => Person.id.partitionKey === person.id).right.runCollect
           actualPeople = xs.toList.map { case (_, p) => p }.collect { case Some(b) => b }
         } yield assert(actualPeople)(equalTo(people))
       },
@@ -42,7 +41,7 @@ object ZStreamPipeliningSpec extends ZIOSpecDefault {
                             PrimaryKey("id" -> 1) -> Item("id" -> 1, "name" -> "Avi"),
                             PrimaryKey("id" -> 2) -> Item("id" -> 2, "boom!" -> "de-serialisation-error-expected")
                           )
-          actualPeople <- batchReadFromStream2("person", personStream.take(3))(person =>
+          actualPeople <- batchReadFromStream("person", personStream.take(3))(person =>
                             Person.id.partitionKey === person.id
                           ).runCollect
         } yield assertTrue(

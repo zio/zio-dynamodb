@@ -465,23 +465,14 @@ object DynamoDBQuery {
       case None       => Left(ValueNotFound(s"value with key $key not found"))
     }
 
-  def get[From: Schema, To1, To2](
+  def get[From: Schema, Pk, Sk](
     tableName: String,
-    partitionKeyExpr: PrimaryKeyExpr[From, To1, To2],
+    partitionKeyExpr: PrimaryKeyExpr[From, Pk, Sk],
     projections: ProjectionExpression[_, _]*
-  )(implicit ev: IsPrimaryKey[To1], ev2: IsPrimaryKey[To2]): DynamoDBQuery[From, Either[DynamoDBError, From]] = {
+  )(implicit ev: IsPrimaryKey[Pk], ev2: IsPrimaryKey[Sk]): DynamoDBQuery[From, Either[DynamoDBError, From]] = {
     val (_, _) = (ev, ev2)
     get(tableName, partitionKeyExpr.asAttrMap, projections: _*)
   }
-
-  // def get[From: Schema, To](
-  //   tableName: String,
-  //   compositeKeyExpr: KeyConditionExpr.CompositePrimaryKeyExpr[From],
-  //   projections: ProjectionExpression[_, _]*
-  // )(implicit ev: IsPrimaryKey[To]): DynamoDBQuery[From, Either[DynamoDBError, From]] = {
-  //   val _ = ev
-  //   get(tableName, compositeKeyExpr.asAttrMap, projections: _*)
-  // }
 
   private[dynamodb] def fromItem[A: Schema](item: Item): Either[DynamoDBError, A] = {
     val av = ToAttributeValue.attrMapToAttributeValue.toAttributeValue(item)
@@ -510,32 +501,18 @@ object DynamoDBQuery {
   ): DynamoDBQuery[A, Option[A]] =
     updateItem(tableName, key)(action).map(_.flatMap(item => fromItem(item).toOption))
 
-  def update[From: Schema, To1, To2](tableName: String, primaryKeyExpr: PrimaryKeyExpr[From, To1, To2])(
+  def update[From: Schema, Pk, Sk](tableName: String, primaryKeyExpr: PrimaryKeyExpr[From, Pk, Sk])(
     action: Action[From]
   ): DynamoDBQuery[From, Option[From]] =
     updateItem(tableName, primaryKeyExpr.asAttrMap)(action).map(_.flatMap(item => fromItem(item).toOption))
 
-  // def update[From: Schema](tableName: String, compositeKeyExpr: KeyConditionExpr.CompositePrimaryKeyExpr[From])(
-  //   action: Action[From]
-  // ): DynamoDBQuery[From, Option[From]] =
-  //   updateItem(tableName, compositeKeyExpr.asAttrMap)(action).map(_.flatMap(item => fromItem(item).toOption))
-
   def deleteItem(tableName: String, key: PrimaryKey): Write[Any, Option[Item]] = DeleteItem(TableName(tableName), key)
 
-  // private[dynamodb] def delete[A: Schema](tableName: String, key: PrimaryKey): DynamoDBQuery[Any, Option[A]] =
-  //   deleteItem(tableName, key).map(_.flatMap(item => fromItem(item).toOption))
-
-  def delete[From: Schema, To1, To2](
+  def delete[From: Schema, Pk, Sk](
     tableName: String, // TODO: rename as deleteFrom(tableName)(etc)
-    primaryKeyExpr: PrimaryKeyExpr[From, To1, To2]
+    primaryKeyExpr: PrimaryKeyExpr[From, Pk, Sk]
   ): DynamoDBQuery[Any, Option[From]] =
     deleteItem(tableName, primaryKeyExpr.asAttrMap).map(_.flatMap(item => fromItem(item).toOption))
-
-  // def delete[From: Schema](
-  //   tableName: String,
-  //   compositeKeyExpr: KeyConditionExpr.CompositePrimaryKeyExpr[From]
-  // ): DynamoDBQuery[Any, Option[From]] =
-  //   deleteItem(tableName, compositeKeyExpr.asAttrMap).map(_.flatMap(item => fromItem(item).toOption))
 
   /**
    * when executed will return a Tuple of {{{(Chunk[Item], LastEvaluatedKey)}}}
