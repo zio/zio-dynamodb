@@ -9,22 +9,30 @@ package zio.dynamodb
  * Note 1), 2) and 3) are all valid key condition expressions
  * BUT only 1) and 2) are valid primary key expressions that can be used in GetItem, UpdateItem and DeleteItem DynamoDB queries
  */
-sealed trait KeyConditionExpr[-From, +To] extends Renderable { self =>
+sealed trait KeyConditionExpr[-From, +To1, +To2] extends Renderable { self =>
   def render: AliasMapRender[String]
 }
 
+sealed trait PrimaryKeyExpr[-From, +To1, +To2] extends KeyConditionExpr[From, To1, To2] {
+  def asAttrMap: AttrMap
+}
+
 object KeyConditionExpr {
+  type SortKeyNotUsed
+
   def getOrInsert[From, To](primaryKeyName: String): AliasMapRender[String] =
     // note primary keys must be scalar values, they can't be nested
     AliasMapRender.getOrInsert(ProjectionExpression.MapElement[From, To](ProjectionExpression.Root, primaryKeyName))
 
   private[dynamodb] final case class PartitionKeyEquals[-From, +To](pk: PartitionKey[From, To], value: AttributeValue)
-      extends KeyConditionExpr[From, To] { self =>
+      extends PrimaryKeyExpr[From, To, SortKeyNotUsed] { self =>
 
-    def &&[From1 <: From, To2](other: SortKeyEquals[From1, To2]): CompositePrimaryKeyExpr[From1]                    =
-      CompositePrimaryKeyExpr[From1](self.asInstanceOf[PartitionKeyEquals[From1, To2]], other)
-    def &&[From1 <: From, To2](other: ExtendedSortKeyExpr[From1, To2]): ExtendedCompositePrimaryKeyExpr[From1, To2] =
-      ExtendedCompositePrimaryKeyExpr[From1, To2](self.asInstanceOf[PartitionKeyEquals[From1, To2]], other)
+    def &&[From1 <: From, To2](other: SortKeyEquals[From1, To2]): CompositePrimaryKeyExpr[From1, To, To2] =
+      CompositePrimaryKeyExpr[From1, To, To2](self.asInstanceOf[PartitionKeyEquals[From1, To]], other)
+    def &&[From1 <: From, To2](
+      other: ExtendedSortKeyExpr[From1, To2]
+    ): ExtendedCompositePrimaryKeyExpr[From1, To, To2]                                                    =
+      ExtendedCompositePrimaryKeyExpr[From1, To, To2](self.asInstanceOf[PartitionKeyEquals[From1, To]], other)
 
     def asAttrMap: AttrMap = AttrMap(pk.keyName -> value)
 
@@ -45,10 +53,10 @@ object KeyConditionExpr {
       } yield s"${keyAlias} = $v"
   }
 
-  private[dynamodb] final case class CompositePrimaryKeyExpr[-From](
-    pk: PartitionKeyEquals[From, Any],
-    sk: SortKeyEquals[From, Any]
-  ) extends KeyConditionExpr[From, Any] {
+  private[dynamodb] final case class CompositePrimaryKeyExpr[-From, +To1, +To2](
+    pk: PartitionKeyEquals[From, To1],
+    sk: SortKeyEquals[From, To2]
+  ) extends PrimaryKeyExpr[From, To1, To2] {
     self =>
 
     def asAttrMap: AttrMap = PrimaryKey(pk.pk.keyName -> pk.value, sk.sortKey.keyName -> sk.value)
@@ -60,10 +68,10 @@ object KeyConditionExpr {
       } yield s"$pkStr AND $skStr"
 
   }
-  private[dynamodb] final case class ExtendedCompositePrimaryKeyExpr[-From, +To](
-    pk: PartitionKeyEquals[From, To],
-    sk: ExtendedSortKeyExpr[From, To]
-  ) extends KeyConditionExpr[From, To] {
+  private[dynamodb] final case class ExtendedCompositePrimaryKeyExpr[-From, +To1, +To2](
+    pk: PartitionKeyEquals[From, To1],
+    sk: ExtendedSortKeyExpr[From, To2]
+  ) extends KeyConditionExpr[From, To1, To2] {
     self =>
 
     def render: AliasMapRender[String] =

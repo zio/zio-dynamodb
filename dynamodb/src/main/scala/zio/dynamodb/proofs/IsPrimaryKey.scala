@@ -1,6 +1,7 @@
 package zio.dynamodb.proofs
 
 import scala.annotation.implicitNotFound
+import zio.dynamodb.KeyConditionExpr
 
 @implicitNotFound("DynamoDB does not support primary key type ${A} - allowed types are: String, Number, Binary")
 sealed trait IsPrimaryKey[-A]
@@ -16,4 +17,7 @@ object IsPrimaryKey {
   implicit val bigDecimalIsPrimaryKey: IsPrimaryKey[BigDecimal] = new IsPrimaryKey[BigDecimal] {}
 
   implicit val binaryIsPrimaryKey: IsPrimaryKey[Iterable[Byte]] = new IsPrimaryKey[Iterable[Byte]] {}
+
+  implicit val sortKeyNotUsed: IsPrimaryKey[KeyConditionExpr.SortKeyNotUsed] =
+    new IsPrimaryKey[KeyConditionExpr.SortKeyNotUsed] {}
 }

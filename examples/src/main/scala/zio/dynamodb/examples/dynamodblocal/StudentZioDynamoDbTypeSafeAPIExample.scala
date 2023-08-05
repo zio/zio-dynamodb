@@ -30,7 +30,7 @@ object StudentZioDynamoDbTypeSafeAPIExample extends ZIOAppDefault {
            put("student", student)
          }.runDrain
     _ <- put("student", avi.copy(payment = Payment.CreditCard)).execute
-    _ <- batchReadFromStream("student", ZStream(avi, adam))(student => primaryKey(student.email, student.subject))
+    _ <- batchReadFromStream2("student", ZStream(avi, adam))(student => primaryKey2(student.email, student.subject))
            .tap(errorOrStudent => Console.printLine(s"student=$errorOrStudent"))
            .runDrain
     _ <- scanAll[Student]("student")

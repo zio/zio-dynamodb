@@ -12,9 +12,9 @@ trait CanSortKeyBeginsWith0 extends CanSortKeyBeginsWith1 {
     new CanSortKeyBeginsWith[X, ProjectionExpression.Unknown] {}
 }
 trait CanSortKeyBeginsWith1 {
+  // begins_with with only applies to keys of type string or bytes
   implicit def bytes[A <: Iterable[Byte]]: CanSortKeyBeginsWith[A, A] =
     new CanSortKeyBeginsWith[A, A] {}
-
   implicit def string: CanSortKeyBeginsWith[String, String]           = new CanSortKeyBeginsWith[String, String] {}
 }
 object CanSortKeyBeginsWith extends CanSortKeyBeginsWith0 {

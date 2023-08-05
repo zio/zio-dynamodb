@@ -201,25 +201,6 @@ object LiveSpec extends ZIOSpecDefault {
     val (and, source, ttl)                                                                              = ProjectionExpression.accessors[ExpressionAttrNamesPkKeywords]
   }
 
-  val debugSuite = suite("debug")(
-    test("delete should handle keyword") {
-      withDefaultTable { tableName =>
-        val query = DynamoDBQuery
-          .delete(
-            tableName,
-            ExpressionAttrNames.id.partitionKey === "id" && ExpressionAttrNames.num.sortKey === 1
-          )
-          .where(ExpressionAttrNames.ttl.notExists)
-        query.execute.exit.map { result =>
-          assert(result)(succeeds(isNone))
-        }
-      }
-    }
-  )
-    .provideSomeLayerShared[TestEnvironment](
-      testLayer.orDie
-    ) @@ nondeterministic
-
   val mainSuite: Spec[TestEnvironment, Any] =
     suite("live test")(
       suite("key words in Key Condition Expressions")(
@@ -1334,7 +1315,7 @@ object LiveSpec extends ZIOSpecDefault {
             withDefaultTable { tableName =>
               val d = delete(
                 tableName = tableName,
-                compositeKeyExpr =
+                primaryKeyExpr =
                   ExpressionAttrNames.id.partitionKey === "first" && ExpressionAttrNames.num.sortKey === 7
               ).where(ExpressionAttrNames.ttl.notExists)
               d.transaction.execute.exit.map { result =>
@@ -1358,7 +1339,7 @@ object LiveSpec extends ZIOSpecDefault {
             withDefaultTable { tableName =>
               val u = update(
                 tableName = tableName,
-                compositeKeyExpr =
+                primaryKeyExpr =
                   ExpressionAttrNames.id.partitionKey === "first" && ExpressionAttrNames.num.sortKey === 7
               )(ExpressionAttrNames.ttl.set(None)).where(ExpressionAttrNames.ttl.notExists)
               u.transaction.execute.exit.map { result =>

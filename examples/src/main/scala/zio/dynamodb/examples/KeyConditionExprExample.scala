@@ -12,11 +12,12 @@ object KeyConditionExprExample extends App {
   import zio.dynamodb.KeyConditionExpr.SortKeyEquals
   import zio.dynamodb.ProjectionExpression.$
 
-  val x6: CompositePrimaryKeyExpr[Any]              = $("foo.bar").partitionKey === 1 && $("foo.baz").sortKey === "y"
-  val x7                                            = $("foo.bar").partitionKey === 1 && $("foo.baz").sortKey > 1
-  val x8: ExtendedCompositePrimaryKeyExpr[Any, Int] =
+  val x6: CompositePrimaryKeyExpr[Any, ProjectionExpression.Unknown, String]      =
+    $("foo.bar").partitionKey === 1 && $("foo.baz").sortKey === "y"
+  val x7                                                                          = $("foo.bar").partitionKey === 1 && $("foo.baz").sortKey > 1
+  val x8: ExtendedCompositePrimaryKeyExpr[Any, ProjectionExpression.Unknown, Int] =
     $("foo.bar").partitionKey === 1 && $("foo.baz").sortKey.between(1, 2)
-  val x9                                            =
+  val x9                                                                          =
     $("foo.bar").partitionKey === 1 && $("foo.baz").sortKey.beginsWith(1L)
 
   final case class Elephant(email: String, subject: String, age: Int)
@@ -31,23 +32,25 @@ object KeyConditionExprExample extends App {
     val (email, subject, age, binary, binary2)                                                      = ProjectionExpression.accessors[Student]
   }
 
-  val pk: PartitionKeyEquals[Student, String]   = Student.email.partitionKey === "x"
+  val pk: PartitionKeyEquals[Student, String]                   = Student.email.partitionKey === "x"
 //  val pkX: PartitionKeyExpr[Student, String]     = Student.age.primaryKey === "x" // as expected does not compile
-  val sk1: SortKeyEquals[Student, String]       = Student.subject.sortKey === "y"
-  val sk2: ExtendedSortKeyExpr[Student, String] = Student.subject.sortKey > "y"
-  val pkAndSk: CompositePrimaryKeyExpr[Student] = Student.email.partitionKey === "x" && Student.subject.sortKey === "y"
+  val sk1: SortKeyEquals[Student, String]                       = Student.subject.sortKey === "y"
+  val sk2: ExtendedSortKeyExpr[Student, String]                 = Student.subject.sortKey > "y"
+  val pkAndSk: CompositePrimaryKeyExpr[Student, String, String] =
+    Student.email.partitionKey === "x" && Student.subject.sortKey === "y"
+
   //val three = Student.email.primaryKey === "x" && Student.subject.sortKey === "y" && Student.subject.sortKey // 3 terms not allowed
-  val pkAndSkExtended1                          =
+  val pkAndSkExtended1 =
     Student.email.partitionKey === "x" && Student.subject.sortKey > "y"
-  val pkAndSkExtended2                          =
+  val pkAndSkExtended2 =
     Student.email.partitionKey === "x" && Student.subject.sortKey < "y"
-  val pkAndSkExtended3                          =
+  val pkAndSkExtended3 =
     Student.email.partitionKey === "x" && Student.subject.sortKey.between("1", "2")
-  val pkAndSkExtended4                          =
+  val pkAndSkExtended4 =
     Student.email.partitionKey === "x" && Student.subject.sortKey.beginsWith("1")
-  val pkAndSkExtended5                          =
+  val pkAndSkExtended5 =
     Student.email.partitionKey === "x" && Student.binary.sortKey.beginsWith(List(1.toByte))
-  val pkAndSkExtended6                          =
+  val pkAndSkExtended6 =
     Student.email.partitionKey === "x" && Student.binary2.sortKey.beginsWith(List(1.toByte))
   // TODO: Avi - fix ToAttrubuteValue interop with Array[Byte]
 

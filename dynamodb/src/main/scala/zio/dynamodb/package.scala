@@ -36,7 +36,9 @@ package object dynamodb {
   def batchWriteFromStream[R, A, In, B](
     stream: ZStream[R, Throwable, A],
     mPar: Int = 10
-  )(f: A => DynamoDBQuery[In, B]): ZStream[DynamoDBExecutor with R, Throwable, B] =
+  )(
+    f: A => DynamoDBQuery[In, B]
+  ): ZStream[DynamoDBExecutor with R, Throwable, B] = // TODO: Avi - can we constraint query to put or write?
     stream
       .aggregateAsync(ZSink.collectAllN[A](25))
       .mapZIOPar(mPar) { chunk =>
@@ -101,38 +103,12 @@ package object dynamodb {
    * @tparam B implicit Schema[B] where B is the type of the element in the returned stream
    * @return stream of Either[DynamoDBError.DecodingError, (A, Option[B])]
    */
-  def batchReadFromStream[R, A, B: Schema](
+  def batchReadFromStream2[R, A, From: Schema, To1: IsPrimaryKey, To2: IsPrimaryKey](
     tableName: String,
     stream: ZStream[R, Throwable, A],
     mPar: Int = 10
   )(
-    pk: A => PrimaryKey
-  ): ZStream[R with DynamoDBExecutor, Throwable, Either[DynamoDBError.DecodingError, (A, Option[B])]] =
-    stream
-      .aggregateAsync(ZSink.collectAllN[A](100))
-      .mapZIOPar(mPar) { chunk =>
-        val batchGetItem: DynamoDBQuery[B, Chunk[Either[DynamoDBError.DecodingError, (A, Option[B])]]] = DynamoDBQuery
-          .forEach(chunk) { a =>
-            DynamoDBQuery.get(tableName, pk(a)).map {
-              case Right(b)                                 => Right((a, Some(b)))
-              case Left(DynamoDBError.ValueNotFound(_))     => Right((a, None))
-              case Left(e @ DynamoDBError.DecodingError(_)) => Left(e)
-            }
-          }
-          .map(Chunk.fromIterable)
-        for {
-          r <- ZIO.environment[DynamoDBExecutor]
-          list <- batchGetItem.execute.provideEnvironment(r)
-        } yield list
-      }
-      .flattenChunks
-
-  def batchReadFromStream2[R, A, From: Schema, To: IsPrimaryKey](
-    tableName: String,
-    stream: ZStream[R, Throwable, A],
-    mPar: Int = 10
-  )(
-    pk: A => KeyConditionExpr.PartitionKeyEquals[From, To]
+    pk: A => PrimaryKeyExpr[From, To1, To2]
   ): ZStream[R with DynamoDBExecutor, Throwable, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
     stream
       .aggregateAsync(ZSink.collectAllN[A](100))
