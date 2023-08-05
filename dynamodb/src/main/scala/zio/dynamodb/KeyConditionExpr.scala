@@ -9,11 +9,11 @@ package zio.dynamodb
  * Note 1), 2) and 3) are all valid key condition expressions
  * BUT only 1) and 2) are valid primary key expressions that can be used in GetItem, UpdateItem and DeleteItem DynamoDB queries
  */
-sealed trait KeyConditionExpr[-From, +To1, +To2] extends Renderable { self =>
+sealed trait KeyConditionExpr[-From, +Pk, +Sk] extends Renderable { self =>
   def render: AliasMapRender[String]
 }
 
-sealed trait PrimaryKeyExpr[-From, +To1, +To2] extends KeyConditionExpr[From, To1, To2] {
+sealed trait PrimaryKeyExpr[-From, +Pk, +Sk] extends KeyConditionExpr[From, Pk, Sk] {
   def asAttrMap: AttrMap
 }
 
@@ -24,15 +24,15 @@ object KeyConditionExpr {
     // note primary keys must be scalar values, they can't be nested
     AliasMapRender.getOrInsert(ProjectionExpression.MapElement[From, To](ProjectionExpression.Root, primaryKeyName))
 
-  private[dynamodb] final case class PartitionKeyEquals[-From, +To](pk: PartitionKey[From, To], value: AttributeValue)
-      extends PrimaryKeyExpr[From, To, SortKeyNotUsed] { self =>
+  private[dynamodb] final case class PartitionKeyEquals[-From, +Pk](pk: PartitionKey[From, Pk], value: AttributeValue)
+      extends PrimaryKeyExpr[From, Pk, SortKeyNotUsed] { self =>
 
-    def &&[From1 <: From, To2](other: SortKeyEquals[From1, To2]): CompositePrimaryKeyExpr[From1, To, To2] =
-      CompositePrimaryKeyExpr[From1, To, To2](self.asInstanceOf[PartitionKeyEquals[From1, To]], other)
-    def &&[From1 <: From, To2](
-      other: ExtendedSortKeyExpr[From1, To2]
-    ): ExtendedCompositePrimaryKeyExpr[From1, To, To2]                                                    =
-      ExtendedCompositePrimaryKeyExpr[From1, To, To2](self.asInstanceOf[PartitionKeyEquals[From1, To]], other)
+    def &&[From1 <: From, Sk](other: SortKeyEquals[From1, Sk]): CompositePrimaryKeyExpr[From1, Pk, Sk] =
+      CompositePrimaryKeyExpr[From1, Pk, Sk](self.asInstanceOf[PartitionKeyEquals[From1, Pk]], other)
+    def &&[From1 <: From, Sk](
+      other: ExtendedSortKeyExpr[From1, Sk]
+    ): ExtendedCompositePrimaryKeyExpr[From1, Pk, Sk]                                                  =
+      ExtendedCompositePrimaryKeyExpr[From1, Pk, Sk](self.asInstanceOf[PartitionKeyEquals[From1, Pk]], other)
 
     def asAttrMap: AttrMap = AttrMap(pk.keyName -> value)
 
@@ -44,7 +44,7 @@ object KeyConditionExpr {
 
   }
 
-  private[dynamodb] final case class SortKeyEquals[-From, +To](sortKey: SortKey[From, To], value: AttributeValue) {
+  private[dynamodb] final case class SortKeyEquals[-From, +Sk](sortKey: SortKey[From, Sk], value: AttributeValue) {
     self =>
     def miniRender: AliasMapRender[String] =
       for {
@@ -53,10 +53,10 @@ object KeyConditionExpr {
       } yield s"${keyAlias} = $v"
   }
 
-  private[dynamodb] final case class CompositePrimaryKeyExpr[-From, +To1, +To2](
-    pk: PartitionKeyEquals[From, To1],
-    sk: SortKeyEquals[From, To2]
-  ) extends PrimaryKeyExpr[From, To1, To2] {
+  private[dynamodb] final case class CompositePrimaryKeyExpr[-From, +Pk, +Sk](
+    pk: PartitionKeyEquals[From, Pk],
+    sk: SortKeyEquals[From, Sk]
+  ) extends PrimaryKeyExpr[From, Pk, Sk] {
     self =>
 
     def asAttrMap: AttrMap = PrimaryKey(pk.pk.keyName -> pk.value, sk.sortKey.keyName -> sk.value)
@@ -68,10 +68,10 @@ object KeyConditionExpr {
       } yield s"$pkStr AND $skStr"
 
   }
-  private[dynamodb] final case class ExtendedCompositePrimaryKeyExpr[-From, +To1, +To2](
-    pk: PartitionKeyEquals[From, To1],
-    sk: ExtendedSortKeyExpr[From, To2]
-  ) extends KeyConditionExpr[From, To1, To2] {
+  private[dynamodb] final case class ExtendedCompositePrimaryKeyExpr[-From, +Pk, +Sk](
+    pk: PartitionKeyEquals[From, Pk],
+    sk: ExtendedSortKeyExpr[From, Sk]
+  ) extends KeyConditionExpr[From, Pk, Sk] {
     self =>
 
     def render: AliasMapRender[String] =
@@ -82,7 +82,7 @@ object KeyConditionExpr {
 
   }
 
-  sealed trait ExtendedSortKeyExpr[-From, +To] { self =>
+  sealed trait ExtendedSortKeyExpr[-From, +Sk] { self =>
     def miniRender: AliasMapRender[String] =
       self match {
         case ExtendedSortKeyExpr.GreaterThan(sk, value)        =>
