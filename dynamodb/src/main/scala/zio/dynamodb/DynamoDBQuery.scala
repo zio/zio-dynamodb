@@ -455,8 +455,9 @@ object DynamoDBQuery {
 
   def get[From: Schema, Pk, Sk](
     tableName: String,
-    partitionKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From, Pk, Sk],
     projections: ProjectionExpression[_, _]*
+  )(
+    partitionKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From, Pk, Sk]
   )(implicit ev: IsPrimaryKey[Pk], ev2: IsPrimaryKey[Sk]): DynamoDBQuery[From, Either[DynamoDBError, From]] = {
     val (_, _) = (ev, ev2)
     get(tableName, partitionKeyExpr.asAttrMap, projections: _*)
@@ -500,7 +501,7 @@ object DynamoDBQuery {
   ): DynamoDBQuery[A, Option[A]] =
     updateItem(tableName, key)(action).map(_.flatMap(item => fromItem(item).toOption))
 
-  def update[From: Schema, Pk, Sk](tableName: String, primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From, Pk, Sk])(
+  def update[From: Schema, Pk, Sk](tableName: String)(primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From, Pk, Sk])(
     action: Action[From]
   ): DynamoDBQuery[From, Option[From]] =
     updateItem(tableName, primaryKeyExpr.asAttrMap)(action).map(_.flatMap(item => fromItem(item).toOption))
@@ -508,7 +509,8 @@ object DynamoDBQuery {
   def deleteItem(tableName: String, key: PrimaryKey): Write[Any, Option[Item]] = DeleteItem(TableName(tableName), key)
 
   def delete[From: Schema, Pk, Sk](
-    tableName: String, // TODO: rename as deleteFrom(tableName)(etc)
+    tableName: String
+  )(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From, Pk, Sk]
   ): DynamoDBQuery[Any, Option[From]] =
     deleteItem(tableName, primaryKeyExpr.asAttrMap).map(_.flatMap(item => fromItem(item).toOption))

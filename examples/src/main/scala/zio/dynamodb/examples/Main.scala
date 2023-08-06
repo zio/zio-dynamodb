@@ -20,7 +20,7 @@ object Main extends ZIOAppDefault {
 
   private val program = for {
     _      <- put("personTable", examplePerson).execute
-    person <- get("personTable", Person.id.partitionKey === 1).execute
+    person <- get("personTable")(Person.id.partitionKey === 1).execute
     _      <- zio.Console.printLine(s"hello $person")
   } yield ()
 

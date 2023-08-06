@@ -116,7 +116,7 @@ package object dynamodb {
         val batchGetItem: DynamoDBQuery[From, Chunk[Either[DynamoDBError.DecodingError, (A, Option[From])]]] =
           DynamoDBQuery
             .forEach(chunk) { a =>
-              DynamoDBQuery.get(tableName, pk(a)).map {
+              DynamoDBQuery.get(tableName)(pk(a)).map {
                 case Right(b)                                 => Right((a, Some(b)))
                 case Left(DynamoDBError.ValueNotFound(_))     => Right((a, None))
                 case Left(e @ DynamoDBError.DecodingError(_)) => Left(e)

@@ -49,13 +49,13 @@ object StudentZioDynamoDbExampleWithOptics extends ZIOAppDefault {
              ) && email === "avi@gmail.com" && payment === Payment.CreditCard
            )
            .execute
-    _ <- update("student", primaryKey("avi@gmail.com", "maths")) {
+    _ <- update("student")(primaryKey("avi@gmail.com", "maths")) {
            enrollmentDate.set(Some(enrolDate2)) + payment.set(Payment.PayPal) + address
              .set(
                Some(Address("line1", "postcode1"))
              )
          }.execute
-    _ <- delete("student", primaryKey("adam@gmail.com", "english"))
+    _ <- delete("student")(primaryKey("adam@gmail.com", "english"))
            .where(
              enrollmentDate === Some(
                enrolDate

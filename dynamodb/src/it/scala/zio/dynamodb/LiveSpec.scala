@@ -313,8 +313,7 @@ object LiveSpec extends ZIOSpecDefault {
           test("delete should handle keyword") {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
-                .delete(
-                  tableName,
+                .delete(tableName)(
                   ExpressionAttrNames.id.partitionKey === "id" && ExpressionAttrNames.num.sortKey === 1
                 )
                 .where(ExpressionAttrNames.ttl.notExists)
@@ -336,8 +335,7 @@ object LiveSpec extends ZIOSpecDefault {
           test("update should handle keyword") {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
-                .update(
-                  tableName,
+                .update(tableName)(
                   ExpressionAttrNames.id.partitionKey === "id" && ExpressionAttrNames.num.sortKey === 1
                 )(
                   ExpressionAttrNames.ttl.set(Some(42L))
@@ -560,7 +558,7 @@ object LiveSpec extends ZIOSpecDefault {
         },
         test("get into case class") {
           withDefaultTable { tableName =>
-            get(tableName, Person.id.partitionKey === second && Person.num.sortKey === 2).execute.map(person =>
+            get(tableName)(Person.id.partitionKey === second && Person.num.sortKey === 2).execute.map(person =>
               assert(person)(equalTo(Right(Person("second", "adam", 2))))
             )
           }
@@ -1318,8 +1316,7 @@ object LiveSpec extends ZIOSpecDefault {
           },
           test("delete item handles keyword") {
             withDefaultTable { tableName =>
-              val d = delete(
-                tableName = tableName,
+              val d = delete(tableName = tableName)(
                 primaryKeyExpr =
                   ExpressionAttrNames.id.partitionKey === "first" && ExpressionAttrNames.num.sortKey === 7
               ).where(ExpressionAttrNames.ttl.notExists)
@@ -1342,8 +1339,7 @@ object LiveSpec extends ZIOSpecDefault {
           },
           test("transact update item should handle keyword") {
             withDefaultTable { tableName =>
-              val u = update(
-                tableName = tableName,
+              val u = update(tableName = tableName)(
                 primaryKeyExpr =
                   ExpressionAttrNames.id.partitionKey === "first" && ExpressionAttrNames.num.sortKey === 7
               )(ExpressionAttrNames.ttl.set(None)).where(ExpressionAttrNames.ttl.notExists)
@@ -1362,7 +1358,7 @@ object LiveSpec extends ZIOSpecDefault {
               )
               for {
                 _       <- updateItem.transaction.execute
-                written <- get(tableName, key).execute
+                written <- get(tableName)(key).execute
               } yield assert(written)(isRight(equalTo(Person(first, notAdam, 7))))
             }
           },
@@ -1389,9 +1385,9 @@ object LiveSpec extends ZIOSpecDefault {
 
               for {
                 _       <- (putItem zip conditionCheck zip updateItem zip deleteItem).transaction.execute
-                put     <- get(tableName, Person.id.partitionKey === first && Person.num.sortKey === 10).execute
-                deleted <- get(tableName, Person.id.partitionKey === first && Person.num.sortKey === 4).execute
-                updated <- get(tableName, Person.id.partitionKey === first && Person.num.sortKey === 7).execute
+                put     <- get(tableName)(Person.id.partitionKey === first && Person.num.sortKey === 10).execute
+                deleted <- get(tableName)(Person.id.partitionKey === first && Person.num.sortKey === 4).execute
+                updated <- get(tableName)(Person.id.partitionKey === first && Person.num.sortKey === 7).execute
               } yield assert(put)(isRight(equalTo(Person(first, avi3, 10)))) &&
                 assert(deleted)(isLeft) &&
                 assert(updated)(isRight(equalTo(Person(first, notAdam, 7))))

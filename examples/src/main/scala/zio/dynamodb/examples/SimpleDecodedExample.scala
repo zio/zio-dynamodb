@@ -24,7 +24,7 @@ object SimpleDecodedExample extends ZIOAppDefault {
   private val program = for {
     _         <-
       put("table1", NestedCaseClass2(id = 1, SimpleCaseClass3(2, "Avi", flag = true))).execute // Save case class to DB
-    caseClass <- get("table1", NestedCaseClass2.id.partitionKey === 2).execute // read case class from DB
+    caseClass <- get("table1")(NestedCaseClass2.id.partitionKey === 2).execute // read case class from DB
     _         <- printLine(s"get: found $caseClass")
     either    <- scanSome[NestedCaseClass2]("table1", 10).execute
     _         <- printLine(s"scanSome: found $either")
