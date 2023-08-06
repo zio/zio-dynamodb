@@ -1,24 +1,24 @@
 package zio.dynamodb
 
 /**
- * Models:
+ * This sum type models:
  * 1) partition key equality expressions
  * 2) composite primary key expressions where sort key expression is equality
  * 3) extended composite primary key expressions where sort key is not equality eg >, <, >=, <=, between, begins_with
  *
- * Note 1), 2) and 3) are all valid key condition expressions
+ * Note 1), 2) and 3) are all valid key condition expressions used in Query DynamoDB queries
  * BUT only 1) and 2) are valid primary key expressions that can be used in GetItem, UpdateItem and DeleteItem DynamoDB queries
  */
 sealed trait KeyConditionExpr[-From, +Pk, +Sk] extends Renderable { self =>
   def render: AliasMapRender[String]
 }
 
-sealed trait PrimaryKeyExpr[-From, +Pk, +Sk] extends KeyConditionExpr[From, Pk, Sk] {
-  def asAttrMap: AttrMap
-}
-
 object KeyConditionExpr {
   type SortKeyNotUsed
+
+  sealed trait PrimaryKeyExpr[-From, +Pk, +Sk] extends KeyConditionExpr[From, Pk, Sk] {
+    def asAttrMap: AttrMap
+  }
 
   def getOrInsert[From, To](primaryKeyName: String): AliasMapRender[String] =
     // note primary keys must be scalar values, they can't be nested

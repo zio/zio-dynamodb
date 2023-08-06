@@ -5,6 +5,7 @@ import zio.schema.annotation.{ caseName, discriminatorName, fieldName }
 import zio.schema.{ DeriveSchema, Schema }
 
 import java.time.Instant
+import zio.dynamodb.ProjectionExpression
 
 // ADT example
 sealed trait Status
@@ -95,5 +96,9 @@ sealed trait Invoice {
 object Invoice       {
   final case class Billed(id: Int, i: Int)       extends Invoice
   final case class PreBilled(id: Int, s: String) extends Invoice
+  object PreBilled {
+    implicit val schema: Schema.CaseClass2[Int, String, PreBilled] = DeriveSchema.gen[PreBilled]
+    val (id, s)                                                    = ProjectionExpression.accessors[PreBilled]
+  }
   implicit val schema: Schema[Invoice] = DeriveSchema.gen[Invoice]
 }

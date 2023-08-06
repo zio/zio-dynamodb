@@ -327,7 +327,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
    * val newQuery = query.whereKey($("email").partitionKey === "avi@gmail.com" && $("subject").sortKey === "maths")
    * }}}
    */
-  def whereKey[From, To1, To2](keyConditionExpression: KeyConditionExpr[From, To1, To2]): DynamoDBQuery[In, Out] =
+  def whereKey[From, Pk, Sk](keyConditionExpression: KeyConditionExpr[From, Pk, Sk]): DynamoDBQuery[In, Out] =
     self match {
       case Zip(left, right, zippable) =>
         Zip(left.whereKey(keyConditionExpression), right.whereKey(keyConditionExpression), zippable)
@@ -453,8 +453,16 @@ object DynamoDBQuery {
   ): DynamoDBQuery[Any, Option[Item]] =
     GetItem(TableName(tableName), key, projections.toList)
 
-  // TODO: Avi - make private?
-  def get[A: Schema](
+  def get[From: Schema, Pk, Sk](
+    tableName: String,
+    partitionKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From, Pk, Sk],
+    projections: ProjectionExpression[_, _]*
+  )(implicit ev: IsPrimaryKey[Pk], ev2: IsPrimaryKey[Sk]): DynamoDBQuery[From, Either[DynamoDBError, From]] = {
+    val (_, _) = (ev, ev2)
+    get(tableName, partitionKeyExpr.asAttrMap, projections: _*)
+  }
+
+  private def get[A: Schema](
     tableName: String,
     key: PrimaryKey,
     projections: ProjectionExpression[_, _]*
@@ -464,15 +472,6 @@ object DynamoDBQuery {
         fromItem(item)
       case None       => Left(ValueNotFound(s"value with key $key not found"))
     }
-
-  def get[From: Schema, Pk, Sk](
-    tableName: String,
-    partitionKeyExpr: PrimaryKeyExpr[From, Pk, Sk],
-    projections: ProjectionExpression[_, _]*
-  )(implicit ev: IsPrimaryKey[Pk], ev2: IsPrimaryKey[Sk]): DynamoDBQuery[From, Either[DynamoDBError, From]] = {
-    val (_, _) = (ev, ev2)
-    get(tableName, partitionKeyExpr.asAttrMap, projections: _*)
-  }
 
   private[dynamodb] def fromItem[A: Schema](item: Item): Either[DynamoDBError, A] = {
     val av = ToAttributeValue.attrMapToAttributeValue.toAttributeValue(item)
@@ -501,7 +500,7 @@ object DynamoDBQuery {
   ): DynamoDBQuery[A, Option[A]] =
     updateItem(tableName, key)(action).map(_.flatMap(item => fromItem(item).toOption))
 
-  def update[From: Schema, Pk, Sk](tableName: String, primaryKeyExpr: PrimaryKeyExpr[From, Pk, Sk])(
+  def update[From: Schema, Pk, Sk](tableName: String, primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From, Pk, Sk])(
     action: Action[From]
   ): DynamoDBQuery[From, Option[From]] =
     updateItem(tableName, primaryKeyExpr.asAttrMap)(action).map(_.flatMap(item => fromItem(item).toOption))
@@ -510,7 +509,7 @@ object DynamoDBQuery {
 
   def delete[From: Schema, Pk, Sk](
     tableName: String, // TODO: rename as deleteFrom(tableName)(etc)
-    primaryKeyExpr: PrimaryKeyExpr[From, Pk, Sk]
+    primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From, Pk, Sk]
   ): DynamoDBQuery[Any, Option[From]] =
     deleteItem(tableName, primaryKeyExpr.asAttrMap).map(_.flatMap(item => fromItem(item).toOption))
 

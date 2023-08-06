@@ -26,7 +26,7 @@ object StudentZioDynamoDbExampleWithOptics extends ZIOAppDefault {
            put("student", student)
          }.runDrain
     _ <- put("student", avi.copy(payment = Payment.CreditCard)).execute
-    _ <- batchReadFromStream("student", ZStream(avi, adam))(s => primaryKey2(s.email, s.subject))
+    _ <- batchReadFromStream("student", ZStream(avi, adam))(s => primaryKey(s.email, s.subject))
            .tap(errorOrStudent => Console.printLine(s"student=$errorOrStudent"))
            .runDrain
     _ <- scanAll[Student]("student").filter {
@@ -49,13 +49,13 @@ object StudentZioDynamoDbExampleWithOptics extends ZIOAppDefault {
              ) && email === "avi@gmail.com" && payment === Payment.CreditCard
            )
            .execute
-    _ <- update("student", primaryKey2("avi@gmail.com", "maths")) {
+    _ <- update("student", primaryKey("avi@gmail.com", "maths")) {
            enrollmentDate.set(Some(enrolDate2)) + payment.set(Payment.PayPal) + address
              .set(
                Some(Address("line1", "postcode1"))
              )
          }.execute
-    _ <- delete("student", primaryKey2("adam@gmail.com", "english"))
+    _ <- delete("student", primaryKey("adam@gmail.com", "english"))
            .where(
              enrollmentDate === Some(
                enrolDate

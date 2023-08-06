@@ -52,7 +52,6 @@ object KeyConditionExprExample extends App {
     Student.email.partitionKey === "x" && Student.binary.sortKey.beginsWith(List(1.toByte))
   val pkAndSkExtended6 =
     Student.email.partitionKey === "x" && Student.binary2.sortKey.beginsWith(List(1.toByte))
-  // TODO: Avi - fix ToAttrubuteValue interop with Array[Byte]
 
   val (aliasMap, s) = pkAndSkExtended1.render.execute
   println(s"aliasMap=$aliasMap, s=$s")

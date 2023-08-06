@@ -61,7 +61,12 @@ object LiveSpec extends ZIOSpecDefault {
 
   private val stringSortKeyItem = Item(id -> adam, name -> adam)
 
-  private final case class Person(id: String, firstName: String, num: Int)
+  final case class Person(id: String, firstName: String, num: Int)
+  object Person {
+    implicit lazy val schema: Schema.CaseClass3[String, String, Int, Person] = DeriveSchema.gen[Person]
+
+    val (id, firstName, num) = ProjectionExpression.accessors[Person]
+  }
   private implicit lazy val person: Schema[Person] = DeriveSchema.gen[Person]
 
   private val aviPerson  = Person(first, avi, 1)
@@ -555,7 +560,7 @@ object LiveSpec extends ZIOSpecDefault {
         },
         test("get into case class") {
           withDefaultTable { tableName =>
-            get[Person](tableName, secondPrimaryKey).execute.map(person =>
+            get(tableName, Person.id.partitionKey === second && Person.num.sortKey === 2).execute.map(person =>
               assert(person)(equalTo(Right(Person("second", "adam", 2))))
             )
           }
@@ -1349,14 +1354,15 @@ object LiveSpec extends ZIOSpecDefault {
           },
           test("update item") {
             withDefaultTable { tableName =>
+              val key        = Person.id.partitionKey === first && Person.num.sortKey === 7
               val updateItem = UpdateItem(
-                key = pk(avi3Item),
+                key = key.asAttrMap,
                 tableName = TableName(tableName),
                 updateExpression = UpdateExpression($(name).set(notAdam))
               )
               for {
                 _       <- updateItem.transaction.execute
-                written <- get[Person](tableName, pk(avi3Item)).execute
+                written <- get(tableName, key).execute
               } yield assert(written)(isRight(equalTo(Person(first, notAdam, 7))))
             }
           },
@@ -1383,9 +1389,9 @@ object LiveSpec extends ZIOSpecDefault {
 
               for {
                 _       <- (putItem zip conditionCheck zip updateItem zip deleteItem).transaction.execute
-                put     <- get[Person](tableName, Item(id -> first, number -> 10)).execute
-                deleted <- get[Person](tableName, Item(id -> first, number -> 4)).execute
-                updated <- get[Person](tableName, Item(id -> first, number -> 7)).execute
+                put     <- get(tableName, Person.id.partitionKey === first && Person.num.sortKey === 10).execute
+                deleted <- get(tableName, Person.id.partitionKey === first && Person.num.sortKey === 4).execute
+                updated <- get(tableName, Person.id.partitionKey === first && Person.num.sortKey === 7).execute
               } yield assert(put)(isRight(equalTo(Person(first, avi3, 10)))) &&
                 assert(deleted)(isLeft) &&
                 assert(updated)(isRight(equalTo(Person(first, notAdam, 7))))

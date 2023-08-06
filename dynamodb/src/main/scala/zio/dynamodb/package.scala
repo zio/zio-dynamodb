@@ -108,7 +108,7 @@ package object dynamodb {
     stream: ZStream[R, Throwable, A],
     mPar: Int = 10
   )(
-    pk: A => PrimaryKeyExpr[From, Pk, Sk]
+    pk: A => KeyConditionExpr.PrimaryKeyExpr[From, Pk, Sk]
   ): ZStream[R with DynamoDBExecutor, Throwable, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
     stream
       .aggregateAsync(ZSink.collectAllN[A](100))

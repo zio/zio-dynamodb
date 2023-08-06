@@ -30,7 +30,7 @@ object StudentZioDynamoDbTypeSafeAPIExample extends ZIOAppDefault {
            put("student", student)
          }.runDrain
     _ <- put("student", avi.copy(payment = Payment.CreditCard)).execute
-    _ <- batchReadFromStream("student", ZStream(avi, adam))(student => primaryKey2(student.email, student.subject))
+    _ <- batchReadFromStream("student", ZStream(avi, adam))(student => primaryKey(student.email, student.subject))
            .tap(errorOrStudent => Console.printLine(s"student=$errorOrStudent"))
            .runDrain
     _ <- scanAll[Student]("student")
@@ -58,27 +58,27 @@ object StudentZioDynamoDbTypeSafeAPIExample extends ZIOAppDefault {
              ) === "CreditCard" /* && elephantCe */
            )
            .execute
-    _ <- update("student", primaryKey2("avi@gmail.com", "maths")) {
+    _ <- update("student", primaryKey("avi@gmail.com", "maths")) {
            altPayment.set(Payment.PayPal) + addresses.prependList(List(Address("line0", "postcode0"))) + studentNumber
              .add(1000) + groups.addSet(Set("group3")) // + elephantAction
          }.execute
 
-    _ <- update("student", primaryKey2("avi@gmail.com", "maths")) {
+    _ <- update("student", primaryKey("avi@gmail.com", "maths")) {
            altPayment.set(Payment.PayPal) + addresses.appendList(List(Address("line3", "postcode3"))) + groups
              .deleteFromSet(Set("group1"))
          }.execute
 
-    _ <- update("student", primaryKey2("avi@gmail.com", "maths")) {
+    _ <- update("student", primaryKey("avi@gmail.com", "maths")) {
            enrollmentDate.setIfNotExists(Some(enrolDate2)) + payment.set(altPayment) + address
              .set(
                Some(Address("line1", "postcode1"))
              ) // + elephantAction
          }.execute
-    _ <- update("student", primaryKey2("avi@gmail.com", "maths")) {
+    _ <- update("student", primaryKey("avi@gmail.com", "maths")) {
            addresses.remove(1)
          }.execute
     _ <-
-      delete("student", primaryKey2("adam@gmail.com", "english"))
+      delete("student", primaryKey("adam@gmail.com", "english"))
         .where(
           (enrollmentDate === Some(enrolDate) && payment <> Payment.PayPal && studentNumber
             .between(1, 3) && groups.contains("group1") && collegeName.contains(

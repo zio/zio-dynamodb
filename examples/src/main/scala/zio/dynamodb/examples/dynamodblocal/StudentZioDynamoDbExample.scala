@@ -22,7 +22,7 @@ object StudentZioDynamoDbExample extends ZIOAppDefault {
            put("student", student)
          }.runDrain
     _ <- put("student", avi.copy(payment = Payment.CreditCard)).execute
-    _ <- batchReadFromStream("student", ZStream(avi, adam))(s => primaryKey2(s.email, s.subject))
+    _ <- batchReadFromStream("student", ZStream(avi, adam))(s => primaryKey(s.email, s.subject))
            .tap(errorOrStudent => Console.printLine(s"student=$errorOrStudent"))
            .runDrain
     _ <- DynamoDBQuery.deleteTable("student").execute
