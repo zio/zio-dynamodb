@@ -35,7 +35,7 @@ object KeyConditionExprExample extends App {
   val pk: PartitionKeyEquals[Student]           = Student.email.partitionKey === "x"
 //  val pkX: PartitionKeyExpr[Student, String]     = Student.age.primaryKey === "x" // as expected does not compile
   val sk1: SortKeyEquals[Student]               = Student.subject.sortKey === "y"
-  val sk2: ExtendedSortKeyExpr[Student, String]    = Student.subject.sortKey > "y"
+  val sk2: ExtendedSortKeyExpr[Student, String] = Student.subject.sortKey > "y"
   val pkAndSk: CompositePrimaryKeyExpr[Student] =
     Student.email.partitionKey === "x" && Student.subject.sortKey === "y"
 
