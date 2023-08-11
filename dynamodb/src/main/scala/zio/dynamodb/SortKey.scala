@@ -10,9 +10,9 @@ private[dynamodb] final case class SortKey[-From, +To](keyName: String) { self =
   // all comparison ops apply to: Strings, Numbers, Binary values
   def ===[To1 >: To, To2: ToAttributeValue, IsPrimaryKey](
     value: To2
-  )(implicit ev: RefersTo[To1, To2]): SortKeyEquals[From, To2] = {
+  )(implicit ev: RefersTo[To1, To2]): SortKeyEquals[From] = {
     val _ = ev
-    SortKeyEquals[From, To2](
+    SortKeyEquals[From](
       self.asInstanceOf[SortKey[From, To2]],
       implicitly[ToAttributeValue[To2]].toAttributeValue(value)
     )

@@ -2,7 +2,6 @@ package zio
 
 import zio.schema.Schema
 import zio.stream.{ ZSink, ZStream }
-import zio.dynamodb.proofs.IsPrimaryKey
 
 package object dynamodb {
   // Filter expression is the same as a ConditionExpression but when used with Query but does not allow key attributes
@@ -103,12 +102,12 @@ package object dynamodb {
    * @tparam B implicit Schema[B] where B is the type of the element in the returned stream
    * @return stream of Either[DynamoDBError.DecodingError, (A, Option[B])]
    */
-  def batchReadFromStream[R, A, From: Schema, Pk: IsPrimaryKey, Sk: IsPrimaryKey](
+  def batchReadFromStream[R, A, From: Schema](
     tableName: String,
     stream: ZStream[R, Throwable, A],
     mPar: Int = 10
   )(
-    pk: A => KeyConditionExpr.PrimaryKeyExpr[From, Pk, Sk]
+    pk: A => KeyConditionExpr.PrimaryKeyExpr[From]
   ): ZStream[R with DynamoDBExecutor, Throwable, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
     stream
       .aggregateAsync(ZSink.collectAllN[A](100))

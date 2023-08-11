@@ -77,7 +77,7 @@ object Student {
   ) =
     ProjectionExpression.accessors[Student]
 
-  def primaryKey(email: String, subject: String): KeyConditionExpr.PrimaryKeyExpr[Student, String, String] =
+  def primaryKey(email: String, subject: String): KeyConditionExpr.PrimaryKeyExpr[Student] =
     Student.email.partitionKey === email && Student.subject.sortKey === subject
 
   val enrolDate  = Instant.parse("2021-03-20T01:39:33Z")

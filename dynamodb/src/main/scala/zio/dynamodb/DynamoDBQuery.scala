@@ -28,7 +28,6 @@ import zio.prelude.ForEachOps
 import zio.schema.Schema
 import zio.stream.Stream
 import zio.{ Chunk, NonEmptyChunk, Schedule, ZIO, Zippable => _, _ }
-import zio.dynamodb.proofs.IsPrimaryKey
 
 sealed trait DynamoDBQuery[-In, +Out] { self =>
 
@@ -327,7 +326,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
    * val newQuery = query.whereKey($("email").partitionKey === "avi@gmail.com" && $("subject").sortKey === "maths")
    * }}}
    */
-  def whereKey[From, Pk, Sk](keyConditionExpression: KeyConditionExpr[From, Pk, Sk]): DynamoDBQuery[In, Out] =
+  def whereKey[From](keyConditionExpression: KeyConditionExpr[From]): DynamoDBQuery[In, Out] =
     self match {
       case Zip(left, right, zippable) =>
         Zip(left.whereKey(keyConditionExpression), right.whereKey(keyConditionExpression), zippable)
@@ -453,15 +452,13 @@ object DynamoDBQuery {
   ): DynamoDBQuery[Any, Option[Item]] =
     GetItem(TableName(tableName), key, projections.toList)
 
-  def get[From: Schema, Pk, Sk](
+  def get[From: Schema](
     tableName: String,
     projections: ProjectionExpression[_, _]*
   )(
-    partitionKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From, Pk, Sk]
-  )(implicit ev: IsPrimaryKey[Pk], ev2: IsPrimaryKey[Sk]): DynamoDBQuery[From, Either[DynamoDBError, From]] = {
-    val (_, _) = (ev, ev2)
+    partitionKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
+  ): DynamoDBQuery[From, Either[DynamoDBError, From]] =
     get(tableName, partitionKeyExpr.asAttrMap, projections: _*)
-  }
 
   private def get[A: Schema](
     tableName: String,
@@ -501,17 +498,16 @@ object DynamoDBQuery {
   ): DynamoDBQuery[A, Option[A]] =
     updateItem(tableName, key)(action).map(_.flatMap(item => fromItem(item).toOption))
 
-  def update[From: Schema, Pk, Sk](tableName: String)(primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From, Pk, Sk])(
+  def update[From: Schema](tableName: String)(primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From])(
     action: Action[From]
-  ): DynamoDBQuery[From, Option[From]] =
+  ): DynamoDBQuery[From, Option[From]]                                         =
     updateItem(tableName, primaryKeyExpr.asAttrMap)(action).map(_.flatMap(item => fromItem(item).toOption))
-
   def deleteItem(tableName: String, key: PrimaryKey): Write[Any, Option[Item]] = DeleteItem(TableName(tableName), key)
 
-  def delete[From: Schema, Pk, Sk](
+  def delete[From: Schema](
     tableName: String
   )(
-    primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From, Pk, Sk]
+    primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
   ): DynamoDBQuery[Any, Option[From]] =
     deleteItem(tableName, primaryKeyExpr.asAttrMap).map(_.flatMap(item => fromItem(item).toOption))
 
@@ -838,7 +834,7 @@ object DynamoDBQuery {
     exclusiveStartKey: LastEvaluatedKey =
       None,                                                     // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression[_]] = None,
-    keyConditionExpr: Option[KeyConditionExpr[_, _, _]] = None,
+    keyConditionExpr: Option[KeyConditionExpr[_]] = None,
     projections: List[ProjectionExpression[_, _]] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None,                              // if ProjectExpression supplied then only valid value is SpecificAttributes
@@ -871,7 +867,7 @@ object DynamoDBQuery {
     exclusiveStartKey: LastEvaluatedKey =
       None,                                                     // allows client to control start position - eg for client managed paging
     filterExpression: Option[FilterExpression[_]] = None,
-    keyConditionExpr: Option[KeyConditionExpr[_, _, _]] = None,
+    keyConditionExpr: Option[KeyConditionExpr[_]] = None,
     projections: List[ProjectionExpression[_, _]] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None,                              // if ProjectExpression supplied then only valid value is SpecificAttributes
