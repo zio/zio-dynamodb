@@ -11,7 +11,8 @@ object BatchFromStreamExamples extends ZIOAppDefault {
 
   final case class Person(id: Int, name: String)
   object Person {
-    implicit val schema: Schema[Person] = DeriveSchema.gen[Person]
+    implicit val schema: Schema.CaseClass2[Int, String, Person] = DeriveSchema.gen[Person]
+    val (id, name)                                              = ProjectionExpression.accessors[Person]
   }
 
   private val personIdStream: UStream[Int] =
@@ -37,7 +38,7 @@ object BatchFromStreamExamples extends ZIOAppDefault {
              .runDrain
 
       // same again but use Schema derived codecs to convert an Item to a Person
-      _ <- batchReadFromStream[Any, Int, Person]("person", personIdStream)(id => PrimaryKey("id" -> id))
+      _ <- batchReadFromStream("person", personIdStream)(id => Person.id.partitionKey === id)
              .mapZIOPar(4)(person => printLine(s"person=$person"))
              .runDrain
     } yield ()).provide(DynamoDBExecutor.test)

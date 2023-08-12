@@ -9,9 +9,14 @@ import zio.test.{ assertTrue, ZIOSpecDefault }
 
 object GetAndPutSpec extends ZIOSpecDefault {
   final case class SimpleCaseClass2(id: Int, name: String)
+  object SimpleCaseClass2 {
+    implicit val schema: Schema.CaseClass2[Int, String, SimpleCaseClass2] = DeriveSchema.gen[SimpleCaseClass2]
+    val (id, name)                                                        = ProjectionExpression.accessors[SimpleCaseClass2]
+  }
+
   final case class SimpleCaseClass2OptionalField(id: Int, maybeName: Option[String])
-  implicit lazy val simpleCaseClass2: Schema[SimpleCaseClass2]                           = DeriveSchema.gen[SimpleCaseClass2]
-  implicit lazy val simpleCaseClass2OptionalField: Schema[SimpleCaseClass2OptionalField] =
+  implicit val simpleCaseClass2: Schema[SimpleCaseClass2]                           = DeriveSchema.gen[SimpleCaseClass2]
+  implicit val simpleCaseClass2OptionalField: Schema[SimpleCaseClass2OptionalField] =
     DeriveSchema.gen[SimpleCaseClass2OptionalField]
 
   private val primaryKey1 = PrimaryKey("id" -> 1)
@@ -24,18 +29,18 @@ object GetAndPutSpec extends ZIOSpecDefault {
     test("that exists") {
       for {
         _     <- TestDynamoDBExecutor.addItems("table1", primaryKey1 -> Item("id" -> 1, "name" -> "Avi"))
-        found <- get[SimpleCaseClass2]("table1", primaryKey1).execute
+        found <- get("table1")(SimpleCaseClass2.id.partitionKey === 1).execute
       } yield assertTrue(found == Right(SimpleCaseClass2(1, "Avi")))
     },
     test("that does not exists") {
       for {
-        found <- get[SimpleCaseClass2]("table1", primaryKey1).execute
+        found <- get("table1")(SimpleCaseClass2.id.partitionKey === 1).execute
       } yield assertTrue(found == Left(ValueNotFound("value with key AttrMap(Map(id -> Number(1))) not found")))
     },
     test("with missing attributes results in an error") {
       for {
         _     <- TestDynamoDBExecutor.addItems("table1", primaryKey1 -> Item("id" -> 1))
-        found <- get[SimpleCaseClass2]("table1", primaryKey1).execute
+        found <- get("table1")(SimpleCaseClass2.id.partitionKey === 1).execute
       } yield assertTrue(found == Left(DecodingError("field 'name' not found in Map(Map(String(id) -> Number(1)))")))
     },
     test("batched") {
@@ -45,7 +50,9 @@ object GetAndPutSpec extends ZIOSpecDefault {
                primaryKey1 -> Item("id" -> 1, "name" -> "Avi"),
                primaryKey2 -> Item("id" -> 2, "name" -> "Tarlochan")
              )
-        r <- (get[SimpleCaseClass2]("table1", primaryKey1) zip get[SimpleCaseClass2]("table1", primaryKey2)).execute
+        r <- (get("table1")(SimpleCaseClass2.id.partitionKey === 1) zip get("table1")(
+                 SimpleCaseClass2.id.partitionKey === 2
+               )).execute
       } yield assertTrue(r._1 == Right(SimpleCaseClass2(1, "Avi"))) && assertTrue(
         r._2 == Right(SimpleCaseClass2(2, "Tarlochan"))
       )
@@ -56,15 +63,15 @@ object GetAndPutSpec extends ZIOSpecDefault {
     test("""SimpleCaseClass2(1, "Avi")""") {
       for {
         _     <- put[SimpleCaseClass2]("table1", SimpleCaseClass2(1, "Avi")).execute
-        found <- get[SimpleCaseClass2]("table1", primaryKey1).execute
+        found <- get("table1")(SimpleCaseClass2.id.partitionKey === 1).execute
       } yield assertTrue(found == Right(SimpleCaseClass2(1, "Avi")))
     },
     test("""top level enum PreBilled(1, "foobar")""") {
       for {
         _     <- TestDynamoDBExecutor.addTable("table1", "id")
         _     <- put[Invoice]("table1", PreBilled(1, "foobar")).execute
-        found <- get[Invoice]("table1", primaryKey1).execute
-      } yield assertTrue(found == Right(PreBilled(1, "foobar")))
+        found <- get("table1")(PreBilled.id.partitionKey === 1).execute.absolve
+      } yield assertTrue(found == PreBilled(1, "foobar"))
     },
     test("""batched SimpleCaseClass2(1, "Avi") and SimpleCaseClass2(2, "Tarlochan")""") {
       for {
@@ -72,8 +79,8 @@ object GetAndPutSpec extends ZIOSpecDefault {
                       "table1",
                       SimpleCaseClass2(2, "Tarlochan")
                     )).execute
-        found1 <- get[SimpleCaseClass2]("table1", primaryKey1).execute
-        found2 <- get[SimpleCaseClass2]("table1", primaryKey2).execute
+        found1 <- get("table1")(SimpleCaseClass2.id.partitionKey === 1).execute
+        found2 <- get("table1")(SimpleCaseClass2.id.partitionKey === 2).execute
       } yield assertTrue(found1 == Right(SimpleCaseClass2(1, "Avi"))) && assertTrue(
         found2 == Right(SimpleCaseClass2(2, "Tarlochan"))
       )

@@ -58,7 +58,7 @@ object TypeSafeAPIExampleWithDiscriminator extends ZIOAppDefault {
     _         <- put[Box]("box", boxOfGreen).execute
     _         <- put[Box]("box", boxOfAmber).execute
     query      = queryAll[Box]("box")
-                   .whereKey(Box.id === 1)
+                   .whereKey(Box.id.partitionKey === 1)
                    .filter(Box.trafficLightColour >>> TrafficLight.green >>> Green.rgb === 1)
     stream    <- query.execute
     list      <- stream.runCollect

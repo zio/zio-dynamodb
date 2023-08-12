@@ -1,11 +1,12 @@
 package zio.dynamodb.examples.model
 
 import zio.dynamodb.Annotations.enumOfCaseObjects
-import zio.dynamodb.{ PrimaryKey, ProjectionExpression }
+import zio.dynamodb.ProjectionExpression
 import zio.schema.DeriveSchema
 
 import java.time.Instant
 import zio.schema.Schema
+import zio.dynamodb.KeyConditionExpr
 
 @enumOfCaseObjects
 sealed trait Payment
@@ -76,7 +77,8 @@ object Student {
   ) =
     ProjectionExpression.accessors[Student]
 
-  def primaryKey(email: String, subject: String): PrimaryKey = PrimaryKey("email" -> email, "subject" -> subject)
+  def primaryKey(email: String, subject: String): KeyConditionExpr.PrimaryKeyExpr[Student] =
+    Student.email.partitionKey === email && Student.subject.sortKey === subject
 
   val enrolDate  = Instant.parse("2021-03-20T01:39:33Z")
   val enrolDate2 = Instant.parse("2022-03-20T01:39:33Z")

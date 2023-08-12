@@ -133,6 +133,22 @@ sealed trait ProjectionExpression[-From, +To] { self =>
 
 trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowPriorityImplicits1 {
   implicit class ProjectionExpressionSyntax0[From, To: ToAttributeValue](self: ProjectionExpression[From, To]) {
+
+    def partitionKey(implicit ev: IsPrimaryKey[To]): PartitionKey[From, To] = {
+      val _ = ev
+      self match {
+        case ProjectionExpression.MapElement(_, key) => PartitionKey[From, To](key)
+        case _                                       => throw new IllegalArgumentException("Not a partition key") // should not happen
+      }
+    }
+    def sortKey(implicit ev: IsPrimaryKey[To]): SortKey[From, To] = {
+      val _ = ev
+      self match {
+        case ProjectionExpression.MapElement(_, key) => SortKey[From, To](key)
+        case _                                       => throw new IllegalArgumentException("Not a partition key") // should not happen
+      }
+    }
+
     def set(a: To): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
         self,
@@ -527,6 +543,17 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
   final case class Meta(opticType: OpticType)
 
   implicit class ProjectionExpressionSyntax[From](self: ProjectionExpression[From, Unknown]) {
+
+    def partitionKey: PartitionKey[From, Unknown] =
+      self match {
+        case ProjectionExpression.MapElement(_, key) => PartitionKey[From, Unknown](key)
+        case _                                       => throw new IllegalArgumentException("Not a partition key") // should not happen
+      }
+    def sortKey: SortKey[From, Unknown]           =
+      self match {
+        case ProjectionExpression.MapElement(_, key) => SortKey[From, Unknown](key)
+        case _                                       => throw new IllegalArgumentException("Not a partition key") // should not happen
+      }
 
     /**
      * Modify or Add an item Attribute

@@ -8,6 +8,7 @@ import zio.dynamodb.examples.TypeSafeRoundTripSerialisationExample.Invoice.{
   Billed,
   LineItem,
   PaymentType,
+  PreBilled,
   Product
 }
 import zio.dynamodb.{ DynamoDBExecutor, DynamoDBQuery, PrimaryKey }
@@ -15,6 +16,9 @@ import zio.schema.annotation.{ caseName, discriminatorName }
 import zio.schema.{ DeriveSchema, Schema }
 
 import java.time.Instant
+import zio.dynamodb.ProjectionExpression
+import zio.ZIO
+import zio.dynamodb.DynamoDBError
 
 object TypeSafeRoundTripSerialisationExample extends ZIOAppDefault {
 
@@ -48,17 +52,31 @@ object TypeSafeRoundTripSerialisationExample extends ZIOAppDefault {
       lineItems: List[LineItem],
       paymentType: PaymentType
     ) extends Invoice
+    object Billed {
+      implicit val schema: Schema.CaseClass10[String, Int, Instant, BigDecimal, Boolean, Map[String, String], Set[
+        String
+      ], Option[Address], List[LineItem], PaymentType, Billed] = DeriveSchema.gen[Billed]
+
+      val (id, sequence, dueDate, total, isTest, categoryMap, accountSet, address, lineItems, paymentType) =
+        ProjectionExpression.accessors[Billed]
+    }
+
     final case class PreBilled(
       id: String,
       sequence: Int,
       dueDate: Instant,
       total: BigDecimal
     ) extends Invoice
+    object PreBilled {
+      implicit val schema: Schema.CaseClass4[String, Int, Instant, BigDecimal, PreBilled] =
+        DeriveSchema.gen[PreBilled]
+      val (id, sequence, dueDate, total)                                                  = ProjectionExpression.accessors[PreBilled]
+    }
 
     implicit val schema: Schema[Invoice] = DeriveSchema.gen[Invoice]
   }
 
-  private val invoice1 = Billed(
+  private val billedInvoice: Billed               = Billed(
     id = "1",
     sequence = 1,
     dueDate = Instant.now(),
@@ -73,13 +91,36 @@ object TypeSafeRoundTripSerialisationExample extends ZIOAppDefault {
     ),
     PaymentType.DebitCard
   )
+  private val preBilledInvoice: Invoice.PreBilled = Invoice.PreBilled(
+    id = "2",
+    sequence = 2,
+    dueDate = Instant.now(),
+    total = BigDecimal(20.0)
+  )
+
+  import zio.dynamodb.KeyConditionExpr
+
+  object Repository {
+    def genericFindById[A <: Invoice](
+      pkExpr: KeyConditionExpr.PartitionKeyEquals[A]
+    )(implicit ev: Schema[A]): ZIO[DynamoDBExecutor, Throwable, Either[DynamoDBError, Invoice]] =
+      DynamoDBQuery.get("table1")(pkExpr).execute
+
+    def genericSave[A <: Invoice](
+      invoice: A
+    )(implicit ev: Schema[A]): ZIO[DynamoDBExecutor, Throwable, Option[Invoice]] =
+      DynamoDBQuery.put("table1", invoice).execute
+  }
 
   private val program = for {
-    _     <- DynamoDBQuery.put[Invoice]("table1", invoice1).execute
-    found <- DynamoDBQuery.get[Invoice]("table1", PrimaryKey("id" -> "1")).execute
-    item  <- DynamoDBQuery.getItem("table1", PrimaryKey("id" -> "1")).execute
-    _     <- printLine(s"found=$found")
-    _     <- printLine(s"item=$item")
+    _      <- Repository.genericSave(billedInvoice)
+    _      <- Repository.genericSave(preBilledInvoice)
+    found  <- Repository.genericFindById(Billed.id.partitionKey === "1")
+    found2 <- Repository.genericFindById(PreBilled.id.partitionKey === "2")
+    item   <- DynamoDBQuery.getItem("table1", PrimaryKey("id" -> "1")).execute
+    _      <- printLine(s"found=$found")
+    _      <- printLine(s"found2=$found2")
+    _      <- printLine(s"item=$item")
   } yield ()
 
   override def run =

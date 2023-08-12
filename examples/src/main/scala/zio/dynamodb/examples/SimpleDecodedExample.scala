@@ -1,17 +1,22 @@
 package zio.dynamodb.examples
 
 import zio.dynamodb.DynamoDBQuery._
-import zio.dynamodb.{ DynamoDBExecutor, Item, PrimaryKey }
+import zio.dynamodb.{ DynamoDBExecutor, Item }
 import zio.schema.{ DeriveSchema, Schema }
 import zio.ZIOAppDefault
 import zio.Console.printLine
+import zio.dynamodb.ProjectionExpression
 
 object SimpleDecodedExample extends ZIOAppDefault {
   val nestedItem       = Item("id" -> 2, "name" -> "Avi", "flag" -> true)
   val parentItem: Item = Item("id" -> 1, "nested" -> nestedItem)
 
   final case class NestedCaseClass2(id: Int, nested: SimpleCaseClass3)
-  implicit lazy val nestedCaseClass2: Schema[NestedCaseClass2] = DeriveSchema.gen[NestedCaseClass2]
+  object NestedCaseClass2 {
+    implicit val nestedCaseClass2: Schema.CaseClass2[Int, SimpleCaseClass3, NestedCaseClass2] =
+      DeriveSchema.gen[NestedCaseClass2]
+    val (id, nested)                                                                          = ProjectionExpression.accessors[NestedCaseClass2]
+  }
 
   final case class SimpleCaseClass3(id: Int, name: String, flag: Boolean)
   implicit lazy val simpleCaseClass3: Schema[SimpleCaseClass3] = DeriveSchema.gen[SimpleCaseClass3]
@@ -19,7 +24,7 @@ object SimpleDecodedExample extends ZIOAppDefault {
   private val program = for {
     _         <-
       put("table1", NestedCaseClass2(id = 1, SimpleCaseClass3(2, "Avi", flag = true))).execute // Save case class to DB
-    caseClass <- get[NestedCaseClass2]("table1", PrimaryKey("id" -> 1)).execute // read case class from DB
+    caseClass <- get("table1")(NestedCaseClass2.id.partitionKey === 2).execute // read case class from DB
     _         <- printLine(s"get: found $caseClass")
     either    <- scanSome[NestedCaseClass2]("table1", 10).execute
     _         <- printLine(s"scanSome: found $either")
