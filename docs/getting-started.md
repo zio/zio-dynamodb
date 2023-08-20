@@ -12,39 +12,36 @@ libraryDependencies += "dev.zio" %% "zio-dynamodb" % @VERSION@
 ### Read & write data to/from DynamoDB
 
 ```scala
-import zio._
-import zio.clock.Clock
+import zio.aws.core.config
+import zio.aws.{ dynamodb, netty }
+import zio.dynamodb.DynamoDBQuery.{ get, put }
+import zio.dynamodb.{ DynamoDBExecutor }
 import zio.schema.{ DeriveSchema, Schema }
-import zio.dynamodb._
-import zio.dynamodb.DynamoDBQuery._
-import io.github.vigoo.zioaws.dynamodb
-import io.github.vigoo.zioaws.dynamodb.DynamoDb
-import io.github.vigoo.zioaws.core.config
-import io.github.vigoo.zioaws.http4s
+import zio.ZIOAppDefault
+import zio.dynamodb.ProjectionExpression
 
-final case class Student(email: String, subject: String)
-object Student {
-  implicit lazy val schema: Schema[Student] = DeriveSchema.gen[Student]
-}
+object Main extends ZIOAppDefault {
 
-object Main extends App {
-  private val liveDynamoDbLayer: ZLayer[Any, Throwable, DynamoDb] =
-    http4s.default >>> config.default >>> dynamodb.live
+  final case class Person(id: Int, firstName: String)
+  object Person {
+    implicit lazy val schema: Schema.CaseClass2[Int, String, Person] = DeriveSchema.gen[Person]
 
-  // Assuming table "student" exists with email as HASH key and subject as the RANGE key
-  val avi = Student("avi@gmail.com", "maths")
-  val adam = Student("adam@gmail.com", "english")
-
-  def run(args: List[String]) = {
-    (for {
-      _ <- (put("student", avi) zip put("student", adam)).execute
-      listOfStudentsOrError <- forEach(List(avi, adam)) { student =>
-        get[Student]("student",
-          PrimaryKey("email" -> student.email, "subject" -> student.subject)
-        )}.execute
-    } yield ())
-      .provideLayer((liveDynamoDbLayer ++ Clock.live) >>> DynamoDBExecutor.live)
-      .exitCode
+    val (id, firstName) = ProjectionExpression.accessors[Person]
   }
+  val examplePerson = Person(1, "avi")
+
+  private val program = for {
+    _      <- put("personTable", examplePerson).execute
+    person <- get("personTable")(Person.id.partitionKey === 1).execute
+    _      <- zio.Console.printLine(s"hello $person")
+  } yield ()
+
+  override def run =
+    program.provide(
+      netty.NettyHttpClient.default,
+      config.AwsConfig.default, // uses real AWS dynamodb
+      dynamodb.DynamoDb.live,
+      DynamoDBExecutor.live
+    )
 }
 ```
