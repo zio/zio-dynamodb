@@ -504,7 +504,7 @@ object DynamoDBQuery {
     updateItem(tableName, primaryKeyExpr.asAttrMap)(action).map(_.flatMap(item => fromItem(item).toOption))
   def deleteItem(tableName: String, key: PrimaryKey): Write[Any, Option[Item]] = DeleteItem(TableName(tableName), key)
 
-  def delete[From: Schema](
+  def deleteFrom[From: Schema](
     tableName: String
   )(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]

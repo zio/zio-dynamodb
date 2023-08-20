@@ -313,7 +313,7 @@ object LiveSpec extends ZIOSpecDefault {
           test("delete should handle keyword") {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
-                .delete(tableName)(
+                .deleteFrom(tableName)(
                   ExpressionAttrNames.id.partitionKey === "id" && ExpressionAttrNames.num.sortKey === 1
                 )
                 .where(ExpressionAttrNames.ttl.notExists)
@@ -1316,7 +1316,7 @@ object LiveSpec extends ZIOSpecDefault {
           },
           test("delete item handles keyword") {
             withDefaultTable { tableName =>
-              val d = delete(tableName = tableName)(
+              val d = deleteFrom(tableName = tableName)(
                 primaryKeyExpr =
                   ExpressionAttrNames.id.partitionKey === "first" && ExpressionAttrNames.num.sortKey === 7
               ).where(ExpressionAttrNames.ttl.notExists)
