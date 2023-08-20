@@ -78,7 +78,7 @@ object StudentZioDynamoDbTypeSafeAPIExample extends ZIOAppDefault {
            addresses.remove(1)
          }.execute
     _ <-
-      delete("student")(primaryKey("adam@gmail.com", "english"))
+      deleteFrom("student")(primaryKey("adam@gmail.com", "english"))
         .where(
           (enrollmentDate === Some(enrolDate) && payment <> Payment.PayPal && studentNumber
             .between(1, 3) && groups.contains("group1") && collegeName.contains(
