@@ -804,11 +804,16 @@ object DynamoDBQuery {
     case object unknownToSdkVersion               extends TableStatus
   }
 
-  // TODO(adam): Add more fields here, this was for some basic testing initially
+  // TODO: (adam) Add more fields here, this was for some basic testing initially
   final case class DescribeTableResponse(
     tableArn: String,
-    tableStatus: TableStatus
-  )
+    tableStatus: TableStatus,
+    tableSizeBytes: Long,
+    itemCount: Long
+  ) {
+    override def toString: String =
+      s"tableArn: $tableArn, tableStatus: $tableStatus, tableSizeBytes: $tableSizeBytes, itemCount: $itemCount"
+  }
 
   // Interestingly scan can be run in parallel using segment number and total segments fields
   // If running in parallel segment number must be used consistently with the paging token
