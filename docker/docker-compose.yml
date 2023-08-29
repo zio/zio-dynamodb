@@ -7,4 +7,4 @@ services:
     restart: always
     ports:
       - 8000:8000
-    command: "-jar DynamoDBLocal.jar -inMemory"
+    command: "-jar DynamoDBLocal.jar -inMemory -sharedDb"

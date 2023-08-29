@@ -452,18 +452,18 @@ object DynamoDBQuery {
   ): DynamoDBQuery[Any, Option[Item]] =
     GetItem(TableName(tableName), key, projections.toList)
 
-  def get[From: Schema](
-    tableName: String,
-    projections: ProjectionExpression[_, _]*
-  )(
+  def get[From: Schema](tableName: String)(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
-  ): DynamoDBQuery[From, Either[DynamoDBError, From]] =
-    get(tableName, primaryKeyExpr.asAttrMap, projections: _*)
+  ): DynamoDBQuery[From, Either[DynamoDBError, From]] = {
+    val projections = ProjectionExpression.projectionsFromSchema[From]
+    println(s"XXXXXXXXXXXXXXXXXXX projections=$projections")
+    get(tableName, primaryKeyExpr.asAttrMap, projections)
+  }
 
   private def get[A: Schema](
     tableName: String,
     key: PrimaryKey,
-    projections: ProjectionExpression[_, _]*
+    projections: Chunk[ProjectionExpression[_, _]]
   ): DynamoDBQuery[A, Either[DynamoDBError, A]] =
     getItem(tableName, key, projections: _*).map {
       case Some(item) =>
