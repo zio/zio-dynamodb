@@ -599,7 +599,7 @@ object DynamoDBQuery {
    * when executed will return a ZStream of A
    */
   def queryAll[A: Schema](
-    tableName: String,
+    tableName: String
     //keyConditionExpression: KeyConditionExpression, REVIEW: This is required by the dynamo API, should we make it required here?
   ): DynamoDBQuery[A, Stream[Throwable, A]] =
     queryAllItem(tableName, ProjectionExpression.projectionsFromSchema: _*).map(
