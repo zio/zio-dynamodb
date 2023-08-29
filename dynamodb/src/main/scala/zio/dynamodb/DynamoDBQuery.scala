@@ -454,11 +454,8 @@ object DynamoDBQuery {
 
   def get[From: Schema](tableName: String)(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
-  ): DynamoDBQuery[From, Either[DynamoDBError, From]] = {
-    val projections = ProjectionExpression.projectionsFromSchema[From]
-    println(s"XXXXXXXXXXXXXXXXXXX projections=$projections")
-    get(tableName, primaryKeyExpr.asAttrMap, projections)
-  }
+  ): DynamoDBQuery[From, Either[DynamoDBError, From]] =
+    get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
 
   private def get[A: Schema](
     tableName: String,
