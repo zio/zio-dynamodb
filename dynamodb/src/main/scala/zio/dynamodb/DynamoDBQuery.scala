@@ -525,11 +525,10 @@ object DynamoDBQuery {
 
   def scanSome[A: Schema](
     tableName: String,
-    limit: Int,
-    projections: ProjectionExpression[_, _]*
+    limit: Int
   ): DynamoDBQuery[A, (Chunk[A], LastEvaluatedKey)] =
     DynamoDBQuery.absolve(
-      scanSomeItem(tableName, limit, projections: _*).map {
+      scanSomeItem(tableName, limit, ProjectionExpression.projectionsFromSchema: _*).map {
         case (itemsChunk, lek) =>
           itemsChunk.forEach(item => fromItem(item)).map(Chunk.fromIterable) match {
             case Right(chunk) => Right((chunk, lek))
@@ -552,10 +551,9 @@ object DynamoDBQuery {
    * when executed will return a ZStream of A
    */
   def scanAll[A: Schema](
-    tableName: String,
-    projections: ProjectionExpression[_, _]*
+    tableName: String
   ): DynamoDBQuery[A, Stream[Throwable, A]] =
-    scanAllItem(tableName, projections: _*).map(
+    scanAllItem(tableName, ProjectionExpression.projectionsFromSchema: _*).map(
       _.mapZIO(item => ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_)))
     ) // TODO: think about error model
 
@@ -575,11 +573,10 @@ object DynamoDBQuery {
    */
   def querySome[A: Schema](
     tableName: String,
-    limit: Int,
-    projections: ProjectionExpression[_, _]*
+    limit: Int
   ): DynamoDBQuery[A, (Chunk[A], LastEvaluatedKey)] =
     DynamoDBQuery.absolve(
-      querySomeItem(tableName, limit, projections: _*).map {
+      querySomeItem(tableName, limit, ProjectionExpression.projectionsFromSchema: _*).map {
         case (itemsChunk, lek) =>
           itemsChunk.forEach(item => fromItem(item)).map(Chunk.fromIterable) match {
             case Right(chunk) => Right((chunk, lek))
@@ -604,9 +601,8 @@ object DynamoDBQuery {
   def queryAll[A: Schema](
     tableName: String,
     //keyConditionExpression: KeyConditionExpression, REVIEW: This is required by the dynamo API, should we make it required here?
-    projections: ProjectionExpression[_, _]*
   ): DynamoDBQuery[A, Stream[Throwable, A]] =
-    queryAllItem(tableName, projections: _*).map(
+    queryAllItem(tableName, ProjectionExpression.projectionsFromSchema: _*).map(
       _.mapZIO(item => ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_)))
     ) // TODO: think about error model
 
