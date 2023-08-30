@@ -6,7 +6,7 @@
 
 Simple, type-safe, and efficient access to DynamoDB
 
-[![Development](https://img.shields.io/badge/Project%20Stage-Experimental-yellowgreen.svg)](https://github.com/zio/zio/wiki/Project-Stages) ![CI Badge](https://github.com/zio/zio-dynamodb/workflows/CI/badge.svg) [![Sonatype Releases](https://img.shields.io/nexus/r/https/oss.sonatype.org/dev.zio/zio-dynamodb_2.13.svg?label=Sonatype%20Release)](https://oss.sonatype.org/content/repositories/releases/dev/zio/zio-dynamodb_2.13/) [![Sonatype Snapshots](https://img.shields.io/nexus/s/https/oss.sonatype.org/dev.zio/zio-dynamodb_2.13.svg?label=Sonatype%20Snapshot)](https://oss.sonatype.org/content/repositories/snapshots/dev/zio/zio-dynamodb_2.13/) [![javadoc](https://javadoc.io/badge2/dev.zio/zio-dynamodb-docs_2.13/javadoc.svg)](https://javadoc.io/doc/dev.zio/zio-dynamodb-docs_2.13) [![ZIO DynamoDB](https://img.shields.io/github/stars/zio/zio-dynamodb?style=social)](https://github.com/zio/zio-dynamodb)
+[![Development](https://img.shields.io/badge/Project%20Stage-Development-green.svg)](https://github.com/zio/zio/wiki/Project-Stages) ![CI Badge](https://github.com/zio/zio-dynamodb/workflows/CI/badge.svg) [![Sonatype Releases](https://img.shields.io/nexus/r/https/oss.sonatype.org/dev.zio/zio-dynamodb_2.13.svg?label=Sonatype%20Release)](https://oss.sonatype.org/content/repositories/releases/dev/zio/zio-dynamodb_2.13/) [![Sonatype Snapshots](https://img.shields.io/nexus/s/https/oss.sonatype.org/dev.zio/zio-dynamodb_2.13.svg?label=Sonatype%20Snapshot)](https://oss.sonatype.org/content/repositories/snapshots/dev/zio/zio-dynamodb_2.13/) [![javadoc](https://javadoc.io/badge2/dev.zio/zio-dynamodb-docs_2.13/javadoc.svg)](https://javadoc.io/doc/dev.zio/zio-dynamodb-docs_2.13) [![ZIO DynamoDB](https://img.shields.io/github/stars/zio/zio-dynamodb?style=social)](https://github.com/zio/zio-dynamodb)
 
 ## Introduction
 
@@ -20,7 +20,7 @@ To use ZIO DynamoDB, we need to add the following lines to our `build.sbt` file:
 
 ```scala
 libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb" % "0.2.4"
+  "dev.zio" %% "zio-dynamodb" % "0.2.11"
 )
 ```
 
@@ -80,11 +80,6 @@ docker-compose -f docker/docker-compose.yml down
 ## Documentation
 
 Learn more on the [ZIO DynamoDB homepage](https://zio.dev/zio-dynamodb/)!
-
-## Resources
-- [Introducing ZIO DynamoDB by Avinder Bahra & Adam Johnson](https://www.youtube.com/watch?v=f68-69eA8Vc&t=33s) - DynamoDB powers many cloud-scale applications, with its robust horizontal scalability and uptime. Yet, interacting with the Java SDK is error-prone and tedious. In this presentation, Avinder Bahra presents ZIO DynamoDB, a new library by Avi and Adam Johnson designed to make interacting with DynamoDB easy, type-safe, testable, and productive.
-- [Introducing The ZIO DynamoDB Type-Safe API by Avinder Bahra](https://www.youtube.com/watch?v=Qte4WUfHQ3g&t=10s) - Last year, Adam Johnson and Avinder released ZIO DynamoDB, a new Scala library that significantly reduces boilerplate when compared to working directly with AWS client libraries. However, there was still work to be done to improve type safety. In this talk, Avinder introduces a new type-safe API that can prevent many errors at compile time while remaining user-friendly.
-
 
 ## Contributing
 
