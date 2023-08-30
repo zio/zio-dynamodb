@@ -293,7 +293,7 @@ lazy val docs = project
     libraryDependencies ++= Seq("dev.zio" %% "zio" % zioVersion),
     projectName := "ZIO DynamoDB",
     mainModuleName := (zioDynamodb / moduleName).value,
-    projectStage := ProjectStage.Experimental,
+    projectStage := ProjectStage.Development,
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(zioDynamodb),
     docsPublishBranch := "series/2.x"
   )
