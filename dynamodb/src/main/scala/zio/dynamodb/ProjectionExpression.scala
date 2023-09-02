@@ -9,6 +9,7 @@ import zio.dynamodb.proofs._
 import zio.schema.{ AccessorBuilder, Schema }
 
 import scala.annotation.tailrec
+import proofs.Containable
 
 // The maximum depth for a document path is 32
 sealed trait ProjectionExpression[-From, +To] { self =>
@@ -98,7 +99,7 @@ sealed trait ProjectionExpression[-From, +To] { self =>
   /**
    * Only applies to a string attribute
    */
-  def beginsWith(av: String)(implicit ev: RefersTo[String, To]): ConditionExpression[From] = {
+  def beginsWith(av: String)(implicit ev: Beginnable[String, To]): ConditionExpression[From] = {
     val _ = ev
     ConditionExpression.BeginsWith(self, AttributeValue.String(av))
   }
