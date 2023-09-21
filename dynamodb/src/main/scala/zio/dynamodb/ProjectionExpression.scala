@@ -912,4 +912,14 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
       builder.either.left.map(_.mkString(","))
     }
   }
+
+  def projectionsFromSchema[A: Schema]: Chunk[ProjectionExpression[_, _]] =
+    implicitly[Schema[A]] match {
+      case r: Schema.Record[A] =>
+        r.fields.map { f =>
+          ProjectionExpression.MapElement(Root, f.name)
+        }
+      case _                   => Chunk.empty
+    }
+
 }

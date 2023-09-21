@@ -30,6 +30,7 @@ object StudentZioDynamoDbTypeSafeAPIExample extends ZIOAppDefault {
            put("student", student)
          }.runDrain
     _ <- put("student", avi.copy(payment = Payment.CreditCard)).execute
+    _ <- describeTable("student").execute.tap(meta => Console.printLine(s"table meta data: $meta"))
     _ <- batchReadFromStream("student", ZStream(avi, adam))(student => primaryKey(student.email, student.subject))
            .tap(errorOrStudent => Console.printLine(s"student=$errorOrStudent"))
            .runDrain
@@ -78,7 +79,7 @@ object StudentZioDynamoDbTypeSafeAPIExample extends ZIOAppDefault {
            addresses.remove(1)
          }.execute
     _ <-
-      delete("student")(primaryKey("adam@gmail.com", "english"))
+      deleteFrom("student")(primaryKey("adam@gmail.com", "english"))
         .where(
           (enrollmentDate === Some(enrolDate) && payment <> Payment.PayPal && studentNumber
             .between(1, 3) && groups.contains("group1") && collegeName.contains(

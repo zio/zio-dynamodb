@@ -452,18 +452,15 @@ object DynamoDBQuery {
   ): DynamoDBQuery[Any, Option[Item]] =
     GetItem(TableName(tableName), key, projections.toList)
 
-  def get[From: Schema](
-    tableName: String,
-    projections: ProjectionExpression[_, _]*
-  )(
-    partitionKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
+  def get[From: Schema](tableName: String)(
+    primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
   ): DynamoDBQuery[From, Either[DynamoDBError, From]] =
-    get(tableName, partitionKeyExpr.asAttrMap, projections: _*)
+    get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
 
   private def get[A: Schema](
     tableName: String,
     key: PrimaryKey,
-    projections: ProjectionExpression[_, _]*
+    projections: Chunk[ProjectionExpression[_, _]]
   ): DynamoDBQuery[A, Either[DynamoDBError, A]] =
     getItem(tableName, key, projections: _*).map {
       case Some(item) =>
@@ -504,7 +501,7 @@ object DynamoDBQuery {
     updateItem(tableName, primaryKeyExpr.asAttrMap)(action).map(_.flatMap(item => fromItem(item).toOption))
   def deleteItem(tableName: String, key: PrimaryKey): Write[Any, Option[Item]] = DeleteItem(TableName(tableName), key)
 
-  def delete[From: Schema](
+  def deleteFrom[From: Schema](
     tableName: String
   )(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
@@ -528,11 +525,10 @@ object DynamoDBQuery {
 
   def scanSome[A: Schema](
     tableName: String,
-    limit: Int,
-    projections: ProjectionExpression[_, _]*
+    limit: Int
   ): DynamoDBQuery[A, (Chunk[A], LastEvaluatedKey)] =
     DynamoDBQuery.absolve(
-      scanSomeItem(tableName, limit, projections: _*).map {
+      scanSomeItem(tableName, limit, ProjectionExpression.projectionsFromSchema: _*).map {
         case (itemsChunk, lek) =>
           itemsChunk.forEach(item => fromItem(item)).map(Chunk.fromIterable) match {
             case Right(chunk) => Right((chunk, lek))
@@ -555,10 +551,9 @@ object DynamoDBQuery {
    * when executed will return a ZStream of A
    */
   def scanAll[A: Schema](
-    tableName: String,
-    projections: ProjectionExpression[_, _]*
+    tableName: String
   ): DynamoDBQuery[A, Stream[Throwable, A]] =
-    scanAllItem(tableName, projections: _*).map(
+    scanAllItem(tableName, ProjectionExpression.projectionsFromSchema: _*).map(
       _.mapZIO(item => ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_)))
     ) // TODO: think about error model
 
@@ -578,11 +573,10 @@ object DynamoDBQuery {
    */
   def querySome[A: Schema](
     tableName: String,
-    limit: Int,
-    projections: ProjectionExpression[_, _]*
+    limit: Int
   ): DynamoDBQuery[A, (Chunk[A], LastEvaluatedKey)] =
     DynamoDBQuery.absolve(
-      querySomeItem(tableName, limit, projections: _*).map {
+      querySomeItem(tableName, limit, ProjectionExpression.projectionsFromSchema: _*).map {
         case (itemsChunk, lek) =>
           itemsChunk.forEach(item => fromItem(item)).map(Chunk.fromIterable) match {
             case Right(chunk) => Right((chunk, lek))
@@ -605,11 +599,10 @@ object DynamoDBQuery {
    * when executed will return a ZStream of A
    */
   def queryAll[A: Schema](
-    tableName: String,
+    tableName: String
     //keyConditionExpression: KeyConditionExpression, REVIEW: This is required by the dynamo API, should we make it required here?
-    projections: ProjectionExpression[_, _]*
   ): DynamoDBQuery[A, Stream[Throwable, A]] =
-    queryAllItem(tableName, projections: _*).map(
+    queryAllItem(tableName, ProjectionExpression.projectionsFromSchema: _*).map(
       _.mapZIO(item => ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_)))
     ) // TODO: think about error model
 
@@ -804,11 +797,16 @@ object DynamoDBQuery {
     case object unknownToSdkVersion               extends TableStatus
   }
 
-  // TODO(adam): Add more fields here, this was for some basic testing initially
+  // TODO: (adam) Add more fields here, this was for some basic testing initially
   final case class DescribeTableResponse(
     tableArn: String,
-    tableStatus: TableStatus
-  )
+    tableStatus: TableStatus,
+    tableSizeBytes: Long,
+    itemCount: Long
+  ) {
+    override def toString: String =
+      s"tableArn: $tableArn, tableStatus: $tableStatus, tableSizeBytes: $tableSizeBytes, itemCount: $itemCount"
+  }
 
   // Interestingly scan can be run in parallel using segment number and total segments fields
   // If running in parallel segment number must be used consistently with the paging token

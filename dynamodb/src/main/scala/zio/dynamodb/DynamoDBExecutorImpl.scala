@@ -165,10 +165,17 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
       .describeTable(DescribeTableRequest(ZIOAwsTableName(describeTable.tableName.value)))
       .flatMap(s =>
         for {
-          table  <- ZIO.fromOption(s.table.toOption).orElseFail(FieldIsNone("table"))
-          arn    <- ZIO.fromOption(table.tableArn.toOption).orElseFail(FieldIsNone("tableArn"))
-          status <- ZIO.fromOption(table.tableStatus.toOption).orElseFail(FieldIsNone("tableStatus"))
-        } yield DescribeTableResponse(tableArn = arn, tableStatus = dynamoDBTableStatus(status))
+          table          <- ZIO.fromOption(s.table.toOption).orElseFail(FieldIsNone("table"))
+          arn            <- ZIO.fromOption(table.tableArn.toOption).orElseFail(FieldIsNone("tableArn"))
+          tableSizeBytes <- ZIO.fromOption(table.tableSizeBytes.toOption).orElseFail(FieldIsNone("tableSizeBytes"))
+          itemCount      <- ZIO.fromOption(table.itemCount.toOption).orElseFail(FieldIsNone("itemCount"))
+          status         <- ZIO.fromOption(table.tableStatus.toOption).orElseFail(FieldIsNone("tableStatus"))
+        } yield DescribeTableResponse(
+          tableArn = arn,
+          tableSizeBytes = tableSizeBytes,
+          itemCount = itemCount,
+          tableStatus = dynamoDBTableStatus(status)
+        )
       )
       .mapError(_.toThrowable)
 

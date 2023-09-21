@@ -55,7 +55,7 @@ object StudentZioDynamoDbExampleWithOptics extends ZIOAppDefault {
                Some(Address("line1", "postcode1"))
              )
          }.execute
-    _ <- delete("student")(primaryKey("adam@gmail.com", "english"))
+    _ <- deleteFrom("student")(primaryKey("adam@gmail.com", "english"))
            .where(
              enrollmentDate === Some(
                enrolDate

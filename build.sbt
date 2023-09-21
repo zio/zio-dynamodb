@@ -33,7 +33,7 @@ addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck"
 
 val zioVersion        = "2.0.13"
 val zioAwsVersion     = "5.20.42.1"
-val zioSchemaVersion  = "0.4.12"
+val zioSchemaVersion  = "0.4.14"
 val zioPreludeVersion = "1.0.0-RC19"
 
 lazy val root =
@@ -293,7 +293,7 @@ lazy val docs = project
     libraryDependencies ++= Seq("dev.zio" %% "zio" % zioVersion),
     projectName := "ZIO DynamoDB",
     mainModuleName := (zioDynamodb / moduleName).value,
-    projectStage := ProjectStage.Experimental,
+    projectStage := ProjectStage.Development,
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(zioDynamodb),
     docsPublishBranch := "series/2.x"
   )
