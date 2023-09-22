@@ -21,8 +21,6 @@ import zio.dynamodb.DynamoDBQuery
 import zio.dynamodb.ProjectionExpression
 import zio.schema.DeriveSchema
 import zio.dynamodb.DynamoDBError
-import zio.Scope
-import zio.{ ZEnvironment, ZIO }
 import zio.ULayer
 
 /**
@@ -43,20 +41,6 @@ object InteropClient extends IOApp.Simple {
         builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
     }
   val layer: ZLayer[Any, Throwable, DynamoDBExecutor] = dynamoDbLayer >>> DynamoDBExecutor.live
-
-  val x: ZIO[Any with Scope, Throwable, ZEnvironment[DynamoDBExecutor]] = layer.build
-  val x2: ZIO[Any with Scope, Throwable, DynamoDBExecutor]              = for { // problem is we have Scope capability
-    env            <- x
-    dynamoDBExector = env.get[DynamoDBExecutor]
-  } yield dynamoDBExector
-  val x3                                                                =
-    x2
-
-  val db1: ZIO[config.AwsConfig with Scope, Throwable, DynamoDb] = DynamoDb.scoped(identity)
-  val db2: ZIO[Scope, Throwable, ZEnvironment[DynamoDb]]         = for {
-    scope <- ZIO.scope
-    ddb   <- dynamoDbLayer.build(scope)
-  } yield ddb
 
   // ZIO
   // =================================================================================================
