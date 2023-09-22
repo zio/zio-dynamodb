@@ -16,9 +16,9 @@ import cats.effect.kernel.Resource
 import zio.ZLayer
 import zio.{ Scope, ZIO }
 import zio.aws.netty.NettyHttpClient
+import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClientBuilder
 
 object syntax {
-
 
   class DynamoDBExceutorF[F[_]](dynamoDBExecutor: DynamoDBExecutor)(implicit F: Async[F]) {
     def execute[Out](query: DynamoDBQuery[_, Out]): F[Out] =
@@ -36,12 +36,14 @@ object syntax {
 
     def of[F[_]: Async](
       commonAwsConfig: config.CommonAwsConfig
+    )(
+      customization: DynamoDbAsyncClientBuilder => DynamoDbAsyncClientBuilder = identity
     )(implicit zioRuntime: zio.Runtime[Any]): Resource[F, DynamoDBExceutorF[F]] = {
       import zio.interop.catz._
 
       val ddbLayer = (NettyHttpClient.default ++ ZLayer.succeed(
         commonAwsConfig
-      )) >>> config.AwsConfig.default >>> dynamodb.DynamoDb.live
+      )) >>> config.AwsConfig.default >>> dynamodb.DynamoDb.customized(customization)
 
       val scopedF: ZIO[Any with Scope, Throwable, DynamoDBExceutorF[F]] = for {
         zenv <- (ddbLayer >>> DynamoDBExecutor.live).build
