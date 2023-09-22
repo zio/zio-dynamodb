@@ -290,7 +290,6 @@ lazy val zioDynamodbCe =
       libraryDependencies ++= Seq(
         "org.typelevel" %% "cats-effect"      % catsEffect3Version,
         "co.fs2"        %% "fs2-core"         % fs2Version,
-        "dev.zio"       %% "zio-managed"      % zioVersion,
         "dev.zio"       %% "zio-test"         % zioVersion % "test",
         "dev.zio"       %% "zio-test-sbt"     % zioVersion % "test",
         "dev.zio"       %% "zio-interop-cats" % zioInteropCats3Version
