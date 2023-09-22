@@ -54,19 +54,6 @@ object InteropClient extends IOApp.Simple {
     val (id, name)      = ProjectionExpression.accessors[Person]
   }
 
-  /*
-  private val program = for {
-    _   <- createTable("SCVRecord", KeySchema("id"), BillingMode.PayPerRequest)(
-             AttributeDefinition.attrDefnString("id")
-           ).execute
-    _   <- put("SCVRecord", SCVRecord(id = "avi")).execute
-    rec <- get("SCVRecord")(SCVRecord.id.partitionKey === "avi").execute
-    _   <- ZIO.debug(s"rec = $rec") // prints: [info] rec = Right(SCVRecord(avi,None))
-    _   <- deleteTable("SCVRecord").execute
-  } yield ()
-
-   */
-
   val run = {
     implicit val runtime = zio.Runtime.default
 
