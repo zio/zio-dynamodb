@@ -1,4 +1,4 @@
-package `zio.dynamodb.interop.ce`
+package zio.dynamodb.interop.ce
 
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
@@ -20,8 +20,10 @@ import zio.dynamodb.interop.ce.syntax._
 import zio.dynamodb.DynamoDBQuery
 import zio.dynamodb.ProjectionExpression
 import zio.schema.DeriveSchema
-import zio.dynamodb.DynamoDBError
 import zio.ULayer
+import zio.dynamodb.KeySchema
+import zio.dynamodb.BillingMode
+import zio.dynamodb.AttributeDefinition
 
 /**
  * example interop app
@@ -52,15 +54,42 @@ object InteropClient extends IOApp.Simple {
     val (id, name)      = ProjectionExpression.accessors[Person]
   }
 
+  /*
+  private val program = for {
+    _   <- createTable("SCVRecord", KeySchema("id"), BillingMode.PayPerRequest)(
+             AttributeDefinition.attrDefnString("id")
+           ).execute
+    _   <- put("SCVRecord", SCVRecord(id = "avi")).execute
+    rec <- get("SCVRecord")(SCVRecord.id.partitionKey === "avi").execute
+    _   <- ZIO.debug(s"rec = $rec") // prints: [info] rec = Right(SCVRecord(avi,None))
+    _   <- deleteTable("SCVRecord").execute
+  } yield ()
+
+   */
+
   val run = {
     implicit val runtime = zio.Runtime.default
 
     for {
-      _ <- DynamoDBExceutorF.of[IO](commonAwsConfig).use { ddbe =>
-             val query                                     = DynamoDBQuery.get("table")(Person.id.partitionKey === "avi")
-             val result: IO[Either[DynamoDBError, Person]] = ddbe.execute(query)
-             result
-           }
+      _ <- DynamoDBExceutorF
+             .of[IO](commonAwsConfig) { builder =>
+               builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
+             }
+             .use { ddbe =>
+               val put    = DynamoDBQuery.put("Person", Person(id = "avi", name = "Avinder"))
+               val get    = DynamoDBQuery.get("Person")(Person.id.partitionKey === "avi")
+               val create = DynamoDBQuery.createTable("Person", KeySchema("id"), BillingMode.PayPerRequest)(
+                 AttributeDefinition.attrDefnString("id")
+               )
+               for {
+                 _      <- ddbe.execute(create)
+                 _      <- ddbe.execute(put)
+                 result <- ddbe.execute(get)
+                 _       = println(s"XXXXXX result=$result")
+                 _      <- ddbe.execute(DynamoDBQuery.deleteTable("Person"))
+               } yield ()
+             }
     } yield ()
   }
+
 }
