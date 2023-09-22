@@ -12,7 +12,6 @@ import zio.dynamodb.DynamoDBExecutor
 
 import cats.effect.IO
 import cats.effect.IOApp
-import cats.effect.Async
 import cats.syntax.all._
 
 import java.net.URI
@@ -25,21 +24,19 @@ import zio.dynamodb.DynamoDBError
 import zio.Scope
 import zio.{ ZEnvironment, ZIO }
 import zio.ULayer
-import zio.aws.core.httpclient.HttpClient
-import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClientBuilder
 
 /**
  * example interop app
  */
 object InteropClient extends IOApp.Simple {
-  val awsConfig: ULayer[config.CommonAwsConfig]       = ZLayer.succeed(
-    config.CommonAwsConfig(
-      region = None,
-      credentialsProvider = StaticCredentialsProvider.create(AwsBasicCredentials.create("dummy", "dummy")),
-      endpointOverride = None,
-      commonClientConfig = None
-    )
+  val commonAwsConfig = config.CommonAwsConfig(
+    region = None,
+    credentialsProvider = StaticCredentialsProvider.create(AwsBasicCredentials.create("dummy", "dummy")),
+    endpointOverride = None,
+    commonClientConfig = None
   )
+
+  val awsConfig: ULayer[config.CommonAwsConfig]       = ZLayer.succeed(commonAwsConfig)
   val dynamoDbLayer: ZLayer[Any, Throwable, DynamoDb] =
     (netty.NettyHttpClient.default ++ awsConfig) >>> config.AwsConfig.default >>> dynamodb.DynamoDb.customized {
       builder =>
@@ -65,29 +62,21 @@ object InteropClient extends IOApp.Simple {
   // =================================================================================================
   // CE
 
-  def withDynamoDBScope[F[_]]( // fatten out layer dependencies
-    awsCommonConfig: config.CommonAwsConfig,
-    httpClient: HttpClient,
-    customization: DynamoDbAsyncClientBuilder => DynamoDbAsyncClientBuilder
-  )(dynamoDbProgram: F[_])(implicit
-    F: Async[F]
-  ): F[_] =
-    // re-assemble ZLayer stuff here
-    // invoke ZIO DynamoDB callback program somehow in context of this ZLayer
-    ???
-
   final case class Person(id: String, name: String)
   object Person {
     implicit val schema = DeriveSchema.gen[Person]
     val (id, name)      = ProjectionExpression.accessors[Person]
   }
 
-  val ddbe: DynamoDBExecutor = ???
   val run = {
-    val query                                     = DynamoDBQuery.get("table")(Person.id.partitionKey === "avi")
-//    val result: IO[Either[DynamoDBError, Person]] = query.executeToF[IO]
-    val result: IO[Either[DynamoDBError, Person]] = (new DynamoDBExceutorF[IO](ddbe)).execute(query)
+    implicit val runtime = zio.Runtime.default
 
-    result.map(r => println(s"query result = $r"))
+    for {
+      _ <- DynamoDBExceutorF.of[IO](commonAwsConfig).use { ddbe =>
+             val query                                     = DynamoDBQuery.get("table")(Person.id.partitionKey === "avi")
+             val result: IO[Either[DynamoDBError, Person]] = ddbe.execute(query)
+             result
+           }
+    } yield ()
   }
 }
