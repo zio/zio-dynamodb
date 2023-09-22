@@ -276,8 +276,8 @@ lazy val examples = module("zio-dynamodb-examples", "examples")
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
   .dependsOn(zioDynamodb)
-  
-val zioInteropCats3Version    = "23.0.0.8"
+
+val zioInteropCats3Version = "23.0.0.8"
 
 lazy val zioDynamodbCe =
   module("zio-dynamodb-ce", "interop/dynamodb-ce")
@@ -288,11 +288,12 @@ lazy val zioDynamodbCe =
       resolvers += Resolver.sonatypeRepo("releases"),
       fork := true,
       libraryDependencies ++= Seq(
-        "org.typelevel" %% "cats-effect"  % catsEffect3Version,
-        "co.fs2"        %% "fs2-core"     % fs2Version,
-        "dev.zio"       %% "zio-test"     % zioVersion % "test",
-        "dev.zio"       %% "zio-test-sbt" % zioVersion % "test",
-        "dev.zio"       %% "zio-interop-cats" % zioInteropCats3Version,
+        "org.typelevel" %% "cats-effect"      % catsEffect3Version,
+        "co.fs2"        %% "fs2-core"         % fs2Version,
+        "dev.zio"       %% "zio-managed"      % zioVersion,
+        "dev.zio"       %% "zio-test"         % zioVersion % "test",
+        "dev.zio"       %% "zio-test-sbt"     % zioVersion % "test",
+        "dev.zio"       %% "zio-interop-cats" % zioInteropCats3Version
       ),
       testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
     )
