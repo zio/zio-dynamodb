@@ -12,6 +12,9 @@ import zio.dynamodb.DynamoDBExecutor
 
 import cats.effect.IO
 import cats.effect.IOApp
+import cats.effect.Async
+import cats.syntax.all._
+
 import java.net.URI
 
 import zio.dynamodb.interop.ce.syntax._
@@ -21,7 +24,6 @@ import zio.schema.DeriveSchema
 import zio.dynamodb.DynamoDBError
 import zio.Scope
 import zio.{ ZEnvironment, ZIO }
-import cats.effect.kernel.Async
 import zio.ULayer
 import zio.aws.core.httpclient.HttpClient
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClientBuilder
@@ -50,9 +52,14 @@ object InteropClient extends IOApp.Simple {
     env            <- x
     dynamoDBExector = env.get[DynamoDBExecutor]
   } yield dynamoDBExector
-  val x3                                                                =  {
+  val x3                                                                =
     x2
-  }
+
+  val db1: ZIO[config.AwsConfig with Scope, Throwable, DynamoDb] = DynamoDb.scoped(identity)
+  val db2: ZIO[Scope, Throwable, ZEnvironment[DynamoDb]]         = for {
+    scope <- ZIO.scope
+    ddb   <- dynamoDbLayer.build(scope)
+  } yield ddb
 
   // ZIO
   // =================================================================================================
@@ -75,9 +82,12 @@ object InteropClient extends IOApp.Simple {
     val (id, name)      = ProjectionExpression.accessors[Person]
   }
 
+  val ddbe: DynamoDBExecutor = ???
   val run = {
     val query                                     = DynamoDBQuery.get("table")(Person.id.partitionKey === "avi")
-    val result: IO[Either[DynamoDBError, Person]] = query.executeToF[IO]
+//    val result: IO[Either[DynamoDBError, Person]] = query.executeToF[IO]
+    val result: IO[Either[DynamoDBError, Person]] = (new DynamoDBExceutorF[IO](ddbe)).execute(query)
+
     result.map(r => println(s"query result = $r"))
   }
 }
