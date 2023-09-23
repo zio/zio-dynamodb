@@ -9,6 +9,7 @@ import zio.aws.dynamodb
 import zio.aws.dynamodb.DynamoDb
 import zio.aws.netty
 import zio.dynamodb.DynamoDBExecutor
+import zio.dynamodb.DynamoDBQuery.{ createTable, deleteTable, get, put }
 
 import cats.effect.IO
 import cats.effect.IOApp
@@ -17,7 +18,6 @@ import cats.syntax.all._
 import java.net.URI
 
 import zio.dynamodb.interop.ce.syntax._
-import zio.dynamodb.DynamoDBQuery
 import zio.dynamodb.ProjectionExpression
 import zio.schema.DeriveSchema
 import zio.ULayer
@@ -55,25 +55,25 @@ object InteropClient extends IOApp.Simple {
   }
 
   val run = {
-    implicit val runtime = zio.Runtime.default
+    implicit val runtime = zio.Runtime.default // DynamoDBExceutorF.of requires an implicit Runtime
 
     for {
       _ <- DynamoDBExceutorF
              .of[IO](commonAwsConfig) { builder =>
                builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
              }
-             .use { ddbe =>
-               val put    = DynamoDBQuery.put("Person", Person(id = "avi", name = "Avinder"))
-               val get    = DynamoDBQuery.get("Person")(Person.id.partitionKey === "avi")
-               val create = DynamoDBQuery.createTable("Person", KeySchema("id"), BillingMode.PayPerRequest)(
+             .use { implicit ddbe =>
+               val put2   = put("Person", Person(id = "avi", name = "Avinder"))
+               val get2   = get("Person")(Person.id.partitionKey === "avi")
+               val create = createTable("Person", KeySchema("id"), BillingMode.PayPerRequest)(
                  AttributeDefinition.attrDefnString("id")
                )
                for {
-                 _      <- ddbe.execute(create)
-                 _      <- ddbe.execute(put)
-                 result <- ddbe.execute(get)
+                 _      <- create.executeToF[IO] // via extension method, but still requires IO so still clunky
+                 _      <- ddbe.execute(put2)
+                 result <- ddbe.execute(get2)
                  _       = println(s"XXXXXX result=$result")
-                 _      <- ddbe.execute(DynamoDBQuery.deleteTable("Person"))
+                 _      <- ddbe.execute(deleteTable("Person"))
                } yield ()
              }
     } yield ()

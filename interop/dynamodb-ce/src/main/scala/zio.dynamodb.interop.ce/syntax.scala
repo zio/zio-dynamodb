@@ -31,6 +31,8 @@ object syntax {
   }
 
   object DynamoDBExceutorF {
+
+    // TODO: do we need this?
     def of2[F[_]](dynamoDBExecutor: DynamoDBExecutor)(implicit F: Async[F]): DynamoDBExceutorF[F] =
       new DynamoDBExceutorF[F](dynamoDBExecutor)
 
@@ -51,6 +53,12 @@ object syntax {
       val resource: Resource[F, DynamoDBExceutorF[F]]                   = Resource.scoped(scopedF)
       resource
     }
+  }
+
+  implicit class DynamoDBQueryOps[In, Out](query: DynamoDBQuery[In, Out]) {
+
+    def executeToF[F[_]](implicit exF: DynamoDBExceutorF[F]): F[Out] =
+      exF.execute(query)
   }
 
   // implicit class DynamoDBQueryOps[In, Out](query: DynamoDBQuery[In, Out]) {
