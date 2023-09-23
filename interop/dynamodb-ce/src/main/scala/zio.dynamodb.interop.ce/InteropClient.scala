@@ -24,6 +24,7 @@ import zio.ULayer
 import zio.dynamodb.KeySchema
 import zio.dynamodb.BillingMode
 import zio.dynamodb.AttributeDefinition
+import zio.dynamodb.DynamoDBQuery
 
 /**
  * example interop app
@@ -64,13 +65,14 @@ object InteropClient extends IOApp.Simple {
              }
              .use { implicit dynamoDBExecutorF => // To use extension method we need implicit here
                for {
-                 _      <- createTable("Person", KeySchema("id"), BillingMode.PayPerRequest)(
-                             AttributeDefinition.attrDefnString("id")
-                           ).executeToF
-                 _      <- put("Person", Person(id = "avi", name = "Avinder")).executeToF
-                 result <- get("Person")(Person.id.partitionKey === "avi").executeToF
-                 _       = println(s"XXXXXX result=$result")
-                 _      <- deleteTable("Person").executeToF
+                 _         <- createTable("Person", KeySchema("id"), BillingMode.PayPerRequest)(
+                                AttributeDefinition.attrDefnString("id")
+                              ).executeToF
+                 _         <- put("Person", Person(id = "avi", name = "Avinder")).executeToF
+                 result    <- get("Person")(Person.id.partitionKey === "avi").executeToF
+                 zioStream <- DynamoDBQuery.scanAll[Person]("Person").executeToF
+                 _          = println(s"XXXXXX result=$result")
+                 _         <- deleteTable("Person").executeToF
                } yield ()
              }
     } yield ()
