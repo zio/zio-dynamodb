@@ -62,7 +62,7 @@ object InteropClient extends IOApp.Simple {
              .of[IO](commonAwsConfig) { builder =>
                builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
              }
-             .use { implicit ddbe => // To use extension method we need implicit here
+             .use { implicit dynamoDBExecutorF => // To use extension method we need implicit here
                for {
                  _      <- createTable("Person", KeySchema("id"), BillingMode.PayPerRequest)(
                              AttributeDefinition.attrDefnString("id")
