@@ -55,9 +55,9 @@ object syntax {
     }
   }
 
-  implicit class DynamoDBQueryOps[In, Out](query: DynamoDBQuery[In, Out]) {
+  implicit class DynamoDBQueryOps[F[_], In, Out](query: DynamoDBQuery[In, Out]) {
 
-    def executeToF[F[_]](implicit exF: DynamoDBExceutorF[F]): F[Out] =
+    def executeToF(implicit exF: DynamoDBExceutorF[F]): F[Out] =
       exF.execute(query)
   }
 

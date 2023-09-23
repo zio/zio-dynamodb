@@ -62,18 +62,15 @@ object InteropClient extends IOApp.Simple {
              .of[IO](commonAwsConfig) { builder =>
                builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
              }
-             .use { implicit ddbe =>
-               val put2   = put("Person", Person(id = "avi", name = "Avinder"))
-               val get2   = get("Person")(Person.id.partitionKey === "avi")
-               val create = createTable("Person", KeySchema("id"), BillingMode.PayPerRequest)(
-                 AttributeDefinition.attrDefnString("id")
-               )
+             .use { implicit ddbe => // To use extension method we need implicit here
                for {
-                 _      <- create.executeToF[IO] // via extension method, but still requires IO so still clunky
-                 _      <- ddbe.execute(put2)
-                 result <- ddbe.execute(get2)
+                 _      <- createTable("Person", KeySchema("id"), BillingMode.PayPerRequest)(
+                             AttributeDefinition.attrDefnString("id")
+                           ).executeToF
+                 _      <- put("Person", Person(id = "avi", name = "Avinder")).executeToF
+                 result <- get("Person")(Person.id.partitionKey === "avi").executeToF
                  _       = println(s"XXXXXX result=$result")
-                 _      <- ddbe.execute(deleteTable("Person"))
+                 _      <- deleteTable("Person").executeToF
                } yield ()
              }
     } yield ()
