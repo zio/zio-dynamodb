@@ -35,8 +35,9 @@ val zioVersion        = "2.0.13"
 val zioAwsVersion     = "5.20.42.1"
 val zioSchemaVersion  = "0.4.15"
 val zioPreludeVersion = "1.0.0-RC19"
-val catsEffect3Version = "3.5.1"
-val fs2Version         = "3.8.0"
+val zioInteropCats3Version = "23.0.0.8"
+val catsEffect3Version     = "3.5.1"
+val fs2Version             = "3.9.2"
 
 lazy val root =
   project
@@ -269,15 +270,15 @@ lazy val examples = module("zio-dynamodb-examples", "examples")
     skip in publish := true,
     fork := true,
     libraryDependencies ++= Seq(
+      "org.typelevel"         %% "cats-effect"  % catsEffect3Version,
+      "co.fs2"                %% "fs2-core"     % fs2Version,
       "dev.zio"               %% "zio-test"     % zioVersion % "test",
       "dev.zio"               %% "zio-test-sbt" % zioVersion % "test",
       "software.amazon.awssdk" % "dynamodb"     % "2.17.295"
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
-  .dependsOn(zioDynamodb)
-
-val zioInteropCats3Version = "23.0.0.8"
+  .dependsOn(zioDynamodb, zioDynamodbCe)
 
 lazy val zioDynamodbCe =
   module("zio-dynamodb-ce", "interop/dynamodb-ce")
