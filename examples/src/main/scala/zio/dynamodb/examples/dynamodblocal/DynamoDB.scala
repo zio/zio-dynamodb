@@ -35,7 +35,7 @@ object DynamoDB {
 
   val dynamoDBExecutorLayer = dynamoDbLayer >>> DynamoDBExecutor.live
 
-  val studentTableLayer: ZLayer[DynamoDBExecutor, Throwable, Unit] =
+  def studentTableLayer: ZLayer[DynamoDBExecutor, Throwable, Unit] =
     ZLayer.scoped(
       ZIO.acquireRelease(acquire =
         DynamoDBQuery
@@ -47,7 +47,7 @@ object DynamoDB {
       )(release = _ => DynamoDBQuery.deleteTable("student").execute.orDie)
     )
 
-  val boxTableLayer: ZLayer[DynamoDBExecutor, Throwable, Unit] =
+  def boxTableLayer: ZLayer[DynamoDBExecutor, Throwable, Unit] =
     ZLayer.scoped(
       ZIO.acquireRelease(acquire =
         DynamoDBQuery
