@@ -48,9 +48,10 @@ private[dynamodb] object AliasMapRender {
       val (am, pathStrings) = paths.foldLeft((aliasMap, List.empty[String])) {
         case ((am, acc), path) =>
           val (am2, str) = am.getOrInsert(path)
+          println(s"YYYYYYYYYYY str is empty=${str == ""} for path $path")
           (am2, acc :+ str)
       }
-      println(s"YYYYYYYYYYY forEach pathStrings=$pathStrings aliasMap=${am}}")
+      println(s"YYYYYYYYYYY forEach pathStrings.size=${pathStrings.size} pathStrings=$pathStrings aliasMap=${am}}")
       (am, pathStrings)
     }
 

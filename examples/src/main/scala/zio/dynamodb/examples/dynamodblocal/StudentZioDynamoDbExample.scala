@@ -1,6 +1,6 @@
 package zio.dynamodb.examples.dynamodblocal
 
-import zio.dynamodb.DynamoDBQuery.{ createTable, put }
+import zio.dynamodb.DynamoDBQuery.put
 import zio.dynamodb._
 import zio.dynamodb.examples.dynamodblocal.DynamoDB._
 import zio.dynamodb.examples.model.Student._
@@ -14,10 +14,6 @@ import zio.{ Console, ZIOAppDefault }
 object StudentZioDynamoDbExample extends ZIOAppDefault {
 
   private val program = for {
-    _ <- createTable("student", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
-           AttributeDefinition.attrDefnString("email"),
-           AttributeDefinition.attrDefnString("subject")
-         ).execute
     _ <- batchWriteFromStream(ZStream(avi, adam)) { student =>
            put("student", student)
          }.runDrain
@@ -25,8 +21,7 @@ object StudentZioDynamoDbExample extends ZIOAppDefault {
     _ <- batchReadFromStream("student", ZStream(avi, adam))(s => primaryKey(s.email, s.subject))
            .tap(errorOrStudent => Console.printLine(s"student=$errorOrStudent"))
            .runDrain
-    _ <- DynamoDBQuery.deleteTable("student").execute
   } yield ()
 
-  override def run = program.provide(dynamoDBExecutorLayer)
+  override def run = program.provide(dynamoDBExecutorLayer, studentTableLayer)
 }

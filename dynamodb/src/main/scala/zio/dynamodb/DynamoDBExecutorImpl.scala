@@ -784,11 +784,11 @@ case object DynamoDBExecutorImpl {
       projections <- AliasMapRender.forEach(queryAll.projections)
     } yield (filter, keyExpr, projections)).execute
 
-    val (aliasMap2, (maybeFilterExpr2, maybeKeyExpr2, projections2)) = (for {
-      filter      <- AliasMapRender.collectAll(queryAll.filterExpression.map(_.render))
-      keyExpr     <- AliasMapRender.collectAll(queryAll.keyConditionExpr.map(_.render))
-      projections <- AliasMapRender.forEach(queryAll.projections)
-    } yield (filter, keyExpr, projections)).execute
+    // val (aliasMap2, (maybeFilterExpr2 /*, maybeKeyExpr2, projections2 */ )) = (for {
+    //   filter <- AliasMapRender.collectAll(queryAll.filterExpression.map(_.render))
+    //   // keyExpr     <- AliasMapRender.collectAll(queryAll.keyConditionExpr.map(_.render))
+    //   // projections <- AliasMapRender.forEach(queryAll.projections)
+    // } yield (filter /*, keyExpr, projections*/ )).execute
 
     /*
 TypeSafeAPIExampleWithDiscriminator
@@ -823,10 +823,10 @@ AFTER
 
      */
 
-    println(s"XXXXXXXXXXXX maybeFilterExpr=$maybeFilterExpr2")
-    println(s"XXXXXXXXXXXX maybeKeyExpr=$maybeKeyExpr2")
-    println(s"XXXXXXXXXXXX projections=$projections2")
-    println(s"XXXXXXXXXXXX aliasMap=$aliasMap2")
+    // println(s"XXXXXXXXXXXX maybeFilterExpr2=$maybeFilterExpr2")
+    // println(s"XXXXXXXXXXXX maybeKeyExpr2=$maybeKeyExpr2")
+    // println(s"XXXXXXXXXXXX projections2=$projections2")
+    // println(s"XXXXXXXXXXXX aliasMap2=$aliasMap2")
 
     QueryRequest(
       tableName = ZIOAwsTableName(queryAll.tableName.value),
