@@ -38,5 +38,5 @@ object PENavigation extends ZIOAppDefault {
     _ <- deleteTable("student").execute
   } yield ()
 
-  override def run = program.provide(layer)
+  override def run = program.provide(dynamoDBExecutorLayer)
 }

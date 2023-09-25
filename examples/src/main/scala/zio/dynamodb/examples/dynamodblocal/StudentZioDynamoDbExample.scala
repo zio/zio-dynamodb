@@ -28,5 +28,5 @@ object StudentZioDynamoDbExample extends ZIOAppDefault {
     _ <- DynamoDBQuery.deleteTable("student").execute
   } yield ()
 
-  override def run = program.provide(layer)
+  override def run = program.provide(dynamoDBExecutorLayer)
 }

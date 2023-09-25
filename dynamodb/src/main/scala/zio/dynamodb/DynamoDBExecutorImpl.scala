@@ -784,6 +784,50 @@ case object DynamoDBExecutorImpl {
       projections <- AliasMapRender.forEach(queryAll.projections)
     } yield (filter, keyExpr, projections)).execute
 
+    val (aliasMap2, (maybeFilterExpr2, maybeKeyExpr2, projections2)) = (for {
+      filter      <- AliasMapRender.collectAll(queryAll.filterExpression.map(_.render))
+      keyExpr     <- AliasMapRender.collectAll(queryAll.keyConditionExpr.map(_.render))
+      projections <- AliasMapRender.forEach(queryAll.projections)
+    } yield (filter, keyExpr, projections)).execute
+
+    /*
+TypeSafeAPIExampleWithDiscriminator
+Invalid filter expression
+An expression attribute name used in the document path is not defined; attribute name: #n1 (Service: DynamoDb, Status Code: 400, Request ID: 8bf5735e-2846-4557-a82a-883a6705fcd1)
+
+
+[info] XXXXXXXXXXXX maybeFilterExpr=Some((#n1.#n0) = (:v2))
+[info] XXXXXXXXXXXX maybeKeyExpr=Some(#n3 = :v2)
+[info] XXXXXXXXXXXX projections=List(#n3, #n4, #n5)
+[info] XXXXXXXXXXXX aliasMap=AliasMap(HashMap(
+  PathSegment(trafficLightColour,rgb) -> #n0,
+  PathSegment(,code) -> #n4,
+  PathSegment(,id) -> #n3,
+  FullPath(code) -> #n4,
+  PathSegment(,trafficLightColour) -> #n5,
+  FullPath(trafficLightColour.rgb) -> #n1.#n0,
+  AttributeValueKey(Number(1)) -> :v2,
+  FullPath(id) -> #n3,
+  FullPath(trafficLightColour) -> #n5
+  ), 6)
+[info] timestamp=2023-09-24T07:56:11.952124Z level=ERROR thread=#zio-fiber-1 message="" cause="Exception in thread "zio-fiber-25" software.amazon.awssdk.services.dynamodb.model.DynamoDbException: Invalid FilterExpression:
+
+
+BEFORE
+[info] XXXXXXXXXXXX aliasMap=AliasMap(HashMap(PathSegment(trafficLightColour,rgb) -> #n0, FullPath(id) -> #n3, PathSegment(,id) -> #n3, PathSegment(,trafficLightColour) -> #n1, FullPath(trafficLightColour.rgb) -> #n1.#n0, AttributeValueKey(Number(1)) -> :v2),4)
+AFTER
+[info] XXXXXXXXXXXX aliasMap=AliasMap(HashMap(PathSegment(trafficLightColour,rgb) -> #n0, PathSegment(,code) -> #n4, PathSegment(,id) -> #n3, FullPath(code) -> #n4, PathSegment(,trafficLightColour) -> #n5, FullPath(trafficLightColour.rgb) -> #n1.#n0, AttributeValueKey(Number(1)) -> :v2, FullPath(id) -> #n3, FullPath(trafficLightColour) -> #n5),
+
+[info] oldMap=HashMap(PathSegment(trafficLightColour,rgb) -> #n0, PathSegment(,code) -> #n4, FullPath(id) -> #n3, PathSegment(,id) -> #n3, FullPath(code) -> #n4, PathSegment(,trafficLightColour) -> #n1, FullPath(trafficLightColour.rgb) -> #n1.#n0, AttributeValueKey(Number(1)) -> :v2)
+[info] newMap=HashMap(PathSegment(trafficLightColour,rgb) -> #n0, PathSegment(,code) -> #n4, PathSegment(,id) -> #n3, FullPath(code) -> #n4, PathSegment(,trafficLightColour) -> #n5, FullPath(trafficLightColour.rgb) -> #n1.#n0, AttributeValueKey(Number(1)) -> :v2, FullPath(id) -> #n3, FullPath(trafficLightColour) -> #n5)
+
+     */
+
+    println(s"XXXXXXXXXXXX maybeFilterExpr=$maybeFilterExpr2")
+    println(s"XXXXXXXXXXXX maybeKeyExpr=$maybeKeyExpr2")
+    println(s"XXXXXXXXXXXX projections=$projections2")
+    println(s"XXXXXXXXXXXX aliasMap=$aliasMap2")
+
     QueryRequest(
       tableName = ZIOAwsTableName(queryAll.tableName.value),
       indexName = queryAll.indexName.map(_.value).map(ZIOAwsIndexName(_)),

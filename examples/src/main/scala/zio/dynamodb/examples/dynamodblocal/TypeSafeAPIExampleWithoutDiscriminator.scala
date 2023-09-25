@@ -56,5 +56,5 @@ object TypeSafeAPIExampleWithoutDiscriminator extends ZIOAppDefault {
     _         <- Console.printLine(s"boxes=$list")
   } yield ()
 
-  override def run = program.provide(layer)
+  override def run = program.provide(dynamoDBExecutorLayer)
 }

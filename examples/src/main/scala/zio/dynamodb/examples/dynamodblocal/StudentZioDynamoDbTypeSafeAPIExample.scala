@@ -94,5 +94,5 @@ object StudentZioDynamoDbTypeSafeAPIExample extends ZIOAppDefault {
     _ <- deleteTable("student").execute
   } yield ()
 
-  override def run = program.provide(layer).exitCode
+  override def run = program.provide(dynamoDBExecutorLayer).exitCode
 }

@@ -50,6 +50,7 @@ private[dynamodb] object AliasMapRender {
           val (am2, str) = am.getOrInsert(path)
           (am2, acc :+ str)
       }
+      println(s"YYYYYYYYYYY forEach pathStrings=$pathStrings aliasMap=${am}}")
       (am, pathStrings)
     }
 
