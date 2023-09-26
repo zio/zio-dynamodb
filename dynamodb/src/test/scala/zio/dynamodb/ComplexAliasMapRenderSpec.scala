@@ -62,9 +62,6 @@ object ComplexAliasMapRenderSpec extends ZIOSpecDefault {
         val x = namesSetFromAliasMap(aliasMap)
         val y = valuesSetFromAliasMap(aliasMap)
 
-        println(s"namesSet: $x")
-        println(s"valuesSet: $y")
-
         assertTrue(namesSet == namesSetFromAliasMap(aliasMap) && valuesSet == valuesSetFromAliasMap(aliasMap))
       }
     )
