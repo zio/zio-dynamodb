@@ -9,10 +9,6 @@ private[dynamodb] final case class AliasMap private[dynamodb] (map: Map[AliasMap
     (AliasMap(self.map + ((AliasMap.AttributeValueKey(entry), variableAlias)), self.index + 1), variableAlias)
   }
 
-  /*
-  entry might be "trafficLightColour.rgb" and have a FullPath of only "trafficLightColour.rgb" and PathSegment of "trafficLightColour"
-   */
-
   private def +[From, To](entry: ProjectionExpression[From, To]): (AliasMap, String) = {
     def stripLeadingAndTrailingBackticks(s: String): String =
       if (s.startsWith("`") && s.endsWith("`") && s.length > 1) s.substring(1, s.length - 1)
@@ -24,26 +20,19 @@ private[dynamodb] final case class AliasMap private[dynamodb] (map: Map[AliasMap
         case ProjectionExpression.Root                                         =>
           acc // identity
         case ProjectionExpression.MapElement(ProjectionExpression.Root, found) =>
-          println(s"ZZZZZZZZZZZ Root found=$found")
           val name      = stripLeadingAndTrailingBackticks(found)
           val nameAlias = s"#n${acc._1.index}"                                       // TODO: Avi - keep existing alias if key exists
           val mapTmp    = acc._1.map + ((AliasMap.PathSegment(ProjectionExpression.Root, name), nameAlias))
           val xs        = acc._2 :+ nameAlias
           val map       = mapTmp + ((AliasMap.FullPath(entry), xs.reverse.mkString)) // cache final result
           val t         = (AliasMap(map, acc._1.index + 1), xs)
-          if (acc._1.map.get(AliasMap.PathSegment(ProjectionExpression.Root, name)).isDefined)
-            println(s"ZZZZZZZZZZZ $name exists - map=${acc._1.map}")
-          else ()
           val t2        =
             if (acc._1.map.get(AliasMap.PathSegment(ProjectionExpression.Root, name)).isDefined)
               acc
-            else {
-              println(s"ZZZZZZZZZZZ new entry $entry for $found: $map")
+            else
               t
-            }
           loop(ProjectionExpression.Root, t2)
         case ProjectionExpression.MapElement(parent, key)                      =>
-          println(s"ZZZZZZZZZZZ MapElement(parent, key), parent=$parent key=$key")
           val nameAlias = s"#n${acc._1.index}"
           val next      = AliasMap(acc._1.map + ((AliasMap.PathSegment(parent, key), nameAlias)), acc._1.index + 1)
           loop(parent, (next, acc._2 :+ ("." + nameAlias)))
@@ -52,8 +41,7 @@ private[dynamodb] final case class AliasMap private[dynamodb] (map: Map[AliasMap
       }
 
     val (aliasMap, xs) = loop(entry, (self, List.empty))
-    println(s"RRRRRRRRRRRResult xs.contains('')=${xs.contains("")} xs=$xs")
-    (aliasMap, xs.reverse.mkString) // xs can be empty
+    (aliasMap, xs.reverse.mkString)
   }
 
   def getOrInsert(entry: AttributeValue): (AliasMap, String) =
@@ -61,26 +49,13 @@ private[dynamodb] final case class AliasMap private[dynamodb] (map: Map[AliasMap
       self + entry
     }
 
-  // TODO: called by forEach for projections
-  def getOrInsertOld[From, To](entry: ProjectionExpression[From, To]): (AliasMap, String) =
-    self.map.get(AliasMap.FullPath(entry)).map(varName => (self, varName)).getOrElse {
-      val x = self + entry
-      if (x._2 == "")
-        println(s"MMMMMMMMMM entry=$entry peStr='${x._2}'\noldMap=${self.map}\nnewMap=${x._1.map}")
-      else ()
-      x
-    }
-
-  def getOrInsert[From, To](entry: ProjectionExpression[From, To]): (AliasMap, String) = 
-    self.map.get(AliasMap.FullPath(entry)).orElse(self.map.get(AliasMap.PathSegment(ProjectionExpression.Root, entry.toString))).map(varName => (self, varName)).getOrElse {
-      val x = self + entry
-      if (x._2 == "")
-        println(s"MMMMMMMMMM entry=$entry peStr='${x._2}'\noldMap=${self.map}\nnewMap=${x._1.map}")
-      else ()
-      x
-    }
-    
-
+  def getOrInsert[From, To](entry: ProjectionExpression[From, To]): (AliasMap, String) =
+    self.map
+      .get(AliasMap.PathSegment(ProjectionExpression.Root, entry.toString))
+      .map(varName => (self, varName))
+      .getOrElse {
+        self + entry
+      }
 
   def ++(other: AliasMap): AliasMap = {
     val nextMap = self.map ++ other.map
