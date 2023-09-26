@@ -59,6 +59,12 @@ object ComplexAliasMapRenderSpec extends ZIOSpecDefault {
         val namesSet    = nameAliasSet(allRendered)
         val valuesSet   = valueAliasSet(allRendered)
 
+        val x = namesSetFromAliasMap(aliasMap)
+        val y = valuesSetFromAliasMap(aliasMap)
+
+        println(s"namesSet: $x")
+        println(s"valuesSet: $y")
+
         assertTrue(namesSet == namesSetFromAliasMap(aliasMap) && valuesSet == valuesSetFromAliasMap(aliasMap))
       }
     )
@@ -74,12 +80,12 @@ object ComplexAliasMapRenderSpec extends ZIOSpecDefault {
 
   private def valuesSetFromAliasMap(aliasMap: AliasMap): Set[String] =
     aliasMap.map.values
-      .filter(v => !v.contains(".") && v.startsWith(":v"))
-      .toSet // filter out FullPath values eg "#n2.#n1.#n0"
+      .filter(v => v.startsWith(":v"))
+      .toSet
 
   private def namesSetFromAliasMap(aliasMap: AliasMap): Set[String] =
     aliasMap.map.values
-      .filter(n => !n.contains(".") && n.startsWith("#n"))
-      .toSet // filter out FullPath values eg "#n2.#n1.#n0"
+      .filter(n => n.startsWith("#n"))
+      .toSet
 
 }
