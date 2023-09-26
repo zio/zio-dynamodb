@@ -21,7 +21,7 @@ private[dynamodb] final case class AliasMap private[dynamodb] (map: Map[AliasMap
           acc // identity
         case ProjectionExpression.MapElement(ProjectionExpression.Root, found) =>
           val name      = stripLeadingAndTrailingBackticks(found)
-          val nameAlias = s"#n${acc._1.index}"                                       // TODO: Avi - keep existing alias if key exists
+          val nameAlias = s"#n${acc._1.index}"
           val mapTmp    = acc._1.map + ((AliasMap.PathSegment(ProjectionExpression.Root, name), nameAlias))
           val xs        = acc._2 :+ nameAlias
           val map       = mapTmp + ((AliasMap.FullPath(entry), xs.reverse.mkString)) // cache final result
