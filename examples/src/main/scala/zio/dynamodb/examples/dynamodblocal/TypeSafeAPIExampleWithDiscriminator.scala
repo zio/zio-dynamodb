@@ -49,7 +49,7 @@ object TypeSafeAPIExampleWithDiscriminator extends ZIOAppDefault {
   }
 
   private val program = for {
-    _ <- ZIO.unit
+    _         <- ZIO.unit
     boxOfGreen = Box(1, 1, Green(1))
     boxOfAmber = Box(1, 2, Amber(1))
     _         <- put[Box]("box", boxOfGreen).execute
