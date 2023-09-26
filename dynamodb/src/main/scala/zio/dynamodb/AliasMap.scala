@@ -26,7 +26,7 @@ private[dynamodb] final case class AliasMap private[dynamodb] (map: Map[AliasMap
           val xs        = acc._2 :+ nameAlias
           val map       = mapTmp + ((AliasMap.FullPath(entry), xs.reverse.mkString)) // cache final result
           val t         = (AliasMap(map, acc._1.index + 1), xs)
-          val t2        =
+          val t2        = // do not overwite an existing alias
             if (acc._1.map.get(AliasMap.PathSegment(ProjectionExpression.Root, name)).isDefined)
               acc
             else
