@@ -68,10 +68,12 @@ object CeInteropClient extends IOApp.Simple {
 
   import zio.stream.interop.fs2z._
 
-  //.evalTap(i => Console[IO].println(s"i=$i"))
   val fs = zioStream.toFs2Stream
+  // Cannot find an implicit Compiler[[x]zio.ZIO[Any,Nothing,x], G]. This typically means you need a
+  // Concurrent[[x]zio.ZIO[Any,Nothing,x]] in scopebloop
+  //val x                                       = zioStream.toFs2Stream.compile.drain
+
 //  val zioStream2: ZStream[Any, Throwable, Int] = ???
-//  val x                                       = zioStream2.toFs2Stream.compile.drain
 
   val run = {
     implicit val runtime = zio.Runtime.default // DynamoDBExceutorF.of requires an implicit Runtime
