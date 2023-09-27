@@ -22,10 +22,6 @@ object StudentZioDynamoDbTypeSafeAPIExample extends ZIOAppDefault {
   val ceStudentWithElephant: ConditionExpression[Student with Elephant] = ce2 && elephantCe
 
   private val program = for {
-    _ <- createTable("student", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
-           AttributeDefinition.attrDefnString("email"),
-           AttributeDefinition.attrDefnString("subject")
-         ).execute
     _ <- batchWriteFromStream(ZStream(avi, adam)) { student =>
            put("student", student)
          }.runDrain
@@ -91,8 +87,7 @@ object StudentZioDynamoDbTypeSafeAPIExample extends ZIOAppDefault {
            .filter[Student](payment.in(Payment.PayPal) && payment.inSet(Set(Payment.PayPal)))
            .execute
            .tap(_.tap(student => Console.printLine(s"scanAll - student=$student")).runDrain)
-    _ <- deleteTable("student").execute
   } yield ()
 
-  override def run = program.provide(layer).exitCode
+  override def run = program.provide(dynamoDBExecutorLayer, studentTableLayer).exitCode
 }
