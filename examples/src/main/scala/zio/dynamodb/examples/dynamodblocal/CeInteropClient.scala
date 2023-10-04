@@ -26,8 +26,6 @@ import zio.dynamodb.KeySchema
 import zio.dynamodb.BillingMode
 import zio.dynamodb.AttributeDefinition
 import zio.dynamodb.DynamoDBQuery
-import zio.stream.ZStream
-import fs2.Pure
 
 /**
  * example interop app
@@ -63,18 +61,6 @@ object CeInteropClient extends IOApp.Simple {
     val (id, name)      = ProjectionExpression.accessors[Person]
   }
 
-  val fs2Stream: fs2.Stream[Pure, Int]      = fs2.Stream(1, 2, 3)
-  val zioStream: ZStream[Any, Nothing, Int] = ZStream(1, 2, 3)
-
-  import zio.stream.interop.fs2z._
-
-  val fs = zioStream.toFs2Stream
-  // Cannot find an implicit Compiler[[x]zio.ZIO[Any,Nothing,x], G]. This typically means you need a
-  // Concurrent[[x]zio.ZIO[Any,Nothing,x]] in scopebloop
-  //val x                                       = zioStream.toFs2Stream.compile.drain
-
-//  val zioStream2: ZStream[Any, Throwable, Int] = ???
-
   val run = {
     implicit val runtime = zio.Runtime.default // DynamoDBExceutorF.of requires an implicit Runtime
 
@@ -85,14 +71,14 @@ object CeInteropClient extends IOApp.Simple {
              }
              .use { implicit dynamoDBExecutorF => // To use extension method we need implicit here
                for {
-                 _         <- fs2Stream.compile.drain // .evalTap(i => std.Console[IO].println(s"i=$i"))
                  _         <- createTable("Person", KeySchema("id"), BillingMode.PayPerRequest)(
                                 AttributeDefinition.attrDefnString("id")
                               ).executeToF
                  _         <- put("Person", Person(id = "avi", name = "Avinder")).executeToF
                  result    <- get("Person")(Person.id.partitionKey === "avi").executeToF
-                 zioStream <- DynamoDBQuery.scanAll[Person]("Person").executeToF
-                 _         <- Console[IO].println(s"XXXXXX result=$result stream=$zioStream")
+                 fs2Stream <- DynamoDBQuery.scanAll[Person]("Person").executeToF
+                 xs        <- fs2Stream.compile.toList
+                 _         <- Console[IO].println(s"XXXXXX result=$result stream=$xs")
                  _         <- deleteTable("Person").executeToF
                } yield ()
              }
