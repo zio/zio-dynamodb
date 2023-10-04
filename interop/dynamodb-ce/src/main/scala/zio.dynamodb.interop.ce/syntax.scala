@@ -38,7 +38,6 @@ object syntax {
       new CatsCompatible[ZStream[Any, Throwable, A]] {
         type Out = fs2.Stream[cats.effect.IO, A]
 
-        // TODO: Avi - implement via .translate
         def toCats(a: ZStream[Any, Throwable, A]): Out = {
 
           import cats.arrow.FunctionK
