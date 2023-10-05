@@ -35,7 +35,7 @@ import zio.dynamodb.DynamoDBQuery
  * zio-dynamodb-examples/runMain zio.dynamodb.examples.dynamodblocal.CeInteropClient
  * }}}
  */
-object CeInteropClient extends IOApp.Simple {
+object CeInteropExample extends IOApp.Simple {
   val commonAwsConfig = config.CommonAwsConfig(
     region = None,
     credentialsProvider = StaticCredentialsProvider.create(AwsBasicCredentials.create("dummy", "dummy")),
