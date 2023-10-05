@@ -66,7 +66,7 @@ object CeInteropClient extends IOApp.Simple {
 
     for {
       _ <- DynamoDBExceutorF
-             .of[IO](commonAwsConfig) { builder =>
+             .ofCustomised[IO](commonAwsConfig) { builder =>
                builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
              }
              .use { implicit dynamoDBExecutorF => // To use extension method we need implicit here
