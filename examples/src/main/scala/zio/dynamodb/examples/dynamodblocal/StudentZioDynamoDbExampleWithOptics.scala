@@ -25,20 +25,20 @@ object StudentZioDynamoDbExampleWithOptics extends ZIOAppDefault {
     _ <- batchReadFromStream("student", ZStream(avi, adam))(s => primaryKey(s.email, s.subject))
            .tap(errorOrStudent => Console.printLine(s"student=$errorOrStudent"))
            .runDrain
-    _ <- scanAll[Student]("student").filter {
+    _ <- scanAll("student").filter {
            enrollmentDate === Some(
              enrolDate
-           ) && payment === Payment.CreditCard
+           ) && payment === Payment.CreditCard && Student.email2.contains("avi") && Student.email2.beginsWith("avi")
          }.execute
            .map(_.runCollect)
-    _ <- queryAll[Student]("student")
+    _ <- queryAll("student")
            .filter(
              enrollmentDate === Some(enrolDate) && payment === Payment.CreditCard
            )
            .whereKey(email.partitionKey === "avi@gmail.com" && subject.sortKey === "maths")
            .execute
            .map(_.runCollect)
-    _ <- put[Student]("student", avi)
+    _ <- put("student", avi)
            .where(
              enrollmentDate === Some(
                enrolDate
@@ -58,7 +58,7 @@ object StudentZioDynamoDbExampleWithOptics extends ZIOAppDefault {
              ) && payment === Payment.CreditCard // && zio.dynamodb.amples.Elephant.email === "elephant@gmail.com"
            )
            .execute
-    _ <- scanAll[Student]("student").execute
+    _ <- scanAll("student").execute
            .tap(_.tap(student => Console.printLine(s"scanAll - student=$student")).runDrain)
   } yield ()
 

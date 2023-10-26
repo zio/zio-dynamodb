@@ -30,7 +30,7 @@ object StudentZioDynamoDbTypeSafeAPIExample extends ZIOAppDefault {
     _ <- batchReadFromStream("student", ZStream(avi, adam))(student => primaryKey(student.email, student.subject))
            .tap(errorOrStudent => Console.printLine(s"student=$errorOrStudent"))
            .runDrain
-    _ <- scanAll[Student]("student")
+    _ <- scanAll("student")
            .parallel(10)
            .filter {
              enrollmentDate === Some(enrolDate) && payment === Payment.PayPal && payment === altPayment && $(
@@ -39,14 +39,14 @@ object StudentZioDynamoDbTypeSafeAPIExample extends ZIOAppDefault {
            }
            .execute
            .map(_.runCollect)
-    _ <- queryAll[Student]("student")
+    _ <- queryAll("student")
            .filter(
              enrollmentDate === Some(enrolDate) && payment === Payment.PayPal //&& elephantCe
            )
            .whereKey(email.partitionKey === "avi@gmail.com" && subject.sortKey === "maths" /* && elephantCe */ )
            .execute
            .map(_.runCollect)
-    _ <- put[Student]("student", avi)
+    _ <- put("student", avi)
            .where(
              enrollmentDate === Some(
                enrolDate
@@ -83,8 +83,8 @@ object StudentZioDynamoDbTypeSafeAPIExample extends ZIOAppDefault {
           ) && collegeName.size > 1 && groups.size > 1 /* && zio.dynamodb.examples.Elephant.email === "elephant@gmail.com" */ )
         )
         .execute
-    _ <- scanAll[Student]("student")
-           .filter[Student](payment.in(Payment.PayPal) && payment.inSet(Set(Payment.PayPal)))
+    _ <- scanAll("student")
+           .filter(payment.in(Payment.PayPal) && payment.inSet(Set(Payment.PayPal)))
            .execute
            .tap(_.tap(student => Console.printLine(s"scanAll - student=$student")).runDrain)
   } yield ()

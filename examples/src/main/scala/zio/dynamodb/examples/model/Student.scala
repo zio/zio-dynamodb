@@ -42,11 +42,12 @@ final case class Student(
   addresses: List[Address] = List.empty[Address],
   groups: Set[String] = Set.empty[String],
   version: Int = 0,
-  addressMap: Map[String, Address] = Map.empty[String, Address]
+  addressMap: Map[String, Address] = Map.empty[String, Address],
+  email2: Option[String] = None
 )
 
 object Student {
-  implicit val schema: Schema.CaseClass12[
+  implicit val schema: Schema.CaseClass13[
     String,
     String,
     Option[Instant],
@@ -59,6 +60,7 @@ object Student {
     Set[String],
     Int,
     Map[String, Address],
+    Option[String],
     Student
   ] = DeriveSchema.gen[Student]
   val (
@@ -73,7 +75,8 @@ object Student {
     addresses,
     groups,
     version,
-    addressMap
+    addressMap,
+    email2
   ) =
     ProjectionExpression.accessors[Student]
 
