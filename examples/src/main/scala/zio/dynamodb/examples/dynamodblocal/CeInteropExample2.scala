@@ -34,7 +34,7 @@ object CeInteropExample2 extends IOApp.Simple {
     val (id, name)      = ProjectionExpression.accessors[Person]
   }
 
-  def run2(implicit F: Async[cats.effect.IO]) = {
+  def program(implicit F: Async[cats.effect.IO]) = {
     implicit val runtime = zio.Runtime.default // DynamoDBExceutorF.of requires an implicit Runtime
     import zio.dynamodb.interop.ce.syntax2.CatsCompatible._
 
@@ -65,6 +65,6 @@ object CeInteropExample2 extends IOApp.Simple {
     } yield ()
   }
 
-  val run = run2
+  val run = program
 
 }
