@@ -16,7 +16,7 @@ import zio.aws.netty.NettyHttpClient
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClientBuilder
 import zio.stream.ZStream
 
-object syntax {
+object syntax2 {
 
   trait CatsCompatible[ZioType] {
     type Out
@@ -29,14 +29,14 @@ object syntax {
     import zio.stream.interop.fs2z._
     import cats.arrow.FunctionK
 
-    final private val toCeFunctionK: FunctionK[zio.Task, cats.effect.IO] =
-      new FunctionK[zio.Task, cats.effect.IO] {
-        def apply[A](t: zio.Task[A]): cats.effect.IO[A] = toEffect[cats.effect.IO, A](t)
-      }
-    // final def toCeFunctionK[F[_]](implicit F: Async[F]): FunctionK[zio.Task, F] =
-    //   new FunctionK[zio.Task, F] {
-    //     def apply[A](t: zio.Task[A]): F[A] = toEffect[F, A](t)
+    // final private val toCeFunctionK: FunctionK[zio.Task, cats.effect.IO] =
+    //   new FunctionK[zio.Task, cats.effect.IO] {
+    //     def apply[A](t: zio.Task[A]): cats.effect.IO[A] = toEffect[cats.effect.IO, A](t)
     //   }
+    final def toCeFunctionK[F[_]](implicit F: Async[F]): FunctionK[zio.Task, F] =
+      new FunctionK[zio.Task, F] {
+        def apply[A](t: zio.Task[A]): F[A] = toEffect[F, A](t)
+      }
 
     private def toEffect[F[_], A](t: zio.Task[A])(implicit F: Async[F]): F[A] =
       F.uncancelable { poll =>
@@ -47,21 +47,21 @@ object syntax {
         }
       }
 
-    implicit def zioStreamCatsCompatible[A]
-      : CatsCompatible.Aux[ZStream[Any, Throwable, A], fs2.Stream[cats.effect.IO, A]] =
-      new CatsCompatible[ZStream[Any, Throwable, A]] {
-        type Out = fs2.Stream[cats.effect.IO, A]
-
-        def toCats(a: ZStream[Any, Throwable, A]): Out = a.toFs2Stream.translate(toCeFunctionK)
-      }
-    // implicit def zioStreamCatsCompatible[F[_], A](implicit
-    //   F: Async[F]
-    // ): CatsCompatible.Aux[ZStream[Any, Throwable, A], fs2.Stream[F, A]] =
+    // implicit def zioStreamCatsCompatible[A]
+    //   : CatsCompatible.Aux[ZStream[Any, Throwable, A], fs2.Stream[cats.effect.IO, A]] =
     //   new CatsCompatible[ZStream[Any, Throwable, A]] {
-    //     type Out = fs2.Stream[F, A]
+    //     type Out = fs2.Stream[cats.effect.IO, A]
 
     //     def toCats(a: ZStream[Any, Throwable, A]): Out = a.toFs2Stream.translate(toCeFunctionK)
     //   }
+    implicit def zioStreamCatsCompatible[F[_], A](implicit
+      F: Async[F]
+    ): CatsCompatible.Aux[ZStream[Any, Throwable, A], fs2.Stream[F, A]] =
+      new CatsCompatible[ZStream[Any, Throwable, A]] {
+        type Out = fs2.Stream[F, A]
+
+        def toCats(a: ZStream[Any, Throwable, A]): Out = a.toFs2Stream.translate(toCeFunctionK)
+      }
   }
 
   trait CatsCompatibleLowPriority {
