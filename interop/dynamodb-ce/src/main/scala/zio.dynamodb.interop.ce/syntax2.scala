@@ -100,10 +100,10 @@ object syntax2 {
       val ddbLayer =
         NettyHttpClient.default >>> config.AwsConfig.default >>> dynamodb.DynamoDb.customized(customization)
 
-      val scopedF: ZIO[Any with Scope, Throwable, DynamoDBExceutorF[F]] = for {
+      val scopedF: ZIO[Scope, Throwable, DynamoDBExceutorF[F]] = for {
         zenv <- (ddbLayer >>> DynamoDBExecutor.live).build
       } yield new DynamoDBExceutorF[F](zenv.get[DynamoDBExecutor])
-      val resource: Resource[F, DynamoDBExceutorF[F]]                   = Resource.scoped(scopedF)
+      val resource: Resource[F, DynamoDBExceutorF[F]]          = Resource.scoped(scopedF)
       resource
     }
   }

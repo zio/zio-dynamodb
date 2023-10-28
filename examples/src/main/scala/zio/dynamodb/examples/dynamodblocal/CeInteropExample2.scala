@@ -6,7 +6,6 @@ import software.amazon.awssdk.regions.Region
 import zio.dynamodb.DynamoDBQuery._
 
 import cats.effect.std.Console
-import cats.effect.IO
 import cats.effect.IOApp
 
 import java.net.URI
@@ -35,13 +34,13 @@ object CeInteropExample2 extends IOApp.Simple {
     val (id, name)      = ProjectionExpression.accessors[Person]
   }
 
-  def run2(implicit F: Async[IO]) = {
+  def run2(implicit F: Async[cats.effect.IO]) = {
     implicit val runtime = zio.Runtime.default // DynamoDBExceutorF.of requires an implicit Runtime
     import zio.dynamodb.interop.ce.syntax2.CatsCompatible._
 
     for {
       _ <- DynamoDBExceutorF
-             .ofCustomised[IO] { builder => // note only AWS SDK model is exposed here, not zio.aws
+             .ofCustomised[cats.effect.IO] { builder => // note only AWS SDK model is exposed here, not zio.aws
                builder
                  .endpointOverride(URI.create("http://localhost:8000"))
                  .region(Region.US_EAST_1)
@@ -54,12 +53,12 @@ object CeInteropExample2 extends IOApp.Simple {
                               ).executeToF
                  _         <- put(tableName = "Person", Person(id = "avi", name = "Avinder")).executeToF
                  result    <- get(tableName = "Person")(Person.id.partitionKey === "avi").executeToF
-                 _         <- Console[IO].println(s"found=$result")
+                 _         <- Console[cats.effect.IO].println(s"found=$result")
                  fs2Stream <- scanAll[Person](tableName = "Person")
-                                  .parallel(50)                                                        // server side parallel scan
-                                  .filter(Person.name.beginsWith("Avi") && Person.name.contains("de")) // reified optics
-                                  .executeToF
-                 _         <- fs2Stream.evalMap(person => Console[IO].println(s"person=$person")).compile.drain
+                                .parallel(50)                                                        // server side parallel scan
+                                .filter(Person.name.beginsWith("Avi") && Person.name.contains("de")) // reified optics
+                                .executeToF
+                 _         <- fs2Stream.evalMap(person => Console[cats.effect.IO].println(s"person=$person")).compile.drain
                  _         <- deleteTable("Person").executeToF
                } yield ()
              }
