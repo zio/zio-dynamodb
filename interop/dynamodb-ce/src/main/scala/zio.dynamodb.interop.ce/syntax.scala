@@ -96,7 +96,6 @@ object syntax {
     }
   }
 
-  // TODO: do we need this ???
   implicit class DynamoDBQueryOps[F[_], In, Out](query: DynamoDBQuery[In, Out]) {
 
     def executeToF(implicit exF: DynamoDBExceutorF[F], ce: CatsCompatible[Out]): F[ce.Out] =

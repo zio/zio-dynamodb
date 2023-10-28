@@ -20,7 +20,7 @@ import zio.dynamodb.AttributeDefinition
 import zio.dynamodb.DynamoDBQuery
 
 /**
- * example interop app
+ * example cats effect interop application
  *
  * to run in the sbt console:
  * {{{
@@ -34,28 +34,32 @@ object CeInteropExample extends IOApp.Simple {
     implicit val schema = DeriveSchema.gen[Person]
     val (id, name)      = ProjectionExpression.accessors[Person]
   }
-
+  // TODO: def program[F[_]]
   val run = {
     implicit val runtime = zio.Runtime.default // DynamoDBExceutorF.of requires an implicit Runtime
 
     for {
       _ <- DynamoDBExceutorF
-             .ofCustomised[IO] { builder =>
+             .ofCustomised[IO] { builder => // note only AWS SDK model is exposed here, not zio.aws
                builder
                  .endpointOverride(URI.create("http://localhost:8000"))
                  .region(Region.US_EAST_1)
                  .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("dummy", "dummy")))
              }
-             .use { implicit dynamoDBExecutorF => // To use extension method we need implicit here
+             .use { implicit dynamoDBExecutorF => // To use extension method "executeToF" we need implicit here
                for {
                  _         <- createTable("Person", KeySchema("id"), BillingMode.PayPerRequest)(
                                 AttributeDefinition.attrDefnString("id")
                               ).executeToF
-                 _         <- put("Person", Person(id = "avi", name = "Avinder")).executeToF
-                 result    <- get("Person")(Person.id.partitionKey === "avi").executeToF
-                 fs2Stream <- DynamoDBQuery.scanAll[Person]("Person").executeToF
-                 xs        <- fs2Stream.compile.toList
-                 _         <- Console[IO].println(s"XXXXXX result=$result stream=$xs")
+                 _         <- put(tableName = "Person", Person(id = "avi", name = "Avinder")).executeToF
+                 result    <- get(tableName = "Person")(Person.id.partitionKey === "avi").executeToF
+                 _         <- Console[IO].println(s"found=$result")
+                 fs2Stream <- DynamoDBQuery
+                                .scanAll[Person](tableName = "Person")
+                                .parallel(50)                                                        // server side parallel scan
+                                .filter(Person.name.beginsWith("Avi") && Person.name.contains("de")) // reified optics
+                                .executeToF
+                 _         <- fs2Stream.evalMap(person => Console[IO].println(s"person=$person")).compile.drain
                  _         <- deleteTable("Person").executeToF
                } yield ()
              }
