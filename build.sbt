@@ -269,7 +269,7 @@ lazy val examples = module("zio-dynamodb-examples", "examples")
     libraryDependencies ++= Seq(
       "dev.zio"               %% "zio-test"     % zioVersion % "test",
       "dev.zio"               %% "zio-test-sbt" % zioVersion % "test",
-      "software.amazon.awssdk" % "dynamodb"     % "2.17.295"
+      "software.amazon.awssdk" % "dynamodb"     % "2.21.11"
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
