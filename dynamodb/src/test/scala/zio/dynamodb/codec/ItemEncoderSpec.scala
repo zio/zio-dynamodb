@@ -205,6 +205,17 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     },
+    test("encodes top level enum with @noDiscriminator annotation") {
+      val expectedItem: Item =
+        Item(
+          "id" -> BigDecimal(1),
+          "s"  -> "foobar"
+        )
+
+      val item = DynamoDBQuery.toItem[Invoice2](Invoice2.PreBilled2(1, "foobar"))
+
+      assert(item)(equalTo(expectedItem))
+    },
     test("encodes top level enum with @discriminatorName annotation") {
       val expectedItem: Item =
         Item(

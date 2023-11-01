@@ -270,6 +270,19 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(WithDiscriminatedEnum(WithDiscriminatedEnum.TWO))))
     },
+    test("decodes top level enum with @noDiscriminator annotation") {
+      val item: Item =
+        Item(
+          Map(
+            "id" -> AttributeValue.Number(BigDecimal(1)),
+            "s"  -> AttributeValue.String("foobar")
+          )
+        )
+
+      val actual = DynamoDBQuery.fromItem[Invoice2](item)
+      println(s"XXXXXXXX actual = $actual")
+      assert(actual)(equalTo(Right(Invoice2.PreBilled2(id = 1, s = "foobar"))))
+    },
     test("decodes top level enum with @discriminatorName annotation") {
       val item: Item =
         Item(

@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.Annotations.{ enumOfCaseObjects, maybeCaseName, maybeDiscriminator }
+import zio.dynamodb.Annotations.{ enumOfCaseObjects, hasNoDiscriminatorTag, maybeCaseName, maybeDiscriminator }
 import zio.dynamodb.DynamoDBError.DecodingError
 import zio.prelude.{ FlipOps, ForEachOps }
 import zio.schema.Schema.{ Optional, Primitive }
@@ -16,6 +16,7 @@ import java.util.UUID
 import scala.annotation.tailrec
 import scala.collection.immutable.ListMap
 import scala.util.Try
+import zio.schema.annotation.noDiscriminator
 
 private[dynamodb] object Codec {
 
@@ -271,6 +272,7 @@ private[dynamodb] object Codec {
         enumWithAnnotationAtClassLevelEncoder(
           isCaseObjectAnnotation(annotations),
           discriminatorWithDefault(annotations),
+          hasNoDiscriminatorTag(annotations),
           cases: _*
         )
       else
@@ -291,19 +293,27 @@ private[dynamodb] object Codec {
 
     private def enumWithAnnotationAtClassLevelEncoder[Z](
       hasEnumOfCaseObjectsAnnotation: Boolean,
-      discriminator: String,
+      discriminator: String, // TODO: consolidate discriminator state to a single parameter
+      hasNoDiscrininator: Boolean,
       cases: Schema.Case[Z, _]*
     ): Encoder[Z] =
       (a: Z) => {
+        println(s"XXXXXX discriminator: $discriminator hasNoDiscrininator: $hasNoDiscrininator")
         val fieldIndex = cases.indexWhere(c => c.deconstructOption(a).isDefined)
+        println(s"XXXXXX fieldIndex=$fieldIndex")
         if (fieldIndex > -1) {
           val case_ = cases(fieldIndex)
           val enc   = encoder(case_.schema.asInstanceOf[Schema[Any]])
           val av    = enc(a)
           val id    = maybeCaseName(case_.annotations).getOrElse(case_.id)
           val av2   = AttributeValue.String(id)
+
           av match { // TODO: review all pattern matches inside of a lambda
+            case AttributeValue.Map(map) if hasNoDiscrininator                   =>
+              println("XXXXXX 0")
+              AttributeValue.Map(map)
             case AttributeValue.Map(map)                                         =>
+              println("XXXXXX 1")
               AttributeValue.Map(
                 map + (AttributeValue.String(discriminator) -> av2)
               )
@@ -318,7 +328,8 @@ private[dynamodb] object Codec {
               throw new IllegalStateException(
                 s"Can not encode enum ${case_.id} - @enumOfCaseObjects annotation present when all instances are not case objects."
               )
-            case av                                                              => throw new IllegalStateException(s"unexpected state $av")
+            case _                                                               =>
+              throw new IllegalStateException(s"unexpected state $av with discriminator $discriminator")
           }
         } else
           AttributeValue.Null
@@ -814,6 +825,7 @@ private[dynamodb] object Codec {
         enumWithAnnotationAtClassLevelDecoder(
           isCaseObjectAnnotation(annotations),
           discriminatorWithDefault(annotations),
+          hasNoDiscriminatorTag(annotations),
           cases: _*
         )
       else
@@ -843,6 +855,7 @@ private[dynamodb] object Codec {
     private def enumWithAnnotationAtClassLevelDecoder[Z](
       hasEnumOfCaseObjectsAnnotation: Boolean,
       discriminator: String,
+      hasNoDiscriminatorTag: Boolean,
       cases: Schema.Case[Z, _]*
     ): Decoder[Z] = { (av: AttributeValue) =>
       def findCase(value: String): Either[DynamoDBError, Schema.Case[Z, _]] =
@@ -858,6 +871,15 @@ private[dynamodb] object Codec {
         }
 
       av match {
+        case AttributeValue.Map(_) if hasNoDiscriminatorTag                =>
+          val xs                          = cases.map(c => decoder(c.schema)(av))
+          val (l, r)                      = xs.partition(_.isRight)
+          val y: Either[DynamoDBError, Z] = l.toList match {
+            case a :: Nil => a.map(_.asInstanceOf[Z])
+            case _        => Left(DynamoDBError.DecodingError("TODO: XXXXX"))
+          }
+          println(s"YYYYYYYYY l=$l, r=$r, y=$y")
+          y
         case AttributeValue.String(id)
             if (hasEnumOfCaseObjectsAnnotation && allCaseObjects(cases)) || !hasEnumOfCaseObjectsAnnotation =>
           decode(id)
@@ -926,16 +948,41 @@ private[dynamodb] object Codec {
         false
     }
 
-  private def discriminatorWithDefault(annotations: Chunk[Any]): String =
+  /*
+  NoDisc  discrimnatorName  Outcome
+  N       N                 "discriminator"
+  N       Y                 discrimnatorName
+  Y       N                 noDiscriminator
+  Y       Y                 discriminatorName
+
+   */
+  trait DiscriminatorState
+  object DiscriminatorState {
+    case object NoDiscriminator                extends DiscriminatorState
+    case class DiscriminatorName(name: String) extends DiscriminatorState
+    def make(annotations: Chunk[Any]): DiscriminatorState =
+      (hasNoDiscriminatorTag(annotations), maybeDiscriminator(annotations)) match {
+        case (false, None)       => DiscriminatorName("discriminator")
+        case (false, Some(name)) => DiscriminatorName(name)
+        case (true, None)        => NoDiscriminator
+        case (true, Some(name))  => DiscriminatorName(name)
+      }
+  }
+
+  def discriminatorWithDefault2(annotations: Chunk[Any]): Option[String] =
+    if (hasNoDiscriminatorTag(annotations)) None else maybeDiscriminator(annotations).orElse(Some("discriminator"))
+
+  def discriminatorWithDefault(annotations: Chunk[Any]): String =
     maybeDiscriminator(annotations).getOrElse("discriminator")
 
   private def hasAnnotationAtClassLevel(annotations: Chunk[Any]): Boolean =
     annotations.exists {
-      case discriminatorName(_) | enumOfCaseObjects() => true
-      case _                                          => false
+      case discriminatorName(_) | enumOfCaseObjects() | noDiscriminator() => true
+      case _                                                              => false
     }
 
-  private def isCaseObjectAnnotation(annotations: Chunk[Any]): Boolean =
+  //TODO: Avi make private
+  def isCaseObjectAnnotation(annotations: Chunk[Any]): Boolean =
     annotations.exists {
       case enumOfCaseObjects() => true
       case _                   => false

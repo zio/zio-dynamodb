@@ -1,11 +1,12 @@
 package zio.dynamodb.codec
 
-import zio.dynamodb.Annotations.enumOfCaseObjects
+import zio.dynamodb.Annotations.{ enumOfCaseObjects }
 import zio.schema.annotation.{ caseName, discriminatorName, fieldName }
 import zio.schema.{ DeriveSchema, Schema }
 
 import java.time.Instant
 import zio.dynamodb.ProjectionExpression
+import zio.schema.annotation.noDiscriminator
 
 // ADT example
 sealed trait Status
@@ -89,6 +90,8 @@ object WithEnumWithoutDiscriminator {
   implicit val schema: Schema[WithEnumWithoutDiscriminator] = DeriveSchema.gen[WithEnumWithoutDiscriminator]
 }
 
+//TODO: Avi - EnumWithNoDiscrinimator
+
 @discriminatorName(tag = "funkyDiscriminator")
 sealed trait Invoice {
   def id: Int
@@ -101,4 +104,18 @@ object Invoice       {
     val (id, s)                                                    = ProjectionExpression.accessors[PreBilled]
   }
   implicit val schema: Schema[Invoice] = DeriveSchema.gen[Invoice]
+}
+
+@noDiscriminator
+sealed trait Invoice2 {
+  def id: Int
+}
+object Invoice2       {
+  final case class Billed2(id: Int, i: Int)       extends Invoice2
+  final case class PreBilled2(id: Int, s: String) extends Invoice2
+  object PreBilled2 {
+    implicit val schema: Schema.CaseClass2[Int, String, PreBilled2] = DeriveSchema.gen[PreBilled2]
+    val (id, s)                                                     = ProjectionExpression.accessors[PreBilled2]
+  }
+  implicit val schema: Schema[Invoice2] = DeriveSchema.gen[Invoice2]
 }
