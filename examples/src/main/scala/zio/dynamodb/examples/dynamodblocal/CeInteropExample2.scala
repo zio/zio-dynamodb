@@ -5,8 +5,9 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
 import software.amazon.awssdk.regions.Region
 import zio.dynamodb.DynamoDBQuery._
 
-import cats.effect.std.Console
 import cats.effect.IOApp
+import cats.effect.kernel.Async
+import cats.syntax.all._
 
 import java.net.URI
 
@@ -16,7 +17,6 @@ import zio.schema.DeriveSchema
 import zio.dynamodb.KeySchema
 import zio.dynamodb.BillingMode
 import zio.dynamodb.AttributeDefinition
-import cats.effect.kernel.Async
 
 /**
  * example cats effect interop application
@@ -34,13 +34,13 @@ object CeInteropExample2 extends IOApp.Simple {
     val (id, name)      = ProjectionExpression.accessors[Person]
   }
 
-  def program(implicit F: Async[cats.effect.IO]) = {
+  def program[F[_]](implicit F: Async[F]) = {
     implicit val runtime = zio.Runtime.default // DynamoDBExceutorF.of requires an implicit Runtime
     import zio.dynamodb.interop.ce.syntax2.CatsCompatible._
 
     for {
       _ <- DynamoDBExceutorF
-             .ofCustomised[cats.effect.IO] { builder => // note only AWS SDK model is exposed here, not zio.aws
+             .ofCustomised[F] { builder => // note only AWS SDK model is exposed here, not zio.aws
                builder
                  .endpointOverride(URI.create("http://localhost:8000"))
                  .region(Region.US_EAST_1)
@@ -53,18 +53,19 @@ object CeInteropExample2 extends IOApp.Simple {
                               ).executeToF
                  _         <- put(tableName = "Person", Person(id = "avi", name = "Avinder")).executeToF
                  result    <- get(tableName = "Person")(Person.id.partitionKey === "avi").executeToF
-                 _         <- Console[cats.effect.IO].println(s"found=$result")
+                 _          = println(s"found=$result")
                  fs2Stream <- scanAll[Person](tableName = "Person")
                                 .parallel(50)                                                        // server side parallel scan
                                 .filter(Person.name.beginsWith("Avi") && Person.name.contains("de")) // reified optics
                                 .executeToF
-                 _         <- fs2Stream.evalMap(person => Console[cats.effect.IO].println(s"person=$person")).compile.drain
+                 _          = println(fs2Stream)
+                 //_         <- fs2Stream.evalMap(person => cats.effect.IO.println(s"person=$person")).compile.drain
                  _         <- deleteTable("Person").executeToF
                } yield ()
              }
     } yield ()
   }
 
-  val run = program
+  val run = program[cats.effect.IO]
 
 }
