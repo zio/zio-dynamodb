@@ -53,8 +53,6 @@ object syntax2 {
     import zio.stream.interop.fs2z._
     import cats.arrow.FunctionK
 
-    // we need to make this generic in F so that it can be used by batchReadFromStreamF
-    // which is generic in F
     final def toCeFunctionK[F[_]](implicit F: Async[F]): FunctionK[zio.Task, F] =
       new FunctionK[zio.Task, F] {
         def apply[A](t: zio.Task[A]): F[A] = toEffect[F, A](t)
@@ -69,7 +67,6 @@ object syntax2 {
         }
       }
 
-    // this could be generalaised to any F maybe with
     implicit def zioStreamCatsCompatible[F[_], A](implicit
       F: Async[F]
     ): CatsCompatible.Aux[ZStream[Any, Throwable, A], fs2.Stream[F, A]] =
@@ -126,51 +123,40 @@ object syntax2 {
     }
   }
 
-  // TODO: do we need this ???
   implicit class DynamoDBQueryOps[F[_], In, Out](query: DynamoDBQuery[In, Out]) {
 
     def executeToF(implicit exF: DynamoDBExceutorF[F], ce: CatsCompatible[Out]): F[ce.Out] =
       exF.execute(query)
   }
 
-  /*
-  we have the option of
-  - re-writing the util function in CE - an using new interop above
-  - doinging FS2 -> ZStream conversion and calling original ZIO function
-
-  def batchReadFromStream[R, A, From: Schema](
-    tableName: String,
-    stream: ZStream[R, Throwable, A],
-    mPar: Int = 10
-  )(
-    pk: A => KeyConditionExpr.PrimaryKeyExpr[From]
-  ): ZStream[R with DynamoDBExecutor, Throwable, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
-   */
-  def batchReadFromStreamF[F[_], A, From: Schema](
+  def batchReadFromStreamF[F[_], A](
     tableName: String,
     fs2StreamIn: fs2.Stream[F, A], // need conversion here
     mPar: Int = 10
-  )(
-    pk: A => KeyConditionExpr.PrimaryKeyExpr[From]
-  )(implicit
-    dynamoDBExceutorF: DynamoDBExceutorF[F],
-    async: Async[F],
-    d: Dispatcher[F]
-  ): fs2.Stream[F, Either[DynamoDBError.DecodingError, (A, Option[From])]] = {
-    import zio.stream.interop.fs2z._
-    // fs2Stream -> ZIOStream
-    val zioStream: ZStream[Any, Throwable, A] = fs2StreamIn.translate(toZioFunctionK[F]).toZStream()
+  ): BatchReadFromStreamF[F, A] = BatchReadFromStreamF(tableName, fs2StreamIn, mPar)
+  final case class BatchReadFromStreamF[F[_], A](tableName: String, fs2StreamIn: fs2.Stream[F, A], mPar: Int = 10) {
+    def apply[From: Schema](
+      pk: A => KeyConditionExpr.PrimaryKeyExpr[From]
+    )(implicit
+      dynamoDBExceutorF: DynamoDBExceutorF[F],
+      async: Async[F],
+      d: Dispatcher[F]
+    ): fs2.Stream[F, Either[DynamoDBError.DecodingError, (A, Option[From])]] = {
+      import zio.stream.interop.fs2z._
+      // fs2Stream -> ZIOStream
+      val zioStream: ZStream[Any, Throwable, A] = fs2StreamIn.translate(toZioFunctionK[F]).toZStream()
 
-    val layer = ZLayer.succeed(dynamoDBExceutorF.dynamoDBExecutor)
+      val layer = ZLayer.succeed(dynamoDBExceutorF.dynamoDBExecutor)
 
-    val resultZStream: ZStream[Any, Throwable, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
-      batchReadFromStream(tableName, zioStream, mPar)(pk).provideLayer(layer) // TODO: review
+      val resultZStream: ZStream[Any, Throwable, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
+        batchReadFromStream(tableName, zioStream, mPar)(pk).provideLayer(layer) // TODO: review
 
-    val fs2StreamOut: fs2.Stream[F, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
-      resultZStream.toFs2Stream.translate(CatsCompatible.toCeFunctionK)
+      val fs2StreamOut: fs2.Stream[F, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
+        resultZStream.toFs2Stream.translate(CatsCompatible.toCeFunctionK)
 
-    //.toFs2Stream.translate(CatsCompatible.toCeFunctionK)
-    fs2StreamOut
+      //.toFs2Stream.translate(CatsCompatible.toCeFunctionK)
+      fs2StreamOut
+    }
   }
 
 }
