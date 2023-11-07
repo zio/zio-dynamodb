@@ -129,34 +129,31 @@ object syntax2 {
       exF.execute(query)
   }
 
-  def batchReadFromStreamF[F[_], A](
+  def batchReadFromStreamF[F[_], A, From: Schema](
     tableName: String,
     fs2StreamIn: fs2.Stream[F, A], // need conversion here
     mPar: Int = 10
-  ): BatchReadFromStreamF[F, A] = BatchReadFromStreamF(tableName, fs2StreamIn, mPar)
-  final case class BatchReadFromStreamF[F[_], A](tableName: String, fs2StreamIn: fs2.Stream[F, A], mPar: Int = 10) {
-    def apply[From: Schema](
-      pk: A => KeyConditionExpr.PrimaryKeyExpr[From]
-    )(implicit
-      dynamoDBExceutorF: DynamoDBExceutorF[F],
-      async: Async[F],
-      d: Dispatcher[F]
-    ): fs2.Stream[F, Either[DynamoDBError.DecodingError, (A, Option[From])]] = {
-      import zio.stream.interop.fs2z._
-      // fs2Stream -> ZIOStream
-      val zioStream: ZStream[Any, Throwable, A] = fs2StreamIn.translate(toZioFunctionK[F]).toZStream()
+  )(
+    pk: A => KeyConditionExpr.PrimaryKeyExpr[From]
+  )(implicit
+    dynamoDBExceutorF: DynamoDBExceutorF[F],
+    async: Async[F],
+    d: Dispatcher[F]
+  ): fs2.Stream[F, Either[DynamoDBError.DecodingError, (A, Option[From])]] = {
+    import zio.stream.interop.fs2z._
+    // fs2Stream -> ZIOStream
+    val zioStream: ZStream[Any, Throwable, A] = fs2StreamIn.translate(toZioFunctionK[F]).toZStream()
 
-      val layer = ZLayer.succeed(dynamoDBExceutorF.dynamoDBExecutor)
+    val layer = ZLayer.succeed(dynamoDBExceutorF.dynamoDBExecutor)
 
-      val resultZStream: ZStream[Any, Throwable, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
-        batchReadFromStream(tableName, zioStream, mPar)(pk).provideLayer(layer) // TODO: review
+    val resultZStream: ZStream[Any, Throwable, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
+      batchReadFromStream(tableName, zioStream, mPar)(pk).provideLayer(layer) // TODO: review
 
-      val fs2StreamOut: fs2.Stream[F, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
-        resultZStream.toFs2Stream.translate(CatsCompatible.toCeFunctionK)
+    val fs2StreamOut: fs2.Stream[F, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
+      resultZStream.toFs2Stream.translate(CatsCompatible.toCeFunctionK)
 
-      //.toFs2Stream.translate(CatsCompatible.toCeFunctionK)
-      fs2StreamOut
-    }
+    //.toFs2Stream.translate(CatsCompatible.toCeFunctionK)
+    fs2StreamOut
   }
 
 }
