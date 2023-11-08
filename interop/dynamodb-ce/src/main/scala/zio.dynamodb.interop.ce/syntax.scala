@@ -41,11 +41,6 @@ object syntax {
       def apply[A](t: F[A]): zio.Task[A] = toZioEffect(t)
     }
 
-  /*
-  TODO:
-  1)  go from F -> Future using Dispatcher
-  2)  go from Future -> ZIO via ZIO.fromFuture
-   */
   def toZioEffect[F[_], A](t: F[A])(implicit d: Dispatcher[F]): zio.Task[A] =
     ZIO.uninterruptibleMask { restore =>
       val future = d.unsafeToFuture(t)
@@ -132,6 +127,10 @@ object syntax {
       exF.execute(query)
   }
 
+  /**
+   * Applies function `f: A => DynamoDBQuery[In, B]` to an input stream of `A`, where function f is a write operation
+   * ie put, update or delete
+   */
   def batchWriteFromStreamF[F[_], A, In, B](
     fs2StreamIn: fs2.Stream[F, A],
     mPar: Int = 10
