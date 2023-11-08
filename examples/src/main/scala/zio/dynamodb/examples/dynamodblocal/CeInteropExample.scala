@@ -1,23 +1,24 @@
 package zio.dynamodb.examples.dynamodblocal
 
+import cats.effect.IO
+import cats.effect.IOApp
+import cats.effect.std.Console
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
 import software.amazon.awssdk.regions.Region
-import zio.dynamodb.DynamoDBQuery.{ createTable, deleteTable, get, put }
-
-import cats.effect.std.Console
-import cats.effect.IO
-import cats.effect.IOApp
+import zio.dynamodb.AttributeDefinition
+import zio.dynamodb.BillingMode
+import zio.dynamodb.DynamoDBQuery
+import zio.dynamodb.DynamoDBQuery.createTable
+import zio.dynamodb.DynamoDBQuery.deleteTable
+import zio.dynamodb.DynamoDBQuery.get
+import zio.dynamodb.DynamoDBQuery.put
+import zio.dynamodb.KeySchema
+import zio.dynamodb.ProjectionExpression
+import zio.dynamodb.interop.ce.syntax._
+import zio.schema.DeriveSchema
 
 import java.net.URI
-
-import zio.dynamodb.interop.ce.syntax._
-import zio.dynamodb.ProjectionExpression
-import zio.schema.DeriveSchema
-import zio.dynamodb.KeySchema
-import zio.dynamodb.BillingMode
-import zio.dynamodb.AttributeDefinition
-import zio.dynamodb.DynamoDBQuery
 
 /**
  * example interop app
