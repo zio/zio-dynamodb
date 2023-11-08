@@ -15,7 +15,7 @@ import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.KeySchema
 import zio.dynamodb.PrimaryKey
 import zio.dynamodb.ProjectionExpression
-import zio.dynamodb.interop.ce.syntax2._
+import zio.dynamodb.interop.ce.syntax._
 import zio.schema.DeriveSchema
 
 import java.net.URI

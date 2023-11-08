@@ -12,7 +12,7 @@ import cats.syntax.all._
 
 import java.net.URI
 
-import zio.dynamodb.interop.ce.syntax2._
+import zio.dynamodb.interop.ce.syntax._
 import zio.dynamodb.ProjectionExpression
 import zio.schema.DeriveSchema
 import zio.dynamodb.KeySchema

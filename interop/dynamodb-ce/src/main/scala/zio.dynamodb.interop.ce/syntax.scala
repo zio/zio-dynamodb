@@ -1,27 +1,32 @@
 package zio.dynamodb.interop.ce
 
-import zio.dynamodb.DynamoDBQuery
-import cats.effect.Async
-import cats.syntax.all._
-
-import zio.aws.dynamodb
-
-import zio.Unsafe
-import scala.concurrent.Future
-import zio.dynamodb.DynamoDBExecutor
-import zio.aws.core.config
-import cats.effect.kernel.Resource
-import zio.{ Scope, ZIO }
-import zio.aws.netty.NettyHttpClient
-import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClientBuilder
-import zio.stream.ZStream
-import zio.dynamodb.KeyConditionExpr
-import zio.schema.Schema
-import zio.dynamodb.DynamoDBError
 import cats.arrow.FunctionK
+import cats.effect.Async
+import cats.effect.kernel.Resource
 import cats.effect.std.Dispatcher
-import zio.dynamodb.batchReadFromStream
+import cats.syntax.all._
+import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClientBuilder
+import zio.Scope
+import zio.Unsafe
+import zio.ZIO
 import zio.ZLayer
+import zio.aws.core.config
+import zio.aws.dynamodb
+import zio.aws.netty.NettyHttpClient
+import zio.dynamodb.DynamoDBError
+import zio.dynamodb.DynamoDBExecutor
+import zio.dynamodb.DynamoDBQuery
+import zio.dynamodb.KeyConditionExpr
+import zio.dynamodb.batchReadFromStream
+import zio.schema.Schema
+import zio.stream.ZStream
+import zio.stream.interop.fs2z._
+
+import scala.concurrent.Future
+import zio.dynamodb.batchWriteFromStream
+import zio.dynamodb.PrimaryKey
+import zio.dynamodb.Item
+import zio.dynamodb.batchReadItemFromStream
 
 object syntax {
 
@@ -53,9 +58,9 @@ object syntax {
     import zio.stream.interop.fs2z._
     import cats.arrow.FunctionK
 
-    final val toCeFunctionK: FunctionK[zio.Task, cats.effect.IO] =
-      new FunctionK[zio.Task, cats.effect.IO] {
-        def apply[A](t: zio.Task[A]): cats.effect.IO[A] = toEffect[cats.effect.IO, A](t)
+    final def toCeFunctionK[F[_]](implicit F: Async[F]): FunctionK[zio.Task, F] =
+      new FunctionK[zio.Task, F] {
+        def apply[A](t: zio.Task[A]): F[A] = toEffect[F, A](t)
       }
 
     private def toEffect[F[_], A](t: zio.Task[A])(implicit F: Async[F]): F[A] =
@@ -67,11 +72,11 @@ object syntax {
         }
       }
 
-    // this could be generalaised to any F maybe with
-    implicit def zioStreamCatsCompatible[A]
-      : CatsCompatible.Aux[ZStream[Any, Throwable, A], fs2.Stream[cats.effect.IO, A]] =
+    implicit def zioStreamCatsCompatible[F[_], A](implicit
+      F: Async[F]
+    ): CatsCompatible.Aux[ZStream[Any, Throwable, A], fs2.Stream[F, A]] =
       new CatsCompatible[ZStream[Any, Throwable, A]] {
-        type Out = fs2.Stream[cats.effect.IO, A]
+        type Out = fs2.Stream[F, A]
 
         def toCats(a: ZStream[Any, Throwable, A]): Out = a.toFs2Stream.translate(toCeFunctionK)
       }
@@ -101,10 +106,8 @@ object syntax {
 
   object DynamoDBExceutorF {
 
-    def default[F[_]: Async]: Resource[F, DynamoDBExceutorF[F]] = ofCustomised(identity)
+    def of[F[_]: Async]: Resource[F, DynamoDBExceutorF[F]] = ofCustomised(identity)
 
-    // clean up was done
-    // we only expose AWS SDK API - not zio.aws API so no zio.aws imports needed
     def ofCustomised[F[_]: Async](
       customization: DynamoDbAsyncClientBuilder => DynamoDbAsyncClientBuilder
     ): Resource[F, DynamoDBExceutorF[F]] = {
@@ -123,29 +126,36 @@ object syntax {
     }
   }
 
-  // TODO: do we need this ???
   implicit class DynamoDBQueryOps[F[_], In, Out](query: DynamoDBQuery[In, Out]) {
 
     def executeToF(implicit exF: DynamoDBExceutorF[F], ce: CatsCompatible[Out]): F[ce.Out] =
       exF.execute(query)
   }
 
-  /*
-  we have the option of
-  - re-writing the util function in CE - an using new interop above
-  - doinging FS2 -> ZStream conversion and calling original ZIO function
-
-  def batchReadFromStream[R, A, From: Schema](
-    tableName: String,
-    stream: ZStream[R, Throwable, A],
+  def batchWriteFromStreamF[F[_], A, In, B](
+    fs2StreamIn: fs2.Stream[F, A],
     mPar: Int = 10
   )(
-    pk: A => KeyConditionExpr.PrimaryKeyExpr[From]
-  ): ZStream[R with DynamoDBExecutor, Throwable, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
-   */
-  def batchReadItemFromStreamF[F[_], A, From: Schema](
+    f: A => DynamoDBQuery[In, B]
+  )(implicit
+    dynamoDBExceutorF: DynamoDBExceutorF[F],
+    async: Async[F],
+    d: Dispatcher[F]
+  ): fs2.Stream[F, B] = {
+    val zioStream: ZStream[Any, Throwable, A] = fs2StreamIn.translate(toZioFunctionK[F]).toZStream()
+    val layer                                 = ZLayer.succeed(dynamoDBExceutorF.dynamoDBExecutor)
+
+    val resultZStream = batchWriteFromStream(zioStream, mPar)(f).provideLayer(layer)
+
+    val fs2StreamOut =
+      resultZStream.toFs2Stream.translate(CatsCompatible.toCeFunctionK)
+
+    fs2StreamOut
+  }
+
+  def batchReadFromStreamF[F[_], A, From: Schema](
     tableName: String,
-    fs2Stream: fs2.Stream[F, A], // need conversion here
+    fs2StreamIn: fs2.Stream[F, A],
     mPar: Int = 10
   )(
     pk: A => KeyConditionExpr.PrimaryKeyExpr[From]
@@ -154,21 +164,40 @@ object syntax {
     async: Async[F],
     d: Dispatcher[F]
   ): fs2.Stream[F, Either[DynamoDBError.DecodingError, (A, Option[From])]] = {
-    import zio.stream.interop.fs2z._
-    // fs2Stream -> ZIOStream
-    val zioStream: ZStream[Any, Throwable, A] = fs2Stream.translate(toZioFunctionK[F]).toZStream()
-    println(s"$tableName $fs2Stream $mPar $pk $dynamoDBExceutorF $async $d")
 
-    val layer = ZLayer.succeed(dynamoDBExceutorF.dynamoDBExecutor)
+    val zioStream: ZStream[Any, Throwable, A] = fs2StreamIn.translate(toZioFunctionK[F]).toZStream()
+    val layer                                 = ZLayer.succeed(dynamoDBExceutorF.dynamoDBExecutor)
 
     val resultZStream: ZStream[Any, Throwable, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
-      batchReadFromStream(tableName, zioStream, mPar)(pk).provideLayer(layer) // TODO: review
+      batchReadFromStream(tableName, zioStream, mPar)(pk).provideLayer(layer)
 
-    val x: fs2.Stream[cats.effect.IO, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
+    val fs2StreamOut: fs2.Stream[F, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
       resultZStream.toFs2Stream.translate(CatsCompatible.toCeFunctionK)
 
-    //.toFs2Stream.translate(CatsCompatible.toCeFunctionK)
-    ???
+    fs2StreamOut
+  }
+
+  def batchReadItemFromStreamF[F[_], A](
+    tableName: String,
+    fs2StreamIn: fs2.Stream[F, A],
+    mPar: Int = 10
+  )(
+    pk: A => PrimaryKey
+  )(implicit
+    dynamoDBExceutorF: DynamoDBExceutorF[F],
+    async: Async[F],
+    d: Dispatcher[F]
+  ): fs2.Stream[F, (A, Option[Item])] = {
+    val zioStream: ZStream[Any, Throwable, A] = fs2StreamIn.translate(toZioFunctionK[F]).toZStream()
+    val layer                                 = ZLayer.succeed(dynamoDBExceutorF.dynamoDBExecutor)
+
+    val resultZStream: ZStream[Any, Throwable, (A, Option[Item])] =
+      batchReadItemFromStream(tableName, zioStream, mPar)(pk).provideLayer(layer)
+
+    val fs2StreamOut: fs2.Stream[F, (A, Option[Item])] =
+      resultZStream.toFs2Stream.translate(CatsCompatible.toCeFunctionK)
+
+    fs2StreamOut
   }
 
 }
