@@ -11,11 +11,6 @@ import zio.aws.netty
 import zio.dynamodb.DynamoDBExecutor
 
 import java.net.URI
-import zio.ZIO
-import zio.dynamodb.DynamoDBQuery
-import zio.dynamodb.KeySchema
-import zio.dynamodb.BillingMode
-import zio.dynamodb.AttributeDefinition
 
 object DynamoDB {
   val awsConfig = ZLayer.succeed(
@@ -34,30 +29,5 @@ object DynamoDB {
     }
 
   val dynamoDBExecutorLayer = dynamoDbLayer >>> DynamoDBExecutor.live
-
-  // Student table has both a partition key and a sort key
-  val studentTableLayer: ZLayer[DynamoDBExecutor, Throwable, Unit] =
-    ZLayer.scoped(
-      ZIO.acquireRelease(acquire =
-        DynamoDBQuery
-          .createTable("student", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
-            AttributeDefinition.attrDefnString("email"),
-            AttributeDefinition.attrDefnString("subject")
-          )
-          .execute
-      )(release = _ => DynamoDBQuery.deleteTable("student").execute.orDie)
-    )
-
-  // Person table has only a partition key
-  val personTableLayer: ZLayer[DynamoDBExecutor, Throwable, Unit] =
-    ZLayer.scoped(
-      ZIO.acquireRelease(acquire =
-        DynamoDBQuery
-          .createTable("person", KeySchema("id"), BillingMode.PayPerRequest)(
-            AttributeDefinition.attrDefnString("id")
-          )
-          .execute
-      )(release = _ => DynamoDBQuery.deleteTable("person").execute.orDie)
-    )
 
 }

@@ -1,12 +1,13 @@
 package zio.dynamodb
 
-import zio.dynamodb.DynamoDB.{ dynamoDBExecutorLayer, personTableLayer }
-import zio.dynamodb.DynamoDBQuery
-import zio.test.ZIOSpecDefault
 import zio.Scope
-import zio.test._
-import zio.schema.DeriveSchema
 import zio.ZIO
+import zio.dynamodb.DynamoDB.{ dynamoDBExecutorLayer }
+import zio.dynamodb.DynamoDBQuery
+import zio.schema.DeriveSchema
+import zio.test.ZIOSpecDefault
+import zio.test._
+import zio.test.TestAspect._
 
 object TypeSafeApiSpec extends ZIOSpecDefault {
 
@@ -27,16 +28,14 @@ object TypeSafeApiSpec extends ZIOSpecDefault {
         for {
           tableName <- zio.Random.nextUUID.map(_.toString)
           _         <- tableDefinition(tableName).execute
-        } yield TableName(tableName)
-      )(tName => DynamoDBQuery.deleteTable(tName.value).execute.orDie)
+        } yield tableName
+      )(tableName => DynamoDBQuery.deleteTable(tableName).execute.orDie)
 
   def withIdKeyOnlyTable(
     f: String => ZIO[DynamoDBExecutor, Throwable, TestResult]
   ) =
     ZIO.scoped {
-      managedTable(withIdKeyOnly).flatMap { table =>
-        f(table.value)
-      }
+      managedTable(withIdKeyOnly).flatMap(f)
     }
 
   final case class Person(id: String, surname: String, forename: Option[String])
@@ -47,7 +46,7 @@ object TypeSafeApiSpec extends ZIOSpecDefault {
 
   override def spec: Spec[TestEnvironment with Scope, Any] =
     suite("TypeSafeApiSpec")(
-      test("filter on partition equality") {
+      test("filter on partition key equality") {
         withIdKeyOnlyTable { tableName =>
           for {
             _      <- DynamoDBQuery.put(tableName, Person("1", "Smith", Some("John"))).execute
@@ -83,6 +82,6 @@ object TypeSafeApiSpec extends ZIOSpecDefault {
           } yield assertTrue(people.size == 0)
         }
       }
-    ).provide(dynamoDBExecutorLayer)
+    ).provide(dynamoDBExecutorLayer) @@ nondeterministic
 
 }
