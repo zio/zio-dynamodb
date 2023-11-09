@@ -21,7 +21,7 @@ import zio.schema.DeriveSchema
 import java.net.URI
 
 /**
- * example interop app
+ * example interop app for stream utils
  *
  * to run in the sbt console:
  * {{{
