@@ -139,9 +139,7 @@ object LiveSpec extends ZIOSpecDefault {
   ) =
     ZIO.scoped {
       managedTable(sortKeyStringTableWithKeywords).flatMap { table =>
-        for {
-          result <- f(table.value)
-        } yield result
+        f(table.value)
       }
     }
 
