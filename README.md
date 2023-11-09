@@ -26,7 +26,7 @@ libraryDependencies ++= Seq(
 
 ### Cats Effect Interop
 
-To use the new Cats Effect 3 interop module, we need to add the following lines to our `build.sbt` file:
+To use the new Cats Effect 3 interop module, we need to also add the following lines to our `build.sbt` file:
 
 ```scala
 libraryDependencies ++= Seq(
@@ -34,7 +34,7 @@ libraryDependencies ++= Seq(
 )
 ```
 
-For CE interop examples please see [examples sbt module](../examples/src/main/scala/zio/dynamodb/examples/dynamodblocal/interop/CeInteropExample.scala).
+For CE interop examples please see [examples sbt module](examples/src/main/scala/zio/dynamodb/examples/dynamodblocal/interop/CeInteropExample.scala).
 
 ## Example
 
