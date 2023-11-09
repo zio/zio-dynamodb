@@ -6,27 +6,16 @@ import cats.effect.kernel.Resource
 import cats.effect.std.Dispatcher
 import cats.syntax.all._
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClientBuilder
-import zio.Scope
-import zio.Unsafe
-import zio.ZIO
-import zio.ZLayer
+import zio.{Scope, Unsafe, ZIO, ZLayer}
 import zio.aws.core.config
 import zio.aws.dynamodb
 import zio.aws.netty.NettyHttpClient
-import zio.dynamodb.DynamoDBError
-import zio.dynamodb.DynamoDBExecutor
-import zio.dynamodb.DynamoDBQuery
-import zio.dynamodb.KeyConditionExpr
-import zio.dynamodb.batchReadFromStream
+import zio.dynamodb._
 import zio.schema.Schema
 import zio.stream.ZStream
 import zio.stream.interop.fs2z._
 
 import scala.concurrent.Future
-import zio.dynamodb.batchWriteFromStream
-import zio.dynamodb.PrimaryKey
-import zio.dynamodb.Item
-import zio.dynamodb.batchReadItemFromStream
 
 object syntax {
 
@@ -50,8 +39,6 @@ object syntax {
 
   object CatsCompatible extends CatsCompatibleLowPriority {
     type Aux[A, Out0] = CatsCompatible[A] { type Out = Out0 }
-    import zio.stream.interop.fs2z._
-    import cats.arrow.FunctionK
 
     final def toCeFunctionK[F[_]](implicit F: Async[F]): FunctionK[zio.Task, F] =
       new FunctionK[zio.Task, F] {
