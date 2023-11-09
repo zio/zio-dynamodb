@@ -1,4 +1,4 @@
-package zio.dynamodb.examples.dynamodblocal
+package zio.dynamodb.examples.dynamodblocal.interop
 
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
@@ -59,8 +59,8 @@ object CeInteropExample extends IOApp.Simple {
                  _         <- console.println(s"found=$result")
                  fs2Stream <- DynamoDBQuery
                                 .scanAll[Person](tableName = "Person")
-                                .parallel(50)                                                        // server side parallel scan
-                                .filter(Person.name.beginsWith("Avi") && Person.name.contains("de")) // reified optics
+                                .parallel(50) // server side parallel scan
+                                .filter(Person.name.beginsWith("Avi") && Person.name.contains("de"))
                                 .executeToF
                  _         <- fs2Stream.evalTap(person => console.println(s"person=$person")).compile.drain
                  _         <- deleteTable("Person").executeToF

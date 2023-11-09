@@ -1,4 +1,4 @@
-package zio.dynamodb.examples.dynamodblocal
+package zio.dynamodb.examples.dynamodblocal.interop
 
 import cats.effect.IO
 import cats.effect.IOApp
@@ -54,8 +54,8 @@ object CeInteropStreamUtilsExample extends IOApp.Simple {
 
     for {
       _ <- resources.use {
-             case (dynamo, dispatcher) =>
-               implicit val dynamo_     = dynamo // To use executeToF extension method we need this implicit here
+             case (dynamoDBExceutorF, dispatcher) =>
+               implicit val dynamo_     = dynamoDBExceutorF // To use executeToF extension method we need this implicit here
                implicit val dispatcher_ = dispatcher
 
                for {
