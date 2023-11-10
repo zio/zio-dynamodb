@@ -81,6 +81,22 @@ object TypeSafeApiSpec extends ZIOSpecDefault {
             people <- stream.runCollect
           } yield assertTrue(people.size == 0)
         }
+      },
+      test("forEach") {
+        withSingleKeyOnlyTable { tableName =>
+          for {
+            _  <- DynamoDBQuery.put(tableName, Person("1", "Smith", Some("John"))).execute
+            _  <- DynamoDBQuery.put(tableName, Person("2", "Smith", Some("John"))).execute
+            x1 <- DynamoDBQuery // low level API
+                    .forEach(1 to 2)(i => DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> i.toString)))
+                    .execute
+            _   = println(x1)
+            x2 <- DynamoDBQuery // high level API
+                    .forEach(1 to 3)(i => DynamoDBQuery.get[Person](tableName)(Person.id.partitionKey === i.toString))
+                    .execute
+            _   = println(x2)
+          } yield assertTrue(true)
+        }
       }
     ).provide(dynamoDBExecutorLayer) @@ nondeterministic
 
