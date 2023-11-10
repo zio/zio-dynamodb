@@ -31,7 +31,7 @@ object TypeSafeApiSpec extends ZIOSpecDefault {
         } yield tableName
       )(tableName => DynamoDBQuery.deleteTable(tableName).execute.orDie)
 
-  def withIdKeyOnlyTable(
+  def withSingleKeyOnlyTable(
     f: String => ZIO[DynamoDBExecutor, Throwable, TestResult]
   ) =
     ZIO.scoped {
@@ -47,7 +47,7 @@ object TypeSafeApiSpec extends ZIOSpecDefault {
   override def spec: Spec[TestEnvironment with Scope, Any] =
     suite("TypeSafeApiSpec")(
       test("filter on partition key equality") {
-        withIdKeyOnlyTable { tableName =>
+        withSingleKeyOnlyTable { tableName =>
           for {
             _      <- DynamoDBQuery.put(tableName, Person("1", "Smith", Some("John"))).execute
             stream <- DynamoDBQuery
@@ -59,7 +59,7 @@ object TypeSafeApiSpec extends ZIOSpecDefault {
         }
       },
       test("filter on optional field exists") {
-        withIdKeyOnlyTable { tableName =>
+        withSingleKeyOnlyTable { tableName =>
           for {
             _      <- DynamoDBQuery.put(tableName, Person("1", "Smith", Some("John"))).execute
             stream <- DynamoDBQuery
@@ -71,7 +71,7 @@ object TypeSafeApiSpec extends ZIOSpecDefault {
         }
       },
       test("filter on optional field not exists") {
-        withIdKeyOnlyTable { tableName =>
+        withSingleKeyOnlyTable { tableName =>
           for {
             _      <- DynamoDBQuery.put(tableName, Person("1", "Smith", Some("John"))).execute
             stream <- DynamoDBQuery
