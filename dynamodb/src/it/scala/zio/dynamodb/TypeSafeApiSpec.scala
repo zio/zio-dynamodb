@@ -32,7 +32,7 @@ object TypeSafeApiSpec extends ZIOSpecDefault {
         } yield tableName
       )(tableName => DynamoDBQuery.deleteTable(tableName).execute.orDie)
 
-  def withSingleKeyOnlyTable(
+  def withSingleKeyTable(
     f: String => ZIO[DynamoDBExecutor, Throwable, TestResult]
   ) =
     ZIO.scoped {
@@ -48,7 +48,7 @@ object TypeSafeApiSpec extends ZIOSpecDefault {
   override def spec: Spec[TestEnvironment with Scope, Any] =
     suite("TypeSafeApiSpec")(
       test("filter on field equality") {
-        withSingleKeyOnlyTable { tableName =>
+        withSingleKeyTable { tableName =>
           for {
             _      <- DynamoDBQuery.put(tableName, Person("1", "Smith", Some("John"))).execute
             stream <- DynamoDBQuery
@@ -60,7 +60,7 @@ object TypeSafeApiSpec extends ZIOSpecDefault {
         }
       },
       test("filter on optional field exists") {
-        withSingleKeyOnlyTable { tableName =>
+        withSingleKeyTable { tableName =>
           for {
             _      <- DynamoDBQuery.put(tableName, Person("1", "Smith", Some("John"))).execute
             stream <- DynamoDBQuery
@@ -72,7 +72,7 @@ object TypeSafeApiSpec extends ZIOSpecDefault {
         }
       },
       test("filter on optional field not exists") {
-        withSingleKeyOnlyTable { tableName =>
+        withSingleKeyTable { tableName =>
           for {
             _      <- DynamoDBQuery.put(tableName, Person("1", "Smith", Some("John"))).execute
             stream <- DynamoDBQuery
@@ -84,7 +84,7 @@ object TypeSafeApiSpec extends ZIOSpecDefault {
         }
       },
       test("forEach") {
-        withSingleKeyOnlyTable { tableName =>
+        withSingleKeyTable { tableName =>
           for {
             _   <- DynamoDBQuery.put(tableName, Person("1", "John", Some("Smith"))).execute
             _   <- DynamoDBQuery.put(tableName, Person("2", "Smith", Some("John"))).execute
