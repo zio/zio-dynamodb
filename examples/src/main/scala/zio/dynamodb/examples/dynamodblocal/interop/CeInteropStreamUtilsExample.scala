@@ -17,6 +17,7 @@ import zio.dynamodb.PrimaryKey
 import zio.dynamodb.ProjectionExpression
 import zio.dynamodb.interop.ce.syntax._
 import zio.schema.DeriveSchema
+import zio.schema.Schema
 
 import java.net.URI
 
@@ -32,7 +33,7 @@ object CeInteropStreamUtilsExample extends IOApp.Simple {
 
   final case class Person(id: String, name: String)
   object Person {
-    implicit val schema = DeriveSchema.gen[Person]
+    implicit val schema: Schema.CaseClass2[String, String, Person] = DeriveSchema.gen[Person]
     val (id, name)      = ProjectionExpression.accessors[Person]
   }
 
