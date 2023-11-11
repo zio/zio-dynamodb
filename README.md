@@ -16,17 +16,29 @@ Under the hood we use the excellent [ZIO AWS](https://zio.dev/zio-aws) library f
 
 ## Installation
 
-To use ZIO DynamoDB, we need to add the following lines to our `build.sbt` file:
+To use ZIO DynamoDB, we need to add the following line to our `build.sbt` file:
 
 ```scala
 libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb" % "0.2.11"
+  "dev.zio" %% "zio-dynamodb" % "0.2.13"
 )
 ```
 
+### Cats Effect Interop
+
+To use the new Cats Effect 3 interop module, we need to also add the following line to our `build.sbt` file:
+
+```scala
+libraryDependencies ++= Seq(
+  "dev.zio" %% "zio-dynamodb-ce" % "0.2.13"
+)
+```
+
+For CE interop examples please see [examples sbt module](examples/src/main/scala/zio/dynamodb/examples/dynamodblocal/interop/CeInteropExample.scala).
+
 ## Example
 
-For examples please see [examples sbt module](../examples/src/main/scala/zio/dynamodb/examples). Below is `Main.scala` from that module:
+For examples please see examples sbt module. Below is `Main.scala` from that module:
 
 ```scala
 import zio.aws.core.config
