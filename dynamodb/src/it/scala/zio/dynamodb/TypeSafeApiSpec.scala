@@ -7,6 +7,7 @@ import zio.dynamodb.DynamoDBQuery
 import zio.schema.DeriveSchema
 import zio.test.ZIOSpecDefault
 import zio.test._
+import zio.test.Assertion.isLeft
 import zio.test.TestAspect._
 
 object TypeSafeApiSpec extends ZIOSpecDefault {
@@ -46,7 +47,7 @@ object TypeSafeApiSpec extends ZIOSpecDefault {
 
   override def spec: Spec[TestEnvironment with Scope, Any] =
     suite("TypeSafeApiSpec")(
-      test("filter on partition key equality") {
+      test("filter on field equality") {
         withSingleKeyOnlyTable { tableName =>
           for {
             _      <- DynamoDBQuery.put(tableName, Person("1", "Smith", Some("John"))).execute
@@ -85,17 +86,15 @@ object TypeSafeApiSpec extends ZIOSpecDefault {
       test("forEach") {
         withSingleKeyOnlyTable { tableName =>
           for {
-            _  <- DynamoDBQuery.put(tableName, Person("1", "Smith", Some("John"))).execute
-            _  <- DynamoDBQuery.put(tableName, Person("2", "Smith", Some("John"))).execute
-            x1 <- DynamoDBQuery // low level API
-                    .forEach(1 to 2)(i => DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> i.toString)))
-                    .execute
-            _   = println(x1)
-            x2 <- DynamoDBQuery // high level API
-                    .forEach(1 to 3)(i => DynamoDBQuery.get[Person](tableName)(Person.id.partitionKey === i.toString))
-                    .execute
-            _   = println(x2)
-          } yield assertTrue(true)
+            _   <- DynamoDBQuery.put(tableName, Person("1", "John", Some("Smith"))).execute
+            _   <- DynamoDBQuery.put(tableName, Person("2", "Smith", Some("John"))).execute
+            xs1 <- DynamoDBQuery // low level API
+                     .forEach(1 to 2)(i => DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> i.toString)))
+                     .execute
+            xs2 <- DynamoDBQuery // high level API
+                     .forEach(1 to 3)(i => DynamoDBQuery.get[Person](tableName)(Person.id.partitionKey === i.toString))
+                     .execute
+          } yield assertTrue(xs1.size == 2) && assertTrue(xs2.size == 3) && assert(xs2(2))(isLeft)
         }
       }
     ).provide(dynamoDBExecutorLayer) @@ nondeterministic
