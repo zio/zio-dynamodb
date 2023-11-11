@@ -38,8 +38,7 @@ object CeInteropExample extends IOApp.Simple {
   }
 
   def program[F[_]](implicit F: Async[F]) = {
-    implicit val runtime = zio.Runtime.default // DynamoDBExceutorF.of requires an implicit Runtime
-    val console          = Console.make[F]
+    val console = Console.make[F]
 
     for {
       _ <- DynamoDBExceutorF

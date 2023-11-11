@@ -37,7 +37,6 @@ object CeInteropStreamUtilsExample extends IOApp.Simple {
   }
 
   def program[F[_]](implicit F: Async[F]) = {
-    implicit val runtime = zio.Runtime.default // DynamoDBExceutorF.ofXXX requires an implicit Runtime
 
     val dynamoDBExceutorF = DynamoDBExceutorF
       .ofCustomised[F] { builder =>

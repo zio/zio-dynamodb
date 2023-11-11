@@ -6,7 +6,7 @@ import cats.effect.kernel.Resource
 import cats.effect.std.Dispatcher
 import cats.syntax.all._
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClientBuilder
-import zio.{Scope, Unsafe, ZIO, ZLayer}
+import zio.{ Scope, Unsafe, ZIO, ZLayer }
 import zio.aws.core.config
 import zio.aws.dynamodb
 import zio.aws.netty.NettyHttpClient
@@ -25,7 +25,7 @@ object syntax {
     def toCats(a: ZioType): Out
   }
 
-  final def toZioFunctionK[F[_]](implicit d: Dispatcher[F]): FunctionK[F, zio.Task] =
+  def toZioFunctionK[F[_]](implicit d: Dispatcher[F]): FunctionK[F, zio.Task] =
     new FunctionK[F, zio.Task] {
       def apply[A](t: F[A]): zio.Task[A] = toZioEffect(t)
     }
@@ -116,7 +116,7 @@ object syntax {
 
   /**
    * Applies function `f: A => DynamoDBQuery[In, B]` to an input stream of `A`, where function f is a write operation
-   * ie put, update or delete
+   * ie put or delete
    */
   def batchWriteFromStreamF[F[_], A, In, B](
     fs2StreamIn: fs2.Stream[F, A],
@@ -139,6 +139,10 @@ object syntax {
     fs2StreamOut
   }
 
+  /**
+   * Applies function `pk: A => KeyConditionExpr.PrimaryKeyExpr[From]` to an input stream of `A` and returns a stream of
+   * `Either[DynamoDBError.DecodingError, (A, Option[From])]` where `From` has an associated Schema
+   */
   def batchReadFromStreamF[F[_], A, From: Schema](
     tableName: String,
     fs2StreamIn: fs2.Stream[F, A],
@@ -163,6 +167,10 @@ object syntax {
     fs2StreamOut
   }
 
+  /**
+   * Applies function `pk: A => PrimaryKey` to an input stream of `A` and returns a stream of `(A, Option[Item])`.
+   * Note this uses the lower level API so returns a type unsafe Item.
+   */
   def batchReadItemFromStreamF[F[_], A](
     tableName: String,
     fs2StreamIn: fs2.Stream[F, A],
