@@ -35,12 +35,15 @@ val zioVersion        = "2.0.13"
 val zioAwsVersion     = "5.20.42.1"
 val zioSchemaVersion  = "0.4.15"
 val zioPreludeVersion = "1.0.0-RC19"
+val zioInteropCats3Version = "23.0.0.8"
+val catsEffect3Version     = "3.5.1"
+val fs2Version             = "3.9.2"
 
 lazy val root =
   project
     .in(file("."))
     .settings(skip in publish := true)
-    .aggregate(zioDynamodb, examples /*, docs */ )
+    .aggregate(zioDynamodb, zioDynamodbCe, examples /*, docs */ )
 
 lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
   .enablePlugins(BuildInfoPlugin)
@@ -267,13 +270,34 @@ lazy val examples = module("zio-dynamodb-examples", "examples")
     skip in publish := true,
     fork := true,
     libraryDependencies ++= Seq(
+      "org.typelevel"         %% "cats-effect"  % catsEffect3Version,
+      "co.fs2"                %% "fs2-core"     % fs2Version,
       "dev.zio"               %% "zio-test"     % zioVersion % "test",
       "dev.zio"               %% "zio-test-sbt" % zioVersion % "test",
       "software.amazon.awssdk" % "dynamodb"     % "2.17.295"
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
-  .dependsOn(zioDynamodb)
+  .dependsOn(zioDynamodb, zioDynamodbCe)
+
+lazy val zioDynamodbCe =
+  module("zio-dynamodb-ce", "interop/dynamodb-ce")
+    .enablePlugins(BuildInfoPlugin)
+    .settings(buildInfoSettings("zio.dynamodb"))
+    .configs(IntegrationTest)
+    .settings(
+      resolvers += Resolver.sonatypeRepo("releases"),
+      fork := true,
+      libraryDependencies ++= Seq(
+        "org.typelevel" %% "cats-effect"      % catsEffect3Version,
+        "co.fs2"        %% "fs2-core"         % fs2Version,
+        "dev.zio"       %% "zio-test"         % zioVersion % "test",
+        "dev.zio"       %% "zio-test-sbt"     % zioVersion % "test",
+        "dev.zio"       %% "zio-interop-cats" % zioInteropCats3Version
+      ),
+      testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
+    )
+    .dependsOn(zioDynamodb)
 
 def module(moduleName: String, fileName: String): Project =
   Project(moduleName, file(fileName))
