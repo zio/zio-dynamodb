@@ -34,7 +34,7 @@ object CeInteropStreamUtilsExample extends IOApp.Simple {
   final case class Person(id: String, name: String)
   object Person {
     implicit val schema: Schema.CaseClass2[String, String, Person] = DeriveSchema.gen[Person]
-    val (id, name)      = ProjectionExpression.accessors[Person]
+    val (id, name)                                                 = ProjectionExpression.accessors[Person]
   }
 
   def program[F[_]](implicit F: Async[F]) = {
