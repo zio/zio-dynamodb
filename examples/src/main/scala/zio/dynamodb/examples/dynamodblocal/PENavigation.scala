@@ -20,10 +20,6 @@ object PENavigation extends ZIOAppDefault {
   val enrollmentDateTyped: ProjectionExpression[Student, Option[Instant]] = enrollmentDate
 
   private val program = for {
-    _ <- createTable("student", KeySchema("email", "subject"), BillingMode.PayPerRequest)(
-           AttributeDefinition.attrDefnString("email"),
-           AttributeDefinition.attrDefnString("subject")
-         ).execute
     _ <- batchWriteFromStream(ZStream(avi.copy(addressMap = ScalaMap("UK" -> Address("addr1", "postcode1"))), adam)) {
            student =>
              put("student", student)
@@ -35,8 +31,7 @@ object PENavigation extends ZIOAppDefault {
            )
            .execute
            .tap(_.tap(student => Console.printLine(s"scanAll - student=$student")).runDrain)
-    _ <- deleteTable("student").execute
   } yield ()
 
-  override def run = program.provide(layer)
+  override def run = program.provide(dynamoDBExecutorLayer, studentTableLayer)
 }

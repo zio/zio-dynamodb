@@ -603,8 +603,6 @@ case object DynamoDBExecutorImpl {
           awsAttributeValue(attrVal).map(a => (ZIOAwsExpressionAttributeValueVariable(str), a))
         case (AliasMap.PathSegment(_, _), _)            =>
           None
-        case (AliasMap.FullPath(_), _)                  =>
-          None
       }
       if (map.isEmpty) None else Some(map)
     }
@@ -615,8 +613,6 @@ case object DynamoDBExecutorImpl {
     else {
       val map = aliasMap.map.flatMap {
         case (AliasMap.AttributeValueKey(_), _)      =>
-          None
-        case (AliasMap.FullPath(_), _)               =>
           None
         case (AliasMap.PathSegment(_, segment), str) =>
           Some((ExpressionAttributeNameVariable(str), ZIOAwsAttributeName(segment)))
