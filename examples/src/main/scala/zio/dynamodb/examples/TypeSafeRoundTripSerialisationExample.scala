@@ -2,7 +2,6 @@ package zio.dynamodb.examples
 
 import zio.Console.printLine
 import zio.ZIOAppDefault
-import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.dynamodb.examples.TypeSafeRoundTripSerialisationExample.Invoice.{
   Address,
   Billed,
@@ -12,7 +11,7 @@ import zio.dynamodb.examples.TypeSafeRoundTripSerialisationExample.Invoice.{
   Product
 }
 import zio.dynamodb.{ DynamoDBExecutor, DynamoDBQuery, PrimaryKey }
-import zio.schema.annotation.{ caseName, discriminatorName }
+import zio.schema.annotation.{ caseName, discriminatorName, simpleEnum }
 import zio.schema.{ DeriveSchema, Schema }
 
 import java.time.Instant
@@ -27,7 +26,7 @@ object TypeSafeRoundTripSerialisationExample extends ZIOAppDefault {
     def id: String
   }
   object Invoice       {
-    @enumOfCaseObjects
+    @simpleEnum
     sealed trait PaymentType
     object PaymentType {
       @caseName("debit")
