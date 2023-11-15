@@ -38,21 +38,46 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
   final def <*>[In1 <: In, B](that: DynamoDBQuery[In1, B]): DynamoDBQuery[In1, (Out, B)] = self zip that
 
   def execute: ZIO[DynamoDBExecutor, Throwable, Out] = {
+    println(s"XXXX in execute")
     val (constructors, assembler)                                                                   = parallelize(self)
     val (indexedConstructors, (batchGetItem, batchGetIndexes), (batchWriteItem, batchWriteIndexes)) =
-      batched(constructors)
-
+      batched(constructors) // NOTE batched queries are returned as indexedConstructors
+    println(s"XXXXXXXXXXXX execute:indexedConstructors = $indexedConstructors")
+    println(s"XXXXXXXXXXXX execute:batchGetItem = $batchGetItem")
     val indexedNonBatchedResults =
       ZIO.foreachPar(indexedConstructors) {
         case (constructor, index) =>
-          ddbExecute(constructor).map(result => (result, index))
+          ddbExecute(constructor).map { result =>
+            println(s"XXXXXXXXXXXX execute:forEachPar:result = $result")
+            (result, index)
+          }
       }
 
-    val indexedGetResults =
-      ddbExecute(batchGetItem).map(resp => batchGetItem.toGetItemResponses(resp) zip batchGetIndexes)
+    val indexedGetResults = {
+      //ddbExecute(batchGetItem).map(resp => batchGetItem.toGetItemResponses(resp) zip batchGetIndexes)
+
+      ddbExecute(batchGetItem).flatMap {
+        case resp @ BatchGetItem.Response(_, unprocessedKeys) if unprocessedKeys.size == 0 =>
+          println(s"XXXXXXXXXXXX OK execute:batchGetItem r = $resp")
+          ZIO.succeed(batchGetItem.toGetItemResponses(resp) zip batchGetIndexes)
+        case resp                                                                          =>
+          println(s"XXXXXXXXXXXX Fail execute:batchGetItem r = $resp")
+          ZIO.fail(DynamoDBBatchError.BatchReadError(resp))
+      }
+    }
 
     val indexedWriteResults =
-      ddbExecute(batchWriteItem).as(batchWriteItem.addList.map(_ => None) zip batchWriteIndexes)
+      // TODO: Avi - investigate what happens with batch writes when there are errors in the BatchResponse
+      ddbExecute(batchWriteItem).flatMap {
+        case resp @ BatchWriteItem.Response(unprocessedItems) if unprocessedItems.size == 0 =>
+          println(s"XXXXXXXXXXXX OK execute:batchGetItem r = $resp")
+          ZIO.succeed(batchWriteItem.addList.map(_ => None) zip batchWriteIndexes)
+        case resp                                                                           =>
+          println(s"XXXXXXXXXXXX Fail execute:batchGetItem r = $resp")
+          ZIO.fail(DynamoDBBatchError.BatchWriteError(resp))
+      }
+// I think what we are doing here is IGNORING the actual response and returning NONE for the results
+//      ddbExecute(batchWriteItem).as(batchWriteItem.addList.map(_ => None) zip batchWriteIndexes)
 
     (indexedNonBatchedResults zipPar indexedGetResults zipPar indexedWriteResults).map {
       case (nonBatched, batchedGets, batchedWrites) =>
@@ -442,7 +467,9 @@ object DynamoDBQuery {
    */
   def forEach[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery[In, List[B]] =
     values.foldRight[DynamoDBQuery[In, List[B]]](succeed(Nil)) {
-      case (a, query) => body(a).zipWith(query)(_ :: _)
+      case (a, query) =>
+        val x: DynamoDBQuery[In, List[B]] = body(a).zipWith(query)(_ :: _)
+        x
     }
 
   def getItem(
@@ -454,7 +481,7 @@ object DynamoDBQuery {
 
   def get[From: Schema](tableName: String)(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
-  ): DynamoDBQuery[From, Either[DynamoDBError, From]] =
+  ): DynamoDBQuery[From, Either[DynamoDBError, From]] = // TODO DynamoDBError.ValueNotFound
     get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
 
   private def get[A: Schema](
@@ -468,7 +495,7 @@ object DynamoDBQuery {
       case None       => Left(ValueNotFound(s"value with key $key not found"))
     }
 
-  private[dynamodb] def fromItem[A: Schema](item: Item): Either[DynamoDBError, A] = {
+  private[dynamodb] def fromItem[A: Schema](item: Item): Either[DynamoDBError.DecodingError, A] = {
     val av = ToAttributeValue.attrMapToAttributeValue.toAttributeValue(item)
     av.decode(Schema[A])
   }

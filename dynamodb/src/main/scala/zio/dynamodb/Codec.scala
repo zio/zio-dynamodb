@@ -644,7 +644,9 @@ private[dynamodb] object Codec {
           (av: AttributeValue) => javaTimeStringParser(av)(ZoneOffset.of(_))
       }
 
-    private def javaTimeStringParser[A](av: AttributeValue)(unsafeParse: String => A): Either[DynamoDBError, A] =
+    private def javaTimeStringParser[A](
+      av: AttributeValue
+    )(unsafeParse: String => A): Either[DynamoDBError.DecodingError, A] =
       FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av).flatMap { s =>
         val stringOrA = Try(unsafeParse(s)).toEither.left
           .map(e => DecodingError(s"error parsing string '$s': ${e.getMessage}"))
@@ -782,7 +784,7 @@ private[dynamodb] object Codec {
       (av: AttributeValue) => {
         av match {
           case AttributeValue.Map(map) =>
-            val xs: Iterable[Either[DynamoDBError, (String, V)]] = map.map {
+            val xs: Iterable[Either[DynamoDBError.DecodingError, (String, V)]] = map.map {
               case (k, v) =>
                 dec(v) match {
                   case Right(decV) => Right((k.value, decV))
@@ -825,17 +827,18 @@ private[dynamodb] object Codec {
           case AttributeValue.Map(map) =>
             // default enum encoding uses a Map with a single entry that denotes the type
             // TODO: think about being stricter and rejecting Maps with > 1 entry ???
-            map.toList.headOption.fold[Either[DynamoDBError, Z]](Left(DecodingError(s"map $av is empty"))) {
-              case (AttributeValue.String(subtype), av) =>
-                cases.find { c =>
-                  maybeCaseName(c.annotations).fold(c.id == subtype)(_ == subtype)
-                } match {
-                  case Some(c) =>
-                    decoder(c.schema)(av).map(_.asInstanceOf[Z])
-                  case None    =>
-                    Left(DecodingError(s"subtype $subtype not found"))
-                }
-            }
+            map.toList.headOption
+              .fold[Either[DynamoDBError.DecodingError, Z]](Left(DecodingError(s"map $av is empty"))) {
+                case (AttributeValue.String(subtype), av) =>
+                  cases.find { c =>
+                    maybeCaseName(c.annotations).fold(c.id == subtype)(_ == subtype)
+                  } match {
+                    case Some(c) =>
+                      decoder(c.schema)(av).map(_.asInstanceOf[Z])
+                    case None    =>
+                      Left(DecodingError(s"subtype $subtype not found"))
+                  }
+              }
           case _                       =>
             Left(DecodingError(s"invalid AttributeValue $av"))
         }
@@ -845,13 +848,13 @@ private[dynamodb] object Codec {
       discriminator: String,
       cases: Schema.Case[Z, _]*
     ): Decoder[Z] = { (av: AttributeValue) =>
-      def findCase(value: String): Either[DynamoDBError, Schema.Case[Z, _]] =
+      def findCase(value: String): Either[DynamoDBError.DecodingError, Schema.Case[Z, _]] =
         cases.find {
           case Schema.Case(_, _, _, _, _, Chunk(caseName(const))) => const == value
           case Schema.Case(id, _, _, _, _, _)                     => id == value
         }.toRight(DecodingError(s"type name '$value' not found in schema cases"))
 
-      def decode(id: String): Either[DynamoDBError, Z] =
+      def decode(id: String): Either[DynamoDBError.DecodingError, Z] =
         findCase(id).flatMap { c =>
           val dec = decoder(c.schema)
           dec(av).map(_.asInstanceOf[Z])
@@ -864,7 +867,7 @@ private[dynamodb] object Codec {
         case AttributeValue.Map(map)                                       =>
           map
             .get(AttributeValue.String(discriminator))
-            .fold[Either[DynamoDBError, Z]](
+            .fold[Either[DynamoDBError.DecodingError, Z]](
               Left(DecodingError(s"map $av does not contain discriminator field '$discriminator'"))
             ) {
               case AttributeValue.String(typeName) =>
@@ -886,16 +889,16 @@ private[dynamodb] object Codec {
     private[dynamodb] def decodeFields(
       av: AttributeValue,
       fields: Schema.Field[_, _]*
-    ): Either[DynamoDBError, List[Any]] =
+    ): Either[DynamoDBError.DecodingError, List[Any]] =
       av match {
         case AttributeValue.Map(map) =>
           fields.toList.forEach {
             case Schema.Field(key, schema, _, _, _, _) =>
-              val dec                                = decoder(schema)
-              val k                                  = key // @fieldName is respected by the zio-schema macro
-              val maybeValue                         = map.get(AttributeValue.String(k))
-              val maybeDecoder                       = maybeValue.map(dec).toRight(DecodingError(s"field '$k' not found in $av"))
-              val either: Either[DynamoDBError, Any] = for {
+              val dec                                              = decoder(schema)
+              val k                                                = key // @fieldName is respected by the zio-schema macro
+              val maybeValue                                       = map.get(AttributeValue.String(k))
+              val maybeDecoder                                     = maybeValue.map(dec).toRight(DecodingError(s"field '$k' not found in $av"))
+              val either: Either[DynamoDBError.DecodingError, Any] = for {
                 decoder <- maybeDecoder
                 decoded <- decoder
               } yield decoded

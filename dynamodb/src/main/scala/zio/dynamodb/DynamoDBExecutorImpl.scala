@@ -118,8 +118,12 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
 
   override def execute[A](atomicQuery: DynamoDBQuery[_, A]): ZIO[Any, Throwable, A] =
     atomicQuery match {
-      case constructor: Constructor[_, A] => executeConstructor(constructor)
-      case zip @ Zip(_, _, _)             => executeZip(zip)
+      case constructor: Constructor[_, A] => 
+        println(s"DynamoDBExecutorImpl.execute: constructor = $constructor")
+        executeConstructor(constructor) // Constructor is a top level query
+      case zip @ Zip(_, _, _)             => 
+        println(s"DynamoDBExecutorImpl.execute: zip = $zip")
+        executeZip(zip)
       case map @ Map(_, _)                => executeMap(map)
       case Absolve(query)                 =>
         for {

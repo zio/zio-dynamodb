@@ -137,7 +137,7 @@ object ExecutorSpec extends ZIOSpecDefault with DynamoDBFixtures {
   )
   private val batchGetSuite                                               =
     suite("retry batch gets")(
-      suite("successful batch gets")(test("should retry when there are unprocessed keys") {
+      suite("successful batch gets")(test("should retry when there are unprocessed keys X") {
         for {
           response <- batchGetItem.execute
         } yield assert(response.responses.get(TableName(mockBatches)))(
@@ -147,6 +147,7 @@ object ExecutorSpec extends ZIOSpecDefault with DynamoDBFixtures {
       suite("failed batch gets")(test("should return keys we did not get") {
         for {
           response <- batchGetItem.execute
+          _         = println(s"in test: response = $response")
         } yield assert(response.unprocessedKeys)(
           equalTo(
             getRequestItems

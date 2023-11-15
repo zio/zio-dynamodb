@@ -16,7 +16,7 @@ package object dynamodb {
   type TableNameAndPK = (String, String)
 
   type Encoder[A]  = A => AttributeValue
-  type Decoder[+A] = AttributeValue => Either[DynamoDBError, A]
+  type Decoder[+A] = AttributeValue => Either[DynamoDBError.DecodingError, A]
 
   private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[_, A]): ZIO[DynamoDBExecutor, Throwable, A] =
     ZIO.serviceWithZIO[DynamoDBExecutor](_.execute(query))
@@ -124,6 +124,29 @@ package object dynamodb {
             .map(Chunk.fromIterable)
         for {
           r <- ZIO.environment[DynamoDBExecutor]
+          list <- batchGetItem.execute.provideEnvironment(r)
+        } yield list
+      }
+      .flattenChunks
+
+  def batchReadFromStream2[R, A, From: Schema](
+    tableName: String,
+    stream: ZStream[R, Throwable, A],
+    mPar: Int = 10
+  )(
+    pk: A => KeyConditionExpr.PrimaryKeyExpr[From]
+  ) /* : ZStream[R with DynamoDBExecutor, Throwable, Either[DynamoDBError.DecodingError, (A, Option[From])]] */ =
+    stream
+      .aggregateAsync(ZSink.collectAllN[A](100))
+      .mapZIOPar(mPar) { chunk =>
+        val batchGetItem: DynamoDBQuery[From, Chunk[Either[DynamoDBError, From]]] =
+          DynamoDBQuery
+            .forEach(chunk) { a =>
+              DynamoDBQuery.get(tableName)(pk(a))
+            }
+            .map(Chunk.fromIterable)
+        for {
+          r    <- ZIO.environment[DynamoDBExecutor]
           list <- batchGetItem.execute.provideEnvironment(r)
         } yield list
       }
