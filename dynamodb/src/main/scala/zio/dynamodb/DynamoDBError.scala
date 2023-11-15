@@ -19,13 +19,13 @@ sealed trait DynamoDBError extends Exception with NoStackTrace {
 // TODO: this is really an ITEM level error
 object DynamoDBError { // Item level errors
 
-//  sealed trait DynamoDBItemError extends DynamoDBError
+  sealed trait ItemError extends DynamoDBError
 
   // GetError
   // PutError
-  final case class ValueNotFound(message: String) extends DynamoDBError
+  final case class ValueNotFound(message: String) extends ItemError
 
-  final case class DecodingError(message: String) extends DynamoDBError
+  final case class DecodingError(message: String) extends ItemError
 
   //final case class WriteError(message: String, errorDetails: MapOfSet[String, String]) extends DynamoDBError
 

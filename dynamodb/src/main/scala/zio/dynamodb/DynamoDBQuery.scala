@@ -53,9 +53,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
           }
       }
 
-    val indexedGetResults = {
+    val indexedGetResults =
       //ddbExecute(batchGetItem).map(resp => batchGetItem.toGetItemResponses(resp) zip batchGetIndexes)
-
       ddbExecute(batchGetItem).flatMap {
         case resp @ BatchGetItem.Response(_, unprocessedKeys) if unprocessedKeys.size == 0 =>
           println(s"XXXXXXXXXXXX OK execute:batchGetItem r = $resp")
@@ -64,7 +63,6 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
           println(s"XXXXXXXXXXXX Fail execute:batchGetItem r = $resp")
           ZIO.fail(DynamoDBBatchError.BatchReadError(resp))
       }
-    }
 
     val indexedWriteResults =
       // TODO: Avi - investigate what happens with batch writes when there are errors in the BatchResponse
@@ -444,10 +442,10 @@ object DynamoDBQuery {
 
   def fail(e: => DynamoDBError): DynamoDBQuery[Any, Nothing] = Fail(() => e)
 
-  private[dynamodb] def absolve[A, B](query: DynamoDBQuery[A, Either[DynamoDBError, B]]): DynamoDBQuery[A, B] =
+  private[dynamodb] def absolve[A, B](query: DynamoDBQuery[A, Either[DynamoDBError.ItemError, B]]): DynamoDBQuery[A, B] =
     Absolve(query)
 
-  def fromEither[A](or: Either[DynamoDBError, A]): DynamoDBQuery[Any, A] =
+  def fromEither[A](or: Either[DynamoDBError.ItemError, A]): DynamoDBQuery[Any, A] =
     or match {
       case Left(error)  => DynamoDBQuery.fail(error)
       case Right(value) => DynamoDBQuery.succeed(value)
@@ -481,14 +479,14 @@ object DynamoDBQuery {
 
   def get[From: Schema](tableName: String)(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
-  ): DynamoDBQuery[From, Either[DynamoDBError, From]] = // TODO DynamoDBError.ValueNotFound
+  ): DynamoDBQuery[From, Either[DynamoDBError.ItemError, From]] = // TODO DynamoDBError.ValueNotFound
     get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
 
   private def get[A: Schema](
     tableName: String,
     key: PrimaryKey,
     projections: Chunk[ProjectionExpression[_, _]]
-  ): DynamoDBQuery[A, Either[DynamoDBError, A]] =
+  ): DynamoDBQuery[A, Either[DynamoDBError.ItemError, A]] =
     getItem(tableName, key, projections: _*).map {
       case Some(item) =>
         fromItem(item)
@@ -959,9 +957,9 @@ object DynamoDBQuery {
     type Old = A
   }
 
-  private[dynamodb] final case class Absolve[A, B](query: DynamoDBQuery[A, Either[DynamoDBError, B]])
+  private[dynamodb] final case class Absolve[A, B](query: DynamoDBQuery[A, Either[DynamoDBError.ItemError, B]])
       extends DynamoDBQuery[A, B] {
-    type Old = Either[DynamoDBError, B]
+    type Old = Either[DynamoDBError.ItemError, B]
   }
 
   def apply[A](a: => A): DynamoDBQuery[Any, A] = Succeed(() => a)
