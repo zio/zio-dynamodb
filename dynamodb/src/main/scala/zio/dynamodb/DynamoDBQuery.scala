@@ -51,22 +51,16 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     val indexedGetResults =
       ddbExecute(batchGetItem).flatMap {
         case resp @ BatchGetItem.Response(_, unprocessedKeys) if unprocessedKeys.size == 0 =>
-          println(s"XXXXXXXXXXXX indexedGetResults:OK execute:batchGetItem r = $resp")
           ZIO.succeed(batchGetItem.toGetItemResponses(resp) zip batchGetIndexes)
         case resp                                                                          =>
-          println(s"XXXXXXXXXXXX indexedGetResults:Fail execute:batchGetItem r = $resp")
           ZIO.fail(resp.toErrorResponse)
       }
 
     val indexedWriteResults =
       ddbExecute(batchWriteItem).flatMap {
-        case resp @ BatchWriteItem.Response(unprocessedItems) if unprocessedItems.size == 0 =>
-          println(
-            s"XXXXXXXXXXXX indexedWriteResults:OK execute:batchGetItem r = $resp batchWriteItem = $batchWriteItem"
-          )
+        case BatchWriteItem.Response(unprocessedItems) if unprocessedItems.size == 0 =>
           ZIO.succeed(batchWriteItem.addList.map(_ => None) zip batchWriteIndexes)
-        case resp                                                                           =>
-          println(s"XXXXXXXXXXXX indexedWriteResults:Fail execute:batchGetItem r = $resp")
+        case resp                                                                    =>
           ZIO.fail(resp.toErrorResponse)
       }
 
@@ -364,7 +358,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Absolve(query)             => Absolve(query.withRetryPolicy(retryPolicy))
       case s: BatchWriteItem          => s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: BatchGetItem            => s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                          => println(s"XXXXXXXX ignoring withRetryPolicy"); self
+      case _                          => self // TODO: Avi - propogate retry policy to all queries
     }
 
   def sortOrder(ascending: Boolean): DynamoDBQuery[In, Out] =
