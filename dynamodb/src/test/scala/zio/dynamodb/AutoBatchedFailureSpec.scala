@@ -19,7 +19,7 @@ import zio.test.TestAspect
 import zio.test.Assertion
 import zio.Chunk
 
-object ExecutorSpec2 extends ZIOSpecDefault with DynamoDBFixtures {
+object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
 
   override def spec =
     suite("Executor spec")(
