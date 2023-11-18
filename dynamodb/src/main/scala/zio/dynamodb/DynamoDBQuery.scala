@@ -736,8 +736,8 @@ object DynamoDBQuery {
       unprocessedKeys: ScalaMap[TableName, TableGet] = ScalaMap.empty
     ) { self =>
       def toErrorResponse: DynamoDBBatchError.BatchGetError = {
-        val unprocessedItems: ScalaMap[String, Chunk[PrimaryKey]] = self.unprocessedKeys.map {
-          case (TableName(tableName), tableGet) => (tableName, Chunk.fromIterable(tableGet.keysSet))
+        val unprocessedItems: ScalaMap[String, ScalaSet[PrimaryKey]] = self.unprocessedKeys.map {
+          case (TableName(tableName), tableGet) => (tableName, tableGet.keysSet)
         }
         DynamoDBBatchError.BatchGetError("TODO", unprocessedItems)
       }

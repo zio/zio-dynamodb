@@ -25,6 +25,6 @@ object DynamoDBBatchError {
 
   final case class BatchWriteError(message: String, unprocessedItems: Map[String, Chunk[Write]])
       extends DynamoDBBatchError
-  final case class BatchGetError(message: String, unprocessedKeys: Map[String, Chunk[PrimaryKey]])
+  final case class BatchGetError(message: String, unprocessedKeys: Map[String, Set[PrimaryKey]])
       extends DynamoDBBatchError
 }

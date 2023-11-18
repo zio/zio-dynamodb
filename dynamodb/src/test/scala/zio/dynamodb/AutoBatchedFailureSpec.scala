@@ -165,7 +165,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
           equalTo(Some(Set(itemOne, Item("k1" -> "v2", "k2" -> "v23"))))
         )
       }).provideLayer(successfulMockBatchGet >>> DynamoDBExecutor.live),
-      suite("failed batch gets")(test("should return keys we did not get") {
+      suite("failed batch gets")(test("should return keys we did not get for Zipped case") {
         val autoBatched = getItem("mockBatches", itemOne) zip getItem("mockBatches", itemTwo)
         val programExit = for {
           exit <- autoBatched.execute.exit
@@ -173,7 +173,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
         assertZIO(programExit)(
           fails(
             assertDynamoDBBatchGetError(
-              ScalaMap("mockBatches" -> Chunk(itemTwo, itemOne))
+              ScalaMap("mockBatches" -> Set(itemOne, itemTwo))
             )
           )
         )
@@ -243,9 +243,9 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
       )
     )
 
-  def assertDynamoDBBatchGetError(map: ScalaMap[String, Chunk[PrimaryKey]]): Assertion[Any] =
+  def assertDynamoDBBatchGetError(map: ScalaMap[String, Set[PrimaryKey]]): Assertion[Any] =
     isSubtype[DynamoDBBatchError.BatchGetError](
-      hasField[DynamoDBBatchError.BatchGetError, ScalaMap[String, Chunk[PrimaryKey]]](
+      hasField[DynamoDBBatchError.BatchGetError, ScalaMap[String, Set[PrimaryKey]]](
         "unprocessedKeys",
         _.unprocessedKeys,
         equalTo(map)
