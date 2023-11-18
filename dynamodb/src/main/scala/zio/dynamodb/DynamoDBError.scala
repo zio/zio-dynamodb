@@ -11,8 +11,6 @@ sealed trait DynamoDBError extends Throwable with NoStackTrace {
 object DynamoDBError {
   final case class ValueNotFound(message: String) extends DynamoDBError
   final case class DecodingError(message: String) extends DynamoDBError
-
-//  final case class BatchError(message: String) extends DynamoDBError
 }
 
 sealed trait DynamoDBBatchError extends Throwable with NoStackTrace with Product with Serializable {

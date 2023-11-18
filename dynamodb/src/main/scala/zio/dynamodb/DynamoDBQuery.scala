@@ -49,7 +49,6 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       }
 
     val indexedGetResults =
-//      ddbExecute(batchGetItem).map(resp => batchGetItem.toGetItemResponses(resp) zip batchGetIndexes)
       ddbExecute(batchGetItem).flatMap {
         case resp @ BatchGetItem.Response(_, unprocessedKeys) if unprocessedKeys.size == 0 =>
           println(s"XXXXXXXXXXXX indexedGetResults:OK execute:batchGetItem r = $resp")
@@ -60,7 +59,6 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       }
 
     val indexedWriteResults =
-//      ddbExecute(batchWriteItem).as(batchWriteItem.addList.map(_ => None) zip batchWriteIndexes)
       ddbExecute(batchWriteItem).flatMap {
         case resp @ BatchWriteItem.Response(unprocessedItems) if unprocessedItems.size == 0 =>
           println(

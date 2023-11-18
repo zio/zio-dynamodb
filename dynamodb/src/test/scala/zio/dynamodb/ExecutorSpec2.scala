@@ -179,10 +179,7 @@ object ExecutorSpec2 extends ZIOSpecDefault with DynamoDBFixtures {
   private val itemOneWriteRequest                            = Set(
     DynamoDBExecutorImpl.awsWriteRequest(BatchWriteItem.Put(itemOne))
   )
-  val itemTwoWriteRequest                                    = Set(
-    DynamoDBExecutorImpl.awsWriteRequest(BatchWriteItem.Put(itemTwo))
-  )
-  val itemOneAndTwoWriteRequest                              = Set(
+  private val itemOneAndTwoWriteRequest                      = Set(
     DynamoDBExecutorImpl.awsWriteRequest(BatchWriteItem.Put(itemOne)),
     DynamoDBExecutorImpl.awsWriteRequest(BatchWriteItem.Put(itemTwo))
   )
@@ -232,29 +229,17 @@ object ExecutorSpec2 extends ZIOSpecDefault with DynamoDBFixtures {
         .atMost(4)
     )
 
-  private val successfulMockBatchWrite: ULayer[DynamoDb] = DynamoDbMock
+  private val successfulMockBatchWriteItemOneAndTwo: ULayer[DynamoDb] = DynamoDbMock
     .BatchWriteItem(
-      equalTo(writeRequestItemOne),
+      equalTo(writeRequestItemOneAndTwo),
       value(
         BatchWriteItemResponse(
-          unprocessedItems = Some(
-            ScalaMap(
-              ZIOAwsTableName(mockBatches) -> itemOneWriteRequest
-            )
-          )
+          unprocessedItems = None
         ).asReadOnly
       )
-    ) ++ DynamoDbMock.BatchWriteItem(
-    equalTo(writeRequestItemOne),
-    value(
-      BatchWriteItemResponse().asReadOnly
     )
-  )
 
-  def assertDynamoDBBatchError(substring: String): Assertion[Any] =
-    isSubtype[DynamoDBBatchError](hasMessage(containsString(substring)))
-
-  def assertDynamoDBBatchWriteError(map: ScalaMap[String, Chunk[DynamoDBBatchError.Write]]): Assertion[Any] =
+  private def assertDynamoDBBatchWriteError(map: ScalaMap[String, Chunk[DynamoDBBatchError.Write]]): Assertion[Any] =
     isSubtype[DynamoDBBatchError.BatchWriteError](
       hasField[DynamoDBBatchError.BatchWriteError, ScalaMap[String, Chunk[DynamoDBBatchError.Write]]](
         "unprocessedItems",
@@ -302,11 +287,11 @@ object ExecutorSpec2 extends ZIOSpecDefault with DynamoDBFixtures {
           assertZIO(programExit)(
             fails(
               assertDynamoDBBatchWriteError(
-                ScalaMap("mockBatches" -> Chunk(DynamoDBBatchError.Put(itemOne), DynamoDBBatchError.Put(itemTwo)))
+                ScalaMap("mockBatches" -> Chunk(DynamoDBBatchError.Put(itemOne)))
               )
             )
           )
-        }.provideLayer(failedMockBatchWriteTwoItems >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock,
+        }.provideLayer(failedPartialMockBatchWriteTwoItems >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock,
         test("should retry when there are unprocessedItems and return unprocessedItems in forEach failure case") {
           val autoBatched = forEach(List(itemOne, itemTwo))(item => putItem("mockBatches", item))
           val programExit = for {
@@ -321,11 +306,22 @@ object ExecutorSpec2 extends ZIOSpecDefault with DynamoDBFixtures {
           )
         }.provideLayer(failedPartialMockBatchWriteTwoItems >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock
       ),
-      suite("successful batch write")(test("should return no unprocessedItems") {
-        for {
-          response <- batchWriteRequestItemOne.execute
-        } yield assert(response.unprocessedItems)(isNone)
-      }).provideLayer(successfulMockBatchWrite >>> DynamoDBExecutor.live)
+      suite("successful batch write")(
+        test("should return no unprocessedItems for zipped case") {
+          val autoBatched = putItem("mockBatches", itemOne) zip putItem("mockBatches", itemTwo)
+          val programExit = for {
+            exit <- autoBatched.execute.exit
+          } yield exit
+          assertZIO(programExit)(succeeds(anything))
+        },
+        test("should return no unprocessedItems for forEach case") {
+          val autoBatched = forEach(List(itemOne, itemTwo))(item => putItem("mockBatches", item))
+          val programExit = for {
+            exit <- autoBatched.execute.exit
+          } yield exit
+          assertZIO(programExit)(succeeds(anything))
+        }
+      ).provideLayer(successfulMockBatchWriteItemOneAndTwo >>> DynamoDBExecutor.live)
     )
 
   private val batchRetries = suite("Batch retries")(

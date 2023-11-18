@@ -213,9 +213,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
         ref <- zio.Ref.make[MapOfSet[TableName, BatchWriteItem.Write]](batchWriteItem.requestItems)
         _           <- (for {
                            unprocessedItems           <- ref.get
-                           r                           = awsBatchWriteItemRequest(batchWriteItem.copy(requestItems = unprocessedItems))
-                           _ = println(s"XXXXXXXXXXX executeBatchWriteItem:about to call AWS with $r")
-                           response                   <- dynamoDb
+                                                      response                   <- dynamoDb
                                                            .batchWriteItem(
                                                              awsBatchWriteItemRequest(batchWriteItem.copy(requestItems = unprocessedItems))
                                                            )
