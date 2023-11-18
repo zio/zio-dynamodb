@@ -358,7 +358,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Absolve(query)             => Absolve(query.withRetryPolicy(retryPolicy))
       case s: BatchWriteItem          => s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: BatchGetItem            => s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                          => self // TODO: Avi - propogate retry policy to all queries
+      case _                          =>
+        self // TODO: Avi - popogate retry to all primitives eg Get/Put/Delete so that autobatching can select it
     }
 
   def sortOrder(ascending: Boolean): DynamoDBQuery[In, Out] =
