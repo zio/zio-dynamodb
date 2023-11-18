@@ -15,7 +15,7 @@ import zio.test.{ assert, ZIOSpecDefault }
 import zio.{ Schedule, ULayer }
 
 import scala.collection.immutable.{ Map => ScalaMap }
-import zio.test.Live
+import zio.test.TestAspect
 
 object ExecutorSpec2 extends ZIOSpecDefault with DynamoDBFixtures {
 
@@ -236,21 +236,21 @@ object ExecutorSpec2 extends ZIOSpecDefault with DynamoDBFixtures {
           val program = putItem("mockBatches", itemOne) zip putItem("mockBatches", itemTwo)
           for {
             // TODO: Avi - propogate retry policy GetItem/DeleteItem/PutItem
-            response <- Live.live(program.withRetryPolicy(Schedule.recurs(1)).execute).either
+            response <- program.withRetryPolicy(Schedule.recurs(1)).execute.either
             _         = println(s"XXXXXXXXX response: $response")
           } yield assert(response)(isLeft)
-        }.provideLayer(failedMockBatchWriteTwoItems >>> DynamoDBExecutor.live),
+        }.provideLayer(failedMockBatchWriteTwoItems >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock,
         test("should retry when there are unprocessedItems and return unprocessedItems in forEach failure case") {
           val program = forEach(List(itemOne, itemTwo))(item => putItem("mockBatches", item))
           for {
             // TODO: Avi - propogate retry policy GetItem/DeleteItem/PutItem
-            response <- Live.live(program.withRetryPolicy(Schedule.recurs(1)).execute).either
+            response <- program.withRetryPolicy(Schedule.recurs(1)).execute.either
             _         = response match {
                           case Left(DynamoDBBatchError.BatchWriteError(_, unproc)) => println(s"XXXXXXXXX response: $unproc")
                           case _                                                   => ()
                         }
           } yield assert(response)(isLeft)
-        }.provideLayer(failedMockBatchWriteTwoItems >>> DynamoDBExecutor.live)
+        }.provideLayer(failedMockBatchWriteTwoItems >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock
       ),
       suite("failed batch write")(
         test("should retry when there are unprocessedItems and return unprocessedItems in failure case") {
