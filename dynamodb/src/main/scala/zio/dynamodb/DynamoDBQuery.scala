@@ -52,10 +52,10 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 //      ddbExecute(batchGetItem).map(resp => batchGetItem.toGetItemResponses(resp) zip batchGetIndexes)
       ddbExecute(batchGetItem).flatMap {
         case resp @ BatchGetItem.Response(_, unprocessedKeys) if unprocessedKeys.size == 0 =>
-          println(s"XXXXXXXXXXXX OK execute:batchGetItem r = $resp")
+          println(s"XXXXXXXXXXXX indexedGetResults:OK execute:batchGetItem r = $resp")
           ZIO.succeed(batchGetItem.toGetItemResponses(resp) zip batchGetIndexes)
         case resp                                                                          =>
-          println(s"XXXXXXXXXXXX Fail execute:batchGetItem r = $resp")
+          println(s"XXXXXXXXXXXX indexedGetResults:Fail execute:batchGetItem r = $resp")
           ZIO.fail(resp.toErrorResponse)
       }
 
@@ -63,10 +63,12 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 //      ddbExecute(batchWriteItem).as(batchWriteItem.addList.map(_ => None) zip batchWriteIndexes)
       ddbExecute(batchWriteItem).flatMap {
         case resp @ BatchWriteItem.Response(unprocessedItems) if unprocessedItems.size == 0 =>
-          println(s"XXXXXXXXXXXX OK execute:batchGetItem r = $resp")
+          println(
+            s"XXXXXXXXXXXX indexedWriteResults:OK execute:batchGetItem r = $resp batchWriteItem = $batchWriteItem"
+          )
           ZIO.succeed(batchWriteItem.addList.map(_ => None) zip batchWriteIndexes)
         case resp                                                                           =>
-          println(s"XXXXXXXXXXXX Fail execute:batchGetItem r = $resp")
+          println(s"XXXXXXXXXXXX indexedWriteResults:Fail execute:batchGetItem r = $resp")
           ZIO.fail(resp.toErrorResponse)
       }
 
@@ -387,7 +389,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                           => self
     }
 
-  final def map[B](f: Out => B): DynamoDBQuery[In, B] = DynamoDBQuery.Map(self, f)
+  final def map[B](f: Out => B): DynamoDBQuery[In, B]                                                               = DynamoDBQuery.Map(self, f)
   final def zip[In1 <: In, B](that: DynamoDBQuery[In1, B])(implicit z: Zippable[Out, B]): DynamoDBQuery[In1, z.Out] =
     DynamoDBQuery.Zip[Out, B, z.Out](self, that, z)
 
