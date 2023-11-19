@@ -19,12 +19,21 @@ import zio.test.TestAspect
 import zio.test.Assertion
 import zio.Chunk
 
+import zio.schema.DeriveSchema
+
 object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
 
   override def spec =
     suite("Executor spec")(
       batchRetries
     )
+
+  final case class TestItem(k1: String)
+  object TestItem {
+    implicit val schema: zio.schema.Schema.CaseClass1[String, TestItem] = DeriveSchema.gen[TestItem]
+
+    val k1 = ProjectionExpression.accessors[TestItem]
+  }
 
   private val mockBatches             = "mockBatches"
   private val itemOne                 = Item("k1" -> "v1")
@@ -41,12 +50,12 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
       )
     )
 
-  private val retryGetRequest =
+  val getRequestItemOne =
     DynamoDBExecutorImpl.awsBatchGetItemRequest(
       BatchGetItem(
         ScalaMap(
           TableName(mockBatches) -> BatchGetItem.TableGet(
-            keysSet = Set(PrimaryKey("k1" -> "v2")),
+            keysSet = Set(PrimaryKey("k1" -> "v1")),
             projectionExpressionSet = Set.empty
           )
         )
@@ -105,6 +114,45 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
     )
     .atMost(4)
 
+  val failedPartialMockBatchGetTwoItems: ULayer[DynamoDb] = DynamoDbMock
+    .BatchGetItem(
+      equalTo(getRequestItemOneAndTwo),
+      value(
+        ZIOAwsBatchGetItemResponse(
+          unprocessedKeys = Some(
+            ScalaMap(
+              ZIOAwsTableName(mockBatches) -> ZIOAwsKeysAndAttributes(
+                keys = List(
+                  ScalaMap(AttributeName("k1") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v1"))))
+                )
+              )
+            )
+          )
+        ).asReadOnly
+      )
+    )
+    .atMost(4)
+    .andThen(
+      DynamoDbMock
+        .BatchGetItem(
+          equalTo(getRequestItemOne),
+          value(
+            ZIOAwsBatchGetItemResponse(
+              unprocessedKeys = Some(
+                ScalaMap(
+                  ZIOAwsTableName(mockBatches) -> ZIOAwsKeysAndAttributes(
+                    keys = List(
+                      ScalaMap(AttributeName("k1") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v1"))))
+                    )
+                  )
+                )
+              )
+            ).asReadOnly
+          )
+        )
+        .atMost(4)
+    )
+
   private val successfulMockBatchGet: ULayer[DynamoDb] = DynamoDbMock
     .BatchGetItem(
       equalTo(getRequestItemOneAndTwo),
@@ -113,30 +161,11 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
           responses = Some(
             ScalaMap(
               ZIOAwsTableName(mockBatches) -> List(
-                ScalaMap(AttributeName("k1") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v1"))))
-              )
-            )
-          ),
-          unprocessedKeys = Some(
-            ScalaMap(
-              ZIOAwsTableName(mockBatches) -> ZIOAwsKeysAndAttributes(
-                keys = List(ScalaMap(AttributeName("k1") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v2")))))
-              )
-            )
-          )
-        ).asReadOnly
-      )
-    ) ++ DynamoDbMock
-    .BatchGetItem(
-      equalTo(retryGetRequest),
-      value(
-        ZIOAwsBatchGetItemResponse(
-          responses = Some(
-            ScalaMap(
-              ZIOAwsTableName(mockBatches) -> List(
                 ScalaMap(
-                  AttributeName("k1") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v2"))),
-                  AttributeName("k2") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v23")))
+                  AttributeName("k1") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v1")))
+                ),
+                ScalaMap(
+                  AttributeName("k1") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v2")))
                 )
               )
             )
@@ -155,19 +184,78 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
         } yield exit
         assertZIO(programExit)(succeeds(anything))
       }).provideLayer(successfulMockBatchGet >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock,
-      suite("failed batch gets")(test("should return keys we did not get for Zipped case") {
-        val autoBatched = getItem("mockBatches", itemOne) zip getItem("mockBatches", itemTwo)
-        val programExit = for {
-          exit <- autoBatched.execute.exit
-        } yield exit
-        assertZIO(programExit)(
-          fails(
-            assertDynamoDBBatchGetError(
-              ScalaMap("mockBatches" -> Set(itemOne, itemTwo))
+      suite("all batched requests fail")(
+        test("should return all keys in unprocessedKeys for Zipped case") {
+          val autoBatched = getItem("mockBatches", itemOne) zip getItem("mockBatches", itemTwo)
+          val programExit = for {
+            exit <- autoBatched.execute.exit
+          } yield exit
+          assertZIO(programExit)(
+            fails(
+              assertDynamoDBBatchGetError(
+                ScalaMap("mockBatches" -> Set(itemOne, itemTwo))
+              )
             )
           )
-        )
-      }).provideLayer(failedMockBatchGet >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock
+        },
+        test("should return all keys in unprocessedKeys for forEach case") {
+          val autoBatched = forEach(List(itemOne, itemTwo))(item => getItem("mockBatches", item))
+          val programExit = for {
+            exit <- autoBatched.execute.exit
+          } yield exit
+          assertZIO(programExit)(
+            fails(
+              assertDynamoDBBatchGetError(
+                ScalaMap("mockBatches" -> Set(itemOne, itemTwo))
+              )
+            )
+          )
+        }
+        // test("should return all keys in unprocessedKeys for forEach case using type safe API") {
+        //   val autoBatched = forEach(List("v1", "v2")) { id =>
+        //     val x = get("mockBatches")(TestItem.k1.partitionKey === id)
+        //     x
+        //   }
+        //   val programExit = for {
+        //     exit <- autoBatched.execute.exit
+        //   } yield exit
+        //   assertZIO(programExit)(
+        //     fails(
+        //       assertDynamoDBBatchGetError(
+        //         ScalaMap("mockBatches" -> Set(itemOne, itemTwo))
+        //       )
+        //     )
+        //   )
+        // }
+      ).provideLayer(failedMockBatchGet >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock,
+      suite("partial batched requests fail")(
+        test("should return failed in unprocessedKeys for Zipped case") {
+          val autoBatched = getItem("mockBatches", itemOne) zip getItem("mockBatches", itemTwo)
+          val programExit = for {
+            exit <- autoBatched.execute.exit
+          } yield exit
+          assertZIO(programExit)(
+            fails(
+              assertDynamoDBBatchGetError(
+                ScalaMap("mockBatches" -> Set(itemOne))
+              )
+            )
+          )
+        },
+        test("should return failed in unprocessedKeys for forEach case") {
+          val autoBatched = forEach(List(itemOne, itemTwo))(item => getItem("mockBatches", item))
+          val programExit = for {
+            exit <- autoBatched.execute.exit
+          } yield exit
+          assertZIO(programExit)(
+            fails(
+              assertDynamoDBBatchGetError(
+                ScalaMap("mockBatches" -> Set(itemOne))
+              )
+            )
+          )
+        }
+      ).provideLayer(failedPartialMockBatchGetTwoItems >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock
     )
 
   private val itemOneWriteRequest                            = Set(
@@ -267,10 +355,17 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
             exit <- autoBatched.execute.exit
           } yield exit
           assertZIO(programExit)(succeeds(anything))
+        },
+        test("should return no unprocessedItems for forEach case using high level API") {
+          val autoBatched = forEach(List("v1", "v2"))(id => put("mockBatches", TestItem(id)))
+          val programExit = for {
+            exit <- autoBatched.execute.exit
+          } yield exit
+          assertZIO(programExit)(succeeds(anything))
         }
       ).provideLayer(successfulMockBatchWriteItemOneAndTwo >>> DynamoDBExecutor.live),
       suite("all batched request fail")(
-        test("should retry when there are unprocessedItems and return unprocessedItems in Zipped failure case") {
+        test("should return all keys in unprocessedItems in Zipped failure case") {
           val autoBatched = putItem("mockBatches", itemOne) zip putItem("mockBatches", itemTwo)
           val programExit = for {
             exit <- autoBatched.execute.exit // TODO: Avi - propogate retry policy GetItem/DeleteItem/PutItem
@@ -283,7 +378,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
             )
           )
         }.provideLayer(failedMockBatchWriteTwoItems >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock,
-        test("should retry when there are unprocessedItems and return unprocessedItems in forEach failure case") {
+        test("should return all keys in unprocessedItems for forEach failure case") {
           val autoBatched = forEach(List(itemOne, itemTwo))(item => putItem("mockBatches", item))
           val programExit = for {
             exit <- autoBatched.execute.exit
@@ -298,7 +393,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
         }.provideLayer(failedMockBatchWriteTwoItems >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock
       ),
       suite("partial batch write failures")(
-        test("should retry when there are unprocessedItems and return unprocessedItems in Zipped failure case") {
+        test("should return unprocessedItems in Zipped failure case") {
           val autoBatched = putItem("mockBatches", itemOne) zip putItem("mockBatches", itemTwo)
           val programExit = for {
             exit <- autoBatched.execute.exit
@@ -311,7 +406,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
             )
           )
         }.provideLayer(failedPartialMockBatchWriteTwoItems >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock,
-        test("should retry when there are unprocessedItems and return unprocessedItems in forEach failure case") {
+        test("should return unprocessedItems in forEach failure case") {
           val autoBatched = forEach(List(itemOne, itemTwo))(item => putItem("mockBatches", item))
           val programExit = for {
             exit <- autoBatched.execute.exit
