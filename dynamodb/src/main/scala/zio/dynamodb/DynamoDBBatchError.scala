@@ -13,8 +13,11 @@ object DynamoDBBatchError {
   final case class Delete(key: PrimaryKey) extends Write
   final case class Put(item: Item)         extends Write
 
-  final case class BatchWriteError(message: String, unprocessedItems: Map[String, Chunk[Write]])
-      extends DynamoDBBatchError
-  final case class BatchGetError(message: String, unprocessedKeys: Map[String, Set[PrimaryKey]])
-      extends DynamoDBBatchError
+  final case class BatchWriteError(unprocessedItems: Map[String, Chunk[Write]]) extends DynamoDBBatchError {
+    val message = "BatchWriteError: unprocessed items returned by aws"
+  }
+
+  final case class BatchGetError(unprocessedKeys: Map[String, Set[PrimaryKey]]) extends DynamoDBBatchError {
+    val message = "BatchGetError: unprocessed keys returned by aws"
+  }
 }

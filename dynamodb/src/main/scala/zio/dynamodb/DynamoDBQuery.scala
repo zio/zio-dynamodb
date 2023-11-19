@@ -734,7 +734,7 @@ object DynamoDBQuery {
         val unprocessedItems: ScalaMap[String, ScalaSet[PrimaryKey]] = self.unprocessedKeys.map {
           case (TableName(tableName), tableGet) => (tableName, tableGet.keysSet)
         }
-        DynamoDBBatchError.BatchGetError("TODO", unprocessedItems)
+        DynamoDBBatchError.BatchGetError(unprocessedItems)
       }
     }
   }
@@ -808,7 +808,7 @@ object DynamoDBQuery {
             }.toMap
           case None                   => ScalaMap.empty[String, Chunk[DynamoDBBatchError.Write]]
         }
-        DynamoDBBatchError.BatchWriteError("TODO", unprocessedMap)
+        DynamoDBBatchError.BatchWriteError(unprocessedMap)
       }
     }
 
