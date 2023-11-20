@@ -325,9 +325,16 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
                               response              <- dynamoDb
                                                          .batchGetItem(awsBatchGetItemRequest(batchGetItem.copy(requestItems = unprocessed)))
                                                          .mapError(_.toThrowable)
-                              responseUnprocessedOpt = response.unprocessedKeys
-                                                         .map(_.map { case (k, v) => (TableName(k), keysAndAttrsToTableGet(v)) })
-                                                         .toOption
+                              responseUnprocessedOpt =
+                                response.unprocessedKeys
+                                  .map(_.map {
+                                    case (k, v) =>
+                                      // preserve the projection expression set
+                                      val peSet =
+                                        unprocessed.get(TableName(k.toString)).map(_.projectionExpressionSet).getOrElse(Set.empty)
+                                      (TableName(k), keysAndAttrsToTableGet(v).copy(projectionExpressionSet = peSet))
+                                  })
+                                  .toOption
                               _                     <- responseUnprocessedOpt match {
                                                          case Some(responseUnprocessed) => unprocessedKeys.set(responseUnprocessed)
                                                          case None                      => ZIO.unit

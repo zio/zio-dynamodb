@@ -89,7 +89,7 @@ object TypeSafeApiSpec extends ZIOSpecDefault {
             _  <- DynamoDBQuery.put(tableName, Person("1", "John", Some("Smith"))).execute
             _  <- DynamoDBQuery.put(tableName, Person("2", "Smith", Some("John"))).execute
             xs <- DynamoDBQuery // high level API
-                    .forEach(1 to 3)(i => DynamoDBQuery.get[Person](tableName)(Person.id.partitionKey === i.toString))
+                    .forEach(1 to 3)(i => DynamoDBQuery.get(tableName)(Person.id.partitionKey === i.toString))
                     .execute
           } yield assertTrue(xs.size == 3) &&
             assert(xs(0))(isRight) && assert(xs(1))(isRight) &&
