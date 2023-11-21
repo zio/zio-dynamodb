@@ -64,23 +64,15 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
     )
 
   private val batchWriteRequestItemOne = BatchWriteItem(
-    MapOfSet.empty[TableName, BatchWriteItem.Write] + (
-      (
-        TableName(mockBatches),
-        BatchWriteItem.Put(itemOne)
-      )
-    ),
+    requestItems =
+      MapOfSet.empty[TableName, BatchWriteItem.Write] + (TableName(mockBatches) -> BatchWriteItem.Put(itemOne)),
     retryPolicy = Schedule.recurs(1)
   )
 
   private val batchWriteRequestItemOneAndTwo = BatchWriteItem(
-    (MapOfSet.empty[TableName, BatchWriteItem.Write] + (
-      TableName(mockBatches),
-      BatchWriteItem.Put(itemOne)
-    )) + (
-      TableName(mockBatches),
-      BatchWriteItem.Put(itemTwo)
-    ),
+    requestItems = MapOfSet.empty[TableName, BatchWriteItem.Write] + (TableName(mockBatches) -> BatchWriteItem.Put(
+      itemOne
+    )) + (TableName(mockBatches)                                                             -> BatchWriteItem.Put(itemTwo)),
     retryPolicy = Schedule.recurs(1)
   )
 
