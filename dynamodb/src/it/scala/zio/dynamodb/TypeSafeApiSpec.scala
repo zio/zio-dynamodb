@@ -1,6 +1,5 @@
 package zio.dynamodb
 
-import zio.Scope
 import zio.ZIO
 import zio.schema.DeriveSchema
 import zio.test._
@@ -43,7 +42,7 @@ object TypeSafeApiSpec extends DynamoDBLocalSpec {
     val (id, surname, forename)                                                    = ProjectionExpression.accessors[Person]
   }
 
-  override def spec: Spec[TestEnvironment with Scope, Any] =
+  override def spec: Spec[DynamoDBExecutor, Throwable] =
     suite("TypeSafeApiSpec")(
       test("filter on field equality") {
         withSingleKeyTable { tableName =>
@@ -94,6 +93,6 @@ object TypeSafeApiSpec extends DynamoDBLocalSpec {
             assert(xs(2))(isLeft(isSubtype[DynamoDBError.ValueNotFound](anything)))
         }
       }
-    ).provide(bootstrap) @@ nondeterministic @@ TestAspect.ignore
+    ) @@ nondeterministic
 
 }

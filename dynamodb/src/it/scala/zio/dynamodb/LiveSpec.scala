@@ -21,7 +21,7 @@ import zio.test.TestAspect._
 import java.net.URI
 import scala.collection.immutable.{ Map => ScalaMap }
 
-object LiveSpec extends ZIOSpecDefault {
+object LiveSpec extends DynamoDBLocalSpec {
 
   private val awsConfig = ZLayer.succeed(
     config.CommonAwsConfig(
@@ -38,7 +38,7 @@ object LiveSpec extends ZIOSpecDefault {
         builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
     }
 
-  private val testLayer = (dynamoDbLayer >>> DynamoDBExecutor.live)
+  val testLayer = (dynamoDbLayer >>> DynamoDBExecutor.live)
 
   private val id       = "id"
   private val first    = "first"
@@ -190,7 +190,7 @@ object LiveSpec extends ZIOSpecDefault {
     ConditionExpression.Operand.ValueOperand(AttributeValue(id))
   )
 
-  override def spec: Spec[TestEnvironment, Any] = mainSuite
+  override def spec: Spec[DynamoDBExecutor, Throwable] = mainSuite
 
   final case class ExpressionAttrNames(id: String, num: Int, ttl: Option[Long])
   object ExpressionAttrNames {
@@ -206,7 +206,7 @@ object LiveSpec extends ZIOSpecDefault {
     val (and, source, ttl)                                                                              = ProjectionExpression.accessors[ExpressionAttrNamesPkKeywords]
   }
 
-  val mainSuite: Spec[TestEnvironment, Any] =
+  val mainSuite: Spec[DynamoDBExecutor, Throwable] =
     suite("live test")(
       suite("key words in Key Condition Expressions")(
         test("queryAll should handle keywords in primary key names using high level API") {
@@ -1503,8 +1503,5 @@ object LiveSpec extends ZIOSpecDefault {
           }
         )
       )
-    )
-      .provideSomeLayerShared[TestEnvironment](
-        testLayer.orDie
-      ) @@ nondeterministic
+    ) @@ nondeterministic
 }
