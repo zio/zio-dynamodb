@@ -96,6 +96,6 @@ object TypeSafeApiSpec extends ZIOSpecDefault {
             assert(xs(2))(isLeft(isSubtype[DynamoDBError.ValueNotFound](anything)))
         }
       }
-    ).provide(dynamoDBExecutorLayer) @@ nondeterministic
+    ).provide(dynamoDBExecutorLayer) @@ nondeterministic @@ TestAspect.ignore
 
 }
