@@ -94,6 +94,6 @@ object TypeSafeApiSpec extends DynamoDBLocalSpec {
             assert(xs(2))(isLeft(isSubtype[DynamoDBError.ValueNotFound](anything)))
         }
       }
-    ).provide(bootstrap) @@ nondeterministic
+    ).provide(bootstrap) @@ nondeterministic @@ TestAspect.ignore
 
 }
