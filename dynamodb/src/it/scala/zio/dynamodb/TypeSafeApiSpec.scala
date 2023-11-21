@@ -2,15 +2,13 @@ package zio.dynamodb
 
 import zio.Scope
 import zio.ZIO
-import zio.dynamodb.DynamoDBLocal.{ dynamoDBExecutorLayer }
 import zio.schema.DeriveSchema
-import zio.test.ZIOSpecDefault
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect._
 import zio.schema.Schema
 
-object TypeSafeApiSpec extends ZIOSpecDefault {
+object TypeSafeApiSpec extends DynamoDBLocalSpec {
 
   def withIdKeyOnly(tableName: String) =
     DynamoDBQuery.createTable(tableName, KeySchema("id"), BillingMode.PayPerRequest)(
@@ -96,6 +94,6 @@ object TypeSafeApiSpec extends ZIOSpecDefault {
             assert(xs(2))(isLeft(isSubtype[DynamoDBError.ValueNotFound](anything)))
         }
       }
-    ).provide(dynamoDBExecutorLayer) @@ nondeterministic @@ TestAspect.ignore
+    ).provide(bootstrap) @@ nondeterministic
 
 }

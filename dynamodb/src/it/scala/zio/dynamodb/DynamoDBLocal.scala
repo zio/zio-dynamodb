@@ -27,6 +27,6 @@ object DynamoDBLocal {
         builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
     }
 
-  val dynamoDBExecutorLayer = dynamoDbLayer >>> DynamoDBExecutor.live
+  val dynamoDBExecutorLayer: ZLayer[Any, Throwable, DynamoDBExecutor] = dynamoDbLayer >>> DynamoDBExecutor.live
 
 }
