@@ -8,7 +8,6 @@ import zio.aws.core.config
 import zio.aws.dynamodb
 import zio.aws.dynamodb.DynamoDb
 import zio.aws.netty
-import zio.dynamodb.DynamoDBExecutor
 
 import java.net.URI
 

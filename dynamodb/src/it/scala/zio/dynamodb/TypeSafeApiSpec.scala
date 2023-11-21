@@ -3,7 +3,6 @@ package zio.dynamodb
 import zio.Scope
 import zio.ZIO
 import zio.dynamodb.DynamoDBLocal.{ dynamoDBExecutorLayer }
-import zio.dynamodb.DynamoDBQuery
 import zio.schema.DeriveSchema
 import zio.test.ZIOSpecDefault
 import zio.test._
