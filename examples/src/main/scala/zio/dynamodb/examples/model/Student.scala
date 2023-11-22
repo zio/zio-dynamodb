@@ -1,14 +1,14 @@
 package zio.dynamodb.examples.model
 
-import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.dynamodb.ProjectionExpression
 import zio.schema.DeriveSchema
 
 import java.time.Instant
 import zio.schema.Schema
 import zio.dynamodb.KeyConditionExpr
+import zio.schema.annotation.simpleEnum
 
-@enumOfCaseObjects
+@simpleEnum
 sealed trait Payment
 
 object Payment {

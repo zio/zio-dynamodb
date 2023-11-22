@@ -1,7 +1,7 @@
 package zio.dynamodb
 
-import zio.dynamodb.Annotations.enumOfCaseObjects
 import zio.dynamodb.ProjectionExpression.{ $, mapElement, MapElement, Root }
+import zio.schema.annotation.simpleEnum
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test.Assertion._
 import zio.test.{ assert, assertTrue, ZIOSpecDefault }
@@ -15,7 +15,7 @@ object ProjectionExpressionSpec extends ZIOSpecDefault {
   private val groups        = "groups"
   private val payment       = "payment"
 
-  @enumOfCaseObjects
+  @simpleEnum
   sealed trait Payment
   object Payment {
     case object CreditCard extends Payment
