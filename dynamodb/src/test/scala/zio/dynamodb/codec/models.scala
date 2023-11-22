@@ -1,7 +1,6 @@
 package zio.dynamodb.codec
 
-import zio.dynamodb.Annotations.enumOfCaseObjects
-import zio.schema.annotation.{ caseName, discriminatorName, fieldName }
+import zio.schema.annotation.{ caseName, discriminatorName, fieldName, simpleEnum }
 import zio.schema.{ DeriveSchema, Schema }
 
 import java.time.Instant
@@ -58,18 +57,7 @@ object WithDiscriminatedEnum {
   implicit val schema: Schema[WithDiscriminatedEnum] = DeriveSchema.gen[WithDiscriminatedEnum]
 }
 
-@enumOfCaseObjects // should fail runtime validation as Three is not a case object
-sealed trait CaseObjectOnlyEnum2
-final case class WithCaseObjectOnlyEnum2(`enum`: CaseObjectOnlyEnum2)
-object WithCaseObjectOnlyEnum2 {
-  case object ONE                                                extends CaseObjectOnlyEnum2
-  @caseName("2")
-  case object TWO                                                extends CaseObjectOnlyEnum2
-  case class Three(@fieldName("funky_field_name") value: String) extends CaseObjectOnlyEnum2
-  implicit val schema: Schema[WithCaseObjectOnlyEnum2] = DeriveSchema.gen[WithCaseObjectOnlyEnum2]
-}
-
-@enumOfCaseObjects
+@simpleEnum
 sealed trait CaseObjectOnlyEnum
 final case class WithCaseObjectOnlyEnum(`enum`: CaseObjectOnlyEnum)
 object WithCaseObjectOnlyEnum {
