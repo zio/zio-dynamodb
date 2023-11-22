@@ -31,10 +31,10 @@ inThisBuild(
 addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
 
-val zioVersion        = "2.0.13"
-val zioAwsVersion     = "5.20.42.1"
-val zioSchemaVersion  = "0.4.15"
-val zioPreludeVersion = "1.0.0-RC19"
+val zioVersion             = "2.0.13"
+val zioAwsVersion          = "5.20.42.1"
+val zioSchemaVersion       = "0.4.15"
+val zioPreludeVersion      = "1.0.0-RC19"
 val zioInteropCats3Version = "23.0.0.8"
 val catsEffect3Version     = "3.5.1"
 val fs2Version             = "3.9.2"
@@ -274,7 +274,7 @@ lazy val examples = module("zio-dynamodb-examples", "examples")
       "co.fs2"                %% "fs2-core"     % fs2Version,
       "dev.zio"               %% "zio-test"     % zioVersion % "test",
       "dev.zio"               %% "zio-test-sbt" % zioVersion % "test",
-      "software.amazon.awssdk" % "dynamodb"     % "2.17.295"
+      "software.amazon.awssdk" % "dynamodb"     % "2.21.28"
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
