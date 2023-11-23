@@ -12,7 +12,7 @@ import zio.dynamodb.DynamoDBExecutor
 
 import java.net.URI
 
-object DynamoDB {
+object DynamoDBLocal {
   val awsConfig = ZLayer.succeed(
     config.CommonAwsConfig(
       region = None,

@@ -21,7 +21,7 @@ import zio.test.TestAspect._
 import java.net.URI
 import scala.collection.immutable.{ Map => ScalaMap }
 
-object LiveSpec extends ZIOSpecDefault {
+object LiveSpec extends DynamoDBLocalSpec {
 
   private val awsConfig = ZLayer.succeed(
     config.CommonAwsConfig(
