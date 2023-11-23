@@ -2,25 +2,18 @@ package zio.dynamodb
 
 import zio.Scope
 import zio.ZIO
-import zio.dynamodb.DynamoDB.{ dynamoDBExecutorLayer }
+import zio.dynamodb.DynamoDBLocal.{ dynamoDBExecutorLayer }
 import zio.dynamodb.DynamoDBQuery
 import zio.schema.DeriveSchema
-import zio.test.ZIOSpecDefault
 import zio.test._
-import zio.test.Assertion.isLeft
+import zio.test.Assertion._
 import zio.test.TestAspect._
 
-object TypeSafeApiSpec extends ZIOSpecDefault {
+object TypeSafeApiSpec extends DynamoDBLocalSpec {
 
-  def withIdKeyOnly(tableName: String) =
+  private def withIdKeyOnly(tableName: String) =
     DynamoDBQuery.createTable(tableName, KeySchema("id"), BillingMode.PayPerRequest)(
       AttributeDefinition.attrDefnString("id")
-    )
-
-  def withPartitionAndSortKey(tableName: String) =
-    DynamoDBQuery.createTable(tableName, KeySchema("email", "subject"), BillingMode.PayPerRequest)(
-      AttributeDefinition.attrDefnString("email"),
-      AttributeDefinition.attrDefnString("subject")
     )
 
   def managedTable(tableDefinition: String => DynamoDBQuery.CreateTable) =
@@ -32,7 +25,7 @@ object TypeSafeApiSpec extends ZIOSpecDefault {
         } yield tableName
       )(tableName => DynamoDBQuery.deleteTable(tableName).execute.orDie)
 
-  def withSingleKeyTable(
+  private def withSingleKeyTable(
     f: String => ZIO[DynamoDBExecutor, Throwable, TestResult]
   ) =
     ZIO.scoped {
@@ -83,18 +76,17 @@ object TypeSafeApiSpec extends ZIOSpecDefault {
           } yield assertTrue(people.size == 0)
         }
       },
-      test("forEach") {
+      test("forEach returns a left of ValueNotFound when no item is found") {
         withSingleKeyTable { tableName =>
           for {
-            _   <- DynamoDBQuery.put(tableName, Person("1", "John", Some("Smith"))).execute
-            _   <- DynamoDBQuery.put(tableName, Person("2", "Smith", Some("John"))).execute
-            xs1 <- DynamoDBQuery // low level API
-                     .forEach(1 to 2)(i => DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> i.toString)))
-                     .execute
-            xs2 <- DynamoDBQuery // high level API
-                     .forEach(1 to 3)(i => DynamoDBQuery.get[Person](tableName)(Person.id.partitionKey === i.toString))
-                     .execute
-          } yield assertTrue(xs1.size == 2) && assertTrue(xs2.size == 3) && assert(xs2(2))(isLeft)
+            _  <- DynamoDBQuery.put(tableName, Person("1", "John", Some("Smith"))).execute
+            _  <- DynamoDBQuery.put(tableName, Person("2", "Smith", Some("John"))).execute
+            xs <- DynamoDBQuery // high level API
+                    .forEach(1 to 3)(i => DynamoDBQuery.get[Person](tableName)(Person.id.partitionKey === i.toString))
+                    .execute
+          } yield assertTrue(xs.size == 3) &&
+            assert(xs(0))(isRight) && assert(xs(1))(isRight) &&
+            assert(xs(2))(isLeft(isSubtype[DynamoDBError.ValueNotFound](anything)))
         }
       }
     ).provide(dynamoDBExecutorLayer) @@ nondeterministic
