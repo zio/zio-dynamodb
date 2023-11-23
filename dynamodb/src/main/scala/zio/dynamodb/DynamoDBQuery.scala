@@ -49,10 +49,20 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       }
 
     val indexedGetResults =
-      ddbExecute(batchGetItem).map(resp => batchGetItem.toGetItemResponses(resp) zip batchGetIndexes)
+      ddbExecute(batchGetItem).flatMap {
+        case resp @ BatchGetItem.Response(_, unprocessedKeys) if unprocessedKeys.size == 0 =>
+          ZIO.succeed(batchGetItem.toGetItemResponses(resp) zip batchGetIndexes)
+        case resp                                                                          =>
+          ZIO.fail(resp.toErrorResponse)
+      }
 
     val indexedWriteResults =
-      ddbExecute(batchWriteItem).as(batchWriteItem.addList.map(_ => None) zip batchWriteIndexes)
+      ddbExecute(batchWriteItem).flatMap {
+        case BatchWriteItem.Response(unprocessedItems) if unprocessedItems.size == 0 =>
+          ZIO.succeed(batchWriteItem.addList.map(_ => None) zip batchWriteIndexes)
+        case resp                                                                    =>
+          ZIO.fail(resp.toErrorResponse)
+      }
 
     (indexedNonBatchedResults zipPar indexedGetResults zipPar indexedWriteResults).map {
       case (nonBatched, batchedGets, batchedWrites) =>
@@ -348,7 +358,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Absolve(query)             => Absolve(query.withRetryPolicy(retryPolicy))
       case s: BatchWriteItem          => s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: BatchGetItem            => s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                          => self
+      case _                          =>
+        self // TODO: Avi - popogate retry to all primitives eg Get/Put/Delete so that autobatching can select it
     }
 
   def sortOrder(ascending: Boolean): DynamoDBQuery[In, Out] =
@@ -371,8 +382,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                           => self
     }
 
-  final def map[B](f: Out => B): DynamoDBQuery[In, B] = DynamoDBQuery.Map(self, f)
-
+  final def map[B](f: Out => B): DynamoDBQuery[In, B]                                                               = DynamoDBQuery.Map(self, f)
   final def zip[In1 <: In, B](that: DynamoDBQuery[In1, B])(implicit z: Zippable[Out, B]): DynamoDBQuery[In1, z.Out] =
     DynamoDBQuery.Zip[Out, B, z.Out](self, that, z)
 
@@ -719,7 +729,14 @@ object DynamoDBQuery {
       // Note - if a requested item does not exist, it is not returned in the result
       responses: MapOfSet[TableName, Item] = MapOfSet.empty,
       unprocessedKeys: ScalaMap[TableName, TableGet] = ScalaMap.empty
-    )
+    ) { self =>
+      def toErrorResponse: DynamoDBBatchError.BatchGetError = {
+        val unprocessedItems: ScalaMap[String, ScalaSet[PrimaryKey]] = self.unprocessedKeys.map {
+          case (TableName(tableName), tableGet) => (tableName, tableGet.keysSet)
+        }
+        DynamoDBBatchError.BatchGetError(unprocessedItems)
+      }
+    }
   }
 
   private[dynamodb] final case class Transaction[A](
@@ -739,7 +756,7 @@ object DynamoDBQuery {
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     addList: Chunk[BatchWriteItem.Write] = Chunk.empty,
     retryPolicy: Schedule[Any, Throwable, Any] =
-      Schedule.recurs(5) && Schedule.exponential(30.seconds)
+      Schedule.recurs(3) && Schedule.exponential(50.milliseconds)
   ) extends Constructor[Any, BatchWriteItem.Response] { self =>
     def +[A](writeItem: Write[Any, A]): BatchWriteItem =
       writeItem match {
@@ -774,7 +791,26 @@ object DynamoDBQuery {
 
     final case class Response(
       unprocessedItems: Option[MapOfSet[TableName, BatchWriteItem.Write]]
-    )
+    ) { self =>
+      def toErrorResponse: DynamoDBBatchError.BatchWriteError = {
+
+        val unprocessedMap = self.unprocessedItems match {
+          case Some(unprocessedItems) =>
+            unprocessedItems.map {
+              case (TableName(tableName), writesSet) =>
+                (
+                  tableName,
+                  Chunk.fromIterable(writesSet.map {
+                    case Delete(key) => DynamoDBBatchError.Delete(key)
+                    case Put(item)   => DynamoDBBatchError.Put(item)
+                  })
+                )
+            }.toMap
+          case None                   => ScalaMap.empty[String, Chunk[DynamoDBBatchError.Write]]
+        }
+        DynamoDBBatchError.BatchWriteError(unprocessedMap)
+      }
+    }
 
   }
   private[dynamodb] final case class DeleteTable(

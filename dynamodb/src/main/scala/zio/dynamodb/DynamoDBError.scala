@@ -2,7 +2,7 @@ package zio.dynamodb
 
 import scala.util.control.NoStackTrace
 
-sealed trait DynamoDBError extends Exception with NoStackTrace {
+sealed trait DynamoDBError extends Throwable with NoStackTrace with Product with Serializable {
   def message: String
   override def getMessage(): String = message
 }
