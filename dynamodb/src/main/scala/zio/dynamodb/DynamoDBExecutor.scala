@@ -12,6 +12,7 @@ object DynamoDBExecutor {
   val live: URLayer[DynamoDb, DynamoDBExecutor] =
     ZLayer.fromZIO(for {
       db <- ZIO.service[DynamoDb]
+      _   = println(s"XXXXXXXXXXXXXXXXXXXXX about to set zio.aws.dynamodb.DynamoDb to DynamoDBExecutorImpl")
     } yield DynamoDBExecutorImpl(db))
 
   lazy val test: ULayer[DynamoDBExecutor with TestDynamoDBExecutor] = {

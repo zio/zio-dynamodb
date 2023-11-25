@@ -15,18 +15,20 @@ import java.net.URI
 
 abstract class DynamoDBLocalSpec extends ZIOSpec[DynamoDBExecutor] {
 
-  private lazy val awsConfig = ZLayer.succeed(
+  private lazy val awsConfig = ZLayer.succeed {
+    println(s"XXXXXXXXXXXXXXXX about to set StaticCredentialsProvider")
     config.CommonAwsConfig(
       region = None,
       credentialsProvider = StaticCredentialsProvider.create(AwsBasicCredentials.create("dummy", "dummy")),
       endpointOverride = None,
       commonClientConfig = None
     )
-  )
+  }
 
   private lazy val dynamoDbLayer: ZLayer[Any, Throwable, DynamoDb] =
     (netty.NettyHttpClient.default ++ awsConfig) >>> config.AwsConfig.default >>> dynamodb.DynamoDb.customized {
       builder =>
+        println(s"XXXXXXXXXXXXXXXX about to set endpointOverride")
         builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
     }
 
