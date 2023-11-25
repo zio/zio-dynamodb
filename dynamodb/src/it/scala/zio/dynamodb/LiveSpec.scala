@@ -1,44 +1,20 @@
 package zio.dynamodb
 
-import zio.aws.core.config
-import zio.aws.dynamodb.DynamoDb
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
 import software.amazon.awssdk.services.dynamodb.model.{ DynamoDbException, IdempotentParameterMismatchException }
 import zio.dynamodb.UpdateExpression.Action.SetAction
 import zio.dynamodb.UpdateExpression.SetOperand
-import zio.aws.{ dynamodb, netty }
 import zio._
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.ProjectionExpression._
 import zio.test.Assertion._
-import software.amazon.awssdk.regions.Region
 import zio.schema.{ DeriveSchema, Schema }
 import zio.stream.{ ZSink, ZStream }
 import zio.test._
-import zio.test.TestAspect._
 
-import java.net.URI
 import scala.collection.immutable.{ Map => ScalaMap }
 
 object LiveSpec extends DynamoDBLocalSpec {
 
-  private val awsConfig = ZLayer.succeed(
-    config.CommonAwsConfig(
-      region = None,
-      credentialsProvider = StaticCredentialsProvider.create(AwsBasicCredentials.create("dummy", "dummy")),
-      endpointOverride = None,
-      commonClientConfig = None
-    )
-  )
-
-  private val dynamoDbLayer: ZLayer[Any, Throwable, DynamoDb] =
-    (netty.NettyHttpClient.default ++ awsConfig) >>> config.AwsConfig.configured() >>> dynamodb.DynamoDb.customized {
-      builder =>
-        builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
-    }
-
-  private val testLayer = (dynamoDbLayer >>> DynamoDBExecutor.live)
 
   private val id       = "id"
   private val first    = "first"
@@ -188,7 +164,7 @@ object LiveSpec extends DynamoDBLocalSpec {
     ConditionExpression.Operand.ValueOperand(AttributeValue(id))
   )
 
-  override def spec: Spec[TestEnvironment, Any] = mainSuite
+  override def spec = mainSuite
 
   final case class ExpressionAttrNames(id: String, num: Int, ttl: Option[Long])
   object ExpressionAttrNames {
@@ -204,7 +180,7 @@ object LiveSpec extends DynamoDBLocalSpec {
     val (and, source, ttl)                                                                              = ProjectionExpression.accessors[ExpressionAttrNamesPkKeywords]
   }
 
-  val mainSuite: Spec[TestEnvironment, Any] =
+  val mainSuite =
     suite("live test")(
       suite("key words in Key Condition Expressions")(
         test("queryAll should handle keywords in primary key names using high level API") {
@@ -1501,8 +1477,5 @@ object LiveSpec extends DynamoDBLocalSpec {
           }
         )
       )
-    )
-      .provideSomeLayerShared[TestEnvironment](
-        testLayer.orDie
-      ) @@ nondeterministic
+    ) @@ TestAspect.nondeterministic
 }
