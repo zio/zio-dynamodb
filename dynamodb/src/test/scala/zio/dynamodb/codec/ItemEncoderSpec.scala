@@ -8,7 +8,6 @@ import zio.test._
 import java.time.Instant
 import scala.collection.immutable.ListMap
 import zio.test.ZIOSpecDefault
-import scala.util.Try
 
 object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
   override def spec = suite("ItemEncoder Suite")(mainSuite)
@@ -219,35 +218,21 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes case object only enum with @enumOfCaseObjects annotation") {
+    test("encodes case object only enum with @simpleEnum annotation") {
       val expectedItem: Item = Item(Map("enum" -> AttributeValue.String("ONE")))
 
       val item = DynamoDBQuery.toItem(WithCaseObjectOnlyEnum(WithCaseObjectOnlyEnum.ONE))
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes case object only enum with @enumOfCaseObjects annotation and @caseName annotation of '2'") {
+    test("encodes case object only enum with @simpleEnum annotation and @caseName annotation of '2'") {
       val expectedItem: Item = Item(Map("enum" -> AttributeValue.String("2")))
 
       val item = DynamoDBQuery.toItem(WithCaseObjectOnlyEnum(WithCaseObjectOnlyEnum.TWO))
 
       assert(item)(equalTo(expectedItem))
     },
-    test("fails encoding of enum with @enumOfCaseObjects annotation that does not have all case objects") {
-
-      val item = Try(DynamoDBQuery.toItem(WithCaseObjectOnlyEnum2(WithCaseObjectOnlyEnum2.ONE)))
-
-      assert(item)(
-        isFailure(
-          hasMessage(
-            equalTo(
-              "Can not encode enum ONE - @enumOfCaseObjects annotation present when all instances are not case objects."
-            )
-          )
-        )
-      )
-    },
-    test("encodes enum and honours @caseName annotation when there is no @enumOfCaseObjects annotation") {
+    test("encodes enum and honours @caseName annotation when there is no @simpleEnum annotation") {
       val expectedItem: Item = Item("enum" -> Item(Map("1" -> AttributeValue.Null)))
 
       val item = DynamoDBQuery.toItem(WithEnumWithoutDiscriminator(WithEnumWithoutDiscriminator.ONE))

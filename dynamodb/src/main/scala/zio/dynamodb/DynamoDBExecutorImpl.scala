@@ -325,9 +325,16 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
                               response              <- dynamoDb
                                                          .batchGetItem(awsBatchGetItemRequest(batchGetItem.copy(requestItems = unprocessed)))
                                                          .mapError(_.toThrowable)
-                              responseUnprocessedOpt = response.unprocessedKeys
-                                                         .map(_.map { case (k, v) => (TableName(k), keysAndAttrsToTableGet(v)) })
-                                                         .toOption
+                              responseUnprocessedOpt =
+                                response.unprocessedKeys
+                                  .map(_.map {
+                                    case (k, v) =>
+                                      // preserve the projection expression set
+                                      val peSet =
+                                        unprocessed.get(TableName(k.toString)).map(_.projectionExpressionSet).getOrElse(Set.empty)
+                                      (TableName(k), keysAndAttrsToTableGet(v).copy(projectionExpressionSet = peSet))
+                                  })
+                                  .toOption
                               _                     <- responseUnprocessedOpt match {
                                                          case Some(responseUnprocessed) => unprocessedKeys.set(responseUnprocessed)
                                                          case None                      => ZIO.unit
@@ -603,8 +610,6 @@ case object DynamoDBExecutorImpl {
           awsAttributeValue(attrVal).map(a => (ZIOAwsExpressionAttributeValueVariable(str), a))
         case (AliasMap.PathSegment(_, _), _)            =>
           None
-        case (AliasMap.FullPath(_), _)                  =>
-          None
       }
       if (map.isEmpty) None else Some(map)
     }
@@ -615,8 +620,6 @@ case object DynamoDBExecutorImpl {
     else {
       val map = aliasMap.map.flatMap {
         case (AliasMap.AttributeValueKey(_), _)      =>
-          None
-        case (AliasMap.FullPath(_), _)               =>
           None
         case (AliasMap.PathSegment(_, segment), str) =>
           Some((ExpressionAttributeNameVariable(str), ZIOAwsAttributeName(segment)))

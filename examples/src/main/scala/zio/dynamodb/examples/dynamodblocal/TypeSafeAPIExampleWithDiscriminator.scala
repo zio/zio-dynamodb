@@ -49,10 +49,7 @@ object TypeSafeAPIExampleWithDiscriminator extends ZIOAppDefault {
   }
 
   private val program = for {
-    _         <- createTable("box", KeySchema("id", "code"), BillingMode.PayPerRequest)(
-                   AttributeDefinition.attrDefnNumber("id"),
-                   AttributeDefinition.attrDefnNumber("code")
-                 ).execute
+    _         <- ZIO.unit
     boxOfGreen = Box(1, 1, Green(1))
     boxOfAmber = Box(1, 2, Amber(1))
     _         <- put[Box]("box", boxOfGreen).execute
@@ -65,5 +62,5 @@ object TypeSafeAPIExampleWithDiscriminator extends ZIOAppDefault {
     _         <- ZIO.debug(s"boxes=$list")
   } yield ()
 
-  override def run = program.provide(layer)
+  override def run = program.provide(dynamoDBExecutorLayer, boxTableLayer)
 }

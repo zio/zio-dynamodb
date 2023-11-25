@@ -22,11 +22,15 @@ private[dynamodb] final case class AliasMap private[dynamodb] (map: Map[AliasMap
         case ProjectionExpression.MapElement(ProjectionExpression.Root, found) =>
           val name      = stripLeadingAndTrailingBackticks(found)
           val nameAlias = s"#n${acc._1.index}"
-          val mapTmp    = acc._1.map + ((AliasMap.PathSegment(ProjectionExpression.Root, name), nameAlias))
+          val map       = acc._1.map + ((AliasMap.PathSegment(ProjectionExpression.Root, name), nameAlias))
           val xs        = acc._2 :+ nameAlias
-          val map       = mapTmp + ((AliasMap.FullPath(entry), xs.reverse.mkString)) // cache final result
           val t         = (AliasMap(map, acc._1.index + 1), xs)
-          loop(ProjectionExpression.Root, t)
+          val t2        = // do not overwite an existing alias
+            if (acc._1.map.get(AliasMap.PathSegment(ProjectionExpression.Root, name)).isDefined)
+              acc
+            else
+              t
+          loop(ProjectionExpression.Root, t2)
         case ProjectionExpression.MapElement(parent, key)                      =>
           val nameAlias = s"#n${acc._1.index}"
           val next      = AliasMap(acc._1.map + ((AliasMap.PathSegment(parent, key), nameAlias)), acc._1.index + 1)
@@ -45,9 +49,12 @@ private[dynamodb] final case class AliasMap private[dynamodb] (map: Map[AliasMap
     }
 
   def getOrInsert[From, To](entry: ProjectionExpression[From, To]): (AliasMap, String) =
-    self.map.get(AliasMap.FullPath(entry)).map(varName => (self, varName)).getOrElse {
-      self + entry
-    }
+    self.map
+      .get(AliasMap.PathSegment(ProjectionExpression.Root, entry.toString))
+      .map(varName => (self, varName))
+      .getOrElse {
+        self + entry
+      }
 
   def ++(other: AliasMap): AliasMap = {
     val nextMap = self.map ++ other.map
@@ -63,8 +70,6 @@ private[dynamodb] object AliasMap {
   final case class AttributeValueKey(av: AttributeValue)                                          extends Key
   // we include parent to disambiguate PathSegment as a Map key for cases where the same segment name is used multiple times
   final case class PathSegment[From, To](parent: ProjectionExpression[From, To], segment: String) extends Key
-  // used to cache the final substituted path
-  final case class FullPath[From, To](path: ProjectionExpression[From, To])                       extends Key
 
   def empty: AliasMap = AliasMap(Map.empty, 0)
 }

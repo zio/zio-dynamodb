@@ -16,12 +16,12 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
   val list   = AttributeValue.List(List(one, two, three))
   val bool   = AttributeValue.String("BOOL")
 
-  val root: ProjectionExpression[Any, Any]                                    = ProjectionExpression.Root
-  def rootPathSegment(path: String)                                           = pathSegment(root, path)
-  def pathSegment[From, To](pe: ProjectionExpression[From, To], path: String) = AliasMap.PathSegment(pe, path)
-  def fullPath[From, To](pe: ProjectionExpression[From, To])                  = AliasMap.FullPath(pe)
-  def avKey(av: AttributeValue): AliasMap.Key                                 = AliasMap.AttributeValueKey(av)
-  def mapOfAv(av: AttributeValue, s: String): Map[AliasMap.Key, String]       = Map(avKey(av) -> s)
+  val root: ProjectionExpression[Any, Any]                                                  = ProjectionExpression.Root
+  def rootPathSegment(path: String): AliasMap.Key                                           = pathSegment(root, path)
+  def pathSegment[From, To](pe: ProjectionExpression[From, To], path: String): AliasMap.Key =
+    AliasMap.PathSegment(pe, path)
+  def avKey(av: AttributeValue): AliasMap.Key                                               = AliasMap.AttributeValueKey(av)
+  def mapOfAv(av: AttributeValue, s: String): Map[AliasMap.Key, String]                     = Map(avKey(av) -> s)
 
   val between                                                          = ConditionExpression
     .Between(
@@ -82,9 +82,8 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
             assert(expression)(equalTo(":v0 IN (:v0, :v1)"))
           },
           test("AttributeExists") {
-            val map = Map(
-              rootPathSegment("projection")  -> "#n0",
-              fullPath(projectionExpression) -> "#n0"
+            val map: Map[AliasMap.Key, String] = Map(
+              rootPathSegment("projection") -> "#n0"
             )
 
             val (aliasMap, expression) =
@@ -94,8 +93,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           },
           test("AttributeNotExists") {
             val map = Map(
-              rootPathSegment("projection")  -> "#n0",
-              fullPath(projectionExpression) -> "#n0"
+              rootPathSegment("projection") -> "#n0"
             )
 
             val (aliasMap, expression) =
@@ -106,9 +104,8 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           },
           test("AttributeType") {
             val map = Map(
-              avKey(number)                  -> ":v0",
-              rootPathSegment("projection")  -> "#n1",
-              fullPath(projectionExpression) -> "#n1"
+              avKey(number)                 -> ":v0",
+              rootPathSegment("projection") -> "#n1"
             )
 
             val (aliasMap, expression) = attributeType.render.execute
@@ -118,9 +115,8 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           },
           test("Contains") {
             val map = Map(
-              avKey(one)                     -> ":v0",
-              rootPathSegment("projection")  -> "#n1",
-              fullPath(projectionExpression) -> "#n1"
+              avKey(one)                    -> ":v0",
+              rootPathSegment("projection") -> "#n1"
             )
 
             val (aliasMap, expression) = contains.render.execute
@@ -130,9 +126,8 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           },
           test("BeginsWith") {
             val map = Map(
-              avKey(name)                    -> ":v0",
-              rootPathSegment("projection")  -> "#n1",
-              fullPath(projectionExpression) -> "#n1"
+              avKey(name)                   -> ":v0",
+              rootPathSegment("projection") -> "#n1"
             )
 
             val (aliasMap, expression) = beginsWith.render.execute
@@ -142,12 +137,11 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           },
           test("And") {
             val map = Map(
-              avKey(two)                     -> ":v0",
-              avKey(one)                     -> ":v1",
-              avKey(three)                   -> ":v2",
-              avKey(number)                  -> ":v3",
-              rootPathSegment("projection")  -> "#n4",
-              fullPath(projectionExpression) -> "#n4"
+              avKey(two)                    -> ":v0",
+              avKey(one)                    -> ":v1",
+              avKey(three)                  -> ":v2",
+              avKey(number)                 -> ":v3",
+              rootPathSegment("projection") -> "#n4"
             )
 
             val (aliasMap, expression) = ConditionExpression
@@ -163,12 +157,11 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           },
           test("Or") {
             val map = Map(
-              avKey(two)                     -> ":v0",
-              avKey(one)                     -> ":v1",
-              avKey(three)                   -> ":v2",
-              avKey(number)                  -> ":v3",
-              rootPathSegment("projection")  -> "#n4",
-              fullPath(projectionExpression) -> "#n4"
+              avKey(two)                    -> ":v0",
+              avKey(one)                    -> ":v1",
+              avKey(three)                  -> ":v2",
+              avKey(number)                 -> ":v3",
+              rootPathSegment("projection") -> "#n4"
             )
 
             val (aliasMap, expression) = ConditionExpression
@@ -184,9 +177,8 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           },
           test("Not") {
             val map = Map(
-              avKey(name)                    -> ":v0",
-              rootPathSegment("projection")  -> "#n1",
-              fullPath(projectionExpression) -> "#n1"
+              avKey(name)                   -> ":v0",
+              rootPathSegment("projection") -> "#n1"
             )
 
             val (aliasMap, expression) = ConditionExpression
@@ -199,9 +191,8 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           },
           test("Equals") {
             val map = Map(
-              avKey(two)                     -> ":v0",
-              rootPathSegment("projection")  -> "#n1",
-              fullPath(projectionExpression) -> "#n1"
+              avKey(two)                    -> ":v0",
+              rootPathSegment("projection") -> "#n1"
             )
 
             val (aliasMap, expression) = ConditionExpression
@@ -233,9 +224,8 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           },
           test("NotEqual") {
             val map = Map(
-              avKey(two)                     -> ":v0",
-              rootPathSegment("projection")  -> "#n1",
-              fullPath(projectionExpression) -> "#n1"
+              avKey(two)                    -> ":v0",
+              rootPathSegment("projection") -> "#n1"
             )
 
             val (aliasMap, expression) = ConditionExpression
@@ -324,8 +314,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           test("Equals") {
             val map = Map(
               avKey(one)               -> ":v0",
-              pathSegment(Root, "num") -> "#n1",
-              fullPath($("num"))       -> "#n1"
+              pathSegment(Root, "num") -> "#n1"
             )
 
             val (aliasMap, expression) =
@@ -337,8 +326,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           test("LessThan") {
             val map = Map(
               avKey(one)               -> ":v0",
-              pathSegment(Root, "num") -> "#n1",
-              fullPath($("num"))       -> "#n1"
+              pathSegment(Root, "num") -> "#n1"
             )
 
             val (aliasMap, expression) =
@@ -350,8 +338,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           test("NotEqual") {
             val map = Map(
               avKey(one)               -> ":v0",
-              pathSegment(Root, "num") -> "#n1",
-              fullPath($("num"))       -> "#n1"
+              pathSegment(Root, "num") -> "#n1"
             )
 
             val (aliasMap, expression) =
@@ -363,8 +350,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           test("GreaterThan") {
             val map = Map(
               avKey(one)               -> ":v0",
-              pathSegment(Root, "num") -> "#n1",
-              fullPath($("num"))       -> "#n1"
+              pathSegment(Root, "num") -> "#n1"
             )
 
             val (aliasMap, expression) =
@@ -376,8 +362,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           test("LessThanOrEqual") {
             val map = Map(
               avKey(one)               -> ":v0",
-              pathSegment(Root, "num") -> "#n1",
-              fullPath($("num"))       -> "#n1"
+              pathSegment(Root, "num") -> "#n1"
             )
 
             val (aliasMap, expression) =
@@ -389,8 +374,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           test("GreaterThanOrEqual") {
             val map = Map(
               avKey(one)               -> ":v0",
-              pathSegment(Root, "num") -> "#n1",
-              fullPath($("num"))       -> "#n1"
+              pathSegment(Root, "num") -> "#n1"
             )
 
             val (aliasMap, expression) =
@@ -403,8 +387,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
             val map = Map(
               avKey(one)               -> ":v0",
               avKey(two)               -> ":v1",
-              pathSegment(Root, "num") -> "#n2",
-              fullPath($("num"))       -> "#n2"
+              pathSegment(Root, "num") -> "#n2"
             )
 
             val (aliasMap, expression) =
@@ -416,8 +399,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           test("BeginsWith") {
             val map = Map(
               avKey(name)              -> ":v0",
-              pathSegment(Root, "num") -> "#n1",
-              fullPath($("num"))       -> "#n1"
+              pathSegment(Root, "num") -> "#n1"
             )
 
             val (aliasMap, expression) =
@@ -431,8 +413,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           test("Equals") {
             val map = Map(
               avKey(one)               -> ":v0",
-              pathSegment(Root, "num") -> "#n1",
-              fullPath($("num"))       -> "#n1"
+              pathSegment(Root, "num") -> "#n1"
             )
 
             val (aliasMap, expression) = KeyConditionExpr
@@ -450,9 +431,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
             avKey(one)                -> ":v2",
             avKey(three)              -> ":v3",
             pathSegment(Root, "num")  -> "#n1",
-            fullPath($("num"))        -> "#n1",
-            pathSegment(Root, "num2") -> "#n4",
-            fullPath($("num2"))       -> "#n4"
+            pathSegment(Root, "num2") -> "#n4"
           )
 
           val (aliasMap, expression) = KeyConditionExpr
@@ -574,10 +553,8 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           test("Set and Remove") {
             val map = Map(
               rootPathSegment("projection")      -> "#n0",
-              fullPath($("projection"))          -> "#n0",
               avKey(one)                         -> ":v1",
-              rootPathSegment("otherProjection") -> "#n3",
-              fullPath($("otherProjection"))     -> "#n3"
+              rootPathSegment("otherProjection") -> "#n2"
             )
 
             val (aliasMap, expression) =
@@ -596,18 +573,15 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
                 )
               ).render.execute
 
-            assert(aliasMap)(equalTo(AliasMap(map, 5))) &&
-            assert(expression)(equalTo(s"set #n0 = if_not_exists(#n0, :v1) remove #n3"))
+            assert(aliasMap)(equalTo(AliasMap(map, 3))) &&
+            assert(expression)(equalTo(s"set #n0 = if_not_exists(#n0, :v1) remove #n2"))
           },
           test("Two Sets") {
             val map = Map(
               rootPathSegment("projection")      -> "#n0",
-              fullPath($("projection"))          -> "#n0",
               avKey(one)                         -> ":v1",
               rootPathSegment("otherProjection") -> "#n2",
-              fullPath($("otherProjection"))     -> "#n2",
-              rootPathSegment("lastProjection")  -> "#n5",
-              fullPath($("lastProjection"))      -> "#n5"
+              rootPathSegment("lastProjection")  -> "#n3"
             )
 
             val (aliasMap, expression) =
@@ -617,8 +591,8 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
                   UpdateExpression.SetOperand.ValueOperand(one)
                 ) + UpdateExpression.Action.AddAction($("lastProjection"), one)).render.execute
 
-            assert(aliasMap)(equalTo(AliasMap(map, 7))) && // TODO: Avi resolve 7
-            assert(expression)(equalTo(s"set #n0 = :v1,#n2 = :v1 add #n5 :v1"))
+            assert(aliasMap)(equalTo(AliasMap(map, 4))) &&
+            assert(expression)(equalTo(s"set #n0 = :v1,#n2 = :v1 add #n3 :v1"))
           }
         ),
         suite("Set")(
@@ -626,8 +600,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
             val map = Map(
               avKey(one)                    -> ":v0",
               avKey(two)                    -> ":v1",
-              rootPathSegment("projection") -> "#n2",
-              fullPath($("projection"))     -> "#n2"
+              rootPathSegment("projection") -> "#n2"
             )
 
             val (aliasMap, expression) =
@@ -648,8 +621,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
             val map = Map(
               avKey(one)                    -> ":v0",
               avKey(two)                    -> ":v1",
-              rootPathSegment("projection") -> "#n2",
-              fullPath($("projection"))     -> "#n2"
+              rootPathSegment("projection") -> "#n2"
             )
 
             val (aliasMap, expression) =
@@ -670,8 +642,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           test("ValueOperand") {
             val map = Map(
               avKey(one)                    -> ":v0",
-              rootPathSegment("projection") -> "#n1",
-              fullPath($("projection"))     -> "#n1"
+              rootPathSegment("projection") -> "#n1"
             )
 
             val (aliasMap, expression) =
@@ -688,8 +659,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           },
           test("PathOperand") {
             val map = Map(
-              rootPathSegment("projection") -> "#n0",
-              fullPath($("projection"))     -> "#n0"
+              rootPathSegment("projection") -> "#n0"
             )
 
             val (aliasMap, expression) =
@@ -709,7 +679,6 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           test("ListAppend") {
             val map = Map(
               rootPathSegment("projection") -> "#n0",
-              fullPath($("projection"))     -> "#n0",
               avKey(list)                   -> ":v1"
             )
 
@@ -731,7 +700,6 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           test("ListPrepend") {
             val map = Map(
               rootPathSegment("projection") -> "#n0",
-              fullPath($("projection"))     -> "#n0",
               avKey(list)                   -> ":v1"
             )
 
@@ -753,7 +721,6 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           test("IfNotExists") {
             val map = Map(
               rootPathSegment("projection") -> "#n0",
-              fullPath($("projection"))     -> "#n0",
               avKey(one)                    -> ":v1"
             )
 
@@ -776,8 +743,7 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
         suite("Remove")(
           test("Remove") {
             val map = Map(
-              rootPathSegment("projection") -> "#n0",
-              fullPath($("projection"))     -> "#n0"
+              rootPathSegment("projection") -> "#n0"
             )
 
             val (aliasMap, expression) =
@@ -795,7 +761,6 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           test("Add") {
             val map = Map(
               rootPathSegment("projection") -> "#n0",
-              fullPath($("projection"))     -> "#n0",
               avKey(one)                    -> ":v1"
             )
 
@@ -815,7 +780,6 @@ object AliasMapRenderSpec extends ZIOSpecDefault {
           test("Delete") {
             val map = Map(
               rootPathSegment("projection") -> "#n0",
-              fullPath($("projection"))     -> "#n0",
               avKey(one)                    -> ":v1"
             )
 
