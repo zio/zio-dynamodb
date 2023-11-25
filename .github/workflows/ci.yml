@@ -34,6 +34,10 @@ jobs:
       matrix:
         java: ["adopt@1.8", "adopt@1.11"]
         scala: ["3.3.0", "2.13.8", "2.12.17"]
+    env:
+      AWS_ACCESS_KEY_ID: dummy-key
+      AWS_SECRET_ACCESS_KEY: dummy-key
+      AWS_REGION: us-east-1
     steps:
       - uses: actions/checkout@v2.3.4
       - uses: olafurpg/setup-scala@v13
