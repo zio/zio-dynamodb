@@ -17,7 +17,7 @@ import zio.test.TestResult
 
 abstract class DynamoDBLocalSpec extends ZIOSpec[DynamoDBExecutor] {
 
-  private lazy val awsConfig = ZLayer.succeed {
+  private val awsConfig = ZLayer.succeed {
     config.CommonAwsConfig(
       region = None,
       credentialsProvider = StaticCredentialsProvider.create(AwsBasicCredentials.create("dummy", "dummy")),
@@ -26,13 +26,13 @@ abstract class DynamoDBLocalSpec extends ZIOSpec[DynamoDBExecutor] {
     )
   }
 
-  private lazy val dynamoDbLayer: ZLayer[Any, Throwable, DynamoDb] =
+  private val dynamoDbLayer: ZLayer[Any, Throwable, DynamoDb] =
     (netty.NettyHttpClient.default ++ awsConfig) >>> config.AwsConfig.default >>> dynamodb.DynamoDb.customized {
       builder =>
         builder.endpointOverride(URI.create("http://localhost:8000")).region(Region.US_EAST_1)
     }
 
-  private lazy val dynamoDBExecutorLayer = dynamoDbLayer >>> DynamoDBExecutor.live
+  private val dynamoDBExecutorLayer = dynamoDbLayer >>> DynamoDBExecutor.live
 
   override def bootstrap: ZLayer[Any, Nothing, DynamoDBExecutor] = dynamoDBExecutorLayer.orDie
 
