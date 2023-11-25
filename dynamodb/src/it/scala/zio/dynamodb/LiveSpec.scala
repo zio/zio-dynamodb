@@ -15,7 +15,6 @@ import scala.collection.immutable.{ Map => ScalaMap }
 
 object LiveSpec extends DynamoDBLocalSpec {
 
-
   private val id       = "id"
   private val first    = "first"
   private val second   = "second"

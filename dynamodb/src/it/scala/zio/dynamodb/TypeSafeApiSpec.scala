@@ -1,7 +1,6 @@
 package zio.dynamodb
 
 import zio.ZIO
-import zio.dynamodb.DynamoDBQuery
 import zio.schema.DeriveSchema
 import zio.test._
 import zio.test.Assertion._
