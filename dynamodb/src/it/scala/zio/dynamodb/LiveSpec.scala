@@ -100,15 +100,6 @@ object LiveSpec extends DynamoDBLocalSpec {
       AttributeDefinition.attrDefnString("source")
     )
 
-  private def managedTable(tableDefinition: String => CreateTable) =
-    ZIO
-      .acquireRelease(
-        for {
-          tableName <- zio.Random.nextUUID.map(_.toString)
-          _         <- tableDefinition(tableName).execute
-        } yield TableName(tableName)
-      )(tName => deleteTable(tName.value).execute.orDie)
-
   private def withPkKeywordsTable(
     f: String => ZIO[DynamoDBExecutor, Throwable, TestResult]
   ) =

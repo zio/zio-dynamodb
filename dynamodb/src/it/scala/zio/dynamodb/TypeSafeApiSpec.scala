@@ -1,33 +1,11 @@
 package zio.dynamodb
 
-import zio.ZIO
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect._
 
 object TypeSafeApiSpec extends DynamoDBLocalSpec {
-
-  private def withIdKeyOnly(tableName: String) =
-    DynamoDBQuery.createTable(tableName, KeySchema("id"), BillingMode.PayPerRequest)(
-      AttributeDefinition.attrDefnString("id")
-    )
-
-  def managedTable(tableDefinition: String => DynamoDBQuery.CreateTable) =
-    ZIO
-      .acquireRelease(
-        for {
-          tableName <- zio.Random.nextUUID.map(_.toString)
-          _         <- tableDefinition(tableName).execute
-        } yield tableName
-      )(tableName => DynamoDBQuery.deleteTable(tableName).execute.orDie)
-
-  private def withSingleKeyTable(
-    f: String => ZIO[DynamoDBExecutor, Throwable, TestResult]
-  ) =
-    ZIO.scoped {
-      managedTable(withIdKeyOnly).flatMap(f)
-    }
 
   final case class Person(id: String, surname: String, forename: Option[String])
   object Person {

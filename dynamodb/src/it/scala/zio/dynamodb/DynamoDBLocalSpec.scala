@@ -12,6 +12,8 @@ import zio.aws.dynamodb.DynamoDb
 import zio.aws.netty
 
 import java.net.URI
+import zio.ZIO
+import zio.test.TestResult
 
 abstract class DynamoDBLocalSpec extends ZIOSpec[DynamoDBExecutor] {
 
@@ -33,4 +35,26 @@ abstract class DynamoDBLocalSpec extends ZIOSpec[DynamoDBExecutor] {
   private lazy val dynamoDBExecutorLayer = dynamoDbLayer >>> DynamoDBExecutor.live
 
   override def bootstrap: ZLayer[Any, Nothing, DynamoDBExecutor] = dynamoDBExecutorLayer.orDie
+
+  final def managedTable(tableDefinition: String => DynamoDBQuery.CreateTable) =
+    ZIO
+      .acquireRelease(
+        for {
+          tableName <- zio.Random.nextUUID.map(_.toString)
+          _         <- tableDefinition(tableName).execute
+        } yield TableName(tableName)
+      )(tName => DynamoDBQuery.deleteTable(tName.value).execute.orDie)
+
+  def idKeyOnlyTable(tableName: String) =
+    DynamoDBQuery.createTable(tableName, KeySchema("id"), BillingMode.PayPerRequest)(
+      AttributeDefinition.attrDefnString("id")
+    )
+
+  def withSingleKeyTable(
+    f: String => ZIO[DynamoDBExecutor, Throwable, TestResult]
+  ) =
+    ZIO.scoped {
+      managedTable(t => idKeyOnlyTable(t)).flatMap(t => f(t.value))
+    }
+
 }
