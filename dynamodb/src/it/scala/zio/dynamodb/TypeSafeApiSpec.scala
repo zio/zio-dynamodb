@@ -1,7 +1,7 @@
 package zio.dynamodb
 
 import zio.ZIO
-import zio.schema.DeriveSchema
+import zio.schema.{ DeriveSchema, Schema }
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect._
@@ -31,8 +31,8 @@ object TypeSafeApiSpec extends DynamoDBLocalSpec {
 
   final case class Person(id: String, surname: String, forename: Option[String])
   object Person {
-    implicit val schema         = DeriveSchema.gen[Person]
-    val (id, surname, forename) = ProjectionExpression.accessors[Person]
+    implicit val schema: Schema.CaseClass3[String, String, Option[String], Person] = DeriveSchema.gen[Person]
+    val (id, surname, forename)                                                    = ProjectionExpression.accessors[Person]
   }
 
   override def spec =
