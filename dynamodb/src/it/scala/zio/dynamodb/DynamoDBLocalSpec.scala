@@ -50,11 +50,11 @@ abstract class DynamoDBLocalSpec extends ZIOSpec[DynamoDBExecutor] {
       AttributeDefinition.attrDefnString("id")
     )
 
-  def withSingleKeyTable(
+  def withSingleIdKeyTable(
     f: String => ZIO[DynamoDBExecutor, Throwable, TestResult]
   ) =
     ZIO.scoped {
-      managedTable(t => idKeyOnlyTable(t)).flatMap(t => f(t.value))
+      managedTable(idKeyOnlyTable).flatMap(t => f(t.value))
     }
 
 }

@@ -5,6 +5,7 @@ import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect._
 
+// This is a place holder suite for the Type Safe API for now, to be expanded upon in the future
 object TypeSafeApiSpec extends DynamoDBLocalSpec {
 
   final case class Person(id: String, surname: String, forename: Option[String])
@@ -16,7 +17,7 @@ object TypeSafeApiSpec extends DynamoDBLocalSpec {
   override def spec =
     suite("TypeSafeApiSpec")(
       test("filter on field equality") {
-        withSingleKeyTable { tableName =>
+        withSingleIdKeyTable { tableName =>
           for {
             _      <- DynamoDBQuery.put(tableName, Person("1", "Smith", Some("John"))).execute
             stream <- DynamoDBQuery
@@ -28,7 +29,7 @@ object TypeSafeApiSpec extends DynamoDBLocalSpec {
         }
       },
       test("filter on optional field exists") {
-        withSingleKeyTable { tableName =>
+        withSingleIdKeyTable { tableName =>
           for {
             _      <- DynamoDBQuery.put(tableName, Person("1", "Smith", Some("John"))).execute
             stream <- DynamoDBQuery
@@ -40,7 +41,7 @@ object TypeSafeApiSpec extends DynamoDBLocalSpec {
         }
       },
       test("filter on optional field not exists") {
-        withSingleKeyTable { tableName =>
+        withSingleIdKeyTable { tableName =>
           for {
             _      <- DynamoDBQuery.put(tableName, Person("1", "Smith", Some("John"))).execute
             stream <- DynamoDBQuery
@@ -52,11 +53,11 @@ object TypeSafeApiSpec extends DynamoDBLocalSpec {
         }
       },
       test("forEach returns a left of ValueNotFound when no item is found") {
-        withSingleKeyTable { tableName =>
+        withSingleIdKeyTable { tableName =>
           for {
             _  <- DynamoDBQuery.put(tableName, Person("1", "John", Some("Smith"))).execute
             _  <- DynamoDBQuery.put(tableName, Person("2", "Smith", Some("John"))).execute
-            xs <- DynamoDBQuery // high level API
+            xs <- DynamoDBQuery
                     .forEach(1 to 3)(i => DynamoDBQuery.get[Person](tableName)(Person.id.partitionKey === i.toString))
                     .execute
           } yield assertTrue(xs.size == 3) &&

@@ -156,14 +156,14 @@ object LiveSpec extends DynamoDBLocalSpec {
 
   override def spec = mainSuite
 
-  final case class ExpressionAttrNames(id: String, num: Int, ttl: Option[Long])
+  final case class ExpressionAttrNames(id: String, num: Int, ttl: Option[Long]) // Note "ttl" is a reserved keyword
   object ExpressionAttrNames {
     implicit val schema: Schema.CaseClass3[String, Int, Option[Long], ExpressionAttrNames] =
       DeriveSchema.gen[ExpressionAttrNames]
     val (id, num, ttl)                                                                     = ProjectionExpression.accessors[ExpressionAttrNames]
   }
 
-  final case class ExpressionAttrNamesPkKeywords(and: String, source: String, ttl: Option[Long])
+  final case class ExpressionAttrNamesPkKeywords(and: String, source: String, ttl: Option[Long]) // Note "and" and "ttl" are reserved keyword
   object ExpressionAttrNamesPkKeywords {
     implicit val schema: Schema.CaseClass3[String, String, Option[Long], ExpressionAttrNamesPkKeywords] =
       DeriveSchema.gen[ExpressionAttrNamesPkKeywords]
