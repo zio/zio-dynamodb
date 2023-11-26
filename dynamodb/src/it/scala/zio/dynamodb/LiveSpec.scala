@@ -163,7 +163,11 @@ object LiveSpec extends DynamoDBLocalSpec {
     val (id, num, ttl)                                                                     = ProjectionExpression.accessors[ExpressionAttrNames]
   }
 
-  final case class ExpressionAttrNamesPkKeywords(and: String, source: String, ttl: Option[Long]) // Note "and" and "ttl" are reserved keyword
+  final case class ExpressionAttrNamesPkKeywords(
+    and: String,
+    source: String,
+    ttl: Option[Long]
+  ) // Note "and" and "ttl" are reserved keyword
   object ExpressionAttrNamesPkKeywords {
     implicit val schema: Schema.CaseClass3[String, String, Option[Long], ExpressionAttrNamesPkKeywords] =
       DeriveSchema.gen[ExpressionAttrNamesPkKeywords]
