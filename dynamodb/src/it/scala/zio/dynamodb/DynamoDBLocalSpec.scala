@@ -45,7 +45,7 @@ abstract class DynamoDBLocalSpec extends ZIOSpec[DynamoDBExecutor] {
         } yield TableName(tableName)
       )(tName => DynamoDBQuery.deleteTable(tName.value).execute.orDie)
 
-  def idKeyOnlyTable(tableName: String) =
+  def singleIdKeyTable(tableName: String) =
     DynamoDBQuery.createTable(tableName, KeySchema("id"), BillingMode.PayPerRequest)(
       AttributeDefinition.attrDefnString("id")
     )
@@ -54,7 +54,7 @@ abstract class DynamoDBLocalSpec extends ZIOSpec[DynamoDBExecutor] {
     f: String => ZIO[DynamoDBExecutor, Throwable, TestResult]
   ) =
     ZIO.scoped {
-      managedTable(idKeyOnlyTable).flatMap(t => f(t.value))
+      managedTable(singleIdKeyTable).flatMap(t => f(t.value))
     }
 
 }
