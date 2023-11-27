@@ -11,7 +11,7 @@ import zio.dynamodb.examples.TypeSafeRoundTripSerialisationExample.Invoice.{
   Product
 }
 import zio.dynamodb.{ DynamoDBExecutor, DynamoDBQuery, PrimaryKey }
-import zio.schema.annotation.{ caseName, discriminatorName, simpleEnum }
+import zio.schema.annotation.{ caseName, discriminatorName }
 import zio.schema.{ DeriveSchema, Schema }
 
 import java.time.Instant
@@ -26,7 +26,6 @@ object TypeSafeRoundTripSerialisationExample extends ZIOAppDefault {
     def id: String
   }
   object Invoice       {
-    @simpleEnum
     sealed trait PaymentType
     object PaymentType {
       @caseName("debit")

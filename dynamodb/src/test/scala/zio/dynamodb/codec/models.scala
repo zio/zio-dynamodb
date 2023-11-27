@@ -1,6 +1,6 @@
 package zio.dynamodb.codec
 
-import zio.schema.annotation.{ caseName, discriminatorName, fieldName, simpleEnum }
+import zio.schema.annotation.{ caseName, discriminatorName, fieldName }
 import zio.schema.{ DeriveSchema, Schema }
 
 import java.time.Instant
@@ -57,7 +57,6 @@ object WithDiscriminatedEnum {
   implicit val schema: Schema[WithDiscriminatedEnum] = DeriveSchema.gen[WithDiscriminatedEnum]
 }
 
-@simpleEnum
 sealed trait CaseObjectOnlyEnum
 final case class WithCaseObjectOnlyEnum(`enum`: CaseObjectOnlyEnum)
 object WithCaseObjectOnlyEnum {

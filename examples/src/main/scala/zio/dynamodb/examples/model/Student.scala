@@ -6,9 +6,7 @@ import zio.schema.DeriveSchema
 import java.time.Instant
 import zio.schema.Schema
 import zio.dynamodb.KeyConditionExpr
-import zio.schema.annotation.simpleEnum
 
-@simpleEnum
 sealed trait Payment
 
 object Payment {
