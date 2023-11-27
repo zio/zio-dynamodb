@@ -37,13 +37,13 @@ Here an intermediate map is used to identify the member of `TraficLight` ie `Map
 Note that the `Null` is used as in this case we do not care about the value.
 
 # Customising encodings via annotations
-Encodings can be customised through the use of the following annotations `@discriminatorName`, `@simpleEnum` and `@fieldName`.
+Encodings can be customised through the use of the following annotations `@discriminatorName` and `@fieldName`.
 These annotations are useful when working with a legacy DynamoDB database.
 
 The `@discriminatorName` encodings does not introduce another map for the purposes of identification but rather adds another 
 discriminator field to the attribute Map.
 
-Concrete examples of using the `@discriminatorName`, `@simpleEnum` and `@field` annotations can be seen below.
+Concrete examples of using the `@discriminatorName` and `@field` annotations can be seen below.
 
 ## Sealed trait members that are case classes
 
@@ -77,7 +77,6 @@ The encoding for case class field names can also be customised via `@fieldName` 
 ## Sealed trait members that are all case objects
 
 ```scala
-@simpleEnum
 sealed trait TrafficLight
 case object GREEN extends TrafficLight 
 @caseName("red_traffic_light")
@@ -86,7 +85,9 @@ final case class Box(trafficLightColour: TrafficLight)
 ```
 
 We can get a more compact and intuitive encoding of trait members that are case objects by using the `@simpleEnum`
-annotation which encodes to just a value that is the member name. Encoding for an instance of `Box(GREEN)` would be:
+annotation which encodes to just a value that is the member name. This annotation doesn't need to be added explicitly 
+since this is done by the ZIO Schema macro automatically.
+Encoding for an instance of `Box(GREEN)` would be:
 
 `Map(trafficLightColour -> String(GREEN))`
 
