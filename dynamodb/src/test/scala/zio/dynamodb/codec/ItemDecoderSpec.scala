@@ -284,14 +284,14 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(PreBilled(id = 1, s = "foobar"))))
     },
-    test("decodes case object only enum with @simpleEnum annotation and without @caseName annotation") {
+    test("decodes case object only enum without @caseName annotation") {
       val item: Item = Item(Map("enum" -> AttributeValue.String("ONE")))
 
       val actual = DynamoDBQuery.fromItem[WithCaseObjectOnlyEnum](item)
 
       assert(actual)(isRight(equalTo(WithCaseObjectOnlyEnum(WithCaseObjectOnlyEnum.ONE))))
     },
-    test("decodes case object only enum with @simpleEnum annotation and @caseName annotation of '2'") {
+    test("decodes case object only enum with @caseName annotation of '2'") {
       val item: Item = Item(Map("enum" -> AttributeValue.String("2")))
 
       val actual = DynamoDBQuery.fromItem[WithCaseObjectOnlyEnum](item)
