@@ -4,6 +4,10 @@ import zio.schema.{ DeriveSchema, Schema }
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect._
+import java.time.Instant
+import zio.schema.annotation.simpleEnum
+import zio.dynamodb
+import zio.schema.annotation.noDiscriminator
 
 // This is a place holder suite for the Type Safe API for now, to be expanded upon in the future
 object TypeSafeApiSpec extends DynamoDBLocalSpec {
@@ -12,6 +16,23 @@ object TypeSafeApiSpec extends DynamoDBLocalSpec {
   object Person {
     implicit val schema: Schema.CaseClass3[String, String, Option[String], Person] = DeriveSchema.gen[Person]
     val (id, surname, forename)                                                    = ProjectionExpression.accessors[Person]
+  }
+
+  //@noDiscriminator
+  sealed trait MixedSimpleEnum2
+  object MixedSimpleEnum2 {
+    @simpleEnum
+    case object One                                                                extends MixedSimpleEnum2
+    @simpleEnum
+    case object Two                                                                extends MixedSimpleEnum2
+    final case class Three(@dynamodb.Annotations.simpleEnumField() value: Instant) extends MixedSimpleEnum2
+  }
+
+  @noDiscriminator
+  sealed trait MixedSimpleEnum
+  object MixedSimpleEnum {
+    final case class One(i: Int, discriminator: String)    extends MixedSimpleEnum
+    final case class Two(s: String) extends MixedSimpleEnum
   }
 
   override def spec =

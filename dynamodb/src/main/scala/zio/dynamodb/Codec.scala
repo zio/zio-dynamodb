@@ -16,6 +16,7 @@ import java.util.UUID
 import scala.annotation.tailrec
 import scala.collection.immutable.ListMap
 import scala.util.Try
+import zio.schema.annotation.noDiscriminator
 
 private[dynamodb] object Codec {
 
@@ -269,6 +270,7 @@ private[dynamodb] object Codec {
     private def enumEncoder[Z](annotations: Chunk[Any], cases: Schema.Case[Z, _]*): Encoder[Z] =
       if (hasAnnotationAtClassLevel(annotations))
         enumWithAnnotationAtClassLevelEncoder(
+          Annotations.hasNoDiscriminatorTag(annotations),
           discriminatorWithDefault(annotations),
           cases: _*
         )
@@ -289,6 +291,7 @@ private[dynamodb] object Codec {
       }
 
     private def enumWithAnnotationAtClassLevelEncoder[Z](
+      hasNoDiscriminator: Boolean,
       discriminator: String,
       cases: Schema.Case[Z, _]*
     ): Encoder[Z] =
@@ -301,6 +304,8 @@ private[dynamodb] object Codec {
           val id    = maybeCaseName(case_.annotations).getOrElse(case_.id)
           val av2   = AttributeValue.String(id)
           av match { // TODO: review all pattern matches inside of a lambda
+            case AttributeValue.Map(map) if hasNoDiscriminator =>
+              AttributeValue.Map(map)
             case AttributeValue.Map(map) =>
               AttributeValue.Map(
                 map + (AttributeValue.String(discriminator) -> av2)
@@ -915,7 +920,7 @@ private[dynamodb] object Codec {
 
   private def hasAnnotationAtClassLevel(annotations: Chunk[Any]): Boolean =
     annotations.exists {
-      case discriminatorName(_) | simpleEnum(_) => true
+      case discriminatorName(_) | simpleEnum(_) | noDiscriminator() => true
       case _                                    => false
     }
 
