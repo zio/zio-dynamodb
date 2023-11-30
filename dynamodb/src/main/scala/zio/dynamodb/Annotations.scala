@@ -4,6 +4,7 @@ import zio.Chunk
 import zio.schema.annotation.{ caseName, discriminatorName }
 import scala.annotation.StaticAnnotation
 import zio.schema.annotation.noDiscriminator
+import zio.schema.annotation.simpleEnum
 
 object Annotations {
   final case class simpleEnumField() extends StaticAnnotation
@@ -14,9 +15,17 @@ object Annotations {
   def maybeDiscriminator(annotations: Chunk[Any]): Option[String] =
     annotations.collect { case discriminatorName(name) => name }.headOption
 
+  // TODO: rename to hasNoDiscriminator
   def hasNoDiscriminatorTag(annotations: Chunk[Any]): Boolean = {
     println(s"XXXXXXXXXXXX annotations: $annotations")
     val collected = annotations.collect { case noDiscriminator() => noDiscriminator }
+    println(s"XXXXXXXXXXXX collected: $collected")
+    collected.headOption.isDefined // TODO: Avi
+  }
+
+  def hasSimpleEnum(annotations: Chunk[Any]): Boolean = {
+    println(s"XXXXXXXXXXXX annotations: $annotations")
+    val collected = annotations.collect { case simpleEnum(_) => simpleEnum() }
     println(s"XXXXXXXXXXXX collected: $collected")
     collected.headOption.isDefined // TODO: Avi
   }
