@@ -810,6 +810,7 @@ private[dynamodb] object Codec {
     private def enumDecoder[Z](annotations: Chunk[Any], cases: Schema.Case[Z, _]*): Decoder[Z] =
       if (hasAnnotationAtClassLevel(annotations))
         enumWithAnnotationAtClassLevelDecoder(
+          Annotations.hasNoDiscriminatorTag(annotations),
           discriminatorWithDefault(annotations),
           cases: _*
         )
@@ -838,6 +839,7 @@ private[dynamodb] object Codec {
         }
 
     private def enumWithAnnotationAtClassLevelDecoder[Z](
+      hasNoDiscriminatorTag: Boolean,
       discriminator: String,
       cases: Schema.Case[Z, _]*
     ): Decoder[Z] = { (av: AttributeValue) =>
@@ -856,6 +858,18 @@ private[dynamodb] object Codec {
       av match {
         case AttributeValue.String(id) =>
           decode(id)
+        case AttributeValue.Map(_) if hasNoDiscriminatorTag                =>
+          val xs                          = cases.map(c => decoder(c.schema)(av))
+          val (l, r)                      = xs.partition(_.isLeft)
+          val y: Either[DynamoDBError, Z] = r.toList match {
+            case Nil             => Left(DynamoDBError.DecodingError(s"All sub type decoders failed for $av"))
+            case a :: Nil        => a.map(_.asInstanceOf[Z])
+            case _ if r.size > 1 => Left(DynamoDBError.DecodingError(s"More than one sub type decoder succeeded for $av"))
+            case _               => Left(DynamoDBError.DecodingError(s"Error decoding $av"))
+
+          }
+          println(s"YYYYYYYYY l=$l, r=$r, y=$y")
+          y
         case AttributeValue.Map(map)   =>
           map
             .get(AttributeValue.String(discriminator))
