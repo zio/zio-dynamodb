@@ -15,19 +15,14 @@ object Annotations {
   def maybeDiscriminator(annotations: Chunk[Any]): Option[String] =
     annotations.collect { case discriminatorName(name) => name }.headOption
 
-  // TODO: rename to hasNoDiscriminator
-  def hasNoDiscriminatorTag(annotations: Chunk[Any]): Boolean = {
-    println(s"XXXXXXXXXXXX annotations: $annotations")
+  def hasNoDiscriminator(annotations: Chunk[Any]): Boolean = {
     val collected = annotations.collect { case noDiscriminator() => noDiscriminator }
-    println(s"XXXXXXXXXXXX collected: $collected")
-    collected.headOption.isDefined // TODO: Avi
+    collected.headOption.isDefined
   }
 
   def hasSimpleEnum(annotations: Chunk[Any]): Boolean = {
-    println(s"XXXXXXXXXXXX annotations: $annotations")
     val collected = annotations.collect { case simpleEnum(_) => simpleEnum() }
-    println(s"XXXXXXXXXXXX collected: $collected")
-    collected.headOption.isDefined // TODO: Avi
+    collected.headOption.isDefined
   }
 
 }
