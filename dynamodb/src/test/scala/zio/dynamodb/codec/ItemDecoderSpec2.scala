@@ -5,7 +5,6 @@ import zio.test.Assertion._
 import zio.test.{ ZIOSpecDefault, _ }
 import zio.schema.annotation.noDiscriminator
 import zio.schema.DeriveSchema
-import zio.schema.annotation.simpleEnum
 
 object ItemDecoderSpec2 extends ZIOSpecDefault with CodecTestFixtures {
   override def spec = suite("ItemDecoder Suite")(mainSuite)
@@ -13,9 +12,7 @@ object ItemDecoderSpec2 extends ZIOSpecDefault with CodecTestFixtures {
   @noDiscriminator
   sealed trait MixedSimpleEnum
   object MixedSimpleEnum {
-    @simpleEnum
     case object MinusOne         extends MixedSimpleEnum
-    @simpleEnum
     case object Zero             extends MixedSimpleEnum
     final case class One(i: Int) extends MixedSimpleEnum
     object One {
