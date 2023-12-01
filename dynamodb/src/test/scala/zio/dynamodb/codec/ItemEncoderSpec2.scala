@@ -7,60 +7,61 @@ import zio.test._
 import zio.test.ZIOSpecDefault
 import zio.schema.DeriveSchema
 import zio.schema.annotation.noDiscriminator
+import zio.schema.annotation.caseName
+import zio.schema.annotation.fieldName
 
 object ItemEncoderSpec2 extends ZIOSpecDefault with CodecTestFixtures {
-  override def spec = suite("ItemEncoder2 Suite")(mainSuite)
+  override def spec = suite("ItemEncoder2 Suite")(noDiscriminatorSuite)
 
   @noDiscriminator
-  sealed trait MixedSimpleEnum
-  object MixedSimpleEnum {
-    case object MinusOne         extends MixedSimpleEnum
-    case object Zero             extends MixedSimpleEnum
-    final case class One(i: Int) extends MixedSimpleEnum
+  sealed trait NoDiscriminatorEnum
+  object NoDiscriminatorEnum {
+    case object MinusOne                             extends NoDiscriminatorEnum
+    @caseName("0")
+    case object Zero                                 extends NoDiscriminatorEnum
+    final case class One(@fieldName("count") i: Int) extends NoDiscriminatorEnum
     object One {
       implicit val schema = DeriveSchema.gen[One]
     }
-    final case class Two(s: String) extends MixedSimpleEnum
+    @caseName("2")
+    final case class Two(s: String) extends NoDiscriminatorEnum
     object Two {
       implicit val schema = DeriveSchema.gen[Two]
     }
 
-    implicit val schema = DeriveSchema.gen[MixedSimpleEnum]
+    implicit val schema = DeriveSchema.gen[NoDiscriminatorEnum]
   }
-  final case class Box(sumType: MixedSimpleEnum)
-  object Box             {
-    implicit val schema = DeriveSchema.gen[Box]
+  final case class WithNoDiscriminator(sumType: NoDiscriminatorEnum)
+  object WithNoDiscriminator {
+    implicit val schema = DeriveSchema.gen[WithNoDiscriminator]
   }
 
-  val mainSuite = suite("Main Suite")(
-    test("encodes Two") {
-      val expectedItem: Item =
-        Item(
-          Map(
-            "s" -> AttributeValue.String("1")
-          )
-        )
+  val noDiscriminatorSuite = suite("Main Suite")(
+    test("encodes One case class with @fieldName") {
+      val expectedItem: Item = Item("sumType" -> Item("count" -> 1))
 
-      val item = DynamoDBQuery.toItem[MixedSimpleEnum](MixedSimpleEnum.Two("1"))
+      val item = DynamoDBQuery.toItem[WithNoDiscriminator](WithNoDiscriminator(NoDiscriminatorEnum.One(1)))
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes One") {
-      val expectedItem: Item =
-        Item(
-          Map(
-            "i" -> AttributeValue.Number(1)
-          )
-        )
+    test("encodes Two case class and ignores class level @caseName (which only applies to discriminators)") {
+      val expectedItem: Item = Item("sumType" -> Item("s" -> "1"))
 
-      val item = DynamoDBQuery.toItem[MixedSimpleEnum](MixedSimpleEnum.One(1))
+      val item = DynamoDBQuery.toItem[WithNoDiscriminator](WithNoDiscriminator(NoDiscriminatorEnum.Two("1")))
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes case object only enum") {
-      val expectedItem: Item = Item(Map("sumType" -> AttributeValue.String("Zero")))
+    test("encodes MinusOne case object") {
+      val expectedItem: Item = Item("sumType" -> "MinusOne")
 
-      val item = DynamoDBQuery.toItem(Box(MixedSimpleEnum.Zero))
+      val item = DynamoDBQuery.toItem(WithNoDiscriminator(NoDiscriminatorEnum.MinusOne))
+
+      assert(item)(equalTo(expectedItem))
+    },
+    test("encodes Zero case object with @caseName") {
+      val expectedItem: Item = Item("sumType" -> "0")
+
+      val item = DynamoDBQuery.toItem(WithNoDiscriminator(NoDiscriminatorEnum.Zero))
 
       assert(item)(equalTo(expectedItem))
     }
