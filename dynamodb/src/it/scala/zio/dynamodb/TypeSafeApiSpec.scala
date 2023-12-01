@@ -22,12 +22,12 @@ object TypeSafeApiSpec extends DynamoDBLocalSpec {
   object NoDiscrinatorSumType       {
     final case class One(id: String, i: Int) extends NoDiscrinatorSumType
     object One {
-      implicit val schema = DeriveSchema.gen[One]
+      implicit val schema: Schema.CaseClass2[String, Int, One] = DeriveSchema.gen[One]
       val (id, i)         = ProjectionExpression.accessors[One]
     }
     final case class Two(id: String, j: Int) extends NoDiscrinatorSumType
     object Two {
-      implicit val schema = DeriveSchema.gen[Two]
+      implicit val schema: Schema.CaseClass2[String, Int, Two] = DeriveSchema.gen[Two]
       val (id, j)         = ProjectionExpression.accessors[Two]
     }
   }

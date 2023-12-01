@@ -99,19 +99,20 @@ object NoDiscriminatorEnum {
   case object Zero                                 extends NoDiscriminatorEnum
   final case class One(@fieldName("count") i: Int) extends NoDiscriminatorEnum
   object One {
-    implicit val schema = DeriveSchema.gen[One]
+    implicit val schema: Schema.CaseClass1[Int, One] = DeriveSchema.gen[One]
   }
   @caseName("2")
   final case class Two(s: String) extends NoDiscriminatorEnum
   object Two {
-    implicit val schema = DeriveSchema.gen[Two]
+    implicit val schema: Schema.CaseClass1[String, Two] = DeriveSchema.gen[Two]
   }
 
-  implicit val schema = DeriveSchema.gen[NoDiscriminatorEnum]
+  implicit val schema: Schema[NoDiscriminatorEnum] = DeriveSchema.gen[NoDiscriminatorEnum]
 }
 final case class WithNoDiscriminator(sumType: NoDiscriminatorEnum)
 object WithNoDiscriminator {
-  implicit val schema = DeriveSchema.gen[WithNoDiscriminator]
+  implicit val schema: Schema.CaseClass1[NoDiscriminatorEnum, WithNoDiscriminator] =
+    DeriveSchema.gen[WithNoDiscriminator]
 }
 
 @noDiscriminator
@@ -119,16 +120,16 @@ sealed trait NoDiscriminatorEnumError
 object NoDiscriminatorEnumError {
   final case class One(i: Int) extends NoDiscriminatorEnumError
   object One {
-    implicit val schema = DeriveSchema.gen[One]
+    implicit val schema: Schema.CaseClass1[Int, One] = DeriveSchema.gen[One]
   }
   final case class Two(i: Int) extends NoDiscriminatorEnumError
   object Two {
-    implicit val schema = DeriveSchema.gen[Two]
+    implicit val schema: Schema.CaseClass1[Int, Two] = DeriveSchema.gen[Two]
   }
 
-  implicit val schema = DeriveSchema.gen[NoDiscriminatorEnumError]
+  implicit val schema: Schema[NoDiscriminatorEnumError] = DeriveSchema.gen[NoDiscriminatorEnumError]
 }
 final case class WithNoDiscriminatorError(sumType: NoDiscriminatorEnumError)
 object WithNoDiscriminatorError {
-  implicit val schema = DeriveSchema.gen[WithNoDiscriminatorError]
+  implicit val schema: Schema.CaseClass1[NoDiscriminatorEnumError, WithNoDiscriminatorError] = DeriveSchema.gen[WithNoDiscriminatorError]
 }
