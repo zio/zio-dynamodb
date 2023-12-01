@@ -1,10 +1,10 @@
 package zio.dynamodb
 
-import zio.dynamodb.Annotations.{ hasNoDiscriminator, hasSimpleEnum, maybeCaseName, maybeDiscriminator }
+import zio.dynamodb.Annotations._
 import zio.dynamodb.DynamoDBError.DecodingError
 import zio.prelude.{ FlipOps, ForEachOps }
 import zio.schema.Schema.{ Optional, Primitive }
-import zio.schema.annotation.{ caseName, discriminatorName, simpleEnum }
+import zio.schema.annotation.caseName
 import zio.schema.{ FieldSet, Schema, StandardType }
 import zio.Chunk
 
@@ -16,7 +16,6 @@ import java.util.UUID
 import scala.annotation.tailrec
 import scala.collection.immutable.ListMap
 import scala.util.Try
-import zio.schema.annotation.noDiscriminator
 
 private[dynamodb] object Codec {
 
@@ -927,15 +926,6 @@ private[dynamodb] object Codec {
         true
       case _                                                      =>
         false
-    }
-
-  private def discriminatorWithDefault(annotations: Chunk[Any]): String =
-    maybeDiscriminator(annotations).getOrElse("discriminator")
-
-  private def hasAnnotationAtClassLevel(annotations: Chunk[Any]): Boolean =
-    annotations.exists {
-      case discriminatorName(_) | simpleEnum(_) | noDiscriminator() => true
-      case _                                                        => false
     }
 
 } // end Codec
