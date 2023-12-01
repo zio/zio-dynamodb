@@ -10,7 +10,7 @@ import scala.collection.immutable.ListMap
 import zio.test.ZIOSpecDefault
 
 object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
-  override def spec = suite("ItemEncoder Suite")(mainSuite)
+  override def spec = suite("ItemEncoder Suite")(mainSuite, noDiscriminatorSuite)
 
   val mainSuite = suite("Main Suite")(
     test("encodes generic record") {
@@ -253,6 +253,37 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       )
 
       val item = DynamoDBQuery.toItem(WithEnumWithoutDiscriminator(WithEnumWithoutDiscriminator.Three(value = "value")))
+
+      assert(item)(equalTo(expectedItem))
+    }
+  )
+
+  val noDiscriminatorSuite = suite("@noDiscrinator Suite")(
+    test("encodes One case class with @fieldName") {
+      val expectedItem: Item = Item("sumType" -> Item("count" -> 1))
+
+      val item = DynamoDBQuery.toItem[WithNoDiscriminator](WithNoDiscriminator(NoDiscriminatorEnum.One(1)))
+
+      assert(item)(equalTo(expectedItem))
+    },
+    test("encodes Two case class and ignores class level @caseName (which only applies to discriminators)") {
+      val expectedItem: Item = Item("sumType" -> Item("s" -> "1"))
+
+      val item = DynamoDBQuery.toItem[WithNoDiscriminator](WithNoDiscriminator(NoDiscriminatorEnum.Two("1")))
+
+      assert(item)(equalTo(expectedItem))
+    },
+    test("encodes MinusOne case object") {
+      val expectedItem: Item = Item("sumType" -> "MinusOne")
+
+      val item = DynamoDBQuery.toItem(WithNoDiscriminator(NoDiscriminatorEnum.MinusOne))
+
+      assert(item)(equalTo(expectedItem))
+    },
+    test("encodes Zero case object with @caseName") {
+      val expectedItem: Item = Item("sumType" -> "0")
+
+      val item = DynamoDBQuery.toItem(WithNoDiscriminator(NoDiscriminatorEnum.Zero))
 
       assert(item)(equalTo(expectedItem))
     }
