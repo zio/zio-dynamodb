@@ -86,8 +86,8 @@ object TypeSafeApiSpec extends DynamoDBLocalSpec {
       test("@noDiscriminator sum type round trip") {
         withSingleIdKeyTable { tableName =>
           for {
-            _  <- DynamoDBQuery.put(tableName, NoDiscrinatorSumType.One("id1", 42)).execute
-            a  <- DynamoDBQuery.get(tableName)(NoDiscrinatorSumType.One.id.partitionKey === "id1").execute.absolve
+            _ <- DynamoDBQuery.put(tableName, NoDiscrinatorSumType.One("id1", 42)).execute
+            a <- DynamoDBQuery.get(tableName)(NoDiscrinatorSumType.One.id.partitionKey === "id1").execute.absolve
           } yield assertTrue(a == NoDiscrinatorSumType.One("id1", 42))
         }
       }
