@@ -101,11 +101,11 @@ This can be further customised by using the `@caseName` annotation again - encod
 @noDiscriminator
 sealed trait TrafficLight
 @caseName("blue")
-final case object Blue extends TrafficLight 
+final case object Blue extends TrafficLight
 final case object Purple extends TrafficLight 
-final case class Green(rgb: Int) extends TrafficLight
+final case class Green(rgb: Int, i: Int) extends TrafficLight
 @caseName("red_traffic_light") // this annotation is ignored in the context of @noDiscriminator
-final case class Red(rgb: Int) extends TrafficLight
+final case class Red(rgb: Int, j: Int) extends TrafficLight
 final case class Amber(@fieldName("red_green_blue") rgb: Int) extends TrafficLight
 final case class Box(trafficLightColour: TrafficLight)
 ```
@@ -114,7 +114,7 @@ This primariliy useful when working with legacy DynamoDB databases where a discr
 
 WARNING! - this leads to the inefficiency of having to try each case and checking for success, and also forces the dangerous assumption that all the sum type cases will be different when encoded. If there ambiguities amongst the codecs for the sum types this is handled gracefully by returning a Left of a DynamoDBError.DecodingError
 
+Mapping for `Box(Blue)` would be `Map(trafficLightColour -> String(blue))`
 
-
-
+Mapping for `Box(Amber(42))` would be `Map(trafficLightColour -> Map(String(red_green_blue) -> Number(42))`
 
