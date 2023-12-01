@@ -4,9 +4,6 @@ import zio.schema.{ DeriveSchema, Schema }
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect._
-import java.time.Instant
-import zio.schema.annotation.simpleEnum
-import zio.dynamodb
 import zio.schema.annotation.noDiscriminator
 
 // This is a place holder suite for the Type Safe API for now, to be expanded upon in the future
@@ -18,21 +15,21 @@ object TypeSafeApiSpec extends DynamoDBLocalSpec {
     val (id, surname, forename)                                                    = ProjectionExpression.accessors[Person]
   }
 
-  //@noDiscriminator
-  sealed trait MixedSimpleEnum2
-  object MixedSimpleEnum2 {
-    @simpleEnum
-    case object One                                                                extends MixedSimpleEnum2
-    @simpleEnum
-    case object Two                                                                extends MixedSimpleEnum2
-    final case class Three(@dynamodb.Annotations.simpleEnumField() value: Instant) extends MixedSimpleEnum2
-  }
-
   @noDiscriminator
-  sealed trait MixedSimpleEnum
-  object MixedSimpleEnum {
-    final case class One(i: Int, discriminator: String)    extends MixedSimpleEnum
-    final case class Two(s: String) extends MixedSimpleEnum
+  sealed trait NoDiscrinatorSumType {
+    def id: String
+  }
+  object NoDiscrinatorSumType       {
+    final case class One(id: String, i: Int) extends NoDiscrinatorSumType
+    object One {
+      implicit val schema = DeriveSchema.gen[One]
+      val (id, i)         = ProjectionExpression.accessors[One]
+    }
+    final case class Two(id: String, j: Int) extends NoDiscrinatorSumType
+    object Two {
+      implicit val schema = DeriveSchema.gen[Two]
+      val (id, j)         = ProjectionExpression.accessors[Two]
+    }
   }
 
   override def spec =
@@ -84,6 +81,14 @@ object TypeSafeApiSpec extends DynamoDBLocalSpec {
           } yield assertTrue(xs.size == 3) &&
             assert(xs(0))(isRight) && assert(xs(1))(isRight) &&
             assert(xs(2))(isLeft(isSubtype[DynamoDBError.ValueNotFound](anything)))
+        }
+      },
+      test("@noDiscriminator sum type round trip") {
+        withSingleIdKeyTable { tableName =>
+          for {
+            _  <- DynamoDBQuery.put(tableName, NoDiscrinatorSumType.One("id1", 42)).execute
+            a  <- DynamoDBQuery.get(tableName)(NoDiscrinatorSumType.One.id.partitionKey === "id1").execute.absolve
+          } yield assertTrue(a == NoDiscrinatorSumType.One("id1", 42))
         }
       }
     ) @@ nondeterministic
