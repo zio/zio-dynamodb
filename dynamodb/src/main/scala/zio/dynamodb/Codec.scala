@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.Annotations.{ hasNoDiscriminator, maybeCaseName, maybeDiscriminator }
+import zio.dynamodb.Annotations.{ hasNoDiscriminator, hasSimpleEnum, maybeCaseName, maybeDiscriminator }
 import zio.dynamodb.DynamoDBError.DecodingError
 import zio.prelude.{ FlipOps, ForEachOps }
 import zio.schema.Schema.{ Optional, Primitive }
@@ -270,6 +270,7 @@ private[dynamodb] object Codec {
     private def enumEncoder[Z](annotations: Chunk[Any], cases: Schema.Case[Z, _]*): Encoder[Z] =
       if (hasAnnotationAtClassLevel(annotations))
         enumWithAnnotationAtClassLevelEncoder(
+          hasSimpleEnum(annotations),
           hasNoDiscriminator(annotations),
           discriminatorWithDefault(annotations),
           cases: _*
@@ -291,6 +292,7 @@ private[dynamodb] object Codec {
       }
 
     private def enumWithAnnotationAtClassLevelEncoder[Z](
+      hasSimpleEnum: Boolean,
       hasNoDiscriminator: Boolean,
       discriminator: String,
       cases: Schema.Case[Z, _]*
@@ -311,7 +313,7 @@ private[dynamodb] object Codec {
                 map + (AttributeValue.String(discriminator) -> av2)
               )
             case AttributeValue.Null                           =>
-              if (allCaseObjects(cases) || (isCaseClass0(case_) && hasNoDiscriminator))
+              if (hasSimpleEnum || (isCaseObject(case_) && hasNoDiscriminator))
                 av2
               else
                 // these are case objects and are a special case - they need to wrapped in an AttributeValue.Map
@@ -810,7 +812,7 @@ private[dynamodb] object Codec {
     private def enumDecoder[Z](annotations: Chunk[Any], cases: Schema.Case[Z, _]*): Decoder[Z] =
       if (hasAnnotationAtClassLevel(annotations))
         enumWithAnnotationAtClassLevelDecoder(
-          Annotations.hasNoDiscriminator(annotations),
+          hasNoDiscriminator(annotations),
           discriminatorWithDefault(annotations),
           cases: _*
         )
@@ -859,7 +861,7 @@ private[dynamodb] object Codec {
         case AttributeValue.String(id)                      =>
           decode(id)
         case AttributeValue.Map(_) if hasNoDiscriminatorTag =>
-          val xs     = cases.filter(c => !isCaseClass0(c)).map(c => decoder(c.schema)(av))
+          val xs     = cases.filter(c => !isCaseObject(c)).map(c => decoder(c.schema)(av))
           val (_, r) = xs.partition(_.isLeft)
           r.toList match {
             case Nil             => Left(DynamoDBError.DecodingError(s"All sub type decoders failed for $av"))
@@ -919,16 +921,8 @@ private[dynamodb] object Codec {
 
   } // end Decoder
 
-  private def isCaseClass0(s: Schema.Case[_, _]) =
+  private def isCaseObject(s: Schema.Case[_, _]) =
     s match {
-      case Schema.Case(_, Schema.CaseClass0(_, _, _), _, _, _, _) =>
-        true
-      case _                                                      =>
-        false
-    }
-
-  def allCaseObjects[Z](cases: Seq[Schema.Case[Z, _]]): Boolean =
-    cases.forall {
       case Schema.Case(_, Schema.CaseClass0(_, _, _), _, _, _, _) =>
         true
       case _                                                      =>

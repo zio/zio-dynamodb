@@ -21,7 +21,7 @@ object Annotations {
   }
 
   def hasSimpleEnum(annotations: Chunk[Any]): Boolean = {
-    val collected = annotations.collect { case simpleEnum(_) => simpleEnum() }
+    val collected = annotations.collect { case simpleEnum(true) => simpleEnum() }
     collected.headOption.isDefined
   }
 
