@@ -9,9 +9,9 @@ import java.time.Instant
 import scala.collection.immutable.ListMap
 
 object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
-  override def spec = suite("ItemDecoder Suite")(mainSuite)
+  override def spec = suite("ItemDecoder Suite")(mainSuite, noDiscriminatorSuite)
 
-  val mainSuite = suite("Decoder Suite")(
+  private val mainSuite = suite("Decoder Suite")(
     test("decodes generic record") {
       val expected: Map[String, Any] = ListMap("foo" -> "FOO", "bar" -> 1)
 
@@ -284,14 +284,14 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(PreBilled(id = 1, s = "foobar"))))
     },
-    test("decodes case object only enum with @simpleEnum annotation and without @caseName annotation") {
+    test("decodes case object only enum without @caseName annotation") {
       val item: Item = Item(Map("enum" -> AttributeValue.String("ONE")))
 
       val actual = DynamoDBQuery.fromItem[WithCaseObjectOnlyEnum](item)
 
       assert(actual)(isRight(equalTo(WithCaseObjectOnlyEnum(WithCaseObjectOnlyEnum.ONE))))
     },
-    test("decodes case object only enum with @simpleEnum annotation and @caseName annotation of '2'") {
+    test("decodes case object only enum with @caseName annotation of '2'") {
       val item: Item = Item(Map("enum" -> AttributeValue.String("2")))
 
       val actual = DynamoDBQuery.fromItem[WithCaseObjectOnlyEnum](item)
@@ -313,6 +313,67 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       val actual = DynamoDBQuery.fromItem[WithEnumWithoutDiscriminator](item)
 
       assert(actual)(isRight(equalTo(WithEnumWithoutDiscriminator(WithEnumWithoutDiscriminator.ONE))))
+    }
+  )
+
+  val noDiscriminatorSuite = suite("@noDisriminator Decoder Suite")(
+    test("decodes One case class with @fieldName") {
+      val item: Item = Item("sumType" -> Item("count" -> 42))
+
+      val actual = DynamoDBQuery.fromItem[WithNoDiscriminator](item)
+
+      assert(actual)(isRight(equalTo(WithNoDiscriminator(NoDiscriminatorEnum.One(i = 42)))))
+    },
+    test("decodes Two case class and ignores class level @caseName (which only applies to discriminators)") {
+      val item: Item = Item("sumType" -> Item("s" -> "X"))
+
+      val actual = DynamoDBQuery.fromItem[WithNoDiscriminator](item)
+
+      assert(actual)(isRight(equalTo(WithNoDiscriminator(NoDiscriminatorEnum.Two(s = "X")))))
+    },
+    test("decodes MinusOne case object") {
+      val item: Item = Item(Map("sumType" -> AttributeValue.String("MinusOne")))
+
+      val actual = DynamoDBQuery.fromItem[WithNoDiscriminator](item)
+
+      assert(actual)(isRight(equalTo(WithNoDiscriminator(NoDiscriminatorEnum.MinusOne))))
+    },
+    test("decodes Zero case object with @caseName") {
+      val item: Item = Item(Map("sumType" -> AttributeValue.String("0")))
+
+      val actual = DynamoDBQuery.fromItem[WithNoDiscriminator](item)
+
+      assert(actual)(isRight(equalTo(WithNoDiscriminator(NoDiscriminatorEnum.Zero))))
+    },
+    test("returns a Left of DecodeError when no decoder is not found") {
+      val item: Item = Item("sumType" -> Item("FIELD_NOT_IN_ANY_SUBTYPE" -> "X"))
+
+      val actual = DynamoDBQuery.fromItem[WithNoDiscriminator](item)
+
+      assert(actual)(
+        isLeft(
+          equalTo(
+            DynamoDBError.DecodingError(message =
+              "All sub type decoders failed for Map(Map(String(FIELD_NOT_IN_ANY_SUBTYPE) -> String(X)))"
+            )
+          )
+        )
+      )
+    },
+    test("returns a Left of DecodeError when a more than one decoder is found") {
+      val item: Item = Item("sumType" -> Item("i" -> 42))
+
+      val actual = DynamoDBQuery.fromItem[WithNoDiscriminatorError](item)
+
+      assert(actual)(
+        isLeft(
+          equalTo(
+            DynamoDBError.DecodingError(message =
+              "More than one sub type decoder succeeded for Map(Map(String(i) -> Number(42)))"
+            )
+          )
+        )
+      )
     }
   )
 

@@ -33,7 +33,7 @@ jobs:
       fail-fast: false
       matrix:
         java: ["adopt@1.8", "adopt@1.11"]
-        scala: ["3.3.0", "2.13.12", "2.12.17"]
+        scala: ["3.3.0", "2.13.12", "2.12.18"]
     env:
       AWS_ACCESS_KEY_ID: dummykey
       AWS_SECRET_ACCESS_KEY: dummykey
