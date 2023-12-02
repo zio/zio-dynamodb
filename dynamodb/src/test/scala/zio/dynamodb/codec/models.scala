@@ -131,5 +131,6 @@ object NoDiscriminatorEnumError {
 }
 final case class WithNoDiscriminatorError(sumType: NoDiscriminatorEnumError)
 object WithNoDiscriminatorError {
-  implicit val schema: Schema.CaseClass1[NoDiscriminatorEnumError, WithNoDiscriminatorError] = DeriveSchema.gen[WithNoDiscriminatorError]
+  implicit val schema: Schema.CaseClass1[NoDiscriminatorEnumError, WithNoDiscriminatorError] =
+    DeriveSchema.gen[WithNoDiscriminatorError]
 }
