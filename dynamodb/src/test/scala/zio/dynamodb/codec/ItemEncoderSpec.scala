@@ -12,7 +12,7 @@ import zio.test.ZIOSpecDefault
 object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
   override def spec = suite("ItemEncoder Suite")(mainSuite, noDiscriminatorSuite)
 
-  val mainSuite = suite("Main Suite")(
+  private val mainSuite = suite("Main Suite")(
     test("encodes generic record") {
 
       val av = Codec.encoder(recordSchema)(ListMap("foo" -> "FOO", "bar" -> 1))
@@ -258,7 +258,7 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
     }
   )
 
-  val noDiscriminatorSuite = suite("@noDiscrinator Suite")(
+  private val noDiscriminatorSuite = suite("@noDiscrinator Suite")(
     test("encodes One case class with @fieldName") {
       val expectedItem: Item = Item("sumType" -> Item("count" -> 1))
 

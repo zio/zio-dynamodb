@@ -11,7 +11,7 @@ import scala.collection.immutable.ListMap
 object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
   override def spec = suite("ItemDecoder Suite")(mainSuite, noDiscriminatorSuite)
 
-  val mainSuite = suite("Decoder Suite")(
+  private val mainSuite = suite("Decoder Suite")(
     test("decodes generic record") {
       val expected: Map[String, Any] = ListMap("foo" -> "FOO", "bar" -> 1)
 

@@ -861,13 +861,13 @@ private[dynamodb] object Codec {
           decode(id)
         case AttributeValue.Map(_) if hasNoDiscriminatorTag =>
           val xs     = cases.filter(c => !isCaseObject(c)).map(c => decoder(c.schema)(av))
-          val (_, r) = xs.partition(_.isLeft)
-          r.toList match {
-            case Nil             => Left(DynamoDBError.DecodingError(s"All sub type decoders failed for $av"))
-            case a :: Nil        => a.map(_.asInstanceOf[Z])
-            case _ if r.size > 1 =>
+          val rights = xs.filter(_.isRight)
+          rights.toList match {
+            case Nil                  => Left(DynamoDBError.DecodingError(s"All sub type decoders failed for $av"))
+            case a :: Nil             => a.map(_.asInstanceOf[Z])
+            case _ if rights.size > 1 =>
               Left(DynamoDBError.DecodingError(s"More than one sub type decoder succeeded for $av"))
-            case _               => Left(DynamoDBError.DecodingError(s"Error decoding $av"))
+            case _                    => Left(DynamoDBError.DecodingError(s"Error decoding $av"))
           }
         case AttributeValue.Map(map)                        =>
           map
