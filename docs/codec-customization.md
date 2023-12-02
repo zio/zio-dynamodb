@@ -95,3 +95,31 @@ This can be further customised by using the `@caseName` annotation again - encod
 
 `Map(trafficLightColour -> String(red_traffic_light))`
 
+## No disriminator codecs using @noDiscriminator annotation
+
+```scala
+@noDiscriminator
+sealed trait TrafficLight
+@caseName("blue")
+final case object Blue extends TrafficLight
+final case object Purple extends TrafficLight 
+final case class Green(rgb: Int, i: Int) extends TrafficLight
+@caseName("red_traffic_light") // this annotation is ignored in the context of @noDiscriminator
+final case class Red(rgb: Int, j: Int) extends TrafficLight
+final case class Amber(@fieldName("red_green_blue") rgb: Int) extends TrafficLight
+final case class Box(trafficLightColour: TrafficLight)
+```
+
+This primariliy useful when working with legacy DynamoDB databases where a discriminator field is not present (some DynamoDB mapping libraries allow users to create codecs with no discriminators or tags to disambiguate each sum type case). 
+
+WARNING! - this leads to the inefficiency of having to try each case and checking for success, and also forces the dangerous assumption that all the sum type cases will be different when encoded. When decoding if there are ambiguities amongst the codecs for the sum type intances this is handled gracefully by returning a Left of a DynamoDBError.DecodingError
+
+Mapping for `Box(Blue)` would be `Map(trafficLightColour -> String(blue))`
+
+Mapping for `Box(Amber(42))` would be `Map(trafficLightColour -> Map(String(red_green_blue) -> Number(42))`
+
+For greenfield development it is recommended to use:
+- the default encoding which uses an intermediate map ([see above](#default-encoding)) or 
+- `@discriminatorName` encoding ([see above](#customising-encodings-via-annotations))
+
+

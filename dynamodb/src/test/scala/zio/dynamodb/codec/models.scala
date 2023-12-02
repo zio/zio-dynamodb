@@ -5,6 +5,7 @@ import zio.schema.{ DeriveSchema, Schema }
 
 import java.time.Instant
 import zio.dynamodb.ProjectionExpression
+import zio.schema.annotation.noDiscriminator
 
 // ADT example
 sealed trait Status
@@ -88,4 +89,48 @@ object Invoice       {
     val (id, s)                                                    = ProjectionExpression.accessors[PreBilled]
   }
   implicit val schema: Schema[Invoice] = DeriveSchema.gen[Invoice]
+}
+
+@noDiscriminator
+sealed trait NoDiscriminatorEnum
+object NoDiscriminatorEnum {
+  case object MinusOne                             extends NoDiscriminatorEnum
+  @caseName("0")
+  case object Zero                                 extends NoDiscriminatorEnum
+  final case class One(@fieldName("count") i: Int) extends NoDiscriminatorEnum
+  object One {
+    implicit val schema: Schema.CaseClass1[Int, One] = DeriveSchema.gen[One]
+  }
+  @caseName("2")
+  final case class Two(s: String) extends NoDiscriminatorEnum
+  object Two {
+    implicit val schema: Schema.CaseClass1[String, Two] = DeriveSchema.gen[Two]
+  }
+
+  implicit val schema: Schema[NoDiscriminatorEnum] = DeriveSchema.gen[NoDiscriminatorEnum]
+}
+final case class WithNoDiscriminator(sumType: NoDiscriminatorEnum)
+object WithNoDiscriminator {
+  implicit val schema: Schema.CaseClass1[NoDiscriminatorEnum, WithNoDiscriminator] =
+    DeriveSchema.gen[WithNoDiscriminator]
+}
+
+@noDiscriminator
+sealed trait NoDiscriminatorEnumError
+object NoDiscriminatorEnumError {
+  final case class One(i: Int) extends NoDiscriminatorEnumError
+  object One {
+    implicit val schema: Schema.CaseClass1[Int, One] = DeriveSchema.gen[One]
+  }
+  final case class Two(i: Int) extends NoDiscriminatorEnumError
+  object Two {
+    implicit val schema: Schema.CaseClass1[Int, Two] = DeriveSchema.gen[Two]
+  }
+
+  implicit val schema: Schema[NoDiscriminatorEnumError] = DeriveSchema.gen[NoDiscriminatorEnumError]
+}
+final case class WithNoDiscriminatorError(sumType: NoDiscriminatorEnumError)
+object WithNoDiscriminatorError {
+  implicit val schema: Schema.CaseClass1[NoDiscriminatorEnumError, WithNoDiscriminatorError] =
+    DeriveSchema.gen[WithNoDiscriminatorError]
 }
