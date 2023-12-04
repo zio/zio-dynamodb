@@ -493,6 +493,11 @@ object DynamoDBQuery {
       .fromAttributeValue(AttributeValue.encode(a)(schema))
       .getOrElse(throw new Exception(s"error encoding $a"))
 
+  def update[From: Schema](tableName: String)(primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From])(
+    action: Action[From]
+  ): DynamoDBQuery[From, Option[From]] =
+    updateItem(tableName, primaryKeyExpr.asAttrMap)(action).map(_.flatMap(item => fromItem(item).toOption))
+
   def updateItem[A](tableName: String, key: PrimaryKey)(action: Action[A]): DynamoDBQuery[A, Option[Item]] =
     UpdateItem(
       TableName(tableName),
@@ -505,10 +510,6 @@ object DynamoDBQuery {
   ): DynamoDBQuery[A, Option[A]] =
     updateItem(tableName, key)(action).map(_.flatMap(item => fromItem(item).toOption))
 
-  def update[From: Schema](tableName: String)(primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From])(
-    action: Action[From]
-  ): DynamoDBQuery[From, Option[From]]                                         =
-    updateItem(tableName, primaryKeyExpr.asAttrMap)(action).map(_.flatMap(item => fromItem(item).toOption))
   def deleteItem(tableName: String, key: PrimaryKey): Write[Any, Option[Item]] = DeleteItem(TableName(tableName), key)
 
   def deleteFrom[From: Schema](
