@@ -3,9 +3,8 @@ package zio.dynamodb
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test._
 import zio.test.Assertion._
-import zio.test.TestAspect._
 import zio.schema.annotation.noDiscriminator
-import zio.dynamodb.DynamoDBQuery._
+import zio.dynamodb.DynamoDBQuery.{ get, put, update }
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
 
 // This is a place holder suite for the Type Safe API for now, to be expanded upon in the future
@@ -15,6 +14,25 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
   object Person {
     implicit val schema: Schema.CaseClass4[String, String, Option[String], Int, Person] = DeriveSchema.gen[Person]
     val (id, surname, forename, age)                                                    = ProjectionExpression.accessors[Person]
+  }
+
+  final case class Address(number: String, Postcode: String)
+  object Address               {
+    implicit val schema: Schema.CaseClass2[String, String, Address] = DeriveSchema.gen[Address]
+    val (number, postcode)                                          = ProjectionExpression.accessors[Address]
+  }
+  final case class PersonWithCollections(
+    id: String,
+    surname: String,
+    addressList: List[Address] = List.empty,
+    addressMap: Map[String, Address] = Map.empty,
+    addressSet: Set[String] = Set.empty
+  )
+  object PersonWithCollections {
+    implicit val schema
+      : Schema.CaseClass5[String, String, List[Address], Map[String, Address], Set[String], PersonWithCollections] =
+      DeriveSchema.gen[PersonWithCollections]
+    val (id, surname, addressList, addressMap, addressSet)                                                         = ProjectionExpression.accessors[PersonWithCollections]
   }
 
   @noDiscriminator
@@ -34,11 +52,11 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
     }
   }
 
-  override def spec = suite("all")(putSuite, updateSuite) @@ nondeterministic
+  override def spec = suite("all")(putSuite, updateSuite) @@ TestAspect.nondeterministic
 
   private val putSuite =
     suite("TypeSafeApiSpec")(
-      test("simple put and get round trip") {
+      test("'put' and get simple round trip") {
         withSingleIdKeyTable { tableName =>
           val person = Person("1", "Smith", Some("John"), 21)
           for {
@@ -47,7 +65,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           } yield assertTrue(p == person)
         }
       },
-      test("put with condition expression that id exists fails for empty database") {
+      test("'put' with condition expression that id exists fails for empty database") {
         withSingleIdKeyTable { tableName =>
           val person = Person("1", "Smith", Some("John"), 21)
           val exit   = for {
@@ -57,7 +75,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           assertZIO(exit)(fails(isSubtype[ConditionalCheckFailedException](anything)))
         }
       },
-      test("put with condition expression that id exists when there is a record succeeds") {
+      test("'put' with condition expression that id exists when there is a record succeeds") {
         withSingleIdKeyTable { tableName =>
           val person = Person("1", "Smith", Some("John"), 21)
           val exit   = for {
@@ -67,7 +85,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           assertZIO(exit)(succeeds(anything))
         }
       },
-      test("put with compound condition expression succeeds") {
+      test("'put' with compound condition expression succeeds") {
         withSingleIdKeyTable { tableName =>
           val person        = Person("1", "Smith", None, 21)
           val personUpdated = person.copy(forename = Some("John"))
@@ -84,7 +102,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
     )
 
   private val updateSuite = suite("update suite")(
-    test("updates a single field with an update expression when record exists") {
+    test("'update's a single field with an update expression when record exists") {
       withSingleIdKeyTable { tableName =>
         val person   = Person("1", "Smith", None, 21)
         val expected = person.copy(forename = Some("John"))
@@ -95,8 +113,20 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(p == expected)
       }
     },
+    // TODO: Avi - see if we can fix underlying updateItem to return an error in this case
+    test("'update' fails when a record when it does not exists") {
+      withSingleIdKeyTable { tableName =>
+        val person   = Person("1", "Smith", None, 21)
+        val expected = person.copy(forename = Some("John"))
+        val exit     = for {
+          _    <- update(tableName)(Person.id.partitionKey === "1")(Person.forename.set(Some("John"))).execute
+          exit <- get[Person](tableName)(Person.id.partitionKey === "1").execute.exit
+        } yield exit
+        assertZIO(exit)(fails(isSubtype[ConditionalCheckFailedException](anything)))
+      }
+    } @@ TestAspect.ignore,
     test(
-      "updates a single field with an update expression restricted by a compound condition expression when record exists"
+      "'update's a single field with an update expression restricted by a compound condition expression when record exists"
     ) {
       withSingleIdKeyTable { tableName =>
         val person   = Person("1", "Smith", None, 21)
@@ -107,6 +137,132 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
                  .where(Person.surname === "Smith" && Person.forename.notExists)
                  .execute
           p <- get[Person](tableName)(Person.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test(
+      "'update's multiple fields with a compound update expression restricted by a compound condition expression where record exists"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val person   = Person("1", "Smith", None, 21)
+        val expected = person.copy(forename = Some("John"), surname = "Tarochan")
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(Person.id.partitionKey === "1")(
+                 Person.forename.set(Some("John")) + Person.surname.set("Tarochan")
+               )
+                 .where(Person.surname === "Smith" && Person.forename.notExists)
+                 .execute
+          p <- get[Person](tableName)(Person.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test("'update' fails when a single condition expression on primary key equality fails") {
+      withSingleIdKeyTable { tableName =>
+        val exit = update(tableName)(Person.id.partitionKey === "1")(Person.forename.set(Some("John")))
+          .where(Person.id === "1")
+          .execute
+          .exit
+        assertZIO(exit)(fails(isSubtype[ConditionalCheckFailedException](anything)))
+      }
+    },
+    test(
+      "'append' to add an Address element to addressList field"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val address1 = Address("1", "AAAA")
+        val address2 = Address("2", "BBBB")
+        val person   = PersonWithCollections("1", "Smith", addressList = List(address1))
+        val expected = person.copy(addressList = List(address1, address2))
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
+                 PersonWithCollections.addressList.append(address2)
+               ).execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test(
+      "'appendList' to add an Address list to addressList field"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val address1 = Address("1", "AAAA")
+        val address2 = Address("2", "BBBB")
+        val address3 = Address("3", "CCCC")
+        val person   = PersonWithCollections("1", "Smith", addressList = List(address1))
+        val expected = person.copy(addressList = List(address1, address2, address3))
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
+                 PersonWithCollections.addressList.appendList(List(address2, address3))
+               ).execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test(
+      "'prepend' to add an Address element to addressList field"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val address1 = Address("1", "AAAA")
+        val address2 = Address("2", "BBBB")
+        val person   = PersonWithCollections("1", "Smith", addressList = List(address1))
+        val expected = person.copy(addressList = List(address2, address1))
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
+                 PersonWithCollections.addressList.prepend(address2)
+               ).execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test(
+      "'prependList' to add an Address list element to addressList field"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val address1 = Address("1", "AAAA")
+        val address2 = Address("2", "BBBB")
+        val address3 = Address("3", "CCCC")
+        val person   = PersonWithCollections("1", "Smith", addressList = List(address1))
+        val expected = person.copy(addressList = List(address2, address3, address1))
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
+                 PersonWithCollections.addressList.prependList(List(address2, address3))
+               ).execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test(
+      "'addSet' to add a set of strings to addressSet field"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val person   = PersonWithCollections("1", "Smith", addressSet = Set("address1"))
+        val expected = person.copy(addressSet = Set("address2", "address3", "address1"))
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
+                 PersonWithCollections.addressSet.addSet(Set("address2", "address3"))
+               ).execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test(
+      "'deleteFromSet' to remove a set of strings from addressSet field"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val person   = PersonWithCollections("1", "Smith", addressSet = Set("address2", "address3", "address1"))
+        val expected = person.copy(addressSet = Set("address1"))
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
+                 PersonWithCollections.addressSet.deleteFromSet(Set("address2", "address3"))
+               ).execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == expected)
       }
     }
