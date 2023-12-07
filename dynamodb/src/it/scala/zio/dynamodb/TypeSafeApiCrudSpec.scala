@@ -193,6 +193,81 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
+      "'set' a map element"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val address1 = Address("1", "AAAA")
+        val person   = PersonWithCollections("1", "Smith")
+        val expected = person.copy(addressMap = Map(address1.number -> address1))
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
+                 PersonWithCollections.addressMap.valueAt(address1.number).set(address1)
+               ).execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test(
+      "'remove' a map element"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val address1 = Address("1", "AAAA")
+        val address2 = Address("2", "BBBB")
+        val person   = PersonWithCollections(
+          "1",
+          "Smith",
+          addressMap = Map(address1.number -> address1, address2.number -> address2)
+        )
+        val expected = person.copy(addressMap = Map(address1.number -> address1))
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
+                 PersonWithCollections.addressMap.valueAt(address2.number).remove
+               ).execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test(
+      "'remove'ing a map element when it does not exists fails silently"                      // this is AWS API behaviour
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val person = PersonWithCollections(
+          "1",
+          "Smith"
+        )
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
+                 PersonWithCollections.addressMap.valueAt("DOES_NOT_EXIST").remove
+               ).execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == person)
+      }
+    },
+    test(
+      "'set' an existing map element"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val address1        = Address("1", "AAAA")
+        val address1Updated = Address("1", "BBBB")
+        val person          = PersonWithCollections(
+          "1",
+          "Smith",
+          addressMap = Map(address1.number -> address1)
+        )
+        val expected        = person.copy(addressMap = Map(address1.number -> address1Updated))
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
+                 PersonWithCollections.addressMap.valueAt(address1.number).set(address1Updated)
+               ).execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test(
       "'append' adds an Address element to addressList field"
     ) {
       withSingleIdKeyTable { tableName =>
@@ -257,6 +332,23 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
                ).execute
           p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == person)
+      }
+    },
+    test(
+      "'elementAt(1).remove' removes 2nd Address element"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val address1 = Address("1", "AAAA")
+        val address2 = Address("2", "BBBB")
+        val person   = PersonWithCollections("1", "Smith", addressList = List(address1, address2))
+        val expected = person.copy(addressList = List(address1))
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
+                 PersonWithCollections.addressList.elementAt(1).remove
+               ).execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
       }
     },
     test(
