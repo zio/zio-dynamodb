@@ -101,8 +101,8 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     )
 
-  private val updateSuite = suite("update suite")(
-    test("'update's a single field with an update expression when record exists") {
+  private val updateSuite = suite("update's")(
+    test("'sets a single field with an update expression when record exists") {
       withSingleIdKeyTable { tableName =>
         val person   = Person("1", "Smith", None, 21)
         val expected = person.copy(forename = Some("John"))
@@ -114,7 +114,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     // TODO: Avi - see if we can fix underlying updateItem to return an error in this case
-    test("'update' fails when a record when it does not exists") {
+    test("fails when a record when it does not exists") {
       withSingleIdKeyTable { tableName =>
         val person   = Person("1", "Smith", None, 21)
         val expected = person.copy(forename = Some("John"))
@@ -126,7 +126,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     } @@ TestAspect.ignore,
     test(
-      "'update's a single field with an update expression restricted by a compound condition expression when record exists"
+      "'set's a single field with an update expression restricted by a compound condition expression when record exists"
     ) {
       withSingleIdKeyTable { tableName =>
         val person   = Person("1", "Smith", None, 21)
@@ -141,15 +141,41 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'update's multiple fields with a compound update expression restricted by a compound condition expression where record exists"
+      "'setIfNotExists' updates single field when attribure does not exists"
     ) {
       withSingleIdKeyTable { tableName =>
         val person   = Person("1", "Smith", None, 21)
-        val expected = person.copy(forename = Some("John"), surname = "Tarochan")
+        val expected = person.copy(forename = Some("Tarlochan"))
+        for {
+          _ <- put(tableName, person).execute
+          _ <-
+            update(tableName)(Person.id.partitionKey === "1")(Person.forename.setIfNotExists(Some("Tarlochan"))).execute
+          p <- get[Person](tableName)(Person.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test(
+      "'setIfNotExists' fails silently when the attribute already exists"                     // this is AWS API behaviour
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val person = Person("1", "Smith", None, 21)
+        for {
+          _    <- put(tableName, person).execute
+          exit <- update(tableName)(Person.id.partitionKey === "1")(Person.surname.setIfNotExists("XXXX")).execute.exit
+          p    <- get[Person](tableName)(Person.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(exit.isSuccess == true && p == person)
+      }
+    },
+    test(
+      "'set's multiple fields with a compound update expression restricted by a compound condition expression where record exists"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val person   = Person("1", "Smith", None, 21)
+        val expected = person.copy(forename = Some("John"), surname = "John")
         for {
           _ <- put(tableName, person).execute
           _ <- update(tableName)(Person.id.partitionKey === "1")(
-                 Person.forename.set(Some("John")) + Person.surname.set("Tarochan")
+                 Person.forename.set(Some("John")) + Person.surname.set("John")
                )
                  .where(Person.surname === "Smith" && Person.forename.notExists)
                  .execute
@@ -157,7 +183,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(p == expected)
       }
     },
-    test("'update' fails when a single condition expression on primary key equality fails") {
+    test("fails when a single condition expression on primary key equality fails") {
       withSingleIdKeyTable { tableName =>
         val exit = update(tableName)(Person.id.partitionKey === "1")(Person.forename.set(Some("John")))
           .where(Person.id === "1")
@@ -167,7 +193,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'append' to add an Address element to addressList field"
+      "'append' adds an Address element to addressList field"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -184,7 +210,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'appendList' to add an Address list to addressList field"
+      "'appendList' adds an Address list to addressList field"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -202,7 +228,39 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'prepend' to add an Address element to addressList field"
+      "'remove(1)' removes 2nd Address element"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val address1 = Address("1", "AAAA")
+        val address2 = Address("2", "BBBB")
+        val person   = PersonWithCollections("1", "Smith", addressList = List(address1, address2))
+        val expected = person.copy(addressList = List(address1))
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
+                 PersonWithCollections.addressList.remove(1)
+               ).execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test(
+      "'remove(100)' on a list of 2 elements fails silently"                                  // this is AWS API behaviour
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val address1 = Address("1", "AAAA")
+        val person   = PersonWithCollections("1", "Smith", addressList = List(address1))
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
+                 PersonWithCollections.addressList.remove(100)
+               ).execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == person)
+      }
+    },
+    test(
+      "'prepend' adds an Address element to addressList field"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -219,7 +277,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'prependList' to add an Address list element to addressList field"
+      "'prependList' adds an Address list element to addressList field"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -237,7 +295,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'addSet' to add a set of strings to addressSet field"
+      "'addSet' adds a set of strings to addressSet field"
     ) {
       withSingleIdKeyTable { tableName =>
         val person   = PersonWithCollections("1", "Smith", addressSet = Set("address1"))
@@ -252,7 +310,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'deleteFromSet' to remove a set of strings from addressSet field"
+      "'deleteFromSet' removes a set of strings from addressSet field"
     ) {
       withSingleIdKeyTable { tableName =>
         val person   = PersonWithCollections("1", "Smith", addressSet = Set("address2", "address3", "address1"))
@@ -263,6 +321,35 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
                  PersonWithCollections.addressSet.deleteFromSet(Set("address2", "address3"))
                ).execute
           p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test(
+      "'deleteFromSet' fails silently when trying to remove an elements that does not exists" // this is AWS API behaviour
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val person = PersonWithCollections("1", "Smith", addressSet = Set("address1"))
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
+                 PersonWithCollections.addressSet.deleteFromSet(Set("address2"))
+               ).execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == person)
+      }
+    },
+    test(
+      "'add' adds a number to a numeric field if it exists"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val person   = Person("1", "Smith", Some("John"), 21)
+        val expected = person.copy(age = 22)
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(Person.id.partitionKey === "1")(
+                 Person.age.add(1)
+               ).execute
+          p <- get(tableName)(Person.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == expected)
       }
     }
