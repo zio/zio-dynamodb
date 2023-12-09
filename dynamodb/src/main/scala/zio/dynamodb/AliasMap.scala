@@ -20,16 +20,14 @@ private[dynamodb] final case class AliasMap private[dynamodb] (map: Map[AliasMap
         case ProjectionExpression.Root                                                 =>
           acc // identity
         case ProjectionExpression.MapElement(ProjectionExpression.Root, mapElementKey) =>
-          val name  = stripLeadingAndTrailingBackticks(mapElementKey)
-          val tuple = acc._1.map.get(AliasMap.PathSegment(ProjectionExpression.Root, name)) match {
+          val name        = stripLeadingAndTrailingBackticks(mapElementKey)
+          val aliasMapkey = AliasMap.PathSegment[Any, Any](ProjectionExpression.Root, name)
+          val tuple       = acc._1.map.get(aliasMapkey) match {
             case Some(existingAlias) =>
               acc._1 -> (acc._2 :+ existingAlias)
             case None                =>
               val nameAlias = s"#n${acc._1.index}"
-              val next      = AliasMap(
-                acc._1.map + (AliasMap.PathSegment(ProjectionExpression.Root, name) -> nameAlias),
-                acc._1.index + 1
-              )
+              val next      = AliasMap(acc._1.map + (aliasMapkey -> nameAlias), acc._1.index + 1)
               val aliases   = acc._2 :+ nameAlias
               next -> aliases
           }
@@ -45,8 +43,8 @@ private[dynamodb] final case class AliasMap private[dynamodb] (map: Map[AliasMap
             case None                =>
               val nameAlias = s"#n${acc._1.index}"
               val next      = AliasMap(acc._1.map + (aliasMapkey -> nameAlias), acc._1.index + 1)
-              val aliases = (acc._2 :+ s".$nameAlias") // this is a child path, so we need a dot prefix
-              next -> aliases 
+              val aliases   = (acc._2 :+ s".$nameAlias") // this is a child path, so we need a dot prefix
+              next -> aliases
           }
           loop(parent, tuple)
         case ProjectionExpression.ListElement(parent, index)                           =>
