@@ -18,61 +18,48 @@ private[dynamodb] final case class AliasMap private[dynamodb] (map: Map[AliasMap
     @tailrec
     def loop(pe: ProjectionExpression[_, _], acc: (AliasMap, List[String])): (AliasMap, List[String]) =
       pe match {
-        case ProjectionExpression.Root                                         =>
+        case ProjectionExpression.Root                                                 =>
           acc // identity
-        case ProjectionExpression.MapElement(ProjectionExpression.Root, found) =>
-          val name      = stripLeadingAndTrailingBackticks(found)
-          val nameAlias = s"#n${acc._1.index}"
-          val map       = acc._1.map + ((AliasMap.PathSegment(ProjectionExpression.Root, name), nameAlias))
-          val xs        = acc._2 :+ nameAlias
-          val t         = (AliasMap(map, acc._1.index + 1), xs)
-          // val t2        = // do not overwite an existing alias
-          //   if (acc._1.map.get(AliasMap.PathSegment(ProjectionExpression.Root, name)).isDefined) {
-          //     println(s"XXXXXX SKIPPING")
-          //     acc
-          //   } else {
-          //     println(s"XXXXXX adding accumulator $t")
-          //     t
-          //   }
-          val t3        = acc._1.map.get(AliasMap.PathSegment(ProjectionExpression.Root, name)) match {
+        case ProjectionExpression.MapElement(ProjectionExpression.Root, mapElementKey) =>
+          val name = stripLeadingAndTrailingBackticks(mapElementKey)
+          val tuple   = acc._1.map.get(AliasMap.PathSegment(ProjectionExpression.Root, name)) match {
             case Some(aliasName) =>
               println(s"XXXXXX SKIPPING")
               val t = (acc._1, acc._2 :+ aliasName)
               println(s"XXXXXX SKIPPING tuple = $t")
               t
             case None            =>
-              t
+              val nameAlias = s"#n${acc._1.index}"
+              val map       = acc._1.map + ((AliasMap.PathSegment(ProjectionExpression.Root, name), nameAlias))
+              val aliases   = acc._2 :+ nameAlias
+              AliasMap(map, acc._1.index + 1) -> aliases
           }
-          println(s"XXXXX AliasMap.+ MapElement at Root found = $found name = $name tuple = $t3")
+          println(s"XXXXX AliasMap.+ MapElement at Root found = $mapElementKey name = $name tuple = $tuple")
 
-          loop(ProjectionExpression.Root, t3)
-        case ProjectionExpression.MapElement(parent, mapElementKey)            =>
-          // println(s"XXXXX AliasMap.+ MapElement parent = $parent, key = $mapElementKey")
-          // val nameAlias = s"#n${acc._1.index}"
-          // val next      = AliasMap(acc._1.map + ((AliasMap.PathSegment(parent, mapElementKey), nameAlias)), acc._1.index + 1)
-          // loop(parent, (next, acc._2 :+ ("." + nameAlias)))
+          loop(ProjectionExpression.Root, tuple)
+        case ProjectionExpression.MapElement(parent, mapElementKey)                    =>
           println(s"XXX AliasMap.+ MapElement parent = $parent, key = $mapElementKey")
-          val key       = AliasMap.PathSegment(parent, mapElementKey)
-          val nameAlias = s"#n${acc._1.index}"
-          val t2        = acc._1.map.get(key) match {
+          val aliasMapkey = AliasMap.PathSegment(parent, mapElementKey)
+          val t2          = acc._1.map.get(aliasMapkey) match {
             case Some(existingAlias) =>
-              val tuple = (acc._1, acc._2 :+ s".$existingAlias") // this is a child path, so we need a dot prefix
+              val tuple = acc._1 -> (acc._2 :+ s".$existingAlias") // this is a child path, so we need a dot prefix
               println(s"XXX AliasMap.+ MapElement found existing alias = $existingAlias tuple = $tuple")
               tuple
             case None                =>
-              val next  = AliasMap(acc._1.map + ((key, nameAlias)), acc._1.index + 1) 
-              val tuple = (next, acc._2 :+ s".$nameAlias") // this is a child path, so we need a dot prefix
+              val nameAlias = s"#n${acc._1.index}"
+              val next      = AliasMap(acc._1.map + ((aliasMapkey, nameAlias)), acc._1.index + 1)
+              val tuple     = next -> (acc._2 :+ s".$nameAlias") // this is a child path, so we need a dot prefix
               println(s"XXX AliasMap.+ MapElement adding new alias = $nameAlias tuple = $tuple")
               tuple
           }
           loop(parent, t2)
-        case ProjectionExpression.ListElement(parent, index)                   =>
+        case ProjectionExpression.ListElement(parent, index)                           =>
           loop(parent, (acc._1, acc._2 :+ s"[$index]"))
       }
 
     val (aliasMap, xs) = loop(entry, (self, List.empty))
     println(s"XXXXXX final aliasMap = $aliasMap, xs = $xs")
-    (aliasMap, xs.reverse.mkString) // last element is the root and does not have a leading dot 
+    (aliasMap, xs.reverse.mkString) // last element is the root and does not have a leading dot
   }
 
   def getOrInsert(entry: AttributeValue): (AliasMap, String) =
