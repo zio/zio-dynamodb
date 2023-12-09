@@ -113,6 +113,32 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(p == expected)
       }
     },
+    /*
+AliasMap(
+  Map(
+    AttributeValueKey(String(John)) -> :v0,
+    PathSegment(,forename) -> #n1,
+    PathSegment(,id) -> #n2,
+    AttributeValueKey(String(1)) -> :v3
+  ),
+  4
+)
+updateExpr: set #n1 = :v0
+conditionExpr: Some((#n2) = (:v3))
+     */
+    test("'sets a single field with an update expression with a condition expression") {
+      withSingleIdKeyTable { tableName =>
+        val person   = Person("1", "Smith", None, 21)
+        val expected = person.copy(forename = Some("John"))
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(Person.id.partitionKey === "1")(Person.forename.set(Some("John")))
+                 .where(Person.id === "1")
+                 .execute
+          p <- get[Person](tableName)(Person.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
     // TODO: Avi - see if we can fix underlying updateItem to return an error in this case
     test("fails when a record when it does not exists") {
       withSingleIdKeyTable { tableName =>
@@ -190,6 +216,58 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           .execute
           .exit
         assertZIO(exit)(fails(isSubtype[ConditionalCheckFailedException](anything)))
+      }
+    },
+    /*
+XXXXXX final aliasMap = AliasMap(Map(AttributeValueKey(Map(Map(String(Postcode) -> String(BBBB), String(number) -> String(1)))) -> :v0, PathSegment(addressMap,1) -> #n1, PathSegment(,addressMap) -> #n2),3), xs = List(.#n1, #n2)
+XXXXXX final aliasMap = AliasMap(Map(AttributeValueKey(Map(Map(String(Postcode) -> String(BBBB), String(number) -> String(1)))) -> :v0, PathSegment(addressMap,1) -> #n3, PathSegment(,addressMap) -> #n2),4), xs = List(.#n3)
+
+AliasMap(
+  Map(
+    AttributeValueKey(Map(Map(String(Postcode) -> String(BBBB), String(number) -> String(1)))) -> :v0,
+    PathSegment(addressMap,1) -> #n3,
+    PathSegment(,addressMap) -> #n2),
+  4
+)
+updateExpr: set #n2.#n1 = :v0
+conditionExpr: Some(attribute_exists(.#n3))
+
+    Exception in thread "zio-fiber-71" software.amazon.awssdk.services.dynamodb.model.DynamoDbException:
+    Invalid UpdateExpression: An expression attribute name used in the document path is not defined; attribute name: #n1
+    (Service: DynamoDb, Status Code: 400, Request ID: cf71da83-41cd-4c26-89e7-999ffdb85ef6)
+     */
+    test(
+      "'set' a map element with a condition expression 1"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val address1 = Address("1", "AAAA")
+        val address2 = Address("1", "BBBB")
+        val person   = PersonWithCollections("1", "Smith", addressMap = Map(address1.number -> address1))
+        val expected = person.copy(addressMap = Map(address1.number -> address2))
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
+                 PersonWithCollections.addressMap.valueAt(address1.number).set(address2)
+               ).where(PersonWithCollections.addressMap.valueAt(address1.number).exists).execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test(
+      "'set' a map element with a condition expression 2"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val address1 = Address("1", "AAAA")
+        val address2 = Address("1", "BBBB")
+        val person   = PersonWithCollections("1", "Smith", addressMap = Map(address1.number -> address1))
+        val expected = person.copy(surname = "XXXX")
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
+                 PersonWithCollections.surname.set("XXXX")
+               ).where(PersonWithCollections.addressMap.valueAt(address1.number).exists).execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
       }
     },
     test(
@@ -302,6 +380,27 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(p == expected)
       }
     },
+    /*
+      Exception in thread "zio-fiber-71" software.amazon.awssdk.services.dynamodb.model.DynamoDbException:
+      Invalid ConditionExpression: Syntax error; token: "[", near: "([1" (Service: DynamoDb, Status Code: 400, Request ID: b73fb977-5348-4540-bf7b-044c183bc0f6)
+     */
+    test(
+      "'remove(1)' removes 2nd Address element with condition expression"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val address1 = Address("1", "AAAA")
+        val address2 = Address("2", "BBBB")
+        val person   = PersonWithCollections("1", "Smith", addressList = List(address1, address2))
+        val expected = person.copy(addressList = List(address1))
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
+                 PersonWithCollections.addressList.remove(1)
+               ).where(PersonWithCollections.addressList.elementAt(1).exists).execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
     test(
       "'remove(1)' removes 2nd Address element"
     ) {
@@ -314,7 +413,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           _ <- put(tableName, person).execute
           _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
                  PersonWithCollections.addressList.remove(1)
-               ).execute
+               ).where(PersonWithCollections.addressList.elementAt(1).exists).execute
           p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == expected)
       }

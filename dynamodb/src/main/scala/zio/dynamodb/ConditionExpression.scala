@@ -68,7 +68,13 @@ sealed trait ConditionExpression[-From] extends Renderable { self =>
                         }
                     }
         } yield s"$l IN ($vals)"
-      case ae: AttributeExists[_]      => AliasMapRender.getOrInsert(ae.path).map(n => s"attribute_exists($n)")
+      case ae: AttributeExists[_]      =>
+        println(s"CEEEEEEEEEEEE ae.path = ${ae.path}")
+        val x: AliasMapRender[String] = AliasMapRender.getOrInsert(ae.path).map { n =>
+          println(s"CEEEEEEEEEEEE n = $n")
+          s"attribute_exists($n)"
+        }
+        x
       case ane: AttributeNotExists[_]  => AliasMapRender.getOrInsert(ane.path).map(n => s"attribute_not_exists($n)")
       case at: AttributeType[_]        =>
         for {

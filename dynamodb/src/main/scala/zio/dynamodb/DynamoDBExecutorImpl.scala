@@ -762,10 +762,26 @@ case object DynamoDBExecutorImpl {
 
   private def awsUpdateItemRequest(updateItem: UpdateItem): UpdateItemRequest = {
 
+    // val (aliasMap2, updateExpr2) = (for {
+    //   updateExpr2 <- updateItem.updateExpression.render
+    // } yield updateExpr2).execute
+    // println(s"YYYYYYYY $aliasMap2 $updateExpr2")
+
+    // val (aliasMap3, conditionExpr2) = (for {
+    //   conditionExpr2 <- AliasMapRender.collectAll(updateItem.conditionExpression.map(_.render))
+    // } yield conditionExpr2).execute
+    // println(s"CCCCCCCC $aliasMap3 $conditionExpr2")
+
     val (aliasMap, (updateExpr, maybeConditionExpr)) = (for {
       updateExpr    <- updateItem.updateExpression.render
+      // (am, a)        = updateItem.updateExpression.render.execute
+      // _              = println(s"ZZZZZZZZZZZ am=${am} a=$a")
       conditionExpr <- AliasMapRender.collectAll(updateItem.conditionExpression.map(_.render))
+      // (am2, a2)      = AliasMapRender.collectAll(updateItem.conditionExpression.map(_.render)).render(am)
+      // _              = println(s"ZZZZZZZZZZZ am2=${am2} a2=$a2")
     } yield (updateExpr, conditionExpr)).execute
+
+    println(s"ZZZZZZZZZZZZZZ aliasMap: $aliasMap updateExpr: $updateExpr conditionExpr: $maybeConditionExpr")
 
     UpdateItemRequest(
       tableName = ZIOAwsTableName(updateItem.tableName.value),
