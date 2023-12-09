@@ -168,7 +168,6 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case p: PutItem                       =>
         p.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case u: UpdateItem                    =>
-        println(s"XXXXXX where conditionExpression = $conditionExpression")
         u.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case d: DeleteItem                    =>
         d.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
