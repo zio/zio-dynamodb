@@ -253,7 +253,8 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
     }
 
     /**
-     * adds this set as an attribute if it does not exists, else if it exists it adds the elements of the set
+     * Adds this set as an attribute if it does not exists, else if it exists it adds the elements of the set
+     * Note that `A` must be a scalar type and is further restricted to Number, String, or Binary
      */
     def addSet[A](
       set: Set[A]
@@ -532,16 +533,6 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     case object Lens                                extends OpticType
     case class Prism(discriminator: Option[String]) extends OpticType
   }
-
-  /*
-  PHASE1 - capturing info we have and making it available in a PE
-  we going to add a Meta to every PE eg when you generate something using $ -> lens
-  when using R/O you will be using the correct version of Meta
-  eg when makeLens if there was a discriminator defined then we are going to use that
-  PHASE2
-  we are going to leverage that when we turn PE into AWS API
-   */
-  final case class Meta(opticType: OpticType)
 
   implicit class ProjectionExpressionSyntax[From](self: ProjectionExpression[From, Unknown]) {
 
