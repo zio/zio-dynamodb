@@ -4,10 +4,9 @@ import zio.schema.{ DeriveSchema, Schema }
 import zio.test._
 import zio.test.Assertion._
 import zio.schema.annotation.noDiscriminator
-import zio.dynamodb.DynamoDBQuery.{ get, put, update }
+import zio.dynamodb.DynamoDBQuery.{ deleteFrom, get, put, update }
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
 
-// This is a place holder suite for the Type Safe API for now, to be expanded upon in the future
 object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
 
   final case class Person(id: String, surname: String, forename: Option[String], age: Int)
@@ -52,11 +51,11 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
     }
   }
 
-  override def spec = suite("all")(putSuite, updateSuite) @@ TestAspect.nondeterministic
+  override def spec = suite("all")(putSuite, updateSuite, deleteSuite) @@ TestAspect.nondeterministic
 
   private val putSuite =
-    suite("TypeSafeApiSpec")(
-      test("'put' and get simple round trip") {
+    suite("put")(
+      test("and get simple round trip") {
         withSingleIdKeyTable { tableName =>
           val person = Person("1", "Smith", Some("John"), 21)
           for {
@@ -65,7 +64,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           } yield assertTrue(p == person)
         }
       },
-      test("'put' with condition expression that id exists fails for empty database") {
+      test("with condition expression that id exists fails for empty database") {
         withSingleIdKeyTable { tableName =>
           val person = Person("1", "Smith", Some("John"), 21)
           val exit   = for {
@@ -75,7 +74,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           assertZIO(exit)(fails(isSubtype[ConditionalCheckFailedException](anything)))
         }
       },
-      test("'put' with condition expression that id exists when there is a record succeeds") {
+      test("with condition expression that id exists when there is a item succeeds") {
         withSingleIdKeyTable { tableName =>
           val person = Person("1", "Smith", Some("John"), 21)
           val exit   = for {
@@ -85,7 +84,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           assertZIO(exit)(succeeds(anything))
         }
       },
-      test("'put' with compound condition expression succeeds") {
+      test("with compound condition expression succeeds") {
         withSingleIdKeyTable { tableName =>
           val person        = Person("1", "Smith", None, 21)
           val personUpdated = person.copy(forename = Some("John"))
@@ -101,8 +100,8 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     )
 
-  private val updateSuite = suite("update's")(
-    test("'sets a single field with an update expression when record exists") {
+  private val updateSuite = suite("update")(
+    test("'sets a single field with an update expression when item exists") {
       withSingleIdKeyTable { tableName =>
         val person   = Person("1", "Smith", None, 21)
         val expected = person.copy(forename = Some("John"))
@@ -126,20 +125,18 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(p == expected)
       }
     },
-    // TODO: Avi - see if we can fix underlying updateItem to return an error in this case
-    test("fails when a record when it does not exists") {
+    test("with id exists condition fails when item does not exists") {
       withSingleIdKeyTable { tableName =>
-        val person   = Person("1", "Smith", None, 21)
-        val expected = person.copy(forename = Some("John"))
-        val exit     = for {
-          _    <- update(tableName)(Person.id.partitionKey === "1")(Person.forename.set(Some("John"))).execute
-          exit <- get[Person](tableName)(Person.id.partitionKey === "1").execute.exit
-        } yield exit
+        val exit =
+          update(tableName)(Person.id.partitionKey === "1")(Person.forename.set(Some("John")))
+            .where(Person.id.exists)
+            .execute
+            .exit
         assertZIO(exit)(fails(isSubtype[ConditionalCheckFailedException](anything)))
       }
-    } @@ TestAspect.ignore,
+    },
     test(
-      "'set's a single field with an update expression restricted by a compound condition expression when record exists"
+      "'set's a single field with an update expression restricted by a compound condition expression when item exists"
     ) {
       withSingleIdKeyTable { tableName =>
         val person   = Person("1", "Smith", None, 21)
@@ -180,7 +177,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'set's multiple fields with a compound update expression restricted by a compound condition expression where record exists"
+      "'set's multiple fields with a compound update expression restricted by a compound condition expression where item exists"
     ) {
       withSingleIdKeyTable { tableName =>
         val person   = Person("1", "Smith", None, 21)
@@ -206,7 +203,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'set' a map element with a condition expression"
+      "'set' a map element with a condition expression that the map entry exists"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -218,6 +215,22 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
                  PersonWithCollections.addressMap.valueAt(address1.number).set(address2)
                ).where(PersonWithCollections.addressMap.valueAt(address1.number).exists).execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test(
+      "'set' a map element with a condition expression that the map entry does not exists"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val address1 = Address("1", "AAAA")
+        val person   = PersonWithCollections("1", "Smith")
+        val expected = person.copy(addressMap = Map(address1.number -> address1))
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
+                 PersonWithCollections.addressMap.valueAt(address1.number).set(address1)
+               ).where(PersonWithCollections.addressMap.valueAt(address1.number).notExists).execute
           p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == expected)
       }
@@ -490,6 +503,48 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
                ).execute
           p <- get(tableName)(Person.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == expected)
+      }
+    }
+  )
+
+  private val deleteSuite = suite("delete")(
+    test(
+      "with id exists condition expression, succeeds when item exist"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val person = Person("1", "Smith", Some("John"), 21)
+        for {
+          _ <- put(tableName, person).execute
+          _ <- deleteFrom(tableName)(Person.id.partitionKey === "1").where(Person.id.exists).execute
+          p <- get(tableName)(Person.id.partitionKey === "1").execute
+        } yield assertTrue(
+          p == Left(DynamoDBError.ValueNotFound("value with key AttrMap(Map(id -> String(1))) not found"))
+        )
+      }
+    },
+    test(
+      "with id exists condition expression, fails when item does not exist"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        assertZIO(deleteFrom(tableName)(Person.id.partitionKey === "1").where(Person.id.exists).execute.exit)(
+          fails(isSubtype[ConditionalCheckFailedException](anything))
+        )
+      }
+    },
+    test(
+      "with forname, surname and age condition expression, succeeds"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val person = Person("1", "Smith", Some("John"), 21)
+        for {
+          _ <- put(tableName, person).execute
+          _ <- deleteFrom(tableName)(Person.id.partitionKey === "1")
+                 .where(Person.surname === "Smith" && Person.forename === Some("John") && Person.age >= 21)
+                 .execute
+          p <- get(tableName)(Person.id.partitionKey === "1").execute
+        } yield assertTrue(
+          p == Left(DynamoDBError.ValueNotFound("value with key AttrMap(Map(id -> String(1))) not found"))
+        )
       }
     }
   )
