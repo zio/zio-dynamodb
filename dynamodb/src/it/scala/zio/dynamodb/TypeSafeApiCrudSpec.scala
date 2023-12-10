@@ -3,7 +3,6 @@ package zio.dynamodb
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test._
 import zio.test.Assertion._
-import zio.schema.annotation.noDiscriminator
 import zio.dynamodb.DynamoDBQuery.{ deleteFrom, get, put, update }
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
 
@@ -32,23 +31,6 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       : Schema.CaseClass5[String, String, List[Address], Map[String, Address], Set[String], PersonWithCollections] =
       DeriveSchema.gen[PersonWithCollections]
     val (id, surname, addressList, addressMap, addressSet)                                                         = ProjectionExpression.accessors[PersonWithCollections]
-  }
-
-  @noDiscriminator
-  sealed trait NoDiscrinatorSumType {
-    def id: String
-  }
-  object NoDiscrinatorSumType       {
-    final case class One(id: String, i: Int) extends NoDiscrinatorSumType
-    object One {
-      implicit val schema: Schema.CaseClass2[String, Int, One] = DeriveSchema.gen[One]
-      val (id, i)                                              = ProjectionExpression.accessors[One]
-    }
-    final case class Two(id: String, j: Int) extends NoDiscrinatorSumType
-    object Two {
-      implicit val schema: Schema.CaseClass2[String, Int, Two] = DeriveSchema.gen[Two]
-      val (id, j)                                              = ProjectionExpression.accessors[Two]
-    }
   }
 
   override def spec = suite("all")(putSuite, updateSuite, deleteSuite) @@ TestAspect.nondeterministic
