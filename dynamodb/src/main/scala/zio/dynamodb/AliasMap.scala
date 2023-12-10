@@ -10,7 +10,7 @@ private[dynamodb] final case class AliasMap private[dynamodb] (map: Map[AliasMap
   }
 
   private def +[From, To](entry: ProjectionExpression[From, To]): (AliasMap, String) = {
-    def stripLeadingAndTrailingBackticks(s: String): String = // TODO: Avi - check with ARRAY syntax
+    def stripLeadingAndTrailingBackticks(s: String): String =
       if (s.startsWith("`") && s.endsWith("`") && s.length > 1) s.substring(1, s.length - 1)
       else s
 
