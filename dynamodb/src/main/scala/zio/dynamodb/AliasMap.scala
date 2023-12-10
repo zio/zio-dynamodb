@@ -20,7 +20,10 @@ private[dynamodb] final case class AliasMap private[dynamodb] (map: Map[AliasMap
         case ProjectionExpression.Root                                                 =>
           acc // identity
         case ProjectionExpression.MapElement(ProjectionExpression.Root, mapElementKey) =>
-          val name        = stripLeadingAndTrailingBackticks(mapElementKey) // backticks are used by low level api to escape reserved words
+          val name =
+            stripLeadingAndTrailingBackticks(
+              mapElementKey
+            ) // backticks are used by low level api to escape reserved words
           val aliasMapkey = AliasMap.PathSegment[Any, Any](ProjectionExpression.Root, name)
           val tuple       = acc._1.map.get(aliasMapkey) match {
             case Some(existingAlias) =>
