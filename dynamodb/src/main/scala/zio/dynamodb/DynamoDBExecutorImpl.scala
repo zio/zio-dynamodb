@@ -277,7 +277,10 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
         scanResponse =>
           (
             scanResponse.items.map(list => Chunk.fromIterable(list.map(dynamoDBItem))).getOrElse(Chunk.empty[Item]),
-            scanResponse.lastEvaluatedKey.map(dynamoDBItem).toOption
+            scanResponse.lastEvaluatedKey.map(dynamoDBItem).toOption match {
+              case lek@Some(AttrMap(map)) if !map.isEmpty => lek
+              case _    => None  
+            }
           )
       )
 
