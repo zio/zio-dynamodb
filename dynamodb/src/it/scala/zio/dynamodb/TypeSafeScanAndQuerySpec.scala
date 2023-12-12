@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.DynamoDBQuery.{ put, queryAll, scanAll, scanSome }
+import zio.dynamodb.DynamoDBQuery.{ put, queryAll, querySome, scanAll, scanSome }
 import zio.Scope
 import zio.test.Spec
 import zio.test.assertTrue
@@ -19,7 +19,7 @@ object TypeSafeScanAndQuerySpec extends DynamoDBLocalSpec {
   }
 
   override def spec: Spec[Environment with TestEnvironment with Scope, Any] =
-    suite("all")(scanAllSpec, scanSomeSpec, queryAllSpec) @@ TestAspect.nondeterministic
+    suite("all")(scanAllSpec, scanSomeSpec, queryAllSpec, querySomeSpec) @@ TestAspect.nondeterministic
 
   private val scanAllSpec = suite("scanAll")(
     test("without filter") {
@@ -71,17 +71,17 @@ object TypeSafeScanAndQuerySpec extends DynamoDBLocalSpec {
     test("without filter pages until lastEvaluatedKey is empty") {
       withSingleIdKeyTable { tableName =>
         for {
-          _                               <- put(tableName, Person("1", "Smith", Some("John"), 21)).execute
-          _                               <- put(tableName, Person("2", "Brown", None, 42)).execute
-          t                               <- scanSome[Person](tableName, 1).execute
-          (peopleScan1, lastEvaluatedKey1) = t
-          t2                              <- scanSome[Person](tableName, 1).startKey(lastEvaluatedKey1).execute
-          (peopleScan2, lastEvaluatedKey2) = t2
-          t3                              <- scanSome[Person](tableName, 1).startKey(lastEvaluatedKey2).execute
-          (peopleScan3, lastEvaluatedKey3) = t3
-        } yield assertTrue(peopleScan1 == Chunk(Person("1", "Smith", Some("John"), 21))) &&
-          assertTrue(peopleScan2 == Chunk(Person("2", "Brown", None, 42))) &&
-          assertTrue(peopleScan3.isEmpty) &&
+          _                         <- put(tableName, Person("1", "Smith", Some("John"), 21)).execute
+          _                         <- put(tableName, Person("2", "Brown", None, 42)).execute
+          t                         <- scanSome[Person](tableName, 1).execute
+          (page1, lastEvaluatedKey1) = t
+          t2                        <- scanSome[Person](tableName, 1).startKey(lastEvaluatedKey1).execute
+          (page2, lastEvaluatedKey2) = t2
+          t3                        <- scanSome[Person](tableName, 1).startKey(lastEvaluatedKey2).execute
+          (page3, lastEvaluatedKey3) = t3
+        } yield assertTrue(page1 == Chunk(Person("1", "Smith", Some("John"), 21))) &&
+          assertTrue(page2 == Chunk(Person("2", "Brown", None, 42))) &&
+          assertTrue(page3.isEmpty) &&
           assertTrue(lastEvaluatedKey1.isDefined) &&
           assertTrue(lastEvaluatedKey2.isDefined) &&
           assertTrue(lastEvaluatedKey3.isEmpty)
@@ -183,6 +183,47 @@ object TypeSafeScanAndQuerySpec extends DynamoDBLocalSpec {
         } yield assertTrue(
           equipments == Chunk(Equipment("1", "2020", "Widget1", 1.0), Equipment("1", "2021", "Widget1", 2.0))
         )
+      }
+    }
+  )
+
+  private val querySomeSpec = suite("querySome")(
+    test("with partion key pages until lastEvaluatedKey is empty") {
+      withIdAndYearKeyTable { tableName =>
+        val querySomeWithPartitionKey = querySome[Equipment](tableName, 1).whereKey(Equipment.id.partitionKey === "1")
+        for {
+          _                         <- put(tableName, Equipment("1", "2020", "Widget1", 1.0)).execute
+          _                         <- put(tableName, Equipment("1", "2021", "Widget1", 2.0)).execute
+          t                         <- querySomeWithPartitionKey.execute
+          (page1, lastEvaluatedKey1) = t
+          t2                        <- querySomeWithPartitionKey.startKey(lastEvaluatedKey1).execute
+          (page2, lastEvaluatedKey2) = t2
+          t3                        <- querySomeWithPartitionKey.startKey(lastEvaluatedKey2).execute
+          (page3, lastEvaluatedKey3) = t3
+        } yield assertTrue(page1 == Chunk(Equipment("1", "2020", "Widget1", 1.0))) &&
+          assertTrue(page2 == Chunk(Equipment("1", "2021", "Widget1", 2.0))) &&
+          assertTrue(page3.isEmpty) &&
+          assertTrue(lastEvaluatedKey1.isDefined) &&
+          assertTrue(lastEvaluatedKey2.isDefined) &&
+          assertTrue(lastEvaluatedKey3.isEmpty)
+      }
+    },
+    test("with partion key and sort key pages until lastEvaluatedKey is empty") {
+      withIdAndYearKeyTable { tableName =>
+        val query = querySome[Equipment](tableName, 1).whereKey(
+          Equipment.id.partitionKey === "1" && Equipment.year.sortKey === "2020"
+        )
+        for {
+          _                         <- put(tableName, Equipment("1", "2020", "Widget1", 1.0)).execute
+          _                         <- put(tableName, Equipment("1", "2021", "Widget1", 2.0)).execute
+          t                         <- query.execute
+          (page1, lastEvaluatedKey1) = t
+          t2                        <- query.startKey(lastEvaluatedKey1).execute
+          (page2, lastEvaluatedKey2) = t2
+        } yield assertTrue(page1 == Chunk(Equipment("1", "2020", "Widget1", 1.0))) &&
+          assertTrue(page2.isEmpty) &&
+          assertTrue(lastEvaluatedKey1.isDefined) &&
+          assertTrue(lastEvaluatedKey2.isEmpty)
       }
     }
   )
