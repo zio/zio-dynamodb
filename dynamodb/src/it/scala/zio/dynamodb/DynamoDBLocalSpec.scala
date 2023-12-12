@@ -50,11 +50,24 @@ abstract class DynamoDBLocalSpec extends ZIOSpec[DynamoDBExecutor] {
       AttributeDefinition.attrDefnString("id")
     )
 
+  def idAndYearKeyTable(tableName: String) =
+    DynamoDBQuery.createTable(tableName, KeySchema("id", "year"), BillingMode.PayPerRequest)(
+      AttributeDefinition.attrDefnString("id"),
+      AttributeDefinition.attrDefnString("year")
+    )
+
   def withSingleIdKeyTable(
     f: String => ZIO[DynamoDBExecutor, Throwable, TestResult]
   ) =
     ZIO.scoped {
       managedTable(singleIdKeyTable).flatMap(t => f(t.value))
+    }
+
+  def withIdAndYearKeyTable(
+    f: String => ZIO[DynamoDBExecutor, Throwable, TestResult]
+  ) =
+    ZIO.scoped {
+      managedTable(idAndYearKeyTable).flatMap(t => f(t.value))
     }
 
 }

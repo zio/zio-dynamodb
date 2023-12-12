@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.DynamoDBQuery.{ put, scanAll, scanSome }
+import zio.dynamodb.DynamoDBQuery.{ put, queryAll, scanAll, scanSome }
 import zio.Scope
 import zio.test.Spec
 import zio.test.assertTrue
@@ -19,7 +19,7 @@ object TypeSafeScanAndQuerySpec extends DynamoDBLocalSpec {
   }
 
   override def spec: Spec[Environment with TestEnvironment with Scope, Any] =
-    suite("all")(scanAllSpec, scanSomeSpec) @@ TestAspect.nondeterministic
+    suite("all")(scanAllSpec, scanSomeSpec, queryAllSpec) @@ TestAspect.nondeterministic
 
   private val scanAllSpec = suite("scanAll")(
     test("without filter") {
@@ -30,6 +30,19 @@ object TypeSafeScanAndQuerySpec extends DynamoDBLocalSpec {
           stream <- scanAll[Person](tableName).execute
           people <- stream.runCollect
         } yield assertTrue(people == Chunk(Person("1", "Smith", Some("John"), 21), Person("2", "Brown", None, 42)))
+      }
+    },
+    test("with parrallel server side scan") {
+      withSingleIdKeyTable { tableName =>
+        for {
+          _      <- put(tableName, Person("1", "Smith", Some("John"), 21)).execute
+          _      <- put(tableName, Person("2", "Brown", None, 42)).execute
+          stream <- scanAll[Person](tableName).parallel(2).execute
+          people <- stream.runCollect
+        } yield assertTrue(
+          people.sortBy(_.id) == Chunk(Person("1", "Smith", Some("John"), 21), Person("2", "Brown", None, 42))
+            .sortBy(_.id) // parallel scan order is not guaranteed
+        )
       }
     },
     test("with filter on forename exists") {
@@ -87,7 +100,89 @@ object TypeSafeScanAndQuerySpec extends DynamoDBLocalSpec {
         } yield assertTrue(peopleScan1 == Chunk(Person("1", "Smith", Some("John"), 21))) &&
           assertTrue(peopleScan2.isEmpty) &&
           assertTrue(lastEvaluatedKey1.isDefined) &&
-          assertTrue(peopleScan2.isEmpty) // note lastEvaluatedKey2 is still present as item is still read by DynamoDB
+          assertTrue(peopleScan2.isEmpty) &&
+          assertTrue(lastEvaluatedKey2.isDefined)
+      // note lastEvaluatedKey2 is present as item is still read by DynamoDB
+      }
+    }
+  )
+
+  final case class Equipment(id: String, year: String, name: String, price: Double)
+  object Equipment {
+    implicit val schema: Schema.CaseClass4[String, String, String, Double, Equipment] = DeriveSchema.gen[Equipment]
+    val (id, year, name, price)                                                       = ProjectionExpression.accessors[Equipment]
+  }
+
+  private val queryAllSpec = suite("queryAll")(
+    test("with only partition key expression") {
+      withIdAndYearKeyTable { tableName =>
+        for {
+          _          <- put(tableName, Equipment("1", "2020", "Widget1", 1.0)).execute
+          _          <- put(tableName, Equipment("1", "2021", "Widget1", 2.0)).execute
+          stream     <- queryAll[Equipment](tableName)
+                          .whereKey(Equipment.id.partitionKey === "1")
+                          .execute
+          equipments <- stream.runCollect
+        } yield assertTrue(
+          equipments == Chunk(Equipment("1", "2020", "Widget1", 1.0), Equipment("1", "2021", "Widget1", 2.0))
+        )
+      }
+    },
+    test("with partition key and sort key equality expression") {
+      withIdAndYearKeyTable { tableName =>
+        for {
+          _          <- put(tableName, Equipment("1", "2020", "Widget1", 1.0)).execute
+          _          <- put(tableName, Equipment("1", "2021", "Widget1", 2.0)).execute
+          stream     <- queryAll[Equipment](tableName)
+                          .whereKey(Equipment.id.partitionKey === "1" && Equipment.year.sortKey === "2020")
+                          .execute
+          equipments <- stream.runCollect
+        } yield assertTrue(equipments == Chunk(Equipment("1", "2020", "Widget1", 1.0)))
+      }
+    },
+    test("with partition key and sort key greater than expression") {
+      withIdAndYearKeyTable { tableName =>
+        for {
+          _          <- put(tableName, Equipment("1", "2019", "Widget1", 1.0)).execute
+          _          <- put(tableName, Equipment("1", "2020", "Widget1", 1.0)).execute
+          _          <- put(tableName, Equipment("1", "2021", "Widget1", 2.0)).execute
+          stream     <- queryAll[Equipment](tableName)
+                          .whereKey(Equipment.id.partitionKey === "1" && Equipment.year.sortKey > "2019")
+                          .execute
+          equipments <- stream.runCollect
+        } yield assertTrue(
+          equipments == Chunk(Equipment("1", "2020", "Widget1", 1.0), Equipment("1", "2021", "Widget1", 2.0))
+        )
+      }
+    },
+    test("with partition key and sort key begins with expression") {
+      withIdAndYearKeyTable { tableName =>
+        for {
+          _          <- put(tableName, Equipment("1", "1999", "Widget1", 1.0)).execute
+          _          <- put(tableName, Equipment("1", "2020", "Widget1", 1.0)).execute
+          _          <- put(tableName, Equipment("1", "2021", "Widget1", 2.0)).execute
+          stream     <- queryAll[Equipment](tableName)
+                          .whereKey(Equipment.id.partitionKey === "1" && Equipment.year.sortKey.beginsWith("20"))
+                          .execute
+          equipments <- stream.runCollect
+        } yield assertTrue(
+          equipments == Chunk(Equipment("1", "2020", "Widget1", 1.0), Equipment("1", "2021", "Widget1", 2.0))
+        )
+      }
+    },
+    test("with partition key and sort key between expression which is inclusive of min and max values") {
+      withIdAndYearKeyTable { tableName =>
+        for {
+          _          <- put(tableName, Equipment("1", "1999", "Widget1", 1.0)).execute
+          _          <- put(tableName, Equipment("1", "2020", "Widget1", 1.0)).execute
+          _          <- put(tableName, Equipment("1", "2021", "Widget1", 2.0)).execute
+          stream     <- queryAll[Equipment](tableName)
+                          .whereKey(Equipment.id.partitionKey === "1" && Equipment.year.sortKey.between("2020", "2021"))
+                          .execute
+          equipments <- stream.runCollect
+        } yield assertTrue(
+          equipments == Chunk(Equipment("1", "2020", "Widget1", 1.0), Equipment("1", "2021", "Widget1", 2.0))
+        )
       }
     }
   )
