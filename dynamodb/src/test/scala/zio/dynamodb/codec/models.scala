@@ -124,11 +124,11 @@ object WithNoDiscriminator {
 sealed trait NoDiscriminatorEnumError
 object NoDiscriminatorEnumError {
   final case class One(i: Int) extends NoDiscriminatorEnumError
-  object One {
+  object One   {
     implicit val schema: Schema.CaseClass1[Int, One] = DeriveSchema.gen[One]
   }
   final case class Two(i: Int) extends NoDiscriminatorEnumError
-  object Two {
+  object Two   {
     implicit val schema: Schema.CaseClass1[Int, Two] = DeriveSchema.gen[Two]
   }
   final case class Three(i: Int, j: Int) extends NoDiscriminatorEnumError
