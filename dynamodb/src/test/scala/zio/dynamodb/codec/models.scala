@@ -107,6 +107,11 @@ object NoDiscriminatorEnum {
     implicit val schema: Schema.CaseClass1[String, Two] = DeriveSchema.gen[Two]
   }
 
+  final case class Three(s: String, m: String) extends NoDiscriminatorEnum
+  object Three {
+    implicit val schema: Schema.CaseClass2[String, String, Three] = DeriveSchema.gen[Three]
+  }
+
   implicit val schema: Schema[NoDiscriminatorEnum] = DeriveSchema.gen[NoDiscriminatorEnum]
 }
 final case class WithNoDiscriminator(sumType: NoDiscriminatorEnum)
@@ -125,6 +130,10 @@ object NoDiscriminatorEnumError {
   final case class Two(i: Int) extends NoDiscriminatorEnumError
   object Two {
     implicit val schema: Schema.CaseClass1[Int, Two] = DeriveSchema.gen[Two]
+  }
+  final case class Three(i: Int, j: Int) extends NoDiscriminatorEnumError
+  object Three {
+    implicit val schema: Schema.CaseClass2[Int, Int, Three] = DeriveSchema.gen[Three]
   }
 
   implicit val schema: Schema[NoDiscriminatorEnumError] = DeriveSchema.gen[NoDiscriminatorEnumError]
