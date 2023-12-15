@@ -8,8 +8,8 @@ import zio.test.TestAspect
 import zio.Chunk
 object TypeSafeStreamingUtilsSpec extends DynamoDBLocalSpec {
 
-  // This example assumes there are two person based DynamoDB tables - Person and PersonLegacy - the latter contains
-  // legacy data (forename) that we want to migrate
+  // This example migrates legacy data (forename) from the PersonLegacy table to another Person table
+  // using the batchReadFromStream and batchWriteFromStream batched streaming utility functions
   final case class Person(id: String, surname: String, forename: Option[String], age: Int)
   object Person       {
     implicit val schema: Schema.CaseClass4[String, String, Option[String], Int, Person] = DeriveSchema.gen[Person]
