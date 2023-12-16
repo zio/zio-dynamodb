@@ -39,7 +39,7 @@ object TypeSafeStreamingUtilsSpec extends DynamoDBLocalSpec {
                               case (person, _)            => person
                             }
             _            <- batchWriteFromStream(migrated)(person => put(personTable, person)).runDrain
-            migrated     <- scanAll[Person](personTable).parallel(2).execute.flatMap(_.runCollect)
+            migrated     <- scanAll[Person](personTable).execute.flatMap(_.runCollect)
           } yield assertTrue(
             migrated.sortBy(_.id) ==
               Chunk(

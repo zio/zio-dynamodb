@@ -186,7 +186,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'set' a map element with a condition expression that the map entry exists"
+      "'set' a map element with a condition expression that the map entry exists and an optics expression on postcode"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -197,7 +197,9 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           _ <- put(tableName, person).execute
           _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
                  PersonWithCollections.addressMap.valueAt(address1.number).set(address2)
-               ).where(PersonWithCollections.addressMap.valueAt(address1.number).exists).execute
+               ).where(PersonWithCollections.addressMap.valueAt(address1.number).exists &&
+                 PersonWithCollections.addressMap.valueAt(address1.number) >>> Address.postcode === "AAAA"
+               ).execute
           p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == expected)
       }
@@ -329,7 +331,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'remove(1)' removes 2nd Address element with condition expression"
+      "'remove(1)' removes 2nd Address element with condition expression that uses optics"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -340,7 +342,9 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           _ <- put(tableName, person).execute
           _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
                  PersonWithCollections.addressList.remove(1)
-               ).where(PersonWithCollections.addressList.elementAt(1).exists).execute
+               ).where(PersonWithCollections.addressList.elementAt(1).exists && 
+                 PersonWithCollections.addressList.elementAt(1) >>> Address.postcode === "BBBB"
+               ).execute
           p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == expected)
       }
