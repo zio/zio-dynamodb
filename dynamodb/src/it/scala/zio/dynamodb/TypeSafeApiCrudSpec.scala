@@ -197,8 +197,9 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           _ <- put(tableName, person).execute
           _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
                  PersonWithCollections.addressMap.valueAt(address1.number).set(address2)
-               ).where(PersonWithCollections.addressMap.valueAt(address1.number).exists &&
-                 PersonWithCollections.addressMap.valueAt(address1.number) >>> Address.postcode === "AAAA"
+               ).where(
+                 PersonWithCollections.addressMap.valueAt(address1.number).exists &&
+                   PersonWithCollections.addressMap.valueAt(address1.number) >>> Address.postcode === "AAAA"
                ).execute
           p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == expected)
@@ -342,8 +343,9 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           _ <- put(tableName, person).execute
           _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
                  PersonWithCollections.addressList.remove(1)
-               ).where(PersonWithCollections.addressList.elementAt(1).exists && 
-                 PersonWithCollections.addressList.elementAt(1) >>> Address.postcode === "BBBB"
+               ).where(
+                 PersonWithCollections.addressList.elementAt(1).exists &&
+                   PersonWithCollections.addressList.elementAt(1) >>> Address.postcode === "BBBB"
                ).execute
           p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == expected)
