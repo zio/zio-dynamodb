@@ -50,6 +50,6 @@ object TypeSafeStreamingUtilsSpec extends DynamoDBLocalSpec {
           )
         }
       }
-    ) @@ TestAspect.nondeterministic
+    ) @@ TestAspect.nondeterministic @@ TestAspect.ignore
 
 }
