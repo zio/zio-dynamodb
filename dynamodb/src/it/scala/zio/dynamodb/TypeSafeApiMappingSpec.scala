@@ -111,7 +111,7 @@ object TypeSafeApiMappingSpec extends DynamoDBLocalSpec {
           _        <- put[InvoiceWithDiscriminatorName](invoiceTable, InvoiceWithDiscriminatorName.Paid("PAID:2", 100)).execute
           stream   <-
             scanAll[InvoiceWithDiscriminatorName](invoiceTable)
-              .filter( // TODO: try without id filter
+              .filter(
                 (InvoiceWithDiscriminatorName.paid >>> InvoiceWithDiscriminatorName.Paid.id beginsWith "PAID") &&
                   InvoiceWithDiscriminatorName.paid >>> InvoiceWithDiscriminatorName.Paid.amount > 50
               )
