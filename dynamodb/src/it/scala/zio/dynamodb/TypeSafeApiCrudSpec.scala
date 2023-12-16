@@ -532,9 +532,9 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
     }
   )
 
-  // note `forEach` will result in auto batching of the query it it is a get, put or a delete
+  // note `forEach` will result in auto batching of the query if it is a get, put or a delete
   private val forEachSuite = suite("forEach")(
-    test("with a get query") {
+    test("with a get query returns Right of Person when item exists") {
       withSingleIdKeyTable { tableName =>
         val person1 = Person("1", "Smith", Some("John"), 21)
         val person2 = Person("2", "Brown", Some("Peter"), 42)
@@ -543,6 +543,20 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           _      <- put(tableName, person2).execute
           people <- forEach(Chunk(person1, person2))(p => get(tableName)(Person.id.partitionKey === p.id)).execute
         } yield assertTrue(people == List(Right(person1), Right(person2)))
+      }
+    },
+    test("with a get query returns Left of ValueNotFound when an item does not exist") {
+      withSingleIdKeyTable { tableName =>
+        val person1 = Person("1", "Smith", Some("John"), 21)
+        val person2 = Person("2", "Brown", Some("Peter"), 42)
+        for {
+          people <- forEach(Chunk(person1, person2))(p => get(tableName)(Person.id.partitionKey === p.id)).execute
+        } yield assertTrue(
+          people == List(
+            Left(DynamoDBError.ValueNotFound("value with key AttrMap(Map(id -> String(1))) not found")),
+            Left(DynamoDBError.ValueNotFound("value with key AttrMap(Map(id -> String(2))) not found"))
+          )
+        )
       }
     },
     test("with a put query") {
@@ -571,7 +585,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(people == Chunk.empty)
       }
     },
-    test("with an update query") {
+    test("with an update query") { // not there is no AWS API for batch update so these queries are run in parallel
       withSingleIdKeyTable { tableName =>
         val person1 = Person("1", "Smith", Some("John"), 21)
         val person2 = Person("2", "Brown", Some("Peter"), 42)

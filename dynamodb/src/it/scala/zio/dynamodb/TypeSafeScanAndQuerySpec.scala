@@ -55,6 +55,16 @@ object TypeSafeScanAndQuerySpec extends DynamoDBLocalSpec {
         } yield assertTrue(people == Chunk(Person("1", "Smith", Some("John"), 21)))
       }
     },
+    test("with filter on forename not exists") {
+      withSingleIdKeyTable { tableName =>
+        for {
+          _      <- put(tableName, Person("1", "Smith", Some("John"), 21)).execute
+          _      <- put(tableName, Person("2", "Brown", None, 42)).execute
+          stream <- scanAll[Person](tableName).filter(Person.forename.notExists).execute
+          people <- stream.runCollect
+        } yield assertTrue(people == Chunk(Person("2", "Brown", None, 42)))
+      }
+    },
     test("with filter id in ('1', '2') and age >= 21") {
       withSingleIdKeyTable { tableName =>
         for {

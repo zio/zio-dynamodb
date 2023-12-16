@@ -443,12 +443,16 @@ object DynamoDBQuery {
   /**
    * Each element in `values` is zipped together using function `body` which has signature `A => DynamoDBQuery[B]`
    * Note that when `DynamoDBQuery`'s are zipped together, on execution the queries are batched together as AWS DynamoDB
-   * batch queries whenever this is possible.
+   * batch queries whenever this is possible - only AWS GetItem, PutItem and DeleteItem queries can be batched, other
+   * query types will be executed in parallel.
    *
    * Note this is a low level function for a small amount of elements - if you want to perform a large number of reads
    * and writes prefer the following utility functions - [[zio.dynamodb.batchReadItemFromStream]],
    * [[zio.dynamodb.batchWriteFromStream]] which work with ZStreams and efficiently limit batch sizes to the maximum size
-   * allowed by the AWS API.
+   * allowed by the AWS API, or alternatively use `forEach` to implement your own streaming functions.
+   *
+   * Note that if you need need access to `unprocessedItems` or `unprocessedKeys` then an error handler for
+   * `DynamoDBBatchError` should be provided.
    */
   def forEach[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery[In, List[B]] =
     values.foldRight[DynamoDBQuery[In, List[B]]](succeed(Nil)) {
