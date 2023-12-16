@@ -198,7 +198,7 @@ object TypeSafeScanAndQuerySpec extends DynamoDBLocalSpec {
   )
 
   private val querySomeSpec = suite("querySome")(
-    test("with partion key pages until lastEvaluatedKey is empty") {
+    test("with partition key pages until lastEvaluatedKey is empty") {
       withIdAndYearKeyTable { tableName =>
         val querySomeWithPartitionKey = querySome[Equipment](tableName, 1).whereKey(Equipment.id.partitionKey === "1")
         for {
@@ -218,7 +218,7 @@ object TypeSafeScanAndQuerySpec extends DynamoDBLocalSpec {
           assertTrue(lastEvaluatedKey3.isEmpty)
       }
     },
-    test("with partion key and sort key pages until lastEvaluatedKey is empty") {
+    test("with partition key and sort key pages until lastEvaluatedKey is empty") {
       withIdAndYearKeyTable { tableName =>
         val query = querySome[Equipment](tableName, 1).whereKey(
           Equipment.id.partitionKey === "1" && Equipment.year.sortKey === "2020"

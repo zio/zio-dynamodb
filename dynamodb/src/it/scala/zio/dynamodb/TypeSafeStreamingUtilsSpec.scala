@@ -23,7 +23,7 @@ object TypeSafeStreamingUtilsSpec extends DynamoDBLocalSpec {
 
   override def spec =
     suite("stream utils")(
-      test("batchReadFromStream and batchWriteFromStream round trip") {
+      test("migrates legacy data using batchReadFromStream and batchWriteFromStream") {
         withTwoSingleIdKeyTables { (personTable, personLegacyTable) =>
           for {
             _            <- put(personTable, Person("1", "Smith", None, 21)).execute

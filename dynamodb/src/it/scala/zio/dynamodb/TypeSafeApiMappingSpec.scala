@@ -65,7 +65,7 @@ object TypeSafeApiMappingSpec extends DynamoDBLocalSpec {
     ) @@ TestAspect.nondeterministic
 
   val topLevelSumTypeDiscriminatorNameSuite = suite("with @discriminatorName annotation")(
-    test("put of a concrete sub type wil not generate a discriminator") {
+    test("put of a concrete sub type wil not generate a discriminator - so don't do this!") {
       withSingleIdKeyTable { invoiceTable =>
         for {
           _       <- put[InvoiceWithNoDiscriminator.Unpaid](invoiceTable, InvoiceWithNoDiscriminator.Unpaid("1")).execute
@@ -194,7 +194,7 @@ object TypeSafeApiMappingSpec extends DynamoDBLocalSpec {
 
   private val nestedSumTypeDefaultMappingSuite = suite("with default mapping")(
     test("put and get person with UK address") {
-      val ukPerson = PersonDefault("1", "Smith", AddressDefaultMapping.UKAddress("DE23 7QW", AbodeType.House))
+      val ukPerson = PersonDefault("1", "Smith", AddressDefaultMapping.UKAddress("XY99 7QW", AbodeType.House))
       withSingleIdKeyTable { personTable =>
         for {
           _      <- put(personTable, ukPerson).execute
@@ -202,7 +202,7 @@ object TypeSafeApiMappingSpec extends DynamoDBLocalSpec {
         } yield assertTrue(person == ukPerson)
       }
     },
-    test("put and get person with UU address") {
+    test("put and get person with UK address") {
       val usPerson = PersonDefault("1", "Smith", AddressDefaultMapping.USAddress("12345", AbodeType.House))
       withSingleIdKeyTable { personTable =>
         for {
@@ -244,7 +244,7 @@ object TypeSafeApiMappingSpec extends DynamoDBLocalSpec {
   private val nestedSumTypeDisriminatorNameMappingSuite = suite("with @disriminatorName annotation")(
     test("put and get person with UK address") {
       val ukPerson =
-        PersonDiscriminatorName("1", "Smith", AddressDiscriminatorName.UKAddress("DE23 7QW", AbodeType.House))
+        PersonDiscriminatorName("1", "Smith", AddressDiscriminatorName.UKAddress("XY99 7QW", AbodeType.House))
       withSingleIdKeyTable { personTable =>
         for {
           _      <- put(personTable, ukPerson).execute
@@ -294,7 +294,7 @@ object TypeSafeApiMappingSpec extends DynamoDBLocalSpec {
   private val nestedSumTypeNoDisriminatorNameMappingSuite = suite("with @noDiscrimator annotation")(
     test("put and get person with UK address") {
       val ukPerson =
-        PersonNoDiscriminator("1", "Smith", AddressNoDiscriminator.UKAddress("DE23 7QW", AbodeType.House))
+        PersonNoDiscriminator("1", "Smith", AddressNoDiscriminator.UKAddress("XY99 7QW", AbodeType.House))
       withSingleIdKeyTable { personTable =>
         for {
           _      <- put(personTable, ukPerson).execute
