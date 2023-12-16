@@ -14,6 +14,7 @@ import zio.aws.netty
 import java.net.URI
 import zio.ZIO
 import zio.test.TestResult
+import zio.Scope
 
 abstract class DynamoDBLocalSpec extends ZIOSpec[DynamoDBExecutor] {
 
@@ -55,6 +56,17 @@ abstract class DynamoDBLocalSpec extends ZIOSpec[DynamoDBExecutor] {
   ) =
     ZIO.scoped {
       managedTable(singleIdKeyTable).flatMap(t => f(t.value))
+    }
+
+  def withTwoSingleIdKeyTables(
+    f: (String, String) => ZIO[DynamoDBExecutor, Throwable, TestResult]
+  ): ZIO[DynamoDBExecutor with Scope, Throwable, TestResult] =
+    ZIO.scoped {
+      for {
+        t1 <- managedTable(singleIdKeyTable)
+        t2 <- managedTable(singleIdKeyTable)
+        a  <- f(t1.value, t2.value)
+      } yield a
     }
 
 }
