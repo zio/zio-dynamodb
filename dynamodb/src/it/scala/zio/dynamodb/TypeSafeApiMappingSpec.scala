@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.DynamoDBQuery.{ get, put, scanAll }
+import zio.dynamodb.DynamoDBQuery.{ get, getItem, put, scanAll }
 import zio.Scope
 import zio.test.Spec
 import zio.test.assertTrue
@@ -65,35 +65,61 @@ object TypeSafeApiMappingSpec extends DynamoDBLocalSpec {
     ) @@ TestAspect.nondeterministic
 
   val topLevelSumTypeDiscriminatorNameSuite = suite("with @discriminatorName annotation")(
-    test("put and get concrete sub type") {
+    test("put of a concrete sub type wil not generate a discriminator") {
       withSingleIdKeyTable { invoiceTable =>
         for {
-          _       <- put(invoiceTable, InvoiceWithDiscriminatorName.Unpaid("1")).execute
-          invoice <- get(invoiceTable)(InvoiceWithDiscriminatorName.Unpaid.id.partitionKey === "1").execute.absolve
-        } yield assertTrue(invoice == InvoiceWithDiscriminatorName.Unpaid("1"))
+          _       <- put[InvoiceWithNoDiscriminator.Unpaid](invoiceTable, InvoiceWithNoDiscriminator.Unpaid("1")).execute
+          invoice <- getItem(invoiceTable, PrimaryKey("id" -> "1")).execute
+        } yield assertTrue(invoice == Some(Item("id" -> "1")))
       }
     },
-    test("put and get top level sum type") {
+    test("put of a top level sum type will generate a discriminator field") {
       withSingleIdKeyTable { invoiceTable =>
         val key     = InvoiceWithDiscriminatorName.unpaid >>> InvoiceWithDiscriminatorName.Unpaid.id
         val keyCond = key.partitionKey === "1"
         for {
           _       <- put[InvoiceWithDiscriminatorName](invoiceTable, InvoiceWithDiscriminatorName.Unpaid("1")).execute
-          invoice <- get(invoiceTable)(keyCond).execute.absolve
-        } yield assertTrue(invoice == InvoiceWithDiscriminatorName.Unpaid("1"))
+          invoice <- get[InvoiceWithDiscriminatorName](invoiceTable)(keyCond).execute.absolve
+          item    <- getItem(invoiceTable, PrimaryKey("id" -> "1")).execute
+        } yield assertTrue(
+          invoice == InvoiceWithDiscriminatorName.Unpaid("1") && item == Some(
+            Item("id" -> "1", "invoiceType" -> "Unpaid")
+          )
+        )
       }
     },
     test("scanAll") {
       withSingleIdKeyTable { invoiceTable =>
         for {
-          _        <- put[InvoiceWithDiscriminatorName](invoiceTable, InvoiceWithDiscriminatorName.Unpaid("1")).execute
-          _        <- put[InvoiceWithDiscriminatorName](invoiceTable, InvoiceWithDiscriminatorName.Paid("2", 100)).execute
+          _        <- put[InvoiceWithDiscriminatorName](invoiceTable, InvoiceWithDiscriminatorName.Unpaid("UNPAID:1")).execute
+          _        <- put[InvoiceWithDiscriminatorName](invoiceTable, InvoiceWithDiscriminatorName.Paid("PAID:1", 100)).execute
           stream   <- scanAll[InvoiceWithDiscriminatorName](invoiceTable).execute
           invoices <- stream.runCollect
         } yield (assertTrue(
           invoices.sortBy(_.id) == Chunk(
-            InvoiceWithDiscriminatorName.Unpaid("1"),
-            InvoiceWithDiscriminatorName.Paid("2", 100)
+            InvoiceWithDiscriminatorName.Paid("PAID:1", 100),
+            InvoiceWithDiscriminatorName.Unpaid("UNPAID:1")
+          )
+        ))
+      }
+    },
+    test("scanAll with filter using optics on Paid sum type") {
+      withSingleIdKeyTable { invoiceTable =>
+        for {
+          _        <- put[InvoiceWithDiscriminatorName](invoiceTable, InvoiceWithDiscriminatorName.Unpaid("UNPAID:1")).execute
+          _        <- put[InvoiceWithDiscriminatorName](invoiceTable, InvoiceWithDiscriminatorName.Paid("PAID:1", 40)).execute
+          _        <- put[InvoiceWithDiscriminatorName](invoiceTable, InvoiceWithDiscriminatorName.Paid("PAID:2", 100)).execute
+          stream   <-
+            scanAll[InvoiceWithDiscriminatorName](invoiceTable)
+              .filter( // TODO: try without id filter
+                (InvoiceWithDiscriminatorName.paid >>> InvoiceWithDiscriminatorName.Paid.id beginsWith "PAID") &&
+                  InvoiceWithDiscriminatorName.paid >>> InvoiceWithDiscriminatorName.Paid.amount > 50
+              )
+              .execute
+          invoices <- stream.runCollect
+        } yield (assertTrue(
+          invoices.sortBy(_.id) == Chunk(
+            InvoiceWithDiscriminatorName.Paid("PAID:2", 100)
           )
         ))
       }
@@ -101,20 +127,12 @@ object TypeSafeApiMappingSpec extends DynamoDBLocalSpec {
   )
 
   val topLevelSumTypeNoDiscriminatorSuite = suite("with @noDiscriminator annotation")(
-    test("put and get concrete sub type") {
-      withSingleIdKeyTable { invoiceTable =>
-        for {
-          _       <- put(invoiceTable, InvoiceWithNoDiscriminator.Unpaid("1")).execute
-          invoice <- get(invoiceTable)(InvoiceWithNoDiscriminator.Unpaid.id.partitionKey === "1").execute.absolve
-        } yield assertTrue(invoice == InvoiceWithNoDiscriminator.Unpaid("1"))
-      }
-    },
     test("put and get top level sum type") {
       withSingleIdKeyTable { invoiceTable =>
         val key     = InvoiceWithNoDiscriminator.unpaid >>> InvoiceWithNoDiscriminator.Unpaid.id
         val keyCond = key.partitionKey === "1"
         for {
-          _       <- put[InvoiceWithNoDiscriminator](invoiceTable, InvoiceWithNoDiscriminator.Unpaid("1")).execute
+          _       <- put(invoiceTable, InvoiceWithNoDiscriminator.Unpaid("1")).execute
           invoice <- get(invoiceTable)(keyCond).execute.absolve
         } yield assertTrue(invoice == InvoiceWithNoDiscriminator.Unpaid("1"))
       }
