@@ -624,18 +624,20 @@ object LiveSpec extends DynamoDBLocalSpec {
         test("parallel scan all item") {
           withTemporaryTable(
             numberTable,
-            tableName =>
+            tableName => {
+              val records = 10
               for {
-                _      <- batchWriteFromStream(ZStream.fromIterable(1 to 10000).map(i => Item(id -> i))) { item =>
+                _      <- batchWriteFromStream(ZStream.fromIterable(1 to records).map(i => Item(id -> i))) { item =>
                             putItem(tableName, item)
                           }.runDrain
-                _      <- ZIO.sleep(2.second)
+                _      <- ZIO.debug("pausing for 2 seconds").delay(2.second)
                 stream <- scanAllItem(tableName).parallel(2).execute
                 //stream <- scanAllItem(tableName).execute
                 count  <- stream.runFold(0) { case (count, _) => count + 1 }
-              } yield assert(count)(equalTo(10000))
+              } yield assert(count)(equalTo(records))
+            }
           )
-        },
+        } @@ TestAspect.withLiveClock,
         test("parallel scan all typed") {
           withTemporaryTable(
             defaultTable,
