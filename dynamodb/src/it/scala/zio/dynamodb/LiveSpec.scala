@@ -629,8 +629,8 @@ object LiveSpec extends DynamoDBLocalSpec {
                 _      <- batchWriteFromStream(ZStream.fromIterable(1 to 10000).map(i => Item(id -> i))) { item =>
                             putItem(tableName, item)
                           }.runDrain
-                //stream <- scanAllItem(tableName).parallel(8).execute
-                stream <- scanAllItem(tableName).execute
+                stream <- scanAllItem(tableName).parallel(8).execute
+                //stream <- scanAllItem(tableName).execute
                 count  <- stream.runFold(0) { case (count, _) => count + 1 }
               } yield assert(count)(equalTo(10000))
           )
