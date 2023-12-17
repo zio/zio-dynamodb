@@ -14,7 +14,7 @@ import scala.util.Try
 
 /**
  * A typical example of scala app using the AWS java SDK. Note how much boiler plate code there is.
- * see [[StudentZioDynamoDbExample]] for the equivalent app using `zio-dynamodb` - note the drastic reduction in boiler
+ * see [[DynamoDBLocalMain]] for the equivalent app using `zio-dynamodb` - note the drastic reduction in boiler
  * plate code!
  */
 object StudentJavaSdkExample extends ZIOAppDefault {
