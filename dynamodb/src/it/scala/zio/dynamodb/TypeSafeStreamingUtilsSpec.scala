@@ -6,6 +6,7 @@ import zio.schema.Schema
 import zio.schema.DeriveSchema
 import zio.test.TestAspect
 import zio.Chunk
+
 object TypeSafeStreamingUtilsSpec extends DynamoDBLocalSpec {
 
   // This example migrates legacy data (forename) from the PersonLegacy table to another Person table
