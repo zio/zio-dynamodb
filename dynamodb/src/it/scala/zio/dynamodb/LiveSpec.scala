@@ -627,9 +627,19 @@ object LiveSpec extends DynamoDBLocalSpec {
             tableName => {
               val records = 10
               for {
-                _      <- batchWriteFromStream(ZStream.fromIterable(1 to records).map(i => Item(id -> i))) { item =>
-                            putItem(tableName, item)
-                          }.runDrain
+                // _      <- batchWriteFromStream(ZStream.fromIterable(1 to records).map(i => Item(id -> i))) { item =>
+                //             putItem(tableName, item)
+                //           }.runDrain
+                _      <- putItem(tableName, Item(id -> 1)).execute
+                _      <- putItem(tableName, Item(id -> 2)).execute
+                _      <- putItem(tableName, Item(id -> 3)).execute
+                _      <- putItem(tableName, Item(id -> 4)).execute
+                _      <- putItem(tableName, Item(id -> 5)).execute
+                _      <- putItem(tableName, Item(id -> 6)).execute
+                _      <- putItem(tableName, Item(id -> 7)).execute
+                _      <- putItem(tableName, Item(id -> 8)).execute
+                _      <- putItem(tableName, Item(id -> 9)).execute
+                _      <- putItem(tableName, Item(id -> 10)).execute
                 _      <- ZIO.debug("pausing for 2 seconds").delay(2.second)
                 stream <- scanAllItem(tableName).parallel(2).execute
                 //stream <- scanAllItem(tableName).execute
