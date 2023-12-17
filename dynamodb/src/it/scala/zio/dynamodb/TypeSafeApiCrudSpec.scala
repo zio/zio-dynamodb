@@ -3,8 +3,9 @@ package zio.dynamodb
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test._
 import zio.test.Assertion._
-import zio.dynamodb.DynamoDBQuery.{ deleteFrom, get, put, update }
+import zio.dynamodb.DynamoDBQuery.{ deleteFrom, forEach, get, put, scanAll, update }
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
+import zio.Chunk
 
 object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
 
@@ -33,7 +34,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
     val (id, surname, addressList, addressMap, addressSet)                                                         = ProjectionExpression.accessors[PersonWithCollections]
   }
 
-  override def spec = suite("all")(putSuite, updateSuite, deleteSuite) @@ TestAspect.nondeterministic
+  override def spec = suite("all")(putSuite, updateSuite, deleteSuite, forEachSuite) @@ TestAspect.nondeterministic
 
   private val putSuite =
     suite("put")(
@@ -185,7 +186,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'set' a map element with a condition expression that the map entry exists"
+      "'set' a map element with a condition expression that the map entry exists and an optics expression on postcode"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -196,7 +197,10 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           _ <- put(tableName, person).execute
           _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
                  PersonWithCollections.addressMap.valueAt(address1.number).set(address2)
-               ).where(PersonWithCollections.addressMap.valueAt(address1.number).exists).execute
+               ).where(
+                 PersonWithCollections.addressMap.valueAt(address1.number).exists &&
+                   PersonWithCollections.addressMap.valueAt(address1.number) >>> Address.postcode === "AAAA"
+               ).execute
           p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == expected)
       }
@@ -328,7 +332,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'remove(1)' removes 2nd Address element with condition expression"
+      "'remove(1)' removes 2nd Address element with condition expression that uses optics"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -339,7 +343,10 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           _ <- put(tableName, person).execute
           _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
                  PersonWithCollections.addressList.remove(1)
-               ).where(PersonWithCollections.addressList.elementAt(1).exists).execute
+               ).where(
+                 PersonWithCollections.addressList.elementAt(1).exists &&
+                   PersonWithCollections.addressList.elementAt(1) >>> Address.postcode === "BBBB"
+               ).execute
           p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == expected)
       }
@@ -527,6 +534,76 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(
           p == Left(DynamoDBError.ValueNotFound("value with key AttrMap(Map(id -> String(1))) not found"))
         )
+      }
+    }
+  )
+
+  // note `forEach` will result in auto batching of the query if it is a get, put or a delete
+  private val forEachSuite = suite("forEach")(
+    test("with a get query returns Right of Person when item exists") {
+      withSingleIdKeyTable { tableName =>
+        val person1 = Person("1", "Smith", Some("John"), 21)
+        val person2 = Person("2", "Brown", Some("Peter"), 42)
+        for {
+          _      <- put(tableName, person1).execute
+          _      <- put(tableName, person2).execute
+          people <- forEach(Chunk(person1, person2))(p => get(tableName)(Person.id.partitionKey === p.id)).execute
+        } yield assertTrue(people == List(Right(person1), Right(person2)))
+      }
+    },
+    test("with a get query returns Left of ValueNotFound when an item does not exist") {
+      withSingleIdKeyTable { tableName =>
+        val person1 = Person("1", "Smith", Some("John"), 21)
+        val person2 = Person("2", "Brown", Some("Peter"), 42)
+        for {
+          people <- forEach(Chunk(person1, person2))(p => get(tableName)(Person.id.partitionKey === p.id)).execute
+        } yield assertTrue(
+          people == List(
+            Left(DynamoDBError.ValueNotFound("value with key AttrMap(Map(id -> String(1))) not found")),
+            Left(DynamoDBError.ValueNotFound("value with key AttrMap(Map(id -> String(2))) not found"))
+          )
+        )
+      }
+    },
+    test("with a put query") {
+      withSingleIdKeyTable { tableName =>
+        val person1 = Person("1", "Smith", Some("John"), 21)
+        val person2 = Person("2", "Tharlochan", Some("Peter"), 42)
+        for {
+          _      <- forEach(Chunk(person1, person2))(person => put(tableName, person)).execute
+          stream <- scanAll[Person](tableName).execute
+          people <- stream.runCollect
+        } yield assertTrue(people.sortBy(_.id) == Chunk(person1, person2))
+      }
+    },
+    test("with a delete query") {
+      withSingleIdKeyTable { tableName =>
+        val person1 = Person("1", "Smith", Some("John"), 21)
+        val person2 = Person("2", "Brown", Some("Peter"), 42)
+        for {
+          _      <- put(tableName, person1).execute
+          _      <- put(tableName, person2).execute
+          _      <- forEach(Chunk(person1, person2))(person =>
+                      deleteFrom(tableName)(Person.id.partitionKey === person.id)
+                    ).execute
+          stream <- scanAll[Person](tableName).execute
+          people <- stream.runCollect
+        } yield assertTrue(people == Chunk.empty)
+      }
+    },
+    test("with an update query") { // not there is no AWS API for batch update so these queries are run in parallel
+      withSingleIdKeyTable { tableName =>
+        val person1 = Person("1", "Smith", Some("John"), 21)
+        val person2 = Person("2", "Brown", Some("Peter"), 42)
+        for {
+          _      <- put(tableName, person1).execute
+          _      <- put(tableName, person2).execute
+          _      <- forEach(Chunk(person1, person2))(person =>
+                      update(tableName)(Person.id.partitionKey === person.id)(Person.age.add(1))
+                    ).execute
+          stream <- scanAll[Person](tableName).execute
+          people <- stream.runCollect
+        } yield assertTrue(people.sortBy(_.id) == Chunk(person1.copy(age = 22), person2.copy(age = 43)))
       }
     }
   )

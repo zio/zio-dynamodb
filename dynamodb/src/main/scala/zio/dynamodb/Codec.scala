@@ -859,9 +859,25 @@ private[dynamodb] object Codec {
       av match {
         case AttributeValue.String(id)                      =>
           decode(id)
-        case AttributeValue.Map(_) if hasNoDiscriminatorTag =>
-          val xs     = cases.filter(c => !isCaseObject(c)).map(c => decoder(c.schema)(av))
-          val rights = xs.filter(_.isRight)
+        case AttributeValue.Map(m) if hasNoDiscriminatorTag =>
+          def arity(s: Schema[_]): Int =
+            s match {
+              case c: Schema.Lazy[_]   => arity(c.schema)
+              case c: Schema.Record[_] =>
+                c.fields.size
+              case _                   =>
+                0
+            }
+
+          val numberOfItemAttributes = m.size
+          val rights                 =
+            cases // TODO: optimize
+              .filter(c => !isCaseObject(c))
+              .sortWith((a: Schema.Case[_, _], b: Schema.Case[_, _]) => arity(a.schema) > arity(b.schema))
+              .filter(c => arity(c.schema) == numberOfItemAttributes)
+              .map(c => decoder(c.schema)(av))
+              .filter(_.isRight)
+
           rights.toList match {
             case Nil                  => Left(DynamoDBError.DecodingError(s"All sub type decoders failed for $av"))
             case a :: Nil             => a.map(_.asInstanceOf[Z])
@@ -869,6 +885,7 @@ private[dynamodb] object Codec {
               Left(DynamoDBError.DecodingError(s"More than one sub type decoder succeeded for $av"))
             case _                    => Left(DynamoDBError.DecodingError(s"Error decoding $av"))
           }
+
         case AttributeValue.Map(map)                        =>
           map
             .get(AttributeValue.String(discriminator))

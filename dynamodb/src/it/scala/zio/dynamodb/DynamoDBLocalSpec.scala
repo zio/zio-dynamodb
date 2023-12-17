@@ -14,6 +14,7 @@ import zio.aws.netty
 import java.net.URI
 import zio.ZIO
 import zio.test.TestResult
+import zio.Scope
 
 abstract class DynamoDBLocalSpec extends ZIOSpec[DynamoDBExecutor] {
 
@@ -36,7 +37,9 @@ abstract class DynamoDBLocalSpec extends ZIOSpec[DynamoDBExecutor] {
 
   override def bootstrap: ZLayer[Any, Nothing, DynamoDBExecutor] = dynamoDBExecutorLayer.orDie
 
-  final def managedTable(tableDefinition: String => DynamoDBQuery.CreateTable) =
+  final def managedTable(
+    tableDefinition: String => DynamoDBQuery.CreateTable
+  ): ZIO[DynamoDBExecutor with Scope, Throwable, TableName] =
     ZIO
       .acquireRelease(
         for {
@@ -45,16 +48,40 @@ abstract class DynamoDBLocalSpec extends ZIOSpec[DynamoDBExecutor] {
         } yield TableName(tableName)
       )(tName => DynamoDBQuery.deleteTable(tName.value).execute.orDie)
 
-  def singleIdKeyTable(tableName: String) =
+  def singleIdKeyTable(tableName: String): DynamoDBQuery.CreateTable =
     DynamoDBQuery.createTable(tableName, KeySchema("id"), BillingMode.PayPerRequest)(
       AttributeDefinition.attrDefnString("id")
     )
 
+  def idAndYearKeyTable(tableName: String): DynamoDBQuery.CreateTable =
+    DynamoDBQuery.createTable(tableName, KeySchema("id", "year"), BillingMode.PayPerRequest)(
+      AttributeDefinition.attrDefnString("id"),
+      AttributeDefinition.attrDefnString("year")
+    )
+
   def withSingleIdKeyTable(
     f: String => ZIO[DynamoDBExecutor, Throwable, TestResult]
-  ) =
+  ): ZIO[DynamoDBExecutor with Scope, Throwable, TestResult] =
     ZIO.scoped {
       managedTable(singleIdKeyTable).flatMap(t => f(t.value))
+    }
+
+  def withIdAndYearKeyTable(
+    f: String => ZIO[DynamoDBExecutor, Throwable, TestResult]
+  ): ZIO[DynamoDBExecutor with Scope, Throwable, TestResult] =
+    ZIO.scoped {
+      managedTable(idAndYearKeyTable).flatMap(t => f(t.value))
+    }
+
+  def withTwoSingleIdKeyTables(
+    f: (String, String) => ZIO[DynamoDBExecutor, Throwable, TestResult]
+  ): ZIO[DynamoDBExecutor with Scope, Throwable, TestResult] =
+    ZIO.scoped {
+      for {
+        t1 <- managedTable(singleIdKeyTable)
+        t2 <- managedTable(singleIdKeyTable)
+        a  <- f(t1.value, t2.value)
+      } yield a
     }
 
 }
