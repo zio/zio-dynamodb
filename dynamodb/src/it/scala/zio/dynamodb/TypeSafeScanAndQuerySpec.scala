@@ -44,7 +44,7 @@ object TypeSafeScanAndQuerySpec extends DynamoDBLocalSpec {
             .sortBy(_.id) // parallel scan order is not guaranteed
         )
       }
-    } @@ TestAspect.ignore, // DynamoDBLocal does not support parallel scan
+    },
     test("with filter on forename exists") {
       withSingleIdKeyTable { tableName =>
         for {
