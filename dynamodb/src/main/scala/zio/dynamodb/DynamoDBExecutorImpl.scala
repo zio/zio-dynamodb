@@ -286,7 +286,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
       lazy val emptyStream: ZStream[Any, Throwable, Item] = ZStream()
       for {
         streams <- ZIO.foreachPar(Chunk.fromIterable(0 until scanAll.totalSegments)) { segment =>
-                     println(s"XXXXXXXXXXXXXXX executeScanAll segment: $segment")
                      ZIO.succeed(
                        dynamoDb
                          .scan(
@@ -300,7 +299,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
                    }
       } yield streams.foldLeft(emptyStream) {
         case (acc, stream) =>
-          println(s"XXXXXXXXXXXXXXX executeScanAll accumulating $stream")
           acc.merge(stream)
       }
     } else

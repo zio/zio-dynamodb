@@ -1,7 +1,7 @@
 version: '3.7'
 services:
   dynamodb:
-    image:  amazon/dynamodb-local
+    image: "amazon/dynamodb-local:latest"
     container_name: dynamodb-local
     hostname: dynamodb
     restart: always
