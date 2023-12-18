@@ -1471,5 +1471,5 @@ object LiveSpec extends DynamoDBLocalSpec {
           }
         )
       )
-    ) @@ TestAspect.nondeterministic
+    ) @@ TestAspect.nondeterministic @@ TestAspect.sequential
 }
