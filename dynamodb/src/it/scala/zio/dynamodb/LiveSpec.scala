@@ -633,7 +633,7 @@ object LiveSpec extends DynamoDBLocalSpec {
                 count  <- stream.runFold(0) { case (count, _) => count + 1 }
               } yield assert(count)(equalTo(10000))
           )
-        } @@ TestAspect.ignore, // DynamoDBLocal does not support parallel scan
+        },
         test("parallel scan all typed") {
           withTemporaryTable(
             defaultTable,
