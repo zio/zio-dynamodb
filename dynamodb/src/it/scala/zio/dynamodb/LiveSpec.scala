@@ -650,7 +650,7 @@ object LiveSpec extends DynamoDBLocalSpec {
               } yield assert(count)(equalTo(10000))
           )
         }
-      ) @@ TestAspect.ignore, // DynamoDBLocal does not support parallel scan,
+      ),
       suite("query tables")(
         test("query all projection expressions should handle keyword") {
           withDefaultTable { tableName =>
