@@ -124,10 +124,54 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         val expected = PersonWithCollections("1", "Brown", addressSet = Set("address1"))
         for {
           _ <- put(tableName, person).execute
-          _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(PersonWithCollections.surname.set("Brown"))
-                 .where(PersonWithCollections.addressSet.contains("address1"))
-                 .execute
+          _ <-
+            update(tableName)(PersonWithCollections.id.partitionKey === "1")(PersonWithCollections.surname.set("Brown"))
+              .where(PersonWithCollections.addressSet.contains("address1"))
+              .execute
           p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test("'set's a single field with an update plus a condition expression that addressSet has size 1") {
+      withSingleIdKeyTable { tableName =>
+        val person   = PersonWithCollections("1", "Smith", addressSet = Set("address1"))
+        val expected = PersonWithCollections("1", "Brown", addressSet = Set("address1"))
+        for {
+          _ <- put(tableName, person).execute
+          _ <-
+            update(tableName)(PersonWithCollections.id.partitionKey === "1")(PersonWithCollections.surname.set("Brown"))
+              .where(PersonWithCollections.addressSet.size === 1)
+              .execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test("'set's a single field with an update plus a condition expression that surname has size 5") {
+      withSingleIdKeyTable { tableName =>
+        val person   = PersonWithCollections("1", "Smith", addressSet = Set("address1"))
+        val expected = PersonWithCollections("1", "Brown", addressSet = Set("address1"))
+        for {
+          _ <- put(tableName, person).execute
+          _ <-
+            update(tableName)(PersonWithCollections.id.partitionKey === "1")(PersonWithCollections.surname.set("Brown"))
+              .where(PersonWithCollections.surname.size === 5)
+              .execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test(
+      "'set's a single field with an update plus a condition expression that optional forename contains an element"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val person   = Person("1", "Smith", Some("John"), 21)
+        val expected = person.copy(age = 22)
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(Person.id.partitionKey === "1")(Person.age.set(22))
+                 .where(Person.forename.contains("oh"))
+                 .execute
+          p <- get[Person](tableName)(Person.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == expected)
       }
     },
