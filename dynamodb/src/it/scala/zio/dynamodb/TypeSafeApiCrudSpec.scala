@@ -108,7 +108,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(p == expected)
       }
     },
-    test("with id exists condition fails when item does not exists") {
+    test("'set's a single field with an update plus a condition expression that item exists") {
       withSingleIdKeyTable { tableName =>
         val exit =
           update(tableName)(Person.id.partitionKey === "1")(Person.forename.set(Some("John")))
@@ -116,6 +116,19 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
             .execute
             .exit
         assertZIO(exit)(fails(isSubtype[ConditionalCheckFailedException](anything)))
+      }
+    },
+    test("'set's a single field with an update plus a condition expression that addressSet contains an element") {
+      withSingleIdKeyTable { tableName =>
+        val person   = PersonWithCollections("1", "Smith", addressSet = Set("address1"))
+        val expected = PersonWithCollections("1", "Brown", addressSet = Set("address1"))
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(PersonWithCollections.surname.set("Brown"))
+                 .where(PersonWithCollections.addressSet.contains("address1"))
+                 .execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
       }
     },
     test(

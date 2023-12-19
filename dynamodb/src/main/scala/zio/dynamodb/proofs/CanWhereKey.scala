@@ -8,6 +8,7 @@ import zio.dynamodb.LastEvaluatedKey
 @implicitNotFound(
   "Mixed types for the key condition expression found - ${A}"
 )
+// TODO: Avi - delete - not used
 sealed trait CanWhereKey[A, -B]
 
 trait CanWhereKeyLowerPriorityImplicit {
