@@ -871,19 +871,17 @@ private[dynamodb] object Codec {
 
           val numberOfItemAttributes = m.size
           val rights                 =
-            cases // TODO: optimize
-              .filter(c => !isCaseObject(c))
+            cases
+              .filter(c => !isCaseObject(c) && arity(c.schema) == numberOfItemAttributes)
               .sortWith((a: Schema.Case[_, _], b: Schema.Case[_, _]) => arity(a.schema) > arity(b.schema))
-              .filter(c => arity(c.schema) == numberOfItemAttributes)
               .map(c => decoder(c.schema)(av))
               .filter(_.isRight)
 
           rights.toList match {
-            case Nil                  => Left(DynamoDBError.DecodingError(s"All sub type decoders failed for $av"))
-            case a :: Nil             => a.map(_.asInstanceOf[Z])
-            case _ if rights.size > 1 =>
+            case Nil      => Left(DynamoDBError.DecodingError(s"All sub type decoders failed for $av"))
+            case a :: Nil => a.map(_.asInstanceOf[Z])
+            case _        =>
               Left(DynamoDBError.DecodingError(s"More than one sub type decoder succeeded for $av"))
-            case _                    => Left(DynamoDBError.DecodingError(s"Error decoding $av"))
           }
 
         case AttributeValue.Map(map)                        =>
