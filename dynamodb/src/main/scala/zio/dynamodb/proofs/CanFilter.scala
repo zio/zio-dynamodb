@@ -6,7 +6,7 @@ import zio.Chunk
 import zio.dynamodb.LastEvaluatedKey
 
 @implicitNotFound(
-  "Mixed types for the filter expression found - ${A}"
+  "DynamoDB only supports filter on scan and query operations on type ${B}"
 )
 sealed trait CanFilter[A, -B]
 

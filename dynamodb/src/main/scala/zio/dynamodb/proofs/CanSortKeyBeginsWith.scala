@@ -4,7 +4,7 @@ import zio.dynamodb.ProjectionExpression
 import scala.annotation.implicitNotFound
 
 @implicitNotFound(
-  "Fields of type ${X} has 'beginsWith' argument of type ${A} - they must be the same type"
+  "Field of type ${X} has 'beginsWith' argument of type ${A} - they must be the same type and be a string or a byte array"
 )
 sealed trait CanSortKeyBeginsWith[-X, -A]
 trait CanSortKeyBeginsWith0 extends CanSortKeyBeginsWith1 {

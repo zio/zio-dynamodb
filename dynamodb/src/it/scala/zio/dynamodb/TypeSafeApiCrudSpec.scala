@@ -43,7 +43,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           val person = Person("1", "Smith", Some("John"), 21)
           for {
             _ <- put(tableName, person).execute
-            p <- get[Person](tableName)(Person.id.partitionKey === "1").execute.absolve
+            p <- get(tableName)(Person.id.partitionKey === "1").execute.absolve
           } yield assertTrue(p == person)
         }
       },
@@ -77,7 +77,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
               put(tableName, personUpdated)
                 .where(Person.id.exists && Person.surname === "Smith" && Person.forename.notExists && Person.age > 20)
                 .execute
-            p <- get[Person](tableName)(Person.id.partitionKey === "1").execute.absolve
+            p <- get(tableName)(Person.id.partitionKey === "1").execute.absolve
           } yield assertTrue(p == personUpdated)
         }
       }
@@ -91,7 +91,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         for {
           _ <- put(tableName, person).execute
           _ <- update(tableName)(Person.id.partitionKey === "1")(Person.forename.set(Some("John"))).execute
-          p <- get[Person](tableName)(Person.id.partitionKey === "1").execute.absolve
+          p <- get(tableName)(Person.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == expected)
       }
     },
@@ -104,11 +104,11 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           _ <- update(tableName)(Person.id.partitionKey === "1")(Person.forename.set(Some("John")))
                  .where(Person.id === "1")
                  .execute
-          p <- get[Person](tableName)(Person.id.partitionKey === "1").execute.absolve
+          p <- get(tableName)(Person.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == expected)
       }
     },
-    test("with id exists condition fails when item does not exists") {
+    test("'set's a single field with an update plus a condition expression that item exists") {
       withSingleIdKeyTable { tableName =>
         val exit =
           update(tableName)(Person.id.partitionKey === "1")(Person.forename.set(Some("John")))
@@ -116,6 +116,63 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
             .execute
             .exit
         assertZIO(exit)(fails(isSubtype[ConditionalCheckFailedException](anything)))
+      }
+    },
+    test("'set's a single field with an update plus a condition expression that addressSet contains an element") {
+      withSingleIdKeyTable { tableName =>
+        val person   = PersonWithCollections("1", "Smith", addressSet = Set("address1"))
+        val expected = PersonWithCollections("1", "Brown", addressSet = Set("address1"))
+        for {
+          _ <- put(tableName, person).execute
+          _ <-
+            update(tableName)(PersonWithCollections.id.partitionKey === "1")(PersonWithCollections.surname.set("Brown"))
+              .where(PersonWithCollections.addressSet.contains("address1"))
+              .execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test("'set's a single field with an update plus a condition expression that addressSet has size 1") {
+      withSingleIdKeyTable { tableName =>
+        val person   = PersonWithCollections("1", "Smith", addressSet = Set("address1"))
+        val expected = PersonWithCollections("1", "Brown", addressSet = Set("address1"))
+        for {
+          _ <- put(tableName, person).execute
+          _ <-
+            update(tableName)(PersonWithCollections.id.partitionKey === "1")(PersonWithCollections.surname.set("Brown"))
+              .where(PersonWithCollections.id.size === 1)
+              .execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test("'set's a single field with an update plus a condition expression that surname has size 5") {
+      withSingleIdKeyTable { tableName =>
+        val person   = PersonWithCollections("1", "Smith", addressSet = Set("address1"))
+        val expected = PersonWithCollections("1", "Brown", addressSet = Set("address1"))
+        for {
+          _ <- put(tableName, person).execute
+          _ <-
+            update(tableName)(PersonWithCollections.id.partitionKey === "1")(PersonWithCollections.surname.set("Brown"))
+              .where(PersonWithCollections.surname.size === 5)
+              .execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test(
+      "'set's a single field with an update plus a condition expression that optional forename contains a substring"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val person   = Person("1", "Smith", Some("John"), 21)
+        val expected = person.copy(age = 22)
+        for {
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(Person.id.partitionKey === "1")(Person.age.set(22))
+                 .where(Person.forename.contains("oh"))
+                 .execute
+          p <- get(tableName)(Person.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
       }
     },
     test(
@@ -129,7 +186,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           _ <- update(tableName)(Person.id.partitionKey === "1")(Person.forename.set(Some("John")))
                  .where(Person.surname === "Smith" && Person.forename.notExists)
                  .execute
-          p <- get[Person](tableName)(Person.id.partitionKey === "1").execute.absolve
+          p <- get(tableName)(Person.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == expected)
       }
     },
@@ -143,7 +200,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           _ <- put(tableName, person).execute
           _ <-
             update(tableName)(Person.id.partitionKey === "1")(Person.forename.setIfNotExists(Some("Tarlochan"))).execute
-          p <- get[Person](tableName)(Person.id.partitionKey === "1").execute.absolve
+          p <- get(tableName)(Person.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == expected)
       }
     },
@@ -155,7 +212,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         for {
           _    <- put(tableName, person).execute
           exit <- update(tableName)(Person.id.partitionKey === "1")(Person.surname.setIfNotExists("XXXX")).execute.exit
-          p    <- get[Person](tableName)(Person.id.partitionKey === "1").execute.absolve
+          p    <- get(tableName)(Person.id.partitionKey === "1").execute.absolve
         } yield assertTrue(exit.isSuccess == true && p == person)
       }
     },
@@ -172,7 +229,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
                )
                  .where(Person.surname === "Smith" && Person.forename.notExists)
                  .execute
-          p <- get[Person](tableName)(Person.id.partitionKey === "1").execute.absolve
+          p <- get(tableName)(Person.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == expected)
       }
     },

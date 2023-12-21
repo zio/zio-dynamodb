@@ -3,7 +3,8 @@ package zio.dynamodb.proofs
 import scala.annotation.implicitNotFound
 
 @implicitNotFound(
-  "Mixed types for the condition expression found - ${A}"
+  "DynamoDB only supports conditions expressions on put, update and delete operations. " +
+    "Furthermore query output type ${B} must match condition expression type ${A}"
 )
 sealed trait CanWhere[A, -B]
 
