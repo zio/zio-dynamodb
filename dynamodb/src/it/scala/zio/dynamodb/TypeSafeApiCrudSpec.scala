@@ -161,7 +161,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'set's a single field with an update plus a condition expression that optional forename contains an element"
+      "'set's a single field with an update plus a condition expression that optional forename contains a substring"
     ) {
       withSingleIdKeyTable { tableName =>
         val person   = Person("1", "Smith", Some("John"), 21)
