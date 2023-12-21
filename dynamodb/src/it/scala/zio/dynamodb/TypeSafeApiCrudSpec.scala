@@ -91,7 +91,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         for {
           _ <- put(tableName, person).execute
           _ <- update(tableName)(Person.id.partitionKey === "1")(Person.forename.set(Some("John"))).execute
-          p <- get(tableName)(Person.id.partitionKey === "1") /* .where(Person.id === "1")*/ .execute.absolve
+          p <- get(tableName)(Person.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == expected)
       }
     },
