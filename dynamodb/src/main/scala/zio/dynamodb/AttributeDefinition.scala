@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-private[dynamodb] final case class AttributeDefinition(
+final case class AttributeDefinition private (
   name: String,
   attributeType: PrimitiveValueType
 )
