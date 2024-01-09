@@ -33,7 +33,7 @@ addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck"
 
 val zioVersion             = "2.0.19"
 val zioAwsVersion          = "5.20.42.1"
-val zioSchemaVersion       = "0.4.16"
+val zioSchemaVersion       = "0.4.17"
 val zioPreludeVersion      = "1.0.0-RC21"
 val zioInteropCats3Version = "23.0.0.8"
 val catsEffect3Version     = "3.5.1"
