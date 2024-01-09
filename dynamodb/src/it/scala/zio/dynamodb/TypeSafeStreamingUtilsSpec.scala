@@ -19,7 +19,7 @@ object TypeSafeStreamingUtilsSpec extends DynamoDBLocalSpec {
   final case class PersonLegacy(id: String, forename: String)
   object PersonLegacy {
     implicit val schema: Schema.CaseClass2[String, String, PersonLegacy] = DeriveSchema.gen[PersonLegacy]
-    val (id, height)                                                     = ProjectionExpression.accessors[PersonLegacy]
+    val (id, forename)                                                   = ProjectionExpression.accessors[PersonLegacy]
   }
 
   override def spec =
