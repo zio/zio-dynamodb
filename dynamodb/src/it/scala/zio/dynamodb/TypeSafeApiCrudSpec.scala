@@ -316,7 +316,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "remove'ing a map element when it does not exists fails silently"                     // this is AWS API behaviour
+      "remove'ing a map element when it does not exists fails silently"                    // this is AWS API behaviour
     ) {
       withSingleIdKeyTable { tableName =>
         val person = PersonWithCollections(
