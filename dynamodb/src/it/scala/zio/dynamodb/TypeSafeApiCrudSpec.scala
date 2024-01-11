@@ -47,7 +47,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           } yield assertTrue(p == person)
         }
       },
-      test("with condition expression that id exists fails for empty database") {
+      test("with condition expression that id not exists fails when item exists") {
         withSingleIdKeyTable { tableName =>
           val person = Person("1", "Smith", Some("John"), 21)
           val exit   = for {
@@ -84,7 +84,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
     )
 
   private val updateSuite = suite("update")(
-    test("'sets a single field with an update expression when item exists") {
+    test("sets a single field with an update expression when item exists") {
       withSingleIdKeyTable { tableName =>
         val person   = Person("1", "Smith", None, 21)
         val expected = person.copy(forename = Some("John"))
@@ -95,7 +95,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(p == expected)
       }
     },
-    test("'sets a single field with an update expression with a condition expression") {
+    test("sets a single field with an update expression with a condition expression") {
       withSingleIdKeyTable { tableName =>
         val person   = Person("1", "Smith", None, 21)
         val expected = person.copy(forename = Some("John"))
@@ -108,7 +108,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(p == expected)
       }
     },
-    test("'set's a single field with an update plus a condition expression that item exists") {
+    test("set of a single field update with a condition expression that item exists fails for empty database") {
       withSingleIdKeyTable { tableName =>
         val exit =
           update(tableName)(Person.id.partitionKey === "1")(Person.forename.set(Some("John")))
@@ -118,7 +118,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         assertZIO(exit)(fails(isSubtype[ConditionalCheckFailedException](anything)))
       }
     },
-    test("'set's a single field with an update plus a condition expression that addressSet contains an element") {
+    test("set's a single field with an update plus a condition expression that addressSet contains an element") {
       withSingleIdKeyTable { tableName =>
         val person   = PersonWithCollections("1", "Smith", addressSet = Set("address1"))
         val expected = PersonWithCollections("1", "Brown", addressSet = Set("address1"))
@@ -132,7 +132,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(p == expected)
       }
     },
-    test("'set's a single field with an update plus a condition expression that addressSet has size 1") {
+    test("set's a single field with an update plus a condition expression that addressSet has size 1") {
       withSingleIdKeyTable { tableName =>
         val person   = PersonWithCollections("1", "Smith", addressSet = Set("address1"))
         val expected = PersonWithCollections("1", "Brown", addressSet = Set("address1"))
@@ -146,7 +146,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(p == expected)
       }
     },
-    test("'set's a single field with an update plus a condition expression that surname has size 5") {
+    test("set's a single field with an update plus a condition expression that surname has size 5") {
       withSingleIdKeyTable { tableName =>
         val person   = PersonWithCollections("1", "Smith", addressSet = Set("address1"))
         val expected = PersonWithCollections("1", "Brown", addressSet = Set("address1"))
@@ -161,7 +161,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'set's a single field with an update plus a condition expression that optional forename contains a substring"
+      "set's a single field with an update plus a condition expression that optional forename contains a substring"
     ) {
       withSingleIdKeyTable { tableName =>
         val person   = Person("1", "Smith", Some("John"), 21)
@@ -176,7 +176,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'set's a single field with an update expression restricted by a compound condition expression when item exists"
+      "set's a single field with an update expression restricted by a compound condition expression when item exists"
     ) {
       withSingleIdKeyTable { tableName =>
         val person   = Person("1", "Smith", None, 21)
@@ -191,7 +191,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'setIfNotExists' updates single field when attribute does not exists"
+      "setIfNotExists updates single field when attribute does not exists"
     ) {
       withSingleIdKeyTable { tableName =>
         val person   = Person("1", "Smith", None, 21)
@@ -205,7 +205,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'setIfNotExists' fails silently when the attribute already exists"                    // this is AWS API behaviour
+      "setIfNotExists fails silently when the attribute already exists"                    // this is AWS API behaviour
     ) {
       withSingleIdKeyTable { tableName =>
         val person = Person("1", "Smith", None, 21)
@@ -217,7 +217,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'set's multiple fields with a compound update expression restricted by a compound condition expression where item exists"
+      "set's multiple fields with a compound update expression restricted by a compound condition expression where item exists"
     ) {
       withSingleIdKeyTable { tableName =>
         val person   = Person("1", "Smith", None, 21)
@@ -243,7 +243,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'set' a map element with a condition expression that the map entry exists and an optics expression on postcode"
+      "set a map element with a condition expression that the map entry exists and an optics expression on postcode"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -263,7 +263,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'set' a map element with a condition expression that the map entry does not exists"
+      "set a map element with a condition expression that the map entry does not exists"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -279,7 +279,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'set' a map element"
+      "set a map element"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -295,7 +295,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'remove' a map element"
+      "remove a map element"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -316,7 +316,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'remove'ing a map element when it does not exists fails silently"                     // this is AWS API behaviour
+      "remove'ing a map element when it does not exists fails silently"                     // this is AWS API behaviour
     ) {
       withSingleIdKeyTable { tableName =>
         val person = PersonWithCollections(
@@ -333,7 +333,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'set' an existing map element"
+      "set an existing map element"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1        = Address("1", "AAAA")
@@ -354,7 +354,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'append' adds an Address element to addressList field"
+      "append adds an Address element to addressList field"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -371,7 +371,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'appendList' adds an Address list to addressList field"
+      "appendList adds an Address list to addressList field"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -389,7 +389,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'remove(1)' removes 2nd Address element with condition expression that uses optics"
+      "remove(1) removes 2nd Address element with condition expression that uses optics"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -409,7 +409,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'remove(1)' removes 2nd Address element"
+      "remove(1) removes 2nd Address element"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -426,7 +426,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'remove(100)' on a list of 2 elements fails silently"                                 // this is AWS API behaviour
+      "remove(100) on a list of 2 elements fails silently"                                 // this is AWS API behaviour
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -441,7 +441,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'elementAt(1).remove' removes 2nd Address element"
+      "elementAt(1).remove removes 2nd Address element"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -458,7 +458,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'prepend' adds an Address element to addressList field"
+      "prepend adds an Address element to addressList field"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -475,7 +475,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'prependList' adds an Address list element to addressList field"
+      "prependList adds an Address list element to addressList field"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -493,7 +493,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'addSet' adds a set of strings to addressSet field"
+      "addSet adds a set of strings to addressSet field"
     ) {
       withSingleIdKeyTable { tableName =>
         val person   = PersonWithCollections("1", "Smith", addressSet = Set("address1"))
@@ -508,7 +508,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'deleteFromSet' removes a set of strings from addressSet field"
+      "deleteFromSet removes a set of strings from addressSet field"
     ) {
       withSingleIdKeyTable { tableName =>
         val person   = PersonWithCollections("1", "Smith", addressSet = Set("address2", "address3", "address1"))
@@ -523,7 +523,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'deleteFromSet' fails silently when trying to remove an element that does not exists" // this is AWS API behaviour
+      "deleteFromSet fails silently when trying to remove an element that does not exists" // this is AWS API behaviour
     ) {
       withSingleIdKeyTable { tableName =>
         val person = PersonWithCollections("1", "Smith", addressSet = Set("address1"))
@@ -537,7 +537,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "'add' adds a number to a numeric field if it exists"
+      "add adds a number to a numeric field if it exists"
     ) {
       withSingleIdKeyTable { tableName =>
         val person   = Person("1", "Smith", Some("John"), 21)
@@ -555,7 +555,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
 
   private val deleteSuite = suite("delete")(
     test(
-      "with id exists condition expression, succeeds when item exist"
+      "with an id exists condition expression, followed by a get, confirms item has been deleted"
     ) {
       withSingleIdKeyTable { tableName =>
         val person = Person("1", "Smith", Some("John"), 21)
@@ -578,7 +578,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "with forname, surname and age condition expression, succeeds"
+      "with forename, surname and age condition expression, succeeds"
     ) {
       withSingleIdKeyTable { tableName =>
         val person = Person("1", "Smith", Some("John"), 21)
@@ -625,7 +625,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
     test("with a put query") {
       withSingleIdKeyTable { tableName =>
         val person1 = Person("1", "Smith", Some("John"), 21)
-        val person2 = Person("2", "Tharlochan", Some("Peter"), 42)
+        val person2 = Person("2", "Tarlochan", Some("Peter"), 42)
         for {
           _      <- forEach(Chunk(person1, person2))(person => put(tableName, person)).execute
           stream <- scanAll[Person](tableName).execute

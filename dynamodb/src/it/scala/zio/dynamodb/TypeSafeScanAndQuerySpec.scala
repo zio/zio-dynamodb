@@ -32,7 +32,7 @@ object TypeSafeScanAndQuerySpec extends DynamoDBLocalSpec {
         } yield assertTrue(people == Chunk(Person("1", "Smith", Some("John"), 21), Person("2", "Brown", None, 42)))
       }
     },
-    test("with parrallel server side scan") {
+    test("with parallel server side scan") {
       withSingleIdKeyTable { tableName =>
         for {
           _      <- put(tableName, Person("1", "Smith", Some("John"), 21)).execute
