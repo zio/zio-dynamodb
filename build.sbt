@@ -270,11 +270,10 @@ lazy val examples = module("zio-dynamodb-examples", "examples")
     skip in publish := true,
     fork := true,
     libraryDependencies ++= Seq(
-      "org.typelevel"         %% "cats-effect"  % catsEffect3Version,
-      "co.fs2"                %% "fs2-core"     % fs2Version,
-      "dev.zio"               %% "zio-test"     % zioVersion % "test",
-      "dev.zio"               %% "zio-test-sbt" % zioVersion % "test",
-      "software.amazon.awssdk" % "dynamodb"     % "2.21.29"
+      "org.typelevel" %% "cats-effect"  % catsEffect3Version,
+      "co.fs2"        %% "fs2-core"     % fs2Version,
+      "dev.zio"       %% "zio-test"     % zioVersion % "test",
+      "dev.zio"       %% "zio-test-sbt" % zioVersion % "test"
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
