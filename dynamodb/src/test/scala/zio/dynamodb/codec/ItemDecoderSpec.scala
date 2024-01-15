@@ -1,6 +1,7 @@
 package zio.dynamodb.codec
 
 import zio.dynamodb._
+import zio.dynamodb.DynamoDBError.DynamoDBItemError
 import zio.dynamodb.codec.Invoice.PreBilled
 import zio.test.Assertion._
 import zio.test.{ ZIOSpecDefault, _ }

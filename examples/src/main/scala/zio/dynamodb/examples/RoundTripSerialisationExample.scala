@@ -5,7 +5,7 @@ import zio.dynamodb.{ AttrMap, Item }
 
 import java.time.{ Instant, ZoneOffset }
 import scala.util.Try
-import zio.dynamodb.DynamoDBItemError
+import zio.dynamodb.DynamoDBError.DynamoDBItemError
 
 object RoundTripSerialisationExample extends App {
 

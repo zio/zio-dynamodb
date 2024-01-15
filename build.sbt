@@ -191,6 +191,8 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
         file,
         s"""package zio.dynamodb
            |
+           |import zio.dynamodb.DynamoDBError.DynamoDBItemError
+           |
            |private[dynamodb] trait GeneratedFromAttributeValueAs { this: AttrMap =>
            |
            |  ${applyMethods.mkString("\n\n  ")}
@@ -220,6 +222,8 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
       IO.write(
         file,
         s"""package zio.dynamodb
+           |
+           |import zio.dynamodb.DynamoDBError.DynamoDBItemError
            |
            |private[dynamodb] trait GeneratedFromAttributeValueAs { this: AttrMap =>
            |

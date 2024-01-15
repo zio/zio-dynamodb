@@ -1,6 +1,7 @@
 package zio.dynamodb
 
 import zio.dynamodb.DynamoDBError.DecodingError
+import zio.dynamodb.DynamoDBError.DynamoDBItemError
 import zio.prelude.ForEachOps
 
 final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFromAttributeValueAs { self =>

@@ -17,8 +17,7 @@ import zio.schema.{ DeriveSchema, Schema }
 import java.time.Instant
 import zio.dynamodb.ProjectionExpression
 import zio.ZIO
-import zio.dynamodb.DynamoDBItemError
-
+import zio.dynamodb.DynamoDBError.DynamoDBItemError
 object TypeSafeRoundTripSerialisationExample extends ZIOAppDefault {
 
   @discriminatorName("invoiceType")

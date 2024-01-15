@@ -1,5 +1,6 @@
 package zio.dynamodb
 
+import zio.dynamodb.DynamoDBError.DynamoDBItemError
 import zio.dynamodb.DynamoDBError.ValueNotFound
 import zio.dynamodb.proofs.{ CanFilter, CanWhere }
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet

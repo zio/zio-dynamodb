@@ -2,6 +2,7 @@ package zio.dynamodb
 
 import zio.dynamodb.Annotations._
 import zio.dynamodb.DynamoDBError.DecodingError
+import zio.dynamodb.DynamoDBError.DynamoDBItemError
 import zio.prelude.{ FlipOps, ForEachOps }
 import zio.schema.Schema.{ Optional, Primitive }
 import zio.schema.annotation.caseName

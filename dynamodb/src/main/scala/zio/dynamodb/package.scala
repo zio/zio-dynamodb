@@ -1,5 +1,6 @@
 package zio
 
+import zio.dynamodb.DynamoDBError.DynamoDBItemError
 import zio.schema.Schema
 import zio.stream.{ ZSink, ZStream }
 

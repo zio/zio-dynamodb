@@ -1,5 +1,6 @@
 package zio.dynamodb
 
+import zio.dynamodb.DynamoDBError.DynamoDBItemError
 import zio.dynamodb.DynamoDBError.DecodingError
 import zio.test.Assertion._
 import zio.test.{ ZIOSpecDefault, _ }
