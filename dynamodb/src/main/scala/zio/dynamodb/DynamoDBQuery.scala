@@ -37,6 +37,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   final def <*>[In1 <: In, B](that: DynamoDBQuery[In1, B]): DynamoDBQuery[In1, (Out, B)] = self zip that
 
+  def execute2: ZIO[DynamoDBExecutor, DynamoDBError2, Out] = ???
+
   def execute: ZIO[DynamoDBExecutor, Throwable, Out] = {
     val (constructors, assembler)                                                                   = parallelize(self)
     val (indexedConstructors, (batchGetItem, batchGetIndexes), (batchWriteItem, batchWriteIndexes)) =
@@ -473,10 +475,14 @@ object DynamoDBQuery {
 
   def get2[From: Schema](tableName: String)(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
-  ): DynamoDBQuery[From, Option[From]] =
-    get2(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
+  ): DynamoDBQuery[From, Either[DynamoDBError2, From]] = ???
 
-  private def get2[A: Schema](
+  def getOptional[From: Schema](tableName: String)(
+    primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
+  ): DynamoDBQuery[From, Option[From]] =
+    getOptional(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
+
+  private def getOptional[A: Schema](
     tableName: String,
     key: PrimaryKey,
     projections: Chunk[ProjectionExpression[_, _]]
@@ -486,7 +492,6 @@ object DynamoDBQuery {
         fromItem(item).toOption
       case None       => None
     }
-
 
   private def get[A: Schema](
     tableName: String,

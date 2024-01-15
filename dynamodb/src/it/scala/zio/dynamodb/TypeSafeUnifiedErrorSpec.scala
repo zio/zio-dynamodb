@@ -7,7 +7,7 @@ import zio.dynamodb.DynamoDBQuery.{ deleteFrom, forEach, get, get2, put, scanAll
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
 import zio.Chunk
 
-object TypeSafeApiCrudSpec2 extends DynamoDBLocalSpec {
+object TypeSafeUnifiedErrorSpec extends DynamoDBLocalSpec {
 
   final case class Person(id: String, surname: String, forename: Option[String], age: Int)
   object Person {
@@ -43,7 +43,8 @@ object TypeSafeApiCrudSpec2 extends DynamoDBLocalSpec {
           val person = Person("1", "Smith", Some("John"), 21)
           for {
             _ <- put(tableName, person).execute
-            _ <- get2(tableName)(Person.id.partitionKey === "1").execute
+            x <- get2(tableName)(Person.id.partitionKey === "1").execute2.absolve
+            _ = println(s"get2: $x")
           } yield assertTrue(true)
         }
       },
