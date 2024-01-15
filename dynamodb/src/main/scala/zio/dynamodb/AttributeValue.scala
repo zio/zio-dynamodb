@@ -8,7 +8,7 @@ import scala.collection.immutable.Set
 sealed trait AttributeValue { self =>
   type ScalaType
 
-  def decode[A](implicit schema: Schema[A]): Either[DynamoDBError, A] = Codec.decoder(schema)(self)
+  def decode[A](implicit schema: Schema[A]): Either[DynamoDBItemError, A] = Codec.decoder(schema)(self)
 
   def ===[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From]                  = Equals(ValueOperand(self), that)
   def <>[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From]                   = NotEqual(ValueOperand(self), that)

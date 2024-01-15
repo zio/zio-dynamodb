@@ -3,7 +3,7 @@ package zio.dynamodb
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test._
 import zio.test.Assertion._
-import zio.dynamodb.DynamoDBQuery.{ deleteFrom, forEach, get, get2, put, scanAll, update }
+import zio.dynamodb.DynamoDBQuery.{ deleteFrom, forEach, get, put, scanAll, update }
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
 import zio.Chunk
 
@@ -43,8 +43,7 @@ object TypeSafeUnifiedErrorSpec extends DynamoDBLocalSpec {
           val person = Person("1", "Smith", Some("John"), 21)
           for {
             _ <- put(tableName, person).execute
-            x <- get2(tableName)(Person.id.partitionKey === "1").execute2.absolve
-            _ = println(s"get2: $x")
+            _ <- get(tableName)(Person.id.partitionKey === "1").execute
           } yield assertTrue(true)
         }
       },

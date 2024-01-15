@@ -37,7 +37,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   final def <*>[In1 <: In, B](that: DynamoDBQuery[In1, B]): DynamoDBQuery[In1, (Out, B)] = self zip that
 
-  def execute2: ZIO[DynamoDBExecutor, DynamoDBError2, Out] = ???
+//  def execute2: ZIO[DynamoDBExecutor, DynamoDBError2, Out] = ???
 
   def execute: ZIO[DynamoDBExecutor, Throwable, Out] = {
     val (constructors, assembler)                                                                   = parallelize(self)
@@ -431,10 +431,10 @@ object DynamoDBQuery {
 
   def fail(e: => DynamoDBError): DynamoDBQuery[Any, Nothing] = Fail(() => e)
 
-  private[dynamodb] def absolve[A, B](query: DynamoDBQuery[A, Either[DynamoDBError, B]]): DynamoDBQuery[A, B] =
+  private[dynamodb] def absolve[A, B](query: DynamoDBQuery[A, Either[DynamoDBItemError, B]]): DynamoDBQuery[A, B] =
     Absolve(query)
 
-  def fromEither[A](or: Either[DynamoDBError, A]): DynamoDBQuery[Any, A] =
+  def fromEither[A](or: Either[DynamoDBItemError, A]): DynamoDBQuery[Any, A] =
     or match {
       case Left(error)  => DynamoDBQuery.fail(error)
       case Right(value) => DynamoDBQuery.succeed(value)
@@ -470,12 +470,12 @@ object DynamoDBQuery {
 
   def get[From: Schema](tableName: String)(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
-  ): DynamoDBQuery[From, Either[DynamoDBError, From]] =
+  ): DynamoDBQuery[From, Either[DynamoDBItemError, From]] =
     get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
 
-  def get2[From: Schema](tableName: String)(
-    primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
-  ): DynamoDBQuery[From, Either[DynamoDBError2, From]] = ???
+  // def get2[From: Schema](tableName: String)(
+  //   primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
+  // ): DynamoDBQuery[From, Either[DynamoDBError2, From]] = ???
 
   def getOptional[From: Schema](tableName: String)(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
@@ -497,14 +497,14 @@ object DynamoDBQuery {
     tableName: String,
     key: PrimaryKey,
     projections: Chunk[ProjectionExpression[_, _]]
-  ): DynamoDBQuery[A, Either[DynamoDBError, A]] =
+  ): DynamoDBQuery[A, Either[DynamoDBItemError, A]] =
     getItem(tableName, key, projections: _*).map {
       case Some(item) =>
         fromItem(item)
       case None       => Left(ValueNotFound(s"value with key $key not found"))
     }
 
-  private[dynamodb] def fromItem[A: Schema](item: Item): Either[DynamoDBError, A] = {
+  private[dynamodb] def fromItem[A: Schema](item: Item): Either[DynamoDBItemError, A] = {
     val av = ToAttributeValue.attrMapToAttributeValue.toAttributeValue(item)
     av.decode(Schema[A])
   }
@@ -995,9 +995,9 @@ object DynamoDBQuery {
     type Old = A
   }
 
-  private[dynamodb] final case class Absolve[A, B](query: DynamoDBQuery[A, Either[DynamoDBError, B]])
+  private[dynamodb] final case class Absolve[A, B](query: DynamoDBQuery[A, Either[DynamoDBItemError, B]])
       extends DynamoDBQuery[A, B] {
-    type Old = Either[DynamoDBError, B]
+    type Old = Either[DynamoDBItemError, B]
   }
 
   def apply[A](a: => A): DynamoDBQuery[Any, A] = Succeed(() => a)
