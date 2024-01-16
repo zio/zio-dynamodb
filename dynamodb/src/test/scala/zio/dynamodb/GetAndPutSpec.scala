@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.DynamoDBError.{ DecodingError, ValueNotFound }
+import zio.dynamodb.DynamoDBError.DynamoDBItemError.{ DecodingError, ValueNotFound }
 import zio.dynamodb.DynamoDBQuery.{ get, put }
 import zio.dynamodb.codec.Invoice
 import zio.dynamodb.codec.Invoice.PreBilled

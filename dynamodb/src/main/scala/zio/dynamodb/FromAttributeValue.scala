@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.DynamoDBError.DecodingError
+import zio.dynamodb.DynamoDBError.DynamoDBItemError.DecodingError
 import zio.dynamodb.DynamoDBError.DynamoDBItemError
 import zio.prelude.ForEachOps
 

@@ -109,17 +109,17 @@ package object dynamodb {
     mPar: Int = 10
   )(
     pk: A => KeyConditionExpr.PrimaryKeyExpr[From]
-  ): ZStream[R with DynamoDBExecutor, Throwable, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
+  ): ZStream[R with DynamoDBExecutor, Throwable, Either[DynamoDBItemError.DecodingError, (A, Option[From])]] =
     stream
       .aggregateAsync(ZSink.collectAllN[A](100))
       .mapZIOPar(mPar) { chunk =>
-        val batchGetItem: DynamoDBQuery[From, Chunk[Either[DynamoDBError.DecodingError, (A, Option[From])]]] =
+        val batchGetItem: DynamoDBQuery[From, Chunk[Either[DynamoDBItemError.DecodingError, (A, Option[From])]]] =
           DynamoDBQuery
             .forEach(chunk) { a =>
               DynamoDBQuery.get(tableName)(pk(a)).map {
                 case Right(b)                                 => Right((a, Some(b)))
-                case Left(DynamoDBError.ValueNotFound(_))     => Right((a, None))
-                case Left(e @ DynamoDBError.DecodingError(_)) => Left(e)
+                case Left(DynamoDBItemError.ValueNotFound(_))     => Right((a, None))
+                case Left(e @ DynamoDBItemError.DecodingError(_)) => Left(e)
               }
             }
             .map(Chunk.fromIterable)

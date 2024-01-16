@@ -1,7 +1,7 @@
 package zio.dynamodb
 
 import zio.dynamodb.Annotations._
-import zio.dynamodb.DynamoDBError.DecodingError
+import zio.dynamodb.DynamoDBError.DynamoDBItemError.DecodingError
 import zio.dynamodb.DynamoDBError.DynamoDBItemError
 import zio.prelude.{ FlipOps, ForEachOps }
 import zio.schema.Schema.{ Optional, Primitive }
@@ -879,10 +879,10 @@ private[dynamodb] object Codec {
               .filter(_.isRight)
 
           rights.toList match {
-            case Nil      => Left(DynamoDBError.DecodingError(s"All sub type decoders failed for $av"))
+            case Nil      => Left(DynamoDBItemError.DecodingError(s"All sub type decoders failed for $av"))
             case a :: Nil => a.map(_.asInstanceOf[Z])
             case _        =>
-              Left(DynamoDBError.DecodingError(s"More than one sub type decoder succeeded for $av"))
+              Left(DynamoDBItemError.DecodingError(s"More than one sub type decoder succeeded for $av"))
           }
 
         case AttributeValue.Map(map)                        =>

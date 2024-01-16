@@ -354,7 +354,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       assert(actual)(
         isLeft(
           equalTo(
-            DynamoDBError.DecodingError(message =
+            DynamoDBItemError.DecodingError(message =
               "All sub type decoders failed for Map(Map(String(FIELD_NOT_IN_ANY_SUBTYPE) -> String(X)))"
             )
           )
@@ -369,7 +369,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       assert(actual)(
         isLeft(
           equalTo(
-            DynamoDBError.DecodingError(message =
+            DynamoDBItemError.DecodingError(message =
               "More than one sub type decoder succeeded for Map(Map(String(i) -> Number(42)))"
             )
           )

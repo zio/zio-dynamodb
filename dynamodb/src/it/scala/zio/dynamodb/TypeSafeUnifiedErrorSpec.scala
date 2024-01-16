@@ -3,6 +3,7 @@ package zio.dynamodb
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test._
 import zio.test.Assertion._
+import zio.dynamodb.DynamoDBError.DynamoDBItemError
 import zio.dynamodb.DynamoDBQuery.{ deleteFrom, forEach, get, put, scanAll, update }
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
 import zio.Chunk
@@ -564,7 +565,7 @@ object TypeSafeUnifiedErrorSpec extends DynamoDBLocalSpec {
           _ <- deleteFrom(tableName)(Person.id.partitionKey === "1").where(Person.id.exists).execute
           p <- get(tableName)(Person.id.partitionKey === "1").execute
         } yield assertTrue(
-          p == Left(DynamoDBError.ValueNotFound("value with key AttrMap(Map(id -> String(1))) not found"))
+          p == Left(DynamoDBItemError.ValueNotFound("value with key AttrMap(Map(id -> String(1))) not found"))
         )
       }
     },
@@ -589,7 +590,7 @@ object TypeSafeUnifiedErrorSpec extends DynamoDBLocalSpec {
                  .execute
           p <- get(tableName)(Person.id.partitionKey === "1").execute
         } yield assertTrue(
-          p == Left(DynamoDBError.ValueNotFound("value with key AttrMap(Map(id -> String(1))) not found"))
+          p == Left(DynamoDBItemError.ValueNotFound("value with key AttrMap(Map(id -> String(1))) not found"))
         )
       }
     }
@@ -616,8 +617,8 @@ object TypeSafeUnifiedErrorSpec extends DynamoDBLocalSpec {
           people <- forEach(Chunk(person1, person2))(p => get(tableName)(Person.id.partitionKey === p.id)).execute
         } yield assertTrue(
           people == List(
-            Left(DynamoDBError.ValueNotFound("value with key AttrMap(Map(id -> String(1))) not found")),
-            Left(DynamoDBError.ValueNotFound("value with key AttrMap(Map(id -> String(2))) not found"))
+            Left(DynamoDBItemError.ValueNotFound("value with key AttrMap(Map(id -> String(1))) not found")),
+            Left(DynamoDBItemError.ValueNotFound("value with key AttrMap(Map(id -> String(2))) not found"))
           )
         )
       }

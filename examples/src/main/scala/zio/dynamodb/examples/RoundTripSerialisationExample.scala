@@ -1,6 +1,6 @@
 package zio.dynamodb.examples
 
-import zio.dynamodb.DynamoDBError.DecodingError
+import zio.dynamodb.DynamoDBError.DynamoDBItemError.DecodingError
 import zio.dynamodb.{ AttrMap, Item }
 
 import java.time.{ Instant, ZoneOffset }
