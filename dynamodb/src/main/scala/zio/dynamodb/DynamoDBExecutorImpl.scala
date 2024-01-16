@@ -84,6 +84,7 @@ import zio.stream.{ Stream, ZStream }
 import zio.{ Chunk, NonEmptyChunk, ZIO }
 
 import scala.collection.immutable.{ Map => ScalaMap }
+import software.amazon.awssdk.services.dynamodb.model.DynamoDbException
 
 private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynamoDb: DynamoDb)
     extends DynamoDBExecutor {
@@ -130,6 +131,27 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
                       }
         } yield a
     }
+
+  // TODO: experiment with unified errors  
+  def execute2[A](atomicQuery: DynamoDBQuery[_, A]): ZIO[Any, DynamoDBError, A] = {
+    val result = atomicQuery match {
+      case constructor: Constructor[_, A] => executeConstructor(constructor)
+      case zip @ Zip(_, _, _)             => executeZip(zip)
+      case map @ Map(_, _)                => executeMap(map)
+      case Absolve(query)                 =>
+        for {
+          errorOrA <- execute(query)
+          a        <- errorOrA match {
+                        case Left(dynamoDbError) => ZIO.fail(dynamoDbError)
+                        case Right(a)            => ZIO.succeed(a)
+                      }
+        } yield a
+    }
+
+    result.refineOrDie {
+      case e: DynamoDbException => DynamoDBError.DynamoDBAWSError(e)
+    }
+  }
 
   private def executeCreateTable(createTable: CreateTable): ZIO[Any, Throwable, Unit] =
     dynamoDb

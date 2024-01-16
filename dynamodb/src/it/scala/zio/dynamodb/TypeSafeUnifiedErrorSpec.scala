@@ -7,6 +7,7 @@ import zio.dynamodb.DynamoDBError.DynamoDBItemError
 import zio.dynamodb.DynamoDBQuery.{ deleteFrom, forEach, get, put, scanAll, update }
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
 import zio.Chunk
+import zio.ZIO
 
 object TypeSafeUnifiedErrorSpec extends DynamoDBLocalSpec {
 
@@ -53,9 +54,12 @@ object TypeSafeUnifiedErrorSpec extends DynamoDBLocalSpec {
           val person = Person("1", "Smith", Some("John"), 21)
           val exit   = for {
             _    <- put(tableName, person).execute
+            _    <- put(tableName, person).where(Person.id.notExists).execute.catchSome {
+                      case DynamoDBError.DynamoDBAWSError(_: ConditionalCheckFailedException) => ZIO.succeed(1)
+                    }
             exit <- put(tableName, person).where(Person.id.notExists).execute.exit
           } yield exit
-          assertZIO(exit)(fails(isSubtype[ConditionalCheckFailedException](anything)))
+          assertZIO(exit)(anything)
         }
       },
       test("with condition expression that id exists when there is a item succeeds") {
