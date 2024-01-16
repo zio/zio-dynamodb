@@ -8,6 +8,7 @@ import zio.aws.dynamodb.model.{
   KeysAndAttributes => ZIOAwsKeysAndAttributes
 }
 import zio.aws.dynamodb.{ DynamoDb, DynamoDbMock }
+import zio.dynamodb.DynamoDBError.DynamoDBBatchError
 import zio.dynamodb.DynamoDBQuery._
 import zio.mock.Expectation.value
 import zio.test.Assertion.{ fails, _ }
