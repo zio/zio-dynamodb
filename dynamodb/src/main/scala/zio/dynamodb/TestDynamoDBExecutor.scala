@@ -32,7 +32,7 @@ import zio.{ UIO, ZIO }
  */
 trait TestDynamoDBExecutor {
   def addTable(tableName: String, pkFieldName: String, pkAndItems: PkAndItem*): UIO[Unit]
-  def addItems(tableName: String, pkAndItems: PkAndItem*): ZIO[Any, DatabaseError, Unit]
+  def addItems(tableName: String, pkAndItems: PkAndItem*): ZIO[Any, DynamoDBError, Unit]
 }
 
 object TestDynamoDBExecutor {
@@ -44,7 +44,7 @@ object TestDynamoDBExecutor {
   ): ZIO[TestDynamoDBExecutor, Nothing, Unit] =
     ZIO.serviceWithZIO[TestDynamoDBExecutor](_.addTable(tableName, partitionKey, pkAndItems: _*))
 
-  def addItems(tableName: String, pkAndItems: PkAndItem*): ZIO[TestDynamoDBExecutor, DatabaseError, Unit] =
+  def addItems(tableName: String, pkAndItems: PkAndItem*): ZIO[TestDynamoDBExecutor, DynamoDBError, Unit] =
     ZIO.serviceWithZIO[TestDynamoDBExecutor](_.addItems(tableName, pkAndItems: _*))
 
 }

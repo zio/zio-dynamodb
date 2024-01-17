@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import software.amazon.awssdk.services.dynamodb.model.{ DynamoDbException, IdempotentParameterMismatchException }
+import software.amazon.awssdk.services.dynamodb.model.IdempotentParameterMismatchException
 import zio.dynamodb.UpdateExpression.Action.SetAction
 import zio.dynamodb.UpdateExpression.SetOperand
 import zio._
@@ -147,7 +147,13 @@ object LiveSpec extends DynamoDBLocalSpec {
     }
 
   private def assertDynamoDbException(substring: String): Assertion[Any] =
-    isSubtype[DynamoDbException](hasMessage(containsString(substring)))
+    isSubtype[DynamoDBError.DynamoDBAWSError](
+      hasField(
+        "cause",
+        _.cause,
+        hasMessage(containsString(substring))
+      )
+    )
 
   private val conditionAlwaysTrue = ConditionExpression.Equals(
     ConditionExpression.Operand.ValueOperand(AttributeValue(id)),
@@ -1400,7 +1406,15 @@ object LiveSpec extends DynamoDBLocalSpec {
               } yield ()
 
               assertZIO(program.exit)(
-                fails(isSubtype[IdempotentParameterMismatchException](Assertion.anything))
+                fails(
+                  isSubtype[DynamoDBError.DynamoDBAWSError](
+                    hasField(
+                      "cause",
+                      _.cause,
+                      isSubtype[IdempotentParameterMismatchException](anything)
+                    )
+                  )
+                )
               )
             }
           }

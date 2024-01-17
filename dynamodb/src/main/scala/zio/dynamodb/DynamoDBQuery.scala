@@ -29,7 +29,7 @@ import zio.dynamodb.UpdateExpression.Action
 import zio.prelude.ForEachOps
 import zio.schema.Schema
 import zio.stream.Stream
-import zio.{ Chunk, NonEmptyChunk, Schedule, ZIO, Zippable => _, _ }
+import zio.{ Chunk, Schedule, ZIO, Zippable => _, _ }
 
 sealed trait DynamoDBQuery[-In, +Out] { self =>
 
@@ -774,10 +774,6 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None
   ) extends Constructor[Any, A]
-
-  private[dynamodb] final case class MixedTransactionTypes() extends Throwable
-  private[dynamodb] final case class InvalidTransactionActions(invalidActions: NonEmptyChunk[DynamoDBQuery[Any, Any]])
-      extends Throwable
 
   private[dynamodb] final case class BatchWriteItem(
     requestItems: MapOfSet[TableName, BatchWriteItem.Write] = MapOfSet.empty,

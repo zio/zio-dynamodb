@@ -5,7 +5,7 @@ import zio.stm.{ STM, TMap }
 import zio.{ ULayer, URLayer, ZIO, ZLayer }
 
 trait DynamoDBExecutor {
-  def execute[A](atomicQuery: DynamoDBQuery[_, A]): ZIO[Any, Throwable, A]
+  def execute[A](atomicQuery: DynamoDBQuery[_, A]): ZIO[Any, DynamoDBError, A]
 }
 
 object DynamoDBExecutor {

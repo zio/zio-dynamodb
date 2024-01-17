@@ -2,10 +2,10 @@ package zio.dynamodb
 
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test._
+import zio.test.assertTrue
 import zio.test.Assertion._
 import zio.dynamodb.DynamoDBError.DynamoDBItemError
 import zio.dynamodb.DynamoDBQuery.{ deleteFrom, forEach, get, put, scanAll, update }
-import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
 import zio.Chunk
 
 object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
@@ -55,7 +55,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
             _    <- put(tableName, person).execute
             exit <- put(tableName, person).where(Person.id.notExists).execute.exit
           } yield exit
-          assertZIO(exit)(fails(isSubtype[ConditionalCheckFailedException](anything)))
+          assertZIO(exit)(fails(isConditionalCheckFailedException))
         }
       },
       test("with condition expression that id exists when there is a item succeeds") {
@@ -82,6 +82,15 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           } yield assertTrue(p == personUpdated)
         }
       }
+    )
+
+  def isConditionalCheckFailedException: Assertion[Any] =
+    isSubtype[DynamoDBError.DynamoDBAWSError](
+      hasField(
+        "isConditionalCheckFailedException",
+        _.isConditionalCheckFailedException,
+        equalTo(true)
+      )
     )
 
   private val updateSuite = suite("update")(
@@ -116,7 +125,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
             .where(Person.id.exists)
             .execute
             .exit
-        assertZIO(exit)(fails(isSubtype[ConditionalCheckFailedException](anything)))
+        assertZIO(exit)(fails(isConditionalCheckFailedException))
       }
     },
     test("set's a single field with an update plus a condition expression that addressSet contains an element") {
@@ -240,7 +249,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           .where(Person.id === "1")
           .execute
           .exit
-        assertZIO(exit)(fails(isSubtype[ConditionalCheckFailedException](anything)))
+        assertZIO(exit)(fails(isConditionalCheckFailedException))
       }
     },
     test(
@@ -574,7 +583,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
     ) {
       withSingleIdKeyTable { tableName =>
         assertZIO(deleteFrom(tableName)(Person.id.partitionKey === "1").where(Person.id.exists).execute.exit)(
-          fails(isSubtype[ConditionalCheckFailedException](anything))
+          fails(isConditionalCheckFailedException)
         )
       }
     },
