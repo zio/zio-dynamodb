@@ -39,9 +39,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   final def <*>[In1 <: In, B](that: DynamoDBQuery[In1, B]): DynamoDBQuery[In1, (Out, B)] = self zip that
 
-//  def execute2: ZIO[DynamoDBExecutor, DynamoDBError2, Out] = ???
-
-  def execute: ZIO[DynamoDBExecutor, Throwable, Out] = {
+  def execute: ZIO[DynamoDBExecutor, DynamoDBError, Out] = {
     val (constructors, assembler)                                                                   = parallelize(self)
     val (indexedConstructors, (batchGetItem, batchGetIndexes), (batchWriteItem, batchWriteIndexes)) =
       batched(constructors)
