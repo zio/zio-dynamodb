@@ -5,7 +5,6 @@ import software.amazon.awssdk.services.dynamodb.model.DynamoDbException
 import scala.util.control.NoStackTrace
 import zio.Chunk
 import zio.NonEmptyChunk
-import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
 
 sealed trait DynamoDBError extends Throwable with NoStackTrace with Product with Serializable {
   def message: String
@@ -23,15 +22,9 @@ object DynamoDBError {
   }
 
   // TODO: rename to AWSError
-  final case class DynamoDBAWSError(cause: DynamoDbException) extends DynamoDBError { self =>
+  final case class DynamoDBAWSError(cause: DynamoDbException) extends DynamoDBError {
     override def message: String = cause.getMessage
 
-    def isConditionalCheckFailedException: Boolean =
-      self match {
-        case DynamoDBAWSError(_: ConditionalCheckFailedException) =>
-          true
-        case _                                                    => false
-      }
   }
 
   // TODO: rename to BatchError

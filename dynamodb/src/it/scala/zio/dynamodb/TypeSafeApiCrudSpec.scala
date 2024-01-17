@@ -7,6 +7,7 @@ import zio.test.Assertion._
 import zio.dynamodb.DynamoDBError.DynamoDBItemError
 import zio.dynamodb.DynamoDBQuery.{ deleteFrom, forEach, get, put, scanAll, update }
 import zio.Chunk
+import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
 
 object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
 
@@ -87,9 +88,9 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
   def isConditionalCheckFailedException: Assertion[Any] =
     isSubtype[DynamoDBError.DynamoDBAWSError](
       hasField(
-        "isConditionalCheckFailedException",
-        _.isConditionalCheckFailedException,
-        equalTo(true)
+        "cause",
+        _.cause,
+        isSubtype[ConditionalCheckFailedException](anything)
       )
     )
 
