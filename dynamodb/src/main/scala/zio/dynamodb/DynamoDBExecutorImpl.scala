@@ -134,7 +134,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
 
     result.refineOrDie {
       case e: DynamoDbException => DynamoDBError.DynamoDBAWSError(e)
-      case e: DynamoDBError => e
+      case e: DynamoDBError     => e
     }
   }
 
@@ -387,9 +387,11 @@ case object DynamoDBExecutorImpl {
     else {
       val headConstructor = constructorToTransactionType(actions.head)
         .map(Right(_))
-        .getOrElse(Left(DynamoDBError.DynamoDBTransactionError.InvalidTransactionActions(NonEmptyChunk(actions.head)))) // TODO: Grab all that are invalid
+        .getOrElse(
+          Left(DynamoDBError.DynamoDBTransactionError.InvalidTransactionActions(NonEmptyChunk(actions.head)))
+        )        // TODO: Grab all that are invalid
       actions
-        .drop(1)                                                                 // dropping 1 because we have the head element as the base case of the fold
+        .drop(1) // dropping 1 because we have the head element as the base case of the fold
         .foldLeft(headConstructor: Either[Throwable, TransactionType]) {
           case (acc, constructor) =>
             acc match {
@@ -478,7 +480,12 @@ case object DynamoDBExecutorImpl {
               (Chunk(s), _ => None.asInstanceOf[A])
             ) // we don't get data back from transactWrites, return None here
           case s: ConditionCheck           => Right((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s                           => Left(DynamoDBError.DynamoDBTransactionError.InvalidTransactionActions(NonEmptyChunk(s.asInstanceOf[DynamoDBQuery[Any, Any]])))
+          case s                           =>
+            Left(
+              DynamoDBError.DynamoDBTransactionError.InvalidTransactionActions(
+                NonEmptyChunk(s.asInstanceOf[DynamoDBQuery[Any, Any]])
+              )
+            )
         }
       case Zip(left, right, zippable)     =>
         for {
@@ -502,7 +509,9 @@ case object DynamoDBExecutorImpl {
         }
       case Absolve(query)                 =>
         Left(
-          DynamoDBError.DynamoDBTransactionError.InvalidTransactionActions(NonEmptyChunk(query.asInstanceOf[DynamoDBQuery[Any, Any]]))
+          DynamoDBError.DynamoDBTransactionError.InvalidTransactionActions(
+            NonEmptyChunk(query.asInstanceOf[DynamoDBQuery[Any, Any]])
+          )
         )
     }
 

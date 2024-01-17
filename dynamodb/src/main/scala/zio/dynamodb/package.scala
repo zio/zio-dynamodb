@@ -117,7 +117,7 @@ package object dynamodb {
           DynamoDBQuery
             .forEach(chunk) { a =>
               DynamoDBQuery.get(tableName)(pk(a)).map {
-                case Right(b)                                 => Right((a, Some(b)))
+                case Right(b)                                     => Right((a, Some(b)))
                 case Left(DynamoDBItemError.ValueNotFound(_))     => Right((a, None))
                 case Left(e @ DynamoDBItemError.DecodingError(_)) => Left(e)
               }

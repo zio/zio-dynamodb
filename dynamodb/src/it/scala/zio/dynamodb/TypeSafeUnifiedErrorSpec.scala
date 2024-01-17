@@ -36,7 +36,8 @@ object TypeSafeUnifiedErrorSpec extends DynamoDBLocalSpec {
     val (id, surname, addressList, addressMap, addressSet)                                                         = ProjectionExpression.accessors[PersonWithCollections]
   }
 
-  override def spec = suite("all")(putSuite, updateSuite, deleteSuite, forEachSuite) @@ TestAspect.nondeterministic @@ TestAspect.ignore
+  override def spec =
+    suite("all")(putSuite, updateSuite, deleteSuite, forEachSuite) @@ TestAspect.nondeterministic @@ TestAspect.ignore
 
   private val putSuite =
     suite("put")(

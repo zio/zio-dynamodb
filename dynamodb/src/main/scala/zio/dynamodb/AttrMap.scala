@@ -30,7 +30,9 @@ final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFrom
     )
 
   // convenience method so that user does not have to transform between a List and an Either
-  def getIterableItem[A](field: String)(f: AttrMap => Either[DynamoDBItemError, A]): Either[DynamoDBItemError, Iterable[A]] =
+  def getIterableItem[A](
+    field: String
+  )(f: AttrMap => Either[DynamoDBItemError, A]): Either[DynamoDBItemError, Iterable[A]] =
     get[Iterable[Item]](field).flatMap[DynamoDBItemError, Iterable[A]](xs => xs.forEach(f))
 
   // convenience method so that user does not have to transform between an Option, List and an Either

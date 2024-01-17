@@ -909,10 +909,10 @@ private[dynamodb] object Codec {
         case AttributeValue.Map(map) =>
           fields.toList.forEach {
             case Schema.Field(key, schema, _, _, _, _) =>
-              val dec                                = decoder(schema)
-              val k                                  = key // @fieldName is respected by the zio-schema macro
-              val maybeValue                         = map.get(AttributeValue.String(k))
-              val maybeDecoder                       = maybeValue.map(dec).toRight(DecodingError(s"field '$k' not found in $av"))
+              val dec                                    = decoder(schema)
+              val k                                      = key // @fieldName is respected by the zio-schema macro
+              val maybeValue                             = map.get(AttributeValue.String(k))
+              val maybeDecoder                           = maybeValue.map(dec).toRight(DecodingError(s"field '$k' not found in $av"))
               val either: Either[DynamoDBItemError, Any] = for {
                 decoder <- maybeDecoder
                 decoded <- decoder
