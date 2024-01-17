@@ -28,10 +28,7 @@ object DynamoDBError {
   }
 
   // TODO: rename to BatchError
-  sealed trait DynamoDBBatchError extends DynamoDBError {
-    def message: String
-    override def getMessage(): String = message
-  }
+  sealed trait DynamoDBBatchError extends DynamoDBError
 
   // TODO: rename to BatchError
   object DynamoDBBatchError {
@@ -50,10 +47,7 @@ object DynamoDBError {
     }
   }
 
-  sealed trait DynamoDBTransactionError extends DynamoDBError {
-    def message: String
-    override def getMessage(): String = message
-  }
+  sealed trait DynamoDBTransactionError extends DynamoDBError
 
   // TODO: rename stuff here as well
   object DynamoDBTransactionError {
