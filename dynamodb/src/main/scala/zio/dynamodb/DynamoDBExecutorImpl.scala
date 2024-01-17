@@ -382,8 +382,8 @@ case object DynamoDBExecutorImpl {
   // Need to go through the chunk and make sure we don't have mixed transaction actions
   private[dynamodb] def filterMixedTransactions[A](
     actions: Chunk[Constructor[Any, A]]
-  ): Either[Throwable, (Chunk[Constructor[Any, A]], TransactionType)] =
-    if (actions.isEmpty) Left(EmptyTransaction())
+  ): Either[Throwable, (Chunk[Constructor[Any, A]], TransactionType)] = // TODO: can we narrow to DynamoDBError.DynamoDBTransactionError?
+    if (actions.isEmpty) Left(DynamoDBError.DynamoDBTransactionError.EmptyTransaction)
     else {
       val headConstructor = constructorToTransactionType(actions.head)
         .map(Right(_))
@@ -409,7 +409,7 @@ case object DynamoDBExecutorImpl {
     constructorToTransactionType(constructor)
       .map(t =>
         if (t == transactionType) Right(transactionType)
-        else Left(DynamoDBError.DynamoDBTransactionError.MixedTransactionTypes())
+        else Left(DynamoDBError.DynamoDBTransactionError.MixedTransactionTypes)
       )
       .getOrElse(
         Left(DynamoDBError.DynamoDBTransactionError.InvalidTransactionActions(NonEmptyChunk(constructor)))

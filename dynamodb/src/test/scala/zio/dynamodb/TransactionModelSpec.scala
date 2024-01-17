@@ -149,7 +149,7 @@ object TransactionModelSpec extends ZIOSpecDefault {
         val query: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap])] = updateItem.zip(getItem)
 
         assertZIO(query.transaction.execute.exit)(
-          fails(isSubtype[DynamoDBError.DynamoDBTransactionError.MixedTransactionTypes](Assertion.anything))
+          fails(isSubtype[DynamoDBError.DynamoDBTransactionError.MixedTransactionTypes.type](Assertion.anything))
         )
       }
     ),
