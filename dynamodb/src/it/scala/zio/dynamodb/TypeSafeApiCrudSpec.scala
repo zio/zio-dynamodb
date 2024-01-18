@@ -59,6 +59,23 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           assertZIO(exit)(fails(isConditionalCheckFailedException))
         }
       },
+      test("map error from condition expression that id not exists fails when item exists") {
+        withSingleIdKeyTable { tableName =>
+          val person = Person("1", "Smith", Some("John"), 21)
+          val exit   = for {
+            _    <- put(tableName, person).execute
+            exit <- put(tableName, person)
+                      .where(Person.id.notExists)
+                      .execute
+                      .mapError {
+                        case DynamoDBError.DynamoDBAWSError(_: ConditionalCheckFailedException) => 42
+                        case _                                                                  => 0
+                      }
+                      .exit
+          } yield (exit)
+          assertZIO(exit)(fails(equalTo(42)))
+        }
+      },
       test("with condition expression that id exists when there is a item succeeds") {
         withSingleIdKeyTable { tableName =>
           val person = Person("1", "Smith", Some("John"), 21)

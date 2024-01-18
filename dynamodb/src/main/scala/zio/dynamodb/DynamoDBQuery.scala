@@ -471,26 +471,6 @@ object DynamoDBQuery {
   ): DynamoDBQuery[From, Either[DynamoDBItemError, From]] =
     get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
 
-  // def get2[From: Schema](tableName: String)(
-  //   primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
-  // ): DynamoDBQuery[From, Either[DynamoDBError2, From]] = ???
-
-  def getOptional[From: Schema](tableName: String)(
-    primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
-  ): DynamoDBQuery[From, Option[From]] =
-    getOptional(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
-
-  private def getOptional[A: Schema](
-    tableName: String,
-    key: PrimaryKey,
-    projections: Chunk[ProjectionExpression[_, _]]
-  ): DynamoDBQuery[A, Option[A]] =
-    getItem(tableName, key, projections: _*).map {
-      case Some(item) =>
-        fromItem(item).toOption
-      case None       => None
-    }
-
   private def get[A: Schema](
     tableName: String,
     key: PrimaryKey,
