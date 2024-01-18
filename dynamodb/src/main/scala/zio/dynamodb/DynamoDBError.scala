@@ -42,7 +42,6 @@ object DynamoDBError {
 
   sealed trait TransactionError extends DynamoDBError
 
-  // TODO: rename stuff here as well
   object TransactionError {
     case object EmptyTransaction extends TransactionError {
       val message = "transaction is empty"
