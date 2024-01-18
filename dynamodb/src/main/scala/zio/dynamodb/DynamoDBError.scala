@@ -51,11 +51,11 @@ object DynamoDBError {
 
   // TODO: rename stuff here as well
   object DynamoDBTransactionError {
-    final case object EmptyTransaction extends DynamoDBTransactionError {
+    case object EmptyTransaction extends DynamoDBTransactionError {
       val message = "transaction is empty"
     }
 
-    final case object MixedTransactionTypes extends DynamoDBTransactionError {
+    case object MixedTransactionTypes extends DynamoDBTransactionError {
       val message = "transaction contains both get and write actions"
     }
 
