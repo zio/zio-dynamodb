@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.DynamoDBError.DynamoDBItemError
+import zio.dynamodb.DynamoDBError.ItemError
 import zio.test.Assertion.{ equalTo, isRight }
 import zio.test._
 
@@ -8,8 +8,8 @@ object AttributeValueRoundTripSerialisationSpec extends ZIOSpecDefault {
   private val serialisationSuite = suite("AttributeValue Serialisation suite")(test("round trip serialisation") {
     check(genSerializable) { s =>
       check(s.genA) { (a: s.Element) =>
-        val av: AttributeValue                      = s.to.toAttributeValue(a)
-        val v: Either[DynamoDBItemError, s.Element] = s.from.fromAttributeValue(av)
+        val av: AttributeValue              = s.to.toAttributeValue(a)
+        val v: Either[ItemError, s.Element] = s.from.fromAttributeValue(av)
         assert(v)(isRight(equalTo(a)))
       }
     }

@@ -12,55 +12,48 @@ sealed trait DynamoDBError extends Throwable with NoStackTrace with Product with
 }
 
 object DynamoDBError {
-  // TODO: rename to ItemError
-  sealed trait DynamoDBItemError extends DynamoDBError
+  sealed trait ItemError extends DynamoDBError
 
-  // TODO: rename to ItemError
-  object DynamoDBItemError {
-    final case class ValueNotFound(message: String) extends DynamoDBItemError
-    final case class DecodingError(message: String) extends DynamoDBItemError
+  object ItemError {
+    final case class ValueNotFound(message: String) extends ItemError
+    final case class DecodingError(message: String) extends ItemError
   }
 
-  // TODO: rename to AWSError
-  final case class DynamoDBAWSError(cause: DynamoDbException) extends DynamoDBError {
+  final case class AWSError(cause: DynamoDbException) extends DynamoDBError {
     override def message: String = cause.getMessage
 
   }
 
-  // TODO: rename to BatchError
-  sealed trait DynamoDBBatchError extends DynamoDBError
+  sealed trait BatchError extends DynamoDBError
 
-  // TODO: rename to BatchError
-  object DynamoDBBatchError {
+  object BatchError {
     sealed trait Write                       extends Product with Serializable
     final case class Delete(key: PrimaryKey) extends Write
     final case class Put(item: Item)         extends Write
 
-    // TODO: rename to WriteError
-    final case class BatchWriteError(unprocessedItems: Map[String, Chunk[Write]]) extends DynamoDBBatchError {
+    final case class WriteError(unprocessedItems: Map[String, Chunk[Write]]) extends BatchError {
       val message = "unprocessed items returned by aws"
     }
 
-    // TODO: rename to GetError
-    final case class BatchGetError(unprocessedKeys: Map[String, Set[PrimaryKey]]) extends DynamoDBBatchError {
+    final case class GetError(unprocessedKeys: Map[String, Set[PrimaryKey]]) extends BatchError {
       val message = "unprocessed keys returned by aws"
     }
   }
 
-  sealed trait DynamoDBTransactionError extends DynamoDBError
+  sealed trait TransactionError extends DynamoDBError
 
   // TODO: rename stuff here as well
-  object DynamoDBTransactionError {
-    case object EmptyTransaction extends DynamoDBTransactionError {
+  object TransactionError {
+    case object EmptyTransaction extends TransactionError {
       val message = "transaction is empty"
     }
 
-    case object MixedTransactionTypes extends DynamoDBTransactionError {
+    case object MixedTransactionTypes extends TransactionError {
       val message = "transaction contains both get and write actions"
     }
 
     final case class InvalidTransactionActions(invalidActions: NonEmptyChunk[DynamoDBQuery[Any, Any]])
-        extends DynamoDBTransactionError {
+        extends TransactionError {
       val message = "transaction contains invalid actions"
     }
   }

@@ -4,7 +4,7 @@ import zio.schema.{ DeriveSchema, Schema }
 import zio.test._
 import zio.test.assertTrue
 import zio.test.Assertion._
-import zio.dynamodb.DynamoDBError.DynamoDBItemError
+import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.DynamoDBQuery.{ deleteFrom, forEach, get, put, scanAll, update }
 import zio.Chunk
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
@@ -68,8 +68,8 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
                       .where(Person.id.notExists)
                       .execute
                       .mapError {
-                        case DynamoDBError.DynamoDBAWSError(_: ConditionalCheckFailedException) => 42
-                        case _                                                                  => 0
+                        case DynamoDBError.AWSError(_: ConditionalCheckFailedException) => 42
+                        case _                                                          => 0
                       }
                       .exit
           } yield (exit)
@@ -103,7 +103,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
     )
 
   def isConditionalCheckFailedException: Assertion[Any] =
-    isSubtype[DynamoDBError.DynamoDBAWSError](
+    isSubtype[DynamoDBError.AWSError](
       hasField(
         "cause",
         _.cause,
@@ -592,7 +592,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           _ <- deleteFrom(tableName)(Person.id.partitionKey === "1").where(Person.id.exists).execute
           p <- get(tableName)(Person.id.partitionKey === "1").execute
         } yield assertTrue(
-          p == Left(DynamoDBItemError.ValueNotFound("value with key AttrMap(Map(id -> String(1))) not found"))
+          p == Left(ItemError.ValueNotFound("value with key AttrMap(Map(id -> String(1))) not found"))
         )
       }
     },
@@ -617,7 +617,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
                  .execute
           p <- get(tableName)(Person.id.partitionKey === "1").execute
         } yield assertTrue(
-          p == Left(DynamoDBItemError.ValueNotFound("value with key AttrMap(Map(id -> String(1))) not found"))
+          p == Left(ItemError.ValueNotFound("value with key AttrMap(Map(id -> String(1))) not found"))
         )
       }
     }
@@ -644,8 +644,8 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           people <- forEach(Chunk(person1, person2))(p => get(tableName)(Person.id.partitionKey === p.id)).execute
         } yield assertTrue(
           people == List(
-            Left(DynamoDBItemError.ValueNotFound("value with key AttrMap(Map(id -> String(1))) not found")),
-            Left(DynamoDBItemError.ValueNotFound("value with key AttrMap(Map(id -> String(2))) not found"))
+            Left(ItemError.ValueNotFound("value with key AttrMap(Map(id -> String(1))) not found")),
+            Left(ItemError.ValueNotFound("value with key AttrMap(Map(id -> String(2))) not found"))
           )
         )
       }

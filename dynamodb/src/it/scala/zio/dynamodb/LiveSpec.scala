@@ -147,7 +147,7 @@ object LiveSpec extends DynamoDBLocalSpec {
     }
 
   private def assertDynamoDbException(substring: String): Assertion[Any] =
-    isSubtype[DynamoDBError.DynamoDBAWSError](
+    isSubtype[DynamoDBError.AWSError](
       hasField(
         "cause",
         _.cause,
@@ -1407,7 +1407,7 @@ object LiveSpec extends DynamoDBLocalSpec {
 
               assertZIO(program.exit)(
                 fails(
-                  isSubtype[DynamoDBError.DynamoDBAWSError](
+                  isSubtype[DynamoDBError.AWSError](
                     hasField(
                       "cause",
                       _.cause,

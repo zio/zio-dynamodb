@@ -86,7 +86,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
   }
 
   private def tableError(tableName: String): DynamoDBError =
-    DynamoDBError.DynamoDBItemError.ValueNotFound(s"table $tableName does not exist")
+    DynamoDBError.ItemError.ValueNotFound(s"table $tableName does not exist")
 
   private def tableMapAndPkName(tableName: String): ZSTM[Any, DynamoDBError, (TMap[PrimaryKey, Item], String)] =
     for {

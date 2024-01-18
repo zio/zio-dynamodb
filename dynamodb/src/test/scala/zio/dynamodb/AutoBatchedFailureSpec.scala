@@ -8,7 +8,7 @@ import zio.aws.dynamodb.model.{
   KeysAndAttributes => ZIOAwsKeysAndAttributes
 }
 import zio.aws.dynamodb.{ DynamoDb, DynamoDbMock }
-import zio.dynamodb.DynamoDBError.DynamoDBBatchError
+import zio.dynamodb.DynamoDBError.BatchError
 import zio.dynamodb.DynamoDBQuery._
 import zio.mock.Expectation.value
 import zio.test.Assertion.{ fails, _ }
@@ -298,17 +298,17 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
     )
 
   private def assertDynamoDBBatchGetError(map: ScalaMap[String, Set[PrimaryKey]]): Assertion[Any] =
-    isSubtype[DynamoDBBatchError.BatchGetError](
-      hasField[DynamoDBBatchError.BatchGetError, ScalaMap[String, Set[PrimaryKey]]](
+    isSubtype[BatchError.GetError](
+      hasField[BatchError.GetError, ScalaMap[String, Set[PrimaryKey]]](
         "unprocessedKeys",
         _.unprocessedKeys,
         equalTo(map)
       )
     )
 
-  private def assertDynamoDBBatchWriteError(map: ScalaMap[String, Chunk[DynamoDBBatchError.Write]]): Assertion[Any] =
-    isSubtype[DynamoDBBatchError.BatchWriteError](
-      hasField[DynamoDBBatchError.BatchWriteError, ScalaMap[String, Chunk[DynamoDBBatchError.Write]]](
+  private def assertDynamoDBBatchWriteError(map: ScalaMap[String, Chunk[BatchError.Write]]): Assertion[Any] =
+    isSubtype[BatchError.WriteError](
+      hasField[BatchError.WriteError, ScalaMap[String, Chunk[BatchError.Write]]](
         "unprocessedItems",
         _.unprocessedItems,
         equalTo(map)
@@ -338,7 +338,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
           assertZIO(autoBatched.execute.exit)(
             fails(
               assertDynamoDBBatchWriteError(
-                ScalaMap("mockBatches" -> Chunk(DynamoDBBatchError.Put(itemOne), DynamoDBBatchError.Put(itemTwo)))
+                ScalaMap("mockBatches" -> Chunk(BatchError.Put(itemOne), BatchError.Put(itemTwo)))
               )
             )
           )
@@ -348,7 +348,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
           assertZIO(autoBatched.execute.exit)(
             fails(
               assertDynamoDBBatchWriteError(
-                ScalaMap("mockBatches" -> Chunk(DynamoDBBatchError.Put(itemOne), DynamoDBBatchError.Put(itemTwo)))
+                ScalaMap("mockBatches" -> Chunk(BatchError.Put(itemOne), BatchError.Put(itemTwo)))
               )
             )
           )
@@ -358,7 +358,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
           assertZIO(autoBatched.execute.exit)(
             fails(
               assertDynamoDBBatchWriteError(
-                ScalaMap("mockBatches" -> Chunk(DynamoDBBatchError.Put(itemOne), DynamoDBBatchError.Put(itemTwo)))
+                ScalaMap("mockBatches" -> Chunk(BatchError.Put(itemOne), BatchError.Put(itemTwo)))
               )
             )
           )
@@ -370,7 +370,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
           assertZIO(autoBatched.execute.exit)(
             fails(
               assertDynamoDBBatchWriteError(
-                ScalaMap("mockBatches" -> Chunk(DynamoDBBatchError.Put(itemOne)))
+                ScalaMap("mockBatches" -> Chunk(BatchError.Put(itemOne)))
               )
             )
           )
@@ -380,7 +380,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
           assertZIO(autoBatched.execute.exit)(
             fails(
               assertDynamoDBBatchWriteError(
-                ScalaMap("mockBatches" -> Chunk(DynamoDBBatchError.Put(itemOne)))
+                ScalaMap("mockBatches" -> Chunk(BatchError.Put(itemOne)))
               )
             )
           )
@@ -390,7 +390,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
           assertZIO(autoBatched.execute.exit)(
             fails(
               assertDynamoDBBatchWriteError(
-                ScalaMap("mockBatches" -> Chunk(DynamoDBBatchError.Put(itemOne)))
+                ScalaMap("mockBatches" -> Chunk(BatchError.Put(itemOne)))
               )
             )
           )

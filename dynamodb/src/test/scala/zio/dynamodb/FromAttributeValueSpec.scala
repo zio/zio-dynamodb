@@ -1,7 +1,7 @@
 package zio.dynamodb
 
-import zio.dynamodb.DynamoDBError.DynamoDBItemError
-import zio.dynamodb.DynamoDBError.DynamoDBItemError.DecodingError
+import zio.dynamodb.DynamoDBError.ItemError
+import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.test.Assertion._
 import zio.test.{ ZIOSpecDefault, _ }
 
@@ -36,8 +36,8 @@ object FromAttributeValueSpec extends ZIOSpecDefault {
     },
     test("getOptItem should return a Right of Some(Foo) when it exists in the AttrMap") {
       final case class Foo(s: String, o: Option[String])
-      val attrMap                                        = AttrMap("f1" -> AttrMap("f2" -> "a", "f3" -> "b"))
-      val either: Either[DynamoDBItemError, Option[Foo]] = for {
+      val attrMap                                = AttrMap("f1" -> AttrMap("f2" -> "a", "f3" -> "b"))
+      val either: Either[ItemError, Option[Foo]] = for {
         maybe <- attrMap.getOptionalItem("f1") { m =>
                    for {
                      s <- m.get[String]("f2")
@@ -49,8 +49,8 @@ object FromAttributeValueSpec extends ZIOSpecDefault {
     },
     test("getItemList should return a Right of Iterable[Foo] when it exists in the AttrMap") {
       final case class Foo(s: String, o: Option[String])
-      val attrMap                                          = AttrMap("f1" -> List(AttrMap("f2" -> "a", "f3" -> "b"), AttrMap("f2" -> "c", "f3" -> "d")))
-      val either: Either[DynamoDBItemError, Iterable[Foo]] = for {
+      val attrMap                                  = AttrMap("f1" -> List(AttrMap("f2" -> "a", "f3" -> "b"), AttrMap("f2" -> "c", "f3" -> "d")))
+      val either: Either[ItemError, Iterable[Foo]] = for {
         xs <- attrMap.getIterableItem[Foo]("f1") { m =>
                 for {
                   s <- m.get[String]("f2")
@@ -62,8 +62,8 @@ object FromAttributeValueSpec extends ZIOSpecDefault {
     },
     test("getOptionalIterableItem should return a Right of Option[Iterable[Foo]] when it exists in the AttrMap") {
       final case class Foo(s: String, o: Option[String])
-      val attrMap                                                  = AttrMap("f1" -> List(AttrMap("f2" -> "a", "f3" -> "b"), AttrMap("f2" -> "c", "f3" -> "d")))
-      val either: Either[DynamoDBItemError, Option[Iterable[Foo]]] = for {
+      val attrMap                                          = AttrMap("f1" -> List(AttrMap("f2" -> "a", "f3" -> "b"), AttrMap("f2" -> "c", "f3" -> "d")))
+      val either: Either[ItemError, Option[Iterable[Foo]]] = for {
         xs <- attrMap.getOptionalIterableItem[Foo]("f1") { m =>
                 for {
                   s <- m.get[String]("f2")
