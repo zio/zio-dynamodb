@@ -383,9 +383,9 @@ case object DynamoDBExecutorImpl {
   private[dynamodb] def filterMixedTransactions[A](
     actions: Chunk[Constructor[Any, A]]
   ): Either[
-    Throwable,
+    DynamoDBError.DynamoDBTransactionError,
     (Chunk[Constructor[Any, A]], TransactionType)
-  ] = // TODO: can we narrow to DynamoDBError.DynamoDBTransactionError?
+  ] =
     if (actions.isEmpty) Left(DynamoDBError.DynamoDBTransactionError.EmptyTransaction)
     else {
       val headConstructor = constructorToTransactionType(actions.head)
@@ -395,7 +395,7 @@ case object DynamoDBExecutorImpl {
         )        // TODO: Grab all that are invalid
       actions
         .drop(1) // dropping 1 because we have the head element as the base case of the fold
-        .foldLeft(headConstructor: Either[Throwable, TransactionType]) {
+        .foldLeft(headConstructor: Either[DynamoDBError.DynamoDBTransactionError, TransactionType]) {
           case (acc, constructor) =>
             acc match {
               case l @ Left(_)            => l // Should also continue collecting other failures
@@ -408,7 +408,7 @@ case object DynamoDBExecutorImpl {
   private def constructorMatch[A](
     constructor: Constructor[Any, A],
     transactionType: TransactionType
-  ): Either[Throwable, TransactionType] =
+  ): Either[DynamoDBError.DynamoDBTransactionError, TransactionType] =
     constructorToTransactionType(constructor)
       .map(t =>
         if (t == transactionType) Right(transactionType)
