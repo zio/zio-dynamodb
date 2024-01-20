@@ -12,6 +12,7 @@ sealed trait DynamoDBError extends Throwable with NoStackTrace with Product with
 }
 
 object DynamoDBError {
+
   sealed trait ItemError extends DynamoDBError
 
   object ItemError {
@@ -19,11 +20,20 @@ object DynamoDBError {
     final case class DecodingError(message: String) extends ItemError
   }
 
+  /**
+   * Encapsulates the underlying AWS SDK dynamodb error in `cause` which can be pattern matched eg
+   * `case DynamoDBError.AWSError(_: ConditionalCheckFailedException) => ...`
+   */
   final case class AWSError(cause: DynamoDbException) extends DynamoDBError {
     override def message: String = cause.getMessage
 
   }
 
+  /**
+   * You need to handle this error if queries result in batching ie if you are using `DynamoDBQuery.forEach` or utility
+   * functions that use `DynamoDBQuery.forEach`. Note at the point that this error is raised automatic retries have already occurred.
+   * For a long running process typical handler actions would be to record the errors and to carry on processing.
+   */
   sealed trait BatchError extends DynamoDBError
 
   object BatchError {
@@ -40,6 +50,9 @@ object DynamoDBError {
     }
   }
 
+  /**
+   * You need to handle this error if you are using the transaction API ie `dynamoDBQuery.transaction` or `dynamoDBQuery.safeTransaction`
+   */
   sealed trait TransactionError extends DynamoDBError
 
   object TransactionError {

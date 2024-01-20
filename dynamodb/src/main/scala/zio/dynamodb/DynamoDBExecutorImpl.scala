@@ -84,7 +84,7 @@ import zio.stream.{ Stream, ZStream }
 import zio.{ Chunk, NonEmptyChunk, ZIO }
 
 import scala.collection.immutable.{ Map => ScalaMap }
-import software.amazon.awssdk.services.dynamodb.model.DynamoDbException
+import software.amazon.awssdk.services.dynamodb.model.{DynamoDbException => AwsSdkDynamoDbException}
 
 private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynamoDb: DynamoDb)
     extends DynamoDBExecutor {
@@ -133,7 +133,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
     }
 
     result.refineOrDie {
-      case e: DynamoDbException => DynamoDBError.AWSError(e)
+      case e: AwsSdkDynamoDbException => DynamoDBError.AWSError(e)
       case e: DynamoDBError     => e
     }
   }
@@ -433,7 +433,7 @@ case object DynamoDBExecutorImpl {
   private[dynamodb] def buildTransaction[A](
     query: DynamoDBQuery[_, A]
   ): Either[
-    Throwable,
+    DynamoDBError.TransactionError,
     (Chunk[Constructor[Any, Any]], Chunk[Any] => A)
   ] =
     query match {

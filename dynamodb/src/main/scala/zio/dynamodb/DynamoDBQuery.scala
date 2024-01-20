@@ -409,7 +409,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   final def transaction: DynamoDBQuery[In, Out] = Transaction(self).asInstanceOf[DynamoDBQuery[In, Out]]
 
-  final def safeTransaction: Either[Throwable, DynamoDBQuery[Any, Out]] = {
+  final def safeTransaction: Either[DynamoDBError.TransactionError, DynamoDBQuery[Any, Out]] = {
     val transaction = Transaction(self)
     DynamoDBExecutorImpl
       .buildTransaction(transaction)
@@ -452,7 +452,7 @@ object DynamoDBQuery {
    * allowed by the AWS API, or alternatively use `forEach` to implement your own streaming functions.
    *
    * Note that if you need need access to `unprocessedItems` or `unprocessedKeys` then an error handler for
-   * `DynamoDBBatchError` should be provided.
+   * `DynamoDBError.BatchError` should be provided.
    */
   def forEach[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery[In, List[B]] =
     values.foldRight[DynamoDBQuery[In, List[B]]](succeed(Nil)) {
