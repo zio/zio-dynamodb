@@ -38,7 +38,7 @@ package object dynamodb {
     mPar: Int = 10
   )(
     f: A => DynamoDBQuery[In, B]
-  ): ZStream[DynamoDBExecutor with R, Throwable, B] = // TODO: Avi - can we constraint query to put or write?
+  ): ZStream[DynamoDBExecutor with R, Throwable, B] =
     stream
       .aggregateAsync(ZSink.collectAllN[A](25))
       .mapZIOPar(mPar) { chunk =>
