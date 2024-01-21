@@ -102,7 +102,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           } yield assertTrue(p == personUpdated)
         }
       },
-      test("with forEach catch a BatchError and resume processing") {
+      test("with forEach, catching a BatchError and resuming processing") {
         withSingleIdKeyTable { tableName =>
           type FailureWrapper = Either[String, Option[Person]]
           val person1                                                                = Person("1", "Smith", Some("John"), 21)
