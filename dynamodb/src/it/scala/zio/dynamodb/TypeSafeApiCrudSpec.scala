@@ -8,6 +8,8 @@ import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.DynamoDBQuery.{ deleteFrom, forEach, get, put, scanAll, update }
 import zio.Chunk
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
+import zio.stream.ZStream
+import zio.ZIO
 
 object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
 
@@ -98,6 +100,33 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
                 .execute
             p <- get(tableName)(Person.id.partitionKey === "1").execute.absolve
           } yield assertTrue(p == personUpdated)
+        }
+      },
+      test("with forEach catch a BatchError and resume processing") {
+        withSingleIdKeyTable { tableName =>
+          type FailureWrapper = Either[String, Option[Person]]
+          val person1                                                                = Person("1", "Smith", Some("John"), 21)
+          val person2                                                                = Person("2", "Brown", None, 42)
+          val inputStream                                                            = ZStream(person1, person2)
+          val outputStream: ZStream[DynamoDBExecutor, DynamoDBError, FailureWrapper] = inputStream
+            .grouped(2)
+            .mapZIO { chunk =>
+              val batchWriteItem = DynamoDBQuery
+                .forEach(chunk)(a => put(tableName, a))
+                .map(Chunk.fromIterable)
+              for {
+                r <- ZIO.environment[DynamoDBExecutor]
+                b <- batchWriteItem.execute.provideEnvironment(r).map(_.map(Right(_))).catchSome {
+                       // example of catching a BatchError and resuming processing
+                       case DynamoDBError.BatchError.WriteError(map) => ZIO.succeed(Chunk(Left(map.toString)))
+                     }
+              } yield b
+            }
+            .flattenChunks
+
+          for {
+            xs <- outputStream.runCollect
+          } yield assertTrue(xs == Chunk(Right(None), Right(None)))
         }
       }
     )
