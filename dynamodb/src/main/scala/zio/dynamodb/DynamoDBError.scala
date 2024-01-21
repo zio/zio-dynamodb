@@ -30,8 +30,8 @@ object DynamoDBError {
   }
 
   /**
-   * You need to handle this error if queries result in batching eg if you are using `DynamoDBQuery.forEach` or manually `Zip`'ing 
-   * together `DynamoDBQuery`'s or using utility functions that use `DynamoDBQuery.forEach`. 
+   * You need to handle this error if queries result in batching eg if you are using `DynamoDBQuery.forEach` or manually `Zip`'ing
+   * together `DynamoDBQuery`'s or using utility functions that use `DynamoDBQuery.forEach`.
    * Note at the point that this error is raised automatic retries have already occurred.
    * For a long running process typical handler actions would be to record the errors and to carry on processing.
    */
