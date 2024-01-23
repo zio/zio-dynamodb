@@ -10,6 +10,7 @@ import zio.{ Scope, Unsafe, ZIO, ZLayer }
 import zio.aws.core.config
 import zio.aws.dynamodb
 import zio.aws.netty.NettyHttpClient
+import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb._
 import zio.schema.Schema
 import zio.stream.ZStream
@@ -153,15 +154,15 @@ object syntax {
     dynamoDBExceutorF: DynamoDBExceutorF[F],
     async: Async[F],
     d: Dispatcher[F]
-  ): fs2.Stream[F, Either[DynamoDBError.DecodingError, (A, Option[From])]] = {
+  ): fs2.Stream[F, Either[ItemError.DecodingError, (A, Option[From])]] = {
 
     val zioStream: ZStream[Any, Throwable, A] = fs2StreamIn.translate(toZioFunctionK[F]).toZStream()
     val layer                                 = ZLayer.succeed(dynamoDBExceutorF.dynamoDBExecutor)
 
-    val resultZStream: ZStream[Any, Throwable, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
+    val resultZStream: ZStream[Any, Throwable, Either[ItemError.DecodingError, (A, Option[From])]] =
       batchReadFromStream(tableName, zioStream, mPar)(pk).provideLayer(layer)
 
-    val fs2StreamOut: fs2.Stream[F, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
+    val fs2StreamOut: fs2.Stream[F, Either[ItemError.DecodingError, (A, Option[From])]] =
       resultZStream.toFs2Stream.translate(CatsCompatible.toCeFunctionK)
 
     fs2StreamOut

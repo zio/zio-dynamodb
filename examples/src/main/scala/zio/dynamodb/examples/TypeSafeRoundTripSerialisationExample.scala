@@ -17,8 +17,7 @@ import zio.schema.{ DeriveSchema, Schema }
 import java.time.Instant
 import zio.dynamodb.ProjectionExpression
 import zio.ZIO
-import zio.dynamodb.DynamoDBError
-
+import zio.dynamodb.DynamoDBError.ItemError
 object TypeSafeRoundTripSerialisationExample extends ZIOAppDefault {
 
   @discriminatorName("invoiceType")
@@ -101,7 +100,7 @@ object TypeSafeRoundTripSerialisationExample extends ZIOAppDefault {
   object Repository {
     def genericFindById[A <: Invoice](
       pkExpr: KeyConditionExpr.PartitionKeyEquals[A]
-    )(implicit ev: Schema[A]): ZIO[DynamoDBExecutor, Throwable, Either[DynamoDBError, Invoice]] =
+    )(implicit ev: Schema[A]): ZIO[DynamoDBExecutor, Throwable, Either[ItemError, Invoice]] =
       DynamoDBQuery.get("table1")(pkExpr).execute
 
     def genericSave[A <: Invoice](

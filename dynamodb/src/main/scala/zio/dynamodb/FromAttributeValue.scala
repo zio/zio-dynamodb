@@ -1,10 +1,11 @@
 package zio.dynamodb
 
-import zio.dynamodb.DynamoDBError.DecodingError
+import zio.dynamodb.DynamoDBError.ItemError.DecodingError
+import zio.dynamodb.DynamoDBError.ItemError
 import zio.prelude.ForEachOps
 
 trait FromAttributeValue[+A] {
-  def fromAttributeValue(av: AttributeValue): Either[DynamoDBError, A]
+  def fromAttributeValue(av: AttributeValue): Either[ItemError, A]
 }
 
 object FromAttributeValue {

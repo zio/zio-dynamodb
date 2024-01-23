@@ -1,6 +1,8 @@
 package zio.dynamodb
 
-import zio.dynamodb.DynamoDBError.ValueNotFound
+import zio.dynamodb.DynamoDBError.BatchError
+import zio.dynamodb.DynamoDBError.ItemError
+import zio.dynamodb.DynamoDBError.ItemError.ValueNotFound
 import zio.dynamodb.proofs.{ CanFilter, CanWhere }
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put }
@@ -27,7 +29,7 @@ import zio.dynamodb.UpdateExpression.Action
 import zio.prelude.ForEachOps
 import zio.schema.Schema
 import zio.stream.Stream
-import zio.{ Chunk, NonEmptyChunk, Schedule, ZIO, Zippable => _, _ }
+import zio.{ Chunk, Schedule, ZIO, Zippable => _, _ }
 
 sealed trait DynamoDBQuery[-In, +Out] { self =>
 
@@ -37,7 +39,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   final def <*>[In1 <: In, B](that: DynamoDBQuery[In1, B]): DynamoDBQuery[In1, (Out, B)] = self zip that
 
-  def execute: ZIO[DynamoDBExecutor, Throwable, Out] = {
+  def execute: ZIO[DynamoDBExecutor, DynamoDBError, Out] = {
     val (constructors, assembler)                                                                   = parallelize(self)
     val (indexedConstructors, (batchGetItem, batchGetIndexes), (batchWriteItem, batchWriteIndexes)) =
       batched(constructors)
@@ -407,7 +409,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   final def transaction: DynamoDBQuery[In, Out] = Transaction(self).asInstanceOf[DynamoDBQuery[In, Out]]
 
-  final def safeTransaction: Either[Throwable, DynamoDBQuery[Any, Out]] = {
+  final def safeTransaction: Either[DynamoDBError.TransactionError, DynamoDBQuery[Any, Out]] = {
     val transaction = Transaction(self)
     DynamoDBExecutorImpl
       .buildTransaction(transaction)
@@ -429,16 +431,14 @@ object DynamoDBQuery {
 
   def fail(e: => DynamoDBError): DynamoDBQuery[Any, Nothing] = Fail(() => e)
 
-  private[dynamodb] def absolve[A, B](query: DynamoDBQuery[A, Either[DynamoDBError, B]]): DynamoDBQuery[A, B] =
+  private[dynamodb] def absolve[A, B](query: DynamoDBQuery[A, Either[ItemError, B]]): DynamoDBQuery[A, B] =
     Absolve(query)
 
-  def fromEither[A](or: Either[DynamoDBError, A]): DynamoDBQuery[Any, A] =
+  def fromEither[A](or: Either[ItemError, A]): DynamoDBQuery[Any, A] =
     or match {
       case Left(error)  => DynamoDBQuery.fail(error)
       case Right(value) => DynamoDBQuery.succeed(value)
     }
-
-  final case class EmptyTransaction() extends Throwable
 
   /**
    * Each element in `values` is zipped together using function `body` which has signature `A => DynamoDBQuery[B]`
@@ -452,7 +452,7 @@ object DynamoDBQuery {
    * allowed by the AWS API, or alternatively use `forEach` to implement your own streaming functions.
    *
    * Note that if you need need access to `unprocessedItems` or `unprocessedKeys` then an error handler for
-   * `DynamoDBBatchError` should be provided.
+   * `DynamoDBError.BatchError` should be provided.
    */
   def forEach[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery[In, List[B]] =
     values.foldRight[DynamoDBQuery[In, List[B]]](succeed(Nil)) {
@@ -468,21 +468,21 @@ object DynamoDBQuery {
 
   def get[From: Schema](tableName: String)(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
-  ): DynamoDBQuery[From, Either[DynamoDBError, From]] =
+  ): DynamoDBQuery[From, Either[ItemError, From]] =
     get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
 
   private def get[A: Schema](
     tableName: String,
     key: PrimaryKey,
     projections: Chunk[ProjectionExpression[_, _]]
-  ): DynamoDBQuery[A, Either[DynamoDBError, A]] =
+  ): DynamoDBQuery[A, Either[ItemError, A]] =
     getItem(tableName, key, projections: _*).map {
       case Some(item) =>
         fromItem(item)
       case None       => Left(ValueNotFound(s"value with key $key not found"))
     }
 
-  private[dynamodb] def fromItem[A: Schema](item: Item): Either[DynamoDBError, A] = {
+  private[dynamodb] def fromItem[A: Schema](item: Item): Either[ItemError, A] = {
     val av = ToAttributeValue.attrMapToAttributeValue.toAttributeValue(item)
     av.decode(Schema[A])
   }
@@ -735,11 +735,11 @@ object DynamoDBQuery {
       responses: MapOfSet[TableName, Item] = MapOfSet.empty,
       unprocessedKeys: ScalaMap[TableName, TableGet] = ScalaMap.empty
     ) { self =>
-      def toErrorResponse: DynamoDBBatchError.BatchGetError = {
+      def toErrorResponse: BatchError.GetError = {
         val unprocessedItems: ScalaMap[String, ScalaSet[PrimaryKey]] = self.unprocessedKeys.map {
           case (TableName(tableName), tableGet) => (tableName, tableGet.keysSet)
         }
-        DynamoDBBatchError.BatchGetError(unprocessedItems)
+        BatchError.GetError(unprocessedItems)
       }
     }
   }
@@ -750,10 +750,6 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None
   ) extends Constructor[Any, A]
-
-  private[dynamodb] final case class MixedTransactionTypes() extends Throwable
-  private[dynamodb] final case class InvalidTransactionActions(invalidActions: NonEmptyChunk[DynamoDBQuery[Any, Any]])
-      extends Throwable
 
   private[dynamodb] final case class BatchWriteItem(
     requestItems: MapOfSet[TableName, BatchWriteItem.Write] = MapOfSet.empty,
@@ -797,7 +793,7 @@ object DynamoDBQuery {
     final case class Response(
       unprocessedItems: Option[MapOfSet[TableName, BatchWriteItem.Write]]
     ) { self =>
-      def toErrorResponse: DynamoDBBatchError.BatchWriteError = {
+      def toErrorResponse: BatchError.WriteError = {
 
         val unprocessedMap = self.unprocessedItems match {
           case Some(unprocessedItems) =>
@@ -806,14 +802,14 @@ object DynamoDBQuery {
                 (
                   tableName,
                   Chunk.fromIterable(writesSet.map {
-                    case Delete(key) => DynamoDBBatchError.Delete(key)
-                    case Put(item)   => DynamoDBBatchError.Put(item)
+                    case Delete(key) => BatchError.Delete(key)
+                    case Put(item)   => BatchError.Put(item)
                   })
                 )
             }.toMap
-          case None                   => ScalaMap.empty[String, Chunk[DynamoDBBatchError.Write]]
+          case None                   => ScalaMap.empty[String, Chunk[BatchError.Write]]
         }
-        DynamoDBBatchError.BatchWriteError(unprocessedMap)
+        BatchError.WriteError(unprocessedMap)
       }
     }
 
@@ -973,9 +969,9 @@ object DynamoDBQuery {
     type Old = A
   }
 
-  private[dynamodb] final case class Absolve[A, B](query: DynamoDBQuery[A, Either[DynamoDBError, B]])
+  private[dynamodb] final case class Absolve[A, B](query: DynamoDBQuery[A, Either[ItemError, B]])
       extends DynamoDBQuery[A, B] {
-    type Old = Either[DynamoDBError, B]
+    type Old = Either[ItemError, B]
   }
 
   def apply[A](a: => A): DynamoDBQuery[Any, A] = Succeed(() => a)

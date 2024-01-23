@@ -23,8 +23,6 @@ import zio.dynamodb.KeySchema
 import zio.dynamodb.BillingMode
 import zio.dynamodb.AttributeDefinition
 
-//import zio.dynamodb.examples.dynamodblocal.DynamoDB._
-
 /**
  * Stand alone example using DynamoDBLocal.
  *

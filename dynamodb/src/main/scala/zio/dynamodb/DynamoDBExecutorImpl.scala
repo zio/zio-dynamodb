@@ -84,6 +84,7 @@ import zio.stream.{ Stream, ZStream }
 import zio.{ Chunk, NonEmptyChunk, ZIO }
 
 import scala.collection.immutable.{ Map => ScalaMap }
+import software.amazon.awssdk.services.dynamodb.model.{ DynamoDbException => AwsSdkDynamoDbException }
 
 private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynamoDb: DynamoDb)
     extends DynamoDBExecutor {
@@ -116,8 +117,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
       case Fail(dynamoDBError) => ZIO.fail(dynamoDBError())
     }
 
-  override def execute[A](atomicQuery: DynamoDBQuery[_, A]): ZIO[Any, Throwable, A] =
-    atomicQuery match {
+  override def execute[A](atomicQuery: DynamoDBQuery[_, A]): ZIO[Any, DynamoDBError, A] = {
+    val result = atomicQuery match {
       case constructor: Constructor[_, A] => executeConstructor(constructor)
       case zip @ Zip(_, _, _)             => executeZip(zip)
       case map @ Map(_, _)                => executeMap(map)
@@ -130,6 +131,12 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
                       }
         } yield a
     }
+
+    result.refineOrDie {
+      case e: AwsSdkDynamoDbException => DynamoDBError.AWSError(e)
+      case e: DynamoDBError           => e
+    }
+  }
 
   private def executeCreateTable(createTable: CreateTable): ZIO[Any, Throwable, Unit] =
     dynamoDb
@@ -375,15 +382,20 @@ case object DynamoDBExecutorImpl {
   // Need to go through the chunk and make sure we don't have mixed transaction actions
   private[dynamodb] def filterMixedTransactions[A](
     actions: Chunk[Constructor[Any, A]]
-  ): Either[Throwable, (Chunk[Constructor[Any, A]], TransactionType)] =
-    if (actions.isEmpty) Left(EmptyTransaction())
+  ): Either[
+    DynamoDBError.TransactionError,
+    (Chunk[Constructor[Any, A]], TransactionType)
+  ] =
+    if (actions.isEmpty) Left(DynamoDBError.TransactionError.EmptyTransaction)
     else {
       val headConstructor = constructorToTransactionType(actions.head)
         .map(Right(_))
-        .getOrElse(Left(InvalidTransactionActions(NonEmptyChunk(actions.head)))) // TODO: Grab all that are invalid
+        .getOrElse(
+          Left(DynamoDBError.TransactionError.InvalidTransactionActions(NonEmptyChunk(actions.head)))
+        )        // TODO: Grab all that are invalid
       actions
-        .drop(1)                                                                 // dropping 1 because we have the head element as the base case of the fold
-        .foldLeft(headConstructor: Either[Throwable, TransactionType]) {
+        .drop(1) // dropping 1 because we have the head element as the base case of the fold
+        .foldLeft(headConstructor: Either[DynamoDBError.TransactionError, TransactionType]) {
           case (acc, constructor) =>
             acc match {
               case l @ Left(_)            => l // Should also continue collecting other failures
@@ -396,14 +408,14 @@ case object DynamoDBExecutorImpl {
   private def constructorMatch[A](
     constructor: Constructor[Any, A],
     transactionType: TransactionType
-  ): Either[Throwable, TransactionType] =
+  ): Either[DynamoDBError.TransactionError, TransactionType] =
     constructorToTransactionType(constructor)
       .map(t =>
         if (t == transactionType) Right(transactionType)
-        else Left(MixedTransactionTypes())
+        else Left(DynamoDBError.TransactionError.MixedTransactionTypes)
       )
       .getOrElse(
-        Left(InvalidTransactionActions(NonEmptyChunk(constructor)))
+        Left(DynamoDBError.TransactionError.InvalidTransactionActions(NonEmptyChunk(constructor)))
       )
 
   private def constructorToTransactionType[A](constructor: Constructor[_, A]): Option[TransactionType] =
@@ -421,7 +433,7 @@ case object DynamoDBExecutorImpl {
   private[dynamodb] def buildTransaction[A](
     query: DynamoDBQuery[_, A]
   ): Either[
-    Throwable,
+    DynamoDBError.TransactionError,
     (Chunk[Constructor[Any, Any]], Chunk[Any] => A)
   ] =
     query match {
@@ -471,7 +483,12 @@ case object DynamoDBExecutorImpl {
               (Chunk(s), _ => None.asInstanceOf[A])
             ) // we don't get data back from transactWrites, return None here
           case s: ConditionCheck           => Right((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
-          case s                           => Left(InvalidTransactionActions(NonEmptyChunk(s.asInstanceOf[DynamoDBQuery[Any, Any]])))
+          case s                           =>
+            Left(
+              DynamoDBError.TransactionError.InvalidTransactionActions(
+                NonEmptyChunk(s.asInstanceOf[DynamoDBQuery[Any, Any]])
+              )
+            )
         }
       case Zip(left, right, zippable)     =>
         for {
@@ -495,7 +512,9 @@ case object DynamoDBExecutorImpl {
         }
       case Absolve(query)                 =>
         Left(
-          InvalidTransactionActions(NonEmptyChunk(query.asInstanceOf[DynamoDBQuery[Any, Any]]))
+          DynamoDBError.TransactionError.InvalidTransactionActions(
+            NonEmptyChunk(query.asInstanceOf[DynamoDBQuery[Any, Any]])
+          )
         )
     }
 

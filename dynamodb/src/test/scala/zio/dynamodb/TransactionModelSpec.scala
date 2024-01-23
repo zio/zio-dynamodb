@@ -119,7 +119,7 @@ object TransactionModelSpec extends ZIOSpecDefault {
       .or(batchWriteItem)
 
   private def invalidTransactionActionsContains(action: DynamoDBQuery[Any, Any]): Assertion[Any] =
-    isSubtype[InvalidTransactionActions](
+    isSubtype[DynamoDBError.TransactionError.InvalidTransactionActions](
       hasField(
         "invalidActions",
         a => {
@@ -149,7 +149,7 @@ object TransactionModelSpec extends ZIOSpecDefault {
         val query: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap])] = updateItem.zip(getItem)
 
         assertZIO(query.transaction.execute.exit)(
-          fails(isSubtype[MixedTransactionTypes](Assertion.anything))
+          fails(isSubtype[DynamoDBError.TransactionError.MixedTransactionTypes.type](Assertion.anything))
         )
       }
     ),

@@ -182,7 +182,7 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
         val gets       = (1 to i).map(p => s"${lowerAlpha(p)} <- get[${upperAlpha(p)}](field$p)").mkString("\n      ")
         s"""def as[$tparams, $returnType](
            |    $params
-           |  )(fn: ($ftypes) => $returnType): Either[DynamoDBError, $returnType] =
+           |  )(fn: ($ftypes) => $returnType): Either[ItemError, $returnType] =
            |    for {
            |      $gets
            |    } yield fn($fparams)""".stripMargin
@@ -190,6 +190,8 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
       IO.write(
         file,
         s"""package zio.dynamodb
+           |
+           |import zio.dynamodb.DynamoDBError.ItemError
            |
            |private[dynamodb] trait GeneratedFromAttributeValueAs { this: AttrMap =>
            |
@@ -212,7 +214,7 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
         val gets       = (1 to i).map(p => s"${lowerAlpha(p)} <- get[${upperAlpha(p)}](field$p)").mkString("\n      ")
         s"""def as[$tparams, $returnType](
            |    $params
-           |  )(fn: ($ftypes) => $returnType): Either[DynamoDBError, $returnType] =
+           |  )(fn: ($ftypes) => $returnType): Either[ItemError, $returnType] =
            |    for {
            |      $gets
            |    } yield fn($fparams)""".stripMargin
@@ -220,6 +222,8 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
       IO.write(
         file,
         s"""package zio.dynamodb
+           |
+           |import zio.dynamodb.DynamoDBError.ItemError
            |
            |private[dynamodb] trait GeneratedFromAttributeValueAs { this: AttrMap =>
            |

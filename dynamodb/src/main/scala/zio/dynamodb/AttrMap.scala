@@ -1,11 +1,12 @@
 package zio.dynamodb
 
-import zio.dynamodb.DynamoDBError.DecodingError
+import zio.dynamodb.DynamoDBError.ItemError.DecodingError
+import zio.dynamodb.DynamoDBError.ItemError
 import zio.prelude.ForEachOps
 
 final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFromAttributeValueAs { self =>
 
-  def get[A](field: String)(implicit ev: FromAttributeValue[A]): Either[DynamoDBError, A] =
+  def get[A](field: String)(implicit ev: FromAttributeValue[A]): Either[ItemError, A] =
     map
       .get(field)
       .toRight(DecodingError(s"field '$field' not found"))
@@ -17,26 +18,28 @@ final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFrom
       case _            => Right(None)
     }
 
-  def getItem[A](field: String)(f: AttrMap => Either[DynamoDBError, A]): Either[DynamoDBError, A] =
+  def getItem[A](field: String)(f: AttrMap => Either[ItemError, A]): Either[ItemError, A] =
     get[Item](field).flatMap(item => f(item))
 
   // convenience method so that user does not have to transform between an Option and an Either
   def getOptionalItem[A](
     field: String
-  )(f: AttrMap => Either[DynamoDBError, A]): Either[DynamoDBError, Option[A]] =
+  )(f: AttrMap => Either[ItemError, A]): Either[ItemError, Option[A]] =
     getOptional[Item](field).flatMap(
-      _.fold[Either[DynamoDBError, Option[A]]](Right(None))(item => f(item).map(Some(_)))
+      _.fold[Either[ItemError, Option[A]]](Right(None))(item => f(item).map(Some(_)))
     )
 
   // convenience method so that user does not have to transform between a List and an Either
-  def getIterableItem[A](field: String)(f: AttrMap => Either[DynamoDBError, A]): Either[DynamoDBError, Iterable[A]] =
-    get[Iterable[Item]](field).flatMap[DynamoDBError, Iterable[A]](xs => xs.forEach(f))
+  def getIterableItem[A](
+    field: String
+  )(f: AttrMap => Either[ItemError, A]): Either[ItemError, Iterable[A]] =
+    get[Iterable[Item]](field).flatMap[ItemError, Iterable[A]](xs => xs.forEach(f))
 
   // convenience method so that user does not have to transform between an Option, List and an Either
   def getOptionalIterableItem[A](
     field: String
-  )(f: AttrMap => Either[DynamoDBError, A]): Either[DynamoDBError, Option[Iterable[A]]] = {
-    def maybeTransform(maybeItems: Option[Iterable[Item]]): Either[DynamoDBError, Option[Iterable[A]]] =
+  )(f: AttrMap => Either[ItemError, A]): Either[ItemError, Option[Iterable[A]]] = {
+    def maybeTransform(maybeItems: Option[Iterable[Item]]): Either[ItemError, Option[Iterable[A]]] =
       maybeItems match {
         case None     => Right(None)
         case Some(xs) => xs.forEach(f).map(Some(_))

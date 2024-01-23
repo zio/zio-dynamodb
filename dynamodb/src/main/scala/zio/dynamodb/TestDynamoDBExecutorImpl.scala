@@ -1,6 +1,5 @@
 package zio.dynamodb
 
-import zio.dynamodb.DatabaseError.TableDoesNotExists
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery._
 import zio.stm.{ STM, TMap, ZSTM }
@@ -14,12 +13,12 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
     with TestDynamoDBExecutor {
   self =>
 
-  override def execute[A](atomicQuery: DynamoDBQuery[_, A]): ZIO[Any, Exception, A] =
-    atomicQuery match {
+  override def execute[A](atomicQuery: DynamoDBQuery[_, A]): ZIO[Any, DynamoDBError, A] = {
+    val result: ZIO[Any, DynamoDBError, A] = atomicQuery match {
       case BatchGetItem(requestItemsMap, _, _, _)                                 =>
         val requestItems: Seq[(TableName, TableGet)] = requestItemsMap.toList
 
-        val foundItems: IO[DatabaseError, Seq[(TableName, Option[Item])]] =
+        val foundItems: IO[DynamoDBError, Seq[(TableName, Option[Item])]] =
           ZIO
             .foreach(requestItems) {
               case (tableName, tableGet) =>
@@ -29,7 +28,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
             }
             .map(_.flatten)
 
-        val response: IO[DatabaseError, BatchGetItem.Response] = for {
+        val response: IO[DynamoDBError, BatchGetItem.Response] = for {
           pairs       <- foundItems
           pairFiltered = pairs.collect { case (tableName, Some(item)) => (tableName, item) }
           mapOfSet     = pairFiltered.foldLeft[MapOfSet[TableName, Item]](MapOfSet.empty) {
@@ -40,7 +39,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
         response
 
       case BatchWriteItem(requestItems, _, _, _, _)                               =>
-        val results: ZIO[Any, DatabaseError, Unit] = ZIO.foreachDiscard(requestItems.toList) {
+        val results: ZIO[Any, DynamoDBError, Unit] = ZIO.foreachDiscard(requestItems.toList) {
           case (tableName, setOfWrite) =>
             ZIO.foreachDiscard(setOfWrite) { write =>
               write match {
@@ -80,41 +79,47 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
       // TODO: implement CreateTable
 
       case unknown                                                                =>
-        ZIO.fail(new Exception(s"Constructor $unknown not implemented yet"))
+        ZIO.die(new Exception(s"Constructor $unknown not implemented yet"))
     }
 
-  private def tableMapAndPkName(tableName: String): ZSTM[Any, DatabaseError, (TMap[PrimaryKey, Item], String)] =
+    result
+  }
+
+  private def tableError(tableName: String): DynamoDBError =
+    DynamoDBError.ItemError.ValueNotFound(s"table $tableName does not exist")
+
+  private def tableMapAndPkName(tableName: String): ZSTM[Any, DynamoDBError, (TMap[PrimaryKey, Item], String)] =
     for {
       tableMap <- for {
                     maybeTableMap <- self.tableMap.get(tableName)
-                    tableMap      <- maybeTableMap.fold[STM[DatabaseError, TMap[PrimaryKey, Item]]](
-                                       STM.fail[DatabaseError](TableDoesNotExists(tableName))
+                    tableMap      <- maybeTableMap.fold[STM[DynamoDBError, TMap[PrimaryKey, Item]]](
+                                       STM.fail[DynamoDBError](tableError(tableName))
                                      )(
                                        STM.succeed(_)
                                      )
                   } yield tableMap
       pkName   <- self.tablePkNameMap
                     .get(tableName)
-                    .flatMap(_.fold[STM[DatabaseError, String]](STM.fail(TableDoesNotExists(tableName)))(STM.succeed(_)))
+                    .flatMap(_.fold[STM[DynamoDBError, String]](STM.fail(tableError(tableName)))(STM.succeed(_)))
     } yield (tableMap, pkName)
 
   private def pkForItem(item: Item, pkName: String): PrimaryKey                               =
     Item(item.map.filter { case (key, _) => key == pkName })
 
-  private def fakeGetItem(tableName: String, pk: PrimaryKey): IO[DatabaseError, Option[Item]] =
+  private def fakeGetItem(tableName: String, pk: PrimaryKey): IO[DynamoDBError, Option[Item]] =
     (for {
       (tableMap, _) <- tableMapAndPkName(tableName)
       maybeItem     <- tableMap.get(pk)
     } yield maybeItem).commit
 
-  private def fakePut(tableName: String, item: Item): IO[DatabaseError, Option[Item]] =
+  private def fakePut(tableName: String, item: Item): IO[DynamoDBError, Option[Item]] =
     (for {
       (tableMap, pkName) <- tableMapAndPkName(tableName)
       pk                  = pkForItem(item, pkName)
       _                  <- tableMap.put(pk, item)
     } yield None).commit
 
-  private def fakeDelete(tableName: String, pk: PrimaryKey): IO[DatabaseError, Option[Item]] =
+  private def fakeDelete(tableName: String, pk: PrimaryKey): IO[DynamoDBError, Option[Item]] =
     (for {
       (tableMap, _) <- tableMapAndPkName(tableName)
       _             <- tableMap.delete(pk)
@@ -124,14 +129,14 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
     tableName: String,
     exclusiveStartKey: LastEvaluatedKey,
     maybeLimit: Option[Int]
-  ): IO[DatabaseError, (Chunk[Item], LastEvaluatedKey)] =
+  ): IO[DynamoDBError, (Chunk[Item], LastEvaluatedKey)] =
     (for {
       (itemMap, pkName) <- tableMapAndPkName(tableName)
       xs                <- itemMap.toList
       result            <- STM.succeed(slice(sort(xs, pkName), exclusiveStartKey, maybeLimit))
     } yield result).commit
 
-  private def fakeScanAll[R](tableName: String, maybeLimit: Option[Int]): UIO[Stream[DatabaseError, Item]] = {
+  private def fakeScanAll[R](tableName: String, maybeLimit: Option[Int]): UIO[Stream[DynamoDBError, Item]] = {
     val start: LastEvaluatedKey = None
     ZIO.succeed(
       ZStream
@@ -217,7 +222,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
       _    <- tableMap.put(tableName, tmap)
     } yield ()).commit
 
-  override def addItems(tableName: String, pkAndItems: (PrimaryKey, Item)*): ZIO[Any, DatabaseError, Unit] =
+  override def addItems(tableName: String, pkAndItems: (PrimaryKey, Item)*): ZIO[Any, DynamoDBError, Unit] =
     (for {
       (tableMap, _) <- tableMapAndPkName(tableName)
       _             <- STM.foreach(pkAndItems) {

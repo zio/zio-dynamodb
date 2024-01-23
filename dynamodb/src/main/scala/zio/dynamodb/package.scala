@@ -1,5 +1,6 @@
 package zio
 
+import zio.dynamodb.DynamoDBError.ItemError
 import zio.schema.Schema
 import zio.stream.{ ZSink, ZStream }
 
@@ -16,9 +17,9 @@ package object dynamodb {
   type TableNameAndPK = (String, String)
 
   type Encoder[A]  = A => AttributeValue
-  type Decoder[+A] = AttributeValue => Either[DynamoDBError, A]
+  type Decoder[+A] = AttributeValue => Either[ItemError, A]
 
-  private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[_, A]): ZIO[DynamoDBExecutor, Throwable, A] =
+  private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[_, A]): ZIO[DynamoDBExecutor, DynamoDBError, A] =
     ZIO.serviceWithZIO[DynamoDBExecutor](_.execute(query))
 
   /**
@@ -37,7 +38,7 @@ package object dynamodb {
     mPar: Int = 10
   )(
     f: A => DynamoDBQuery[In, B]
-  ): ZStream[DynamoDBExecutor with R, Throwable, B] = // TODO: Avi - can we constraint query to put or write?
+  ): ZStream[DynamoDBExecutor with R, Throwable, B] =
     stream
       .aggregateAsync(ZSink.collectAllN[A](25))
       .mapZIOPar(mPar) { chunk =>
@@ -108,17 +109,17 @@ package object dynamodb {
     mPar: Int = 10
   )(
     pk: A => KeyConditionExpr.PrimaryKeyExpr[From]
-  ): ZStream[R with DynamoDBExecutor, Throwable, Either[DynamoDBError.DecodingError, (A, Option[From])]] =
+  ): ZStream[R with DynamoDBExecutor, Throwable, Either[ItemError.DecodingError, (A, Option[From])]] =
     stream
       .aggregateAsync(ZSink.collectAllN[A](100))
       .mapZIOPar(mPar) { chunk =>
-        val batchGetItem: DynamoDBQuery[From, Chunk[Either[DynamoDBError.DecodingError, (A, Option[From])]]] =
+        val batchGetItem: DynamoDBQuery[From, Chunk[Either[ItemError.DecodingError, (A, Option[From])]]] =
           DynamoDBQuery
             .forEach(chunk) { a =>
               DynamoDBQuery.get(tableName)(pk(a)).map {
-                case Right(b)                                 => Right((a, Some(b)))
-                case Left(DynamoDBError.ValueNotFound(_))     => Right((a, None))
-                case Left(e @ DynamoDBError.DecodingError(_)) => Left(e)
+                case Right(b)                             => Right((a, Some(b)))
+                case Left(ItemError.ValueNotFound(_))     => Right((a, None))
+                case Left(e @ ItemError.DecodingError(_)) => Left(e)
               }
             }
             .map(Chunk.fromIterable)

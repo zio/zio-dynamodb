@@ -1,6 +1,7 @@
 package zio.dynamodb.codec
 
 import zio.dynamodb._
+import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.codec.Invoice.PreBilled
 import zio.test.Assertion._
 import zio.test.{ ZIOSpecDefault, _ }
@@ -15,7 +16,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
     test("decodes generic record") {
       val expected: Map[String, Any] = ListMap("foo" -> "FOO", "bar" -> 1)
 
-      val actual: Either[DynamoDBError, Map[String, Any]] = Codec.decoder(recordSchema)(
+      val actual: Either[ItemError, Map[String, Any]] = Codec.decoder(recordSchema)(
         AttributeValue.Map(Map(toAvString("foo") -> toAvString("FOO"), toAvString("bar") -> toAvNum(1)))
       )
 
@@ -353,7 +354,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       assert(actual)(
         isLeft(
           equalTo(
-            DynamoDBError.DecodingError(message =
+            ItemError.DecodingError(message =
               "All sub type decoders failed for Map(Map(String(FIELD_NOT_IN_ANY_SUBTYPE) -> String(X)))"
             )
           )
@@ -368,7 +369,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       assert(actual)(
         isLeft(
           equalTo(
-            DynamoDBError.DecodingError(message =
+            ItemError.DecodingError(message =
               "More than one sub type decoder succeeded for Map(Map(String(i) -> Number(42)))"
             )
           )

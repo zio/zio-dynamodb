@@ -2,6 +2,7 @@ package zio.dynamodb
 
 import zio.Chunk
 import zio.dynamodb.DynamoDBQuery.put
+import zio.dynamodb.DynamoDBError.ItemError
 import zio.schema.{ DeriveSchema, Schema }
 import zio.stream.ZStream
 import zio.test.Assertion.equalTo
@@ -48,7 +49,7 @@ object ZStreamPipeliningSpec extends ZIOSpecDefault {
           actualPeople == Chunk(
             Right((Person(1, "name1"), Some(Person(1, "Avi")))),
             Left(
-              DynamoDBError.DecodingError(message =
+              ItemError.DecodingError(message =
                 "field 'name' not found in Map(Map(String(id) -> Number(2), String(boom!) -> String(de-serialisation-error-expected)))"
               )
             ),

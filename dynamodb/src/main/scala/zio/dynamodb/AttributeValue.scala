@@ -2,13 +2,14 @@ package zio.dynamodb
 
 import zio.dynamodb.ConditionExpression.Operand._
 import zio.dynamodb.ConditionExpression._
+import zio.dynamodb.DynamoDBError.ItemError
 import zio.schema.Schema
 import scala.collection.immutable.Set
 
 sealed trait AttributeValue { self =>
   type ScalaType
 
-  def decode[A](implicit schema: Schema[A]): Either[DynamoDBError, A] = Codec.decoder(schema)(self)
+  def decode[A](implicit schema: Schema[A]): Either[ItemError, A] = Codec.decoder(schema)(self)
 
   def ===[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From]                  = Equals(ValueOperand(self), that)
   def <>[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From]                   = NotEqual(ValueOperand(self), that)
