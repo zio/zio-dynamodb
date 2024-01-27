@@ -13,8 +13,8 @@ object syntax {
       zio.flatMap {
         case Left(e @ DynamoDBError.ItemError.DecodingError(_)) => ZIO.fail(e)
         case Left(DynamoDBError.ItemError.ValueNotFound(_))     => ZIO.succeed(None)
-        case Right(a)                             => ZIO.succeed(Some(a))
+        case Right(a)                                           => ZIO.succeed(Some(a))
       }
   }
-  
+
 }
