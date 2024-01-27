@@ -19,6 +19,18 @@ package object dynamodb {
   type Encoder[A]  = A => AttributeValue
   type Decoder[+A] = AttributeValue => Either[ItemError, A]
 
+  /**
+   * Moves ItemError.DecodingError to error channel and effectively does a ZIO option in other cases
+   */
+  implicit class MaybeFound[A](zio: ZIO[DynamoDBExecutor, DynamoDBError, Either[ItemError, A]]) {
+    def maybeFound: ZIO[DynamoDBExecutor, DynamoDBError, Option[A]] =
+      zio.flatMap {
+        case Left(e @ ItemError.DecodingError(_)) => ZIO.fail(e)
+        case Left(ItemError.ValueNotFound(_))     => ZIO.succeed(None)
+        case Right(a)                             => ZIO.succeed(Some(a))
+      }
+  }
+
   private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[_, A]): ZIO[DynamoDBExecutor, DynamoDBError, A] =
     ZIO.serviceWithZIO[DynamoDBExecutor](_.execute(query))
 
