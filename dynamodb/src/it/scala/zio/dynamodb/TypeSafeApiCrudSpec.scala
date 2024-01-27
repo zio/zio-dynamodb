@@ -51,14 +51,13 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           } yield assertTrue(p == person)
         }
       },
-      test("and get simple round trip 2") {
-        import zio.dynamodb.MaybeFound
+      test("and get simple round using maybeFound extension method") {
         withSingleIdKeyTable { tableName =>
           val person = Person("1", "Smith", Some("John"), 21)
           for {
-            _ <- put(tableName, person).execute
-            x <- get(tableName)(Person.id.partitionKey === "1").execute.maybeFound
-          } yield assertTrue(x == Some(person))
+            _           <- put(tableName, person).execute
+            maybePerson <- get(tableName)(Person.id.partitionKey === "1").execute.maybeFound
+          } yield assertTrue(maybePerson == Some(person))
         }
       },
       test("with condition expression that id not exists fails when item exists") {

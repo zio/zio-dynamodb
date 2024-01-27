@@ -66,9 +66,9 @@ object DynamoDBLocalMain extends ZIOAppDefault {
   val examplePerson = Person(1, "avi")
 
   private val program = for {
-    _      <- put("person", examplePerson).execute
-    person <- get("person")(Person.id.partitionKey === 1).execute
-    _      <- zio.Console.printLine(s"hello $person")
+    _           <- put("person", examplePerson).execute
+    maybePerson <- get("person")(Person.id.partitionKey === 1).execute.maybeFound
+    _           <- zio.Console.printLine(s"hello $maybePerson")
   } yield ()
 
   override def run =
