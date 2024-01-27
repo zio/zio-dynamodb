@@ -23,7 +23,7 @@ package object dynamodb {
 
     /**
      * Moves Left[ItemError.DecodingError] to the error channel and returns Some(a) if the item is found else None
-     * eg {{{ DynamoDBQuery.get("table")(Person.id.partitionKey === 1).execeute.maybeFound }}}
+     * eg {{{ DynamoDBQuery.get("table")(Person.id.partitionKey === 1).execute.maybeFound }}}
      */
     def maybeFound: ZIO[R, DynamoDBError, Option[A]] =
       zio.flatMap {
