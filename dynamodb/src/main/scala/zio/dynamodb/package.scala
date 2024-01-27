@@ -22,8 +22,8 @@ package object dynamodb {
   /**
    * Moves ItemError.DecodingError to error channel and effectively does a ZIO option in other cases
    */
-  implicit class MaybeFound[A](zio: ZIO[DynamoDBExecutor, DynamoDBError, Either[ItemError, A]]) {
-    def maybeFound: ZIO[DynamoDBExecutor, DynamoDBError, Option[A]] =
+  implicit class MaybeFound[R, A](zio: ZIO[R, DynamoDBError, Either[ItemError, A]]) {
+    def maybeFound: ZIO[R, DynamoDBError, Option[A]] =
       zio.flatMap {
         case Left(e @ ItemError.DecodingError(_)) => ZIO.fail(e)
         case Left(ItemError.ValueNotFound(_))     => ZIO.succeed(None)
