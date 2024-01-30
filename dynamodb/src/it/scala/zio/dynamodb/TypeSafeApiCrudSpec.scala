@@ -5,7 +5,7 @@ import zio.test._
 import zio.test.assertTrue
 import zio.test.Assertion._
 import zio.dynamodb.DynamoDBError.ItemError
-import zio.dynamodb.DynamoDBQuery.{ deleteFrom, forEach, get, put, scanAll, update }
+import zio.dynamodb.DynamoDBQuery.{ deleteFrom, forEach, get, put, putItem, scanAll, update }
 import zio.dynamodb.syntax._
 import zio.Chunk
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
@@ -52,13 +52,25 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           } yield assertTrue(p == person)
         }
       },
-      test("and get simple round using maybeFound extension method") {
+      test("and get using maybeFound extension method") {
         withSingleIdKeyTable { tableName =>
           val person = Person("1", "Smith", Some("John"), 21)
           for {
-            _           <- put(tableName, person).execute
-            maybePerson <- get(tableName)(Person.id.partitionKey === "1").execute.maybeFound
-          } yield assertTrue(maybePerson == Some(person))
+            _               <- put(tableName, person).execute
+            personFound     <- get(tableName)(Person.id.partitionKey === "1").execute.maybeFound
+            personNotFound  <- get(tableName)(Person.id.partitionKey === "DOES_NOT_EXIST").execute.maybeFound
+            _               <- putItem(tableName, Item("id" -> "WILL_GIVE_DECODE_ERROR")).execute
+            decodeErrorExit <-
+              get(tableName)(Person.id.partitionKey === "WILL_GIVE_DECODE_ERROR").execute.maybeFound.exit
+          } yield assertTrue(personFound == Some(person) && personNotFound == None) && assert(decodeErrorExit)(
+            fails(
+              equalTo(
+                DynamoDBError.ItemError.DecodingError(
+                  "field 'surname' not found in Map(Map(String(id) -> String(WILL_GIVE_DECODE_ERROR)))"
+                )
+              )
+            )
+          )
         }
       },
       test("with condition expression that id not exists fails when item exists") {
