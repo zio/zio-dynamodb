@@ -48,7 +48,9 @@ object AttributeValue {
   private[dynamodb] final case class Bool(value: Boolean)                       extends AttributeValue
   private[dynamodb] final case class List(value: Iterable[AttributeValue])      extends AttributeValue
 
-  private[dynamodb] final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue
+  private[dynamodb] final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue { self =>
+    def +(t: (ScalaString, AttributeValue)): Map = Map(self.value + (String(t._1) -> t._2))
+  }
 
   private[dynamodb] final case class Number(value: BigDecimal)          extends AttributeValue
   private[dynamodb] final case class NumberSet(value: Set[BigDecimal])  extends AttributeValue

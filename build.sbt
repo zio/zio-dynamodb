@@ -61,7 +61,8 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
       "dev.zio" %% "zio-schema"            % zioSchemaVersion,
       "dev.zio" %% "zio-schema-derivation" % zioSchemaVersion,
       "dev.zio" %% "zio-aws-netty"         % zioAwsVersion,
-      "dev.zio" %% "zio-aws-dynamodb"      % zioAwsVersion
+      "dev.zio" %% "zio-aws-dynamodb"      % zioAwsVersion,
+      "dev.zio" %% "zio-json"              % "0.6.2"
     ),
     libraryDependencies ++= {
       if (scalaVersion.value == Scala3) Seq()
