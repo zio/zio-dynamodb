@@ -136,7 +136,16 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
             Left("empty AttributeValue Map found")
           )
         )
+      },
+      test("empty array should return Left with error message") {
+        val ast = "[]".fromJson[Json].getOrElse(Json.Null)
+        assert(decode(ast))(
+          equalTo(
+            Left("Only top level objects are supported, found []")
+          )
+        )
       }
+
     )
 
 }
