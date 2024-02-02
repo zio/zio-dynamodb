@@ -9,6 +9,7 @@ import zio.test.Spec
 import zio.test.TestEnvironment
 import zio.test.assert
 import zio.test.Assertion.equalTo
+import scala.util.Try
 //import zio.prelude._
 
 object ItemJsonSerialisationSpec extends ZIOSpecDefault {
@@ -74,7 +75,11 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
 
   def decode(json: Json): Either[String, AttributeValue] =
     json match {
-      case Json.Obj(Chunk("N" -> Json.Num(d)))  => Right(AttributeValue.Number(d))
+      case Json.Obj(Chunk("N" -> Json.Str(d)))  =>
+        Try(BigDecimal(d)).fold(
+          _ => Left(s"Invalid Number $d"),
+          n => Right(AttributeValue.Number(n))
+        )
       case Json.Obj(Chunk("S" -> Json.Str(s)))  => Right(AttributeValue.String(s))
       case Json.Obj(Chunk("B" -> Json.Bool(b))) => Right(AttributeValue.Bool(b))
       case Json.Obj(Chunk("L" -> Json.Arr(a)))  => Left(s"TODO Arrays $a")
@@ -94,16 +99,16 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
               "id": {
                   "S": "101"
               },
-              "name": {
-                  "S": "Avi"
+              "count": {
+                  "N": "42"
               }
           }"""
         val ast = s.fromJson[Json].getOrElse(Json.Null)
         assert(decode(ast))(
           equalTo(
             Right(
-              AttributeValue.Map.empty + ("id" -> AttributeValue.String("101")) + ("name" -> AttributeValue.String(
-                "Avi"
+              AttributeValue.Map.empty + ("id" -> AttributeValue.String("101")) + ("count" -> AttributeValue.Number(
+                BigDecimal(42)
               ))
             )
           )
@@ -145,7 +150,6 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
           )
         )
       }
-
     )
 
 }
