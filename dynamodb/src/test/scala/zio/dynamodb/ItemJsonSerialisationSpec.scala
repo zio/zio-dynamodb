@@ -89,7 +89,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
   override def spec: Spec[TestEnvironment with Scope, Any] =
     suite("ItemJsonSerialisationSpec")(
       test("decode top level map") {
-        val s2 =
+        val s   =
           """{
               "id": {
                   "S": "101"
@@ -98,8 +98,8 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
                   "S": "Avi"
               }
           }"""
-        val x  = s2.fromJson[Json].getOrElse(Json.Null)
-        assert(decode(x))(
+        val ast = s.fromJson[Json].getOrElse(Json.Null)
+        assert(decode(ast))(
           equalTo(
             Right(
               AttributeValue.Map.empty + ("id" -> AttributeValue.String("101")) + ("name" -> AttributeValue.String(
@@ -110,7 +110,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
         )
       },
       test("decode nested map") {
-        val s2 =
+        val s   =
           """{
               "foo": {
                     "name": {
@@ -119,8 +119,8 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
               }
               
           }"""
-        val x  = s2.fromJson[Json].getOrElse(Json.Null)
-        assert(decode(x))(
+        val ast = s.fromJson[Json].getOrElse(Json.Null)
+        assert(decode(ast))(
           equalTo(
             Right(
               AttributeValue.Map.empty + ("foo" -> (AttributeValue.Map.empty + ("name" -> AttributeValue
@@ -130,8 +130,8 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
         )
       },
       test("empty object should return Left with error message") {
-        val x = "{}".fromJson[Json].getOrElse(Json.Null)
-        assert(decode(x))(
+        val ast = "{}".fromJson[Json].getOrElse(Json.Null)
+        assert(decode(ast))(
           equalTo(
             Left("empty AttributeValue Map found")
           )
