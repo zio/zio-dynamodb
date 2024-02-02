@@ -51,6 +51,9 @@ object AttributeValue {
   private[dynamodb] final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue { self =>
     def +(t: (ScalaString, AttributeValue)): Map = Map(self.value + (String(t._1) -> t._2))
   }
+  private[dynamodb] object Map {
+    val empty = Map(ScalaMap.empty)
+  }
 
   private[dynamodb] final case class Number(value: BigDecimal)          extends AttributeValue
   private[dynamodb] final case class NumberSet(value: Set[BigDecimal])  extends AttributeValue

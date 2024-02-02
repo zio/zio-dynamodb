@@ -3,8 +3,16 @@ package zio.dynamodb
 import zio.json._
 import zio.json.ast.Json
 import zio.Chunk
+import zio.test.ZIOSpecDefault
+import zio.Scope
+import zio.test.Spec
+import zio.test.TestEnvironment
+import zio.test.assert
+import zio.test.Assertion.equalTo
+//import zio.prelude._
 
-object ItemJsonSerialisationSpec {
+object ItemJsonSerialisationSpec extends ZIOSpecDefault {
+
   val s1 = """{
     "Id": {
         "N": "101"
@@ -24,13 +32,6 @@ object ItemJsonSerialisationSpec {
     }
 }"""
 
-  val s2 =
-    """{
-    "id": {
-        "N": "101"
-    }
-}"""
-
   final case class Id(N: String)
   object Id   {
     implicit val decoder: JsonDecoder[Id] = DeriveJsonDecoder.gen[Id]
@@ -41,23 +42,6 @@ object ItemJsonSerialisationSpec {
     implicit val decoder: JsonDecoder[Book] = DeriveJsonDecoder.gen[Book]
     implicit val encoder: JsonEncoder[Book] = DeriveJsonEncoder.gen[Book]
   }
-
-  val x = s2.fromJson[Json]
-
-  val out: Any = x match {
-    case Left(err)   => s"Error: $err"
-    case Right(json) => decode(json)
-  }
-
-  def decode(json: Json): Any =
-    json match {
-      case Json.Obj(fields) => fields.foreach { case (k, v) => Map(k -> decode(v)) }
-      case Json.Arr(fields) => fields.foreach { case json => decode(json) }
-      case Json.Bool(b)     => b
-      case Json.Null        => "Null"
-      case Json.Num(d)      => d
-      case Json.Str(s)      => s
-    }
 
   /*
   private[dynamodb] final case class Binary(value: Iterable[Byte])              extends AttributeValue
@@ -72,35 +56,59 @@ object ItemJsonSerialisationSpec {
   private[dynamodb] case object Null                                    extends AttributeValue
   private[dynamodb] final case class String(value: ScalaString)         extends AttributeValue
   private[dynamodb] final case class StringSet(value: Set[ScalaString]) extends AttributeValue
+
+  type Encoder[A]  = A => AttributeValue
+  type Decoder[+A] = AttributeValue => Either[ItemError, A]
    */
 
-  /*
-   {
-     "id":
-        { "N": "101" } // => AttributeValue.Number
-   }
-   - JSON has top level fields - DDB does not
-   */
-
-  def isPrimitive(fields: Chunk[(String, Json)]) = ???
-
-  def primitive(k: String, json: Json): AttributeValue = ???
-
-  def decode2(json: Json, map: AttributeValue.Map): AttributeValue =
-    json match {
-      case Json.Obj(fields) if isPrimitive(fields) =>
-        primitive(fields.head._1, fields.head._2)
-      case Json.Obj(fields)                        =>
-        fields.foldRight(map) {
-          case ((k, json), m) => map + (k -> decode2(json, m))
-        } //fields.foreach { case (k, v) => map + (k -> decode2(v, map)) }
-      case Json.Arr(_ /*fields*/ )                 => AttributeValue.Null //fields.foreach { case json => decode(json) }
-      case Json.Bool(b)                            => AttributeValue.Bool(b)
-      case Json.Null                               => AttributeValue.Null
-      case Json.Num(d)                             => AttributeValue.Number(d)
-      case Json.Str(s)                             => AttributeValue.String(s)
+  def createMap(fields: Chunk[(String, Json)], map: AttributeValue.Map): Either[String, AttributeValue.Map] =
+    fields.toList match {
+      case Nil            =>
+        Right(map)
+      case (k, json) :: _ =>
+        decode(json) match {
+          case Right(av) => createMap(fields.tail, map + (k -> av))
+          case Left(err) => Left(err)
+        }
     }
 
-  println(out)
+  def decode(json: Json): Either[String, AttributeValue] =
+    json match {
+      case Json.Obj(Chunk("N" -> Json.Num(d)))  => Right(AttributeValue.Number(d))
+      case Json.Obj(Chunk("S" -> Json.Str(s)))  => Right(AttributeValue.String(s))
+      case Json.Obj(Chunk("B" -> Json.Bool(b))) => Right(AttributeValue.Bool(b))
+      case Json.Obj(Chunk("L" -> Json.Arr(a)))  => Left(s"TODO Arrays $a")
+//      case Json.Obj(Chunk(_ -> a))              => Left(s"TODO ${a.getClass.getName} $a")
+
+      case Json.Obj(fields)                     => // returns an  AttributeValue.Map
+        createMap(fields, AttributeValue.Map.empty)
+      case _                                    => Left("Only top level objects are supported")
+
+    }
+
+  override def spec: Spec[TestEnvironment with Scope, Any] =
+    suite("ItemJsonSerialisationSpec")(
+      test("decode top level array") {
+        val s2 =
+          """{
+              "id": {
+                  "S": "101"
+              },
+              "name": {
+                  "S": "Avi"
+              }
+          }"""
+        val x  = s2.fromJson[Json].getOrElse(Json.Null)
+        assert(decode(x))(
+          equalTo(
+            Right(
+              AttributeValue.Map.empty + ("id" -> AttributeValue.String("101")) + ("name" -> AttributeValue.String(
+                "Avi"
+              ))
+            )
+          )
+        )
+      }
+    )
 
 }
