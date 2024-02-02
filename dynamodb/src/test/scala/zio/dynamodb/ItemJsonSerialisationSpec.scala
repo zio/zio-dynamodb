@@ -80,10 +80,10 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
       case Json.Obj(Chunk("L" -> Json.Arr(a)))  => Left(s"TODO Arrays $a")
 //      case Json.Obj(Chunk(_ -> a))              => Left(s"TODO ${a.getClass.getName} $a")
 
+      case Json.Obj(fields) if fields.isEmpty   => Left("empty AttributeValue Map found")
       case Json.Obj(fields)                     => // returns an  AttributeValue.Map
         createMap(fields, AttributeValue.Map.empty)
-      case _                                    => Left("Only top level objects are supported")
-
+      case a                                    => Left(s"Only top level objects are supported, found $a")
     }
 
   override def spec: Spec[TestEnvironment with Scope, Any] =
@@ -106,6 +106,14 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
                 "Avi"
               ))
             )
+          )
+        )
+      },
+      test("decode top level array") {
+        val x = "{}".fromJson[Json].getOrElse(Json.Null)
+        assert(decode(x))(
+          equalTo(
+            Left("empty AttributeValue Map found")
           )
         )
       }
