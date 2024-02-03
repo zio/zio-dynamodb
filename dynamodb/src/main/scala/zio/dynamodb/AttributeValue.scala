@@ -46,7 +46,12 @@ object AttributeValue {
   private[dynamodb] final case class Binary(value: Iterable[Byte])              extends AttributeValue
   private[dynamodb] final case class BinarySet(value: Iterable[Iterable[Byte]]) extends AttributeValue
   private[dynamodb] final case class Bool(value: Boolean)                       extends AttributeValue
-  private[dynamodb] final case class List(value: Iterable[AttributeValue])      extends AttributeValue
+  private[dynamodb] final case class List(value: Iterable[AttributeValue])      extends AttributeValue { self =>
+    def +(av: AttributeValue): List = List(self.value ++ Iterable(av))
+  }
+  private[dynamodb] object List {
+    val empty = List(Iterable.empty)
+  }
 
   private[dynamodb] final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue { self =>
     def +(t: (ScalaString, AttributeValue)): Map = Map(self.value + (String(t._1) -> t._2))
