@@ -7,7 +7,7 @@ import zio.test.ZIOSpecDefault
 import zio.Scope
 import zio.test.Spec
 import zio.test.TestEnvironment
-import zio.test.assert
+import zio.test.{ assert, assertTrue }
 import zio.test.Assertion.equalTo
 import scala.util.Try
 //import zio.prelude._
@@ -91,6 +91,22 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
       case a                                    => Left(s"Only top level objects are supported, found $a")
     }
 
+  def translate(fields: List[(AttributeValue.String, AttributeValue)], acc: AttrMap): AttrMap =
+    fields match {
+      case Nil          =>
+        acc
+      case (s, av) :: _ =>
+        av match {
+          case m @ AttributeValue.Map(_) =>
+            translate(
+              m.value.toList.tail,
+              AttrMap.empty + (s.value -> av)
+            ) // AttrMap value posn is an AV and we already have one in hand
+          case _ /* scalar */            =>
+            translate(fields.tail, acc + (s.value -> av))
+        }
+    }
+
   override def spec: Spec[TestEnvironment with Scope, Any] =
     suite("ItemJsonSerialisationSpec")(
       test("decode top level map") {
@@ -107,9 +123,9 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
         assert(decode(ast))(
           equalTo(
             Right(
-              AttributeValue.Map.empty + ("id" -> AttributeValue.String("101")) + ("count" -> AttributeValue.Number(
-                BigDecimal(42)
-              ))
+              AttributeValue.Map.empty +
+                ("id"    -> AttributeValue.String("101")) +
+                ("count" -> AttributeValue.Number(BigDecimal(42)))
             )
           )
         )
@@ -149,6 +165,50 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
             Left("Only top level objects are supported, found []")
           )
         )
+      },
+      test("translate top level map") {
+        val s   =
+          """{
+              "id": {
+                  "S": "101"
+              },
+              "count": {
+                  "N": "42"
+              }
+          }"""
+        val ast = s.fromJson[Json].getOrElse(Json.Null)
+        val x   = decode(ast) //.map(m => translate2(m.value.toList, AttrMap.empty))
+        x match {
+          case Right(AttributeValue.Map(map)) =>
+            val xs = map.toList
+            val y  = translate(xs, AttrMap.empty)
+            println(s"translate: $y")
+          case _                              => println("translate: not a map")
+        }
+        assertTrue(true)
+      },
+      /*
+      AttrMap(Map(foo -> Map(Map( String(name) -> String(Avi) )), name -> String(Avi)))
+       */
+      test("translate nested map") {
+        val s   =
+          """{
+              "foo": {
+                    "name": {
+                       "S": "Avi"
+                     }                    
+              }
+          }"""
+        val ast = s.fromJson[Json].getOrElse(Json.Null)
+        val x   = decode(ast) //.map(m => translate2(m.value.toList, AttrMap.empty))
+        x match {
+          case Right(AttributeValue.Map(map)) =>
+            val xs = map.toList
+            val y  = translate(xs, AttrMap.empty)
+            println(s"translate: $y")
+          case _                              => println("translate: not a map")
+        }
+        assertTrue(true)
       }
     )
 
