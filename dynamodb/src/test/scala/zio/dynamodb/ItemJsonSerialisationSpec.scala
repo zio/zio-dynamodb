@@ -85,12 +85,12 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
         }
     }
 
-  def decodeArray(xs: List[Json], acc: AttributeValue.List): Either[String, AttributeValue.List] =
+  def decodeL(xs: List[Json], acc: AttributeValue.List): Either[String, AttributeValue.List] =
     xs match {
       case Nil       => Right(acc)
       case json :: _ =>
         decode(json) match {
-          case Right(av) => decodeArray(xs.tail, acc + av)
+          case Right(av) => decodeL(xs.tail, acc + av)
           case Left(err) => Left(err)
         }
     }
@@ -104,7 +104,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
         )
       case Json.Obj(Chunk("S" -> Json.Str(s)))      => Right(AttributeValue.String(s))
       case Json.Obj(Chunk("B" -> Json.Bool(b)))     => Right(AttributeValue.Bool(b))
-      case Json.Obj(Chunk("L" -> Json.Arr(a)))      => decodeArray(a.toList, AttributeValue.List.empty)
+      case Json.Obj(Chunk("L" -> Json.Arr(a)))      => decodeL(a.toList, AttributeValue.List.empty)
       case Json.Obj(Chunk("SS" -> Json.Arr(chunk))) => decodeSS(chunk.toList, AttributeValue.StringSet.empty)
 //      case Json.Obj(Chunk(_ -> a))              => Left(s"TODO ${a.getClass.getName} $a")
 
@@ -112,7 +112,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
       case Json.Obj(fields)                         => // returns an  AttributeValue.Map
         createMap(fields, AttributeValue.Map.empty)
       // TODO:
-      case Json.Str(s)                              => Right(AttributeValue.String(s))     
+      case Json.Str(s)                              => Right(AttributeValue.String(s))
       case a                                        => Left(s"Only top level objects are supported, found $a")
     }
 
@@ -189,7 +189,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
           equalTo(
             Right(
               AttributeValue.Map.empty +
-                ("id"        -> AttributeValue.String("101")) +
+                ("id"    -> AttributeValue.String("101")) +
                 ("array" -> AttributeValue.List(List(AttributeValue.String("1"), AttributeValue.String("2"))))
             )
           )
