@@ -59,7 +59,12 @@ object AttributeValue {
   private[dynamodb] final case class NumberSet(value: Set[BigDecimal])  extends AttributeValue
   private[dynamodb] case object Null                                    extends AttributeValue
   private[dynamodb] final case class String(value: ScalaString)         extends AttributeValue
-  private[dynamodb] final case class StringSet(value: Set[ScalaString]) extends AttributeValue
+  private[dynamodb] final case class StringSet(value: Set[ScalaString]) extends AttributeValue { self =>
+    def +(s: ScalaString): StringSet = StringSet(self.value + s)
+  }
+  private[dynamodb] final object StringSet {
+    val empty: StringSet = StringSet(Set.empty)
+  }
 
   def apply[A](a: A)(implicit ev: ToAttributeValue[A]): AttributeValue.WithScalaType[A] =
     ev.toAttributeValue(a).asInstanceOf[AttributeValue.WithScalaType[A]]

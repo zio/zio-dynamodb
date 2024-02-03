@@ -73,22 +73,35 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
         }
     }
 
+  def decodeSS(xs: List[Json], acc: AttributeValue.StringSet): Either[String, AttributeValue.StringSet] =
+    xs match {
+      case Nil       => Right(acc)
+      case json :: _ =>
+        json match {
+          case Json.Str(s) =>
+            val x: AttributeValue.StringSet = acc + s
+            decodeSS(xs.tail, x)
+          case x           => Left(s"Invalid SS $x")
+        }
+    }
+
   def decode(json: Json): Either[String, AttributeValue] =
     json match {
-      case Json.Obj(Chunk("N" -> Json.Str(d)))  =>
+      case Json.Obj(Chunk("N" -> Json.Str(d)))      =>
         Try(BigDecimal(d)).fold(
           _ => Left(s"Invalid Number $d"),
           n => Right(AttributeValue.Number(n))
         )
-      case Json.Obj(Chunk("S" -> Json.Str(s)))  => Right(AttributeValue.String(s))
-      case Json.Obj(Chunk("B" -> Json.Bool(b))) => Right(AttributeValue.Bool(b))
-      case Json.Obj(Chunk("L" -> Json.Arr(a)))  => Left(s"TODO Arrays $a")
+      case Json.Obj(Chunk("S" -> Json.Str(s)))      => Right(AttributeValue.String(s))
+      case Json.Obj(Chunk("B" -> Json.Bool(b)))     => Right(AttributeValue.Bool(b))
+      case Json.Obj(Chunk("L" -> Json.Arr(a)))      => Left(s"TODO Arrays $a")
+      case Json.Obj(Chunk("SS" -> Json.Arr(chunk))) => decodeSS(chunk.toList, AttributeValue.StringSet.empty)
 //      case Json.Obj(Chunk(_ -> a))              => Left(s"TODO ${a.getClass.getName} $a")
 
-      case Json.Obj(fields) if fields.isEmpty   => Left("empty AttributeValue Map found")
-      case Json.Obj(fields)                     => // returns an  AttributeValue.Map
+      case Json.Obj(fields) if fields.isEmpty       => Left("empty AttributeValue Map found")
+      case Json.Obj(fields)                         => // returns an  AttributeValue.Map
         createMap(fields, AttributeValue.Map.empty)
-      case a                                    => Left(s"Only top level objects are supported, found $a")
+      case a                                        => Left(s"Only top level objects are supported, found $a")
     }
 
   def translate(fields: List[(AttributeValue.String, AttributeValue)], acc: AttrMap): AttrMap =
@@ -124,6 +137,27 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
               AttributeValue.Map.empty +
                 ("id"    -> AttributeValue.String("101")) +
                 ("count" -> AttributeValue.Number(BigDecimal(42)))
+            )
+          )
+        )
+      },
+      test("decode SS") {
+        val s   =
+          """{
+              "id": {
+                  "S": "101"
+              },
+              "stringSet": {
+                  "SS": ["1", "2"]
+              }
+          }"""
+        val ast = s.fromJson[Json].getOrElse(Json.Null)
+        assert(decode(ast))(
+          equalTo(
+            Right(
+              AttributeValue.Map.empty +
+                ("id"        -> AttributeValue.String("101")) +
+                ("stringSet" -> AttributeValue.StringSet(Set("1", "2")))
             )
           )
         )
