@@ -93,18 +93,16 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
 
   def translate(fields: List[(AttributeValue.String, AttributeValue)], acc: AttrMap): AttrMap =
     fields match {
-      case Nil          =>
+      case Nil                                  =>
         acc
-      case (s, av) :: _ =>
-        av match {
-          case m @ AttributeValue.Map(_) =>
-            translate(
-              m.value.toList.tail,
-              AttrMap.empty + (s.value -> av)
-            ) // AttrMap value posn is an AV and we already have one in hand
-          case _ /* scalar */            =>
-            translate(fields.tail, acc + (s.value -> av))
-        }
+      case (s, av @ AttributeValue.Map(m)) :: _ =>
+        translate(
+          m.toList.tail,
+          AttrMap.empty + (s.value -> av)
+        ) // AttrMap value posn is an AV and we already have one in hand
+      case (s, av) :: _                         =>
+        translate(fields.tail, acc + (s.value -> av))
+
     }
 
   override def spec: Spec[TestEnvironment with Scope, Any] =
@@ -180,16 +178,15 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
         val x   = decode(ast) //.map(m => translate2(m.value.toList, AttrMap.empty))
         x match {
           case Right(AttributeValue.Map(map)) =>
-            val xs = map.toList
-            val y  = translate(xs, AttrMap.empty)
-            println(s"translate: $y")
-          case _                              => println("translate: not a map")
+            assertTrue(
+              translate(map.toList, AttrMap.empty) == AttrMap.empty + ("id" -> AttributeValue.String(
+                "101"
+              )) + ("count"                                                 -> AttributeValue.Number(BigDecimal(42)))
+            )
+          case _                              => assertTrue(false)
         }
-        assertTrue(true)
+
       },
-      /*
-      AttrMap(Map(foo -> Map(Map( String(name) -> String(Avi) )), name -> String(Avi)))
-       */
       test("translate nested map") {
         val s   =
           """{
@@ -203,10 +200,11 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
         val x   = decode(ast) //.map(m => translate2(m.value.toList, AttrMap.empty))
         x match {
           case Right(AttributeValue.Map(map)) =>
-            val xs = map.toList
-            val y  = translate(xs, AttrMap.empty)
-            println(s"translate: $y")
-          case _                              => println("translate: not a map")
+            val translated = translate(map.toList, AttrMap.empty)
+            val nestedAv   = AttributeValue.Map.empty + ("name" -> AttributeValue.String("Avi"))
+            val expected   = AttrMap.empty + ("foo"             -> nestedAv)
+            assertTrue(translated == expected)
+          case _                              => assertTrue(false)
         }
         assertTrue(true)
       }
