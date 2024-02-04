@@ -47,7 +47,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
   /*
 https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.NamingRulesDataTypes.html
 S – String
-N – Number
+N – Number // TODO - return error for this????
 B – Binary // TODO
 BOOL – Boolean
 NULL – Null
