@@ -45,6 +45,19 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
   }
 
   /*
+https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.NamingRulesDataTypes.html
+S – String
+N – Number
+B – Binary
+BOOL – Boolean
+NULL – Null
+M – Map
+L – List
+SS – String Set
+NS – Number Set
+BS – Binary Set
+
+
   private[dynamodb] final case class Binary(value: Iterable[Byte])              extends AttributeValue
   private[dynamodb] final case class BinarySet(value: Iterable[Iterable[Byte]]) extends AttributeValue
   private[dynamodb] final case class Bool(value: Boolean)                       extends AttributeValue
@@ -103,6 +116,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
           n => Right(AttributeValue.Number(n))
         )
       case Json.Obj(Chunk("S" -> Json.Str(s)))      => Right(AttributeValue.String(s))
+      // Note Json.Num is handles via Json.Str
       case Json.Obj(Chunk("B" -> Json.Bool(b)))     => Right(AttributeValue.Bool(b))
       case Json.Obj(Chunk("L" -> Json.Arr(a)))      => decodeL(a.toList, AttributeValue.List.empty)
       case Json.Obj(Chunk("SS" -> Json.Arr(chunk))) => decodeSS(chunk.toList, AttributeValue.StringSet.empty)
@@ -111,8 +125,10 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
       case Json.Obj(fields) if fields.isEmpty       => Left("empty AttributeValue Map found")
       case Json.Obj(fields)                         => // returns an  AttributeValue.Map
         createMap(fields, AttributeValue.Map.empty)
-      // TODO:
+      // for collections
       case Json.Str(s)                              => Right(AttributeValue.String(s))
+      case Json.Bool(b)                             => Right(AttributeValue.Bool(b))
+      // Note Json.Num is handles via Json.Str
       case a                                        => Left(s"Only top level objects are supported, found $a")
     }
 
@@ -296,7 +312,6 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
             assertTrue(translated == expected)
           case _                              => assertTrue(false)
         }
-        assertTrue(true)
       }
     )
 
