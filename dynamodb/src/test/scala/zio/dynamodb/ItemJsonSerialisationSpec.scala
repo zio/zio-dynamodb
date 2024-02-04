@@ -174,7 +174,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
           )
         )
       },
-      test("decode L") {
+      test("decode L of string") {
         val s   =
           """{
               "id": {
@@ -191,6 +191,29 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
               AttributeValue.Map.empty +
                 ("id"    -> AttributeValue.String("101")) +
                 ("array" -> AttributeValue.List(List(AttributeValue.String("1"), AttributeValue.String("2"))))
+            )
+          )
+        )
+      },
+      test("decode L of object") {
+        val s                  =
+          """{
+              "id": {
+                  "S": "101"
+              },
+              "array": {
+                  "L": [{"foo": {"S": "bar"}},  {"foo": {"S": "baz"}}]
+              }
+          }"""
+        val ast                = s.fromJson[Json].getOrElse(Json.Null)
+        def obj(value: String) = AttributeValue.Map.empty + ("foo" -> AttributeValue.String(value))
+
+        assert(decode(ast))(
+          equalTo(
+            Right(
+              AttributeValue.Map.empty +
+                ("id"    -> AttributeValue.String("101")) +
+                ("array" -> AttributeValue.List(List(obj("bar"), obj("baz"))))
             )
           )
         )
