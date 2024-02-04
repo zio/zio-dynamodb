@@ -48,14 +48,14 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
 https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.NamingRulesDataTypes.html
 S – String
 N – Number
-B – Binary
+B – Binary // TODO
 BOOL – Boolean
 NULL – Null
 M – Map
 L – List
 SS – String Set
 NS – Number Set
-BS – Binary Set
+BS – Binary Set // TODO
 
 
   private[dynamodb] final case class Binary(value: Iterable[Byte])              extends AttributeValue
@@ -98,6 +98,17 @@ BS – Binary Set
         }
     }
 
+  def decodeNS(xs: List[Json], acc: AttributeValue.NumberSet): Either[String, AttributeValue.NumberSet] =
+    xs match {
+      case Nil       => Right(acc)
+      case json :: _ =>
+        json match {
+          case Json.Str(s) =>
+            (acc + s).flatMap(decodeNS(xs.tail, _))
+          case x           => Left(s"Invalid SS $x")
+        }
+    }
+
   def decodeL(xs: List[Json], acc: AttributeValue.List): Either[String, AttributeValue.List] =
     xs match {
       case Nil       => Right(acc)
@@ -120,6 +131,7 @@ BS – Binary Set
       case Json.Obj(Chunk("B" -> Json.Bool(b)))     => Right(AttributeValue.Bool(b))
       case Json.Obj(Chunk("L" -> Json.Arr(a)))      => decodeL(a.toList, AttributeValue.List.empty)
       case Json.Obj(Chunk("SS" -> Json.Arr(chunk))) => decodeSS(chunk.toList, AttributeValue.StringSet.empty)
+      case Json.Obj(Chunk("NS" -> Json.Arr(chunk))) => decodeNS(chunk.toList, AttributeValue.NumberSet.empty)
       case Json.Obj(Chunk("M" -> Json.Obj(fields))) => createMap(fields, AttributeValue.Map.empty)
 //      case Json.Obj(Chunk(_ -> a))              => Left(s"TODO ${a.getClass.getName} $a")
 
@@ -187,6 +199,27 @@ BS – Binary Set
               AttributeValue.Map.empty +
                 ("id"        -> AttributeValue.String("101")) +
                 ("stringSet" -> AttributeValue.StringSet(Set("1", "2")))
+            )
+          )
+        )
+      },
+      test("decode NS") {
+        val s   =
+          """{
+              "id": {
+                  "S": "101"
+              },
+              "stringSet": {
+                  "NS": ["1", "2"]
+              }
+          }"""
+        val ast = s.fromJson[Json].getOrElse(Json.Null)
+        assert(decode(ast))(
+          equalTo(
+            Right(
+              AttributeValue.Map.empty +
+                ("id"        -> AttributeValue.String("101")) +
+                ("stringSet" -> AttributeValue.NumberSet(Set(BigDecimal(1), BigDecimal(2))))
             )
           )
         )

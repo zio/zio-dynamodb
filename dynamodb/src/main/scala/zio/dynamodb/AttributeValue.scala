@@ -5,6 +5,7 @@ import zio.dynamodb.ConditionExpression._
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.schema.Schema
 import scala.collection.immutable.Set
+import scala.util.Try
 
 sealed trait AttributeValue { self =>
   type ScalaType
@@ -61,7 +62,13 @@ object AttributeValue {
   }
 
   private[dynamodb] final case class Number(value: BigDecimal)          extends AttributeValue
-  private[dynamodb] final case class NumberSet(value: Set[BigDecimal])  extends AttributeValue
+  private[dynamodb] final case class NumberSet(value: Set[BigDecimal])  extends AttributeValue { self =>
+    def +(s: ScalaString): Either[ScalaString, NumberSet] =
+      Try(BigDecimal(s)).toEither.left.map(_.getMessage).map(n => NumberSet(self.value + n))
+  }
+  private[dynamodb] final object NumberSet {
+    val empty: NumberSet = NumberSet(Set.empty)
+  }
   private[dynamodb] case object Null                                    extends AttributeValue
   private[dynamodb] final case class String(value: ScalaString)         extends AttributeValue
   private[dynamodb] final case class StringSet(value: Set[ScalaString]) extends AttributeValue { self =>
