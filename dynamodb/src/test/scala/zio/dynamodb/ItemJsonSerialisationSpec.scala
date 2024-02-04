@@ -120,6 +120,7 @@ BS – Binary Set
       case Json.Obj(Chunk("B" -> Json.Bool(b)))     => Right(AttributeValue.Bool(b))
       case Json.Obj(Chunk("L" -> Json.Arr(a)))      => decodeL(a.toList, AttributeValue.List.empty)
       case Json.Obj(Chunk("SS" -> Json.Arr(chunk))) => decodeSS(chunk.toList, AttributeValue.StringSet.empty)
+      case Json.Obj(Chunk("M" -> Json.Obj(fields))) => createMap(fields, AttributeValue.Map.empty)
 //      case Json.Obj(Chunk(_ -> a))              => Left(s"TODO ${a.getClass.getName} $a")
 
       case Json.Obj(fields) if fields.isEmpty       => Left("empty AttributeValue Map found")
@@ -140,7 +141,7 @@ BS – Binary Set
         translate(
           m.toList.tail,
           AttrMap.empty + (s.value -> av)
-        ) // AttrMap value posn is an AV and we already have one in hand
+        )
       case (s, av) :: _                         =>
         translate(fields.tail, acc + (s.value -> av))
 
@@ -190,6 +191,27 @@ BS – Binary Set
           )
         )
       },
+      test("decode M of object") {
+        val s   =
+          """{
+              "id": {
+                  "S": "101"
+              },
+              "map": {
+                  "M": { "1": {"foo": {"S": "bar"}}, "2": {"foo": {"S": "baz"}} }
+              }
+          }"""
+        val ast = s.fromJson[Json].getOrElse(Json.Null)
+        assert(decode(ast))(
+          equalTo(
+            Right(
+              AttributeValue.Map.empty +
+                ("id"  -> AttributeValue.String("101")) +
+                ("map" -> (AttributeValue.Map.empty + ("1" -> obj("bar")) + ("2" -> obj("baz"))))
+            )
+          )
+        )
+      },
       test("decode L of string") {
         val s   =
           """{
@@ -212,7 +234,7 @@ BS – Binary Set
         )
       },
       test("decode L of object") {
-        val s                  =
+        val s   =
           """{
               "id": {
                   "S": "101"
@@ -221,8 +243,7 @@ BS – Binary Set
                   "L": [{"foo": {"S": "bar"}},  {"foo": {"S": "baz"}}]
               }
           }"""
-        val ast                = s.fromJson[Json].getOrElse(Json.Null)
-        def obj(value: String) = AttributeValue.Map.empty + ("foo" -> AttributeValue.String(value))
+        val ast = s.fromJson[Json].getOrElse(Json.Null)
 
         assert(decode(ast))(
           equalTo(
@@ -314,5 +335,7 @@ BS – Binary Set
         }
       }
     )
+
+  def obj(value: String) = AttributeValue.Map.empty + ("foo" -> AttributeValue.String(value))
 
 }
