@@ -14,7 +14,7 @@ import scala.util.Try
 
 object ItemJsonSerialisationSpec extends ZIOSpecDefault {
 
-  val s1 = """{
+  val bookJsonString = """{
     "Id": {
         "N": "101"
     },
@@ -128,7 +128,7 @@ BS – Binary Set // TODO
         )
       case Json.Obj(Chunk("S" -> Json.Str(s)))      => Right(AttributeValue.String(s))
       // Note Json.Num is handles via Json.Str
-      case Json.Obj(Chunk("B" -> Json.Bool(b)))     => Right(AttributeValue.Bool(b))
+      case Json.Obj(Chunk("BOOL" -> Json.Bool(b)))  => Right(AttributeValue.Bool(b))
       case Json.Obj(Chunk("L" -> Json.Arr(a)))      => decodeL(a.toList, AttributeValue.List.empty)
       case Json.Obj(Chunk("SS" -> Json.Arr(chunk))) => decodeSS(chunk.toList, AttributeValue.StringSet.empty)
       case Json.Obj(Chunk("NS" -> Json.Arr(chunk))) => decodeNS(chunk.toList, AttributeValue.NumberSet.empty)
@@ -145,21 +145,10 @@ BS – Binary Set // TODO
       case a                                        => Left(s"Only top level objects are supported, found $a")
     }
 
-  def translate(fields: List[(AttributeValue.String, AttributeValue)], acc: AttrMap): AttrMap =
-    fields match {
-      case Nil                                  =>
-        acc
-      case (s, av @ AttributeValue.Map(m)) :: _ =>
-        translate(
-          m.toList.tail,
-          AttrMap.empty + (s.value -> av)
-        )
-      case (s, av) :: _                         =>
-        translate(fields.tail, acc + (s.value -> av))
+  def toAttrMap(fields: List[(AttributeValue.String, AttributeValue)], acc: AttrMap): AttrMap =
+    fields.map { case (avStr -> av) => avStr.value -> av }.foldLeft(acc)(_ + _)
 
-    }
-
-  override def spec: Spec[TestEnvironment with Scope, Any] =
+  override def spec: Spec[TestEnvironment with Scope, Any]                                    =
     suite("ItemJsonSerialisationSpec")(
       test("decode top level map") {
         val s   =
@@ -169,6 +158,9 @@ BS – Binary Set // TODO
               },
               "count": {
                   "N": "42"
+              },
+              "isTest": {
+                  "BOOL": true
               }
           }"""
         val ast = s.fromJson[Json].getOrElse(Json.Null)
@@ -176,8 +168,9 @@ BS – Binary Set // TODO
           equalTo(
             Right(
               AttributeValue.Map.empty +
-                ("id"    -> AttributeValue.String("101")) +
-                ("count" -> AttributeValue.Number(BigDecimal(42)))
+                ("id"     -> AttributeValue.String("101")) +
+                ("count"  -> AttributeValue.Number(BigDecimal(42))) +
+                ("isTest" -> AttributeValue.Bool(true))
             )
           )
         )
@@ -324,7 +317,7 @@ BS – Binary Set // TODO
           )
         )
       },
-      test("translate top level map") {
+      test("translate top level only map") {
         val s   =
           """{
               "id": {
@@ -335,11 +328,11 @@ BS – Binary Set // TODO
               }
           }"""
         val ast = s.fromJson[Json].getOrElse(Json.Null)
-        val x   = decode(ast) //.map(m => translate2(m.value.toList, AttrMap.empty))
+        val x   = decode(ast)
         x match {
           case Right(AttributeValue.Map(map)) =>
             assertTrue(
-              translate(map.toList, AttrMap.empty) == AttrMap.empty + ("id" -> AttributeValue.String(
+              toAttrMap(map.toList, AttrMap.empty) == AttrMap.empty + ("id" -> AttributeValue.String(
                 "101"
               )) + ("count"                                                 -> AttributeValue.Number(BigDecimal(42)))
             )
@@ -357,14 +350,39 @@ BS – Binary Set // TODO
               }
           }"""
         val ast = s.fromJson[Json].getOrElse(Json.Null)
-        val x   = decode(ast) //.map(m => translate2(m.value.toList, AttrMap.empty))
+        val x   = decode(ast)
         x match {
           case Right(AttributeValue.Map(map)) =>
-            val translated = translate(map.toList, AttrMap.empty)
+            val translated = toAttrMap(map.toList, AttrMap.empty)
             val nestedAv   = AttributeValue.Map.empty + ("name" -> AttributeValue.String("Avi"))
             val expected   = AttrMap.empty + ("foo"             -> nestedAv)
             assertTrue(translated == expected)
           case _                              => assertTrue(false)
+        }
+      },
+      test("translate mixed") {
+        val s   =
+          """{
+              "id": { "S": "101" },
+              "nested": {
+                    "foo": {
+                       "S": "bar"
+                     }                    
+              },
+              "count": { "N": "101" }
+          }"""
+        val ast = s.fromJson[Json].getOrElse(Json.Null)
+        val x   = decode(ast)
+        x match {
+          case Right(AttributeValue.Map(map)) =>
+            val translated = toAttrMap(map.toList, AttrMap.empty)
+            val expected   = AttrMap.empty +
+              ("id"     -> AttributeValue.String("101")) +
+              ("nested" -> obj("bar")) +
+              ("count"  -> AttributeValue.Number(BigDecimal(101)))
+            assertTrue(translated == expected)
+          case _                              =>
+            assertTrue(false)
         }
       }
     )
