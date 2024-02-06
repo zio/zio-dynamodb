@@ -54,4 +54,13 @@ object AttrMap extends GeneratedAttrMapApplies {
 
   val empty: AttrMap = new AttrMap(Map.empty[String, AttributeValue])
 
+  def parse(json: String): Either[String, AttrMap] = ???
+  /* 
+  
+  AttributeValue.parse(json) match {
+    case Left(err) => Left(err)
+    case Right(AttributeValue.Map(m)) => Right(AttrMap(av.m))
+  }
+   */
+
 }
