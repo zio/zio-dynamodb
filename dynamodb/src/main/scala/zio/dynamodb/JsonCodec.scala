@@ -6,6 +6,26 @@ import scala.util.Try
 
 // TODO: note sure where to put this yet
 object JsonCodec {
+
+  object Encoder {
+    def encode(av: AttributeValue): Json =
+      av match {
+        case AttributeValue.String(s)     => Json.Obj(Chunk("S" -> Json.Str(s)))
+        case AttributeValue.Number(n)     => Json.Obj(Chunk("N" -> Json.Str(n.toString)))
+        case AttributeValue.Bool(b)       => Json.Obj(Chunk("BOOL" -> Json.Bool(b)))
+        case AttributeValue.Null          => Json.Obj(Chunk("NULL" -> Json.Null))
+        case AttributeValue.List(xs)      =>
+          val x: List[Json] = xs.map(encode).toList
+          Json.Obj(Chunk("L" -> Json.Arr(xs.map(encode).toList: _*)))
+        case AttributeValue.StringSet(xs) => Json.Obj(Chunk("SS" -> Json.Arr(xs.map(Json.Str(_)).toList: _*)))
+        case AttributeValue.NumberSet(xs) => Json.Obj(Chunk("NS" -> Json.Arr(xs.map(Json.Num(_)).toList: _*)))
+        case AttributeValue.Map(map)      =>
+          val xs: List[(AttributeValue.String, Json)] = map.map { case (k, v) => k -> encode(v) }.toList
+          Json.Obj(Chunk(xs.map{ case (k, v) => k.value -> v }: _*))
+        case AttributeValue.Binary(_)     => ???
+        case AttributeValue.BinarySet(_)  => ???
+      }
+  }
   object Decoder {
     def createMap(fields: Chunk[(String, Json)], map: AttributeValue.Map): Either[String, AttributeValue.Map] =
       fields.toList match {
@@ -82,4 +102,5 @@ object JsonCodec {
       fields.map { case (avStr -> av) => avStr.value -> av }.foldLeft(AttrMap.empty)(_ + _)
 
   }
+
 }

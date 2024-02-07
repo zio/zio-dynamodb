@@ -1,6 +1,7 @@
 package zio.dynamodb
 
 import zio.dynamodb.JsonCodec.Decoder._
+import zio.dynamodb.JsonCodec
 import zio.json._
 import zio.json.ast.Json
 import zio.test.ZIOSpecDefault
@@ -76,9 +77,33 @@ BS – Binary Set // TODO
 
   override def spec: Spec[TestEnvironment with Scope, Any] =
     suite("ItemJsonSerialisationSpec")(
-      test("decode top level map") {
-        val s   =
-          """{
+      encoderSuite,
+      decoderSuite
+    )
+  val encoderSuite                                         = suite("encoder suite")(
+    test("encode top level map") {
+      val avMap = AttributeValue.Map.empty +
+        ("id"     -> AttributeValue.String("101")) +
+        ("count"  -> AttributeValue.Number(BigDecimal(42))) +
+        ("isTest" -> AttributeValue.Bool(true))
+      val encoded = JsonCodec.Encoder.encode(avMap)
+      val s       = encoded.toJson
+      println(s"XXXXXXXXXX encoded: $s")
+      assert(encoded)(
+        equalTo(
+          Json.Obj(
+            "id"     -> Json.Obj("S" -> Json.Str("101")),
+            "count"  -> Json.Obj("N" -> Json.Str("42")),
+            "isTest" -> Json.Obj("BOOL" -> Json.Bool(true))
+          )
+        )
+      )
+    }
+  )
+  val decoderSuite                                         = suite("decoder suite")(
+    test("decode top level map") {
+      val s   =
+        """{
               "id": {
                   "S": "101"
               },
@@ -89,21 +114,21 @@ BS – Binary Set // TODO
                   "BOOL": true
               }
           }"""
-        val ast = s.fromJson[Json].getOrElse(Json.Null)
-        assert(decode(ast))(
-          equalTo(
-            Right(
-              AttributeValue.Map.empty +
-                ("id"     -> AttributeValue.String("101")) +
-                ("count"  -> AttributeValue.Number(BigDecimal(42))) +
-                ("isTest" -> AttributeValue.Bool(true))
-            )
+      val ast = s.fromJson[Json].getOrElse(Json.Null)
+      assert(decode(ast))(
+        equalTo(
+          Right(
+            AttributeValue.Map.empty +
+              ("id"     -> AttributeValue.String("101")) +
+              ("count"  -> AttributeValue.Number(BigDecimal(42))) +
+              ("isTest" -> AttributeValue.Bool(true))
           )
         )
-      },
-      test("decode SS") {
-        val s   =
-          """{
+      )
+    },
+    test("decode SS") {
+      val s   =
+        """{
               "id": {
                   "S": "101"
               },
@@ -111,20 +136,20 @@ BS – Binary Set // TODO
                   "SS": ["1", "2"]
               }
           }"""
-        val ast = s.fromJson[Json].getOrElse(Json.Null)
-        assert(decode(ast))(
-          equalTo(
-            Right(
-              AttributeValue.Map.empty +
-                ("id"        -> AttributeValue.String("101")) +
-                ("stringSet" -> AttributeValue.StringSet(Set("1", "2")))
-            )
+      val ast = s.fromJson[Json].getOrElse(Json.Null)
+      assert(decode(ast))(
+        equalTo(
+          Right(
+            AttributeValue.Map.empty +
+              ("id"        -> AttributeValue.String("101")) +
+              ("stringSet" -> AttributeValue.StringSet(Set("1", "2")))
           )
         )
-      },
-      test("decode NS") {
-        val s   =
-          """{
+      )
+    },
+    test("decode NS") {
+      val s   =
+        """{
               "id": {
                   "S": "101"
               },
@@ -132,20 +157,20 @@ BS – Binary Set // TODO
                   "NS": ["1", "2"]
               }
           }"""
-        val ast = s.fromJson[Json].getOrElse(Json.Null)
-        assert(decode(ast))(
-          equalTo(
-            Right(
-              AttributeValue.Map.empty +
-                ("id"        -> AttributeValue.String("101")) +
-                ("stringSet" -> AttributeValue.NumberSet(Set(BigDecimal(1), BigDecimal(2))))
-            )
+      val ast = s.fromJson[Json].getOrElse(Json.Null)
+      assert(decode(ast))(
+        equalTo(
+          Right(
+            AttributeValue.Map.empty +
+              ("id"        -> AttributeValue.String("101")) +
+              ("stringSet" -> AttributeValue.NumberSet(Set(BigDecimal(1), BigDecimal(2))))
           )
         )
-      },
-      test("decode M of object") {
-        val s   =
-          """{
+      )
+    },
+    test("decode M of object") {
+      val s   =
+        """{
               "id": {
                   "S": "101"
               },
@@ -153,20 +178,20 @@ BS – Binary Set // TODO
                   "M": { "1": {"foo": {"S": "bar"}}, "2": {"foo": {"S": "baz"}} }
               }
           }"""
-        val ast = s.fromJson[Json].getOrElse(Json.Null)
-        assert(decode(ast))(
-          equalTo(
-            Right(
-              AttributeValue.Map.empty +
-                ("id"  -> AttributeValue.String("101")) +
-                ("map" -> (AttributeValue.Map.empty + ("1" -> obj("bar")) + ("2" -> obj("baz"))))
-            )
+      val ast = s.fromJson[Json].getOrElse(Json.Null)
+      assert(decode(ast))(
+        equalTo(
+          Right(
+            AttributeValue.Map.empty +
+              ("id"  -> AttributeValue.String("101")) +
+              ("map" -> (AttributeValue.Map.empty + ("1" -> obj("bar")) + ("2" -> obj("baz"))))
           )
         )
-      },
-      test("decode L of string") {
-        val s   =
-          """{
+      )
+    },
+    test("decode L of string") {
+      val s   =
+        """{
               "id": {
                   "S": "101"
               },
@@ -174,20 +199,20 @@ BS – Binary Set // TODO
                   "L": ["1", "2"]
               }
           }"""
-        val ast = s.fromJson[Json].getOrElse(Json.Null)
-        assert(decode(ast))(
-          equalTo(
-            Right(
-              AttributeValue.Map.empty +
-                ("id"    -> AttributeValue.String("101")) +
-                ("array" -> AttributeValue.List(List(AttributeValue.String("1"), AttributeValue.String("2"))))
-            )
+      val ast = s.fromJson[Json].getOrElse(Json.Null)
+      assert(decode(ast))(
+        equalTo(
+          Right(
+            AttributeValue.Map.empty +
+              ("id"    -> AttributeValue.String("101")) +
+              ("array" -> AttributeValue.List(List(AttributeValue.String("1"), AttributeValue.String("2"))))
           )
         )
-      },
-      test("decode L of object") {
-        val s   =
-          """{
+      )
+    },
+    test("decode L of object") {
+      val s   =
+        """{
               "id": {
                   "S": "101"
               },
@@ -195,21 +220,21 @@ BS – Binary Set // TODO
                   "L": [{"foo": {"S": "bar"}},  {"foo": {"S": "baz"}}]
               }
           }"""
-        val ast = s.fromJson[Json].getOrElse(Json.Null)
+      val ast = s.fromJson[Json].getOrElse(Json.Null)
 
-        assert(decode(ast))(
-          equalTo(
-            Right(
-              AttributeValue.Map.empty +
-                ("id"    -> AttributeValue.String("101")) +
-                ("array" -> AttributeValue.List(List(obj("bar"), obj("baz"))))
-            )
+      assert(decode(ast))(
+        equalTo(
+          Right(
+            AttributeValue.Map.empty +
+              ("id"    -> AttributeValue.String("101")) +
+              ("array" -> AttributeValue.List(List(obj("bar"), obj("baz"))))
           )
         )
-      },
-      test("decode nested map") {
-        val s   =
-          """{
+      )
+    },
+    test("decode nested map") {
+      val s   =
+        """{
               "foo": {
                     "name": {
                        "S": "Avi"
@@ -217,35 +242,35 @@ BS – Binary Set // TODO
               }
               
           }"""
-        val ast = s.fromJson[Json].getOrElse(Json.Null)
-        assert(decode(ast))(
-          equalTo(
-            Right(
-              AttributeValue.Map.empty + ("foo" -> (AttributeValue.Map.empty + ("name" -> AttributeValue
-                .String("Avi"))))
-            )
+      val ast = s.fromJson[Json].getOrElse(Json.Null)
+      assert(decode(ast))(
+        equalTo(
+          Right(
+            AttributeValue.Map.empty + ("foo" -> (AttributeValue.Map.empty + ("name" -> AttributeValue
+              .String("Avi"))))
           )
         )
-      },
-      test("empty object should return Left with error message") {
-        val ast = "{}".fromJson[Json].getOrElse(Json.Null)
-        assert(decode(ast))(
-          equalTo(
-            Left("empty AttributeValue Map found")
-          )
+      )
+    },
+    test("empty object should return Left with error message") {
+      val ast = "{}".fromJson[Json].getOrElse(Json.Null)
+      assert(decode(ast))(
+        equalTo(
+          Left("empty AttributeValue Map found")
         )
-      },
-      test("empty array should return Left with error message") {
-        val ast = "[]".fromJson[Json].getOrElse(Json.Null)
-        assert(decode(ast))(
-          equalTo(
-            Left("top level arrays are not supported, found []")
-          )
+      )
+    },
+    test("empty array should return Left with error message") {
+      val ast = "[]".fromJson[Json].getOrElse(Json.Null)
+      assert(decode(ast))(
+        equalTo(
+          Left("top level arrays are not supported, found []")
         )
-      },
-      test("translate top level only map") {
-        val s   =
-          """{
+      )
+    },
+    test("translate top level only map") {
+      val s   =
+        """{
               "id": {
                   "S": "101"
               },
@@ -253,42 +278,42 @@ BS – Binary Set // TODO
                   "N": "42"
               }
           }"""
-        val ast = s.fromJson[Json].getOrElse(Json.Null)
-        val x   = decode(ast)
-        x match {
-          case Right(AttributeValue.Map(map)) =>
-            assertTrue(
-              toAttrMap(map.toList) == AttrMap.empty + ("id" -> AttributeValue.String(
-                "101"
-              )) + ("count"                                  -> AttributeValue.Number(BigDecimal(42)))
-            )
-          case _                              => assertTrue(false)
-        }
+      val ast = s.fromJson[Json].getOrElse(Json.Null)
+      val x   = decode(ast)
+      x match {
+        case Right(AttributeValue.Map(map)) =>
+          assertTrue(
+            toAttrMap(map.toList) == AttrMap.empty + ("id" -> AttributeValue.String(
+              "101"
+            )) + ("count"                                  -> AttributeValue.Number(BigDecimal(42)))
+          )
+        case _                              => assertTrue(false)
+      }
 
-      },
-      test("translate nested map") {
-        val s   =
-          """{
+    },
+    test("translate nested map") {
+      val s   =
+        """{
               "foo": {
                   "name": {
                       "S": "Avi"
                     }                    
               }
           }"""
-        val ast = s.fromJson[Json].getOrElse(Json.Null)
-        val x   = decode(ast)
-        x match {
-          case Right(AttributeValue.Map(map)) =>
-            val translated = toAttrMap(map.toList)
-            val nestedAv   = AttributeValue.Map.empty + ("name" -> AttributeValue.String("Avi"))
-            val expected   = AttrMap.empty + ("foo"             -> nestedAv)
-            assertTrue(translated == expected)
-          case _                              => assertTrue(false)
-        }
-      },
-      test("translate mixed") {
-        val s   =
-          """{
+      val ast = s.fromJson[Json].getOrElse(Json.Null)
+      val x   = decode(ast)
+      x match {
+        case Right(AttributeValue.Map(map)) =>
+          val translated = toAttrMap(map.toList)
+          val nestedAv   = AttributeValue.Map.empty + ("name" -> AttributeValue.String("Avi"))
+          val expected   = AttrMap.empty + ("foo"             -> nestedAv)
+          assertTrue(translated == expected)
+        case _                              => assertTrue(false)
+      }
+    },
+    test("translate mixed") {
+      val s   =
+        """{
               "id": { "S": "101" },
               "nested": {
                     "foo": {
@@ -297,21 +322,21 @@ BS – Binary Set // TODO
               },
               "count": { "N": "101" }
           }"""
-        val ast = s.fromJson[Json].getOrElse(Json.Null)
-        val x   = decode(ast)
-        x match {
-          case Right(AttributeValue.Map(map)) =>
-            val translated = toAttrMap(map.toList)
-            val expected   = AttrMap.empty +
-              ("id"     -> AttributeValue.String("101")) +
-              ("nested" -> obj("bar")) +
-              ("count"  -> AttributeValue.Number(BigDecimal(101)))
-            assertTrue(translated == expected)
-          case _                              =>
-            assertTrue(false)
-        }
+      val ast = s.fromJson[Json].getOrElse(Json.Null)
+      val x   = decode(ast)
+      x match {
+        case Right(AttributeValue.Map(map)) =>
+          val translated = toAttrMap(map.toList)
+          val expected   = AttrMap.empty +
+            ("id"     -> AttributeValue.String("101")) +
+            ("nested" -> obj("bar")) +
+            ("count"  -> AttributeValue.Number(BigDecimal(101)))
+          assertTrue(translated == expected)
+        case _                              =>
+          assertTrue(false)
       }
-    )
+    }
+  )
 
   def obj(value: String) = AttributeValue.Map.empty + ("foo" -> AttributeValue.String(value))
 
