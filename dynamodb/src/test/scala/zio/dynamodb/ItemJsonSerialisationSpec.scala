@@ -361,7 +361,7 @@ BS – Binary Set // TODO
         ("id"     -> AttributeValue.String("101")) +
         ("count"  -> AttributeValue.Number(BigDecimal(42))) +
         ("isTest" -> AttributeValue.Bool(true))
-      val translated: AttributeValue = JsonCodec.Encoder.fromAttrMap(avMap.map.toList)
+      val translated: AttributeValue = JsonCodec.Encoder.fromAttrMap(avMap)
       assert(translated)(
         equalTo(
           AttributeValue.Map.empty +
@@ -373,7 +373,7 @@ BS – Binary Set // TODO
     },
     test("translate nested map") {
       val avMap      = AttrMap.empty + ("foo" -> (AttributeValue.Map.empty + ("name" -> AttributeValue.String("Avi"))))
-      val translated = JsonCodec.Encoder.fromAttrMap(avMap.map.toList)
+      val translated = JsonCodec.Encoder.fromAttrMap(avMap)
       assert(translated)(
         equalTo(
           AttributeValue.Map.empty +

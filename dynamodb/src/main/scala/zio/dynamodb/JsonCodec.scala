@@ -26,8 +26,8 @@ object JsonCodec {
         case AttributeValue.BinarySet(_)  => ???
       }
 
-    def fromAttrMap(fields: List[(String, AttributeValue)]): AttributeValue = {
-      val xs: List[(AttributeValue.String, AttributeValue)] = fields.map { case (k, v) => AttributeValue.String(k) -> v }
+    def fromAttrMap(attrMap: AttrMap): AttributeValue = {
+      val xs: List[(AttributeValue.String, AttributeValue)] = attrMap.map.toList.map { case (k, v) => AttributeValue.String(k) -> v }
       AttributeValue.Map(xs.toMap)
     }
 
