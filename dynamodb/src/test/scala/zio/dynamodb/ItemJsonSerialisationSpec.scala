@@ -98,6 +98,20 @@ BS – Binary Set // TODO
           )
         )
       )
+    },
+    test("encode nested map") {
+      val avMap   = AttributeValue.Map.empty + ("foo" -> (AttributeValue.Map.empty + ("name" -> AttributeValue
+        .String("Avi"))))
+      val encoded = JsonCodec.Encoder.encode(avMap)
+      val s       = encoded.toJson
+      println(s"XXXXXXXXXX encoded: $s")
+      assert(encoded)(
+        equalTo(
+          Json.Obj(
+            "foo" -> Json.Obj("name" -> Json.Obj("S" -> Json.Str("Avi")))
+          )
+        )
+      )
     }
   )
   val decoderSuite                                         = suite("decoder suite")(
