@@ -78,7 +78,8 @@ BS – Binary Set // TODO
   override def spec: Spec[TestEnvironment with Scope, Any] =
     suite("ItemJsonSerialisationSpec")(
       encoderSuite,
-      decoderSuite
+      decoderSuite,
+      translateSuite
     )
   val encoderSuite                                         = suite("encoder suite")(
     test("encode top level map") {
@@ -281,7 +282,10 @@ BS – Binary Set // TODO
           Left("top level arrays are not supported, found []")
         )
       )
-    },
+    }
+  )
+  val jsonToAttrValSuite                                   = suite("AttributeValue to AttrVal")(
+    // TODO: AttrVal to AttributeValue
     test("translate top level only map") {
       val s   =
         """{
@@ -351,6 +355,34 @@ BS – Binary Set // TODO
       }
     }
   )
+  val attrValToJsonSuite                                   = suite("AttrVal to AttributeValue")(
+    test("translate top level only map") {
+      val avMap = AttrMap.empty +
+        ("id"     -> AttributeValue.String("101")) +
+        ("count"  -> AttributeValue.Number(BigDecimal(42))) +
+        ("isTest" -> AttributeValue.Bool(true))
+      val translated: AttributeValue = JsonCodec.Encoder.fromAttrMap(avMap.map.toList)
+      assert(translated)(
+        equalTo(
+          AttributeValue.Map.empty +
+            ("id"     -> AttributeValue.String("101")) +
+            ("count"  -> AttributeValue.Number(BigDecimal(42))) +
+            ("isTest" -> AttributeValue.Bool(true))
+        )
+      )
+    },
+    test("translate nested map") {
+      val avMap      = AttrMap.empty + ("foo" -> (AttributeValue.Map.empty + ("name" -> AttributeValue.String("Avi"))))
+      val translated = JsonCodec.Encoder.fromAttrMap(avMap.map.toList)
+      assert(translated)(
+        equalTo(
+          AttributeValue.Map.empty +
+            ("foo" -> (AttributeValue.Map.empty + ("name" -> AttributeValue.String("Avi"))))
+        )
+      )
+    }
+  )
+  val translateSuite                                       = suite("translate")(jsonToAttrValSuite, attrValToJsonSuite)
 
   def obj(value: String) = AttributeValue.Map.empty + ("foo" -> AttributeValue.String(value))
 
