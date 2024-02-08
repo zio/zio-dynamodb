@@ -287,18 +287,11 @@ BS – Binary Set // TODO
   val jsonToAttrValSuite                                   = suite("AttributeValue to AttrVal")(
     // TODO: AttrVal to AttributeValue
     test("translate top level only map") {
-      val s   =
-        """{
-              "id": {
-                  "S": "101"
-              },
-              "count": {
-                  "N": "42"
-              }
-          }"""
-      val ast = s.fromJson[Json].getOrElse(Json.Null)
-      val x   = decode(ast)
-      x match {
+      val ast: Json = Json.Obj(
+        "id"    -> Json.Obj("S" -> Json.Str("101")),
+        "count" -> Json.Obj("N" -> Json.Str("42"))
+      )
+      decode(ast) match {
         case Right(AttributeValue.Map(map)) =>
           assertTrue(
             toAttrMap(map.toList) == AttrMap.empty + ("id" -> AttributeValue.String(
@@ -361,7 +354,7 @@ BS – Binary Set // TODO
         ("id"     -> AttributeValue.String("101")) +
         ("count"  -> AttributeValue.Number(BigDecimal(42))) +
         ("isTest" -> AttributeValue.Bool(true))
-      val translated: AttributeValue = JsonCodec.Encoder.fromAttrMap(avMap)
+      val translated: AttributeValue = avMap.toAttributeValue
       assert(translated)(
         equalTo(
           AttributeValue.Map.empty +
@@ -373,7 +366,7 @@ BS – Binary Set // TODO
     },
     test("translate nested map") {
       val avMap      = AttrMap.empty + ("foo" -> (AttributeValue.Map.empty + ("name" -> AttributeValue.String("Avi"))))
-      val translated = JsonCodec.Encoder.fromAttrMap(avMap)
+      val translated = avMap.toAttributeValue
       assert(translated)(
         equalTo(
           AttributeValue.Map.empty +

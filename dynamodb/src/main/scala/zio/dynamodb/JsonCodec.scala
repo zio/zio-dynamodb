@@ -1,6 +1,7 @@
 package zio.dynamodb
 
 import zio.json.ast.Json
+import zio.json._
 import zio.Chunk
 import scala.util.Try
 
@@ -21,16 +22,12 @@ object JsonCodec {
         case AttributeValue.NumberSet(xs) => Json.Obj(Chunk("NS" -> Json.Arr(xs.map(Json.Num(_)).toList: _*)))
         case AttributeValue.Map(map)      =>
           val xs: List[(AttributeValue.String, Json)] = map.map { case (k, v) => k -> encode(v) }.toList
-          Json.Obj(Chunk(xs.map{ case (k, v) => k.value -> v }: _*))
+          Json.Obj(Chunk(xs.map { case (k, v) => k.value -> v }: _*))
         case AttributeValue.Binary(_)     => ???
         case AttributeValue.BinarySet(_)  => ???
       }
 
-    def fromAttrMap(attrMap: AttrMap): AttributeValue = {
-      val xs: List[(AttributeValue.String, AttributeValue)] = attrMap.map.toList.map { case (k, v) => AttributeValue.String(k) -> v }
-      AttributeValue.Map(xs.toMap)
-    }
-
+    def attributeValueToJsonString(av: AttributeValue): String = encode(av).toJson
   }
   object Decoder {
     def createMap(fields: Chunk[(String, Json)], map: AttributeValue.Map): Either[String, AttributeValue.Map] =
@@ -107,6 +104,22 @@ object JsonCodec {
     def toAttrMap(fields: List[(AttributeValue.String, AttributeValue)]): AttrMap =
       fields.map { case (avStr -> av) => avStr.value -> av }.foldLeft(AttrMap.empty)(_ + _)
 
+    def jsonStringToAttributeValue(json: String): Either[String, AttributeValue]  =
+      json.fromJson[Json] match {
+        case Left(err)   => Left(err)
+        case Right(json) => Decoder.decode(json)
+      }
+  }
+
+  implicit class JsonOps(am: AttrMap) {
+    def parse(json: String): Either[String, AttrMap] =
+      JsonCodec.Decoder.jsonStringToAttributeValue(json) match {
+        case Left(err)                    => Left(err)
+        case Right(AttributeValue.Map(m)) => Right(JsonCodec.Decoder.toAttrMap(m.toList))
+        case Right(av)                    => Left("Expected a map, got: " + av)
+      }
+
+    def toJson: String = Encoder.attributeValueToJsonString(am.toAttributeValue)
   }
 
 }

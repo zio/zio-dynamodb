@@ -6,6 +6,14 @@ import zio.prelude.ForEachOps
 
 final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFromAttributeValueAs { self =>
 
+  def toAttributeValue: AttributeValue = {
+    val xs: List[(AttributeValue.String, AttributeValue)] = self.map.toList.map {
+      case (k, v) => AttributeValue.String(k) -> v
+    }
+    AttributeValue.Map(xs.toMap)
+  }
+
+
   def +(t: (String, AttributeValue)): AttrMap = AttrMap(map + t)
 
   def get[A](field: String)(implicit ev: FromAttributeValue[A]): Either[ItemError, A] =
@@ -53,14 +61,5 @@ final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFrom
 object AttrMap extends GeneratedAttrMapApplies {
 
   val empty: AttrMap = new AttrMap(Map.empty[String, AttributeValue])
-
-  def parse(json: String): Either[String, AttrMap] = ???
-  /* 
-  
-  AttributeValue.parse(json) match {
-    case Left(err) => Left(err)
-    case Right(AttributeValue.Map(m)) => Right(AttrMap(av.m))
-  }
-   */
 
 }
