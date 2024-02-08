@@ -116,7 +116,7 @@ object JsonCodec {
   }
 
   implicit class JsonOps(am: AttrMap) {
-    def toJson: String = Encoder.attributeValueToJsonString(am.toAttributeValue)
+    def toJsonString: String = Encoder.attributeValueToJsonString(am.toAttributeValue)
   }
 
   def parse(json: String): Either[String, AttrMap] =

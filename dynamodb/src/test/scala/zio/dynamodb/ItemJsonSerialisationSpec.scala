@@ -375,13 +375,13 @@ BS – Binary Set // TODO
   val endToEndSuite = suite("AttrMap end to end")(
     test("from AttrMap -> Json string -> AttrMap") {
       import zio.dynamodb.JsonCodec._
-      
+
       val am = AttrMap.empty +
         ("id"     -> AttributeValue.String("101")) +
         ("nested" -> obj("bar")) +
         ("count"  -> AttributeValue.Number(BigDecimal(101)))
 
-      val jsonString = am.toJson
+      val jsonString = am.toJsonString
 
       parse(jsonString) match {
         case Right(am2) =>
