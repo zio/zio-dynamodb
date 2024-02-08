@@ -5,7 +5,7 @@ import zio.json._
 import zio.Chunk
 import scala.util.Try
 
-// TODO: note sure where to put this yet
+// TODO: not sure where to put this yet
 object JsonCodec {
 
   object Encoder {
@@ -112,6 +112,7 @@ object JsonCodec {
     def toJsonString: String = Encoder.attributeValueToJsonString(am.toAttributeValue)
   }
 
+  // TODO: use DecodeError rather than String
   def parse(json: String): Either[String, AttrMap] =
     JsonCodec.Decoder.jsonStringToAttributeValue(json).flatMap(_.toAttrMap)
 
