@@ -101,10 +101,14 @@ object JsonCodec {
         case x                                        => Left(s"$x is not supported") // TODO
       }
 
-    def toAttrMap(fields: List[(AttributeValue.String, AttributeValue)]): AttrMap =
-      fields.map { case (avStr -> av) => avStr.value -> av }.foldLeft(AttrMap.empty)(_ + _)
+    def toAttrMap(av: AttributeValue): Either[String, AttrMap] =
+      av match {
+        case AttributeValue.Map(map) =>
+          Right(map.toList.map { case (avStr -> av) => avStr.value -> av }.foldLeft(AttrMap.empty)(_ + _))
+        case x                       => Left(s"Expected a map, got: $x")
+      }
 
-    def jsonStringToAttributeValue(json: String): Either[String, AttributeValue]  =
+    def jsonStringToAttributeValue(json: String): Either[String, AttributeValue] =
       json.fromJson[Json] match {
         case Left(err)   => Left(err)
         case Right(json) => Decoder.decode(json)
@@ -113,11 +117,7 @@ object JsonCodec {
 
   implicit class JsonOps(am: AttrMap) {
     def parse(json: String): Either[String, AttrMap] =
-      JsonCodec.Decoder.jsonStringToAttributeValue(json) match {
-        case Left(err)                    => Left(err)
-        case Right(AttributeValue.Map(m)) => Right(JsonCodec.Decoder.toAttrMap(m.toList))
-        case Right(av)                    => Left("Expected a map, got: " + av)
-      }
+      JsonCodec.Decoder.jsonStringToAttributeValue(json).flatMap(JsonCodec.Decoder.toAttrMap)
 
     def toJson: String = Encoder.attributeValueToJsonString(am.toAttributeValue)
   }

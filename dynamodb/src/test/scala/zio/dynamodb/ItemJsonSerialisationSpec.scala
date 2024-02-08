@@ -291,14 +291,14 @@ BS – Binary Set // TODO
         "id"    -> Json.Obj("S" -> Json.Str("101")),
         "count" -> Json.Obj("N" -> Json.Str("42"))
       )
-      decode(ast) match {
-        case Right(AttributeValue.Map(map)) =>
+      decode(ast).flatMap(toAttrMap) match {
+        case Right(am) =>
           assertTrue(
-            toAttrMap(map.toList) == AttrMap.empty + ("id" -> AttributeValue.String(
+            am == AttrMap.empty + ("id" -> AttributeValue.String(
               "101"
-            )) + ("count"                                  -> AttributeValue.Number(BigDecimal(42)))
+            )) + ("count"               -> AttributeValue.Number(BigDecimal(42)))
           )
-        case _                              => assertTrue(false)
+        case _         => assertTrue(false)
       }
 
     },
@@ -312,14 +312,12 @@ BS – Binary Set // TODO
               }
           }"""
       val ast = s.fromJson[Json].getOrElse(Json.Null)
-      val x   = decode(ast)
-      x match {
-        case Right(AttributeValue.Map(map)) =>
-          val translated = toAttrMap(map.toList)
-          val nestedAv   = AttributeValue.Map.empty + ("name" -> AttributeValue.String("Avi"))
-          val expected   = AttrMap.empty + ("foo"             -> nestedAv)
-          assertTrue(translated == expected)
-        case _                              => assertTrue(false)
+      decode(ast).flatMap(toAttrMap) match {
+        case Right(am) =>
+          assertTrue(
+            am == AttrMap.empty + ("foo" -> (AttributeValue.Map.empty + ("name" -> AttributeValue.String("Avi"))))
+          )
+        case _         => assertTrue(false)
       }
     },
     test("translate mixed") {
@@ -334,17 +332,15 @@ BS – Binary Set // TODO
               "count": { "N": "101" }
           }"""
       val ast = s.fromJson[Json].getOrElse(Json.Null)
-      val x   = decode(ast)
-      x match {
-        case Right(AttributeValue.Map(map)) =>
-          val translated = toAttrMap(map.toList)
-          val expected   = AttrMap.empty +
-            ("id"     -> AttributeValue.String("101")) +
-            ("nested" -> obj("bar")) +
-            ("count"  -> AttributeValue.Number(BigDecimal(101)))
-          assertTrue(translated == expected)
-        case _                              =>
-          assertTrue(false)
+      decode(ast).flatMap(toAttrMap) match {
+        case Right(am) =>
+          assertTrue(
+            am == AttrMap.empty +
+              ("id"     -> AttributeValue.String("101")) +
+              ("nested" -> obj("bar")) +
+              ("count"  -> AttributeValue.Number(BigDecimal(101)))
+          )
+        case _         => assertTrue(false)
       }
     }
   )
