@@ -292,7 +292,7 @@ BS – Binary Set // TODO
         "id"    -> Json.Obj("S" -> Json.Str("101")),
         "count" -> Json.Obj("N" -> Json.Str("42"))
       )
-      decode(ast).flatMap(toAttrMap) match {
+      decode(ast).flatMap(_.toAttrMap) match {
         case Right(am) =>
           assertTrue(
             am == AttrMap.empty + ("id" -> AttributeValue.String(
@@ -313,7 +313,7 @@ BS – Binary Set // TODO
               }
           }"""
       val ast = s.fromJson[Json].getOrElse(Json.Null)
-      decode(ast).flatMap(toAttrMap) match {
+      decode(ast).flatMap(_.toAttrMap) match {
         case Right(am) =>
           assertTrue(
             am == AttrMap.empty + ("foo" -> (AttributeValue.Map.empty + ("name" -> AttributeValue.String("Avi"))))
@@ -333,7 +333,7 @@ BS – Binary Set // TODO
               "count": { "N": "101" }
           }"""
       val ast = s.fromJson[Json].getOrElse(Json.Null)
-      decode(ast).flatMap(toAttrMap) match {
+      decode(ast).flatMap(_.toAttrMap) match {
         case Right(am) =>
           assertTrue(
             am == AttrMap.empty +

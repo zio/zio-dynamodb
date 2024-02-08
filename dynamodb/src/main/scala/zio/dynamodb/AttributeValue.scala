@@ -10,6 +10,13 @@ import scala.util.Try
 sealed trait AttributeValue { self =>
   type ScalaType
 
+  def toAttrMap: Either[String, AttrMap] =
+    self match {
+      case AttributeValue.Map(map) =>
+        Right(map.toList.map { case (avStr -> av) => avStr.value -> av }.foldLeft(AttrMap.empty)(_ + _))
+      case x                       => Left(s"Expected a map, got: $x")
+    }
+
   def decode[A](implicit schema: Schema[A]): Either[ItemError, A] = Codec.decoder(schema)(self)
 
   def ===[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From]                  = Equals(ValueOperand(self), that)

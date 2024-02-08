@@ -101,13 +101,6 @@ object JsonCodec {
         case x                                        => Left(s"$x is not supported") // TODO
       }
 
-    def toAttrMap(av: AttributeValue): Either[String, AttrMap] =
-      av match {
-        case AttributeValue.Map(map) =>
-          Right(map.toList.map { case (avStr -> av) => avStr.value -> av }.foldLeft(AttrMap.empty)(_ + _))
-        case x                       => Left(s"Expected a map, got: $x")
-      }
-
     def jsonStringToAttributeValue(json: String): Either[String, AttributeValue] =
       json.fromJson[Json] match {
         case Left(err)   => Left(err)
@@ -120,6 +113,6 @@ object JsonCodec {
   }
 
   def parse(json: String): Either[String, AttrMap] =
-    JsonCodec.Decoder.jsonStringToAttributeValue(json).flatMap(JsonCodec.Decoder.toAttrMap)
+    JsonCodec.Decoder.jsonStringToAttributeValue(json).flatMap(_.toAttrMap)
 
 }
