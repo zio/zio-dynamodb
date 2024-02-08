@@ -79,7 +79,7 @@ BS – Binary Set // TODO
     suite("ItemJsonSerialisationSpec")(
       encoderSuite,
       decoderSuite,
-      translateSuite
+      transformSuite
     )
   val encoderSuite                                         = suite("encoder suite")(
     test("encode top level map") {
@@ -284,9 +284,9 @@ BS – Binary Set // TODO
       )
     }
   )
-  val jsonToAttrValSuite                                   = suite("AttributeValue to AttrVal")(
-    // TODO: AttrVal to AttributeValue
-    test("translate top level only map") {
+  val avToAttrMapSuite                                     = suite("AttributeValue to AttrVal")(
+    // TODO: remove JSON strings
+    test("AV of top level only to AttrMap") {
       val ast: Json = Json.Obj(
         "id"    -> Json.Obj("S" -> Json.Str("101")),
         "count" -> Json.Obj("N" -> Json.Str("42"))
@@ -302,7 +302,7 @@ BS – Binary Set // TODO
       }
 
     },
-    test("translate nested map") {
+    test("AV of nested map to AttrMap") {
       val s   =
         """{
               "foo": {
@@ -320,7 +320,7 @@ BS – Binary Set // TODO
         case _         => assertTrue(false)
       }
     },
-    test("translate mixed") {
+    test("AV mixed to AttrMap") {
       val s   =
         """{
               "id": { "S": "101" },
@@ -344,14 +344,13 @@ BS – Binary Set // TODO
       }
     }
   )
-  val attrValToJsonSuite                                   = suite("AttrVal to AttributeValue")(
-    test("translate top level only map") {
+  val attrMapToAVSuite                                     = suite("AttrMap to AttributeValue")(
+    test("top level only AttrMap to AttributeValue") {
       val avMap = AttrMap.empty +
         ("id"     -> AttributeValue.String("101")) +
         ("count"  -> AttributeValue.Number(BigDecimal(42))) +
         ("isTest" -> AttributeValue.Bool(true))
-      val translated: AttributeValue = avMap.toAttributeValue
-      assert(translated)(
+      assert(avMap.toAttributeValue)(
         equalTo(
           AttributeValue.Map.empty +
             ("id"     -> AttributeValue.String("101")) +
@@ -360,10 +359,9 @@ BS – Binary Set // TODO
         )
       )
     },
-    test("translate nested map") {
-      val avMap      = AttrMap.empty + ("foo" -> (AttributeValue.Map.empty + ("name" -> AttributeValue.String("Avi"))))
-      val translated = avMap.toAttributeValue
-      assert(translated)(
+    test("nested AttrMap to AttributeValue") {
+      val avMap = AttrMap.empty + ("foo" -> (AttributeValue.Map.empty + ("name" -> AttributeValue.String("Avi"))))
+      assert(avMap.toAttributeValue)(
         equalTo(
           AttributeValue.Map.empty +
             ("foo" -> (AttributeValue.Map.empty + ("name" -> AttributeValue.String("Avi"))))
@@ -371,7 +369,7 @@ BS – Binary Set // TODO
       )
     }
   )
-  val translateSuite                                       = suite("translate")(jsonToAttrValSuite, attrValToJsonSuite)
+  val transformSuite                                       = suite("transform")(avToAttrMapSuite, attrMapToAVSuite)
 
   def obj(value: String) = AttributeValue.Map.empty + ("foo" -> AttributeValue.String(value))
 
