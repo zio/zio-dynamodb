@@ -79,7 +79,8 @@ BS – Binary Set // TODO
     suite("ItemJsonSerialisationSpec")(
       encoderSuite,
       decoderSuite,
-      transformSuite
+      transformSuite,
+      endToEndSuite
     )
   val encoderSuite                                         = suite("encoder suite")(
     test("encode top level map") {
@@ -370,6 +371,25 @@ BS – Binary Set // TODO
     }
   )
   val transformSuite                                       = suite("transform")(avToAttrMapSuite, attrMapToAVSuite)
+
+  val endToEndSuite = suite("AttrMap end to end")(
+    test("from AttrMap -> Json string -> AttrMap") {
+      import zio.dynamodb.JsonCodec._
+      
+      val am = AttrMap.empty +
+        ("id"     -> AttributeValue.String("101")) +
+        ("nested" -> obj("bar")) +
+        ("count"  -> AttributeValue.Number(BigDecimal(101)))
+
+      val jsonString = am.toJson
+
+      parse(jsonString) match {
+        case Right(am2) =>
+          assertTrue(am2 == am)
+        case _          => assertTrue(false)
+      }
+    }
+  )
 
   def obj(value: String) = AttributeValue.Map.empty + ("foo" -> AttributeValue.String(value))
 
