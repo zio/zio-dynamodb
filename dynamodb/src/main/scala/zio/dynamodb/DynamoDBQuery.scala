@@ -492,6 +492,7 @@ object DynamoDBQuery {
   def put[A: Schema](tableName: String, a: A): DynamoDBQuery[A, Option[A]] =
     putItem(tableName, toItem(a)).map(_.flatMap(item => fromItem(item).toOption))
 
+  // TODO: move to AttributeValue
   private[dynamodb] def toItem[A](a: A)(implicit schema: Schema[A]): Item =
     FromAttributeValue.attrMapFromAttributeValue
       .fromAttributeValue(AttributeValue.encode(a)(schema))

@@ -3,6 +3,7 @@ package zio.dynamodb
 import zio.json.ast.Json
 import zio.json._
 import zio.Chunk
+import zio.schema.Schema
 import scala.util.Try
 
 // TODO: not sure where to put this yet
@@ -108,12 +109,24 @@ object JsonCodec {
       }
   }
 
-  implicit class JsonOps(am: AttrMap) {
+  implicit class AttrMapJsonOps(am: AttrMap) {
     def toJsonString: String = Encoder.attributeValueToJsonString(am.toAttributeValue)
   }
+
+  implicit class ProductJsonOps[A](a: A)(implicit schema: Schema[A]) {
+    def toJsonString: String = Encoder.attributeValueToJsonString(toItem(a).toAttributeValue)
+  }
+
+  private[dynamodb] def toItem[A](a: A)(implicit schema: Schema[A]): Item =
+    FromAttributeValue.attrMapFromAttributeValue
+      .fromAttributeValue(AttributeValue.encode(a)(schema))
+      .getOrElse(throw new Exception(s"error encoding $a"))
+
 
   // TODO: use DecodeError rather than String
   def parse(json: String): Either[String, AttrMap] =
     JsonCodec.Decoder.jsonStringToAttributeValue(json).flatMap(_.toAttrMap)
+
+  
 
 }
