@@ -6,13 +6,8 @@ import zio.prelude.ForEachOps
 
 final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFromAttributeValueAs { self =>
 
-  def toAttributeValue: AttributeValue = {
-    val xs: List[(AttributeValue.String, AttributeValue)] = self.map.toList.map {
-      case (k, v) => AttributeValue.String(k) -> v
-    }
-    AttributeValue.Map(xs.toMap)
-  }
-
+  def toAttributeValue: AttributeValue =
+    ToAttributeValue.attrMapToAttributeValue.toAttributeValue(self)
 
   def +(t: (String, AttributeValue)): AttrMap = AttrMap(map + t)
 

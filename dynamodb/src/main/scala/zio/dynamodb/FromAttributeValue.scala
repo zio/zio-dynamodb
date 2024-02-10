@@ -4,7 +4,7 @@ import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.prelude.ForEachOps
 
-trait FromAttributeValue[+A] {
+trait FromAttributeValue[+A] { // TODO: Avi replace ItemError with DecodingError
   def fromAttributeValue(av: AttributeValue): Either[ItemError, A]
 }
 

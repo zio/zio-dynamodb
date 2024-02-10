@@ -122,11 +122,11 @@ object JsonCodec {
       .fromAttributeValue(AttributeValue.encode(a)(schema))
       .getOrElse(throw new Exception(s"error encoding $a"))
 
-
-  // TODO: use DecodeError rather than String
-  def parse(json: String): Either[String, AttrMap] =
-    JsonCodec.Decoder.jsonStringToAttributeValue(json).flatMap(_.toAttrMap)
-
-  
+  def parse(json: String): Either[DynamoDBError.ItemError, AttrMap] =
+    JsonCodec.Decoder
+      .jsonStringToAttributeValue(json)
+      .left
+      .map(DynamoDBError.ItemError.DecodingError)
+      .flatMap(FromAttributeValue.attrMapFromAttributeValue.fromAttributeValue)
 
 }
