@@ -39,7 +39,8 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
     val (id, surname, addressList, addressMap, addressSet)                                                         = ProjectionExpression.accessors[PersonWithCollections]
   }
 
-  override def spec = suite("all")(putSuite, updateSuite, deleteSuite, gsiSuite, forEachSuite) @@ TestAspect.nondeterministic
+  override def spec =
+    suite("all")(putSuite, updateSuite, deleteSuite, gsiSuite, forEachSuite) @@ TestAspect.nondeterministic
 
   private val putSuite =
     suite("put")(
@@ -705,7 +706,6 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         }
       }
     )
-
 
   // note `forEach` will result in auto batching of the query if it is a get, put or a delete
   private val forEachSuite = suite("forEach")(
