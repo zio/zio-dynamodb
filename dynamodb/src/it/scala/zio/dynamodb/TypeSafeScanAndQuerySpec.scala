@@ -259,19 +259,20 @@ object TypeSafeScanAndQuerySpec extends DynamoDBLocalSpec {
           val person2 = PersonGsi("2", "account1", "Jane", None, 42)
           val person3 = PersonGsi("3", "account2", "Tarlochan", None, 42)
           for {
-            _      <- put(personTable, person1).execute
-            _      <- put(personTable, person2).execute
-            _      <- put(personTable, person3).execute
-            stream <- queryAll[PersonGsi](personTable)
-                        .whereKey(PersonGsi.accountId.partitionKey === "account1")
-                        .indexName("accountId")
-                        .execute
-            xs     <- stream.runCollect
-            xs2    <- querySome[PersonGsi](personTable, 3)
-                        .whereKey(PersonGsi.accountId.partitionKey === "account1")
-                        .indexName("accountId")
-                        .execute
-          } yield assertTrue(xs == Chunk(person1, person2), xs2 == (Chunk(person1, person2), None))
+            _         <- put(personTable, person1).execute
+            _         <- put(personTable, person2).execute
+            _         <- put(personTable, person3).execute
+            stream    <- queryAll[PersonGsi](personTable)
+                           .whereKey(PersonGsi.accountId.partitionKey === "account1")
+                           .indexName("accountId")
+                           .execute
+            xs        <- stream.runCollect
+            t         <- querySome[PersonGsi](personTable, 3)
+                           .whereKey(PersonGsi.accountId.partitionKey === "account1")
+                           .indexName("accountId")
+                           .execute
+            (xs2, lek) = t
+          } yield assertTrue(xs == Chunk(person1, person2), xs2 == Chunk(person1, person2), lek == None)
         }
       }
     )
