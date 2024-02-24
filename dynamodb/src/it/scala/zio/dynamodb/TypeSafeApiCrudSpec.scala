@@ -5,7 +5,7 @@ import zio.test._
 import zio.test.assertTrue
 import zio.test.Assertion._
 import zio.dynamodb.DynamoDBError.ItemError
-import zio.dynamodb.DynamoDBQuery.{ deleteFrom, forEach, get, put, putItem, scanAll, update }
+import zio.dynamodb.DynamoDBQuery.{ deleteFrom, forEach, get, put, putItem, queryAll, querySome, scanAll, update }
 import zio.dynamodb.syntax._
 import zio.Chunk
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
@@ -39,7 +39,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
     val (id, surname, addressList, addressMap, addressSet)                                                         = ProjectionExpression.accessors[PersonWithCollections]
   }
 
-  override def spec = suite("all")(putSuite, updateSuite, deleteSuite, forEachSuite) @@ TestAspect.nondeterministic
+  override def spec = suite("all")(putSuite, updateSuite, deleteSuite, gsiSuite, forEachSuite) @@ TestAspect.nondeterministic
 
   private val putSuite =
     suite("put")(
@@ -673,6 +673,39 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     }
   )
+
+  final case class PersonGsi(id: String, accountId: String, surname: String, forename: Option[String], age: Int)
+  object PersonGsi {
+    implicit val schema: Schema.CaseClass5[String, String, String, Option[String], Int, PersonGsi] =
+      DeriveSchema.gen[PersonGsi]
+    val (id, accountId, surname, forename, age)                                                    = ProjectionExpression.accessors[PersonGsi]
+  }
+
+  val gsiSuite =
+    suite("Global Secondary Index suite")(
+      test("query with global secondary index") {
+        withIdAndAccountIdGsiTable { personTable =>
+          val person1 = PersonGsi("1", "account1", "Smith", None, 21)
+          val person2 = PersonGsi("2", "account1", "Jane", None, 42)
+          val person3 = PersonGsi("3", "account2", "Tarlochan", None, 42)
+          for {
+            _      <- put(personTable, person1).execute
+            _      <- put(personTable, person2).execute
+            _      <- put(personTable, person3).execute
+            stream <- queryAll[PersonGsi](personTable)
+                        .whereKey(PersonGsi.accountId.partitionKey === "account1")
+                        .indexName("accountId")
+                        .execute
+            xs     <- stream.runCollect
+            xs2    <- querySome[PersonGsi](personTable, 3)
+                        .whereKey(PersonGsi.accountId.partitionKey === "account1")
+                        .indexName("accountId")
+                        .execute
+          } yield assertTrue(xs == Chunk(person1, person2), xs2 == (Chunk(person1, person2), None))
+        }
+      }
+    )
+
 
   // note `forEach` will result in auto batching of the query if it is a get, put or a delete
   private val forEachSuite = suite("forEach")(
