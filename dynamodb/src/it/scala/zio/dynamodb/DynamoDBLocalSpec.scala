@@ -38,7 +38,7 @@ abstract class DynamoDBLocalSpec extends ZIOSpec[DynamoDBExecutor] {
   override def bootstrap: ZLayer[Any, Nothing, DynamoDBExecutor] = dynamoDBExecutorLayer.orDie
 
   final def managedTable(
-    tableDefinition: String => DynamoDBQuery.CreateTable
+    tableDefinition: String => DynamoDBQuery[Any, Unit]
   ): ZIO[DynamoDBExecutor with Scope, Throwable, TableName] =
     ZIO
       .acquireRelease(
@@ -58,6 +58,18 @@ abstract class DynamoDBLocalSpec extends ZIOSpec[DynamoDBExecutor] {
       AttributeDefinition.attrDefnString("id"),
       AttributeDefinition.attrDefnString("year")
     )
+
+  def idAndAccountIdGsiTable(tableName: String): DynamoDBQuery[Any, Unit] =
+    DynamoDBQuery
+      .createTable(tableName, KeySchema("id"), BillingMode.PayPerRequest)(
+        AttributeDefinition.attrDefnString("id"),
+        AttributeDefinition.attrDefnString("accountId")
+      )
+      .gsi(
+        indexName = "accountId",
+        KeySchema("accountId"),
+        ProjectionType.All
+      )
 
   def withSingleIdKeyTable(
     f: String => ZIO[DynamoDBExecutor, Throwable, TestResult]
@@ -82,6 +94,13 @@ abstract class DynamoDBLocalSpec extends ZIOSpec[DynamoDBExecutor] {
         t2 <- managedTable(singleIdKeyTable)
         a  <- f(t1.value, t2.value)
       } yield a
+    }
+
+  def withIdAndAccountIdGsiTable(
+    f: String => ZIO[DynamoDBExecutor, Throwable, TestResult]
+  ): ZIO[DynamoDBExecutor with Scope, Throwable, TestResult] =
+    ZIO.scoped {
+      managedTable(idAndAccountIdGsiTable).flatMap(t => f(t.value))
     }
 
 }
