@@ -19,7 +19,13 @@ object TypeSafeScanAndQuerySpec extends DynamoDBLocalSpec {
   }
 
   override def spec: Spec[Environment with TestEnvironment with Scope, Any] =
-    suite("all")(scanAllSpec, scanSomeSpec, queryAllSpec, querySomeSpec) @@ TestAspect.nondeterministic
+    suite("TypeSafeScanAndQuerySpec")(
+      scanAllSpec,
+      scanSomeSpec,
+      queryAllSpec,
+      querySomeSpec,
+      gsiSuite
+    ) @@ TestAspect.nondeterministic
 
   private val scanAllSpec = suite("scanAll")(
     test("without filter") {
@@ -237,5 +243,37 @@ object TypeSafeScanAndQuerySpec extends DynamoDBLocalSpec {
       }
     }
   )
+
+  final case class PersonGsi(id: String, accountId: String, surname: String, forename: Option[String], age: Int)
+  object PersonGsi {
+    implicit val schema: Schema.CaseClass5[String, String, String, Option[String], Int, PersonGsi] =
+      DeriveSchema.gen[PersonGsi]
+    val (id, accountId, surname, forename, age)                                                    = ProjectionExpression.accessors[PersonGsi]
+  }
+
+  val gsiSuite =
+    suite("Global Secondary Index suite")(
+      test("query with global secondary index") {
+        withIdAndAccountIdGsiTable { personTable =>
+          val person1 = PersonGsi("1", "account1", "Smith", None, 21)
+          val person2 = PersonGsi("2", "account1", "Jane", None, 42)
+          val person3 = PersonGsi("3", "account2", "Tarlochan", None, 42)
+          for {
+            _      <- put(personTable, person1).execute
+            _      <- put(personTable, person2).execute
+            _      <- put(personTable, person3).execute
+            stream <- queryAll[PersonGsi](personTable)
+                        .whereKey(PersonGsi.accountId.partitionKey === "account1")
+                        .indexName("accountId")
+                        .execute
+            xs     <- stream.runCollect
+            xs2    <- querySome[PersonGsi](personTable, 3)
+                        .whereKey(PersonGsi.accountId.partitionKey === "account1")
+                        .indexName("accountId")
+                        .execute
+          } yield assertTrue(xs == Chunk(person1, person2), xs2 == (Chunk(person1, person2), None))
+        }
+      }
+    )
 
 }
