@@ -244,20 +244,20 @@ object TypeSafeScanAndQuerySpec extends DynamoDBLocalSpec {
     }
   )
 
-  final case class PersonGsi(id: String, accountId: String, surname: String, forename: Option[String], age: Int)
+  final case class PersonGsi(id: String, accountId: String, surname: String, age: Int)
   object PersonGsi {
-    implicit val schema: Schema.CaseClass5[String, String, String, Option[String], Int, PersonGsi] =
+    implicit val schema: Schema.CaseClass4[String, String, String, Int, PersonGsi] =
       DeriveSchema.gen[PersonGsi]
-    val (id, accountId, surname, forename, age)                                                    = ProjectionExpression.accessors[PersonGsi]
+    val (id, accountId, surname, age)                                              = ProjectionExpression.accessors[PersonGsi]
   }
 
   val gsiSuite =
     suite("Global Secondary Index suite")(
       test("query with global secondary index") {
         withIdAndAccountIdGsiTable { personTable =>
-          val person1 = PersonGsi("1", "account1", "Smith", None, 21)
-          val person2 = PersonGsi("2", "account1", "Jane", None, 42)
-          val person3 = PersonGsi("3", "account2", "Tarlochan", None, 42)
+          val person1 = PersonGsi("1", "account1", "Smith", 21)
+          val person2 = PersonGsi("2", "account1", "Jane", 42)
+          val person3 = PersonGsi("3", "account2", "Tarlochan", 42)
           for {
             _         <- put(personTable, person1).execute
             _         <- put(personTable, person2).execute
