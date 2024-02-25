@@ -22,7 +22,6 @@ package object dynamodb {
   private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[_, A]): ZIO[DynamoDBExecutor, DynamoDBError, A] =
     ZIO.serviceWithZIO[DynamoDBExecutor](_.execute(query))
 
-
   implicit class MaybeFound[R, A](zio: ZIO[R, DynamoDBError, Either[DynamoDBError.ItemError, A]]) {
 
     /**
