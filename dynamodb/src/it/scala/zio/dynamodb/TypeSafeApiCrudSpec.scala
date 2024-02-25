@@ -6,7 +6,6 @@ import zio.test.assertTrue
 import zio.test.Assertion._
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.DynamoDBQuery.{ deleteFrom, forEach, get, put, putItem, scanAll, update }
-import zio.dynamodb.syntax._
 import zio.Chunk
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
 import zio.stream.ZStream

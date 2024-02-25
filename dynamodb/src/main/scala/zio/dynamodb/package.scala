@@ -22,6 +22,21 @@ package object dynamodb {
   private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[_, A]): ZIO[DynamoDBExecutor, DynamoDBError, A] =
     ZIO.serviceWithZIO[DynamoDBExecutor](_.execute(query))
 
+
+  implicit class MaybeFound[R, A](zio: ZIO[R, DynamoDBError, Either[DynamoDBError.ItemError, A]]) {
+
+    /**
+     * Moves Left[ItemError.DecodingError] to the error channel and returns Some(a) if the item is found else None
+     * eg {{{ DynamoDBQuery.get("table")(Person.id.partitionKey === 1).execute.maybeFound }}}
+     */
+    def maybeFound: ZIO[R, DynamoDBError, Option[A]] =
+      zio.flatMap {
+        case Left(e @ DynamoDBError.ItemError.DecodingError(_)) => ZIO.fail(e)
+        case Left(DynamoDBError.ItemError.ValueNotFound(_))     => ZIO.succeed(None)
+        case Right(a)                                           => ZIO.succeed(Some(a))
+      }
+  }
+
   /**
    * Reads `stream` and uses function `f` for creating a BatchWrite request that is executes for side effects. Stream is batched into groups
    * of 25 items in a BatchWriteItem and executed using the `DynamoDBExecutor` service provided in the environment.

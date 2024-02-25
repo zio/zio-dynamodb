@@ -13,7 +13,6 @@ import zio.dynamodb.DynamoDBExecutor
 import zio.dynamodb.DynamoDBQuery.get
 import zio.dynamodb.DynamoDBQuery.put
 import zio.dynamodb.ProjectionExpression
-import zio.dynamodb.syntax._
 import zio.schema.DeriveSchema
 import zio.schema.Schema
 
