@@ -61,8 +61,7 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
       "dev.zio" %% "zio-schema"            % zioSchemaVersion,
       "dev.zio" %% "zio-schema-derivation" % zioSchemaVersion,
       "dev.zio" %% "zio-aws-netty"         % zioAwsVersion,
-      "dev.zio" %% "zio-aws-dynamodb"      % zioAwsVersion,
-      "dev.zio" %% "zio-json"              % "0.6.2"
+      "dev.zio" %% "zio-aws-dynamodb"      % zioAwsVersion
     ),
     libraryDependencies ++= {
       if (scalaVersion.value == Scala3) Seq()
@@ -298,6 +297,23 @@ lazy val zioDynamodbCe =
         "dev.zio"       %% "zio-test"         % zioVersion % "test",
         "dev.zio"       %% "zio-test-sbt"     % zioVersion % "test",
         "dev.zio"       %% "zio-interop-cats" % zioInteropCats3Version
+      ),
+      testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
+    )
+    .dependsOn(zioDynamodb)
+
+lazy val zioDynamodbJson =
+  module("zio-dynamodb-json", "dynamodb-json")
+    .enablePlugins(BuildInfoPlugin)
+    .settings(buildInfoSettings("zio.dynamodb"))
+    .configs(IntegrationTest)
+    .settings(
+      resolvers += Resolver.sonatypeRepo("releases"),
+      fork := true,
+      libraryDependencies ++= Seq(
+        "dev.zio" %% "zio-test"     % zioVersion % "test",
+        "dev.zio" %% "zio-test-sbt" % zioVersion % "test",
+        "dev.zio" %% "zio-json"     % "0.6.2"
       ),
       testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
     )

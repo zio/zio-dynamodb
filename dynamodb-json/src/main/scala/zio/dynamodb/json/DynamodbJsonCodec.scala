@@ -1,13 +1,14 @@
-package zio.dynamodb
+package zio.dynamodb.json
 
-import zio.json.ast.Json
-import zio.json._
 import zio.Chunk
+import zio.dynamodb._
+import zio.json._
+import zio.json.ast.Json
 import zio.schema.Schema
+
 import scala.util.Try
 
-// TODO: not sure where to put this yet
-object JsonCodec {
+object DynamodbJsonCodec {
 
   object Encoder {
     def encode(av: AttributeValue): Json =
@@ -123,7 +124,7 @@ object JsonCodec {
       .getOrElse(throw new Exception(s"error encoding $a"))
 
   def parse(json: String): Either[DynamoDBError.ItemError, AttrMap] =
-    JsonCodec.Decoder
+    DynamodbJsonCodec.Decoder
       .jsonStringToAttributeValue(json)
       .left
       .map(DynamoDBError.ItemError.DecodingError)

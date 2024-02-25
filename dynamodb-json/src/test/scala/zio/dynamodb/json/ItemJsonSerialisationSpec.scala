@@ -1,15 +1,14 @@
-package zio.dynamodb
+package zio.dynamodb.json
 
-import zio.dynamodb.JsonCodec.Decoder._
-import zio.dynamodb.JsonCodec
-import zio.json._
-import zio.json.ast.Json
-import zio.test.ZIOSpecDefault
 import zio.Scope
-import zio.test.Spec
-import zio.test.TestEnvironment
-import zio.test.{ assert, assertTrue }
+import zio.dynamodb.json.DynamodbJsonCodec.Decoder.decode
+import zio.dynamodb.{ AttrMap, AttributeValue }
+import zio.dynamodb.json.DynamodbJsonCodec._
+import zio.json._
+import zio.json.{ DeriveJsonDecoder, DeriveJsonEncoder, JsonDecoder, JsonEncoder }
+import zio.json.ast.Json
 import zio.test.Assertion.equalTo
+import zio.test.{ assert, assertTrue, Spec, TestEnvironment, ZIOSpecDefault }
 //import zio.prelude._
 
 object ItemJsonSerialisationSpec extends ZIOSpecDefault {
@@ -88,7 +87,7 @@ BS – Binary Set // TODO
         ("id"     -> AttributeValue.String("101")) +
         ("count"  -> AttributeValue.Number(BigDecimal(42))) +
         ("isTest" -> AttributeValue.Bool(true))
-      val encoded = JsonCodec.Encoder.encode(avMap)
+      val encoded = DynamodbJsonCodec.Encoder.encode(avMap)
       val s       = encoded.toJson
       println(s"XXXXXXXXXX encoded: $s")
       assert(encoded)(
@@ -104,7 +103,7 @@ BS – Binary Set // TODO
     test("encode nested map") {
       val avMap   = AttributeValue.Map.empty + ("foo" -> (AttributeValue.Map.empty + ("name" -> AttributeValue
         .String("Avi"))))
-      val encoded = JsonCodec.Encoder.encode(avMap)
+      val encoded = DynamodbJsonCodec.Encoder.encode(avMap)
       val s       = encoded.toJson
       println(s"XXXXXXXXXX encoded: $s")
       assert(encoded)(
@@ -374,7 +373,6 @@ BS – Binary Set // TODO
 
   val endToEndSuite = suite("AttrMap end to end")(
     test("from AttrMap -> Json string -> AttrMap") {
-      import zio.dynamodb.JsonCodec._
 
       val am = AttrMap.empty +
         ("id"     -> AttributeValue.String("101")) +
