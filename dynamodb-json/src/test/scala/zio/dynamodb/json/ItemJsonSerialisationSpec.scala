@@ -3,10 +3,8 @@ package zio.dynamodb.json
 import zio.Scope
 import zio.dynamodb.json.DynamodbJsonCodec.Decoder.decode
 import zio.dynamodb.{ AttrMap, AttributeValue }
-import zio.dynamodb.json.DynamodbJsonCodec._
-import zio.json._
-import zio.json.{ DeriveJsonDecoder, DeriveJsonEncoder, JsonDecoder, JsonEncoder }
 import zio.json.ast.Json
+import zio.json._
 import zio.test.Assertion.equalTo
 import zio.test.{ assert, assertTrue, Spec, TestEnvironment, ZIOSpecDefault }
 //import zio.prelude._
