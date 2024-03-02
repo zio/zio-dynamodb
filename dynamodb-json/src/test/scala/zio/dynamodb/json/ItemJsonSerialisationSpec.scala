@@ -80,14 +80,13 @@ BS – Binary Set // TODO
       endToEndSuite
     )
   val encoderSuite                                         = suite("encoder suite")(
-    test("encode top level map") {
+    test("encode top level map of primitives") {
       val avMap = AttributeValue.Map.empty +
         ("id"     -> AttributeValue.String("101")) +
         ("count"  -> AttributeValue.Number(BigDecimal(42))) +
         ("isTest" -> AttributeValue.Bool(true))
       val encoded = DynamodbJsonCodec.Encoder.encode(avMap)
       val s       = encoded.toJson
-      println(s"XXXXXXXXXX encoded: $s")
       assert(encoded)(
         equalTo(
           Json.Obj(
@@ -103,7 +102,6 @@ BS – Binary Set // TODO
         .String("Avi"))))
       val encoded = DynamodbJsonCodec.Encoder.encode(avMap)
       val s       = encoded.toJson
-      println(s"XXXXXXXXXX encoded: $s")
       assert(encoded)(
         equalTo(
           Json.Obj(
@@ -111,10 +109,48 @@ BS – Binary Set // TODO
           )
         )
       )
+    },
+    test("encode SS") {
+      val avMap   = AttributeValue.Map.empty + ("stringSet" -> AttributeValue.StringSet(Set("1", "2")))
+      val encoded = DynamodbJsonCodec.Encoder.encode(avMap)
+      assert(encoded)(
+        equalTo(
+          Json.Obj(
+            "stringSet" -> Json.Obj("SS" -> Json.Arr(Json.Str("1"), Json.Str("2")))
+          )
+        )
+      )
+    },
+    test("encode NS") {
+      val avMap =
+        AttributeValue.Map.empty + ("numberSet" -> AttributeValue.NumberSet(Set(BigDecimal(1), BigDecimal(2))))
+      val encoded = DynamodbJsonCodec.Encoder.encode(avMap)
+      assert(encoded)(
+        equalTo(
+          Json.Obj(
+            "numberSet" -> Json.Obj("NS" -> Json.Arr(Json.Str("1"), Json.Str("2")))
+          )
+        )
+      )
+    },
+    test("encode L of String") {
+      val avMap =
+        AttributeValue.Map.empty + ("listOfString" -> AttributeValue.List(
+          List(AttributeValue.String("1"), AttributeValue.String("2"))
+        ))
+      val encoded = DynamodbJsonCodec.Encoder.encode(avMap)
+      assert(encoded)(
+        equalTo(
+          Json.Obj(
+            "listOfString" -> Json.Obj("L" -> Json.Arr(Json.Obj("S" -> Json.Str("1")), Json.Obj("S" -> Json.Str("2"))))
+          )
+        )
+      )
     }
   )
-  val decoderSuite                                         = suite("decoder suite")(
-    test("decode top level map") {
+
+  val decoderSuite     = suite("decoder suite")(
+    test("decode top level map of primitives") {
       val s   =
         """{
               "id": {
@@ -142,9 +178,6 @@ BS – Binary Set // TODO
     test("decode SS") {
       val s   =
         """{
-              "id": {
-                  "S": "101"
-              },
               "stringSet": {
                   "SS": ["1", "2"]
               }
@@ -154,7 +187,6 @@ BS – Binary Set // TODO
         equalTo(
           Right(
             AttributeValue.Map.empty +
-              ("id"        -> AttributeValue.String("101")) +
               ("stringSet" -> AttributeValue.StringSet(Set("1", "2")))
           )
         )
@@ -163,9 +195,6 @@ BS – Binary Set // TODO
     test("decode NS") {
       val s   =
         """{
-              "id": {
-                  "S": "101"
-              },
               "stringSet": {
                   "NS": ["1", "2"]
               }
@@ -175,7 +204,6 @@ BS – Binary Set // TODO
         equalTo(
           Right(
             AttributeValue.Map.empty +
-              ("id"        -> AttributeValue.String("101")) +
               ("stringSet" -> AttributeValue.NumberSet(Set(BigDecimal(1), BigDecimal(2))))
           )
         )
@@ -184,9 +212,6 @@ BS – Binary Set // TODO
     test("decode M of object") {
       val s   =
         """{
-              "id": {
-                  "S": "101"
-              },
               "map": {
                   "M": { "1": {"foo": {"S": "bar"}}, "2": {"foo": {"S": "baz"}} }
               }
@@ -196,7 +221,6 @@ BS – Binary Set // TODO
         equalTo(
           Right(
             AttributeValue.Map.empty +
-              ("id"  -> AttributeValue.String("101")) +
               ("map" -> (AttributeValue.Map.empty + ("1" -> obj("bar")) + ("2" -> obj("baz"))))
           )
         )
@@ -205,9 +229,6 @@ BS – Binary Set // TODO
     test("decode L of string") {
       val s   =
         """{
-              "id": {
-                  "S": "101"
-              },
               "array": {
                   "L": ["1", "2"]
               }
@@ -217,7 +238,6 @@ BS – Binary Set // TODO
         equalTo(
           Right(
             AttributeValue.Map.empty +
-              ("id"    -> AttributeValue.String("101")) +
               ("array" -> AttributeValue.List(List(AttributeValue.String("1"), AttributeValue.String("2"))))
           )
         )
@@ -226,9 +246,6 @@ BS – Binary Set // TODO
     test("decode L of object") {
       val s   =
         """{
-              "id": {
-                  "S": "101"
-              },
               "array": {
                   "L": [{"foo": {"S": "bar"}},  {"foo": {"S": "baz"}}]
               }
@@ -239,7 +256,6 @@ BS – Binary Set // TODO
         equalTo(
           Right(
             AttributeValue.Map.empty +
-              ("id"    -> AttributeValue.String("101")) +
               ("array" -> AttributeValue.List(List(obj("bar"), obj("baz"))))
           )
         )
@@ -253,7 +269,6 @@ BS – Binary Set // TODO
                        "S": "Avi"
                      }                    
               }
-              
           }"""
       val ast = s.fromJson[Json].getOrElse(Json.Null)
       assert(decode(ast))(
@@ -282,8 +297,7 @@ BS – Binary Set // TODO
       )
     }
   )
-  val avToAttrMapSuite                                     = suite("AttributeValue to AttrVal")(
-    // TODO: remove JSON strings
+  val avToAttrMapSuite = suite("AttributeValue to AttrVal")(
     test("AV of top level only to AttrMap") {
       val ast: Json = Json.Obj(
         "id"    -> Json.Obj("S" -> Json.Str("101")),
@@ -342,7 +356,7 @@ BS – Binary Set // TODO
       }
     }
   )
-  val attrMapToAVSuite                                     = suite("AttrMap to AttributeValue")(
+  val attrMapToAVSuite = suite("AttrMap to AttributeValue")(
     test("top level only AttrMap to AttributeValue") {
       val avMap = AttrMap.empty +
         ("id"     -> AttributeValue.String("101")) +
@@ -367,7 +381,7 @@ BS – Binary Set // TODO
       )
     }
   )
-  val transformSuite                                       = suite("transform")(avToAttrMapSuite, attrMapToAVSuite)
+  val transformSuite   = suite("transform")(avToAttrMapSuite, attrMapToAVSuite)
 
   val endToEndSuite = suite("AttrMap end to end")(
     test("from AttrMap -> Json string -> AttrMap") {

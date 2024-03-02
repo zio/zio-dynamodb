@@ -20,7 +20,7 @@ object DynamodbJsonCodec {
           val x: List[Json] = xs.map(encode).toList
           Json.Obj(Chunk("L" -> Json.Arr(xs.map(encode).toList: _*)))
         case AttributeValue.StringSet(xs) => Json.Obj(Chunk("SS" -> Json.Arr(xs.map(Json.Str(_)).toList: _*)))
-        case AttributeValue.NumberSet(xs) => Json.Obj(Chunk("NS" -> Json.Arr(xs.map(Json.Num(_)).toList: _*)))
+        case AttributeValue.NumberSet(xs) => Json.Obj(Chunk("NS" -> Json.Arr(xs.map(n => Json.Str(n.toString)).toList: _*)))
         case AttributeValue.Map(map)      =>
           val xs: List[(AttributeValue.String, Json)] = map.map { case (k, v) => k -> encode(v) }.toList
           Json.Obj(Chunk(xs.map { case (k, v) => k.value -> v }: _*))
