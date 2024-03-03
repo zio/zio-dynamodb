@@ -6,8 +6,7 @@ import zio.dynamodb.{ AttrMap, AttributeValue }
 import zio.json.ast.Json
 import zio.json._
 import zio.test.Assertion.equalTo
-import zio.test.{ assert, assertTrue, Spec, TestEnvironment, ZIOSpecDefault }
-//import zio.prelude._
+import zio.test.{ assert, assertTrue, check, Spec, TestEnvironment, ZIOSpecDefault }
 
 object ItemJsonSerialisationSpec extends ZIOSpecDefault {
 
@@ -77,9 +76,28 @@ BS – Binary Set // TODO
       encoderSuite,
       decoderSuite,
       transformSuite,
-      endToEndSuite
+      endToEndSuite,
+      pbtSuite
     )
-  val encoderSuite                                         = suite("encoder suite")(
+
+  val pbtSuite = suite("property based testing suite")(
+    test("round trip encode and decode") {
+      check(AttributeValueGen.anyMap) { avMap =>
+        val s  = DynamodbJsonCodec.Encoder.encode(avMap).toString
+        val av = DynamodbJsonCodec.Decoder.decode(s.fromJson[Json].getOrElse(Json.Null))
+        av match {
+          case Right(value)                           =>
+            assertTrue(value == avMap)
+          case Left("empty AttributeValue Map found") =>
+            assertTrue(true)
+          case Left(_)                                =>
+            assertTrue(false)
+        }
+      }
+    }
+  )
+
+  val encoderSuite = suite("encoder suite")(
     test("encode top level map of primitives") {
       val avMap = AttributeValue.Map.empty +
         ("id"     -> AttributeValue.String("101")) +
@@ -393,7 +411,7 @@ BS – Binary Set // TODO
 
       val jsonString = am.toJsonString
 
-      parse(jsonString) match {
+      parseItem(jsonString) match {
         case Right(am2) =>
           assertTrue(am2 == am)
         case _          => assertTrue(false)

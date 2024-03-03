@@ -15,7 +15,7 @@ object Example extends App {
 
   println(json) // {"age":{"N":"42"},"name":{"S":"Bob"}}
 
-  val item: Either[DynamoDBError.ItemError, AttrMap] = parse("""{"age":{"N":"42"},"name":{"S":"Bob"}}""")
+  val item: Either[DynamoDBError.ItemError, AttrMap] = parseItem("""{"age":{"N":"42"},"name":{"S":"Bob"}}""")
   println(item) // Right(AttrMap(Map(name -> S(Bob), age -> N(42))))
 
   val person2 = item.map(fromItem[Person])

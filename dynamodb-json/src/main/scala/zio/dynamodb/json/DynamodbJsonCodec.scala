@@ -20,7 +20,8 @@ object DynamodbJsonCodec {
           val x: List[Json] = xs.map(encode).toList
           Json.Obj(Chunk("L" -> Json.Arr(xs.map(encode).toList: _*)))
         case AttributeValue.StringSet(xs) => Json.Obj(Chunk("SS" -> Json.Arr(xs.map(Json.Str(_)).toList: _*)))
-        case AttributeValue.NumberSet(xs) => Json.Obj(Chunk("NS" -> Json.Arr(xs.map(n => Json.Str(n.toString)).toList: _*)))
+        case AttributeValue.NumberSet(xs) =>
+          Json.Obj(Chunk("NS" -> Json.Arr(xs.map(n => Json.Str(n.toString)).toList: _*)))
         case AttributeValue.Map(map)      =>
           val xs: List[(AttributeValue.String, Json)] = map.map { case (k, v) => k -> encode(v) }.toList
           Json.Obj(Chunk(xs.map { case (k, v) => k.value -> v }: _*))
@@ -85,6 +86,7 @@ object DynamodbJsonCodec {
         case Json.Obj(Chunk("S" -> Json.Str(s)))      => Right(AttributeValue.String(s))
         // Note Json.Num is handles via Json.Str
         case Json.Obj(Chunk("BOOL" -> Json.Bool(b)))  => Right(AttributeValue.Bool(b))
+        case Json.Obj(Chunk("NULL" -> Json.Null))     => Right(AttributeValue.Null)
         case Json.Obj(Chunk("L" -> Json.Arr(a)))      => decodeL(a.toList, AttributeValue.List.empty)
         case Json.Obj(Chunk("SS" -> Json.Arr(chunk))) => decodeSS(chunk.toList, AttributeValue.StringSet.empty)
         case Json.Obj(Chunk("NS" -> Json.Arr(chunk))) => decodeNS(chunk.toList, AttributeValue.NumberSet.empty)

@@ -25,7 +25,7 @@ package object json {
     av.decode(Schema[A])
   }
 
-  def parse(json: String): Either[DynamoDBError.ItemError, AttrMap] =
+  def parseItem(json: String): Either[DynamoDBError.ItemError, AttrMap] =
     DynamodbJsonCodec.Decoder
       .jsonStringToAttributeValue(json)
       .left
