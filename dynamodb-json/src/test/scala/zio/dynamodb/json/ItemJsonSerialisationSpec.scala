@@ -83,8 +83,8 @@ BS – Binary Set // TODO
   val pbtSuite = suite("property based testing suite")(
     test("round trip encode and decode") {
       check(AttributeValueGen.anyMap) { avMap =>
-        val s  = DynamodbJsonCodec.Encoder.encode(avMap).toString
-        val av = DynamodbJsonCodec.Decoder.decode(s.fromJson[Json].getOrElse(Json.Null))
+        val json  = DynamodbJsonCodec.Encoder.encode(avMap)
+        val av = DynamodbJsonCodec.Decoder.decode(json)
         av match {
           case Right(value)                           =>
             assertTrue(value == avMap)

@@ -12,6 +12,7 @@ object DynamodbJsonCodec {
   object Encoder {
     def encode(av: AttributeValue): Json =
       av match {
+        // Note a Number AttributeValue is represented as a Json.Str
         case AttributeValue.String(s)     => Json.Obj(Chunk("S" -> Json.Str(s)))
         case AttributeValue.Number(n)     => Json.Obj(Chunk("N" -> Json.Str(n.toString)))
         case AttributeValue.Bool(b)       => Json.Obj(Chunk("BOOL" -> Json.Bool(b)))
@@ -51,7 +52,7 @@ object DynamodbJsonCodec {
             case Json.Str(s) =>
               val x: AttributeValue.StringSet = acc + s
               decodeSS(xs.tail, x)
-            case x           => Left(s"Invalid SS $x")
+            case x           => Left(s"Invalid SS $x") // TODO: test
           }
       }
 
@@ -62,7 +63,7 @@ object DynamodbJsonCodec {
           json match {
             case Json.Str(s) =>
               (acc + s).flatMap(decodeNS(xs.tail, _))
-            case x           => Left(s"Invalid SS $x")
+            case x           => Left(s"Invalid NS $x") // TODO: test
           }
       }
 
@@ -78,21 +79,19 @@ object DynamodbJsonCodec {
 
     def decode(json: Json): Either[String, AttributeValue] =
       json match {
+        // Note a Number AttributeValue is represented as a Json.Str
         case Json.Obj(Chunk("N" -> Json.Str(d)))      =>
           Try(BigDecimal(d)).fold(
             _ => Left(s"Invalid Number $d"),
             n => Right(AttributeValue.Number(n))
           )
         case Json.Obj(Chunk("S" -> Json.Str(s)))      => Right(AttributeValue.String(s))
-        // Note Json.Num is handles via Json.Str
         case Json.Obj(Chunk("BOOL" -> Json.Bool(b)))  => Right(AttributeValue.Bool(b))
         case Json.Obj(Chunk("NULL" -> Json.Null))     => Right(AttributeValue.Null)
         case Json.Obj(Chunk("L" -> Json.Arr(a)))      => decodeL(a.toList, AttributeValue.List.empty)
         case Json.Obj(Chunk("SS" -> Json.Arr(chunk))) => decodeSS(chunk.toList, AttributeValue.StringSet.empty)
         case Json.Obj(Chunk("NS" -> Json.Arr(chunk))) => decodeNS(chunk.toList, AttributeValue.NumberSet.empty)
         case Json.Obj(Chunk("M" -> Json.Obj(fields))) => createMap(fields, AttributeValue.Map.empty)
-//      case Json.Obj(Chunk(_ -> a))              => Left(s"TODO ${a.getClass.getName} $a")
-
         case Json.Obj(fields) if fields.isEmpty       => Left("empty AttributeValue Map found")
         case Json.Obj(fields)                         =>
           createMap(fields, AttributeValue.Map.empty)
@@ -110,25 +109,5 @@ object DynamodbJsonCodec {
         case Right(json) => Decoder.decode(json)
       }
   }
-
-//  implicit class AttrMapJsonOps(am: AttrMap) {
-//    def toJsonString: String = Encoder.attributeValueToJsonString(am.toAttributeValue)
-//  }
-//
-//  implicit class ProductJsonOps[A](a: A)(implicit schema: Schema[A]) {
-//    def toJsonString: String = Encoder.attributeValueToJsonString(toItem(a).toAttributeValue)
-//  }
-//
-//  private[dynamodb] def toItem[A](a: A)(implicit schema: Schema[A]): Item =
-//    FromAttributeValue.attrMapFromAttributeValue
-//      .fromAttributeValue(AttributeValue.encode(a)(schema))
-//      .getOrElse(throw new Exception(s"error encoding $a"))
-//
-//  def parse(json: String): Either[DynamoDBError.ItemError, AttrMap] =
-//    DynamodbJsonCodec.Decoder
-//      .jsonStringToAttributeValue(json)
-//      .left
-//      .map(DynamoDBError.ItemError.DecodingError)
-//      .flatMap(FromAttributeValue.attrMapFromAttributeValue.fromAttributeValue)
 
 }
