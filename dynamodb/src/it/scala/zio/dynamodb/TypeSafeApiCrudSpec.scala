@@ -39,7 +39,8 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
     val (id, surname, addressList, addressMap, addressSet)                                                         = ProjectionExpression.accessors[PersonWithCollections]
   }
 
-  override def spec = suite("all")(putSuite, updateSuite, deleteSuite, forEachSuite) @@ TestAspect.nondeterministic
+  override def spec =
+    suite("TypeSafeApiCrudSpec")(putSuite, updateSuite, deleteSuite, forEachSuite) @@ TestAspect.nondeterministic
 
   private val putSuite =
     suite("put")(
