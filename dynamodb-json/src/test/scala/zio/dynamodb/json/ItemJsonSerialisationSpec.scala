@@ -169,6 +169,20 @@ BS – Binary Set // TODO
         )
       )
     },
+    test("error when decoding an actual Number") {
+      val s   =
+        """{
+              "num": {
+                  "N": 101
+              }
+          }"""
+      val ast = s.fromJson[Json].getOrElse(Json.Null)
+      assert(decode(ast))(
+        equalTo(
+          Left("Unexpected Num 101")
+        )
+      )
+    },
     test("decode top level map of primitives") {
       val s   =
         """{

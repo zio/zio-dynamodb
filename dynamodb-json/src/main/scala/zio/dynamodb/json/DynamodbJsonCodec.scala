@@ -100,9 +100,11 @@ object DynamodbJsonCodec {
         // for collections
         case Json.Str(s)                              => Right(AttributeValue.String(s))
         case Json.Bool(b)                             => Right(AttributeValue.Bool(b))
+        case Json.Null                                => Right(AttributeValue.Null)
         // Note Json.Num is handled via Json.Str
-        case a @ Json.Arr(_)                          => Left(s"top level arrays are not supported, found $a")
-        case x                                        => Left(s"$x is not supported") // TODO
+        case n @ Json.Num(_)                          => Left(s"Unexpected Num $n") // Right(AttributeValue.Number(d))
+
+        case a @ Json.Arr(_) => Left(s"top level arrays are not supported, found $a")
       }
 
     def jsonStringToAttributeValue(json: String): Either[String, AttributeValue] =
