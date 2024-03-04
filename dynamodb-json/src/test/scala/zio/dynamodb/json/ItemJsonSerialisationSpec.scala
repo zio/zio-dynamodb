@@ -66,7 +66,7 @@ BS – Binary Set // TODO
         checked = av match {
                     case Right(value)                           =>
                       assertTrue(value == avMap)
-                    case Left("empty AttributeValue Map found") =>
+                    case Left("empty AttributeValue Map found") => // expected for empty maps
                       assertTrue(true)
                     case Left(_)                                =>
                       assertTrue(false)
@@ -145,6 +145,30 @@ BS – Binary Set // TODO
   )
 
   val decoderSuite     = suite("decoder suite")(
+    test("error when decoding top level array") {
+      val s   =
+        """[ "1", "2" ]"""
+      val ast = s.fromJson[Json].getOrElse(Json.Null)
+      assert(decode(ast))(
+        equalTo(
+          Left("top level arrays are not supported, found [\"1\",\"2\"]")
+        )
+      )
+    },
+    test("error when decoding B (Binary)") {
+      val s   =
+        """{
+              "binary": {
+                  "B": "101"
+              }
+          }"""
+      val ast = s.fromJson[Json].getOrElse(Json.Null)
+      assert(decode(ast))(
+        equalTo(
+          Left("The Binary type is not supported yet, found: {\"B\":\"101\"}")
+        )
+      )
+    },
     test("decode top level map of primitives") {
       val s   =
         """{
