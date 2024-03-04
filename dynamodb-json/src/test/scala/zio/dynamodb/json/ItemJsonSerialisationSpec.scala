@@ -7,38 +7,9 @@ import zio.json.ast.Json
 import zio.json._
 import zio.test.Assertion.equalTo
 import zio.test.{ assert, assertTrue, check, Spec, TestEnvironment, ZIOSpecDefault }
+import zio.ZIO
 
 object ItemJsonSerialisationSpec extends ZIOSpecDefault {
-
-  val bookJsonString = """{
-    "Id": {
-        "N": "101"
-    },
-    "Title": {
-        "S": "Book 101 Title"
-    },
-    "ISBN": {
-        "S": "111-1111111111"
-    },
-    "Authors": {
-        "L": [
-            {
-                "S": "Author1"
-            }
-        ]
-    }
-}"""
-
-  final case class Id(N: String)
-  object Id   {
-    implicit val decoder: JsonDecoder[Id] = DeriveJsonDecoder.gen[Id]
-    implicit val encoder: JsonEncoder[Id] = DeriveJsonEncoder.gen[Id]
-  }
-  final case class Book(id: Id)
-  object Book {
-    implicit val decoder: JsonDecoder[Book] = DeriveJsonDecoder.gen[Book]
-    implicit val encoder: JsonEncoder[Book] = DeriveJsonEncoder.gen[Book]
-  }
 
   /*
 https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.NamingRulesDataTypes.html
@@ -82,20 +53,26 @@ BS – Binary Set // TODO
 
   val pbtSuite = suite("property based testing suite")(
     test("round trip encode and decode") {
-      check(AttributeValueGen.anyMap) { avMap =>
-        val json  = DynamodbJsonCodec.Encoder.encode(avMap)
-        val av = DynamodbJsonCodec.Decoder.decode(json)
-        av match {
-          case Right(value)                           =>
-            assertTrue(value == avMap)
-          case Left("empty AttributeValue Map found") =>
-            assertTrue(true)
-          case Left(_)                                =>
-            assertTrue(false)
-        }
-      }
+      checkRoundTrip(debug = false)
     }
   )
+
+  private def checkRoundTrip(debug: Boolean) =
+    check(AttributeValueGen.anyItem) { avMap =>
+      val json = DynamodbJsonCodec.Encoder.encode(avMap)
+      val av   = DynamodbJsonCodec.Decoder.decode(json)
+      for {
+        _      <- if (debug) ZIO.debug(json.toString) else ZIO.unit
+        checked = av match {
+                    case Right(value)                           =>
+                      assertTrue(value == avMap)
+                    case Left("empty AttributeValue Map found") =>
+                      assertTrue(true)
+                    case Left(_)                                =>
+                      assertTrue(false)
+                  }
+      } yield checked
+    }
 
   val encoderSuite = suite("encoder suite")(
     test("encode top level map of primitives") {
