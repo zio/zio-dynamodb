@@ -35,7 +35,7 @@ val zioVersion             = "2.0.21"
 val zioAwsVersion          = "7.21.15.5"
 val zioSchemaVersion       = "0.4.17"
 val zioPreludeVersion      = "1.0.0-RC23"
-val zioInteropCats3Version = "23.0.03"
+val zioInteropCats3Version = "23.1.0.1"
 val catsEffect3Version     = "3.5.3"
 val fs2Version             = "3.9.4"
 
