@@ -101,7 +101,7 @@ object DynamodbJsonCodec {
         case Json.Bool(b)                             => Right(AttributeValue.Bool(b))
         case Json.Null                                => Right(AttributeValue.Null)
         // Note Json.Num is handled via Json.Str
-        case n @ Json.Num(_)                          => Left(s"Unexpected Num $n") // Right(AttributeValue.Number(d))
+        case n @ Json.Num(_)                          => Left(s"Unexpected Num $n")
 
         case a @ Json.Arr(_) => Left(s"top level arrays are not supported, found $a")
       }

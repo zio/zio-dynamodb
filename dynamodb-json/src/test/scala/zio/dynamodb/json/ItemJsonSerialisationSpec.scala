@@ -11,37 +11,6 @@ import zio.ZIO
 
 object ItemJsonSerialisationSpec extends ZIOSpecDefault {
 
-  /*
-https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.NamingRulesDataTypes.html
-S – String
-N – Number // TODO - return error for this????
-B – Binary // TODO
-BOOL – Boolean
-NULL – Null
-M – Map
-L – List
-SS – String Set
-NS – Number Set
-BS – Binary Set // TODO
-
-
-  private[dynamodb] final case class Binary(value: Iterable[Byte])              extends AttributeValue
-  private[dynamodb] final case class BinarySet(value: Iterable[Iterable[Byte]]) extends AttributeValue
-  private[dynamodb] final case class Bool(value: Boolean)                       extends AttributeValue
-  private[dynamodb] final case class List(value: Iterable[AttributeValue])      extends AttributeValue
-
-  private[dynamodb] final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue
-
-  private[dynamodb] final case class Number(value: BigDecimal)          extends AttributeValue
-  private[dynamodb] final case class NumberSet(value: Set[BigDecimal])  extends AttributeValue
-  private[dynamodb] case object Null                                    extends AttributeValue
-  private[dynamodb] final case class String(value: ScalaString)         extends AttributeValue
-  private[dynamodb] final case class StringSet(value: Set[ScalaString]) extends AttributeValue
-
-  type Encoder[A]  = A => AttributeValue
-  type Decoder[+A] = AttributeValue => Either[ItemError, A]
-   */
-
   override def spec: Spec[TestEnvironment with Scope, Any] =
     suite("ItemJsonSerialisationSpec")(
       encoderSuite,
@@ -152,6 +121,20 @@ BS – Binary Set // TODO
       assert(decode(ast))(
         equalTo(
           Left("top level arrays are not supported, found [\"1\",\"2\"]")
+        )
+      )
+    },
+    test("error when decoding an invalid N") {
+      val s   =
+        """{
+              "invalidNumber": {
+                  "N": "INVALID"
+              }
+          }"""
+      val ast = s.fromJson[Json].getOrElse(Json.Null)
+      assert(decode(ast))(
+        equalTo(
+          Left("Invalid Number INVALID")
         )
       )
     },
