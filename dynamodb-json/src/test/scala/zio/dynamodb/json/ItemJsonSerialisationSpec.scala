@@ -169,6 +169,20 @@ BS – Binary Set // TODO
         )
       )
     },
+    test("error when decoding BS (Binary Set)") {
+      val s   =
+        """{
+              "binary": {
+                  "BS": "101"
+              }
+          }"""
+      val ast = s.fromJson[Json].getOrElse(Json.Null)
+      assert(decode(ast))(
+        equalTo(
+          Left("The Binary Set type is not supported yet, found: {\"BS\":\"101\"}")
+        )
+      )
+    },
     test("error when decoding an actual Number") {
       val s   =
         """{
@@ -180,6 +194,44 @@ BS – Binary Set // TODO
       assert(decode(ast))(
         equalTo(
           Left("Unexpected Num 101")
+        )
+      )
+    },
+    test("error when decoding a NS containing an actual Number") {
+      val s   =
+        """{
+              "num": {
+                  "NS": [101, 102]
+              }
+          }"""
+      val ast = s.fromJson[Json].getOrElse(Json.Null)
+      assert(decode(ast))(
+        equalTo(
+          Left("Invalid NS value 101, expected a string number")
+        )
+      )
+    },
+    test("error when decoding a SS containing a non String value") {
+      val s   =
+        """{
+              "num": {
+                  "SS": [101, 102]
+              }
+          }"""
+      val ast = s.fromJson[Json].getOrElse(Json.Null)
+      assert(decode(ast))(
+        equalTo(
+          Left("Invalid SS value 101, expected a string value")
+        )
+      )
+    },
+    test("error when decoding an empty Map") {
+      val s   =
+        """{}"""
+      val ast = s.fromJson[Json].getOrElse(Json.Null)
+      assert(decode(ast))(
+        equalTo(
+          Left("empty AttributeValue Map found")
         )
       )
     },

@@ -18,7 +18,6 @@ object DynamodbJsonCodec {
         case AttributeValue.Bool(b)       => Json.Obj(Chunk("BOOL" -> Json.Bool(b)))
         case AttributeValue.Null          => Json.Obj(Chunk("NULL" -> Json.Null))
         case AttributeValue.List(xs)      =>
-          val x: List[Json] = xs.map(encode).toList
           Json.Obj(Chunk("L" -> Json.Arr(xs.map(encode).toList: _*)))
         case AttributeValue.StringSet(xs) => Json.Obj(Chunk("SS" -> Json.Arr(xs.map(Json.Str(_)).toList: _*)))
         case AttributeValue.NumberSet(xs) =>
@@ -50,9 +49,9 @@ object DynamodbJsonCodec {
         case json :: _ =>
           json match {
             case Json.Str(s) =>
-              val x: AttributeValue.StringSet = acc + s
-              decodeSS(xs.tail, x)
-            case x           => Left(s"Invalid SS $x") // TODO: test
+              val ss: AttributeValue.StringSet = acc + s
+              decodeSS(xs.tail, ss)
+            case json        => Left(s"Invalid SS value $json, expected a string value") // TODO: test
           }
       }
 
@@ -63,7 +62,7 @@ object DynamodbJsonCodec {
           json match {
             case Json.Str(s) =>
               (acc + s).flatMap(decodeNS(xs.tail, _))
-            case x           => Left(s"Invalid NS $x") // TODO: test
+            case json        => Left(s"Invalid NS value $json, expected a string number")
           }
       }
 
