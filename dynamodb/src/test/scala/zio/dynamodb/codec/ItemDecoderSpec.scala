@@ -43,6 +43,13 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(expected)))
     },
+    test("decoded empty chunk") {
+      val expected = CaseClassOfChunk(Chunk.empty)
+
+      val actual = DynamoDBQuery.fromItem[CaseClassOfChunk](Item.empty)
+
+      assert(actual)(isRight(equalTo(expected)))
+    },
     test("decoded empty list when field is missing") {
       val expected = CaseClassOfList(List.empty)
 

@@ -403,24 +403,25 @@ private[dynamodb] object Codec {
     sealed trait ContainerField
     object ContainerField {
       case object Optional extends ContainerField
-      case object List     extends ContainerField
+      case object Sequence extends ContainerField
+      case object Chunk    extends ContainerField
       case object Map      extends ContainerField
       case object Set      extends ContainerField
       case object Scalar   extends ContainerField
 
       def containerField[B](schema: Schema[B]): ContainerField =
         schema match {
-          case l @ Schema.Lazy(_)         =>
+          case l @ Schema.Lazy(_)            =>
             containerField(l.schema)
-          case _: Schema.Optional[_]      =>
+          case _: Schema.Optional[_]         =>
             Optional
-          case _: Schema.Map[_, _]        =>
+          case _: Schema.Map[_, _]           =>
             Map
-          case _: Schema.Set[_]           =>
+          case _: Schema.Set[_]              =>
             Set
-          case _: Schema.Collection[_, _] =>
-            List
-          case _                          =>
+          case seq: Schema.Sequence[_, _, _] =>
+            if (seq.identity == "Chunk") ContainerField.Chunk else ContainerField.Sequence
+          case _                             =>
             Scalar
         }
     }
@@ -658,9 +659,7 @@ private[dynamodb] object Codec {
 
     private def optionalDecoder[A](decoder: Decoder[A]): Decoder[Option[A]] = {
       case AttributeValue.Null => Right(None)
-      case av                  =>
-        println(s"XXXXXXXXXXXXX av: $av")
-        decoder(av).map(Some(_))
+      case av                  => decoder(av).map(Some(_))
     }
 
     private def eitherDecoder[A, B](decL: Decoder[A], decR: Decoder[B]): Decoder[Either[A, B]] = {
@@ -911,25 +910,21 @@ private[dynamodb] object Codec {
         case AttributeValue.Map(map) =>
           fields.toList.forEach {
             case Schema.Field(key, schema, _, _, _, _) =>
-              val dec                            = decoder(schema)
-              val k                              = key // @fieldName is respected by the zio-schema macro
-              val maybeValue                     = map.get(AttributeValue.String(k))
-              val maybeDecoder                   = maybeValue.map(dec).toRight(DecodingError(s"field '$k' not found in $av"))
-              val either: Either[ItemError, Any] = for {
-                decoder <- maybeDecoder
-                decoded <- decoder
-              } yield decoded
-
-              if (maybeValue.isEmpty)
+              val dec          = decoder(schema)
+              val k            = key // @fieldName is respected by the zio-schema macro
+              val maybeAv      = map.get(AttributeValue.String(k))
+              val errorOrValue = maybeAv.toRight(DecodingError(s"field '$k' not found in $av")).flatMap(dec)
+              if (maybeAv.isEmpty)
                 ContainerField.containerField(schema) match {
                   case ContainerField.Optional => Right(None)
-                  case ContainerField.List     => Right(List.empty)
+                  case ContainerField.Chunk    => Right(Chunk.empty)
+                  case ContainerField.Sequence => Right(List.empty)
                   case ContainerField.Map      => Right(Map.empty)
                   case ContainerField.Set      => Right(Set.empty)
-                  case ContainerField.Scalar   => either
+                  case ContainerField.Scalar   => errorOrValue
                 }
               else
-                either
+                errorOrValue
           }
             .map(_.toList)
         case _                       =>
