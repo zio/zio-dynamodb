@@ -51,7 +51,7 @@ object DynamodbJsonCodec {
             case Json.Str(s) =>
               val ss: AttributeValue.StringSet = acc + s
               decodeSS(xs.tail, ss)
-            case json        => Left(s"Invalid SS value $json, expected a string value") // TODO: test
+            case json        => Left(s"Invalid SS value $json, expected a string value")
           }
       }
 

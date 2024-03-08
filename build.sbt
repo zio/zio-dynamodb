@@ -281,7 +281,7 @@ lazy val examples = module("zio-dynamodb-examples", "examples")
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
-  .dependsOn(zioDynamodb, zioDynamodbCe)
+  .dependsOn(zioDynamodb, zioDynamodbCe, zioDynamodbJson)
 
 lazy val zioDynamodbCe =
   module("zio-dynamodb-ce", "interop/dynamodb-ce")
