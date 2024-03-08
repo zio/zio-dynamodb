@@ -6,6 +6,7 @@ import zio.schema.{ DeriveSchema, Schema }
 import java.time.Instant
 import zio.dynamodb.ProjectionExpression
 import zio.schema.annotation.noDiscriminator
+import zio.Chunk
 
 // ADT example
 sealed trait Status
@@ -20,6 +21,8 @@ final case class SimpleCaseClass3(id: Int, name: String, flag: Boolean)
 final case class SimpleCaseClass3Option(id: Int, name: String, opt: Option[Int])
 
 final case class CaseClassOfList(nums: List[Int])
+
+final case class CaseClassOfChunk(nums: Chunk[Int])
 
 final case class CaseClassOfListOfCaseClass(elements: List[SimpleCaseClass3])
 

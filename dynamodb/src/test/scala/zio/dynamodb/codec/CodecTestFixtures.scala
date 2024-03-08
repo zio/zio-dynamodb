@@ -42,6 +42,7 @@ trait CodecTestFixtures {
   lazy implicit val simpleCaseClass3Schema: Schema[SimpleCaseClass3]               = DeriveSchema.gen[SimpleCaseClass3]
   lazy implicit val simpleCaseClass3SchemaOptional: Schema[SimpleCaseClass3Option] =
     DeriveSchema.gen[SimpleCaseClass3Option]
+  lazy implicit val caseClassOfChunk: Schema[CaseClassOfChunk]                     = DeriveSchema.gen[CaseClassOfChunk]
   lazy implicit val caseClassOfList: Schema[CaseClassOfList]                       = DeriveSchema.gen[CaseClassOfList]
   lazy implicit val caseClassOfListOfCaseClass: Schema[CaseClassOfListOfCaseClass] =
     DeriveSchema.gen[CaseClassOfListOfCaseClass]
