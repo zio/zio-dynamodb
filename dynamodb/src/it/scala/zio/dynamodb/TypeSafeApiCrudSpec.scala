@@ -11,6 +11,8 @@ import zio.Chunk
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
 import zio.stream.ZStream
 import zio.ZIO
+import zio.dynamodb.model.Foo
+import zio.dynamodb.model.ops.UnifiedOffer
 
 object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
 
@@ -44,6 +46,15 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
 
   private val putSuite =
     suite("put")(
+      test("investigation1") {
+        withSingleIdKeyTable { tableName =>
+        val foo = Foo("1", Some(UnifiedOffer(offerId = "1", products = Chunk.empty)))
+          for {
+            _ <- put(tableName, foo).execute
+            p <- get(tableName)(Foo.id.partitionKey === "1").execute.absolve
+          } yield assertTrue(p == foo)
+        }
+      },
       test("and get simple round trip") {
         withSingleIdKeyTable { tableName =>
           val person = Person("1", "Smith", Some("John"), 21)
