@@ -58,8 +58,12 @@ object AttributeValue {
   }
 
   private[dynamodb] final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue { self =>
-    def +(t: (ScalaString, AttributeValue)): Map = Map(self.value + (String(t._1) -> t._2))
+    def +(t: (ScalaString, AttributeValue)): Map = {
+      val (s, av) = t
+      Map(self.value + ((String(s), av)))
+    }
   }
+  
   private[dynamodb] object Map {
     val empty = Map(ScalaMap.empty)
   }
@@ -69,7 +73,7 @@ object AttributeValue {
     def +(s: ScalaString): Either[ScalaString, NumberSet] =
       Try(BigDecimal(s)).toEither.left.map(_.getMessage).map(n => NumberSet(self.value + n))
   }
-  private[dynamodb] final object NumberSet {
+  private[dynamodb] object NumberSet {
     val empty: NumberSet = NumberSet(Set.empty)
   }
   private[dynamodb] case object Null                                    extends AttributeValue
@@ -77,7 +81,7 @@ object AttributeValue {
   private[dynamodb] final case class StringSet(value: Set[ScalaString]) extends AttributeValue { self =>
     def +(s: ScalaString): StringSet = StringSet(self.value + s)
   }
-  private[dynamodb] final object StringSet {
+  private[dynamodb] object StringSet {
     val empty: StringSet = StringSet(Set.empty)
   }
 
