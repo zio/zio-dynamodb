@@ -8,6 +8,7 @@ import zio.test.{ ZIOSpecDefault, _ }
 
 import java.time.Instant
 import scala.collection.immutable.ListMap
+import zio.Chunk
 
 object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
   override def spec = suite("ItemDecoder Suite")(mainSuite, noDiscriminatorSuite)
@@ -32,6 +33,13 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       val expected = CaseClassOfList(List(1, 2))
 
       val actual = DynamoDBQuery.fromItem[CaseClassOfList](Item("nums" -> List(1, 2)))
+
+      assert(actual)(isRight(equalTo(expected)))
+    },
+    test("decoded chunk") {
+      val expected = CaseClassOfChunk(Chunk(1, 2))
+
+      val actual = DynamoDBQuery.fromItem[CaseClassOfChunk](Item("nums" -> List(1, 2)))
 
       assert(actual)(isRight(equalTo(expected)))
     },

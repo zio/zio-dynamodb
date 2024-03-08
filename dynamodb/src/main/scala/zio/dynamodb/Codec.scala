@@ -658,7 +658,9 @@ private[dynamodb] object Codec {
 
     private def optionalDecoder[A](decoder: Decoder[A]): Decoder[Option[A]] = {
       case AttributeValue.Null => Right(None)
-      case av                  => decoder(av).map(Some(_))
+      case av                  =>
+        println(s"XXXXXXXXXXXXX av: $av")
+        decoder(av).map(Some(_))
     }
 
     private def eitherDecoder[A, B](decL: Decoder[A], decR: Decoder[B]): Decoder[Either[A, B]] = {
