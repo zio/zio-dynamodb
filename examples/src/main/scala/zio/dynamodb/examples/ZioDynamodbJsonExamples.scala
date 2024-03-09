@@ -4,7 +4,7 @@ import zio.dynamodb.json._
 import zio.schema.DeriveSchema
 import zio.schema.annotation.discriminatorName
 
-import scala.annotation.nowarn
+import zio.schema.Schema
 
 object ZioDynamodbJsonExample extends App {
   @discriminatorName("invoiceType")
@@ -12,16 +12,13 @@ object ZioDynamodbJsonExample extends App {
   object Invoice {
     final case class PreBilled(id: String, sku: String) extends Invoice
     object PreBilled {
-      @nowarn
-      implicit val schema = DeriveSchema.gen[PreBilled]
+      implicit val schema: Schema.CaseClass2[String, String, PreBilled] = DeriveSchema.gen[PreBilled]
     }
     final case class Billed(id: String, sku: String, cost: Int) extends Invoice
     object Billed    {
-      @nowarn
-      implicit val schema = DeriveSchema.gen[Billed]
+      implicit val schema: Schema.CaseClass3[String, String, Int, Billed] = DeriveSchema.gen[Billed]
     }
-    @nowarn
-    implicit val schema = DeriveSchema.gen[Invoice]
+    implicit val schema: Schema[Invoice] = DeriveSchema.gen[Invoice]
   }
 
   // get the rendered json string from a case class
