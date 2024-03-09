@@ -63,7 +63,7 @@ object AttributeValue {
       Map(self.value + ((String(s), av)))
     }
   }
-  
+
   private[dynamodb] object Map {
     val empty = Map(ScalaMap.empty)
   }
