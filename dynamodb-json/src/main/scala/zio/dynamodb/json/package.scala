@@ -19,7 +19,7 @@ package object json {
     DynamodbJsonCodec.Decoder
       .jsonStringToAttributeValue(json)
       .left
-      .map(DynamoDBError.ItemError.DecodingError)
+      .map(DynamoDBError.ItemError.DecodingError.apply)
       .flatMap(FromAttributeValue.attrMapFromAttributeValue.fromAttributeValue)
 
   def parse[A: Schema](jsonString: String): Either[DynamoDBError.ItemError, A] =
