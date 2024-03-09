@@ -36,7 +36,7 @@ libraryDependencies ++= Seq(
 
 For CE interop examples please see [examples sbt module](examples/src/main/scala/zio/dynamodb/examples/dynamodblocal/interop/CeInteropExample.scala).
 
-### Read/write DynamoDB Json
+### Read/write DynamoDB JSON
 AWS tools like the CLI and Console read/write a special JSON representation of dynamoDB items. The new experimental optional `zio-dynamodb-json` module provides a way to read/write this form of JSON. To use this module, we need to also add the following line to our `build.sbt` file:
 
 ```scala 
