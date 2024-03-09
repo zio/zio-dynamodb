@@ -5,8 +5,8 @@ import zio.dynamodb.AttributeValue
 
 object AttributeValueGen {
 
-  private val min = BigDecimal(-100)
-  private val max = BigDecimal(100)
+  private val min = BigDecimal(-1000000000.0000002)
+  private val max = BigDecimal(1000000000.0000001)
 
   private val anyBigDecimal                                    = Gen.bigDecimal(min, max)
   private val anyString                                        = Gen.alphaNumericStringBounded(1, 15).map(AttributeValue.String)
