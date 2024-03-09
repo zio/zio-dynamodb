@@ -79,29 +79,29 @@ object DynamodbJsonCodec {
     def decode(json: Json): Either[String, AttributeValue] =
       json match {
         // Note a Number AttributeValue is represented as a Json.Str
-        case Json.Obj(Chunk("N" -> Json.Str(d)))      =>
+        case Json.Obj(Chunk(("N", Json.Str(d))))       =>
           Try(BigDecimal(d)).fold(
             _ => Left(s"Invalid Number $d"),
             n => Right(AttributeValue.Number(n))
           )
-        case Json.Obj(Chunk("S" -> Json.Str(s)))      => Right(AttributeValue.String(s))
-        case Json.Obj(Chunk("BOOL" -> Json.Bool(b)))  => Right(AttributeValue.Bool(b))
-        case Json.Obj(Chunk("NULL" -> Json.Null))     => Right(AttributeValue.Null)
-        case Json.Obj(Chunk("L" -> Json.Arr(a)))      => decodeL(a.toList, AttributeValue.List.empty)
-        case Json.Obj(Chunk("SS" -> Json.Arr(chunk))) => decodeSS(chunk.toList, AttributeValue.StringSet.empty)
-        case Json.Obj(Chunk("NS" -> Json.Arr(chunk))) => decodeNS(chunk.toList, AttributeValue.NumberSet.empty)
-        case Json.Obj(Chunk("M" -> Json.Obj(fields))) => createMap(fields, AttributeValue.Map.empty)
-        case b @ Json.Obj(Chunk("B" -> _))            => Left(s"The Binary type is not supported yet, found: $b")
-        case bs @ Json.Obj(Chunk("BS" -> _))          => Left(s"The Binary Set type is not supported yet, found: $bs")
-        case Json.Obj(fields) if fields.isEmpty       => Left("empty AttributeValue Map found")
-        case Json.Obj(fields)                         =>
+        case Json.Obj(Chunk(("S", Json.Str(s))))       => Right(AttributeValue.String(s))
+        case Json.Obj(Chunk((("BOOL", Json.Bool(b))))) => Right(AttributeValue.Bool(b))
+        case Json.Obj(Chunk(("NULL", Json.Null)))      => Right(AttributeValue.Null)
+        case Json.Obj(Chunk(("L", Json.Arr(a))))       => decodeL(a.toList, AttributeValue.List.empty)
+        case Json.Obj(Chunk(("SS", Json.Arr(chunk))))  => decodeSS(chunk.toList, AttributeValue.StringSet.empty)
+        case Json.Obj(Chunk(("NS", Json.Arr(chunk))))  => decodeNS(chunk.toList, AttributeValue.NumberSet.empty)
+        case Json.Obj(Chunk(("M", Json.Obj(fields))))  => createMap(fields, AttributeValue.Map.empty)
+        case b @ Json.Obj(Chunk(("B", _)))             => Left(s"The Binary type is not supported yet, found: $b")
+        case bs @ Json.Obj(Chunk(("BS", _)))           => Left(s"The Binary Set type is not supported yet, found: $bs")
+        case Json.Obj(fields) if fields.isEmpty        => Left("empty AttributeValue Map found")
+        case Json.Obj(fields)                          =>
           createMap(fields, AttributeValue.Map.empty)
         // for collections
-        case Json.Str(s)                              => Right(AttributeValue.String(s))
-        case Json.Bool(b)                             => Right(AttributeValue.Bool(b))
-        case Json.Null                                => Right(AttributeValue.Null)
+        case Json.Str(s)                               => Right(AttributeValue.String(s))
+        case Json.Bool(b)                              => Right(AttributeValue.Bool(b))
+        case Json.Null                                 => Right(AttributeValue.Null)
         // Note Json.Num is handled via Json.Str
-        case n @ Json.Num(_)                          => Left(s"Unexpected Num $n")
+        case n @ Json.Num(_)                           => Left(s"Unexpected Num $n")
 
         case a @ Json.Arr(_) => Left(s"top level arrays are not supported, found $a")
       }
