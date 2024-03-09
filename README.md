@@ -41,7 +41,7 @@ AWS tools like the CLI and Console read/write a special JSON representation of d
 
 ```scala 
 
-To use the new Dynamodb interop module, we need to also add the following line to our `build.sbt` file:
+To use the new Dynamodb JSON module, we need to also add the following line to our `build.sbt` file:
 
 ```scala
 libraryDependencies ++= Seq(
