@@ -22,7 +22,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
 
   val pbtSuite = suite("property based testing suite")(
     test("round trip encode and decode") {
-      checkRoundTrip(debug = true)
+      checkRoundTrip(debug = false)
     }
   )
 
