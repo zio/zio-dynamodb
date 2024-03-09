@@ -10,7 +10,7 @@ import zio.schema.Schema
  * zio-dynamodb-json is a new experimental module designed for debugging and troubleshooting purposes - it should not be used in production code.
  * It works at the level of the AttributeValue type and so works with both the low level and high level APIs.
  * Note ATM it does not support the Binary and Binary Set types.
- * 
+ *
  * Some example use cases include:
  * - visualizing the Attribute Value representation of a case class during model development
  * - production troubleshooting - grabbing DDB JSON from the AWS console in production and decoding it to a case class for debugging
