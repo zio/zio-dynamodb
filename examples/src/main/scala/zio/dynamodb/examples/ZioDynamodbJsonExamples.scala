@@ -6,6 +6,15 @@ import zio.schema.annotation.discriminatorName
 
 import zio.schema.Schema
 
+/**
+ * zio-dynamodb-json is a new experimental module designed for debugging and troubleshooting purposes - it should not be used in production code.
+ * It works at the level of the AttributeValue type and so works with both the low level and high level APIs.
+ * Note ATM it does not support the Binary and Binary Set types.
+ * 
+ * Some example use cases include:
+ * - visualizing the Attribute Value representation of a case class during model development
+ * - production troubleshooting - grabbing DDB JSON from the AWS console in production and decoding it to a case class for debugging
+ */
 object ZioDynamodbJsonExample extends App {
   @discriminatorName("invoiceType")
   sealed trait Invoice
@@ -23,7 +32,7 @@ object ZioDynamodbJsonExample extends App {
 
   // get the rendered json string from a case class
   val preBilled  = Invoice.PreBilled("id", "sku")
-  val jsonString = preBilled.toJsonString[Invoice]
+  val jsonString = preBilled.toJsonString[Invoice] // requires "import zio.dynamodb.json._"
   println(jsonString) // {"sku":{"S":"sku"},"id":{"S":"id"},"invoiceType":{"S":"PreBilled"}}
 
   // decode the json string to a case class
