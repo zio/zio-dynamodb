@@ -7,7 +7,7 @@ import zio.json.ast.Json
 
 import scala.util.Try
 
-private[json] object DynamodbJsonCodec {
+private[dynamodb] object DynamodbJsonCodec {
 
   object Encoder {
     def encode(av: AttributeValue): Json =
