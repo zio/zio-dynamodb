@@ -35,5 +35,4 @@ package object json {
     av.decode(Schema[A])
   }
 
-
 }
