@@ -9,10 +9,10 @@ object AttributeValueGen {
   private val max = BigDecimal(1000000000.0000001)
 
   private val anyBigDecimal                                    = Gen.bigDecimal(min, max)
-  private val anyString                                        = Gen.alphaNumericStringBounded(1, 15).map(AttributeValue.String)
+  private val anyString                                        = Gen.alphaNumericStringBounded(1, 15).map(AttributeValue.String.apply)
   private val anyNumber                                        =
-    anyBigDecimal.map(AttributeValue.Number)
-  private val anyBool                                          = Gen.boolean.map(AttributeValue.Bool)
+    anyBigDecimal.map(AttributeValue.Number.apply)
+  private val anyBool                                          = Gen.boolean.map(AttributeValue.Bool.apply)
   private val anyPrimitive: Gen[Any, AttributeValue]           =
     Gen.oneOf(
       anyString,

@@ -2,7 +2,7 @@ package zio.dynamodb.json
 
 import zio.test.ZIOSpecDefault
 import zio.test.assertTrue
-import zio.schema.DeriveSchema
+import zio.schema.{DeriveSchema, Schema}
 import zio.schema.annotation.discriminatorName
 
 object SyntaxSpec extends ZIOSpecDefault {
@@ -11,13 +11,13 @@ object SyntaxSpec extends ZIOSpecDefault {
   object Invoice {
     final case class PreBilled(id: String, sku: String) extends Invoice
     object PreBilled {
-      implicit val schema = DeriveSchema.gen[PreBilled]
+      implicit val schema: Schema.CaseClass2[String, String, PreBilled] = DeriveSchema.gen[PreBilled]
     }
     final case class Billed(id: String, sku: String, cost: Int) extends Invoice
     object Billed    {
-      implicit val schema = DeriveSchema.gen[Billed]
+      implicit val schema: Schema.CaseClass3[String, String, Int, Billed] = DeriveSchema.gen[Billed]
     }
-    implicit val schema = DeriveSchema.gen[Invoice]
+    implicit val schema: Schema[Invoice] = DeriveSchema.gen[Invoice]
   }
 
   val sumTypeSuite = suite("Sum type suite")(

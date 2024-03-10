@@ -50,7 +50,6 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
         ("count"  -> AttributeValue.Number(BigDecimal(42))) +
         ("isTest" -> AttributeValue.Bool(true))
       val encoded = DynamodbJsonCodec.Encoder.encode(avMap)
-      val s       = encoded.toJson
       assert(encoded)(
         equalTo(
           Json.Obj(
@@ -65,7 +64,6 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
       val avMap   = AttributeValue.Map.empty + ("foo" -> (AttributeValue.Map.empty + ("name" -> AttributeValue
         .String("Avi"))))
       val encoded = DynamodbJsonCodec.Encoder.encode(avMap)
-      val s       = encoded.toJson
       assert(encoded)(
         equalTo(
           Json.Obj(
