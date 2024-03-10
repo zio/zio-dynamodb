@@ -43,7 +43,7 @@ lazy val root =
   project
     .in(file("."))
     .settings(skip in publish := true)
-    .aggregate(zioDynamodb, zioDynamodbCe, examples /*, docs */ )
+    .aggregate(zioDynamodb, zioDynamodbCe, zioDynamodbJson, examples /*, docs */ )
 
 lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
   .enablePlugins(BuildInfoPlugin)
