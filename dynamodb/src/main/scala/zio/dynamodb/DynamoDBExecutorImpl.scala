@@ -99,9 +99,13 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
   def executeConstructor[A](constructor: Constructor[_, A]): ZIO[Any, Throwable, A] =
     constructor match {
       case c: GetItem          => executeGetItem(c)
-      case c: PutItem          => executePutItem(c)
+      case c: PutItem          =>
+        println(s"1 XXXXXXXXXXXX executeConstructor")
+        executePutItem(c)
       case c: BatchGetItem     => executeBatchGetItem(c)
-      case c: BatchWriteItem   => executeBatchWriteItem(c)
+      case c: BatchWriteItem   =>
+        println(s"2 XXXXXXXXXXXX executeConstructor")
+        executeBatchWriteItem(c)
       case _: ConditionCheck   => ZIO.none
       case c: ScanAll          => executeScanAll(c)
       case c: ScanSome         => executeScanSome(c)
@@ -119,7 +123,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
 
   override def execute[A](atomicQuery: DynamoDBQuery[_, A]): ZIO[Any, DynamoDBError, A] = {
     val result = atomicQuery match {
-      case constructor: Constructor[_, A] => executeConstructor(constructor)
+      case constructor: Constructor[_, A] =>
+        println(s"2 XXXXXXXXXXXX execute")
+        executeConstructor(constructor)
       case zip @ Zip(_, _, _)             => executeZip(zip)
       case map @ Map(_, _)                => executeMap(map)
       case Absolve(query)                 =>
@@ -156,7 +162,10 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
       .unit
 
   private def executePutItem(putItem: PutItem): ZIO[Any, Throwable, Option[Item]] =
-    dynamoDb.putItem(awsPutItemRequest(putItem)).mapBoth(_.toThrowable, _.attributes.toOption.map(dynamoDBItem(_)))
+    dynamoDb
+      .putItem(awsPutItemRequest(putItem))
+      .mapBoth(_.toThrowable, _.attributes.toOption.map(dynamoDBItem(_)))
+      .tap(x => ZIO.debug(s"XXXXXXXX putItem return val: $x"))
 
   private def executeGetItem(getItem: GetItem): ZIO[Any, Throwable, Option[Item]] =
     dynamoDb
@@ -228,6 +237,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
                                                              awsBatchWriteItemRequest(batchWriteItem.copy(requestItems = unprocessedItems))
                                                            )
                                                            .mapError(_.toThrowable)
+                           _                           = println(s"XXXXXXXXX executeBatchWriteItem: ${batchWriteItem.requestItems}\nresponse: $response")
                            responseUnprocessedItemsOpt = response.unprocessedItems
                                                            .map(map =>
                                                              mapOfListToMapOfSet(map.map {

@@ -481,10 +481,29 @@ object LiveSpec extends DynamoDBLocalSpec {
         }
       ),
       suite("basic usage")(
+        test("put and get item X") {
+          withDefaultTable { tableName =>
+            for {
+              rtrn1 <- putItem(
+                         tableName,
+                         Item(id -> first, "testName" -> "put and get item 1", number -> 20)
+                       ).returns(ReturnValues.AllOld).execute
+              rtrn2 <- putItem(
+                         tableName,
+                         Item(id -> first, "testName" -> "put and get item 2", number -> 20)
+                       ).returns(ReturnValues.AllOld).execute
+              _      = println(s"XXXXXXXXXX ReturnValues.AllNew rtrn1 = $rtrn1")
+              _      = println(s"XXXXXXXXXX ReturnValues.AllNew rtrn2 = $rtrn2")
+            } yield assertTrue(true)
+          }
+        },
         test("put and get item") {
           withDefaultTable { tableName =>
             for {
-              _      <- putItem(tableName, Item(id -> first, "testName" -> "put and get item", number -> 20)).execute
+              _      <- putItem(
+                          tableName,
+                          Item(id -> first, "testName" -> "put and get item", number -> 20)
+                        ).execute
               result <- getItem(tableName, PrimaryKey(id -> first, number -> 20)).execute
             } yield assert(result)(
               equalTo(Some(Item(id -> first, "testName" -> "put and get item", number -> 20)))

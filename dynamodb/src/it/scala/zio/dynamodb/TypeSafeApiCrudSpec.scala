@@ -44,6 +44,15 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
 
   private val putSuite =
     suite("put")(
+      test("with return value") {
+        withSingleIdKeyTable { tableName =>
+          for {
+            _    <- put(tableName, Person("1", "Smith", Some("John"), 21)).execute
+            rtrn <- put(tableName, Person("1", "Smith", Some("Smith"), 42)).execute
+            _     = println(s"XXXXXXXXXX rtrn: $rtrn")
+          } yield assertTrue(true)
+        }
+      },
       test("and get simple round trip") {
         withSingleIdKeyTable { tableName =>
           val person = Person("1", "Smith", Some("John"), 21)

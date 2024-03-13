@@ -489,8 +489,11 @@ object DynamoDBQuery {
 
   def putItem(tableName: String, item: Item): DynamoDBQuery[Any, Option[Item]] = PutItem(TableName(tableName), item)
 
+  def putItem2(tableName: String, item: Item, returnValues: ReturnValues): DynamoDBQuery[Any, Option[Item]] =
+    PutItem(TableName(tableName), item, returnValues = returnValues)
+
   def put[A: Schema](tableName: String, a: A): DynamoDBQuery[A, Option[A]] =
-    putItem(tableName, toItem(a)).map(_.flatMap(item => fromItem(item).toOption))
+    putItem2(tableName, toItem(a), returnValues = ReturnValues.AllOld).map(_.flatMap(item => fromItem(item).toOption))
 
   private[dynamodb] def toItem[A](a: A)(implicit schema: Schema[A]): Item =
     FromAttributeValue.attrMapFromAttributeValue
@@ -995,24 +998,39 @@ object DynamoDBQuery {
       constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem], Chunk[IndexedWriteItem])](
         (Chunk.empty, Chunk.empty, Chunk.empty)
       ) {
-        case ((nonBatched, gets, writes), (get @ GetItem(_, pk, pes, _, _), index))                         =>
-          if (projectionsContainPrimaryKey(pes, pk))
+        case ((nonBatched, gets, writes), (get @ GetItem(_, pk, pes, _, _), index))                              =>
+          if (projectionsContainPrimaryKey(pes, pk)) {
+            println(s"1 ZZZZZZZZZZ batched")
             (nonBatched, gets :+ (get -> index), writes)
-          else
-            (nonBatched :+ (get       -> index), gets, writes)
-        case ((nonBatched, gets, writes), (put @ PutItem(_, _, conditionExpression, _, _, _), index))       =>
-          conditionExpression match {
-            case Some(_) => (nonBatched :+ (put -> index), gets, writes)
-            case None    => (nonBatched, gets, writes :+ (put -> index))
+          } else {
+            println(s"2 ZZZZZZZZZZ batched")
+            (nonBatched :+ (get -> index), gets, writes)
           }
-        case ((nonBatched, gets, writes), (delete @ DeleteItem(_, _, conditionExpression, _, _, _), index)) =>
+        case ((nonBatched, gets, writes), (put @ PutItem(_, _, conditionExpression, _, _, returnValues), index)) =>
           conditionExpression match {
-            case Some(_) => (nonBatched :+ (delete -> index), gets, writes)
+            case Some(_) =>
+              println(s"3 ZZZZZZZZZZ batched")
+              (nonBatched :+ (put -> index), gets, writes)
+            case None    =>
+              println(s"4 ZZZZZZZZZZ batched")
+              if (returnValues != ReturnValues.None)
+                (nonBatched :+ (put               -> index), gets, writes)
+              else
+                (nonBatched, gets, writes :+ (put -> index))
+          }
+        case ((nonBatched, gets, writes), (delete @ DeleteItem(_, _, conditionExpression, _, _, _), index))      =>
+          conditionExpression match {
+            case Some(_) =>
+              println(s"5 ZZZZZZZZZZ batched")
+              (nonBatched :+ (delete -> index), gets, writes)
             case None    => (nonBatched, gets, writes :+ (delete -> index))
           }
-        case ((nonBatched, gets, writes), (nonGetItem, index))                                              =>
+        case ((nonBatched, gets, writes), (nonGetItem, index))                                                   =>
+          println(s"6 ZZZZZZZZZZ batched")
           (nonBatched :+ (nonGetItem -> index), gets, writes)
       }
+
+    println(s"ZZZZZZZZ indexedNonBatched $indexedNonBatched, indexedGets $indexedGets, indexedWrites $indexedWrites")
 
     val indexedBatchGetItem: (BatchGetItem, Chunk[Int]) = indexedGets
       .foldLeft[(BatchGetItem, Chunk[Int])]((BatchGetItem(), Chunk.empty)) {
