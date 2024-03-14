@@ -502,14 +502,14 @@ object LiveSpec extends DynamoDBLocalSpec {
             val originalPerson = Item(id -> first, "testName" -> "put and get item 1", number -> 20)
             val updatedPerson  = Item(id -> first, "testName" -> "put and get item 2", number -> 20)
             for {
-              _    <- putItem(
-                        tableName,
-                        originalPerson
-                      ).returns(ReturnValues.AllOld).execute
-              rtrn <- putItem(
-                        tableName,
-                        updatedPerson
-                      ).returns(ReturnValues.AllOld).execute
+              _       <- putItem(
+                           tableName,
+                           originalPerson
+                         ).returns(ReturnValues.AllOld).execute
+              rtrn    <- putItem(
+                           tableName,
+                           updatedPerson
+                         ).returns(ReturnValues.AllOld).execute
               updated <- getItem(tableName, PrimaryKey(id -> first, number -> 20)).execute
             } yield assertTrue(rtrn == Some(originalPerson) && updated == Some(updatedPerson))
           }
