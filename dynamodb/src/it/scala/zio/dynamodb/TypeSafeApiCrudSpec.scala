@@ -44,13 +44,15 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
 
   private val putSuite =
     suite("put")(
-      test("with return value") {
+      test("with ALL_OLD return values should return the old item") {
         withSingleIdKeyTable { tableName =>
+          val originalPerson = Person("1", "Smith", Some("John"), 21)
+          val updatedPerson  = Person("1", "Smith", Some("Smith"), 42)
           for {
-            _    <- put(tableName, Person("1", "Smith", Some("John"), 21)).execute
-            rtrn <- put(tableName, Person("1", "Smith", Some("Smith"), 42)).execute
-            _     = println(s"XXXXXXXXXX rtrn: $rtrn")
-          } yield assertTrue(true)
+            _       <- put(tableName, originalPerson).returns(ReturnValues.AllOld).execute
+            rtrn    <- put(tableName, updatedPerson).returns(ReturnValues.AllOld).execute
+            updated <- get(tableName)(Person.id.partitionKey === "1").execute.absolve
+          } yield assertTrue(rtrn == Some(originalPerson) && updated == updatedPerson)
         }
       },
       test("and get simple round trip") {
@@ -173,6 +175,35 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
     )
 
   private val updateSuite = suite("update")(
+    // Note ATM both ReturnValues.UpdatedNew and ReturnValues.UpdatedOld will potentially cause a decode error for the high level API
+    // if all the attributes are not updated as this will result in partial data being returned and hence a decode error -
+    // so should not be use. If these are required then use the low level API for now
+    test("with ALL_OLD return values should return the old item") {
+      withSingleIdKeyTable { tableName =>
+        val originalPerson = Person("1", "Smith", None, 21)
+        val updatedPerson  = originalPerson.copy(forename = Some("John"))
+        for {
+          _    <- put(tableName, originalPerson).execute
+          rtrn <- update(tableName)(Person.id.partitionKey === "1")(Person.forename.set(Some("John")))
+                    .returns(ReturnValues.AllOld)
+                    .execute
+          p    <- get(tableName)(Person.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(rtrn == Some(originalPerson) && p == updatedPerson)
+      }
+    },
+    test("with ALL_NEW return values should return the new item") {
+      withSingleIdKeyTable { tableName =>
+        val originalPerson = Person("1", "Smith", None, 21)
+        val updatedPerson  = originalPerson.copy(forename = Some("John"))
+        for {
+          _    <- put(tableName, originalPerson).execute
+          rtrn <- update(tableName)(Person.id.partitionKey === "1")(Person.forename.set(Some("John")))
+                    .returns(ReturnValues.AllNew)
+                    .execute
+          p    <- get(tableName)(Person.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(rtrn == Some(updatedPerson) && p == updatedPerson)
+      }
+    },
     test("sets a single field with an update expression when item exists") {
       withSingleIdKeyTable { tableName =>
         val person   = Person("1", "Smith", None, 21)
@@ -643,6 +674,15 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
   )
 
   private val deleteSuite = suite("delete")(
+    test("with ALL_OLD return values should return the old item") {
+      withSingleIdKeyTable { tableName =>
+        val originalPerson = Person("1", "Smith", Some("John"), 21)
+        for {
+          _    <- put(tableName, originalPerson).returns(ReturnValues.AllOld).execute
+          rtrn <- deleteFrom(tableName)(Person.id.partitionKey === "1").returns(ReturnValues.AllOld).execute
+        } yield assertTrue(rtrn == Some(originalPerson))
+      }
+    },
     test(
       "with an id exists condition expression, followed by a get, confirms item has been deleted"
     ) {

@@ -481,20 +481,37 @@ object LiveSpec extends DynamoDBLocalSpec {
         }
       ),
       suite("basic usage")(
-        test("put and get item X") {
+        test("delete item with ALL_OLD return values set should return all old values") {
           withDefaultTable { tableName =>
+            val personItem = Item(id -> first, "testName" -> "put and get item 1", number -> 20)
             for {
-              rtrn1 <- putItem(
-                         tableName,
-                         Item(id -> first, "testName" -> "put and get item 1", number -> 20)
-                       ).returns(ReturnValues.AllOld).execute
-              rtrn2 <- putItem(
-                         tableName,
-                         Item(id -> first, "testName" -> "put and get item 2", number -> 20)
-                       ).returns(ReturnValues.AllOld).execute
-              _      = println(s"XXXXXXXXXX ReturnValues.AllNew rtrn1 = $rtrn1")
-              _      = println(s"XXXXXXXXXX ReturnValues.AllNew rtrn2 = $rtrn2")
-            } yield assertTrue(true)
+              _    <- putItem(
+                        tableName,
+                        personItem
+                      ).execute
+              rtrn <- deleteItem(
+                        tableName,
+                        PrimaryKey(id -> first, number -> 20)
+                      ).returns(ReturnValues.AllOld).execute
+
+            } yield assertTrue(rtrn == Some(personItem))
+          }
+        },
+        test("put item with ALL_OLD return values set should return all old values") {
+          withDefaultTable { tableName =>
+            val originalPerson = Item(id -> first, "testName" -> "put and get item 1", number -> 20)
+            val updatedPerson  = Item(id -> first, "testName" -> "put and get item 2", number -> 20)
+            for {
+              _    <- putItem(
+                        tableName,
+                        originalPerson
+                      ).returns(ReturnValues.AllOld).execute
+              rtrn <- putItem(
+                        tableName,
+                        updatedPerson
+                      ).returns(ReturnValues.AllOld).execute
+              updated <- getItem(tableName, PrimaryKey(id -> first, number -> 20)).execute
+            } yield assertTrue(rtrn == Some(originalPerson) && updated == Some(updatedPerson))
           }
         },
         test("put and get item") {
