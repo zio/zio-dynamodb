@@ -32,10 +32,10 @@ addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
 
 val zioVersion             = "2.0.21"
-val zioAwsVersion          = "7.21.15.5"
+val zioAwsVersion          = "7.21.15.10"
 val zioSchemaVersion       = "0.4.17"
-val zioPreludeVersion      = "1.0.0-RC22"
-val zioInteropCats3Version = "23.0.0.8"
+val zioPreludeVersion      = "1.0.0-RC23"
+val zioInteropCats3Version = "23.0.03"
 val catsEffect3Version     = "3.5.3"
 val fs2Version             = "3.9.4"
 
@@ -43,7 +43,7 @@ lazy val root =
   project
     .in(file("."))
     .settings(skip in publish := true)
-    .aggregate(zioDynamodb, zioDynamodbCe, examples /*, docs */ )
+    .aggregate(zioDynamodb, zioDynamodbCe, zioDynamodbJson, examples /*, docs */ )
 
 lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
   .enablePlugins(BuildInfoPlugin)
@@ -281,7 +281,7 @@ lazy val examples = module("zio-dynamodb-examples", "examples")
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
-  .dependsOn(zioDynamodb, zioDynamodbCe)
+  .dependsOn(zioDynamodb, zioDynamodbCe, zioDynamodbJson)
 
 lazy val zioDynamodbCe =
   module("zio-dynamodb-ce", "interop/dynamodb-ce")
@@ -297,6 +297,23 @@ lazy val zioDynamodbCe =
         "dev.zio"       %% "zio-test"         % zioVersion % "test",
         "dev.zio"       %% "zio-test-sbt"     % zioVersion % "test",
         "dev.zio"       %% "zio-interop-cats" % zioInteropCats3Version
+      ),
+      testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
+    )
+    .dependsOn(zioDynamodb)
+
+lazy val zioDynamodbJson =
+  module("zio-dynamodb-json", "dynamodb-json")
+    .enablePlugins(BuildInfoPlugin)
+    .settings(buildInfoSettings("zio.dynamodb"))
+    .configs(IntegrationTest)
+    .settings(
+      resolvers += Resolver.sonatypeRepo("releases"),
+      fork := true,
+      libraryDependencies ++= Seq(
+        "dev.zio" %% "zio-test"     % zioVersion % "test",
+        "dev.zio" %% "zio-test-sbt" % zioVersion % "test",
+        "dev.zio" %% "zio-json"     % "0.6.2"
       ),
       testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
     )

@@ -6,6 +6,11 @@ import zio.prelude.ForEachOps
 
 final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFromAttributeValueAs { self =>
 
+  def toAttributeValue: AttributeValue =
+    ToAttributeValue.attrMapToAttributeValue.toAttributeValue(self)
+
+  def +(t: (String, AttributeValue)): AttrMap = AttrMap(map + t)
+
   def get[A](field: String)(implicit ev: FromAttributeValue[A]): Either[ItemError, A] =
     map
       .get(field)

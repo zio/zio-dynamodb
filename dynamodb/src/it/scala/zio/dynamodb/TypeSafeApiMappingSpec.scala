@@ -59,7 +59,7 @@ object TypeSafeApiMappingSpec extends DynamoDBLocalSpec {
   }
 
   override def spec: Spec[Environment with TestEnvironment with Scope, Any] =
-    suite("all")(
+    suite("TypeSafeApiMappingSpec")(
       topLevelSumTypeSuite,
       nestedSumTypeSuite
     ) @@ TestAspect.nondeterministic
