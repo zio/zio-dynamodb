@@ -8,7 +8,7 @@ object BuildHelper {
   val Scala212                = "2.12.18"
   val Scala213                = "2.13.8"
   val Scala3                  = "3.3.0"
-  private val SilencerVersion = "1.17.13"
+  private val SilencerVersion = "1.7.16"
 
   private val stdOptions = Seq(
     "-encoding",
