@@ -5,9 +5,13 @@ import zio.dynamodb.ConditionExpression._
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.schema.Schema
 import scala.collection.immutable.Set
+import scala.util.Try
 
 sealed trait AttributeValue { self =>
   type ScalaType
+
+  def toAttrMap: Either[ItemError, AttrMap] =
+    FromAttributeValue.attrMapFromAttributeValue.fromAttributeValue(self)
 
   def decode[A](implicit schema: Schema[A]): Either[ItemError, A] = Codec.decoder(schema)(self)
 
@@ -46,15 +50,40 @@ object AttributeValue {
   private[dynamodb] final case class Binary(value: Iterable[Byte])              extends AttributeValue
   private[dynamodb] final case class BinarySet(value: Iterable[Iterable[Byte]]) extends AttributeValue
   private[dynamodb] final case class Bool(value: Boolean)                       extends AttributeValue
-  private[dynamodb] final case class List(value: Iterable[AttributeValue])      extends AttributeValue
+  private[dynamodb] final case class List(value: Iterable[AttributeValue])      extends AttributeValue { self =>
+    def +(av: AttributeValue): List = List(self.value ++ Iterable(av))
+  }
+  private[dynamodb] object List {
+    val empty = List(Iterable.empty)
+  }
 
-  private[dynamodb] final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue
+  private[dynamodb] final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue { self =>
+    def +(t: (ScalaString, AttributeValue)): Map = {
+      val (s, av) = t
+      Map(self.value + ((String(s), av)))
+    }
+  }
+
+  private[dynamodb] object Map {
+    val empty = Map(ScalaMap.empty)
+  }
 
   private[dynamodb] final case class Number(value: BigDecimal)          extends AttributeValue
-  private[dynamodb] final case class NumberSet(value: Set[BigDecimal])  extends AttributeValue
+  private[dynamodb] final case class NumberSet(value: Set[BigDecimal])  extends AttributeValue { self =>
+    def +(s: ScalaString): Either[ScalaString, NumberSet] =
+      Try(BigDecimal(s)).toEither.left.map(_.getMessage).map(n => NumberSet(self.value + n))
+  }
+  private[dynamodb] object NumberSet {
+    val empty: NumberSet = NumberSet(Set.empty)
+  }
   private[dynamodb] case object Null                                    extends AttributeValue
   private[dynamodb] final case class String(value: ScalaString)         extends AttributeValue
-  private[dynamodb] final case class StringSet(value: Set[ScalaString]) extends AttributeValue
+  private[dynamodb] final case class StringSet(value: Set[ScalaString]) extends AttributeValue { self =>
+    def +(s: ScalaString): StringSet = StringSet(self.value + s)
+  }
+  private[dynamodb] object StringSet {
+    val empty: StringSet = StringSet(Set.empty)
+  }
 
   def apply[A](a: A)(implicit ev: ToAttributeValue[A]): AttributeValue.WithScalaType[A] =
     ev.toAttributeValue(a).asInstanceOf[AttributeValue.WithScalaType[A]]

@@ -140,6 +140,12 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case _                          => self
     }
 
+  /**
+   * Note for `update(...)` ATM both ReturnValues.UpdatedNew and ReturnValues.UpdatedOld will potentially cause a decode error for the high level API
+   * if all the attributes are not updated as this will result in partial data being returned and hence a decode error so should not be use.
+   *
+   * If these are required then use the low level API for now.
+   */
   def returns(returnValues: ReturnValues): DynamoDBQuery[In, Out] =
     self match {
       case Zip(left, right, zippable) => Zip(left.returns(returnValues), right.returns(returnValues), zippable)
@@ -995,22 +1001,35 @@ object DynamoDBQuery {
       constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem], Chunk[IndexedWriteItem])](
         (Chunk.empty, Chunk.empty, Chunk.empty)
       ) {
-        case ((nonBatched, gets, writes), (get @ GetItem(_, pk, pes, _, _), index))                         =>
+        case ((nonBatched, gets, writes), (get @ GetItem(_, pk, pes, _, _), index))                              =>
           if (projectionsContainPrimaryKey(pes, pk))
             (nonBatched, gets :+ (get -> index), writes)
           else
             (nonBatched :+ (get       -> index), gets, writes)
-        case ((nonBatched, gets, writes), (put @ PutItem(_, _, conditionExpression, _, _, _), index))       =>
+        case ((nonBatched, gets, writes), (put @ PutItem(_, _, conditionExpression, _, _, returnValues), index)) =>
           conditionExpression match {
-            case Some(_) => (nonBatched :+ (put -> index), gets, writes)
-            case None    => (nonBatched, gets, writes :+ (put -> index))
+            case Some(_) =>
+              (nonBatched :+ (put -> index), gets, writes)
+            case None    =>
+              if (returnValues != ReturnValues.None)
+                (nonBatched :+ (put               -> index), gets, writes)
+              else
+                (nonBatched, gets, writes :+ (put -> index))
           }
-        case ((nonBatched, gets, writes), (delete @ DeleteItem(_, _, conditionExpression, _, _, _), index)) =>
+        case (
+              (nonBatched, gets, writes),
+              (delete @ DeleteItem(_, _, conditionExpression, _, _, returnValues), index)
+            ) =>
           conditionExpression match {
-            case Some(_) => (nonBatched :+ (delete -> index), gets, writes)
-            case None    => (nonBatched, gets, writes :+ (delete -> index))
+            case Some(_) =>
+              (nonBatched :+ (delete -> index), gets, writes)
+            case None    =>
+              if (returnValues != ReturnValues.None)
+                (nonBatched :+ (delete               -> index), gets, writes)
+              else
+                (nonBatched, gets, writes :+ (delete -> index))
           }
-        case ((nonBatched, gets, writes), (nonGetItem, index))                                              =>
+        case ((nonBatched, gets, writes), (nonGetItem, index))                                                   =>
           (nonBatched :+ (nonGetItem -> index), gets, writes)
       }
 
