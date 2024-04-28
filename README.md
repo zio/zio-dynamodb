@@ -45,7 +45,7 @@ libraryDependencies ++= Seq(
 )
 ```
 
-For an overview of the High level API please see the [ZIO DynamoDB cheat sheet](docs/cheat-sheet.md).
+For an overview of the High Level API please see the [ZIO DynamoDB cheat sheet](docs/cheat-sheet.md).
 
 ## Example
 
