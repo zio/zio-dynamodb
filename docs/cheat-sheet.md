@@ -40,5 +40,5 @@ For more detailed working examples please see the High Level API integration tes
 | [BatchWriteItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html) | _ <- `DynamoDBQuery.forEach(people)(p => put("personTable", p)).execute` |
 | | |
 | [TransactGetItems](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactGetItems.html) | `val getJohn      = get("personTable")(Person.id.partitionKey === "1")`<br>`val getSmith = get("personTable")(Person.id.partitionKey === "2")`<br>`tuple <- (getJohn zip getSmith).transaction.execute` |
-| [TransactWriteItems](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactWriteItems.html) | `val putJohn = put("personTable", Person(1, "John", 2020)`<br>`val putSmith = put("personTable", Person(2, "Smith", 2024)`<br>`_ <- (putJohn zip putSmith).transaction.execute` |
+| [TransactWriteItems](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactWriteItems.html) | `val putJohn = put("personTable", Person(1, "John", 2020))`<br>`val putSmith = put("personTable", Person(2, "Smith", 2024))`<br>`_ <- (putJohn zip putSmith).transaction.execute` |
 

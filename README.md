@@ -45,7 +45,7 @@ libraryDependencies ++= Seq(
 )
 ```
 
-For examples please see [examples sbt module](examples/src/main/scala/zio/dynamodb/examples/ZioDynamodbJsonExamples.scala).
+For an overview of the High level API please see the [ZIO DynamoDB cheat sheet](docs/cheat-sheet.md).
 
 ## Example
 
