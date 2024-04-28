@@ -14,6 +14,8 @@ ZIO DynamoDB is a library that is used for type-safe, efficient, and boilerplate
 
 Under the hood we use the excellent [ZIO AWS](https://zio.dev/zio-aws) library for type-safe DynamoDB access, and the awesome [ZIO Schema](https://zio.dev/zio-schema) library for schema derived codecs (see here for documentation on how to [customise these through annotations](docs/codec-customization.md)).
 
+For an overview of the High Level API please see the [ZIO DynamoDB cheat sheet](docs/cheat-sheet.md).
+
 ## Installation
 
 To use ZIO DynamoDB, we need to add the following line to our `build.sbt` file:
@@ -44,8 +46,6 @@ libraryDependencies ++= Seq(
   "dev.zio" %% "zio-dynamodb-json" % <SNAPSHOT-VERSION>
 )
 ```
-
-For an overview of the High Level API please see the [ZIO DynamoDB cheat sheet](docs/cheat-sheet.md).
 
 ## Example
 
