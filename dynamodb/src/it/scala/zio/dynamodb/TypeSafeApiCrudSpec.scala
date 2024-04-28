@@ -11,6 +11,7 @@ import zio.Chunk
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
 import zio.stream.ZStream
 import zio.ZIO
+import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException
 
 object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
 
@@ -40,7 +41,13 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
   }
 
   override def spec =
-    suite("TypeSafeApiCrudSpec")(putSuite, updateSuite, deleteSuite, forEachSuite) @@ TestAspect.nondeterministic
+    suite("TypeSafeApiCrudSpec")(
+      putSuite,
+      updateSuite,
+      deleteSuite,
+      forEachSuite,
+      transactionSuite
+    ) @@ TestAspect.nondeterministic
 
   private val putSuite =
     suite("put")(
@@ -49,7 +56,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           val originalPerson = Person("1", "Smith", Some("John"), 21)
           val updatedPerson  = Person("1", "Smith", Some("Smith"), 42)
           for {
-            _       <- put(tableName, originalPerson).returns(ReturnValues.AllOld).execute
+            _       <- put(tableName, originalPerson).execute
             rtrn    <- put(tableName, updatedPerson).returns(ReturnValues.AllOld).execute
             updated <- get(tableName)(Person.id.partitionKey === "1").execute.absolve
           } yield assertTrue(rtrn == Some(originalPerson) && updated == updatedPerson)
@@ -754,7 +761,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
     test("with a put query") {
       withSingleIdKeyTable { tableName =>
         val person1 = Person("1", "Smith", Some("John"), 21)
-        val person2 = Person("2", "Tarlochan", Some("Peter"), 42)
+        val person2 = Person("2", "Jones", Some("Tarlochan"), 42)
         for {
           _      <- forEach(Chunk(person1, person2))(person => put(tableName, person)).execute
           stream <- scanAll[Person](tableName).execute
@@ -790,6 +797,40 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           stream <- scanAll[Person](tableName).execute
           people <- stream.runCollect
         } yield assertTrue(people.sortBy(_.id) == Chunk(person1.copy(age = 22), person2.copy(age = 43)))
+      }
+    }
+  )
+
+  val transactionSuite = suite("transactions")(
+    test("multiple get queries succeed (ie no AWS failures) within a transaction") {
+      withSingleIdKeyTable { tableName =>
+        val person1      = Person("1", "Smith", Some("John"), 21)
+        val person2      = Person("2", "Jones", Some("Tarlochan"), 42)
+        val getJohn      = get(tableName)(Person.id.partitionKey === "1")
+        val getTarlochan = get(tableName)(Person.id.partitionKey === "2")
+        for {
+          _      <- forEach(Chunk(person1, person2))(person => put(tableName, person)).execute
+          result <- (getJohn zip getTarlochan).transaction.execute.either
+        } yield assert(result)(isRight(equalTo((Right(person1), Right(person2)))))
+      }
+    },
+    test("multiple puts are atomic within a transaction") {
+      withSingleIdKeyTable { tableName =>
+        val person1    = Person("1", "Smith", Some("John"), 21)
+        val person2    = Person("2", "Jones", Some("Peter"), 42)
+        val putPerson1 = put(tableName, person1.copy(forename = Some("Updated"))).where(Person.id <> "2")
+        val putPerson2 = put(tableName, person2.copy(forename = Some("Updated"))).where(Person.id <> "2")
+        for {
+          _         <- forEach(Chunk(person1, person2))(person => put(tableName, person)).execute
+          result    <- (putPerson1 zip putPerson2).transaction.execute.either
+          hasTXError = result match {
+                         case Left(DynamoDBError.AWSError(_: TransactionCanceledException)) => true
+                         case _                                                             => false
+                       }
+          stream    <- scanAll[Person](tableName).execute
+          people    <- stream.runCollect
+        } yield assertTrue(hasTXError) && assertTrue(!people.exists(_.forename == Some("Updated")))
+      // without the transaction the 1st put would have succeeded
       }
     }
   )
