@@ -1,6 +1,6 @@
 # High Level API Cheat Sheet
 
-Note this guide assumes the reader has a basic knowledge of [AWS DynamoDB API](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.CoreComponents.html).
+Note this guide assumes the reader has some basic knowledge of [AWS DynamoDB API](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.CoreComponents.html).
 
 Assuming the below model
 ```scala
@@ -10,6 +10,8 @@ object Person {
   val (id, name, year) = ProjectionExpression.accessors[Person]
 }
 ```
+
+For more detailed working examples please see the High Level API integration tests [crud](../dynamodb/src/it/scala/zio/dynamodb/TypeSafeApiCrudSpec.scala), [mapping](../dynamodb/src/it/scala/zio/dynamodb/TypeSafeApiMappingSpec.scala), [scan and query](../dynamodb/src/it/scala/zio/dynamodb/TypeSafeScanAndQuerySpec.scala), [streaming](../dynamodb/src/it/scala/zio/dynamodb/TypeSafeStreamingUtilsSpec.scala)
 
 
 | AWS                           | ZIO DynamoDB |
@@ -30,13 +32,13 @@ object Person {
 |                               | |
 | [Scan](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Scan.html)                          |	`stream <- scanAll[Person]("personTable").execute`
 | [Scan with parallel processing](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Scan.html) |	`stream <- scanAll[Person]("personTable").parallel(42).execute`
-| [Scan with paging](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Scan.html)              |	`(people, lastEvaluatedKey) <- scanSome[Person](tableName, limit = 5).startKey(oldLastEvaluatedKey).execute`
+| [Scan with paging](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Scan.html)              |	`(people, lastEvaluatedKey) <- scanSome[Person]("personTable", limit = 5).startKey(oldLastEvaluatedKey).execute`
 | [Query](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html)                         |	`stream <- queryAll[Person]("personTable").whereKey(Person.name.contains("mi")).execute`
-| [Query with paging](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html)             |	`(people, lastEvaluatedKey) <- querySome[Person](tableName, limit = 5).whereKey(Person.name.contains("mi"))`
+| [Query with paging](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html)             |	`(people, lastEvaluatedKey) <- querySome[Person]("personTable", limit = 5).whereKey(Person.name.contains("mi"))`
 | | |
 | [BatchGetItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html) | `people <- DynamoDBQuery.forEach(listOfIds)(id => DynamoDBQuery.get[Person]("personTable")(Person.id.partitionKey === id)).execute`|
 | [BatchWriteItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html) | _ <- `DynamoDBQuery.forEach(people)(p => put("personTable", p)).execute` |
 | | |
-| [TransactGetItems](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactGetItems.html) | `people <- DynamoDBQuery.forEach(listOfIds)(p => DynamoDBQuery.get[Person]("personTable")(Person.id.partitionKey === p.id)).transaction.execute` |
-| [TransactWriteItems](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactWriteItems.html) | `_ <- DynamoDBQuery.forEach(listOfIds){ p => DynamoDBQuery.forEach(people)(p => put("personTable", p)).transaction.execute` |
+| [TransactGetItems](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactGetItems.html) | `val getJohn      = get("personTable")(Person.id.partitionKey === "1")`<br>`val getSmith = get("personTable")(Person.id.partitionKey === "2")`<br>`tuple <- (getJohn zip getSmith).transaction.execute` |
+| [TransactWriteItems](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactWriteItems.html) | `val putJohn = put("personTable", Person(1, "John", 2020)`<br>`val putSmith = put("personTable", Person(2, "Smith", 2024)`<br>`_ <- (putJohn zip putSmith).transaction.execute` |
 
