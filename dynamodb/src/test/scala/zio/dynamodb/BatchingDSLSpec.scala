@@ -18,7 +18,8 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
       TestDynamoDBExecutor.addTable(tableName3.value, "k3", primaryKeyT3 -> itemT3)
   )
 
-  override def spec: Spec[Environment, Any] = suite("Batching")(crudSuite, scanAndQuerySuite, batchingSuite).provideLayer(DynamoDBExecutor.test)
+  override def spec: Spec[Environment, Any] =
+    suite("Batching")(crudSuite, scanAndQuerySuite, batchingSuite).provideLayer(DynamoDBExecutor.test)
 
   private val crudSuite = suite("single Item CRUD suite")(
     test("getItem") {
