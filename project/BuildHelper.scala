@@ -22,26 +22,7 @@ object BuildHelper {
     "-Xfatal-warnings"
   )
 
-  /*
-    val std2xOptions = Seq(
-      "-language:higherKinds",
-      "-explaintypes",
-      "-Yrangepos",
-      "-Xlint:_,-missing-interpolator,-type-parameter-shadow,-infer-any",
-      "-Ypatmat-exhaust-depth",
-      "40",
-      "-Ywarn-numeric-widen",
-      "-Ywarn-value-discard",
-      "-Xsource:3.0"
-    )
-   */
-
   private val stdOpts2 = Seq(
-    // "-Yrangepos",
-    // "-Xlint:_,-type-parameter-shadow,-unused",
-    // "-Xsource:2.13",
-    // "-Ywarn-numeric-widen",
-    // "-Ywarn-value-discard"
     "-language:higherKinds",
     "-explaintypes",
     "-Yrangepos",
@@ -49,25 +30,11 @@ object BuildHelper {
     "-Ypatmat-exhaust-depth",
     "40",
     "-Ywarn-numeric-widen",
-    "-Ywarn-value-discard"
-//    "-Xsource:3.0"
+    "-Ywarn-value-discard",
+    "-Xsource:3.0"
   )
 
-  /*
-          "-opt-warnings",
-          "-Ywarn-extra-implicit",
-          "-Ywarn-unused",
-          "-Ymacro-annotations",
-          "-Ywarn-macros:after"
-   */
-
   private val stdOpts213 = Seq(
-    // "-Wunused:imports",
-    // "-Wvalue-discard",
-    // "-Wunused:patvars",
-    // "-Wunused:privates",
-    // "-Wunused:params",
-    // "-Wvalue-discard"
     "-opt-warnings",
     "-Ywarn-extra-implicit",
     "-Ywarn-unused",
@@ -75,25 +42,7 @@ object BuildHelper {
     "-Ywarn-macros:after"
   )
 
-  /*
-          "-Ypartial-unification",
-          "-opt-warnings",
-          "-Ywarn-extra-implicit",
-          "-Yno-adapted-args",
-          "-Ywarn-inaccessible",
-          "-Ywarn-nullary-override",
-          "-Ywarn-nullary-unit",
-          "-Wconf:cat=unused-nowarn:s"
-   */
   private val stdOptsUpto212 = Seq(
-    // "-Xfuture",
-    // "-Ypartial-unification",
-    // "-Ywarn-nullary-override",
-    // "-Yno-adapted-args",
-    // "-Ywarn-infer-any",
-    // "-Ywarn-inaccessible",
-    // "-Ywarn-nullary-unit",
-    // "-Ywarn-unused-import"
     "-Ypartial-unification",
     "-opt-warnings",
     "-Ywarn-extra-implicit",

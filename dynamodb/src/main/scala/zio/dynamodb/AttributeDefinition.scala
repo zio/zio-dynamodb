@@ -1,5 +1,8 @@
 package zio.dynamodb
 
+import scala.annotation.nowarn
+
+@nowarn
 final case class AttributeDefinition private (
   name: String,
   attributeType: PrimitiveValueType

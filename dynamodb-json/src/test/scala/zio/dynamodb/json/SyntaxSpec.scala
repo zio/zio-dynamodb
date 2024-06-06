@@ -4,6 +4,7 @@ import zio.test.ZIOSpecDefault
 import zio.test.assertTrue
 import zio.schema.{ DeriveSchema, Schema }
 import zio.schema.annotation.discriminatorName
+import zio.test.Spec
 
 object SyntaxSpec extends ZIOSpecDefault {
   @discriminatorName("invoiceType")
@@ -43,5 +44,5 @@ object SyntaxSpec extends ZIOSpecDefault {
     }
   )
 
-  val spec = suite("DynamodbJsonCodecSpec")(sumTypeSuite)
+  val spec: Spec[Environment, Any] = suite("DynamodbJsonCodecSpec")(sumTypeSuite)
 }

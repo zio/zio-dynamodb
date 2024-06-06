@@ -6,7 +6,7 @@ import zio.test.ZIOSpecDefault
 
 object NonEmptySetSpec extends ZIOSpecDefault {
 
-  override def spec =
+  override def spec: Spec[Environment, Any] =
     suite("NonEmptySet")(
       test("construction single param") {
         val actual = NonEmptySet(1)

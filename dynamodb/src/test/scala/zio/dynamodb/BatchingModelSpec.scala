@@ -9,7 +9,7 @@ import zio.test.ZIOSpecDefault
 
 object BatchingModelSpec extends ZIOSpecDefault with DynamoDBFixtures {
 
-  override def spec = suite("Batch Model")(batchGetItemSuite, batchWriteItemSuite)
+  override def spec: Spec[Environment, Any] = suite("Batch Model")(batchGetItemSuite, batchWriteItemSuite)
 
   private val batchGetItemSuite = suite("BatchGetItem")(
     test("should aggregate GetItems using +") {

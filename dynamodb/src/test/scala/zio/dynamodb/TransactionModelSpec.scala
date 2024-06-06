@@ -130,7 +130,7 @@ object TransactionModelSpec extends ZIOSpecDefault {
       )
     )
 
-  override def spec =
+  override def spec: Spec[Environment, Any] =
     suite("Transaction builder suite")(
       failureSuite.provideLayer(emptyDynamoDB >>> DynamoDBExecutor.live),
       successfulSuite.provideLayer(successCaseLayer >>> DynamoDBExecutor.live)

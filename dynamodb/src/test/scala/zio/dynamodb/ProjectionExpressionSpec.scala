@@ -4,6 +4,7 @@ import zio.dynamodb.ProjectionExpression.{ $, mapElement, MapElement, Root }
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test.Assertion._
 import zio.test.{ assert, assertTrue, ZIOSpecDefault }
+import zio.test.Spec
 
 object ProjectionExpressionSpec extends ZIOSpecDefault {
 
@@ -49,7 +50,7 @@ object ProjectionExpressionSpec extends ZIOSpecDefault {
 
   private val address1 = Address("Addr1")
 
-  override def spec =
+  override def spec: Spec[Environment, Any] =
     suite("ProjectionExpressionSpec")(
       TypeSafeSuite.typeSafeSuite,
       DollarFunctionSuite.typeUnsafeSuite,
