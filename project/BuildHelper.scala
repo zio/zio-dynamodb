@@ -75,7 +75,7 @@ object BuildHelper {
     "-Ywarn-macros:after"
   )
 
-/* 
+  /*
           "-Ypartial-unification",
           "-opt-warnings",
           "-Ywarn-extra-implicit",
@@ -84,16 +84,24 @@ object BuildHelper {
           "-Ywarn-nullary-override",
           "-Ywarn-nullary-unit",
           "-Wconf:cat=unused-nowarn:s"
- */  
+   */
   private val stdOptsUpto212 = Seq(
-    "-Xfuture",
+    // "-Xfuture",
+    // "-Ypartial-unification",
+    // "-Ywarn-nullary-override",
+    // "-Yno-adapted-args",
+    // "-Ywarn-infer-any",
+    // "-Ywarn-inaccessible",
+    // "-Ywarn-nullary-unit",
+    // "-Ywarn-unused-import"
     "-Ypartial-unification",
-    "-Ywarn-nullary-override",
+    "-opt-warnings",
+    "-Ywarn-extra-implicit",
     "-Yno-adapted-args",
-    "-Ywarn-infer-any",
     "-Ywarn-inaccessible",
+    "-Ywarn-nullary-override",
     "-Ywarn-nullary-unit",
-    "-Ywarn-unused-import"
+    "-Wconf:cat=unused-nowarn:s"
   )
 
   private def extraOptions(scalaVersion: String) =
