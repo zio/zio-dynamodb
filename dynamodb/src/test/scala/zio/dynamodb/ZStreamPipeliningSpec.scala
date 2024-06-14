@@ -7,6 +7,7 @@ import zio.schema.{ DeriveSchema, Schema }
 import zio.stream.ZStream
 import zio.test.Assertion.equalTo
 import zio.test.{ assert, assertTrue, ZIOSpecDefault }
+import zio.test.Spec
 
 object ZStreamPipeliningSpec extends ZIOSpecDefault {
   final case class Person(id: Int, name: String)
@@ -19,7 +20,7 @@ object ZStreamPipeliningSpec extends ZIOSpecDefault {
   private val people       = (1 to 200).map(i => Person(i, s"name$i")).toList
   private val personStream = ZStream.fromIterable(people)
 
-  override def spec =
+  override def spec: Spec[Environment, Any] =
     suite("ZStream piplelining suite")(
       test("round trip test") {
         for {

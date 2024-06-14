@@ -7,6 +7,7 @@ import zio.dynamodb.{ DynamoDBExecutor }
 import zio.schema.{ DeriveSchema, Schema }
 import zio.ZIOAppDefault
 import zio.dynamodb.ProjectionExpression
+import zio.ZIO
 
 object Main extends ZIOAppDefault {
 
@@ -24,7 +25,7 @@ object Main extends ZIOAppDefault {
     _      <- zio.Console.printLine(s"hello $person")
   } yield ()
 
-  override def run =
+  override def run: ZIO[Any, Throwable, Unit] =
     program.provide(
       netty.NettyHttpClient.default,
       config.AwsConfig.default, // uses real AWS dynamodb

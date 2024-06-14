@@ -6,7 +6,7 @@ import BuildInfoKeys._
 object BuildHelper {
   // Align with zio-schema since we have a deep dependency on it
   val Scala212                = "2.12.19"
-  val Scala213                = "2.13.8"
+  val Scala213                = "2.13.12"
   val Scala3                  = "3.3.0"
   private val SilencerVersion = "1.7.16"
 
@@ -23,31 +23,34 @@ object BuildHelper {
   )
 
   private val stdOpts2 = Seq(
+    "-language:higherKinds",
+    "-explaintypes",
     "-Yrangepos",
-    "-Xlint:_,-type-parameter-shadow,-unused",
-    "-Xsource:2.13",
+    "-Xlint:_,-missing-interpolator,-type-parameter-shadow,-infer-any",
+    "-Ypatmat-exhaust-depth",
+    "40",
     "-Ywarn-numeric-widen",
-    "-Ywarn-value-discard"
+    "-Ywarn-value-discard",
+    "-Xsource:3.0"
   )
 
   private val stdOpts213 = Seq(
-    "-Wunused:imports",
-    "-Wvalue-discard",
-    "-Wunused:patvars",
-    "-Wunused:privates",
-    "-Wunused:params",
-    "-Wvalue-discard"
+    "-opt-warnings",
+    "-Ywarn-extra-implicit",
+    "-Ywarn-unused",
+    "-Ymacro-annotations",
+    "-Ywarn-macros:after"
   )
 
   private val stdOptsUpto212 = Seq(
-    "-Xfuture",
     "-Ypartial-unification",
-    "-Ywarn-nullary-override",
+    "-opt-warnings",
+    "-Ywarn-extra-implicit",
     "-Yno-adapted-args",
-    "-Ywarn-infer-any",
     "-Ywarn-inaccessible",
+    "-Ywarn-nullary-override",
     "-Ywarn-nullary-unit",
-    "-Ywarn-unused-import"
+    "-Wconf:cat=unused-nowarn:s"
   )
 
   private def extraOptions(scalaVersion: String) =

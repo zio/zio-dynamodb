@@ -45,7 +45,7 @@ object ProjectionExpressionParserSpec extends ZIOSpecDefault {
 
   }
 
-  override def spec = suite("main")(mainSuite)
+  override def spec: Spec[Environment, Any] = suite("main")(mainSuite)
 
   private val mainSuite: Spec[Sized with TestConfig, Nothing] =
     suite("ProjectionExpression Parser")(

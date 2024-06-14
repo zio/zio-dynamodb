@@ -10,7 +10,7 @@ import scala.collection.immutable.ListMap
 import zio.test.ZIOSpecDefault
 
 object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
-  override def spec = suite("ItemEncoder Suite")(mainSuite, noDiscriminatorSuite)
+  override def spec: Spec[Environment, Any] = suite("ItemEncoder Suite")(mainSuite, noDiscriminatorSuite)
 
   private val mainSuite = suite("Main Suite")(
     test("encodes generic record") {

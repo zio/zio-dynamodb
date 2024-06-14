@@ -72,7 +72,7 @@ object DynamoDBLocalMain extends ZIOAppDefault {
     _           <- zio.Console.printLine(s"hello $maybePerson")
   } yield ()
 
-  override def run =
+  override def run: ZIO[Any, Throwable, Unit] =
     program.provide(dynamoDbLayer, studentTableLayer, DynamoDBExecutor.live)
 
 }
