@@ -7,7 +7,7 @@ import zio.test.ZIOSpecDefault
 object ToAttributeValueSpec extends ZIOSpecDefault {
   private val ScalaMap = scala.collection.immutable.Map
 
-  override def spec = suite("AttrMap suite")(simpleAttrMapSuite)
+  override def spec: Spec[Environment, Any] = suite("AttrMap suite")(simpleAttrMapSuite)
 
   val simpleAttrMapSuite = suite("Simple AttrMap suite")(
     test("AttrMap.empty.map equals empty map") {

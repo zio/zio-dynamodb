@@ -11,7 +11,7 @@ import scala.collection.immutable.ListMap
 import zio.Chunk
 
 object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
-  override def spec = suite("ItemDecoder Suite")(mainSuite, noDiscriminatorSuite)
+  override def spec: Spec[Environment, Any] = suite("ItemDecoder Suite")(mainSuite, noDiscriminatorSuite)
 
   private val mainSuite = suite("Decoder Suite")(
     test("decodes generic record") {

@@ -6,6 +6,7 @@ import zio.schema.{ DeriveSchema, Schema }
 import zio.stream.{ UStream, ZStream }
 import zio.ZIOAppDefault
 import zio.Console.printLine
+import zio.ZIO
 
 object BatchFromStreamExamples extends ZIOAppDefault {
 
@@ -21,7 +22,7 @@ object BatchFromStreamExamples extends ZIOAppDefault {
   private val personStream: UStream[Person] =
     ZStream.fromIterable(1 to 20).map(i => Person(i, s"name$i"))
 
-  override def run =
+  override def run: ZIO[Any, Throwable, Unit] =
     (for {
       _ <- TestDynamoDBExecutor.addTable("person", "id")
       // write to DB using the stream as the source of the data to write
