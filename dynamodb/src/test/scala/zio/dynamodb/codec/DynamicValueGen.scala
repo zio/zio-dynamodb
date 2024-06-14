@@ -5,6 +5,7 @@ import zio.test.{ Gen, Sized }
 import zio.Chunk
 
 import scala.collection.immutable.ListMap
+import scala.jdk.CollectionConverters.*
 
 object DynamicValueGen {
 
@@ -24,6 +25,8 @@ object DynamicValueGen {
       case typ: StandardType.FloatType.type          => gen(typ, Gen.float)
       case typ: StandardType.BigDecimalType.type     => gen(typ, Gen.double.map(d => java.math.BigDecimal.valueOf(d)))
       case typ: StandardType.BigIntegerType.type     => gen(typ, Gen.long.map(n => java.math.BigInteger.valueOf(n)))
+      case typ: StandardType.CurrencyType.type       =>
+        gen(typ, Gen.fromIterable(java.util.Currency.getAvailableCurrencies.asScala))
       case typ: StandardType.DayOfWeekType.type      => gen(typ, JavaTimeGen.anyDayOfWeek)
       case typ: StandardType.DurationType.type       => gen(typ, JavaTimeGen.anyDuration)
       case typ: StandardType.InstantType.type        => gen(typ, JavaTimeGen.anyInstant)
@@ -82,6 +85,7 @@ object DynamicValueGen {
       case Schema.Either(left, right, _)                                                                                                                                                              => Gen.oneOf(anyDynamicLeftValueOfSchema(left), anyDynamicRightValueOfSchema(right))
       case Schema.Transform(schema, _, _, _, _)                                                                                                                                                       => anyDynamicValueOfSchema(schema)
       case Schema.Fail(message, _)                                                                                                                                                                    => Gen.const(DynamicValue.Error(message))
+      case Schema.Fallback(left, right, _, _)                                                                                                                                                         => Gen.oneOf(anyDynamicLeftValueOfSchema(left), anyDynamicRightValueOfSchema(right)) // TODO: Avi - check
       case l @ Schema.Lazy(_)                                                                                                                                                                         => anyDynamicValueOfSchema(l.schema)
     }
   //scalafmt: { maxColumn = 120 }

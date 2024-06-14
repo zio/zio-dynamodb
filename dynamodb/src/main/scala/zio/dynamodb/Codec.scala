@@ -214,7 +214,7 @@ private[dynamodb] object Codec {
         case StandardType.DoubleType         => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
         case StandardType.BigDecimalType     => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
         case StandardType.BigIntegerType     => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-        case StandardType.UUIDType           => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.CurrencyType       => (a: A) => AttributeValue.String(a.toString)
         case StandardType.DayOfWeekType      => (a: A) => AttributeValue.String(a.toString)
         case StandardType.DurationType       => (a: A) => AttributeValue.String(a.toString)
         case StandardType.InstantType        => (a: A) => AttributeValue.String(a.toString)
@@ -226,6 +226,7 @@ private[dynamodb] object Codec {
         case StandardType.OffsetDateTimeType => (a: A) => AttributeValue.String(a.toString)
         case StandardType.OffsetTimeType     => (a: A) => AttributeValue.String(a.toString)
         case StandardType.PeriodType         => (a: A) => AttributeValue.String(a.toString)
+        case StandardType.UUIDType           => (a: A) => AttributeValue.String(a.toString)
         case StandardType.YearType           => yearEncoder
         case StandardType.YearMonthType      => (a: A) => AttributeValue.String(a.toString)
         case StandardType.ZonedDateTimeType  => (a: A) => AttributeValue.String(a.toString)
@@ -610,6 +611,13 @@ private[dynamodb] object Codec {
           (av: AttributeValue) =>
             FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av).flatMap { s =>
               Try(UUID.fromString(s)).toEither.left.map(iae => DecodingError(s"Invalid UUID: ${iae.getMessage}"))
+            }
+        case StandardType.CurrencyType       =>
+          (av: AttributeValue) =>
+            FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av).flatMap { s =>
+              Try(java.util.Currency.getInstance(s)).toEither.left.map(iae =>
+                DecodingError(s"Invalid Currency: ${iae.getMessage}")
+              )
             }
         case StandardType.DayOfWeekType      =>
           (av: AttributeValue) => javaTimeStringParser(av)(DayOfWeek.valueOf(_))
