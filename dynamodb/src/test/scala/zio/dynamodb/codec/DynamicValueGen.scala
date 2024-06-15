@@ -5,7 +5,7 @@ import zio.test.{ Gen, Sized }
 import zio.Chunk
 
 import scala.collection.immutable.ListMap
-import scala.jdk.CollectionConverters.*
+import scala.jdk.CollectionConverters._
 
 object DynamicValueGen {
 
