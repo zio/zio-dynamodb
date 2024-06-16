@@ -615,8 +615,8 @@ private[dynamodb] object Codec {
         case StandardType.CurrencyType       =>
           (av: AttributeValue) =>
             FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av).flatMap { s =>
-              Try(java.util.Currency.getInstance(s)).toEither.left.map(iae =>
-                DecodingError(s"Invalid Currency: ${iae.getMessage}")
+              Try(java.util.Currency.getInstance(s)).toEither.left.map(e =>
+                DecodingError(s"Invalid Currency: ${e.getMessage}")
               )
             }
         case StandardType.DayOfWeekType      =>
