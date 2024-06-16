@@ -70,6 +70,7 @@ object StandardTypeGen {
       case typ: StandardType.FloatType.type          => (typ -> Gen.float).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.DoubleType.type         => (typ -> Gen.double).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.BinaryType.type         => (typ -> Gen.chunkOf(Gen.byte)).asInstanceOf[StandardTypeAndGen[A]]
+      case typ: StandardType.ByteType.type           => (typ -> Gen.byte).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.CharType.type           => (typ -> Gen.asciiChar).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.UUIDType.type           => (typ -> Gen.uuid).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.BigDecimalType.type     => (typ -> javaBigDecimal).asInstanceOf[StandardTypeAndGen[A]]
@@ -88,6 +89,8 @@ object StandardTypeGen {
       case typ: StandardType.OffsetTimeType.type     =>
         (typ -> JavaTimeGen.anyOffsetTime).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.PeriodType.type         => (typ -> JavaTimeGen.anyPeriod).asInstanceOf[StandardTypeAndGen[A]]
+      case typ: StandardType.UnitType.type           =>
+        (typ -> Gen.unit).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.YearType.type           => (typ -> JavaTimeGen.anyYear).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.YearMonthType.type      => (typ -> JavaTimeGen.anyYearMonth).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.ZonedDateTimeType.type  =>
@@ -95,9 +98,5 @@ object StandardTypeGen {
       case typ: StandardType.ZoneIdType.type         => (typ -> JavaTimeGen.anyZoneId).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.ZoneOffsetType.type     =>
         (typ -> JavaTimeGen.anyZoneOffset).asInstanceOf[StandardTypeAndGen[A]]
-      case _                                         =>
-        // TODO: Avi - plug this gap
-        println("XXXXXXXXXXXXXXXXXXXXXXXX RAAAS CLAAAAAT! XXXXXXXXXXX")
-        (StandardType.UnitType -> Gen.unit).asInstanceOf[StandardTypeAndGen[A]]
     }
 }
