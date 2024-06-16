@@ -29,6 +29,14 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assertTrue(actual == Right("FOO"))
     },
+    test("decoded currency") {
+      val currency: java.util.Currency = java.util.Currency.getInstance("GBP")
+      val expected                     = CaseClassOfCurrency(currency)
+
+      val actual = DynamoDBQuery.fromItem[CaseClassOfCurrency](Item("c" -> "GBP"))
+
+      assert(actual)(isRight(equalTo(expected)))
+    },
     test("decoded list") {
       val expected = CaseClassOfList(List(1, 2))
 
