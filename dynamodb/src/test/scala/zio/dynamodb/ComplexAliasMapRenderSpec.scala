@@ -4,6 +4,7 @@ import zio.test.ZIOSpecDefault
 import zio.test.assertTrue
 import zio.schema.DeriveSchema
 import zio.schema.Schema
+import zio.test.Spec
 
 object ComplexAliasMapRenderSpec extends ZIOSpecDefault {
 
@@ -36,7 +37,7 @@ object ComplexAliasMapRenderSpec extends ZIOSpecDefault {
     val (green, red, amber) = ProjectionExpression.accessors[TrafficLight]
   }
 
-  override def spec =
+  override def spec: Spec[Environment, Any] =
     suite("ComplexAliasMapRenderSpec")(
       test("aliasMap should contain all names and values that appear in the rendered expression") {
 

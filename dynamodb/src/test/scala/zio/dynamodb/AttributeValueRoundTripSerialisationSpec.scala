@@ -15,7 +15,7 @@ object AttributeValueRoundTripSerialisationSpec extends ZIOSpecDefault {
     }
   })
 
-  override def spec = serialisationSuite
+  override def spec: Spec[Environment, Any] = serialisationSuite
 
   trait Serializable  {
     def genA: Gen[Sized, Element]

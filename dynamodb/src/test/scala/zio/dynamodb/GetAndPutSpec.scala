@@ -6,6 +6,7 @@ import zio.dynamodb.codec.Invoice
 import zio.dynamodb.codec.Invoice.PreBilled
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test.{ assertTrue, ZIOSpecDefault }
+import zio.test.Spec
 
 object GetAndPutSpec extends ZIOSpecDefault {
   final case class SimpleCaseClass2(id: Int, name: String)
@@ -22,10 +23,10 @@ object GetAndPutSpec extends ZIOSpecDefault {
   private val primaryKey1 = PrimaryKey("id" -> 1)
   private val primaryKey2 = PrimaryKey("id" -> 2)
 
-  override def spec    =
+  override def spec: Spec[Environment, Any] =
     suite("get and put suite")(getSuite, putSuite).provideLayer(DynamoDBExecutor.test("table1" -> "id"))
 
-  private val getSuite = suite("get item as SimpleCaseClass2")(
+  private val getSuite                      = suite("get item as SimpleCaseClass2")(
     test("that exists") {
       for {
         _     <- TestDynamoDBExecutor.addItems("table1", primaryKey1 -> Item("id" -> 1, "name" -> "Avi"))
