@@ -1,5 +1,8 @@
 package zio.dynamodb
 
+import scala.annotation.nowarn
+
+@nowarn
 private[dynamodb] final case class NonEmptySet[A] private (private val set: Set[A]) extends Iterable[A] {
   self =>
   def +(a: A): NonEmptySet[A]               = new NonEmptySet(set + a)

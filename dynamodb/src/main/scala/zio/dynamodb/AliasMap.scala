@@ -1,7 +1,9 @@
 package zio.dynamodb
 
 import scala.annotation.tailrec
+import scala.annotation.nowarn
 
+@nowarn
 private[dynamodb] final case class AliasMap private[dynamodb] (map: Map[AliasMap.Key, String], index: Int) { self =>
 
   private def +(entry: AttributeValue): (AliasMap, String) = {

@@ -6,6 +6,8 @@ import zio.schema.Schema
 import zio.schema.DeriveSchema
 import zio.test.TestAspect
 import zio.Chunk
+import zio.test.Spec
+import zio.Scope
 
 object TypeSafeStreamingUtilsSpec extends DynamoDBLocalSpec {
 
@@ -22,7 +24,7 @@ object TypeSafeStreamingUtilsSpec extends DynamoDBLocalSpec {
     val (id, forename)                                                   = ProjectionExpression.accessors[PersonLegacy]
   }
 
-  override def spec =
+  override def spec: Spec[Environment with Scope, Any] =
     suite("TypeSafeStreamingUtilsSpec")(
       test("migrates legacy data using batchReadFromStream and batchWriteFromStream") {
         withTwoSingleIdKeyTables { (personTable, personLegacyTable) =>

@@ -6,6 +6,7 @@ import zio.schema.{ DeriveSchema, Schema }
 import zio.ZIOAppDefault
 import zio.Console.printLine
 import zio.dynamodb.ProjectionExpression
+import zio.ZIO
 
 object SimpleDecodedExample extends ZIOAppDefault {
   val nestedItem       = Item("id" -> 2, "name" -> "Avi", "flag" -> true)
@@ -40,6 +41,6 @@ object SimpleDecodedExample extends ZIOAppDefault {
 
   } yield ()
 
-  override def run =
+  override def run: ZIO[Any, Throwable, Unit] =
     program.provide(DynamoDBExecutor.test("table1" -> "id"))
 }

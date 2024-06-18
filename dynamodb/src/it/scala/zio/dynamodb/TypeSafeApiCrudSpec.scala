@@ -12,6 +12,7 @@ import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedExce
 import zio.stream.ZStream
 import zio.ZIO
 import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException
+import zio.Scope
 
 object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
 
@@ -40,7 +41,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
     val (id, surname, addressList, addressMap, addressSet)                                                         = ProjectionExpression.accessors[PersonWithCollections]
   }
 
-  override def spec =
+  override def spec: Spec[Environment with Scope, Any] =
     suite("TypeSafeApiCrudSpec")(
       putSuite,
       updateSuite,

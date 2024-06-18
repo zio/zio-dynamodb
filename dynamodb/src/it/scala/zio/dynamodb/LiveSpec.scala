@@ -160,7 +160,7 @@ object LiveSpec extends DynamoDBLocalSpec {
     ConditionExpression.Operand.ValueOperand(AttributeValue(id))
   )
 
-  override def spec = mainSuite
+  override def spec: Spec[Environment with Scope, Any] = mainSuite
 
   final case class ExpressionAttrNames(id: String, num: Int, ttl: Option[Long]) // Note "ttl" is a reserved keyword
   object ExpressionAttrNames {
