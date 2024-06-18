@@ -85,7 +85,9 @@ import zio.{ Chunk, NonEmptyChunk, ZIO }
 
 import scala.collection.immutable.{ Map => ScalaMap }
 import software.amazon.awssdk.services.dynamodb.model.{ DynamoDbException => AwsSdkDynamoDbException }
+import scala.annotation.nowarn
 
+@nowarn
 private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynamoDb: DynamoDb)
     extends DynamoDBExecutor {
   import DynamoDBExecutorImpl._

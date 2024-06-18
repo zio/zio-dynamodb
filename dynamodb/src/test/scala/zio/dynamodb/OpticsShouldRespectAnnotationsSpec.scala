@@ -4,6 +4,7 @@ import zio.schema.annotation.{ caseName, discriminatorName, fieldName }
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test.Assertion.equalTo
 import zio.test.{ assert, ZIOSpecDefault }
+import zio.test.Spec
 
 object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
 
@@ -104,7 +105,7 @@ object OpticsShouldRespectAnnotationsSpec extends ZIOSpecDefault {
 
   }
 
-  override def spec =
+  override def spec: Spec[Environment, Any] =
     suite("OpticsShouldRespectAnnotationsSpec")(nonDiscriminatedSuite, discriminatedSuite)
 
   val discriminatedSuite = {

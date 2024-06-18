@@ -32,9 +32,9 @@ addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
 
 val zioVersion             = "2.1.3"
-val zioAwsVersion          = "7.21.15.12"
-val zioSchemaVersion       = "0.4.17"
-val zioPreludeVersion      = "1.0.0-RC25"
+val zioAwsVersion          = "7.21.15.13"
+val zioSchemaVersion       = "1.2.1"
+val zioPreludeVersion      = "1.0.0-RC27"
 val zioInteropCats3Version = "23.1.0.2"
 val catsEffect3Version     = "3.5.4"
 val fs2Version             = "3.10.2"
@@ -313,7 +313,7 @@ lazy val zioDynamodbJson =
       libraryDependencies ++= Seq(
         "dev.zio" %% "zio-test"     % zioVersion % "test",
         "dev.zio" %% "zio-test-sbt" % zioVersion % "test",
-        "dev.zio" %% "zio-json"     % "0.6.2"
+        "dev.zio" %% "zio-json"     % "0.7.0"
       ),
       testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
     )

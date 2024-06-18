@@ -10,7 +10,7 @@ import scala.collection.immutable.ListMap
 import zio.test.ZIOSpecDefault
 
 object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
-  override def spec = suite("ItemEncoder Suite")(mainSuite, noDiscriminatorSuite)
+  override def spec: Spec[Environment, Any] = suite("ItemEncoder Suite")(mainSuite, noDiscriminatorSuite)
 
   private val mainSuite = suite("Main Suite")(
     test("encodes generic record") {
@@ -28,6 +28,15 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       assert(av)(
         equalTo(AttributeValue.Map(Map(toAvString("string") -> toAvString("FOO"))))
       )
+    },
+    test("encodes a Currency") {
+      val expectedItem: Item           = Item("c" -> "GBP")
+      val currency: java.util.Currency = java.util.Currency.getInstance("GBP")
+      println(s"currency: $currency")
+
+      val item = DynamoDBQuery.toItem(CaseClassOfCurrency(currency))
+
+      assert(item)(equalTo(expectedItem))
     },
     test("encodes List of Int") {
       val expectedItem: Item = Item("nums" -> List(1, 2, 3))

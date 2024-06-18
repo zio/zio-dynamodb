@@ -21,10 +21,11 @@ import zio.test.Assertion
 import zio.Chunk
 
 import zio.schema.DeriveSchema
+import zio.test.Spec
 
 object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
 
-  override def spec =
+  override def spec: Spec[Environment, Any] =
     suite("Executor spec")(
       batchRetries
     )

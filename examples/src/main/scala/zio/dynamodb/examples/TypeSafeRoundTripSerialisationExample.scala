@@ -120,6 +120,6 @@ object TypeSafeRoundTripSerialisationExample extends ZIOAppDefault {
     _      <- printLine(s"item=$item")
   } yield ()
 
-  override def run =
+  override def run: ZIO[Any, Throwable, Unit] =
     program.provide(DynamoDBExecutor.test("table1" -> "id"))
 }
