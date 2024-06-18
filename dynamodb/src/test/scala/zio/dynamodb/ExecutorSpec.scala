@@ -15,10 +15,11 @@ import zio.test.{ assert, ZIOSpecDefault }
 import zio.{ Schedule, ULayer }
 
 import scala.collection.immutable.{ Map => ScalaMap }
+import zio.test.Spec
 
 object ExecutorSpec extends ZIOSpecDefault with DynamoDBFixtures {
 
-  override def spec =
+  override def spec: Spec[Environment, Any] =
     suite("Executor spec")(
       batchRetries
     )

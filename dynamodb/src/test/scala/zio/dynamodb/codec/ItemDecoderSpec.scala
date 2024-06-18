@@ -11,7 +11,7 @@ import scala.collection.immutable.ListMap
 import zio.Chunk
 
 object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
-  override def spec = suite("ItemDecoder Suite")(mainSuite, noDiscriminatorSuite)
+  override def spec: Spec[Environment, Any] = suite("ItemDecoder Suite")(mainSuite, noDiscriminatorSuite)
 
   private val mainSuite = suite("Decoder Suite")(
     test("decodes generic record") {
@@ -28,6 +28,14 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       val actual = Codec.decoder(enumSchema)(AttributeValue.Map(Map(toAvString("string") -> toAvString("FOO"))))
 
       assertTrue(actual == Right("FOO"))
+    },
+    test("decoded currency") {
+      val currency: java.util.Currency = java.util.Currency.getInstance("GBP")
+      val expected                     = CaseClassOfCurrency(currency)
+
+      val actual = DynamoDBQuery.fromItem[CaseClassOfCurrency](Item("c" -> "GBP"))
+
+      assert(actual)(isRight(equalTo(expected)))
     },
     test("decoded list") {
       val expected = CaseClassOfList(List(1, 2))

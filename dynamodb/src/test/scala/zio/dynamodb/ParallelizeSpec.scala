@@ -5,9 +5,10 @@ import zio.dynamodb.DynamoDBQuery._
 import zio.test.Assertion.equalTo
 import zio.test.assert
 import zio.test.ZIOSpecDefault
+import zio.test.Spec
 
 object ParallelizeSpec extends ZIOSpecDefault with DynamoDBFixtures {
-  override def spec = suite("Executor")(parallelizeSuite)
+  override def spec: Spec[Environment, Any] = suite("Executor")(parallelizeSuite)
 
   private val parallelizeSuite =
     suite(label = "parallelize")(

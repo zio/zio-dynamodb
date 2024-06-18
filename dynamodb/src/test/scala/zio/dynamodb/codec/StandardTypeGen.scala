@@ -5,6 +5,8 @@ import java.math.{ BigDecimal => JBigDecimal, BigInteger => JBigInt }
 import zio.test.{ Gen, Sized }
 import zio.schema.StandardType
 
+import scala.jdk.CollectionConverters._
+
 object StandardTypeGen {
 
   def anyStandardType[A]: Gen[Any, StandardType[A]] =
@@ -22,6 +24,7 @@ object StandardTypeGen {
           (StandardType.BigDecimalType),
           (StandardType.BigIntegerType),
           (StandardType.CharType),
+          (StandardType.CurrencyType),
           (StandardType.UUIDType),
           (StandardType.DayOfWeekType),
           (StandardType.DurationType),
@@ -56,6 +59,9 @@ object StandardTypeGen {
 
   def anyStandardTypeAndGen[A]: Gen[Any, StandardTypeAndGen[A]] =
     anyStandardType[A].map {
+      case typ: StandardType.CurrencyType.type       =>
+        val allCurrencies: List[java.util.Currency] = java.util.Currency.getAvailableCurrencies.asScala.toList
+        (typ -> Gen.fromIterable(allCurrencies)).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.StringType.type         => (typ -> Gen.string).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.BoolType.type           => (typ -> Gen.boolean).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.ShortType.type          => (typ -> Gen.short).asInstanceOf[StandardTypeAndGen[A]]
@@ -64,6 +70,7 @@ object StandardTypeGen {
       case typ: StandardType.FloatType.type          => (typ -> Gen.float).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.DoubleType.type         => (typ -> Gen.double).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.BinaryType.type         => (typ -> Gen.chunkOf(Gen.byte)).asInstanceOf[StandardTypeAndGen[A]]
+      case typ: StandardType.ByteType.type           => (typ -> Gen.byte).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.CharType.type           => (typ -> Gen.asciiChar).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.UUIDType.type           => (typ -> Gen.uuid).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.BigDecimalType.type     => (typ -> javaBigDecimal).asInstanceOf[StandardTypeAndGen[A]]
@@ -82,6 +89,8 @@ object StandardTypeGen {
       case typ: StandardType.OffsetTimeType.type     =>
         (typ -> JavaTimeGen.anyOffsetTime).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.PeriodType.type         => (typ -> JavaTimeGen.anyPeriod).asInstanceOf[StandardTypeAndGen[A]]
+      case typ: StandardType.UnitType.type           =>
+        (typ -> Gen.unit).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.YearType.type           => (typ -> JavaTimeGen.anyYear).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.YearMonthType.type      => (typ -> JavaTimeGen.anyYearMonth).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.ZonedDateTimeType.type  =>
@@ -89,6 +98,5 @@ object StandardTypeGen {
       case typ: StandardType.ZoneIdType.type         => (typ -> JavaTimeGen.anyZoneId).asInstanceOf[StandardTypeAndGen[A]]
       case typ: StandardType.ZoneOffsetType.type     =>
         (typ -> JavaTimeGen.anyZoneOffset).asInstanceOf[StandardTypeAndGen[A]]
-      case _                                         => (StandardType.UnitType -> Gen.unit).asInstanceOf[StandardTypeAndGen[A]]
     }
 }

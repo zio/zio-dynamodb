@@ -13,7 +13,7 @@ import java.time.ZoneOffset
 
 object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
 
-  override def spec =
+  override def spec: Spec[Environment, Any] =
     suite("encode then decode suite")(
       simpleSuite,
       eitherSuite,

@@ -30,6 +30,7 @@ import zio.prelude.ForEachOps
 import zio.schema.Schema
 import zio.stream.Stream
 import zio.{ Chunk, Schedule, ZIO, Zippable => _, _ }
+import scala.annotation.nowarn
 
 sealed trait DynamoDBQuery[-In, +Out] { self =>
 
@@ -1046,6 +1047,7 @@ object DynamoDBQuery {
     (indexedNonBatched, indexedBatchGetItem, indexedBatchWrite)
   }
 
+  @nowarn
   private[dynamodb] def parallelize[In, A](
     query: DynamoDBQuery[In, A]
   ): (Chunk[Constructor[In, Any]], Chunk[Any] => A) =

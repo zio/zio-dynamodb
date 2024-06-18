@@ -38,6 +38,7 @@ trait CodecTestFixtures {
     ]("boolean")(_.asInstanceOf[Boolean])(_.asInstanceOf[Any])(_.isInstanceOf[Boolean])
   )
 
+  lazy implicit val caseClassOfCurrencySchema: Schema[CaseClassOfCurrency]         = DeriveSchema.gen[CaseClassOfCurrency]
   lazy implicit val nestedCaseClass2Schema: Schema[NestedCaseClass2]               = DeriveSchema.gen[NestedCaseClass2]
   lazy implicit val simpleCaseClass3Schema: Schema[SimpleCaseClass3]               = DeriveSchema.gen[SimpleCaseClass3]
   lazy implicit val simpleCaseClass3SchemaOptional: Schema[SimpleCaseClass3Option] =

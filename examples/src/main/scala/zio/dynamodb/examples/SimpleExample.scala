@@ -24,6 +24,6 @@ object SimpleExample extends ZIOAppDefault {
     _       <- printLine(s"table scan results after 2 DeleteItems's: $xs2")
   } yield ()
 
-  override def run =
+  override def run: ZIO[Any, Throwable, Unit] =
     program.provide(DynamoDBExecutor.test)
 }
