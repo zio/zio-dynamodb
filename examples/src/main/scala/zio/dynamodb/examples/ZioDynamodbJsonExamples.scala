@@ -5,6 +5,7 @@ import zio.schema.DeriveSchema
 import zio.schema.annotation.discriminatorName
 
 import zio.schema.Schema
+import zio.dynamodb.AttrMap
 
 /**
  * zio-dynamodb-json is a new experimental module designed for debugging and troubleshooting purposes - it should not be used in production code.
@@ -34,6 +35,7 @@ object ZioDynamodbJsonExample extends App {
   val preBilled  = Invoice.PreBilled("id", "sku")
   val jsonString = preBilled.toJsonString[Invoice] // requires "import zio.dynamodb.json._"
   println(jsonString) // {"sku":{"S":"sku"},"id":{"S":"id"},"invoiceType":{"S":"PreBilled"}}
+  println(preBilled.toJsonStringPretty[Invoice])
 
   // decode the json string to a case class
   val errorOrInvoice = parse[Invoice](jsonString)
@@ -48,4 +50,8 @@ object ZioDynamodbJsonExample extends App {
     .map(item => item.toJsonString)
     .map(println) // {"sku":{"S":"sku"},"id":{"S":"id"},"invoiceType":{"S":"PreBilled"}}
 
+  // random AttrMap with no Schema
+  val attrMap = AttrMap("foo" -> "foo", "bar" -> "bar", "baz" -> "baz")
+  println(attrMap.toJsonString) // {"foo":{"S":"foo"},"bar":{"S":"bar"},"baz":{"S":"baz"}}
+  println(attrMap.toJsonStringPretty)
 }

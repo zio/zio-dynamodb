@@ -30,6 +30,8 @@ private[dynamodb] object DynamodbJsonCodec {
       }
 
     def attributeValueToJsonString(av: AttributeValue): String = encode(av).toJson
+
+    def attributeValueToJsonStringPretty(av: AttributeValue): String = encode(av).toJsonPretty
   }
   object Decoder {
     def createMap(fields: Chunk[(String, Json)], map: AttributeValue.Map): Either[String, AttributeValue.Map] =
