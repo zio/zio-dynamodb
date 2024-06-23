@@ -3,7 +3,7 @@ package zio.dynamodb.proofs
 import scala.annotation.implicitNotFound
 
 @implicitNotFound(
-  "DynamoDB does not support primary key type ${A} - allowed types are: String, Number, Binary and Options of those types"
+  "DynamoDB does not support primary key type ${A} - allowed types are: String, Number, Binary or an Option of those types"
 )
 sealed trait IsPrimaryKey[-A]
 
