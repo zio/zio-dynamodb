@@ -244,31 +244,31 @@ object TypeSafeScanAndQuerySpec extends DynamoDBLocalSpec {
     }
   )
 
-  final case class PersonGsi(id: String, accountId: String, surname: String, age: Int)
+  final case class PersonGsi(id: String, accountId: Option[String], surname: String, age: Int)
   object PersonGsi {
-    implicit val schema: Schema.CaseClass4[String, String, String, Int, PersonGsi] =
+    implicit val schema: Schema.CaseClass4[String, Option[String], String, Int, PersonGsi] =
       DeriveSchema.gen[PersonGsi]
-    val (id, accountId, surname, age)                                              = ProjectionExpression.accessors[PersonGsi]
+    val (id, accountId, surname, age)                                                      = ProjectionExpression.accessors[PersonGsi]
   }
 
   val gsiSuite =
     suite("Global Secondary Index suite")(
       test("query with global secondary index") {
         withIdAndAccountIdGsiTable { personTable =>
-          val person1 = PersonGsi("1", "account1", "Smith", 21)
-          val person2 = PersonGsi("2", "account1", "Jane", 42)
-          val person3 = PersonGsi("3", "account2", "Tarlochan", 42)
+          val person1 = PersonGsi("1", Option("account1"), "Smith", 21)
+          val person2 = PersonGsi("2", Option("account1"), "Jane", 42)
+          val person3 = PersonGsi("3", Option("account2"), "Tarlochan", 42)
           for {
             _         <- put(personTable, person1).execute
             _         <- put(personTable, person2).execute
             _         <- put(personTable, person3).execute
             stream    <- queryAll[PersonGsi](personTable)
-                           .whereKey(PersonGsi.accountId.partitionKey === "account1")
+                           .whereKey(PersonGsi.accountId.partitionKey === Option("account1"))
                            .indexName("accountId")
                            .execute
             xs        <- stream.runCollect
             t         <- querySome[PersonGsi](personTable, 3)
-                           .whereKey(PersonGsi.accountId.partitionKey === "account1")
+                           .whereKey(PersonGsi.accountId.partitionKey === Option("account1"))
                            .indexName("accountId")
                            .execute
             (xs2, lek) = t
