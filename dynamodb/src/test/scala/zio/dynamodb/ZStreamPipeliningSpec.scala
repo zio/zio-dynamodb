@@ -58,5 +58,5 @@ object ZStreamPipeliningSpec extends ZIOSpecDefault {
           )
         )
       }
-    ).provide(DynamoDBExecutor.test)
+    ).provideLayer(DynamoDBExecutor.test)
 }

@@ -42,5 +42,5 @@ object SimpleDecodedExample extends ZIOAppDefault {
   } yield ()
 
   override def run: ZIO[Any, Throwable, Unit] =
-    program.provide(DynamoDBExecutor.test("table1" -> "id"))
+    program.provideLayer(DynamoDBExecutor.test("table1" -> "id"))
 }
