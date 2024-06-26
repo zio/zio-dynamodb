@@ -35,6 +35,7 @@ object ZioDynamodbJsonExample extends App {
   val preBilled  = Invoice.PreBilled("id", "sku")
   val jsonString = preBilled.toJsonString[Invoice] // requires "import zio.dynamodb.json._"
   println(jsonString) // {"sku":{"S":"sku"},"id":{"S":"id"},"invoiceType":{"S":"PreBilled"}}
+  println(preBilled.toJsonStringPretty[Invoice])
 
   // decode the json string to a case class
   val errorOrInvoice = parse[Invoice](jsonString)
