@@ -833,6 +833,32 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(hasTXError) && assertTrue(!people.exists(_.forename == Some("Updated")))
       // without the transaction the 1st put would have succeeded
       }
+    },
+    test("get queries with multiple tables") {
+      withTwoSingleIdKeyTables { (tableName1, tableName2) =>
+        val person1      = Person("1", "Smith", Some("John"), 21)
+        val person2      = Person("2", "Jones", Some("Tarlochan"), 42)
+        val getJohn      = get(tableName1)(Person.id.partitionKey === "1")
+        val getTarlochan = get(tableName2)(Person.id.partitionKey === "2")
+        for {
+          _      <- put(tableName1, person1).execute
+          _      <- put(tableName2, person2).execute
+          result <- (getJohn zip getTarlochan).transaction.execute.either
+        } yield assert(result)(isRight(equalTo((Right(person1), Right(person2)))))
+      }
+    },
+    test("puts queries with multiple tables") {
+      withTwoSingleIdKeyTables { (tableName1, tableName2) =>
+        val person1    = Person("1", "Smith", Some("John"), 21)
+        val person2    = Person("2", "Jones", Some("Peter"), 42)
+        val putPerson1 = put(tableName1, person1)
+        val putPerson2 = put(tableName2, person2)
+        for {
+          _      <- (putPerson1 zip putPerson2).transaction.execute
+          found1 <- get(tableName1)(Person.id.partitionKey === person1.id).execute
+          found2 <- get(tableName2)(Person.id.partitionKey === person2.id).execute
+        } yield assertTrue(found1 == Right(person1) && found2 == Right(person2))
+      }
     }
   )
 
