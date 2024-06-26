@@ -18,7 +18,7 @@ For more detailed working examples please see the High Level API integration tes
 |-------------------------------| --- |
 | [GetItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html)                       | `person <- get("personTable")(Person.id.partitionKey === "1").execute` |
 | [UpdateItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html)                    | `_ <- update("personTable")(Person.id.partitionKey === "1")(Person.name.set("Foo")).execute` |
-| [PutItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_PutItem.html)                       | _ <- `put("personTable", Person(42, "John", 2020)).execute` |
+| [PutItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_PutItem.html)                       | _ <- `put("personTable", Person("42", "John", 2020)).execute` |
 | [DeleteItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_DeleteItem.html)                    | `_ <- deleteFrom("personTable")(Person.id.partitionKey === "1").execute` |
 |                               | |
 | [Projection Expressions](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.Attributes.html)        | `Person.id`, `Person.name`, `Person.year`  |
@@ -33,8 +33,8 @@ For more detailed working examples please see the High Level API integration tes
 | [Scan](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Scan.html)                          |	`stream <- scanAll[Person]("personTable").execute`
 | [Scan with parallel processing](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Scan.html) |	`stream <- scanAll[Person]("personTable").parallel(42).execute`
 | [Scan with paging](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Scan.html)              |	`(people, lastEvaluatedKey) <- scanSome[Person]("personTable", limit = 5).startKey(oldLastEvaluatedKey).execute`
-| [Query](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html)                         |	`stream <- queryAll[Person]("personTable").whereKey(Person.name.contains("mi")).execute`
-| [Query with paging](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html)             |	`(people, lastEvaluatedKey) <- querySome[Person]("personTable", limit = 5).whereKey(Person.name.contains("mi"))`
+| [Query](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html)                         |	`stream <- queryAll[Person]("personTable").whereKey(Person.id.partitionKey === id).execute`
+| [Query with paging](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html)             |	`(people, lastEvaluatedKey) <- querySome[Person]("personTable", limit = 5).whereKey(Person.id.partitionKey === "1").execute`
 | | |
 | [BatchGetItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html) | `people <- DynamoDBQuery.forEach(listOfIds)(id => DynamoDBQuery.get[Person]("personTable")(Person.id.partitionKey === id)).execute`|
 | [BatchWriteItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html) | _ <- `DynamoDBQuery.forEach(people)(p => put("personTable", p)).execute` |
