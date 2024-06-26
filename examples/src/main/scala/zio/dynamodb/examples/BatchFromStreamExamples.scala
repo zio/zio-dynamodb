@@ -42,5 +42,5 @@ object BatchFromStreamExamples extends ZIOAppDefault {
       _ <- batchReadFromStream("person", personIdStream)(id => Person.id.partitionKey === id)
              .mapZIOPar(4)(person => printLine(s"person=$person"))
              .runDrain
-    } yield ()).provide(DynamoDBExecutor.test)
+    } yield ()).provideLayer(DynamoDBExecutor.test)
 }
