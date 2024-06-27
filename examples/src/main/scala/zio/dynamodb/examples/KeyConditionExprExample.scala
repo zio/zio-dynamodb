@@ -112,7 +112,7 @@ object KeyConditionExprExample extends App {
     peAccountId.partitionKey === Some("1") && peEmailId.sortKey.between(Some("1"), Some("3"))
   val pk10: ExtendedCompositePrimaryKeyExpr[InvoiceWithDiscriminatorName]             =
     peAccountId.partitionKey === Some("1") && peEmailId.sortKey.beginsWith(Some("1"))
-  // val pk11: ExtendedCompositePrimaryKeyExpr[InvoiceWithDiscriminatorName]             = 
+  // val pk11: ExtendedCompositePrimaryKeyExpr[InvoiceWithDiscriminatorName]             =
   //   peAccountId.partitionKey === Some("1") && peAmount.sortKey.beginsWith(Some(1)) // does not compile as expected
 
 }
