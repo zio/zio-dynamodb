@@ -1,84 +1,129 @@
 package zio.dynamodb
 
-import zio.dynamodb.proofs.RefersTo
 import zio.dynamodb.proofs.CanSortKeyBeginsWith
 
 import zio.dynamodb.KeyConditionExpr.SortKeyEquals
 import zio.dynamodb.KeyConditionExpr.ExtendedSortKeyExpr
+import zio.dynamodb.ProjectionExpression.Unknown
 
-private[dynamodb] final case class SortKey[-From, +To](keyName: String) { self =>
+private[dynamodb] final case class SortKey[-From, +To](keyName: String)
+
+private[dynamodb] object SortKey {
   // all comparison ops apply to: Strings, Numbers, Binary values
-  def ===[To1 >: To, To2: ToAttributeValue, IsPrimaryKey](
-    value: To2
-  )(implicit ev: RefersTo[To1, To2]): SortKeyEquals[From] = {
-    val _ = ev
-    SortKeyEquals[From](
-      self.asInstanceOf[SortKey[From, To2]],
-      implicitly[ToAttributeValue[To2]].toAttributeValue(value)
-    )
-  }
-  def >[To1 >: To, To2: ToAttributeValue, IsPrimaryKey](
-    value: To2
-  )(implicit ev: RefersTo[To1, To2]): ExtendedSortKeyExpr[From, To2] = {
-    val _ = ev
-    ExtendedSortKeyExpr.GreaterThan(
-      self.asInstanceOf[SortKey[From, To2]],
-      implicitly(ToAttributeValue[To2]).toAttributeValue(value)
-    )
-  }
-  def <[To1 >: To, To2: ToAttributeValue, IsPrimaryKey](
-    value: To2
-  )(implicit ev: RefersTo[To1, To2]): ExtendedSortKeyExpr[From, To2] = {
-    val _ = ev
-    ExtendedSortKeyExpr.LessThan(
-      self.asInstanceOf[SortKey[From, To2]],
-      implicitly[ToAttributeValue[To2]].toAttributeValue(value)
-    )
-  }
-  def <>[To1 >: To, To2: ToAttributeValue, IsPrimaryKey](
-    value: To2
-  )(implicit ev: RefersTo[To1, To2]): ExtendedSortKeyExpr[From, To2] = {
-    val _ = ev
-    ExtendedSortKeyExpr.NotEqual(
-      self.asInstanceOf[SortKey[From, To2]],
-      implicitly(ToAttributeValue[To2]).toAttributeValue(value)
-    )
-  }
-  def <=[To1 >: To, To2: ToAttributeValue, IsPrimaryKey](
-    value: To2
-  )(implicit ev: RefersTo[To1, To2]): ExtendedSortKeyExpr[From, To2] = {
-    val _ = ev
-    ExtendedSortKeyExpr.LessThanOrEqual(
-      self.asInstanceOf[SortKey[From, To2]],
-      implicitly[ToAttributeValue[To2]].toAttributeValue(value)
-    )
-  }
-  def >=[To1 >: To, To2: ToAttributeValue, IsPrimaryKey](
-    value: To2
-  )(implicit ev: RefersTo[To1, To2]): ExtendedSortKeyExpr[From, To2] = {
-    val _ = ev
-    ExtendedSortKeyExpr.GreaterThanOrEqual(
-      self.asInstanceOf[SortKey[From, To2]],
-      implicitly[ToAttributeValue[To2]].toAttributeValue(value)
-    )
-  }
-  // applies to all PK types
-  def between[To: ToAttributeValue, IsPrimaryKey](min: To, max: To): ExtendedSortKeyExpr[From, To] =
-    ExtendedSortKeyExpr.Between[From, To](
-      self.asInstanceOf[SortKey[From, To]],
-      implicitly[ToAttributeValue[To]].toAttributeValue(min),
-      implicitly[ToAttributeValue[To]].toAttributeValue(max)
-    )
 
-  // beginsWith applies to: Strings, Binary values
-  def beginsWith[To1 >: To, To2: ToAttributeValue, IsPrimaryKey](
-    prefix: To2
-  )(implicit ev: CanSortKeyBeginsWith[To1, To2]): ExtendedSortKeyExpr[From, To2] = {
-    val _ = ev
-    ExtendedSortKeyExpr.BeginsWith[From, To2](
-      self.asInstanceOf[SortKey[From, To2]],
-      implicitly[ToAttributeValue[To2]].toAttributeValue(prefix)
-    )
+  implicit class SortKeyUnknownToOps[-From](val sk: SortKey[From, Unknown]) {
+    def ===[To: ToAttributeValue](
+      value: To
+    ): SortKeyEquals[From]                                                             =
+      SortKeyEquals(sk, implicitly[ToAttributeValue[To]].toAttributeValue(value))
+    def >[To: ToAttributeValue](
+      value: To
+    ): ExtendedSortKeyExpr[From, To]                                                   =
+      ExtendedSortKeyExpr.GreaterThan(
+        sk.asInstanceOf[SortKey[From, To]],
+        implicitly(ToAttributeValue[To]).toAttributeValue(value)
+      )
+    def <[To: ToAttributeValue](
+      value: To
+    ): ExtendedSortKeyExpr[From, To]                                                   =
+      ExtendedSortKeyExpr.LessThan(
+        sk.asInstanceOf[SortKey[From, To]],
+        implicitly[ToAttributeValue[To]].toAttributeValue(value)
+      )
+    def <>[To: ToAttributeValue](
+      value: To
+    ): ExtendedSortKeyExpr[From, To]                                                   =
+      ExtendedSortKeyExpr.NotEqual(
+        sk.asInstanceOf[SortKey[From, To]],
+        implicitly(ToAttributeValue[To]).toAttributeValue(value)
+      )
+    def <=[To: ToAttributeValue](
+      value: To
+    ): ExtendedSortKeyExpr[From, To]                                                   =
+      ExtendedSortKeyExpr.LessThanOrEqual(
+        sk.asInstanceOf[SortKey[From, To]],
+        implicitly[ToAttributeValue[To]].toAttributeValue(value)
+      )
+    def >=[To: ToAttributeValue](
+      value: To
+    ): ExtendedSortKeyExpr[From, To]                                                   =
+      ExtendedSortKeyExpr.GreaterThanOrEqual(
+        sk.asInstanceOf[SortKey[From, To]],
+        implicitly[ToAttributeValue[To]].toAttributeValue(value)
+      )
+    def between[To: ToAttributeValue](min: To, max: To): ExtendedSortKeyExpr[From, To] =
+      ExtendedSortKeyExpr.Between[From, To](
+        sk.asInstanceOf[SortKey[From, To]],
+        implicitly[ToAttributeValue[To]].toAttributeValue(min),
+        implicitly[ToAttributeValue[To]].toAttributeValue(max)
+      )
+    def beginsWith[To: ToAttributeValue](
+      prefix: To
+    )(implicit ev: CanSortKeyBeginsWith[_, To]): ExtendedSortKeyExpr[From, To] = {
+      val _ = ev
+      ExtendedSortKeyExpr.BeginsWith[From, To](
+        sk.asInstanceOf[SortKey[From, To]],
+        implicitly[ToAttributeValue[To]].toAttributeValue(prefix)
+      )
+    }
+  }
+
+  implicit class SortKeyOps[-From, To: ToAttributeValue](val sk: SortKey[From, To]) {
+    def ===(
+      value: To
+    ): SortKeyEquals[From]                                       =
+      SortKeyEquals(sk, implicitly[ToAttributeValue[To]].toAttributeValue(value))
+    def >(
+      value: To
+    ): ExtendedSortKeyExpr[From, To]                             =
+      ExtendedSortKeyExpr.GreaterThan(
+        sk.asInstanceOf[SortKey[From, To]],
+        implicitly(ToAttributeValue[To]).toAttributeValue(value)
+      )
+    def <(
+      value: To
+    ): ExtendedSortKeyExpr[From, To]                             =
+      ExtendedSortKeyExpr.LessThan(
+        sk.asInstanceOf[SortKey[From, To]],
+        implicitly[ToAttributeValue[To]].toAttributeValue(value)
+      )
+    def <>(
+      value: To
+    ): ExtendedSortKeyExpr[From, To]                             =
+      ExtendedSortKeyExpr.NotEqual(
+        sk.asInstanceOf[SortKey[From, To]],
+        implicitly(ToAttributeValue[To]).toAttributeValue(value)
+      )
+    def <=(
+      value: To
+    ): ExtendedSortKeyExpr[From, To]                             =
+      ExtendedSortKeyExpr.LessThanOrEqual(
+        sk.asInstanceOf[SortKey[From, To]],
+        implicitly[ToAttributeValue[To]].toAttributeValue(value)
+      )
+    def >=(
+      value: To
+    ): ExtendedSortKeyExpr[From, To]                             =
+      ExtendedSortKeyExpr.GreaterThanOrEqual(
+        sk.asInstanceOf[SortKey[From, To]],
+        implicitly[ToAttributeValue[To]].toAttributeValue(value)
+      )
+    def between(min: To, max: To): ExtendedSortKeyExpr[From, To] =
+      ExtendedSortKeyExpr.Between[From, To](
+        sk.asInstanceOf[SortKey[From, To]],
+        implicitly[ToAttributeValue[To]].toAttributeValue(min),
+        implicitly[ToAttributeValue[To]].toAttributeValue(max)
+      )
+    def beginsWith(
+      prefix: To
+    )(implicit ev: CanSortKeyBeginsWith[To, To]): ExtendedSortKeyExpr[From, To] = {
+      val _ = ev
+      ExtendedSortKeyExpr.BeginsWith[From, To](
+        sk.asInstanceOf[SortKey[From, To]],
+        implicitly[ToAttributeValue[To]].toAttributeValue(prefix)
+      )
+    }
+
   }
 
 }
