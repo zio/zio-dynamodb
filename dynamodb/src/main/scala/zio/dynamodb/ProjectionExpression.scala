@@ -523,8 +523,6 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
 
   type Unknown
 
-  type Untyped = ProjectionExpression[_, _]
-
   def some[A]: ProjectionExpression[Option[A], A] =
     ProjectionExpression.root.asInstanceOf[ProjectionExpression[Option[A], A]]
 
