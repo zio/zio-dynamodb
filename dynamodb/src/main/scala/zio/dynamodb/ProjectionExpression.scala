@@ -93,9 +93,6 @@ sealed trait ProjectionExpression[-From, +To] { self =>
   def isNull: ConditionExpression[From]      = isType(AttributeValueType.Null)
   def isStringSet: ConditionExpression[From] = isType(AttributeValueType.StringSet)
 
-  private def isType(attributeType: AttributeValueType): ConditionExpression[From] = // TODO: private so move down
-    ConditionExpression.AttributeType(self, attributeType)
-
   /**
    * Only applies to a string attribute
    */
@@ -129,6 +126,9 @@ sealed trait ProjectionExpression[-From, +To] { self =>
 
     loop(self, List.empty).reverse.mkString
   }
+
+  private def isType(attributeType: AttributeValueType): ConditionExpression[From] =
+    ConditionExpression.AttributeType(self, attributeType)
 
 }
 
