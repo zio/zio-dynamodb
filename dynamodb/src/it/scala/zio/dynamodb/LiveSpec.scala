@@ -182,208 +182,148 @@ object LiveSpec extends DynamoDBLocalSpec {
 
   val mainSuite =
     suite("live test")(
-      suite("key words in Key Condition Expressions")(
-        test("queryAll should handle keywords in primary key names using high level API") {
-          withPkKeywordsTable { tableName =>
-            val query = DynamoDBQuery
-              .queryAll[ExpressionAttrNamesPkKeywords](tableName)
-              .whereKey(
-                ExpressionAttrNamesPkKeywords.and.partitionKey === "and1" && ExpressionAttrNamesPkKeywords.source.sortKey === "source1"
-              )
-              .filter(ExpressionAttrNamesPkKeywords.ttl.notExists)
-            query.execute.flatMap(_.runDrain).exit.map { result =>
-              assert(result)(succeeds(isUnit))
-            }
-          }
-        },
-        test("queryAll should handle keywords in primary key name using low level API") {
-          withPkKeywordsTable { tableName =>
-            val query = DynamoDBQuery
-              .queryAll[ExpressionAttrNamesPkKeywords](tableName)
-              .whereKey($("and").partitionKey === "and1" && $("source").sortKey === "source1")
-              .filter(ExpressionAttrNamesPkKeywords.ttl.notExists)
-            query.execute.flatMap(_.runDrain).exit.map { result =>
-              assert(result)(succeeds(isUnit))
-            }
-          }
-        },
-        test("querySome should handle keywords in primary key name using high level API") {
-          withPkKeywordsTable { tableName =>
-            val query = DynamoDBQuery
-              .querySome[ExpressionAttrNamesPkKeywords](tableName, 1)
-              .whereKey(
-                ExpressionAttrNamesPkKeywords.and.partitionKey === "and1" && ExpressionAttrNamesPkKeywords.source.sortKey === "source1"
-              )
-              .filter(ExpressionAttrNamesPkKeywords.ttl.notExists)
-            for {
-              result <- query.execute
-            } yield assert(result._1)(hasSize(equalTo(0)))
-          }
-        },
-        test("querySome should handle keywords in primary key name using low level API") {
-          withPkKeywordsTable { tableName =>
-            val query = DynamoDBQuery
-              .querySome[ExpressionAttrNames](tableName, 1)
-              .whereKey($("and").partitionKey === "and1" && $("source").sortKey === "source1")
-              .filter(ExpressionAttrNames.ttl.notExists)
-            for {
-              result <- query.execute
-            } yield assert(result._1)(hasSize(equalTo(0)))
-          }
-        }
-      ),
-      suite("keywords in expression attribute names")(
-        suite("using high level api")(
-          test("scanAll should handle keyword") {
-            withDefaultTable { tableName =>
+      suite("key words suite")(
+        suite("High Level API should handle key words in Key Condition Expressions")(
+          test("queryAll should handle keywords in primary key names using high level API") {
+            withPkKeywordsTable { tableName =>
               val query = DynamoDBQuery
-                .scanAll[ExpressionAttrNames](tableName)
-                .filter(ExpressionAttrNames.ttl.notExists)
+                .queryAll[ExpressionAttrNamesPkKeywords](tableName)
+                .whereKey(
+                  ExpressionAttrNamesPkKeywords.and.partitionKey === "and1" && ExpressionAttrNamesPkKeywords.source.sortKey === "source1"
+                )
+                .filter(ExpressionAttrNamesPkKeywords.ttl.notExists)
               query.execute.flatMap(_.runDrain).exit.map { result =>
                 assert(result)(succeeds(isUnit))
               }
             }
           },
-          test("queryAll should handle keyword") {
-            withDefaultTable { tableName =>
+          test("queryAll should handle keywords in primary key name using low level API") {
+            withPkKeywordsTable { tableName =>
               val query = DynamoDBQuery
-                .queryAll[ExpressionAttrNames](tableName)
-                .whereKey(ExpressionAttrNames.id.partitionKey === "id")
-                .filter(ExpressionAttrNames.ttl.notExists)
+                .queryAll[ExpressionAttrNamesPkKeywords](tableName)
+                .whereKey($("and").partitionKey === "and1" && $("source").sortKey === "source1")
+                .filter(ExpressionAttrNamesPkKeywords.ttl.notExists)
               query.execute.flatMap(_.runDrain).exit.map { result =>
                 assert(result)(succeeds(isUnit))
               }
             }
           },
-          test("scanSome should handle keyword") {
-            withDefaultTable { tableName =>
+          test("querySome should handle keywords in primary key name using high level API") {
+            withPkKeywordsTable { tableName =>
               val query = DynamoDBQuery
-                .scanSome[ExpressionAttrNames](tableName, 1)
-                .filter(ExpressionAttrNames.ttl.notExists)
-
+                .querySome[ExpressionAttrNamesPkKeywords](tableName, 1)
+                .whereKey(
+                  ExpressionAttrNamesPkKeywords.and.partitionKey === "and1" && ExpressionAttrNamesPkKeywords.source.sortKey === "source1"
+                )
+                .filter(ExpressionAttrNamesPkKeywords.ttl.notExists)
               for {
                 result <- query.execute
-              } yield assert(result._1)(hasSize(equalTo(1))) && assert(result._1(0))(
-                equalTo(ExpressionAttrNames(second, 2, None))
-              ) && assert(result._2)(equalTo(Some(PrimaryKey("num" -> 2, "id" -> second))))
+              } yield assert(result._1)(hasSize(equalTo(0)))
             }
           },
-          test("querySome should handle keyword") {
-            withDefaultTable { tableName =>
+          test("querySome should handle keywords in primary key name using low level API") {
+            withPkKeywordsTable { tableName =>
               val query = DynamoDBQuery
                 .querySome[ExpressionAttrNames](tableName, 1)
-                .whereKey($(id).partitionKey === second && $(number).sortKey > 0)
+                .whereKey($("and").partitionKey === "and1" && $("source").sortKey === "source1")
                 .filter(ExpressionAttrNames.ttl.notExists)
-
               for {
                 result <- query.execute
-              } yield assert(result._1)(hasSize(equalTo(1))) && assert(result._1(0))(
-                equalTo(ExpressionAttrNames(second, 2, None))
-              ) && assert(result._2)(
-                equalTo(Some(PrimaryKey("num" -> 2, "id" -> second)))
-              )
-            }
-          },
-          test("delete should handle keyword") {
-            withDefaultTable { tableName =>
-              val query = DynamoDBQuery
-                .deleteFrom(tableName)(
-                  ExpressionAttrNames.id.partitionKey === "id" && ExpressionAttrNames.num.sortKey === 1
-                )
-                .where(ExpressionAttrNames.ttl.notExists)
-              query.execute.exit.map { result =>
-                assert(result)(succeeds(isNone))
-              }
-            }
-          },
-          test("put should handle keyword") {
-            withDefaultTable { tableName =>
-              val query = DynamoDBQuery
-                .put[ExpressionAttrNames](tableName, ExpressionAttrNames("id", 1, None))
-                .where(ExpressionAttrNames.ttl.notExists)
-              query.execute.exit.map { result =>
-                assert(result)(succeeds(isNone))
-              }
-            }
-          },
-          test("update should handle keyword") {
-            withDefaultTable { tableName =>
-              val query = DynamoDBQuery
-                .update(tableName)(
-                  ExpressionAttrNames.id.partitionKey === "id" && ExpressionAttrNames.num.sortKey === 1
-                )(
-                  ExpressionAttrNames.ttl.set(Some(42L))
-                )
-                .where(ExpressionAttrNames.ttl.notExists)
-              query.execute.exit.map { result =>
-                assert(result)(succeeds(isNone))
-              }
+              } yield assert(result._1)(hasSize(equalTo(0)))
             }
           }
         ),
-        suite("using $ function should")(
-          test(
-            "handle PE array with dot char escaped with backticks when primary key is not part of projection expressions"
-          ) {
-            withDefaultTable { tableName =>
-              for {
-                _      <- putItem(tableName, Item(id -> first, "foo.bar" -> List(1, 2, 3), number -> 20)).execute
-                result <- getItem(tableName, PrimaryKey(id -> first, number -> 20), $("`foo.bar`[1]")).execute
-              } yield assert(result)(
-                equalTo(Some(Item("foo.bar" -> List(2))))
-              )
+        suite("High Level API should handle keywords in expression attribute names")(
+          suite("using high level api")(
+            test("scanAll should handle keyword") {
+              withDefaultTable { tableName =>
+                val query = DynamoDBQuery
+                  .scanAll[ExpressionAttrNames](tableName)
+                  .filter(ExpressionAttrNames.ttl.notExists)
+                query.execute.flatMap(_.runDrain).exit.map { result =>
+                  assert(result)(succeeds(isUnit))
+                }
+              }
+            },
+            test("queryAll should handle keyword") {
+              withDefaultTable { tableName =>
+                val query = DynamoDBQuery
+                  .queryAll[ExpressionAttrNames](tableName)
+                  .whereKey(ExpressionAttrNames.id.partitionKey === "id")
+                  .filter(ExpressionAttrNames.ttl.notExists)
+                query.execute.flatMap(_.runDrain).exit.map { result =>
+                  assert(result)(succeeds(isUnit))
+                }
+              }
+            },
+            test("scanSome should handle keyword") {
+              withDefaultTable { tableName =>
+                val query = DynamoDBQuery
+                  .scanSome[ExpressionAttrNames](tableName, 1)
+                  .filter(ExpressionAttrNames.ttl.notExists)
+
+                for {
+                  result <- query.execute
+                } yield assert(result._1)(hasSize(equalTo(1))) && assert(result._1(0))(
+                  equalTo(ExpressionAttrNames(second, 2, None))
+                ) && assert(result._2)(equalTo(Some(PrimaryKey("num" -> 2, "id" -> second))))
+              }
+            },
+            test("querySome should handle keyword") {
+              withDefaultTable { tableName =>
+                val query = DynamoDBQuery
+                  .querySome[ExpressionAttrNames](tableName, 1)
+                  .whereKey($(id).partitionKey === second && $(number).sortKey > 0)
+                  .filter(ExpressionAttrNames.ttl.notExists)
+
+                for {
+                  result <- query.execute
+                } yield assert(result._1)(hasSize(equalTo(1))) && assert(result._1(0))(
+                  equalTo(ExpressionAttrNames(second, 2, None))
+                ) && assert(result._2)(
+                  equalTo(Some(PrimaryKey("num" -> 2, "id" -> second)))
+                )
+              }
+            },
+            test("delete should handle keyword") {
+              withDefaultTable { tableName =>
+                val query = DynamoDBQuery
+                  .deleteFrom(tableName)(
+                    ExpressionAttrNames.id.partitionKey === "id" && ExpressionAttrNames.num.sortKey === 1
+                  )
+                  .where(ExpressionAttrNames.ttl.notExists)
+                query.execute.exit.map { result =>
+                  assert(result)(succeeds(isNone))
+                }
+              }
+            },
+            test("put should handle keyword") {
+              withDefaultTable { tableName =>
+                val query = DynamoDBQuery
+                  .put[ExpressionAttrNames](tableName, ExpressionAttrNames("id", 1, None))
+                  .where(ExpressionAttrNames.ttl.notExists)
+                query.execute.exit.map { result =>
+                  assert(result)(succeeds(isNone))
+                }
+              }
+            },
+            test("update should handle keyword") {
+              withDefaultTable { tableName =>
+                val query = DynamoDBQuery
+                  .update(tableName)(
+                    ExpressionAttrNames.id.partitionKey === "id" && ExpressionAttrNames.num.sortKey === 1
+                  )(
+                    ExpressionAttrNames.ttl.set(Some(42L))
+                  )
+                  .where(ExpressionAttrNames.ttl.notExists)
+                query.execute.exit.map { result =>
+                  assert(result)(succeeds(isNone))
+                }
+              }
             }
-          },
-          test(
-            "handle PE array with dot char escaped with backticks when primary key is part of projection expressions"
-          ) {
-            withDefaultTable { tableName =>
-              for {
-                _      <- putItem(tableName, Item(id -> first, "foo.bar" -> List(1, 2, 3), number -> 20)).execute
-                result <-
-                  getItem(tableName, PrimaryKey(id -> first, number -> 20), $(id), $(number), $("`foo.bar`[1]")).execute
-              } yield assert(result)(
-                equalTo(Some(Item(id -> first, number -> 20, "foo.bar" -> List(2))))
-              )
-            }
-          },
-          test(
-            "handle PE with special chars escaped with backticks when primary key is part of projection expressions"
-          ) {
-            withDefaultTable { tableName =>
-              for {
-                _      <- putItem(tableName, Item(id -> first, "foo~#bar" -> "put and get item", number -> 20)).execute
-                result <- getItem(tableName, PrimaryKey(id -> first, number -> 20)).execute
-              } yield assert(result)(
-                equalTo(Some(Item(id -> first, "foo~#bar" -> "put and get item", number -> 20)))
-              )
-            }
-          },
-          test(
-            "handle PE containing dot char escaped with backticks when primary key is not part of projection expressions"
-          ) {
-            withDefaultTable { tableName =>
-              for {
-                _      <- putItem(tableName, Item(id -> first, "foo.bar" -> "put and get item", number -> 20)).execute
-                result <- getItem(tableName, PrimaryKey(id -> first, number -> 20), $("`foo.bar`")).execute
-              } yield assert(result)(
-                equalTo(Some(Item("foo.bar" -> "put and get item")))
-              )
-            }
-          },
-          test(
-            "handle PE containing dot char escaped with backticks when primary key is part of projection expressions"
-          ) {
-            withDefaultTable { tableName =>
-              for {
-                _      <- putItem(tableName, Item(id -> first, "foo.bar" -> "put and get item", number -> 20)).execute
-                result <-
-                  getItem(tableName, PrimaryKey(id -> first, number -> 20), $(id), $(number), $("`foo.bar`")).execute
-              } yield assert(result)(
-                equalTo(Some(Item(id -> first, "foo.bar" -> "put and get item", number -> 20)))
-              )
-            }
-          },
+          )
+        ),
+        suite("low level API scan and query should handle keywords")(
           test("scanAllItem should handle keyword") {
             withDefaultTable { tableName =>
               val query = DynamoDBQuery
@@ -447,38 +387,104 @@ object LiveSpec extends DynamoDBLocalSpec {
           }
         )
       ),
-      suite("$ function should handle hypen")(
-        test("handle hyphen when projection expression is not present") {
-          withDefaultTable { tableName =>
-            for {
-              _      <- putItem(tableName, Item(id -> first, "foo-bar" -> "put and get item", number -> 20)).execute
-              result <- getItem(tableName, PrimaryKey(id -> first, number -> 20)).execute
-            } yield assert(result)(
-              equalTo(Some(Item(id -> first, "foo-bar" -> "put and get item", number -> 20)))
-            )
+      suite("$ function suite")(
+        suite("$ function escaping should")(
+          test(
+            "handle PE array with dot char escaped with backticks when primary key is not part of projection expressions"
+          ) {
+            withDefaultTable { tableName =>
+              for {
+                _      <- putItem(tableName, Item(id -> first, "foo.bar" -> List(1, 2, 3), number -> 20)).execute
+                result <- getItem(tableName, PrimaryKey(id -> first, number -> 20), $("`foo.bar`[1]")).execute
+              } yield assert(result)(
+                equalTo(Some(Item("foo.bar" -> List(2))))
+              )
+            }
+          },
+          test(
+            "handle PE array with dot char escaped with backticks when primary key is part of projection expressions"
+          ) {
+            withDefaultTable { tableName =>
+              for {
+                _      <- putItem(tableName, Item(id -> first, "foo.bar" -> List(1, 2, 3), number -> 20)).execute
+                result <-
+                  getItem(tableName, PrimaryKey(id -> first, number -> 20), $(id), $(number), $("`foo.bar`[1]")).execute
+              } yield assert(result)(
+                equalTo(Some(Item(id -> first, number -> 20, "foo.bar" -> List(2))))
+              )
+            }
+          },
+          test(
+            "handle PE with special chars escaped with backticks when primary key is part of projection expressions"
+          ) {
+            withDefaultTable { tableName =>
+              for {
+                _      <- putItem(tableName, Item(id -> first, "foo~#bar" -> "put and get item", number -> 20)).execute
+                result <- getItem(tableName, PrimaryKey(id -> first, number -> 20)).execute
+              } yield assert(result)(
+                equalTo(Some(Item(id -> first, "foo~#bar" -> "put and get item", number -> 20)))
+              )
+            }
+          },
+          test(
+            "handle PE containing dot char escaped with backticks when primary key is not part of projection expressions"
+          ) {
+            withDefaultTable { tableName =>
+              for {
+                _      <- putItem(tableName, Item(id -> first, "foo.bar" -> "put and get item", number -> 20)).execute
+                result <- getItem(tableName, PrimaryKey(id -> first, number -> 20), $("`foo.bar`")).execute
+              } yield assert(result)(
+                equalTo(Some(Item("foo.bar" -> "put and get item")))
+              )
+            }
+          },
+          test(
+            "handle PE containing dot char escaped with backticks when primary key is part of projection expressions"
+          ) {
+            withDefaultTable { tableName =>
+              for {
+                _      <- putItem(tableName, Item(id -> first, "foo.bar" -> "put and get item", number -> 20)).execute
+                result <-
+                  getItem(tableName, PrimaryKey(id -> first, number -> 20), $(id), $(number), $("`foo.bar`")).execute
+              } yield assert(result)(
+                equalTo(Some(Item(id -> first, "foo.bar" -> "put and get item", number -> 20)))
+              )
+            }
           }
-        },
-        test("handle hyphen when primary key is not part of projection expression") {
-          withDefaultTable { tableName =>
-            for {
-              _      <- putItem(tableName, Item(id -> first, "foo-bar" -> "put and get item", number -> 20)).execute
-              result <- getItem(tableName, PrimaryKey(id -> first, number -> 20), $("foo-bar")).execute
-            } yield assert(result)(
-              equalTo(Some(Item("foo-bar" -> "put and get item")))
-            )
+        ),
+        suite("$ function should handle hyphen")(
+          test("handle hyphen when projection expression is not present") {
+            withDefaultTable { tableName =>
+              for {
+                _      <- putItem(tableName, Item(id -> first, "foo-bar" -> "put and get item", number -> 20)).execute
+                result <- getItem(tableName, PrimaryKey(id -> first, number -> 20)).execute
+              } yield assert(result)(
+                equalTo(Some(Item(id -> first, "foo-bar" -> "put and get item", number -> 20)))
+              )
+            }
+          },
+          test("handle hyphen when primary key is not part of projection expression") {
+            withDefaultTable { tableName =>
+              for {
+                _      <- putItem(tableName, Item(id -> first, "foo-bar" -> "put and get item", number -> 20)).execute
+                result <- getItem(tableName, PrimaryKey(id -> first, number -> 20), $("foo-bar")).execute
+              } yield assert(result)(
+                equalTo(Some(Item("foo-bar" -> "put and get item")))
+              )
+            }
+          },
+          test("handle hyphen when primary key is part of projection expression") {
+            withDefaultTable { tableName =>
+              for {
+                _      <- putItem(tableName, Item(id -> first, "foo-bar" -> "put and get item", number -> 20)).execute
+                result <-
+                  getItem(tableName, PrimaryKey(id -> first, number -> 20), $(id), $(number), $("foo-bar")).execute
+              } yield assert(result)(
+                equalTo(Some(Item(id -> first, "foo-bar" -> "put and get item", number -> 20)))
+              )
+            }
           }
-        },
-        test("handle hyphen when primary key is part of projection expression") {
-          withDefaultTable { tableName =>
-            for {
-              _      <- putItem(tableName, Item(id -> first, "foo-bar" -> "put and get item", number -> 20)).execute
-              result <-
-                getItem(tableName, PrimaryKey(id -> first, number -> 20), $(id), $(number), $("foo-bar")).execute
-            } yield assert(result)(
-              equalTo(Some(Item(id -> first, "foo-bar" -> "put and get item", number -> 20)))
-            )
-          }
-        }
+        )
       ),
       suite("basic usage")(
         test("delete item with ALL_OLD return values set should return all old values") {
