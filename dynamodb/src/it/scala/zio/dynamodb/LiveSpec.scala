@@ -387,102 +387,104 @@ object LiveSpec extends DynamoDBLocalSpec {
           }
         )
       ),
-      suite("using $ function should")(
-        test(
-          "handle PE array with dot char escaped with backticks when primary key is not part of projection expressions"
-        ) {
-          withDefaultTable { tableName =>
-            for {
-              _      <- putItem(tableName, Item(id -> first, "foo.bar" -> List(1, 2, 3), number -> 20)).execute
-              result <- getItem(tableName, PrimaryKey(id -> first, number -> 20), $("`foo.bar`[1]")).execute
-            } yield assert(result)(
-              equalTo(Some(Item("foo.bar" -> List(2))))
-            )
+      suite("$ function suite")(
+        suite("$ function escaping should")(
+          test(
+            "handle PE array with dot char escaped with backticks when primary key is not part of projection expressions"
+          ) {
+            withDefaultTable { tableName =>
+              for {
+                _      <- putItem(tableName, Item(id -> first, "foo.bar" -> List(1, 2, 3), number -> 20)).execute
+                result <- getItem(tableName, PrimaryKey(id -> first, number -> 20), $("`foo.bar`[1]")).execute
+              } yield assert(result)(
+                equalTo(Some(Item("foo.bar" -> List(2))))
+              )
+            }
+          },
+          test(
+            "handle PE array with dot char escaped with backticks when primary key is part of projection expressions"
+          ) {
+            withDefaultTable { tableName =>
+              for {
+                _      <- putItem(tableName, Item(id -> first, "foo.bar" -> List(1, 2, 3), number -> 20)).execute
+                result <-
+                  getItem(tableName, PrimaryKey(id -> first, number -> 20), $(id), $(number), $("`foo.bar`[1]")).execute
+              } yield assert(result)(
+                equalTo(Some(Item(id -> first, number -> 20, "foo.bar" -> List(2))))
+              )
+            }
+          },
+          test(
+            "handle PE with special chars escaped with backticks when primary key is part of projection expressions"
+          ) {
+            withDefaultTable { tableName =>
+              for {
+                _      <- putItem(tableName, Item(id -> first, "foo~#bar" -> "put and get item", number -> 20)).execute
+                result <- getItem(tableName, PrimaryKey(id -> first, number -> 20)).execute
+              } yield assert(result)(
+                equalTo(Some(Item(id -> first, "foo~#bar" -> "put and get item", number -> 20)))
+              )
+            }
+          },
+          test(
+            "handle PE containing dot char escaped with backticks when primary key is not part of projection expressions"
+          ) {
+            withDefaultTable { tableName =>
+              for {
+                _      <- putItem(tableName, Item(id -> first, "foo.bar" -> "put and get item", number -> 20)).execute
+                result <- getItem(tableName, PrimaryKey(id -> first, number -> 20), $("`foo.bar`")).execute
+              } yield assert(result)(
+                equalTo(Some(Item("foo.bar" -> "put and get item")))
+              )
+            }
+          },
+          test(
+            "handle PE containing dot char escaped with backticks when primary key is part of projection expressions"
+          ) {
+            withDefaultTable { tableName =>
+              for {
+                _      <- putItem(tableName, Item(id -> first, "foo.bar" -> "put and get item", number -> 20)).execute
+                result <-
+                  getItem(tableName, PrimaryKey(id -> first, number -> 20), $(id), $(number), $("`foo.bar`")).execute
+              } yield assert(result)(
+                equalTo(Some(Item(id -> first, "foo.bar" -> "put and get item", number -> 20)))
+              )
+            }
           }
-        },
-        test(
-          "handle PE array with dot char escaped with backticks when primary key is part of projection expressions"
-        ) {
-          withDefaultTable { tableName =>
-            for {
-              _      <- putItem(tableName, Item(id -> first, "foo.bar" -> List(1, 2, 3), number -> 20)).execute
-              result <-
-                getItem(tableName, PrimaryKey(id -> first, number -> 20), $(id), $(number), $("`foo.bar`[1]")).execute
-            } yield assert(result)(
-              equalTo(Some(Item(id -> first, number -> 20, "foo.bar" -> List(2))))
-            )
+        ),
+        suite("$ function should handle hyphen")(
+          test("handle hyphen when projection expression is not present") {
+            withDefaultTable { tableName =>
+              for {
+                _      <- putItem(tableName, Item(id -> first, "foo-bar" -> "put and get item", number -> 20)).execute
+                result <- getItem(tableName, PrimaryKey(id -> first, number -> 20)).execute
+              } yield assert(result)(
+                equalTo(Some(Item(id -> first, "foo-bar" -> "put and get item", number -> 20)))
+              )
+            }
+          },
+          test("handle hyphen when primary key is not part of projection expression") {
+            withDefaultTable { tableName =>
+              for {
+                _      <- putItem(tableName, Item(id -> first, "foo-bar" -> "put and get item", number -> 20)).execute
+                result <- getItem(tableName, PrimaryKey(id -> first, number -> 20), $("foo-bar")).execute
+              } yield assert(result)(
+                equalTo(Some(Item("foo-bar" -> "put and get item")))
+              )
+            }
+          },
+          test("handle hyphen when primary key is part of projection expression") {
+            withDefaultTable { tableName =>
+              for {
+                _      <- putItem(tableName, Item(id -> first, "foo-bar" -> "put and get item", number -> 20)).execute
+                result <-
+                  getItem(tableName, PrimaryKey(id -> first, number -> 20), $(id), $(number), $("foo-bar")).execute
+              } yield assert(result)(
+                equalTo(Some(Item(id -> first, "foo-bar" -> "put and get item", number -> 20)))
+              )
+            }
           }
-        },
-        test(
-          "handle PE with special chars escaped with backticks when primary key is part of projection expressions"
-        ) {
-          withDefaultTable { tableName =>
-            for {
-              _      <- putItem(tableName, Item(id -> first, "foo~#bar" -> "put and get item", number -> 20)).execute
-              result <- getItem(tableName, PrimaryKey(id -> first, number -> 20)).execute
-            } yield assert(result)(
-              equalTo(Some(Item(id -> first, "foo~#bar" -> "put and get item", number -> 20)))
-            )
-          }
-        },
-        test(
-          "handle PE containing dot char escaped with backticks when primary key is not part of projection expressions"
-        ) {
-          withDefaultTable { tableName =>
-            for {
-              _      <- putItem(tableName, Item(id -> first, "foo.bar" -> "put and get item", number -> 20)).execute
-              result <- getItem(tableName, PrimaryKey(id -> first, number -> 20), $("`foo.bar`")).execute
-            } yield assert(result)(
-              equalTo(Some(Item("foo.bar" -> "put and get item")))
-            )
-          }
-        },
-        test(
-          "handle PE containing dot char escaped with backticks when primary key is part of projection expressions"
-        ) {
-          withDefaultTable { tableName =>
-            for {
-              _      <- putItem(tableName, Item(id -> first, "foo.bar" -> "put and get item", number -> 20)).execute
-              result <-
-                getItem(tableName, PrimaryKey(id -> first, number -> 20), $(id), $(number), $("`foo.bar`")).execute
-            } yield assert(result)(
-              equalTo(Some(Item(id -> first, "foo.bar" -> "put and get item", number -> 20)))
-            )
-          }
-        }
-      ),
-      suite("$ function should handle hyphen")(
-        test("handle hyphen when projection expression is not present") {
-          withDefaultTable { tableName =>
-            for {
-              _      <- putItem(tableName, Item(id -> first, "foo-bar" -> "put and get item", number -> 20)).execute
-              result <- getItem(tableName, PrimaryKey(id -> first, number -> 20)).execute
-            } yield assert(result)(
-              equalTo(Some(Item(id -> first, "foo-bar" -> "put and get item", number -> 20)))
-            )
-          }
-        },
-        test("handle hyphen when primary key is not part of projection expression") {
-          withDefaultTable { tableName =>
-            for {
-              _      <- putItem(tableName, Item(id -> first, "foo-bar" -> "put and get item", number -> 20)).execute
-              result <- getItem(tableName, PrimaryKey(id -> first, number -> 20), $("foo-bar")).execute
-            } yield assert(result)(
-              equalTo(Some(Item("foo-bar" -> "put and get item")))
-            )
-          }
-        },
-        test("handle hyphen when primary key is part of projection expression") {
-          withDefaultTable { tableName =>
-            for {
-              _      <- putItem(tableName, Item(id -> first, "foo-bar" -> "put and get item", number -> 20)).execute
-              result <-
-                getItem(tableName, PrimaryKey(id -> first, number -> 20), $(id), $(number), $("foo-bar")).execute
-            } yield assert(result)(
-              equalTo(Some(Item(id -> first, "foo-bar" -> "put and get item", number -> 20)))
-            )
-          }
-        }
+        )
       ),
       suite("basic usage")(
         test("delete item with ALL_OLD return values set should return all old values") {
