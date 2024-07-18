@@ -20,7 +20,8 @@ package object dynamodb {
   type Decoder[+A] = AttributeValue => Either[ItemError, A]
 
   private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[_, A]): ZIO[DynamoDBExecutor, DynamoDBError, A] =
-    ZIO.serviceWithZIO[DynamoDBExecutor](_.execute(query))
+    ZIO.debug(s"XXXXXXXXXXXXXXXXX ddbExecute query type ${query.getClass.getSimpleName}") *>
+      ZIO.serviceWithZIO[DynamoDBExecutor](_.execute(query))
 
   /**
    * Reads `stream` and uses function `f` for creating a BatchWrite request that is executes for side effects. Stream is batched into groups

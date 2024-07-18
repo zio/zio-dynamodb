@@ -221,6 +221,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
         case BatchRetryError() => true
         case _                 => false
       }
+      println(s"XXXXXXXXXXXXXXXX Schedule: ${batchWriteItem.retryPolicy}")
       for {
         ref <- zio.Ref.make[MapOfSet[TableName, BatchWriteItem.Write]](batchWriteItem.requestItems)
         _           <- (for {

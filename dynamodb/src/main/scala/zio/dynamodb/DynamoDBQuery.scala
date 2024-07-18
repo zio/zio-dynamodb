@@ -45,6 +45,9 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     val (indexedConstructors, (batchGetItem, batchGetIndexes), (batchWriteItem, batchWriteIndexes)) =
       batched(constructors)
 
+    println(s"XXXXXXXXX execute self: $self")
+    println(s"XXXXXXXXX execute batchWriteItem: $batchWriteItem")
+
     val indexedNonBatchedResults =
       ZIO.foreachPar(indexedConstructors) {
         case (constructor, index) =>
@@ -365,10 +368,14 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         Zip(left.withRetryPolicy(retryPolicy), right.withRetryPolicy(retryPolicy), zippable)
       case Map(query, mapper)         => Map(query.withRetryPolicy(retryPolicy), mapper)
       case Absolve(query)             => Absolve(query.withRetryPolicy(retryPolicy))
-      case s: BatchWriteItem          => s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[In, Out]]
+      case s: BatchWriteItem          =>
+        s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: BatchGetItem            => s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[In, Out]]
+      case _: PutItem                 =>
+        println(s"ZZZZZZZZZZZZZZZZZZZZZZ withRetryPolicy: $retryPolicy")
+        self
       case _                          =>
-        self // TODO: Avi - popogate retry to all primitives eg Get/Put/Delete so that autobatching can select it
+        self // TODO: Avi - propagate retry to all atomic batchable queries eg Get/Put/Delete so that auto-batching can select it
     }
 
   def sortOrder(ascending: Boolean): DynamoDBQuery[In, Out] =
@@ -766,6 +773,7 @@ object DynamoDBQuery {
     retryPolicy: Schedule[Any, Throwable, Any] =
       Schedule.recurs(3) && Schedule.exponential(50.milliseconds)
   ) extends Constructor[Any, BatchWriteItem.Response] { self =>
+    println(s"XXXXXXXXXXXX BatchWriteItem.retryPolicy ${self.retryPolicy}")
     def +[A](writeItem: Write[Any, A]): BatchWriteItem =
       writeItem match {
         case putItem @ PutItem(_, _, _, _, _, _)       =>
@@ -1035,12 +1043,12 @@ object DynamoDBQuery {
       }
 
     val indexedBatchGetItem: (BatchGetItem, Chunk[Int]) = indexedGets
-      .foldLeft[(BatchGetItem, Chunk[Int])]((BatchGetItem(), Chunk.empty)) {
+      .foldLeft[(BatchGetItem, Chunk[Int])]((BatchGetItem(), Chunk.empty)) { // TODO: Avi - we could set the batch level retry policy here
         case ((batchGetItem, indexes), (getItem, index)) => (batchGetItem + getItem, indexes :+ index)
       }
 
     val indexedBatchWrite: (BatchWriteItem, Chunk[Int]) = indexedWrites
-      .foldLeft[(BatchWriteItem, Chunk[Int])]((BatchWriteItem(), Chunk.empty)) {
+      .foldLeft[(BatchWriteItem, Chunk[Int])]((BatchWriteItem(), Chunk.empty)) { // TODO: Avi - we could set the batch level retry policy here
         case ((batchWriteItem, indexes), (writeItem, index)) => (batchWriteItem + writeItem, indexes :+ index)
       }
 
