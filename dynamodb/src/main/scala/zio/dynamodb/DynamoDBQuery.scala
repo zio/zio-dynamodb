@@ -784,7 +784,7 @@ object DynamoDBQuery {
             self.addList :+ Put(putItem.item),
             self.retryPolicy.orElse(putItem.retryPolicy)
           )
-        case deleteItem @ DeleteItem(_, _, _, _, _, _) =>
+        case deleteItem @ DeleteItem(_, _, _, _, _, _, _) =>
           BatchWriteItem(
             self.requestItems + ((deleteItem.tableName, Delete(deleteItem.key))),
             self.capacity,
@@ -957,7 +957,8 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues =
-      ReturnValues.None // DeleteItem does not recognize any values other than NONE or ALL_OLD.
+      ReturnValues.None, // DeleteItem does not recognize any values other than NONE or ALL_OLD.
+    retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
   ) extends Write[Any, Option[Item]]
 
   private[dynamodb] final case class CreateTable(
@@ -1028,7 +1029,7 @@ object DynamoDBQuery {
           }
         case (
               (nonBatched, gets, writes),
-              (delete @ DeleteItem(_, _, conditionExpression, _, _, returnValues), index)
+              (delete @ DeleteItem(_, _, conditionExpression, _, _, returnValues, _), index)
             ) =>
           conditionExpression match {
             case Some(_) =>
@@ -1168,7 +1169,7 @@ object DynamoDBQuery {
           }
         )
 
-      case deleteItem @ DeleteItem(_, _, _, _, _, _)          =>
+      case deleteItem @ DeleteItem(_, _, _, _, _, _, _)          =>
         (
           Chunk(deleteItem),
           (results: Chunk[Any]) => {
