@@ -86,11 +86,15 @@ import zio.{ Chunk, NonEmptyChunk, ZIO }
 import scala.collection.immutable.{ Map => ScalaMap }
 import software.amazon.awssdk.services.dynamodb.model.{ DynamoDbException => AwsSdkDynamoDbException }
 import scala.annotation.nowarn
+import zio.durationInt
+import zio.Schedule
 
 @nowarn
 private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynamoDb: DynamoDb)
     extends DynamoDBExecutor {
   import DynamoDBExecutorImpl._
+
+  private val defaultRetryPolicy = Schedule.recurs(3) && Schedule.exponential(50.milliseconds)
 
   def executeMap[A, B](map: Map[A, B]): ZIO[Any, Throwable, B] =
     execute(map.query).map(map.mapper)
@@ -217,7 +221,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
     if (batchWriteItem.requestItems.isEmpty) ZIO.succeed(BatchWriteItem.Response(None))
     else {
       // need to explicitly type this for Scala 3 compiler
-      val t: zio.Schedule[Any, Throwable, Any] = batchWriteItem.retryPolicy.whileInput {
+      val t: zio.Schedule[Any, Throwable, Any] = batchWriteItem.retryPolicy.getOrElse(defaultRetryPolicy).whileInput {
         case BatchRetryError() => true
         case _                 => false
       }

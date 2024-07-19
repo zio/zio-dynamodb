@@ -369,7 +369,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Map(query, mapper)         => Map(query.withRetryPolicy(retryPolicy), mapper)
       case Absolve(query)             => Absolve(query.withRetryPolicy(retryPolicy))
       case s: BatchWriteItem          =>
-        s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[In, Out]]
+        s.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: BatchGetItem            => s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[In, Out]]
       case _: PutItem                 =>
         println(s"ZZZZZZZZZZZZZZZZZZZZZZ withRetryPolicy: $retryPolicy")
@@ -770,19 +770,19 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     addList: Chunk[BatchWriteItem.Write] = Chunk.empty,
-    retryPolicy: Schedule[Any, Throwable, Any] =
-      Schedule.recurs(3) && Schedule.exponential(50.milliseconds)
+    retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
+//      Schedule.recurs(3) && Schedule.exponential(50.milliseconds) // TODO: Avi delete
   ) extends Constructor[Any, BatchWriteItem.Response] { self =>
     println(s"XXXXXXXXXXXX BatchWriteItem.retryPolicy ${self.retryPolicy}")
     def +[A](writeItem: Write[Any, A]): BatchWriteItem =
       writeItem match {
-        case putItem @ PutItem(_, _, _, _, _, _)       =>
+        case putItem @ PutItem(_, _, _, _, _, _, _)    =>
           BatchWriteItem(
             self.requestItems + ((putItem.tableName, Put(putItem.item))),
             self.capacity,
             self.itemMetrics,
             self.addList :+ Put(putItem.item),
-            self.retryPolicy
+            None // TODO: Avi
           )
         case deleteItem @ DeleteItem(_, _, _, _, _, _) =>
           BatchWriteItem(
@@ -930,7 +930,8 @@ object DynamoDBQuery {
     conditionExpression: Option[ConditionExpression[_]] = None,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
-    returnValues: ReturnValues = ReturnValues.None // PutItem does not recognize any values other than NONE or ALL_OLD.
+    returnValues: ReturnValues = ReturnValues.None, // PutItem does not recognize any values other than NONE or ALL_OLD.
+    retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
   ) extends Write[Any, Option[Item]]
 
   private[dynamodb] final case class UpdateItem(
@@ -1010,12 +1011,12 @@ object DynamoDBQuery {
       constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem], Chunk[IndexedWriteItem])](
         (Chunk.empty, Chunk.empty, Chunk.empty)
       ) {
-        case ((nonBatched, gets, writes), (get @ GetItem(_, pk, pes, _, _), index))                              =>
+        case ((nonBatched, gets, writes), (get @ GetItem(_, pk, pes, _, _), index))                                 =>
           if (projectionsContainPrimaryKey(pes, pk))
             (nonBatched, gets :+ (get -> index), writes)
           else
             (nonBatched :+ (get       -> index), gets, writes)
-        case ((nonBatched, gets, writes), (put @ PutItem(_, _, conditionExpression, _, _, returnValues), index)) =>
+        case ((nonBatched, gets, writes), (put @ PutItem(_, _, conditionExpression, _, _, returnValues, _), index)) =>
           conditionExpression match {
             case Some(_) =>
               (nonBatched :+ (put -> index), gets, writes)
@@ -1038,7 +1039,7 @@ object DynamoDBQuery {
               else
                 (nonBatched, gets, writes :+ (delete -> index))
           }
-        case ((nonBatched, gets, writes), (nonGetItem, index))                                                   =>
+        case ((nonBatched, gets, writes), (nonGetItem, index))                                                      =>
           (nonBatched :+ (nonGetItem -> index), gets, writes)
       }
 
@@ -1143,7 +1144,7 @@ object DynamoDBQuery {
           }
         )
 
-      case putItem @ PutItem(_, _, _, _, _, _)                =>
+      case putItem @ PutItem(_, _, _, _, _, _, _)             =>
         (
           Chunk(putItem),
           (results: Chunk[Any]) => {
