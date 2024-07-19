@@ -29,7 +29,7 @@ import zio.dynamodb.UpdateExpression.Action
 import zio.prelude.ForEachOps
 import zio.schema.Schema
 import zio.stream.Stream
-import zio.{ Chunk, Schedule, ZIO, Zippable => _, _ }
+import zio.{ Chunk, Schedule, ZIO, _ }
 import scala.annotation.nowarn
 
 sealed trait DynamoDBQuery[-In, +Out] { self =>
@@ -370,7 +370,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Absolve(query)             => Absolve(query.withRetryPolicy(retryPolicy))
       case s: BatchWriteItem          =>
         s.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case s: BatchGetItem            => s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[In, Out]]
+      case s: BatchGetItem            => s.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
       case _: PutItem                 =>
         println(s"ZZZZZZZZZZZZZZZZZZZZZZ withRetryPolicy: $retryPolicy")
         self
@@ -692,7 +692,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     private[dynamodb] val orderedGetItems: Chunk[GetItem] =
       Chunk.empty, // track order of added GetItems for later unpacking
-    retryPolicy: Schedule[Any, Throwable, Any] = Schedule.recurs(3) && Schedule.exponential(50.milliseconds)
+    retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
   ) extends Constructor[Any, BatchGetItem.Response] { self =>
 
     def +(getItem: GetItem): BatchGetItem = {
@@ -782,7 +782,7 @@ object DynamoDBQuery {
             self.capacity,
             self.itemMetrics,
             self.addList :+ Put(putItem.item),
-            None // TODO: Avi
+            self.retryPolicy.orElse(putItem.retryPolicy)
           )
         case deleteItem @ DeleteItem(_, _, _, _, _, _) =>
           BatchWriteItem(

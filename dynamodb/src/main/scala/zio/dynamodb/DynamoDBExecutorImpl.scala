@@ -332,7 +332,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
     if (batchGetItem.requestItems.isEmpty)
       ZIO.succeed(BatchGetItem.Response())
     else {
-      val t: zio.Schedule[Any, Throwable, Any] = batchGetItem.retryPolicy.whileInput {
+      val t: zio.Schedule[Any, Throwable, Any] = batchGetItem.retryPolicy.getOrElse(defaultRetryPolicy).whileInput {
         case BatchRetryError() => true
         case _                 => false
       }
