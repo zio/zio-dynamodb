@@ -342,6 +342,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
     if (batchGetItem.requestItems.isEmpty)
       ZIO.succeed(BatchGetItem.Response())
     else {
+      println(s"XXXXXXXXXXXXXXXXXXX batchGetItem.retryPolicy ${batchGetItem.retryPolicy}")
       val t: zio.Schedule[Any, Throwable, Any] = batchGetItem.retryPolicy.getOrElse(defaultRetryPolicy).whileInput {
         case BatchRetryError() => true
         case _                 => false
@@ -351,10 +352,17 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
         collectedItems <- zio.Ref.make[MapOfSet[TableName, Item]](MapOfSet.empty)
         _              <- (for {
                               unprocessed           <- unprocessedKeys.get
+                              _                     <- ZIO.debug(
+                                                         s"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR retrying with unprocessed.size=${unprocessed.size}"
+                                                       )
                               currentCollection     <- collectedItems.get
                               response              <- dynamoDb
                                                          .batchGetItem(awsBatchGetItemRequest(batchGetItem.copy(requestItems = unprocessed)))
                                                          .mapError(_.toThrowable)
+                              _                     <-
+                                ZIO.debug(
+                                  s"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR retrying with response.unprocessedKeys=${response.unprocessedKeys}"
+                                )
                               responseUnprocessedOpt =
                                 response.unprocessedKeys
                                   .map(_.map {

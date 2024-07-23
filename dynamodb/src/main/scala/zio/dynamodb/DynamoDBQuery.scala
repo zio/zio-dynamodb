@@ -370,13 +370,18 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Absolve(query)             => Absolve(query.withRetryPolicy(retryPolicy))
       case s: BatchWriteItem          =>
         s.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case s: BatchGetItem            => s.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case s: BatchGetItem            =>
+        println(s"0 ZZZZZZZZZZZZZZZZZZZZZZ withRetryPolicy: $retryPolicy")
+        s.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
       case p: PutItem                 =>
-        println(s"ZZZZZZZZZZZZZZZZZZZZZZ withRetryPolicy: $retryPolicy")
+        println(s"1 ZZZZZZZZZZZZZZZZZZZZZZ withRetryPolicy: $retryPolicy")
         p.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
       case d: DeleteItem              =>
-        println(s"ZZZZZZZZZZZZZZZZZZZZZZ withRetryPolicy: $retryPolicy")
+        println(s"2 ZZZZZZZZZZZZZZZZZZZZZZ withRetryPolicy: $retryPolicy")
         d.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case g: GetItem                 =>
+        println(s"3 ZZZZZZZZZZZZZZZZZZZZZZ withRetryPolicy: $retryPolicy")
+        g.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                          =>
         self // TODO: Avi - propagate retry to all atomic batchable queries eg Get/Put/Delete so that auto-batching can select it
     }
@@ -685,7 +690,8 @@ object DynamoDBQuery {
     projections: List[ProjectionExpression[_, _]] =
       List.empty, // If no attribute names are specified, then all attributes are returned
     consistency: ConsistencyMode = ConsistencyMode.Weak,
-    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
+    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
+    retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
   ) extends Constructor[Any, Option[Item]]
 
   private[dynamodb] final case class BatchRetryError() extends Throwable
@@ -714,7 +720,8 @@ object DynamoDBQuery {
       BatchGetItem(
         self.requestItems + newEntry,
         self.capacity,
-        self.orderedGetItems :+ getItem
+        self.orderedGetItems :+ getItem,
+        self.retryPolicy.orElse(getItem.retryPolicy) // inherit retry policy from GetItem if not set
       )
     }
 
@@ -776,7 +783,7 @@ object DynamoDBQuery {
     retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
 //      Schedule.recurs(3) && Schedule.exponential(50.milliseconds) // TODO: Avi delete
   ) extends Constructor[Any, BatchWriteItem.Response] { self =>
-    println(s"XXXXXXXXXXXX BatchWriteItem.retryPolicy ${self.retryPolicy}")
+//    println(s"XXXXXXXXXXXX BatchWriteItem.retryPolicy ${self.retryPolicy}")
     def +[A](writeItem: Write[Any, A]): BatchWriteItem =
       writeItem match {
         case putItem @ PutItem(_, _, _, _, _, _, _)       =>
@@ -1015,7 +1022,7 @@ object DynamoDBQuery {
       constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem], Chunk[IndexedWriteItem])](
         (Chunk.empty, Chunk.empty, Chunk.empty)
       ) {
-        case ((nonBatched, gets, writes), (get @ GetItem(_, pk, pes, _, _), index))                                 =>
+        case ((nonBatched, gets, writes), (get @ GetItem(_, pk, pes, _, _, _), index))                              =>
           if (projectionsContainPrimaryKey(pes, pk))
             (nonBatched, gets :+ (get -> index), writes)
           else
@@ -1140,7 +1147,7 @@ object DynamoDBQuery {
           }
         )
 
-      case getItem @ GetItem(_, _, _, _, _)                   =>
+      case getItem @ GetItem(_, _, _, _, _, _)                =>
         (
           Chunk(getItem),
           (results: Chunk[Any]) => {

@@ -78,7 +78,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
     retryPolicy = Some(Schedule.recurs(1))
   )
 
-  val batchWriteDeleteItemRequestItemOneAndTwo = BatchWriteItem(
+  private val batchWriteDeleteItemRequestItemOneAndTwo = BatchWriteItem(
     requestItems = MapOfSet.empty[TableName, BatchWriteItem.Write] + (TableName(mockBatches) -> BatchWriteItem.Delete(
       itemOne
     )) + (TableName(mockBatches)                                                             -> BatchWriteItem.Delete(itemTwo)),
@@ -98,7 +98,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
       batchWriteDeleteItemRequestItemOneAndTwo
     )
 
-  private def failedMockBatchGet(peSet: Set[ProjectionExpression[_, _]] = Set.empty): ULayer[DynamoDb] =
+  private def failedMockBatchGet(peSet: Set[ProjectionExpression[_, _]] = Set.empty, atMost: Int): ULayer[DynamoDb] =
     DynamoDbMock
       .BatchGetItem(
         equalTo(getRequestItemOneAndTwo(peSet)),
@@ -117,7 +117,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
           ).asReadOnly
         )
       )
-      .atMost(4)
+      .atMost(atMost)
 
   private val failedPartialMockBatchGetTwoItems: ULayer[DynamoDb] = DynamoDbMock
     .BatchGetItem(
@@ -196,7 +196,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
               )
             )
           )
-        }.provideLayer(failedMockBatchGet() >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock,
+        }.provideLayer(failedMockBatchGet(atMost = 4) >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock,
         test("should return all keys in unprocessedKeys for forEach case") {
           val autoBatched = forEach(List(itemOne, itemTwo))(item => getItem("mockBatches", item))
           assertZIO(autoBatched.execute.exit)(
@@ -206,7 +206,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
               )
             )
           )
-        }.provideLayer(failedMockBatchGet() >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock,
+        }.provideLayer(failedMockBatchGet(atMost = 4) >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock,
         test("should return all keys in unprocessedKeys for forEach case using type safe API") {
           val autoBatched = forEach(List("v1", "v2")) { id =>
             get("mockBatches")(TestItem.k1.partitionKey === id)
@@ -219,7 +219,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
             )
           )
         }.provideLayer(
-          (failedMockBatchGet(Set(ProjectionExpression.$("k1")))) >>> DynamoDBExecutor.live
+          (failedMockBatchGet(Set(ProjectionExpression.$("k1")), atMost = 4)) >>> DynamoDBExecutor.live
         ) @@ TestAspect.withLiveClock
       ),
       suite("partial batched requests fail")(
@@ -246,18 +246,18 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
       ).provideLayer(failedPartialMockBatchGetTwoItems >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock
     )
 
-  private val itemOneWriteRequest                                       = Set(
+  private val itemOneWriteRequest                                               = Set(
     DynamoDBExecutorImpl.awsWriteRequest(BatchWriteItem.Put(itemOne))
   )
-  private val itemOneAndTwoPutWriteRequest                              = Set(
+  private val itemOneAndTwoPutWriteRequest                                      = Set(
     DynamoDBExecutorImpl.awsWriteRequest(BatchWriteItem.Put(itemOne)),
     DynamoDBExecutorImpl.awsWriteRequest(BatchWriteItem.Put(itemTwo))
   )
-  val itemOneAndTwoDeleteWriteRequest                                   = Set(
+  private val itemOneAndTwoDeleteWriteRequest                                   = Set(
     DynamoDBExecutorImpl.awsWriteRequest(BatchWriteItem.Delete(itemOne)),
     DynamoDBExecutorImpl.awsWriteRequest(BatchWriteItem.Delete(itemTwo))
   )
-  def failedMockBatchWritePutTwoItems(atMost: Int): ULayer[DynamoDb]    =
+  private def failedMockBatchWritePutTwoItems(atMost: Int): ULayer[DynamoDb]    =
     DynamoDbMock
       .BatchWriteItem(
         equalTo(writePutItemRequestItemOneAndTwo),
@@ -272,7 +272,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
         )
       )
       .atMost(atMost) // 4
-  def failedMockBatchWriteDeleteTwoItems(atMost: Int): ULayer[DynamoDb] =
+  private def failedMockBatchWriteDeleteTwoItems(atMost: Int): ULayer[DynamoDb] =
     DynamoDbMock
       .BatchWriteItem(
         equalTo(writeDeleteItemRequestItemOneAndTwo),
@@ -365,7 +365,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
       ).provideLayer(successfulMockBatchWriteItemOneAndTwo >>> DynamoDBExecutor.live),
       suite("all batched request fail")(
         suite("custom retry policy")(
-          test("should propagate custom retry policy for auto-batched PutItems") {
+          test("should propagate custom retry policy for auto-batched PutItem's") {
             val autoBatchedPutItems = putItem("mockBatches", itemOne) zip putItem("mockBatches", itemTwo)
             assertZIO(autoBatchedPutItems.withRetryPolicy(Schedule.recurs(5)).execute.exit)(
               fails(
@@ -377,7 +377,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
           }.provideLayer(
             failedMockBatchWritePutTwoItems(atMost = 6) >>> DynamoDBExecutor.live
           ) @@ TestAspect.withLiveClock,
-          test("should propagate custom retry policy for auto-batched DeleteItems") {
+          test("should propagate custom retry policy for auto-batched DeleteItem's") {
             val autoBatchedDeleteItems = deleteItem("mockBatches", itemOne) zip deleteItem("mockBatches", itemTwo)
             assertZIO(autoBatchedDeleteItems.withRetryPolicy(Schedule.recurs(5)).execute.exit)(
               fails(
@@ -388,6 +388,18 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
             ) // withRetryPolicy has set recurs to a higher value than the default so we need to increase the atMost value
           }.provideLayer(
             failedMockBatchWriteDeleteTwoItems(atMost = 6) >>> DynamoDBExecutor.live
+          ) @@ TestAspect.withLiveClock,
+          test("should propagate custom retry policy for auto-batched GetItem's") {
+            val autoBatchedGetItems = getItem("mockBatches", itemOne) zip getItem("mockBatches", itemTwo)
+            assertZIO(autoBatchedGetItems.withRetryPolicy(Schedule.recurs(5)).execute.exit)(
+              fails(
+                assertDynamoDBBatchGetError(
+                  ScalaMap("mockBatches" -> Set(itemOne, itemTwo))
+                )
+              )
+            ) // withRetryPolicy has set recurs to a higher value than the default so we need to increase the atMost value
+          }.provideLayer(
+            failedMockBatchGet(atMost = 6) >>> DynamoDBExecutor.live
           ) @@ TestAspect.withLiveClock
         ),
         test("should return all keys in unprocessedItems in Zipped failure case") {

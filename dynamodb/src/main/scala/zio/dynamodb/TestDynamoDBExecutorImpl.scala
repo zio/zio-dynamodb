@@ -55,7 +55,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
         }
         results.map(_ => BatchWriteItem.Response(None))
 
-      case GetItem(tableName, key, _, _, _)                                       =>
+      case GetItem(tableName, key, _, _, _, _)                                    =>
         fakeGetItem(tableName.value, key)
 
       case PutItem(tableName, item, _, _, _, _, _)                                =>
