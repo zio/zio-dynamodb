@@ -230,11 +230,19 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
         ref <- zio.Ref.make[MapOfSet[TableName, BatchWriteItem.Write]](batchWriteItem.requestItems)
         _           <- (for {
                            unprocessedItems           <- ref.get
+                           _                          <-
+                             ZIO.debug(
+                               s"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR retrying with unprocessedItems.size=${unprocessedItems.size}"
+                             )
                            response                   <- dynamoDb
                                                            .batchWriteItem(
                                                              awsBatchWriteItemRequest(batchWriteItem.copy(requestItems = unprocessedItems))
                                                            )
                                                            .mapError(_.toThrowable)
+                           _                          <-
+                             ZIO.debug(
+                               s"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR retrying with unprocessedItems=${response.unprocessedItems}"
+                             )
                            responseUnprocessedItemsOpt = response.unprocessedItems
                                                            .map(map =>
                                                              mapOfListToMapOfSet(map.map {
@@ -243,8 +251,10 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
                                                            )
                                                            .toOption
                            _                          <- responseUnprocessedItemsOpt match {
-                                                           case Some(responseUnprocessedItems) => ref.set(responseUnprocessedItems)
-                                                           case None                           => ZIO.unit
+                                                           case Some(responseUnprocessedItems) =>
+                                                             ref.set(responseUnprocessedItems)
+                                                           case None                           =>
+                                                             ZIO.unit
                                                          }
                            _                          <- ZIO
                                                            .fail(BatchRetryError())
@@ -671,7 +681,13 @@ case object DynamoDBExecutorImpl {
   }
 
   private[dynamodb] def writeRequestToBatchWrite(writeRequest: WriteRequest.ReadOnly): Option[BatchWriteItem.Write] =
-    writeRequest.putRequest.toOption.map(put => BatchWriteItem.Put(item = AttrMap(awsAttrMapToAttrMap(put.item))))
+    (writeRequest.putRequest.toOption, writeRequest.deleteRequest.toOption) match {
+      case (Some(put), None)    => Some(BatchWriteItem.Put(item = AttrMap(awsAttrMapToAttrMap(put.item))))
+      case (None, Some(delete)) =>
+        Some(BatchWriteItem.Delete(key = AttrMap(awsAttrMapToAttrMap(delete.key))))
+      case _                    => None
+    }
+  //writeRequest.putRequest.toOption.map(put => BatchWriteItem.Put(item = AttrMap(awsAttrMapToAttrMap(put.item))))
 
   private def keysAndAttrsToTableGet(ka: KeysAndAttributes.ReadOnly): TableGet = {
     val maybeProjectionExpressions = ka.projectionExpression.map(

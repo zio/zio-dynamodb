@@ -371,9 +371,12 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case s: BatchWriteItem          =>
         s.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: BatchGetItem            => s.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _: PutItem                 =>
+      case p: PutItem                 =>
         println(s"ZZZZZZZZZZZZZZZZZZZZZZ withRetryPolicy: $retryPolicy")
-        self
+        p.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case d: DeleteItem              =>
+        println(s"ZZZZZZZZZZZZZZZZZZZZZZ withRetryPolicy: $retryPolicy")
+        d.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                          =>
         self // TODO: Avi - propagate retry to all atomic batchable queries eg Get/Put/Delete so that auto-batching can select it
     }
@@ -776,13 +779,13 @@ object DynamoDBQuery {
     println(s"XXXXXXXXXXXX BatchWriteItem.retryPolicy ${self.retryPolicy}")
     def +[A](writeItem: Write[Any, A]): BatchWriteItem =
       writeItem match {
-        case putItem @ PutItem(_, _, _, _, _, _, _)    =>
+        case putItem @ PutItem(_, _, _, _, _, _, _)       =>
           BatchWriteItem(
             self.requestItems + ((putItem.tableName, Put(putItem.item))),
             self.capacity,
             self.itemMetrics,
             self.addList :+ Put(putItem.item),
-            self.retryPolicy.orElse(putItem.retryPolicy)
+            self.retryPolicy.orElse(putItem.retryPolicy) // inherit retry policy from PutItem if not set
           )
         case deleteItem @ DeleteItem(_, _, _, _, _, _, _) =>
           BatchWriteItem(
@@ -790,7 +793,7 @@ object DynamoDBQuery {
             self.capacity,
             self.itemMetrics,
             self.addList :+ Delete(deleteItem.key),
-            self.retryPolicy
+            self.retryPolicy.orElse(deleteItem.retryPolicy) // inherit retry policy from DeleteItem if not set
           )
       }
 
@@ -1169,7 +1172,7 @@ object DynamoDBQuery {
           }
         )
 
-      case deleteItem @ DeleteItem(_, _, _, _, _, _, _)          =>
+      case deleteItem @ DeleteItem(_, _, _, _, _, _, _)       =>
         (
           Chunk(deleteItem),
           (results: Chunk[Any]) => {

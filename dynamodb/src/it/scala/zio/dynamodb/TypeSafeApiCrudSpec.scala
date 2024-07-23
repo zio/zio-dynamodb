@@ -766,8 +766,8 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         val person1 = Person("1", "Smith", Some("John"), 21)
         val person2 = Person("2", "Jones", Some("Tarlochan"), 42)
         for {
-          _      <- forEach(Chunk(person1, person2))(person => put(tableName, person))
-//                      .withRetryPolicy(Schedule.recurs(10) && Schedule.exponential(50.milliseconds))
+          _      <- forEach(Chunk(person1, person2))(person => put("tableName", person))
+//                      .withRetryPolicy(Schedule.recurs(5) && Schedule.exponential(50.milliseconds))
                       .execute
           stream <- scanAll[Person](tableName).execute
           people <- stream.runCollect
