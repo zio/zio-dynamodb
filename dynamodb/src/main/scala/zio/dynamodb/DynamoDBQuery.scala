@@ -378,8 +378,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Zip(left, right, zippable) => Zip(left.sortOrder(ascending), right.sortOrder(ascending), zippable)
       case Map(query, mapper)         => Map(query.sortOrder(ascending), mapper)
       case Absolve(query)             => Absolve(query.sortOrder(ascending))
-      case qs: QuerySome               => qs.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[In, Out]]
-      case qa: QueryAll                => qa.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[In, Out]]
+      case qs: QuerySome              => qs.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[In, Out]]
+      case qa: QueryAll               => qa.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                          => self
     }
 
