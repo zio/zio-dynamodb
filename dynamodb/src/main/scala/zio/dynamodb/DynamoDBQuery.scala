@@ -29,7 +29,7 @@ import zio.dynamodb.UpdateExpression.Action
 import zio.prelude.ForEachOps
 import zio.schema.Schema
 import zio.stream.Stream
-import zio.{ Chunk, Schedule, ZIO, _ }
+import zio.{ Chunk, Schedule, ZIO }
 import scala.annotation.nowarn
 
 sealed trait DynamoDBQuery[-In, +Out] { self =>
