@@ -676,7 +676,6 @@ case object DynamoDBExecutorImpl {
         Some(BatchWriteItem.Delete(key = AttrMap(awsAttrMapToAttrMap(delete.key))))
       case _                    => None
     }
-  //writeRequest.putRequest.toOption.map(put => BatchWriteItem.Put(item = AttrMap(awsAttrMapToAttrMap(put.item))))
 
   private def keysAndAttrsToTableGet(ka: KeysAndAttributes.ReadOnly): TableGet = {
     val maybeProjectionExpressions = ka.projectionExpression.map(

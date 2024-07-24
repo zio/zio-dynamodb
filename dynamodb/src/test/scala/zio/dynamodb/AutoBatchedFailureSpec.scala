@@ -271,7 +271,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
           ).asReadOnly
         )
       )
-      .atMost(atMost) // 4
+      .atMost(atMost)
   private def failedMockBatchWriteDeleteTwoItems(atMost: Int): ULayer[DynamoDb] =
     DynamoDbMock
       .BatchWriteItem(
@@ -286,7 +286,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
           ).asReadOnly
         )
       )
-      .atMost(atMost) // 4
+      .atMost(atMost)
 
   private val failedPartialMockBatchWriteTwoItems: ULayer[DynamoDb] = DynamoDbMock
     .BatchWriteItem(

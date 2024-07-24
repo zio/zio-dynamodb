@@ -1040,12 +1040,12 @@ object DynamoDBQuery {
       }
 
     val indexedBatchGetItem: (BatchGetItem, Chunk[Int]) = indexedGets
-      .foldLeft[(BatchGetItem, Chunk[Int])]((BatchGetItem(), Chunk.empty)) { // TODO: Avi - we could set the batch level retry policy here
+      .foldLeft[(BatchGetItem, Chunk[Int])]((BatchGetItem(), Chunk.empty)) {
         case ((batchGetItem, indexes), (getItem, index)) => (batchGetItem + getItem, indexes :+ index)
       }
 
     val indexedBatchWrite: (BatchWriteItem, Chunk[Int]) = indexedWrites
-      .foldLeft[(BatchWriteItem, Chunk[Int])]((BatchWriteItem(), Chunk.empty)) { // TODO: Avi - we could set the batch level retry policy here
+      .foldLeft[(BatchWriteItem, Chunk[Int])]((BatchWriteItem(), Chunk.empty)) {
         case ((batchWriteItem, indexes), (writeItem, index)) => (batchWriteItem + writeItem, indexes :+ index)
       }
 
