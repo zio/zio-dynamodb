@@ -45,9 +45,6 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     val (indexedConstructors, (batchGetItem, batchGetIndexes), (batchWriteItem, batchWriteIndexes)) =
       batched(constructors)
 
-    println(s"XXXXXXXXX execute self: $self")
-    println(s"XXXXXXXXX execute batchWriteItem: $batchWriteItem")
-
     val indexedNonBatchedResults =
       ZIO.foreachPar(indexedConstructors) {
         case (constructor, index) =>
@@ -368,22 +365,12 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         Zip(left.withRetryPolicy(retryPolicy), right.withRetryPolicy(retryPolicy), zippable)
       case Map(query, mapper)         => Map(query.withRetryPolicy(retryPolicy), mapper)
       case Absolve(query)             => Absolve(query.withRetryPolicy(retryPolicy))
-      case s: BatchWriteItem          =>
-        s.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case s: BatchGetItem            =>
-        println(s"0 ZZZZZZZZZZZZZZZZZZZZZZ withRetryPolicy: $retryPolicy")
-        s.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case p: PutItem                 =>
-        println(s"1 ZZZZZZZZZZZZZZZZZZZZZZ withRetryPolicy: $retryPolicy")
-        p.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case d: DeleteItem              =>
-        println(s"2 ZZZZZZZZZZZZZZZZZZZZZZ withRetryPolicy: $retryPolicy")
-        d.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case g: GetItem                 =>
-        println(s"3 ZZZZZZZZZZZZZZZZZZZZZZ withRetryPolicy: $retryPolicy")
-        g.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                          =>
-        self // TODO: Avi - propagate retry to all atomic batchable queries eg Get/Put/Delete so that auto-batching can select it
+      case bw: BatchWriteItem         => bw.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case bg: BatchGetItem           => bg.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case p: PutItem                 => p.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case d: DeleteItem              => d.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case g: GetItem                 => g.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case _                          => self
     }
 
   def sortOrder(ascending: Boolean): DynamoDBQuery[In, Out] =
@@ -391,8 +378,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Zip(left, right, zippable) => Zip(left.sortOrder(ascending), right.sortOrder(ascending), zippable)
       case Map(query, mapper)         => Map(query.sortOrder(ascending), mapper)
       case Absolve(query)             => Absolve(query.sortOrder(ascending))
-      case s: QuerySome               => s.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[In, Out]]
-      case s: QueryAll                => s.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[In, Out]]
+      case qs: QuerySome               => qs.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[In, Out]]
+      case qa: QueryAll                => qa.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                          => self
     }
 
@@ -781,9 +768,7 @@ object DynamoDBQuery {
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     addList: Chunk[BatchWriteItem.Write] = Chunk.empty,
     retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
-//      Schedule.recurs(3) && Schedule.exponential(50.milliseconds) // TODO: Avi delete
   ) extends Constructor[Any, BatchWriteItem.Response] { self =>
-//    println(s"XXXXXXXXXXXX BatchWriteItem.retryPolicy ${self.retryPolicy}")
     def +[A](writeItem: Write[Any, A]): BatchWriteItem =
       writeItem match {
         case putItem @ PutItem(_, _, _, _, _, _, _)       =>

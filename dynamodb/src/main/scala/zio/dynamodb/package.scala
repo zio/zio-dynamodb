@@ -20,7 +20,6 @@ package object dynamodb {
   type Decoder[+A] = AttributeValue => Either[ItemError, A]
 
   private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[_, A]): ZIO[DynamoDBExecutor, DynamoDBError, A] =
-    ZIO.debug(s"XXXXXXXXXXXXXXXXX ddbExecute query type ${query.getClass.getSimpleName}") *>
       ZIO.serviceWithZIO[DynamoDBExecutor](_.execute(query))
 
   /**

@@ -225,24 +225,15 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
         case BatchRetryError() => true
         case _                 => false
       }
-      println(s"XXXXXXXXXXXXXXXX Schedule: ${batchWriteItem.retryPolicy}")
       for {
         ref <- zio.Ref.make[MapOfSet[TableName, BatchWriteItem.Write]](batchWriteItem.requestItems)
         _           <- (for {
                            unprocessedItems           <- ref.get
-                           _                          <-
-                             ZIO.debug(
-                               s"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR retrying with unprocessedItems.size=${unprocessedItems.size}"
-                             )
                            response                   <- dynamoDb
                                                            .batchWriteItem(
                                                              awsBatchWriteItemRequest(batchWriteItem.copy(requestItems = unprocessedItems))
                                                            )
                                                            .mapError(_.toThrowable)
-                           _                          <-
-                             ZIO.debug(
-                               s"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR retrying with unprocessedItems=${response.unprocessedItems}"
-                             )
                            responseUnprocessedItemsOpt = response.unprocessedItems
                                                            .map(map =>
                                                              mapOfListToMapOfSet(map.map {
@@ -251,10 +242,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
                                                            )
                                                            .toOption
                            _                          <- responseUnprocessedItemsOpt match {
-                                                           case Some(responseUnprocessedItems) =>
-                                                             ref.set(responseUnprocessedItems)
-                                                           case None                           =>
-                                                             ZIO.unit
+                                                           case Some(responseUnprocessedItems) => ref.set(responseUnprocessedItems)
+                                                           case None                           => ZIO.unit
                                                          }
                            _                          <- ZIO
                                                            .fail(BatchRetryError())
@@ -342,7 +331,6 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
     if (batchGetItem.requestItems.isEmpty)
       ZIO.succeed(BatchGetItem.Response())
     else {
-      println(s"XXXXXXXXXXXXXXXXXXX batchGetItem.retryPolicy ${batchGetItem.retryPolicy}")
       val t: zio.Schedule[Any, Throwable, Any] = batchGetItem.retryPolicy.getOrElse(defaultRetryPolicy).whileInput {
         case BatchRetryError() => true
         case _                 => false
@@ -352,17 +340,10 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
         collectedItems <- zio.Ref.make[MapOfSet[TableName, Item]](MapOfSet.empty)
         _              <- (for {
                               unprocessed           <- unprocessedKeys.get
-                              _                     <- ZIO.debug(
-                                                         s"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR retrying with unprocessed.size=${unprocessed.size}"
-                                                       )
                               currentCollection     <- collectedItems.get
                               response              <- dynamoDb
                                                          .batchGetItem(awsBatchGetItemRequest(batchGetItem.copy(requestItems = unprocessed)))
                                                          .mapError(_.toThrowable)
-                              _                     <-
-                                ZIO.debug(
-                                  s"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR retrying with response.unprocessedKeys=${response.unprocessedKeys}"
-                                )
                               responseUnprocessedOpt =
                                 response.unprocessedKeys
                                   .map(_.map {
