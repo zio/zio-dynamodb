@@ -86,11 +86,15 @@ import zio.{ Chunk, NonEmptyChunk, ZIO }
 import scala.collection.immutable.{ Map => ScalaMap }
 import software.amazon.awssdk.services.dynamodb.model.{ DynamoDbException => AwsSdkDynamoDbException }
 import scala.annotation.nowarn
+import zio.durationInt
+import zio.Schedule
 
 @nowarn
 private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynamoDb: DynamoDb)
     extends DynamoDBExecutor {
   import DynamoDBExecutorImpl._
+
+  private val defaultRetryPolicy = Schedule.recurs(3) && Schedule.exponential(50.milliseconds)
 
   def executeMap[A, B](map: Map[A, B]): ZIO[Any, Throwable, B] =
     execute(map.query).map(map.mapper)
@@ -217,7 +221,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
     if (batchWriteItem.requestItems.isEmpty) ZIO.succeed(BatchWriteItem.Response(None))
     else {
       // need to explicitly type this for Scala 3 compiler
-      val t: zio.Schedule[Any, Throwable, Any] = batchWriteItem.retryPolicy.whileInput {
+      val t: zio.Schedule[Any, Throwable, Any] = batchWriteItem.retryPolicy.getOrElse(defaultRetryPolicy).whileInput {
         case BatchRetryError() => true
         case _                 => false
       }
@@ -327,7 +331,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
     if (batchGetItem.requestItems.isEmpty)
       ZIO.succeed(BatchGetItem.Response())
     else {
-      val t: zio.Schedule[Any, Throwable, Any] = batchGetItem.retryPolicy.whileInput {
+      val t: zio.Schedule[Any, Throwable, Any] = batchGetItem.retryPolicy.getOrElse(defaultRetryPolicy).whileInput {
         case BatchRetryError() => true
         case _                 => false
       }
@@ -666,7 +670,12 @@ case object DynamoDBExecutorImpl {
   }
 
   private[dynamodb] def writeRequestToBatchWrite(writeRequest: WriteRequest.ReadOnly): Option[BatchWriteItem.Write] =
-    writeRequest.putRequest.toOption.map(put => BatchWriteItem.Put(item = AttrMap(awsAttrMapToAttrMap(put.item))))
+    (writeRequest.putRequest.toOption, writeRequest.deleteRequest.toOption) match {
+      case (Some(put), None)    => Some(BatchWriteItem.Put(item = AttrMap(awsAttrMapToAttrMap(put.item))))
+      case (None, Some(delete)) =>
+        Some(BatchWriteItem.Delete(key = AttrMap(awsAttrMapToAttrMap(delete.key))))
+      case _                    => None
+    }
 
   private def keysAndAttrsToTableGet(ka: KeysAndAttributes.ReadOnly): TableGet = {
     val maybeProjectionExpressions = ka.projectionExpression.map(

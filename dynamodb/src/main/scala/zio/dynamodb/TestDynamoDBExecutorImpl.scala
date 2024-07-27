@@ -55,15 +55,15 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
         }
         results.map(_ => BatchWriteItem.Response(None))
 
-      case GetItem(tableName, key, _, _, _)                                       =>
+      case GetItem(tableName, key, _, _, _, _)                                    =>
         fakeGetItem(tableName.value, key)
 
-      case PutItem(tableName, item, _, _, _, _)                                   =>
+      case PutItem(tableName, item, _, _, _, _, _)                                =>
         fakePut(tableName.value, item)
 
       // TODO Note UpdateItem is not currently supported as it uses an UpdateExpression
 
-      case DeleteItem(tableName, key, _, _, _, _)                                 =>
+      case DeleteItem(tableName, key, _, _, _, _, _)                              =>
         fakeDelete(tableName.value, key)
 
       case ScanSome(tableName, limit, _, _, exclusiveStartKey, _, _, _, _)        =>

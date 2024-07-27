@@ -146,11 +146,10 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       },
       test("with forEach, catching a BatchError and resuming processing") {
         withSingleIdKeyTable { tableName =>
-          type FailureWrapper = Either[String, Option[Person]]
-          val person1                                                                = Person("1", "Smith", Some("John"), 21)
-          val person2                                                                = Person("2", "Brown", None, 42)
-          val inputStream                                                            = ZStream(person1, person2)
-          val outputStream: ZStream[DynamoDBExecutor, DynamoDBError, FailureWrapper] = inputStream
+          val person1                                                                                = Person("1", "Smith", Some("John"), 21)
+          val person2                                                                                = Person("2", "Brown", None, 42)
+          val inputStream                                                                            = ZStream(person1, person2)
+          val outputStream: ZStream[DynamoDBExecutor, DynamoDBError, Either[String, Option[Person]]] = inputStream
             .grouped(2)
             .mapZIO { chunk =>
               val batchWriteItem = DynamoDBQuery
@@ -169,6 +168,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           for {
             xs <- outputStream.runCollect
           } yield assertTrue(xs == Chunk(Right(None), Right(None)))
+        // Note this test is only an example, we cannot force an AWS batch error with unprocessed item to occur in the local DynamoDB
         }
       }
     )
@@ -333,7 +333,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "setIfNotExists fails silently when the attribute already exists"                    // this is AWS API behaviour
+      "setIfNotExists fails silently when the attribute already exists"                    // this is AWS API behavior
     ) {
       withSingleIdKeyTable { tableName =>
         val person = Person("1", "Smith", None, 21)
@@ -444,7 +444,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "remove'ing a map element when it does not exists fails silently"                    // this is AWS API behaviour
+      "remove'ing a map element when it does not exists fails silently"                    // this is AWS API behavior
     ) {
       withSingleIdKeyTable { tableName =>
         val person = PersonWithCollections(
@@ -785,7 +785,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(people == Chunk.empty)
       }
     },
-    test("with an update query") { // not there is no AWS API for batch update so these queries are run in parallel
+    test("with an update query") { // note there is no AWS API for batch update so these queries are run in parallel
       withSingleIdKeyTable { tableName =>
         val person1 = Person("1", "Smith", Some("John"), 21)
         val person2 = Person("2", "Brown", Some("Peter"), 42)

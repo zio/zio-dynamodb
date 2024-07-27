@@ -57,7 +57,7 @@ object ExecutorSpec extends ZIOSpecDefault with DynamoDBFixtures {
         BatchWriteItem.Put(itemOne)
       )
     ),
-    retryPolicy = Schedule.recurs(1)
+    retryPolicy = Some(Schedule.recurs(1))
   )
 
   private val firstWriteRequest =
@@ -134,7 +134,7 @@ object ExecutorSpec extends ZIOSpecDefault with DynamoDBFixtures {
   )
   private val batchGetItem: BatchGetItem                                  = BatchGetItem(
     requestItems = getRequestItems,
-    retryPolicy = Schedule.recurs(1)
+    retryPolicy = Some(Schedule.recurs(1))
   )
   private val batchGetSuite                                               =
     suite("retry batch gets")(

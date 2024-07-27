@@ -29,7 +29,7 @@ import zio.dynamodb.UpdateExpression.Action
 import zio.prelude.ForEachOps
 import zio.schema.Schema
 import zio.stream.Stream
-import zio.{ Chunk, Schedule, ZIO, Zippable => _, _ }
+import zio.{ Chunk, Schedule, ZIO }
 import scala.annotation.nowarn
 
 sealed trait DynamoDBQuery[-In, +Out] { self =>
@@ -365,10 +365,12 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         Zip(left.withRetryPolicy(retryPolicy), right.withRetryPolicy(retryPolicy), zippable)
       case Map(query, mapper)         => Map(query.withRetryPolicy(retryPolicy), mapper)
       case Absolve(query)             => Absolve(query.withRetryPolicy(retryPolicy))
-      case s: BatchWriteItem          => s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[In, Out]]
-      case s: BatchGetItem            => s.copy(retryPolicy = retryPolicy).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                          =>
-        self // TODO: Avi - popogate retry to all primitives eg Get/Put/Delete so that autobatching can select it
+      case bw: BatchWriteItem         => bw.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case bg: BatchGetItem           => bg.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case p: PutItem                 => p.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case d: DeleteItem              => d.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case g: GetItem                 => g.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case _                          => self
     }
 
   def sortOrder(ascending: Boolean): DynamoDBQuery[In, Out] =
@@ -376,8 +378,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Zip(left, right, zippable) => Zip(left.sortOrder(ascending), right.sortOrder(ascending), zippable)
       case Map(query, mapper)         => Map(query.sortOrder(ascending), mapper)
       case Absolve(query)             => Absolve(query.sortOrder(ascending))
-      case s: QuerySome               => s.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[In, Out]]
-      case s: QueryAll                => s.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[In, Out]]
+      case qs: QuerySome              => qs.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[In, Out]]
+      case qa: QueryAll               => qa.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                          => self
     }
 
@@ -675,7 +677,8 @@ object DynamoDBQuery {
     projections: List[ProjectionExpression[_, _]] =
       List.empty, // If no attribute names are specified, then all attributes are returned
     consistency: ConsistencyMode = ConsistencyMode.Weak,
-    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None
+    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
+    retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
   ) extends Constructor[Any, Option[Item]]
 
   private[dynamodb] final case class BatchRetryError() extends Throwable
@@ -685,7 +688,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     private[dynamodb] val orderedGetItems: Chunk[GetItem] =
       Chunk.empty, // track order of added GetItems for later unpacking
-    retryPolicy: Schedule[Any, Throwable, Any] = Schedule.recurs(3) && Schedule.exponential(50.milliseconds)
+    retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
   ) extends Constructor[Any, BatchGetItem.Response] { self =>
 
     def +(getItem: GetItem): BatchGetItem = {
@@ -704,7 +707,8 @@ object DynamoDBQuery {
       BatchGetItem(
         self.requestItems + newEntry,
         self.capacity,
-        self.orderedGetItems :+ getItem
+        self.orderedGetItems :+ getItem,
+        self.retryPolicy.orElse(getItem.retryPolicy) // inherit retry policy from GetItem if not set
       )
     }
 
@@ -763,26 +767,25 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     addList: Chunk[BatchWriteItem.Write] = Chunk.empty,
-    retryPolicy: Schedule[Any, Throwable, Any] =
-      Schedule.recurs(3) && Schedule.exponential(50.milliseconds)
+    retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
   ) extends Constructor[Any, BatchWriteItem.Response] { self =>
     def +[A](writeItem: Write[Any, A]): BatchWriteItem =
       writeItem match {
-        case putItem @ PutItem(_, _, _, _, _, _)       =>
+        case putItem @ PutItem(_, _, _, _, _, _, _)       =>
           BatchWriteItem(
             self.requestItems + ((putItem.tableName, Put(putItem.item))),
             self.capacity,
             self.itemMetrics,
             self.addList :+ Put(putItem.item),
-            self.retryPolicy
+            self.retryPolicy.orElse(putItem.retryPolicy) // inherit retry policy from PutItem if not set
           )
-        case deleteItem @ DeleteItem(_, _, _, _, _, _) =>
+        case deleteItem @ DeleteItem(_, _, _, _, _, _, _) =>
           BatchWriteItem(
             self.requestItems + ((deleteItem.tableName, Delete(deleteItem.key))),
             self.capacity,
             self.itemMetrics,
             self.addList :+ Delete(deleteItem.key),
-            self.retryPolicy
+            self.retryPolicy.orElse(deleteItem.retryPolicy) // inherit retry policy from DeleteItem if not set
           )
       }
 
@@ -922,7 +925,8 @@ object DynamoDBQuery {
     conditionExpression: Option[ConditionExpression[_]] = None,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
-    returnValues: ReturnValues = ReturnValues.None // PutItem does not recognize any values other than NONE or ALL_OLD.
+    returnValues: ReturnValues = ReturnValues.None, // PutItem does not recognize any values other than NONE or ALL_OLD.
+    retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
   ) extends Write[Any, Option[Item]]
 
   private[dynamodb] final case class UpdateItem(
@@ -948,7 +952,8 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues =
-      ReturnValues.None // DeleteItem does not recognize any values other than NONE or ALL_OLD.
+      ReturnValues.None, // DeleteItem does not recognize any values other than NONE or ALL_OLD.
+    retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
   ) extends Write[Any, Option[Item]]
 
   private[dynamodb] final case class CreateTable(
@@ -1002,12 +1007,12 @@ object DynamoDBQuery {
       constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem], Chunk[IndexedWriteItem])](
         (Chunk.empty, Chunk.empty, Chunk.empty)
       ) {
-        case ((nonBatched, gets, writes), (get @ GetItem(_, pk, pes, _, _), index))                              =>
+        case ((nonBatched, gets, writes), (get @ GetItem(_, pk, pes, _, _, _), index))                              =>
           if (projectionsContainPrimaryKey(pes, pk))
             (nonBatched, gets :+ (get -> index), writes)
           else
             (nonBatched :+ (get       -> index), gets, writes)
-        case ((nonBatched, gets, writes), (put @ PutItem(_, _, conditionExpression, _, _, returnValues), index)) =>
+        case ((nonBatched, gets, writes), (put @ PutItem(_, _, conditionExpression, _, _, returnValues, _), index)) =>
           conditionExpression match {
             case Some(_) =>
               (nonBatched :+ (put -> index), gets, writes)
@@ -1019,7 +1024,7 @@ object DynamoDBQuery {
           }
         case (
               (nonBatched, gets, writes),
-              (delete @ DeleteItem(_, _, conditionExpression, _, _, returnValues), index)
+              (delete @ DeleteItem(_, _, conditionExpression, _, _, returnValues, _), index)
             ) =>
           conditionExpression match {
             case Some(_) =>
@@ -1030,7 +1035,7 @@ object DynamoDBQuery {
               else
                 (nonBatched, gets, writes :+ (delete -> index))
           }
-        case ((nonBatched, gets, writes), (nonGetItem, index))                                                   =>
+        case ((nonBatched, gets, writes), (nonGetItem, index))                                                      =>
           (nonBatched :+ (nonGetItem -> index), gets, writes)
       }
 
@@ -1127,7 +1132,7 @@ object DynamoDBQuery {
           }
         )
 
-      case getItem @ GetItem(_, _, _, _, _)                   =>
+      case getItem @ GetItem(_, _, _, _, _, _)                =>
         (
           Chunk(getItem),
           (results: Chunk[Any]) => {
@@ -1135,7 +1140,7 @@ object DynamoDBQuery {
           }
         )
 
-      case putItem @ PutItem(_, _, _, _, _, _)                =>
+      case putItem @ PutItem(_, _, _, _, _, _, _)             =>
         (
           Chunk(putItem),
           (results: Chunk[Any]) => {
@@ -1159,7 +1164,7 @@ object DynamoDBQuery {
           }
         )
 
-      case deleteItem @ DeleteItem(_, _, _, _, _, _)          =>
+      case deleteItem @ DeleteItem(_, _, _, _, _, _, _)       =>
         (
           Chunk(deleteItem),
           (results: Chunk[Any]) => {
