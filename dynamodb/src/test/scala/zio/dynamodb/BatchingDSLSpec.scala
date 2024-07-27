@@ -22,7 +22,7 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
     suite("Batching")(crudSuite, scanAndQuerySuite, batchingSuite).provideLayer(DynamoDBExecutor.test)
 
   private val crudSuite = suite("single Item CRUD suite")(
-    test("getItem") {
+    test("getItemX") {
       for {
         _      <- TestDynamoDBExecutor.addTable(tableName1.value, "k1", primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
         result <- getItemT1.execute

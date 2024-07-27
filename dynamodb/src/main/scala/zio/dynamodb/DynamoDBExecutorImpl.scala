@@ -218,8 +218,10 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
     )
 
   private def executeBatchWriteItem(batchWriteItem: BatchWriteItem): ZIO[Any, Throwable, BatchWriteItem.Response] =
-    if (batchWriteItem.requestItems.isEmpty) ZIO.succeed(BatchWriteItem.Response(None))
-    else {
+    if (batchWriteItem.requestItems.isEmpty) {
+      println(s"XXXXXXXX batchWriteItem.requestItems.isEmpty")
+      ZIO.succeed(BatchWriteItem.Response(None))
+    } else {
       // need to explicitly type this for Scala 3 compiler
       val t: zio.Schedule[Any, Throwable, Any] = batchWriteItem.retryPolicy.getOrElse(defaultRetryPolicy).whileInput {
         case BatchRetryError() => true
@@ -328,9 +330,10 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
       )
 
   private def executeBatchGetItem(batchGetItem: BatchGetItem): ZIO[Any, Throwable, BatchGetItem.Response] =
-    if (batchGetItem.requestItems.isEmpty)
+    if (batchGetItem.requestItems.isEmpty) {
+      println(s"XXXXXXXX batchGetItem.requestItems.isEmpty")
       ZIO.succeed(BatchGetItem.Response())
-    else {
+    } else {
       val t: zio.Schedule[Any, Throwable, Any] = batchGetItem.retryPolicy.getOrElse(defaultRetryPolicy).whileInput {
         case BatchRetryError() => true
         case _                 => false

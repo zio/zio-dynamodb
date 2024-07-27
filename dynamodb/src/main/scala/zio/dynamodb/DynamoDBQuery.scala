@@ -45,6 +45,10 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     val (indexedConstructors, (batchGetItem, batchGetIndexes), (batchWriteItem, batchWriteIndexes)) =
       batched(constructors)
 
+    println(s"XXXXXXX indexedConstructors: $indexedConstructors")
+    println(s"XXXXXXX batchGetItem: $batchGetItem")
+    println(s"XXXXXXX batchWriteItem: $batchWriteItem")
+
     val indexedNonBatchedResults =
       ZIO.foreachPar(indexedConstructors) {
         case (constructor, index) =>
@@ -995,6 +999,8 @@ object DynamoDBQuery {
     type IndexedGetItem     = (GetItem, Int)
     type IndexedWriteItem   = (Write[Any, Option[Any]], Int)
 
+    println(s"XXXXXXXXXX constructors.size: ${constructors.size}")
+
     def projectionsContainPrimaryKey(pes: List[ProjectionExpression[_, _]], pk: PrimaryKey): Boolean = {
       val matchedPrimaryKeys: List[Boolean] = pes.collect {
         case ProjectionExpression.MapElement(ProjectionExpression.Root, key) if pk.map.keySet.contains(key) => true
@@ -1003,40 +1009,50 @@ object DynamoDBQuery {
       hasNoProjections || matchedPrimaryKeys.filter(_ == true).size == pk.map.size
     }
 
+    val isSingleQuery = constructors.size == 1 // single queries are not batched
+
     val (indexedNonBatched, indexedGets, indexedWrites) =
       constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem], Chunk[IndexedWriteItem])](
         (Chunk.empty, Chunk.empty, Chunk.empty)
       ) {
         case ((nonBatched, gets, writes), (get @ GetItem(_, pk, pes, _, _, _), index))                              =>
-          if (projectionsContainPrimaryKey(pes, pk))
+          if (isSingleQuery)
+            (nonBatched :+ (get -> index), gets, writes)
+          else if (projectionsContainPrimaryKey(pes, pk))
             (nonBatched, gets :+ (get -> index), writes)
           else
             (nonBatched :+ (get       -> index), gets, writes)
         case ((nonBatched, gets, writes), (put @ PutItem(_, _, conditionExpression, _, _, returnValues, _), index)) =>
-          conditionExpression match {
-            case Some(_) =>
-              (nonBatched :+ (put -> index), gets, writes)
-            case None    =>
-              if (returnValues != ReturnValues.None)
-                (nonBatched :+ (put               -> index), gets, writes)
-              else
-                (nonBatched, gets, writes :+ (put -> index))
-          }
+          if (isSingleQuery)
+            (nonBatched :+ (put -> index), gets, writes)
+          else
+            conditionExpression match {
+              case Some(_) =>
+                (nonBatched :+ (put -> index), gets, writes)
+              case None    =>
+                if (returnValues != ReturnValues.None)
+                  (nonBatched :+ (put               -> index), gets, writes)
+                else
+                  (nonBatched, gets, writes :+ (put -> index))
+            }
         case (
               (nonBatched, gets, writes),
               (delete @ DeleteItem(_, _, conditionExpression, _, _, returnValues, _), index)
             ) =>
-          conditionExpression match {
-            case Some(_) =>
-              (nonBatched :+ (delete -> index), gets, writes)
-            case None    =>
-              if (returnValues != ReturnValues.None)
-                (nonBatched :+ (delete               -> index), gets, writes)
-              else
-                (nonBatched, gets, writes :+ (delete -> index))
-          }
-        case ((nonBatched, gets, writes), (nonGetItem, index))                                                      =>
-          (nonBatched :+ (nonGetItem -> index), gets, writes)
+          if (isSingleQuery)
+            (nonBatched :+ (delete -> index), gets, writes)
+          else
+            conditionExpression match {
+              case Some(_) =>
+                (nonBatched :+ (delete -> index), gets, writes)
+              case None    =>
+                if (returnValues != ReturnValues.None)
+                  (nonBatched :+ (delete               -> index), gets, writes)
+                else
+                  (nonBatched, gets, writes :+ (delete -> index))
+            }
+        case ((nonBatched, gets, writes), (nonBatchable, index))                                                    =>
+          (nonBatched :+ (nonBatchable -> index), gets, writes)
       }
 
     val indexedBatchGetItem: (BatchGetItem, Chunk[Int]) = indexedGets
