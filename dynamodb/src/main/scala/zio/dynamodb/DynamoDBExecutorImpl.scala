@@ -123,9 +123,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
       case Fail(dynamoDBError) => ZIO.fail(dynamoDBError())
     }
 
-  override def execute[A](atomicQuery: DynamoDBQuery[_, A]): ZIO[Any, DynamoDBError, A] = {
+  override def execute[A](query: DynamoDBQuery[_, A]): ZIO[Any, DynamoDBError, A] = {
 
-    val result = atomicQuery match {
+    val result = query match {
       case constructor: Constructor[_, A] => executeConstructor(constructor)
       case zip @ Zip(_, _, _)             => executeZip(zip)
       case map @ Map(_, _)                => executeMap(map)

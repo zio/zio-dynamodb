@@ -16,8 +16,8 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
     with TestDynamoDBExecutor {
   self =>
 
-  override def execute[A](atomicQuery: DynamoDBQuery[_, A]): ZIO[Any, DynamoDBError, A] = {
-    val result: ZIO[Any, DynamoDBError, A] = atomicQuery match {
+  override def execute[A](query: DynamoDBQuery[_, A]): ZIO[Any, DynamoDBError, A] = {
+    val result: ZIO[Any, DynamoDBError, A] = query match {
       case BatchGetItem(requestItemsMap, _, _, _)                                 =>
         val requestItems: Seq[(TableName, TableGet)] = requestItemsMap.toList
 
@@ -85,7 +85,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
         ZIO.die(new Exception(s"Constructor $unknown not implemented yet"))
     }
 
-    recordedQueries.update(_ :+ atomicQuery) *> result
+    recordedQueries.update(_ :+ query) *> result
   }
 
   private def tableError(tableName: String): DynamoDBError =
