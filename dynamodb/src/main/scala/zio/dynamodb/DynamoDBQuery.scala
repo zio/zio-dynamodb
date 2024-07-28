@@ -45,10 +45,6 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     val (indexedConstructors, (batchGetItem, batchGetIndexes), (batchWriteItem, batchWriteIndexes)) =
       batched(constructors)
 
-    println(s"XXXXXXX indexedConstructors: $indexedConstructors")
-    println(s"XXXXXXX batchGetItem: $batchGetItem")
-    println(s"XXXXXXX batchWriteItem: $batchWriteItem")
-
     val indexedNonBatchedResults =
       ZIO.foreachPar(indexedConstructors) {
         case (constructor, index) =>
@@ -998,8 +994,6 @@ object DynamoDBQuery {
     type IndexedConstructor = (Constructor[In, Any], Int)
     type IndexedGetItem     = (GetItem, Int)
     type IndexedWriteItem   = (Write[Any, Option[Any]], Int)
-
-    println(s"XXXXXXXXXX constructors.size: ${constructors.size}")
 
     def projectionsContainPrimaryKey(pes: List[ProjectionExpression[_, _]], pk: PrimaryKey): Boolean = {
       val matchedPrimaryKeys: List[Boolean] = pes.collect {

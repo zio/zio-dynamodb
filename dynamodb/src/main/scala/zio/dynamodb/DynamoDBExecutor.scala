@@ -2,7 +2,7 @@ package zio.dynamodb
 
 import zio.aws.dynamodb.DynamoDb
 import zio.stm.{ STM, TMap }
-import zio.{ ULayer, URLayer, ZIO, ZLayer }
+import zio.{ Ref, ULayer, URLayer, ZIO, ZLayer }
 
 trait DynamoDBExecutor {
   def execute[A](atomicQuery: DynamoDBQuery[_, A]): ZIO[Any, DynamoDBError, A]
@@ -16,16 +16,18 @@ object DynamoDBExecutor {
 
   lazy val test: ULayer[DynamoDBExecutor with TestDynamoDBExecutor] = {
     val effect = for {
+      ref  <- Ref.make(List.empty[DynamoDBQuery[_, _]])
       test <- (for {
                   tableMap       <- TMap.empty[String, TMap[PrimaryKey, Item]]
                   tablePkNameMap <- TMap.empty[String, String]
-                } yield TestDynamoDBExecutorImpl(tableMap, tablePkNameMap)).commit
+                } yield TestDynamoDBExecutorImpl(ref, tableMap, tablePkNameMap)).commit
     } yield test
     ZLayer.fromZIO(effect)
   }
 
   def test(tableDefs: TableNameAndPK*): ULayer[DynamoDBExecutor with TestDynamoDBExecutor] = {
     val effect = for {
+      ref  <- Ref.make(List.empty[DynamoDBQuery[_, _]])
       test <- (for {
                   tableMap       <- TMap.empty[String, TMap[PrimaryKey, Item]]
                   tablePkNameMap <- TMap.empty[String, String]
@@ -37,7 +39,7 @@ object DynamoDBExecutor {
                                           _           <- tableMap.put(tableName, pkToItemMap)
                                         } yield ()
                                     }
-                } yield TestDynamoDBExecutorImpl(tableMap, tablePkNameMap)).commit
+                } yield TestDynamoDBExecutorImpl(ref, tableMap, tablePkNameMap)).commit
     } yield test
     ZLayer.fromZIO(effect)
   }

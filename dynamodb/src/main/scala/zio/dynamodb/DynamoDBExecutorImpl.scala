@@ -124,6 +124,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
     }
 
   override def execute[A](atomicQuery: DynamoDBQuery[_, A]): ZIO[Any, DynamoDBError, A] = {
+
     val result = atomicQuery match {
       case constructor: Constructor[_, A] => executeConstructor(constructor)
       case zip @ Zip(_, _, _)             => executeZip(zip)
@@ -153,7 +154,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
   private def executeDeleteItem(deleteItem: DeleteItem): ZIO[Any, Throwable, Option[Item]] =
     dynamoDb
       .deleteItem(awsDeleteItemRequest(deleteItem))
-      .mapBoth(_.toThrowable, _.attributes.toOption.map(dynamoDBItem(_)))
+      .mapBoth(_.toThrowable, _.attributes.toOption.map(dynamoDBItem))
 
   private def executeDeleteTable(deleteTable: DeleteTable): ZIO[Any, Throwable, Unit] =
     dynamoDb
@@ -162,13 +163,13 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
       .unit
 
   private def executePutItem(putItem: PutItem): ZIO[Any, Throwable, Option[Item]] =
-    dynamoDb.putItem(awsPutItemRequest(putItem)).mapBoth(_.toThrowable, _.attributes.toOption.map(dynamoDBItem(_)))
+    dynamoDb.putItem(awsPutItemRequest(putItem)).mapBoth(_.toThrowable, _.attributes.toOption.map(dynamoDBItem))
 
   private def executeGetItem(getItem: GetItem): ZIO[Any, Throwable, Option[Item]] =
     dynamoDb
       .getItem(awsGetItemRequest(getItem))
       .mapBoth(_.toThrowable, _.item.map(dynamoDBItem))
-      .map(_.toOption)
+      .map(_.toOption.flatMap(item => if (item.map.isEmpty) None else Some(item)))
 
   private def executeUpdateItem(updateItem: UpdateItem): ZIO[Any, Throwable, Option[Item]] =
     dynamoDb.updateItem(awsUpdateItemRequest(updateItem)).mapBoth(_.toThrowable, optionalItem)
@@ -218,10 +219,8 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
     )
 
   private def executeBatchWriteItem(batchWriteItem: BatchWriteItem): ZIO[Any, Throwable, BatchWriteItem.Response] =
-    if (batchWriteItem.requestItems.isEmpty) {
-      println(s"XXXXXXXX batchWriteItem.requestItems.isEmpty")
-      ZIO.succeed(BatchWriteItem.Response(None))
-    } else {
+    if (batchWriteItem.requestItems.isEmpty) ZIO.succeed(BatchWriteItem.Response(None))
+    else {
       // need to explicitly type this for Scala 3 compiler
       val t: zio.Schedule[Any, Throwable, Any] = batchWriteItem.retryPolicy.getOrElse(defaultRetryPolicy).whileInput {
         case BatchRetryError() => true
@@ -330,10 +329,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
       )
 
   private def executeBatchGetItem(batchGetItem: BatchGetItem): ZIO[Any, Throwable, BatchGetItem.Response] =
-    if (batchGetItem.requestItems.isEmpty) {
-      println(s"XXXXXXXX batchGetItem.requestItems.isEmpty")
+    if (batchGetItem.requestItems.isEmpty)
       ZIO.succeed(BatchGetItem.Response())
-    } else {
+    else {
       val t: zio.Schedule[Any, Throwable, Any] = batchGetItem.retryPolicy.getOrElse(defaultRetryPolicy).whileInput {
         case BatchRetryError() => true
         case _                 => false

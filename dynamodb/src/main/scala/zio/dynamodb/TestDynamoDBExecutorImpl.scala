@@ -4,11 +4,12 @@ import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery._
 import zio.stm.{ STM, TMap, ZSTM }
 import zio.stream.{ Stream, ZStream }
-import zio.{ Chunk, IO, UIO, ZIO }
+import zio.{ Chunk, IO, Ref, UIO, ZIO }
 import scala.annotation.nowarn
 
 @nowarn
 private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
+  recordedQueries: Ref[List[DynamoDBQuery[_, _]]],
   tableMap: TMap[String, TMap[PrimaryKey, Item]],
   tablePkNameMap: TMap[String, String]
 ) extends DynamoDBExecutor
@@ -84,7 +85,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
         ZIO.die(new Exception(s"Constructor $unknown not implemented yet"))
     }
 
-    result
+    recordedQueries.update(_ :+ atomicQuery) *> result
   }
 
   private def tableError(tableName: String): DynamoDBError =
@@ -231,4 +232,6 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
                          case (pk, item) => tableMap.put(pk, item)
                        }
     } yield ()).commit
+
+  override def queries: UIO[List[DynamoDBQuery[_, _]]] = self.recordedQueries.get
 }
