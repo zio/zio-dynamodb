@@ -24,21 +24,21 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
     )
 
   private val singleQueryDoesNotBatchSuite = suite("single query does not batch CRUD suite")(
-    test("a single getItem does not batch") {
+    test("a single getItem does not get auto-batch") {
       for {
         _       <- TestDynamoDBExecutor.addTable(tableName1.value, "k1", primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
         result  <- getItemT1.execute
         queries <- TestDynamoDBExecutor.queries
       } yield assert(result)(equalTo(Some(itemT1))) && assertQueryNotBatched(queries)
     },
-    test("a single putItem does not batch") {
+    test("a single putItem does not get auto-batch") {
       for {
         _       <- TestDynamoDBExecutor.addTable(tableName1.value, "k1", primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
         result  <- putItemT1.execute
         queries <- TestDynamoDBExecutor.queries
       } yield assert(result)(equalTo(None)) && assertQueryNotBatched(queries)
     },
-    test("a single deleteItem does not batch") {
+    test("a single deleteItem does not get auto-batch") {
       for {
         _       <- TestDynamoDBExecutor.addTable(tableName1.value, "k1", primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
         result  <- deleteItemT1.execute
