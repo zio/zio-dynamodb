@@ -1,7 +1,7 @@
 package zio.dynamodb
 
 import zio.{ UIO, ZIO }
-import zio.dynamodb.DynamoDBQuery.{BatchGetItem, BatchWriteItem}
+import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem }
 
 /**
  * A Fake implementation of `DynamoDBExecutor.Service` that currently has the very modest aspiration of providing bare minimum
