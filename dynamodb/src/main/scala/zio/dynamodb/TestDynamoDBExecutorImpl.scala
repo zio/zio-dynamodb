@@ -4,19 +4,20 @@ import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery._
 import zio.stm.{ STM, TMap, ZSTM }
 import zio.stream.{ Stream, ZStream }
-import zio.{ Chunk, IO, UIO, ZIO }
+import zio.{ Chunk, IO, Ref, UIO, ZIO }
 import scala.annotation.nowarn
 
 @nowarn
 private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
+  recordedQueries: Ref[List[DynamoDBQuery[_, _]]],
   tableMap: TMap[String, TMap[PrimaryKey, Item]],
   tablePkNameMap: TMap[String, String]
 ) extends DynamoDBExecutor
     with TestDynamoDBExecutor {
   self =>
 
-  override def execute[A](atomicQuery: DynamoDBQuery[_, A]): ZIO[Any, DynamoDBError, A] = {
-    val result: ZIO[Any, DynamoDBError, A] = atomicQuery match {
+  override def execute[A](query: DynamoDBQuery[_, A]): ZIO[Any, DynamoDBError, A] = {
+    val result: ZIO[Any, DynamoDBError, A] = query match {
       case BatchGetItem(requestItemsMap, _, _, _)                                 =>
         val requestItems: Seq[(TableName, TableGet)] = requestItemsMap.toList
 
@@ -84,7 +85,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
         ZIO.die(new Exception(s"Constructor $unknown not implemented yet"))
     }
 
-    result
+    recordedQueries.update(_ :+ query) *> result
   }
 
   private def tableError(tableName: String): DynamoDBError =
@@ -231,4 +232,6 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
                          case (pk, item) => tableMap.put(pk, item)
                        }
     } yield ()).commit
+
+  override def queries: UIO[List[DynamoDBQuery[_, _]]] = self.recordedQueries.get
 }

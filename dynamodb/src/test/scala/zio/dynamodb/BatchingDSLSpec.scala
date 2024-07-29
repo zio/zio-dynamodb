@@ -3,7 +3,7 @@ package zio.dynamodb
 import zio.Chunk
 import zio.dynamodb.DynamoDBQuery._
 import zio.test.Assertion._
-import zio.test.{ assert, TestAspect, ZIOSpecDefault }
+import zio.test.{ assert, assertTrue, TestAspect, ZIOSpecDefault }
 import zio.test.Spec
 
 object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
@@ -19,15 +19,35 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
   )
 
   override def spec: Spec[Environment, Any] =
-    suite("Batching")(crudSuite, scanAndQuerySuite, batchingSuite).provideLayer(DynamoDBExecutor.test)
+    suite("Batching")(crudSuite, scanAndQuerySuite, batchingSuite, singleQueryDoesNotBatchSuite).provideLayer(
+      DynamoDBExecutor.test
+    )
+
+  private val singleQueryDoesNotBatchSuite = suite("single query does not batch CRUD suite")(
+    test("a single getItem does not get auto-batch") {
+      for {
+        _       <- TestDynamoDBExecutor.addTable(tableName1.value, "k1", primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
+        result  <- getItemT1.execute
+        queries <- TestDynamoDBExecutor.queries
+      } yield assert(result)(equalTo(Some(itemT1))) && assertQueryNotBatched(queries)
+    },
+    test("a single putItem does not get auto-batch") {
+      for {
+        _       <- TestDynamoDBExecutor.addTable(tableName1.value, "k1", primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
+        result  <- putItemT1.execute
+        queries <- TestDynamoDBExecutor.queries
+      } yield assert(result)(equalTo(None)) && assertQueryNotBatched(queries)
+    },
+    test("a single deleteItem does not get auto-batch") {
+      for {
+        _       <- TestDynamoDBExecutor.addTable(tableName1.value, "k1", primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
+        result  <- deleteItemT1.execute
+        queries <- TestDynamoDBExecutor.queries
+      } yield assert(result)(equalTo(None)) && assertQueryNotBatched(queries)
+    }
+  )
 
   private val crudSuite = suite("single Item CRUD suite")(
-    test("getItem") {
-      for {
-        _      <- TestDynamoDBExecutor.addTable(tableName1.value, "k1", primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
-        result <- getItemT1.execute
-      } yield assert(result)(equalTo(Some(itemT1)))
-    },
     test("getItem returns an error when table does not exist") {
       for {
         result <- getItem("TABLE_DOES_NOT_EXISTS", primaryKeyT1).execute.either
@@ -175,4 +195,12 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
       } yield assert(result)(equalTo(List(Some(itemT1), Some(itemT1_2))))
     } @@ beforeAddTable1AndTable2
   )
+
+  private def assertQueryNotBatched(queries: List[DynamoDBQuery[_, _]]) =
+    assertTrue(queries.size == 3) && assertTrue(
+      queries.find(TestDynamoDBExecutor.isEmptyBatchWrite).isDefined
+    ) && assertTrue(
+      queries.find(TestDynamoDBExecutor.isEmptyBatchGet).isDefined
+    )
+
 }

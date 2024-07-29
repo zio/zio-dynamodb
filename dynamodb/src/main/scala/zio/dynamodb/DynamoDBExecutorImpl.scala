@@ -123,8 +123,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
       case Fail(dynamoDBError) => ZIO.fail(dynamoDBError())
     }
 
-  override def execute[A](atomicQuery: DynamoDBQuery[_, A]): ZIO[Any, DynamoDBError, A] = {
-    val result = atomicQuery match {
+  override def execute[A](query: DynamoDBQuery[_, A]): ZIO[Any, DynamoDBError, A] = {
+
+    val result = query match {
       case constructor: Constructor[_, A] => executeConstructor(constructor)
       case zip @ Zip(_, _, _)             => executeZip(zip)
       case map @ Map(_, _)                => executeMap(map)
@@ -153,7 +154,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
   private def executeDeleteItem(deleteItem: DeleteItem): ZIO[Any, Throwable, Option[Item]] =
     dynamoDb
       .deleteItem(awsDeleteItemRequest(deleteItem))
-      .mapBoth(_.toThrowable, _.attributes.toOption.map(dynamoDBItem(_)))
+      .mapBoth(_.toThrowable, _.attributes.toOption.map(dynamoDBItem))
 
   private def executeDeleteTable(deleteTable: DeleteTable): ZIO[Any, Throwable, Unit] =
     dynamoDb
@@ -162,13 +163,13 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
       .unit
 
   private def executePutItem(putItem: PutItem): ZIO[Any, Throwable, Option[Item]] =
-    dynamoDb.putItem(awsPutItemRequest(putItem)).mapBoth(_.toThrowable, _.attributes.toOption.map(dynamoDBItem(_)))
+    dynamoDb.putItem(awsPutItemRequest(putItem)).mapBoth(_.toThrowable, _.attributes.toOption.map(dynamoDBItem))
 
   private def executeGetItem(getItem: GetItem): ZIO[Any, Throwable, Option[Item]] =
     dynamoDb
       .getItem(awsGetItemRequest(getItem))
       .mapBoth(_.toThrowable, _.item.map(dynamoDBItem))
-      .map(_.toOption)
+      .map(_.toOption.flatMap(item => if (item.map.isEmpty) None else Some(item)))
 
   private def executeUpdateItem(updateItem: UpdateItem): ZIO[Any, Throwable, Option[Item]] =
     dynamoDb.updateItem(awsUpdateItemRequest(updateItem)).mapBoth(_.toThrowable, optionalItem)
