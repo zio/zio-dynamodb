@@ -118,8 +118,9 @@ Mapping for `Box(Blue)` would be `Map(trafficLightColour -> String(blue))`
 
 Mapping for `Box(Amber(42))` would be `Map(trafficLightColour -> Map(String(red_green_blue) -> Number(42))`
 
+## Recommendations
 For greenfield development it is recommended to use:
-- the default encoding which uses an intermediate map ([see above](#default-encoding)) - (note this mapping does not work with top level sum types as it requires an intermediate map and partition keys must be scalar values)
-- `@discriminatorName` encoding ([see above](#customising-encodings-via-annotations)) - this must be used for top level sum types
+- the default encoding which uses an intermediate map ([see above](#default-encoding)) - (note this mapping does not work with top level sum types as it requires an intermediate map and partition keys must be scalar values) *or*
+- `@discriminatorName` encoding ([see above](#customising-encodings-via-annotations)) if you would like a more compact encoding - note this *must* be used for top level sum types
 
 
