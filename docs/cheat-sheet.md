@@ -21,7 +21,7 @@ For more detailed working examples please see the High Level API integration tes
 | [PutItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_PutItem.html)                       | _ <- `put("personTable", Person("42", "John", 2020)).execute` |
 | [DeleteItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_DeleteItem.html)                    | `_ <- deleteFrom("personTable")(Person.id.partitionKey === "1").execute` |
 |                               | |
-| [Projection Expressions](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.Attributes.html)        | `Person.id`, `Person.name`, `Person.year`  |
+| [Projection Expressions](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ProjectionExpressions.html)        | `Person.id`, `Person.name`, `Person.year`  |
 | [Condition Expressions](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ConditionExpressions.html)         | `<DynamoDBQuery>.where(Person.id === "1")` |
 | **Filter Expressions** apply to Scan and Query | `<DynamoDBQuery>.filter(Person.year > 2020)`   |
 | [Update Expressions](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html#DDB-UpdateItem-request-UpdateExpression)            | `update("personTable")(Person.id.partitionKey === "1")(Person.name.set("John") + Person.year.add(1))` |

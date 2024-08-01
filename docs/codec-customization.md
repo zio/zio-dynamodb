@@ -18,7 +18,7 @@ The default encoding for `Box(Green(42))` is:
 
 `Map(trafficLightColour -> Map(String(Green) -> Map(String(rgb) -> Number(42))))`
 
-Here an intermediate map is used to identify the member of `TraficLight` using the member class name ie `Map(String(Green) -> Map(...))`
+Here an intermediate map is used to identify the member of `TrafficLight` using the member class name ie `Map(String(Green) -> Map(...))`
 
 ## Sealed trait members that are case objects
 
@@ -33,7 +33,7 @@ The default encoding for `Box(GREEN)` is:
 
 `Map(trafficLightColour -> Map(String(GREEN) -> Null))`
 
-Here an intermediate map is used to identify the member of `TraficLight` ie `Map(String(GREEN) -> Null)`
+Here an intermediate map is used to identify the member of `TrafficLight` ie `Map(String(GREEN) -> Null)`
 Note that the `Null` is used as in this case we do not care about the value.
 
 # Customising encodings via annotations
@@ -110,7 +110,7 @@ final case class Amber(@fieldName("red_green_blue") rgb: Int) extends TrafficLig
 final case class Box(trafficLightColour: TrafficLight)
 ```
 
-This primariliy useful when working with legacy DynamoDB databases where a discriminator field is not present (some DynamoDB mapping libraries allow users to create codecs with no discriminators or tags to disambiguate each sum type case). 
+This primarily useful when working with legacy DynamoDB databases where a discriminator field is not present (some DynamoDB mapping libraries allow users to create codecs with no discriminators or tags to disambiguate each sum type case). 
 
 WARNING! - this leads to the inefficiency of having to try each case and checking for success, and also forces the dangerous assumption that all the sum type cases will be different when encoded. When decoding if there are ambiguities amongst the codecs for the sum type intances this is handled gracefully by returning a Left of a DynamoDBError.DecodingError
 
@@ -119,7 +119,7 @@ Mapping for `Box(Blue)` would be `Map(trafficLightColour -> String(blue))`
 Mapping for `Box(Amber(42))` would be `Map(trafficLightColour -> Map(String(red_green_blue) -> Number(42))`
 
 For greenfield development it is recommended to use:
-- the default encoding which uses an intermediate map ([see above](#default-encoding)) or 
-- `@discriminatorName` encoding ([see above](#customising-encodings-via-annotations))
+- the default encoding which uses an intermediate map ([see above](#default-encoding)) - (note this mapping does not work with top level sum types as it requires an intermediate map and partition keys must be scalar values)
+- `@discriminatorName` encoding ([see above](#customising-encodings-via-annotations)) - this must be used for top level sum types
 
 
