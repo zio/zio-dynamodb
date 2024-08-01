@@ -4,7 +4,7 @@ title: "DynamoDB Transactions"
 sidebar_label: "Transactions"
 ---
 
-Transactions are as simple as calling the `.transact` method on a `DynamoDBQuery`. As long as every component of the query is a valid transaction item and the `DyanmoDBQuery` does not have a mix of get and write transaction items. A list of valid items for both types of queries is listed below.
+Transactions are as simple as calling the `.transact` method on a `DynamoDBQuery`. As long as every component of the query is a valid transaction item and the `DynamoDBQuery` does not have a mix of get and write transaction items. A list of valid items for both types of queries is listed below.
 
 ## Examples
 

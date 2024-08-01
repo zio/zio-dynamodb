@@ -112,7 +112,7 @@ final case class Box(trafficLightColour: TrafficLight)
 
 This primarily useful when working with legacy DynamoDB databases where a discriminator field is not present (some DynamoDB mapping libraries allow users to create codecs with no discriminators or tags to disambiguate each sum type case). 
 
-WARNING! - this leads to the inefficiency of having to try each case and checking for success, and also forces the dangerous assumption that all the sum type cases will be different when encoded. When decoding if there are ambiguities amongst the codecs for the sum type intances this is handled gracefully by returning a Left of a DynamoDBError.DecodingError
+WARNING! - this leads to the inefficiency of having to try each case and checking for success, and also forces the dangerous assumption that all the sum type cases will be different when encoded. When decoding if there are ambiguities amongst the codecs for the sum type instances this is handled gracefully by returning a Left of a DynamoDBError.DecodingError
 
 Mapping for `Box(Blue)` would be `Map(trafficLightColour -> String(blue))`
 
