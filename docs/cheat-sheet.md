@@ -21,7 +21,7 @@ For more detailed working examples please see the High Level API integration tes
 | [PutItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_PutItem.html)                       | _ <- `put("personTable", Person("42", "John", 2020)).execute` |
 | [DeleteItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_DeleteItem.html)                    | `_ <- deleteFrom("personTable")(Person.id.partitionKey === "1").execute` |
 |                               | |
-| [Projection Expressions](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.Attributes.html)        | `Person.id`, `Person.name`, `Person.year`  |
+| [Projection Expressions](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ProjectionExpressions.html)        | `Person.id`, `Person.name`, `Person.year`  |
 | [Condition Expressions](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ConditionExpressions.html)         | `<DynamoDBQuery>.where(Person.id === "1")` |
 | **Filter Expressions** apply to Scan and Query | `<DynamoDBQuery>.filter(Person.year > 2020)`   |
 | [Update Expressions](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html#DDB-UpdateItem-request-UpdateExpression)            | `update("personTable")(Person.id.partitionKey === "1")(Person.name.set("John") + Person.year.add(1))` |
@@ -39,6 +39,6 @@ For more detailed working examples please see the High Level API integration tes
 | [BatchGetItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html) | `people <- DynamoDBQuery.forEach(listOfIds)(id => DynamoDBQuery.get[Person]("personTable")(Person.id.partitionKey === id)).execute`|
 | [BatchWriteItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html) | _ <- `DynamoDBQuery.forEach(people)(p => put("personTable", p)).execute` |
 | | |
-| [TransactGetItems](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactGetItems.html) | `val getJohn      = get("personTable")(Person.id.partitionKey === "1")`<br>`val getSmith = get("employeeTable")(Employee.id.partitionKey === "2")`<br>`tuple <- (getJohn zip getSmith).transaction.execute` <br> Note transactions can span different tables |
-| [TransactWriteItems](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactWriteItems.html) | `val putJohn = put("personTable", Person(1, "John", 2020))`<br>`val putSmith = put("employeeTable", Person(2, "Smith", 2024))`<br>`_ <- (putJohn zip putSmith).transaction.execute` <br> Note transactions can span different tables |
+| [TransactGetItems](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactGetItems.html) | `val getJohn      = get("personTable")(Person.id.partitionKey === "1")`<br>`val getSmith = get("employeeTable")(Employee.id.partitionKey === "2")`<br>`tuple <- (getJohn zip getSmith).transaction.execute` <br> Note transactions can span different tables. Also see the [transactions page](transactions.md). |
+| [TransactWriteItems](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactWriteItems.html) | `val putJohn = put("personTable", Person(1, "John", 2020))`<br>`val putSmith = put("employeeTable", Person(2, "Smith", 2024))`<br>`_ <- (putJohn zip putSmith).transaction.execute` <br> Note transactions can span different tables. Also see the [transactions page](transactions.md). |
 
