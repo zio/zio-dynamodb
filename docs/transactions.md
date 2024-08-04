@@ -26,7 +26,7 @@ final case class WaitList(email: String)
 object Bill {
   implicit lazy val schema: Schema.CaseClass1[String, WaitList] = DeriveSchema.gen[WaitList]
 
-  val (email) = ProjectionExpression.accessors[WaitList]
+  val email = ProjectionExpression.accessors[WaitList]
 }
 ```
 
