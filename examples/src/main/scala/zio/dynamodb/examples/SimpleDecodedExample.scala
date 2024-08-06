@@ -1,7 +1,7 @@
 package zio.dynamodb.examples
 
 import zio.dynamodb.DynamoDBQuery._
-import zio.dynamodb.{ DynamoDBExecutor, Item }
+import zio.dynamodb.{ DynamoDBExecutor, Item, TableName }
 import zio.schema.{ DeriveSchema, Schema }
 import zio.ZIOAppDefault
 import zio.Console.printLine
@@ -42,5 +42,5 @@ object SimpleDecodedExample extends ZIOAppDefault {
   } yield ()
 
   override def run: ZIO[Any, Throwable, Unit] =
-    program.provideLayer(DynamoDBExecutor.test("table1" -> "id"))
+    program.provideLayer(DynamoDBExecutor.test(TableName("table1") -> "id"))
 }

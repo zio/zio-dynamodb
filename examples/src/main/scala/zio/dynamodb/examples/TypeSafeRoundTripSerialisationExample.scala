@@ -14,10 +14,12 @@ import zio.dynamodb.{ DynamoDBExecutor, DynamoDBQuery, PrimaryKey }
 import zio.schema.annotation.{ caseName, discriminatorName }
 import zio.schema.{ DeriveSchema, Schema }
 
-import java.time.Instant
 import zio.dynamodb.ProjectionExpression
-import zio.ZIO
 import zio.dynamodb.DynamoDBError.ItemError
+import zio.dynamodb.TableName
+import zio.ZIO
+import java.time.Instant
+
 object TypeSafeRoundTripSerialisationExample extends ZIOAppDefault {
 
   @discriminatorName("invoiceType")
@@ -121,5 +123,5 @@ object TypeSafeRoundTripSerialisationExample extends ZIOAppDefault {
   } yield ()
 
   override def run: ZIO[Any, Throwable, Unit] =
-    program.provideLayer(DynamoDBExecutor.test("table1" -> "id"))
+    program.provideLayer(DynamoDBExecutor.test(TableName("table1") -> "id"))
 }

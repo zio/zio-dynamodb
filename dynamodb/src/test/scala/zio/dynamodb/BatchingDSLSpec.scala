@@ -23,26 +23,26 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
       DynamoDBExecutor.test
     )
 
-  private val singleQueryDoesNotBatchSuite = suite("single query does not batch CRUD suite")(
+  private val singleQueryDoesNotBatchSuite = suite("single query does not auto-batch CRUD suite")(
     test("a single getItem does not get auto-batched") {
       for {
         _       <- TestDynamoDBExecutor.addTable(tableName1.value, "k1", primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
         result  <- getItemT1.execute
-        queries <- TestDynamoDBExecutor.queries
+        queries <- TestDynamoDBExecutor.recordedQueries
       } yield assert(result)(equalTo(Some(itemT1))) && assertQueryNotBatched(queries)
     },
     test("a single putItem does not get auto-batched") {
       for {
         _       <- TestDynamoDBExecutor.addTable(tableName1.value, "k1", primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
         result  <- putItemT1.execute
-        queries <- TestDynamoDBExecutor.queries
+        queries <- TestDynamoDBExecutor.recordedQueries
       } yield assert(result)(equalTo(None)) && assertQueryNotBatched(queries)
     },
     test("a single deleteItem does not get auto-batched") {
       for {
         _       <- TestDynamoDBExecutor.addTable(tableName1.value, "k1", primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
         result  <- deleteItemT1.execute
-        queries <- TestDynamoDBExecutor.queries
+        queries <- TestDynamoDBExecutor.recordedQueries
       } yield assert(result)(equalTo(None)) && assertQueryNotBatched(queries)
     }
   )
@@ -198,9 +198,20 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
 
   private def assertQueryNotBatched(queries: List[DynamoDBQuery[_, _]]) =
     assertTrue(queries.size == 3) && assertTrue(
-      queries.find(TestDynamoDBExecutor.isEmptyBatchWrite).isDefined
+      queries.find(isEmptyBatchWrite).isDefined
     ) && assertTrue(
-      queries.find(TestDynamoDBExecutor.isEmptyBatchGet).isDefined
+      queries.find(isEmptyBatchGet).isDefined
     )
 
+  private def isEmptyBatchWrite(q: DynamoDBQuery[_, _]): Boolean =
+    q match {
+      case BatchWriteItem(items, _, _, _, _) => items.isEmpty
+      case _                                 => false
+    }
+
+  private def isEmptyBatchGet(q: DynamoDBQuery[_, _]): Boolean =
+    q match {
+      case BatchGetItem(items, _, _, _) => items.isEmpty
+      case _                            => false
+    }
 }

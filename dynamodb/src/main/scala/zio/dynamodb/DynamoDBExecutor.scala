@@ -18,8 +18,8 @@ object DynamoDBExecutor {
     val effect = for {
       ref  <- Ref.make(List.empty[DynamoDBQuery[_, _]])
       test <- (for {
-                  tableMap       <- TMap.empty[String, TMap[PrimaryKey, Item]]
-                  tablePkNameMap <- TMap.empty[String, String]
+                  tableMap       <- TMap.empty[TableName, TMap[PrimaryKey, Item]]
+                  tablePkNameMap <- TMap.empty[TableName, String]
                 } yield TestDynamoDBExecutorImpl(ref, tableMap, tablePkNameMap)).commit
     } yield test
     ZLayer.fromZIO(effect)
@@ -29,8 +29,8 @@ object DynamoDBExecutor {
     val effect = for {
       ref  <- Ref.make(List.empty[DynamoDBQuery[_, _]])
       test <- (for {
-                  tableMap       <- TMap.empty[String, TMap[PrimaryKey, Item]]
-                  tablePkNameMap <- TMap.empty[String, String]
+                  tableMap       <- TMap.empty[TableName, TMap[PrimaryKey, Item]]
+                  tablePkNameMap <- TMap.empty[TableName, String]
                   _              <- STM.foreach(tableDefs) {
                                       case (tableName, pkFieldName) =>
                                         for {
