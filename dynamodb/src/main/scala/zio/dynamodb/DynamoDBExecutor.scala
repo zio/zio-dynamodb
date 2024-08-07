@@ -18,25 +18,25 @@ object DynamoDBExecutor {
     val effect = for {
       ref  <- Ref.make(List.empty[DynamoDBQuery[_, _]])
       test <- (for {
-                  tableMap       <- TMap.empty[String, TMap[PrimaryKey, Item]]
-                  tablePkNameMap <- TMap.empty[String, String]
+                  tableMap       <- TMap.empty[TableName, TMap[PrimaryKey, Item]]
+                  tablePkNameMap <- TMap.empty[TableName, String]
                 } yield TestDynamoDBExecutorImpl(ref, tableMap, tablePkNameMap)).commit
     } yield test
     ZLayer.fromZIO(effect)
   }
 
-  def test(tableDefs: TableNameAndPK*): ULayer[DynamoDBExecutor with TestDynamoDBExecutor] = {
+  def test(tableAndPKNames: (String, String)*): ULayer[DynamoDBExecutor with TestDynamoDBExecutor] = {
     val effect = for {
       ref  <- Ref.make(List.empty[DynamoDBQuery[_, _]])
       test <- (for {
-                  tableMap       <- TMap.empty[String, TMap[PrimaryKey, Item]]
-                  tablePkNameMap <- TMap.empty[String, String]
-                  _              <- STM.foreach(tableDefs) {
+                  tableMap       <- TMap.empty[TableName, TMap[PrimaryKey, Item]]
+                  tablePkNameMap <- TMap.empty[TableName, String]
+                  _              <- STM.foreach(tableAndPKNames) {
                                       case (tableName, pkFieldName) =>
                                         for {
-                                          _           <- tablePkNameMap.put(tableName, pkFieldName)
+                                          _           <- tablePkNameMap.put(TableName(tableName), pkFieldName)
                                           pkToItemMap <- TMap.empty[PrimaryKey, Item]
-                                          _           <- tableMap.put(tableName, pkToItemMap)
+                                          _           <- tableMap.put(TableName(tableName), pkToItemMap)
                                         } yield ()
                                     }
                 } yield TestDynamoDBExecutorImpl(ref, tableMap, tablePkNameMap)).commit

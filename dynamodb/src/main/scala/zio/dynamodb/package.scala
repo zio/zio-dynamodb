@@ -13,9 +13,6 @@ package object dynamodb {
   type Item = AttrMap
   val Item = AttrMap
 
-  type PkAndItem      = (PrimaryKey, Item)
-  type TableNameAndPK = (String, String)
-
   type Encoder[A]  = A => AttributeValue
   type Decoder[+A] = AttributeValue => Either[ItemError, A]
 

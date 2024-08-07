@@ -1,7 +1,7 @@
 package zio.dynamodb
 
+import zio.dynamodb.TestDynamoDBExecutor.PkAndItem
 import zio.{ UIO, ZIO }
-import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem }
 
 /**
  * A Fake implementation of `DynamoDBExecutor.Service` that currently has the very modest aspiration of providing bare minimum
@@ -34,10 +34,11 @@ import zio.dynamodb.DynamoDBQuery.{ BatchGetItem, BatchWriteItem }
 trait TestDynamoDBExecutor {
   def addTable(tableName: String, pkFieldName: String, pkAndItems: PkAndItem*): UIO[Unit]
   def addItems(tableName: String, pkAndItems: PkAndItem*): ZIO[Any, DynamoDBError, Unit]
-  def queries: UIO[List[DynamoDBQuery[_, _]]]
+  def recordedQueries: UIO[List[DynamoDBQuery[_, _]]]
 }
 
 object TestDynamoDBExecutor {
+  type PkAndItem = (PrimaryKey, Item)
 
   def addTable(
     tableName: String,
@@ -49,19 +50,7 @@ object TestDynamoDBExecutor {
   def addItems(tableName: String, pkAndItems: PkAndItem*): ZIO[TestDynamoDBExecutor, DynamoDBError, Unit] =
     ZIO.serviceWithZIO[TestDynamoDBExecutor](_.addItems(tableName, pkAndItems: _*))
 
-  def queries: ZIO[TestDynamoDBExecutor, Nothing, List[DynamoDBQuery[_, _]]] =
-    ZIO.serviceWithZIO[TestDynamoDBExecutor](_.queries)
-
-  def isEmptyBatchWrite(q: DynamoDBQuery[_, _]) =
-    q match {
-      case BatchWriteItem(items, _, _, _, _) => items.isEmpty
-      case _                                 => false
-    }
-
-  def isEmptyBatchGet(q: DynamoDBQuery[_, _]) =
-    q match {
-      case BatchGetItem(items, _, _, _) => items.isEmpty
-      case _                            => false
-    }
+  def recordedQueries: ZIO[TestDynamoDBExecutor, Nothing, List[DynamoDBQuery[_, _]]] =
+    ZIO.serviceWithZIO[TestDynamoDBExecutor](_.recordedQueries)
 
 }

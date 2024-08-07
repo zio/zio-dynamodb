@@ -14,10 +14,11 @@ import zio.dynamodb.{ DynamoDBExecutor, DynamoDBQuery, PrimaryKey }
 import zio.schema.annotation.{ caseName, discriminatorName }
 import zio.schema.{ DeriveSchema, Schema }
 
-import java.time.Instant
 import zio.dynamodb.ProjectionExpression
-import zio.ZIO
 import zio.dynamodb.DynamoDBError.ItemError
+import zio.ZIO
+import java.time.Instant
+
 object TypeSafeRoundTripSerialisationExample extends ZIOAppDefault {
 
   @discriminatorName("invoiceType")
