@@ -16,7 +16,6 @@ import zio.schema.{ DeriveSchema, Schema }
 
 import zio.dynamodb.ProjectionExpression
 import zio.dynamodb.DynamoDBError.ItemError
-import zio.dynamodb.TableName
 import zio.ZIO
 import java.time.Instant
 
@@ -123,5 +122,5 @@ object TypeSafeRoundTripSerialisationExample extends ZIOAppDefault {
   } yield ()
 
   override def run: ZIO[Any, Throwable, Unit] =
-    program.provideLayer(DynamoDBExecutor.test(TableName("table1") -> "id"))
+    program.provideLayer(DynamoDBExecutor.test("table1" -> "id"))
 }

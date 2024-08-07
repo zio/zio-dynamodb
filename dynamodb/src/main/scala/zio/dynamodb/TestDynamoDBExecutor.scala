@@ -1,5 +1,6 @@
 package zio.dynamodb
 
+import zio.dynamodb.TestDynamoDBExecutor.PkAndItem
 import zio.{ UIO, ZIO }
 
 /**
@@ -37,6 +38,7 @@ trait TestDynamoDBExecutor {
 }
 
 object TestDynamoDBExecutor {
+  type PkAndItem      = (PrimaryKey, Item)
 
   def addTable(
     tableName: String,

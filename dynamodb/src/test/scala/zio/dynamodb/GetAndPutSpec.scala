@@ -24,7 +24,7 @@ object GetAndPutSpec extends ZIOSpecDefault {
   private val primaryKey2 = PrimaryKey("id" -> 2)
 
   override def spec: Spec[Environment, Any] =
-    suite("get and put suite")(getSuite, putSuite).provideLayer(DynamoDBExecutor.test(TableName("table1") -> "id"))
+    suite("get and put suite")(getSuite, putSuite).provideLayer(DynamoDBExecutor.test("table1" -> "id"))
 
   private val getSuite                      = suite("get item as SimpleCaseClass2")(
     test("that exists") {

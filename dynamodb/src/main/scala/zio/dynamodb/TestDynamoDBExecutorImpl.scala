@@ -2,6 +2,7 @@ package zio.dynamodb
 
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery._
+import zio.dynamodb.TestDynamoDBExecutor.PkAndItem
 import zio.stm.{ STM, TMap, ZSTM }
 import zio.stream.{ Stream, ZStream }
 import zio.{ Chunk, IO, Ref, UIO, ZIO }
