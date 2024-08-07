@@ -38,7 +38,7 @@ trait TestDynamoDBExecutor {
 }
 
 object TestDynamoDBExecutor {
-  type PkAndItem      = (PrimaryKey, Item)
+  type PkAndItem = (PrimaryKey, Item)
 
   def addTable(
     tableName: String,
