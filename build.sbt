@@ -43,7 +43,7 @@ lazy val root =
   project
     .in(file("."))
     .settings(skip in publish := true)
-    .aggregate(zioDynamodb, zioDynamodbCe, zioDynamodbJson, examples /*, docs */ )
+    .aggregate(zioDynamodb, zioDynamodbCe, zioDynamodbJson, examples, docs)
 
 lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
   .enablePlugins(BuildInfoPlugin)
@@ -330,16 +330,37 @@ def module(moduleName: String, fileName: String): Project =
 
 lazy val docs = project
   .in(file("zio-dynamodb-docs"))
+  .settings(stdSettings("zio-dynamodb-docs"))
   .settings(
+    fork := false,
     moduleName := "zio-dynamodb-docs",
     scalacOptions -= "-Yno-imports",
     scalacOptions -= "-Xfatal-warnings",
-    libraryDependencies ++= Seq("dev.zio" %% "zio" % zioVersion),
     projectName := "ZIO DynamoDB",
     mainModuleName := (zioDynamodb / moduleName).value,
     projectStage := ProjectStage.Development,
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(zioDynamodb),
-    docsPublishBranch := "series/2.x"
+    ciWorkflowName := "Continuous Integration",
+    libraryDependencies ++= Seq("dev.zio" %% "zio" % zioVersion),
+    publish / skip := true,
+    mdocVariables ++= Map("ZIO_VERSION" -> zioVersion)
+//    docsPublishBranch := "series/2.x"
   )
-  .dependsOn(zioDynamodb)
+  .dependsOn(zioDynamodb, zioDynamodbJson)
   .enablePlugins(WebsitePlugin)
+
+// lazy val docs = project
+//   .in(file("zio-dynamodb-docs"))
+//   .settings(
+//     moduleName := "zio-dynamodb-docs",
+//     scalacOptions -= "-Yno-imports",
+//     scalacOptions -= "-Xfatal-warnings",
+//     libraryDependencies ++= Seq("dev.zio" %% "zio" % zioVersion),
+//     projectName := "ZIO DynamoDB",
+//     mainModuleName := (zioDynamodb / moduleName).value,
+//     projectStage := ProjectStage.Development,
+//     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(zioDynamodb),
+//     docsPublishBranch := "series/2.x"
+//   )
+//   .dependsOn(zioDynamodb)
+//   .enablePlugins(WebsitePlugin)
