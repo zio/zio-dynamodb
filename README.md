@@ -2,11 +2,11 @@
 [//]: # (So please do not edit it manually. Instead, change "docs/index.md" file or sbt setting keys)
 [//]: # (e.g. "readmeDocumentation" and "readmeSupport".)
 
-# ZIO Dynamodb
+# ZIO DynamoDB
 
 Simple, type-safe, and efficient access to DynamoDB
 
-[![Development](https://img.shields.io/badge/Project%20Stage-Development-green.svg)](https://github.com/zio/zio/wiki/Project-Stages) ![CI Badge](https://github.com/zio/zio-dynamodb/workflows/Continuous%20Integration/badge.svg) [![Sonatype Releases](https://img.shields.io/nexus/r/https/oss.sonatype.org/dev.zio/zio-dynamodb_2.13.svg?label=Sonatype%20Release)](https://oss.sonatype.org/content/repositories/releases/dev/zio/zio-dynamodb_2.13/) [![Sonatype Snapshots](https://img.shields.io/nexus/s/https/oss.sonatype.org/dev.zio/zio-dynamodb_2.13.svg?label=Sonatype%20Snapshot)](https://oss.sonatype.org/content/repositories/snapshots/dev/zio/zio-dynamodb_2.13/) [![javadoc](https://javadoc.io/badge2/dev.zio/zio-dynamodb-docs_2.13/javadoc.svg)](https://javadoc.io/doc/dev.zio/zio-dynamodb-docs_2.13) [![ZIO Dynamodb](https://img.shields.io/github/stars/zio/zio-dynamodb?style=social)](https://github.com/zio/zio-dynamodb)
+[![Development](https://img.shields.io/badge/Project%20Stage-Development-green.svg)](https://github.com/zio/zio/wiki/Project-Stages) ![CI Badge](https://github.com/zio/zio-dynamodb/workflows/CI/badge.svg) [![Sonatype Releases](https://img.shields.io/nexus/r/https/oss.sonatype.org/dev.zio/zio-dynamodb_2.13.svg?label=Sonatype%20Release)](https://oss.sonatype.org/content/repositories/releases/dev/zio/zio-dynamodb_2.13/) [![Sonatype Snapshots](https://img.shields.io/nexus/s/https/oss.sonatype.org/dev.zio/zio-dynamodb_2.13.svg?label=Sonatype%20Snapshot)](https://oss.sonatype.org/content/repositories/snapshots/dev/zio/zio-dynamodb_2.13/) [![javadoc](https://javadoc.io/badge2/dev.zio/zio-dynamodb-docs_2.13/javadoc.svg)](https://javadoc.io/doc/dev.zio/zio-dynamodb-docs_2.13) [![ZIO DynamoDB](https://img.shields.io/github/stars/zio/zio-dynamodb?style=social)](https://github.com/zio/zio-dynamodb)
 
 ## Introduction
 
@@ -106,7 +106,7 @@ docker compose -f docker/docker-compose.yml down
 
 ## Documentation
 
-Learn more on the [ZIO Dynamodb homepage](https://zio.dev/zio-dynamodb/)!
+Learn more on the [ZIO DynamoDB homepage](https://zio.dev/zio-dynamodb/)!
 
 ## Contributing
 
