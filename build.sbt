@@ -340,27 +340,9 @@ lazy val docs = project
     mainModuleName := (zioDynamodb / moduleName).value,
     projectStage := ProjectStage.Development,
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(zioDynamodb),
-//    ciWorkflowName := "Continuous Integration",
     libraryDependencies ++= Seq("dev.zio" %% "zio" % zioVersion),
     publish / skip := true,
     mdocVariables ++= Map("ZIO_VERSION" -> zioVersion)
-//    docsPublishBranch := "series/2.x"
   )
   .dependsOn(zioDynamodb, zioDynamodbJson)
   .enablePlugins(WebsitePlugin)
-
-// lazy val docs = project
-//   .in(file("zio-dynamodb-docs"))
-//   .settings(
-//     moduleName := "zio-dynamodb-docs",
-//     scalacOptions -= "-Yno-imports",
-//     scalacOptions -= "-Xfatal-warnings",
-//     libraryDependencies ++= Seq("dev.zio" %% "zio" % zioVersion),
-//     projectName := "ZIO DynamoDB",
-//     mainModuleName := (zioDynamodb / moduleName).value,
-//     projectStage := ProjectStage.Development,
-//     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(zioDynamodb),
-//     docsPublishBranch := "series/2.x"
-//   )
-//   .dependsOn(zioDynamodb)
-//   .enablePlugins(WebsitePlugin)
