@@ -28,13 +28,13 @@ jobs:
         java-version: 17
         check-latest: true
     - name: Check artifacts build process
-      run: sbt  +publishLocal
+      run: sbt -J-XX:+UseG1GC -J-Xmx6g -J-Xms6g -J-Xss16m ++${{ matrix.scala }}! +publishLocal
     - name: Check website build process
-      run: sbt docs/clean; sbt  docs/buildWebsite
+      run: sbt docs/clean; sbt -J-XX:+UseG1GC -J-Xmx6g -J-Xms6g -J-Xss16m ++${{ matrix.scala }}! docs/buildWebsite
   publish-docs:
     name: Publish Docs
     runs-on: ubuntu-latest
-    if: ${{ ((github.event_name == 'release') && (github.event.action == 'published')) || (github.event_name == 'workflow_dispatch') }}
+    # if: ${{ ((github.event_name == 'release') && (github.event.action == 'published')) || (github.event_name == 'workflow_dispatch') }}
     steps:
     - name: Git Checkout
       uses: actions/checkout@v3.3.0
@@ -58,7 +58,7 @@ jobs:
   generate-readme:
     name: Generate README
     runs-on: ubuntu-latest
-    if: ${{ (github.event_name == 'push') || ((github.event_name == 'release') && (github.event.action == 'published')) }}
+    # if: ${{ (github.event_name == 'push') || ((github.event_name == 'release') && (github.event.action == 'published')) }}
     steps:
     - name: Git Checkout
       uses: actions/checkout@v3.3.0
