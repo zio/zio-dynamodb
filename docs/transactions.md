@@ -63,7 +63,7 @@ for {
 
 DynamoDBQueries using the `.transaction` method will fail at runtime if there are invalid transaction actions such as creating a table, scanning for items, or querying. Note a limited number of actions that can be performed for either a read or a write transaction. There is a `.safeTransaction` method that is also available that will return `Either[DynamoDBError.TransactionError, DynamoDBQuery[A]]`.
 
-There are more examples in our integration tests [here](../dynamodb/src/it/scala/zio/dynamodb/TypeSafeApiCrudSpec.scala) and [here](../dynamodb/src/it/scala/zio/dynamodb/LiveSpec.scala).
+There are more examples in our integration tests [here](https://github.com/zio/zio-dynamodb/blob/series/2.x/dynamodb/src/it/scala/zio/dynamodb/TypeSafeApiCrudSpec.scala) and [here](https://github.com/zio/zio-dynamodb/blob/series/2.x/dynamodb/src/it/scala/zio/dynamodb/LiveSpec.scala).
 
 ### Valid Transact Write Items
 

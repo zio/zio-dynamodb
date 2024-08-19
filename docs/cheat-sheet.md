@@ -16,7 +16,7 @@ object Person {
 }
 ```
 
-For more detailed working examples please see the High Level API integration tests [crud](../dynamodb/src/it/scala/zio/dynamodb/TypeSafeApiCrudSpec.scala), [mapping](../dynamodb/src/it/scala/zio/dynamodb/TypeSafeApiMappingSpec.scala), [scan and query](../dynamodb/src/it/scala/zio/dynamodb/TypeSafeScanAndQuerySpec.scala), [streaming](../dynamodb/src/it/scala/zio/dynamodb/TypeSafeStreamingUtilsSpec.scala)
+For more detailed working examples please see the High Level API integration tests [crud](https://github.com/zio/zio-dynamodb/blob/series/2.x/dynamodb/src/it/scala/zio/dynamodb/TypeSafeApiCrudSpec.scala), [mapping](https://github.com/zio/zio-dynamodb/blob/series/2.x/dynamodb/src/it/scala/zio/dynamodb/TypeSafeApiMappingSpec.scala), [scan and query](https://github.com/zio/zio-dynamodb/blob/series/2.x/dynamodb/src/it/scala/zio/dynamodb/TypeSafeScanAndQuerySpec.scala), [streaming](https://github.com/zio/zio-dynamodb/blob/series/2.x/dynamodb/src/it/scala/zio/dynamodb/TypeSafeStreamingUtilsSpec.scala)
 
 
 | AWS                           | ZIO DynamoDB |

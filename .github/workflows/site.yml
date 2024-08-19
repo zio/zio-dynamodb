@@ -15,11 +15,6 @@ jobs:
   build:
     name: Build and Test
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        java: ["adopt@1.11", "openjdk@1.17"]
-        scala: ["3.3.0", "2.13.12", "2.12.19"]    
     if: ${{ github.event_name == 'pull_request' }}
     steps:
     - name: Git Checkout
@@ -33,9 +28,9 @@ jobs:
         java-version: 17
         check-latest: true
     - name: Check artifacts build process
-      run: sbt -J-XX:+UseG1GC -J-Xmx6g -J-Xms6g -J-Xss16m ++${{ matrix.scala }}! +publishLocal
+      run: sbt -J-XX:+UseG1GC -J-Xmx6g -J-Xms6g -J-Xss16m +publishLocal
     - name: Check website build process
-      run: sbt docs/clean; sbt -J-XX:+UseG1GC -J-Xmx6g -J-Xms6g -J-Xss16m ++${{ matrix.scala }}! docs/buildWebsite
+      run: sbt docs/clean; sbt -J-XX:+UseG1GC -J-Xmx6g -J-Xms6g -J-Xss16m docs/buildWebsite
   publish-docs:
     name: Publish Docs
     runs-on: ubuntu-latest
