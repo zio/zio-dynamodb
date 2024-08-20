@@ -14,6 +14,8 @@ ZIO DynamoDB is a library that is used for type-safe, efficient, and boilerplate
 
 Under the hood we use the excellent [ZIO AWS](https://zio.dev/zio-aws) library for type-safe DynamoDB access, and the awesome [ZIO Schema](https://zio.dev/zio-schema) library for schema derived codecs (see here for documentation on how to [customise these through annotations](codec-customization.md)).
 
+For an overview of the High Level API please see the [ZIO DynamoDB cheat sheet](cheat-sheet.md).
+
 ## Installation
 
 To use ZIO DynamoDB, we need to add the following lines to our `build.sbt` file:
@@ -24,9 +26,30 @@ libraryDependencies ++= Seq(
 )
 ```
 
+### Cats Effect Interop
+
+To use the new Cats Effect 3 interop module, we need to also add the following line to our `build.sbt` file:
+
+```scala
+libraryDependencies ++= Seq(
+  "dev.zio" %% "zio-dynamodb-ce" "@VERSION@"
+)
+```
+
+For CE interop examples please see [examples sbt module](https://github.com/zio/zio-dynamodb/blob/series/2.x/examples/src/main/scala/zio/dynamodb/examples/dynamodblocal/interop/CeInteropExample.scala).
+
+### Read/write DynamoDB JSON
+AWS tools like the CLI and Console read/write a special JSON representation of dynamoDB items. The new experimental optional `zio-dynamodb-json` module provides a way to read/write this form of JSON when working with both the High Level and Low Level API. To use this module, we need to also add the following line to our `build.sbt` file:
+
+```scala
+libraryDependencies ++= Seq(
+  "dev.zio" %% "zio-dynamodb-json" "@VERSION@"
+)
+```
+
 ## Example
 
-For examples please see [examples sbt module](../examples/src/main/scala/zio/dynamodb/examples). Below is `Main.scala` from that module:
+For examples please see [examples sbt module](https://github.com/zio/zio-dynamodb/tree/series/2.x/examples/src/main/scala/zio/dynamodb/examples). Below is `Main.scala` from that module:
 
 ```scala
 import zio.aws.core.config
@@ -63,8 +86,19 @@ object Main extends ZIOAppDefault {
 }
 ```
 
-For examples on how to use the DynamoDBLocal in memory database please see the [integration tests](../dynamodb/src/it/scala/zio/dynamodb/LiveSpec.scala)
-and [StudentZioDynamoDbExample](../examples/src/main/scala/zio/dynamodb/examples/dynamodblocal/StudentZioDynamoDbExample.scala)
+For examples on how to use the DynamoDBLocal in memory database please see the [integration tests](https://github.com/zio/zio-dynamodb/blob/series/2.x/dynamodb/src/it/scala/zio/dynamodb/TypeSafeApiCrudSpec.scala)
+and [DynamoDBLocalMain](https://github.com/zio/zio-dynamodb/blob/series/2.x/examples/src/main/scala/zio/dynamodb/examples/dynamodblocal/DynamoDBLocalMain.scala) .
+Note before you run these you must first run the DynamoDBLocal docker container using the provided docker-compose file:
+
+```
+docker compose -f docker/docker-compose.yml up -d
+```
+
+Don't forget to shut down the container after you have finished
+
+```
+docker compose -f docker/docker-compose.yml down
+```
 
 ## Resources
 - [Introducing ZIO DynamoDB by Avinder Bahra & Adam Johnson](https://www.youtube.com/watch?v=f68-69eA8Vc&t=33s) - DynamoDB powers many cloud-scale applications, with its robust horizontal scalability and uptime. Yet, interacting with the Java SDK is error-prone and tedious. In this presentation, Avinder Bahra presents ZIO DynamoDB, a new library by Avi and Adam Johnson designed to make interacting with DynamoDB easy, type-safe, testable, and productive.
