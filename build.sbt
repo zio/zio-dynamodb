@@ -32,9 +32,9 @@ addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
 
 val zioVersion             = "2.1.7"
-val zioAwsVersion          = "7.21.15.13"
+val zioAwsVersion          = "7.21.15.15"
 val zioSchemaVersion       = "1.3.0"
-val zioPreludeVersion      = "1.0.0-RC27"
+val zioPreludeVersion      = "1.0.0-RC29"
 val zioInteropCats3Version = "23.1.0.3"
 val catsEffect3Version     = "3.5.4"
 val fs2Version             = "3.10.2"
@@ -43,7 +43,7 @@ lazy val root =
   project
     .in(file("."))
     .settings(skip in publish := true)
-    .aggregate(zioDynamodb, zioDynamodbCe, zioDynamodbJson, examples /*, docs */ )
+    .aggregate(zioDynamodb, zioDynamodbCe, zioDynamodbJson, examples, docs)
 
 lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
   .enablePlugins(BuildInfoPlugin)
@@ -330,16 +330,19 @@ def module(moduleName: String, fileName: String): Project =
 
 lazy val docs = project
   .in(file("zio-dynamodb-docs"))
+  .settings(stdSettings("zio-dynamodb-docs"))
   .settings(
+    fork := false,
     moduleName := "zio-dynamodb-docs",
     scalacOptions -= "-Yno-imports",
     scalacOptions -= "-Xfatal-warnings",
-    libraryDependencies ++= Seq("dev.zio" %% "zio" % zioVersion),
     projectName := "ZIO DynamoDB",
     mainModuleName := (zioDynamodb / moduleName).value,
     projectStage := ProjectStage.Development,
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(zioDynamodb),
-    docsPublishBranch := "series/2.x"
+    libraryDependencies ++= Seq("dev.zio" %% "zio" % zioVersion),
+    publish / skip := true,
+    mdocVariables ++= Map("ZIO_VERSION" -> zioVersion)
   )
-  .dependsOn(zioDynamodb)
+  .dependsOn(zioDynamodb, zioDynamodbCe, zioDynamodbJson)
   .enablePlugins(WebsitePlugin)
