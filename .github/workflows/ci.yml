@@ -32,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: ["adopt@1.11", "openjdk@1.17"]
+        java: ['temurin:17', 'temurin:21']
         scala: ["3.3.0", "2.13.12", "2.12.19"]
     env:
       AWS_ACCESS_KEY_ID: dummykey
