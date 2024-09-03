@@ -32,17 +32,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: ["adopt@1.11", "openjdk@1.17"]
-        scala: ["3.3.0", "2.13.12", "2.12.19"]
+        java: ['temurin:17', 'temurin:21']
+        scala: ['3.3.1', '2.13.12', '2.12.19']
     env:
       AWS_ACCESS_KEY_ID: dummykey
       AWS_SECRET_ACCESS_KEY: dummykey
       AWS_REGION: us-east-1
     steps:
-      - uses: actions/checkout@v2.3.4
-      - uses: olafurpg/setup-scala@v13
+      - uses: actions/checkout@v3.0.0
         with:
-          java-version: ${{ matrix.java }}
+          fetch-depth: 0
+      - uses: coursier/setup-action@v1
+        with:
+          jvm: ${{ matrix.java }}
       - name: Cache scala dependencies
         uses: coursier/cache-action@v6
       - name: Run tests
