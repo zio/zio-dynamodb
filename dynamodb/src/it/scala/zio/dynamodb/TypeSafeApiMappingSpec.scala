@@ -65,11 +65,22 @@ object TypeSafeApiMappingSpec extends DynamoDBLocalSpec {
     ) @@ TestAspect.nondeterministic
 
   val topLevelSumTypeDiscriminatorNameSuite = suite("with @discriminatorName annotation")(
+    test("get of top level Invoice type") {
+      withSingleIdKeyTable { invoiceTable =>
+        for {
+          _       <- put[InvoiceWithDiscriminatorName](invoiceTable, InvoiceWithDiscriminatorName.Unpaid("1")).execute
+          invoice <- // invoice is of type InvoiceWithDiscriminatorName
+                     get[InvoiceWithDiscriminatorName](invoiceTable)(
+                       ((InvoiceWithDiscriminatorName.unpaid) >>> (InvoiceWithDiscriminatorName.Unpaid.id)).partitionKey === "1"
+                     ).execute.absolve
+        } yield assertTrue(invoice == InvoiceWithDiscriminatorName.Unpaid("1"))
+      }
+    },
     test("get of Invoice sub type Unpaid") {
       withSingleIdKeyTable { invoiceTable =>
         for {
           _       <- put[InvoiceWithDiscriminatorName](invoiceTable, InvoiceWithDiscriminatorName.Unpaid("1")).execute
-          invoice <- get(invoiceTable)(
+          invoice <- get(invoiceTable)( // invoice is of type InvoiceWithDiscriminatorName.Unpaid
                        (InvoiceWithDiscriminatorName.Unpaid.id).partitionKey === "1"
                      ).execute.absolve
         } yield assertTrue(invoice == InvoiceWithDiscriminatorName.Unpaid("1"))
@@ -79,7 +90,7 @@ object TypeSafeApiMappingSpec extends DynamoDBLocalSpec {
       withSingleIdKeyTable { invoiceTable =>
         for {
           _       <- put[InvoiceWithDiscriminatorName](invoiceTable, InvoiceWithDiscriminatorName.Paid("1", 42)).execute
-          invoice <- get(invoiceTable)(
+          invoice <- get(invoiceTable)( // invoice is of type InvoiceWithDiscriminatorName.Paid
                        (InvoiceWithDiscriminatorName.Paid.id).partitionKey === "1"
                      ).execute.absolve
         } yield assertTrue(invoice == InvoiceWithDiscriminatorName.Paid("1", 42))
