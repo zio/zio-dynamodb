@@ -65,10 +65,41 @@ object TypeSafeApiMappingSpec extends DynamoDBLocalSpec {
     ) @@ TestAspect.nondeterministic
 
   val topLevelSumTypeDiscriminatorNameSuite = suite("with @discriminatorName annotation")(
+    test("get of top level Invoice type") {
+      withSingleIdKeyTable { invoiceTable =>
+        for {
+          _       <- put[InvoiceWithDiscriminatorName](invoiceTable, InvoiceWithDiscriminatorName.Unpaid("1")).execute
+          invoice <- // invoice is of type InvoiceWithDiscriminatorName
+                     get(invoiceTable)(
+                       ((InvoiceWithDiscriminatorName.unpaid) >>> (InvoiceWithDiscriminatorName.Unpaid.id)).partitionKey === "1"
+                     ).execute.absolve
+        } yield assertTrue(invoice == InvoiceWithDiscriminatorName.Unpaid("1"))
+      }
+    },
+    test("get of Invoice sub type Unpaid") {
+      withSingleIdKeyTable { invoiceTable =>
+        for {
+          _       <- put[InvoiceWithDiscriminatorName](invoiceTable, InvoiceWithDiscriminatorName.Unpaid("1")).execute
+          invoice <- get(invoiceTable)( // invoice is of type InvoiceWithDiscriminatorName.Unpaid
+                       (InvoiceWithDiscriminatorName.Unpaid.id).partitionKey === "1"
+                     ).execute.absolve
+        } yield assertTrue(invoice == InvoiceWithDiscriminatorName.Unpaid("1"))
+      }
+    },
+    test("get of Invoice sub type Paid") {
+      withSingleIdKeyTable { invoiceTable =>
+        for {
+          _       <- put[InvoiceWithDiscriminatorName](invoiceTable, InvoiceWithDiscriminatorName.Paid("1", 42)).execute
+          invoice <- get(invoiceTable)( // invoice is of type InvoiceWithDiscriminatorName.Paid
+                       (InvoiceWithDiscriminatorName.Paid.id).partitionKey === "1"
+                     ).execute.absolve
+        } yield assertTrue(invoice == InvoiceWithDiscriminatorName.Paid("1", 42))
+      }
+    },
     test("put of a concrete sub type wil not generate a discriminator - so don't do this!") {
       withSingleIdKeyTable { invoiceTable =>
         for {
-          _       <- put[InvoiceWithNoDiscriminator.Unpaid](invoiceTable, InvoiceWithNoDiscriminator.Unpaid("1")).execute
+          _       <- put[InvoiceWithDiscriminatorName.Unpaid](invoiceTable, InvoiceWithDiscriminatorName.Unpaid("1")).execute
           invoice <- getItem(invoiceTable, PrimaryKey("id" -> "1")).execute
         } yield assertTrue(invoice == Some(Item("id" -> "1")))
       }
