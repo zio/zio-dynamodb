@@ -808,8 +808,11 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
    * @see [[parse]]
    */
   def $(s: String): ProjectionExpression[Any, Unknown] =
+    $$(s)
+
+  def $$[From, To](s: String): ProjectionExpression[From, To] =
     parse(s) match {
-      case Right(a)  => a.unsafeFrom[Any].unsafeTo[Unknown]
+      case Right(a)  => a.unsafeFrom[From].unsafeTo[To]
       case Left(msg) => throw new IllegalStateException(msg)
     }
 
