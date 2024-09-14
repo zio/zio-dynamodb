@@ -480,6 +480,26 @@ object DynamoDBQuery {
   ): DynamoDBQuery[From, Either[ItemError, From]] =
     get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
 
+  /**
+   * When dealing with ADTs it is often necessary to narrow the type of the item returned from the database.
+   * `getWithNarrow` does a `get` with a narrow from type `From` to `To` using `narrowEvidence: ProjectionExpression[From, To]` as evidence that this is safe.
+   * If the case fails it returns a Decoding error
+   */
+  def getWithNarrow[From: Schema, To <: From](narrowEvidence: ProjectionExpression[From, To])(tableName: String)(
+    primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
+  ): DynamoDBQuery[From, Either[ItemError, To]] = {
+    val _ = narrowEvidence // provides derived schema guarantee that we can narrow
+    get(tableName)(primaryKeyExpr).map {
+      case Right(from) =>
+        scala.util.Try(from.asInstanceOf[To]) match { // this should be safe
+          case scala.util.Success(to) => Right(to)
+          case scala.util.Failure(_)  =>
+            Left(ItemError.DecodingError(s"failed to narrow from $from using evidence $narrowEvidence"))
+        }
+      case Left(error) => Left(error)
+    }
+  }
+
   private def get[A: Schema](
     tableName: String,
     key: PrimaryKey,
