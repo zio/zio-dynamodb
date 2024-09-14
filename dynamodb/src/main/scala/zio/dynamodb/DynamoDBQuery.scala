@@ -487,27 +487,25 @@ object DynamoDBQuery {
 
   /**
    * When dealing with ADTs it is often necessary to narrow the type of the item returned from the database.
-   * `getWithNarrow` does a `get` with a narrow from type `From` to `To` using `narrowEvidence: ProjectionExpression[From, To]`
-   * as evidence that this is safe. Note decoding is at the `From` level which ensures decoding is driven by the
+   * `getWithNarrow` does a `get` with a narrow from type `From` to `To`. 
+   * Note decoding is at the `From` level which ensures decoding is driven by the
    * discriminator field which will prevent nasty accidental successful decoding to the wrong type that could occur
    * if we were to decode at the `To` level where the discriminator field would not present.
    * If the narrow fails it returns a Decoding error.
    */
-  def getWithNarrow[From: Schema, To <: From](narrowEvidence: ProjectionExpression[From, To])(tableName: String)(
+  def getWithNarrow[From: Schema, To](tableName: String)(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
-  ): DynamoDBQuery[From, Either[ItemError, To]] = {
-    val _ = narrowEvidence // provides derived schema guarantee that we can narrow
+  ): DynamoDBQuery[From, Either[ItemError, To]] =
     get2(tableName)(primaryKeyExpr).map {
       case Right(from) =>
         scala.util.Try(from.asInstanceOf[To]) match { // this should be safe
           case scala.util.Success(to) => Right(to)
           case scala.util.Failure(_)  =>
             // TODO: use a custom error type eg ItemError.NarrowError
-            Left(ItemError.DecodingError(s"failed to narrow from $from using evidence $narrowEvidence"))
+            Left(ItemError.DecodingError(s"failed to narrow from $from"))
         }
       case Left(error) => Left(error)
     }
-  }
 
   private def get[A: Schema](
     tableName: String,
