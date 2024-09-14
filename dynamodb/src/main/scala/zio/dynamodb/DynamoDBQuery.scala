@@ -494,6 +494,7 @@ object DynamoDBQuery {
         scala.util.Try(from.asInstanceOf[To]) match { // this should be safe
           case scala.util.Success(to) => Right(to)
           case scala.util.Failure(_)  =>
+            // TODO: use a custom error type eg ItemError.NarrowError
             Left(ItemError.DecodingError(s"failed to narrow from $from using evidence $narrowEvidence"))
         }
       case Left(error) => Left(error)
