@@ -44,11 +44,11 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
   val topLevelSumTypeDiscriminatorNameSuite = suite("with @discriminatorName annotation")(
     test("getWithNarrow succeeds in narrowing an Invoice to Unpaid") {
       withSingleIdKeyTable { invoiceTable =>
-        val key: ProjectionExpression[dynamo.Invoice, String]            = dynamo.Invoice.unpaid >>> dynamo.Invoice.Unpaid.id
-        val keyCond: KeyConditionExpr.PartitionKeyEquals[dynamo.Invoice] = key.partitionKey === "1"
+//        val key: ProjectionExpression[dynamo.Invoice, String]            = dynamo.Invoice.unpaid >>> dynamo.Invoice.Unpaid.id
+        val keyCond = dynamo.Invoice.Unpaid.id.partitionKey === "1"
         for {
-          _      <- put[dynamo.Invoice](invoiceTable, dynamo.Invoice.Unpaid("1")).execute
-          item   <- getItem(invoiceTable, PrimaryKey("id" -> "1")).execute
+          _    <- put[dynamo.Invoice](invoiceTable, dynamo.Invoice.Unpaid("1")).execute
+          item <- getItem(invoiceTable, PrimaryKey("id" -> "1")).execute
 
           unpaid <- getWithNarrow(dynamo.Invoice.unpaid)(invoiceTable)(keyCond).execute.absolve
         } yield {

@@ -392,7 +392,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case s @ Transaction(_, _, _, _) => s.copy(clientRequestToken = Some(token))
       case _                           => self
     }
-  
+
   final def map[B](f: Out => B): DynamoDBQuery[In, B]                                                               = DynamoDBQuery.Map(self, f)
   final def zip[In1 <: In, B](that: DynamoDBQuery[In1, B])(implicit z: Zippable[Out, B]): DynamoDBQuery[In1, z.Out] =
     DynamoDBQuery.Zip[Out, B, z.Out](self, that, z)
@@ -480,19 +480,24 @@ object DynamoDBQuery {
   ): DynamoDBQuery[From, Either[ItemError, From]] =
     get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
 
+  def get2[From: Schema, To <: From](tableName: String)(
+    primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
+  ): DynamoDBQuery[From, Either[ItemError, From]] =
+    get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
+
   /**
    * When dealing with ADTs it is often necessary to narrow the type of the item returned from the database.
    * `getWithNarrow` does a `get` with a narrow from type `From` to `To` using `narrowEvidence: ProjectionExpression[From, To]`
-   * as evidence that this is safe. Note decoding is at the `From` level which ensures decoding is driven by the 
-   * discriminator field which will prevent nasty accidental successful decoding to the wrong type that could occur 
-   * if we were to decode at the `To` level where the discriminator field would not present. 
+   * as evidence that this is safe. Note decoding is at the `From` level which ensures decoding is driven by the
+   * discriminator field which will prevent nasty accidental successful decoding to the wrong type that could occur
+   * if we were to decode at the `To` level where the discriminator field would not present.
    * If the narrow fails it returns a Decoding error.
    */
   def getWithNarrow[From: Schema, To <: From](narrowEvidence: ProjectionExpression[From, To])(tableName: String)(
-    primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
+    primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
   ): DynamoDBQuery[From, Either[ItemError, To]] = {
     val _ = narrowEvidence // provides derived schema guarantee that we can narrow
-    get(tableName)(primaryKeyExpr).map {
+    get2(tableName)(primaryKeyExpr).map {
       case Right(from) =>
         scala.util.Try(from.asInstanceOf[To]) match { // this should be safe
           case scala.util.Success(to) => Right(to)
