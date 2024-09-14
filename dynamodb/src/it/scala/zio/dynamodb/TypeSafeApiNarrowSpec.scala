@@ -48,15 +48,13 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
         val keyCond: KeyConditionExpr.PartitionKeyEquals[dynamo.Invoice] = key.partitionKey === "1"
         for {
           _      <- put[dynamo.Invoice](invoiceTable, dynamo.Invoice.Unpaid("1")).execute
-          unpaid <- getWithNarrow(dynamo.Invoice.unpaid)(invoiceTable)(keyCond).execute.absolve
           item   <- getItem(invoiceTable, PrimaryKey("id" -> "1")).execute
+
+          unpaid <- getWithNarrow(dynamo.Invoice.unpaid)(invoiceTable)(keyCond).execute.absolve
         } yield {
           val unpaid2: dynamo.Invoice.Unpaid = unpaid
-          assertTrue(
-            unpaid2 == dynamo.Invoice.Unpaid("1") && item == Some(
-              Item("id" -> "1", "invoiceType" -> "Unpaid")
-            )
-          )
+          val ensureDiscriminatorPresent     = item == Some(Item("id" -> "1", "invoiceType" -> "Unpaid"))
+          assertTrue(unpaid2 == dynamo.Invoice.Unpaid("1") && ensureDiscriminatorPresent)
         }
       }
     }
