@@ -487,13 +487,13 @@ object DynamoDBQuery {
 
   /**
    * When dealing with ADTs it is often necessary to narrow the type of the item returned from the database.
-   * `getWithNarrow` does a `get` with a narrow from type `From` to `To`. 
+   * `getWithNarrow` does a `get` with a narrow from type `From` to `To`.
    * Note decoding is at the `From` level which ensures decoding is driven by the
    * discriminator field which will prevent nasty accidental successful decoding to the wrong type that could occur
    * if we were to decode at the `To` level where the discriminator field would not present.
    * If the narrow fails it returns a Decoding error.
    */
-  def getWithNarrow[From: Schema, To](tableName: String)(
+  def getWithNarrow[From: Schema, To <: From](tableName: String)(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
   ): DynamoDBQuery[From, Either[ItemError, To]] =
     get2(tableName)(primaryKeyExpr).map {
