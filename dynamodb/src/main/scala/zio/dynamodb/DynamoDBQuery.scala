@@ -31,6 +31,7 @@ import zio.schema.Schema
 import zio.stream.Stream
 import zio.{ Chunk, Schedule, ZIO }
 import scala.annotation.nowarn
+import scala.reflect.ClassTag
 
 sealed trait DynamoDBQuery[-In, +Out] { self =>
 
@@ -480,11 +481,6 @@ object DynamoDBQuery {
   ): DynamoDBQuery[From, Either[ItemError, From]] =
     get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
 
-  def get2[From: Schema, To <: From](tableName: String)(
-    primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
-  ): DynamoDBQuery[From, Either[ItemError, From]] =
-    get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
-
   /**
    * When dealing with ADTs it is often necessary to narrow the type of the item returned from the database.
    * `getWithNarrow` does a `get` with a narrow from type `From` to `To`.
@@ -495,17 +491,29 @@ object DynamoDBQuery {
    */
   def getWithNarrow[From: Schema, To <: From](tableName: String)(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
-  ): DynamoDBQuery[From, Either[ItemError, To]] =
-    get2(tableName)(primaryKeyExpr).map {
+  )(implicit t: ClassTag[To]): DynamoDBQuery[From, Either[ItemError, To]] = {
+    def getWithNarrowedKeyCondExpr[From: Schema, To <: From](tableName: String)(
+      primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
+    ): DynamoDBQuery[From, Either[ItemError, From]] =
+      get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
+
+    getWithNarrowedKeyCondExpr(tableName)(primaryKeyExpr).map {
       case Right(from) =>
-        scala.util.Try(from.asInstanceOf[To]) match { // this should be safe
-          case scala.util.Success(to) => Right(to)
+        println(s"XXXXXXXX t: $t")
+        val x = t.runtimeClass.cast(from)
+        println(s"XXXXXXXX x: $x")
+
+        scala.util.Try(from.asInstanceOf[To]) match {
+          case scala.util.Success(to) =>
+            println(s"XXXXXXXX to: $to")
+            Right(to)
           case scala.util.Failure(_)  =>
             // TODO: use a custom error type eg ItemError.NarrowError
             Left(ItemError.DecodingError(s"failed to narrow from $from"))
         }
       case Left(error) => Left(error)
     }
+  }
 
   private def get[A: Schema](
     tableName: String,

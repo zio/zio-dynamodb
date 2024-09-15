@@ -3,7 +3,8 @@ package zio.dynamodb
 import zio.dynamodb.DynamoDBQuery.{ getItem, put }
 import zio.Scope
 import zio.test.Spec
-import zio.test.assertTrue
+import zio.test.Assertion.{ containsString, fails, hasMessage }
+import zio.test.{ assert, assertTrue }
 import zio.test.TestEnvironment
 import zio.schema.Schema
 import zio.schema.DeriveSchema
@@ -57,6 +58,31 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
           assertTrue(unpaid2 == dynamo.Invoice.Unpaid("1") && ensureDiscriminatorPresent)
         }
       }
+    },
+    test("getWithNarrow fails in narrowing an Unpaid to Paid") {
+      withSingleIdKeyTable { invoiceTable =>
+        val keyCond: KeyConditionExpr.PartitionKeyEquals[dynamo.Invoice.Paid] =
+          dynamo.Invoice.Paid.id.partitionKey === "1"
+        for {
+          _    <- put[dynamo.Invoice](invoiceTable, dynamo.Invoice.Unpaid("1")).execute
+//          item <- getItem(invoiceTable, PrimaryKey("id" -> "1")).execute
+
+          exit <- getWithNarrow[dynamo.Invoice, dynamo.Invoice.Paid](invoiceTable)(keyCond).execute.absolve.exit
+          _     = println(s"XXXXXXXXXX exit: $exit")
+        } yield
+        //val unpaid2: dynamo.Invoice.Paid = unpaid
+//          val ensureDiscriminatorPresent     = item == Some(Item("id" -> "1", "invoiceType" -> "Unpaid"))
+        assert(exit)(fails(hasMessage(containsString("Failed to narrow"))))
+      }
+    },
+    test("foo") {
+      def cast[A, B](a: A): B = a.asInstanceOf[B]
+
+      val unpaid = dynamo.Invoice.Unpaid("1")
+      val x2     = cast[dynamo.Invoice.Unpaid, dynamo.Invoice.Paid](unpaid)
+//      val x      = unpaid.asInstanceOf[dynamo.Invoice.Paid]
+      println(x2)
+      assertTrue(1 == 1)
     }
   )
 
