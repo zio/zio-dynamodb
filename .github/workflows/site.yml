@@ -109,7 +109,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: false
     needs:
-    - release-docs
+    - publish-docs
     if: ${{ (github.event_name == 'release') && (github.event.action == 'published') }}
     steps:
     - name: Git Checkout
