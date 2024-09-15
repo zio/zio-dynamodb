@@ -12,9 +12,9 @@ Simple, type-safe, and efficient access to DynamoDB
 
 ZIO DynamoDB is a library that is used for type-safe, efficient, and boilerplate free access to AWS's DynamoDB service. It provides a type-safe API for many query types and the number of type-safe APIs is expanding. ZIO DynamoDB will automatically batch queries and execute un-batchable queries in parallel.
 
-Under the hood we use the excellent [ZIO AWS](https://zio.dev/zio-aws) library for type-safe DynamoDB access, and the awesome [ZIO Schema](https://zio.dev/zio-schema) library for schema derived codecs (see here for documentation on how to [customise these through annotations](docs/codec-customization.md)).
+Under the hood we use the excellent [ZIO AWS](https://zio.dev/zio-aws) library for type-safe DynamoDB access, and the awesome [ZIO Schema](https://zio.dev/zio-schema) library for schema derived codecs (see here for documentation on how to [customise these through annotations](docs/guides/codec-customization.md)).
 
-For an overview of the High Level API please see the [ZIO DynamoDB cheat sheet](docs/cheat-sheet.md).
+For an overview of the High Level API please see the [ZIO DynamoDB cheat sheet](docs/guides/cheat-sheet.md).
 
 ## Installation
 
