@@ -6,5 +6,3 @@ title: "AttributeValue"
 # AttributeValue
 
 TODO
-
-mention aliases
