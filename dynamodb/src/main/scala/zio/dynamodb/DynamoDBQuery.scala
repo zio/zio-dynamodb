@@ -31,7 +31,6 @@ import zio.schema.Schema
 import zio.stream.Stream
 import zio.{ Chunk, Schedule, ZIO }
 import scala.annotation.nowarn
-import scala.reflect.ClassTag
 
 sealed trait DynamoDBQuery[-In, +Out] { self =>
 
@@ -491,7 +490,7 @@ object DynamoDBQuery {
    */
   def getWithNarrow[From: Schema, To <: From](tableName: String)(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
-  )(implicit t: ClassTag[To]): DynamoDBQuery[From, Either[ItemError, To]] = {
+  )(implicit ev: scala.reflect.runtime.universe.TypeTag[To]): DynamoDBQuery[From, Either[ItemError, To]] = {
     def getWithNarrowedKeyCondExpr[From: Schema, To <: From](tableName: String)(
       primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
     ): DynamoDBQuery[From, Either[ItemError, From]] =
@@ -499,18 +498,13 @@ object DynamoDBQuery {
 
     getWithNarrowedKeyCondExpr(tableName)(primaryKeyExpr).map {
       case Right(from) =>
-        println(s"XXXXXXXX t: $t")
-        val x = t.runtimeClass.cast(from)
-        println(s"XXXXXXXX x: $x")
+        val toTypeName: String    = scala.reflect.runtime.universe.typeOf[To].typeSymbol.name.toString
+        val foundTypeName: String = from.getClass.getSimpleName
+        if (foundTypeName == toTypeName)
+          Right(from.asInstanceOf[To])
+        else
+          Left(ItemError.DecodingError(s"failed to narrow from $from"))
 
-        scala.util.Try(from.asInstanceOf[To]) match {
-          case scala.util.Success(to) =>
-            println(s"XXXXXXXX to: $to")
-            Right(to)
-          case scala.util.Failure(_)  =>
-            // TODO: use a custom error type eg ItemError.NarrowError
-            Left(ItemError.DecodingError(s"failed to narrow from $from"))
-        }
       case Left(error) => Left(error)
     }
   }

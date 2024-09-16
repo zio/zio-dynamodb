@@ -68,21 +68,11 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
 //          item <- getItem(invoiceTable, PrimaryKey("id" -> "1")).execute
 
           exit <- getWithNarrow[dynamo.Invoice, dynamo.Invoice.Paid](invoiceTable)(keyCond).execute.absolve.exit
-          _     = println(s"XXXXXXXXXX exit: $exit")
         } yield
         //val unpaid2: dynamo.Invoice.Paid = unpaid
 //          val ensureDiscriminatorPresent     = item == Some(Item("id" -> "1", "invoiceType" -> "Unpaid"))
-        assert(exit)(fails(hasMessage(containsString("Failed to narrow"))))
+        assert(exit)(fails(hasMessage(containsString("failed to narrow"))))
       }
-    },
-    test("foo") {
-      def cast[A, B](a: A): B = a.asInstanceOf[B]
-
-      val unpaid = dynamo.Invoice.Unpaid("1")
-      val x2     = cast[dynamo.Invoice.Unpaid, dynamo.Invoice.Paid](unpaid)
-//      val x      = unpaid.asInstanceOf[dynamo.Invoice.Paid]
-      println(x2)
-      assertTrue(1 == 1)
     }
   )
 
