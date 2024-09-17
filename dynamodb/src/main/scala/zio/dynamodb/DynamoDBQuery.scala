@@ -480,7 +480,7 @@ object DynamoDBQuery {
   ): DynamoDBQuery[From, Either[ItemError, From]] =
     get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
 
-  //TODO: Avi - mode to Codec somewhere?
+  //TODO: Avi - move to Codec somewhere?
   def narrow[From: Schema.Enum, To <: From: Schema](
     a: From
   ): Either[String, To] = {
