@@ -496,7 +496,7 @@ object DynamoDBQuery {
       case Some(c)                                          =>
         c.schema == toSchema match {
           case true => Right(a.asInstanceOf[To])
-          case _    => Left("failed to narrow 1")
+          case _    => Left("failed to narrow - 'To' is not the same type as 'a'")
         }
       case None                                             => Left("failed to narrow - enum case for 'a' not found")
     }
