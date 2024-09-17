@@ -521,7 +521,7 @@ object DynamoDBQuery {
 
     getWithNarrowedKeyCondExpr(tableName)(primaryKeyExpr).map {
       case Right(found) =>
-        narrow[From, To](found).left.map(DynamoDBError.ItemError.DecodingError)
+        narrow[From, To](found).left.map(DynamoDBError.ItemError.DecodingError.apply)
 
       case Left(error)  => Left(error)
     }
