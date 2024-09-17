@@ -6,10 +6,11 @@ import zio.test.Spec
 import zio.test.Assertion.{ containsString, fails, hasMessage }
 import zio.test.{ assert, assertTrue }
 import zio.test.TestEnvironment
+import zio.test.Assertion.{ isLeft, isRight }
+import zio.test.TestAspect
 import zio.schema.Schema
 import zio.schema.DeriveSchema
 import zio.schema.annotation.discriminatorName
-import zio.test.TestAspect
 import zio.dynamodb.DynamoDBQuery.getWithNarrow
 
 object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
@@ -65,13 +66,27 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
           dynamo.Invoice.Paid.id.partitionKey === "1"
         for {
           _    <- put[dynamo.Invoice](invoiceTable, dynamo.Invoice.Unpaid("1")).execute
-//          item <- getItem(invoiceTable, PrimaryKey("id" -> "1")).execute
-
           exit <- getWithNarrow[dynamo.Invoice, dynamo.Invoice.Paid](invoiceTable)(keyCond).execute.absolve.exit
-        } yield
-        //val unpaid2: dynamo.Invoice.Paid = unpaid
-//          val ensureDiscriminatorPresent     = item == Some(Item("id" -> "1", "invoiceType" -> "Unpaid"))
-        assert(exit)(fails(hasMessage(containsString("failed to narrow"))))
+        } yield assert(exit)(fails(hasMessage(containsString("failed to narrow"))))
+      }
+    },
+    test("getWithNarrow2 egonomics") {
+      withSingleIdKeyTable { invoiceTable =>
+        println(invoiceTable)
+        // val keyCond: KeyConditionExpr.PartitionKeyEquals[dynamo.Invoice.Paid] =
+        //   dynamo.Invoice.Paid.id.partitionKey === "1"
+        val y: dynamo.Invoice = dynamo.Invoice.Paid("1", 1)
+        val valid             = DynamoDBQuery.narrow[dynamo.Invoice, dynamo.Invoice.Paid](y)
+        val invalid           = DynamoDBQuery.narrow[dynamo.Invoice, dynamo.Invoice.Unpaid](y)
+        println(s"XXXXXXXXXXXX result: $valid")
+
+//         for {
+//           _    <- put[dynamo.Invoice](invoiceTable, dynamo.Invoice.Unpaid("1")).execute
+//           paid <- DynamoDBQuery.getWithNarrow2(invoiceTable)(keyCond).execute.absolve
+// //          _ = {val i: Int = paid; println(s"i: $i")}
+//           _     = println(s"a: $paid")
+//         } yield assertCompletes
+        assert(valid)(isRight) && assert(invalid)(isLeft)
       }
     }
   )
