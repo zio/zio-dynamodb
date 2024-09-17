@@ -70,24 +70,12 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
         } yield assert(exit)(fails(hasMessage(containsString("failed to narrow"))))
       }
     },
-    test("getWithNarrow2 egonomics") {
-      withSingleIdKeyTable { invoiceTable =>
-        println(invoiceTable)
-        // val keyCond: KeyConditionExpr.PartitionKeyEquals[dynamo.Invoice.Paid] =
-        //   dynamo.Invoice.Paid.id.partitionKey === "1"
-        val y: dynamo.Invoice = dynamo.Invoice.Paid("1", 1)
-        val valid             = DynamoDBQuery.narrow[dynamo.Invoice, dynamo.Invoice.Paid](y)
-        val invalid           = DynamoDBQuery.narrow[dynamo.Invoice, dynamo.Invoice.Unpaid](y)
-        println(s"XXXXXXXXXXXX result: $valid")
+    test("narrow") {
+      val y: dynamo.Invoice = dynamo.Invoice.Paid("1", 1)
+      val valid             = DynamoDBQuery.narrow[dynamo.Invoice, dynamo.Invoice.Paid](y)
+      val invalid           = DynamoDBQuery.narrow[dynamo.Invoice, dynamo.Invoice.Unpaid](y)
 
-//         for {
-//           _    <- put[dynamo.Invoice](invoiceTable, dynamo.Invoice.Unpaid("1")).execute
-//           paid <- DynamoDBQuery.getWithNarrow2(invoiceTable)(keyCond).execute.absolve
-// //          _ = {val i: Int = paid; println(s"i: $i")}
-//           _     = println(s"a: $paid")
-//         } yield assertCompletes
-        assert(valid)(isRight) && assert(invalid)(isLeft)
-      }
+      assert(valid)(isRight) && assert(invalid)(isLeft)
     }
   )
 

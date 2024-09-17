@@ -480,41 +480,13 @@ object DynamoDBQuery {
   ): DynamoDBQuery[From, Either[ItemError, From]] =
     get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
 
-  /*
-    sealed trait PaymentMethod
-    final case class CreditCard(number: String) extends PaymentMethod
-    final case class WireTransfer(accountNumber: String) extends PaymentMethod
-
-    // I would like this behavior
-    val a: PaymentMethod = CreditCard("123")
-    val invalid: PaymentMethod = WireTransfer("abc")
-    val result: Right[CreditCard] = narrow[PaymentMethod, CreditCard](a)
-    val result: Left[String] = narrow[PaymentMethod, CreditCard](invalid)
-   */
-  def narrowOld[From: Schema, To <: From: Schema](
-    a: From
-  ): Either[String, To] = {
-    val fromSchema: Schema[From] = implicitly[Schema[From]]
-    val toSchema: Schema[To]     = implicitly[Schema[To]]
-    println(s"fromSchema: $fromSchema toSchema: $toSchema")
-    fromSchema match {
-      case s: Schema.Enum[From] =>
-        val o: Option[Schema.Case[From, _]] = s.caseOf(a)
-        println(s"XXXXXXXXX Option[Schema.Case[From, _]] $o") // schema in o is lazy
-        o.map(_.schema == toSchema) match {
-          case Some(true) => Right(a.asInstanceOf[To])
-          case _          => Left("failed to narrow 2")
-        }
-      case _                    => Left("failed to narrow 1")
-    }
-  }
-
+  //TODO: Avi - mode to Codec somewhere?
   def narrow[From: Schema.Enum, To <: From: Schema](
     a: From
   ): Either[String, To] = {
-    val fromSchema: Schema.Enum[From]   = implicitly[Schema.Enum[From]]
-    val toSchema: Schema[To]            = implicitly[Schema[To]]
-    val o: Option[Schema.Case[From, _]] = fromSchema.caseOf(a)
+    val fromEnumSchema: Schema.Enum[From] = implicitly[Schema.Enum[From]]
+    val toSchema: Schema[To]              = implicitly[Schema[To]]
+    val o: Option[Schema.Case[From, _]]   = fromEnumSchema.caseOf(a)
     o match {
       case Some(Schema.Case(_, Schema.Lazy(s), _, _, _, _)) =>
         s() == toSchema match {
@@ -530,22 +502,6 @@ object DynamoDBQuery {
     }
   }
 
-  def getWithNarrow2[From: Schema, To <: From: Schema](tableName: String)(
-    primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
-  ): DynamoDBQuery[From, Either[ItemError, To]] = ???
-  //   {
-  //   def getWithNarrowedKeyCondExpr[From: Schema, To <: From](tableName: String)(
-  //     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
-  //   ): DynamoDBQuery[From, Either[ItemError, From]] =
-  //     get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
-
-  //   getWithNarrowedKeyCondExpr(tableName)(primaryKeyExpr).map {
-  //     case Right(found) =>
-  //     case _ => Left(ItemError.DecodingError(s"failed to narrow"))
-
-  //   }
-  // }
-
   /**
    * When dealing with ADTs it is often necessary to narrow the type of the item returned from the database.
    * `getWithNarrow` does a `get` with a narrow from type `From` to `To`.
@@ -556,11 +512,7 @@ object DynamoDBQuery {
    */
   def getWithNarrow[From: Schema.Enum, To <: From: Schema](tableName: String)(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
-  )(implicit ev: scala.reflect.runtime.universe.TypeTag[To]): DynamoDBQuery[From, Either[ItemError, To]] = {
-    val fromSchema: Schema.Enum[From] = implicitly[Schema.Enum[From]]
-    val toSchema: Schema[To]          = implicitly[Schema[To]]
-    println(fromSchema)
-    println(toSchema)
+  ): DynamoDBQuery[From, Either[ItemError, To]] = { // TODO: return custom error eg ItemError.NarrowError
 
     def getWithNarrowedKeyCondExpr[From: Schema.Enum, To <: From](tableName: String)(
       primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
@@ -569,12 +521,7 @@ object DynamoDBQuery {
 
     getWithNarrowedKeyCondExpr(tableName)(primaryKeyExpr).map {
       case Right(found) =>
-        val toTypeName: String    = scala.reflect.runtime.universe.typeOf[To].typeSymbol.name.toString
-        val foundTypeName: String = found.getClass.getSimpleName
-        if (foundTypeName == toTypeName)
-          Right(found.asInstanceOf[To])
-        else // TODO: use a custom error type eg ItemError.NarrowError
-          Left(ItemError.DecodingError(s"failed to narrow from ${foundTypeName} to ${toTypeName}"))
+        narrow[From, To](found).left.map(DynamoDBError.ItemError.DecodingError)
 
       case Left(error)  => Left(error)
     }

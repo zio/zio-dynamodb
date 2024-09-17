@@ -906,13 +906,10 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
   def projectionsFromSchema[A: Schema]: Chunk[ProjectionExpression[_, _]] =
     implicitly[Schema[A]] match {
       case r: Schema.Record[A] =>
-        println(s"XXXXXXXXXX record: $r")
         r.fields.map { f =>
-          println(s"XXXXXXXXXX field: ${f.name}")
           ProjectionExpression.MapElement(Root, f.name)
         }
       case _                   =>
-        println(s"XXXXXXXXXX empty projections")
         Chunk.empty
     }
 
