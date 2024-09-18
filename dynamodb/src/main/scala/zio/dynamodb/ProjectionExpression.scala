@@ -909,8 +909,7 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
         r.fields.map { f =>
           ProjectionExpression.MapElement(Root, f.name)
         }
-      case _                   =>
-        Chunk.empty
+      case _                   => Chunk.empty
     }
 
 }

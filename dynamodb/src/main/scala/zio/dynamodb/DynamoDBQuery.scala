@@ -519,7 +519,7 @@ object DynamoDBQuery {
     ): DynamoDBQuery[From, Either[ItemError, From]] =
       get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
 
-    getWithNarrowedKeyCondExpr(tableName)(primaryKeyExpr).map {
+    getWithNarrowedKeyCondExpr[From, To](tableName)(primaryKeyExpr).map {
       case Right(found) =>
         narrow[From, To](found).left.map(DynamoDBError.ItemError.DecodingError.apply)
 
