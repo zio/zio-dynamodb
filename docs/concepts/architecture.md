@@ -5,5 +5,11 @@ title: "Architecture"
 
 # Architecture
 
+In the below diagram you can see the different layers of library and its dependencies.
+
+- The user can chose to call the High Level Type Safe API which is based on types from the Scala model (in green) or the Low Level Type Safe API (in blue) which is based on DynamoDB specific abstractions like `AttributeValue`. 
+- High Level Type Safe API has a dependency on ZIO Schema for compile time type information that is used to automatically generate codecs and in turn calls the ...
+- Low Level API for query creation and execution, and which has in turn has a dependency on ZIO AWS, which in turn has a dependency on AWS SDK.   
+
 
 ![architecture diagram](architecture.png)
