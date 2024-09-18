@@ -5,4 +5,5 @@ title: "Architecture"
 
 # Architecture
 
-TODO
+
+![architecture diagram](architecture.png)
