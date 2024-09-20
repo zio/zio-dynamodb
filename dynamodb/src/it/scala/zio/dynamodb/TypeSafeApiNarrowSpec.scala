@@ -12,6 +12,7 @@ import zio.schema.Schema
 import zio.schema.DeriveSchema
 import zio.schema.annotation.discriminatorName
 import zio.dynamodb.DynamoDBQuery.getWithNarrow
+import zio.dynamodb.TypeSafeApiNarrowSpec.dynamo.Invoice.Unrelated
 
 object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
 
@@ -21,13 +22,18 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
       def id: String
     }
     object Invoice       {
+      final case class Unrelated(id: Int)
+      object Unrelated {
+        implicit val schema: Schema.CaseClass1[Int, Unrelated] = DeriveSchema.gen[Unrelated]
+        val id                                                 = ProjectionExpression.accessors[Unrelated]
+      }
       final case class Unpaid(id: String) extends Invoice
-      object Unpaid {
+      object Unpaid    {
         implicit val schema: Schema.CaseClass1[String, Unpaid] = DeriveSchema.gen[Unpaid]
         val id                                                 = ProjectionExpression.accessors[Unpaid]
       }
       final case class Paid(id: String, amount: Int) extends Invoice
-      object Paid   {
+      object Paid      {
         implicit val schema: Schema.CaseClass2[String, Int, Paid] = DeriveSchema.gen[Paid]
         val (id, amount)                                          = ProjectionExpression.accessors[Paid]
       }
@@ -74,6 +80,13 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
       val invoice: dynamo.Invoice = dynamo.Invoice.Paid("1", 1)
       val valid                   = DynamoDBQuery.narrow[dynamo.Invoice, dynamo.Invoice.Paid](invoice)
       val invalid                 = DynamoDBQuery.narrow[dynamo.Invoice, dynamo.Invoice.Unpaid](invoice)
+// gives expected compile error:
+// type arguments [zio.dynamodb.TypeSafeApiNarrowSpec.dynamo.Invoice,zio.dynamodb.TypeSafeApiNarrowSpec.dynamo.Invoice.Unrelated] do not conform to method narrow's type parameter bounds [From,To <: From]bloop
+//      val unrelated                       = DynamoDBQuery.narrow[dynamo.Invoice, dynamo.Invoice.Unrelated](Unrelated(1))
+
+// gives expected compile error:
+// could not find implicit value for evidence parameter of type zio.schema.Schema.Enum[zio.dynamodb.TypeSafeApiNarrowSpec.dynamo.Invoice.Unrelated]bloop
+//      val x                       = DynamoDBQuery.narrow[dynamo.Invoice.Unrelated, dynamo.Invoice.Unrelated](Unrelated(1))
 
       assert(valid)(isRight) && assert(invalid)(isLeft)
     }
