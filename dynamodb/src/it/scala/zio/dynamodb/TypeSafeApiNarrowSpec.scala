@@ -80,13 +80,14 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
       val invoice: dynamo.Invoice = dynamo.Invoice.Paid("1", 1)
       val valid                   = DynamoDBQuery.narrow[dynamo.Invoice, dynamo.Invoice.Paid](invoice)
       val invalid                 = DynamoDBQuery.narrow[dynamo.Invoice, dynamo.Invoice.Unpaid](invoice)
-// gives expected compile error:
-// type arguments [zio.dynamodb.TypeSafeApiNarrowSpec.dynamo.Invoice,zio.dynamodb.TypeSafeApiNarrowSpec.dynamo.Invoice.Unrelated] do not conform to method narrow's type parameter bounds [From,To <: From]bloop
-//      val unrelated                       = DynamoDBQuery.narrow[dynamo.Invoice, dynamo.Invoice.Unrelated](Unrelated(1))
 
-// gives expected compile error:
-// could not find implicit value for evidence parameter of type zio.schema.Schema.Enum[zio.dynamodb.TypeSafeApiNarrowSpec.dynamo.Invoice.Unrelated]bloop
-//      val x                       = DynamoDBQuery.narrow[dynamo.Invoice.Unrelated, dynamo.Invoice.Unrelated](Unrelated(1))
+      // gives expected compile error:
+      // type arguments [zio.dynamodb.TypeSafeApiNarrowSpec.dynamo.Invoice,zio.dynamodb.TypeSafeApiNarrowSpec.dynamo.Invoice.Unrelated] do not conform to method narrow's type parameter bounds [From,To <: From]
+      //      val unrelated                       = DynamoDBQuery.narrow[dynamo.Invoice, dynamo.Invoice.Unrelated](Unrelated(1))
+
+      // gives expected compile error:
+      // could not find implicit value for evidence parameter of type zio.schema.Schema.Enum[zio.dynamodb.TypeSafeApiNarrowSpec.dynamo.Invoice.Unrelated]
+      //      val x                       = DynamoDBQuery.narrow[dynamo.Invoice.Unrelated, dynamo.Invoice.Unrelated](Unrelated(1))
 
       assert(valid)(isRight) && assert(invalid)(isLeft)
     }
