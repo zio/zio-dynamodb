@@ -44,7 +44,7 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
     ) @@ TestAspect.nondeterministic
 
   val topLevelSumTypeDiscriminatorNameSuite = suite("with @discriminatorName annotation")(
-    test("getWithNarrow succeeds in narrowing an Invoice to Unpaid") {
+    test("getWithNarrow succeeds in narrowing an Unpaid Invoice instance to Unpaid") {
       withSingleIdKeyTable { invoiceTable =>
         val keyCond: KeyConditionExpr.PartitionKeyEquals[dynamo.Invoice.Unpaid] =
           dynamo.Invoice.Unpaid.id.partitionKey === "1"
@@ -60,7 +60,7 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
         }
       }
     },
-    test("getWithNarrow fails in narrowing an Unpaid to Paid") {
+    test("getWithNarrow fails in narrowing an Unpaid Invoice instance to Paid") {
       withSingleIdKeyTable { invoiceTable =>
         val keyCond: KeyConditionExpr.PartitionKeyEquals[dynamo.Invoice.Paid] =
           dynamo.Invoice.Paid.id.partitionKey === "1"
@@ -71,9 +71,9 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
       }
     },
     test("narrow") {
-      val y: dynamo.Invoice = dynamo.Invoice.Paid("1", 1)
-      val valid             = DynamoDBQuery.narrow[dynamo.Invoice, dynamo.Invoice.Paid](y)
-      val invalid           = DynamoDBQuery.narrow[dynamo.Invoice, dynamo.Invoice.Unpaid](y)
+      val invoice: dynamo.Invoice = dynamo.Invoice.Paid("1", 1)
+      val valid                   = DynamoDBQuery.narrow[dynamo.Invoice, dynamo.Invoice.Paid](invoice)
+      val invalid                 = DynamoDBQuery.narrow[dynamo.Invoice, dynamo.Invoice.Unpaid](invoice)
 
       assert(valid)(isRight) && assert(invalid)(isLeft)
     }
