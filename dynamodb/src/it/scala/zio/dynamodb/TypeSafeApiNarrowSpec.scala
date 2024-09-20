@@ -12,7 +12,6 @@ import zio.schema.Schema
 import zio.schema.DeriveSchema
 import zio.schema.annotation.discriminatorName
 import zio.dynamodb.DynamoDBQuery.getWithNarrow
-import zio.dynamodb.TypeSafeApiNarrowSpec.dynamo.Invoice.Unrelated
 
 object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
 
