@@ -480,39 +480,15 @@ object DynamoDBQuery {
   ): DynamoDBQuery[From, Either[ItemError, From]] =
     get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
 
-  //TODO: Avi - move to Codec somewhere?
-  def narrow[From: Schema.Enum, To <: From: Schema](
-    a: From
-  ): Either[String, To] = {
-    val fromEnumSchema: Schema.Enum[From] = implicitly[Schema.Enum[From]]
-    val toSchema: Schema[To]              = implicitly[Schema[To]]
-    val o: Option[Schema.Case[From, _]]   = fromEnumSchema.caseOf(a)
-    o match {
-      case Some(Schema.Case(_, Schema.Lazy(s), _, _, _, _)) =>
-        s() == toSchema match {
-          case true => Right(a.asInstanceOf[To])
-          case _    => Left("failed to narrow - 'To' is not the same type as 'a'")
-        }
-      case Some(c)                                          =>
-        c.schema == toSchema match {
-          case true => Right(a.asInstanceOf[To])
-          case _    => Left("failed to narrow - 'To' is not the same type as 'a'")
-        }
-      case None                                             => Left("failed to narrow - enum case for 'a' not found")
-    }
-  }
-
   /**
-   * When dealing with ADTs it is often necessary to narrow the type of the item returned from the database.
-   * `getWithNarrow` does a `get` with a narrow from type `From` to `To`.
-   * Note decoding is at the `From` level which ensures decoding is driven by the
-   * discriminator field which will prevent nasty accidental successful decoding to the wrong type that could occur
-   * if we were to decode at the `To` level where the discriminator field would not present.
-   * If the narrow fails it returns a Decoding error.
+   * It is common practice to save top level sum types to DynamoDB and often we want to retrieve them back as the subtype.
+   * `getWithNarrow` does a `get` with a safe narrow operation from type `From` to `To`.
+   * If the narrow fails it returns a Decoding error with details of the cast failure in the message.
+   * Requires implicit schemas in scope which ensure that `From` is an enum (sealed trait) and `To` is a record (case class) subtype.
    */
-  def getWithNarrow[From: Schema.Enum, To <: From: Schema](tableName: String)(
+  def getWithNarrow[From: Schema.Enum, To <: From: Schema.Record](tableName: String)(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
-  ): DynamoDBQuery[From, Either[ItemError, To]] = { // TODO: return custom error eg ItemError.NarrowError
+  ): DynamoDBQuery[From, Either[ItemError, To]] = {
 
     def getWithNarrowedKeyCondExpr[From: Schema.Enum, To <: From](tableName: String)(
       primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
@@ -524,6 +500,33 @@ object DynamoDBQuery {
         narrow[From, To](found).left.map(DynamoDBError.ItemError.DecodingError.apply)
 
       case Left(error)  => Left(error)
+    }
+  }
+
+  // Safely narrows `a: From` to subtype type `To` and requires that there are implicit schemas in scope which
+  // ensure that `From` is an enum (sealed trait) and `To` is a record (case class) subtype.
+  private[dynamodb] def narrow[From: Schema.Enum, To <: From: Schema.Record](
+    a: From
+  ): Either[String, To] = {
+    val fromEnumSchema: Schema.Enum[From] = implicitly[Schema.Enum[From]]
+    val toSchema: Schema.Record[To]       = implicitly[Schema.Record[To]]
+    val o: Option[Schema.Case[From, _]]   = fromEnumSchema.caseOf(a)
+
+    o match {
+      case Some(c @ Schema.Case(_, Schema.Lazy(s), _, _, _, _)) =>
+        s() == toSchema match {
+          case true => Right(a.asInstanceOf[To])
+          case _    =>
+            Left(s"failed to narrow - Found type ${c.id} but expected type ${toSchema.id.name}")
+        }
+      case Some(c)                                              =>
+        c.schema == toSchema match {
+          case true => Right(a.asInstanceOf[To])
+          case _    => Left(s"failed to narrow - Found type ${c.id} but expected type ${toSchema.id.name}")
+        }
+      case None                                                 =>
+        // this should never happen as we have a type level proof
+        Left(s"failed to narrow - argument is not a subtype of ${fromEnumSchema.id.name}")
     }
   }
 
@@ -593,7 +596,6 @@ object DynamoDBQuery {
   /**
    * when executed will return a Tuple of {{{Either[String,(Chunk[A], LastEvaluatedKey)]}}}
    */
-
   def scanSome[A: Schema](
     tableName: String,
     limit: Int

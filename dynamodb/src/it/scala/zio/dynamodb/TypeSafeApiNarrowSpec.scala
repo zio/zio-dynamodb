@@ -3,15 +3,16 @@ package zio.dynamodb
 import zio.dynamodb.DynamoDBQuery.{ getItem, put }
 import zio.Scope
 import zio.test.Spec
-import zio.test.Assertion.{ containsString, fails, hasMessage }
+import zio.test.Assertion.fails
 import zio.test.{ assert, assertTrue }
 import zio.test.TestEnvironment
-import zio.test.Assertion.{ isLeft, isRight }
+import zio.test.Assertion.{ equalTo, isLeft, isRight }
 import zio.test.TestAspect
 import zio.schema.Schema
 import zio.schema.DeriveSchema
 import zio.schema.annotation.discriminatorName
 import zio.dynamodb.DynamoDBQuery.getWithNarrow
+import zio.dynamodb.DynamoDBError.ItemError
 
 object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
 
@@ -72,7 +73,21 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
         for {
           _    <- put[dynamo.Invoice](invoiceTable, dynamo.Invoice.Unpaid("1")).execute
           exit <- getWithNarrow[dynamo.Invoice, dynamo.Invoice.Paid](invoiceTable)(keyCond).execute.absolve.exit
-        } yield assert(exit)(fails(hasMessage(containsString("failed to narrow"))))
+        } yield assert(exit)(
+          fails(equalTo(ItemError.DecodingError("failed to narrow - Found type Unpaid but expected type Paid")))
+        )
+      }
+    },
+    test("getWithNarrow fails in narrowing an Paid Invoice instance to Unpaid") {
+      withSingleIdKeyTable { invoiceTable =>
+        val keyCond: KeyConditionExpr.PartitionKeyEquals[dynamo.Invoice.Unpaid] =
+          dynamo.Invoice.Unpaid.id.partitionKey === "1"
+        for {
+          _    <- put[dynamo.Invoice](invoiceTable, dynamo.Invoice.Paid("1", 42)).execute
+          exit <- getWithNarrow[dynamo.Invoice, dynamo.Invoice.Unpaid](invoiceTable)(keyCond).execute.absolve.exit
+        } yield assert(exit)(
+          fails(equalTo(ItemError.DecodingError("failed to narrow - Found type Paid but expected type Unpaid")))
+        )
       }
     },
     test("narrow") {
