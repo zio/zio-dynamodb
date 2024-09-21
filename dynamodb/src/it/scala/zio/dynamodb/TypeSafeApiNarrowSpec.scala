@@ -45,11 +45,11 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
   }
 
   override def spec: Spec[Environment with TestEnvironment with Scope, Any] =
-    suite("TypeSafeApiMappingSpec")(
-      topLevelSumTypeDiscriminatorNameSuite
+    suite("TypeSafeApiNarrowSpec")(
+      topLevelSumTypeNarrowSuite
     ) @@ TestAspect.nondeterministic
 
-  val topLevelSumTypeDiscriminatorNameSuite = suite("with @discriminatorName annotation")(
+  val topLevelSumTypeNarrowSuite = suite("for top level Invoice sum type with @discriminatorName annotation")(
     test("getWithNarrow succeeds in narrowing an Unpaid Invoice instance to Unpaid") {
       withSingleIdKeyTable { invoiceTable =>
         val keyCond: KeyConditionExpr.PartitionKeyEquals[dynamo.Invoice.Unpaid] =
@@ -77,7 +77,7 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
           paid <- getWithNarrow[dynamo.Invoice, dynamo.Invoice.Paid](invoiceTable)(keyCond).execute.absolve
         } yield {
           val paid2: dynamo.Invoice.Paid = paid
-          val ensureDiscriminatorPresent     = item == Some(Item("id" -> "1", "invoiceType" -> "Paid", "amount" -> 42))
+          val ensureDiscriminatorPresent = item == Some(Item("id" -> "1", "invoiceType" -> "Paid", "amount" -> 42))
           assertTrue(paid2 == dynamo.Invoice.Paid("1", 42) && ensureDiscriminatorPresent)
         }
       }
