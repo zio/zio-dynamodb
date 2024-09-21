@@ -66,6 +66,22 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
         }
       }
     },
+    test("getWithNarrow succeeds in narrowing an Paid Invoice instance to Paid") {
+      withSingleIdKeyTable { invoiceTable =>
+        val keyCond: KeyConditionExpr.PartitionKeyEquals[dynamo.Invoice.Paid] =
+          dynamo.Invoice.Paid.id.partitionKey === "1"
+        for {
+          _    <- put[dynamo.Invoice](invoiceTable, dynamo.Invoice.Paid("1", 42)).execute
+          item <- getItem(invoiceTable, PrimaryKey("id" -> "1")).execute
+
+          paid <- getWithNarrow[dynamo.Invoice, dynamo.Invoice.Paid](invoiceTable)(keyCond).execute.absolve
+        } yield {
+          val paid2: dynamo.Invoice.Paid = paid
+          val ensureDiscriminatorPresent     = item == Some(Item("id" -> "1", "invoiceType" -> "Paid", "amount" -> 42))
+          assertTrue(paid2 == dynamo.Invoice.Paid("1", 42) && ensureDiscriminatorPresent)
+        }
+      }
+    },
     test("getWithNarrow fails in narrowing an Unpaid Invoice instance to Paid") {
       withSingleIdKeyTable { invoiceTable =>
         val keyCond: KeyConditionExpr.PartitionKeyEquals[dynamo.Invoice.Paid] =
