@@ -13,8 +13,8 @@ const sidebars = {
           label: "Concepts",
           items: [
             "concepts/architecture",
-            "concepts/low-level-api",
             "concepts/high-level-api",
+            "concepts/low-level-api",
             "concepts/transactions",
           ],
 
