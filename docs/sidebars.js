@@ -39,6 +39,7 @@ const sidebars = {
             "reference/dynamodb-query",
             "reference/attribute-value",
             "reference/projection-expression",
+            "reference/primary-keys",
           ]
         }
       ]
