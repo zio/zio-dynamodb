@@ -5,4 +5,11 @@ title: "DynamoDBQuery"
 
 # DynamoDBQuery
 
-TODO
+interaction with DynamoDBExecutor
+
+- put
+- get
+- update
+- delete
+
+# Execution
