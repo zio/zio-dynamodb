@@ -46,7 +46,8 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
 
   override def spec: Spec[Environment with TestEnvironment with Scope, Any] =
     suite("TypeSafeApiNarrowSpec")(
-      topLevelSumTypeNarrowSuite
+      topLevelSumTypeNarrowSuite,
+      narrowSuite
     ) @@ TestAspect.nondeterministic
 
   val topLevelSumTypeNarrowSuite = suite("for top level Invoice sum type with @discriminatorName annotation")(
@@ -90,7 +91,7 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
           _    <- put[dynamo.Invoice](invoiceTable, dynamo.Invoice.Unpaid("1")).execute
           exit <- getWithNarrow[dynamo.Invoice, dynamo.Invoice.Paid](invoiceTable)(keyCond).execute.absolve.exit
         } yield assert(exit)(
-          fails(equalTo(ItemError.DecodingError("failed to narrow - Found type Unpaid but expected type Paid")))
+          fails(equalTo(ItemError.DecodingError("failed to narrow - found type Unpaid but expected type Paid")))
         )
       }
     },
@@ -102,25 +103,30 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
           _    <- put[dynamo.Invoice](invoiceTable, dynamo.Invoice.Paid("1", 42)).execute
           exit <- getWithNarrow[dynamo.Invoice, dynamo.Invoice.Unpaid](invoiceTable)(keyCond).execute.absolve.exit
         } yield assert(exit)(
-          fails(equalTo(ItemError.DecodingError("failed to narrow - Found type Paid but expected type Unpaid")))
+          fails(equalTo(ItemError.DecodingError("failed to narrow - found type Paid but expected type Unpaid")))
         )
       }
-    },
-    test("narrow") {
+    }
+  )
+
+  val narrowSuite = suite("narrow suite")(
+    test("narrow Paid instance to Paid for success and failure") {
       val invoice: dynamo.Invoice = dynamo.Invoice.Paid("1", 1)
       val valid                   = DynamoDBQuery.narrow[dynamo.Invoice, dynamo.Invoice.Paid](invoice)
       val invalid                 = DynamoDBQuery.narrow[dynamo.Invoice, dynamo.Invoice.Unpaid](invoice)
 
-      // gives expected compile error:
-      // type arguments [zio.dynamodb.TypeSafeApiNarrowSpec.dynamo.Invoice,zio.dynamodb.TypeSafeApiNarrowSpec.dynamo.Invoice.Unrelated] do not conform to method narrow's type parameter bounds [From,To <: From]
-      //      val unrelated                       = DynamoDBQuery.narrow[dynamo.Invoice, dynamo.Invoice.Unrelated](Unrelated(1))
+      assert(valid)(isRight) && assert(invalid)(
+        isLeft(equalTo("failed to narrow - found type Paid but expected type Unpaid"))
+      )
+    },
+    test("narrow Unpaid instance to Unpaid for success and failure") {
+      val invoice: dynamo.Invoice = dynamo.Invoice.Unpaid("1")
+      val valid                   = DynamoDBQuery.narrow[dynamo.Invoice, dynamo.Invoice.Unpaid](invoice)
+      val invalid                 = DynamoDBQuery.narrow[dynamo.Invoice, dynamo.Invoice.Paid](invoice)
 
-      // gives expected compile error:
-      // could not find implicit value for evidence parameter of type zio.schema.Schema.Enum[zio.dynamodb.TypeSafeApiNarrowSpec.dynamo.Invoice.Unrelated]
-      //      val x                       = DynamoDBQuery.narrow[dynamo.Invoice.Unrelated, dynamo.Invoice.Unrelated](Unrelated(1))
-
-      assert(valid)(isRight) && assert(invalid)(isLeft)
+      assert(valid)(isRight) && assert(invalid)(
+        isLeft(equalTo("failed to narrow - found type Unpaid but expected type Paid"))
+      )
     }
   )
-
 }

@@ -517,12 +517,12 @@ object DynamoDBQuery {
         s() == toSchema match {
           case true => Right(a.asInstanceOf[To])
           case _    =>
-            Left(s"failed to narrow - Found type ${c.id} but expected type ${toSchema.id.name}")
+            Left(s"failed to narrow - found type ${c.id} but expected type ${toSchema.id.name}")
         }
       case Some(c)                                              =>
         c.schema == toSchema match {
           case true => Right(a.asInstanceOf[To])
-          case _    => Left(s"failed to narrow - Found type ${c.id} but expected type ${toSchema.id.name}")
+          case _    => Left(s"failed to narrow - found type ${c.id} but expected type ${toSchema.id.name}")
         }
       case None                                                 =>
         // this should never happen as we have a type level proof
