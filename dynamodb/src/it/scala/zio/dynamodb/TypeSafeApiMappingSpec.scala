@@ -71,7 +71,7 @@ object TypeSafeApiMappingSpec extends DynamoDBLocalSpec {
           _       <- put[InvoiceWithDiscriminatorName](invoiceTable, InvoiceWithDiscriminatorName.Unpaid("1")).execute
           invoice <- // invoice is of type InvoiceWithDiscriminatorName
                      get(invoiceTable)(
-                       ((InvoiceWithDiscriminatorName.unpaid) >>> (InvoiceWithDiscriminatorName.Unpaid.id)).partitionKey === "1"
+                       (InvoiceWithDiscriminatorName.unpaid >>> InvoiceWithDiscriminatorName.Unpaid.id).partitionKey === "1"
                      ).execute.absolve
         } yield assertTrue(invoice == InvoiceWithDiscriminatorName.Unpaid("1"))
       }
@@ -81,7 +81,7 @@ object TypeSafeApiMappingSpec extends DynamoDBLocalSpec {
         for {
           _       <- put[InvoiceWithDiscriminatorName](invoiceTable, InvoiceWithDiscriminatorName.Unpaid("1")).execute
           invoice <- get(invoiceTable)( // invoice is of type InvoiceWithDiscriminatorName.Unpaid
-                       (InvoiceWithDiscriminatorName.Unpaid.id).partitionKey === "1"
+                       InvoiceWithDiscriminatorName.Unpaid.id.partitionKey === "1"
                      ).execute.absolve
         } yield assertTrue(invoice == InvoiceWithDiscriminatorName.Unpaid("1"))
       }
