@@ -551,6 +551,12 @@ object DynamoDBQuery {
   def put[A: Schema](tableName: String, a: A): DynamoDBQuery[A, Option[A]] =
     putItem(tableName, toItem(a)).map(_.flatMap(item => fromItem(item).toOption))
 
+  def put2[A: Schema.Enum, B <: A: Schema.Record](tableName: String, a: A): DynamoDBQuery[B, Option[B]] = {
+    val schemaA = implicitly[Schema.Enum[A]]
+    val schemaB = implicitly[Schema.Record[B]]
+    putItem(tableName, toItem(a)(schemaA)).map(_.flatMap(item => fromItem(item)(schemaB).toOption))
+  }
+
   private[dynamodb] def toItem[A](a: A)(implicit schema: Schema[A]): Item =
     FromAttributeValue.attrMapFromAttributeValue
       .fromAttributeValue(AttributeValue.encode(a)(schema))

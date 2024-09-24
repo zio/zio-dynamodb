@@ -51,6 +51,29 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
     ) @@ TestAspect.nondeterministic
 
   val topLevelSumTypeNarrowSuite = suite("for top level Invoice sum type with @discriminatorName annotation")(
+    test("put2 experiment") {
+      withSingleIdKeyTable { invoiceTable =>
+        val keyCond: KeyConditionExpr.PartitionKeyEquals[dynamo.Invoice.Unpaid]    =
+          dynamo.Invoice.Unpaid.id.partitionKey === "1"
+        val x: DynamoDBQuery[dynamo.Invoice.Unpaid, Option[dynamo.Invoice.Unpaid]] = DynamoDBQuery
+          .put2[dynamo.Invoice, dynamo.Invoice.Unpaid](invoiceTable, dynamo.Invoice.Unpaid("1"))
+        val ce: ConditionExpression[dynamo.Invoice.Unpaid]                         = !dynamo.Invoice.Unpaid.id.exists
+        println(s"$x $ce")
+        for {
+          _    <- DynamoDBQuery
+                    .put2[dynamo.Invoice, dynamo.Invoice.Unpaid](invoiceTable, dynamo.Invoice.Unpaid("1"))
+                    .where(!dynamo.Invoice.Unpaid.id.exists)
+                    .execute
+          item <- getItem(invoiceTable, PrimaryKey("id" -> "1")).execute
+
+          unpaid <- getWithNarrow[dynamo.Invoice, dynamo.Invoice.Unpaid](invoiceTable)(keyCond).execute.absolve
+        } yield {
+          val unpaid2: dynamo.Invoice.Unpaid = unpaid
+          val ensureDiscriminatorPresent     = item == Some(Item("id" -> "1", "invoiceType" -> "Unpaid"))
+          assertTrue(unpaid2 == dynamo.Invoice.Unpaid("1") && ensureDiscriminatorPresent)
+        }
+      }
+    },
     test("getWithNarrow succeeds in narrowing an Unpaid Invoice instance to Unpaid") {
       withSingleIdKeyTable { invoiceTable =>
         val keyCond: KeyConditionExpr.PartitionKeyEquals[dynamo.Invoice.Unpaid] =
