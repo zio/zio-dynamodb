@@ -32,7 +32,7 @@ To use the new Cats Effect 3 interop module, we need to also add the following l
 
 ```scala
 libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb-ce" "@VERSION@"
+  "dev.zio" %% "zio-dynamodb-ce" % "@VERSION@"
 )
 ```
 
@@ -43,7 +43,7 @@ AWS tools like the CLI and Console read/write a special JSON representation of d
 
 ```scala
 libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb-json" "@VERSION@"
+  "dev.zio" %% "zio-dynamodb-json" % "@VERSION@"
 )
 ```
 
