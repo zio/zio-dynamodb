@@ -53,7 +53,7 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
   val topLevelSumTypeNarrowSuite = suite("for top level Invoice sum type with @discriminatorName annotation")(
     test("put with narrow") {
       withSingleIdKeyTable { invoiceTable =>
-        val keyCond: KeyConditionExpr.PartitionKeyEquals[dynamo.Invoice.Unpaid]    =
+        val keyCond: KeyConditionExpr.PartitionKeyEquals[dynamo.Invoice.Unpaid] =
           dynamo.Invoice.Unpaid.id.partitionKey === "1"
         for {
           _    <- DynamoDBQuery
@@ -77,7 +77,7 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
         val keyCond: KeyConditionExpr.PartitionKeyEquals[dynamo.Invoice.Unpaid] =
           dynamo.Invoice.Unpaid.id.partitionKey === "1"
         for {
-          _    <- put[dynamo.Invoice](invoiceTable, dynamo.Invoice.Unpaid("1")).execute
+          _ <- put[dynamo.Invoice](invoiceTable, dynamo.Invoice.Unpaid("1")).execute
 
           unpaid <- getWithNarrow[dynamo.Invoice, dynamo.Invoice.Unpaid](invoiceTable)(keyCond).execute.absolve
         } yield {
@@ -91,7 +91,7 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
         val keyCond: KeyConditionExpr.PartitionKeyEquals[dynamo.Invoice.Paid] =
           dynamo.Invoice.Paid.id.partitionKey === "1"
         for {
-          _    <- put[dynamo.Invoice](invoiceTable, dynamo.Invoice.Paid("1", 42)).execute
+          _ <- put[dynamo.Invoice](invoiceTable, dynamo.Invoice.Paid("1", 42)).execute
 
           paid <- getWithNarrow[dynamo.Invoice, dynamo.Invoice.Paid](invoiceTable)(keyCond).execute.absolve
         } yield {

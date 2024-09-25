@@ -555,7 +555,7 @@ object DynamoDBQuery {
     putItem(tableName, toItem(a)).map(_.flatMap(item => fromItem(item).toOption))
 
   /**
-   * It is common to save the top level sum type to DynamoDB and often we want to save them back as the subtype 
+   * It is common to save the top level sum type to DynamoDB and often we want to save them back as the subtype
    * with expressions in terms of the subtype as well.
    *
    * Note this is an experimental API and may be subject to change.
