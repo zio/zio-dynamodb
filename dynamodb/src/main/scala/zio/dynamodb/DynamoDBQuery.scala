@@ -511,7 +511,7 @@ object DynamoDBQuery {
    * Safely narrows `a: From` to subtype type `To` and requires that there are implicit schemas in scope which
    * ensure that `From` is an enum (sealed trait) and `To` is a record (case class) subtype.
    */
-  def narrow[From: Schema.Enum, To <: From: Schema.Record](
+  private[dynamodb] def narrow[From: Schema.Enum, To <: From: Schema.Record](
     a: From
   ): Either[String, To] = {
     val fromEnumSchema: Schema.Enum[From] = implicitly[Schema.Enum[From]]
