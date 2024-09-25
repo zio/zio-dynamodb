@@ -481,10 +481,14 @@ object DynamoDBQuery {
     get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
 
   /**
-   * It is common practice to save top level sum types to DynamoDB and often we want to retrieve them back as the subtype.
+   * It is common practice to save top level sum types to DynamoDB and often we want to retrieve them back as the subtype
+   * with expressions in terms of the subtype as well.
    * `getWithNarrow` does a `get` with a safe narrow operation from type `From` to `To`.
    * If the narrow fails it returns a Decoding error with details of the cast failure in the message.
+   *
    * Requires implicit schemas in scope which ensure that `From` is an enum (sealed trait) and `To` is a record (case class) subtype.
+   *
+   * Note this is an experimental API and may be subject to change.
    */
   def getWithNarrow[From: Schema.Enum, To <: From: Schema.Record](tableName: String)(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
@@ -503,8 +507,10 @@ object DynamoDBQuery {
     }
   }
 
-  // Safely narrows `a: From` to subtype type `To` and requires that there are implicit schemas in scope which
-  // ensure that `From` is an enum (sealed trait) and `To` is a record (case class) subtype.
+  /**
+   * Safely narrows `a: From` to subtype type `To` and requires that there are implicit schemas in scope which
+   * ensure that `From` is an enum (sealed trait) and `To` is a record (case class) subtype.
+   */
   private[dynamodb] def narrow[From: Schema.Enum, To <: From: Schema.Record](
     a: From
   ): Either[String, To] = {
@@ -550,6 +556,26 @@ object DynamoDBQuery {
 
   def put[A: Schema](tableName: String, a: A): DynamoDBQuery[A, Option[A]] =
     putItem(tableName, toItem(a)).map(_.flatMap(item => fromItem(item).toOption))
+
+  /**
+   * It is common to save the top level sum type to DynamoDB and often we want to save them back as the subtype
+   * with expressions in terms of the subtype as well.
+   * `putWithNarrow` does a `put` of type `To` which is widened to type `From` before the save to ensure that the discriminator is saved,
+   * and narrows the returned DynamoDBQuery to `To` .
+   *
+   * Requires implicit schemas in scope which ensure that `From` is an enum (sealed trait) and `To` is a record (case class) subtype.
+   *
+   * Note this is an experimental API and may be subject to change.
+   */
+  def putWithNarrow[From: Schema.Enum, To <: From: Schema.Record](
+    tableName: String,
+    a: To
+  ): DynamoDBQuery[To, Option[To]] = {
+    val fromEnumSchema = implicitly[Schema.Enum[From]]
+    val toSchema       = implicitly[Schema.Record[To]]
+    putItem(tableName, toItem(a.asInstanceOf[From])(fromEnumSchema))
+      .map(_.flatMap(item => fromItem(item)(toSchema).toOption))
+  }
 
   private[dynamodb] def toItem[A](a: A)(implicit schema: Schema[A]): Item =
     FromAttributeValue.attrMapFromAttributeValue

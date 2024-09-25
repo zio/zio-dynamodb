@@ -14,7 +14,7 @@ import zio.test.TestAspect
 
 object TypeSafeApiMappingSpec extends DynamoDBLocalSpec {
 
-  // note the default sum type mapping does not work with top level sum types as it required an intermediate map
+  // note the default sum type mapping does not work with top level sum types as it requires an intermediate map
   // and partition keys must be scalar values
 
   @discriminatorName("invoiceType")
