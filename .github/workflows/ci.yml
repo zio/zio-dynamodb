@@ -33,7 +33,7 @@ jobs:
       fail-fast: false
       matrix:
         java: ['temurin:17', 'temurin:21']
-        scala: ['3.3.1', '2.13.12', '2.12.19']
+        scala: ['3.3.1', '2.13.15', '2.12.19']
     env:
       AWS_ACCESS_KEY_ID: dummykey
       AWS_SECRET_ACCESS_KEY: dummykey
