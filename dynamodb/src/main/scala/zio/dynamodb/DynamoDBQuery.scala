@@ -486,11 +486,11 @@ object DynamoDBQuery {
    * `getWithNarrow` does a `get` with a safe narrow operation from type `From` to `To`.
    * If the narrow fails it returns a Decoding error with details of the cast failure in the message.
    *
-   * Requires implicit schemas in scope which ensure that `From` is an enum (sealed trait) and `To` is a record (case class) subtype.
+   * Requires implicit schemas in scope which ensure that `From` is an enum (sealed trait) and `To` is a subtype.
    *
    * Note this is an experimental API and may be subject to change.
    */
-  def getWithNarrow[From: Schema.Enum, To <: From: Schema.Record](tableName: String)(
+  def getWithNarrow[From: Schema.Enum, To <: From: Schema](tableName: String)(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
   ): DynamoDBQuery[From, Either[ItemError, To]] = {
 
@@ -509,26 +509,36 @@ object DynamoDBQuery {
 
   /**
    * Safely narrows `a: From` to subtype type `To` and requires that there are implicit schemas in scope which
-   * ensure that `From` is an enum (sealed trait) and `To` is a record (case class) subtype.
+   * ensure that `From` is an enum (sealed trait) and `To` is a subtype.
    */
-  private[dynamodb] def narrow[From: Schema.Enum, To <: From: Schema.Record](
+  private[dynamodb] def narrow[From: Schema.Enum, To <: From: Schema](
     a: From
   ): Either[String, To] = {
     val fromEnumSchema: Schema.Enum[From] = implicitly[Schema.Enum[From]]
-    val toSchema: Schema.Record[To]       = implicitly[Schema.Record[To]]
+    val toSchema: Schema[To]              = implicitly[Schema[To]]
     val o: Option[Schema.Case[From, _]]   = fromEnumSchema.caseOf(a)
+
+    val toSchemaId: String =
+      toSchema match {
+        case s: Schema.Enum[_]   => s.id.name
+        case s: Schema.Record[_] => s.id.name
+        case s: Schema[_]        => s.toString
+      }
 
     o match {
       case Some(c @ Schema.Case(_, Schema.Lazy(s), _, _, _, _)) =>
-        s() == toSchema match {
+        val foundSchema = s()
+        foundSchema == toSchema match {
           case true => Right(a.asInstanceOf[To])
           case _    =>
-            Left(s"failed to narrow - found type ${c.id} but expected type ${toSchema.id.name}")
+            Left(
+              s"failed to narrow - found type ${c.id} but expected type $toSchemaId"
+            )
         }
       case Some(c)                                              =>
         c.schema == toSchema match {
           case true => Right(a.asInstanceOf[To])
-          case _    => Left(s"failed to narrow - found type ${c.id} but expected type ${toSchema.id.name}")
+          case _    => Left(s"failed to narrow - found type ${c.id} but expected type $toSchemaId")
         }
       case None                                                 =>
         // this should never happen as we have a type level proof
@@ -563,16 +573,16 @@ object DynamoDBQuery {
    * `putWithNarrow` does a `put` of type `To` which is widened to type `From` before the save to ensure that the discriminator is saved,
    * and narrows the returned DynamoDBQuery to `To` .
    *
-   * Requires implicit schemas in scope which ensure that `From` is an enum (sealed trait) and `To` is a record (case class) subtype.
+   * Requires implicit schemas in scope which ensure that `From` is an enum (sealed trait) and `To` is a subtype.
    *
    * Note this is an experimental API and may be subject to change.
    */
-  def putWithNarrow[From: Schema.Enum, To <: From: Schema.Record](
+  def putWithNarrow[From: Schema.Enum, To <: From: Schema](
     tableName: String,
     a: To
   ): DynamoDBQuery[To, Option[To]] = {
     val fromEnumSchema = implicitly[Schema.Enum[From]]
-    val toSchema       = implicitly[Schema.Record[To]]
+    val toSchema       = implicitly[Schema[To]]
     putItem(tableName, toItem(a.asInstanceOf[From])(fromEnumSchema))
       .map(_.flatMap(item => fromItem(item)(toSchema).toOption))
   }
