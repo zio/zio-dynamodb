@@ -509,14 +509,14 @@ object DynamoDBQuery {
 
   /**
    * Safely narrows `a: From` to subtype type `To` and requires that there are implicit schemas in scope which
-   * ensure that `From` is an enum (sealed trait) and `To` is a subtype.
+   * gives us a guarantee that `From` is an enum (sealed trait) and `To` is a subtype. Note that `To` itself can be an enum.
    */
   private[dynamodb] def narrow[From: Schema.Enum, To <: From: Schema](
     a: From
   ): Either[String, To] = {
     val fromEnumSchema: Schema.Enum[From] = implicitly[Schema.Enum[From]]
     val toSchema: Schema[To]              = implicitly[Schema[To]]
-    val o: Option[Schema.Case[From, _]]   = fromEnumSchema.caseOf(a)
+    val maybeSchemaOfA: Option[Schema.Case[From, _]]   = fromEnumSchema.caseOf(a)
 
     val toSchemaId: String =
       toSchema match {
@@ -525,10 +525,22 @@ object DynamoDBQuery {
         case s: Schema[_]        => s.toString
       }
 
-    o match {
+    // TODO: should we do this recursively?  
+    def isChildOfToEnumSchema(s: Schema[_]): Boolean =
+      toSchema match {
+        case enumSchema: Schema.Enum[_] => enumSchema.cases.exists{c => 
+          c.schema match {
+            case Schema.Lazy(s2) => s2() == s
+            case _                 => false
+          }
+        } 
+        case _                 => false
+      }  
+
+    maybeSchemaOfA match {
       case Some(c @ Schema.Case(_, Schema.Lazy(s), _, _, _, _)) =>
         val foundSchema = s()
-        foundSchema == toSchema match {
+        foundSchema == toSchema || isChildOfToEnumSchema(foundSchema) match {
           case true => Right(a.asInstanceOf[To])
           case _    =>
             Left(
@@ -536,7 +548,7 @@ object DynamoDBQuery {
             )
         }
       case Some(c)                                              =>
-        c.schema == toSchema match {
+        c.schema == toSchema || isChildOfToEnumSchema(c.schema) match {
           case true => Right(a.asInstanceOf[To])
           case _    => Left(s"failed to narrow - found type ${c.id} but expected type $toSchemaId")
         }
