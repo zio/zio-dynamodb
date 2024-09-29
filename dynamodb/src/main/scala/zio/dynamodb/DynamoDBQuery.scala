@@ -514,9 +514,9 @@ object DynamoDBQuery {
   private[dynamodb] def narrow[From: Schema.Enum, To <: From: Schema](
     a: From
   ): Either[String, To] = {
-    val fromEnumSchema: Schema.Enum[From] = implicitly[Schema.Enum[From]]
-    val toSchema: Schema[To]              = implicitly[Schema[To]]
-    val maybeSchemaOfA: Option[Schema.Case[From, _]]   = fromEnumSchema.caseOf(a)
+    val fromEnumSchema: Schema.Enum[From]            = implicitly[Schema.Enum[From]]
+    val toSchema: Schema[To]                         = implicitly[Schema[To]]
+    val maybeSchemaOfA: Option[Schema.Case[From, _]] = fromEnumSchema.caseOf(a)
 
     val toSchemaId: String =
       toSchema match {
@@ -525,22 +525,23 @@ object DynamoDBQuery {
         case s: Schema[_]        => s.toString
       }
 
-    // TODO: should we do this recursively?  
-    def isChildOfToEnumSchema(s: Schema[_]): Boolean =
-      toSchema match {
-        case enumSchema: Schema.Enum[_] => enumSchema.cases.exists{c => 
-          c.schema match {
-            case Schema.Lazy(s2) => s2() == s
-            case _                 => false
+    def schemaOfAFoundInTargetSchema(schemaOfA: Schema[_], targetSchema: Schema[_]): Boolean =
+      targetSchema match {
+        case enumSchema: Schema.Enum[_] =>
+          enumSchema.cases.exists { c =>
+            c.schema match {
+              case Schema.Lazy(s2)      => s2() == schemaOfA
+              case enum: Schema.Enum[_] => schemaOfAFoundInTargetSchema(schemaOfA, enum)
+              case _                    => false
+            }
           }
-        } 
-        case _                 => false
-      }  
+        case _                          => false
+      }
 
     maybeSchemaOfA match {
       case Some(c @ Schema.Case(_, Schema.Lazy(s), _, _, _, _)) =>
-        val foundSchema = s()
-        foundSchema == toSchema || isChildOfToEnumSchema(foundSchema) match {
+        val schemaOfA = s()
+        schemaOfA == toSchema || schemaOfAFoundInTargetSchema(schemaOfA, toSchema) match {
           case true => Right(a.asInstanceOf[To])
           case _    =>
             Left(
@@ -548,12 +549,13 @@ object DynamoDBQuery {
             )
         }
       case Some(c)                                              =>
-        c.schema == toSchema || isChildOfToEnumSchema(c.schema) match {
+        val schemaOfA = c.schema
+        schemaOfA == toSchema || schemaOfAFoundInTargetSchema(schemaOfA, toSchema) match {
           case true => Right(a.asInstanceOf[To])
           case _    => Left(s"failed to narrow - found type ${c.id} but expected type $toSchemaId")
         }
       case None                                                 =>
-        // this should never happen as we have a type level proof
+        // this should never happen as we have a compile time proof
         Left(s"failed to narrow - argument is not a subtype of ${fromEnumSchema.id.name}")
     }
   }
