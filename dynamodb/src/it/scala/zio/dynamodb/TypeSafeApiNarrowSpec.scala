@@ -91,10 +91,10 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
         }
       }
     },
-    test("put with narrow to Paid") {
+    test("put with narrow to Paid non concrete sum type") {
       withSingleIdKeyTable { invoiceTable =>
         val pePaidId: ProjectionExpression[dynamo.Invoice.Paid, String]       =
-          ProjectionExpression.foo[dynamo.Invoice.Paid, String]("id")
+          ProjectionExpression.$$[dynamo.Invoice.Paid, String]("id")
         val keyCond: KeyConditionExpr.PartitionKeyEquals[dynamo.Invoice.Paid] = pePaidId.partitionKey === "1"
         val idDoesNotExist                                                    = !pePaidId.exists
 
@@ -147,7 +147,7 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
         println(s"pk1: $pk1")
 
         val x: ProjectionExpression[dynamo.Invoice.Paid, String]          =
-          ProjectionExpression.foo[dynamo.Invoice.Paid, String]("id")
+          ProjectionExpression.$$[dynamo.Invoice.Paid, String]("id")
         val pk2: KeyConditionExpr.PartitionKeyEquals[dynamo.Invoice.Paid] = x.partitionKey === "1"
         println(s"pk1: $pk2")
 

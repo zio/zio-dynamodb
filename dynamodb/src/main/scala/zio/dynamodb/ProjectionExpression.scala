@@ -790,7 +790,7 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
   private[dynamodb] def listElement[A](parent: ProjectionExpression[A, _], index: Int) =
     ListElement[A, ProjectionExpression.Unknown](parent, index)
 
-  def foo[From, To](s: String): ProjectionExpression[From, To] =
+  def $$[From, To](s: String): ProjectionExpression[From, To] =
     parse(s) match {
       case Right(a)  => a.unsafeFrom[From].unsafeTo[To]
       case Left(msg) => throw new IllegalStateException(msg)
