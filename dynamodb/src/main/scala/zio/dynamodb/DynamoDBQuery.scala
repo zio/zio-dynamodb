@@ -541,13 +541,12 @@ object DynamoDBQuery {
     maybeSchemaOfA match {
       case Some(c @ Schema.Case(_, Schema.Lazy(s), _, _, _, _)) =>
         val schemaOfA = s()
-        schemaOfA == toSchema || schemaOfAFoundInTargetSchema(schemaOfA, toSchema) match {
-          case true => Right(a.asInstanceOf[To])
-          case _    =>
-            Left(
-              s"failed to narrow - found type ${c.id} but expected type $toSchemaId"
-            )
-        }
+        if (schemaOfA == toSchema || schemaOfAFoundInTargetSchema(schemaOfA, toSchema))
+          Right(a.asInstanceOf[To])
+        else
+          Left(
+            s"failed to narrow - found type ${c.id} but expected type $toSchemaId"
+          )
       case Some(c)                                              =>
         val schemaOfA = c.schema
         schemaOfA == toSchema || schemaOfAFoundInTargetSchema(schemaOfA, toSchema) match {

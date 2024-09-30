@@ -141,20 +141,14 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
     },
     test("getWithNarrow succeeds in narrowing an Paid1 Invoice instance to Paid") {
       withSingleIdKeyTable { invoiceTable =>
-        val pe1: ProjectionExpression[dynamo.Invoice.Paid, String]        =
-          dynamo.Invoice.paid >>> dynamo.Invoice.Paid.Paid1.id
-        val pk1: KeyConditionExpr.PartitionKeyEquals[dynamo.Invoice.Paid] = pe1.partitionKey === "1"
-        println(s"pk1: $pk1")
-
-        val x: ProjectionExpression[dynamo.Invoice.Paid, String]          =
+        val pe: ProjectionExpression[dynamo.Invoice.Paid, String]        =
           ProjectionExpression.$$[dynamo.Invoice.Paid, String]("id")
-        val pk2: KeyConditionExpr.PartitionKeyEquals[dynamo.Invoice.Paid] = x.partitionKey === "1"
-        println(s"pk1: $pk2")
+        val pk: KeyConditionExpr.PartitionKeyEquals[dynamo.Invoice.Paid] = pe.partitionKey === "1"
 
         for {
           _ <- put[dynamo.Invoice](invoiceTable, dynamo.Invoice.Paid.Paid1("1", 42)).execute
 
-          paid <- getWithNarrow[dynamo.Invoice, dynamo.Invoice.Paid](invoiceTable)(pk2).execute.absolve
+          paid <- getWithNarrow[dynamo.Invoice, dynamo.Invoice.Paid](invoiceTable)(pk).execute.absolve
         } yield {
           val paid2: dynamo.Invoice.Paid = paid
           assertTrue(paid2 == dynamo.Invoice.Paid.Paid1("1", 42))

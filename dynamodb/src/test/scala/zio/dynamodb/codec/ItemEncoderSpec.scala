@@ -32,7 +32,6 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
     test("encodes a Currency") {
       val expectedItem: Item           = Item("c" -> "GBP")
       val currency: java.util.Currency = java.util.Currency.getInstance("GBP")
-      println(s"currency: $currency")
 
       val item = DynamoDBQuery.toItem(CaseClassOfCurrency(currency))
 
