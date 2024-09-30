@@ -530,9 +530,9 @@ object DynamoDBQuery {
         case enumSchema: Schema.Enum[_] =>
           enumSchema.cases.exists { c =>
             c.schema match {
-              case Schema.Lazy(s)       => s() == schemaOfA
-              case enum: Schema.Enum[_] => schemaOfAFoundInTargetSchema(schemaOfA, enum)
-              case _                    => false
+              case Schema.Lazy(s)    => s() == schemaOfA
+              case e: Schema.Enum[_] => schemaOfAFoundInTargetSchema(schemaOfA, e)
+              case _                 => false
             }
           }
         case _                          => false
