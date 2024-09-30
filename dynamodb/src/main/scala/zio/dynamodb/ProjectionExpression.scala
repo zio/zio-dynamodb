@@ -790,12 +790,6 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
   private[dynamodb] def listElement[A](parent: ProjectionExpression[A, _], index: Int) =
     ListElement[A, ProjectionExpression.Unknown](parent, index)
 
-  def $$[From, To](s: String): ProjectionExpression[From, To] =
-    parse(s) match {
-      case Right(a)  => a.unsafeFrom[From].unsafeTo[To]
-      case Left(msg) => throw new IllegalStateException(msg)
-    }
-
   /**
    * Unsafe version of `parse` that throws an IllegalStateException rather than returning an Either.
    * Note all path elements are substituted automatically using the `ExpressionAttributeNames` facility.
