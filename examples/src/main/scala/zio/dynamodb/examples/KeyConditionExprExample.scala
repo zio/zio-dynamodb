@@ -11,8 +11,9 @@ object KeyConditionExprExample extends App {
 
   import zio.dynamodb.KeyConditionExpr._
   import zio.dynamodb.KeyConditionExpr.SortKeyEquals
-  import zio.dynamodb.ProjectionExpression.$
+  import zio.dynamodb.ProjectionExpression.{ $, $$ }
 
+  // Unsafe low-level API
   val x6 =
     $("foo.bar").partitionKey === 1 && $("foo.baz").sortKey === "y"
   val x7 = $("foo.bar").partitionKey === 1 && $("foo.baz").sortKey > 1
@@ -21,6 +22,14 @@ object KeyConditionExprExample extends App {
   val x9 =
     $("foo.bar").partitionKey === 1 && $("foo.baz").sortKey.beginsWith(1L)
 
+  // More type-safe low-level API
+  sealed trait UnderlyingModel
+  val peInt: ProjectionExpression[UnderlyingModel, Int]       = $$("foo.bar")
+  val peString: ProjectionExpression[UnderlyingModel, String] = $$("foo.baz")
+
+  val x6Int = peInt.partitionKey === 1 && peString.sortKey === "y"
+
+  // High-level API
   final case class Elephant(email: String, subject: String, age: Int)
   object Elephant {
     implicit val schema: Schema.CaseClass3[String, String, Int, Elephant] = DeriveSchema.gen[Elephant]
