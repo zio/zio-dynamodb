@@ -74,7 +74,6 @@ object TypeSafeApiAlternateModeling extends DynamoDBLocalSpec {
     test("crud operations") {
       withIdAndAccountIdGsiTable { invoiceTable =>
         import dynamo._
-        println(invoiceTable)
         val abc          = Contract(
           "1",
           alternateId = None,

@@ -40,7 +40,7 @@ object TypeSafeApiNarrowSpec extends DynamoDBLocalSpec {
       }
 
       implicit val schema: Schema.Enum2[Unpaid, Paid, Invoice] = DeriveSchema.gen[Invoice]
-      val (unpaid, paidA)                                      = ProjectionExpression.accessors[Invoice]
+      val (unpaid, paid)                                       = ProjectionExpression.accessors[Invoice]
     }
 
   }
