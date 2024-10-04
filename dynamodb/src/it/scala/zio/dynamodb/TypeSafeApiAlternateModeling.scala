@@ -9,7 +9,8 @@ import zio.schema.annotation.discriminatorName
 import zio.schema.Schema
 import zio.schema.DeriveSchema
 
-// An example of using a model that uses only sum and product types
+// An example of using a model that uses only sum and product types to represent a deep hierarchy - this the recommended
+// approach for modelling deeply nested hierarchies.
 object TypeSafeApiAlternateModeling extends DynamoDBLocalSpec {
 
   object dynamo {
@@ -31,7 +32,7 @@ object TypeSafeApiAlternateModeling extends DynamoDBLocalSpec {
       val (fixed, otp) = ProjectionExpression.accessors[GroupBody]
     }
 
-    @discriminatorName("invoiceType")
+    @discriminatorName("contractType")
     sealed trait ContractBody
     object ContractBody {
       final case class Simple(sku: String) extends ContractBody // simple types just have fields
@@ -72,7 +73,7 @@ object TypeSafeApiAlternateModeling extends DynamoDBLocalSpec {
 
   val modelExperimentSuite                                                  = suite("alternate model")(
     test("crud operations") {
-      withIdAndAccountIdGsiTable { invoiceTable =>
+      withIdAndAccountIdGsiTable { contractTable =>
         import dynamo._
         val abc          = Contract(
           "1",
@@ -84,11 +85,12 @@ object TypeSafeApiAlternateModeling extends DynamoDBLocalSpec {
         val accountIdKey = Contract.accountId.partitionKey === Some("a1")
         for {
           _        <- DynamoDBQuery
-                        .put(invoiceTable, abc)
+                        .put(contractTable, abc)
                         .where(!Contract.id.exists) // expressions operate on top level fields
                         .execute
-          contract <- DynamoDBQuery.get(invoiceTable)(Contract.id.partitionKey === "1").execute.absolve
-          stream   <- DynamoDBQuery.queryAll[Contract](invoiceTable).indexName("accountId").whereKey(accountIdKey).execute
+          contract <- DynamoDBQuery.get(contractTable)(Contract.id.partitionKey === "1").execute.absolve
+          stream   <-
+            DynamoDBQuery.queryAll[Contract](contractTable).indexName("accountId").whereKey(accountIdKey).execute
           xs       <- stream.runCollect
         } yield assertTrue(contract.contractType == "group:abc" && xs.size == 1)
 
