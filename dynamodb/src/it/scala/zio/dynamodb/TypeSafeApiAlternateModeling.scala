@@ -10,7 +10,7 @@ import zio.schema.Schema
 import zio.schema.DeriveSchema
 
 // An example of using a model that uses only sum and product types to represent a deep hierarchy - this the recommended
-// approach in functional data modelling and aligns with ZIO Schema's design.
+// approach for modelling deeply nested hierarchies.
 object TypeSafeApiAlternateModeling extends DynamoDBLocalSpec {
 
   object dynamo {
