@@ -38,11 +38,20 @@ const sidebars = {
           items: [
             {
               type: "category",
-              label: "High-Level API",
+              label: "High Level API",
               collapsed: true,
               link: { type: "doc", id: "reference/hi-level-api/index" },
               items: [
                 "reference/hi-level-api/item1",
+              ]
+            },
+            {
+              type: "category",
+              label: "Low Level API",
+              collapsed: true,
+              link: { type: "doc", id: "reference/low-level-api/index" },
+              items: [
+                "reference/low-level-api/item1",
               ]
             },
             "reference/dynamodb-query",
