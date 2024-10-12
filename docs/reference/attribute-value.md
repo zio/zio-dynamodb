@@ -20,7 +20,6 @@ However even when working with the Low Level API you would not use these constru
 An `AttrMap` is a convenience container for working an [DDB Item](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html) and **cuts down on boilerplate code when working with the Low Level API**. Conceptually it is a map of field name to AttributeValue `Map[String, AttributeValue]`.
 However rather than requiring you to create an `AttributeValue` instance manually for each field, you can work with literal Scala types and type classes will handle the conversion to `AttributeValue` for you. There are also the the `PrimaryKey` and `Item` type aliases for `AttrMap` for readability as these structures follow the same pattern.
 
-```scala
 Some examples are shown below:
 
 ```scala
@@ -31,10 +30,11 @@ val pk = PrimaryKey("id" -> "1", "count" -> 30)
 val item = Item("id" -> "1", "age" -> 30, "address" -> Item("city" -> "London", "postcode" -> "SW1A 1AA")) 
 ```
 
-To demonstrate the the reduction in boilerplate, if we were to create the first example manually it would look like this:
+The example below demonstrate the the reduction in boilerplate when compared to working with `AttributeValue` directly:
 
 ```scala
-val attrMap = Map("id" -> AttributeValue.String("1"), "age" -> AttributeValue.Number(30))
+val attrMap1 = AttrMap("id" -> "1", "age" -> 30) 
+val attrMap2 = Map("id" -> AttributeValue.String("1"), "age" -> AttributeValue.Number(30))
 ```
 
 

@@ -43,7 +43,7 @@ They are used as a springboard for creating further type safe APIs eg
 
 ## `DynamoDBQuery` CRUD methods
 
-There are also type safe query creation methods in the `DynamoDBQuery` companion object such as `get`, `put`, `update`, `deleteFrom`, `queryAll` and all these take expressions as arguments. So taking our example further we can see how all these APIs can be used together to create a type safe query: 
+There are also type safe query creation methods in the `DynamoDBQuery` companion object such as `get`, `put`, `update`, `deleteFrom`, `queryAll` and all these take expressions as arguments. So taking our example further we can see how all these APIs can be used together to create a type safe CRUD queries: 
 
 ```scala
 final case class Person(id: String, name: String)
@@ -56,10 +56,11 @@ val table = "person-table"
 val person = Person("1", "John")
 for {
   _ <- DynamoDBQuery.put(table, person).where(!Person.id.exists).execute
-  person <- DynamoDBQuery.get(table)(Person.id.partitionKey === "1").execute.absolve
+  found <- DynamoDBQuery.get(table)(Person.id.partitionKey === "1").execute.absolve
   _ <- DynamoDBQuery.update(table)(Person.id.partitionKey === "1")(
     Person.name.set("Smith")
   ).execute
+  _ <- ZIO.debug(found == person) // true
 } yield ()
 ```
 
