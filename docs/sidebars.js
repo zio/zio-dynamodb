@@ -51,11 +51,10 @@ const sidebars = {
               collapsed: true,
               link: { type: "doc", id: "reference/low-level-api/index" },
               items: [
-                "reference/low-level-api/item1",
+                "reference/low-level-api/attribute-value",
               ]
             },
             "reference/dynamodb-query",
-            "reference/attribute-value",
             "reference/projection-expression",
             "reference/primary-keys",
           ]
