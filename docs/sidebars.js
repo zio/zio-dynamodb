@@ -42,7 +42,7 @@ const sidebars = {
               collapsed: true,
               link: { type: "doc", id: "reference/hi-level-api/index" },
               items: [
-                "reference/hi-level-api/item1",
+                "reference/hi-level-api/primary-keys",
               ]
             },
             {
@@ -52,11 +52,11 @@ const sidebars = {
               link: { type: "doc", id: "reference/low-level-api/index" },
               items: [
                 "reference/low-level-api/attribute-value",
+                "reference/low-level-api/primary-keys",
               ]
             },
             "reference/dynamodb-query",
-            "reference/projection-expression",
-            "reference/primary-keys",
+            "reference/projection-expression"
           ]
         }
       ]
