@@ -36,6 +36,15 @@ const sidebars = {
           collapsed: false,
           label: "Reference",
           items: [
+            {
+              type: "category",
+              label: "High-Level API",
+              collapsed: true,
+              link: { type: "doc", id: "reference/hi-level-api/index" },
+              items: [
+                "reference/hi-level-api/item1",
+              ]
+            },
             "reference/dynamodb-query",
             "reference/attribute-value",
             "reference/projection-expression",
@@ -46,5 +55,22 @@ const sidebars = {
     }
   ]
 };
+
+/*
+            {
+              type: "category",
+              label: "Codecs",
+              collapsed: true,
+              link: { type: "doc", id: "derivations/codecs/index" },
+              items: [
+                "derivations/codecs/avro",
+                "derivations/codecs/thrift",
+                "derivations/codecs/bson",
+                "derivations/codecs/json",
+                "derivations/codecs/message-pack",
+                "derivations/codecs/protobuf",
+              ],
+            },
+*/
 
 module.exports = sidebars;
