@@ -13,4 +13,4 @@ In the below diagram you can see the different layers of library and its depende
 
 ![architecture diagram](architecture.png)
 
-Although there are two APIs, the High Level API is the recommended way to interact with the library as it provides a more type safe way to interact with DynamoDB.
+Although there are two APIs, the High Level API is the recommended way to interact with the library as it provides a type safe way to interact with DynamoDB together with a huge amount of boilerplate reduction.

@@ -3,7 +3,9 @@ id: dynamodb-query
 title: "DynamoDBQuery"
 ---
 
-interaction with DynamoDBExecutor
+TODO
+
+interaction with DynamoDBExecutor?
 
 - put
 - get
