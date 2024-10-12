@@ -56,7 +56,8 @@ const sidebars = {
               ]
             },
             "reference/dynamodb-query",
-            "reference/projection-expression"
+            "reference/projection-expression",
+            "reference/error-handling"
           ]
         }
       ]

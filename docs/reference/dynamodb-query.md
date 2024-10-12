@@ -3,8 +3,6 @@ id: dynamodb-query
 title: "DynamoDBQuery"
 ---
 
-# DynamoDBQuery
-
 interaction with DynamoDBExecutor
 
 - put

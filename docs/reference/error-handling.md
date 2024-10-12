@@ -1,6 +1,6 @@
 ---
-id: dynamodb-query
-title: "DynamoDBQuery"
+id: error-handling
+title: "Error Handling"
 ---
 
 TODO
