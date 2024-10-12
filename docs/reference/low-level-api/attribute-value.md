@@ -3,7 +3,6 @@ id: attribute-value
 title: "AttributeValue"
 ---
 
-# AttributeValue
 The sealed trait `AttributeValue` has a one to one correspondence with the concept of an [attribute value in the AWS DDB API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_AttributeValue.html). It has implementations for all the types that are supported by DynamoDB
 
 Internally there are the type classes `ToAttributeValue` and `FromAttribute` to convert between Scala types and `AttributeValue` and vice versa

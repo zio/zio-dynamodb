@@ -3,7 +3,6 @@ id: low-level-api
 title: "Low Level API"
 ---
 
-# Low Level API
 The low level API provides low level query creation and execution while still offering a large reduction in boilerplate. It's is based one to one on DynamoDB abstractions and the surface area consists of:
 - `AttrMap` which is a convenience container with automatic conversion between Scala values and `AttributeValue`'s. It also has type aliases of `PrimaryKey` and `Item` (see reference section for more details)
 - `$` function for creating untyped `ProjectionExpression`s eg `$("person.address.houseNumber")`
