@@ -23,8 +23,8 @@ Some examples are shown below:
 
 ```scala
 val attrMap = AttrMap("id" -> "1", "age" -> 30) 
-val item = Item("id" -> "1", "age" -> 30) 
-val pk = PrimaryKey("id" -> "1", "count" -> 30) 
+val item = Item("id" -> "1", "age" -> 30) // uses Item type alias
+val pk = PrimaryKey("id" -> "1", "count" -> 30) // uses PrimaryKey type alias 
 // AttrMaps can also be nested 
 val item = Item("id" -> "1", "age" -> 30, "address" -> Item("city" -> "London", "postcode" -> "SW1A 1AA")) 
 ```
