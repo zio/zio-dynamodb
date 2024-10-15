@@ -36,6 +36,32 @@ val attrMap1 = AttrMap("id" -> "1", "age" -> 30)
 val attrMap2 = Map("id" -> AttributeValue.String("1"), "age" -> AttributeValue.Number(30))
 ```
 
+There are also some convenience methods on the `AttrMap` class for accessing fields:
+
+```scala
+
+  // Field accessors
+
+  def get[A](field: String)(implicit ev: FromAttributeValue[A]): Either[ItemError, A] = ???
+
+  def getOptional[A](field: String)(implicit ev: FromAttributeValue[A]): Either[Nothing, Option[A]] = ???
+
+  def getItem[A](field: String)(f: AttrMap => Either[ItemError, A]): Either[ItemError, A] = ???
+
+  // methods for accessing fields that are Item's themselves
+
+  def getOptionalItem[A](
+    field: String
+  )(f: AttrMap => Either[ItemError, A]): Either[ItemError, Option[A]] = ???
+
+  def getIterableItem[A](
+    field: String
+  )(f: AttrMap => Either[ItemError, A]): Either[ItemError, Iterable[A]] = ???
+
+  def getOptionalIterableItem[A](
+    field: String
+  )(f: AttrMap => Either[ItemError, A]): Either[ItemError, Option[Iterable[A]]] = ???
+```
 
 
 
