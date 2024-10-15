@@ -27,7 +27,8 @@ const sidebars = {
           items: [
             "guides/getting-started",
             "guides/cheat-sheet",
-            "guides/codec-customization"
+            "guides/codec-customization",
+            "guides/testing"
           ]
         },
         // Reference
