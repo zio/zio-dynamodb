@@ -43,7 +43,11 @@ const sidebars = {
               collapsed: true,
               link: { type: "doc", id: "reference/hi-level-api/index" },
               items: [
+                "reference/hi-level-api/crud-operations",
+                "reference/hi-level-api/scan-query-operations",
                 "reference/hi-level-api/primary-keys",
+                "reference/hi-level-api/optics",
+                "reference/hi-level-api/collection-field-traversal",
               ]
             },
             {

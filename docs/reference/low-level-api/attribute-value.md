@@ -68,13 +68,13 @@ An example of using AttrMap access methods is shown below:
 ```scala
 val attrMap                                = AttrMap("f1" -> AttrMap("f2" -> "a", "f3" -> "b"))
 val either: Either[ItemError, Option[Foo]] = for {
-  maybe <- attrMap.getOptionalItem("f1") { m =>
+  maybeFoo <- attrMap.getOptionalItem("f1") { m =>
            for {
              s <- m.get[String]("f2")
              o <- m.getOptional[String]("f3")
            } yield Foo(s, o)
          }
-  } yield maybe
+  } yield maybeFoo
 ```
 
 
