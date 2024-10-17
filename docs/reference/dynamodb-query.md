@@ -12,4 +12,10 @@ interaction with DynamoDBExecutor?
 - update
 - delete
 
-# Execution
+- Execution
+
+- combinators - maybe a table of them?
+  - where
+  - whereKey
+  - limit 
+  - etc
