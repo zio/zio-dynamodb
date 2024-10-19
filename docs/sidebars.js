@@ -53,7 +53,18 @@ const sidebars = {
                     "reference/hi-level-api/creating-models/collection-field-traversal"
                   ]
                 },
-                "reference/hi-level-api/crud-operations",
+                {
+                  type: "category",
+                  label: "CRUD Operations",
+                  collapsed: false,
+                  link: { type: "doc", id: "reference/hi-level-api/crud-operations/index" },
+                  items: [
+                    "reference/hi-level-api/crud-operations/put",
+                    "reference/hi-level-api/crud-operations/get",
+                    "reference/hi-level-api/crud-operations/update",
+                    "reference/hi-level-api/crud-operations/delete",
+                  ]
+                },
                 "reference/hi-level-api/scan-query-operations",
                 "reference/hi-level-api/primary-keys",
               ]
