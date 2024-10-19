@@ -8,10 +8,10 @@ The High Level API mirrors the CRUD operations of DDB but with a high level of t
 We have to start of with a Scala model of the table and add an implicit schema reference in the companion object together with some convenience `ProjectionExpression`'s via the `accessors` function. 
 
 ```scala
-final case class Person(id: String, age: Int)
+final case class Person(id: String, name: String, age: Int)
 object Person {
-  implicit val schema: Schema.CaseClass2[String, Int, Person] = DeriveSchema.gen[Person]
-  val (id, age) = ProjectionExpression.accessors[Person]
+  implicit val schema: Schema.CaseClass3[String, String, Int, Person] = DeriveSchema.gen[Person]
+  val (id, name, age) = ProjectionExpression.accessors[Person]
 }
 ```
 
@@ -25,7 +25,7 @@ The `put` operation is used to insert or replace an item in a table and can be c
 
 ```scala
 for {
-  _ <- DynamoDBQuery.put("Person", Person("1", 21))
+  _ <- DynamoDBQuery.put("Person", Person("1", "John", 21))
         .where(Person.id.notExists) // a ConditionExpression
         .execute
 } yield ()
@@ -48,7 +48,7 @@ for {
   ): DynamoDBQuery[From, Either[ItemError, From]] = ???
 ```
 
-The `get` operation is used to retrieve an item from a table. It returns an `Either[ItemError, From]` where `ItemError` is a sealed trait that that has `ValueNotFound` and `DecodingError` instances. 
+The `get` operation is used to retrieve an item from a table. The `KeyConditionExpr.PrimaryKeyExpr` can be created using the `ProjectionExpression`'s in the companion object for model class. It returns an `Either[ItemError, From]` where `ItemError` is a sealed trait that that has `ValueNotFound` and `DecodingError` instances. 
 
 ```scala
 for {
@@ -84,3 +84,28 @@ for {
 <GET_QUERY>.where(<ConditionExpression>)
 ```
 
+## `update`
+
+```scala
+def update[From: Schema](tableName: String)(primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From])(
+    action: Action[From]
+): DynamoDBQuery[From, Option[From]]  = ???
+```
+
+The update operation is used to modify an existing item in a table. Both `KeyConditionExpr.PrimaryKeyExpr` and the `Action` params can be created using the `ProjectionExpression`'s in the companion object for model class, eg: 
+    
+```scala
+for {
+  _ <- DynamoDBQuery.update("person")(Person.id.primaryKey === "1")(
+    Person.name.set(42) + Person.age.set(42)
+  ).execute
+} yield maybePerson
+```
+
+### `put` query combinators
+
+```scala
+<PUT_QUERY>
+  .returns(<ReturnValues>) // ReturnValues.AllNew | ReturnValues.AllOld | ReturnValues.None <default>
+  .where(<ConditionExpression>)
+```
