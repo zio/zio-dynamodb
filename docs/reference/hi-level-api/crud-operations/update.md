@@ -23,7 +23,7 @@ for {
 ### `put` query combinators
 
 ```scala
-<PUT_QUERY>
+<UPDATE_QUERY>
   .returns(<ReturnValues>) // ReturnValues.AllNew | ReturnValues.AllOld | ReturnValues.None <default>
   .where(<ConditionExpression>)
 ```
