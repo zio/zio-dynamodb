@@ -20,7 +20,7 @@ for {
   stream     <- scanAll[Equipment](tableName)
                   .whereKey(Equipment.id.partitionKey === "1")
                   .execute
-  equipments <- stream.runCollect
+  equipments <- stream.tap(equip => ZIO.debug(s"equipment: $equip")) 
 } yield ()
 ```
 
@@ -29,5 +29,6 @@ for {
 ```scala
 <SCAN_ALL_QUERY>
   .filter(<ConditionExpression>) // eg Equipment.price > 1.0 - filtering is done server side AFTER the scan  
-  .parallel(<N>) // executes a native DDB parallel scan on the server and merges the results back to the stream
+  .parallel(<N>)                 // executes a native DDB parallel scan on the server and merges the results back to the stream
+  .index(<IndexName>)            // use a secondary index    
 ```

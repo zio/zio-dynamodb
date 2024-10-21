@@ -18,7 +18,6 @@ for {
   stream     <- queryAll[Equipment](tableName)
                   .whereKey(Equipment.id.partitionKey === "1" && Equipment.year.sortKey > 2020)
                   .execute
-  equipments <- stream.runCollect
 } yield ()
 ```
 
@@ -26,6 +25,7 @@ for {
 
 ```scala
 <SCAN_ALL_QUERY>
-  .whereKey(<KeyConditionExpr>) // eg Equipment.id.partitionKey === "1" && Equipment.year.sortKey > 2020
+  .whereKey(<KeyConditionExpr>)  // eg Equipment.id.partitionKey === "1" && Equipment.year.sortKey > 2020
   .filter(<ConditionExpression>) // eg Equipment.price > 1.0 - filtering is done server side AFTER the scan  
+  .index(<IndexName>)            // use a secondary index    
 ```
