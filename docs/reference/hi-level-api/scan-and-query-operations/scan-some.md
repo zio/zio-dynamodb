@@ -22,7 +22,6 @@ for {
   t                          <- scanSome[Equipment](tableName, limit = 2).execute
   (page1, lastEvaluatedKey1) = t 
   t2                         <- scanSome[Equipment](tableName, limit = 1).startKey(lastEvaluatedKey1).execute
-  equipments                 <- stream.runCollect
 } yield ()
 ```
 
@@ -31,5 +30,6 @@ for {
 ```scala
 <SCAN_SOME_QUERY>
   .startKey(<LastEvaluatedKey>)
-  .filter(<ConditionExpression>) // eg Equipment.price > 1.0 - filtering is done server side AFTER the scan  
+  .filter(<ConditionExpression>) // eg Equipment.price > 1.0 - filtering is done server side AFTER the scan 
+  .index(<IndexName>)            // use a secondary index    
 ```
