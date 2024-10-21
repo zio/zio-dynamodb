@@ -65,8 +65,20 @@ const sidebars = {
                     "reference/hi-level-api/crud-operations/delete",
                   ]
                 },
-                "reference/hi-level-api/scan-query-operations",
+                {
+                  type: "category",
+                  label: "Scan and Query Operations",
+                  collapsed: true,
+                  link: { type: "doc", id: "reference/hi-level-api/scan-and-query-operations/index" },
+                  items: [
+                    "reference/hi-level-api/scan-and-query-operations/scan-all",
+                    "reference/hi-level-api/scan-and-query-operations/scan-some",
+                    "reference/hi-level-api/scan-and-query-operations/query-all",
+                    "reference/hi-level-api/scan-and-query-operations/query-some",
+                  ]
+                },
                 "reference/hi-level-api/primary-keys",
+                "reference/hi-level-api/query-combinators",
               ]
             },
             {

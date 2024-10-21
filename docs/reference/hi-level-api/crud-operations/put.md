@@ -7,7 +7,7 @@ title: "put"
 def put[A: Schema](tableName: String, a: A): DynamoDBQuery[A, Option[A]] = ???
 ```
 
-The `put` operation is used to insert or replace an item in a table and can be combined 
+The `put` operation is used to insert or replace an item in a table.
 
 ```scala
 for {
