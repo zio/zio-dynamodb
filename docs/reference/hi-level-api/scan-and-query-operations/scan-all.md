@@ -17,7 +17,7 @@ Note that scanning all items in a table can be an expensive operation in terms o
 for {
   _          <- put(tableName, Equipment("1", 2020, "Widget1", 1.0)).execute
   _          <- put(tableName, Equipment("1", 2021, "Widget1", 2.0)).execute
-  stream     <- queryAll[Equipment](tableName)
+  stream     <- scanAll[Equipment](tableName)
                   .whereKey(Equipment.id.partitionKey === "1")
                   .execute
   equipments <- stream.runCollect
@@ -28,7 +28,6 @@ for {
 
 ```scala
 <SCAN_ALL_QUERY>
-  .whereKey(<KeyConditionExpr>) // eg Equipment.id.partitionKey === "1" && Equipment.year.sortKey > 2020
-  .filter(<ConditionExpression>) // eg Equipment.price > 1.0 
+  .filter(<ConditionExpression>) // eg Equipment.price > 1.0 - filtering is done server side AFTER the scan  
   .parallel(<N>) // executes a native DDB parallel scan on the server and merges the results back to the stream
 ```
