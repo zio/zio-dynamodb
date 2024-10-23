@@ -23,13 +23,13 @@ object TypeSafeApiAlternateModeling extends DynamoDBLocalSpec {
         implicit val schema: Schema.CaseClass2[String, Int, Abc] = DeriveSchema.gen[Abc]
         val (sku, amount)                                        = ProjectionExpression.accessors[Abc]
       }
-      final case class Xyz(sku: String, otp: String) extends GroupBody
+      final case class Xyz(sku: String, orderId: String) extends GroupBody
       object Xyz {
         implicit val schema: Schema.CaseClass2[String, String, Xyz] = DeriveSchema.gen[Xyz]
-        val (sku, otp)                                              = ProjectionExpression.accessors[Xyz]
+        val (sku, orderId)                                          = ProjectionExpression.accessors[Xyz]
       }
       implicit val schema: Schema.Enum2[Abc, Xyz, GroupBody] = DeriveSchema.gen[GroupBody]
-      val (fixed, otp) = ProjectionExpression.accessors[GroupBody]
+      val (abc, xyz) = ProjectionExpression.accessors[GroupBody]
     }
 
     @discriminatorName("contractType")
