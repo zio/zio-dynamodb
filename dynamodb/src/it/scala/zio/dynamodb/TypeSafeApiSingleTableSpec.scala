@@ -64,6 +64,8 @@ enum UserQuery
                         )
                         .execute
             _      <- stream.tap(a => ZIO.debug(a)).runDrain
+            // User(USER#Bob,Order#123,Order(Bob,123,pending,1970-01-01T00:00:00Z))
+            // User(USER#Bob,Order#124,Order(Bob,124,pending,1970-01-01T00:00:00Z))
           } yield assertTrue(true)
         }
 
