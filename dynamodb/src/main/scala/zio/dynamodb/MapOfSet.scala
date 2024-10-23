@@ -1,9 +1,7 @@
 package zio.dynamodb
 
 import scala.collection.immutable.{ Map => ScalaMap }
-import scala.annotation.nowarn
 
-@nowarn
 private[dynamodb] final case class MapOfSet[K, V] private (private val map: ScalaMap[K, Set[V]])
     extends Iterable[(K, Set[V])] { self =>
 
