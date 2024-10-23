@@ -12,23 +12,21 @@ import zio.schema.annotation.discriminatorName
 import zio.ZIO
 
 object TypeSafeApiSingleTableSpec extends DynamoDBLocalSpec {
-  /*
-enum UserQuery
-  case Profile(username: String, fullName: String, email: String, createdAt: Long) // use PK=USER#Bob and SK=Profile#Bob
-  case Order(orderId: String, status: String, createdAt: Long)                     // use PK=USER#Bob and SK=Order#123
-   */
+
 
   @discriminatorName("userBodyType")
   sealed trait UserBody
   object UserBody {
 
-    final case class Profile(username: String, fullName: String, email: String, createdAt: Instant) extends UserBody
+    final case class Profile private (username: String, fullName: String, email: String, createdAt: Instant)
+        extends UserBody
     object Profile {
       implicit val schema: Schema.CaseClass4[String, String, String, Instant, Profile] = DeriveSchema.gen[Profile]
       val (username, fullName, email, createdAt)                                       = ProjectionExpression.accessors[Profile]
     }
 
-    final case class Order(username: String, orderId: String, status: String, createdAt: Instant) extends UserBody
+    final case class Order private (username: String, orderId: String, status: String, createdAt: Instant)
+        extends UserBody
     object Order {
       implicit val schema: Schema.CaseClass4[String, String, String, Instant, Order] = DeriveSchema.gen[Order]
       val (userName, orderId, status, createdAt)                                     = ProjectionExpression.accessors[Order]
@@ -37,11 +35,13 @@ enum UserQuery
     implicit val schema: Schema.Enum2[Profile, Order, UserBody] = DeriveSchema.gen[UserBody]
     val (profile, order)                                        = ProjectionExpression.accessors[UserBody]
   }
-  final case class User(id: String, selector: String, userBody: UserBody)
+  final case class User private (id: String, selector: String, userBody: UserBody)
   object User {
     implicit val schema: Schema.CaseClass3[String, String, UserBody, User] = DeriveSchema.gen[User]
     val (id, selector, userBody)                                           = ProjectionExpression.accessors[User]
 
+    // smart constructors manage the id and sort keys
+    
     def makeProfile(username: String, fullName: String, email: String, createdAt: Instant): User =
       User(s"USER#$username", s"Profile#$username", UserBody.Profile(username, fullName, email, createdAt))
 
