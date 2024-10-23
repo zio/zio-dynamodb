@@ -37,7 +37,7 @@ enum UserQuery
     implicit val schema: Schema.Enum2[Profile, Order, UserBody] = DeriveSchema.gen[UserBody]
     val (profile, order)                                        = ProjectionExpression.accessors[UserBody]
   }
-  final case class User(id: String, sortKey: String, userBody: UserBody)
+  final case class User(id: String, selector: String, userBody: UserBody)
   object User {
     implicit val schema: Schema.CaseClass3[String, String, UserBody, User] = DeriveSchema.gen[User]
     val (id, selector, userBody)                                           = ProjectionExpression.accessors[User]
@@ -51,19 +51,18 @@ enum UserQuery
   override def spec: Spec[Environment with TestEnvironment with Scope, Any] =
     suite("suite")(
       test("test") {
-        withIdAndSortKeyTable { tableName =>
+        withIdAndSelectorKeyTable { tableName =>
           for {
             now    <- zio.Clock.instant
             _      <- DynamoDBQuery.put(tableName, User.makeProfile("Bob", "Bob Smith", "bob@gmail.com", now)).execute
             _      <- DynamoDBQuery.put(tableName, User.makeOrder("Bob", "123", "pending", now)).execute
             _      <- DynamoDBQuery.put(tableName, User.makeOrder("Bob", "124", "pending", now)).execute
-            stream <-
-              DynamoDBQuery
-                .queryAll[User](tableName)
-                .whereKey(
-                  User.id.partitionKey === "USER#Bob" && User.selector.sortKey.beginsWith("Profile")
-                )
-                .execute
+            stream <- DynamoDBQuery
+                        .queryAll[User](tableName)
+                        .whereKey(
+                          User.id.partitionKey === "USER#Bob" && User.selector.sortKey.beginsWith("Order")
+                        )
+                        .execute
             _      <- stream.tap(a => ZIO.debug(a)).runDrain
           } yield assertTrue(true)
         }
