@@ -45,6 +45,10 @@ object ZioDynamodbJsonExample extends App {
   val errorOrItem = parseItem(jsonString)
   println(errorOrItem) // Right(AttrMap(Map("sku" -> S("sku"), "id" -> S("id"), "invoiceType" -> S("PreBilled"))))
 
+  // decode the json string to a case class
+  val errorOrClass = parse[Invoice](jsonString)
+  println(errorOrClass) // Right(PreBilled("id", "sku"))
+
   // get the rendered json string from an Item
   errorOrItem
     .map(item => item.toJsonString)
