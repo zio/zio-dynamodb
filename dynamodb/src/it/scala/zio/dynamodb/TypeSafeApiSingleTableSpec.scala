@@ -11,12 +11,13 @@ import java.time.Instant
 import zio.schema.annotation.discriminatorName
 import zio.ZIO
 
-/** Demonstrates how to implement the single table pattern (also known as the adjacency lists pattern) using the type-safe API.
-  * see https://www.alexdebrie.com/posts/dynamodb-single-table/
-  * see https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-adjacency-graphs.html
-  */
+/**
+ * Demonstrates how to implement the single table pattern (also known as the adjacency lists pattern) using the type-safe API
+ * using sum and product types.
+ * see https://www.alexdebrie.com/posts/dynamodb-single-table/
+ * see https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-adjacency-graphs.html
+ */
 object TypeSafeApiSingleTableSpec extends DynamoDBLocalSpec {
-
 
   @discriminatorName("userBodyType")
   sealed trait UserBody
@@ -45,7 +46,7 @@ object TypeSafeApiSingleTableSpec extends DynamoDBLocalSpec {
     val (id, selector, userBody)                                           = ProjectionExpression.accessors[User]
 
     // smart constructors manage the id and sort keys
-    
+
     def makeProfile(username: String, fullName: String, email: String, createdAt: Instant): User =
       User(s"USER#$username", s"Profile#$username", UserBody.Profile(username, fullName, email, createdAt))
 
