@@ -6,9 +6,7 @@ import zio.dynamodb.TestDynamoDBExecutor.PkAndItem
 import zio.stm.{ STM, TMap, ZSTM }
 import zio.stream.{ Stream, ZStream }
 import zio.{ Chunk, IO, Ref, UIO, ZIO }
-import scala.annotation.nowarn
 
-@nowarn
 private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
   queries: Ref[List[DynamoDBQuery[_, _]]],
   tableMap: TMap[TableName, TMap[PrimaryKey, Item]],

@@ -1,7 +1,6 @@
 package zio.dynamodb.examples
 
 import zio.dynamodb.json._
-import zio.dynamodb.AttrMap
 import zio.schema.DeriveSchema
 import zio.schema.annotation.discriminatorName
 
@@ -45,13 +44,8 @@ object ZioDynamodbJsonExample extends App {
   val errorOrItem = parseItem(jsonString)
   println(errorOrItem) // Right(AttrMap(Map("sku" -> S("sku"), "id" -> S("id"), "invoiceType" -> S("PreBilled"))))
 
-  // get the rendered json string from an Item
-  errorOrItem
-    .map(item => item.toJsonString)
-    .map(println) // {"sku":{"S":"sku"},"id":{"S":"id"},"invoiceType":{"S":"PreBilled"}}
+  // decode the json string to a case class
+  val errorOrClass = parse[Invoice](jsonString)
+  println(errorOrClass) // Right(PreBilled("id", "sku"))
 
-  // random AttrMap with no Schema
-  val attrMap = AttrMap("foo" -> "foo", "bar" -> "bar", "count" -> 1)
-  println(attrMap.toJsonString) // {"foo":{"S":"foo"},"bar":{"S":"bar"},"baz":{"S":"baz"}}
-  println(attrMap.toJsonStringPretty)
 }

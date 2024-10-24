@@ -30,8 +30,7 @@ object BuildHelper {
     "-Ypatmat-exhaust-depth",
     "40",
     "-Ywarn-numeric-widen",
-    "-Ywarn-value-discard",
-    "-Xsource:3.0"
+    "-Ywarn-value-discard"
   )
 
   private val stdOpts213 = Seq(
