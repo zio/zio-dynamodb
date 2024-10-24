@@ -66,7 +66,7 @@ object TypeSafeApiAlternateModeling extends DynamoDBLocalSpec {
     object Contract {
       implicit val schema: Schema.CaseClass5[String, Option[String], Option[String], Boolean, ContractBody, Contract] =
         DeriveSchema.gen[Contract]
-      val (id, alternateId, accountId, isTest, body)                                                                   = ProjectionExpression.accessors[Contract]
+      val (id, alternateId, accountId, isTest, body)                                                                  = ProjectionExpression.accessors[Contract]
     }
 
   }
