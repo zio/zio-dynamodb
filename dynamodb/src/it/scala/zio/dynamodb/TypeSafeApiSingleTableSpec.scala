@@ -10,7 +10,6 @@ import zio.schema.DeriveSchema
 import java.time.Instant
 import zio.schema.annotation.discriminatorName
 import zio.ZIO
-import scala.annotation.nowarn
 
 /**
  * Demonstrates how to implement the single table pattern (also known as the adjacency lists pattern) using the type-safe API
