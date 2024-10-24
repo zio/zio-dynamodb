@@ -26,7 +26,7 @@ import zio.aws.dynamodb.model.primitives.{
   KeyExpression => ZIOAwsKeyExpression,
   KeySchemaAttributeName => ZIOAwsKeySchemaAttributeName,
   ProjectionExpression => ZIOAwsProjectionExpression,
-  TableName => ZIOAwsTableName,
+  TableArn => ZIOAwsTableName,
   UpdateExpression => ZIOAwsUpdateExpression
 }
 import zio.aws.dynamodb.model.{
