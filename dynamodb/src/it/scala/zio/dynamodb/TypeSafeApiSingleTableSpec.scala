@@ -10,6 +10,7 @@ import zio.schema.DeriveSchema
 import java.time.Instant
 import zio.schema.annotation.discriminatorName
 import zio.ZIO
+import scala.annotation.nowarn
 
 /**
  * Demonstrates how to implement the single table pattern (also known as the adjacency lists pattern) using the type-safe API
@@ -23,15 +24,13 @@ object TypeSafeApiSingleTableSpec extends DynamoDBLocalSpec {
   sealed trait UserBody
   object UserBody {
 
-    final case class Profile private (username: String, fullName: String, email: String, createdAt: Instant)
-        extends UserBody
+    final case class Profile(username: String, fullName: String, email: String, createdAt: Instant) extends UserBody
     object Profile {
       implicit val schema: Schema.CaseClass4[String, String, String, Instant, Profile] = DeriveSchema.gen[Profile]
       val (username, fullName, email, createdAt)                                       = ProjectionExpression.accessors[Profile]
     }
 
-    final case class Order private (username: String, orderId: String, status: String, createdAt: Instant)
-        extends UserBody
+    final case class Order(username: String, orderId: String, status: String, createdAt: Instant) extends UserBody
     object Order {
       implicit val schema: Schema.CaseClass4[String, String, String, Instant, Order] = DeriveSchema.gen[Order]
       val (userName, orderId, status, createdAt)                                     = ProjectionExpression.accessors[Order]
@@ -40,7 +39,7 @@ object TypeSafeApiSingleTableSpec extends DynamoDBLocalSpec {
     implicit val schema: Schema.Enum2[Profile, Order, UserBody] = DeriveSchema.gen[UserBody]
     val (profile, order)                                        = ProjectionExpression.accessors[UserBody]
   }
-  final case class User private (id: String, selector: String, userBody: UserBody)
+  final case class User(id: String, selector: String, userBody: UserBody)
   object User {
     implicit val schema: Schema.CaseClass3[String, String, UserBody, User] = DeriveSchema.gen[User]
     val (id, selector, userBody)                                           = ProjectionExpression.accessors[User]
@@ -65,7 +64,7 @@ object TypeSafeApiSingleTableSpec extends DynamoDBLocalSpec {
             stream <- DynamoDBQuery
                         .queryAll[User](tableName)
                         .whereKey(
-                          User.id.partitionKey === "USER:Bob" && User.selector.sortKey.beginsWith("Order")
+                          User.id.partitionKey === "USER:Bob" && (User.selector.sortKey.beginsWith("Order"))
                         )
                         .execute
             _      <- stream.tap(ZIO.debug(_)).runDrain
