@@ -48,10 +48,10 @@ object TypeSafeApiSingleTableSpec extends DynamoDBLocalSpec {
     // smart constructors manage the id and sort keys
 
     def makeProfile(username: String, fullName: String, email: String, createdAt: Instant): User =
-      User(s"USER#$username", s"Profile#$username", UserBody.Profile(username, fullName, email, createdAt))
+      User(s"USER:$username", s"Profile:$username", UserBody.Profile(username, fullName, email, createdAt))
 
     def makeOrder(username: String, orderId: String, status: String, createdAt: Instant): User =
-      User(s"USER#$username", s"Order#$orderId", UserBody.Order(username, orderId, status, createdAt))
+      User(s"USER:$username", s"Order:$orderId", UserBody.Order(username, orderId, status, createdAt))
   }
   override def spec: Spec[Environment with TestEnvironment with Scope, Any] =
     suite("suite")(
@@ -65,12 +65,12 @@ object TypeSafeApiSingleTableSpec extends DynamoDBLocalSpec {
             stream <- DynamoDBQuery
                         .queryAll[User](tableName)
                         .whereKey(
-                          User.id.partitionKey === "USER#Bob" && User.selector.sortKey.beginsWith("Order")
+                          User.id.partitionKey === "USER:Bob" && User.selector.sortKey.beginsWith("Order")
                         )
                         .execute
             _      <- stream.tap(ZIO.debug(_)).runDrain
-            // User(USER#Bob,Order#123,Order(Bob,123,pending,1970-01-01T00:00:00Z))
-            // User(USER#Bob,Order#124,Order(Bob,124,pending,1970-01-01T00:00:00Z))
+            // User(USER:Bob,Order#123,Order(Bob,123,pending,1970-01-01T00:00:00Z))
+            // User(USER:Bob,Order#124,Order(Bob,124,pending,1970-01-01T00:00:00Z))
           } yield assertTrue(true)
         }
 
