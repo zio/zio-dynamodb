@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.aws.dynamodb.model.primitives.{ AttributeName, StringAttributeValue, TableName => ZIOAwsTableName }
+import zio.aws.dynamodb.model.primitives.{ AttributeName, StringAttributeValue, TableArn }
 import zio.aws.dynamodb.model.{
   BatchWriteItemResponse,
   AttributeValue => ZIOAwsAttributeValue,
@@ -72,7 +72,7 @@ object ExecutorSpec extends ZIOSpecDefault with DynamoDBFixtures {
         ZIOAwsBatchGetItemResponse(
           unprocessedKeys = Some(
             ScalaMap(
-              ZIOAwsTableName(mockBatches) -> ZIOAwsKeysAndAttributes(
+              TableArn(mockBatches) -> ZIOAwsKeysAndAttributes(
                 keys = List(
                   ScalaMap(AttributeName("k1") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v2")))),
                   ScalaMap(AttributeName("k1") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v1"))))
@@ -92,14 +92,14 @@ object ExecutorSpec extends ZIOSpecDefault with DynamoDBFixtures {
         ZIOAwsBatchGetItemResponse(
           responses = Some(
             ScalaMap(
-              ZIOAwsTableName(mockBatches) -> List(
+              TableArn(mockBatches) -> List(
                 ScalaMap(AttributeName("k1") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v1"))))
               )
             )
           ),
           unprocessedKeys = Some(
             ScalaMap(
-              ZIOAwsTableName(mockBatches) -> ZIOAwsKeysAndAttributes(
+              TableArn(mockBatches) -> ZIOAwsKeysAndAttributes(
                 keys = List(ScalaMap(AttributeName("k1") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v2")))))
               )
             )
@@ -113,7 +113,7 @@ object ExecutorSpec extends ZIOSpecDefault with DynamoDBFixtures {
         ZIOAwsBatchGetItemResponse(
           responses = Some(
             ScalaMap(
-              ZIOAwsTableName(mockBatches) -> List(
+              TableArn(mockBatches) -> List(
                 ScalaMap(
                   AttributeName("k1") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v2"))),
                   AttributeName("k2") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v23")))
@@ -166,7 +166,7 @@ object ExecutorSpec extends ZIOSpecDefault with DynamoDBFixtures {
         BatchWriteItemResponse(
           unprocessedItems = Some(
             ScalaMap(
-              ZIOAwsTableName(mockBatches) -> itemOneWriteRequest
+              TableArn(mockBatches) -> itemOneWriteRequest
             )
           )
         ).asReadOnly
@@ -181,7 +181,7 @@ object ExecutorSpec extends ZIOSpecDefault with DynamoDBFixtures {
         BatchWriteItemResponse(
           unprocessedItems = Some(
             ScalaMap(
-              ZIOAwsTableName(mockBatches) -> itemOneWriteRequest
+              TableArn(mockBatches) -> itemOneWriteRequest
             )
           )
         ).asReadOnly

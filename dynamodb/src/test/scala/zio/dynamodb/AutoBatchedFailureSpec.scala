@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.aws.dynamodb.model.primitives.{ AttributeName, StringAttributeValue, TableName => ZIOAwsTableName }
+import zio.aws.dynamodb.model.primitives.{ AttributeName, StringAttributeValue, TableArn }
 import zio.aws.dynamodb.model.{
   BatchWriteItemResponse,
   AttributeValue => ZIOAwsAttributeValue,
@@ -106,7 +106,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
           ZIOAwsBatchGetItemResponse(
             unprocessedKeys = Some(
               ScalaMap(
-                ZIOAwsTableName(mockBatches) -> ZIOAwsKeysAndAttributes(
+                TableArn(mockBatches) -> ZIOAwsKeysAndAttributes(
                   keys = List(
                     ScalaMap(AttributeName("k1") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v1")))),
                     ScalaMap(AttributeName("k1") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v2"))))
@@ -126,7 +126,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
         ZIOAwsBatchGetItemResponse(
           unprocessedKeys = Some(
             ScalaMap(
-              ZIOAwsTableName(mockBatches) -> ZIOAwsKeysAndAttributes(
+              TableArn(mockBatches) -> ZIOAwsKeysAndAttributes(
                 keys = List(
                   ScalaMap(AttributeName("k1") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v1"))))
                 )
@@ -145,7 +145,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
             ZIOAwsBatchGetItemResponse(
               unprocessedKeys = Some(
                 ScalaMap(
-                  ZIOAwsTableName(mockBatches) -> ZIOAwsKeysAndAttributes(
+                  TableArn(mockBatches) -> ZIOAwsKeysAndAttributes(
                     keys = List(
                       ScalaMap(AttributeName("k1") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v1"))))
                     )
@@ -165,7 +165,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
         ZIOAwsBatchGetItemResponse(
           responses = Some(
             ScalaMap(
-              ZIOAwsTableName(mockBatches) -> List(
+              TableArn(mockBatches) -> List(
                 ScalaMap(
                   AttributeName("k1") -> ZIOAwsAttributeValue(s = Some(StringAttributeValue("v1")))
                 ),
@@ -265,7 +265,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
           BatchWriteItemResponse(
             unprocessedItems = Some(
               ScalaMap(
-                ZIOAwsTableName(mockBatches) -> itemOneAndTwoPutWriteRequest
+                TableArn(mockBatches) -> itemOneAndTwoPutWriteRequest
               )
             )
           ).asReadOnly
@@ -280,7 +280,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
           BatchWriteItemResponse(
             unprocessedItems = Some(
               ScalaMap(
-                ZIOAwsTableName(mockBatches) -> itemOneAndTwoDeleteWriteRequest
+                TableArn(mockBatches) -> itemOneAndTwoDeleteWriteRequest
               )
             )
           ).asReadOnly
@@ -295,7 +295,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
         BatchWriteItemResponse(
           unprocessedItems = Some(
             ScalaMap(
-              ZIOAwsTableName(mockBatches) -> itemOneWriteRequest
+              TableArn(mockBatches) -> itemOneWriteRequest
             )
           )
         ).asReadOnly
@@ -310,7 +310,7 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
             BatchWriteItemResponse(
               unprocessedItems = Some(
                 ScalaMap(
-                  ZIOAwsTableName(mockBatches) -> itemOneWriteRequest
+                  TableArn(mockBatches) -> itemOneWriteRequest
                 )
               )
             ).asReadOnly
