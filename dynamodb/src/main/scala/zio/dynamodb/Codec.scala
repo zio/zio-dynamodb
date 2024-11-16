@@ -403,31 +403,43 @@ private[dynamodb] object Codec {
 
     sealed trait FieldType
     object FieldType {
-      case object Optional                                                 extends FieldType
-      case object Sequence                                                 extends FieldType
-      case object Chunk                                                    extends FieldType
-      case object Map                                                      extends FieldType
-      case object Set                                                      extends FieldType
-      final case class RecordWithAllFieldsOptional[R](s: Schema.Record[R]) extends FieldType
-      case object Scalar                                                   extends FieldType
+      case object Optional                                                             extends FieldType
+      case object Sequence                                                             extends FieldType
+      case object Chunk                                                                extends FieldType
+      case object Map                                                                  extends FieldType
+      case object Set                                                                  extends FieldType
+      final case class RecordWithAllFieldsOptional[R](nonLazySchema: Schema.Record[R]) extends FieldType
+      case object Scalar                                                               extends FieldType
 
       def fromSchema[B](schema: Schema[B]): FieldType =
         schema match {
-          case l @ Schema.Lazy(_)                                        =>
+          case l @ Schema.Lazy(_)                                     =>
             fromSchema(l.schema)
-          case _: Schema.Optional[_]                                     =>
+          case _: Schema.Optional[_]                                  =>
             Optional
-          case _: Schema.Map[_, _]                                       =>
+          case _: Schema.Map[_, _]                                    =>
             Map
-          case _: Schema.Set[_]                                          =>
+          case _: Schema.Set[_]                                       =>
             Set
-          case seq: Schema.Sequence[_, _, _]                             =>
+          case seq: Schema.Sequence[_, _, _]                          =>
             if (seq.identity == "Chunk") FieldType.Chunk else FieldType.Sequence
-          case s: Schema.Record[_] if areAllFieldsInRecordAreOptional(s) =>
+          case s: Schema.Record[_] if allFieldsInRecordAreOptional(s) =>
             RecordWithAllFieldsOptional(s)
-          case _                                                         =>
+          case _                                                      =>
             Scalar
         }
+
+      private def allFieldsInRecordAreOptional[R](s: Schema.Record[R]): Boolean = {
+        def isOptionalSchema(s: Schema[_]): Boolean =
+          s match {
+            case l @ Schema.Lazy(_)    => isOptionalSchema(l.schema)
+            case Schema.Optional(_, _) => true
+            case _                     => false
+          }
+        s.fields.forall { f =>
+          isOptionalSchema(f.schema)
+        }
+      }
     }
 
     def apply[A](schema: Schema[A]): Decoder[A] = decoder(schema)
@@ -917,7 +929,11 @@ private[dynamodb] object Codec {
       av: AttributeValue,
       fields: Schema.Field[_, _]*
     ): Either[ItemError, List[Any]] = {
-      println(s"XXXXXXXXX decodeFields fields: $fields av: $av")
+      def createAllOptionalRecordWithNones[R](s: Schema.Record[R]): Either[String, R] = {
+        val fieldValues: Chunk[Option[_]] = Chunk.fill[Option[_]](s.fields.size)(None)
+        zio.Unsafe.unsafe(implicit u => s.construct(fieldValues))
+      }
+
       av match {
         case AttributeValue.Map(map) =>
           fields.toList.forEach {
@@ -925,7 +941,6 @@ private[dynamodb] object Codec {
               val dec          = decoder(schema)
               val k            = key // @fieldName is respected by the zio-schema macro
               val maybeAv      = map.get(AttributeValue.String(k))
-              println(s"XXXXXXXXX k: $k maybeAv: $maybeAv map: $map")
               val errorOrValue = maybeAv.toRight(DecodingError(s"field '$k' not found in $av")).flatMap(dec)
               if (maybeAv.isEmpty)
                 FieldType.fromSchema(schema) match {
@@ -935,32 +950,13 @@ private[dynamodb] object Codec {
                   case FieldType.Map                            => Right(Map.empty)
                   case FieldType.Set                            => Right(Set.empty)
                   case FieldType.RecordWithAllFieldsOptional(s) =>
+                    println(s"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ")
                     createAllOptionalRecordWithNones(s).left.map(DecodingError.apply)
-                  case FieldType.Scalar                         => // TODO: Avi - decode record with empty map - may need a new decoder where field name is absent
-                    // schema match {
-                    //   case l @ Schema.Lazy(_) =>
-                    //     l.schema match {
-                    //       case s: Schema.Record[_] if areAllFieldsInRecordAreOptional(s) =>
-                    //         // TODO: check all fields are optional
-
-                    //         println(s"XXXXXXXXX 1 isRecord:  schema: ${l.schema} field count: ${s.fields.size}}")
-                    //         val x = createAllOptionalRecord(s).left.map(e => DecodingError(e))
-                    //         println(s"XXXXXXXXX x: $x")
-                    //         x
-                    //       case _                                                         =>
-                    //         println(s"XXXXXXXXX 2 isRecord:  schema: ${l.schema}")
-                    //         errorOrValue
-                    //     }
-                    //   case _                  =>
-                    //     println(s"XXXXXXXXX 3 isRecord")
-                    //     errorOrValue
-                    // }
+                  case FieldType.Scalar                         =>
                     errorOrValue
                 }
-              else {
-                println(s"XXXXXXXXX 4 maybeAv is not empty")
+              else
                 errorOrValue
-              }
           }
             .map(_.toList)
         case _                       =>
@@ -968,22 +964,6 @@ private[dynamodb] object Codec {
       }
     }
 
-    private def areAllFieldsInRecordAreOptional[R](s: Schema.Record[R]): Boolean = {
-      def isOptionalSchema(s: Schema[_]): Boolean =
-        s match {
-          case l @ Schema.Lazy(_)    => isOptionalSchema(l.schema)
-          case Schema.Optional(_, _) => true
-          case _                     => false
-        }
-      s.fields.forall { f =>
-        isOptionalSchema(f.schema)
-      }
-    }
-
-    private def createAllOptionalRecordWithNones[R](s: Schema.Record[R]): Either[String, R] = {
-      val fieldValues: Chunk[Option[_]] = Chunk.fill[Option[_]](s.fields.size)(None)
-      zio.Unsafe.unsafe(implicit u => s.construct(fieldValues))
-    }
   } // end Decoder
 
   private def isCaseObject(s: Schema.Case[_, _]) =

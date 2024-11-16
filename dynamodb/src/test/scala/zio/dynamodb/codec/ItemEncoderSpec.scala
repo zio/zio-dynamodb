@@ -61,7 +61,7 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
     test("encodes nested case class of Optional Item") {
       //val expectedItem: Item = Item("opt" -> Item())
 
-      val item = DynamoDBQuery.toItem(CaseClassOfNestedCaseClassOfOption(opt = CaseClassOfOption(None)))
+      val item = DynamoDBQuery.toItem(CaseClassOfNestedCaseClassOfOption(id = 1, opt = CaseClassOfOption(None)))
 
       println(s"XXXXXXXXX item: $item")
       //  with Some -> AttrMap(Map(opt -> Map(Map(String(opt) -> Number(1)))))

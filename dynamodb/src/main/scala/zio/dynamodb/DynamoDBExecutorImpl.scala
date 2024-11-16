@@ -166,7 +166,15 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
   private def executeGetItem(getItem: GetItem): ZIO[Any, Throwable, Option[Item]] =
     dynamoDb
       .getItem(awsGetItemRequest(getItem))
-      .mapBoth(_.toThrowable, _.item.map(dynamoDBItem))
+      .mapBoth(
+        _.toThrowable,
+        { response =>
+          println(s"ZZZZZZZZ executeGetItem: ${response.item}")
+          val x = response.item.map(dynamoDBItem)
+          println(s"ZZZZZZZZ executeGetItem: x=$x")
+          x
+        }
+      )
       .map(_.toOption.flatMap(item => if (item.map.isEmpty) None else Some(item)))
 
   private def executeUpdateItem(updateItem: UpdateItem): ZIO[Any, Throwable, Option[Item]] =
@@ -699,7 +707,11 @@ case object DynamoDBExecutorImpl {
     }
 
   private def dynamoDBItem(attrMap: ScalaMap[ZIOAwsAttributeName, ZIOAwsAttributeValue.ReadOnly]): Item =
-    Item(attrMap.flatMap { case (k, v) => awsAttrValToAttrVal(v).map(attrVal => (k.toString, attrVal)) })
+    Item(attrMap.flatMap {
+      case (k, v) =>
+        println(s"ZZZZZZZZ dynamoDBItem k=$k v=$v")
+        awsAttrValToAttrVal(v).map(attrVal => (k.toString, attrVal))
+    })
 
   implicit class ToZioAwsMap(item: AttrMap) {
     def toZioAwsMap(): ScalaMap[ZIOAwsAttributeName, ZIOAwsAttributeValue] =
@@ -722,8 +734,11 @@ case object DynamoDBExecutorImpl {
   }
 
   private def awsGetItemRequest(getItem: GetItem): GetItemRequest = {
-    val (aliasMap, projections: List[String]) =
-      AliasMapRender.forEach(getItem.projections.toList).execute
+    val (aliasMap, projections: List[String]) = {
+      val x = AliasMapRender.forEach(getItem.projections.toList).execute
+      println(s"ZZZZZZZZZ getItem: $x")
+      x
+    }
 
     GetItemRequest(
       tableName = TableArn(getItem.tableName.value),
@@ -977,8 +992,12 @@ case object DynamoDBExecutorImpl {
 
   private[dynamodb] def awsAttributeValueMap(
     attrMap: ScalaMap[String, AttributeValue]
-  ): ScalaMap[ZIOAwsAttributeName, ZIOAwsAttributeValue]                                                 =
-    attrMap.flatMap { case (k, v) => awsAttributeValue(v).map(a => (ZIOAwsAttributeName(k), a)) }
+  ): ScalaMap[ZIOAwsAttributeName, ZIOAwsAttributeValue] = {
+    println(s"ZZZZZZZZ attrMap: $attrMap")
+    val awsAttrMap = attrMap.flatMap { case (k, v) => awsAttributeValue(v).map(a => (ZIOAwsAttributeName(k), a)) }
+    println(s"ZZZZZZZZ awsAttrMap: $awsAttrMap")
+    awsAttrMap
+  }
 
   private def awsAttrValToAttrVal(attributeValue: ZIOAwsAttributeValue.ReadOnly): Option[AttributeValue] =
     attributeValue.s
@@ -1191,6 +1210,7 @@ case object DynamoDBExecutorImpl {
   private def toOption[A](set: Set[A]): Option[Set[A]] =
     if (set.isEmpty) None else Some(set)
 
+  // TODO: Avinder - WTF!!!!!!!! Why is an empty MAP getting mapped to None ??????? WTF???? WTF ?????
   private def toOption[A, B](map: ScalaMap[A, B]): Option[ScalaMap[A, B]] =
     if (map.isEmpty) None else Some(map)
 

@@ -17,17 +17,18 @@ import zio.dynamodb.DynamoDBQuery.getItem
 
 object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
 
-  case class PersonAttributes(address: Option[String])
-  object PersonAttributes     {
-    implicit val schema: Schema.CaseClass1[Option[String], PersonAttributes] = DeriveSchema.gen[PersonAttributes]
-    val address                                                              = ProjectionExpression.accessors[PersonAttributes]
+  case class PersonMetaData(address: Option[String], postcode: Option[String])
+  object PersonMetaData     {
+    implicit val schema: Schema.CaseClass2[Option[String], Option[String], PersonMetaData] =
+      DeriveSchema.gen[PersonMetaData]
+    val address                                                                            = ProjectionExpression.accessors[PersonMetaData]
   }
   // attributes is a MANDATORY field of an item with ALL fields optional
-  case class PersonWithAttributes(id: String, attributes: PersonAttributes)
-  object PersonWithAttributes {
-    implicit val schema: Schema.CaseClass2[String, PersonAttributes, PersonWithAttributes] =
-      DeriveSchema.gen[PersonWithAttributes]
-    val (id, attributes)                                                                   = ProjectionExpression.accessors[PersonWithAttributes]
+  case class PersonWithMetaData(id: String, personMetaData: PersonMetaData)
+  object PersonWithMetaData {
+    implicit val schema: Schema.CaseClass2[String, PersonMetaData, PersonWithMetaData] =
+      DeriveSchema.gen[PersonWithMetaData]
+    val (id, attributes)                                                               = ProjectionExpression.accessors[PersonWithMetaData]
   }
 
   final case class Person(id: String, surname: String, forename: Option[String], age: Int)
@@ -421,17 +422,21 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "set an empty case class"
+      "set a case class with a mandatory field of a case class where all fields are optional and set to None"
     ) {
       withSingleIdKeyTable { tableName =>
-        val person   = PersonWithAttributes("1", PersonAttributes(None))
+        val person   = PersonWithMetaData("1", PersonMetaData(None, None))
         val expected = person
         for {
           _    <- put(tableName, person).execute
           item <- getItem(tableName, PrimaryKey("id" -> "1")).execute
-          _     = println(s"XXXXXXX item: $item")
-          p    <- get(tableName)(PersonWithAttributes.id.partitionKey === "1").execute.absolve
-        } yield assertTrue(p == expected)
+          _ = println(s"item = $item")
+          _     = println(item)
+          p    <- get(tableName)(PersonWithMetaData.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(
+          p == expected //,
+          //item == Some(Item("id" -> "1")) 
+        )
       }
     },
     test(
