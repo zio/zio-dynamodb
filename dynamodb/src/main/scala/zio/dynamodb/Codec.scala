@@ -715,6 +715,7 @@ private[dynamodb] object Codec {
     private def sequenceDecoder[Col, A](decoder: Decoder[A], to: Chunk[A] => Col): Decoder[Col] = {
       case AttributeValue.List(list) =>
         list.forEach(decoder(_)).map(xs => to(Chunk.fromIterable(xs)))
+      case AttributeValue.Map(map) if map.isEmpty => Right(to(Chunk.empty))
       case av                        => Left(DecodingError(s"unable to decode $av as a list"))
     }
 
