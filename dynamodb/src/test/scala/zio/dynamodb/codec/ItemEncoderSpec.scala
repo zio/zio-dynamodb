@@ -58,19 +58,12 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     },
-    test("encodes nested case class of Optional Item") {
-      //val expectedItem: Item = Item("opt" -> Item())
+    test("encodes nested case class of Optional ItemX") { // TODO: do decoder test as well
+      val expected = Item("id" -> 1, "opt" -> Map.empty[String, AttributeValue])
 
       val item = DynamoDBQuery.toItem(CaseClassOfNestedCaseClassOfOption(id = 1, opt = CaseClassOfOption(None)))
 
-      println(s"XXXXXXXXX item: $item")
-      //  with Some -> AttrMap(Map(opt -> Map(Map(String(opt) -> Number(1)))))
-      //  with None -> AttrMap(Map(opt -> Map(Map()))) // all optional fields are a special case and result in an empty map
-
-      val x = DynamoDBQuery.fromItem[CaseClassOfNestedCaseClassOfOption](item)
-      println(s"XXXXXXXXX x: $x")
-
-      assertTrue(true)
+      assertTrue(item == expected)
     },
     test("encodes simple Item") {
       val expectedItem: Item = Item("id" -> 2, "name" -> "Avi", "flag" -> true)

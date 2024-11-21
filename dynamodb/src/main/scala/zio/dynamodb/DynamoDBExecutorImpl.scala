@@ -709,7 +709,7 @@ case object DynamoDBExecutorImpl {
   private def dynamoDBItem(attrMap: ScalaMap[ZIOAwsAttributeName, ZIOAwsAttributeValue.ReadOnly]): Item =
     Item(attrMap.flatMap {
       case (k, v) =>
-        println(s"ZZZZZZZZ dynamoDBItem k=$k v=$v")
+        println(s"ZZZZZZZZ dynamoDBItem k=$k vAsMap=${v.m}")
         awsAttrValToAttrVal(v).map(attrVal => (k.toString, attrVal))
     })
 
@@ -1029,18 +1029,21 @@ case object DynamoDBExecutorImpl {
       .orElse(attributeValue.nul.map(_ => AttributeValue.Null))
       .orElse(attributeValue.bool.map(AttributeValue.Bool.apply))
       .orElse {
-        attributeValue.m.flatMap(m =>
+        attributeValue.m.flatMap { m =>
+          println(s"XXXXXXXXXXX AWS attributeValue map: ${attributeValue.m}")
+          println(s"XXXXXXXXXXX AWS attributeValue list: ${attributeValue.l}")
           toOption(m)
-            .map(m =>
+            .map{m =>
+              println(s"XXXXXXXXXXX m: $m")
               AttributeValue.Map(
                 m.flatMap {
                   case (k, v) =>
                     awsAttrValToAttrVal(v).map(attrVal => (AttributeValue.String(k), attrVal))
                 }
               )
-            )
+            }
             .orElse(Some(AttributeValue.Map(ScalaMap.empty)))
-        )
+        }
       }
       .toOption
 
