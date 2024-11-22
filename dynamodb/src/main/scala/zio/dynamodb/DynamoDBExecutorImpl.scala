@@ -999,53 +999,75 @@ case object DynamoDBExecutorImpl {
     awsAttrMap
   }
 
-  private def awsAttrValToAttrVal(attributeValue: ZIOAwsAttributeValue.ReadOnly): Option[AttributeValue] =
-    attributeValue.s
+  private def awsAttrValToAttrVal(attributeValue: ZIOAwsAttributeValue.ReadOnly): Option[AttributeValue] = {
+    val x = attributeValue.s
       .map(AttributeValue.String.apply)
       .orElse {
-        attributeValue.n.map(n => AttributeValue.Number(BigDecimal(n)))
+        val x = attributeValue.n.map(n => AttributeValue.Number(BigDecimal(n)))
+        println(s"OOOOOOO 1 x: $x")
+        x
       } // TODO(adam): Does the BigDecimal need a try wrapper?
       .orElse {
-        attributeValue.b.map(b => AttributeValue.Binary(b))
+        val x = attributeValue.b.map(b => AttributeValue.Binary(b))
+        println(s"OOOOOOO 2 x: $x")
+        x
       }
       .orElse {
-        attributeValue.ns.flatMap(ns => toOption(ns).map(ns => AttributeValue.NumberSet(ns.map(BigDecimal(_)).toSet)))
+        val x =
+          attributeValue.ns.flatMap(ns => toOption(ns).map(ns => AttributeValue.NumberSet(ns.map(BigDecimal(_)).toSet)))
         // TODO(adam): Wrap in try?
+        println(s"OOOOOOO 3 x: $x")
+        x
       }
       .orElse {
-        attributeValue.ss.flatMap(s =>
-          toOption(s).map(a => AttributeValue.StringSet(a.toSet))
-        ) // TODO(adam): Is this `toSet` actually safe to do?
+        val x =
+          attributeValue.ss.flatMap(s =>
+            toOption(s).map(a => AttributeValue.StringSet(a.toSet))
+          ) // TODO(adam): Is this `toSet` actually safe to do?
+        println(s"OOOOOOO 4 x: $x")
+        x
       }
       .orElse {
-        attributeValue.bs.flatMap(bs => toOption(bs).map(bs => AttributeValue.BinarySet(bs.toSet)))
+        val x = attributeValue.bs.flatMap(bs => toOption(bs).map(bs => AttributeValue.BinarySet(bs.toSet)))
+        println(s"OOOOOOO 5 x: $x")
+        x
       }
       .orElse {
-        attributeValue.l.flatMap { l =>
+        val x = attributeValue.l.flatMap { l =>
           println("VVVVVVVVVVVVV l: " + l)
           toOption(l).map(l => AttributeValue.List(Chunk.fromIterable(l.flatMap(awsAttrValToAttrVal))))
         }
+        println(s"OOOOOOO 6 x: $x")
+        x
       }
-      .orElse(attributeValue.nul.map(_ => AttributeValue.Null))
-      .orElse(attributeValue.bool.map(AttributeValue.Bool.apply))
       .orElse {
-        attributeValue.m.flatMap { m =>
+        val x = attributeValue.nul.map(_ => AttributeValue.Null)
+        println(s"OOOOOOO 7 x: $x")
+        x
+      }
+      .orElse {
+        val x = attributeValue.bool.map(AttributeValue.Bool.apply)
+        println(s"OOOOOOO 8 x: $x")
+        x
+      }
+      .orElse {
+        val x = attributeValue.m.flatMap { m =>
           println(s"XXXXXXXXXXX AWS attributeValue map: ${attributeValue.m}")
           println(s"XXXXXXXXXXX AWS attributeValue list: ${attributeValue.l}")
-          toOption(m)
-            .map{m =>
-              println(s"XXXXXXXXXXX m: $m")
-              AttributeValue.Map(
-                m.flatMap {
-                  case (k, v) =>
-                    awsAttrValToAttrVal(v).map(attrVal => (AttributeValue.String(k), attrVal))
-                }
-              )
+          AttributeValue.Map(
+            m.flatMap {
+              case (k, v) =>
+                awsAttrValToAttrVal(v).map(attrVal => (AttributeValue.String(k), attrVal))
             }
-            .orElse(Some(AttributeValue.Map(ScalaMap.empty)))
+          )
         }
+        println(s"OOOOOOO 9 x: $x")
+        x
       }
       .toOption
+    println(s"OOOOOOO 10 x: $x")
+    x
+  }
 
   private def awsReturnItemCollectionMetrics(metrics: ReturnItemCollectionMetrics): ZIOAwsReturnItemCollectionMetrics =
     metrics match {
