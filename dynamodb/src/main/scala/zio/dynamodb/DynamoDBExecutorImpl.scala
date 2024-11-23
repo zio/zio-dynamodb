@@ -1002,22 +1002,24 @@ case object DynamoDBExecutorImpl {
         attributeValue.bs.flatMap(bs => toOption(bs).map(bs => AttributeValue.BinarySet(bs.toSet)))
       }
       .orElse {
+        attributeValue.m.flatMap(m =>
+          toOption(m).map(m =>
+            AttributeValue.Map(
+              m.flatMap {
+                case (k, v) =>
+                  awsAttrValToAttrVal(v).map(attrVal => (AttributeValue.String(k), attrVal))
+              }
+            )
+          )
+        )
+      }
+      .orElse {
         attributeValue.l.flatMap(l =>
           toOption(l).map(l => AttributeValue.List(Chunk.fromIterable(l.flatMap(awsAttrValToAttrVal))))
         )
       }
       .orElse(attributeValue.nul.map(_ => AttributeValue.Null))
       .orElse(attributeValue.bool.map(AttributeValue.Bool.apply))
-      .orElse {
-        attributeValue.m.flatMap(m =>
-          AttributeValue.Map(
-            m.flatMap {
-              case (k, v) =>
-                awsAttrValToAttrVal(v).map(attrVal => (AttributeValue.String(k), attrVal))
-            }
-          )
-        )
-      }
       .toOption
 
   private def awsReturnItemCollectionMetrics(metrics: ReturnItemCollectionMetrics): ZIOAwsReturnItemCollectionMetrics =

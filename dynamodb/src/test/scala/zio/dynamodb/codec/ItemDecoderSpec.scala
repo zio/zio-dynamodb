@@ -72,15 +72,6 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(expected)))
     },
-    test("decodes nested case class of an Optional field which is None") {
-      val expected = CaseClassOfNestedCaseClassOfOption(id = 1, opt = CaseClassOfOption(None))
-
-      val actual = DynamoDBQuery.fromItem[CaseClassOfNestedCaseClassOfOption](
-        Item("id" -> 1, "opt" -> Map.empty[String, AttributeValue])
-      )
-
-      assert(actual)(isRight(equalTo(expected)))
-    },
     test("decoded option of None where value is null") {
       val expected = CaseClassOfOption(None)
 

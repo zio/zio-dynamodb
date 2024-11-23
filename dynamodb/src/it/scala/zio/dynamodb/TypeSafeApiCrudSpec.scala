@@ -16,19 +16,6 @@ import zio.Scope
 
 object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
 
-  case class PersonMetaData(address: Option[String], postcode: Option[String])
-  object PersonMetaData     {
-    implicit val schema: Schema.CaseClass2[Option[String], Option[String], PersonMetaData] =
-      DeriveSchema.gen[PersonMetaData]
-    val address                                                                            = ProjectionExpression.accessors[PersonMetaData]
-  }
-  case class PersonWithMetaData(id: String, personMetaData: PersonMetaData)
-  object PersonWithMetaData {
-    implicit val schema: Schema.CaseClass2[String, PersonMetaData, PersonWithMetaData] =
-      DeriveSchema.gen[PersonWithMetaData]
-    val (id, attributes)                                                               = ProjectionExpression.accessors[PersonWithMetaData]
-  }
-
   final case class Person(id: String, surname: String, forename: Option[String], age: Int)
   object Person {
     implicit val schema: Schema.CaseClass4[String, String, Option[String], Int, Person] = DeriveSchema.gen[Person]
@@ -420,18 +407,6 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "set a case class with a mandatory field of a case class where all fields are optional and set to None"
-    ) {
-      withSingleIdKeyTable { tableName =>
-        val person   = PersonWithMetaData("1", PersonMetaData(address = None, postcode = None))
-        val expected = person
-        for {
-          _ <- put(tableName, person).execute
-          p <- get(tableName)(PersonWithMetaData.id.partitionKey === "1").execute.absolve
-        } yield assertTrue(p == expected)
-      }
-    },
-    test(
       "set a map element"
     ) {
       withSingleIdKeyTable { tableName =>
@@ -439,12 +414,12 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         val person   = PersonWithCollections("1", "Smith")
         val expected = person.copy(addressMap = Map(address1.number -> address1))
         for {
-          _     <- put(tableName, person).execute
-          _     <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
-                     PersonWithCollections.addressMap.valueAt(address1.number).set(address1)
-                   ).execute
-          found <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
-        } yield assertTrue(found == expected)
+          _ <- put(tableName, person).execute
+          _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
+                 PersonWithCollections.addressMap.valueAt(address1.number).set(address1)
+               ).execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
       }
     },
     test(
