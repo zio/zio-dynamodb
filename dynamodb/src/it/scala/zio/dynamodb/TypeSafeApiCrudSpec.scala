@@ -13,7 +13,6 @@ import zio.stream.ZStream
 import zio.ZIO
 import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException
 import zio.Scope
-import zio.dynamodb.DynamoDBQuery.getItem
 
 object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
 
@@ -425,36 +424,28 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       "set a case class with a mandatory field of a case class where all fields are optional and set to None"
     ) {
       withSingleIdKeyTable { tableName =>
-        val person   = PersonWithMetaData("1", PersonMetaData(None, None))
+        val person   = PersonWithMetaData("1", PersonMetaData(address = None, postcode = None))
         val expected = person
         for {
-          _    <- put(tableName, person).execute
-          item <- getItem(tableName, PrimaryKey("id" -> "1")).execute
-          _     = println(s"item = $item")
-          _     = println(item)
-          p    <- get(tableName)(PersonWithMetaData.id.partitionKey === "1").execute.absolve
-        } yield assertTrue(
-          p == expected //,
-          //item == Some(Item("id" -> "1"))
-        )
+          _ <- put(tableName, person).execute
+          p <- get(tableName)(PersonWithMetaData.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
       }
     },
     test(
-      "set a map elementX"
+      "set a map element"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
         val person   = PersonWithCollections("1", "Smith")
-//        val expected = person.copy(addressMap = Map(address1.number -> address1))
+        val expected = person.copy(addressMap = Map(address1.number -> address1))
         for {
-          _    <- put(tableName, person).execute
-          _    <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
-                    PersonWithCollections.addressMap.valueAt(address1.number).set(address1)
-                  ).execute
-          item <- getItem(tableName, PrimaryKey("id" -> "1")).execute
-          _     = println("XXXXXXXXXXXXX item = " + item)
-          _    <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
-        } yield assertTrue(true)
+          _     <- put(tableName, person).execute
+          _     <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
+                     PersonWithCollections.addressMap.valueAt(address1.number).set(address1)
+                   ).execute
+          found <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(found == expected)
       }
     },
     test(

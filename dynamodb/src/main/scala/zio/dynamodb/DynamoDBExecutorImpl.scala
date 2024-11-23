@@ -166,15 +166,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
   private def executeGetItem(getItem: GetItem): ZIO[Any, Throwable, Option[Item]] =
     dynamoDb
       .getItem(awsGetItemRequest(getItem))
-      .mapBoth(
-        _.toThrowable,
-        { response =>
-          println(s"ZZZZZZZZ executeGetItem: ${response.item}")
-          val x = response.item.map(dynamoDBItem)
-          println(s"ZZZZZZZZ executeGetItem: x=$x")
-          x
-        }
-      )
+      .mapBoth(_.toThrowable, _.item.map(dynamoDBItem))
       .map(_.toOption.flatMap(item => if (item.map.isEmpty) None else Some(item)))
 
   private def executeUpdateItem(updateItem: UpdateItem): ZIO[Any, Throwable, Option[Item]] =
@@ -707,11 +699,7 @@ case object DynamoDBExecutorImpl {
     }
 
   private def dynamoDBItem(attrMap: ScalaMap[ZIOAwsAttributeName, ZIOAwsAttributeValue.ReadOnly]): Item =
-    Item(attrMap.flatMap {
-      case (k, v) =>
-        println(s"ZZZZZZZZ dynamoDBItem k=$k vAsMap=${v.m}")
-        awsAttrValToAttrVal(v).map(attrVal => (k.toString, attrVal))
-    })
+    Item(attrMap.flatMap { case (k, v) => awsAttrValToAttrVal(v).map(attrVal => (k.toString, attrVal)) })
 
   implicit class ToZioAwsMap(item: AttrMap) {
     def toZioAwsMap(): ScalaMap[ZIOAwsAttributeName, ZIOAwsAttributeValue] =
@@ -734,11 +722,8 @@ case object DynamoDBExecutorImpl {
   }
 
   private def awsGetItemRequest(getItem: GetItem): GetItemRequest = {
-    val (aliasMap, projections: List[String]) = {
-      val x = AliasMapRender.forEach(getItem.projections.toList).execute
-      println(s"ZZZZZZZZZ getItem: $x")
-      x
-    }
+    val (aliasMap, projections: List[String]) =
+      AliasMapRender.forEach(getItem.projections.toList).execute
 
     GetItemRequest(
       tableName = TableArn(getItem.tableName.value),
@@ -992,82 +977,48 @@ case object DynamoDBExecutorImpl {
 
   private[dynamodb] def awsAttributeValueMap(
     attrMap: ScalaMap[String, AttributeValue]
-  ): ScalaMap[ZIOAwsAttributeName, ZIOAwsAttributeValue] = {
-    println(s"ZZZZZZZZ attrMap: $attrMap")
-    val awsAttrMap = attrMap.flatMap { case (k, v) => awsAttributeValue(v).map(a => (ZIOAwsAttributeName(k), a)) }
-    println(s"ZZZZZZZZ awsAttrMap: $awsAttrMap")
-    awsAttrMap
-  }
+  ): ScalaMap[ZIOAwsAttributeName, ZIOAwsAttributeValue]                                                 =
+    attrMap.flatMap { case (k, v) => awsAttributeValue(v).map(a => (ZIOAwsAttributeName(k), a)) }
 
-  private def awsAttrValToAttrVal(attributeValue: ZIOAwsAttributeValue.ReadOnly): Option[AttributeValue] = {
-    val x = attributeValue.s
+  private def awsAttrValToAttrVal(attributeValue: ZIOAwsAttributeValue.ReadOnly): Option[AttributeValue] =
+    attributeValue.s
       .map(AttributeValue.String.apply)
       .orElse {
-        val x = attributeValue.n.map(n => AttributeValue.Number(BigDecimal(n)))
-        println(s"OOOOOOO 1 x: $x")
-        x
+        attributeValue.n.map(n => AttributeValue.Number(BigDecimal(n)))
       } // TODO(adam): Does the BigDecimal need a try wrapper?
       .orElse {
-        val x = attributeValue.b.map(b => AttributeValue.Binary(b))
-        println(s"OOOOOOO 2 x: $x")
-        x
+        attributeValue.b.map(b => AttributeValue.Binary(b))
       }
       .orElse {
-        val x =
           attributeValue.ns.flatMap(ns => toOption(ns).map(ns => AttributeValue.NumberSet(ns.map(BigDecimal(_)).toSet)))
         // TODO(adam): Wrap in try?
-        println(s"OOOOOOO 3 x: $x")
-        x
       }
       .orElse {
-        val x =
           attributeValue.ss.flatMap(s =>
             toOption(s).map(a => AttributeValue.StringSet(a.toSet))
           ) // TODO(adam): Is this `toSet` actually safe to do?
-        println(s"OOOOOOO 4 x: $x")
-        x
       }
       .orElse {
-        val x = attributeValue.bs.flatMap(bs => toOption(bs).map(bs => AttributeValue.BinarySet(bs.toSet)))
-        println(s"OOOOOOO 5 x: $x")
-        x
+        attributeValue.bs.flatMap(bs => toOption(bs).map(bs => AttributeValue.BinarySet(bs.toSet)))
       }
       .orElse {
-        val x = attributeValue.l.flatMap { l =>
-          println("VVVVVVVVVVVVV l: " + l)
+        attributeValue.l.flatMap(l =>
           toOption(l).map(l => AttributeValue.List(Chunk.fromIterable(l.flatMap(awsAttrValToAttrVal))))
-        }
-        println(s"OOOOOOO 6 x: $x")
-        x
+        )
       }
+      .orElse(attributeValue.nul.map(_ => AttributeValue.Null))
+      .orElse(attributeValue.bool.map(AttributeValue.Bool.apply))
       .orElse {
-        val x = attributeValue.nul.map(_ => AttributeValue.Null)
-        println(s"OOOOOOO 7 x: $x")
-        x
-      }
-      .orElse {
-        val x = attributeValue.bool.map(AttributeValue.Bool.apply)
-        println(s"OOOOOOO 8 x: $x")
-        x
-      }
-      .orElse {
-        val x = attributeValue.m.flatMap { m =>
-          println(s"XXXXXXXXXXX AWS attributeValue map: ${attributeValue.m}")
-          println(s"XXXXXXXXXXX AWS attributeValue list: ${attributeValue.l}")
+        attributeValue.m.flatMap(m =>
           AttributeValue.Map(
             m.flatMap {
               case (k, v) =>
                 awsAttrValToAttrVal(v).map(attrVal => (AttributeValue.String(k), attrVal))
             }
           )
-        }
-        println(s"OOOOOOO 9 x: $x")
-        x
+        )
       }
       .toOption
-    println(s"OOOOOOO 10 x: $x")
-    x
-  }
 
   private def awsReturnItemCollectionMetrics(metrics: ReturnItemCollectionMetrics): ZIOAwsReturnItemCollectionMetrics =
     metrics match {
@@ -1238,7 +1189,6 @@ case object DynamoDBExecutorImpl {
   private def toOption[A](set: Set[A]): Option[Set[A]] =
     if (set.isEmpty) None else Some(set)
 
-  // TODO: Avinder - WTF!!!!!!!! Why is an empty MAP getting mapped to None ??????? WTF???? WTF ?????
   private def toOption[A, B](map: ScalaMap[A, B]): Option[ScalaMap[A, B]] =
     if (map.isEmpty) None else Some(map)
 
