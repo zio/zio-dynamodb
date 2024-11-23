@@ -22,7 +22,6 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       DeriveSchema.gen[PersonMetaData]
     val address                                                                            = ProjectionExpression.accessors[PersonMetaData]
   }
-  // attributes is a MANDATORY field of an item with ALL fields optional
   case class PersonWithMetaData(id: String, personMetaData: PersonMetaData)
   object PersonWithMetaData {
     implicit val schema: Schema.CaseClass2[String, PersonMetaData, PersonWithMetaData] =
