@@ -990,13 +990,13 @@ case object DynamoDBExecutorImpl {
         attributeValue.b.map(b => AttributeValue.Binary(b))
       }
       .orElse {
-          attributeValue.ns.flatMap(ns => toOption(ns).map(ns => AttributeValue.NumberSet(ns.map(BigDecimal(_)).toSet)))
+        attributeValue.ns.flatMap(ns => toOption(ns).map(ns => AttributeValue.NumberSet(ns.map(BigDecimal(_)).toSet)))
         // TODO(adam): Wrap in try?
       }
       .orElse {
-          attributeValue.ss.flatMap(s =>
-            toOption(s).map(a => AttributeValue.StringSet(a.toSet))
-          ) // TODO(adam): Is this `toSet` actually safe to do?
+        attributeValue.ss.flatMap(s =>
+          toOption(s).map(a => AttributeValue.StringSet(a.toSet))
+        ) // TODO(adam): Is this `toSet` actually safe to do?
       }
       .orElse {
         attributeValue.bs.flatMap(bs => toOption(bs).map(bs => AttributeValue.BinarySet(bs.toSet)))
