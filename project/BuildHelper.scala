@@ -1,7 +1,7 @@
-import sbt._
-import sbt.Keys._
-import sbtbuildinfo._
-import BuildInfoKeys._
+import sbt.*
+import sbt.Keys.*
+import sbtbuildinfo.*
+import sbtbuildinfo.BuildInfoKeys.*
 
 object BuildHelper {
   // Align with zio-schema since we have a deep dependency on it

@@ -1,4 +1,4 @@
-import BuildHelper._
+import BuildHelper.*
 
 inThisBuild(
   List(
@@ -36,7 +36,7 @@ val zioAwsVersion          = "7.28.29.6"
 val zioSchemaVersion       = "1.5.0"
 val zioPreludeVersion      = "1.0.0-RC35"
 val zioInteropCats3Version = "23.1.0.3"
-val catsEffect3Version     = "3.5.4"
+val catsEffect3Version     = "3.5.7"
 val fs2Version             = "3.11.0"
 
 lazy val root =
