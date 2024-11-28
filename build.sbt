@@ -42,7 +42,7 @@ val fs2Version             = "3.11.0"
 lazy val root =
   project
     .in(file("."))
-    .settings(skip in publish := true)
+    .settings(publish / skip := true)
     .aggregate(zioDynamodb, zioDynamodbCe, zioDynamodbJson, examples, docs)
 
 lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
@@ -51,7 +51,7 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
   .configs(IntegrationTest)
   .settings(
     Defaults.itSettings,
-    resolvers += Resolver.sonatypeRepo("releases"),
+    resolvers ++= Resolver.sonatypeOssRepos("releases"),
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio"                   % zioVersion,
       "dev.zio" %% "zio-prelude"           % zioPreludeVersion,
@@ -270,8 +270,8 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
 
 lazy val examples = module("zio-dynamodb-examples", "examples")
   .settings(
-    resolvers += Resolver.sonatypeRepo("releases"),
-    skip in publish := true,
+    resolvers ++= Resolver.sonatypeOssRepos("releases"),
+    publish / skip := true,
     fork := true,
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats-effect"  % catsEffect3Version,
@@ -289,7 +289,7 @@ lazy val zioDynamodbCe =
     .settings(buildInfoSettings("zio.dynamodb"))
     .configs(IntegrationTest)
     .settings(
-      resolvers += Resolver.sonatypeRepo("releases"),
+      resolvers ++= Resolver.sonatypeOssRepos("releases"),
       fork := true,
       libraryDependencies ++= Seq(
         "org.typelevel" %% "cats-effect"      % catsEffect3Version,
@@ -308,7 +308,7 @@ lazy val zioDynamodbJson =
     .settings(buildInfoSettings("zio.dynamodb"))
     .configs(IntegrationTest)
     .settings(
-      resolvers += Resolver.sonatypeRepo("releases"),
+      resolvers ++= Resolver.sonatypeOssRepos("releases"),
       fork := true,
       libraryDependencies ++= Seq(
         "dev.zio" %% "zio-test"     % zioVersion % "test",
@@ -346,3 +346,5 @@ lazy val docs = project
   )
   .dependsOn(zioDynamodb, zioDynamodbCe, zioDynamodbJson)
   .enablePlugins(WebsitePlugin)
+
+Global / onChangedBuildSource := ReloadOnSourceChanges
