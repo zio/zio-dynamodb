@@ -63,7 +63,7 @@ object LiveSpec extends DynamoDBLocalSpec {
   private def pk(item: Item): PrimaryKey =
     (item.map.get("id"), item.map.get("num")) match {
       case (Some(id0), Some(num)) => PrimaryKey("id" -> id0, "num" -> num)
-      case _                     => throw new IllegalStateException(s"Both id and num need to present in item $item")
+      case _                      => throw new IllegalStateException(s"Both id and num need to present in item $item")
     }
 
   private def insertData(tableName: String) =
