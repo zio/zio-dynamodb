@@ -20,7 +20,22 @@ for {
 } yield maybePerson
 ```
 
-### `put` query combinators
+## update expressions
+
+action | description
+---|---
+`+` | combines update actions eg `Person.name.set(42) + Person.age.set(42)`  
+`set` | Set an attribute `Person.name.set("John")`
+`setIfNotExists` | Set attribute if it does not exists `Person.name.setIfNotExists("John")`
+`appendList` | Add supplied list to the end of this list attribute
+`prepend` | Prepend an element to a list attribute
+`prependList` | Prepend a list to list attribute
+`deleteFromSet` | delete all elements that match the supplied set
+`add(a: To)` | adds this value as a number attribute if it does not exists, else adds the numeric value to the existing attribute
+`addSet` | Adds this set as an attribute if it does not exists, else if it exists it adds the elements of the set
+`remove(index: Int)` | remove an element at the specified index
+`remove` | Removes this path expression from an item
+### `update` query combinators
 
 ```scala
 <UPDATE_QUERY>

@@ -56,7 +56,7 @@ object TypeSafeApiAlternateModeling extends DynamoDBLocalSpec {
       isTest: Boolean,
       body: ContractBody
     )               {
-      def contractType: String =
+      val contractType: String =
         body match {
           case ContractBody.Simple(_)                     => "simple"
           case ContractBody.Group(_, GroupBody.Abc(_, _)) => "group:abc"
