@@ -1,14 +1,14 @@
 ---
 id: data-modelling
-title: "Data Modelling"
+title: "Data Modelling Limitations"
 ---
 
 The High Level API relies heavily on ZIO Schema and inherits some of it's limitations, namely:
 
 - A maximum of **22** fields per case class 
-- Deep Object Oriented hierarchies with abstract classes/fields are not supported - only hierarchies one level deep are supported
+- Deep Object-Oriented hierarchies with abstract classes/fields are not supported - only hierarchies one level deep are supported
 
-At first glace these seem limitations seem quite restrictive, however the next sections describe how these can be overcome.
+At first glance these seem limitations seem quite restrictive, however the next sections describe how these can be overcome.
 
 ## A maximum of **22** fields per case class
 The high level API uses the Reified Optics feature of ZIO Schema to generate optics for case classes. This feature has a limitation of 22 fields per case class. 
@@ -16,7 +16,7 @@ The high level API uses the Reified Optics feature of ZIO Schema to generate opt
 This limitation is something to be aware of when designing your models. In practice however this limitation can be overcome by using nested case classes and in the case of deeply nested hierarchies, by using product and sum types (see section below). 
 
 ## Deep OO Style hierarchies are not supported - modelling data using Product and Sum Types
-Deep Object Oriented like hierarchies with abstract classes/fields are not supported - only hierarchies one level deep are supported - again this is a limitation of ZIO Schema - however these limitations can be overcome by using product and types.
+Deep Object-Oriented like hierarchies with abstract classes/fields are not supported - only hierarchies one level deep are supported - again this is a limitation of ZIO Schema - however these limitations can be overcome by using product and types rather than inheritance.
 
 
 ```scala
@@ -49,5 +49,7 @@ object FPStyle {
   final case class Invoice(int: Int, body: InvoiceBody)
 }
 ```
+
+By using the FP approach to modelling we reduce the size of the concrete classes. 
 
 For brevity the above examples do not show the full integration with ZIO Schema - [for a full example see this IT test](https://github.com/zio/zio-dynamodb/blob/series/2.x/dynamodb/src/it/scala/zio/dynamodb/TypeSafeApiAlternateModeling.scala).

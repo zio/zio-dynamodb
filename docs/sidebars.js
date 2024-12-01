@@ -95,6 +95,7 @@ const sidebars = {
             "reference/dynamodb-query",
             "reference/projection-expression",
             "reference/error-handling",
+            "reference/auto-batching-and-parallelisation",
             "reference/dynamodb-json"
           ]
         }
