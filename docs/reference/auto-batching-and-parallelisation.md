@@ -56,3 +56,9 @@ This can be overridden by using the `withRetryPolicy` combinator:
 ```scala
 batchedWrite2.withRetryPolicy(myCustomRetryPolicy).execute
 ```
+
+## Integration Batching with ZIO Streams
+
+For examples of how to integrate batching with ZIO Stream please see the utility functions `batchWriteFromStream` and `batchGetFromStream` in the `zio.dynamodb` package.
+These functions take care of details mentioned above such as managing the maximum batch sizes.
+```scala

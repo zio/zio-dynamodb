@@ -22,9 +22,14 @@ package object dynamodb {
   /**
    * Reads `stream` and uses function `f` for creating a BatchWrite request that is executes for side effects. Stream is batched into groups
    * of 25 items in a BatchWriteItem and executed using the `DynamoDBExecutor` service provided in the environment.
+   *
+   * Note that if function `f` returns a `PutItem` or `DeleteItem` that contains a `ConditionExpression` then the entire
+   * aggregated chunk of up to 25 items _will not be batched!_ (this is a limitation of AWS BatchWriteItem) - instead they
+   * will be executed in parallel.
+   *
    * @param stream
    * @param mPar Level of parallelism for the stream processing
-   * @param f Function that takes an `A` and returns a PutItem or WriteItem
+   * @param f Function that takes an `A` and returns a PutItem or DeleteItem
    * @tparam R Environment
    * @tparam A
    * @tparam B Type of DynamoDBQuery returned by `f`
@@ -51,7 +56,11 @@ package object dynamodb {
 
   /**
    * Reads `stream` using function `pk` to determine the primary key which is then used to create a BatchGetItem request.
-   * Stream is batched into groups of 100 items in a BatchGetItem and executed using the provided `DynamoDBExecutor` service
+   * Stream is batched into groups of 100 items in a BatchGetItem and executed using the provided `DynamoDBExecutor` service.
+   *
+   * Returns a tuple of (A, Option[B]) where the option is None if the item is not found - this enables "LEFT outer
+   * join" like functionality
+   *
    * @param tableName
    * @param stream
    * @param mPar Level of parallelism for the stream processing
@@ -88,6 +97,7 @@ package object dynamodb {
   /**
    * Reads `stream` using function `pk` to determine the primary key which is then used to create a BatchGetItem request.
    * Stream is batched into groups of 100 items in a BatchGetItem and executed using the provided `DynamoDBExecutor` service
+   *
    * Returns a tuple of (A, Option[B]) where the option is None if the item is not found - this enables "LEFT outer
    * join" like functionality
    *
@@ -97,7 +107,7 @@ package object dynamodb {
    * @param pk Function to determine the primary key
    * @tparam R Environment
    * @tparam A Input stream element type
-   * @tparam B implicit Schema[B] where B is the type of the element in the returned stream
+   * @tparam From implicit Schema[From] where From is the type of the element in the returned stream
    * @return stream of Either[DynamoDBError.DecodingError, (A, Option[B])]
    */
   def batchReadFromStream[R, A, From: Schema](
