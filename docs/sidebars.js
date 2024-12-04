@@ -57,7 +57,7 @@ const sidebars = {
                 {
                   type: "category",
                   label: "CRUD Operations",
-                  collapsed: false,
+                  collapsed: true,
                   link: { type: "doc", id: "reference/hi-level-api/crud-operations/index" },
                   items: [
                     "reference/hi-level-api/crud-operations/put",
@@ -85,11 +85,10 @@ const sidebars = {
             {
               type: "category",
               label: "Low Level API",
-              collapsed: true,
+              collapsed: false,
               link: { type: "doc", id: "reference/low-level-api/index" },
               items: [
                 "reference/low-level-api/attribute-value",
-                "reference/low-level-api/primary-keys",
               ]
             },
             "reference/dynamodb-query",

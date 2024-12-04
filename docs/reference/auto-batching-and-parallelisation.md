@@ -3,7 +3,7 @@ id: auto-batching-and-parallelisation
 title: "Auto batching and parallelisation"
 ---
 
-When `DynamoDBQuery`'s are composed either manually via the `zip` combinator or automatically using the `DynamoDBQuery.forEach` function they become eligible for auto-batching and parallelisation.
+When `DynamoDBQuery`'s are composed either manually via the `zip` combinator or automatically using the `DynamoDBQuery.forEach` function they become eligible for auto-batching and parallelisation in the `execute` method.
 
 ```scala
 val batchedWrite1 = DynamoDBQuery.put("person", Person("1", "John", 21))
@@ -27,7 +27,7 @@ So the rules are follows:
   - The query is a `PutItem` or `DeleteItem` operation (`put` and `deleteFrom` in the High Level API)
     - The query does not have a condition expression
   - The query is a `GetItem` operation (`get` in the High Level API)
-    - The query's projection expression list contains the primary key - this is required to match the response data to the request. Note all fields are included by default so this is only a concern if you explicitly specify the projection expression.  
+    - The query's `projections` list contains the primary key - this is required to match the response data to the request. Note all fields are included by default so this is only a concern if you explicitly specify the projection expression.  
 - If a query does not qualify for auto-batching it will be parallelised automatically
 
 ## Maximum batch sizes for `BatchWrireItem` and `BatchGetItem`
@@ -60,5 +60,5 @@ batchedWrite2.withRetryPolicy(myCustomRetryPolicy).execute
 ## Integration Batching with ZIO Streams
 
 For examples of how to integrate batching with ZIO Stream please see the utility functions `batchWriteFromStream` and `batchGetFromStream` in the `zio.dynamodb` package.
-These functions take care of details mentioned above such as managing the maximum batch sizes.
+These functions take care of details mentioned above such as managing the maximum batch sizes and can also be used as examples for writing your own custom batched streaming operations.
 ```scala

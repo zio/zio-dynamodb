@@ -13,7 +13,7 @@ val s = AttributeValue.String("hello")
 val bool = AttributeValue.Boolean(true)
 ```
 
-However even when working with the Low Level API you would not use these constructors directly, instead you would use the `AttrMap` class (or more likely its type aliases) which is a convenience container for working with `AttributeValue` instances (see next section).
+However, even when working with the Low Level API you would not use these constructors directly, instead you would use the `AttrMap` class (or more likely its type aliases) which is a convenience container for working with `AttributeValue` instances (see next section).
 
 # AttrMap
 An `AttrMap` is a convenience container for working an [DDB Item](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html) and **cuts down on boilerplate code when working with the Low Level API**. Conceptually it is a map of field name to AttributeValue `Map[String, AttributeValue]`.
@@ -29,7 +29,7 @@ val pk = PrimaryKey("id" -> "1", "count" -> 30) // uses PrimaryKey type alias
 val item = Item("id" -> "1", "age" -> 30, "address" -> Item("city" -> "London", "postcode" -> "SW1A 1AA")) 
 ```
 
-The example below demonstrate the the reduction in boilerplate when compared to working with `AttributeValue` directly:
+The example below demonstrate the reduction in boilerplate when compared to working with `AttributeValue` directly:
 
 ```scala
 val attrMap1 = AttrMap("id" -> "1", "age" -> 30) 

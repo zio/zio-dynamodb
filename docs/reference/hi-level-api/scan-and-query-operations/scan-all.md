@@ -11,7 +11,7 @@ title: "scanAll"
 
 The `scanAll` operation is used to scan all items in a table, and uses a ZIO stream to return the results.  
 
-Note that scanning all items in a table can be an expensive operation in terms of elapsed time (and AWS bills!) - to speed things up the AWS API offers a parallel scanning mode which can be invoked in the High Level API using the `parallel` combinator - the results are merged back into a the results stream in an undetermined order.
+Note that scanning all items in a table can be an expensive operation in terms of elapsed time - to speed things up the AWS API offers a parallel scanning mode which can be invoked in the High Level API using the `parallel` combinator - the results are merged back into a the results stream in an undetermined order.
 
 ```scala
 for {

@@ -481,7 +481,7 @@ object DynamoDBQuery {
     get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
 
   /**
-   * It is common practice to save top level sum types to DynamoDB and often we want to retrieve them back as the subtype
+   * Sometimes we want to save top level sum types to DynamoDB and we want to retrieve them back as the subtype
    * with expressions in terms of the subtype as well.
    * `getWithNarrow` does a `get` with a safe narrow operation from type `From` to `To`.
    * If the narrow fails it returns a Decoding error with details of the cast failure in the message.
