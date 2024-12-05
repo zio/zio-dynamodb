@@ -28,9 +28,9 @@ package object json {
   def parse[A: Schema](jsonString: String): Either[DynamoDBError.ItemError, A] =
     parseItem(jsonString).flatMap(fromItem[A])
 
-  private def toItem[A](a: A)(implicit schema: Schema[A]): Item =
+  private def toItem[A: Schema](a: A): Item =
     FromAttributeValue.attrMapFromAttributeValue
-      .fromAttributeValue(AttributeValue.encode(a)(schema))
+      .fromAttributeValue(AttributeValue.encode(a))
       .getOrElse(throw new Exception(s"error encoding $a"))
 
   private def fromItem[A: Schema](item: Item): Either[ItemError, A] = {
