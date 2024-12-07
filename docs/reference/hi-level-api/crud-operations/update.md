@@ -10,7 +10,7 @@ def update[From: Schema](tableName: String)(primaryKeyExpr: KeyConditionExpr.Pri
 ): DynamoDBQuery[From, Option[From]]  = ???
 ```
 
-The update operation is used to modify an existing item in a table. Both `KeyConditionExpr.PrimaryKeyExpr` and the `Action` params can be created using the `ProjectionExpression`'s in the companion object for model class: 
+The `update` operation is used to modify an existing item in a table. Both `KeyConditionExpr.PrimaryKeyExpr` and the `Action` params can be created using the `ProjectionExpression`'s in the companion object for model class: 
     
 ```scala
 for {
@@ -20,7 +20,7 @@ for {
 } yield maybePerson
 ```
 
-## update expressions
+## `update` expressions
 
 action | description
 ---|---
@@ -35,7 +35,10 @@ action | description
 `addSet` | Adds this set as an attribute if it does not exists, else if it exists it adds the elements of the set
 `remove(index: Int)` | remove an element at the specified index
 `remove` | Removes this path expression from an item
-### `update` query combinators
+
+See [AWS API Reference](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.UpdateExpressions.html) to learn more about update expressions.
+
+### `update` query operations
 
 ```scala
 <UPDATE_QUERY>

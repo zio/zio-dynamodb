@@ -1,6 +1,6 @@
 ---
 id: data-modelling
-title: "Data Modelling Limitations"
+title: "Data Modelling and Limitations"
 ---
 
 The High Level API relies heavily on ZIO Schema and inherits some of it's limitations, namely:

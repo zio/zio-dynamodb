@@ -1,5 +1,5 @@
 ---
-id: collection-field-traversal
-title: "Collection Field Traversal"
+id: field-traversal
+title: "Field Traversal"
 ---
 

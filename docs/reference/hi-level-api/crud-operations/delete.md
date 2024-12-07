@@ -19,7 +19,7 @@ for {
 } yield ()
 ```
 
-### `deleteFrom` query combinators
+### `deleteFrom` query operations
 
 ```scala
 <DELETE_QUERY>

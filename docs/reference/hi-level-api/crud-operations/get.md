@@ -39,7 +39,7 @@ for {
 } yield maybePerson
 ```
 
-### `get` query combinators
+### `get` query operations
 
 ```scala
 <GET_QUERY>.where(<ConditionExpression>)

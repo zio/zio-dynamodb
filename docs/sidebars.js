@@ -51,7 +51,7 @@ const sidebars = {
                   link: { type: "doc", id: "reference/hi-level-api/creating-models/index" },
                   items: [
                     "reference/hi-level-api/creating-models/optics",
-                    "reference/hi-level-api/creating-models/collection-field-traversal"
+                    "reference/hi-level-api/creating-models/field-traversal"
                   ]
                 },
                 {

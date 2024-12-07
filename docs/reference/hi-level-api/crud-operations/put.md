@@ -17,7 +17,7 @@ for {
 } yield ()
 ```
 
-### `put` query combinators
+### `put` query operations
 
 ```scala
 <PUT_QUERY>
