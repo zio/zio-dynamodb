@@ -79,7 +79,6 @@ const sidebars = {
                   ]
                 },
                 "reference/hi-level-api/primary-keys",
-                "reference/hi-level-api/query-combinators",
               ]
             },
             {
@@ -92,6 +91,7 @@ const sidebars = {
               ]
             },
             "reference/dynamodb-query",
+            "reference/query-combinators",
             "reference/projection-expression",
             "reference/error-handling",
             "reference/auto-batching-and-parallelisation",
