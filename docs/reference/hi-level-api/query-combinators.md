@@ -24,3 +24,9 @@ parallel(N) | Applies only to `Scan` - sements and runs the query in parallel in
 returns | sets the `ReturnValues` - applies to `UpdateItem`, `DeleteItem`, `PutItem` (see [Crud Operations](reference/hi-level-api/crud-operations/index.md) reference section for each operation for more details). [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html#DDB-UpdateItem-request-ReturnValues)
 selectAllAttributes, selectAllProjectedAttributes, selectSpecificAttributes, selectCount | Determines the attributes returned by Scan and Query [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#DDB-Query-request-Select)    
 sortOrder | sets the sort order for `Query`'s [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#DDB-Query-request-ScanIndexForward) 
+startKey |Applies to `Query` and `Scan` and specifies the start key for the query. [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#DDB-Query-request-ExclusiveStartKey)
+transaction | executes the query in a transaction - see [Transactions Guide](../../guides/transactions) for more details.
+where | sets the `ConditionExpression` - applies to `PutItem`, `DeleteOtem`, `UpdateItem` and `Scan` [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html)
+whereKey | set the `KeyConditionExpr` applies to `QuerySome` and `QueryAll`. [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#DDB-Query-request-KeyConditionExpression) 
+withClientRequestToken | set the client request token` - applies to write transactions [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactWriteItems.html#DDB-TransactWriteItems-request-ClientRequestToken)
+withRetryPolicy | set the retry policy for a batched query - see TODO
