@@ -2,3 +2,22 @@
 id: query-combinators
 title: "Query Combinators"
 ---
+
+Query Combinators | Description
+---|---
+map |
+zip <*>|
+zipLeft (<*) |
+zipRight (*>) |
+zipWith |
+
+Query Operations | Description
+---|---
+capacity | sets the ReturnConsumedCapacity. [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html#DDB-GetItem-request-ReturnConsumedCapacity). Note capacity data in the response is ignored by the High Level Api
+consistency | sets the `ConsistencyMode` for read operations. Valid values are `Strong`and `Weak`(default) [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html#DDB-GetItem-request-ConsistentRead)  
+filter | sets the `FilterExpression` - applies to `ScanSome`, `ScanAll`, `QuerySome`, `QueryAll`. Note the filter is applies **after** the read by DDB so no read units are saved, however latency costs are reduced.
+gsi | creates a Global Secondary Index - applies to a `CreateTable` query. [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_CreateTable.html#DDB-CreateTable-request-GlobalSecondaryIndexes)
+indexName | sets the local secondary index or global secondary index name - applies to `ScanSome`, `ScanAll`, `QuerySome`, `QueryAll`. [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Scan.html#DDB-Scan-request-IndexName) 
+lsi | creates a local Secondary Index - applies to a `CreateTable` query. [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_CreateTable.html#DDB-CreateTable-request-LocalSecondaryIndexes) 
+metrics | set `ReturnItemCollectionMetrics`, valid values are `None` (default) and `Size` - applies to PutItem, UpdateItem, Delete, Transaction. Note that metric data in the response is ignored by the High Level API. [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_PutItem.html#DDB-PutItem-request-ReturnItemCollectionMetrics)
+parallel(N) | Applies only to `Scan` - sements and runs the query in parallel in DDB and merges the items in the response. N is level of parallelism. [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Scan.html#Scan.ParallelScan). 

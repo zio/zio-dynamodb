@@ -19,7 +19,7 @@ for {
 
 ## Rules for determining auto-batching vs parallelisation behaviour
 
-The rules for determining whether a query is auto-batched are determined by what query types are eligible for batching in the AWS API. The [BatchWriteItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html) operation can only deal with `PutItem` and `DeleteItem` operations. Furthermore, for both of these operations - condition expressions are not allowed. The AWS [BatchGetItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html) operation is used for batching `GetItems`'s .
+The rules for determining whether a query is auto-batched are determined by what query types are eligible for batching in the AWS API. The AWS [BatchWriteItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html) operation can only deal with `PutItem` and `DeleteItem` operations. Furthermore, for both of these operations - condition expressions are not allowed. The AWS [BatchGetItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html) operation is used for batching `GetItems`'s .
 
 So the rules are follows: 
 

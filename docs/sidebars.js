@@ -15,7 +15,6 @@ const sidebars = {
             "concepts/architecture",
             "concepts/high-level-api",
             "concepts/low-level-api",
-            "concepts/transactions",
           ],
 
         },
@@ -29,6 +28,7 @@ const sidebars = {
             "guides/cheat-sheet",
             "guides/data-modelling",
             "guides/codec-customization",
+            "guides/transactions",
             "guides/testing"
           ]
         },
@@ -95,29 +95,12 @@ const sidebars = {
             "reference/projection-expression",
             "reference/error-handling",
             "reference/auto-batching-and-parallelisation",
-            "reference/zio-dynamodb-json"
+            "reference/zio-dynamodb-json",
           ]
         }
       ]
     }
   ]
 };
-
-/*
-            {
-              type: "category",
-              label: "Codecs",
-              collapsed: true,
-              link: { type: "doc", id: "derivations/codecs/index" },
-              items: [
-                "derivations/codecs/avro",
-                "derivations/codecs/thrift",
-                "derivations/codecs/bson",
-                "derivations/codecs/json",
-                "derivations/codecs/message-pack",
-                "derivations/codecs/protobuf",
-              ],
-            },
-*/
 
 module.exports = sidebars;
