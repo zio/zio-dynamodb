@@ -1,9 +1,9 @@
 ---
 id: query-combinators
-title: "Query Combinators and Operations"
+title: "DynamoDBQuery Combinators and Operations"
 ---
 
-Query Combinators | Description
+DynamoDBQuery Combinators | Description
 ---|---
 map | map the result of a query with a function
 zip <*>| combine 2 queries together - make the resulting query eligible for automatic batching or parallelisation
@@ -11,7 +11,12 @@ zipLeft (<*) | ignores the result of the right query
 zipRight (*>) | ignores the result of the left query
 zipWith | does a `zip` and then immediately maps the result with a function
 
-Query Operations | Description
+DynamoDBQuery Functions | Description
+---|---
+forEach | automates the zipping of queries using a collection as input. [see Autobatching and Parallelisation](auto-batching-and-parallelisation) for more details
+
+
+DynamoDBQuery Operations | Description
 ---|---
 capacity | sets the ReturnConsumedCapacity. [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html#DDB-GetItem-request-ReturnConsumedCapacity). Note capacity data in the response is ignored by the High Level Api
 consistency | sets the `ConsistencyMode` for read operations. Valid values are `Strong`and `Weak`(default) [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html#DDB-GetItem-request-ConsistentRead)  
@@ -29,4 +34,4 @@ transaction | executes the query in a transaction - see [Transactions Guide](../
 where | sets the `ConditionExpression` - applies to `PutItem`, `DeleteOtem`, `UpdateItem` and `Scan` [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html)
 whereKey | set the `KeyConditionExpr` applies to `QuerySome` and `QueryAll`. [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#DDB-Query-request-KeyConditionExpression) 
 withClientRequestToken | set the client request token` - applies to write transactions [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactWriteItems.html#DDB-TransactWriteItems-request-ClientRequestToken)
-withRetryPolicy | set the retry policy for a batched query - see TODO
+withRetryPolicy | set the retry policy for a batched query - [see Autobatching and Parallelisation](auto-batching-and-parallelisation) for more details
