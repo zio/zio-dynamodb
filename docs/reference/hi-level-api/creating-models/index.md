@@ -39,7 +39,7 @@ Note in the below table that types `A`, `K` and `V` can be collections or case c
 
 Scala Collection Types | Native DynamoDB Type | Notes
 ------------|----------------------|--------------
-`Option[A]`           |                      | None is represented by the absence of the field in the DynamoDB item
+`Option[A]`           |                      | `Some`/`None` are represented by the presence and the absence of the field in the DynamoDB item resepctively.
 `List[A]`             | L                    |
 `Set[String]`         | SS                   |
 `Set` of numeric type | NS                   |

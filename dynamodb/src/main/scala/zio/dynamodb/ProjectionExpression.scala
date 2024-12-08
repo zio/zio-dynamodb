@@ -26,6 +26,7 @@ sealed trait ProjectionExpression[-From, +To] { self =>
           .ListElement(self >>> parent, index)
     }
 
+  /** index is zero based */
   def elementAt[To2](
     index: Int
   )(implicit ev: To <:< Iterable[To2]): ProjectionExpression[From, To2] = {
@@ -36,7 +37,7 @@ sealed trait ProjectionExpression[-From, +To] { self =>
   }
 
   /**
-   * DDB keys must be strings
+   * DDB Map keys must be strings
    */
   def valueAt[To2](key: String)(implicit ev: To <:< Map[String, To2]): ProjectionExpression[From, To2] = {
     val _ = ev

@@ -10,8 +10,8 @@ It uses the same codecs as the regular library and provides an accurate represen
 It works at the level of the AttributeValue type and so works with both the low level and high level APIs.
 Note ATM it does not support the Binary and Binary Set types.
 
-Internally the module uses ZIO Json and in particular it uses the AST which is not used by ZIO Json itself for efficiency reasons
-hence the module should not be used in production code.
+Internally the module uses ZIO Json and in particular it uses the AST which is not used by ZIO Json itself for efficiency reasons,
+hence the recommendations is not to use the module in production code.
 
 
 Some example use cases include:

@@ -50,6 +50,7 @@ object FPStyle {
 }
 ```
 
-By using the FP approach to modelling we reduce the size of the concrete classes. 
+By using the FP approach to modelling we reduce the size of the concrete classes by factoring out common fields into a 
+product type. 
 
 For brevity the above examples do not show the full integration with ZIO Schema - [for a full example see this IT test](https://github.com/zio/zio-dynamodb/blob/series/2.x/dynamodb/src/it/scala/zio/dynamodb/TypeSafeApiAlternateModeling.scala).
