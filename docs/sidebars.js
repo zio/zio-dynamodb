@@ -87,6 +87,7 @@ const sidebars = {
               link: { type: "doc", id: "reference/low-level-api/index" },
               items: [
                 "reference/low-level-api/attribute-value",
+                "reference/low-level-api/dollar-function",
               ]
             },
             "reference/dynamodb-query",
