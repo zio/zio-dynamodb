@@ -91,7 +91,6 @@ const sidebars = {
               ]
             },
             "reference/dynamodb-query",
-            "reference/query-combinators",
             "reference/projection-expression",
             "reference/error-handling",
             "reference/auto-batching-and-parallelisation",
