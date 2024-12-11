@@ -3,17 +3,36 @@ id: dynamodb-query
 title: "DynamoDBQuery"
 ---
 
-TODO: introduction
+When we use the Low Level or High Level API to create a query we end up with the type `DynamoDBQuery` which is a sealed trait.
+
+One of the primary methods on this trait is `execute` which will run the query and return the result as a ZIO effect. 
+
+```scala
+def execute: ZIO[DynamoDBExecutor, DynamoDBError, Out] = ???
+```
+
+The `execute` method requires a `DynamoDBExecutor` service in order to execute the query using the lower level ZIO AWS DynamoDB library.
+
+The `execute` method does the following:
+
+- if the query type is a composite (`Zip`) then it will automatically batch or parallelise the queries - see [Auto batching and parallelisation](auto-batching-and-parallelisation) for the exact rules
+- converts it to an underlying ZIO AWS DynamoDB query
+- executes the query
+- converts the ZIO AWS DynamoDB response back to an `Item` (type alias for an `AttrMap`)
+
+When using the High Level API transformations are done between the Scala model and the `Item` type using the automatically generated codecs that make use of the `ZIO Schema` in implicit scope.
+
+The next sections cover the surface area exposed by the `DynamoDBQuery` trait.
 
 ## `DynamoDBQuery` Combinators and Operations
 
 DynamoDBQuery Combinators | Alias | Description
 ---|---|---
 map | | map the result of a query with a function
+zipWith | |does a `zip` and then immediately maps the result with a function
 zip |<*>| combine 2 queries together - make the resulting query eligible for automatic batching or parallelisation
 zipLeft |<*| ignores the result of the right query
 zipRight|*>| ignores the result of the left query
-zipWith | |does a `zip` and then immediately maps the result with a function
 
 DynamoDBQuery Functions | Description
 ---|---
