@@ -30,8 +30,9 @@ for {
 
 ```scala
 <SCAN_SOME_QUERY>
+  .consistency(<ConsistencyMode>)
   .whereKey(<KeyConditionExpr>)  // eg Equipment.id.partitionKey === "1" && Equipment.year.sortKey > 2020
   .startKey(<LastEvaluatedKey>)
   .filter(<ConditionExpression>) // eg Equipment.price > 1.0 - filtering is done server side AFTER the scan  
-  .index(<IndexName>)            // use a secondary index    
+  .indexName(<IndexName>)        // use a secondary index    
 ```

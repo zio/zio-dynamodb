@@ -29,7 +29,8 @@ for {
 
 ```scala
 <SCAN_SOME_QUERY>
+  .consistency(<ConsistencyMode>)
   .startKey(<LastEvaluatedKey>)
   .filter(<ConditionExpression>) // eg Equipment.price > 1.0 - filtering is done server side AFTER the scan 
-  .index(<IndexName>)            // use a secondary index    
+  .indexName(<IndexName>)        // use a secondary index    
 ```

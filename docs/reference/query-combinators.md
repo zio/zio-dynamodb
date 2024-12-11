@@ -3,13 +3,13 @@ id: query-combinators
 title: "DynamoDBQuery Combinators and Operations"
 ---
 
-DynamoDBQuery Combinators | Description
----|---
-map | map the result of a query with a function
-zip <*>| combine 2 queries together - make the resulting query eligible for automatic batching or parallelisation
-zipLeft (<*) | ignores the result of the right query
-zipRight (*>) | ignores the result of the left query
-zipWith | does a `zip` and then immediately maps the result with a function
+DynamoDBQuery Combinators | Alias | Description
+---|---|---
+map | | map the result of a query with a function
+zip |<*>| combine 2 queries together - make the resulting query eligible for automatic batching or parallelisation
+zipLeft |<*| ignores the result of the right query
+zipRight|*>| ignores the result of the left query
+zipWith | |does a `zip` and then immediately maps the result with a function
 
 DynamoDBQuery Functions | Description
 ---|---

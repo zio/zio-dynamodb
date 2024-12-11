@@ -13,7 +13,7 @@ The `get` operation is used to retrieve an item from a table. The `KeyConditionE
 
 ```scala
 for {
-  errorOrPerson <- DynamoDBQuery.get("person")(Person.id.primaryKey("1")).execute
+  errorOrPerson <- DynamoDBQuery.get("person")(Person.id.primaryKey === "1").execute
 } yield errorOrPerson
 ```
 
@@ -26,7 +26,7 @@ The first approach is to use the ZIO `absolve` method to push all ItemErrors int
 ```scala
 import zio.dynamodb.syntax._
 for {
-  person <- DynamoDBQuery.get("person")(Person.id.primaryKey("1")).execute.absolve
+  person <- DynamoDBQuery.get("person")(Person.id.primaryKey === "1").execute.absolve
 } yield person
 ```
 
@@ -35,13 +35,15 @@ However sometimes we wish to treat `NotFound` as a success case and for this the
 ```scala
 import zio.dynamodb.syntax._
 for {
-  maybePerson <- DynamoDBQuery.get("person")(Person.id.primaryKey("1")).execute.maybeFound
+  maybePerson <- DynamoDBQuery.get("person")(Person.id.primaryKey === "1").execute.maybeFound
 } yield maybePerson
 ```
 
 ### `get` query operations
 
 ```scala
-<GET_QUERY>.where(<ConditionExpression>)
+<GET_QUERY>
+  .consistency(<ConsistencyMode>)
+  .where(<ConditionExpression>)
 ```
 

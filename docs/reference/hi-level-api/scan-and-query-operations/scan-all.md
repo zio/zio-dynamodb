@@ -28,7 +28,8 @@ for {
 
 ```scala
 <SCAN_ALL_QUERY>
+  .consistency(<ConsistencyMode>)
   .filter(<ConditionExpression>) // eg Equipment.price > 1.0 - filtering is done server side AFTER the scan  
   .parallel(<N>)                 // executes a native DDB parallel scan on the server and merges the results back to the stream
-  .index(<IndexName>)            // use a secondary index    
+  .indexName(<IndexName>)        // use a secondary index    
 ```
