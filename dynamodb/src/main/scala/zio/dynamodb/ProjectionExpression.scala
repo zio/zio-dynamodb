@@ -764,7 +764,7 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
   Uses a positive lookahead to assert that the dot is followed by an even number of backticks.
   This ensures that the dot is outside a character sequence enclosed in backticks.
    */
-  val regexDotOutsideBackticks = """\.(?=(?:[^`]*`[^`]*`)*(?![^`]*`))""".r
+  private val regexDotOutsideBackticks = """\.(?=(?:[^`]*`[^`]*`)*(?![^`]*`))""".r
 
   private val regexMapElement     = """(^[a-zA-Z0-9_-]+|^`[^`]+`)""".r
   private val regexIndexedElement = """(^[a-zA-Z0-9_-]+|^`[^`]+`)(\[[0-9]+])+""".r

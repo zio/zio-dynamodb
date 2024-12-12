@@ -22,21 +22,22 @@ The `execute` method does the following:
 
 When using the High Level API transformations are done between the Scala model and the `Item` type using the automatically generated codecs that make use of the `ZIO Schema` in implicit scope.
 
-The next sections cover the surface area exposed by the `DynamoDBQuery` trait.
+The next sections cover the surface area exposed by `DynamoDBQuery`.
 
 ## `DynamoDBQuery` Combinators and Operations
 
 DynamoDBQuery Combinators | Alias | Description
 ---|---|---
 map | | map the result of a query with a function
+zip |<*>| combine 2 queries together and returns a tuple - makes the resulting query eligible for automatic batching or parallelisation [see Autobatching and Parallelisation](auto-batching-and-parallelisation) for more details
 zipWith | |does a `zip` and then immediately maps the result with a function
-zip |<*>| combine 2 queries together - make the resulting query eligible for automatic batching or parallelisation
-zipLeft |<*| ignores the result of the right query
-zipRight|*>| ignores the result of the left query
+zipLeft |<*| a zip that ignores the result of the right query
+zipRight|*>| a zip that ignores the result of the left query
 
 DynamoDBQuery Functions | Description
 ---|---
-forEach | automates the zipping of queries using a collection as input. [see Autobatching and Parallelisation](auto-batching-and-parallelisation) for more details
+`def forEach[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery[In, List[B]]`  | automates the zipping of queries of the same type using a collection as input. [see Autobatching and Parallelisation](auto-batching-and-parallelisation) for more details. <br/><br/> Note that unprocessed items/keys are retried automatically and if they still fail a `BatchError.WriteError`/`BatchError.GetError` is returned both of which will contain a list of the unprocessed items/keys - see `withRetryPolicy` in the below section for overriding the default retry policy.
+
 
 
 DynamoDBQuery Operations | Description
@@ -57,4 +58,4 @@ transaction | executes the query in a transaction - see [Transactions Guide](../
 where | sets the `ConditionExpression` - applies to `PutItem`, `DeleteOtem`, `UpdateItem` and `Scan` [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html)
 whereKey | set the `KeyConditionExpr` applies to `QuerySome` and `QueryAll`. [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#DDB-Query-request-KeyConditionExpression) 
 withClientRequestToken | set the client request token` - applies to write transactions [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactWriteItems.html#DDB-TransactWriteItems-request-ClientRequestToken)
-withRetryPolicy | set the retry policy for a batched query - [see Autobatching and Parallelisation](auto-batching-and-parallelisation) for more details
+withRetryPolicy | override the default retry policy for a batched query - [see Autobatching and Parallelisation](auto-batching-and-parallelisation) for more details
