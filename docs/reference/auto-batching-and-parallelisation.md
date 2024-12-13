@@ -21,7 +21,7 @@ for {
 
 The rules for determining whether a query is auto-batched are determined by what query types are eligible for batching in the AWS API. The AWS [BatchWriteItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html) operation can only deal with `PutItem` and `DeleteItem` operations. Furthermore, for both of these operations - condition expressions are not allowed. The AWS [BatchGetItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html) operation is used for batching `GetItems`'s .
 
-So the rules are follows: 
+So the rules are as follows: 
 
 - A query only qualifies for auto-batching  if it passes the following criteria: 
   - The query is a `PutItem` or `DeleteItem` operation (`put` and `deleteFrom` in the High Level API)
@@ -30,9 +30,9 @@ So the rules are follows:
     - The query's `projections` list contains the primary key - this is required to match the response data to the request. Note all fields are included by default so this is only a concern if you explicitly specify the projection expression.  
 - If a query does not qualify for auto-batching it will be parallelised automatically
 
-## Maximum batch sizes for `BatchWrireItem` and `BatchGetItem`
+## Maximum batch sizes for `BatchWriteItem` and `BatchGetItem`
 
-When using the `zip` or `forEach` operations one thing to bear in mind is the maximum number of queries that the `BatchWrireItem` and `BatchGetItem` operations can handle:
+When using the `zip` or `forEach` operations one thing to bear in mind is the maximum number of queries that the `BatchWriteItem` and `BatchGetItem` operations can handle:
 
 - `BatchWriteItem` can handle up to **25** `PutItem` or `DeleteItem` operations
 - `BatchGetItem` can handle up to **100** `GetItem` operations
