@@ -1,6 +1,6 @@
 ---
 id: data-modelling
-title: "Data Modelling and Limitations"
+title: "High Level API Data Modelling and Limitations"
 ---
 
 The High Level API relies heavily on ZIO Schema and inherits some of it's limitations, namely:
@@ -11,7 +11,7 @@ The High Level API relies heavily on ZIO Schema and inherits some of it's limita
 At first glance these seem limitations seem quite restrictive, however the next sections describe how these can be overcome.
 
 ## A maximum of **22** fields per case class
-The high level API uses the Reified Optics feature of ZIO Schema to generate optics for case classes. This feature has a limitation of 22 fields per case class. 
+The high level API uses the Reified Optics feature of ZIO Schema to generate optics for case classes and sealed traits. This feature has a limitation of 22 fields per case class. 
 
 This limitation is something to be aware of when designing your models. In practice however this limitation can be overcome by using nested case classes and in the case of deeply nested hierarchies, by using product and sum types (see section below). 
 

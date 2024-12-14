@@ -11,11 +11,7 @@ The low level API provides low level query creation and execution while still of
   - `ConditionExpression`'s - `$("name") === "John"`
   - `UpdateExpression`'s - `$("name").set("Smith")`
 
-However there are some caveats to using the Low Level API:
-- It is not type safe - subtle runtime errors can occur - for example if there are typos in the field names, or if incompatible types are used in expressions.
-- Serialization and deserialization of case classes is the responsibility of the user - this is usually a major burden.
-
-An example of a complete low level query is shown below:
+Examples of low level queries are shown below:
 ```scala
 for {
   _ <- DynamoDBQuery.putItem("person-table", Item("id" -> "1", "name" -> "John", "age" -> 42)).execute
@@ -24,3 +20,8 @@ for {
   _ <- DynamoDBQuery.deleteItem("person-table")(PrimaryKey("id" -> "1")).execute
 } yield ()
 ```
+
+However there are some caveats to using the Low Level API:
+- It is not type safe - subtle runtime errors can occur - for example if there are typos in the field names, or if incompatible types are used in expressions.
+- Serialization and deserialization of case classes is the responsibility of the user - this is usually a major burden.
+

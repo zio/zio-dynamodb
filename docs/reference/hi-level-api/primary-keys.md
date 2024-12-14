@@ -47,6 +47,7 @@ context | operation | applies to | notes
 <br/><br/> |  `>` | `Query` only |
 <br/><br/> |  `>=` | `Query` only |
 <br/><br/> |  `<` | `Query` only |
-<br/><br/> |  `<=` | `Query` only | 
+<br/><br/> |  `<=` | `Query` only |
+<br/><br/> |  `<>` | `Query` only |
 <br/><br/> |  `.between(2021, 2023)` | `Query` only |
 `Employee.id.partitionKey === "1" && Employee.group.sortKey` | `.beginsWith("Group1")` | `Query` only | `beginsWith` is only valid for String types

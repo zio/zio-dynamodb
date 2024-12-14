@@ -25,4 +25,20 @@ for {
   .where(<ConditionExpression>) // eg Person.id.notExists
 ```
 
+### Using `put` with Top level traits using `disriminatorName` annotation
+When using a top level sealed trait with `@discriminatorName` annotation, it must be provided explicitly to the `put`
+to ensure that discriminator field is encoded.
+
+```scala
+@discriminatorName("invoiceType")
+sealed trait Invoice
+final case class PreBilledInvoice(/* ... */) extends Invoice
+final case class BilledInvoice(/* ... */) extends Invoice
+
+for {
+  _ <- DynamoDBQuery.put[Invoice]("invoice", BilledInvoice(/* ... */)).execute // OK - discriminator encoded
+  _ <- DynamoDBQuery.put[BilledInvoice]("invoice", BilledInvoice(/* ... */)).execute // WRONG - discriminator not encoded
+} yield ()
+```
+
 
