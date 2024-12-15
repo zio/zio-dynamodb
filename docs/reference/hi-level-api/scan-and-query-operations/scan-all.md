@@ -11,7 +11,10 @@ title: "scanAll"
 
 The `scanAll` operation is used to scan all items in a table, and uses a ZIO stream to return the results.  
 
-Note that scanning all items in a table can be an expensive operation in terms of elapsed time - to speed things up the AWS API offers a parallel scanning mode which can be invoked in the High Level API using the `parallel` combinator - the results are merged back into a the results stream in an undetermined order.
+Note that scanning all items in a table can be an expensive operation in terms of elapsed time - to speed things up the 
+AWS API offers a parallel/segmented scanning mode which can be invoked in the High Level API using the `parallel` combinator - 
+internally it takes care of the details of calling the AWS segmented scan API using a fiber per segment and the results 
+are merged back into the results stream in an undetermined order.
 
 ```scala
 for {
@@ -20,7 +23,7 @@ for {
   stream     <- scanAll[Equipment](tableName)
                   .whereKey(Equipment.id.partitionKey === "1")
                   .execute
-  equipments <- stream.tap(equip => ZIO.debug(s"equipment: $equip")) 
+  _ <- stream.tap(equip => ZIO.debug(s"equipment: $equip")).runDrain 
 } yield ()
 ```
 

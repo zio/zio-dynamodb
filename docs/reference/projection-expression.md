@@ -34,6 +34,7 @@ The other notable difference is that High Level API is totally type safe and man
 ```scala
 Person.id === 1 // will not compile
 Person.id === "1" && Person.name === 2 // will not compile
+Person.id === "1" && Employee.name === "2" // will not compile
 
 ProjectionExpression.$("name") === 1 // will compile!
 ```

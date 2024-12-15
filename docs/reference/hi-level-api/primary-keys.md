@@ -32,22 +32,22 @@ object Person {
 
 The High Level API unifies the two different ways into a single Type Safe API that is accessed by using the `ProjectExpression` returned by the `ProjectExpression.accessors` function as a springboard via the `partitionKey` and `sortKey` methods.
 
-| AWS|Example|Context
-| ---|---|---
-| Primary Keys | `Person.id.partitionKey === "1" && Person.year.sortKey === "2020`"  | `GetItem`, `PutItem`, `DeleteItem` 
-| Key Condition Expressions | `<query>.whereKey(Person.id.partitionKey === "1" && Person.year.sortKey > 2020)` | `Query`
+| AWS| Example                                                                          |Context
+| ---|----------------------------------------------------------------------------------|---
+| Primary Keys | `Person.id.partitionKey === "1" && Person.year.sortKey === "2020`"               | `GetItem`, `PutItem`, `DeleteItem` 
+| Key Condition Expressions | `[Query].whereKey(Person.id.partitionKey === "1" && Person.year.sortKey > 2020)` | [Query].whereKey
 
 Valid operations on primary keys are:
 
-context | operation | applies to | notes
+context | operation | applies to
 ---|---|---
-`Person.id.partitionKey` |  `===` | `GetItem`, `PutItem`, `DeleteItem`, `Query` | this is the only valid op
-`Person.id.partitionKey === "1"` |  `&&` | `GetItem`, `PutItem`, `DeleteItem`, `Query` | this is the only valid op - combines a partition key expressions with a sort key expression
-`Person.id.partitionKey === "1" && Person.year.sortKey` |  `===` | `GetItem`, `PutItem`, `DeleteItem`, `Query` | 
-<br/><br/> |  `>` | `Query` only |
-<br/><br/> |  `>=` | `Query` only |
-<br/><br/> |  `<` | `Query` only |
-<br/><br/> |  `<=` | `Query` only |
-<br/><br/> |  `<>` | `Query` only |
-<br/><br/> |  `.between(2021, 2023)` | `Query` only |
-`Employee.id.partitionKey === "1" && Employee.group.sortKey` | `.beginsWith("Group1")` | `Query` only | `beginsWith` is only valid for String types
+`Person.id.partitionKey` |  `===` | `GetItem`, `PutItem`, `DeleteItem`, [Query].whereKey 
+`Person.id.partitionKey === "1"` |  `&&` |  
+`Person.id.partitionKey === "1" && Person.year.sortKey` |  `===` | 
+<br/><br/> |  `>` | [Query].whereKey only
+<br/><br/> |  `>=` | 
+<br/><br/> |  `<` | 
+<br/><br/> |  `<=` | 
+<br/><br/> |  `<>` | 
+<br/><br/> |  `.between(2021, 2023)` |
+`Employee.id.partitionKey === "1" && Employee.group.sortKey` | `.beginsWith("Group1")` | 
