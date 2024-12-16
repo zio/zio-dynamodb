@@ -35,19 +35,18 @@ The High Level API unifies the two different ways into a single Type Safe API th
 | AWS| Example                                                                          |Context
 | ---|----------------------------------------------------------------------------------|---
 | Primary Keys | `Person.id.partitionKey === "1" && Person.year.sortKey === "2020`"               | `GetItem`, `PutItem`, `DeleteItem` 
-| Key Condition Expressions | `[Query].whereKey(Person.id.partitionKey === "1" && Person.year.sortKey > 2020)` | [Query].whereKey
+| Key Condition Expressions | [Query]`.whereKey(Person.id.partitionKey === "1" && Person.year.sortKey > 2020)` | [Query]`.whereKey`
 
 Valid operations on primary keys are:
 
 context | operation | applies to
 ---|---|---
-`Person.id.partitionKey` |  `===` | `GetItem`, `PutItem`, `DeleteItem`, [Query].whereKey 
-`Person.id.partitionKey === "1"` |  `&&` |  
-`Person.id.partitionKey === "1" && Person.year.sortKey` |  `===` | 
-<br/><br/> |  `>` | [Query].whereKey only
+`Person.id.partitionKey`<br/>`Person.year.sortKey` |  `===` | `GetItem`, `PutItem`, `DeleteItem`, [Query]`.whereKey` 
+`Person.id.partitionKey === "1"` |  `&&` | provides conjunction from a partition key to a sort key
+`Person.year.sortKey` |  `>` | [Query]`.whereKey` only
 <br/><br/> |  `>=` | 
 <br/><br/> |  `<` | 
 <br/><br/> |  `<=` | 
 <br/><br/> |  `<>` | 
 <br/><br/> |  `.between(2021, 2023)` |
-`Employee.id.partitionKey === "1" && Employee.group.sortKey` | `.beginsWith("Group1")` | 
+`Employee.group.sortKey` | `.beginsWith("Group1")` | Applies to String sort keys only

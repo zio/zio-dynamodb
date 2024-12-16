@@ -22,7 +22,7 @@ object Person {
 
 ```scala
 // id and name are ProjectionExpressions
-val id = ProjectionExpression.$("name")
+val id = ProjectionExpression.$("id")
 val name = ProjectionExpression.$("name")
 ```
 For more details see [$ and Parse functions](low-level-api/dollar-function) section
