@@ -3,7 +3,7 @@ id: dynamodb-query
 title: "DynamoDBQuery"
 ---
 
-When we use the Low Level or High Level API to create a query we end up with the type `DynamoDBQuery` which is a sealed trait.
+When we use the Low or High Level API constructors to create a query we end up with the type `DynamoDBQuery` which is a sealed trait.
 
 One of the primary methods on this trait is `execute` which will run the query and return the result as a ZIO effect. 
 
@@ -15,12 +15,14 @@ The `execute` method requires a `DynamoDBExecutor` service in order to execute t
 
 The `execute` method does the following:
 
-- if the query type is a composite (`Zip`) then it will automatically batch or parallelise the queries - see [Auto batching and parallelisation](auto-batching-and-parallelisation) for the exact rules
-- converts it to an underlying ZIO AWS DynamoDB query
-- executes the query
-- converts the ZIO AWS DynamoDB response back to an `Item` (type alias for an `AttrMap`)
+- if the query type is a composite (`Zip`) then it will automatically batch or parallelise the queries - see 
+[Auto batching and parallelisation](auto-batching-and-parallelisation) for the exact rules
+- executes the query using the `DynamoDBExecutor` service, which:
+  - converts it to an underlying ZIO AWS DynamoDB query
+  - converts the ZIO AWS DynamoDB response back to an `Item` (type alias for an `AttrMap`)
 
-When using the High Level API transformations are done between the Scala model and the `Item` type using the automatically generated codecs that make use of the `ZIO Schema` in implicit scope.
+When using the High Level API transformations are done between the Scala model and the `Item` type using the automatically
+generated codecs that make use of the `ZIO Schema` in implicit scope.
 
 The next sections cover the surface area exposed by `DynamoDBQuery`.
 

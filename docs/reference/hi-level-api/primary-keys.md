@@ -42,7 +42,7 @@ Valid operations on primary keys are:
 context | operation | applies to
 ---|---|---
 `Person.id.partitionKey`<br/>`Person.year.sortKey` |  `===` | `GetItem`, `PutItem`, `DeleteItem`, [Query]`.whereKey` 
-`Person.id.partitionKey === "1"` |  `&&` | provides conjunction from a partition key to a sort key
+`Person.id.partitionKey === "1"` |  `&&` | `GetItem`, `PutItem`, `DeleteItem`, [Query]`.whereKey`. <br/><br/> Provides conjunction from a partition key to a sort key
 `Person.year.sortKey` |  `>` | [Query]`.whereKey` only
 <br/><br/> |  `>=` | 
 <br/><br/> |  `<` | 

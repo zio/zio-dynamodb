@@ -4,12 +4,16 @@ title: "High Level API"
 sidebar_label: "High Level API"
 ---
 
-High Level API operations are found on the `DynamoDBQuery` companion object. They rely on a ZIO Schema for a particular type being in implicit scope. This is achieved using the `DeriveSchema.gen` macro. Internally codecs are automatically generated for the case classes based on the meta data provided by the `Schema`'s.
+
+
+High Level API constructors for CRUD operations are found on the `DynamoDBQuery` companion object. They rely on a 
+ZIO Schema for a particular type being in implicit scope. This is achieved using the `DeriveSchema.gen` macro. 
+Internally codecs are automatically generated for the case classes based on the meta-data provided by the `Schema`'s.
 
 ```scala
 object DynamoDBQuery {
 
-  // CRUD operations  
+  // CRUD operation constructors  
 
   def put[A: Schema](tableName: String, a: A): DynamoDBQuery[A, Option[A]] = ???
 
@@ -45,15 +49,14 @@ object DynamoDBQuery {
   def querySome[A: Schema](
     tableName: String,
     limit: Int
-  ): DynamoDBQuery[A, (Chunk[A], LastEvaluatedKey)] =  
+  ): DynamoDBQuery[A, (Chunk[A], LastEvaluatedKey)] = ???  
 }
 ```
 
-Methods that need a primary key expression take a `KeyConditionExpr.PrimaryKeyExpr[From]` as an argument, however rather than create one directly we can create one using a `ProjectionExpression` as a springboard. 
+Once we have constructed  a type safe query we can execute it.
 
-TODO
-- Crud methods page
-- scan/query methods page
-- batching
-- mapping
+
+Methods that need a primary key expression take a `KeyConditionExpr.PrimaryKeyExpr[From]` as an argument, however 
+rather than create one directly we can create one using a `ProjectionExpression` as a springboard
+
 

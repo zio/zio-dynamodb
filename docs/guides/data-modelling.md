@@ -13,10 +13,10 @@ At first glance these seem limitations seem quite restrictive, however the next 
 ## A maximum of **22** fields per case class
 The high level API uses the Reified Optics feature of ZIO Schema to generate optics for case classes and sealed traits. This feature has a limitation of 22 fields per case class. 
 
-This limitation is something to be aware of when designing your models. In practice however this limitation can be overcome by using nested case classes and in the case of deeply nested hierarchies, by using product and sum types (see section below). 
+This limitation is something to be aware of when designing your models. In practice however this can be overcome by using nested case classes and in the case of deeply nested hierarchies, by using product and sum types (see section below). 
 
 ## Deep OO Style hierarchies are not supported - modelling data using Product and Sum Types
-Deep Object-Oriented like hierarchies with abstract classes/fields are not supported - only hierarchies one level deep are supported - again this is a limitation of ZIO Schema - however these limitations can be overcome by using product and types rather than inheritance.
+Deep Object-Oriented like hierarchies with abstract classes/fields are not supported - only hierarchies one level deep are supported - again this is a limitation of ZIO Schema - however these limitations can be overcome by using product and sum types rather than inheritance.
 
 
 ```scala
