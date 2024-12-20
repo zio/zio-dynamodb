@@ -1,3 +1,31 @@
+---
+id: ce-interop
+title: "Cats Effect Interop"
+---
+
+The **`zio-dynamodb-ce`** cats effect interop module provides a way to use ZIO DynamoDB with Cats Effect 3 with minimal 
+effort.
+
+## Usage
+
+Add the following line to your `build.sbt` file:
+
+```scala
+```scala
+libraryDependencies ++= Seq(
+  "dev.zio" %% "zio-dynamodb-ce" % "@VERSION@"
+)
+```
+
+The entry points are the `DynamoDBExecutorF.of` and `DynamoDBExecutorF.ofCustomised` constructors which provide a `Resource` managed
+`DynamoDBExecutorF` instance. Once we have this instance in implicit scope we can use the extension method `executeToF` 
+to run the queries. Queries that would normally return a `ZIO` effect now return a `F` effect, and queries that would
+normally return a `ZStream` now return an FS2 `Stream`.
+
+
+## Example
+
+```scala
 package zio.dynamodb.examples.dynamodblocal.interop
 
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
@@ -71,3 +99,4 @@ object CeInteropExample extends IOApp.Simple {
 
   val run = program[IO]
 }
+```

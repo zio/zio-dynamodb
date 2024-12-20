@@ -9,7 +9,7 @@ The recommendation is to use full-stack integration tests of your ZIO DynamoDB r
 instance of which there are two choices:
 
 - [DynamoDB Local JAR](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html) - a stand-alone 
-JAR file that can be run on your local machine, also comes packaged as a docker image
+JAR file that can be run on your local machine, also is available as a docker image.
 - [Docker LocalStack](https://docs.docker.com/guides/localstack/) - a docker image that provides a local AWS cloud stack including DynamoDB
 
 You should use whichever is most convenient for your development environment. The ZIO DynamoDB library itself uses DynamoDB Local JAR 

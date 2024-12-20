@@ -29,7 +29,8 @@ const sidebars = {
             "guides/data-modelling",
             "guides/codec-customization",
             "guides/transactions",
-            "guides/testing"
+            "guides/testing",
+            "guides/ce-interop",
           ]
         },
         // Reference

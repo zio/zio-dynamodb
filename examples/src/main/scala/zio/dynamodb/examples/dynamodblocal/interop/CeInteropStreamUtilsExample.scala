@@ -27,7 +27,7 @@ import scala.annotation.nowarn
  *
  * to run in the sbt console:
  * {{{
- * zio-dynamodb-examples/runMain zio.dynamodb.examples.dynamodblocal.CeInteropStreamUtilsExample
+ * zio-dynamodb-examples/runMain zio.dynamodb.examples.dynamodblocal.interop.CeInteropStreamUtilsExample
  * }}}
  */
 @nowarn("msg=never used") // False positive warning in Scala 2.13

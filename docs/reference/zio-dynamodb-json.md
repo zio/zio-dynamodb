@@ -3,7 +3,7 @@ id: zio-dynamodb-json
 title: "ZIO DynamoDB JSON Module"
 ---
 
-**`zio-dynamodb-json`** is a new experimental module designed for debugging and troubleshooting purposes.
+**`zio-dynamodb-json`** is a new experimental optional module designed for debugging and troubleshooting purposes.
 It renders a representation of the native DynamoDB types and data in a standard JSON format used in AWS console views
 
 It uses the same codecs as the regular library and provides an accurate representation of how the data that would be stored in DynamoDB. 
@@ -25,7 +25,7 @@ In your `build.sbt` file add the following line:
 
 ```scala
 libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb-json" % <VERSION>
+  "dev.zio" %% "zio-dynamodb-json" % "@VERSION@"
 )
 ```
 
