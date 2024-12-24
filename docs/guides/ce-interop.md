@@ -11,7 +11,6 @@ effort.
 Add the following line to your `build.sbt` file:
 
 ```scala
-```scala
 libraryDependencies ++= Seq(
   "dev.zio" %% "zio-dynamodb-ce" % "@VERSION@"
 )

@@ -25,7 +25,7 @@ for {
   .where(<ConditionExpression>) // eg Person.id.notExists
 ```
 
-### Using `put` with Top level traits using `disriminatorName` annotation
+### Using `put` with Top level traits using `discriminatorName` annotation
 When using a top level sealed trait with `@discriminatorName` annotation, it must be provided explicitly to the `put`
 to ensure that discriminator field is encoded.
 

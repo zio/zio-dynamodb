@@ -38,7 +38,7 @@ object TypeSafeApiSingleTableSpec extends DynamoDBLocalSpec {
     implicit val schema: Schema.Enum2[Profile, Order, UserBody] = DeriveSchema.gen[UserBody]
     val (profile, order)                                        = ProjectionExpression.accessors[UserBody]
   }
-  final case class User(id: String, selector: String, userBody: UserBody)
+  final case class User private (id: String, selector: String, userBody: UserBody)
   object User {
     implicit val schema: Schema.CaseClass3[String, String, UserBody, User] = DeriveSchema.gen[User]
     val (id, selector, userBody)                                           = ProjectionExpression.accessors[User]
@@ -63,7 +63,7 @@ object TypeSafeApiSingleTableSpec extends DynamoDBLocalSpec {
             stream <- DynamoDBQuery
                         .queryAll[User](tableName)
                         .whereKey(
-                          User.id.partitionKey === "USER:Bob" && (User.selector.sortKey.beginsWith("Order"))
+                          User.id.partitionKey === "USER:Bob" && User.selector.sortKey.beginsWith("Order:")
                         )
                         .execute
             _      <- stream.tap(ZIO.debug(_)).runDrain
