@@ -255,20 +255,20 @@ object TypeSafeScanAndQuerySpec extends DynamoDBLocalSpec {
     suite("Global Secondary Index suite")(
       test("query with global secondary index") {
         withIdAndAccountIdGsiTable { personTable =>
-          val person1 = PersonGsi("1", Option("account1"), "Smith", 21)
-          val person2 = PersonGsi("2", Option("account1"), "Jane", 42)
-          val person3 = PersonGsi("3", Option("account2"), "Tarlochan", 42)
+          val person1 = PersonGsi("1", Some("account1"), "Smith", 21)
+          val person2 = PersonGsi("2", Some("account1"), "Jane", 42)
+          val person3 = PersonGsi("3", Some("account2"), "Tarlochan", 42)
           for {
             _         <- put(personTable, person1).execute
             _         <- put(personTable, person2).execute
             _         <- put(personTable, person3).execute
             stream    <- queryAll[PersonGsi](personTable)
-                           .whereKey(PersonGsi.accountId.partitionKey === Option("account1"))
+                           .whereKey(PersonGsi.accountId.partitionKey === Some("account1"))
                            .indexName("accountId")
                            .execute
             xs        <- stream.runCollect
             t         <- querySome[PersonGsi](personTable, 3)
-                           .whereKey(PersonGsi.accountId.partitionKey === Option("account1"))
+                           .whereKey(PersonGsi.accountId.partitionKey === Some("account1"))
                            .indexName("accountId")
                            .execute
             (xs2, lek) = t
