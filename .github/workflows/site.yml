@@ -34,8 +34,7 @@ jobs:
   generate-readme:
     name: Generate README
     runs-on: ubuntu-20.04
-    if: ${{ github.event_name == 'pull_request' }}
-#    if: ${{ (github.event_name == 'push') || ((github.event_name == 'release') && (github.event.action == 'published')) }}
+    if: ${{ (github.event_name == 'push') || ((github.event_name == 'release') && (github.event.action == 'published')) }}
     steps:
     - name: Git Checkout
       uses: actions/checkout@v3.3.0
@@ -109,9 +108,10 @@ jobs:
     name: Notify Docs Release
     runs-on: ubuntu-20.04
     continue-on-error: false
-    needs:
-    - publish-docs
-    if: ${{ (github.event_name == 'release') && (github.event.action == 'published') }}
+#    needs:
+#    - publish-docs
+    if: ${{ github.event_name == 'pull_request' }}
+#    if: ${{ (github.event_name == 'release') && (github.event.action == 'published') }}
     steps:
     - name: Git Checkout
       uses: actions/checkout@v4
