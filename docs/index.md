@@ -94,7 +94,7 @@ Note before you run these you must first run the DynamoDBLocal docker container 
 docker compose -f docker/docker-compose.yml up -d
 ```
 
-Don't forget to shut down the container after you have finished
+Don't forget to shut down the container after you have finished.
 
 ```
 docker compose -f docker/docker-compose.yml down
