@@ -111,7 +111,7 @@ jobs:
 #    needs:
 #    - publish-docs
     if: ${{ github.event_name == 'pull_request' }}
-#    if: ${{ (github.event_name == 'release') && (github.event.action == 'published') }}
+#     if: ${{ (github.event_name == 'release') && (github.event.action == 'published') }}
     steps:
     - name: Git Checkout
       uses: actions/checkout@v4.1.1
