@@ -106,7 +106,7 @@ jobs:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
   notify-docs-release:
     name: Notify Docs Release
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     continue-on-error: false
 #    needs:
 #    - publish-docs
@@ -114,7 +114,7 @@ jobs:
 #    if: ${{ (github.event_name == 'release') && (github.event.action == 'published') }}
     steps:
     - name: Git Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v4.1.1
       with:
         fetch-depth: '0'
     - name: notify the main repo about the new release of docs package
