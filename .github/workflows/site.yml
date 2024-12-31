@@ -140,7 +140,7 @@ jobs:
       uses: zio/generate-github-app-token@v1.0.0
       with:
         app_id: ${{ secrets.APP_ID }}
-        app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
+        app_private_key: ${{ secrets.ZIO_ASSISTANT_PRIVATE_KEY }}
     - name: notify the main repo about the new release of docs package
       run: |
         PACKAGE_NAME=$(cat docs/package.json | grep '"name"' | awk -F'"' '{print $4}')
