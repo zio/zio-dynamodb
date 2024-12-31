@@ -141,7 +141,7 @@ jobs:
       with:
         app-id: ${{ secrets.APP_ID }}
         private-key: ${{ secrets.APP_PRIVATE_KEY }}
-        owner: ${{ github.repository_owner }}
+#        owner: ${{ github.repository_owner }}
     - name: notify the main repo about the new release of docs package
       run: |
         PACKAGE_NAME=$(cat docs/package.json | grep '"name"' | awk -F'"' '{print $4}')
