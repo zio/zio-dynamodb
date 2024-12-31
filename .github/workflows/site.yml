@@ -161,7 +161,7 @@ jobs:
         
         status_code=$(echo "$response" | tail -n 1)
         echo "$response"
-        if [ "$status_code" != "200" ]; then
-          echo "Error: Expected status code 200, got $status_code"
+        if [ "$status_code" != "204" ]; then
+          echo "Error: Expected status code 204, got $status_code"
           exit 1
         fi
