@@ -153,8 +153,8 @@ jobs:
             -d '{
                   "event_type":"update-docs",
                   "client_payload":{
-                    "package_name":"'"${PACKAGE_NAME}"'",
-                    "package_version": "'"${PACKAGE_VERSION}"'"
+                    "package_name":"test-name",
+                    "package_version": "test-version"
                   }
                 }')
         
