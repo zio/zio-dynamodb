@@ -121,8 +121,6 @@ jobs:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
   notify-docs-release:
     name: Notify Docs Release
-    permissions:
-      contents: write
     runs-on: ubuntu-latest
     continue-on-error: false
     needs:
