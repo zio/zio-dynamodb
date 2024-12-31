@@ -133,17 +133,18 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: '0'
-    - name: Generate Token
+    - name: Generate a token
       id: generate-token
-      uses: zio/generate-github-app-token@v1.0.0
+      uses: actions/create-github-app-token@v1.11.1
       with:
-        app_id: ${{ secrets.APP_ID }}
-        app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
+        app-id: ${{ secrets.APP_ID }}
+        private-key: ${{ secrets.APP_PRIVATE_KEY }}
+        owner: ${{ github.repository_owner }}
     - name: notify the main repo about the new release of docs package
       run: |
         PACKAGE_NAME=$(cat docs/package.json | grep '"name"' | awk -F'"' '{print $4}')
         PACKAGE_VERSION=$(npm view $PACKAGE_NAME version)
-        response=$(curl -L \
+        response=$(curl -L  -w "%{http_code}" \
           -X POST \
           -H "Accept: application/vnd.github+json" \
           -H "Authorization: token ${{ steps.generate-token.outputs.token }}"\
@@ -155,9 +156,9 @@ jobs:
                     "package_version": "'"${PACKAGE_VERSION}"'"
                   }
                 }')
-        
-        status_code=$(echo "$response" | jq -r '.status')
-        
+
+        status_code=$(echo "$response" | tail -n 1)
+        echo "$response"
         if [ "$status_code" != "204" ]; then
           echo "Error: Expected status code 204, got $status_code"
           exit 1
