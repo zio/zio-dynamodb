@@ -13,8 +13,8 @@ name: Website
 #    branches:
 #    - series/2.x
   pull_request: {}
-permissions:
-  contents: write
+#permissions:
+#  contents: write
 jobs:
 #  build:
 #    name: Build and Test
