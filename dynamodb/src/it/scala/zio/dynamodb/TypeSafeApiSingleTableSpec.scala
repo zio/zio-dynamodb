@@ -67,8 +67,8 @@ object TypeSafeApiSingleTableSpec extends DynamoDBLocalSpec {
                         )
                         .execute
             _      <- stream.tap(ZIO.debug(_)).runDrain
-            // User(USER:Bob,Order#123,Order(Bob,123,pending,1970-01-01T00:00:00Z))
-            // User(USER:Bob,Order#124,Order(Bob,124,pending,1970-01-01T00:00:00Z))
+            // User(USER:Bob,Order:123,Order(Bob,123,pending,1970-01-01T00:00:00Z))
+            // User(USER:Bob,Order:124,Order(Bob,124,pending,1970-01-01T00:00:00Z))
           } yield assertTrue(true)
         }
 

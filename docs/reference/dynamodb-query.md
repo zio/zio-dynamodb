@@ -29,12 +29,12 @@ The next sections cover the surface area exposed by `DynamoDBQuery`.
 ## `DynamoDBQuery` Combinators and Operations
 
 DynamoDBQuery Combinators | Alias | Description
----|---|---
-map | | map the result of a query with a function
-zip |<*>| combine 2 queries together and returns a tuple - makes the resulting query eligible for automatic batching or parallelisation [see Autobatching and Parallelisation](auto-batching-and-parallelisation) for more details
-zipWith | |does a `zip` and then immediately maps the result with a function
-zipLeft |<*| a zip that ignores the result of the right query
-zipRight|*>| a zip that ignores the result of the left query
+---|-------|---
+map |       | map the result of a query with a function
+zip | `<*>`   | combine 2 queries together and returns a tuple - makes the resulting query eligible for automatic batching or parallelisation [see Autobatching and Parallelisation](auto-batching-and-parallelisation) for more details
+zipWith |       |does a `zip` and then immediately maps the result with a function
+zipLeft | `<*`    | a zip that ignores the result of the right query
+zipRight| `*>`    | a zip that ignores the result of the left query
 
 DynamoDBQuery Functions | Description
 ---|---
