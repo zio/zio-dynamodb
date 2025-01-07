@@ -25,7 +25,7 @@ object OopStyle {
   sealed trait Invoice {
     def id: Int
   }
-  // (1) Intermediate abstraction with abstract fields - not supported by ZIO Schema
+  // (1) Intermediate abstraction with abstract fields - not supported by the ZIO Schema Reified Optics
   sealed trait Billed                                                 extends Invoice {
     def amount: Double
   }
