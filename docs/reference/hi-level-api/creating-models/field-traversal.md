@@ -105,10 +105,10 @@ To illustrate sum type traversal, consider the below model with sum type (sealed
     val (monthly, yearly) = ProjectionExpression.accessors[BilledBody]
   }
 
-  final case class Invoice(int: Int, body: BilledBody)
+  final case class Invoice(id: Int, body: BilledBody)
   object Invoice {
     implicit lazy val schema: Schema.CaseClass2[Int, BilledBody, Invoice] = DeriveSchema.gen[Invoice]
-    val (int, body)                                                       = ProjectionExpression.accessors[Invoice]
+    val (id, body)                                                       = ProjectionExpression.accessors[Invoice]
   }
 ```
 

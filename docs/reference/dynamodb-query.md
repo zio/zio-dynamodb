@@ -57,7 +57,7 @@ selectAllAttributes, selectAllProjectedAttributes, selectSpecificAttributes, sel
 sortOrder | sets the sort order for `Query`'s [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#DDB-Query-request-ScanIndexForward) 
 startKey |Applies to `Query` and `Scan` and specifies the start key for the query. [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#DDB-Query-request-ExclusiveStartKey)
 transaction | executes the query in a transaction - see [Transactions Guide](../guides/transactions) for more details.
-where | sets the `ConditionExpression` - applies to `PutItem`, `DeleteOtem`, `UpdateItem` and `Scan` [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html)
+where | sets the `ConditionExpression` - applies to `PutItem`, `DeleteItem`, `UpdateItem` and `Scan` [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html)
 whereKey | set the `KeyConditionExpr` applies to `QuerySome` and `QueryAll`. [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#DDB-Query-request-KeyConditionExpression) 
 withClientRequestToken | set the client request token` - applies to write transactions [AWS API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactWriteItems.html#DDB-TransactWriteItems-request-ClientRequestToken)
 withRetryPolicy | override the default retry policy for a batched query - [see Autobatching and Parallelisation](auto-batching-and-parallelisation) for more details

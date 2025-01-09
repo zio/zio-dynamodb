@@ -46,7 +46,7 @@ object FPStyle {
   final case class PreBilled(count: Int)                          extends InvoiceBody
 
   // (2) extract product refactoring
-  final case class Invoice(int: Int, body: InvoiceBody)
+  final case class Invoice(id: Int, body: InvoiceBody)
 }
 ```
 
