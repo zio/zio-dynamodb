@@ -29,6 +29,8 @@ private[dynamodb] object DynamodbJsonCodec {
         case AttributeValue.BinarySet(_)  => ???
       }
 
+    def attributeValueToJsonAst(av: AttributeValue): Either[String, Json] = encode(av).toJsonAST
+
     def attributeValueToJsonString(av: AttributeValue): String = encode(av).toJson
 
     def attributeValueToJsonStringPretty(av: AttributeValue): String = encode(av).toJsonPretty

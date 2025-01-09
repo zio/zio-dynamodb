@@ -1,11 +1,12 @@
 package zio.dynamodb.json
 
+import zio.json.ast.Json
 import zio.test.ZIOSpecDefault
 import zio.test.assertTrue
 import zio.schema.{ DeriveSchema, Schema }
 import zio.schema.annotation.discriminatorName
 import zio.test.Spec
-
+import zio.json._
 object SyntaxSpec extends ZIOSpecDefault {
   @discriminatorName("invoiceType")
   sealed trait Invoice
@@ -27,10 +28,24 @@ object SyntaxSpec extends ZIOSpecDefault {
       val jsonString = preBilled.toJsonString[Invoice]
       assertTrue(jsonString == """{"sku":{"S":"sku"},"id":{"S":"id"},"invoiceType":{"S":"PreBilled"}}""")
     },
+    test("encode AST with top level sum type renders discriminator") {
+      val preBilled                                = Invoice.PreBilled("id", "sku")
+      val errorOrAst: Either[String, Json]         = preBilled.toJsonAst[Invoice]
+      val json                                     = """{"sku":{"S":"sku"},"id":{"S":"id"},"invoiceType":{"S":"PreBilled"}}"""
+      val expectedErrorOrAst: Either[String, Json] = json.fromJson[Json]
+      assertTrue(errorOrAst == expectedErrorOrAst)
+    },
     test("encode with concrete type does not render discriminator") {
       val preBilled  = Invoice.PreBilled("id", "sku")
       val jsonString = preBilled.toJsonString
       assertTrue(jsonString == """{"sku":{"S":"sku"},"id":{"S":"id"}}""")
+    },
+    test("encode AST with concrete type does not render discriminator") {
+      val preBilled                                = Invoice.PreBilled("id", "sku")
+      val errorOrAst: Either[String, Json]         = preBilled.toJsonAst
+      val json                                     = """{"sku":{"S":"sku"},"id":{"S":"id"}}"""
+      val expectedErrorOrAst: Either[String, Json] = json.fromJson[Json]
+      assertTrue(errorOrAst == expectedErrorOrAst)
     },
     test("decode with top level sum type") {
       val jsonString     = """{"sku":{"S":"sku"},"id":{"S":"id"},"invoiceType":{"S":"PreBilled"}}"""

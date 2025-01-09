@@ -2,19 +2,23 @@ package zio.dynamodb
 
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.json.DynamodbJsonCodec.Encoder
+import zio.json.ast.Json
 import zio.schema.Schema
 
 package object json {
 
   implicit class AttrMapJsonOps(am: AttrMap) {
-    def toJsonString: String       = Encoder.attributeValueToJsonString(am.toAttributeValue)
-    def toJsonStringPretty: String = Encoder.attributeValueToJsonStringPretty(am.toAttributeValue)
+    def toJsonAst: Either[String, Json] = Encoder.attributeValueToJsonAst(am.toAttributeValue)
+    def toJsonString: String            = Encoder.attributeValueToJsonString(am.toAttributeValue)
+    def toJsonStringPretty: String      = Encoder.attributeValueToJsonStringPretty(am.toAttributeValue)
   }
 
   implicit class ProductJsonOps[A](a: A) {
-    def toJsonString[A2 >: A](implicit ev: Schema[A2]): String       =
+    def toJsonAst[A2 >: A](implicit ev: Schema[A2]): Either[String, Json] =
+      Encoder.attributeValueToJsonAst(toItem[A2](a).toAttributeValue)
+    def toJsonString[A2 >: A](implicit ev: Schema[A2]): String            =
       Encoder.attributeValueToJsonString(toItem[A2](a).toAttributeValue)
-    def toJsonStringPretty[A2 >: A](implicit ev: Schema[A2]): String =
+    def toJsonStringPretty[A2 >: A](implicit ev: Schema[A2]): String      =
       Encoder.attributeValueToJsonStringPretty(toItem[A2](a).toAttributeValue)
   }
 
