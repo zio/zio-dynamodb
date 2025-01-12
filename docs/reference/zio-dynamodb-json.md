@@ -39,6 +39,7 @@ import zio.dynamodb.json._
 
 Method | Description
 --- | ---
+**`toJsonAst`** // extension method | Converts a case class to a ZIO JSON Ast
 **`toJsonString`** // extension method | Converts a case class to a JSON string
 **`toJsonStringPretty`** // extension method | Converts a case class to a pretty printed JSON string
 **`def parse[A: Schema](jsonString: String): Either[DynamoDBError.ItemError, A]`** | takes a JSON string and returns an Either of an error or an `A` 
