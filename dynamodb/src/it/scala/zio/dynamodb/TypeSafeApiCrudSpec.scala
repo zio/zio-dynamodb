@@ -20,7 +20,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
   object PersonMetaData     {
     implicit val schema: Schema.CaseClass2[Option[String], Option[String], PersonMetaData] =
       DeriveSchema.gen[PersonMetaData]
-    val address                                                                            = ProjectionExpression.accessors[PersonMetaData]
+    val (address, postcode)                     = ProjectionExpression.accessors[PersonMetaData]
   }
   case class PersonWithMetaData(id: String, personMetaData: PersonMetaData)
   object PersonWithMetaData {
