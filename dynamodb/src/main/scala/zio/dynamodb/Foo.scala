@@ -28,7 +28,7 @@ type mismatch;
 
 object FooPhantomDoesNotWork {
   trait Batchable[X]
-
+  
   trait HasNoCondition
   trait HasCondition
   trait Query[+A, -R] {
@@ -45,6 +45,8 @@ object FooPhantomDoesNotWork {
 
   implicit val batchable: Batchable[HasNoCondition] = new Batchable[HasNoCondition] {}
   //val y = x.where("foo")
+
+  def foo[Q <: Query[_, _]](q: Q): Unit = ???
 
 }
 
@@ -75,3 +77,4 @@ object ExistentialTypes {
   dogStorage.put(new Dog("Buddy"))
   catStorage.put(new Cat("Whiskers"))
 }
+

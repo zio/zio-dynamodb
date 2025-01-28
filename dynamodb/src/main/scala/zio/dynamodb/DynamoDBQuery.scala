@@ -4,6 +4,7 @@ import zio.dynamodb.DynamoDBError.BatchError
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.DynamoDBError.ItemError.ValueNotFound
 import zio.dynamodb.proofs.{ CanFilter, CanWhere }
+import zio.dynamodb.DynamoDBQuery.PutItemWithoutCondition
 import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery.BatchWriteItem.{ Delete, Put }
 import zio.dynamodb.DynamoDBQuery.{
@@ -31,8 +32,10 @@ import zio.schema.Schema
 import zio.stream.Stream
 import zio.{ Chunk, Schedule, ZIO }
 import scala.annotation.nowarn
+import zio.dynamodb.DynamoDBQuery.PutItemWithCondition
 
 sealed trait DynamoDBQuery[-In, +Out] { self =>
+  type Conditional
 
   final def <*[In1 <: In, B](that: DynamoDBQuery[In1, B]): DynamoDBQuery[In1, Out] = zipLeft(that)
 
@@ -112,7 +115,9 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         q.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
       case q: QuerySome               =>
         q.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
-      case m: PutItem                 =>
+      case m: PutItemWithoutCondition =>
+        m.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
+      case m: PutItemWithCondition    =>
         m.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
       case m: UpdateItem              =>
         m.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
@@ -152,7 +157,9 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Zip(left, right, zippable) => Zip(left.returns(returnValues), right.returns(returnValues), zippable)
       case Map(query, mapper)         => Map(query.returns(returnValues), mapper)
       case Absolve(query)             => Absolve(query.returns(returnValues))
-      case p: PutItem                 =>
+      case p: PutItemWithCondition    =>
+        p.copy(returnValues = returnValues).asInstanceOf[DynamoDBQuery[In, Out]]
+      case p: PutItemWithoutCondition =>
         p.copy(returnValues = returnValues).asInstanceOf[DynamoDBQuery[In, Out]]
       case u: UpdateItem              =>
         u.copy(returnValues = returnValues).asInstanceOf[DynamoDBQuery[In, Out]]
@@ -175,7 +182,27 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case ab @ Absolve(query)              =>
         Absolve(query.where(conditionExpression.asInstanceOf[ConditionExpression[ab.Old]]))
       case p: PutItem                       =>
-        p.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
+        /*
+  private[dynamodb] final case class PutItem(
+    tableName: TableName,
+    item: Item,
+    conditionExpression: Option[ConditionExpression[_]] = None,
+    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
+    itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
+    returnValues: ReturnValues = ReturnValues.None, // PutItem does not recognize any values other than NONE or ALL_OLD.
+    retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
+  ) extends Write[Any, Option[Item]]
+         */
+        PutItemWithCondition(
+          p.tableName,
+          p.item,
+          conditionExpression,
+          p.capacity,
+          p.itemMetrics,
+          p.returnValues,
+          p.retryPolicy
+        ).asInstanceOf[DynamoDBQuery[In, Out]]
+//        p.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case u: UpdateItem                    =>
         u.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case d: DeleteItem                    =>
@@ -189,7 +216,9 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Zip(left, right, zippable) => Zip(left.metrics(itemMetrics), right.metrics(itemMetrics), zippable)
       case Map(query, mapper)         => Map(query.metrics(itemMetrics), mapper)
       case Absolve(query)             => Absolve(query.metrics(itemMetrics))
-      case p: PutItem                 =>
+      case p: PutItemWithCondition    =>
+        p.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[In, Out]]
+      case p: PutItemWithoutCondition =>
         p.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[In, Out]]
       case u: UpdateItem              =>
         u.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[In, Out]]
@@ -367,7 +396,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case Absolve(query)             => Absolve(query.withRetryPolicy(retryPolicy))
       case bw: BatchWriteItem         => bw.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
       case bg: BatchGetItem           => bg.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case p: PutItem                 => p.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case p: PutItemWithoutCondition => p.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case p: PutItemWithCondition    => p.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
       case d: DeleteItem              => d.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
       case g: GetItem                 => g.copy(retryPolicy = Some(retryPolicy)).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                          => self
@@ -433,8 +463,11 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 object DynamoDBQuery {
   import scala.collection.immutable.{ Map => ScalaMap, Set => ScalaSet }
 
-  sealed trait Constructor[-In, +A] extends DynamoDBQuery[In, A]
-  sealed trait Write[-In, +A]       extends Constructor[In, A]
+  trait HasNoCondition[-In, +A]
+
+  sealed trait Constructor[-In, +A]           extends DynamoDBQuery[In, A]
+  sealed trait Write[-In, +A]                 extends Constructor[In, A]
+  sealed trait WriteWithoutCondition[-In, +A] extends Write[In, A]
 
   def succeed[A](a: => A): DynamoDBQuery[Any, A] = Succeed(() => a)
 
@@ -575,7 +608,8 @@ object DynamoDBQuery {
     av.decode(Schema[A])
   }
 
-  def putItem(tableName: String, item: Item): DynamoDBQuery[Any, Option[Item]] = PutItem(TableName(tableName), item)
+  def putItem(tableName: String, item: Item): DynamoDBQuery[Any, Option[Item]] =
+    PutItemWithoutCondition(TableName(tableName), item)
 
   def put[A: Schema](tableName: String, a: A): DynamoDBQuery[A, Option[A]] =
     putItem(tableName, toItem(a)).map(_.flatMap(item => fromItem(item).toOption))
@@ -867,9 +901,9 @@ object DynamoDBQuery {
     addList: Chunk[BatchWriteItem.Write] = Chunk.empty,
     retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
   ) extends Constructor[Any, BatchWriteItem.Response] { self =>
-    def +[A](writeItem: Write[Any, A]): BatchWriteItem =
+    def +[A](writeItem: WriteWithoutCondition[Any, A]): BatchWriteItem =
       writeItem match {
-        case putItem @ PutItem(_, _, _, _, _, _, _)       =>
+        case putItem @ PutItemWithoutCondition(_, _, _, _, _, _) =>
           BatchWriteItem(
             self.requestItems + ((putItem.tableName, Put(putItem.item))),
             self.capacity,
@@ -877,7 +911,7 @@ object DynamoDBQuery {
             self.addList :+ Put(putItem.item),
             self.retryPolicy.orElse(putItem.retryPolicy) // inherit retry policy from PutItem if not set
           )
-        case deleteItem @ DeleteItem(_, _, _, _, _, _, _) =>
+        case deleteItem @ DeleteItem(_, _, _, _, _, _, _)        =>
           BatchWriteItem(
             self.requestItems + ((deleteItem.tableName, Delete(deleteItem.key))),
             self.capacity,
@@ -887,7 +921,7 @@ object DynamoDBQuery {
           )
       }
 
-    def addAll[A](entries: Write[Any, A]*): BatchWriteItem =
+    def addAll[A](entries: WriteWithoutCondition[Any, A]*): BatchWriteItem =
       entries.foldLeft(self) {
         case (batch, write) => batch + write
       }
@@ -1017,15 +1051,39 @@ object DynamoDBQuery {
     ascending: Boolean = true
   ) extends Constructor[Any, Stream[Throwable, Item]]
 
-  private[dynamodb] final case class PutItem(
+  private[dynamodb] sealed trait PutItem extends Write[Any, Option[Item]] {
+    def tableName: TableName
+    def item: Item
+    def conditionExpression: Option[ConditionExpression[_]]
+    def capacity: ReturnConsumedCapacity
+    def itemMetrics: ReturnItemCollectionMetrics
+    def returnValues: ReturnValues
+    def retryPolicy: Option[Schedule[Any, Throwable, Any]]
+  }
+  private[dynamodb] final case class PutItemWithoutCondition(
     tableName: TableName,
     item: Item,
-    conditionExpression: Option[ConditionExpression[_]] = None,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues = ReturnValues.None, // PutItem does not recognize any values other than NONE or ALL_OLD.
     retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
-  ) extends Write[Any, Option[Item]]
+  ) extends PutItem
+      with WriteWithoutCondition[Any, Option[Item]] {
+    def conditionExpression: Option[ConditionExpression[_]] = None
+  }
+
+  final case class PutItemWithCondition(
+    tableName: TableName,
+    item: Item,
+    condition: ConditionExpression[_],
+    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
+    itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
+    returnValues: ReturnValues = ReturnValues.None, // PutItem does not recognize any values other than NONE or ALL_OLD.
+    retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
+  ) extends PutItem
+      with Write[Any, Option[Item]] {
+    def conditionExpression: Option[ConditionExpression[_]] = Some(condition)
+  }
 
   private[dynamodb] final case class UpdateItem(
     tableName: TableName,
@@ -1052,7 +1110,7 @@ object DynamoDBQuery {
     returnValues: ReturnValues =
       ReturnValues.None, // DeleteItem does not recognize any values other than NONE or ALL_OLD.
     retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
-  ) extends Write[Any, Option[Item]]
+  ) extends WriteWithoutCondition[Any, Option[Item]]
 
   private[dynamodb] final case class CreateTable(
     tableName: TableName,
@@ -1091,7 +1149,7 @@ object DynamoDBQuery {
   ): (Chunk[(Constructor[In, Any], Int)], (BatchGetItem, Chunk[Int]), (BatchWriteItem, Chunk[Int])) = {
     type IndexedConstructor = (Constructor[In, Any], Int)
     type IndexedGetItem     = (GetItem, Int)
-    type IndexedWriteItem   = (Write[Any, Option[Any]], Int)
+    type IndexedWriteItem   = (WriteWithoutCondition[Any, Option[Any]], Int)
 
     def projectionsContainPrimaryKey(pes: List[ProjectionExpression[_, _]], pk: PrimaryKey): Boolean = {
       val matchedPrimaryKeys: List[Boolean] = pes.collect {
@@ -1107,26 +1165,28 @@ object DynamoDBQuery {
       constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem], Chunk[IndexedWriteItem])](
         (Chunk.empty, Chunk.empty, Chunk.empty)
       ) {
-        case ((nonBatched, gets, writes), (get @ GetItem(_, pk, pes, _, _, _), index))                              =>
+        case ((nonBatched, gets, writes), (get @ GetItem(_, pk, pes, _, _, _), index))                         =>
           if (isSingleQuery)
             (nonBatched :+ (get -> index), gets, writes)
           else if (projectionsContainPrimaryKey(pes, pk))
             (nonBatched, gets :+ (get -> index), writes)
           else
             (nonBatched :+ (get       -> index), gets, writes)
-        case ((nonBatched, gets, writes), (put @ PutItem(_, _, conditionExpression, _, _, returnValues, _), index)) =>
+        case (
+              (nonBatched, gets, writes),
+              (put @ PutItemWithCondition(_, _, _, _, _, returnValues, _), index)
+            ) =>
           if (isSingleQuery)
             (nonBatched :+ (put -> index), gets, writes)
           else
-            conditionExpression match {
-              case Some(_) =>
-                (nonBatched :+ (put -> index), gets, writes)
-              case None    =>
-                if (returnValues != ReturnValues.None)
-                  (nonBatched :+ (put               -> index), gets, writes)
-                else
-                  (nonBatched, gets, writes :+ (put -> index))
-            }
+            (nonBatched :+ (put -> index), gets, writes)
+        case ((nonBatched, gets, writes), (put @ PutItemWithoutCondition(_, _, _, _, returnValues, _), index)) =>
+          if (isSingleQuery)
+            (nonBatched :+ (put -> index), gets, writes)
+          else if (returnValues != ReturnValues.None)
+            (nonBatched :+ (put               -> index), gets, writes)
+          else
+            (nonBatched, gets, writes :+ (put -> index))
         case (
               (nonBatched, gets, writes),
               (delete @ DeleteItem(_, _, conditionExpression, _, _, returnValues, _), index)
@@ -1143,7 +1203,7 @@ object DynamoDBQuery {
                 else
                   (nonBatched, gets, writes :+ (delete -> index))
             }
-        case ((nonBatched, gets, writes), (nonBatchable, index))                                                    =>
+        case ((nonBatched, gets, writes), (nonBatchable, index))                                               =>
           (nonBatched :+ (nonBatchable -> index), gets, writes)
       }
 
@@ -1248,7 +1308,7 @@ object DynamoDBQuery {
           }
         )
 
-      case putItem @ PutItem(_, _, _, _, _, _, _)             =>
+      case putItem: PutItem                                   =>
         (
           Chunk(putItem),
           (results: Chunk[Any]) => {

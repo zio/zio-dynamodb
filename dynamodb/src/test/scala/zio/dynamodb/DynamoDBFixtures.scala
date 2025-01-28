@@ -1,7 +1,8 @@
 package zio.dynamodb
 
 import zio.Chunk
-import zio.dynamodb.DynamoDBQuery.{ getItem, DeleteItem, GetItem, PutItem }
+import zio.dynamodb.DynamoDBQuery.{ getItem, DeleteItem, GetItem }
+import zio.dynamodb.DynamoDBQuery.PutItemWithoutCondition
 
 //noinspection TypeAnnotation
 trait DynamoDBFixtures {
@@ -28,11 +29,11 @@ trait DynamoDBFixtures {
   val itemT3: Item                 = getItemT3.key
   val itemT3_2: Item               = getItemT3_2.key
 
-  val putItemT1: PutItem       = PutItem(tableName = tableName1, item = primaryKeyT1)
-  val putItemT1_2: PutItem     = PutItem(tableName = tableName1, item = primaryKeyT1_2)
-  val putItemT3_2: PutItem     = PutItem(tableName = tableName3, item = primaryKeyT3_2)
-  val deleteItemT1: DeleteItem = DeleteItem(tableName = tableName1, key = primaryKeyT1)
-  val deleteItemT3: DeleteItem = DeleteItem(tableName = tableName3, key = primaryKeyT3)
+  val putItemT1: PutItemWithoutCondition   = PutItemWithoutCondition(tableName = tableName1, item = primaryKeyT1)
+  val putItemT1_2: PutItemWithoutCondition = PutItemWithoutCondition(tableName = tableName1, item = primaryKeyT1_2)
+  val putItemT3_2: PutItemWithoutCondition = PutItemWithoutCondition(tableName = tableName3, item = primaryKeyT3_2)
+  val deleteItemT1: DeleteItem             = DeleteItem(tableName = tableName1, key = primaryKeyT1)
+  val deleteItemT3: DeleteItem             = DeleteItem(tableName = tableName3, key = primaryKeyT3)
 
   def chunkOfPrimaryKeyAndItem(r: Range, pkFieldName: String): Chunk[(PrimaryKey, Item)] =
     Chunk.fromIterable(r.map(i => (PrimaryKey(pkFieldName -> i), Item(pkFieldName -> i, "k2" -> (i + 1)))).toList)

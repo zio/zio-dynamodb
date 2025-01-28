@@ -611,12 +611,12 @@ object LiveSpec extends DynamoDBLocalSpec {
         },
         test("put item with false where clause") {
           withDefaultTable { tableName =>
-            val putItem = PutItem(
-              tableName = TableName(tableName),
+            val put = putItem(
+              tableName = tableName,
               item = Item(id -> "nothing", number -> 900)
             ).where($("id").beginsWith("false"))
 
-            assertZIO(putItem.execute.exit)(fails(assertDynamoDbException("The conditional request failed")))
+            assertZIO(put.execute.exit)(fails(assertDynamoDbException("The conditional request failed")))
           }
         },
         test("batch get item") {
@@ -1263,7 +1263,7 @@ object LiveSpec extends DynamoDBLocalSpec {
           },
           test("put item") {
             withDefaultTable { tableName =>
-              val putItem = PutItem(
+              val putItem = PutItemWithoutCondition(
                 item = Item(id -> first, name -> avi3, number -> 10),
                 tableName = TableName(tableName)
               )
@@ -1293,13 +1293,13 @@ object LiveSpec extends DynamoDBLocalSpec {
                 tableName = TableName(tableName),
                 conditionExpression = conditionAlwaysTrue
               )
-              val putItem        = PutItem(
+              val put            = putItem(
                 item = Item(id -> first, name -> avi3, number -> 10),
-                tableName = TableName(tableName)
+                tableName = tableName
               )
 
               for {
-                _       <- conditionCheck.zip(putItem).transaction.execute
+                _       <- conditionCheck.zip(put).transaction.execute
                 written <- getItem(tableName, PrimaryKey(id -> first, number -> 10)).execute
               } yield assert(written)(isSome)
             }
@@ -1314,13 +1314,13 @@ object LiveSpec extends DynamoDBLocalSpec {
                   ConditionExpression.Operand.ValueOperand(AttributeValue(first))
                 )
               )
-              val putItem        = PutItem(
+              val putItm        = putItem(
                 item = Item(id -> first, name -> avi3, number -> 10),
-                tableName = TableName(tableName)
+                tableName = tableName
               )
 
               assertZIO(
-                conditionCheck.zip(putItem).transaction.execute.exit
+                conditionCheck.zip(putItm).transaction.execute.exit
               )(
                 fails(
                   assertDynamoDbException(
@@ -1380,9 +1380,9 @@ object LiveSpec extends DynamoDBLocalSpec {
           },
           test("all transaction types at once") {
             withDefaultTable { tableName =>
-              val putItem        = PutItem(
+              val put            = putItem(
                 item = Item(id -> first, name -> avi3, number -> 10),
-                tableName = TableName(tableName)
+                tableName = tableName
               )
               val conditionCheck = ConditionCheck(
                 primaryKey = pk(aviItem),
@@ -1400,7 +1400,7 @@ object LiveSpec extends DynamoDBLocalSpec {
               )
 
               for {
-                _       <- (putItem zip conditionCheck zip updateItem zip deleteItem).transaction.execute
+                _       <- (put zip conditionCheck zip updateItem zip deleteItem).transaction.execute
                 put     <- get(tableName)(Person.id.partitionKey === first && Person.num.sortKey === 10).execute
                 deleted <- get(tableName)(Person.id.partitionKey === first && Person.num.sortKey === 4).execute
                 updated <- get(tableName)(Person.id.partitionKey === first && Person.num.sortKey === 7).execute

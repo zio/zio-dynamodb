@@ -58,7 +58,10 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
       case GetItem(tableName, key, _, _, _, _)                                    =>
         fakeGetItem(tableName, key)
 
-      case PutItem(tableName, item, _, _, _, _, _)                                =>
+      case PutItemWithCondition(tableName, item, _, _, _, _, _)                                =>
+        fakePut(tableName, item)
+
+      case PutItemWithoutCondition(tableName, item, _, _, _, _)                                =>
         fakePut(tableName, item)
 
       // TODO Note UpdateItem is not currently supported as it uses an UpdateExpression
