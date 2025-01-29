@@ -463,11 +463,10 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 object DynamoDBQuery {
   import scala.collection.immutable.{ Map => ScalaMap, Set => ScalaSet }
 
-  trait HasNoCondition[-In, +A]
-
   sealed trait Constructor[-In, +A]           extends DynamoDBQuery[In, A]
+  sealed trait HasNoCondition[-In, +A]        extends Constructor[In, A]
   sealed trait Write[-In, +A]                 extends Constructor[In, A]
-  sealed trait WriteWithoutCondition[-In, +A] extends Write[In, A]
+  sealed trait WriteWithoutCondition[-In, +A] extends Write[In, A] with HasNoCondition[In, A]
 
   def succeed[A](a: => A): DynamoDBQuery[Any, A] = Succeed(() => a)
 
@@ -497,6 +496,11 @@ object DynamoDBQuery {
    * `DynamoDBError.BatchError` should be provided.
    */
   def forEach[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery[In, List[B]] =
+    values.foldRight[DynamoDBQuery[In, List[B]]](succeed(Nil)) {
+      case (a, query) => body(a).zipWith(query)(_ :: _)
+    }
+
+  def forEach2[In, A, B](values: Iterable[A])(body: A => HasNoCondition[In, B]): DynamoDBQuery[In, List[B]] =
     values.foldRight[DynamoDBQuery[In, List[B]]](succeed(Nil)) {
       case (a, query) => body(a).zipWith(query)(_ :: _)
     }
@@ -811,7 +815,7 @@ object DynamoDBQuery {
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
-  ) extends Constructor[Any, Option[Item]]
+  ) extends HasNoCondition[Any, Option[Item]]
 
   private[dynamodb] final case class BatchRetryError() extends Throwable
 
@@ -1051,6 +1055,7 @@ object DynamoDBQuery {
     ascending: Boolean = true
   ) extends Constructor[Any, Stream[Throwable, Item]]
 
+  // TODO: Avi add type params
   private[dynamodb] sealed trait PutItem extends Write[Any, Option[Item]] {
     def tableName: TableName
     def item: Item
@@ -1070,6 +1075,8 @@ object DynamoDBQuery {
   ) extends PutItem
       with WriteWithoutCondition[Any, Option[Item]] {
     def conditionExpression: Option[ConditionExpression[_]] = None
+    // override def where[B, Out](conditionExpression: ConditionExpression[B])(implicit ev: CanWhere[B, Out]): PutItemWithCondition =
+    //   PutItemWithCondition(tableName, item, conditionExpression, capacity, itemMetrics, returnValues, retryPolicy)
   }
 
   final case class PutItemWithCondition(
@@ -1101,6 +1108,7 @@ object DynamoDBQuery {
     conditionExpression: ConditionExpression[_]
   ) extends Constructor[Any, Option[Item]]
 
+  // TODO: Avi - create a variant type without conditionExpression
   private[dynamodb] final case class DeleteItem(
     tableName: TableName,
     key: PrimaryKey,
