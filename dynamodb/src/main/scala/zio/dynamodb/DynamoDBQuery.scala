@@ -500,7 +500,7 @@ object DynamoDBQuery {
       case (a, query) => body(a).zipWith(query)(_ :: _)
     }
 
-  def forEach2[In, A, B](values: Iterable[A])(body: A => HasNoCondition[In, B]): DynamoDBQuery[In, List[B]] =
+  def forEach2[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B] with HasNoCondition[In, B]): DynamoDBQuery[In, List[B]] =
     values.foldRight[DynamoDBQuery[In, List[B]]](succeed(Nil)) {
       case (a, query) => body(a).zipWith(query)(_ :: _)
     }
@@ -617,6 +617,7 @@ object DynamoDBQuery {
 
   def put[A: Schema](tableName: String, a: A): DynamoDBQuery[A, Option[A]] =
     putItem(tableName, toItem(a)).map(_.flatMap(item => fromItem(item).toOption))
+
 
   /**
    * It is common to save the top level sum type to DynamoDB and often we want to save them back as the subtype
