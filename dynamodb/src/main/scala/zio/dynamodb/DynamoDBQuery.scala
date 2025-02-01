@@ -463,10 +463,11 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 object DynamoDBQuery {
   import scala.collection.immutable.{ Map => ScalaMap, Set => ScalaSet }
 
+  sealed trait HasNoCondition
+
   sealed trait Constructor[-In, +A]           extends DynamoDBQuery[In, A]
-  sealed trait HasNoCondition[-In, +A]        extends Constructor[In, A]
   sealed trait Write[-In, +A]                 extends Constructor[In, A]
-  sealed trait WriteWithoutCondition[-In, +A] extends Write[In, A] with HasNoCondition[In, A]
+  sealed trait WriteWithoutCondition[-In, +A] extends Write[In, A] with HasNoCondition
 
   def succeed[A](a: => A): DynamoDBQuery[Any, A] = Succeed(() => a)
 
@@ -500,7 +501,9 @@ object DynamoDBQuery {
       case (a, query) => body(a).zipWith(query)(_ :: _)
     }
 
-  def forEach2[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B] with HasNoCondition[In, B]): DynamoDBQuery[In, List[B]] =
+  def forEach2[In, A, B](
+    values: Iterable[A]
+  )(body: A => DynamoDBQuery[In, B] with HasNoCondition): DynamoDBQuery[In, List[B]] =
     values.foldRight[DynamoDBQuery[In, List[B]]](succeed(Nil)) {
       case (a, query) => body(a).zipWith(query)(_ :: _)
     }
@@ -612,12 +615,12 @@ object DynamoDBQuery {
     av.decode(Schema[A])
   }
 
-  def putItem(tableName: String, item: Item): DynamoDBQuery[Any, Option[Item]] =
+  def putItem(tableName: String, item: Item): DynamoDBQuery[Any, Option[Item]] with HasNoCondition =
     PutItemWithoutCondition(TableName(tableName), item)
 
-  def put[A: Schema](tableName: String, a: A): DynamoDBQuery[A, Option[A]] =
-    putItem(tableName, toItem(a)).map(_.flatMap(item => fromItem(item).toOption))
-
+  def put[A: Schema](tableName: String, a: A): DynamoDBQuery[A, Option[A]] with HasNoCondition = {
+    putItem(tableName, toItem(a)).map(_.flatMap(item => fromItem(item).toOption)).asInstanceOf[DynamoDBQuery[A, Option[A]] with HasNoCondition]
+  }
 
   /**
    * It is common to save the top level sum type to DynamoDB and often we want to save them back as the subtype
@@ -816,7 +819,7 @@ object DynamoDBQuery {
     consistency: ConsistencyMode = ConsistencyMode.Weak,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
-  ) extends HasNoCondition[Any, Option[Item]]
+  ) extends Constructor[Any, Option[Item]]
 
   private[dynamodb] final case class BatchRetryError() extends Throwable
 
@@ -906,7 +909,7 @@ object DynamoDBQuery {
     addList: Chunk[BatchWriteItem.Write] = Chunk.empty,
     retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
   ) extends Constructor[Any, BatchWriteItem.Response] { self =>
-    def +[A](writeItem: WriteWithoutCondition[Any, A]): BatchWriteItem =
+    def +[A](writeItem: Write[Any, A]): BatchWriteItem =
       writeItem match {
         case putItem @ PutItemWithoutCondition(_, _, _, _, _, _) =>
           BatchWriteItem(
@@ -924,9 +927,11 @@ object DynamoDBQuery {
             self.addList :+ Delete(deleteItem.key),
             self.retryPolicy.orElse(deleteItem.retryPolicy) // inherit retry policy from DeleteItem if not set
           )
+        case _ @ PutItemWithCondition(_, _, _, _, _, _, _) =>
+          throw new UnsupportedOperationException("PutItemWithCondition not supported in BatchWriteItem")
       }
 
-    def addAll[A](entries: WriteWithoutCondition[Any, A]*): BatchWriteItem =
+    def addAll[A](entries: Write[Any, A]*): BatchWriteItem =
       entries.foldLeft(self) {
         case (batch, write) => batch + write
       }
@@ -1074,7 +1079,8 @@ object DynamoDBQuery {
     returnValues: ReturnValues = ReturnValues.None, // PutItem does not recognize any values other than NONE or ALL_OLD.
     retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
   ) extends PutItem
-      with WriteWithoutCondition[Any, Option[Item]] {
+      with Write[Any, Option[Item]]
+      with HasNoCondition {
     def conditionExpression: Option[ConditionExpression[_]] = None
     // override def where[B, Out](conditionExpression: ConditionExpression[B])(implicit ev: CanWhere[B, Out]): PutItemWithCondition =
     //   PutItemWithCondition(tableName, item, conditionExpression, capacity, itemMetrics, returnValues, retryPolicy)
@@ -1119,7 +1125,8 @@ object DynamoDBQuery {
     returnValues: ReturnValues =
       ReturnValues.None, // DeleteItem does not recognize any values other than NONE or ALL_OLD.
     retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
-  ) extends WriteWithoutCondition[Any, Option[Item]]
+  ) extends Write[Any, Option[Item]]
+      with HasNoCondition
 
   private[dynamodb] final case class CreateTable(
     tableName: TableName,
@@ -1158,7 +1165,7 @@ object DynamoDBQuery {
   ): (Chunk[(Constructor[In, Any], Int)], (BatchGetItem, Chunk[Int]), (BatchWriteItem, Chunk[Int])) = {
     type IndexedConstructor = (Constructor[In, Any], Int)
     type IndexedGetItem     = (GetItem, Int)
-    type IndexedWriteItem   = (WriteWithoutCondition[Any, Option[Any]], Int)
+    type IndexedWriteItem   = (Write[Any, Option[Any]], Int)
 
     def projectionsContainPrimaryKey(pes: List[ProjectionExpression[_, _]], pk: PrimaryKey): Boolean = {
       val matchedPrimaryKeys: List[Boolean] = pes.collect {
