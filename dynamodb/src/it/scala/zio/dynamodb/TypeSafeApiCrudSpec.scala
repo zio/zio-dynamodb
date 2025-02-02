@@ -65,20 +65,6 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
 
   private val putSuite =
     suite("put")(
-      test("test where") {
-        withSingleIdKeyTable { tableName =>
-          val originalPerson = Person("1", "Smith", Some("John"), 21)
-          val updatedPerson  = Person("1", "Smith", Some("Smith"), 42)
-          val x              = put(tableName, originalPerson).where(Person.surname === "Smith")
-          println(x)
-//          DynamoDBQuery.forEach2(List(1,2))(_ => x)
-          for {
-            _       <- put(tableName, originalPerson).where(Person.surname === "Smith").execute
-            rtrn    <- put(tableName, updatedPerson).returns(ReturnValues.AllOld).execute
-            updated <- get(tableName)(Person.id.partitionKey === "1").execute.absolve
-          } yield assertTrue(rtrn == Some(originalPerson) && updated == updatedPerson)
-        }
-      },
       test("with ALL_OLD return values should return the old item") {
         withSingleIdKeyTable { tableName =>
           val originalPerson = Person("1", "Smith", Some("John"), 21)

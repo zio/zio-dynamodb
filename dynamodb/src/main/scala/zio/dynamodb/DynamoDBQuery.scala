@@ -182,17 +182,6 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case ab @ Absolve(query)              =>
         Absolve(query.where(conditionExpression.asInstanceOf[ConditionExpression[ab.Old]]))
       case p: PutItem                       =>
-        /*
-  private[dynamodb] final case class PutItem(
-    tableName: TableName,
-    item: Item,
-    conditionExpression: Option[ConditionExpression[_]] = None,
-    capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
-    itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
-    returnValues: ReturnValues = ReturnValues.None, // PutItem does not recognize any values other than NONE or ALL_OLD.
-    retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
-  ) extends Write[Any, Option[Item]]
-         */
         PutItemWithCondition(
           p.tableName,
           p.item,
@@ -618,9 +607,10 @@ object DynamoDBQuery {
   def putItem(tableName: String, item: Item): DynamoDBQuery[Any, Option[Item]] with HasNoCondition =
     PutItemWithoutCondition(TableName(tableName), item)
 
-  def put[A: Schema](tableName: String, a: A): DynamoDBQuery[A, Option[A]] with HasNoCondition = {
-    putItem(tableName, toItem(a)).map(_.flatMap(item => fromItem(item).toOption)).asInstanceOf[DynamoDBQuery[A, Option[A]] with HasNoCondition]
-  }
+  def put[A: Schema](tableName: String, a: A): DynamoDBQuery[A, Option[A]] with HasNoCondition =
+    putItem(tableName, toItem(a))
+      .map(_.flatMap(item => fromItem(item).toOption))
+      .asInstanceOf[DynamoDBQuery[A, Option[A]] with HasNoCondition]
 
   /**
    * It is common to save the top level sum type to DynamoDB and often we want to save them back as the subtype
@@ -635,11 +625,11 @@ object DynamoDBQuery {
   def putWithNarrow[From: Schema.Enum, To <: From: Schema](
     tableName: String,
     a: To
-  ): DynamoDBQuery[To, Option[To]] = {
+  ): DynamoDBQuery[To, Option[To]] with HasNoCondition            = {
     val fromEnumSchema = implicitly[Schema.Enum[From]]
     val toSchema       = implicitly[Schema[To]]
     putItem(tableName, toItem(a.asInstanceOf[From])(fromEnumSchema))
-      .map(_.flatMap(item => fromItem(item)(toSchema).toOption))
+      .map(_.flatMap(item => fromItem(item)(toSchema).toOption)).asInstanceOf[DynamoDBQuery[To, Option[To]] with HasNoCondition]
   }
 
   private[dynamodb] def toItem[A](a: A)(implicit schema: Schema[A]): Item =
@@ -927,8 +917,14 @@ object DynamoDBQuery {
             self.addList :+ Delete(deleteItem.key),
             self.retryPolicy.orElse(deleteItem.retryPolicy) // inherit retry policy from DeleteItem if not set
           )
-        case _ @ PutItemWithCondition(_, _, _, _, _, _, _) =>
-          throw new UnsupportedOperationException("PutItemWithCondition not supported in BatchWriteItem")
+        case putItem @ PutItemWithCondition(_, _, _, _, _, _, _) =>
+          BatchWriteItem(
+            self.requestItems + ((putItem.tableName, Put(putItem.item))),
+            self.capacity,
+            self.itemMetrics,
+            self.addList :+ Put(putItem.item),
+            self.retryPolicy.orElse(putItem.retryPolicy) // inherit retry policy from PutItem if not set
+          )
       }
 
     def addAll[A](entries: Write[Any, A]*): BatchWriteItem =
@@ -1061,7 +1057,6 @@ object DynamoDBQuery {
     ascending: Boolean = true
   ) extends Constructor[Any, Stream[Throwable, Item]]
 
-  // TODO: Avi add type params
   private[dynamodb] sealed trait PutItem extends Write[Any, Option[Item]] {
     def tableName: TableName
     def item: Item
