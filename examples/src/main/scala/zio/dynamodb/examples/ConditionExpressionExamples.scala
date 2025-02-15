@@ -38,6 +38,7 @@ object ConditionExpressionExamples {
   val notExists: ConditionExpression[_]  = $("col1").notExists
   val beginsWith: ConditionExpression[_] = $("col1").beginsWith("1")
   val contains: ConditionExpression[_]   = $("col1").contains("1")
+  val containsSet: ConditionExpression[_]   = $("col1").containsSet("1", Set("2"))
   val sizeOnLhs: ConditionExpression[_]  = $("col2").size > 1
   val sizeOnLhs2: ConditionExpression[_] = $("col2").size === 1
   val isType: ConditionExpression[_]     = $("col1").isNumber
