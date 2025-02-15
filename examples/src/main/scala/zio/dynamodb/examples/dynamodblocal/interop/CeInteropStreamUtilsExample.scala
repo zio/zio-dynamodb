@@ -20,7 +20,6 @@ import zio.schema.DeriveSchema
 import zio.schema.Schema
 
 import java.net.URI
-import scala.annotation.nowarn
 
 /**
  * example interop app for stream utils
@@ -30,7 +29,6 @@ import scala.annotation.nowarn
  * zio-dynamodb-examples/runMain zio.dynamodb.examples.dynamodblocal.interop.CeInteropStreamUtilsExample
  * }}}
  */
-@nowarn("msg=never used") // False positive warning in Scala 2.13
 object CeInteropStreamUtilsExample extends IOApp.Simple {
 
   final case class Person(id: String, name: String)
