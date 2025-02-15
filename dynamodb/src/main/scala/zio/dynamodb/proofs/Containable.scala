@@ -13,7 +13,7 @@ trait ContainableLowPriorityImplicits0 extends ContainableLowPriorityImplicits1 
     new Containable[X, ProjectionExpression.Unknown] {}
 }
 trait ContainableLowPriorityImplicits1 {
-  implicit def set[A]: Containable[Set[A], A]                 = new Containable[Set[A], A] {}
+  implicit def set[String]: Containable[Set[String], String]                 = new Containable[Set[String], String] {}
   implicit def list[A]: Containable[List[A], A]               = new Containable[List[A], A] {}
   implicit def string: Containable[String, String]            = new Containable[String, String] {}
   implicit def optString: Containable[Option[String], String] = new Containable[Option[String], String] {}

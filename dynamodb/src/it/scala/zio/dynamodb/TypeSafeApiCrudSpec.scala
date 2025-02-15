@@ -540,7 +540,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "append adds an Address element to addressList field"
+      "append adds an Address element to addressList field with a containsSet condition expression on addressList"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -551,7 +551,11 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           _ <- put(tableName, person).execute
           _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
                  PersonWithCollections.addressList.append(address2)
-               ).execute
+               )
+                 .where(
+                   PersonWithCollections.addressList.containsSet(address1, Set.empty)
+                 )
+                 .execute
           p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == expected)
       }
