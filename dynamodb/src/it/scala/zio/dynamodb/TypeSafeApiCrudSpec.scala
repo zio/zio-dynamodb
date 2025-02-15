@@ -273,6 +273,21 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(p == expected)
       }
     },
+    // TODO: experiment for containsSet
+    test("set's a single field with an update plus a condition expression that addressSet contains a set") {
+      withSingleIdKeyTable { tableName =>
+        val person   = PersonWithCollections("1", "Smith", addressSet = Set("address1"))
+        val expected = PersonWithCollections("1", "Brown", addressSet = Set("address1"))
+        for {
+          _ <- put(tableName, person).execute
+          _ <-
+            update(tableName)(PersonWithCollections.id.partitionKey === "1")(PersonWithCollections.surname.set("Brown"))
+              .where(PersonWithCollections.addressSet.containsSet(Set("")))
+              .execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
     test("set's a single field with an update plus a condition expression that addressSet has size 1") {
       withSingleIdKeyTable { tableName =>
         val person   = PersonWithCollections("1", "Smith", addressSet = Set("address1"))

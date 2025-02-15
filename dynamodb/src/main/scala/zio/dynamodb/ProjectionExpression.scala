@@ -245,6 +245,9 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
       ConditionExpression.Contains(self, to.toAttributeValue(av))
     }
 
+    def containsSet[A](a: Set[A])(implicit ev: Containable[To, A], to: ToAttributeValue[A]): ConditionExpression[From] =
+      ???
+
     /**
      * adds this value as a number attribute if it does not exists, else adds the numeric value to the existing attribute
      */
