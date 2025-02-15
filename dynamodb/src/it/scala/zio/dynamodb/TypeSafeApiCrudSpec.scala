@@ -45,13 +45,16 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
     surname: String,
     addressList: List[Address] = List.empty,
     addressMap: Map[String, Address] = Map.empty,
-    addressSet: Set[String] = Set.empty
+    addressSet: Set[String] = Set.empty,
+    emails: List[String] = List.empty
   )
   object PersonWithCollections {
-    implicit val schema
-      : Schema.CaseClass5[String, String, List[Address], Map[String, Address], Set[String], PersonWithCollections] =
+    implicit val schema: Schema.CaseClass6[String, String, List[Address], Map[String, Address], Set[String], List[
+      String
+    ], PersonWithCollections]                                      =
       DeriveSchema.gen[PersonWithCollections]
-    val (id, surname, addressList, addressMap, addressSet)                                                         = ProjectionExpression.accessors[PersonWithCollections]
+    val (id, surname, addressList, addressMap, addressSet, emails) =
+      ProjectionExpression.accessors[PersonWithCollections]
   }
 
   override def spec: Spec[Environment with Scope, Any] =
@@ -268,6 +271,21 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           _ <-
             update(tableName)(PersonWithCollections.id.partitionKey === "1")(PersonWithCollections.surname.set("Brown"))
               .where(PersonWithCollections.addressSet.contains("address1"))
+              .execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test("set's a single field with an update plus a condition expression that emails contains a set") {
+      withSingleIdKeyTable { tableName =>
+        val person      = PersonWithCollections("1", "Smith", emails = List("email1", "email2", "email3"))
+        val expected    = PersonWithCollections("1", "Brown", emails = List("email1", "email2", "email3"))
+        val nonEmptySet = zio.prelude.NonEmptySet("email1", "email2", "email3")
+        for {
+          _ <- put(tableName, person).execute
+          _ <-
+            update(tableName)(PersonWithCollections.id.partitionKey === "1")(PersonWithCollections.surname.set("Brown"))
+              .where(PersonWithCollections.emails.containsSet(nonEmptySet.head, nonEmptySet.tail.toSet))
               .execute
           p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == expected)
