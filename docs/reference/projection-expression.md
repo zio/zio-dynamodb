@@ -62,7 +62,8 @@ Once we have a `ProjectionExpression` we can use it as a springboard to create f
  <br/><br/>            | `beginsWith`         | Only applies to string attributes
  <br/><br/>            | `inSet`              | returns true if the attribute is in the supplied set
  <br/><br/>            | `in(a, b, c ...)`    | returns true if the attribute matches one of the supplied values
-<br/><br/>            | `contains`           | returns true if the attribute contains the supplied value - applies to a String or a Set
+<br/><br/>            | `contains`           | returns true if the attribute contains the supplied value - applies to a String, Set, List
+<br/><br/>            | `containsSet`        | returns true if the attribute contains the supplied set - applies to a String, Set, List. Creates a composite condition expression consisting of multiple `contains` expressions joined by an `and`
 `UpdateExpression`| `+`                  | combines update actions eg `Person.name.set(42) + Person.age.set(42)`  
 <br/><br/>            | `set`                | Set an attribute `Person.name.set("John")`                                                                         
 <br/><br/>            | `setIfNotExists`     | Set attribute if it does not exists `Person.name.setIfNotExists("John")`                                           
