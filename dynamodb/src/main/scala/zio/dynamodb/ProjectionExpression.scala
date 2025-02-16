@@ -245,6 +245,10 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
       ConditionExpression.Contains(self, to.toAttributeValue(a))
     }
 
+    /**
+     * Applies fields of type Set, List, String and creates a composite of `contains` ConditionExpression's
+     * for each element (head plus tail)
+     */
     def containsSet[A](head: A, tail: Set[A])(implicit
       ev: Containable[To, A],
       to: ToAttributeValue[A]
@@ -442,6 +446,10 @@ trait ProjectionExpressionLowPriorityImplicits1 {
     def contains[To2](av: To2)(implicit to: ToAttributeValue[To2]): ConditionExpression[From] =
       ConditionExpression.Contains(self, to.toAttributeValue(av))
 
+    /**
+     * Applies fields of type Set, List, String and creates a composite of `contains` ConditionExpression's
+     * for each element (head plus tail)
+     */
     def containsSet[To2](headAv: To2, tail: Set[To2])(implicit to: ToAttributeValue[To2]): ConditionExpression[From] =
       tail.foldLeft(contains(headAv))((acc, a) => acc && contains(a))
 
@@ -651,6 +659,10 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
     def contains[To](av: To)(implicit to: ToAttributeValue[To]): ConditionExpression[From] =
       ConditionExpression.Contains(self, to.toAttributeValue(av))
 
+    /**
+     * Applies fields of type Set, List, String and creates a composite of `contains` ConditionExpression's
+     * for each element (head plus tail)
+     */
     def containsSet[To](headAv: To, tail: Set[To])(implicit to: ToAttributeValue[To]): ConditionExpression[From] =
       tail.foldLeft(contains(headAv))((acc, a) => acc && contains(a))
 

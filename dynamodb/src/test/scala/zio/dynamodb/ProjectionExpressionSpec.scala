@@ -436,7 +436,9 @@ object ProjectionExpressionSpec extends ZIOSpecDefault {
         },
         test("set containsSet with multiple elements") {
           val ex = $("groups").containsSet("group1", Set("group2", "group3"))
-          assertTrue(ex.toString == "And(And(Contains(groups,String(group1)),Contains(groups,String(group2))),Contains(groups,String(group3)))")
+          assertTrue(
+            ex.toString == "And(And(Contains(groups,String(group1)),Contains(groups,String(group2))),Contains(groups,String(group3)))"
+          )
         }
       )
 
