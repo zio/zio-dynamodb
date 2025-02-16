@@ -5,7 +5,7 @@ import zio.dynamodb.ProjectionExpression
 import scala.annotation.implicitNotFound
 
 @implicitNotFound(
-  "DynamoDB does not support [${X}].contains([${A}]). This operator only applies to native Sets, Lists, String and Option[String]"
+  "DynamoDB does not support [${X}].contains([${A}]). This operator only applies to Sets, Lists, String and Option[String]"
 )
 sealed trait Containable[X, -A]
 trait ContainableLowPriorityImplicits0 extends ContainableLowPriorityImplicits1 {
@@ -13,10 +13,13 @@ trait ContainableLowPriorityImplicits0 extends ContainableLowPriorityImplicits1 
     new Containable[X, ProjectionExpression.Unknown] {}
 }
 trait ContainableLowPriorityImplicits1 {
-  implicit def set[String]: Containable[Set[String], String]  = new Containable[Set[String], String] {}
+  implicit def set[A]: Containable[Set[A], A]                 = new Containable[Set[A], A] {}
   implicit def list[A]: Containable[List[A], A]               = new Containable[List[A], A] {}
   implicit def string: Containable[String, String]            = new Containable[String, String] {}
   implicit def optString: Containable[Option[String], String] = new Containable[Option[String], String] {}
+}
+trait ContainableLowPriorityImplicits2 extends ContainableLowPriorityImplicits1 {
+  implicit def stringSet[String]: Containable[Set[String], String] = new Containable[Set[String], String] {}
 }
 object Containable                     extends ContainableLowPriorityImplicits0 {
   implicit def unknownLeft[X]: Containable[ProjectionExpression.Unknown, X] =

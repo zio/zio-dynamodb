@@ -34,19 +34,19 @@ object ConditionExpressionExamples {
   val avToCond1: ConditionExpression[_]     = AttributeValue("2") > $("col1")
   val avToCond2: ConditionExpression[_]     = AttributeValue("2") < $("col1")
 
-  val exists: ConditionExpression[_]     = $("col1").exists
-  val notExists: ConditionExpression[_]  = $("col1").notExists
-  val beginsWith: ConditionExpression[_] = $("col1").beginsWith("1")
-  val contains: ConditionExpression[_]   = $("col1").contains("1")
-  val containsSet: ConditionExpression[_]   = $("col1").containsSet("1", Set("2"))
-  val sizeOnLhs: ConditionExpression[_]  = $("col2").size > 1
-  val sizeOnLhs2: ConditionExpression[_] = $("col2").size === 1
-  val isType: ConditionExpression[_]     = $("col1").isNumber
-  val between: ConditionExpression[_]    = $("col1").between(1, 2)
-  val in: ConditionExpression[_]         = $("col1").in(1, 2)
-  val expnAnd: ConditionExpression[_]    = beginsWith && sizeOnLhs
-  val expnOr: ConditionExpression[_]     = beginsWith || sizeOnLhs
-  val expnNot: ConditionExpression[_]    = !beginsWith
+  val exists: ConditionExpression[_]      = $("col1").exists
+  val notExists: ConditionExpression[_]   = $("col1").notExists
+  val beginsWith: ConditionExpression[_]  = $("col1").beginsWith("1")
+  val contains: ConditionExpression[_]    = $("col1").contains("1")
+  val containsSet: ConditionExpression[_] = $("col1").containsSet("1", Set("2", "3"))
+  val sizeOnLhs: ConditionExpression[_]   = $("col2").size > 1
+  val sizeOnLhs2: ConditionExpression[_]  = $("col2").size === 1
+  val isType: ConditionExpression[_]      = $("col1").isNumber
+  val between: ConditionExpression[_]     = $("col1").between(1, 2)
+  val in: ConditionExpression[_]          = $("col1").in(1, 2)
+  val expnAnd: ConditionExpression[_]     = beginsWith && sizeOnLhs
+  val expnOr: ConditionExpression[_]      = beginsWith || sizeOnLhs
+  val expnNot: ConditionExpression[_]     = !beginsWith
 
   val peNeVal: ConditionExpression[_]   = $("col1") <> 1
   val peLtVal: ConditionExpression[_]   = $("col1") < 1
