@@ -259,7 +259,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         assertZIO(exit)(fails(isConditionalCheckFailedException))
       }
     },
-    test("set's a single field with an update plus a condition expression that addressSet contains an element") {
+    test("set's a single field with an update with a condition expression that addressSet contains an element") {
       withSingleIdKeyTable { tableName =>
         val person   = PersonWithCollections("1", "Smith", addressSet = Set("address1"))
         val expected = PersonWithCollections("1", "Brown", addressSet = Set("address1"))
@@ -273,7 +273,37 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(p == expected)
       }
     },
-    test("set's a single field with an update plus a condition expression that addressSet has size 1") {
+    test("set's a single field with an with with a condition expression that addressSet contains a set") {
+      withSingleIdKeyTable { tableName =>
+        val person      = PersonWithCollections("1", "Smith", addressSet = Set("address1", "address2", "address3"))
+        val expected    = PersonWithCollections("1", "Brown", addressSet = Set("address1", "address2", "address3"))
+        val nonEmptySet = zio.prelude.NonEmptySet("address1", "address2", "address3")
+        for {
+          _ <- put(tableName, person).execute
+          _ <-
+            update(tableName)(PersonWithCollections.id.partitionKey === "1")(PersonWithCollections.surname.set("Brown"))
+              .where(PersonWithCollections.addressSet.containsSet(nonEmptySet.head, nonEmptySet.tail.toSet))
+              .execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test("set's a single field with an update with a condition expression that surname contains a set") {
+      withSingleIdKeyTable { tableName =>
+        val person      = PersonWithCollections("1", "Smith", addressSet = Set("address1", "address2", "address3"))
+        val expected    = PersonWithCollections("1", "Brown", addressSet = Set("address1", "address2", "address3"))
+        val nonEmptySet = zio.prelude.NonEmptySet("S", "mi", "h")
+        for {
+          _ <- put(tableName, person).execute
+          _ <-
+            update(tableName)(PersonWithCollections.id.partitionKey === "1")(PersonWithCollections.surname.set("Brown"))
+              .where(PersonWithCollections.surname.containsSet(nonEmptySet.head, nonEmptySet.tail.toSet))
+              .execute
+          p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
+        } yield assertTrue(p == expected)
+      }
+    },
+    test("set's a single field with an update with a condition expression that addressSet has size 1") {
       withSingleIdKeyTable { tableName =>
         val person   = PersonWithCollections("1", "Smith", addressSet = Set("address1"))
         val expected = PersonWithCollections("1", "Brown", addressSet = Set("address1"))
@@ -302,7 +332,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "set's a single field with an update plus a condition expression that optional forename contains a substring"
+      "set's a single field with an update with a condition expression that optional forename contains a substring"
     ) {
       withSingleIdKeyTable { tableName =>
         val person   = Person("1", "Smith", Some("John"), 21)
@@ -507,7 +537,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "append adds an Address element to addressList field"
+      "append adds an Address element to addressList field with a containsSet condition expression on addressList"
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -518,7 +548,11 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           _ <- put(tableName, person).execute
           _ <- update(tableName)(PersonWithCollections.id.partitionKey === "1")(
                  PersonWithCollections.addressList.append(address2)
-               ).execute
+               )
+                 .where(
+                   PersonWithCollections.addressList.containsSet(address1, Set.empty)
+                 )
+                 .execute
           p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == expected)
       }

@@ -240,10 +240,20 @@ trait ProjectionExpressionLowPriorityImplicits0 extends ProjectionExpressionLowP
     /**
      * Applies to a String or Set
      */
-    def contains[A](av: A)(implicit ev: Containable[To, A], to: ToAttributeValue[A]): ConditionExpression[From] = {
+    def contains[A](a: A)(implicit ev: Containable[To, A], to: ToAttributeValue[A]): ConditionExpression[From] = {
       val _ = ev
-      ConditionExpression.Contains(self, to.toAttributeValue(av))
+      ConditionExpression.Contains(self, to.toAttributeValue(a))
     }
+
+    /**
+     * Applies fields of type Set, List, String and creates a composite of `contains` ConditionExpression's
+     * for each element (head plus tail) that are joined with an `&&` (and)
+     */
+    def containsSet[A](head: A, tail: Set[A])(implicit
+      ev: Containable[To, A],
+      to: ToAttributeValue[A]
+    ): ConditionExpression[From] =
+      tail.foldLeft(contains(head))((acc, a) => acc && contains(a))
 
     /**
      * adds this value as a number attribute if it does not exists, else adds the numeric value to the existing attribute
@@ -435,6 +445,13 @@ trait ProjectionExpressionLowPriorityImplicits1 {
      */
     def contains[To2](av: To2)(implicit to: ToAttributeValue[To2]): ConditionExpression[From] =
       ConditionExpression.Contains(self, to.toAttributeValue(av))
+
+    /**
+     * Applies fields of type Set, List, String and creates a composite of `contains` ConditionExpression's
+     * for each element (head plus tail) that are joined with an `&&` (and)
+     */
+    def containsSet[To2](headAv: To2, tail: Set[To2])(implicit to: ToAttributeValue[To2]): ConditionExpression[From] =
+      tail.foldLeft(contains(headAv))((acc, a) => acc && contains(a))
 
     /**
      * adds a number attribute if it does not exists, else adds the numeric value to the existing attribute
@@ -641,6 +658,13 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits0 {
      */
     def contains[To](av: To)(implicit to: ToAttributeValue[To]): ConditionExpression[From] =
       ConditionExpression.Contains(self, to.toAttributeValue(av))
+
+    /**
+     * Applies fields of type Set, List, String and creates a composite of `contains` ConditionExpression's
+     * for each element (head plus tail) that are joined with an `&&` (and)
+     */
+    def containsSet[To](headAv: To, tail: Set[To])(implicit to: ToAttributeValue[To]): ConditionExpression[From] =
+      tail.foldLeft(contains(headAv))((acc, a) => acc && contains(a))
 
     /**
      * adds a number attribute if it does not exists, else adds the numeric value to the existing attribute

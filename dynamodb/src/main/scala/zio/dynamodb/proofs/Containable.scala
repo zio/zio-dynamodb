@@ -5,7 +5,7 @@ import zio.dynamodb.ProjectionExpression
 import scala.annotation.implicitNotFound
 
 @implicitNotFound(
-  "DynamoDB does not support [${X}].contains([${A}]). This operator takes a String argument and only applies to Sets, String and Option[String]"
+  "DynamoDB does not support [${X}].contains([${A}]). This operator only applies to Sets, Lists, String and Option[String]"
 )
 sealed trait Containable[X, -A]
 trait ContainableLowPriorityImplicits0 extends ContainableLowPriorityImplicits1 {
@@ -14,6 +14,7 @@ trait ContainableLowPriorityImplicits0 extends ContainableLowPriorityImplicits1 
 }
 trait ContainableLowPriorityImplicits1 {
   implicit def set[A]: Containable[Set[A], A]                 = new Containable[Set[A], A] {}
+  implicit def list[A]: Containable[List[A], A]               = new Containable[List[A], A] {}
   implicit def string: Containable[String, String]            = new Containable[String, String] {}
   implicit def optString: Containable[Option[String], String] = new Containable[Option[String], String] {}
 }
