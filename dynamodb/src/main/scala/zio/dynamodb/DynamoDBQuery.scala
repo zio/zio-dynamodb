@@ -456,7 +456,7 @@ object DynamoDBQuery {
 
   sealed trait Constructor[-In, +A]           extends DynamoDBQuery[In, A]
   sealed trait Write[-In, +A]                 extends Constructor[In, A]
-  sealed trait WriteWithoutCondition[-In, +A] extends Write[In, A] with HasNoCondition
+//  sealed trait WriteWithoutCondition[-In, +A] extends Write[In, A] with HasNoCondition
 
   def succeed[A](a: => A): DynamoDBQuery[Any, A] = Succeed(() => a)
 
