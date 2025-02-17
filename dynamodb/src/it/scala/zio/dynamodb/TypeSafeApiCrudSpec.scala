@@ -259,7 +259,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         assertZIO(exit)(fails(isConditionalCheckFailedException))
       }
     },
-    test("set's a single field with an update plus a condition expression that addressSet contains an element") {
+    test("set's a single field with an update with a condition expression that addressSet contains an element") {
       withSingleIdKeyTable { tableName =>
         val person   = PersonWithCollections("1", "Smith", addressSet = Set("address1"))
         val expected = PersonWithCollections("1", "Brown", addressSet = Set("address1"))
@@ -273,7 +273,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(p == expected)
       }
     },
-    test("set's a single field with an update plus a condition expression that addressSet contains a set") {
+    test("set's a single field with an with with a condition expression that addressSet contains a set") {
       withSingleIdKeyTable { tableName =>
         val person      = PersonWithCollections("1", "Smith", addressSet = Set("address1", "address2", "address3"))
         val expected    = PersonWithCollections("1", "Brown", addressSet = Set("address1", "address2", "address3"))
@@ -288,7 +288,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(p == expected)
       }
     },
-    test("set's a single field with an update plus a condition expression that surname contains a set") {
+    test("set's a single field with an update with a condition expression that surname contains a set") {
       withSingleIdKeyTable { tableName =>
         val person      = PersonWithCollections("1", "Smith", addressSet = Set("address1", "address2", "address3"))
         val expected    = PersonWithCollections("1", "Brown", addressSet = Set("address1", "address2", "address3"))
@@ -303,7 +303,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(p == expected)
       }
     },
-    test("set's a single field with an update plus a condition expression that addressSet has size 1") {
+    test("set's a single field with an update with a condition expression that addressSet has size 1") {
       withSingleIdKeyTable { tableName =>
         val person   = PersonWithCollections("1", "Smith", addressSet = Set("address1"))
         val expected = PersonWithCollections("1", "Brown", addressSet = Set("address1"))
@@ -332,7 +332,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "set's a single field with an update plus a condition expression that optional forename contains a substring"
+      "set's a single field with an update with a condition expression that optional forename contains a substring"
     ) {
       withSingleIdKeyTable { tableName =>
         val person   = Person("1", "Smith", Some("John"), 21)
