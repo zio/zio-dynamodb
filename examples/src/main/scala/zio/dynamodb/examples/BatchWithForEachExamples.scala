@@ -14,9 +14,9 @@ object BatchWithForEachExamples {
   }
 
   /*
-  Problem is interaction between DynamoDBQuery and HasNoCondition is not equivalent
+  Problem is interaction between DynamoDBQuery and HasNoCondition is not equivalent ???? is this really a problem ?
    */
-  val query = DynamoDBQuery.forEach2(List(1, 2)) { i =>
+  val query: DynamoDBQuery[Person, List[Option[Person]]] = DynamoDBQuery.forEach2(List(1, 2)) { i =>
     DynamoDBQuery.put("table", Person(i, s"Person$i"))
   }
 }
