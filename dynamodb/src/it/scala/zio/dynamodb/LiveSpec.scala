@@ -1263,14 +1263,14 @@ object LiveSpec extends DynamoDBLocalSpec {
           },
           test("put item") {
             withDefaultTable { tableName =>
-              val putItem = PutItemWithoutCondition(
+              val putItm = putItem(
                 item = Item(id -> first, name -> avi3, number -> 10),
-                tableName = TableName(tableName)
+                tableName = tableName
               )
               for {
-                _ <- putItem.transaction.execute
+                _ <- putItm.transaction.execute
                 written <- getItem(tableName, PrimaryKey(id -> first, number -> 10)).execute
-              } yield assert(written)(isSome(equalTo(putItem.item)))
+              } yield assert(written)(isSome(equalTo(putItm.item)))
             }
           },
           test("conditionCheck should handle keyword") {
@@ -1288,12 +1288,12 @@ object LiveSpec extends DynamoDBLocalSpec {
           },
           test("condition check succeeds") {
             withDefaultTable { tableName =>
-              val conditionCheck = ConditionCheck(
+              val conditionCheck                        = ConditionCheck(
                 primaryKey = pk(avi3Item),
                 tableName = TableName(tableName),
                 conditionExpression = conditionAlwaysTrue
               )
-              val put            = putItem(
+              val put: DynamoDBQuery[Any, Option[Item]] = putItem(
                 item = Item(id -> first, name -> avi3, number -> 10),
                 tableName = tableName
               )
@@ -1314,7 +1314,7 @@ object LiveSpec extends DynamoDBLocalSpec {
                   ConditionExpression.Operand.ValueOperand(AttributeValue(first))
                 )
               )
-              val putItm        = putItem(
+              val putItm         = putItem(
                 item = Item(id -> first, name -> avi3, number -> 10),
                 tableName = tableName
               )

@@ -454,8 +454,8 @@ object DynamoDBQuery {
 
   sealed trait HasNoCondition
 
-  sealed trait Constructor[-In, +A]           extends DynamoDBQuery[In, A]
-  sealed trait Write[-In, +A]                 extends Constructor[In, A]
+  sealed trait Constructor[-In, +A] extends DynamoDBQuery[In, A]
+  sealed trait Write[-In, +A]       extends Constructor[In, A]
 //  sealed trait WriteWithoutCondition[-In, +A] extends Write[In, A] with HasNoCondition
 
   def succeed[A](a: => A): DynamoDBQuery[Any, A] = Succeed(() => a)
@@ -604,7 +604,7 @@ object DynamoDBQuery {
     av.decode(Schema[A])
   }
 
-  def putItem(tableName: String, item: Item): DynamoDBQuery[Any, Option[Item]] with HasNoCondition =
+  def putItem(tableName: String, item: Item): PutItemWithoutCondition =
     PutItemWithoutCondition(TableName(tableName), item)
 
   def put[A: Schema](tableName: String, a: A): DynamoDBQuery[A, Option[A]] with HasNoCondition =
@@ -625,11 +625,12 @@ object DynamoDBQuery {
   def putWithNarrow[From: Schema.Enum, To <: From: Schema](
     tableName: String,
     a: To
-  ): DynamoDBQuery[To, Option[To]] with HasNoCondition            = {
+  ): DynamoDBQuery[To, Option[To]] with HasNoCondition = {
     val fromEnumSchema = implicitly[Schema.Enum[From]]
     val toSchema       = implicitly[Schema[To]]
     putItem(tableName, toItem(a.asInstanceOf[From])(fromEnumSchema))
-      .map(_.flatMap(item => fromItem(item)(toSchema).toOption)).asInstanceOf[DynamoDBQuery[To, Option[To]] with HasNoCondition]
+      .map(_.flatMap(item => fromItem(item)(toSchema).toOption))
+      .asInstanceOf[DynamoDBQuery[To, Option[To]] with HasNoCondition]
   }
 
   private[dynamodb] def toItem[A](a: A)(implicit schema: Schema[A]): Item =
