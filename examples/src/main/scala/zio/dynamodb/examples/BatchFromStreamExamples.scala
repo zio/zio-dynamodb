@@ -7,6 +7,8 @@ import zio.stream.{ UStream, ZStream }
 import zio.ZIOAppDefault
 import zio.Console.printLine
 import zio.ZIO
+import zio.dynamodb.batchWriteFromStream2
+import zio.dynamodb.DynamoDBQuery.deleteFrom
 
 object BatchFromStreamExamples extends ZIOAppDefault {
 
@@ -38,9 +40,14 @@ object BatchFromStreamExamples extends ZIOAppDefault {
              .mapZIOPar(4)(item => printLine(s"item=$item"))
              .runDrain
 
-      // same again but use Schema derived codecs to convert an Item to a Person
-      _ <- batchReadFromStream2("person", personIdStream)(id => Person.id.partitionKey === id)
-             .mapZIOPar(4)(person => printLine(s"person=$person"))
+      _ <- batchWriteFromStream(personStream) {
+             person => // TODO: Avi - DeleteItem extends HasNoCondition + batchWriteFromStream2
+               deleteFrom("person")(Person.id.partitionKey === person.id)
+           }.runDrain
+
+      _ <- batchReadItemFromStream("person", personIdStream)(id => PrimaryKey("id" -> id))
+             .mapZIOPar(4)(item => printLine(s"item=$item"))
              .runDrain
+
     } yield ()).provideLayer(DynamoDBExecutor.test)
 }

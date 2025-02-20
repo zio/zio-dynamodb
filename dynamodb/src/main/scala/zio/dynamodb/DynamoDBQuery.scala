@@ -1185,10 +1185,7 @@ object DynamoDBQuery {
             (nonBatched, gets :+ (get -> index), writes)
           else
             (nonBatched :+ (get       -> index), gets, writes)
-        case (
-              (nonBatched, gets, writes),
-              (put @ PutItemWithCondition(_, _, _, _, _, returnValues, _), index)
-            ) =>
+        case ((nonBatched, gets, writes), (put @ PutItemWithCondition(_, _, _, _, _, returnValues, _), index)) =>
           if (isSingleQuery)
             (nonBatched :+ (put -> index), gets, writes)
           else
