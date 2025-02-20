@@ -674,7 +674,7 @@ object LiveSpec extends DynamoDBLocalSpec {
             numberTable,
             tableName =>
               for {
-                _      <- batchWriteFromStream(ZStream.fromIterable(1 to 10000).map(i => Item(id -> i))) { item =>
+                _      <- batchWriteFromStream2(ZStream.fromIterable(1 to 10000).map(i => Item(id -> i))) { item =>
                             putItem(tableName, item)
                           }.runDrain
                 stream <- scanAllItem(tableName).parallel(8).execute
@@ -688,7 +688,7 @@ object LiveSpec extends DynamoDBLocalSpec {
             tableName =>
               for {
                 _      <-
-                  batchWriteFromStream(
+                  batchWriteFromStream2(
                     ZStream.fromIterable(1 to 10000).map(i => Item(id -> i.toString, number -> i, name -> i.toString))
                   ) { item =>
                     putItem(tableName, item)

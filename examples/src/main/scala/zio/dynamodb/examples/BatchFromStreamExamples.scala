@@ -28,7 +28,7 @@ object BatchFromStreamExamples extends ZIOAppDefault {
       // write to DB using the stream as the source of the data to write
       // note put query uses type safe API to save a Person case class directly using Schema derived codecs
       // write queries will automatically be batched using BatchWriteItem when calling DynamoDB
-      _ <- batchWriteFromStream(personStream) { person =>
+      _ <- batchWriteFromStream2(personStream) { person =>
              put("person", Person(person.id, person.name))
            }.runDrain
 
@@ -39,7 +39,7 @@ object BatchFromStreamExamples extends ZIOAppDefault {
              .runDrain
 
       // same again but use Schema derived codecs to convert an Item to a Person
-      _ <- batchReadFromStream("person", personIdStream)(id => Person.id.partitionKey === id)
+      _ <- batchReadFromStream2("person", personIdStream)(id => Person.id.partitionKey === id)
              .mapZIOPar(4)(person => printLine(s"person=$person"))
              .runDrain
     } yield ()).provideLayer(DynamoDBExecutor.test)

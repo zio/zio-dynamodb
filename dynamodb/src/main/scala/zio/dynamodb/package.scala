@@ -3,6 +3,7 @@ package zio
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.schema.Schema
 import zio.stream.{ ZSink, ZStream }
+import zio.dynamodb.DynamoDBQuery.HasNoCondition
 
 package object dynamodb {
   // Filter expression is the same as a ConditionExpression but when used with Query but does not allow key attributes
@@ -46,6 +47,25 @@ package object dynamodb {
       .mapZIOPar(mPar) { chunk =>
         val batchWriteItem = DynamoDBQuery
           .forEach(chunk)(a => f(a))
+          .map(Chunk.fromIterable)
+        for {
+          r <- ZIO.environment[DynamoDBExecutor]
+          b <- batchWriteItem.execute.provideEnvironment(r)
+        } yield b
+      }
+      .flattenChunks
+
+  def batchWriteFromStream2[R, A, In, B](
+    stream: ZStream[R, Throwable, A],
+    mPar: Int = 10
+  )(
+    f: A => DynamoDBQuery[In, B] with HasNoCondition
+  ): ZStream[DynamoDBExecutor with R, Throwable, B] =
+    stream
+      .aggregateAsync(ZSink.collectAllN[A](25))
+      .mapZIOPar(mPar) { chunk =>
+        val batchWriteItem = DynamoDBQuery
+          .forEach2(chunk)(a => f(a))
           .map(Chunk.fromIterable)
         for {
           r <- ZIO.environment[DynamoDBExecutor]
@@ -128,6 +148,52 @@ package object dynamodb {
                 case Left(ItemError.ValueNotFound(_))     => Right((a, None))
                 case Left(e @ ItemError.DecodingError(_)) => Left(e)
               }
+            }
+            .map(Chunk.fromIterable)
+        for {
+          r <- ZIO.environment[DynamoDBExecutor]
+          list <- batchGetItem.execute.provideEnvironment(r)
+        } yield list
+      }
+      .flattenChunks
+
+  /**
+   * Reads `stream` using function `pk` to determine the primary key which is then used to create a BatchGetItem request.
+   * Stream is batched into groups of 100 items in a BatchGetItem and executed using the provided `DynamoDBExecutor` service
+   *
+   * Returns a tuple of (A, Option[B]) where the option is None if the item is not found - this enables "LEFT outer
+   * join" like functionality
+   *
+   * @param tableName
+   * @param stream
+   * @param mPar Level of parallelism for the stream processing
+   * @param pk Function to determine the primary key
+   * @tparam R Environment
+   * @tparam A Input stream element type
+   * @tparam From implicit Schema[From] where From is the type of the element in the returned stream
+   * @return stream of Either[DynamoDBError.DecodingError, (A, Option[B])]
+   */
+  def batchReadFromStream2[R, A, From: Schema](
+    tableName: String,
+    stream: ZStream[R, Throwable, A],
+    mPar: Int = 10
+  )(
+    pk: A => KeyConditionExpr.PrimaryKeyExpr[From]
+  ): ZStream[R with DynamoDBExecutor, Throwable, Either[ItemError.DecodingError, (A, Option[From])]] =
+    stream
+      .aggregateAsync(ZSink.collectAllN[A](100))
+      .mapZIOPar(mPar) { chunk =>
+        val batchGetItem: DynamoDBQuery[From, Chunk[Either[ItemError.DecodingError, (A, Option[From])]]] =
+          DynamoDBQuery
+            .forEach2(chunk) { a =>
+              val x = DynamoDBQuery.get(tableName)(pk(a)).map {
+                case Right(b)                             => Right((a, Some(b)))
+                case Left(ItemError.ValueNotFound(_))     => Right((a, None))
+                case Left(e @ ItemError.DecodingError(_)) => Left(e)
+              }
+              x.asInstanceOf[
+                DynamoDBQuery[From, Either[ItemError.DecodingError, (A, Option[From])]] with HasNoCondition
+              ]
             }
             .map(Chunk.fromIterable)
         for {

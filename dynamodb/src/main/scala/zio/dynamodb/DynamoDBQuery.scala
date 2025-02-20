@@ -501,12 +501,12 @@ object DynamoDBQuery {
     tableName: String,
     key: PrimaryKey,
     projections: ProjectionExpression[_, _]*
-  ): DynamoDBQuery[Any, Option[Item]] =
+  ): DynamoDBQuery[Any, Option[Item]] with HasNoCondition =
     GetItem(TableName(tableName), key, projections.toList)
 
   def get[From: Schema](tableName: String)(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
-  ): DynamoDBQuery[From, Either[ItemError, From]] =
+  ): DynamoDBQuery[From, Either[ItemError, From]] with HasNoCondition =
     get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
 
   /**
@@ -592,12 +592,12 @@ object DynamoDBQuery {
     tableName: String,
     key: PrimaryKey,
     projections: Chunk[ProjectionExpression[_, _]]
-  ): DynamoDBQuery[A, Either[ItemError, A]] =
+  ): DynamoDBQuery[A, Either[ItemError, A]] with HasNoCondition =
     getItem(tableName, key, projections: _*).map {
       case Some(item) =>
         fromItem(item)
       case None       => Left(ValueNotFound(s"value with key $key not found"))
-    }
+    }.asInstanceOf[DynamoDBQuery[A, Either[ItemError, A]] with HasNoCondition]
 
   private[dynamodb] def fromItem[A: Schema](item: Item): Either[ItemError, A] = {
     val av = ToAttributeValue.attrMapToAttributeValue.toAttributeValue(item)
@@ -811,6 +811,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     retryPolicy: Option[Schedule[Any, Throwable, Any]] = None
   ) extends Constructor[Any, Option[Item]]
+      with HasNoCondition
 
   private[dynamodb] final case class BatchRetryError() extends Throwable
 

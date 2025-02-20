@@ -25,7 +25,7 @@ object ZStreamPipeliningSpec extends ZIOSpecDefault {
       test("round trip test") {
         for {
           _           <- TestDynamoDBExecutor.addTable("person", "id")
-          _           <- batchWriteFromStream(personStream) { person =>
+          _           <- batchWriteFromStream2(personStream) { person =>
                            put("person", person)
                          }.runDrain
           xs          <-
