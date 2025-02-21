@@ -67,13 +67,23 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
           ZIO.fail(resp.toErrorResponse)
       }
 
-    (indexedNonBatchedResults zipPar indexedGetResults zipPar indexedWriteResults).map {
-      case (nonBatched, batchedGets, batchedWrites) =>
-        val combined = (nonBatched ++ batchedGets ++ batchedWrites).sortBy {
-          case (_, index) => index
-        }.map { case (value, _) => value }
-        assembler(combined)
-    }
+    // TODO: Avi optomise lleling
+    if (batchWriteIndexes.size == 0)
+      (indexedGetResults).map {
+        case (batchedGets) =>
+          val combined = (batchedGets).sortBy {
+            case (_, index) => index
+          }.map { case (value, _) => value }
+          assembler(combined)
+      }
+    else
+      (indexedNonBatchedResults zipPar indexedGetResults zipPar indexedWriteResults).map {
+        case (nonBatched, batchedGets, batchedWrites) =>
+          val combined = (nonBatched ++ batchedGets ++ batchedWrites).sortBy {
+            case (_, index) => index
+          }.map { case (value, _) => value }
+          assembler(combined)
+      }
 
   }
 
@@ -1110,10 +1120,11 @@ object DynamoDBQuery {
         case ((nonBatched, gets, writes), (get @ GetItem(_, pk, pes, _, _, _), index))                              =>
           if (isSingleQuery)
             (nonBatched :+ (get -> index), gets, writes)
-          else if (projectionsContainPrimaryKey(pes, pk))
+          else if (projectionsContainPrimaryKey(pes, pk)) {
+            println(s"XXXXXXXXXX BATCHING ${(get -> index)}")
             (nonBatched, gets :+ (get -> index), writes)
-          else
-            (nonBatched :+ (get       -> index), gets, writes)
+          } else
+            (nonBatched :+ (get -> index), gets, writes)
         case ((nonBatched, gets, writes), (put @ PutItem(_, _, conditionExpression, _, _, returnValues, _), index)) =>
           if (isSingleQuery)
             (nonBatched :+ (put -> index), gets, writes)
@@ -1156,6 +1167,10 @@ object DynamoDBQuery {
       .foldLeft[(BatchWriteItem, Chunk[Int])]((BatchWriteItem(), Chunk.empty)) {
         case ((batchWriteItem, indexes), (writeItem, index)) => (batchWriteItem + writeItem, indexes :+ index)
       }
+
+    println(s"XXXXXXXXXXX indexedNonBatched $indexedNonBatched")
+    println(s"XXXXXXXXXXX indexedBatchGetItem $indexedBatchGetItem")
+    println(s"XXXXXXXXXXX indexedBatchWrite $indexedBatchWrite")
 
     (indexedNonBatched, indexedBatchGetItem, indexedBatchWrite)
   }
