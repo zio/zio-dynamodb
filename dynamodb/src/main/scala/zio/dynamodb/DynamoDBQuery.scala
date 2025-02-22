@@ -41,17 +41,22 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
   final def <*>[In1 <: In, B](that: DynamoDBQuery[In1, B]): DynamoDBQuery[In1, (Out, B)] = self zip that
 
   def execute: ZIO[DynamoDBExecutor, DynamoDBError, Out] = {
-    val (constructors, assembler)                                                                   = parallelize(self)
-    val (indexedConstructors, (batchGetItem, batchGetIndexes), (batchWriteItem, batchWriteIndexes)) =
-      batched(constructors)
+    val (constructors: Chunk[DynamoDBQuery.Constructor[In, Any]], assembler: Function1[Chunk[Any], Out]) = parallelize(
+      self
+    )
+    val (
+      indexedConstructors: Chunk[(DynamoDBQuery.Constructor[In, Any], Int)],
+      (batchGetItem: BatchGetItem, batchGetIndexes: Chunk[Int]),
+      (batchWriteItem: BatchWriteItem, batchWriteIndexes: Chunk[Int])
+    )                                                                                                    = batched(constructors)
 
-    val indexedNonBatchedResults =
+    val indexedNonBatchedResults: ZIO[DynamoDBExecutor, DynamoDBError, Chunk[(Any, Int)]] =
       ZIO.foreachPar(indexedConstructors) {
         case (constructor, index) =>
           ddbExecute(constructor).map(result => (result, index))
       }
 
-    val indexedGetResults =
+    val indexedGetResults: ZIO[DynamoDBExecutor, DynamoDBError, Chunk[(Option[AttrMap], Int)]] =
       ddbExecute(batchGetItem).flatMap {
         case resp @ BatchGetItem.Response(_, unprocessedKeys) if unprocessedKeys.size == 0 =>
           ZIO.succeed(batchGetItem.toGetItemResponses(resp) zip batchGetIndexes)
@@ -59,7 +64,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
           ZIO.fail(resp.toErrorResponse)
       }
 
-    val indexedWriteResults =
+    val indexedWriteResults: ZIO[DynamoDBExecutor, DynamoDBError, Chunk[(Option[Any], Int)]] =
       ddbExecute(batchWriteItem).flatMap {
         case BatchWriteItem.Response(unprocessedItems) if unprocessedItems.size == 0 =>
           ZIO.succeed(batchWriteItem.addList.map(_ => None) zip batchWriteIndexes)
@@ -67,24 +72,93 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
           ZIO.fail(resp.toErrorResponse)
       }
 
-    // TODO: Avi optomise lleling
-    if (batchWriteIndexes.size == 0)
-      (indexedGetResults).map {
-        case (batchedGets) =>
-          val combined = (batchedGets).sortBy {
-            case (_, index) => index
-          }.map { case (value, _) => value }
-          assembler(combined)
-      }
-    else
+    val x: ZIO[zio.dynamodb.DynamoDBExecutor, DynamoDBError, Out] = for {
+      queries <- zio.Queue.bounded[ZIO[DynamoDBExecutor, DynamoDBError, Chunk[(Any, Int)]]](3)
+      _       <- queries.offer(indexedNonBatchedResults).when(batchWriteIndexes.size > 0)
+      _       <- queries.offer(indexedGetResults).when(batchGetIndexes.size > 0)
+      _       <- queries.offer(indexedWriteResults).when(batchWriteIndexes.size > 0)
+      chunk   <- queries.takeAll
+      _        = println(s"XXXXXXXX chunk: ${chunk.size}")
+      result  <- ZIO.foreachPar(chunk)(identity).map { xs2 =>
+                   val xs: Chunk[(Any, Int)] = xs2.flatten
+                   val sorted: Chunk[Any]    = xs.sortBy(_._2).map(_._1)
+                   println(s"XXXXXXXX sorted2: $sorted")
+                   val out: Out              = assembler(sorted)
+                   out
+                 }
+    } yield result
+
+    val y =
       (indexedNonBatchedResults zipPar indexedGetResults zipPar indexedWriteResults).map {
         case (nonBatched, batchedGets, batchedWrites) =>
-          val combined = (nonBatched ++ batchedGets ++ batchedWrites).sortBy {
+          val combined: Chunk[(Any, Int)] = (nonBatched ++ batchedGets ++ batchedWrites)
+          val combinedSorted: Chunk[Any]  = combined.sortBy {
             case (_, index) => index
           }.map { case (value, _) => value }
-          assembler(combined)
+          println(s"XXXXXXXX nonBatched.size: ${nonBatched.size}")
+          println(s"XXXXXXXX combinedSorted.size: ${combinedSorted.size}")
+          val out: Out                    = assembler(combinedSorted)
+          out
       }
 
+    // def sortByIndexAndTakeValue(chunk: Chunk[(Any, Int)])                 =
+    //   chunk.sortBy {
+    //     case (_, index) => index
+    //   }.map { case (value, _) => value }
+
+    // def sortByIndexAndTakeValue2(t: (Chunk[(Any, Int)], Chunk[(Any, Int)])): Chunk[Any] = {
+    //   val chunk = t._1 ++ t._2
+    //   chunk.sortBy {
+    //     case (_, index) => index
+    //   }.map { case (value, _) => value }
+    // }
+
+    def assemble2(t: (Chunk[(Any, Int)], Chunk[(Any, Int)])): Out = {
+      val chunk: Chunk[(Any, Int)]                     = t._1 ++ t._2
+      val chunkSortedByIndexAndValuePicked: Chunk[Any] = chunk.sortBy {
+        case (_, index) => index
+      }.map { case (value, _) => value }
+      assembler(chunkSortedByIndexAndValuePicked)
+    }
+    def assemble3(t: (Chunk[(Any, Int)], Chunk[(Any, Int)], Chunk[(Any, Int)])): Out = {
+      val chunk: Chunk[(Any, Int)]                     = t._1 ++ t._2 ++ t._3
+      val chunkSortedByIndexAndValuePicked: Chunk[Any] = chunk.sortBy {
+        case (_, index) => index
+      }.map { case (value, _) => value }
+      assembler(chunkSortedByIndexAndValuePicked)
+    }
+    val z = (indexedConstructors.nonEmpty, batchGetIndexes.nonEmpty, batchWriteIndexes.nonEmpty) match {
+      case (false, false, false) =>
+        println(s"YYYYYYYYY 1")
+        //.asInstanceOf[ZIO[DynamoDBExecutor, DynamoDBError, Out]] // TODO: Avi this should never happen
+        throw new RuntimeException("This should never happen")
+      case (false, false, true)  =>
+        println(s"YYYYYYYYY 2")
+        indexedWriteResults.map(xs =>
+          assembler(xs.map(_._1))
+        ) //.asInstanceOf[ZIO[DynamoDBExecutor, DynamoDBError, Out]]
+      case (false, true, false)  =>
+        println(s"YYYYYYYYY 3")
+        indexedGetResults.map(xs => assembler(xs.map(_._1))) // TODO: Avi - replicate this for arity 1
+      case (true, false, false)  =>
+        println(s"YYYYYYYYY 4")
+        indexedNonBatchedResults.map(xs => assembler(xs.map(_._1)))
+      case (true, true, false)   =>
+        println(s"YYYYYYYYY 5")
+        (indexedNonBatchedResults zipPar indexedGetResults).map(assemble2)
+      case (true, false, true)   =>
+        println(s"YYYYYYYYY 6")
+        (indexedNonBatchedResults zipPar indexedWriteResults).map(assemble2)
+      case (true, true, true)    =>
+        println(s"YYYYYYYYY 7")
+        (indexedNonBatchedResults zipPar indexedGetResults zipPar indexedWriteResults).map(assemble3)
+      case (false, true, true)   =>
+        println(s"YYYYYYYYY 8")
+        (indexedGetResults zipPar indexedWriteResults).map(assemble2)
+    }
+    println(s"$x $y $z")
+
+    z
   }
 
   final def indexName(indexName: String): DynamoDBQuery[In, Out] =
