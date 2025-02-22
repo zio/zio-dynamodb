@@ -74,7 +74,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
     val x: ZIO[zio.dynamodb.DynamoDBExecutor, DynamoDBError, Out] = for {
       queries <- zio.Queue.bounded[ZIO[DynamoDBExecutor, DynamoDBError, Chunk[(Any, Int)]]](3)
-      _       <- queries.offer(indexedNonBatchedResults).when(batchWriteIndexes.size > 0)
+      _       <- queries.offer(indexedNonBatchedResults).when(indexedConstructors.size > 0)
       _       <- queries.offer(indexedGetResults).when(batchGetIndexes.size > 0)
       _       <- queries.offer(indexedWriteResults).when(batchWriteIndexes.size > 0)
       chunk   <- queries.takeAll
@@ -158,7 +158,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     }
     println(s"$x $y $z")
 
-    z
+    x
   }
 
   final def indexName(indexName: String): DynamoDBQuery[In, Out] =

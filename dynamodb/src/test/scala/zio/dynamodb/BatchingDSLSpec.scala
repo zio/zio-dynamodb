@@ -199,18 +199,6 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
   private def assertQueryNotBatched(queries: List[DynamoDBQuery[_, _]]) =
     assertTrue(queries.size == 1) && assertTrue(isNonBatched(queries.head))
 
-  // private def isEmptyBatchWrite(q: DynamoDBQuery[_, _]): Boolean =
-  //   q match {
-  //     case BatchWriteItem(items, _, _, _, _) => items.isEmpty
-  //     case _                                 => false
-  //   }
-
-  // private def isEmptyBatchGet(q: DynamoDBQuery[_, _]): Boolean =
-  //   q match {
-  //     case BatchGetItem(items, _, _, _) => items.isEmpty
-  //     case _                            => false
-  //   }
-
   private def isNonBatched(q: DynamoDBQuery[_, _]): Boolean =
     q match {
       case BatchGetItem(_, _, _, _)      => false
