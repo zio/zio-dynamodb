@@ -80,10 +80,12 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       chunk   <- queries.takeAll
       _        = println(s"XXXXXXXX chunk: ${chunk.size}")
       result  <- ZIO.foreachPar(chunk)(identity).map { xs2 =>
-                   val xs: Chunk[(Any, Int)] = xs2.flatten
-                   val sorted: Chunk[Any]    = xs.sortBy(_._2).map(_._1)
-                   println(s"XXXXXXXX sorted2: $sorted")
-                   val out: Out              = assembler(sorted)
+                   val combined: Chunk[(Any, Int)]       = xs2.flatten
+                   val sortedWithValuePicked: Chunk[Any] = combined.sortBy {
+                     case (_, index) => index
+                   }.map { case (value, _) => value }
+                   println(s"XXXXXXXX sortedWithValuePicked: $sortedWithValuePicked")
+                   val out: Out                          = assembler(sortedWithValuePicked)
                    out
                  }
     } yield result
