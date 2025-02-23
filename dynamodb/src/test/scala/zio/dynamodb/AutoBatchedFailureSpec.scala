@@ -18,8 +18,9 @@ import zio.{ Schedule, ULayer }
 
 import scala.collection.immutable.{ Map => ScalaMap }
 import zio.test.TestAspect
+import zio.test.Assertion.isSubtype
 import zio.test.Assertion
-import zio.test.assertTrue
+import zio.test.assert
 import zio.Chunk
 
 import zio.schema.DeriveSchema
@@ -185,18 +186,17 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
   val errorReturnMockBatchGet: ULayer[DynamoDb] = DynamoDbMock
     .BatchGetItem(
       equalTo(getRequestItemOneAndTwo()),
-      failure(zio.aws.core.AwsError.fromThrowable(new Exception("BOOOOOOM!")))
+      failure(zio.aws.core.AwsError.fromThrowable(new IllegalStateException("BOOOOOOM!")))
     )
 
   private val batchGetSuite =
     suite("retry batch gets")(
-      suite("experiment")(test("should fail when BatchGetItem returns AWS error") {
+      suite("experiment")(test("should die when BatchGetItem returns AWS error") {
         val autoBatched =
           getItem("mockBatches", itemOne) zip getItem("mockBatches", itemTwo)
         for {
           exit <- autoBatched.execute.exit
-          _     = println(s"XXXXXXXXX exit: $exit")
-        } yield assertTrue(true)
+        } yield assert(exit)(dies(isSubtype[IllegalStateException](hasMessage(containsString("BOOOOOOM!")))))
       }).provideLayer(errorReturnMockBatchGet >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock,
       suite("successful batch gets")(test("should retry when there are unprocessed keys") {
         val autoBatched = getItem("mockBatches", itemOne) zip getItem("mockBatches", itemTwo)
