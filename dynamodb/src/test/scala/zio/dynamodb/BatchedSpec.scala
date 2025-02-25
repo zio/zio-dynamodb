@@ -145,6 +145,23 @@ object BatchedSpec extends ZIOSpecDefault {
         batchGetItem._1.requestItems.isEmpty,
         batchWriteItem._1.requestItems.isEmpty
       )
+    },
+    test("Put/Delete Items with return values other than ReturnValues.None should not be batched") {
+      val put1                                           = putItem("table1", item1).returns(ReturnValues.AllNew)
+      val delete1                                        = deleteItem("table1", item2).returns(ReturnValues.AllOld)
+      val constructors: Chunk[Constructor[AttrMap, Any]] =
+        Chunk(put1, delete1).asInstanceOf[Chunk[Constructor[Any, Option[AttrMap]]]]
+      val (
+        nonBatched: Chunk[(Constructor[AttrMap, Any], Int)],
+        batchGetItem: (DynamoDBQuery.BatchGetItem, Chunk[Int]),
+        batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int])
+      )                                                  = DynamoDBQuery.batched(constructors)
+
+      assertTrue(
+        nonBatched.size == 2,
+        batchGetItem._1.requestItems.isEmpty,
+        batchWriteItem._1.requestItems.isEmpty
+      )
     }
   )
 
