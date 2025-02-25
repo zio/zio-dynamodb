@@ -59,6 +59,40 @@ object BatchedSpec extends ZIOSpecDefault {
         batchWriteItem._1.requestItems.isEmpty
       )
     },
+    test("A GetItem and a DeleteItem do not get batched") {
+      val get1                                           = getItem("table1", item1)
+      val delete1                                        = deleteItem("table1", item2)
+      val constructors: Chunk[Constructor[AttrMap, Any]] =
+        Chunk(get1, delete1).asInstanceOf[Chunk[Constructor[Any, Option[AttrMap]]]]
+      val (
+        nonBatched: Chunk[(Constructor[AttrMap, Any], Int)],
+        batchGetItem: (DynamoDBQuery.BatchGetItem, Chunk[Int]),
+        batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int])
+      )                                                  = DynamoDBQuery.batched(constructors)
+
+      assertTrue(
+        nonBatched.size == 2,
+        batchGetItem._1.requestItems.size == 0,
+        batchWriteItem._1.requestItems.size == 0
+      )
+    },
+    test("A GetItem and a PutItem do not get batched") {
+      val get1                                           = getItem("table1", item1)
+      val put1                                           = putItem("table1", item2)
+      val constructors: Chunk[Constructor[AttrMap, Any]] =
+        Chunk(get1, put1).asInstanceOf[Chunk[Constructor[Any, Option[AttrMap]]]]
+      val (
+        nonBatched: Chunk[(Constructor[AttrMap, Any], Int)],
+        batchGetItem: (DynamoDBQuery.BatchGetItem, Chunk[Int]),
+        batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int])
+      )                                                  = DynamoDBQuery.batched(constructors)
+
+      assertTrue(
+        nonBatched.size == 2,
+        batchGetItem._1.requestItems.size == 0,
+        batchWriteItem._1.requestItems.size == 0
+      )
+    },
     test("Multiple GetItems should be batched") {
       val get1                                           = getItem("table1", item1)
       val get2                                           = getItem("table1", item2)

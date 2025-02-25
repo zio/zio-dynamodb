@@ -1115,21 +1115,28 @@ object DynamoDBQuery {
       hasNoProjections || matchedPrimaryKeys.filter(_ == true).size == pk.map.size
     }
 
-    val isSingleQuery = constructors.size == 1 // single queries are not batched
+    val isSingleGetQuery   = constructors.count {
+      case _: GetItem => true
+      case _          => false
+    } == 1 // single GetItem queries are not batched
+    val isSingleWriteQuery = constructors.count {
+      case _: Write[_, _] => true
+      case _              => false
+    } == 1 // single PutItem/DeleteItem queries are not batched
 
     val (indexedNonBatched, indexedGets, indexedWrites) =
       constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem], Chunk[IndexedWriteItem])](
         (Chunk.empty, Chunk.empty, Chunk.empty)
       ) {
         case ((nonBatched, gets, writes), (get @ GetItem(_, pk, pes, _, _, _), index))                              =>
-          if (isSingleQuery)
+          if (isSingleGetQuery)
             (nonBatched :+ (get -> index), gets, writes)
           else if (projectionsContainPrimaryKey(pes, pk))
             (nonBatched, gets :+ (get -> index), writes)
           else
             (nonBatched :+ (get       -> index), gets, writes)
         case ((nonBatched, gets, writes), (put @ PutItem(_, _, conditionExpression, _, _, returnValues, _), index)) =>
-          if (isSingleQuery)
+          if (isSingleWriteQuery)
             (nonBatched :+ (put -> index), gets, writes)
           else
             conditionExpression match {
@@ -1145,7 +1152,7 @@ object DynamoDBQuery {
               (nonBatched, gets, writes),
               (delete @ DeleteItem(_, _, conditionExpression, _, _, returnValues, _), index)
             ) =>
-          if (isSingleQuery)
+          if (isSingleWriteQuery)
             (nonBatched :+ (delete -> index), gets, writes)
           else
             conditionExpression match {
