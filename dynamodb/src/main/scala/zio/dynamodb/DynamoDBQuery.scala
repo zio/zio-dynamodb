@@ -78,7 +78,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       _       <- queries.offer(indexedGetResults).when(batchGetIndexes.size > 0)
       _       <- queries.offer(indexedWriteResults).when(batchWriteIndexes.size > 0)
       chunk   <- queries.takeAll
-      result  <- ZIO.foreachPar(chunk)(identity).map { xs =>
+      result  <- ZIO.collectAllPar(chunk).map { xs =>
                    val combined: Chunk[(Any, Int)] = xs.flatten
                    val sortedValues: Chunk[Any]    = combined.sortBy {
                      case (_, index) => index
