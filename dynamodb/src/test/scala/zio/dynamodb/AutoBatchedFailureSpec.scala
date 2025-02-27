@@ -190,8 +190,8 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
     )
 
   private val batchGetSuite =
-    suite("retry batch gets")(
-      suite("experiment")(test("should die when BatchGetItem returns AWS error") {
+    suite("batch gets")(
+      suite("with defects")(test("should die when BatchGetItem returns AWS error") {
         val autoBatched =
           getItem("mockBatches", itemOne) zip getItem("mockBatches", itemTwo)
         for {
