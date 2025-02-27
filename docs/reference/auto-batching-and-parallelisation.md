@@ -26,6 +26,7 @@ So the rules are as follows:
 - A query only qualifies for auto-batching  if it passes the following criteria: 
   - The query is a `PutItem` or `DeleteItem` operation (`put` and `deleteFrom` in the High Level API)
     - The query does not have a condition expression
+    - The query does not have a `ReturnValues` specified (default is `ReturnValues.None` which is OK)
   - The query is a `GetItem` operation (`get` in the High Level API)
     - The query's `projections` list contains the primary key - this is required to match the response data to the request. Note all fields are included by default so this is only a concern if you explicitly specify the projection expression.  
 - If a query does not qualify for auto-batching it will be parallelised automatically
