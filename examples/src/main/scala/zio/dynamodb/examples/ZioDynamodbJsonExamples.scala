@@ -5,6 +5,7 @@ import zio.schema.DeriveSchema
 import zio.schema.annotation.discriminatorName
 
 import zio.schema.Schema
+import zio.dynamodb.ProjectionExpression
 
 /**
  * zio-dynamodb-json is a new experimental optional module designed for debugging and troubleshooting purposes - it should not be used in production code.
@@ -28,6 +29,13 @@ object ZioDynamodbJsonExample extends App {
       implicit val schema: Schema.CaseClass3[String, String, Int, Billed] = DeriveSchema.gen[Billed]
     }
     implicit val schema: Schema[Invoice] = DeriveSchema.gen[Invoice]
+
+    final case class Person(id: Int, firstName: String, address: Either[String, List[String]])
+    object Person {
+      implicit val schema: Schema.CaseClass3[Int, String, Either[String, List[String]], Person] =
+        DeriveSchema.gen[Person]
+      final val (id, firstName, address)                                                        = ProjectionExpression.accessors[Person]
+    }
   }
 
   // get the rendered json string from a case class
@@ -47,5 +55,8 @@ object ZioDynamodbJsonExample extends App {
   // decode the json string to a case class
   val errorOrClass = parse[Invoice](jsonString)
   println(errorOrClass) // Right(PreBilled("id", "sku"))
+
+  val person1 = Invoice.Person(1, "John", Right(List("123 Main St", "456 Elm St")))
+  println(person1.toJsonStringPretty[Invoice.Person])
 
 }
