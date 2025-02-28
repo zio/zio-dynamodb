@@ -162,17 +162,15 @@ private[dynamodb] object Codec {
       }
     //scalafmt: { maxColumn = 120, optIn.configStyleArguments = true }
 
-    def fallbackEncoder[A, B](left: Encoder[A], right: Encoder[B]): Encoder[zio.schema.Fallback[A, B]] = 
+    def fallbackEncoder[A, B](left: Encoder[A], right: Encoder[B]): Encoder[zio.schema.Fallback[A, B]] =
       new Encoder[zio.schema.Fallback[A, B]] {
-        override def apply(a: zio.schema.Fallback[A, B]): AttributeValue = {
+        override def apply(a: zio.schema.Fallback[A, B]): AttributeValue =
           a match {
-            case zio.schema.Fallback.Left(a)  => left(a)
-            case zio.schema.Fallback.Right(b) => right(b)
+            case zio.schema.Fallback.Left(a)    => left(a)
+            case zio.schema.Fallback.Right(b)   => right(b)
             case zio.schema.Fallback.Both(a, _) => left(a) // TODO: Avi: what to do here?
           }
-        }
       }
-
 
     private def genericRecordEncoder(structure: FieldSet): Encoder[ListMap[String, _]] =
       (valuesMap: ListMap[String, _]) => {
@@ -557,16 +555,17 @@ private[dynamodb] object Codec {
       }
     //scalafmt: { maxColumn = 120, optIn.configStyleArguments = true }
 
-    private def fallbackDecoder[A, B](left: Decoder[A], right: Decoder[B]): Decoder[zio.schema.Fallback[A, B]] = 
+    private def fallbackDecoder[A, B](left: Decoder[A], right: Decoder[B]): Decoder[zio.schema.Fallback[A, B]] =
       (av: AttributeValue) => {
         left(av) match {
           case Right(a) => Right(zio.schema.Fallback.Left(a))
-          case Left(_)  => right(av) match {
-            case Right(b) => Right(zio.schema.Fallback.Right(b))
-            case Left(s)  => Left(s)
-          }
+          case Left(_)  =>
+            right(av) match {
+              case Right(b) => Right(zio.schema.Fallback.Right(b))
+              case Left(s)  => Left(s)
+            }
         }
-      }  
+      }
 
     private[dynamodb] def caseClass0Decoder[Z](schema: Schema.CaseClass0[Z]): Decoder[Z] =
       _ => Right(schema.defaultConstruct())
