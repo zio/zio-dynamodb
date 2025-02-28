@@ -155,9 +155,24 @@ private[dynamodb] object Codec {
           enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22)
         case Schema.EnumN(_, cs, annotations)                                                                                                   =>
           enumEncoder(annotations, cs.toSeq: _*)
-        case _                                                                                                                                  => throw new Exception("Match was non-exhaustive")
+        case Schema.Fallback(left, right, _, _)                                                                                                 =>
+          fallbackEncoder(encoder(left), encoder(right))
+        case _                                                                                                                                  =>
+          throw new Exception("Match was non-exhaustive")
       }
     //scalafmt: { maxColumn = 120, optIn.configStyleArguments = true }
+
+    def fallbackEncoder[A, B](left: Encoder[A], right: Encoder[B]): Encoder[zio.schema.Fallback[A, B]] = 
+      new Encoder[zio.schema.Fallback[A, B]] {
+        override def apply(a: zio.schema.Fallback[A, B]): AttributeValue = {
+          a match {
+            case zio.schema.Fallback.Left(a)  => left(a)
+            case zio.schema.Fallback.Right(b) => right(b)
+            case zio.schema.Fallback.Both(a, _) => left(a) // TODO: Avi: what to do here?
+          }
+        }
+      }
+
 
     private def genericRecordEncoder(structure: FieldSet): Encoder[ListMap[String, _]] =
       (valuesMap: ListMap[String, _]) => {
@@ -535,10 +550,23 @@ private[dynamodb] object Codec {
           enumDecoder(annotations, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22)
         case Schema.EnumN(_, cs, annotations)                                                                                                   =>
           enumDecoder(annotations, cs.toSeq: _*)
+        case Schema.Fallback(left, right, _, _)                                                                                                 =>
+          fallbackDecoder(decoder(left), decoder(right))
         case _                                                                                                                                  => throw new Exception("Match was non-exhaustive")
 
       }
     //scalafmt: { maxColumn = 120, optIn.configStyleArguments = true }
+
+    private def fallbackDecoder[A, B](left: Decoder[A], right: Decoder[B]): Decoder[zio.schema.Fallback[A, B]] = 
+      (av: AttributeValue) => {
+        left(av) match {
+          case Right(a) => Right(zio.schema.Fallback.Left(a))
+          case Left(_)  => right(av) match {
+            case Right(b) => Right(zio.schema.Fallback.Right(b))
+            case Left(s)  => Left(s)
+          }
+        }
+      }  
 
     private[dynamodb] def caseClass0Decoder[Z](schema: Schema.CaseClass0[Z]): Decoder[Z] =
       _ => Right(schema.defaultConstruct())
