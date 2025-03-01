@@ -8,7 +8,6 @@ import zio.test._
 import java.time.Instant
 import scala.collection.immutable.ListMap
 import zio.test.ZIOSpecDefault
-
 object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
   override def spec: Spec[Environment, Any] = suite("ItemEncoder Suite")(mainSuite, noDiscriminatorSuite)
 
@@ -129,6 +128,43 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(item)(equalTo(expectedItem))
     },
+    suite("Either using Fallback suite")(
+      test("encodes Either Right") {
+        val expectedItem: Item = Item("either" -> 1)
+
+        val item = DynamoDBQuery.toItem(CaseClassOfEitherFallback(Right(1)))
+
+        assert(item)(equalTo(expectedItem))
+      },
+      test("encodes Either Left") {
+        val expectedItem: Item = Item("either" -> "boom")
+
+        val item = DynamoDBQuery.toItem(CaseClassOfEitherFallback(Left("boom")))
+
+        assert(item)(equalTo(expectedItem))
+      },
+      test("encodes nested Either Right of Right") {
+        val expectedItem: Item = Item("either" -> List(1))
+
+        val item = DynamoDBQuery.toItem(CaseClassOfNestedEitherFallback(Right(Right(List(1)))))
+
+        assert(item)(equalTo(expectedItem))
+      },
+      test("encodes nested Either Right of Left") {
+        val expectedItem: Item = Item("either" -> 1)
+
+        val item = DynamoDBQuery.toItem(CaseClassOfNestedEitherFallback(Right(Left(1))))
+
+        assert(item)(equalTo(expectedItem))
+      },
+      test("encodes nested Either Left") {
+        val expectedItem: Item = Item("either" -> "boom")
+
+        val item = DynamoDBQuery.toItem(CaseClassOfNestedEitherFallback(Left("boom")))
+
+        assert(item)(equalTo(expectedItem))
+      }
+    ),
     test("encodes List of case class") {
       val expectedItem: Item = Item("elements" -> List(Item("id" -> 1, "name" -> "Avi", "flag" -> true)))
 

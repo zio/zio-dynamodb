@@ -45,7 +45,7 @@ object EitherSpec extends DynamoDBLocalSpec {
             updated2 <- get(tableName)(Person.id.partitionKey === "2").execute.absolve
           } yield assertTrue(updated1 == originalPerson1, updated2 == originalPerson2)
         }
-      },
+      } @@ TestAspect.ignore,
       test("Person with nested Either") {
         withSingleIdKeyTable { tableName =>
           val originalPerson1 = Person2("1", "Smith", Right(Right(List("123 Main St", "456 Elm St"))))

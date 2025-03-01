@@ -1,7 +1,7 @@
 package zio.dynamodb.codec
 
 import zio.schema.annotation.{ caseName, discriminatorName, fieldName }
-import zio.schema.{ DeriveSchema, Schema }
+import zio.schema.{ DeriveSchema, Fallback, Schema }
 
 import java.time.Instant
 import zio.dynamodb.ProjectionExpression
@@ -36,6 +36,20 @@ final case class CaseClassOfNestedOption(opt: Option[Option[Int]])
 final case class CaseClassOfNestedCaseClassOfOption(id: Int, opt: CaseClassOfOption)
 
 final case class CaseClassOfEither(either: Either[String, Int])
+
+final case class CaseClassOfEitherFallback(either: Either[String, Int])
+object CaseClassOfEitherFallback {
+  implicit val schema: Schema[CaseClassOfEitherFallback]                                                   = DeriveSchema.gen[CaseClassOfEitherFallback]
+  implicit def fallbackEither[A, B](implicit schemaA: Schema[A], schemaB: Schema[B]): Schema[Either[A, B]] =
+    Schema.Fallback(schemaA, schemaB).transform(_.toEither, Fallback.fromEither)
+}
+
+final case class CaseClassOfNestedEitherFallback(either: Either[String, Either[Int, List[Int]]])
+object CaseClassOfNestedEitherFallback {
+  implicit val schema: Schema[CaseClassOfNestedEitherFallback]                                             = DeriveSchema.gen[CaseClassOfNestedEitherFallback]
+  implicit def fallbackEither[A, B](implicit schemaA: Schema[A], schemaB: Schema[B]): Schema[Either[A, B]] =
+    Schema.Fallback(schemaA, schemaB).transform(_.toEither, Fallback.fromEither)
+}
 
 final case class CaseClassOfTuple3(tuple: (Int, Int, Int))
 
