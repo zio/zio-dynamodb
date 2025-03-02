@@ -212,6 +212,55 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
       assert(actual)(isRight(equalTo(expected)))
     },
+    suite("Either with Fallback suite")(
+      test("decodes Either Right") {
+        val item     = Item("either" -> 1)
+        val expected = CaseClassOfEitherFallback(Right(1))
+
+        val actual = DynamoDBQuery.fromItem[CaseClassOfEitherFallback](item)
+
+        assert(actual)(isRight(equalTo(expected)))
+      },
+      test("decodes Either Left") {
+        val item     = Item("either" -> "boom")
+        val expected = CaseClassOfEitherFallback(Left("boom"))
+
+        val actual = DynamoDBQuery.fromItem[CaseClassOfEitherFallback](item)
+
+        assert(actual)(isRight(equalTo(expected)))
+      },
+      test("fails when an invalid type for Either is encountered") {
+        val item = Item("either" -> Set(1))
+
+        val actual = DynamoDBQuery.fromItem[CaseClassOfEitherFallback](item)
+
+        assert(actual)(isLeft(isSubtype[DynamoDBError.ItemError.DecodingError](anything)))
+      },
+      test("decodes nested Either Right of Right") {
+        val item     = Item("either" -> List(1))
+        val expected = CaseClassOfNestedEitherFallback(Right(Right(List(1))))
+
+        val actual = DynamoDBQuery.fromItem[CaseClassOfNestedEitherFallback](item)
+
+        assert(actual)(isRight(equalTo(expected)))
+      },
+      test("decodes nested Either Right of Left") {
+        val item     = Item("either" -> 1)
+        val expected = CaseClassOfNestedEitherFallback(Right(Left(1)))
+
+        val actual = DynamoDBQuery.fromItem[CaseClassOfNestedEitherFallback](item)
+
+        assert(actual)(isRight(equalTo(expected)))
+      },
+      test("decodes nested Either Left") {
+        val item     = Item("either" -> "boom")
+        val expected = CaseClassOfNestedEitherFallback(Left("boom"))
+
+        val actual = DynamoDBQuery.fromItem[CaseClassOfNestedEitherFallback](item)
+
+        assert(actual)(isRight(equalTo(expected)))
+      }
+    ),
     test("decodes List of case class") {
       val item     = Item("elements" -> List(Item("id" -> 1, "name" -> "Avi", "flag" -> true)))
       val expected = CaseClassOfListOfCaseClass(List(SimpleCaseClass3(1, "Avi", flag = true)))
