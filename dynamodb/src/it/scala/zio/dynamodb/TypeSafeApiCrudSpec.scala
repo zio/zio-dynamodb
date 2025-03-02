@@ -1,11 +1,11 @@
 package zio.dynamodb
 
-import zio.schema.{ DeriveSchema, Schema }
+import zio.schema.{ DeriveSchema, Fallback, Schema }
 import zio.test._
 import zio.test.assertTrue
 import zio.test.Assertion._
 import zio.dynamodb.DynamoDBError.ItemError
-import zio.dynamodb.DynamoDBQuery.{ deleteFrom, forEach, get, put, putItem, scanAll, update }
+import zio.dynamodb.DynamoDBQuery.{ deleteFrom, forEach, get, getItem, put, putItem, scanAll, update }
 import zio.dynamodb.syntax._
 import zio.Chunk
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
@@ -54,13 +54,23 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
     val (id, surname, addressList, addressMap, addressSet)                                                         = ProjectionExpression.accessors[PersonWithCollections]
   }
 
+  final case class PersonWithEither(id: String, address: Either[String, List[String]])
+  object PersonWithEither {
+    implicit val schema: Schema.CaseClass2[String, Either[String, List[String]], PersonWithEither]           =
+      DeriveSchema.gen[PersonWithEither]
+    implicit def fallbackEither[A, B](implicit schemaA: Schema[A], schemaB: Schema[B]): Schema[Either[A, B]] =
+      Schema.Fallback(schemaA, schemaB).transform(_.toEither, Fallback.fromEither)
+    final val (id, address)                                                                                  = ProjectionExpression.accessors[PersonWithEither]
+  }
+
   override def spec: Spec[Environment with Scope, Any] =
     suite("TypeSafeApiCrudSpec")(
       putSuite,
       updateSuite,
       deleteSuite,
       forEachSuite,
-      transactionSuite
+      transactionSuite,
+      fallBackSchemaSuite
     ) @@ TestAspect.nondeterministic
 
   private val putSuite =
@@ -917,6 +927,28 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           found1 <- get(tableName1)(Person.id.partitionKey === person1.id).execute
           found2 <- get(tableName2)(Person.id.partitionKey === person2.id).execute
         } yield assertTrue(found1 == Right(person1) && found2 == Right(person2))
+      }
+    }
+  )
+
+  private val fallBackSchemaSuite = suite("Fallback Schema Suite")(
+    test("Serialises PersonWithEither using a Schema.Fallback schema transformation for an Either field") {
+      withSingleIdKeyTable { tableName =>
+        val personRight = PersonWithEither("1", Right(List("123 Main St", "456 Elm St")))
+        val personLeft  = PersonWithEither("2", Left("123 Main St"))
+        for {
+          _          <- put(tableName, personRight).execute
+          itemRight  <- getItem(tableName, PrimaryKey("id" -> "1")).execute
+          foundRight <- get(tableName)(PersonWithEither.id.partitionKey === "1").execute.absolve
+          _          <- put(tableName, personLeft).execute
+          itemLeft   <- getItem(tableName, PrimaryKey("id" -> "2")).execute
+          foundLeft  <- get(tableName)(PersonWithEither.id.partitionKey === "2").execute.absolve
+        } yield assertTrue(
+          foundRight == personRight,
+          foundLeft == personLeft,
+          itemRight == Some(Item("id" -> "1", "address" -> List("123 Main St", "456 Elm St"))),
+          itemLeft == Some(Item("id" -> "2", "address" -> "123 Main St"))
+        )
       }
     }
   )
