@@ -229,6 +229,13 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 
         assert(actual)(isRight(equalTo(expected)))
       },
+      test("fails when an invalid type for Either is encountered") {
+        val item = Item("either" -> Set(1))
+
+        val actual = DynamoDBQuery.fromItem[CaseClassOfEitherFallback](item)
+
+        assert(actual)(isLeft(isSubtype[DynamoDBError.ItemError.DecodingError](anything)))
+      },
       test("decodes nested Either Right of Right") {
         val item     = Item("either" -> List(1))
         val expected = CaseClassOfNestedEitherFallback(Right(Right(List(1))))
