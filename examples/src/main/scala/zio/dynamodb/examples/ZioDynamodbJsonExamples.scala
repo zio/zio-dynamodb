@@ -27,7 +27,6 @@ object ZioDynamodbJsonExample extends App {
     object Billed    {
       implicit val schema: Schema.CaseClass3[String, String, Int, Billed] = DeriveSchema.gen[Billed]
     }
-    
     implicit val schema: Schema[Invoice] = DeriveSchema.gen[Invoice]
   }
 
