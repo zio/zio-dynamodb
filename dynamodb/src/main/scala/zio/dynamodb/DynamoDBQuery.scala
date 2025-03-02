@@ -29,7 +29,7 @@ import zio.dynamodb.UpdateExpression.Action
 import zio.prelude.ForEachOps
 import zio.schema.Schema
 import zio.stream.Stream
-import zio.{ Chunk, Schedule, ZIO }
+import zio.{ Chunk, Queue, Schedule, ZIO }
 import scala.annotation.nowarn
 
 sealed trait DynamoDBQuery[-In, +Out] { self =>
@@ -41,17 +41,22 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
   final def <*>[In1 <: In, B](that: DynamoDBQuery[In1, B]): DynamoDBQuery[In1, (Out, B)] = self zip that
 
   def execute: ZIO[DynamoDBExecutor, DynamoDBError, Out] = {
-    val (constructors, assembler)                                                                   = parallelize(self)
-    val (indexedConstructors, (batchGetItem, batchGetIndexes), (batchWriteItem, batchWriteIndexes)) =
-      batched(constructors)
+    val (constructors: Chunk[DynamoDBQuery.Constructor[In, Any]], assembler: Function1[Chunk[Any], Out]) = parallelize(
+      self
+    )
+    val (
+      indexedConstructors: Chunk[(DynamoDBQuery.Constructor[In, Any], Int)],
+      (batchGetItem: BatchGetItem, batchGetIndexes: Chunk[Int]),
+      (batchWriteItem: BatchWriteItem, batchWriteIndexes: Chunk[Int])
+    )                                                                                                    = batched(constructors)
 
-    val indexedNonBatchedResults =
+    val indexedNonBatchedResults: ZIO[DynamoDBExecutor, DynamoDBError, Chunk[(Any, Int)]] =
       ZIO.foreachPar(indexedConstructors) {
         case (constructor, index) =>
           ddbExecute(constructor).map(result => (result, index))
       }
 
-    val indexedGetResults =
+    val indexedGetResults: ZIO[DynamoDBExecutor, DynamoDBError, Chunk[(Option[AttrMap], Int)]] =
       ddbExecute(batchGetItem).flatMap {
         case resp @ BatchGetItem.Response(_, unprocessedKeys) if unprocessedKeys.size == 0 =>
           ZIO.succeed(batchGetItem.toGetItemResponses(resp) zip batchGetIndexes)
@@ -59,7 +64,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
           ZIO.fail(resp.toErrorResponse)
       }
 
-    val indexedWriteResults =
+    val indexedWriteResults: ZIO[DynamoDBExecutor, DynamoDBError, Chunk[(Option[Any], Int)]] =
       ddbExecute(batchWriteItem).flatMap {
         case BatchWriteItem.Response(unprocessedItems) if unprocessedItems.size == 0 =>
           ZIO.succeed(batchWriteItem.addList.map(_ => None) zip batchWriteIndexes)
@@ -67,14 +72,23 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
           ZIO.fail(resp.toErrorResponse)
       }
 
-    (indexedNonBatchedResults zipPar indexedGetResults zipPar indexedWriteResults).map {
-      case (nonBatched, batchedGets, batchedWrites) =>
-        val combined = (nonBatched ++ batchedGets ++ batchedWrites).sortBy {
-          case (_, index) => index
-        }.map { case (value, _) => value }
-        assembler(combined)
-    }
+    val result: ZIO[zio.dynamodb.DynamoDBExecutor, DynamoDBError, Out] = for {
+      queries <- Queue.bounded[ZIO[DynamoDBExecutor, DynamoDBError, Chunk[(Any, Int)]]](3)
+      _       <- queries.offer(indexedNonBatchedResults).when(indexedConstructors.size > 0)
+      _       <- queries.offer(indexedGetResults).when(batchGetIndexes.size > 0)
+      _       <- queries.offer(indexedWriteResults).when(batchWriteIndexes.size > 0)
+      chunk   <- queries.takeAll
+      result  <- ZIO.collectAllPar(chunk).map { xs =>
+                   val combined: Chunk[(Any, Int)] = xs.flatten
+                   val sortedValues: Chunk[Any]    = combined.sortBy {
+                     case (_, index) => index
+                   }.map { case (value, _) => value }
+                   val out: Out                    = assembler(sortedValues)
+                   out
+                 }
+    } yield result
 
+    result
   }
 
   final def indexName(indexName: String): DynamoDBQuery[In, Out] =
@@ -1101,21 +1115,28 @@ object DynamoDBQuery {
       hasNoProjections || matchedPrimaryKeys.filter(_ == true).size == pk.map.size
     }
 
-    val isSingleQuery = constructors.size == 1 // single queries are not batched
+    val isSingleGetQuery   = constructors.count {
+      case _: GetItem => true
+      case _          => false
+    } == 1 // single GetItem queries are not batched
+    val isSingleWriteQuery = constructors.count {
+      case _: Write[_, _] => true
+      case _              => false
+    } == 1 // single PutItem/DeleteItem queries are not batched
 
     val (indexedNonBatched, indexedGets, indexedWrites) =
       constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem], Chunk[IndexedWriteItem])](
         (Chunk.empty, Chunk.empty, Chunk.empty)
       ) {
         case ((nonBatched, gets, writes), (get @ GetItem(_, pk, pes, _, _, _), index))                              =>
-          if (isSingleQuery)
+          if (isSingleGetQuery)
             (nonBatched :+ (get -> index), gets, writes)
           else if (projectionsContainPrimaryKey(pes, pk))
             (nonBatched, gets :+ (get -> index), writes)
           else
             (nonBatched :+ (get       -> index), gets, writes)
         case ((nonBatched, gets, writes), (put @ PutItem(_, _, conditionExpression, _, _, returnValues, _), index)) =>
-          if (isSingleQuery)
+          if (isSingleWriteQuery)
             (nonBatched :+ (put -> index), gets, writes)
           else
             conditionExpression match {
@@ -1131,7 +1152,7 @@ object DynamoDBQuery {
               (nonBatched, gets, writes),
               (delete @ DeleteItem(_, _, conditionExpression, _, _, returnValues, _), index)
             ) =>
-          if (isSingleQuery)
+          if (isSingleWriteQuery)
             (nonBatched :+ (delete -> index), gets, writes)
           else
             conditionExpression match {
