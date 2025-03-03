@@ -910,10 +910,19 @@ private[dynamodb] object Codec {
               .filter(_.isRight)
 
           rights.toList match {
-            case Nil      => Left(ItemError.DecodingError(s"All sub type decoders failed for ${av.showType} with noDiscriminator annotation present"))
+            case Nil      =>
+              Left(
+                ItemError.DecodingError(
+                  s"All sub type decoders failed for ${av.showType} with noDiscriminator annotation present"
+                )
+              )
             case a :: Nil => a.map(_.asInstanceOf[Z])
             case _        =>
-              Left(ItemError.DecodingError(s"More than one sub type decoder succeeded for ${av.showType} with noDiscriminator annotation present"))
+              Left(
+                ItemError.DecodingError(
+                  s"More than one sub type decoder succeeded for ${av.showType} with noDiscriminator annotation present"
+                )
+              )
           }
 
         case AttributeValue.Map(map)                        =>
