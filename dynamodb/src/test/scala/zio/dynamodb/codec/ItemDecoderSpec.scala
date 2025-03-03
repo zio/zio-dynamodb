@@ -436,7 +436,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
         isLeft(
           equalTo(
             ItemError.DecodingError(message =
-              "All sub type decoders failed for Map(Map(String(FIELD_NOT_IN_ANY_SUBTYPE) -> String(X)))"
+              "All sub type decoders failed for AttributeValue.Map with noDiscriminator annotation present"
             )
           )
         )
@@ -451,7 +451,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
         isLeft(
           equalTo(
             ItemError.DecodingError(message =
-              "More than one sub type decoder succeeded for Map(Map(String(i) -> Number(42)))"
+              "More than one sub type decoder succeeded for AttributeValue.Map with noDiscriminator annotation present"
             )
           )
         )

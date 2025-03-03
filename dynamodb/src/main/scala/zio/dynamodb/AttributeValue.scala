@@ -39,6 +39,20 @@ sealed trait AttributeValue { self =>
     GreaterThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))
   def >=[From](that: ProjectionExpression[From, ProjectionExpression.Unknown]): ConditionExpression[From]  =
     GreaterThanOrEqual(ValueOperand(self), ProjectionExpressionOperand(that))
+
+  private[dynamodb] final val showType: String =
+    self match {
+      case _: AttributeValue.Binary    => "AttributeValue.Binary"
+      case _: AttributeValue.BinarySet => "AttributeValue.BinarySet"
+      case _: AttributeValue.Bool      => "AttributeValue.Bool"
+      case _: AttributeValue.List      => "AttributeValue.List"
+      case _: AttributeValue.Map       => "AttributeValue.Map"
+      case _: AttributeValue.Number    => "AttributeValue.Number"
+      case _: AttributeValue.NumberSet => "AttributeValue.NumberSet"
+      case _: AttributeValue.Null.type => "AttributeValue.Null"
+      case _: AttributeValue.String    => "AttributeValue.String"
+      case _: AttributeValue.StringSet => "AttributeValue.StringSet"
+    }
 }
 
 object AttributeValue {
