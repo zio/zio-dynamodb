@@ -325,7 +325,7 @@ private[dynamodb] object Codec {
               else
                 // these are case objects and are a special case - they need to wrapped in an AttributeValue.Map
                 AttributeValue.Map(Map(AttributeValue.String(discriminator) -> av2))
-            case av                                            => throw new IllegalStateException(s"unexpected state $av")
+            case av                                            => throw new IllegalStateException(s"unexpected AttributeValue type ${av.showType}")
           }
         } else
           AttributeValue.Null
@@ -580,7 +580,7 @@ private[dynamodb] object Codec {
                 }
             }
               .map(ls => ListMap.newBuilder.++=(ls).result())
-          case av                      => Left(DecodingError(s"Expected AttributeValue.Map but found $av"))
+          case av                      => Left(DecodingError(s"Expected AttributeValue.Map but found ${av.showType}"))
         }
 
     private def primitiveDecoder[A](standardType: StandardType[A]): Decoder[A] =
@@ -698,9 +698,9 @@ private[dynamodb] object Codec {
           case (AttributeValue.String("Right"), b) :: Nil =>
             decR(b).map(Right(_))
           case av                                         =>
-            Left(DecodingError(s"AttributeValue.Map map element $av not expected."))
+            Left(DecodingError(s"AttributeValue.Map map element with key ${av.map(_._1)} not expected."))
         }
-      case av                      => Left(DecodingError(s"Expected AttributeValue.Map but found $av"))
+      case av                      => Left(DecodingError(s"Expected AttributeValue.Map but found ${av.showType}"))
     }
 
     private def tupleDecoder[A, B](decL: Decoder[A], decR: Decoder[B]): Decoder[(A, B)] =
@@ -714,7 +714,7 @@ private[dynamodb] object Codec {
               b <- decR(avB)
             } yield (a, b)
           case av                                                               =>
-            Left(DecodingError(s"Expected an AttributeValue.List of two elements but found $av"))
+            Left(DecodingError(s"Expected an AttributeValue.List of two elements but found type ${av.showType}"))
         }
 
     private def sequenceDecoder[Col, A](decoder: Decoder[A], to: Chunk[A] => Col): Decoder[Col] = {
@@ -722,7 +722,7 @@ private[dynamodb] object Codec {
         list.forEach(decoder(_)).map(xs => to(Chunk.fromIterable(xs)))
       // Low level AWS API will return an empty map for an empty list so we need to handle this case
       case AttributeValue.Map(map) if map.isEmpty => Right(to(Chunk.empty))
-      case av                                     => Left(DecodingError(s"unable to decode $av as a list"))
+      case av                                     => Left(DecodingError(s"unable to decode ${av.showType} as a list"))
     }
 
     private def setDecoder[A](s: Schema[A]): Decoder[Set[A]] = {
@@ -730,14 +730,14 @@ private[dynamodb] object Codec {
         case AttributeValue.StringSet(stringSet) =>
           Right(stringSet.asInstanceOf[Set[A]])
         case av                                  =>
-          Left(DecodingError(s"Error: expected a string set but found '$av'"))
+          Left(DecodingError(s"Error: expected a string set but found '${av.showType}'"))
       }
 
       def nativeNumberSetDecoder[A](f: BigDecimal => A): Decoder[Set[A]] = {
         case AttributeValue.NumberSet(numberSet) =>
           Right(numberSet.map(f))
         case av                                  =>
-          Left(DecodingError(s"Error: expected a number set but found '$av'"))
+          Left(DecodingError(s"Error: expected a number set but found '${av.showType}'"))
       }
 
       def nativeBinarySetDecoder[A]: Decoder[Set[A]] = {
@@ -745,7 +745,7 @@ private[dynamodb] object Codec {
           val set: Set[Chunk[Byte]] = setOfChunkOfByte.toSet.map((xs: Iterable[Byte]) => Chunk.fromIterable(xs))
           Right(set.asInstanceOf[Set[A]])
         case av                                         =>
-          Left(DecodingError(s"Error: expected a Set of Chunk of Byte but found '$av'"))
+          Left(DecodingError(s"Error: expected a Set of Chunk of Byte but found '${av.showType}'"))
       }
 
       s match {
@@ -795,7 +795,7 @@ private[dynamodb] object Codec {
             decA(av)
           }
           errorOrList.map(_.toSet)
-        case av                            => Left(DecodingError(s"Error: expected AttributeValue.List but found $av"))
+        case av                            => Left(DecodingError(s"Error: expected AttributeValue.List but found ${av.showType}"))
       }
     }
 
@@ -821,7 +821,7 @@ private[dynamodb] object Codec {
                 }
             }
             xs.flip.map(_.toMap)
-          case av                      => Left(DecodingError(s"Error: expected AttributeValue.Map but found $av"))
+          case av                      => Left(DecodingError(s"Error: expected AttributeValue.Map but found ${av.showType}"))
         }
       }
 
@@ -833,10 +833,10 @@ private[dynamodb] object Codec {
               case avList @ AttributeValue.List(_) =>
                 tupleDecoder(decA, decB)(avList)
               case av                              =>
-                Left(DecodingError(s"Error: expected AttributeValue.List but found $av"))
+                Left(DecodingError(s"Error: expected AttributeValue.List but found ${av.showType}"))
             }
             errorOrListOfTuple.map(_.toMap)
-          case av                            => Left(DecodingError(s"Error: expected AttributeValue.List but found $av"))
+          case av                            => Left(DecodingError(s"Error: expected AttributeValue.List but found ${av.showType}"))
         }
       }
 
@@ -856,7 +856,7 @@ private[dynamodb] object Codec {
           case AttributeValue.Map(map) =>
             // default enum encoding uses a Map with a single entry that denotes the type
             // TODO: think about being stricter and rejecting Maps with > 1 entry ???
-            map.toList.headOption.fold[Either[ItemError, Z]](Left(DecodingError(s"map $av is empty"))) {
+            map.toList.headOption.fold[Either[ItemError, Z]](Left(DecodingError(s"map is empty"))) {
               case (AttributeValue.String(subtype), av) =>
                 cases.find { c =>
                   maybeCaseName(c.annotations).fold(c.id == subtype)(_ == subtype)
@@ -868,7 +868,7 @@ private[dynamodb] object Codec {
                 }
             }
           case _                       =>
-            Left(DecodingError(s"invalid AttributeValue $av"))
+            Left(DecodingError(s"invalid AttributeValue of type ${av.showType}"))
         }
 
     private def enumWithAnnotationAtClassLevelDecoder[Z](
@@ -910,25 +910,34 @@ private[dynamodb] object Codec {
               .filter(_.isRight)
 
           rights.toList match {
-            case Nil      => Left(ItemError.DecodingError(s"All sub type decoders failed for $av"))
+            case Nil      =>
+              Left(
+                ItemError.DecodingError(
+                  s"All sub type decoders failed for ${av.showType} with noDiscriminator annotation present"
+                )
+              )
             case a :: Nil => a.map(_.asInstanceOf[Z])
             case _        =>
-              Left(ItemError.DecodingError(s"More than one sub type decoder succeeded for $av"))
+              Left(
+                ItemError.DecodingError(
+                  s"More than one sub type decoder succeeded for ${av.showType} with noDiscriminator annotation present"
+                )
+              )
           }
 
         case AttributeValue.Map(map)                        =>
           map
             .get(AttributeValue.String(discriminator))
             .fold[Either[ItemError, Z]](
-              Left(DecodingError(s"map $av does not contain discriminator field '$discriminator'"))
+              Left(DecodingError(s"map does not contain discriminator field '$discriminator'"))
             ) {
               case AttributeValue.String(typeName) =>
                 decode(typeName)
               case av                              =>
-                Left(DecodingError(s"expected string type but found $av"))
+                Left(DecodingError(s"expected string type but found ${av.showType}"))
             }
         case _                                              =>
-          Left(DecodingError(s"unexpected AttributeValue type $av"))
+          Left(DecodingError(s"unexpected AttributeValue type ${av.showType}"))
       }
     }
 
@@ -943,7 +952,8 @@ private[dynamodb] object Codec {
               val dec          = decoder(schema)
               val k            = key // @fieldName is respected by the zio-schema macro
               val maybeAv      = map.get(AttributeValue.String(k))
-              val errorOrValue = maybeAv.toRight(DecodingError(s"field '$k' not found in $av")).flatMap(dec)
+              val errorOrValue =
+                maybeAv.toRight(DecodingError(s"field '$k' not found in AttributeValue map")).flatMap(dec)
               if (maybeAv.isEmpty)
                 ContainerField.containerField(schema) match {
                   case ContainerField.Optional => Right(None)
@@ -958,7 +968,7 @@ private[dynamodb] object Codec {
           }
             .map(_.toList)
         case _                       =>
-          Left(DecodingError(s"$av is not an AttributeValue.Map"))
+          Left(DecodingError(s"AttributeValue type ${av.showType} found - expected an AttributeValue.Map"))
       }
 
   } // end Decoder

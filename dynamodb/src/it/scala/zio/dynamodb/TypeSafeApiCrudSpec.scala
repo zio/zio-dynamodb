@@ -109,7 +109,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
             fails(
               equalTo(
                 DynamoDBError.ItemError.DecodingError(
-                  "field 'surname' not found in Map(Map(String(id) -> String(WILL_GIVE_DECODE_ERROR)))"
+                  "field 'surname' not found in AttributeValue map"
                 )
               )
             )

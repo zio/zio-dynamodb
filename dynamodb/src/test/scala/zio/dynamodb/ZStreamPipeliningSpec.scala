@@ -50,9 +50,7 @@ object ZStreamPipeliningSpec extends ZIOSpecDefault {
           actualPeople == Chunk(
             Right((Person(1, "name1"), Some(Person(1, "Avi")))),
             Left(
-              ItemError.DecodingError(message =
-                "field 'name' not found in Map(Map(String(id) -> Number(2), String(boom!) -> String(de-serialisation-error-expected)))"
-              )
+              ItemError.DecodingError(message = "field 'name' not found in AttributeValue map")
             ),
             Right((Person(3, "name3"), None))
           )

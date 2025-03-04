@@ -42,7 +42,7 @@ object GetAndPutSpec extends ZIOSpecDefault {
       for {
         _     <- TestDynamoDBExecutor.addItems("table1", primaryKey1 -> Item("id" -> 1))
         found <- get("table1")(SimpleCaseClass2.id.partitionKey === 1).execute
-      } yield assertTrue(found == Left(DecodingError("field 'name' not found in Map(Map(String(id) -> Number(1)))")))
+      } yield assertTrue(found == Left(DecodingError("field 'name' not found in AttributeValue map")))
     },
     test("batched") {
       for {
