@@ -282,7 +282,6 @@ lazy val examples = module("zio-dynamodb-examples", "examples")
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
   .dependsOn(zioDynamodb, zioDynamodbCe, zioDynamodbJson)
-  .enablePlugins(JmhPlugin)
 
 lazy val benchmarks = module("zio-dynamodb-benchmarks", "benchmarks")
   .settings(
@@ -291,6 +290,7 @@ lazy val benchmarks = module("zio-dynamodb-benchmarks", "benchmarks")
     fork := true
   )
   .dependsOn(zioDynamodb, zioDynamodbCe, zioDynamodbJson)
+  .enablePlugins(JmhPlugin)
 
 lazy val zioDynamodbCe =
   module("zio-dynamodb-ce", "interop/dynamodb-ce")
