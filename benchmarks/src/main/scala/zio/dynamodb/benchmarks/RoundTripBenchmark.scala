@@ -27,8 +27,8 @@ class RoundTripBenchmark {
   @Benchmark
   def zioDdbApiBenchmark(): Unit =
     zioDdbBenchmark.run {
-      for {
-        _ <- DynamoDBQuery.put("Person", Person("1", "John")).execute
+      for { // TODO: use repetitions
+        _ <- DynamoDBQuery.put(Person.tableName, Person("1", "John")).execute
         _ <- DynamoDBQuery.get("Person")(Person.id.partitionKey === "1").execute
       } yield ()
     }
