@@ -58,8 +58,8 @@ private[dynamodb] object Codec {
         case l @ Schema.Lazy(_)                                                                                                                 =>
           lazy val enc = encoder(l.schema)
           (a: A) => enc(a)
-        case Schema.Dynamic(_)                                                                                                                  =>
-          dynamicEncoder
+        case Schema.Dynamic(annotations)                                                                                                        =>
+          dynamicEncoder2(annotations)
         case Schema.CaseClass0(_, _, _)                                                                                                         =>
           caseClassEncoder0
         case Schema.CaseClass1(_, f, _, _)                                                                                                      =>
@@ -176,8 +176,56 @@ private[dynamodb] object Codec {
         }
       }
 
-    private def dynamicEncoder[A]: Encoder[A] =
+    def dynamicEncoder[A]: Encoder[A] =
       encoder(Schema.dynamicValue).asInstanceOf[Encoder[A]]
+
+    /*
+    type Encoder[A]  = A => AttributeValue
+
+ final case class Record(id: TypeId, values: ListMap[String, DynamicValue]) extends DynamicValue
+
+  final case class Enumeration(id: TypeId, value: (String, DynamicValue)) extends DynamicValue
+
+  final case class Sequence(values: Chunk[DynamicValue]) extends DynamicValue
+
+  final case class Dictionary(entries: Chunk[(DynamicValue, DynamicValue)]) extends DynamicValue
+
+  final case class SetValue(values: Set[DynamicValue]) extends DynamicValue
+
+  sealed case class Primitive[A](value: A, standardType: StandardType[A]) extends DynamicValue
+
+  sealed case class Singleton[A](instance: A) extends DynamicValue
+
+  final case class SomeValue(value: DynamicValue) extends DynamicValue
+
+  case object NoneValue extends DynamicValue
+
+  sealed case class Tuple(left: DynamicValue, right: DynamicValue) extends DynamicValue
+
+  final case class LeftValue(value: DynamicValue) extends DynamicValue
+
+  final case class RightValue(value: DynamicValue) extends DynamicValue
+
+  final case class BothValue(left: DynamicValue, right: DynamicValue) extends DynamicValue
+
+  final case class DynamicAst(ast: MetaSchema) extends DynamicValue
+
+  final case class Error(message: String) extends DynamicValue
+     */
+    def dynamicEncoder2[A](annotations: Chunk[Any]): Encoder[A] = {
+      println(annotations) // TODO: Avi - remove
+      (d: A) =>
+        d match {
+          case d: zio.schema.DynamicValue =>
+            println(d) // TODO: Avi - remove
+            AttributeValue.Map(
+              ListMap(
+                AttributeValue.String("TODO") -> AttributeValue.String("TODO")
+              )
+            )
+          case _                          => AttributeValue.Null
+        }
+    }
 
     private def caseClassEncoder0[Z]: Encoder[Z] = _ => AttributeValue.Null
 
