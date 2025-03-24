@@ -17,6 +17,7 @@ import java.util.UUID
 import scala.annotation.tailrec
 import scala.collection.immutable.ListMap
 import scala.util.Try
+import zio.schema.DynamicValue
 
 private[dynamodb] object Codec {
 
@@ -211,19 +212,55 @@ private[dynamodb] object Codec {
   final case class DynamicAst(ast: MetaSchema) extends DynamicValue
 
   final case class Error(message: String) extends DynamicValue
+
+
+  private def fromJson(json: Json): DynamicValue = {
+    println(s"JJJJJJJJ fromJson")
+
+    json match {
+      case Json.Null        => DynamicValue.NoneValue
+      case Json.Bool(value) => DynamicValue.Primitive(value, StandardType.BoolType)
+      case Json.Num(value)  => DynamicValue.Primitive(value, StandardType.BigDecimalType)
+      case Json.Str(value)  => DynamicValue.Primitive(value, StandardType.StringType)
+      case Json.Arr(values) => DynamicValue.Sequence(values.map(fromJson))
+      case Json.Obj(values) =>
+        println(s"JJJJJJJJ values: $values")
+        DynamicValue.Record(
+          TypeId.parse("Json.Obj"),
+          ListMap(values.map { case (name, value) => (name, fromJson(value)) }.toList: _*)
+        )
+    }
+  }
      */
-    def dynamicEncoder2[A](annotations: Chunk[Any]): Encoder[A] = {
+    def dynamicEncoder2[A](annotations: Chunk[Any]): Encoder[DynamicValue] = {
       println(annotations) // TODO: Avi - remove
-      (d: A) =>
+      (d: DynamicValue) =>
         d match {
-          case d: zio.schema.DynamicValue =>
-            println(d) // TODO: Avi - remove
-            AttributeValue.Map(
-              ListMap(
-                AttributeValue.String("TODO") -> AttributeValue.String("TODO")
-              )
-            )
-          case _                          => AttributeValue.Null
+          case DynamicValue.NoneValue         => AttributeValue.Null
+          case b: DynamicValue.Primitive[_]   =>
+            b.standardType match {
+              case StandardType.BoolType       => AttributeValue.Bool(b.value.asInstanceOf[Boolean])
+              case StandardType.BigDecimalType => AttributeValue.Number(BigDecimal(b.value.toString))
+              case StandardType.StringType     => AttributeValue.String(b.value.toString)
+              case _                           => throw new Exception(s"Unsupported standard type: ${b.standardType}")
+            }
+          case DynamicValue.Record(_, values) =>
+            values.foldRight(AttributeValue.Map(ListMap.empty)) {
+              case (kv, avMap) =>
+                val enc = dynamicEncoder2(annotations)
+                val av  = enc(kv._2)
+                AttributeValue.Map(avMap.value + (AttributeValue.String(kv._1) -> av))
+            }
+//              case DynamicValue.Primitive(value, StandardType.BoolType) => AttributeValue.Bool(value.asInstanceOf[Boolean])
+          // case DynamicValue.Primitive(a, standardType: StandardType[Any]) =>
+          //   primitiveEncoder(standardType)(a.asInstanceOf[A])
+
+          // case dv: DynamicValue.Primitive[_] =>
+          //   primitiveEncoder(dv.standardType)((dv.value).asInstanceOf[A])
+          // case DynamicValue.SetValue(values: Set[DynamicValue])           =>
+          //   // native sets cant be supported as there is no guarantee that the elements are of the same type
+          //   ???
+          case dv                             => throw new Exception(s"Unsupported DynamicValue $dv")
         }
     }
 
