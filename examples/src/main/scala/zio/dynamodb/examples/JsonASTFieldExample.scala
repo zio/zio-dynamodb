@@ -41,19 +41,19 @@ object JsonASTFieldExample extends ZIOAppDefault {
       person: Person = Person("id", json)
       encoded        = DynamoDBQuery.toItem(person)
       _             <- ZIO.debug(s"person object encoded: $encoded")
-//JSON encoded an an ENUM/AST       
+//JSON encoded an an ENUM/AST
 //person object encoded: AttrMap(Map(json -> Map(Map(String(Obj) -> Map(Map(String(fields) -> List(Chunk(List(Chunk(String(name),Map(Map(String(Str) -> Map(Map(String(value) -> String(John))))))),List(Chunk(String(age),Map(Map(String(Num) -> Map(Map(String(value) -> Number(42))))))))))))), id -> String(id)))
 //JSON encoded DIRECTLY
 //[info] person object encoded: AttrMap(Map(json -> Map(ListMap(String(age) -> Number(42), String(name) -> String(John))), id -> String(id)))
-      // decoded       <- ZIO.fromEither(DynamoDBQuery.fromItem[Person](encoded))
-      // _             <- ZIO.debug(s"Item decoded to Person class: $decoded")
+      decoded       <- ZIO.fromEither(DynamoDBQuery.fromItem[Person](encoded))
+      _             <- ZIO.debug(s"Item decoded to Person class: $decoded")
 
-      // _              <- ZIO.debug(s"Random enum Codec Example: ${Person2.schema}")
-      // person: Person2 = Person2("id", FooEnum.Bar)
-      // encoded         = DynamoDBQuery.toItem(person)
-      // _              <- ZIO.debug(s"person object encoded: $encoded")
-      // decoded        <- ZIO.fromEither(DynamoDBQuery.fromItem[Person2](encoded))
-      // _              <- ZIO.debug(s"Item decoded to Person class: $decoded")
+      _              <- ZIO.debug(s"Random enum Codec Example: ${Person2.schema}")
+      person: Person2 = Person2("id", FooEnum.Bar)
+      encoded         = DynamoDBQuery.toItem(person)
+      _              <- ZIO.debug(s"person object encoded: $encoded")
+      decoded        <- ZIO.fromEither(DynamoDBQuery.fromItem[Person2](encoded))
+      _              <- ZIO.debug(s"Item decoded to Person class: $decoded")
 
     } yield ()
 }

@@ -3,7 +3,6 @@ package zio.dynamodb
 import zio.dynamodb.Annotations._
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb.DynamoDBError.ItemError
-import zio.prelude.{ FlipOps, ForEachOps }
 import zio.schema.Schema.{ Optional, Primitive }
 import zio.schema.annotation.caseName
 import zio.schema.{ Fallback, FieldSet, Schema, StandardType }
@@ -535,7 +534,7 @@ private[dynamodb] object Codec {
           lazy val dec = decoder(l.schema)
           (av: AttributeValue) => dec(av)
         case Schema.Dynamic(_)                     =>
-          dynamicDecoder
+          dynamicDecoder2
         case Schema.Set(s, _)                      =>
           setDecoder(s).asInstanceOf[Decoder[A]]
         case Schema.Map(ks, vs, _)                 =>
@@ -648,8 +647,40 @@ private[dynamodb] object Codec {
     private[dynamodb] def caseClass0Decoder[Z](schema: Schema.CaseClass0[Z]): Decoder[Z] =
       _ => Right(schema.defaultConstruct())
 
-    private def dynamicDecoder[A]: Decoder[A] =
+    def dynamicDecoder[A]: Decoder[A] =
       decoder(Schema.dynamicValue).asInstanceOf[Decoder[A]]
+
+    import zio.prelude._
+
+    // TODO: make a safe pure function from AV => DV and call that recursively - Rights all the way baby!
+    def dynamicDecoder2: Decoder[DynamicValue] = {
+      case AttributeValue.Null          => Right(DynamicValue.NoneValue)
+      case AttributeValue.Bool(value)   => Right(DynamicValue.Primitive(value, StandardType.BoolType))
+      case AttributeValue.Number(value) =>
+        Right(DynamicValue.Primitive(value.bigDecimal, StandardType.BigDecimalType))
+      case AttributeValue.String(value) =>
+        Right(DynamicValue.Primitive(value, StandardType.StringType))
+      case AttributeValue.List(values)  =>
+        val errorOrDvs: Either[zio.dynamodb.DynamoDBError.ItemError, Iterable[zio.schema.DynamicValue]] =
+          values.map(dynamicDecoder2).flip
+        println(errorOrDvs)
+        errorOrDvs.map(xs => DynamicValue.Sequence(Chunk.fromIterable(xs)))
+        Right(DynamicValue.Sequence(Chunk.empty))
+      case AttributeValue.Map(values)   =>
+        Right(
+          DynamicValue.Record(
+            zio.schema.TypeId.fromTypeName("AttributeValue.Map"), // TODO: Avi
+            ListMap(values.map { case (k, v) => (k.toString, dirtyGet(v)) }.toList: _*)
+          )
+        )
+      case av                           => Left(DecodingError(s"Unsupported AttributeValue type $av"))
+    }
+
+    def dirtyGet(av: AttributeValue): DynamicValue =
+      dynamicDecoder2(av) match {
+        case Right(dv) => dv
+        case Left(err) => throw new Exception(s"Error decoding $av: $err")
+      }
 
     private def genericRecordDecoder(structure: FieldSet): Decoder[Any] =
       (av: AttributeValue) =>
