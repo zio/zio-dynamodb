@@ -72,23 +72,14 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
           ZIO.fail(resp.toErrorResponse)
       }
 
-    def chunkOfResults: Chunk[ZIO[DynamoDBExecutor, DynamoDBError, Chunk[(Any, Int)]]] = {
-      var index: Int = 0
-      val array      = new Array[ZIO[DynamoDBExecutor, DynamoDBError, Chunk[(Any, Int)]]](3)
-      if (indexedConstructors.size > 0) {
-        array(index) = indexedNonBatchedResults
-        index += 1
-      }
-      if (batchGetIndexes.size > 0) {
-        array(index) = indexedGetResults
-        index += 1
-      }
-      if (batchWriteIndexes.size > 0) {
-        array(index) = indexedWriteResults
-        index += 1
-      }
-      Chunk.fromArray(array.slice(0, index))
-    }
+    def chunkOfResults: Chunk[ZIO[DynamoDBExecutor, DynamoDBError, Chunk[(Any, Int)]]] =
+      Chunk.fromIterable(
+        List(
+          Option.when(indexedConstructors.nonEmpty)(indexedNonBatchedResults),
+          Option.when(batchGetIndexes.nonEmpty)(indexedGetResults),
+          Option.when(batchWriteIndexes.nonEmpty)(indexedWriteResults)
+        ).flatten
+      )
 
     val result: ZIO[zio.dynamodb.DynamoDBExecutor, DynamoDBError, Out] = for {
       result <- ZIO.collectAllPar(chunkOfResults).map { xs =>
