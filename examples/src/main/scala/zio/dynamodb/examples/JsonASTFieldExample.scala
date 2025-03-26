@@ -3,19 +3,20 @@ import zio._
 import zio.json._
 import zio.dynamodb.DynamoDBQuery
 import zio.schema.{ DeriveSchema, Schema }
+import zio.schema.annotation.directDynamicMapping
 import zio.json.ast.Json
 
 object JsonASTFieldExample extends ZIOAppDefault {
   import zio.schema.codec.json._
-  //@directDynamicMapping // only seems to be recognised when applied by json package implicit
   /*
   implicit val schemaJson: Schema[Json] =
     Schema.dynamicValue.transform(toJson, fromJson).annotate(directDynamicMapping())
    */
-  case class Person(id: String, json: Json)
+  @directDynamicMapping // only seems to be recognised when applied by json package implicit
+  case class Person(id: String, @directDynamicMapping json: Json)
 
   object Person {
-    implicit val schema: Schema[Person] = DeriveSchema.gen[Person]
+    implicit val schema: Schema[Person] = DeriveSchema.gen[Person].annotate(directDynamicMapping())
 
     // implicit val jsonCodec: zio.json.JsonCodec[Person] =
     //   zio.schema.codec.JsonCodec.jsonCodec(schema)

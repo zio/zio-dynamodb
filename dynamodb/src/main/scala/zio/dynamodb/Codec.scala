@@ -58,7 +58,8 @@ private[dynamodb] object Codec {
         case l @ Schema.Lazy(_)                                                                                                                 =>
           lazy val enc = encoder(l.schema)
           (a: A) => enc(a)
-        case Schema.Dynamic(annotations)                                                                                                        =>
+        case s @ Schema.Dynamic(annotations)                                                                                                    =>
+          println(s"DDDDDDDDDDD encode - dv schema $s") // TODO: Avi - remove
           dynamicEncoder2(annotations)
         case Schema.CaseClass0(_, _, _)                                                                                                         =>
           caseClassEncoder0
@@ -232,7 +233,7 @@ private[dynamodb] object Codec {
   }
      */
     def dynamicEncoder2[A](annotations: Chunk[Any]): Encoder[DynamicValue] = {
-      println(annotations) // TODO: Avi - remove
+      println(s"DDDDDDDDDDD annotations $annotations") // TODO: Avi - remove
       (d: DynamicValue) =>
         d match {
           case DynamicValue.NoneValue         => AttributeValue.Null
