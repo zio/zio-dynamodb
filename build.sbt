@@ -43,7 +43,7 @@ lazy val root =
   project
     .in(file("."))
     .settings(publish / skip := true)
-    .aggregate(zioDynamodb, zioDynamodbCe, zioDynamodbJson, examples, docs)
+    .aggregate(zioDynamodb, zioDynamodbCe, zioDynamodbJson, examples, benchmarks, docs)
 
 lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
   .enablePlugins(BuildInfoPlugin)
@@ -282,6 +282,15 @@ lazy val examples = module("zio-dynamodb-examples", "examples")
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
   .dependsOn(zioDynamodb, zioDynamodbCe, zioDynamodbJson)
+
+lazy val benchmarks = module("zio-dynamodb-benchmarks", "benchmarks")
+  .settings(
+    resolvers ++= Resolver.sonatypeOssRepos("releases"),
+    publish / skip := true,
+    fork := true
+  )
+  .dependsOn(zioDynamodb, zioDynamodbCe, zioDynamodbJson)
+  .enablePlugins(JmhPlugin)
 
 lazy val zioDynamodbCe =
   module("zio-dynamodb-ce", "interop/dynamodb-ce")

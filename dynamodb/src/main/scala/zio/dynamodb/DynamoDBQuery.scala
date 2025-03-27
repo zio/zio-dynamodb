@@ -29,7 +29,7 @@ import zio.dynamodb.UpdateExpression.Action
 import zio.prelude.ForEachOps
 import zio.schema.Schema
 import zio.stream.Stream
-import zio.{ Chunk, Queue, Schedule, ZIO }
+import zio.{ Chunk, Schedule, ZIO }
 import scala.annotation.nowarn
 
 sealed trait DynamoDBQuery[-In, +Out] { self =>
@@ -72,20 +72,24 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
           ZIO.fail(resp.toErrorResponse)
       }
 
+    val chunkOfResults: Chunk[ZIO[DynamoDBExecutor, DynamoDBError, Chunk[(Any, Int)]]] =
+      Chunk.fromIterable(
+        List(
+          if (indexedConstructors.nonEmpty) Some(indexedNonBatchedResults) else None,
+          if (batchGetIndexes.nonEmpty) Some(indexedGetResults) else None,
+          if (batchWriteIndexes.nonEmpty) Some(indexedWriteResults) else None
+        ).flatten
+      )
+
     val result: ZIO[zio.dynamodb.DynamoDBExecutor, DynamoDBError, Out] = for {
-      queries <- Queue.bounded[ZIO[DynamoDBExecutor, DynamoDBError, Chunk[(Any, Int)]]](3)
-      _       <- queries.offer(indexedNonBatchedResults).when(indexedConstructors.size > 0)
-      _       <- queries.offer(indexedGetResults).when(batchGetIndexes.size > 0)
-      _       <- queries.offer(indexedWriteResults).when(batchWriteIndexes.size > 0)
-      chunk   <- queries.takeAll
-      result  <- ZIO.collectAllPar(chunk).map { xs =>
-                   val combined: Chunk[(Any, Int)] = xs.flatten
-                   val sortedValues: Chunk[Any]    = combined.sortBy {
-                     case (_, index) => index
-                   }.map { case (value, _) => value }
-                   val out: Out                    = assembler(sortedValues)
-                   out
-                 }
+      result <- ZIO.collectAllPar(chunkOfResults).map { xs =>
+                  val combined: Chunk[(Any, Int)] = xs.flatten
+                  val sortedValues: Chunk[Any]    = combined.sortBy {
+                    case (_, index) => index
+                  }.map { case (value, _) => value }
+                  val out: Out                    = assembler(sortedValues)
+                  out
+                }
     } yield result
 
     result
