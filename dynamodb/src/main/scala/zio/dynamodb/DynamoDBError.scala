@@ -49,6 +49,10 @@ object DynamoDBError {
     final case class GetError(unprocessedKeys: Map[String, Set[PrimaryKey]]) extends BatchError {
       val message = "unprocessed keys returned by aws"
     }
+
+    final case class UnbatchableQueryError(query: DynamoDBQuery[_, _]) extends BatchError {
+      val message = s"query is not batchable: $query"
+    }
   }
 
   /**

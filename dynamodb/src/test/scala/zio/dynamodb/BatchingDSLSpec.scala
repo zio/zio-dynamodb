@@ -193,6 +193,14 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
                     getItem(tableName1.value, PrimaryKey("k1" -> s"v$i"))
                   }.execute
       } yield assert(result)(equalTo(List(Some(itemT1), Some(itemT1_2))))
+    } @@ beforeAddTable1AndTable2,
+    test("should execute forEach of PutItems (resulting in a batched request)") {
+      for {
+        _ <-
+          forEach(1 to 2) { i =>
+            putItem(tableName1.value, Item("k1" -> s"v$i")).where(zio.dynamodb.ProjectionExpression.$("k1") === "k1")
+          }.execute
+      } yield assertTrue(true)
     } @@ beforeAddTable1AndTable2
   )
 
