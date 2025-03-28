@@ -41,13 +41,10 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
   final def <*>[In1 <: In, B](that: DynamoDBQuery[In1, B]): DynamoDBQuery[In1, (Out, B)] = self zip that
 
   def execute: ZIO[DynamoDBExecutor, DynamoDBError, Out] = {
-    println(s"XXXXXXXXXXXXXXXXXXXXXXX self: $self")
     val batchStrict = self match {
       case DynamoDBQuery.Map(Zip(_, _, _, batchStrict), _) => batchStrict
       case _                                               => false
     }
-    if (batchStrict)
-      println(s"XXXXXXXXXXXXXXXXXXXXXXX batchStrict: $batchStrict")
 
     val (constructors: Chunk[DynamoDBQuery.Constructor[In, Any]], assembler: Function1[Chunk[Any], Out]) = parallelize(
       self
@@ -102,7 +99,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
     if (batchStrict && indexedConstructors.nonEmpty)
       ZIO.fail(DynamoDBError.BatchError.UnbatchableQueryError(self))
-    else  
+    else
       result
   }
 
@@ -426,9 +423,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   final def zip[In1 <: In, B](that: DynamoDBQuery[In1, B], batchStrict: Boolean = false)(implicit
     z: Zippable[Out, B]
-  ): DynamoDBQuery[In1, z.Out] = {
+  ): DynamoDBQuery[In1, z.Out] =
     DynamoDBQuery.Zip[Out, B, z.Out](self, that, z, batchStrict)
-  }
 
   final def zipLeft[In1 <: In, B](that: DynamoDBQuery[In1, B]): DynamoDBQuery[In1, Out] = (self zip that).map(_._1)
 
@@ -436,10 +432,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   final def zipWith[In1 <: In, B, C](that: DynamoDBQuery[In1, B], batchStrict: Boolean = false)(
     f: (Out, B) => C
-  ): DynamoDBQuery[In1, C] = {
-    println(s"zipWith batchStrict: $batchStrict")
+  ): DynamoDBQuery[In1, C] =
     self.zip(that, batchStrict).map(f.tupled)
-  }
 
   private def select(select: Select): DynamoDBQuery[In, Out] =
     self match {

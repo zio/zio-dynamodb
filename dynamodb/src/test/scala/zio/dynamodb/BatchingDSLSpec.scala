@@ -8,11 +8,15 @@ import zio.test.Spec
 
 object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
 
+  private val beforeAddEmptyTable1     = TestAspect.before(
+    TestDynamoDBExecutor
+      .addTable(tableName1.value, "k1")
+  )
   private val beforeAddTable1          = TestAspect.before(
     TestDynamoDBExecutor
       .addTable(tableName1.value, "k1", primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2)
   )
-  private val beforeAddTable1AndTable2 = TestAspect.before(
+  private val beforeAddTable1AndTable3 = TestAspect.before(
     TestDynamoDBExecutor
       .addTable(tableName1.value, "k1", primaryKeyT1                     -> itemT1, primaryKeyT1_2 -> itemT1_2) *>
       TestDynamoDBExecutor.addTable(tableName3.value, "k3", primaryKeyT3 -> itemT3)
@@ -164,7 +168,7 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
         result  <- query2.execute
         expected = (Some(itemT1), Some(itemT1_2), Some(itemT3))
       } yield assert(result)(equalTo(expected))
-    } @@ beforeAddTable1AndTable2,
+    } @@ beforeAddTable1AndTable3,
     test("batch getItem1 zip getItem2 zip getItem3 returns 2 items that are found") {
       val query1: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap])]                  = getItemT1 zip getItemT1_2
       val query2: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap], Option[AttrMap])] =
@@ -186,32 +190,56 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
         mixedOpsExpected = (None, Some(itemT1), Some(itemT1_2), None)
         getsResults     <- nextQuery.execute
       } yield assert(mixedOpsResults)(equalTo(mixedOpsExpected)) && assert(getsResults)(equalTo((None, Some(itemT3_2))))
-    } @@ beforeAddTable1AndTable2,
+    } @@ beforeAddTable1AndTable3,
     test("should execute forEach of GetItems (resulting in a batched request)") {
       for {
         result <- forEach(1 to 2) { i =>
                     getItem(tableName1.value, PrimaryKey("k1" -> s"v$i"))
                   }.execute
-      } yield assert(result)(equalTo(List(Some(itemT1), Some(itemT1_2))))
-    } @@ beforeAddTable1AndTable2,
+        query  <- TestDynamoDBExecutor.recordedQueries
+      } yield assert(result)(equalTo(List(Some(itemT1), Some(itemT1_2)))) && assertQueryBatched(query)
+    } @@ beforeAddTable1AndTable3,
     test("should execute forEach of PutItems (resulting in a batched request)") {
       for {
-        _ <-
+        _     <- forEach(1 to 2) { i =>
+                   putItem(tableName1.value, Item("k1" -> s"v$i"))
+                 }.execute.exit
+        query <- TestDynamoDBExecutor.recordedQueries
+        items <- TestDynamoDBExecutor.tableItems(tableName1.value)
+      } yield assertQueryBatched(query) && assertTrue(items == Set(Item("k1" -> "v1"), Item("k1" -> "v2")))
+    } @@ beforeAddEmptyTable1,
+    test("using forEach of PutItems with ConditionExpression should result in an error") {
+      for {
+        exit <-
           forEach(1 to 2) { i =>
             putItem(tableName1.value, Item("k1" -> s"v$i")).where(zio.dynamodb.ProjectionExpression.$("k1") === "k1")
-          }.execute
-      } yield assertTrue(true)
-    } @@ beforeAddTable1AndTable2
+          }.execute.exit
+
+      } yield assert(exit)(fails(isSubtype[DynamoDBError.BatchError.UnbatchableQueryError](anything)))
+    } @@ beforeAddEmptyTable1,
+    test("using forEach of PutItems with a ReturnValues should result in an error") {
+      for {
+        exit <- forEach(1 to 2) { i =>
+                  putItem(tableName1.value, Item("k1" -> s"v$i")).returns(
+                    ReturnValues.AllNew
+                  ) // This should not be batchable as it uses a return value
+                }.execute.exit
+
+      } yield assert(exit)(fails(isSubtype[DynamoDBError.BatchError.UnbatchableQueryError](anything)))
+    } @@ beforeAddEmptyTable1
   )
 
   private def assertQueryNotBatched(queries: List[DynamoDBQuery[_, _]]) =
-    assertTrue(queries.size == 1) && assertTrue(isNonBatched(queries.head))
+    assertTrue(queries.size == 1) && assertTrue(!isBatched(queries.head))
 
-  private def isNonBatched(q: DynamoDBQuery[_, _]): Boolean =
+  private def assertQueryBatched(queries: List[DynamoDBQuery[_, _]]) =
+    assertTrue(queries.size == 1) && assertTrue(isBatched(queries.head))
+
+  private def isBatched(q: DynamoDBQuery[_, _]): Boolean =
     q match {
-      case BatchGetItem(_, _, _, _)      => false
-      case BatchWriteItem(_, _, _, _, _) => false
-      case _                             => true
+      case BatchGetItem(_, _, _, _)      => true
+      case BatchWriteItem(_, _, _, _, _) => true
+      case _                             => false
     }
 
 }
