@@ -226,7 +226,35 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
                 }.execute.exit
 
       } yield assert(exit)(fails(isSubtype[DynamoDBError.BatchError.UnbatchableQueryError](anything)))
-    } @@ beforeAddEmptyTable1
+    } @@ beforeAddEmptyTable1,
+    test("should execute forEach of DeleteItems (resulting in a batched request)") {
+      for {
+        _     <- forEach(1 to 2) { i =>
+                   deleteItem(tableName1.value, PrimaryKey("k1" -> s"v$i"))
+                 }.execute.exit
+        query <- TestDynamoDBExecutor.recordedQueries
+        items <- TestDynamoDBExecutor.tableItems(tableName1.value)
+      } yield assertQueryBatched(query) && assertTrue(items == Set.empty[Item])
+    } @@ beforeAddTable1,
+    test("using forEach of DeleteItems with ConditionExpression should result in an error") {
+      for {
+        exit <-
+          forEach(1 to 2) { i =>
+            deleteItem(tableName1.value, PrimaryKey("k1" -> s"v$i")).where(zio.dynamodb.ProjectionExpression.$("k1") === "k1")
+          }.execute.exit
+
+      } yield assert(exit)(fails(isSubtype[DynamoDBError.BatchError.UnbatchableQueryError](anything)))
+    } @@ beforeAddEmptyTable1,
+    test("using forEach of DeleteItems with a ReturnValues should result in an error") {
+      for {
+        exit <- forEach(1 to 2) { i =>
+                  deleteItem(tableName1.value, PrimaryKey("k1" -> s"v$i")).returns(
+                    ReturnValues.AllNew
+                  ) // This should not be batchable as it uses a return value
+                }.execute.exit
+
+      } yield assert(exit)(fails(isSubtype[DynamoDBError.BatchError.UnbatchableQueryError](anything)))
+    } @@ beforeAddEmptyTable1,
   )
 
   private def assertQueryNotBatched(queries: List[DynamoDBQuery[_, _]]) =
