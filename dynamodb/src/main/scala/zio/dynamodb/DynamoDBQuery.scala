@@ -98,7 +98,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     } yield result
 
     if (batchStrict && indexedConstructors.nonEmpty)
-      ZIO.fail(DynamoDBError.BatchError.UnbatchableQueryError(self))
+      ZIO.fail(DynamoDBError.BatchError.UnbatchableQueryError("query is an update or contains a condition expression or contains a returns"))
     else
       result
   }
