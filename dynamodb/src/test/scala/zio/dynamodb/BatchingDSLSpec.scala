@@ -2,6 +2,7 @@ package zio.dynamodb
 
 import zio.Chunk
 import zio.dynamodb.DynamoDBQuery._
+import zio.dynamodb.ProjectionExpression.$
 import zio.test.Assertion._
 import zio.test.{ assert, assertTrue, TestAspect, ZIOSpecDefault }
 import zio.test.Spec
@@ -215,7 +216,7 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
             putItem(tableName1.value, Item("k1" -> s"v$i")).where(zio.dynamodb.ProjectionExpression.$("k1") === "k1")
           }.execute.exit
 
-      } yield assert(exit)(fails(isSubtype[DynamoDBError.BatchError.UnbatchableQueryError](anything)))
+      } yield assert(exit)(fails(isUnbatchableQueryError))
     } @@ beforeAddEmptyTable1,
     test("using forEach of PutItems with a ReturnValues should result in an error") {
       for {
@@ -225,7 +226,7 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
                   ) // This should not be batchable as it uses a return value
                 }.execute.exit
 
-      } yield assert(exit)(fails(isSubtype[DynamoDBError.BatchError.UnbatchableQueryError](anything)))
+      } yield assert(exit)(fails(isUnbatchableQueryError))
     } @@ beforeAddEmptyTable1,
     test("should execute forEach of DeleteItems (resulting in a batched request)") {
       for {
@@ -243,7 +244,7 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
                     .where(zio.dynamodb.ProjectionExpression.$("k1") === "k1")
                 }.execute.exit
 
-      } yield assert(exit)(fails(isSubtype[DynamoDBError.BatchError.UnbatchableQueryError](anything)))
+      } yield assert(exit)(fails(isUnbatchableQueryError))
     } @@ beforeAddEmptyTable1,
     test("using forEach of DeleteItems with a ReturnValues should result in an error") {
       for {
@@ -253,9 +254,19 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
                   ) // This should not be batchable as it uses a return value
                 }.execute.exit
 
-      } yield assert(exit)(fails(isSubtype[DynamoDBError.BatchError.UnbatchableQueryError](anything)))
+      } yield assert(exit)(fails(isUnbatchableQueryError))
+    } @@ beforeAddEmptyTable1,
+    test("using forEach of UpdateItems should result in an error") { // Batching of UpdateItem's is not supported by AWS API
+      for {
+        exit <- forEach(1 to 2) { i =>
+                  updateItem(tableName1.value, PrimaryKey("k1" -> s"v$i"))($("v1").set("Blah"))
+                }.execute.exit
+
+      } yield assert(exit)(fails(isUnbatchableQueryError))
     } @@ beforeAddEmptyTable1
   )
+
+  private val isUnbatchableQueryError = isSubtype[DynamoDBError.BatchError.UnbatchableQueryError](anything)
 
   private def assertQueryNotBatched(queries: List[DynamoDBQuery[_, _]]) =
     assertTrue(queries.size == 1) && assertTrue(!isBatched(queries.head))
