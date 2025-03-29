@@ -35,7 +35,7 @@ trait TestDynamoDBExecutor {
   def addTable(tableName: String, pkFieldName: String, pkAndItems: PkAndItem*): UIO[Unit]
   def addItems(tableName: String, pkAndItems: PkAndItem*): ZIO[Any, DynamoDBError, Unit]
   def recordedQueries: UIO[List[DynamoDBQuery[_, _]]]
-  def tableItems(tableName: String): UIO[Set[Item]]
+  def itemsForTable(tableName: String): UIO[Set[Item]]
 }
 
 object TestDynamoDBExecutor {
@@ -54,6 +54,9 @@ object TestDynamoDBExecutor {
   def recordedQueries: ZIO[TestDynamoDBExecutor, Nothing, List[DynamoDBQuery[_, _]]] =
     ZIO.serviceWithZIO[TestDynamoDBExecutor](_.recordedQueries)
 
-  def tableItems(tableName: String): ZIO[TestDynamoDBExecutor, Nothing, Set[Item]] =
-    ZIO.serviceWithZIO[TestDynamoDBExecutor](_.tableItems(tableName))
+  def itemsForTable(tableName: String): ZIO[TestDynamoDBExecutor, Nothing, Set[Item]] =
+    ZIO.serviceWithZIO[TestDynamoDBExecutor](_.itemsForTable(tableName))
+
+  def itemsForTable(tableName: TableName): ZIO[TestDynamoDBExecutor, Nothing, Set[Item]] =
+    ZIO.serviceWithZIO[TestDynamoDBExecutor](_.itemsForTable(tableName.value))
 }

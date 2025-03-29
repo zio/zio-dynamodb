@@ -234,7 +234,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
 
   override def recordedQueries: UIO[List[DynamoDBQuery[_, _]]] = self.queries.get
 
-  override def tableItems(tableName: String): UIO[Set[Item]] = {
+  override def itemsForTable(tableName: String): UIO[Set[Item]] = {
     val program = (for {
       tableMap <- self.tableMap.get(TableName(tableName))
       items    <- tableMap match {
