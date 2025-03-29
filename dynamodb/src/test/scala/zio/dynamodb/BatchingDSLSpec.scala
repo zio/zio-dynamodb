@@ -204,10 +204,19 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
       for {
         _     <- forEach(1 to 2) { i =>
                    putItem(tableName1.value, Item("k1" -> s"v$i"))
-                 }.execute.exit
+                 }.execute
         query <- TestDynamoDBExecutor.recordedQueries
         items <- TestDynamoDBExecutor.itemsForTable(tableName1)
       } yield assertQueryBatched(query) && assertTrue(items == Set(Item("k1" -> "v1"), Item("k1" -> "v2")))
+    } @@ beforeAddEmptyTable1,
+    test("should execute forEach of PutItems for a single item, resulting in no batching") {
+      for {
+        _     <- forEach(1 to 1) { i =>
+                   putItem(tableName1.value, Item("k1" -> s"v$i"))
+                 }.execute
+        query <- TestDynamoDBExecutor.recordedQueries
+        items <- TestDynamoDBExecutor.itemsForTable(tableName1)
+      } yield assertQueryNotBatched(query) && assertTrue(items == Set(Item("k1" -> "v1")))
     } @@ beforeAddEmptyTable1,
     test("using forEach of PutItems with ConditionExpression should result in an error") {
       for {
@@ -216,7 +225,7 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
             putItem(tableName1.value, Item("k1" -> s"v$i")).where(zio.dynamodb.ProjectionExpression.$("k1") === "k1")
           }.execute.exit
 
-      } yield assert(exit)(fails(isUnbatchableQueryError))
+      } yield assert(exit)(fails(isUnbatchableQueryError(msg = "PutItem has a condition expression")))
     } @@ beforeAddEmptyTable1,
     test("using forEach of PutItems with a ReturnValues should result in an error") {
       for {
@@ -226,13 +235,13 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
                   ) // This should not be batchable as it uses a return value
                 }.execute.exit
 
-      } yield assert(exit)(fails(isUnbatchableQueryError))
+      } yield assert(exit)(fails(isUnbatchableQueryError(msg = "PutItem has return values")))
     } @@ beforeAddEmptyTable1,
     test("should execute forEach of DeleteItems (resulting in a batched request)") {
       for {
         _     <- forEach(1 to 2) { i =>
                    deleteItem(tableName1.value, PrimaryKey("k1" -> s"v$i"))
-                 }.execute.exit
+                 }.execute
         query <- TestDynamoDBExecutor.recordedQueries
         items <- TestDynamoDBExecutor.itemsForTable(tableName1)
       } yield assertQueryBatched(query) && assertTrue(items == Set.empty[Item])
@@ -244,7 +253,7 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
                     .where(zio.dynamodb.ProjectionExpression.$("k1") === "k1")
                 }.execute.exit
 
-      } yield assert(exit)(fails(isUnbatchableQueryError))
+      } yield assert(exit)(fails(isUnbatchableQueryError(msg = "DeleteItem has a condition expression")))
     } @@ beforeAddEmptyTable1,
     test("using forEach of DeleteItems with a ReturnValues should result in an error") {
       for {
@@ -254,7 +263,7 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
                   ) // This should not be batchable as it uses a return value
                 }.execute.exit
 
-      } yield assert(exit)(fails(isUnbatchableQueryError))
+      } yield assert(exit)(fails(isUnbatchableQueryError(msg = "DeleteItem has return values")))
     } @@ beforeAddEmptyTable1,
     test("using forEach of UpdateItems should result in an error") { // Batching of UpdateItem's is not supported by AWS API
       for {
@@ -262,11 +271,12 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
                   updateItem(tableName1.value, PrimaryKey("k1" -> s"v$i"))($("v1").set("Blah"))
                 }.execute.exit
 
-      } yield assert(exit)(fails(isUnbatchableQueryError))
+      } yield assert(exit)(fails(isUnbatchableQueryError(msg = "Query type not batchable")))
     } @@ beforeAddEmptyTable1
   )
 
-  private val isUnbatchableQueryError = isSubtype[DynamoDBError.BatchError.UnbatchableQueryError](anything)
+  private def isUnbatchableQueryError(msg: String) =
+    isSubtype[DynamoDBError.BatchError.UnbatchableQueryError](hasMessage(containsString(msg)))
 
   private def assertQueryNotBatched(queries: List[DynamoDBQuery[_, _]]) =
     assertTrue(queries.size == 1) && assertTrue(!isBatched(queries.head))

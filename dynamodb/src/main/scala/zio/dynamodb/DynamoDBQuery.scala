@@ -52,7 +52,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     val (
       indexedConstructors: Chunk[(DynamoDBQuery.Constructor[In, Any], Int)],
       (batchGetItem: BatchGetItem, batchGetIndexes: Chunk[Int]),
-      (batchWriteItem: BatchWriteItem, batchWriteIndexes: Chunk[Int])
+      (batchWriteItem: BatchWriteItem, batchWriteIndexes: Chunk[Int]),
+      decisions
     )                                                                                                    = batched(constructors)
 
     val indexedNonBatchedResults: ZIO[DynamoDBExecutor, DynamoDBError, Chunk[(Any, Int)]] =
@@ -97,8 +98,10 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
                 }
     } yield result
 
-    if (batchStrict && indexedConstructors.nonEmpty)
-      ZIO.fail(DynamoDBError.BatchError.UnbatchableQueryError("query is an update or contains a condition expression or contains a returns"))
+    if (batchStrict && indexedConstructors.size > 1) // forEach of one item results in a single non batched query
+      ZIO.fail(
+        DynamoDBError.BatchError.UnbatchableQueryError(decisions.toSet)
+      )
     else
       result
   }
@@ -1120,7 +1123,7 @@ object DynamoDBQuery {
 
   private[dynamodb] def batched[In](
     constructors: Chunk[Constructor[In, Any]]
-  ): (Chunk[(Constructor[In, Any], Int)], (BatchGetItem, Chunk[Int]), (BatchWriteItem, Chunk[Int])) = {
+  ): (Chunk[(Constructor[In, Any], Int)], (BatchGetItem, Chunk[Int]), (BatchWriteItem, Chunk[Int]), Chunk[String]) = {
     type IndexedConstructor = (Constructor[In, Any], Int)
     type IndexedGetItem     = (GetItem, Int)
     type IndexedWriteItem   = (Write[Any, Option[Any]], Int)
@@ -1142,49 +1145,53 @@ object DynamoDBQuery {
       case _              => false
     } == 1 // single PutItem/DeleteItem queries are not batched
 
-    val (indexedNonBatched, indexedGets, indexedWrites) =
-      constructors.zipWithIndex.foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem], Chunk[IndexedWriteItem])](
-        (Chunk.empty, Chunk.empty, Chunk.empty)
-      ) {
-        case ((nonBatched, gets, writes), (get @ GetItem(_, pk, pes, _, _, _), index))                              =>
-          if (isSingleGetQuery)
-            (nonBatched :+ (get -> index), gets, writes)
-          else if (projectionsContainPrimaryKey(pes, pk))
-            (nonBatched, gets :+ (get -> index), writes)
-          else
-            (nonBatched :+ (get       -> index), gets, writes)
-        case ((nonBatched, gets, writes), (put @ PutItem(_, _, conditionExpression, _, _, returnValues, _), index)) =>
-          if (isSingleWriteQuery)
-            (nonBatched :+ (put -> index), gets, writes)
-          else
-            conditionExpression match {
-              case Some(_) =>
-                (nonBatched :+ (put -> index), gets, writes)
-              case None    =>
-                if (returnValues != ReturnValues.None)
-                  (nonBatched :+ (put               -> index), gets, writes)
-                else
-                  (nonBatched, gets, writes :+ (put -> index))
-            }
-        case (
-              (nonBatched, gets, writes),
-              (delete @ DeleteItem(_, _, conditionExpression, _, _, returnValues, _), index)
-            ) =>
-          if (isSingleWriteQuery)
-            (nonBatched :+ (delete -> index), gets, writes)
-          else
-            conditionExpression match {
-              case Some(_) =>
-                (nonBatched :+ (delete -> index), gets, writes)
-              case None    =>
-                if (returnValues != ReturnValues.None)
-                  (nonBatched :+ (delete               -> index), gets, writes)
-                else
-                  (nonBatched, gets, writes :+ (delete -> index))
-            }
-        case ((nonBatched, gets, writes), (nonBatchable, index))                                                    =>
-          (nonBatched :+ (nonBatchable -> index), gets, writes)
-      }
+    val (indexedNonBatched, indexedGets, indexedWrites, decisions) =
+      constructors.zipWithIndex
+        .foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem], Chunk[IndexedWriteItem], Chunk[String])](
+          (Chunk.empty, Chunk.empty, Chunk.empty, Chunk.empty)
+        ) {
+          case ((nonBatched, gets, writes, decisions), (get @ GetItem(_, pk, pes, _, _, _), index)) =>
+            if (isSingleGetQuery)
+              (nonBatched :+ (get -> index), gets, writes, decisions :+ "single GetItem")
+            else if (projectionsContainPrimaryKey(pes, pk))
+              (nonBatched, gets :+ (get -> index), writes, decisions)
+            else
+              (nonBatched :+ (get       -> index), gets, writes, decisions :+ "GetItem contains no primary key")
+          case (
+                (nonBatched, gets, writes, decisions),
+                (put @ PutItem(_, _, conditionExpression, _, _, returnValues, _), index)
+              ) =>
+            if (isSingleWriteQuery)
+              (nonBatched :+ (put -> index), gets, writes, decisions :+ "single PutItem")
+            else
+              conditionExpression match {
+                case Some(_) =>
+                  (nonBatched :+ (put -> index), gets, writes, decisions :+ "PutItem has a condition expression")
+                case None    =>
+                  if (returnValues != ReturnValues.None)
+                    (nonBatched :+ (put               -> index), gets, writes, decisions :+ "PutItem has return values")
+                  else
+                    (nonBatched, gets, writes :+ (put -> index), decisions)
+              }
+          case (
+                (nonBatched, gets, writes, decisions),
+                (delete @ DeleteItem(_, _, conditionExpression, _, _, returnValues, _), index)
+              ) =>
+            if (isSingleWriteQuery)
+              (nonBatched :+ (delete -> index), gets, writes, decisions :+ "single DeleteItem")
+            else
+              conditionExpression match {
+                case Some(_) =>
+                  (nonBatched :+ (delete -> index), gets, writes, decisions :+ "DeleteItem has a condition expression")
+                case None    =>
+                  if (returnValues != ReturnValues.None)
+                    (nonBatched :+ (delete               -> index), gets, writes, decisions :+ "DeleteItem has return values")
+                  else
+                    (nonBatched, gets, writes :+ (delete -> index), decisions)
+              }
+          case ((nonBatched, gets, writes, decisions), (nonBatchable, index))                       =>
+            (nonBatched :+ (nonBatchable -> index), gets, writes, decisions :+ "Query type not batchable")
+        }
 
     val indexedBatchGetItem: (BatchGetItem, Chunk[Int]) = indexedGets
       .foldLeft[(BatchGetItem, Chunk[Int])]((BatchGetItem(), Chunk.empty)) {
@@ -1196,7 +1203,7 @@ object DynamoDBQuery {
         case ((batchWriteItem, indexes), (writeItem, index)) => (batchWriteItem + writeItem, indexes :+ index)
       }
 
-    (indexedNonBatched, indexedBatchGetItem, indexedBatchWrite)
+    (indexedNonBatched, indexedBatchGetItem, indexedBatchWrite, decisions)
   }
 
   @nowarn

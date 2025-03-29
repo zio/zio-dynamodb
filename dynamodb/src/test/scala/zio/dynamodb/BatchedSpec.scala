@@ -18,7 +18,8 @@ object BatchedSpec extends ZIOSpecDefault {
       val (
         nonBatched: Chunk[(Constructor[AttrMap, Any], Int)],
         batchGetItem: (DynamoDBQuery.BatchGetItem, Chunk[Int]),
-        batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int])
+        batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int]),
+        _
       )                                                  = DynamoDBQuery.batched(constructors)
 
       assertTrue(
@@ -34,7 +35,8 @@ object BatchedSpec extends ZIOSpecDefault {
       val (
         nonBatched: Chunk[(Constructor[AttrMap, Any], Int)],
         batchGetItem: (DynamoDBQuery.BatchGetItem, Chunk[Int]),
-        batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int])
+        batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int]),
+        _
       )                                                  = DynamoDBQuery.batched(constructors)
 
       assertTrue(
@@ -50,7 +52,8 @@ object BatchedSpec extends ZIOSpecDefault {
       val (
         nonBatched: Chunk[(Constructor[AttrMap, Any], Int)],
         batchGetItem: (DynamoDBQuery.BatchGetItem, Chunk[Int]),
-        batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int])
+        batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int]),
+        _
       )                                                  = DynamoDBQuery.batched(constructors)
 
       assertTrue(
@@ -67,7 +70,8 @@ object BatchedSpec extends ZIOSpecDefault {
       val (
         nonBatched: Chunk[(Constructor[AttrMap, Any], Int)],
         batchGetItem: (DynamoDBQuery.BatchGetItem, Chunk[Int]),
-        batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int])
+        batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int]),
+        _
       )                                                  = DynamoDBQuery.batched(constructors)
 
       assertTrue(
@@ -84,7 +88,8 @@ object BatchedSpec extends ZIOSpecDefault {
       val (
         nonBatched: Chunk[(Constructor[AttrMap, Any], Int)],
         batchGetItem: (DynamoDBQuery.BatchGetItem, Chunk[Int]),
-        batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int])
+        batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int]),
+        _
       )                                                  = DynamoDBQuery.batched(constructors)
 
       assertTrue(
@@ -101,7 +106,8 @@ object BatchedSpec extends ZIOSpecDefault {
       val (
         nonBatched: Chunk[(Constructor[AttrMap, Any], Int)],
         batchGetItem: (DynamoDBQuery.BatchGetItem, Chunk[Int]),
-        batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int])
+        batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int]),
+        _
       )                                                  = DynamoDBQuery.batched(constructors)
 
       assertTrue(
@@ -119,7 +125,8 @@ object BatchedSpec extends ZIOSpecDefault {
       val (
         nonBatched: Chunk[(Constructor[AttrMap, Any], Int)],
         batchGetItem: (DynamoDBQuery.BatchGetItem, Chunk[Int]),
-        batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int])
+        batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int]),
+        _
       )                                                  = DynamoDBQuery.batched(constructors)
 
       assertTrue(
@@ -137,7 +144,8 @@ object BatchedSpec extends ZIOSpecDefault {
       val (
         nonBatched: Chunk[(Constructor[AttrMap, Any], Int)],
         batchGetItem: (DynamoDBQuery.BatchGetItem, Chunk[Int]),
-        batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int])
+        batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int]),
+        _
       )                                                  = DynamoDBQuery.batched(constructors)
 
       assertTrue(
@@ -154,7 +162,8 @@ object BatchedSpec extends ZIOSpecDefault {
       val (
         nonBatched: Chunk[(Constructor[AttrMap, Any], Int)],
         batchGetItem: (DynamoDBQuery.BatchGetItem, Chunk[Int]),
-        batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int])
+        batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int]),
+        _
       )                                                  = DynamoDBQuery.batched(constructors)
 
       assertTrue(
