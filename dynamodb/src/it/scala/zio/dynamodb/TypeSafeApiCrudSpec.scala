@@ -854,19 +854,17 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(people == Chunk.empty)
       }
     },
-    test("with an update query") { // note there is no AWS API for batch update so these queries are run in parallel
+    test("returns an unbatchable error for an update query") { // note there is no AWS API for batch update so forEach returns an error
       withSingleIdKeyTable { tableName =>
         val person1 = Person("1", "Smith", Some("John"), 21)
         val person2 = Person("2", "Brown", Some("Peter"), 42)
         for {
-          _      <- put(tableName, person1).execute
-          _      <- put(tableName, person2).execute
-          _      <- forEach(Chunk(person1, person2))(person =>
-                      update(tableName)(Person.id.partitionKey === person.id)(Person.age.add(1))
-                    ).execute
-          stream <- scanAll[Person](tableName).execute
-          people <- stream.runCollect
-        } yield assertTrue(people.sortBy(_.id) == Chunk(person1.copy(age = 22), person2.copy(age = 43)))
+          _    <- put(tableName, person1).execute
+          _    <- put(tableName, person2).execute
+          exit <- forEach(Chunk(person1, person2))(person =>
+                    update(tableName)(Person.id.partitionKey === person.id)(Person.age.add(1))
+                  ).execute.exit
+        } yield assert(exit)(fails(isSubtype[DynamoDBError.BatchError.UnbatchableQueryError](anything)))
       }
     }
   )
