@@ -17,6 +17,7 @@ import scala.annotation.tailrec
 import scala.collection.immutable.ListMap
 import scala.util.Try
 import zio.schema.DynamicValue
+import zio.prelude._
 
 private[dynamodb] object Codec {
 
@@ -651,8 +652,6 @@ private[dynamodb] object Codec {
     def dynamicDecoder[A]: Decoder[A] =
       decoder(Schema.dynamicValue).asInstanceOf[Decoder[A]]
 
-    import zio.prelude._
-
     // TODO: make a safe pure function from AV => DV and call that recursively - Rights all the way baby!
     def dynamicDecoder2: Decoder[DynamicValue] = {
       case AttributeValue.Null          => Right(DynamicValue.NoneValue)
@@ -668,12 +667,17 @@ private[dynamodb] object Codec {
         errorOrDvs.map(xs => DynamicValue.Sequence(Chunk.fromIterable(xs)))
         Right(DynamicValue.Sequence(Chunk.empty))
       case AttributeValue.Map(values)   =>
-        Right(
+        val xs: List[(String, Either[zio.dynamodb.DynamoDBError.ItemError, zio.schema.DynamicValue])] = values.map {
+          case (k, v) => (k.toString, dynamicDecoder2(v))
+        }.toList
+        val flipped: Either[DynamoDBError.ItemError, List[(String, DynamicValue)]]                    =
+          xs.map { case (key, eitherValue) => eitherValue.map(value => (key, value)) }.flip
+        flipped.map{ xs => 
           DynamicValue.Record(
-            zio.schema.TypeId.fromTypeName("AttributeValue.Map"), // TODO: Avi
-            ListMap(values.map { case (k, v) => (k.toString, dirtyGet(v)) }.toList: _*)
+            zio.schema.TypeId.fromTypeName("AttributeValue.Map"), // TODO: Avi - investigate proper TypeId
+            ListMap(xs: _*)
           )
-        )
+        }  
       case av                           => Left(DecodingError(s"Unsupported AttributeValue type $av"))
     }
 
