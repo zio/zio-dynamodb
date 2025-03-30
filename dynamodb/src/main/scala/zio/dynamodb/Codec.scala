@@ -20,6 +20,7 @@ import zio.schema.DynamicValue
 import zio.prelude._
 
 private[dynamodb] object Codec {
+  val directDynamic = false
 
   def encoder[A](schema: Schema[A]): Encoder[A] = Encoder(schema)
 
@@ -182,9 +183,43 @@ private[dynamodb] object Codec {
       encoder(Schema.dynamicValue).asInstanceOf[Encoder[A]]
 
     /*
+    def dynamicDecoder2: Decoder[DynamicValue] = {
+      case AttributeValue.Null          => Right(DynamicValue.NoneValue)
+      case AttributeValue.Bool(value)   => Right(DynamicValue.Primitive(value, StandardType.BoolType))
+      case AttributeValue.Number(value) =>
+        Right(DynamicValue.Primitive(value.bigDecimal, StandardType.BigDecimalType))
+      case AttributeValue.String(value) =>
+        Right(DynamicValue.Primitive(value, StandardType.StringType))
+      case AttributeValue.List(values)  =>
+        val errorOrDvs: Either[zio.dynamodb.DynamoDBError.ItemError, Iterable[zio.schema.DynamicValue]] =
+          values.map(dynamicDecoder2).flip
+        println(errorOrDvs)
+        errorOrDvs.map(xs => DynamicValue.Sequence(Chunk.fromIterable(xs)))
+        Right(DynamicValue.Sequence(Chunk.empty))
+      case AttributeValue.Map(values)   =>
+        val xs: List[(String, Either[zio.dynamodb.DynamoDBError.ItemError, zio.schema.DynamicValue])] = values.map {
+          case (k, v) => (k.toString, dynamicDecoder2(v))
+        }.toList
+        val flipped: Either[DynamoDBError.ItemError, List[(String, DynamicValue)]]                    =
+          xs.map { case (key, eitherValue) => eitherValue.map(value => (key, value)) }.flip
+        flipped.map{ xs =>
+          DynamicValue.Record(
+            zio.schema.TypeId.fromTypeName("AttributeValue.Map"), // TODO: Avi - investigate proper TypeId
+            ListMap(xs: _*)
+          )
+        }
+      case av                           => Left(DecodingError(s"Unsupported AttributeValue type $av"))
+    }
+
+
     type Encoder[A]  = A => AttributeValue
 
+QUESTIONS
+- how do we map native Sets SS, NS, BS to DynamicValue ???
+  - does it even make sense???
+
  final case class Record(id: TypeId, values: ListMap[String, DynamicValue]) extends DynamicValue
+AttributeValue.Map(values)
 
   final case class Enumeration(id: TypeId, value: (String, DynamicValue)) extends DynamicValue
 
@@ -235,7 +270,7 @@ private[dynamodb] object Codec {
      */
     def dynamicEncoder2[A](annotations: Chunk[Any]): Encoder[DynamicValue] = {
       println(s"DDDDDDDDDDD annotations $annotations") // TODO: Avi - remove
-      (d: DynamicValue) =>
+      if (directDynamic) { (d: DynamicValue) =>
         d match {
           case DynamicValue.NoneValue         => AttributeValue.Null
           case b: DynamicValue.Primitive[_]   =>
@@ -261,8 +296,13 @@ private[dynamodb] object Codec {
           // case DynamicValue.SetValue(values: Set[DynamicValue])           =>
           //   // native sets cant be supported as there is no guarantee that the elements are of the same type
           //   ???
-          case dv                             => throw new Exception(s"Unsupported DynamicValue $dv")
+          case dv                             =>
+            throw new Exception(s"Unsupported DynamicValue $dv")
         }
+      } else {
+        val x: Encoder[DynamicValue] = encoder[DynamicValue](DynamicValue.schema)
+        x
+      }
     }
 
     private def caseClassEncoder0[Z]: Encoder[Z] = _ => AttributeValue.Null
@@ -653,33 +693,38 @@ private[dynamodb] object Codec {
       decoder(Schema.dynamicValue).asInstanceOf[Decoder[A]]
 
     // TODO: make a safe pure function from AV => DV and call that recursively - Rights all the way baby!
-    def dynamicDecoder2: Decoder[DynamicValue] = {
-      case AttributeValue.Null          => Right(DynamicValue.NoneValue)
-      case AttributeValue.Bool(value)   => Right(DynamicValue.Primitive(value, StandardType.BoolType))
-      case AttributeValue.Number(value) =>
-        Right(DynamicValue.Primitive(value.bigDecimal, StandardType.BigDecimalType))
-      case AttributeValue.String(value) =>
-        Right(DynamicValue.Primitive(value, StandardType.StringType))
-      case AttributeValue.List(values)  =>
-        val errorOrDvs: Either[zio.dynamodb.DynamoDBError.ItemError, Iterable[zio.schema.DynamicValue]] =
-          values.map(dynamicDecoder2).flip
-        println(errorOrDvs)
-        errorOrDvs.map(xs => DynamicValue.Sequence(Chunk.fromIterable(xs)))
-        Right(DynamicValue.Sequence(Chunk.empty))
-      case AttributeValue.Map(values)   =>
-        val xs: List[(String, Either[zio.dynamodb.DynamoDBError.ItemError, zio.schema.DynamicValue])] = values.map {
-          case (k, v) => (k.toString, dynamicDecoder2(v))
-        }.toList
-        val flipped: Either[DynamoDBError.ItemError, List[(String, DynamicValue)]]                    =
-          xs.map { case (key, eitherValue) => eitherValue.map(value => (key, value)) }.flip
-        flipped.map{ xs => 
-          DynamicValue.Record(
-            zio.schema.TypeId.fromTypeName("AttributeValue.Map"), // TODO: Avi - investigate proper TypeId
-            ListMap(xs: _*)
-          )
-        }  
-      case av                           => Left(DecodingError(s"Unsupported AttributeValue type $av"))
-    }
+    def dynamicDecoder2: Decoder[DynamicValue] =
+      if (directDynamic) {
+        case AttributeValue.Null          => Right(DynamicValue.NoneValue)
+        case AttributeValue.Bool(value)   => Right(DynamicValue.Primitive(value, StandardType.BoolType))
+        case AttributeValue.Number(value) =>
+          Right(DynamicValue.Primitive(value.bigDecimal, StandardType.BigDecimalType))
+        case AttributeValue.String(value) =>
+          Right(DynamicValue.Primitive(value, StandardType.StringType))
+        case AttributeValue.List(values)  =>
+          val errorOrDvs: Either[zio.dynamodb.DynamoDBError.ItemError, Iterable[zio.schema.DynamicValue]] =
+            values.map(dynamicDecoder2).flip
+          println(errorOrDvs)
+          errorOrDvs.map(xs => DynamicValue.Sequence(Chunk.fromIterable(xs)))
+          Right(DynamicValue.Sequence(Chunk.empty))
+        case AttributeValue.Map(values)   =>
+          val xs: List[(String, Either[zio.dynamodb.DynamoDBError.ItemError, zio.schema.DynamicValue])] = values.map {
+            case (k, v) => (k.toString, dynamicDecoder2(v))
+          }.toList
+          val flipped: Either[DynamoDBError.ItemError, List[(String, DynamicValue)]]                    =
+            xs.map { case (key, eitherValue) => eitherValue.map(value => (key, value)) }.flip
+          flipped.map { xs =>
+            DynamicValue.Record(
+              zio.schema.TypeId.fromTypeName("AttributeValue.Map"), // TODO: Avi - investigate proper TypeId
+              ListMap(xs: _*)
+            )
+          }
+        case av                           => Left(DecodingError(s"Unsupported AttributeValue type $av"))
+      }
+      else {
+        val x: Decoder[DynamicValue] = decoder[DynamicValue](DynamicValue.schema)
+        x
+      }
 
     def dirtyGet(av: AttributeValue): DynamicValue =
       dynamicDecoder2(av) match {
