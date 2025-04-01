@@ -127,7 +127,8 @@ object BatchedSpec extends ZIOSpecDefault {
         batchGetItem._1.requestItems.size == 1,
         batchGetItem._1.requestItems.get(TableName("table1")).get.keysSet.size == 2,
         batchWriteItem._1.requestItems.isEmpty,
-        decisions.size == 0
+        decisions.size == 1,
+        decisions.head == "multiple GetItem's"
       )
     },
     test("A PutItem and DeleteItem should be batched") {
@@ -147,7 +148,8 @@ object BatchedSpec extends ZIOSpecDefault {
         batchGetItem._1.requestItems.isEmpty,
         batchWriteItem._1.requestItems.size == 1,
         batchWriteItem._1.requestItems.get(TableName("table1")).get.size == 2,
-        decisions.size == 0
+        decisions.size == 1,
+        decisions.head == "multiple PutItem/DeleteItem"
       )
     },
     test("Put/Delete Items with conditions should not be batched") {

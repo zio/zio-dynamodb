@@ -1154,7 +1154,7 @@ object DynamoDBQuery {
             if (isSingleGetQuery)
               (nonBatched :+ (get -> index), gets, writes, decisions :+ "single GetItem")
             else if (projectionsContainPrimaryKey(pes, pk))
-              (nonBatched, gets :+ (get -> index), writes, decisions)
+              (nonBatched, gets :+ (get -> index), writes, if (decisions.isEmpty) decisions :+ "multiple GetItem's" else decisions)
             else
               (nonBatched :+ (get       -> index), gets, writes, decisions :+ "GetItem contains no primary key")
           case (
@@ -1176,7 +1176,7 @@ object DynamoDBQuery {
                       decisions :+ "PutItem has a return value other than None"
                     )
                   else
-                    (nonBatched, gets, writes :+ (put -> index), decisions)
+                    (nonBatched, gets, writes :+ (put -> index), if (decisions.isEmpty) decisions :+ "multiple PutItem/DeleteItem" else decisions)
               }
           case (
                 (nonBatched, gets, writes, decisions),
@@ -1197,7 +1197,7 @@ object DynamoDBQuery {
                       decisions :+ "DeleteItem has a return value other than None"
                     )
                   else
-                    (nonBatched, gets, writes :+ (delete -> index), decisions)
+                    (nonBatched, gets, writes :+ (delete -> index), if (decisions.isEmpty) decisions :+ "multiple PutItem/DeleteItem" else decisions)
               }
           case ((nonBatched, gets, writes, decisions), (nonBatchable, index))                       =>
             (
