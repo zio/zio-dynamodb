@@ -1190,7 +1190,12 @@ object DynamoDBQuery {
                     (nonBatched, gets, writes :+ (delete -> index), decisions)
               }
           case ((nonBatched, gets, writes, decisions), (nonBatchable, index))                       =>
-            (nonBatched :+ (nonBatchable -> index), gets, writes, decisions :+ "Query type not batchable")
+            (
+              nonBatched :+ (nonBatchable -> index),
+              gets,
+              writes,
+              decisions :+ s"Query type ${nonBatchable.getClass.getSimpleName} not batchable"
+            )
         }
 
     val indexedBatchGetItem: (BatchGetItem, Chunk[Int]) = indexedGets

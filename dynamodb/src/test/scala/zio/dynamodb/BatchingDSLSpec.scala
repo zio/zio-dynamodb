@@ -271,7 +271,7 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
                   updateItem(tableName1.value, PrimaryKey("k1" -> s"v$i"))($("v1").set("Blah"))
                 }.execute.exit
 
-      } yield assert(exit)(fails(isUnbatchableQueryError(msg = "Query type not batchable")))
+      } yield assert(exit)(fails(isUnbatchableQueryError(msg = "Query type UpdateItem not batchable")))
     } @@ beforeAddEmptyTable1
   )
 
