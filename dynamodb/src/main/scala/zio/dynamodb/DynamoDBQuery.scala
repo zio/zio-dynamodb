@@ -1169,7 +1169,12 @@ object DynamoDBQuery {
                   (nonBatched :+ (put -> index), gets, writes, decisions :+ "PutItem has a condition expression")
                 case None    =>
                   if (returnValues != ReturnValues.None)
-                    (nonBatched :+ (put               -> index), gets, writes, decisions :+ "PutItem has return values")
+                    (
+                      nonBatched :+ (put              -> index),
+                      gets,
+                      writes,
+                      decisions :+ "PutItem has a return value other than None"
+                    )
                   else
                     (nonBatched, gets, writes :+ (put -> index), decisions)
               }
@@ -1185,7 +1190,12 @@ object DynamoDBQuery {
                   (nonBatched :+ (delete -> index), gets, writes, decisions :+ "DeleteItem has a condition expression")
                 case None    =>
                   if (returnValues != ReturnValues.None)
-                    (nonBatched :+ (delete               -> index), gets, writes, decisions :+ "DeleteItem has return values")
+                    (
+                      nonBatched :+ (delete              -> index),
+                      gets,
+                      writes,
+                      decisions :+ "DeleteItem has a return value other than None"
+                    )
                   else
                     (nonBatched, gets, writes :+ (delete -> index), decisions)
               }

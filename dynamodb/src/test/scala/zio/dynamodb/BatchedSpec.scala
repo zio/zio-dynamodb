@@ -19,13 +19,15 @@ object BatchedSpec extends ZIOSpecDefault {
         nonBatched: Chunk[(Constructor[AttrMap, Any], Int)],
         batchGetItem: (DynamoDBQuery.BatchGetItem, Chunk[Int]),
         batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int]),
-        _
+        decisions
       )                                                  = DynamoDBQuery.batched(constructors)
 
       assertTrue(
         nonBatched.size == 1,
         batchGetItem._1.requestItems.isEmpty,
-        batchWriteItem._1.requestItems.isEmpty
+        batchWriteItem._1.requestItems.isEmpty,
+        decisions.size == 1,
+        decisions.head == "single GetItem"
       )
     },
     test("Single PutItem queries do not get batched") {
@@ -36,13 +38,15 @@ object BatchedSpec extends ZIOSpecDefault {
         nonBatched: Chunk[(Constructor[AttrMap, Any], Int)],
         batchGetItem: (DynamoDBQuery.BatchGetItem, Chunk[Int]),
         batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int]),
-        _
+        decisions
       )                                                  = DynamoDBQuery.batched(constructors)
 
       assertTrue(
         nonBatched.size == 1,
         batchGetItem._1.requestItems.isEmpty,
-        batchWriteItem._1.requestItems.isEmpty
+        batchWriteItem._1.requestItems.isEmpty,
+        decisions.size == 1,
+        decisions.head == "single PutItem"
       )
     },
     test("Single DeleteItem queries do not get batched") {
@@ -53,13 +57,15 @@ object BatchedSpec extends ZIOSpecDefault {
         nonBatched: Chunk[(Constructor[AttrMap, Any], Int)],
         batchGetItem: (DynamoDBQuery.BatchGetItem, Chunk[Int]),
         batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int]),
-        _
+        decisions
       )                                                  = DynamoDBQuery.batched(constructors)
 
       assertTrue(
         nonBatched.size == 1,
         batchGetItem._1.requestItems.isEmpty,
-        batchWriteItem._1.requestItems.isEmpty
+        batchWriteItem._1.requestItems.isEmpty,
+        decisions.size == 1,
+        decisions.head == "single DeleteItem"
       )
     },
     test("A GetItem and a DeleteItem do not get batched") {
@@ -71,13 +77,16 @@ object BatchedSpec extends ZIOSpecDefault {
         nonBatched: Chunk[(Constructor[AttrMap, Any], Int)],
         batchGetItem: (DynamoDBQuery.BatchGetItem, Chunk[Int]),
         batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int]),
-        _
+        decisions
       )                                                  = DynamoDBQuery.batched(constructors)
 
       assertTrue(
         nonBatched.size == 2,
         batchGetItem._1.requestItems.size == 0,
-        batchWriteItem._1.requestItems.size == 0
+        batchWriteItem._1.requestItems.size == 0,
+        decisions.size == 2,
+        decisions.contains("single GetItem") == true,
+        decisions.contains("single DeleteItem") == true
       )
     },
     test("A GetItem and a PutItem do not get batched") {
@@ -89,13 +98,16 @@ object BatchedSpec extends ZIOSpecDefault {
         nonBatched: Chunk[(Constructor[AttrMap, Any], Int)],
         batchGetItem: (DynamoDBQuery.BatchGetItem, Chunk[Int]),
         batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int]),
-        _
+        decisions
       )                                                  = DynamoDBQuery.batched(constructors)
 
       assertTrue(
         nonBatched.size == 2,
         batchGetItem._1.requestItems.size == 0,
-        batchWriteItem._1.requestItems.size == 0
+        batchWriteItem._1.requestItems.size == 0,
+        decisions.size == 2,
+        decisions.contains("single GetItem") == true,
+        decisions.contains("single PutItem") == true
       )
     },
     test("Multiple GetItems should be batched") {
@@ -107,14 +119,15 @@ object BatchedSpec extends ZIOSpecDefault {
         nonBatched: Chunk[(Constructor[AttrMap, Any], Int)],
         batchGetItem: (DynamoDBQuery.BatchGetItem, Chunk[Int]),
         batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int]),
-        _
+        decisions
       )                                                  = DynamoDBQuery.batched(constructors)
 
       assertTrue(
         nonBatched.isEmpty,
         batchGetItem._1.requestItems.size == 1,
         batchGetItem._1.requestItems.get(TableName("table1")).get.keysSet.size == 2,
-        batchWriteItem._1.requestItems.isEmpty
+        batchWriteItem._1.requestItems.isEmpty,
+        decisions.size == 0
       )
     },
     test("A PutItem and DeleteItem should be batched") {
@@ -126,14 +139,15 @@ object BatchedSpec extends ZIOSpecDefault {
         nonBatched: Chunk[(Constructor[AttrMap, Any], Int)],
         batchGetItem: (DynamoDBQuery.BatchGetItem, Chunk[Int]),
         batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int]),
-        _
+        decisions
       )                                                  = DynamoDBQuery.batched(constructors)
 
       assertTrue(
         nonBatched.isEmpty,
         batchGetItem._1.requestItems.isEmpty,
         batchWriteItem._1.requestItems.size == 1,
-        batchWriteItem._1.requestItems.get(TableName("table1")).get.size == 2
+        batchWriteItem._1.requestItems.get(TableName("table1")).get.size == 2,
+        decisions.size == 0
       )
     },
     test("Put/Delete Items with conditions should not be batched") {
@@ -145,13 +159,16 @@ object BatchedSpec extends ZIOSpecDefault {
         nonBatched: Chunk[(Constructor[AttrMap, Any], Int)],
         batchGetItem: (DynamoDBQuery.BatchGetItem, Chunk[Int]),
         batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int]),
-        _
+        decisions
       )                                                  = DynamoDBQuery.batched(constructors)
 
       assertTrue(
         nonBatched.size == 2,
         batchGetItem._1.requestItems.isEmpty,
-        batchWriteItem._1.requestItems.isEmpty
+        batchWriteItem._1.requestItems.isEmpty,
+        decisions.size == 2,
+        decisions.contains("PutItem has a condition expression") == true,
+        decisions.contains("DeleteItem has a condition expression") == true
       )
     },
     test("Put/Delete Items with return values other than ReturnValues.None should not be batched") {
@@ -163,13 +180,16 @@ object BatchedSpec extends ZIOSpecDefault {
         nonBatched: Chunk[(Constructor[AttrMap, Any], Int)],
         batchGetItem: (DynamoDBQuery.BatchGetItem, Chunk[Int]),
         batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int]),
-        _
+        decisions
       )                                                  = DynamoDBQuery.batched(constructors)
 
       assertTrue(
         nonBatched.size == 2,
         batchGetItem._1.requestItems.isEmpty,
-        batchWriteItem._1.requestItems.isEmpty
+        batchWriteItem._1.requestItems.isEmpty,
+        decisions.size == 2,
+        decisions.contains("PutItem has a return value other than None") == true,
+        decisions.contains("DeleteItem has a return value other than None") == true
       )
     }
   )

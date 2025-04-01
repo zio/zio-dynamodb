@@ -235,7 +235,7 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
                   ) // This should not be batchable as it uses a return value
                 }.execute.exit
 
-      } yield assert(exit)(fails(isUnbatchableQueryError(msg = "PutItem has return values")))
+      } yield assert(exit)(fails(isUnbatchableQueryError(msg = "PutItem has a return value other than None")))
     } @@ beforeAddEmptyTable1,
     test("should execute forEach of DeleteItems (resulting in a batched request)") {
       for {
@@ -263,7 +263,7 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
                   ) // This should not be batchable as it uses a return value
                 }.execute.exit
 
-      } yield assert(exit)(fails(isUnbatchableQueryError(msg = "DeleteItem has return values")))
+      } yield assert(exit)(fails(isUnbatchableQueryError(msg = "DeleteItem has a return value other than None")))
     } @@ beforeAddEmptyTable1,
     test("using forEach of UpdateItems should result in an error") { // Batching of UpdateItem's is not supported by AWS API
       for {

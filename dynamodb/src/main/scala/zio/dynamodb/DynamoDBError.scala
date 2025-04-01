@@ -51,7 +51,7 @@ object DynamoDBError {
     }
 
     final case class UnbatchableQueryError(reasons: Set[String]) extends BatchError {
-      val message = s"query is not batchable for the following reasons: ${reasons.mkString(",")}"
+      val message = s"Query is not batchable for the following reasons: ${reasons.mkString(",")}"
     }
   }
 
