@@ -4,7 +4,7 @@ import zio.dynamodb.Annotations._
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.schema.Schema.{ Optional, Primitive }
-import zio.schema.annotation.caseName
+import zio.schema.annotation.{ caseName, directDynamicMapping }
 import zio.schema.{ Fallback, FieldSet, Schema, StandardType }
 import zio.Chunk
 
@@ -20,7 +20,7 @@ import zio.schema.DynamicValue
 import zio.prelude._
 
 private[dynamodb] object Codec {
-  val directDynamic = false
+  var directDynamic = false
 
   def encoder[A](schema: Schema[A]): Encoder[A] = Encoder(schema)
 
@@ -35,7 +35,11 @@ private[dynamodb] object Codec {
     def apply[A](schema: Schema[A]): Encoder[A] = encoder(schema)
 
     //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
-    private def encoder[A](schema: Schema[A]): Encoder[A] =
+    private def encoder[A](schema: Schema[A]): Encoder[A] = {
+      if (schema.annotations.exists(_.isInstanceOf[directDynamicMapping])) {
+        directDynamic = true // TODO: Avi - manage state properly
+        println(s"XXXxxxxXXX schema ${schema.annotations} ${schema}")
+      }
       schema match {
         case s: Schema.Optional[a]                                                                                                              =>
           optionalEncoder[a](encoder(s.schema))
@@ -49,7 +53,7 @@ private[dynamodb] object Codec {
           setEncoder(s)
         case Schema.Map(ks, vs, _)                                                                                                              =>
           mapEncoder(ks, vs)
-        case Schema.Transform(c, _, g, _, _)                                                                                                    =>
+        case Schema.Transform(c, _, g, annotations, _)                                                                                          =>
           transformEncoder(c, g)
         case Schema.Primitive(standardType, _)                                                                                                  =>
           primitiveEncoder(standardType)
@@ -163,6 +167,7 @@ private[dynamodb] object Codec {
         case _                                                                                                                                  =>
           throw new Exception("Match was non-exhaustive")
       }
+    }
     //scalafmt: { maxColumn = 120, optIn.configStyleArguments = true }
 
     private def fallbackEncoder[A, B](left: Encoder[A], right: Encoder[B]): Encoder[Fallback[A, B]] =
