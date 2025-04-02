@@ -20,6 +20,8 @@ The error hierarchy is as follows:
   - **`DynamoDBError.BatchError`** sealed trait for batch related errors. You need to consider this error if queries result in batching eg if you are using `DynamoDBQuery.forEach` or manually `Zip`'ing together `DynamoDBQuery`'s or using utility functions that use `DynamoDBQuery.forEach`. Note at the point that this error is raised automatic retries have already occurred. For a long running process typical handler actions would be to record the errors and to carry on processing. See [Auto batching and parallelisation](auto-batching-and-parallelisation) section for more details.
     - **`DynamoDBError.BatchError.GetError`** - case class returned by automatic batching - `unprocessedKeys` contains a Map of table name to primary key   
     - **`DynamoDBError.BatchError.WriteError`** - returned by automatic batching - `unprocessedItems` contains a map of table name to item/primary key 
+    - **`DynamoDBError.BatchError.UnbatchableQueryError`** - returned by the `forEach` function when the query See [Auto batching and parallelisation](auto-batching-and-parallelisation) section for more details. The error message will contain a detailed explanation.
+    
   - **`DynamoDBError.TransactionError`** sealed trait for transaction related errors. You need to handle this error if you are using the transaction API ie `<dynamoDBQuery>.transaction` or `<dynamoDBQuery>.safeTransaction`
     - **`DynamoDBError.TransactionError.EmptyTransaction`**
     - **`DynamoDBError.TransactionError.MixedTransactionTypes`**
