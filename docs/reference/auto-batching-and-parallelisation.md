@@ -29,7 +29,13 @@ So the rules are as follows:
     - The query has `ReturnValues.None` specified (which is the default) - any other return value will invalidate batched execution.
   - The query is a `GetItem` operation (`get` in the High Level API)
     - The query's `projections` list contains the primary key - this is required to match the response data to the request. Note all fields are included by default so this is only a concern if you explicitly specify the projection expression.  
-- If a query does not qualify for auto-batching it will be parallelised automatically
+- If a query does not qualify for auto-batching it will be parallelised automatically (manually `zip`'ed queries only)
+
+# Batching using the `forEach` function
+
+Note if you use the `forEach(someCollection)(el => someQuery)` function for batching there is no defaulting to parallel queries - you will get a `DynamoDBError.BatchError.UnbatchableQueryError` with a detailed message if any of the above rules are violated.
+
+The use of `forEach` the recommended approach for batching queries rather using `zip` - however you will have to manage the size of the batch (see next section).  
 
 ## Maximum batch sizes for `BatchWriteItem` and `BatchGetItem`
 
@@ -39,6 +45,8 @@ When using the `zip` or `forEach` operations one thing to bear in mind is the ma
 - `BatchGetItem` can handle up to **100** `GetItem` operations
 
 If these are exceeded then you will get a runtime AWS error. For further information please refer to the AWS documentation linked above.
+
+If you want to avoid managing the batch size manually please see the `batchWriteFromStream` and `batchReadFromStream` functions in the section below.
 
 ## Automatic retry of unprocessed batch items/keys
 
