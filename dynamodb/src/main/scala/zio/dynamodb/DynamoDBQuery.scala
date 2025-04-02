@@ -41,9 +41,9 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
   final def <*>[In1 <: In, B](that: DynamoDBQuery[In1, B]): DynamoDBQuery[In1, (Out, B)] = self zip that
 
   def execute: ZIO[DynamoDBExecutor, DynamoDBError, Out] = {
-    val batchStrict = self match {
-      case DynamoDBQuery.Map(Zip(_, _, _, batchStrict), _) => batchStrict
-      case _                                               => false
+    val validateBatch = self match {
+      case DynamoDBQuery.Map(Zip(_, _, _, validateBatch), _) => validateBatch
+      case _                                                 => false
     }
 
     val (constructors: Chunk[DynamoDBQuery.Constructor[In, Any]], assembler: Function1[Chunk[Any], Out]) = parallelize(
@@ -98,7 +98,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
                 }
     } yield result
 
-    if (batchStrict && indexedConstructors.size > 1) // forEach of one item results in a single non batched query
+    if (validateBatch && indexedConstructors.size > 1) // forEach of one item results in a single non batched query
       ZIO.fail(
         DynamoDBError.BatchError.UnbatchableQueryError(decisions.toSet)
       )
@@ -424,19 +424,29 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   final def map[B](f: Out => B): DynamoDBQuery[In, B] = DynamoDBQuery.Map(self, f)
 
-  final def zip[In1 <: In, B](that: DynamoDBQuery[In1, B], batchStrict: Boolean = false)(implicit
+  final def zip[In1 <: In, B](that: DynamoDBQuery[In1, B])(implicit
     z: Zippable[Out, B]
   ): DynamoDBQuery[In1, z.Out] =
-    DynamoDBQuery.Zip[Out, B, z.Out](self, that, z, batchStrict)
+    DynamoDBQuery.Zip[Out, B, z.Out](self, that, z, validateBatch = false)
+
+  protected[dynamodb] final def zip[In1 <: In, B](that: DynamoDBQuery[In1, B], validateBatch: Boolean)(implicit
+    z: Zippable[Out, B]
+  ): DynamoDBQuery[In1, z.Out] =
+    DynamoDBQuery.Zip[Out, B, z.Out](self, that, z, validateBatch)
 
   final def zipLeft[In1 <: In, B](that: DynamoDBQuery[In1, B]): DynamoDBQuery[In1, Out] = (self zip that).map(_._1)
 
   final def zipRight[In1 <: In, B](that: DynamoDBQuery[In1, B]): DynamoDBQuery[In1, B] = (self zip that).map(_._2)
 
-  final def zipWith[In1 <: In, B, C](that: DynamoDBQuery[In1, B], batchStrict: Boolean = false)(
+  final def zipWith[In1 <: In, B, C](that: DynamoDBQuery[In1, B])(
     f: (Out, B) => C
   ): DynamoDBQuery[In1, C] =
-    self.zip(that, batchStrict).map(f.tupled)
+    self.zip(that).map(f.tupled)
+
+  private[dynamodb] final def zipWithValidateBatching[In1 <: In, B, C](that: DynamoDBQuery[In1, B])(
+    f: (Out, B) => C
+  ): DynamoDBQuery[In1, C] =
+    self.zip(that, validateBatch = true).map(f.tupled)
 
   private def select(select: Select): DynamoDBQuery[In, Out] =
     self match {
@@ -499,7 +509,7 @@ object DynamoDBQuery {
    */
   def forEach[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery[In, List[B]] =
     values.foldRight[DynamoDBQuery[In, List[B]]](succeed(Nil)) {
-      case (a, query) => body(a).zipWith(query, batchStrict = true)(_ :: _)
+      case (a, query) => body(a).zipWithValidateBatching(query)(_ :: _)
     }
 
   def getItem(
@@ -1103,7 +1113,7 @@ object DynamoDBQuery {
     left: DynamoDBQuery[_, A],
     right: DynamoDBQuery[_, B],
     zippable: Zippable.Out[A, B, C],
-    batchStrict: Boolean = false
+    validateBatch: Boolean = false
   ) extends DynamoDBQuery[Any, C] {
     type Left  = A
     type Right = B
@@ -1154,9 +1164,14 @@ object DynamoDBQuery {
             if (isSingleGetQuery)
               (nonBatched :+ (get -> index), gets, writes, decisions :+ "single GetItem")
             else if (projectionsContainPrimaryKey(pes, pk))
-              (nonBatched, gets :+ (get -> index), writes, if (decisions.isEmpty) decisions :+ "multiple GetItem's" else decisions)
+              (
+                nonBatched,
+                gets :+ (get      -> index),
+                writes,
+                if (decisions.isEmpty) decisions :+ "multiple GetItem's" else decisions
+              )
             else
-              (nonBatched :+ (get       -> index), gets, writes, decisions :+ "GetItem contains no primary key")
+              (nonBatched :+ (get -> index), gets, writes, decisions :+ "GetItem contains no primary key")
           case (
                 (nonBatched, gets, writes, decisions),
                 (put @ PutItem(_, _, conditionExpression, _, _, returnValues, _), index)
@@ -1170,13 +1185,18 @@ object DynamoDBQuery {
                 case None    =>
                   if (returnValues != ReturnValues.None)
                     (
-                      nonBatched :+ (put              -> index),
+                      nonBatched :+ (put -> index),
                       gets,
                       writes,
                       decisions :+ "PutItem has a return value other than None"
                     )
                   else
-                    (nonBatched, gets, writes :+ (put -> index), if (decisions.isEmpty) decisions :+ "multiple PutItem/DeleteItem" else decisions)
+                    (
+                      nonBatched,
+                      gets,
+                      writes :+ (put     -> index),
+                      if (decisions.isEmpty) decisions :+ "multiple PutItem/DeleteItem" else decisions
+                    )
               }
           case (
                 (nonBatched, gets, writes, decisions),
@@ -1191,13 +1211,18 @@ object DynamoDBQuery {
                 case None    =>
                   if (returnValues != ReturnValues.None)
                     (
-                      nonBatched :+ (delete              -> index),
+                      nonBatched :+ (delete -> index),
                       gets,
                       writes,
                       decisions :+ "DeleteItem has a return value other than None"
                     )
                   else
-                    (nonBatched, gets, writes :+ (delete -> index), if (decisions.isEmpty) decisions :+ "multiple PutItem/DeleteItem" else decisions)
+                    (
+                      nonBatched,
+                      gets,
+                      writes :+ (delete     -> index),
+                      if (decisions.isEmpty) decisions :+ "multiple PutItem/DeleteItem" else decisions
+                    )
               }
           case ((nonBatched, gets, writes, decisions), (nonBatchable, index))                       =>
             (
