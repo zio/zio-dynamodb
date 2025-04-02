@@ -41,9 +41,9 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
   final def <*>[In1 <: In, B](that: DynamoDBQuery[In1, B]): DynamoDBQuery[In1, (Out, B)] = self zip that
 
   def execute: ZIO[DynamoDBExecutor, DynamoDBError, Out] = {
-    val validateBatch = self match {
-      case DynamoDBQuery.Map(Zip(_, _, _, validateBatch), _) => validateBatch
-      case _                                                 => false
+    val validateBatching = self match {
+      case DynamoDBQuery.Map(Zip(_, _, _, validateBatching), _) => validateBatching
+      case _                                                    => false
     }
 
     val (constructors: Chunk[DynamoDBQuery.Constructor[In, Any]], assembler: Function1[Chunk[Any], Out]) = parallelize(
@@ -98,7 +98,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
                 }
     } yield result
 
-    if (validateBatch && indexedConstructors.size > 1) // forEach of one item results in a single non batched query
+    if (validateBatching && indexedConstructors.size > 1) // forEach of one item results in a single non batched query
       ZIO.fail(
         DynamoDBError.BatchError.UnbatchableQueryError(decisions.toSet)
       )
@@ -427,12 +427,12 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
   final def zip[In1 <: In, B](that: DynamoDBQuery[In1, B])(implicit
     z: Zippable[Out, B]
   ): DynamoDBQuery[In1, z.Out] =
-    DynamoDBQuery.Zip[Out, B, z.Out](self, that, z, validateBatch = false)
+    DynamoDBQuery.Zip[Out, B, z.Out](self, that, z, validateBatching = false)
 
-  protected[dynamodb] final def zip[In1 <: In, B](that: DynamoDBQuery[In1, B], validateBatch: Boolean)(implicit
+  protected[dynamodb] final def zip[In1 <: In, B](that: DynamoDBQuery[In1, B], validateBatching: Boolean)(implicit
     z: Zippable[Out, B]
   ): DynamoDBQuery[In1, z.Out] =
-    DynamoDBQuery.Zip[Out, B, z.Out](self, that, z, validateBatch)
+    DynamoDBQuery.Zip[Out, B, z.Out](self, that, z, validateBatching)
 
   final def zipLeft[In1 <: In, B](that: DynamoDBQuery[In1, B]): DynamoDBQuery[In1, Out] = (self zip that).map(_._1)
 
@@ -446,7 +446,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
   private[dynamodb] final def zipWithValidateBatching[In1 <: In, B, C](that: DynamoDBQuery[In1, B])(
     f: (Out, B) => C
   ): DynamoDBQuery[In1, C] =
-    self.zip(that, validateBatch = true).map(f.tupled)
+    self.zip(that, validateBatching = true).map(f.tupled)
 
   private def select(select: Select): DynamoDBQuery[In, Out] =
     self match {
@@ -1113,7 +1113,7 @@ object DynamoDBQuery {
     left: DynamoDBQuery[_, A],
     right: DynamoDBQuery[_, B],
     zippable: Zippable.Out[A, B, C],
-    validateBatch: Boolean = false
+    validateBatching: Boolean = false
   ) extends DynamoDBQuery[Any, C] {
     type Left  = A
     type Right = B
