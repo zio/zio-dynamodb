@@ -3,9 +3,11 @@ id: auto-batching-and-parallelisation
 title: "Auto batching and parallelisation"
 ---
 
-When `DynamoDBQuery`'s are composed either manually via the `zip` combinator they become eligible for auto-batching and parallelisation in the `execute` method.
+The `DynamoDBQuery.batch` function is the preferred way of composing batched queries and in turn it uses the `zipWithValidateBatching` combinator.         
 
-When the `DynamoDBQuery.batch` function is used batching is done explicitly and **no parallelisation** is done. On `execute` of the query a `DynamoDBError.BatchError.UnbatchableQueryError` is returned if the query is not eligible for batching.         
+When `DynamoDBQuery`'s are composed manually via the `zip` combinator they become eligible for auto-batching and parallelisation in the `execute` method.
+
+When `DynamoDBQuery`'s are composed manually via the `zipWithValidateBatching` combinator, batching is done explicitly and **no parallelisation** is done. On `execute` of the query a `DynamoDBError.BatchError.UnbatchableQueryError` is returned if the query is not eligible for batching.         
 
 
 ```scala
@@ -32,13 +34,13 @@ So the rules are as follows:
     - The query has `ReturnValues.None` specified (which is the default) - any other return value will invalidate batched execution.
   - The query is a `GetItem` operation (`get` in the High Level API)
     - The query's `projections` list contains the primary key - this is required to match the response data to the request. Note all fields are included by default so this is only a concern if you explicitly specify the projection expression.  
-- If a query does not qualify for auto-batching it will be parallelised automatically (manually `zip`'ed queries only)
+- for manually `zip`'ed queries, if a query does not qualify for auto-batching it will be parallelised automatically
 
 # Batching using the `batch` function
 
-Note if you use the `batch(someCollection)(el => someQuery)` function for batching there is no defaulting to parallel queries - you will get a `DynamoDBError.BatchError.UnbatchableQueryError` with a detailed message if any of the above rules are violated.
+Note if you use the `batch(someCollection)(el => someQuery)` function for batching there is no defaulting to parallel queries and you will get a `DynamoDBError.BatchError.UnbatchableQueryError` with a detailed message on `execute` if any of the above rules are violated.
 
-The use of `batch` the recommended approach for batching queries rather using `zip` - however you will have to manage the size of the batch (see next section).  
+The use of `batch` the recommended approach for batching queries rather using `zip` - however you will have to manually manage the size of the batch (see next section).  
 
 ## Maximum batch sizes for `BatchWriteItem` and `BatchGetItem`
 
