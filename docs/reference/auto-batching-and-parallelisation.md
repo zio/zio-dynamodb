@@ -3,13 +3,16 @@ id: auto-batching-and-parallelisation
 title: "Auto batching and parallelisation"
 ---
 
-When `DynamoDBQuery`'s are composed either manually via the `zip` combinator or automatically using the `DynamoDBQuery.forEach` function they become eligible for auto-batching and parallelisation in the `execute` method.
+When `DynamoDBQuery`'s are composed either manually via the `zip` combinator they become eligible for auto-batching and parallelisation in the `execute` method.
+
+When the `DynamoDBQuery.batch` function is used batching is done explicitly and **no parallelisation** is done. On `execute` of the query a `DynamoDBError.BatchError.UnbatchableQueryError` is returned if the query is not eligible for batching.         
+
 
 ```scala
 val batchedWrite1 = DynamoDBQuery.put("person", Person("1", "John", 21))
         .zip(DynamoDBQuery.put("person", Person("2", "Jane", 22)))
 
-val batchedWrite2 = DynamoDBQuery.forEach(people)(person => put("person", person))
+val batchedWrite2 = DynamoDBQuery.batch(people)(person => put("person", person))
 
 for {
   _ <- batchedWrite1.execute // PutItem operations will be batched
@@ -31,15 +34,15 @@ So the rules are as follows:
     - The query's `projections` list contains the primary key - this is required to match the response data to the request. Note all fields are included by default so this is only a concern if you explicitly specify the projection expression.  
 - If a query does not qualify for auto-batching it will be parallelised automatically (manually `zip`'ed queries only)
 
-# Batching using the `forEach` function
+# Batching using the `batch` function
 
-Note if you use the `forEach(someCollection)(el => someQuery)` function for batching there is no defaulting to parallel queries - you will get a `DynamoDBError.BatchError.UnbatchableQueryError` with a detailed message if any of the above rules are violated.
+Note if you use the `batch(someCollection)(el => someQuery)` function for batching there is no defaulting to parallel queries - you will get a `DynamoDBError.BatchError.UnbatchableQueryError` with a detailed message if any of the above rules are violated.
 
-The use of `forEach` the recommended approach for batching queries rather using `zip` - however you will have to manage the size of the batch (see next section).  
+The use of `batch` the recommended approach for batching queries rather using `zip` - however you will have to manage the size of the batch (see next section).  
 
 ## Maximum batch sizes for `BatchWriteItem` and `BatchGetItem`
 
-When using the `zip` or `forEach` operations one thing to bear in mind is the maximum number of queries that the `BatchWriteItem` and `BatchGetItem` operations can handle:
+When using the `zip` or `batch` operations one thing to bear in mind is the maximum number of queries that the `BatchWriteItem` and `BatchGetItem` operations can handle:
 
 - `BatchWriteItem` can handle up to **25** `PutItem` or `DeleteItem` operations
 - `BatchGetItem` can handle up to **100** `GetItem` operations
