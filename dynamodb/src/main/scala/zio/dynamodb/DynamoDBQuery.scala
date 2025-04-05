@@ -98,7 +98,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
                 }
     } yield result
 
-    if (validateBatching && indexedConstructors.size > 1) // forEach of one item results in a single non batched query
+    if (validateBatching && indexedConstructors.size > 1) // batch of one item results in a single non batched query
       ZIO.fail(
         DynamoDBError.BatchError.UnbatchableQueryError(decisions.toSet)
       )
@@ -443,7 +443,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
   ): DynamoDBQuery[In1, C] =
     self.zip(that).map(f.tupled)
 
-  private[dynamodb] final def zipWithValidateBatching[In1 <: In, B, C](that: DynamoDBQuery[In1, B])(
+  final def zipWithValidateBatching[In1 <: In, B, C](that: DynamoDBQuery[In1, B])(
     f: (Out, B) => C
   ): DynamoDBQuery[In1, C] =
     self.zip(that, validateBatching = true).map(f.tupled)
@@ -494,22 +494,40 @@ object DynamoDBQuery {
     }
 
   /**
-   * Each element in `values` is zipped together using function `body` which has signature `A => DynamoDBQuery[B]`
-   * Note that when `DynamoDBQuery`'s are zipped together, on execution the queries are batched together as AWS DynamoDB
-   * batch queries whenever this is possible - only AWS GetItem, PutItem and DeleteItem queries can be batched, other
-   * query types will be executed in parallel.
+   * Primary entry point for batching queries together. The function `body` is called for each `A` in the list and the
+   * results are zipped together using a strict version of the zip operation. When the `execute` method on query is
+   * invoked a `DynamoDBError.BatchError.UnbatchableQueryError` is returned with an explanation if the query does not qualify for batching.
+   * For a full explanation of the batching rules please see [[https://zio.dev/zio-dynamodb/reference/auto-batching-and-parallelisation]]
    *
-   * Note this is a low level function for a small amount of elements - if you want to perform a large number of reads
-   * and writes prefer the following utility functions - [[zio.dynamodb.batchReadItemFromStream]],
-   * [[zio.dynamodb.batchWriteFromStream]] which work with ZStreams and efficiently limit batch sizes to the maximum size
+   * Note this is a low level function for a small amount of elements that is bounded by limits by the AWS API -
+   * if you want to perform a large number of reads and writes prefer the following utility functions - [[zio.dynamodb.batchReadItemFromStream]],
+   * [[zio.dynamodb.batchWriteFromStream]] which work with ZStreams in a finite memory space and efficiently limit batch sizes to the maximum size
    * allowed by the AWS API, or alternatively use `forEach` to implement your own streaming functions.
    *
    * Note that if you need need access to `unprocessedItems` or `unprocessedKeys` then an error handler for
    * `DynamoDBError.BatchError` should be provided.
    */
+  @deprecated("Use batch instead", since = "")
   def forEach[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery[In, List[B]] =
-    values.foldRight[DynamoDBQuery[In, List[B]]](succeed(Nil)) {
-      case (a, query) => body(a).zipWithValidateBatching(query)(_ :: _)
+    batch(values)(body)
+
+  /**
+   * Primary entry point for batching queries together. The function `body` is called for each `A` in the list and the
+   * results are zipped together using a strict version of the zip operation. When the `execute` method on query is
+   * invoked a `DynamoDBError.BatchError.UnbatchableQueryError` is returned with an explanation if the query does not qualify for batching.
+   * For a full explanation of the batching rules please see [[https://zio.dev/zio-dynamodb/reference/auto-batching-and-parallelisation]]
+   *
+   * Note this is a low level function for a small amount of elements that is bounded by limits by the AWS API -
+   * if you want to perform a large number of reads and writes prefer the following utility functions - [[zio.dynamodb.batchReadItemFromStream]],
+   * [[zio.dynamodb.batchWriteFromStream]] which work with ZStreams in a finite memory space and efficiently limit batch sizes to the maximum size
+   * allowed by the AWS API, or alternatively use `forEach` to implement your own streaming functions.
+   *
+   * Note that if you need need access to `unprocessedItems` or `unprocessedKeys` then an error handler for
+   * `DynamoDBError.BatchError` should be provided.
+   */
+  def batch[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery[In, List[B]] =
+    values.reverse.foldLeft[DynamoDBQuery[In, List[B]]](succeed(Nil)) {
+      case (query, a) => body(a).zipWithValidateBatching(query)(_ :: _)
     }
 
   def getItem(

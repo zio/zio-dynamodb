@@ -5,7 +5,7 @@ import zio.test._
 import zio.test.assertTrue
 import zio.test.Assertion._
 import zio.dynamodb.DynamoDBError.ItemError
-import zio.dynamodb.DynamoDBQuery.{ deleteFrom, forEach, get, getItem, put, putItem, scanAll, update }
+import zio.dynamodb.DynamoDBQuery.{ batch, deleteFrom, get, getItem, put, putItem, scanAll, update }
 import zio.dynamodb.syntax._
 import zio.Chunk
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
@@ -68,7 +68,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       putSuite,
       updateSuite,
       deleteSuite,
-      forEachSuite,
+      batchSuite,
       transactionSuite,
       fallBackSchemaSuite
     ) @@ TestAspect.nondeterministic
@@ -167,7 +167,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           } yield assertTrue(p == personUpdated)
         }
       },
-      test("with forEach, catching a BatchError and resuming processing") {
+      test("with batch, catching a BatchError and resuming processing") {
         withSingleIdKeyTable { tableName =>
           val person1                                                                                = Person("1", "Smith", Some("John"), 21)
           val person2                                                                                = Person("2", "Brown", None, 42)
@@ -176,7 +176,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
             .grouped(2)
             .mapZIO { chunk =>
               val batchWriteItem = DynamoDBQuery
-                .forEach(chunk)(a => put(tableName, a))
+                .batch(chunk)(a => put(tableName, a))
                 .map(Chunk.fromIterable)
               for {
                 r <- ZIO.environment[DynamoDBExecutor]
@@ -801,8 +801,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
     }
   )
 
-  // note `forEach` will result in auto batching of the query if it is a get, put or a delete
-  private val forEachSuite = suite("forEach")(
+  private val batchSuite = suite("batch")(
     test("with a get query returns Right of Person when item exists") {
       withSingleIdKeyTable { tableName =>
         val person1 = Person("1", "Smith", Some("John"), 21)
@@ -810,7 +809,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         for {
           _      <- put(tableName, person1).execute
           _      <- put(tableName, person2).execute
-          people <- forEach(Chunk(person1, person2))(p => get(tableName)(Person.id.partitionKey === p.id)).execute
+          people <- batch(Chunk(person1, person2))(p => get(tableName)(Person.id.partitionKey === p.id)).execute
         } yield assertTrue(people == List(Right(person1), Right(person2)))
       }
     },
@@ -819,7 +818,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         val person1 = Person("1", "Smith", Some("John"), 21)
         val person2 = Person("2", "Brown", Some("Peter"), 42)
         for {
-          people <- forEach(Chunk(person1, person2))(p => get(tableName)(Person.id.partitionKey === p.id)).execute
+          people <- batch(Chunk(person1, person2))(p => get(tableName)(Person.id.partitionKey === p.id)).execute
         } yield assertTrue(
           people == List(
             Left(ItemError.ValueNotFound("value with key AttrMap(Map(id -> String(1))) not found")),
@@ -833,7 +832,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         val person1 = Person("1", "Smith", Some("John"), 21)
         val person2 = Person("2", "Jones", Some("Tarlochan"), 42)
         for {
-          _      <- forEach(Chunk(person1, person2))(person => put(tableName, person)).execute
+          _      <- batch(Chunk(person1, person2))(person => put(tableName, person)).execute
           stream <- scanAll[Person](tableName).execute
           people <- stream.runCollect
         } yield assertTrue(people.sortBy(_.id) == Chunk(person1, person2))
@@ -846,7 +845,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         for {
           _      <- put(tableName, person1).execute
           _      <- put(tableName, person2).execute
-          _      <- forEach(Chunk(person1, person2))(person =>
+          _      <- batch(Chunk(person1, person2))(person =>
                       deleteFrom(tableName)(Person.id.partitionKey === person.id)
                     ).execute
           stream <- scanAll[Person](tableName).execute
@@ -854,14 +853,14 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(people == Chunk.empty)
       }
     },
-    test("returns an unbatchable error for an update query") { // note there is no AWS API for batch update so forEach returns an error
+    test("returns an unbatchable error for an update query") { // note there is no AWS API for batch update so batch returns an error
       withSingleIdKeyTable { tableName =>
         val person1 = Person("1", "Smith", Some("John"), 21)
         val person2 = Person("2", "Brown", Some("Peter"), 42)
         for {
           _    <- put(tableName, person1).execute
           _    <- put(tableName, person2).execute
-          exit <- forEach(Chunk(person1, person2))(person =>
+          exit <- batch(Chunk(person1, person2))(person =>
                     update(tableName)(Person.id.partitionKey === person.id)(Person.age.add(1))
                   ).execute.exit
         } yield assert(exit)(fails(isSubtype[DynamoDBError.BatchError.UnbatchableQueryError](anything)))
@@ -877,7 +876,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         val getJohn      = get(tableName)(Person.id.partitionKey === "1")
         val getTarlochan = get(tableName)(Person.id.partitionKey === "2")
         for {
-          _      <- forEach(Chunk(person1, person2))(person => put(tableName, person)).execute
+          _      <- batch(Chunk(person1, person2))(person => put(tableName, person)).execute
           result <- (getJohn zip getTarlochan).transaction.execute.either
         } yield assert(result)(isRight(equalTo((Right(person1), Right(person2)))))
       }
@@ -889,7 +888,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         val putPerson1 = put(tableName, person1.copy(forename = Some("Updated"))).where(Person.id <> "2")
         val putPerson2 = put(tableName, person2.copy(forename = Some("Updated"))).where(Person.id <> "2")
         for {
-          _         <- forEach(Chunk(person1, person2))(person => put(tableName, person)).execute
+          _         <- batch(Chunk(person1, person2))(person => put(tableName, person)).execute
           result    <- (putPerson1 zip putPerson2).transaction.execute.either
           hasTXError = result match {
                          case Left(DynamoDBError.AWSError(_: TransactionCanceledException)) => true

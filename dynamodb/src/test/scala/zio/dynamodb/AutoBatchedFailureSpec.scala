@@ -213,8 +213,8 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
             )
           )
         }.provideLayer(failedMockBatchGet(atMost = 4) >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock,
-        test("should return all keys in unprocessedKeys for forEach case") {
-          val autoBatched = forEach(List(itemOne, itemTwo))(item => getItem("mockBatches", item))
+        test("should return all keys in unprocessedKeys for batch case") {
+          val autoBatched = batch(List(itemOne, itemTwo))(item => getItem("mockBatches", item))
           assertZIO(autoBatched.execute.exit)(
             fails(
               assertDynamoDBBatchGetError(
@@ -223,8 +223,8 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
             )
           )
         }.provideLayer(failedMockBatchGet(atMost = 4) >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock,
-        test("should return all keys in unprocessedKeys for forEach case using type safe API") {
-          val autoBatched = forEach(List("v1", "v2")) { id =>
+        test("should return all keys in unprocessedKeys for batch case using type safe API") {
+          val autoBatched = batch(List("v1", "v2")) { id =>
             get("mockBatches")(TestItem.k1.partitionKey === id)
           }
           assertZIO(autoBatched.execute.exit)(
@@ -249,8 +249,8 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
             )
           )
         },
-        test("should return failed in unprocessedKeys for forEach case") {
-          val autoBatched = forEach(List(itemOne, itemTwo))(item => getItem("mockBatches", item))
+        test("should return failed in unprocessedKeys for batch case") {
+          val autoBatched = batch(List(itemOne, itemTwo))(item => getItem("mockBatches", item))
           assertZIO(autoBatched.execute.exit)(
             fails(
               assertDynamoDBBatchGetError(
@@ -370,12 +370,12 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
           val autoBatched = putItem("mockBatches", itemOne) zip putItem("mockBatches", itemTwo)
           assertZIO(autoBatched.execute.exit)(succeeds(anything))
         },
-        test("should return no unprocessedItems for forEach case") {
-          val autoBatched = forEach(List(itemOne, itemTwo))(item => putItem("mockBatches", item))
+        test("should return no unprocessedItems for batch case") {
+          val autoBatched = batch(List(itemOne, itemTwo))(item => putItem("mockBatches", item))
           assertZIO(autoBatched.execute.exit)(succeeds(anything))
         },
-        test("should return no unprocessedItems for forEach case using high level API") {
-          val autoBatched = forEach(List("v1", "v2"))(id => put("mockBatches", TestItem(id)))
+        test("should return no unprocessedItems for batch case using high level API") {
+          val autoBatched = batch(List("v1", "v2"))(id => put("mockBatches", TestItem(id)))
           assertZIO(autoBatched.execute.exit)(succeeds(anything))
         }
       ).provideLayer(successfulMockBatchWriteItemOneAndTwo >>> DynamoDBExecutor.live),
@@ -430,8 +430,8 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
         }.provideLayer(
           failedMockBatchWritePutTwoItems(atMost = 4) >>> DynamoDBExecutor.live
         ) @@ TestAspect.withLiveClock,
-        test("should return all keys in unprocessedItems for forEach failure case") {
-          val autoBatched = forEach(List(itemOne, itemTwo))(item => putItem("mockBatches", item))
+        test("should return all keys in unprocessedItems for batch failure case") {
+          val autoBatched = batch(List(itemOne, itemTwo))(item => putItem("mockBatches", item))
           assertZIO(autoBatched.execute.exit)(
             fails(
               assertDynamoDBBatchWriteError(
@@ -442,8 +442,8 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
         }.provideLayer(
           failedMockBatchWritePutTwoItems(atMost = 4) >>> DynamoDBExecutor.live
         ) @@ TestAspect.withLiveClock,
-        test("should return all keys in unprocessedItems for forEach failure case using high level API") {
-          val autoBatched = forEach(List("v1", "v2"))(id => put("mockBatches", TestItem(id)))
+        test("should return all keys in unprocessedItems for batch failure case using high level API") {
+          val autoBatched = batch(List("v1", "v2"))(id => put("mockBatches", TestItem(id)))
           assertZIO(autoBatched.execute.exit)(
             fails(
               assertDynamoDBBatchWriteError(
@@ -466,8 +466,8 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
             )
           )
         }.provideLayer(failedPartialMockBatchWriteTwoItems >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock,
-        test("should return unprocessedItems in forEach failure case") {
-          val autoBatched = forEach(List(itemOne, itemTwo))(item => putItem("mockBatches", item))
+        test("should return unprocessedItems in batch failure case") {
+          val autoBatched = batch(List(itemOne, itemTwo))(item => putItem("mockBatches", item))
           assertZIO(autoBatched.execute.exit)(
             fails(
               assertDynamoDBBatchWriteError(
@@ -476,8 +476,8 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
             )
           )
         }.provideLayer(failedPartialMockBatchWriteTwoItems >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock,
-        test("should return unprocessedItems in forEach failure case using high level API") {
-          val autoBatched = forEach(List("v1", "v2"))(id => put("mockBatches", TestItem(id)))
+        test("should return unprocessedItems in batch failure case using high level API") {
+          val autoBatched = batch(List("v1", "v2"))(id => put("mockBatches", TestItem(id)))
           assertZIO(autoBatched.execute.exit)(
             fails(
               assertDynamoDBBatchWriteError(

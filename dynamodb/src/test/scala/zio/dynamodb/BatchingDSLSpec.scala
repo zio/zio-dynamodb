@@ -192,44 +192,44 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
         getsResults     <- nextQuery.execute
       } yield assert(mixedOpsResults)(equalTo(mixedOpsExpected)) && assert(getsResults)(equalTo((None, Some(itemT3_2))))
     } @@ beforeAddTable1AndTable3,
-    test("should execute forEach of GetItems (resulting in a batched request)") {
+    test("should execute batch of GetItems (resulting in a batched request)") {
       for {
-        result <- forEach(1 to 2) { i =>
+        result <- batch(1 to 2) { i =>
                     getItem(tableName1.value, PrimaryKey("k1" -> s"v$i"))
                   }.execute
         query  <- TestDynamoDBExecutor.recordedQueries
       } yield assert(result)(equalTo(List(Some(itemT1), Some(itemT1_2)))) && assertQueryBatched(query)
     } @@ beforeAddTable1AndTable3,
-    test("should execute forEach of PutItems (resulting in a batched request)") {
+    test("should execute batch of PutItems (resulting in a batched request)") {
       for {
-        _     <- forEach(1 to 2) { i =>
+        _     <- batch(1 to 2) { i =>
                    putItem(tableName1.value, Item("k1" -> s"v$i"))
                  }.execute
         query <- TestDynamoDBExecutor.recordedQueries
         items <- TestDynamoDBExecutor.itemsForTable(tableName1)
       } yield assertQueryBatched(query) && assertTrue(items == Set(Item("k1" -> "v1"), Item("k1" -> "v2")))
     } @@ beforeAddEmptyTable1,
-    test("should execute forEach of PutItems for a single item, resulting in no batching") {
+    test("should execute batch of PutItems for a single item, resulting in no batching") {
       for {
-        _     <- forEach(1 to 1) { i =>
+        _     <- batch(1 to 1) { i =>
                    putItem(tableName1.value, Item("k1" -> s"v$i"))
                  }.execute
         query <- TestDynamoDBExecutor.recordedQueries
         items <- TestDynamoDBExecutor.itemsForTable(tableName1)
       } yield assertQueryNotBatched(query) && assertTrue(items == Set(Item("k1" -> "v1")))
     } @@ beforeAddEmptyTable1,
-    test("using forEach of PutItems with ConditionExpression should result in an error") {
+    test("using batch of PutItems with ConditionExpression should result in an error") {
       for {
         exit <-
-          forEach(1 to 2) { i =>
+          batch(1 to 2) { i =>
             putItem(tableName1.value, Item("k1" -> s"v$i")).where(zio.dynamodb.ProjectionExpression.$("k1") === "k1")
           }.execute.exit
 
       } yield assert(exit)(fails(isUnbatchableQueryError(msg = "PutItem has a condition expression")))
     } @@ beforeAddEmptyTable1,
-    test("using forEach of PutItems with a ReturnValues should result in an error") {
+    test("using batch of PutItems with a ReturnValues should result in an error") {
       for {
-        exit <- forEach(1 to 2) { i =>
+        exit <- batch(1 to 2) { i =>
                   putItem(tableName1.value, Item("k1" -> s"v$i")).returns(
                     ReturnValues.AllNew
                   ) // This should not be batchable as it uses a return value
@@ -237,27 +237,27 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
 
       } yield assert(exit)(fails(isUnbatchableQueryError(msg = "PutItem has a return value other than None")))
     } @@ beforeAddEmptyTable1,
-    test("should execute forEach of DeleteItems (resulting in a batched request)") {
+    test("should execute batch of DeleteItems (resulting in a batched request)") {
       for {
-        _     <- forEach(1 to 2) { i =>
+        _     <- batch(1 to 2) { i =>
                    deleteItem(tableName1.value, PrimaryKey("k1" -> s"v$i"))
                  }.execute
         query <- TestDynamoDBExecutor.recordedQueries
         items <- TestDynamoDBExecutor.itemsForTable(tableName1)
       } yield assertQueryBatched(query) && assertTrue(items == Set.empty[Item])
     } @@ beforeAddTable1,
-    test("using forEach of DeleteItems with ConditionExpression should result in an error") {
+    test("using batch of DeleteItems with ConditionExpression should result in an error") {
       for {
-        exit <- forEach(1 to 2) { i =>
+        exit <- batch(1 to 2) { i =>
                   deleteItem(tableName1.value, PrimaryKey("k1" -> s"v$i"))
                     .where(zio.dynamodb.ProjectionExpression.$("k1") === "k1")
                 }.execute.exit
 
       } yield assert(exit)(fails(isUnbatchableQueryError(msg = "DeleteItem has a condition expression")))
     } @@ beforeAddEmptyTable1,
-    test("using forEach of DeleteItems with a ReturnValues should result in an error") {
+    test("using batch of DeleteItems with a ReturnValues should result in an error") {
       for {
-        exit <- forEach(1 to 2) { i =>
+        exit <- batch(1 to 2) { i =>
                   deleteItem(tableName1.value, PrimaryKey("k1" -> s"v$i")).returns(
                     ReturnValues.AllNew
                   ) // This should not be batchable as it uses a return value
@@ -265,9 +265,9 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
 
       } yield assert(exit)(fails(isUnbatchableQueryError(msg = "DeleteItem has a return value other than None")))
     } @@ beforeAddEmptyTable1,
-    test("using forEach of UpdateItems should result in an error") { // Batching of UpdateItem's is not supported by AWS API
+    test("using batch of UpdateItems should result in an error") { // Batching of UpdateItem's is not supported by AWS API
       for {
-        exit <- forEach(1 to 2) { i =>
+        exit <- batch(1 to 2) { i =>
                   updateItem(tableName1.value, PrimaryKey("k1" -> s"v$i"))($("v1").set("Blah"))
                 }.execute.exit
 

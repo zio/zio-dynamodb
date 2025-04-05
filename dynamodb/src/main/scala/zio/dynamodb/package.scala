@@ -45,7 +45,7 @@ package object dynamodb {
       .aggregateAsync(ZSink.collectAllN[A](25))
       .mapZIOPar(mPar) { chunk =>
         val batchWriteItem = DynamoDBQuery
-          .forEach(chunk)(a => f(a))
+          .batch(chunk)(a => f(a))
           .map(Chunk.fromIterable)
         for {
           r <- ZIO.environment[DynamoDBExecutor]
@@ -80,7 +80,7 @@ package object dynamodb {
       .aggregateAsync(ZSink.collectAllN[A](100))
       .mapZIOPar(mPar) { chunk =>
         val batchGetItem: DynamoDBQuery[_, Chunk[(A, Option[Item])]] = DynamoDBQuery
-          .forEach(chunk)(a =>
+          .batch(chunk)(a =>
             DynamoDBQuery.getItem(tableName, pk(a)).map {
               case Some(item) => (a, Some(item))
               case None       => (a, None)
@@ -122,7 +122,7 @@ package object dynamodb {
       .mapZIOPar(mPar) { chunk =>
         val batchGetItem: DynamoDBQuery[From, Chunk[Either[ItemError.DecodingError, (A, Option[From])]]] =
           DynamoDBQuery
-            .forEach(chunk) { a =>
+            .batch(chunk) { a =>
               DynamoDBQuery.get(tableName)(pk(a)).map {
                 case Right(b)                             => Right((a, Some(b)))
                 case Left(ItemError.ValueNotFound(_))     => Right((a, None))
