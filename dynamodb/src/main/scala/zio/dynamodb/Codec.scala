@@ -37,8 +37,12 @@ private[dynamodb] object Codec {
     //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
     private def encoder[A](schema: Schema[A]): Encoder[A] = {
       if (schema.annotations.exists(_.isInstanceOf[directDynamicMapping])) {
-        directDynamic = true // TODO: Avi - manage state properly
-        println(s"XXXxxxxXXX schema ${schema.annotations} ${schema}")
+        /*
+        TODO: Avi - manage state properly
+        @directDynamicMapping is recognised by DeriveSchema macro at the product/case class level
+         */
+        directDynamic = true
+        println(s"XXXxxxxXXX 1 schema ${schema.annotations} ${schema}")
       }
       schema match {
         case s: Schema.Optional[a]                                                                                                              =>
@@ -54,6 +58,7 @@ private[dynamodb] object Codec {
         case Schema.Map(ks, vs, _)                                                                                                              =>
           mapEncoder(ks, vs)
         case Schema.Transform(c, _, g, annotations, _)                                                                                          =>
+          println(s"XXXxxxxXXX 2 schema Transform $annotations") // TODO: Avi - remove
           transformEncoder(c, g)
         case Schema.Primitive(standardType, _)                                                                                                  =>
           primitiveEncoder(standardType)
@@ -281,6 +286,7 @@ AttributeValue.Map(values)
           case b: DynamicValue.Primitive[_]   =>
             b.standardType match {
               case StandardType.BoolType       => AttributeValue.Bool(b.value.asInstanceOf[Boolean])
+              case StandardType.IntType        => AttributeValue.Number(BigDecimal(b.value.toString))
               case StandardType.BigDecimalType => AttributeValue.Number(BigDecimal(b.value.toString))
               case StandardType.StringType     => AttributeValue.String(b.value.toString)
               case _                           => throw new Exception(s"Unsupported standard type: ${b.standardType}")

@@ -3,52 +3,17 @@ import zio._
 import zio.json._
 import zio.dynamodb.DynamoDBQuery
 import zio.schema.{ DeriveSchema, Schema }
-import zio.schema.annotation.directDynamicMapping
 import zio.json.ast.Json
 
 object JsonASTFieldExample extends ZIOAppDefault {
   import zio.schema.codec.json._
-  /*
-  implicit val schemaJson: Schema[Json] =
-    Schema.dynamicValue.transform(toJson, fromJson).annotate(directDynamicMapping())
-   */
 
-  /*
-CLASS LEVEL
-[info] XXXxxxxXXX schema $Lazy$
-[info] XXXxxxxXXX schema Primitive(string,Chunk())
-[info] XXXxxxxXXX schema CaseClass2(Nominal(Chunk(zio,dynamodb,examples),Chunk(JsonASTFieldExample),Person2), Field(id,$Lazy$),Field(randomEnum,Enum2(Nominal(Chunk(zio,dynamodb,examples),Chunk(JsonASTFieldExample),FooEnum))))
-[info] XXXxxxxXXX schema Enum2(Nominal(Chunk(zio,dynamodb,examples),Chunk(JsonASTFieldExample),FooEnum))
-[info] XXXxxxxXXX schema CaseClass0(Nominal(Chunk(zio,dynamodb,examples),Chunk(JsonASTFieldExample,FooEnum),Bar), )
-[info] XXXxxxxXXX schema $Lazy$
-[info] XXXxxxxXXX schema Primitive(string,Chunk())
-NONE
-[info] XXXxxxxXXX schema Primitive(string,Chunk())
-[info] XXXxxxxXXX schema Dynamic(Chunk())
-[info] XXXxxxxXXX schema $Lazy$
-[info] XXXxxxxXXX schema Primitive(string,Chunk())
-[info] XXXxxxxXXX schema CaseClass2(Nominal(Chunk(zio,dynamodb,examples),Chunk(JsonASTFieldExample),Person2), Field(id,$Lazy$),Field(randomEnum,Enum2(Nominal(Chunk(zio,dynamodb,examples),Chunk(JsonASTFieldExample),FooEnum))))
-[info] XXXxxxxXXX schema Enum2(Nominal(Chunk(zio,dynamodb,examples),Chunk(JsonASTFieldExample),FooEnum))
-[info] XXXxxxxXXX schema CaseClass0(Nominal(Chunk(zio,dynamodb,examples),Chunk(JsonASTFieldExample,FooEnum),Bar), )
-[info] XXXxxxxXXX schema $Lazy$
-[info] XXXxxxxXXX schema Primitive(string,Chunk())
-FIELD
-[info] XXXxxxxXXX schema Primitive(string,Chunk())
-[info] XXXxxxxXXX schema Dynamic(Chunk())
-[info] XXXxxxxXXX schema $Lazy$
-[info] XXXxxxxXXX schema Primitive(string,Chunk())
-[info] XXXxxxxXXX schema CaseClass2(Nominal(Chunk(zio,dynamodb,examples),Chunk(JsonASTFieldExample),Person2), Field(id,$Lazy$),Field(randomEnum,Enum2(Nominal(Chunk(zio,dynamodb,examples),Chunk(JsonASTFieldExample),FooEnum))))
-[info] XXXxxxxXXX schema Enum2(Nominal(Chunk(zio,dynamodb,examples),Chunk(JsonASTFieldExample),FooEnum))
-[info] XXXxxxxXXX schema CaseClass0(Nominal(Chunk(zio,dynamodb,examples),Chunk(JsonASTFieldExample,FooEnum),Bar), )
-[info] XXXxxxxXXX schema $Lazy$
-[info] XXXxxxxXXX schema Primitive(string,Chunk())
-   */
-
-  //@directDynamicMapping // only seems to be recognised when applied by json package implicit
+  //import zio.schema.annotation.directDynamicMapping
+  //@directDynamicMapping
   case class Person(id: String, json: Json)
 
   object Person {
-    implicit val schema: Schema[Person] = DeriveSchema.gen[Person].annotate(directDynamicMapping())
+    implicit val schema: Schema[Person] = DeriveSchema.gen[Person] //.annotate(directDynamicMapping())
 
     // implicit val jsonCodec: zio.json.JsonCodec[Person] =
     //   zio.schema.codec.JsonCodec.jsonCodec(schema)
