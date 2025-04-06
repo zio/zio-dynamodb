@@ -7,8 +7,8 @@ import scala.collection.immutable.ListMap
 object DirectDynamicValueFieldExample extends ZIOAppDefault {
 
   import zio.schema.annotation.directDynamicMapping
-  // @directDynamicMapping
-  case class Person(id: String, @directDynamicMapping dv: DynamicValue)
+  @directDynamicMapping
+  case class Person(@directDynamicMapping id: String, @directDynamicMapping dv: DynamicValue)
 
   object Person {
     implicit val schema: Schema[Person] = DeriveSchema.gen[Person]
@@ -19,7 +19,15 @@ object DirectDynamicValueFieldExample extends ZIOAppDefault {
 
   override def run: ZIO[Environment with ZIOAppArgs with Scope, Any, Any] =
     for {
-      _             <- ZIO.debug(s"JSON Codec Example: ${Person.schema}")
+      _             <- ZIO.debug(s"DynamicValue Codec Example Person.schema: ${Person.schema}")
+      _              = Person.schema match {
+                         case s: Schema.Record[_] =>
+                           println(s"s.annotations: ${s.annotations}")
+                           println(s"s.fields(0).schema.annotations: ${s.fields(0).schema.annotations}")
+                           println(s"s.fields(1).schema.annotations: ${s.fields(1).schema.annotations}")
+                         case _                   =>
+                           println("Person.schema is not a Record")
+                       }
       dv             = DynamicValue.Record(
                          id = zio.schema.TypeId.parse("zio.dynamodb.examples.JsonASTFieldExample2.PersonX"),
                          values = ListMap(
