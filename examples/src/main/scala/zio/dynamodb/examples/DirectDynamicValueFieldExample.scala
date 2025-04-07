@@ -7,8 +7,7 @@ import scala.collection.immutable.ListMap
 object DirectDynamicValueFieldExample extends ZIOAppDefault {
 
   import zio.schema.annotation.directDynamicMapping
-  @directDynamicMapping
-  case class Person(@directDynamicMapping id: String, @directDynamicMapping dv: DynamicValue)
+  case class Person(id: String, @directDynamicMapping dv: DynamicValue)
 
   object Person {
     implicit val schema: Schema[Person] = DeriveSchema.gen[Person]
