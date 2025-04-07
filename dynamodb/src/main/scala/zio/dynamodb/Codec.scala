@@ -35,24 +35,24 @@ private[dynamodb] object Codec {
     def apply[A](schema: Schema[A]): Encoder[A] = encoder(schema)
 
     //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
-    private def encoder[A](schema: Schema[A]): Encoder[A] = {
-      if (schema.annotations.exists(_.isInstanceOf[directDynamicMapping])) {
+    private def encoder[A](schema: Schema[A], fieldAnnotations: Chunk[Any] = Chunk.empty): Encoder[A] = {
+      println(s"XXXxxxxXXX 0 schema ${schema} ${schema} fieldAnnotations $fieldAnnotations") // TODO: Avi - remove
+      if (schema.annotations.exists(_.isInstanceOf[directDynamicMapping]))
         /*
         TODO: Avi - manage state properly
         @directDynamicMapping is recognised by DeriveSchema macro at the product/case class level
          */
         directDynamic = true
-        println(s"XXXxxxxXXX 1 schema ${schema.annotations} ${schema}")
-      }
+      //println(s"XXXxxxxXXX 1 schema ${schema.annotations} ${schema} fieldAnnotations $fieldAnnotations") // TODO: Avi - remove
       schema match {
         case s: Schema.Optional[a]                                                                                                              =>
-          optionalEncoder[a](encoder(s.schema))
+          optionalEncoder[a](encoder(s.schema, Chunk.empty))
         case Schema.Fail(_, _)                                                                                                                  =>
           _ => AttributeValue.Null
         case Schema.Tuple2(l, r, _)                                                                                                             =>
-          tupleEncoder(encoder(l), encoder(r))
+          tupleEncoder(encoder(l, Chunk.empty), encoder(r, Chunk.empty))
         case s: Schema.Sequence[col, a, _]                                                                                                      =>
-          sequenceEncoder[col, a](encoder(s.elementSchema), s.toChunk)
+          sequenceEncoder[col, a](encoder(s.elementSchema, Chunk.empty), s.toChunk)
         case Schema.Set(s, _)                                                                                                                   =>
           setEncoder(s)
         case Schema.Map(ks, vs, _)                                                                                                              =>
@@ -65,13 +65,14 @@ private[dynamodb] object Codec {
         case Schema.GenericRecord(_, structure, _)                                                                                              =>
           genericRecordEncoder(structure)
         case Schema.Either(l, r, _)                                                                                                             =>
-          eitherEncoder(encoder(l), encoder(r))
+          eitherEncoder(encoder(l, Chunk.empty), encoder(r, Chunk.empty))
         case l @ Schema.Lazy(_)                                                                                                                 =>
-          lazy val enc = encoder(l.schema)
+          // TODO: Avi - propagate fieldAnnotations
+          lazy val enc = encoder(l.schema, fieldAnnotations)
           (a: A) => enc(a)
-        case s @ Schema.Dynamic(annotations)                                                                                                    =>
-          println(s"DDDDDDDDDDD encode - dv schema $s") // TODO: Avi - remove
-          dynamicEncoder2(annotations)
+        case s @ Schema.Dynamic(_)                                                                                                              =>
+          println(s"DDDDDDDDDDD encode - fieldAnnotations $fieldAnnotations dv schema $s") // TODO: Avi - remove
+          dynamicEncoder2(fieldAnnotations)
         case Schema.CaseClass0(_, _, _)                                                                                                         =>
           caseClassEncoder0
         case Schema.CaseClass1(_, f, _, _)                                                                                                      =>
@@ -168,7 +169,7 @@ private[dynamodb] object Codec {
         case Schema.EnumN(_, cs, annotations)                                                                                                   =>
           enumEncoder(annotations, cs.toSeq: _*)
         case Schema.Fallback(left, right, _, _)                                                                                                 =>
-          fallbackEncoder(encoder(left), encoder(right))
+          fallbackEncoder(encoder(left, Chunk.empty), encoder(right, Chunk.empty))
         case _                                                                                                                                  =>
           throw new Exception("Match was non-exhaustive")
       }
@@ -280,6 +281,7 @@ AttributeValue.Map(values)
      */
     def dynamicEncoder2[A](annotations: Chunk[Any]): Encoder[DynamicValue] = {
       println(s"DDDDDDDDDDD annotations $annotations") // TODO: Avi - remove
+
       if (directDynamic) { (d: DynamicValue) =>
         d match {
           case DynamicValue.NoneValue         => AttributeValue.Null
@@ -323,8 +325,10 @@ AttributeValue.Map(values)
         case s: (Schema.Field[Z, _], AttributeValue.Map) =>
           // TODO: Avi - get rid ordinal accesses s._1
           // TODO: Avi - process field annotations
-          println(s"XXXXxxxxXXXXX caseClassEncoder ${s._1.name} annotations: ${s._1.annotations}") // TODO: Avi - remove
-          val enc                 = encoder(s._1.schema)
+          println(
+            s"XXXXxxxxXXXXX caseClassEncoder ${s._1.name} annotations: ${s._1.annotations} schema: ${s}"
+          ) // TODO: Avi - remove
+          val enc                 = encoder(s._1.schema, s._1.annotations)
           val extractedFieldValue = s._1.get(a)
           val av                  = enc(extractedFieldValue)
           val k                   = s._1.name
