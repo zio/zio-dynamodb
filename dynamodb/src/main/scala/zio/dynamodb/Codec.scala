@@ -321,6 +321,9 @@ AttributeValue.Map(values)
     private def caseClassEncoder[Z](fields: Schema.Field[Z, _]*): Encoder[Z] = { (a: Z) =>
       fields.foldRight[AttributeValue.Map](AttributeValue.Map(Map.empty)) {
         case s: (Schema.Field[Z, _], AttributeValue.Map) =>
+          // TODO: Avi - get rid ordinal accesses s._1
+          // TODO: Avi - process field annotations
+          println(s"XXXXxxxxXXXXX caseClassEncoder ${s._1.name} annotations: ${s._1.annotations}") // TODO: Avi - remove
           val enc                 = encoder(s._1.schema)
           val extractedFieldValue = s._1.get(a)
           val av                  = enc(extractedFieldValue)

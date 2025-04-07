@@ -23,8 +23,12 @@ object DirectDynamicValueFieldExample extends ZIOAppDefault {
       _              = Person.schema match {
                          case s: Schema.Record[_] =>
                            println(s"s.annotations: ${s.annotations}")
-                           println(s"s.fields(0).schema.annotations: ${s.fields(0).schema.annotations}")
-                           println(s"s.fields(1).schema.annotations: ${s.fields(1).schema.annotations}")
+                           s.fields.foreach { f =>
+                             println(s"***** field name ***** ${f.name}")
+                             println(s"f.schema: ${f.schema}")
+                             println(s"f.annotations: ${f.annotations}")
+                             println(s"f.schema.annotations: ${f.schema.annotations}")
+                           }
                          case _                   =>
                            println("Person.schema is not a Record")
                        }
