@@ -8,12 +8,12 @@ import zio.json.ast.Json
 object JsonASTFieldExample extends ZIOAppDefault {
   import zio.schema.codec.json._
 
-  //import zio.schema.annotation.directDynamicMapping
+  import zio.schema.annotation.directDynamicMapping
   //@directDynamicMapping
-  case class Person(id: String, json: Json)
+  case class Person(id: String, @directDynamicMapping json: Json)
 
   object Person {
-    implicit val schema: Schema[Person] = DeriveSchema.gen[Person] //.annotate(directDynamicMapping())
+    implicit val schema: Schema[Person] = DeriveSchema.gen[Person].annotate(directDynamicMapping())
 
     // implicit val jsonCodec: zio.json.JsonCodec[Person] =
     //   zio.schema.codec.JsonCodec.jsonCodec(schema)

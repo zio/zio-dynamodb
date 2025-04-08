@@ -36,7 +36,7 @@ private[dynamodb] object Codec {
 
     //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
     private def encoder[A](schema: Schema[A], fieldAnnotations: Chunk[Any] = Chunk.empty): Encoder[A] = {
-      println(s"XXXxxxxXXX 0 schema ${schema} ${schema} fieldAnnotations $fieldAnnotations") // TODO: Avi - remove
+//      println(s"XXXxxxxXXX 0 schema ${schema} ${schema} fieldAnnotations $fieldAnnotations") // TODO: Avi - remove
       schema match {
         case s: Schema.Optional[a]                                                                                                              =>
           optionalEncoder[a](encoder(s.schema, Chunk.empty))
@@ -51,8 +51,8 @@ private[dynamodb] object Codec {
         case Schema.Map(ks, vs, _)                                                                                                              =>
           mapEncoder(ks, vs)
         case Schema.Transform(c, _, g, annotations, _)                                                                                          =>
-          println(s"XXXxxxxXXX 2 schema Transform $annotations") // TODO: Avi - remove
-          transformEncoder(c, g)
+//          println(s"XXXxxxxXXX 2 schema Transform $annotations") // TODO: Avi - remove
+          transformEncoder(c, g, annotations)
         case Schema.Primitive(standardType, _)                                                                                                  =>
           primitiveEncoder(standardType)
         case Schema.GenericRecord(_, structure, _)                                                                                              =>
@@ -318,9 +318,9 @@ AttributeValue.Map(values)
         case s: (Schema.Field[Z, _], AttributeValue.Map) =>
           // TODO: Avi - get rid ordinal accesses s._1
           // TODO: Avi - process field annotations
-          println(
-            s"XXXXxxxxXXXXX caseClassEncoder ${s._1.name} annotations: ${s._1.annotations} schema: ${s}"
-          ) // TODO: Avi - remove
+          // println(
+          //   s"XXXXxxxxXXXXX caseClassEncoder ${s._1.name} annotations: ${s._1.annotations} schema: ${s}"
+          // ) // TODO: Avi - remove
           val enc                 = encoder(s._1.schema, s._1.annotations)
           val extractedFieldValue = s._1.get(a)
           val av                  = enc(extractedFieldValue)
@@ -384,10 +384,10 @@ AttributeValue.Map(values)
         AttributeValue.String(formatted)
       }
 
-    private def transformEncoder[A, B](schema: Schema[A], g: B => Either[String, A]): Encoder[B] = { (b: B) =>
+    private def transformEncoder[A, B](schema: Schema[A], g: B => Either[String, A], annotations: Chunk[Any]): Encoder[B] = { (b: B) =>
       g(b) match {
         case Right(a) =>
-          encoder(schema)(a)
+          encoder(schema, annotations)(a)
         case _        =>
           AttributeValue.Null
       }
@@ -579,7 +579,7 @@ AttributeValue.Map(values)
         case Schema.Fail(s, _)                     => _ => Left(DecodingError(s))
         case Schema.GenericRecord(_, structure, _) => genericRecordDecoder(structure).asInstanceOf[Decoder[A]]
         case Schema.Tuple2(l, r, _)                => tupleDecoder(decoder(l, Chunk.empty), decoder(r, Chunk.empty))
-        case Schema.Transform(codec, f, _, _, _)   => transformDecoder(codec, f)
+        case Schema.Transform(codec, f, _, annotations, _)   => transformDecoder(codec, f, annotations)
         case s: Schema.Sequence[col, a, _]         => sequenceDecoder[col, a](decoder(s.elementSchema, Chunk.empty), s.fromChunk)
         case Schema.Either(l, r, _)                => eitherDecoder(decoder(l, Chunk.empty), decoder(r, Chunk.empty))
         case Primitive(standardType, _)            => primitiveDecoder(standardType)
@@ -863,8 +863,8 @@ AttributeValue.Map(values)
         stringOrA
       }
 
-    private def transformDecoder[A, B](codec: Schema[A], f: A => Either[String, B]): Decoder[B] = {
-      val dec = decoder(codec)
+    private def transformDecoder[A, B](codec: Schema[A], f: A => Either[String, B], annotations: Chunk[Any]): Decoder[B] = {
+      val dec = decoder(codec, annotations)
       (a: AttributeValue) => dec(a).flatMap(f(_).left.map(DecodingError.apply))
     }
 
