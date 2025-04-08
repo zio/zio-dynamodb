@@ -6,14 +6,18 @@ import zio.schema.{ DeriveSchema, Schema }
 import zio.json.ast.Json
 
 object JsonASTFieldExample extends ZIOAppDefault {
+  // if we uncomment this import, we do not get the directDynamicMapping coming through 
   import zio.schema.codec.json._
 
   import zio.schema.annotation.directDynamicMapping
-  //@directDynamicMapping
-  case class Person(id: String, @directDynamicMapping json: Json)
+  println(directDynamicMapping)
+
+  // codecs for Transform(., annotations,.) pass through the annotations created by the implicit
+  // schema in zio.schema.codec.json._ package which uses the Schema transform function
+  case class Person(id: String, json: Json)
 
   object Person {
-    implicit val schema: Schema[Person] = DeriveSchema.gen[Person].annotate(directDynamicMapping())
+    implicit val schema: Schema[Person] = DeriveSchema.gen[Person]
 
     // implicit val jsonCodec: zio.json.JsonCodec[Person] =
     //   zio.schema.codec.JsonCodec.jsonCodec(schema)

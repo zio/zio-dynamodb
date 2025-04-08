@@ -273,8 +273,8 @@ AttributeValue.Map(values)
   }
      */
     def dynamicEncoder2[A](annotations: Chunk[Any]): Encoder[DynamicValue] = {
-      println(s"DDDDDDDDDDD annotations $annotations") // TODO: Avi - remove
       val directDynamic = annotations.exists(_.isInstanceOf[directDynamicMapping])
+      println(s"DDDDDDDDDDD directDynamic: $directDynamic annotations $annotations") // TODO: Avi - remove
 
       if (directDynamic) { (d: DynamicValue) =>
         d match {
