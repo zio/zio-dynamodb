@@ -37,13 +37,6 @@ private[dynamodb] object Codec {
     //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
     private def encoder[A](schema: Schema[A], fieldAnnotations: Chunk[Any] = Chunk.empty): Encoder[A] = {
       println(s"XXXxxxxXXX 0 schema ${schema} ${schema} fieldAnnotations $fieldAnnotations") // TODO: Avi - remove
-//      if (schema.annotations.exists(_.isInstanceOf[directDynamicMapping]))
-        /*
-        TODO: Avi - manage state properly
-        @directDynamicMapping is recognised by DeriveSchema macro at the product/case class level
-         */
-//        directDynamic = true
-      //println(s"XXXxxxxXXX 1 schema ${schema.annotations} ${schema} fieldAnnotations $fieldAnnotations") // TODO: Avi - remove
       schema match {
         case s: Schema.Optional[a]                                                                                                              =>
           optionalEncoder[a](encoder(s.schema, Chunk.empty))
@@ -289,7 +282,6 @@ AttributeValue.Map(values)
           case b: DynamicValue.Primitive[_]   =>
             b.standardType match {
               case StandardType.BoolType       => AttributeValue.Bool(b.value.asInstanceOf[Boolean])
-              case StandardType.IntType        => AttributeValue.Number(BigDecimal(b.value.toString))
               case StandardType.BigDecimalType => AttributeValue.Number(BigDecimal(b.value.toString))
               case StandardType.StringType     => AttributeValue.String(b.value.toString)
               case _                           => throw new Exception(s"Unsupported standard type: ${b.standardType}")
@@ -582,7 +574,6 @@ AttributeValue.Map(values)
 
     //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
     private[dynamodb] def decoder[A](schema: Schema[A], fieldAnnotations: Chunk[Any] = Chunk.empty): Decoder[A] = {
-      println(s"XXXX decoder fieldAnnotations: $fieldAnnotations") // TODO: Avi - remove
       schema match {
         case s: Optional[a]                        => optionalDecoder[a](decoder(s.schema, Chunk.empty))
         case Schema.Fail(s, _)                     => _ => Left(DecodingError(s))
@@ -731,15 +722,18 @@ AttributeValue.Map(values)
           errorOrDvs.map(xs => DynamicValue.Sequence(Chunk.fromIterable(xs)))
           Right(DynamicValue.Sequence(Chunk.empty))
         case AttributeValue.Map(values)   =>
+          println(s"XXXXXX dynamicDecoder2: $values")
           val xs: List[(String, Either[zio.dynamodb.DynamoDBError.ItemError, zio.schema.DynamicValue])] = values.map {
-            case (k, v) => (k.toString, dynamicDecoder2(fieldAnnotations)(v))
+            case (k, v) => (k.value, dynamicDecoder2(fieldAnnotations)(v))
           }.toList
           val flipped: Either[DynamoDBError.ItemError, List[(String, DynamicValue)]]                    =
             xs.map { case (key, eitherValue) => eitherValue.map(value => (key, value)) }.flip
           flipped.map { xs =>
             DynamicValue.Record(
               zio.schema.TypeId.fromTypeName("AttributeValue.Map"), // TODO: Avi - investigate proper TypeId
-              ListMap(xs: _*)
+              ListMap(
+                xs: _*
+              )                                                     // TODO: AVI - investigate wrappig eg ListMap(String(age) -> Primitive(42,bigDecimal), String(name) -> Primitive(John,string)))
             )
           }
         case av                           => Left(DecodingError(s"Unsupported AttributeValue type $av"))
