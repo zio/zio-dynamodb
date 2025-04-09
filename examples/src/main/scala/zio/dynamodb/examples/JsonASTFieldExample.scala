@@ -6,11 +6,11 @@ import zio.schema.{ DeriveSchema, Schema }
 import zio.json.ast.Json
 
 object JsonASTFieldExample extends ZIOAppDefault {
-  // if we uncomment this import, we do not get the directDynamicMapping coming through 
+  // if we uncomment this import, we do not get the directDynamicMapping coming through
   import zio.schema.codec.json._
 
-  import zio.schema.annotation.directDynamicMapping
-  println(directDynamicMapping)
+  //import zio.schema.annotation.directDynamicMapping
+//  println(directDynamicMapping)
 
   // codecs for Transform(., annotations,.) pass through the annotations created by the implicit
   // schema in zio.schema.codec.json._ package which uses the Schema transform function

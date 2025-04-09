@@ -20,7 +20,6 @@ import zio.schema.DynamicValue
 import zio.prelude._
 
 private[dynamodb] object Codec {
-//  var directDynamic = false
 
   def encoder[A](schema: Schema[A]): Encoder[A] = Encoder(schema)
 
@@ -35,37 +34,37 @@ private[dynamodb] object Codec {
     def apply[A](schema: Schema[A]): Encoder[A] = encoder(schema)
 
     //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
-    private def encoder[A](schema: Schema[A], fieldAnnotations: Chunk[Any] = Chunk.empty): Encoder[A] = {
+    private def encoder[A](schema: Schema[A]): Encoder[A] = {
 //      println(s"XXXxxxxXXX 0 schema ${schema} ${schema} fieldAnnotations $fieldAnnotations") // TODO: Avi - remove
       schema match {
         case s: Schema.Optional[a]                                                                                                              =>
-          optionalEncoder[a](encoder(s.schema, Chunk.empty))
+          optionalEncoder[a](encoder(s.schema))
         case Schema.Fail(_, _)                                                                                                                  =>
           _ => AttributeValue.Null
         case Schema.Tuple2(l, r, _)                                                                                                             =>
-          tupleEncoder(encoder(l, Chunk.empty), encoder(r, Chunk.empty))
+          tupleEncoder(encoder(l), encoder(r))
         case s: Schema.Sequence[col, a, _]                                                                                                      =>
-          sequenceEncoder[col, a](encoder(s.elementSchema, Chunk.empty), s.toChunk)
+          sequenceEncoder[col, a](encoder(s.elementSchema), s.toChunk)
         case Schema.Set(s, _)                                                                                                                   =>
           setEncoder(s)
         case Schema.Map(ks, vs, _)                                                                                                              =>
           mapEncoder(ks, vs)
-        case Schema.Transform(c, _, g, annotations, _)                                                                                          =>
+        case Schema.Transform(c, _, g, a, _)                                                                                                    =>
 //          println(s"XXXxxxxXXX 2 schema Transform $annotations") // TODO: Avi - remove
-          transformEncoder(c, g, annotations)
+          transformEncoder(a.foldLeft(c)((s, a) => s.annotate(a)), g)
         case Schema.Primitive(standardType, _)                                                                                                  =>
           primitiveEncoder(standardType)
         case Schema.GenericRecord(_, structure, _)                                                                                              =>
           genericRecordEncoder(structure)
         case Schema.Either(l, r, _)                                                                                                             =>
-          eitherEncoder(encoder(l, Chunk.empty), encoder(r, Chunk.empty))
+          eitherEncoder(encoder(l), encoder(r))
         case l @ Schema.Lazy(_)                                                                                                                 =>
           // TODO: Avi - propagate fieldAnnotations
-          lazy val enc = encoder(l.schema, fieldAnnotations)
+          lazy val enc = encoder(l.schema)
           (a: A) => enc(a)
         case s @ Schema.Dynamic(_)                                                                                                              =>
-          println(s"DDDDDDDDDDD encode - fieldAnnotations $fieldAnnotations dv schema $s") // TODO: Avi - remove
-          dynamicEncoder2(fieldAnnotations)
+          println(s"DDDDDDDDDDD encode - dv schema.annotations ${s.annotations}") // TODO: Avi - remove
+          dynamicEncoder2(s.annotations)
         case Schema.CaseClass0(_, _, _)                                                                                                         =>
           caseClassEncoder0
         case Schema.CaseClass1(_, f, _, _)                                                                                                      =>
@@ -162,7 +161,7 @@ private[dynamodb] object Codec {
         case Schema.EnumN(_, cs, annotations)                                                                                                   =>
           enumEncoder(annotations, cs.toSeq: _*)
         case Schema.Fallback(left, right, _, _)                                                                                                 =>
-          fallbackEncoder(encoder(left, Chunk.empty), encoder(right, Chunk.empty))
+          fallbackEncoder(encoder(left), encoder(right))
         case _                                                                                                                                  =>
           throw new Exception("Match was non-exhaustive")
       }
@@ -321,7 +320,7 @@ AttributeValue.Map(values)
           // println(
           //   s"XXXXxxxxXXXXX caseClassEncoder ${s._1.name} annotations: ${s._1.annotations} schema: ${s}"
           // ) // TODO: Avi - remove
-          val enc                 = encoder(s._1.schema, s._1.annotations)
+          val enc                 = encoder(s._1.schema)
           val extractedFieldValue = s._1.get(a)
           val av                  = enc(extractedFieldValue)
           val k                   = s._1.name
@@ -384,10 +383,13 @@ AttributeValue.Map(values)
         AttributeValue.String(formatted)
       }
 
-    private def transformEncoder[A, B](schema: Schema[A], g: B => Either[String, A], annotations: Chunk[Any]): Encoder[B] = { (b: B) =>
+    private def transformEncoder[A, B](
+      schema: Schema[A],
+      g: B => Either[String, A]
+    ): Encoder[B] = { (b: B) =>
       g(b) match {
         case Right(a) =>
-          encoder(schema, annotations)(a)
+          encoder(schema)(a)
         case _        =>
           AttributeValue.Null
       }
@@ -573,21 +575,21 @@ AttributeValue.Map(values)
     def apply[A](schema: Schema[A]): Decoder[A] = decoder(schema)
 
     //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
-    private[dynamodb] def decoder[A](schema: Schema[A], fieldAnnotations: Chunk[Any] = Chunk.empty): Decoder[A] = {
+    private[dynamodb] def decoder[A](schema: Schema[A]): Decoder[A] = {
       schema match {
-        case s: Optional[a]                        => optionalDecoder[a](decoder(s.schema, Chunk.empty))
+        case s: Optional[a]                        => optionalDecoder[a](decoder(s.schema))
         case Schema.Fail(s, _)                     => _ => Left(DecodingError(s))
         case Schema.GenericRecord(_, structure, _) => genericRecordDecoder(structure).asInstanceOf[Decoder[A]]
-        case Schema.Tuple2(l, r, _)                => tupleDecoder(decoder(l, Chunk.empty), decoder(r, Chunk.empty))
-        case Schema.Transform(codec, f, _, annotations, _)   => transformDecoder(codec, f, annotations)
-        case s: Schema.Sequence[col, a, _]         => sequenceDecoder[col, a](decoder(s.elementSchema, Chunk.empty), s.fromChunk)
-        case Schema.Either(l, r, _)                => eitherDecoder(decoder(l, Chunk.empty), decoder(r, Chunk.empty))
+        case Schema.Tuple2(l, r, _)                => tupleDecoder(decoder(l), decoder(r))
+        case Schema.Transform(c, f, _, a, _)       => transformDecoder(a.foldLeft(c)((s, a) => s.annotate(a)), f)
+        case s: Schema.Sequence[col, a, _]         => sequenceDecoder[col, a](decoder(s.elementSchema), s.fromChunk)
+        case Schema.Either(l, r, _)                => eitherDecoder(decoder(l), decoder(r))
         case Primitive(standardType, _)            => primitiveDecoder(standardType)
         case l @ Schema.Lazy(_)                    =>
-          lazy val dec = decoder(l.schema, fieldAnnotations)
+          lazy val dec = decoder(l.schema)
           (av: AttributeValue) => dec(av)
-        case Schema.Dynamic(_)                     =>
-          dynamicDecoder2(fieldAnnotations)
+        case Schema.Dynamic(a)                     =>
+          dynamicDecoder2(a)
         case Schema.Set(s, _)                      =>
           setDecoder(s).asInstanceOf[Decoder[A]]
         case Schema.Map(ks, vs, _)                 =>
@@ -679,7 +681,7 @@ AttributeValue.Map(values)
         case Schema.EnumN(_, cs, annotations)                                                                                                   =>
           enumDecoder(annotations, cs.toSeq: _*)
         case Schema.Fallback(left, right, _, _)                                                                                                 =>
-          fallbackDecoder(decoder(left, Chunk.empty), decoder(right, Chunk.empty))
+          fallbackDecoder(decoder(left), decoder(right))
         case _                                                                                                                                  => throw new Exception("Match was non-exhaustive")
 
       }
@@ -863,8 +865,11 @@ AttributeValue.Map(values)
         stringOrA
       }
 
-    private def transformDecoder[A, B](codec: Schema[A], f: A => Either[String, B], annotations: Chunk[Any]): Decoder[B] = {
-      val dec = decoder(codec, annotations)
+    private def transformDecoder[A, B](
+      codec: Schema[A],
+      f: A => Either[String, B]
+    ): Decoder[B] = {
+      val dec = decoder(codec)
       (a: AttributeValue) => dec(a).flatMap(f(_).left.map(DecodingError.apply))
     }
 
@@ -1131,11 +1136,11 @@ AttributeValue.Map(values)
       av match {
         case AttributeValue.Map(map) =>
           fields.toList.forEach {
-            case Schema.Field(key, schema, annotations, _, _, _) =>
-              val dec          = decoder(schema, annotations)
+            case Schema.Field(key, schema, _, _, _, _) =>
+              val dec          = decoder(schema)
               val k            = key // @fieldName is respected by the zio-schema macro
               val maybeAv      = map.get(AttributeValue.String(k))
-              println(s"XXXX decoder field $key fieldAnnotations $annotations")
+//              println(s"XXXX decoder field $key fieldAnnotations $annotations")
               val errorOrValue =
                 maybeAv.toRight(DecodingError(s"field '$k' not found in AttributeValue map")).flatMap(dec)
               if (maybeAv.isEmpty)
