@@ -272,6 +272,7 @@ AttributeValue.Map(values)
           case DynamicValue.NoneValue         => AttributeValue.Null
           case b: DynamicValue.Primitive[_]   =>
             b.standardType match {
+              case StandardType.BinaryType     => AttributeValue.Binary(b.value.asInstanceOf[Iterable[Byte]])
               case StandardType.BoolType       => AttributeValue.Bool(b.value.asInstanceOf[Boolean])
               case StandardType.BigDecimalType => AttributeValue.Number(BigDecimal(b.value.toString))
               case StandardType.StringType     => AttributeValue.String(b.value.toString)
@@ -284,15 +285,6 @@ AttributeValue.Map(values)
                 val av  = enc(kv._2)
                 AttributeValue.Map(avMap.value + (AttributeValue.String(kv._1) -> av))
             }
-//              case DynamicValue.Primitive(value, StandardType.BoolType) => AttributeValue.Bool(value.asInstanceOf[Boolean])
-          // case DynamicValue.Primitive(a, standardType: StandardType[Any]) =>
-          //   primitiveEncoder(standardType)(a.asInstanceOf[A])
-
-          // case dv: DynamicValue.Primitive[_] =>
-          //   primitiveEncoder(dv.standardType)((dv.value).asInstanceOf[A])
-          // case DynamicValue.SetValue(values: Set[DynamicValue])           =>
-          //   // native sets cant be supported as there is no guarantee that the elements are of the same type
-          //   ???
           case dv                             =>
             throw new Exception(s"Unsupported DynamicValue $dv")
         }

@@ -4,6 +4,23 @@ import zio.dynamodb.DynamoDBQuery
 import zio.schema.{ DeriveSchema, DynamicValue, Schema, StandardType, TypeId }
 import scala.collection.immutable.ListMap
 
+/*
+
+|-----------|-----------------------------|------------------------------|
+| Dynamo AV | Schema                      | Notes                        |
+|-----------|-----------------------------|------------------------------|
+| Binary    | StandardType.BinaryType     |                              |
+| BinarySet | X                           | DV sets are not homogeneous  |
+| Bool      | StandardType.BoolType       |                              |
+| List      | DynamicValue.Sequence       |                              |
+| Map       | DynamicValue.Record         |                              |
+| Null      | DynamicValue.NoneValue      |                              |
+| Number    | StandardType.BigDecimalType |                              |
+| NumberSet | X                           | DV sets are no homogeneous   |
+| String    | StandardType.StringType     |                              |
+| StringSet | X                           | DV sets are no homogeneous   |
+
+ */
 object DirectDynamicValueFieldExample extends ZIOAppDefault {
 
   import zio.schema.annotation.directDynamicMapping
@@ -31,12 +48,16 @@ object DirectDynamicValueFieldExample extends ZIOAppDefault {
                          case _                   =>
                            println("Person.schema is not a Record")
                        }
+      dynamicNum10   = DynamicValue
+                         .Primitive[java.math.BigDecimal](new java.math.BigDecimal(10), StandardType.BigDecimalType)
+      dynamicNum42   = DynamicValue
+                         .Primitive[java.math.BigDecimal](new java.math.BigDecimal(42), StandardType.BigDecimalType)
       dv             = DynamicValue.Record(
                          id = zio.schema.TypeId.parse("zio.dynamodb.examples.JsonASTFieldExample2.PersonX"),
                          values = ListMap(
                            "name" -> DynamicValue.Primitive[String]("John", StandardType.StringType),
-                           "age"  -> DynamicValue
-                             .Primitive[java.math.BigDecimal](new java.math.BigDecimal(42), StandardType.BigDecimalType)
+                           "age"  -> dynamicNum42,
+                           "NS"   -> DynamicValue.SetValue(Set(dynamicNum10, dynamicNum42))
                          )
                        )
       person: Person = Person("id", dv)
