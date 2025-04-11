@@ -16,7 +16,7 @@ import java.util.UUID
 import scala.annotation.tailrec
 import scala.collection.immutable.ListMap
 import scala.util.Try
-import zio.schema.DynamicValue
+import zio.schema.{ DynamicValue, TypeId }
 import zio.prelude._
 
 private[dynamodb] object Codec {
@@ -278,6 +278,9 @@ AttributeValue.Map(values)
               case StandardType.StringType     => AttributeValue.String(b.value.toString)
               case _                           => throw new Exception(s"Unsupported standard type: ${b.standardType}")
             }
+          case DynamicValue.Sequence(values)  =>
+            val enc = dynamicEncoder(annotations)
+            AttributeValue.List(values.map(enc))
           case DynamicValue.Record(_, values) =>
             values.foldRight(AttributeValue.Map(ListMap.empty)) {
               case (kv, avMap) =>
@@ -683,6 +686,8 @@ AttributeValue.Map(values)
 
       if (directDynamic) {
         case AttributeValue.Null          => Right(DynamicValue.NoneValue)
+        case AttributeValue.Binary(value) =>
+          Right(DynamicValue.Primitive(Chunk.fromIterable(value), StandardType.BinaryType))
         case AttributeValue.Bool(value)   => Right(DynamicValue.Primitive(value, StandardType.BoolType))
         case AttributeValue.Number(value) =>
           Right(DynamicValue.Primitive(value.bigDecimal, StandardType.BigDecimalType))
@@ -693,7 +698,6 @@ AttributeValue.Map(values)
             values.map(dynamicDecoder(fieldAnnotations)).flip
           println(errorOrDvs)
           errorOrDvs.map(xs => DynamicValue.Sequence(Chunk.fromIterable(xs)))
-          Right(DynamicValue.Sequence(Chunk.empty))
         case AttributeValue.Map(values)   =>
           println(s"XXXXXX dynamicDecoder2: $values")
           val xs: List[(String, Either[zio.dynamodb.DynamoDBError.ItemError, zio.schema.DynamicValue])] = values.map {
@@ -703,10 +707,10 @@ AttributeValue.Map(values)
             xs.map { case (key, eitherValue) => eitherValue.map(value => (key, value)) }.flip
           flipped.map { xs =>
             DynamicValue.Record(
-              zio.schema.TypeId.fromTypeName("AttributeValue.Map"), // TODO: Avi - investigate proper TypeId
+              TypeId.parse("AttributeValue.Map"),
               ListMap(
                 xs: _*
-              )                                                     // TODO: AVI - investigate wrappig eg ListMap(String(age) -> Primitive(42,bigDecimal), String(name) -> Primitive(John,string)))
+              )
             )
           }
         case av                           => Left(DecodingError(s"Unsupported AttributeValue type $av"))

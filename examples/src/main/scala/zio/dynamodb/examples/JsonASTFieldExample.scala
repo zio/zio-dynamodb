@@ -36,10 +36,43 @@ object JsonASTFieldExample extends ZIOAppDefault {
     implicit val schema: Schema[Person2] = DeriveSchema.gen[Person2]
   }
 
+  // [info] person object encoded:
+  // AttrMap(Map(json -> Map(ListMap(String(age) -> Number(42), String(name) -> String(John))), id -> String(id)))
+  val json =
+    """
+      {
+        "name": "John",
+        "age": 42
+      }
+    """.stripMargin
+
+  //[info] person object encoded:
+  //AttrMap(Map(json -> Map(ListMap(String(list) -> List(Chunk(Map(ListMap(String(age) -> Number(42), String(name) -> String(John))))), String(age) -> Number(42), String(name) -> String(John))), id -> String(id)))
+  val json2 =
+    """
+      {
+        "name": "John",
+        "age": 42,
+        "list": [{
+          "name": "John",
+          "age": 42
+        }]
+      }
+    """.stripMargin
+
+  val json3 =
+    """
+      {
+        "name": "John",
+        "age": 42,
+        "list": [1, 2, 3]
+      }
+    """.stripMargin
+
   override def run: ZIO[Environment with ZIOAppArgs with Scope, Any, Any] =
     for {
       _             <- ZIO.debug(s"JSON Codec Example: ${Person.schema}")
-      json          <- ZIO.fromEither("""{"name":"John","age":42}""".fromJson[Json])
+      json          <- ZIO.fromEither(json3.fromJson[Json])
       person: Person = Person("id", json)
       encoded        = DynamoDBQuery.toItem(person)
       _             <- ZIO.debug(s"person object encoded: $encoded")

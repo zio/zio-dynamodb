@@ -340,4 +340,21 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
     }
   )
 
+  // TODO: Figure out how to test dynamic values
+  // val dynamicSuite = suite("dynamic")(
+  //   test("encodes dynamic value") {
+  //     val expectedItem: Item = Item("dv" -> Item("id" -> "foo"))
+
+  //     val item = DynamoDBQuery.toItem(CaseClassOfDynamicValue(DynamicValue.Record("foo", ListMap.empty)))
+
+  //     assert(item)(equalTo(expectedItem))
+  //   },
+  //   test("encodes dynamic value with @directDynamicMapping") {
+  //     val expectedItem: Item = Item("dv" -> Item("id" -> "foo"))
+
+  //     val item = DynamoDBQuery.toItem(CaseClassOfDirectDynamicValue(DynamicValue.Record("foo", ListMap.empty)))
+
+  //     assert(item)(equalTo(expectedItem))
+  //   }
+  // )
 }
