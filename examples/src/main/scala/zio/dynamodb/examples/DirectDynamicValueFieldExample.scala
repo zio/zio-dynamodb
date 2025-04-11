@@ -16,9 +16,9 @@ import scala.collection.immutable.ListMap
 | Map       | DynamicValue.Record         |                              |
 | Null      | DynamicValue.NoneValue      |                              |
 | Number    | StandardType.BigDecimalType |                              |
-| NumberSet | X                           | DV sets are no homogeneous   |
+| NumberSet | X                           | DV sets are not homogeneous  |
 | String    | StandardType.StringType     |                              |
-| StringSet | X                           | DV sets are no homogeneous   |
+| StringSet | X                           | DV sets are not homogeneous  |
 
  */
 object DirectDynamicValueFieldExample extends ZIOAppDefault {
