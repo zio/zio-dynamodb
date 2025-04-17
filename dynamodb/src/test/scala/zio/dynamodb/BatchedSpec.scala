@@ -152,6 +152,30 @@ object BatchedSpec extends ZIOSpecDefault {
         decisions.head == "multiple PutItem/DeleteItem"
       )
     },
+    test("Multiple GetItems and multiple WriteItems (Put or Delete) should be batched") {
+      val get1    = getItem("table1", item1)
+      val get2    = getItem("table1", item2)
+      val put1    = putItem("table1", item1)
+      val delete1 = deleteItem("table1", item2)
+
+      val constructors: Chunk[Constructor[AttrMap, Any]] =
+        Chunk(get1, get2, put1, delete1).asInstanceOf[Chunk[Constructor[Any, Option[AttrMap]]]]
+      val (
+        nonBatched: Chunk[(Constructor[AttrMap, Any], Int)],
+        batchGetItem: (DynamoDBQuery.BatchGetItem, Chunk[Int]),
+        batchWriteItem: (DynamoDBQuery.BatchWriteItem, Chunk[Int]),
+        decisions
+      )                                                  = DynamoDBQuery.batched(constructors)
+
+      assertTrue(
+        nonBatched.isEmpty,
+        batchGetItem._1.requestItems.size == 1,
+        batchGetItem._1.requestItems.get(TableName("table1")).get.keysSet.size == 2,
+        batchWriteItem._1.requestItems.size == 1,
+        decisions.size == 2,
+        decisions == Set("multiple GetItem's", "multiple PutItem/DeleteItem")
+      )
+    },
     test("Put/Delete Items with conditions should not be batched") {
       val put1                                           = putItem("table1", item1).where($("table.id") === "1")
       val delete1                                        = deleteItem("table1", item2).where($("table.id") === "2")

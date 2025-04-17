@@ -100,7 +100,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
     if (validateBatching && indexedConstructors.size > 1) // batch of one item results in a single non batched query
       ZIO.fail(
-        DynamoDBError.BatchError.UnbatchableQueryError(decisions.toSet)
+        DynamoDBError.BatchError.UnbatchableQueryError(decisions)
       )
     else
       result
@@ -1151,7 +1151,7 @@ object DynamoDBQuery {
 
   private[dynamodb] def batched[In](
     constructors: Chunk[Constructor[In, Any]]
-  ): (Chunk[(Constructor[In, Any], Int)], (BatchGetItem, Chunk[Int]), (BatchWriteItem, Chunk[Int]), Chunk[String]) = {
+  ): (Chunk[(Constructor[In, Any], Int)], (BatchGetItem, Chunk[Int]), (BatchWriteItem, Chunk[Int]), Set[String]) = {
     type IndexedConstructor = (Constructor[In, Any], Int)
     type IndexedGetItem     = (GetItem, Int)
     type IndexedWriteItem   = (Write[Any, Option[Any]], Int)
@@ -1175,45 +1175,45 @@ object DynamoDBQuery {
 
     val (indexedNonBatched, indexedGets, indexedWrites, decisions) =
       constructors.zipWithIndex
-        .foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem], Chunk[IndexedWriteItem], Chunk[String])](
-          (Chunk.empty, Chunk.empty, Chunk.empty, Chunk.empty)
+        .foldLeft[(Chunk[IndexedConstructor], Chunk[IndexedGetItem], Chunk[IndexedWriteItem], Set[String])](
+          (Chunk.empty, Chunk.empty, Chunk.empty, Set.empty)
         ) {
           case ((nonBatched, gets, writes, decisions), (get @ GetItem(_, pk, pes, _, _, _), index)) =>
             if (isSingleGetQuery)
-              (nonBatched :+ (get -> index), gets, writes, decisions :+ "single GetItem")
+              (nonBatched :+ (get -> index), gets, writes, decisions + "single GetItem")
             else if (projectionsContainPrimaryKey(pes, pk))
               (
                 nonBatched,
                 gets :+ (get      -> index),
                 writes,
-                if (decisions.isEmpty) decisions :+ "multiple GetItem's" else decisions
+                decisions + "multiple GetItem's"
               )
             else
-              (nonBatched :+ (get -> index), gets, writes, decisions :+ "GetItem contains no primary key")
+              (nonBatched :+ (get -> index), gets, writes, decisions + "GetItem contains no primary key")
           case (
                 (nonBatched, gets, writes, decisions),
                 (put @ PutItem(_, _, conditionExpression, _, _, returnValues, _), index)
               ) =>
             if (isSingleWriteQuery)
-              (nonBatched :+ (put -> index), gets, writes, decisions :+ "single PutItem")
+              (nonBatched :+ (put -> index), gets, writes, decisions + "single PutItem")
             else
               conditionExpression match {
                 case Some(_) =>
-                  (nonBatched :+ (put -> index), gets, writes, decisions :+ "PutItem has a condition expression")
+                  (nonBatched :+ (put -> index), gets, writes, decisions + "PutItem has a condition expression")
                 case None    =>
                   if (returnValues != ReturnValues.None)
                     (
                       nonBatched :+ (put -> index),
                       gets,
                       writes,
-                      decisions :+ "PutItem has a return value other than None"
+                      decisions + "PutItem has a return value other than None"
                     )
                   else
                     (
                       nonBatched,
                       gets,
                       writes :+ (put     -> index),
-                      if (decisions.isEmpty) decisions :+ "multiple PutItem/DeleteItem" else decisions
+                      decisions + "multiple PutItem/DeleteItem"
                     )
               }
           case (
@@ -1221,25 +1221,25 @@ object DynamoDBQuery {
                 (delete @ DeleteItem(_, _, conditionExpression, _, _, returnValues, _), index)
               ) =>
             if (isSingleWriteQuery)
-              (nonBatched :+ (delete -> index), gets, writes, decisions :+ "single DeleteItem")
+              (nonBatched :+ (delete -> index), gets, writes, decisions + "single DeleteItem")
             else
               conditionExpression match {
                 case Some(_) =>
-                  (nonBatched :+ (delete -> index), gets, writes, decisions :+ "DeleteItem has a condition expression")
+                  (nonBatched :+ (delete -> index), gets, writes, decisions + "DeleteItem has a condition expression")
                 case None    =>
                   if (returnValues != ReturnValues.None)
                     (
                       nonBatched :+ (delete -> index),
                       gets,
                       writes,
-                      decisions :+ "DeleteItem has a return value other than None"
+                      decisions + "DeleteItem has a return value other than None"
                     )
                   else
                     (
                       nonBatched,
                       gets,
                       writes :+ (delete     -> index),
-                      if (decisions.isEmpty) decisions :+ "multiple PutItem/DeleteItem" else decisions
+                      decisions + "multiple PutItem/DeleteItem"
                     )
               }
           case ((nonBatched, gets, writes, decisions), (nonBatchable, index))                       =>
@@ -1247,7 +1247,7 @@ object DynamoDBQuery {
               nonBatched :+ (nonBatchable -> index),
               gets,
               writes,
-              decisions :+ s"Query type ${nonBatchable.getClass.getSimpleName} not batchable"
+              decisions + s"Query type ${nonBatchable.getClass.getSimpleName} not batchable"
             )
         }
 
