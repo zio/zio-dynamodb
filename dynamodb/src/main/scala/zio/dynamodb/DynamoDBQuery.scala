@@ -429,7 +429,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
   ): DynamoDBQuery[In1, z.Out] =
     DynamoDBQuery.Zip[Out, B, z.Out](self, that, z, validateBatching = false)
 
-  protected[dynamodb] final def zip[In1 <: In, B](that: DynamoDBQuery[In1, B], validateBatching: Boolean)(implicit
+  private[dynamodb] final def zip[In1 <: In, B](that: DynamoDBQuery[In1, B], validateBatching: Boolean)(implicit
     z: Zippable[Out, B]
   ): DynamoDBQuery[In1, z.Out] =
     DynamoDBQuery.Zip[Out, B, z.Out](self, that, z, validateBatching)
@@ -443,7 +443,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
   ): DynamoDBQuery[In1, C] =
     self.zip(that).map(f.tupled)
 
-  final def zipWithValidateBatching[In1 <: In, B, C](that: DynamoDBQuery[In1, B])(
+  private[dynamodb] final def zipWithValidateBatching[In1 <: In, B, C](that: DynamoDBQuery[In1, B])(
     f: (Out, B) => C
   ): DynamoDBQuery[In1, C] =
     self.zip(that, validateBatching = true).map(f.tupled)

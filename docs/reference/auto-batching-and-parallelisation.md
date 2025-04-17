@@ -3,11 +3,7 @@ id: auto-batching-and-parallelisation
 title: "Auto batching and parallelisation"
 ---
 
-The `DynamoDBQuery.batch` function is the preferred way of composing batched queries and in turn it uses the `zipWithValidateBatching` combinator.         
-
-When `DynamoDBQuery`'s are composed manually via the `zip` combinator they become eligible for auto-batching and parallelisation in the `execute` method.
-
-When `DynamoDBQuery`'s are composed manually via the `zipWithValidateBatching` combinator, batching is done explicitly and **no parallelisation** is done. On `execute` of the query a `DynamoDBError.BatchError.UnbatchableQueryError` is returned if the query is not eligible for batching.         
+The `DynamoDBQuery.batch` function is the preferred way of composing batched queries -  batching is done explicitly and **no parallelisation** is done. On `execute` of the query a `DynamoDBError.BatchError.UnbatchableQueryError` is returned if the query is not eligible for batching.         
 
 
 ```scala
@@ -40,7 +36,7 @@ So the rules are as follows:
 
 Note if you use the `batch(someCollection)(el => someQuery)` function for batching there is no defaulting to parallel queries and you will get a `DynamoDBError.BatchError.UnbatchableQueryError` with a detailed message on `execute` if any of the above rules are violated.
 
-The use of `batch` the recommended approach for batching queries rather using `zip` - however you will have to manually manage the size of the batch (see next section).  
+The use of `batch` the recommended approach for batching queries rather than using `zip` - however you will still have to manually manage the size of the batch manually (see next section).  
 
 ## Maximum batch sizes for `BatchWriteItem` and `BatchGetItem`
 
