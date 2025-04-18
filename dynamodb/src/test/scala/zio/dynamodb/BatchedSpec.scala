@@ -26,8 +26,7 @@ object BatchedSpec extends ZIOSpecDefault {
         nonBatched.size == 1,
         batchGetItem._1.requestItems.isEmpty,
         batchWriteItem._1.requestItems.isEmpty,
-        decisions.size == 1,
-        decisions.head == "single GetItem"
+        decisions == Set("single GetItem")
       )
     },
     test("Single PutItem queries do not get batched") {
@@ -45,8 +44,7 @@ object BatchedSpec extends ZIOSpecDefault {
         nonBatched.size == 1,
         batchGetItem._1.requestItems.isEmpty,
         batchWriteItem._1.requestItems.isEmpty,
-        decisions.size == 1,
-        decisions.head == "single PutItem"
+        decisions == Set("single PutItem")
       )
     },
     test("Single DeleteItem queries do not get batched") {
@@ -64,11 +62,10 @@ object BatchedSpec extends ZIOSpecDefault {
         nonBatched.size == 1,
         batchGetItem._1.requestItems.isEmpty,
         batchWriteItem._1.requestItems.isEmpty,
-        decisions.size == 1,
-        decisions.head == "single DeleteItem"
+        decisions == Set("single DeleteItem")
       )
     },
-    test("A GetItem and a DeleteItem do not get batched") {
+    test("A single GetItem and a single DeleteItem do not get batched") {
       val get1                                           = getItem("table1", item1)
       val delete1                                        = deleteItem("table1", item2)
       val constructors: Chunk[Constructor[AttrMap, Any]] =
@@ -84,12 +81,10 @@ object BatchedSpec extends ZIOSpecDefault {
         nonBatched.size == 2,
         batchGetItem._1.requestItems.size == 0,
         batchWriteItem._1.requestItems.size == 0,
-        decisions.size == 2,
-        decisions.contains("single GetItem") == true,
-        decisions.contains("single DeleteItem") == true
+        decisions == Set("single GetItem", "single DeleteItem")
       )
     },
-    test("A GetItem and a PutItem do not get batched") {
+    test("A single GetItem and a single PutItem do not get batched") {
       val get1                                           = getItem("table1", item1)
       val put1                                           = putItem("table1", item2)
       val constructors: Chunk[Constructor[AttrMap, Any]] =
@@ -105,9 +100,7 @@ object BatchedSpec extends ZIOSpecDefault {
         nonBatched.size == 2,
         batchGetItem._1.requestItems.size == 0,
         batchWriteItem._1.requestItems.size == 0,
-        decisions.size == 2,
-        decisions.contains("single GetItem") == true,
-        decisions.contains("single PutItem") == true
+        decisions == Set("single GetItem", "single PutItem")
       )
     },
     test("Multiple GetItems should be batched") {
@@ -127,8 +120,7 @@ object BatchedSpec extends ZIOSpecDefault {
         batchGetItem._1.requestItems.size == 1,
         batchGetItem._1.requestItems.get(TableName("table1")).get.keysSet.size == 2,
         batchWriteItem._1.requestItems.isEmpty,
-        decisions.size == 1,
-        decisions.head == "multiple GetItem's"
+        decisions == Set("multiple GetItem's")
       )
     },
     test("A PutItem and DeleteItem should be batched") {
@@ -148,8 +140,7 @@ object BatchedSpec extends ZIOSpecDefault {
         batchGetItem._1.requestItems.isEmpty,
         batchWriteItem._1.requestItems.size == 1,
         batchWriteItem._1.requestItems.get(TableName("table1")).get.size == 2,
-        decisions.size == 1,
-        decisions.head == "multiple PutItem/DeleteItem"
+        decisions == Set("multiple PutItem/DeleteItem")
       )
     },
     test("Multiple GetItems and multiple WriteItems (Put or Delete) should be batched") {
@@ -172,7 +163,6 @@ object BatchedSpec extends ZIOSpecDefault {
         batchGetItem._1.requestItems.size == 1,
         batchGetItem._1.requestItems.get(TableName("table1")).get.keysSet.size == 2,
         batchWriteItem._1.requestItems.size == 1,
-        decisions.size == 2,
         decisions == Set("multiple GetItem's", "multiple PutItem/DeleteItem")
       )
     },
@@ -192,9 +182,7 @@ object BatchedSpec extends ZIOSpecDefault {
         nonBatched.size == 2,
         batchGetItem._1.requestItems.isEmpty,
         batchWriteItem._1.requestItems.isEmpty,
-        decisions.size == 2,
-        decisions.contains("PutItem has a condition expression") == true,
-        decisions.contains("DeleteItem has a condition expression") == true
+        decisions == Set("PutItem has a condition expression", "DeleteItem has a condition expression")
       )
     },
     test("Put/Delete Items with return values other than ReturnValues.None should not be batched") {
@@ -213,9 +201,7 @@ object BatchedSpec extends ZIOSpecDefault {
         nonBatched.size == 2,
         batchGetItem._1.requestItems.isEmpty,
         batchWriteItem._1.requestItems.isEmpty,
-        decisions.size == 2,
-        decisions.contains("PutItem has a return value other than None") == true,
-        decisions.contains("DeleteItem has a return value other than None") == true
+        decisions == Set("PutItem has a return value other than None", "DeleteItem has a return value other than None")
       )
     }
   )
