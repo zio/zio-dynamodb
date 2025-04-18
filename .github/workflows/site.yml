@@ -14,7 +14,7 @@ name: Website
 jobs:
   build:
     name: Build and Test
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     if: ${{ github.event_name == 'pull_request' }}
     steps:
     - name: Git Checkout
@@ -27,6 +27,7 @@ jobs:
         distribution: temurin
         java-version: 17
         check-latest: true
+    - uses: sbt/setup-sbt@v1
     - name: Check artifacts build process
       run: sbt -J-XX:+UseG1GC -J-Xmx6g -J-Xms6g -J-Xss16m +publishLocal
     - name: Check website build process
@@ -52,6 +53,7 @@ jobs:
         distribution: corretto
         java-version: '17'
         check-latest: true
+    - uses: sbt/setup-sbt@v1
     - name: Cache Dependencies
       uses: coursier/cache-action@v6
     - name: Generate Readme
@@ -97,7 +99,7 @@ jobs:
         PR_URL: ${{ steps.cpr.outputs.pull-request-url }}
   publish-docs:
     name: Publish Docs
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     if: ${{ ((github.event_name == 'release') && (github.event.action == 'published')) || (github.event_name == 'workflow_dispatch') }}
     steps:
     - name: Git Checkout
@@ -109,7 +111,8 @@ jobs:
       with:
         distribution: temurin
         java-version: 17
-        check-latest: true
+        check-latest:
+    - uses: sbt/setup-sbt@v1
     - name: Setup NodeJs
       uses: actions/setup-node@v3
       with:
