@@ -10,7 +10,7 @@ on:
 
 jobs:
   lint:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -32,7 +32,7 @@ jobs:
         run: sbt scalafmtCheckAll
 
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -64,7 +64,7 @@ jobs:
         run: sbt -J-XX:+UseG1GC -J-Xmx6g -J-Xms6g -J-Xss16m "++${{ matrix.scala }}; it:test"
 
   mdoc:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - name: Checkout current branch
@@ -86,14 +86,14 @@ jobs:
         run: sbt -J-XX:+UseG1GC -J-Xmx6g -J-Xms6g -J-Xss16m docs/compileDocs
 
   ci:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     needs: [build, lint, mdoc]
     steps:
       - name: Report successful build
         run: echo "ci passed"
 
   publish:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [ci]
     if: github.event_name != 'pull_request'
