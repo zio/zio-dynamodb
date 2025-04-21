@@ -502,7 +502,7 @@ object DynamoDBQuery {
    * Note this is a low level function for a small amount of elements that is bounded by limits by the AWS API -
    * if you want to perform a large number of reads and writes prefer the following utility functions - [[zio.dynamodb.batchReadItemFromStream]],
    * [[zio.dynamodb.batchWriteFromStream]] which work with ZStreams in a finite memory space and efficiently limit batch sizes to the maximum size
-   * allowed by the AWS API, or alternatively use `forEach` to implement your own streaming functions.
+   * allowed by the AWS API, or alternatively use `batch` to implement your own streaming functions.
    *
    * Note that if you need need access to `unprocessedItems` or `unprocessedKeys` then an error handler for
    * `DynamoDBError.BatchError` should be provided.
@@ -520,7 +520,7 @@ object DynamoDBQuery {
    * Note this is a low level function for a small amount of elements that is bounded by limits by the AWS API -
    * if you want to perform a large number of reads and writes prefer the following utility functions - [[zio.dynamodb.batchReadItemFromStream]],
    * [[zio.dynamodb.batchWriteFromStream]] which work with ZStreams in a finite memory space and efficiently limit batch sizes to the maximum size
-   * allowed by the AWS API, or alternatively use `forEach` to implement your own streaming functions.
+   * allowed by the AWS API, or alternatively use `batch` to implement your own streaming functions.
    *
    * Note that if you need need access to `unprocessedItems` or `unprocessedKeys` then an error handler for
    * `DynamoDBError.BatchError` should be provided.
