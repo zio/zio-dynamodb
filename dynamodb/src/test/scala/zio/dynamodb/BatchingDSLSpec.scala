@@ -197,7 +197,19 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
         mixedOpsExpected = (None, Some(itemT1), Some(itemT1_2), None)
         getsResults     <- nextQuery.execute
       } yield assert(mixedOpsResults)(equalTo(mixedOpsExpected)) && assert(getsResults)(equalTo((None, Some(itemT3_2))))
-    } @@ beforeAddTable1AndTable3,
+    } @@ beforeAddTable1AndTable3
+  )
+
+  private val batchingViaBatchSuite = suite("batching via batch")(
+    test("a batch of an empty list should result in an empty list") {
+      for {
+        list <-
+          batch(List.empty[Int]) { i =>
+            putItem(tableName1.value, Item("k1" -> s"v$i")).where(zio.dynamodb.ProjectionExpression.$("k1") === "k1")
+          }.execute
+
+      } yield assertTrue(list == List.empty)
+    } @@ beforeAddEmptyTable1,
     test("should execute batch of GetItems (resulting in a batched request)") {
       for {
         result <- batch(1 to 2) { i =>
@@ -223,10 +235,7 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
         query <- TestDynamoDBExecutor.recordedQueries
         items <- TestDynamoDBExecutor.itemsForTable(tableName1)
       } yield assertQueryNotBatched(query) && assertTrue(items == Set(Item("k1" -> "v1")))
-    } @@ beforeAddEmptyTable1
-  )
-
-  private val batchingViaBatchSuite = suite("batching via batch")(
+    } @@ beforeAddEmptyTable1,
     test("using batch of PutItems with ConditionExpression should result in an error") {
       for {
         exit <-
@@ -273,6 +282,16 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
                 }.execute.exit
 
       } yield assert(exit)(fails(isUnbatchableQueryError(msg = "DeleteItem has a return value other than None")))
+    } @@ beforeAddEmptyTable1,
+    test("should execute batch of PutItem and DeleteItem (resulting in a batched request)") {
+      for {
+        _     <- batch(1 to 2) { i =>
+                   if (i == 1) putItem(tableName1.value, Item("k1" -> "v1"))
+                   else deleteItem(tableName1.value, PrimaryKey("k1" -> "v1"))
+                 }.execute
+        query <- TestDynamoDBExecutor.recordedQueries
+        items <- TestDynamoDBExecutor.itemsForTable(tableName1)
+      } yield assertQueryBatched(query) && assertTrue(items == Set.empty[Item])
     } @@ beforeAddEmptyTable1,
     test("using batch of UpdateItems should result in an error") { // Batching of UpdateItem's is not supported by AWS API
       for {
