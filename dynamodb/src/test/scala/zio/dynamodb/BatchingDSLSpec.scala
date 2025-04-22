@@ -24,7 +24,13 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
   )
 
   override def spec: Spec[Environment, Any] =
-    suite("Batching")(crudSuite, scanAndQuerySuite, batchingSuite, singleQueryDoesNotBatchSuite).provideLayer(
+    suite("Batching")(
+      crudSuite,
+      scanAndQuerySuite,
+      batchingViaZipSuite,
+      batchingViaBatchSuite,
+      singleQueryDoesNotBatchSuite
+    ).provideLayer(
       DynamoDBExecutor.test
     )
 
@@ -150,7 +156,7 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
     ) *> TestDynamoDBExecutor.addTable(tableName2.value, "k2")
   )
 
-  private val batchingSuite = suite("batching should")(
+  private val batchingViaZipSuite = suite("batching via zip")(
     test("batch putItem1 zip putItem1_2") {
       for {
         _                                                             <- TestDynamoDBExecutor.addTable(tableName1.value, "k1")
@@ -217,7 +223,10 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
         query <- TestDynamoDBExecutor.recordedQueries
         items <- TestDynamoDBExecutor.itemsForTable(tableName1)
       } yield assertQueryNotBatched(query) && assertTrue(items == Set(Item("k1" -> "v1")))
-    } @@ beforeAddEmptyTable1,
+    } @@ beforeAddEmptyTable1
+  )
+
+  private val batchingViaBatchSuite = suite("batching via batch")(
     test("using batch of PutItems with ConditionExpression should result in an error") {
       for {
         exit <-
