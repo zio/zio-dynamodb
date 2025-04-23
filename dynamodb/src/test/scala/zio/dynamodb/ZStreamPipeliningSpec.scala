@@ -5,9 +5,10 @@ import zio.dynamodb.DynamoDBQuery.put
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.schema.{ DeriveSchema, Schema }
 import zio.stream.ZStream
-import zio.test.Assertion.equalTo
+import zio.test.Assertion._
 import zio.test.{ assert, assertTrue, ZIOSpecDefault }
 import zio.test.Spec
+import zio.dynamodb.DynamoDBQuery.update
 
 object ZStreamPipeliningSpec extends ZIOSpecDefault {
   final case class Person(id: Int, name: String)
@@ -55,6 +56,14 @@ object ZStreamPipeliningSpec extends ZIOSpecDefault {
             Right((Person(3, "name3"), None))
           )
         )
+      },
+      test("update queries are not supported") {
+        for {
+          _    <- TestDynamoDBExecutor.addTable("person", "id")
+          exit <- batchWriteFromStream(personStream) { person =>
+                    update("person")(Person.id.partitionKey === person.id)(Person.name.set(s"newName${person.id}"))
+                  }.runDrain.exit
+        } yield assert(exit)(fails(isSubtype[DynamoDBError.BatchError.UnbatchableQueryError](anything)))
       }
     ).provideLayer(DynamoDBExecutor.test)
 }

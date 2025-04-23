@@ -42,8 +42,15 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   def execute: ZIO[DynamoDBExecutor, DynamoDBError, Out] = {
     val validateBatching = self match {
-      case DynamoDBQuery.Map(Zip(_, _, _, validateBatching), _) => validateBatching
-      case _                                                    => false
+      case DynamoDBQuery.Map(Zip(_, _, _, validateBatching), _) =>
+        validateBatching
+      case DynamoDBQuery.Map(
+            Map(Zip(_, _, _, validateBatching), _),
+            _
+          ) => // TODO: Avi - see if we can get rid of this with a change to batch signature
+        validateBatching
+      case _                                                    =>
+        false
     }
 
     val (constructors: Chunk[DynamoDBQuery.Constructor[In, Any]], assembler: Function1[Chunk[Any], Out]) = parallelize(
