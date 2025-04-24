@@ -208,7 +208,7 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
             putItem(tableName1.value, Item("k1" -> s"v$i")).where(zio.dynamodb.ProjectionExpression.$("k1") === "k1")
           }.execute
 
-      } yield assertTrue(list == List.empty)
+      } yield assertTrue(list == Chunk.empty)
     } @@ beforeAddEmptyTable1,
     test("should execute batch of GetItems (resulting in a batched request)") {
       for {
@@ -216,7 +216,7 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
                     getItem(tableName1.value, PrimaryKey("k1" -> s"v$i"))
                   }.execute
         query  <- TestDynamoDBExecutor.recordedQueries
-      } yield assert(result)(equalTo(List(Some(itemT1), Some(itemT1_2)))) && assertQueryBatched(query)
+      } yield assert(result)(equalTo(Chunk(Some(itemT1), Some(itemT1_2)))) && assertQueryBatched(query)
     } @@ beforeAddTable1AndTable3,
     test("should execute batch of PutItems (resulting in a batched request)") {
       for {

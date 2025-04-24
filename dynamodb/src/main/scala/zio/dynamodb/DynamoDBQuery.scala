@@ -516,7 +516,7 @@ object DynamoDBQuery {
    */
   @deprecated("Use batch instead", since = "")
   def forEach[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery[In, List[B]] =
-    batch(values)(body)
+    batchOld(values)(body)
 
   /**
    * Primary entry point for batching queries together. The function `body` is called for each `A` in the list and the
@@ -532,9 +532,20 @@ object DynamoDBQuery {
    * Note that if you need need access to `unprocessedItems` or `unprocessedKeys` then an error handler for
    * `DynamoDBError.BatchError` should be provided.
    */
-  def batch[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery[In, List[B]] =
+  def batchOld[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery[In, List[B]] =
     values.reverse.foldLeft[DynamoDBQuery[In, List[B]]](succeed(Nil)) {
-      case (query, a) => body(a).zipWithValidateBatching(query)(_ :: _)
+      case (queryAcc: DynamoDBQuery[In, List[B]], a) =>
+        val bodyApplied: DynamoDBQuery[In, B] = body(a)
+        val zip: DynamoDBQuery[In, List[B]]   = bodyApplied.zipWithValidateBatching(queryAcc)(_ :: _)
+        zip
+    }
+
+  // uses Chunk as the collection type as this is more convenient for higher level streaming utils -
+  // it avoid an extra DynamoDBQuery.Map operation
+  def batch[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery[In, Chunk[B]] =
+    values.reverse.foldLeft[DynamoDBQuery[In, Chunk[B]]](succeed(Chunk.empty)) {
+      // TODO: Avi - optimise out prepend on Chunk
+      case (query, a) => body(a).zipWithValidateBatching(query)((el, acc) => el +: acc)
     }
 
   def getItem(

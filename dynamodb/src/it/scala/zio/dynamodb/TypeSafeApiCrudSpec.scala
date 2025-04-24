@@ -810,7 +810,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           _      <- put(tableName, person1).execute
           _      <- put(tableName, person2).execute
           people <- batch(Chunk(person1, person2))(p => get(tableName)(Person.id.partitionKey === p.id)).execute
-        } yield assertTrue(people == List(Right(person1), Right(person2)))
+        } yield assertTrue(people == Chunk(Right(person1), Right(person2)))
       }
     },
     test("with a get query returns Left of ValueNotFound when an item does not exist") {
@@ -820,7 +820,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         for {
           people <- batch(Chunk(person1, person2))(p => get(tableName)(Person.id.partitionKey === p.id)).execute
         } yield assertTrue(
-          people == List(
+          people == Chunk(
             Left(ItemError.ValueNotFound("value with key AttrMap(Map(id -> String(1))) not found")),
             Left(ItemError.ValueNotFound("value with key AttrMap(Map(id -> String(2))) not found"))
           )
