@@ -3,7 +3,6 @@ package zio.dynamodb
 import zio.Chunk
 import zio.dynamodb.DynamoDBQuery.put
 import zio.dynamodb.DynamoDBError.ItemError
-import zio.dynamodb.ReturnValues
 import zio.schema.{ DeriveSchema, Schema }
 import zio.stream.ZStream
 import zio.test.Assertion._
