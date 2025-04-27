@@ -240,7 +240,7 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
       items    <- tableMap match {
                     case Some(tmap) =>
                       tmap.values.map(_.toList)
-                    case None       => STM.succeed(List.empty) // TODO: Avi - convert to Set
+                    case None       => STM.succeed(List.empty)
                   }
     } yield items).commit
 

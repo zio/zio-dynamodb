@@ -44,11 +44,6 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     val validateBatching = self match {
       case DynamoDBQuery.Map(Zip(_, _, _, validateBatching), _) =>
         validateBatching
-      case DynamoDBQuery.Map(
-            Map(Zip(_, _, _, validateBatching), _),
-            _
-          ) => // TODO: Avi - see if we can get rid of this with a change to batch signature
-        validateBatching
       case _                                                    =>
         false
     }
