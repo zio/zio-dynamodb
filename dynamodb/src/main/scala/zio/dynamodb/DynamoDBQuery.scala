@@ -1199,7 +1199,7 @@ object DynamoDBQuery {
                 decisions + "multiple GetItem's"
               )
             else
-              (nonBatched :+ (get -> index), gets, writes, decisions + "GetItem contains no primary key")
+              (nonBatched :+ (get -> index), gets, writes, decisions + "GetItem projections do not contain primary key")
           case (
                 (nonBatched, gets, writes, decisions),
                 (put @ PutItem(_, _, conditionExpression, _, _, returnValues, _), index)

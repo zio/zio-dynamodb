@@ -3,6 +3,7 @@ package zio.dynamodb
 import zio.Chunk
 import zio.dynamodb.DynamoDBQuery.put
 import zio.dynamodb.DynamoDBError.ItemError
+import zio.dynamodb.ReturnValues
 import zio.schema.{ DeriveSchema, Schema }
 import zio.stream.ZStream
 import zio.test.Assertion._
@@ -62,6 +63,22 @@ object ZStreamPipeliningSpec extends ZIOSpecDefault {
           _    <- TestDynamoDBExecutor.addTable("person", "id")
           exit <- batchWriteFromStream(personStream) { person =>
                     update("person")(Person.id.partitionKey === person.id)(Person.name.set(s"newName${person.id}"))
+                  }.runDrain.exit
+        } yield assert(exit)(fails(isSubtype[DynamoDBError.BatchError.UnbatchableQueryError](anything)))
+      },
+      test("write queries with condition expressions not supported") {
+        for {
+          _    <- TestDynamoDBExecutor.addTable("person", "id")
+          exit <- batchWriteFromStream(personStream) { person =>
+                    put("person", person).where(Person.id === person.id)
+                  }.runDrain.exit
+        } yield assert(exit)(fails(isSubtype[DynamoDBError.BatchError.UnbatchableQueryError](anything)))
+      },
+      test("write queries with return values not supported") {
+        for {
+          _    <- TestDynamoDBExecutor.addTable("person", "id")
+          exit <- batchWriteFromStream(personStream) { person =>
+                    put("person", person).returns(ReturnValues.AllOld)
                   }.runDrain.exit
         } yield assert(exit)(fails(isSubtype[DynamoDBError.BatchError.UnbatchableQueryError](anything)))
       }

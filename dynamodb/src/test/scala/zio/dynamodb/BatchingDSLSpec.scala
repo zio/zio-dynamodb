@@ -218,6 +218,19 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
         query  <- TestDynamoDBExecutor.recordedQueries
       } yield assert(result)(equalTo(Chunk(Some(itemT1), Some(itemT1_2)))) && assertQueryBatched(query)
     } @@ beforeAddTable1AndTable3,
+    test("should return error for batch of GetItems with id missing in projections") {
+      for {
+        exit <- batch(1 to 2) { i =>
+                  getItem(tableName1.value, PrimaryKey("k1" -> s"v$i"), projections = $("fieldThatDoesNotExist"))
+                }.execute.exit
+      } yield assert(exit)(
+        fails(
+          isUnbatchableQueryError(msg =
+            "Query is not batchable for the following reasons: GetItem projections do not contain primary key"
+          )
+        )
+      )
+    } @@ beforeAddTable1AndTable3,
     test("should execute batch of PutItems (resulting in a batched request)") {
       for {
         _     <- batch(1 to 2) { i =>
