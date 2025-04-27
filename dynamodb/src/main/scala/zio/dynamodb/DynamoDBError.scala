@@ -30,8 +30,8 @@ object DynamoDBError {
   }
 
   /**
-   * You need to consider this error if queries result in batching eg if you are using `DynamoDBQuery.forEach` or manually `Zip`'ing
-   * together `DynamoDBQuery`'s or using utility functions that use `DynamoDBQuery.forEach`.
+   * You need to consider this error if queries result in batching eg if you are using `DynamoDBQuery.batch` or manually `Zip`'ing
+   * together `DynamoDBQuery`'s or using utility functions that use `DynamoDBQuery.batch`.
    * Note at the point that this error is raised automatic retries have already occurred.
    * For a long running process typical handler actions would be to record the errors and to carry on processing.
    */
@@ -48,6 +48,10 @@ object DynamoDBError {
 
     final case class GetError(unprocessedKeys: Map[String, Set[PrimaryKey]]) extends BatchError {
       val message = "unprocessed keys returned by aws"
+    }
+
+    final case class UnbatchableQueryError(reasons: Set[String]) extends BatchError {
+      val message = s"Query is not batchable for the following reasons: ${reasons.mkString(",")}"
     }
   }
 

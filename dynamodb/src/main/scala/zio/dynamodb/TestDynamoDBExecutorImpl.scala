@@ -233,4 +233,17 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
     } yield ()).commit
 
   override def recordedQueries: UIO[List[DynamoDBQuery[_, _]]] = self.queries.get
+
+  override def itemsForTable(tableName: String): UIO[Set[Item]] = {
+    val program = (for {
+      tableMap <- self.tableMap.get(TableName(tableName))
+      items    <- tableMap match {
+                    case Some(tmap) =>
+                      tmap.values.map(_.toList)
+                    case None       => STM.succeed(List.empty)
+                  }
+    } yield items).commit
+
+    program.map(_.toSet)
+  }
 }

@@ -39,8 +39,8 @@ For more detailed working examples please see the High Level API integration tes
 | [Query](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html)                         |	`stream <- queryAll[Person]("personTable").whereKey(Person.id.partitionKey === id).execute`
 | [Query with paging](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html)             |	`(people, lastEvaluatedKey) <- querySome[Person]("personTable", limit = 5).whereKey(Person.id.partitionKey === "1").execute`
 | | |
-| [BatchGetItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html) | `people <- DynamoDBQuery.forEach(listOfIds)(id => DynamoDBQuery.get[Person]("personTable")(Person.id.partitionKey === id)).execute`|
-| [BatchWriteItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html) | `_ <- DynamoDBQuery.forEach(people)(p => put("personTable", p)).execute` |
+| [BatchGetItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html) | `people <- DynamoDBQuery.batch(listOfIds)(id => DynamoDBQuery.get[Person]("personTable")(Person.id.partitionKey === id)).execute`|
+| [BatchWriteItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html) | `_ <- DynamoDBQuery.batch(people)(p => put("personTable", p)).execute` |
 | | |
 | [TransactGetItems](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactGetItems.html) | `tuple <- (get("personTable")(Person.id.partitionKey === "1") zip get("employeeTable")(Employee.id.partitionKey === "2")).transaction.execute` Note transactions can span different tables. |
 | [TransactWriteItems](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactWriteItems.html) | `_ <- (put("personTable", Person(1, "John", 2020)) zip put("employeeTable", Person(2, "Smith", 2024))).transaction.execute` Note transactions can span different tables. |

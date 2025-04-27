@@ -35,9 +35,9 @@ object BatchGetItemExamples {
       getItem("T2", PrimaryKey("primaryKey" -> "2"), $("a.b"), $("c.b")) <*>
       getItem("T3", PrimaryKey("primaryKey" -> "3"), $("a.b"), $("c.b"))
 
-  // If we have an Iterable of data from which we wish to create a batch query from we can use `DynamoDBQuery.forEach`
+  // If we have an Iterable of data from which we wish to create a batch query from we can use `DynamoDBQuery.batch`
   // The below example will create 1 BatchGetItem containing 10 GetItem requests
-  val batchFromIterable                                                              = DynamoDBQuery.forEach(1 to 10) { i =>
+  val batchFromIterable                                                              = DynamoDBQuery.batch(1 to 10) { i =>
     getItem(
       "T1",
       PrimaryKey("field1" -> i),

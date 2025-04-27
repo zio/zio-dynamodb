@@ -4,8 +4,8 @@ import zio.dynamodb.TestDynamoDBExecutor.PkAndItem
 import zio.{ UIO, ZIO }
 
 /**
- * A Fake implementation of `DynamoDBExecutor.Service` that currently has the very modest aspiration of providing bare minimum
- * functionality to enable internal unit tests and to enable simple end to end examples that can serve as documentation.
+ * A Fake in memory implementation of `DynamoDBExecutor.Service` that currently provides bare minimum
+ * functionality to enable High and Low level API unit tests and examples that can serve as documentation.
  * Limited CRUD functionality is supported hence some features are currently not supported or have restrictions.
  *  - Supported
  *    - CRUD operations GetItem, PutItem, DeleteItem, BatchGetItem, BatchWriteItem
@@ -35,6 +35,7 @@ trait TestDynamoDBExecutor {
   def addTable(tableName: String, pkFieldName: String, pkAndItems: PkAndItem*): UIO[Unit]
   def addItems(tableName: String, pkAndItems: PkAndItem*): ZIO[Any, DynamoDBError, Unit]
   def recordedQueries: UIO[List[DynamoDBQuery[_, _]]]
+  def itemsForTable(tableName: String): UIO[Set[Item]]
 }
 
 object TestDynamoDBExecutor {
@@ -53,4 +54,9 @@ object TestDynamoDBExecutor {
   def recordedQueries: ZIO[TestDynamoDBExecutor, Nothing, List[DynamoDBQuery[_, _]]] =
     ZIO.serviceWithZIO[TestDynamoDBExecutor](_.recordedQueries)
 
+  def itemsForTable(tableName: String): ZIO[TestDynamoDBExecutor, Nothing, Set[Item]] =
+    ZIO.serviceWithZIO[TestDynamoDBExecutor](_.itemsForTable(tableName))
+
+  def itemsForTable(tableName: TableName): ZIO[TestDynamoDBExecutor, Nothing, Set[Item]] =
+    ZIO.serviceWithZIO[TestDynamoDBExecutor](_.itemsForTable(tableName.value))
 }

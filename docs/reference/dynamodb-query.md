@@ -38,7 +38,7 @@ zipRight| `*>`    | a zip that ignores the result of the left query
 
 DynamoDBQuery Functions | Description
 ---|---
-`def forEach[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery[In, List[B]]`  | `DynamoDB.forEach` automates the zipping of queries of the same type using a collection as input. [see Autobatching and Parallelisation](auto-batching-and-parallelisation) for more details. <br/><br/> Note that unprocessed items/keys are retried automatically and if they still fail a `BatchError.WriteError`/`BatchError.GetError` is returned both of which will contain a list of the unprocessed items/keys - see `withRetryPolicy` in the below section for overriding the default retry policy.
+`def batch[In, A, B](values: Iterable[A])(body: A => DynamoDBQuery[In, B]): DynamoDBQuery[In, List[B]]`  | `DynamoDB.batch` automates the zipping of queries of the same type using a collection as input. [see Autobatching and Parallelisation](auto-batching-and-parallelisation) for more details. <br/><br/> Note that unprocessed items/keys are retried automatically and if they still fail a `BatchError.WriteError`/`BatchError.GetError` is returned both of which will contain a list of the unprocessed items/keys - see `withRetryPolicy` in the below section for overriding the default retry policy.
 
 
 

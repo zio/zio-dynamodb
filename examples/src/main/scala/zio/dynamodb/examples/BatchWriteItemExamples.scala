@@ -14,13 +14,13 @@ object BatchWriteItemExamples extends App {
   println(batchManual)
 
   val batchPutFromIterable = DynamoDBQuery
-    .forEach(1 to 3) { i =>
+    .batch(1 to 3) { i =>
       putItem("table1", Item("field1" -> i.toString))
     }
     .where($("foo.bar") > "1")
   println(batchPutFromIterable)
 
-  val batchDeleteFromIterable = DynamoDBQuery.forEach(1 to 3) { i =>
+  val batchDeleteFromIterable = DynamoDBQuery.batch(1 to 3) { i =>
     deleteItem("tableName1", PrimaryKey("pk" -> i.toString)) where $("foo.bar") > "1" && !($("foo.bar") < "5")
   }
   println(batchDeleteFromIterable)

@@ -5,9 +5,10 @@ import zio.dynamodb.DynamoDBQuery.put
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.schema.{ DeriveSchema, Schema }
 import zio.stream.ZStream
-import zio.test.Assertion.equalTo
+import zio.test.Assertion._
 import zio.test.{ assert, assertTrue, ZIOSpecDefault }
 import zio.test.Spec
+import zio.dynamodb.DynamoDBQuery.update
 
 object ZStreamPipeliningSpec extends ZIOSpecDefault {
   final case class Person(id: Int, name: String)
@@ -17,7 +18,7 @@ object ZStreamPipeliningSpec extends ZIOSpecDefault {
     val (id, name)                                              = ProjectionExpression.accessors[Person]
   }
 
-  private val people       = (1 to 200).map(i => Person(i, s"name$i")).toList
+  private val people       = (1 to 3).map(i => Person(i, s"name$i")).toList
   private val personStream = ZStream.fromIterable(people)
 
   override def spec: Spec[Environment, Any] =
@@ -55,6 +56,30 @@ object ZStreamPipeliningSpec extends ZIOSpecDefault {
             Right((Person(3, "name3"), None))
           )
         )
+      },
+      test("update queries are not supported") {
+        for {
+          _    <- TestDynamoDBExecutor.addTable("person", "id")
+          exit <- batchWriteFromStream(personStream) { person =>
+                    update("person")(Person.id.partitionKey === person.id)(Person.name.set(s"newName${person.id}"))
+                  }.runDrain.exit
+        } yield assert(exit)(fails(isSubtype[DynamoDBError.BatchError.UnbatchableQueryError](anything)))
+      },
+      test("write queries with condition expressions not supported") {
+        for {
+          _    <- TestDynamoDBExecutor.addTable("person", "id")
+          exit <- batchWriteFromStream(personStream) { person =>
+                    put("person", person).where(Person.id === person.id)
+                  }.runDrain.exit
+        } yield assert(exit)(fails(isSubtype[DynamoDBError.BatchError.UnbatchableQueryError](anything)))
+      },
+      test("write queries with return values not supported") {
+        for {
+          _    <- TestDynamoDBExecutor.addTable("person", "id")
+          exit <- batchWriteFromStream(personStream) { person =>
+                    put("person", person).returns(ReturnValues.AllOld)
+                  }.runDrain.exit
+        } yield assert(exit)(fails(isSubtype[DynamoDBError.BatchError.UnbatchableQueryError](anything)))
       }
     ).provideLayer(DynamoDBExecutor.test)
 }

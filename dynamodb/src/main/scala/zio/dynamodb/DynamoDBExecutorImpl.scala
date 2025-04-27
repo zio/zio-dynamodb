@@ -125,7 +125,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
 
     val result = query match {
       case constructor: Constructor[_, A] => executeConstructor(constructor)
-      case zip @ Zip(_, _, _)             => executeZip(zip)
+      case zip @ Zip(_, _, _, _)          => executeZip(zip)
       case map @ Map(_, _)                => executeMap(map)
       case Absolve(query)                 =>
         for {
@@ -495,7 +495,7 @@ case object DynamoDBExecutorImpl {
               )
             )
         }
-      case Zip(left, right, zippable)     =>
+      case Zip(left, right, zippable, _)  =>
         for {
           l <- buildTransaction(left)
           r <- buildTransaction(right)
