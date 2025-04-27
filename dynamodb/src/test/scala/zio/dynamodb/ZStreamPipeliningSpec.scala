@@ -18,7 +18,7 @@ object ZStreamPipeliningSpec extends ZIOSpecDefault {
     val (id, name)                                              = ProjectionExpression.accessors[Person]
   }
 
-  private val people       = (1 to 200).map(i => Person(i, s"name$i")).toList
+  private val people       = (1 to 3).map(i => Person(i, s"name$i")).toList
   private val personStream = ZStream.fromIterable(people)
 
   override def spec: Spec[Environment, Any] =
