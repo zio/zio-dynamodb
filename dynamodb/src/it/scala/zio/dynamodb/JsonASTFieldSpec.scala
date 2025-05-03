@@ -89,5 +89,11 @@ object JsonASTFieldSpec extends DynamoDBLocalSpec {
       }
     )
 
+}
 
-  }
+/*
+NON DIRECT - WITHOUT import zio.schema.codec.json._
+encoded: Some(AttrMap(Map(json -> Map(Map(String(Obj) -> Map(Map(String(fields) -> List(Chunk(List(Chunk(String(name),Map(Map(String(Str) -> Map(Map(String(value) -> String(John))))))),List(Chunk(String(age),Map(Map(String(Num) -> Map(Map(String(value) -> Number(42))))))),List(Chunk(String(list),Map(Map(String(Arr) -> Map(Map(String(elements) -> List(Chunk(Map(Map(String(Num) -> Map(Map(String(value) -> Number(1))))),Map(Map(String(Num) -> Map(Map(String(value) -> Number(2))))),Map(Map(String(Num) -> Map(Map(String(value) -> Number(3))))))))))))))))))), id -> String(id)))) found: Person(id,{"name":"John","age":42,"list":[1,2,3]})
+DIRECT - WITH import zio.schema.codec.json._
+encoded: Some(AttrMap(Map(json -> Map(Map(String(name) -> String(John), String(list) -> List(Chunk(Number(1),Number(2),Number(3))), String(age) -> Number(42))), id -> String(id)))) found: Person(id,{"name":"John","list":[1,2,3],"age":42})
+ */
