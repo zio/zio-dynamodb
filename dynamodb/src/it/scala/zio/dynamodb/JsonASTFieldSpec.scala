@@ -1,5 +1,8 @@
 package zio.dynamodb
 
+import zio.dynamodb.AttrMap
+import zio.dynamodb.AttributeValue
+import zio.Chunk
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test._
 import zio.test.assertTrue
@@ -9,59 +12,29 @@ import zio.json._
 import zio.json.ast.Json
 
 object JsonASTFieldSpec extends DynamoDBLocalSpec {
-  // if we uncomment this import, we do not get the directDynamicMapping coming through
-  import zio.schema.codec.json._
 
-  case class Person(id: String, json: Json)
+  case class PersonDirect(id: String, json: Json)
 
-  object Person {
-    implicit val schema: Schema[Person] = DeriveSchema.gen[Person]
+  object PersonDirect {
+    // if we uncomment this import, we do not get the directDynamicMapping coming through
+    import zio.schema.codec.json._
+    implicit val schema: Schema[PersonDirect] = DeriveSchema.gen[PersonDirect]
 
-    val id   = ProjectionExpression.$$[Person, String]("id")
-    val json = ProjectionExpression.$$[Person, Json]("json")
+    val id   = ProjectionExpression.$$[PersonDirect, String]("id")
+    val json = ProjectionExpression.$$[PersonDirect, Json]("json")
   }
 
-  println(s"XXXXXXX t: ${Person.id}")
-  println(s"XXXXXXX t: ${Person.json}")
+  case class PersonNonDirect(id: String, json: Json)
+  object PersonNonDirect {
+    // without this import we do not get the directDynamicMapping coming through
+    // import zio.schema.codec.json._
+    implicit val schema: Schema[PersonNonDirect] = DeriveSchema.gen[PersonNonDirect]
 
-  // remember DeriveSchema macro generates schema for sealed traits automatically
-  sealed trait FooEnum
-  object FooEnum {
-    case object Bar extends FooEnum
-    case object Baz extends FooEnum
+    val id   = ProjectionExpression.$$[PersonNonDirect, String]("id")
+    val json = ProjectionExpression.$$[PersonNonDirect, Json]("json")
   }
 
-  case class Person2(id: String, randomEnum: FooEnum)
-
-  object Person2 {
-    implicit val schema: Schema[Person2] = DeriveSchema.gen[Person2]
-  }
-
-  // [info] person object encoded:
-  // AttrMap(Map(json -> Map(ListMap(String(age) -> Number(42), String(name) -> String(John))), id -> String(id)))
-  val json =
-    """
-      {
-        "name": "John",
-        "age": 42
-      }
-    """.stripMargin
-
-  //[info] person object encoded:
-  //AttrMap(Map(json -> Map(ListMap(String(list) -> List(Chunk(Map(ListMap(String(age) -> Number(42), String(name) -> String(John))))), String(age) -> Number(42), String(name) -> String(John))), id -> String(id)))
-  val json2 =
-    """
-      {
-        "name": "John",
-        "age": 42,
-        "list": [{
-          "name": "John",
-          "age": 42
-        }]
-      }
-    """.stripMargin
-
-  val json3 =
+  val jsonString =
     """
       {
         "name": "John",
@@ -70,30 +43,135 @@ object JsonASTFieldSpec extends DynamoDBLocalSpec {
       }
     """.stripMargin
 
-  lazy val x: Json = ???
+  val jsonString2 =
+    """
+      {
+        "name": "John"
+      }
+    """.stripMargin
 
   override def spec: Spec[Environment with Scope, Any] =
     suite("JsonASTFieldSpec")(
-      test("persists json AST field as native DDB types") {
+      test("persists json AST field as native DDB types with direct mapping") {
         withSingleIdKeyTable { tableName =>
           for {
             _       <- ZIO.unit
-            json    <- ZIO.fromEither(json3.fromJson[Json]).mapError(e => new Exception(e))
-            person   = Person("id", json)
+            json    <- ZIO.fromEither(jsonString.fromJson[Json]).mapError(e => new Exception(e))
+            person   = PersonDirect("id", json)
             _       <- DynamoDBQuery.put(tableName, person).execute
             encoded <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "id")).execute
-            found   <- DynamoDBQuery.get(tableName)(Person.id.partitionKey === "id").execute.absolve
-            _       <- ZIO.debug(s"encoded: $encoded found: $found")
-          } yield assertTrue(found == person)
-        }.orDie
+            found   <- DynamoDBQuery.get(tableName)(PersonDirect.id.partitionKey === "id").execute.absolve
+          } yield assertTrue(
+            found == person,
+            encoded == Some(
+              AttrMap(
+                "id"   -> "id",
+                "json" -> AttrMap("age" -> 42, "name" -> "John", "list" -> List(1, 2, 3))
+              )
+            )
+          )
+        }
+      },
+      test("persists json AST field as native DDB types without direct mapping") {
+        withSingleIdKeyTable { tableName =>
+          for {
+            _       <- ZIO.unit
+            json    <- ZIO.fromEither(jsonString2.fromJson[Json]).mapError(e => new Exception(e))
+            person   = PersonNonDirect("id", json)
+            _       <- DynamoDBQuery.put[PersonNonDirect](tableName, person).execute
+            encoded <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "id")).execute
+            found   <- DynamoDBQuery.get(tableName)(PersonNonDirect.id.partitionKey === "id").execute.absolve
+          } yield assertTrue(
+            found == person,
+            encoded.get.toAttributeValue ==
+              AttributeValue.Map(
+                Map(
+                  AttributeValue.String("id")   -> AttributeValue.String("id"),
+                  AttributeValue.String("json") -> AttributeValue.Map(
+                    Map(
+                      AttributeValue.String("Obj") ->
+                        AttributeValue.Map(
+                          value = Map(
+                            AttributeValue.String("fields") -> AttributeValue.List(
+                              value = Chunk(
+                                AttributeValue.List(value =
+                                  Chunk(
+                                    AttributeValue.String("name"),
+                                    AttributeValue.Map(value =
+                                      Map(
+                                        AttributeValue.String("Str") -> AttributeValue.Map(
+                                          Map(AttributeValue.String("value") -> AttributeValue.String("John"))
+                                        )
+                                      )
+                                    )
+                                  )
+                                )
+                              )
+                            )
+                          )
+                        )
+                    )
+                  )
+                )
+              )
+//            encoded == Some(AttrMap("id" -> "id", "json" -> AttrMap("Obj" -> AttrMap("fields" -> List(List("name"), AttrMap("Str" -> AttrMap("value" -> "John"))))))),
+//            encoded == Some(AttrMap("id" -> List("1", "2")))
+          )
+        }
       }
-    )
+    ) @@ TestAspect.nondeterministic
 
 }
-
 /*
-NON DIRECT - WITHOUT import zio.schema.codec.json._
-encoded: Some(AttrMap(Map(json -> Map(Map(String(Obj) -> Map(Map(String(fields) -> List(Chunk(List(Chunk(String(name),Map(Map(String(Str) -> Map(Map(String(value) -> String(John))))))),List(Chunk(String(age),Map(Map(String(Num) -> Map(Map(String(value) -> Number(42))))))),List(Chunk(String(list),Map(Map(String(Arr) -> Map(Map(String(elements) -> List(Chunk(Map(Map(String(Num) -> Map(Map(String(value) -> Number(1))))),Map(Map(String(Num) -> Map(Map(String(value) -> Number(2))))),Map(Map(String(Num) -> Map(Map(String(value) -> Number(3))))))))))))))))))), id -> String(id)))) found: Person(id,{"name":"John","age":42,"list":[1,2,3]})
-DIRECT - WITH import zio.schema.codec.json._
-encoded: Some(AttrMap(Map(json -> Map(Map(String(name) -> String(John), String(list) -> List(Chunk(Number(1),Number(2),Number(3))), String(age) -> Number(42))), id -> String(id)))) found: Person(id,{"name":"John","list":[1,2,3],"age":42})
+
+    ✗ Some(AttrMap(
+        map = Map(
+          "json" -> Map(
+            value = Map(
+              String(value = "Obj") -> Map(
+                value = Map(
+                  String(value = "fields") -> List(
+                    value = Chunk(List(
+                      value = Chunk(String(value = "name"), Map(
+                        value = Map(
+                          String(value = "Str") -> Map(
+                            value = Map(
+                              String(value = "value") -> String(value = "John")
+                            )
+                          )
+                        )
+                      ))
+                    ))
+                  )
+                )
+              )
+            )
+          ),
+          "id" -> String(value = "id")
+        )
+      )) was not equal to Some(AttrMap(
+        map = Map(
+          "id" -> String(value = "id"),
+          "json" -> Map(
+            value = Map(
+              String(value = "Obj") -> Map(
+                value = Map(
+                  String(value = "fields") -> List(
+                    value = Chunk(Map(
+                      value = Map(
+                        String(value = "Str") -> Map(
+                          value = Map(
+                            String(value = "value") -> String(value = "John")
+                          )
+                        )
+                      )
+                    ))
+                  )
+                )
+              )
+            )
+          )
+        )
+      ))
+
  */

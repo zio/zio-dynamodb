@@ -24,7 +24,8 @@ import scala.collection.immutable.ListMap
 object DirectDynamicValueFieldExample extends ZIOAppDefault {
 
   import zio.schema.annotation.directDynamicMapping
-  case class Person(id: String, @directDynamicMapping dv: DynamicValue)
+  @directDynamicMapping
+  case class Person(id: String, dv: DynamicValue)
 
   object Person {
     implicit val schema: Schema[Person] = DeriveSchema.gen[Person]
@@ -65,13 +66,14 @@ object DirectDynamicValueFieldExample extends ZIOAppDefault {
       _             <- ZIO.debug(s"person object encoded: $encoded")
       decoded       <- ZIO.fromEither(DynamoDBQuery.fromItem[Person](encoded))
       _             <- ZIO.debug(s"Item decoded to Person class: $decoded")
-      _              =
-        println(
-          s"YYYYYY printDynamicRecord(decoded.dv)._2 == printDynamicRecord(person.dv)._2 : ${printDynamicRecord(decoded.dv)._2 == printDynamicRecord(person.dv)._2}"
-        )
+      _              = println(
+                         s"YYYYYY printDynamicRecord(decoded.dv)._2 == printDynamicRecord(person.dv)._2 : ${extractDynamicRecord(
+                           decoded.dv
+                         )._2 == extractDynamicRecord(person.dv)._2}"
+                       )
     } yield ()
 
-  def printDynamicRecord(dv: DynamicValue): (TypeId, ListMap[String, DynamicValue]) =
+  def extractDynamicRecord(dv: DynamicValue): (TypeId, ListMap[String, DynamicValue]) =
     dv match {
       case DynamicValue.Record(id, values) => (id, values)
       case _                               => (null, ListMap.empty)
@@ -80,4 +82,10 @@ object DirectDynamicValueFieldExample extends ZIOAppDefault {
 /*
 YYYYYY  person.dv: Record(Nominal(Chunk(zio,dynamodb,examples),Chunk(JsonASTFieldExample2),PersonX),ListMap(name -> Primitive(John,string), age -> Primitive(42,int)))
 YYYYYY decoded.dv: Record(Nominal(Chunk(),Chunk(),AttributeValue.Map),                              ListMap(String(age) -> Primitive(42,bigDecimal), String(name) -> Primitive(John,string)))
+WITH annotation
+[info] person object encoded: AttrMap(Map(dv -> Map(Map(String(Record) -> Map(Map(String(values) -> List(Chunk(List(Chunk(String(name),Map(Map(String(String) -> String(John))))),List(Chunk(String(age),Map(Map(String(BigDecimal) -> Number(42))))),List(Chunk(String(NS),Map(Map(String(SetValue) -> Map(Map(String(values) -> List(Chunk(Map(Map(String(BigDecimal) -> Number(10))),Map(Map(String(BigDecimal) -> Number(42))))))))))))), String(id) -> String(zio.dynamodb.examples.JsonASTFieldExample2.PersonX))))), id -> String(id)))
+[info] Item decoded to Person class: Person(id,Record(Nominal(Chunk(zio,dynamodb,examples),Chunk(JsonASTFieldExample2),PersonX),ListMap(name -> Primitive(John,string), age -> Primitive(42,bigDecimal), NS -> SetValue(Set(Primitive(10,bigDecimal), Primitive(42,bigDecimal))))))
+WITHOUT annotation
+[info] person object encoded: AttrMap(Map(dv -> Map(Map(String(Record) -> Map(Map(String(values) -> List(Chunk(List(Chunk(String(name),Map(Map(String(String) -> String(John))))),List(Chunk(String(age),Map(Map(String(BigDecimal) -> Number(42))))),List(Chunk(String(NS),Map(Map(String(SetValue) -> Map(Map(String(values) -> List(Chunk(Map(Map(String(BigDecimal) -> Number(10))),Map(Map(String(BigDecimal) -> Number(42))))))))))))), String(id) -> String(zio.dynamodb.examples.JsonASTFieldExample2.PersonX))))), id -> String(id)))
+[info] Item decoded to Person class: Person(id,Record(Nominal(Chunk(zio,dynamodb,examples),Chunk(JsonASTFieldExample2),PersonX),ListMap(name -> Primitive(John,string), age -> Primitive(42,bigDecimal), NS -> SetValue(Set(Primitive(10,bigDecimal), Primitive(42,bigDecimal))))))
  */

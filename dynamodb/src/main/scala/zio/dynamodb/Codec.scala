@@ -60,6 +60,7 @@ private[dynamodb] object Codec {
           lazy val enc = encoder(l.schema)
           (a: A) => enc(a)
         case s @ Schema.Dynamic(_)                                                                                                              =>
+          println(s"EEEEEEEEEEE Dynamic")
           dynamicEncoder(s.annotations) // TODO: Avi - pass in schema instead
         case Schema.CaseClass0(_, _, _)                                                                                                         =>
           caseClassEncoder0
@@ -119,6 +120,7 @@ private[dynamodb] object Codec {
         case Schema.Enum5(_, c1, c2, c3, c4, c5, annotations)                                                                                   =>
           enumEncoder(annotations, c1, c2, c3, c4, c5)
         case Schema.Enum6(_, c1, c2, c3, c4, c5, c6, annotations)                                                                               =>
+          println(s"EEEEEEEEEEEEE Enum6 $c1")
           enumEncoder(annotations, c1, c2, c3, c4, c5, c6)
         case Schema.Enum7(_, c1, c2, c3, c4, c5, c6, c7, annotations)                                                                           =>
           enumEncoder(annotations, c1, c2, c3, c4, c5, c6, c7)
@@ -179,6 +181,7 @@ private[dynamodb] object Codec {
 
     def dynamicEncoder[A](annotations: Chunk[Any]): Encoder[DynamicValue] = {
       val directDynamic = annotations.exists(_.isInstanceOf[directDynamicMapping])
+      println(s"EEEEEEEEEEE directDynamic: $directDynamic")
 
       if (directDynamic) { (d: DynamicValue) =>
         d match {
@@ -612,7 +615,7 @@ private[dynamodb] object Codec {
           println(errorOrDvs)
           errorOrDvs.map(xs => DynamicValue.Sequence(Chunk.fromIterable(xs)))
         case AttributeValue.Map(values)   =>
-          println(s"XXXXXX dynamicDecoder2: $values")
+//          println(s"XXXXXX dynamicDecoder2: $values")
           val xs: List[(String, Either[zio.dynamodb.DynamoDBError.ItemError, zio.schema.DynamicValue])] = values.map {
             case (k, v) => (k.value, dynamicDecoder(fieldAnnotations)(v))
           }.toList
