@@ -60,7 +60,7 @@ private[dynamodb] object Codec {
           lazy val enc = encoder(l.schema)
           (a: A) => enc(a)
         case s @ Schema.Dynamic(_)                                                                                                              =>
-          println(s"EEEEEEEEEEE Dynamic")
+          // only works for implicit DV <=> Json AST case as implicit schema transforms puts annotation directly into dynamic schema
           dynamicEncoder(s.annotations) // TODO: Avi - pass in schema instead
         case Schema.CaseClass0(_, _, _)                                                                                                         =>
           caseClassEncoder0
@@ -181,7 +181,7 @@ private[dynamodb] object Codec {
 
     def dynamicEncoder[A](annotations: Chunk[Any]): Encoder[DynamicValue] = {
       val directDynamic = annotations.exists(_.isInstanceOf[directDynamicMapping])
-      println(s"EEEEEEEEEEE directDynamic: $directDynamic")
+      println(s"EEEEEEEEEEE directDynamic: $annotations")
 
       if (directDynamic) { (d: DynamicValue) =>
         d match {
@@ -217,11 +217,14 @@ private[dynamodb] object Codec {
 
     private def caseClassEncoder[Z](fields: Schema.Field[Z, _]*): Encoder[Z] = { (a: Z) =>
       fields.foldRight[AttributeValue.Map](AttributeValue.Map(Map.empty)) {
-        case s: (Schema.Field[Z, _], AttributeValue.Map) =>
-          val enc                 = encoder(s._1.schema)
-          val extractedFieldValue = s._1.get(a)
+        case (f: Schema.Field[Z, _], m: AttributeValue.Map) =>
+          println(s"EEEEEEEE caseClassEncoder ${f.name} ${f.annotations} ${f.schema}")
+          // TODO: restrict annotation propagation to only directDynamicMapping
+          val s                   = f.annotations.headOption.fold(f.schema)(f.schema.annotate)
+          val enc                 = encoder(s)
+          val extractedFieldValue = f.get(a)
           val av                  = enc(extractedFieldValue)
-          val k                   = s._1.name
+          val k                   = f.name
 
           @tailrec
           def appendToMap[B](schema: Schema[B]): AttributeValue.Map =
@@ -229,12 +232,12 @@ private[dynamodb] object Codec {
               case l @ Schema.Lazy(_)                                                 =>
                 appendToMap(l.schema)
               case _: Schema.Optional[_] if av.isInstanceOf[AttributeValue.Null.type] =>
-                AttributeValue.Map(s._2.value)
+                AttributeValue.Map(m.value)
               case _                                                                  =>
-                AttributeValue.Map(s._2.value + (AttributeValue.String(k) -> av))
+                AttributeValue.Map(m.value + (AttributeValue.String(k) -> av))
             }
 
-          appendToMap(s._1.schema)
+          appendToMap(f.schema)
       }
 
     }
@@ -470,7 +473,8 @@ private[dynamodb] object Codec {
     def apply[A](schema: Schema[A]): Decoder[A] = decoder(schema)
 
     //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
-    private[dynamodb] def decoder[A](schema: Schema[A]): Decoder[A] =
+    private[dynamodb] def decoder[A](schema: Schema[A]): Decoder[A] = {
+      println(s"DDDDDDDDDDDDD decoder $schema")
       schema match {
         case s: Optional[a]                        => optionalDecoder[a](decoder(s.schema))
         case Schema.Fail(s, _)                     => _ => Left(DecodingError(s))
@@ -531,6 +535,7 @@ private[dynamodb] object Codec {
         case Schema.Enum1(_, c, annotations)                                                                                                    =>
           enumDecoder(annotations, c)
         case Schema.Enum2(_, c1, c2, annotations)                                                                                               =>
+          println(s"DDDDDDDDDDDDD Enum2 $c2")
           enumDecoder(annotations, c1, c2)
         case Schema.Enum3(_, c1, c2, c3, annotations)                                                                                           =>
           enumDecoder(annotations, c1, c2, c3)
@@ -580,6 +585,7 @@ private[dynamodb] object Codec {
         case _                                                                                                                                  => throw new Exception("Match was non-exhaustive")
 
       }
+    }
     //scalafmt: { maxColumn = 120, optIn.configStyleArguments = true }
 
     private def fallbackDecoder[A, B](left: Decoder[A], right: Decoder[B]): Decoder[Fallback[A, B]] =
@@ -1019,8 +1025,12 @@ private[dynamodb] object Codec {
       av match {
         case AttributeValue.Map(map) =>
           fields.toList.forEach {
-            case Schema.Field(key, schema, _, _, _, _) =>
-              val dec          = decoder(schema)
+            case f @ Schema.Field(key, schema, annotations, _, _, _) =>
+              val s =
+                annotations.headOption.fold(f.schema)(
+                  f.schema.annotate
+                ) // TODO: restrict annotation propagation to only directDynamicMapping
+              val dec          = decoder(s)
               val k            = key // @fieldName is respected by the zio-schema macro
               val maybeAv      = map.get(AttributeValue.String(k))
               val errorOrValue =

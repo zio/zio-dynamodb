@@ -24,16 +24,19 @@ import scala.collection.immutable.ListMap
 object DirectDynamicValueFieldExample extends ZIOAppDefault {
 
   import zio.schema.annotation.directDynamicMapping
-  @directDynamicMapping
-  case class Person(id: String, dv: DynamicValue)
+
+  case class Person(id: String, @directDynamicMapping dv: DynamicValue)
 
   object Person {
     implicit val schema: Schema[Person] = DeriveSchema.gen[Person]
 
-    // implicit val jsonCodec: zio.json.JsonCodec[Person] =
-    //   zio.schema.codec.JsonCodec.jsonCodec(schema)
   }
 
+  /*
+  So field has annotation but not schema
+  [info] f.annotations: Chunk(directDynamicMapping())
+  [info] f.schema.annotations: Chunk()
+   */
   override def run: ZIO[Environment with ZIOAppArgs with Scope, Any, Any] =
     for {
       _             <- ZIO.debug(s"DynamicValue Codec Example Person.schema: ${Person.schema}")
@@ -58,7 +61,7 @@ object DirectDynamicValueFieldExample extends ZIOAppDefault {
                          values = ListMap(
                            "name" -> DynamicValue.Primitive[String]("John", StandardType.StringType),
                            "age"  -> dynamicNum42,
-                           "NS"   -> DynamicValue.SetValue(Set(dynamicNum10, dynamicNum42))
+                           "NS"   -> DynamicValue.Sequence(Chunk(dynamicNum10, dynamicNum42))
                          )
                        )
       person: Person = Person("id", dv)
