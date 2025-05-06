@@ -19,7 +19,7 @@ import scala.collection.immutable.ListMap
 | NumberSet | DynamicValue.SetValue       | Only if type is homogeneous  | StandardType.NumberSet
 | String    | StandardType.StringType     |                              |
 | StringSet | DynamicValue.SetValue       | Only if type is homogeneous  | StandardType.StringSet
-
+              TODO: all other types
  */
 object DirectDynamicValueFieldExample extends ZIOAppDefault {
 
