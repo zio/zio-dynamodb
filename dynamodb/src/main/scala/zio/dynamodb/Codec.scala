@@ -26,6 +26,21 @@ private[dynamodb] object Codec {
   def decoder[A](schema: Schema[A]): Decoder[A] = Decoder(schema)
 
   private[dynamodb] object Encoder {
+    sealed trait DynamicValueSetType
+    object DynamicValueSetType {
+      case object String extends DynamicValueSetType
+      case object Number extends DynamicValueSetType
+      case object Binary extends DynamicValueSetType
+      case object Other  extends DynamicValueSetType
+
+      def from(dv: DynamicValue): DynamicValueSetType =
+        dv match {
+          case DynamicValue.Primitive(_, st) if st == StandardType.StringType     => String
+          case DynamicValue.Primitive(_, st) if st == StandardType.BigDecimalType => Number
+          case DynamicValue.Primitive(_, st) if st == StandardType.BinaryType     => Binary
+          case _                                                                  => Other
+        }
+    }
 
     private val stringEncoder = encoder(Schema[String])
     private val yearFormatter =
@@ -197,6 +212,20 @@ private[dynamodb] object Codec {
           case DynamicValue.Sequence(values)  =>
             val enc = dynamicEncoder(annotations)
             AttributeValue.List(values.map(enc))
+          case DynamicValue.SetValue(values)  =>
+            // TODO: optimise via direct collection to AV + fast fail
+            val grouped: List[DynamicValueSetType] = values.map(DynamicValueSetType.from).toSet.toList
+            grouped match {
+              case List(DynamicValueSetType.String) =>
+                AttributeValue.StringSet(values.map(_.asInstanceOf[DynamicValue.Primitive[String]].value))
+              case List(DynamicValueSetType.Number) =>
+                AttributeValue.NumberSet(values.map(_.asInstanceOf[DynamicValue.Primitive[java.math.BigDecimal]].value))
+              case List(DynamicValueSetType.Binary) =>
+                AttributeValue.BinarySet(values.map(_.asInstanceOf[DynamicValue.Primitive[Chunk[Byte]]].value))
+              case List(DynamicValueSetType.Other)  =>
+                throw new Exception(s"Unsupported set type: $grouped")
+              case _                             => throw new Exception(s"Unsupported set type: $grouped")
+            }
           case DynamicValue.Record(_, values) =>
             values.foldRight(AttributeValue.Map(ListMap.empty)) {
               case (kv, avMap) =>
@@ -607,20 +636,37 @@ private[dynamodb] object Codec {
       val directDynamic = fieldAnnotations.exists(_.isInstanceOf[directDynamicMapping])
 
       if (directDynamic) {
-        case AttributeValue.Null          => Right(DynamicValue.NoneValue)
-        case AttributeValue.Binary(value) =>
+        case AttributeValue.Null              => Right(DynamicValue.NoneValue)
+        case AttributeValue.Binary(value)     =>
           Right(DynamicValue.Primitive(Chunk.fromIterable(value), StandardType.BinaryType))
-        case AttributeValue.Bool(value)   => Right(DynamicValue.Primitive(value, StandardType.BoolType))
-        case AttributeValue.Number(value) =>
+        case AttributeValue.Bool(value)       => Right(DynamicValue.Primitive(value, StandardType.BoolType))
+        case AttributeValue.Number(value)     =>
           Right(DynamicValue.Primitive(value.bigDecimal, StandardType.BigDecimalType))
-        case AttributeValue.String(value) =>
+        case AttributeValue.String(value)     =>
           Right(DynamicValue.Primitive(value, StandardType.StringType))
-        case AttributeValue.List(values)  =>
+        case AttributeValue.List(values)      =>
           val errorOrDvs: Either[zio.dynamodb.DynamoDBError.ItemError, Iterable[zio.schema.DynamicValue]] =
             values.map(dynamicDecoder(fieldAnnotations)).flip
           println(errorOrDvs)
           errorOrDvs.map(xs => DynamicValue.Sequence(Chunk.fromIterable(xs)))
-        case AttributeValue.Map(values)   =>
+        case AttributeValue.StringSet(values) =>
+          Right(DynamicValue.SetValue(values.map(DynamicValue.Primitive(_, StandardType.StringType))))
+        case AttributeValue.NumberSet(values) =>
+          // final case class NumberSet(value: Set[BigDecimal])
+          Right(
+            DynamicValue.SetValue(
+              values.map(a =>
+                DynamicValue.Primitive(a, StandardType.BigDecimalType.asInstanceOf[StandardType[BigDecimal]])
+              )
+            )
+          )
+        case AttributeValue.BinarySet(values) =>
+          Right(
+            DynamicValue.SetValue(
+              values.map(a => DynamicValue.Primitive(Chunk.fromIterable(a), StandardType.BinaryType)).toSet
+            )
+          )
+        case AttributeValue.Map(values)       =>
 //          println(s"XXXXXX dynamicDecoder2: $values")
           val xs: List[(String, Either[zio.dynamodb.DynamoDBError.ItemError, zio.schema.DynamicValue])] = values.map {
             case (k, v) => (k.value, dynamicDecoder(fieldAnnotations)(v))
@@ -635,7 +681,7 @@ private[dynamodb] object Codec {
               )
             )
           }
-        case av                           => Left(DecodingError(s"Unsupported AttributeValue type $av"))
+        case av                               => Left(DecodingError(s"Unsupported AttributeValue type $av"))
       }
       else {
         val x: Decoder[DynamicValue] = decoder[DynamicValue](DynamicValue.schema)

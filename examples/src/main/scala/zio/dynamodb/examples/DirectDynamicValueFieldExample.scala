@@ -9,16 +9,16 @@ import scala.collection.immutable.ListMap
 |-----------|-----------------------------|------------------------------|
 | Dynamo AV | Schema                      | Notes                        |
 |-----------|-----------------------------|------------------------------|
-| Binary    | StandardType.BinaryType     |                              |
-| BinarySet | X                           | DV sets are not homogeneous  |
-| Bool      | StandardType.BoolType       |                              |
+| Binary    | DynamicValue.Primitive      | StandardType.BinaryType      |
+| BinarySet | DynamicValue.SetValue       | Only if type is homogeneous  | StandardType.BinarySet
+| Bool      | DynamicValue.Primitive      | StandardType.BoolType                             |
 | List      | DynamicValue.Sequence       |                              |
 | Map       | DynamicValue.Record         |                              |
 | Null      | DynamicValue.NoneValue      |                              |
-| Number    | StandardType.BigDecimalType |                              |
-| NumberSet | X                           | DV sets are not homogeneous  |
+| Number    | DynamicValue.Primitive      | StandardType.BigDecimalType  |
+| NumberSet | DynamicValue.SetValue       | Only if type is homogeneous  | StandardType.NumberSet
 | String    | StandardType.StringType     |                              |
-| StringSet | X                           | DV sets are not homogeneous  |
+| StringSet | DynamicValue.SetValue       | Only if type is homogeneous  | StandardType.StringSet
 
  */
 object DirectDynamicValueFieldExample extends ZIOAppDefault {
@@ -61,7 +61,7 @@ object DirectDynamicValueFieldExample extends ZIOAppDefault {
                          values = ListMap(
                            "name" -> DynamicValue.Primitive[String]("John", StandardType.StringType),
                            "age"  -> dynamicNum42,
-                           "NS"   -> DynamicValue.Sequence(Chunk(dynamicNum10, dynamicNum42))
+                           "NS"   -> DynamicValue.SetValue(Set(dynamicNum10, dynamicNum42))
                          )
                        )
       person: Person = Person("id", dv)
