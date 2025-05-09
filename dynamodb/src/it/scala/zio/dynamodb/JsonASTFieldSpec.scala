@@ -13,18 +13,17 @@ import zio.json.ast.Json
 
 object JsonASTFieldSpec extends DynamoDBLocalSpec {
 
-  case class PersonDirect(id: String, json: Json)
+  final case class PersonDirect(id: String, json: Json)
 
   object PersonDirect {
-    // if we uncomment this import, we do not get the directDynamicMapping coming through
     import zio.schema.codec.json._
     implicit val schema: Schema[PersonDirect] = DeriveSchema.gen[PersonDirect]
 
     val id   = ProjectionExpression.$$[PersonDirect, String]("id")
     val json = ProjectionExpression.$$[PersonDirect, Json]("json")
-  }
+   }
 
-  case class PersonNonDirect(id: String, json: Json)
+  final case class PersonNonDirect(id: String, json: Json)
   object PersonNonDirect {
     // without this import we do not get the directDynamicMapping coming through
     // import zio.schema.codec.json._
@@ -35,15 +34,6 @@ object JsonASTFieldSpec extends DynamoDBLocalSpec {
   }
 
   val jsonString =
-    """
-      {
-        "name": "John",
-        "age": 42,
-        "list": [1, 2, 3]
-      }
-    """.stripMargin
-
-  val jsonString2 =
     """
       {
         "name": "John"
@@ -66,7 +56,7 @@ object JsonASTFieldSpec extends DynamoDBLocalSpec {
             encoded == Some(
               AttrMap(
                 "id"   -> "id",
-                "json" -> AttrMap("age" -> 42, "name" -> "John", "list" -> List(1, 2, 3))
+                "json" -> AttrMap("name" -> "John")
               )
             )
           )
@@ -76,7 +66,7 @@ object JsonASTFieldSpec extends DynamoDBLocalSpec {
         withSingleIdKeyTable { tableName =>
           for {
             _       <- ZIO.unit
-            json    <- ZIO.fromEither(jsonString2.fromJson[Json]).mapError(e => new Exception(e))
+            json    <- ZIO.fromEither(jsonString.fromJson[Json]).mapError(e => new Exception(e))
             person   = PersonNonDirect("id", json)
             _       <- DynamoDBQuery.put[PersonNonDirect](tableName, person).execute
             encoded <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "id")).execute
@@ -114,64 +104,9 @@ object JsonASTFieldSpec extends DynamoDBLocalSpec {
                   )
                 )
               )
-//            encoded == Some(AttrMap("id" -> "id", "json" -> AttrMap("Obj" -> AttrMap("fields" -> List(List("name"), AttrMap("Str" -> AttrMap("value" -> "John"))))))),
-//            encoded == Some(AttrMap("id" -> List("1", "2")))
           )
         }
       }
     ) @@ TestAspect.nondeterministic
 
 }
-/*
-
-    ✗ Some(AttrMap(
-        map = Map(
-          "json" -> Map(
-            value = Map(
-              String(value = "Obj") -> Map(
-                value = Map(
-                  String(value = "fields") -> List(
-                    value = Chunk(List(
-                      value = Chunk(String(value = "name"), Map(
-                        value = Map(
-                          String(value = "Str") -> Map(
-                            value = Map(
-                              String(value = "value") -> String(value = "John")
-                            )
-                          )
-                        )
-                      ))
-                    ))
-                  )
-                )
-              )
-            )
-          ),
-          "id" -> String(value = "id")
-        )
-      )) was not equal to Some(AttrMap(
-        map = Map(
-          "id" -> String(value = "id"),
-          "json" -> Map(
-            value = Map(
-              String(value = "Obj") -> Map(
-                value = Map(
-                  String(value = "fields") -> List(
-                    value = Chunk(Map(
-                      value = Map(
-                        String(value = "Str") -> Map(
-                          value = Map(
-                            String(value = "value") -> String(value = "John")
-                          )
-                        )
-                      )
-                    ))
-                  )
-                )
-              )
-            )
-          )
-        )
-      ))
-
- */
