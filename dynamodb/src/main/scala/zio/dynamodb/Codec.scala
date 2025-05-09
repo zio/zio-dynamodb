@@ -248,8 +248,7 @@ private[dynamodb] object Codec {
       fields.foldRight[AttributeValue.Map](AttributeValue.Map(Map.empty)) {
         case (f: Schema.Field[Z, _], m: AttributeValue.Map) =>
           println(s"EEEEEEEE caseClassEncoder ${f.name} ${f.annotations} ${f.schema}")
-          // TODO: restrict annotation propagation to only directDynamicMapping
-          val s                   = f.annotations.headOption.fold(f.schema)(f.schema.annotate)
+          val s                   = f.annotations.filter(_ == directDynamicMapping).headOption.fold(f.schema)(f.schema.annotate)
           val enc                 = encoder(s)
           val extractedFieldValue = f.get(a)
           val av                  = enc(extractedFieldValue)
@@ -1073,9 +1072,9 @@ private[dynamodb] object Codec {
           fields.toList.forEach {
             case f @ Schema.Field(key, schema, annotations, _, _, _) =>
               val s =
-                annotations.headOption.fold(f.schema)(
+                annotations.filter(_ == directDynamicMapping).headOption.fold(f.schema)(
                   f.schema.annotate
-                ) // TODO: restrict annotation propagation to only directDynamicMapping
+                )
               val dec          = decoder(s)
               val k            = key // @fieldName is respected by the zio-schema macro
               val maybeAv      = map.get(AttributeValue.String(k))
