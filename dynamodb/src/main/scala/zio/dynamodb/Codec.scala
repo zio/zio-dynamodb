@@ -13,6 +13,7 @@ import java.math.BigInteger
 import java.time._
 import java.time.format.{ DateTimeFormatterBuilder, SignStyle }
 import java.time.temporal.ChronoField.YEAR
+import java.util.concurrent.ConcurrentHashMap
 import java.util.UUID
 import scala.annotation.tailrec
 import scala.collection.immutable.ListMap
@@ -25,12 +26,32 @@ private[dynamodb] object Codec {
   def decoder[A](schema: Schema[A]): Decoder[A] = Decoder(schema)
 
   private[dynamodb] object Encoder {
+    private case class EncoderKey[A](schema: Schema[A]) {
+      override val hashCode: Int = System.identityHashCode(schema)
+
+      override def equals(obj: Any): Boolean =
+        obj match {
+          case ek: EncoderKey[_] => (ek.schema eq schema)
+          case _                 => false
+        }
+    }
+
+    private[this] val encoders = new ConcurrentHashMap[EncoderKey[_], Encoder[_]]()
+    println(encoders)
 
     private val stringEncoder = encoder(Schema[String])
     private val yearFormatter =
       new DateTimeFormatterBuilder().appendValue(YEAR, 4, 10, SignStyle.EXCEEDS_PAD).toFormatter
 
-    def apply[A](schema: Schema[A]): Encoder[A] = encoder(schema)
+    def apply[A](schema: Schema[A]): Encoder[A] = {
+      val key = EncoderKey(schema)
+      var enc = encoders.get(key).asInstanceOf[Encoder[A]]
+      if (enc eq null) {
+        enc = encoder(schema)
+        encoders.put(key, enc)
+      }
+      enc
+    }
 
     //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
     private def encoder[A](schema: Schema[A]): Encoder[A] =
@@ -406,6 +427,27 @@ private[dynamodb] object Codec {
   } // end Encoder
 
   private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
+    private case class DecoderKey[A](schema: Schema[A]) {
+      override val hashCode: Int = System.identityHashCode(schema)
+
+      override def equals(obj: Any): Boolean =
+        obj match {
+          case dk: DecoderKey[_] => (dk.schema eq schema)
+          case _                 => false
+        }
+    }
+
+    private[this] val decoders = new ConcurrentHashMap[DecoderKey[_], Decoder[_]]
+
+    def apply[A](schema: Schema[A]): Decoder[A] = {
+      val key = DecoderKey(schema)
+      var dec = decoders.get(key).asInstanceOf[Decoder[A]]
+      if (dec eq null) {
+        dec = decoder(schema)
+        decoders.put(key, dec)
+      }
+      dec
+    }
 
     sealed trait ContainerField
     object ContainerField {
@@ -432,8 +474,6 @@ private[dynamodb] object Codec {
             Scalar
         }
     }
-
-    def apply[A](schema: Schema[A]): Decoder[A] = decoder(schema)
 
     //scalafmt: { maxColumn = 400, optIn.configStyleArguments = false }
     private[dynamodb] def decoder[A](schema: Schema[A]): Decoder[A] =
