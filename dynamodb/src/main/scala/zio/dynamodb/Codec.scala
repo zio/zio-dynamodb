@@ -37,7 +37,6 @@ private[dynamodb] object Codec {
     }
 
     private[this] val encoders = new ConcurrentHashMap[EncoderKey[_], Encoder[_]]()
-    println(encoders)
 
     private val stringEncoder = encoder(Schema[String])
     private val yearFormatter =
