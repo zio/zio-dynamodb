@@ -14,6 +14,9 @@ import zio.aws.core.config
 import zio.Unsafe
 import zio.CancelableFuture
 import zio.ZLayer
+
+import software.amazon.awssdk.http.nio.netty.{ NettyNioAsyncHttpClient }
+
 /*
 Create a DynamoDBExecutorF with make, with a close method to release resources.
 
@@ -40,7 +43,10 @@ object DynamoDBExecutorF {
   def make(
     // bunch of builder here
     //buildKinesisClient: KinesisAsyncClientBuilder => KinesisAsyncClientBuilder = identity,
+    buildNettyClient: NettyNioAsyncHttpClient.Builder => NettyNioAsyncHttpClient.Builder = identity
   ): DynamoDBExecutorF = {
+    println(buildNettyClient)
+
     // build the layers for the DynamoDBExecutor
     // create the runtime from the layers
     /*
