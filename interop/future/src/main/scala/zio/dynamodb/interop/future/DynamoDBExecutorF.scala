@@ -1,5 +1,6 @@
 package zio.dynamodb.interop.future
 
+import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClientBuilder
 import zio.dynamodb.DynamoDBQuery
 import zio.dynamodb.DynamoDBExecutor
 import zio.ZIO
@@ -42,31 +43,17 @@ class DynamoDBExecutorF(
 }
 object DynamoDBExecutorF {
   def make(
-    // bunch of builder here
-    //buildKinesisClient: KinesisAsyncClientBuilder => KinesisAsyncClientBuilder = identity,
-    buildNettyClient: NettyNioAsyncHttpClient.Builder => NettyNioAsyncHttpClient.Builder = identity
+    protocol: Protocol = Protocol.Http11,
+    buildNettyClient: NettyNioAsyncHttpClient.Builder => NettyNioAsyncHttpClient.Builder = identity,
+    buildDynamoDbClient: DynamoDbAsyncClientBuilder => DynamoDbAsyncClientBuilder = identity
   ): DynamoDBExecutorF = {
-    println(buildNettyClient)
 
-    // build the layers for the DynamoDBExecutor
-    // create the runtime from the layers
-    /*
-    program.provide(
-      netty.NettyHttpClient.default,
-      config.AwsConfig.default, // uses real AWS dynamodb
-      dynamodb.DynamoDb.live,
-      DynamoDBExecutor.live
-    )
-     */
     val layer: ZLayer[Any, Throwable, zio.dynamodb.DynamoDBExecutor] =
       netty.NettyHttpClient.customized(
-        Protocol.Http11,
+        protocol,
         buildNettyClient
-      ) >+> config.AwsConfig.default >+> DynamoDb.live >>> DynamoDBExecutor.live
+      ) >+> config.AwsConfig.default >+> DynamoDb.customized(buildDynamoDbClient) >>> DynamoDBExecutor.live
 
-    // val runtime: Runtime.Scoped[zio.dynamodb.DynamoDBExecutor] =
-    //   zio.Runtime.fromLayer(layer) // or any other runtime you want to use
-    //new DynamoDBExecutorF(runtime, Unsafe.unsafe(implicit u => u))
     Unsafe.unsafe { implicit unsafe =>
       val runtime = zio.Runtime.unsafe.fromLayer(layer)
 
