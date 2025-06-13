@@ -31,7 +31,7 @@ for {
 
  */
 
-class DynamoDBExecutorF(
+class DynamoDBExecutorF private (
   runtime: zio.Runtime.Scoped[DynamoDBExecutor],
   implicit val unsafe: Unsafe
 )                        {
