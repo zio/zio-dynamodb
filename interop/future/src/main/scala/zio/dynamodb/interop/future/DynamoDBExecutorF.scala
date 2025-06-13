@@ -16,6 +16,7 @@ import zio.CancelableFuture
 import zio.ZLayer
 
 import software.amazon.awssdk.http.nio.netty.{ NettyNioAsyncHttpClient }
+import zio.aws.core.httpclient.Protocol
 
 /*
 Create a DynamoDBExecutorF with make, with a close method to release resources.
@@ -58,7 +59,10 @@ object DynamoDBExecutorF {
     )
      */
     val layer: ZLayer[Any, Throwable, zio.dynamodb.DynamoDBExecutor] =
-      netty.NettyHttpClient.default >+> config.AwsConfig.default >+> DynamoDb.live >>> DynamoDBExecutor.live
+      netty.NettyHttpClient.customized(
+        Protocol.Http11,
+        buildNettyClient
+      ) >+> config.AwsConfig.default >+> DynamoDb.live >>> DynamoDBExecutor.live
 
     // val runtime: Runtime.Scoped[zio.dynamodb.DynamoDBExecutor] =
     //   zio.Runtime.fromLayer(layer) // or any other runtime you want to use
