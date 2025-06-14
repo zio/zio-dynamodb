@@ -19,18 +19,6 @@ import zio.ZLayer
 import software.amazon.awssdk.http.nio.netty.{ NettyNioAsyncHttpClient }
 import zio.aws.core.httpclient.Protocol
 
-/*
-Create a DynamoDBExecutorF with make, with a close method to release resources.
-
-for {
-  _ <- DynamoDbQuery.put(...).executeToF(ddbExecutor)
-  _ <- DynamoDbQuery.put(...).executeToF // implicit
-} yield ???
-
-
-
- */
-
 class DynamoDBExecutorF private (
   runtime: zio.Runtime.Scoped[DynamoDBExecutor],
   implicit val unsafe: Unsafe
@@ -40,6 +28,8 @@ class DynamoDBExecutorF private (
       query.execute
     runtime.unsafe.runToFuture(zio)
   }
+
+  def close(): Unit = runtime.shutdown0()
 }
 object DynamoDBExecutorF {
   def make(
@@ -61,34 +51,4 @@ object DynamoDBExecutorF {
     }
   }
 
-  def close(executor: DynamoDBExecutorF): Unit = {
-    // Logic to close resources if needed
-  }
 }
-
-/*
-object Consumer {
-  def make(
-    buildKinesisClient: KinesisAsyncClientBuilder => KinesisAsyncClientBuilder = identity,
-    buildCloudWatchClient: CloudWatchAsyncClientBuilder => CloudWatchAsyncClientBuilder = identity,
-    buildDynamoDbClient: DynamoDbAsyncClientBuilder => DynamoDbAsyncClientBuilder = identity,
-    buildHttpClient: NettyNioAsyncHttpClient.Builder => SdkAsyncHttpClient = _.build()
-  ): Consumer = {
-
-    val sdkClients = HttpClientBuilder.make(build = buildHttpClient) >>> config.AwsConfig.default >>> (
-      kinesisAsyncClientLayer(buildKinesisClient) ++
-        cloudWatchAsyncClientLayer(buildCloudWatchClient) ++
-        dynamoDbAsyncClientLayer(buildDynamoDbClient)
-    )
-
-    val layer = (sdkClients >+> DynamoDbLeaseRepository.live)
-
-    Unsafe.unsafe { implicit unsafe =>
-      val runtime = zio.Runtime.unsafe.fromLayer(layer)
-
-      new Consumer(runtime, unsafe)
-    }
-  }
-}
-
- */
