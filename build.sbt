@@ -282,7 +282,7 @@ lazy val examples = module("zio-dynamodb-examples", "examples")
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
-  .dependsOn(zioDynamodb, zioDynamodbCe, zioDynamodbJson)
+  .dependsOn(zioDynamodb, zioDynamodbCe, zioDynamodbJson, zioDynamodbFuture)
 
 lazy val benchmarks = module("zio-dynamodb-benchmarks", "benchmarks")
   .settings(
@@ -321,8 +321,8 @@ lazy val zioDynamodbFuture =
       resolvers ++= Resolver.sonatypeOssRepos("releases"),
       fork := true,
       libraryDependencies ++= Seq(
-        "dev.zio" %% "zio-test"           % zioVersion % "test",
-        "dev.zio" %% "zio-test-sbt"       % zioVersion % "test",
+        "dev.zio" %% "zio-test"                    % zioVersion % "test",
+        "dev.zio" %% "zio-test-sbt"                % zioVersion % "test",
         "dev.zio" %% "zio-interop-reactivestreams" % zioInteropFuture
       ),
       testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
