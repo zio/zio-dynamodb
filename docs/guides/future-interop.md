@@ -18,7 +18,7 @@ libraryDependencies ++= Seq(
 
 The entry point is `DynamoDBExecutorF.make` which allows the user to customise the DynamoDB client and is placed in implicit scope. 
 Rather that using the normal `execute` which would return a `ZIO` effect, we import a syntax class `import zio.dynamodb.interop.future.syntax._`
-which allows us to use the extension method `executeToF` to run the queries and via interop return a `Future`.
+which allows us to use the extension method `executeToF` to run the queries and via interop return a `Future`. At the end we use the `DynamoDBExecutorF.close()` method to release the underlying resources.
 
 
 ## Example
@@ -35,7 +35,6 @@ import zio.dynamodb.{ AttributeDefinition, BillingMode, DynamoDBQuery, KeySchema
 import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
-
 
 object FutureInteropExample extends App {
   implicit val ddbExec: DynamoDBExecutorF = DynamoDBExecutorF.make(
@@ -61,7 +60,7 @@ object FutureInteropExample extends App {
     _      <- DynamoDBQuery.deleteTable("Person").executeToF
 
   } yield ()
-  val programWithClose = program.andThen(_ => ddbExec.close())
+  val programWithClose = program.andThen { case _ => ddbExec.close() }
 
   Await.result(programWithClose, 30.seconds)
 }
