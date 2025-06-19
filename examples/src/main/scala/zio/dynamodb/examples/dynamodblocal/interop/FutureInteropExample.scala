@@ -42,7 +42,7 @@ object FutureInteropExample extends App {
     _      <- DynamoDBQuery.deleteTable("Person").executeToF
 
   } yield ()
-  val programWithClose = program.andThen(_ => ddbExec.close())
+  val programWithClose = program.andThen { case _ => ddbExec.close() }
 
   Await.result(programWithClose, 30.seconds)
 }
