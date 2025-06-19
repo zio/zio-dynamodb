@@ -1,3 +1,29 @@
+---
+id: future-interop
+title: "Cats Effect Interop"
+---
+
+The **`zio-dynamodb-future`** interop module provides a way to use ZIO DynamoDB with vanilla scala Futures with minimal 
+effort.
+
+## Usage
+
+Add the following line to your `build.sbt` file:
+
+```scala
+libraryDependencies ++= Seq(
+  "dev.zio" %% "zio-dynamodb-future" % "@VERSION@"
+)
+```
+
+The entry point is `DynamoDBExecutorF.make` which allows the user to customise the DynamoDB client and is placed in implicit scope. 
+Rather that using the normal `execute` which would return a `ZIO` effect, we import a syntax class `import zio.dynamodb.interop.future.syntax._`
+which allows us to use the extension method `executeToF` to run the queries and via interop return a `Future`.
+
+
+## Example
+
+```scala
 package zio.dynamodb.examples.dynamodblocal.interop
 
 import zio.dynamodb.DynamoDBQuery.{ get, put }
@@ -10,14 +36,7 @@ import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
-/**
- * example future interop application
- *
- * to run in the sbt console:
- * {{{
- * zio-dynamodb-examples/runMain zio.dynamodb.examples.dynamodblocal.interop.FutureInteropExample
- * }}}
- */
+
 object FutureInteropExample extends App {
   implicit val ddbExec: DynamoDBExecutorF = DynamoDBExecutorF.make(
     buildNettyClient = identity,
@@ -46,3 +65,4 @@ object FutureInteropExample extends App {
 
   Await.result(programWithClose, 30.seconds)
 }
+```

@@ -5,9 +5,6 @@ import zio.dynamodb.DynamoDBQuery
 import zio.dynamodb.DynamoDBExecutor
 import zio.ZIO
 
-//import scala.concurrent.duration._
-//import scala.concurrent.{ ExecutionContext, Future }
-
 import zio.aws.dynamodb.DynamoDb
 import zio.aws.netty
 import zio.aws.core.config

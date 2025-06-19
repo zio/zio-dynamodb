@@ -313,7 +313,7 @@ lazy val zioDynamodbCe =
     .dependsOn(zioDynamodb)
 
 lazy val zioDynamodbFuture =
-  module("zio-dynamodb-future", "interop/future")
+  module("zio-dynamodb-future", "interop/dynamodb-future")
     .enablePlugins(BuildInfoPlugin)
     .settings(buildInfoSettings("zio.dynamodb"))
     .configs(IntegrationTest)
