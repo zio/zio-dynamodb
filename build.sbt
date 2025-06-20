@@ -322,7 +322,7 @@ lazy val zioDynamodbJson =
       libraryDependencies ++= Seq(
         "dev.zio" %% "zio-test"     % zioVersion % "test",
         "dev.zio" %% "zio-test-sbt" % zioVersion % "test",
-        "dev.zio" %% "zio-json"     % "0.7.43"
+        "dev.zio" %% "zio-json"     % "0.7.44"
       ),
       testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
     )
