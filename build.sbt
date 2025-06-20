@@ -36,7 +36,6 @@ val zioAwsVersion          = "7.28.29.13"
 val zioSchemaVersion       = "1.7.1"
 val zioPreludeVersion      = "1.0.0-RC40"
 val zioInteropCats3Version = "23.1.0.5"
-val zioInteropFuture       = "2.0.2"
 val catsEffect3Version     = "3.6.1"
 val fs2Version             = "3.12.0"
 
@@ -321,9 +320,8 @@ lazy val zioDynamodbFuture =
       resolvers ++= Resolver.sonatypeOssRepos("releases"),
       fork := true,
       libraryDependencies ++= Seq(
-        "dev.zio" %% "zio-test"                    % zioVersion % "test",
-        "dev.zio" %% "zio-test-sbt"                % zioVersion % "test",
-        "dev.zio" %% "zio-interop-reactivestreams" % zioInteropFuture
+        "dev.zio" %% "zio-test"     % zioVersion % "test",
+        "dev.zio" %% "zio-test-sbt" % zioVersion % "test"
       ),
       testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
     )
