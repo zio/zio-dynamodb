@@ -20,7 +20,6 @@ import scala.concurrent.duration._
  */
 object FutureInteropExample extends App {
   implicit val ddbExec: DynamoDBExecutorF = DynamoDBExecutorF.make(
-    buildNettyClient = identity,
     buildDynamoDbClient = _.endpointOverride(java.net.URI.create("http://localhost:8000"))
       .region(software.amazon.awssdk.regions.Region.US_EAST_1)
       .credentialsProvider(
