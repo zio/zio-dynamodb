@@ -1,6 +1,6 @@
 ---
 id: future-interop
-title: "Cats Effect Interop"
+title: "Future Interop"
 ---
 
 The **`zio-dynamodb-future`** interop module provides a way to use ZIO DynamoDB with vanilla scala Futures with minimal 
