@@ -24,9 +24,10 @@ import java.net.URI
 /**
  * example interop app for stream utils
  *
- * to run in the sbt console:
+ * to run in the console:
  * {{{
- * zio-dynamodb-examples/runMain zio.dynamodb.examples.dynamodblocal.interop.CeInteropStreamUtilsExample
+ * docker compose -f docker/docker-compose.yml up -d
+ * sbt "zio-dynamodb-examples/runMain zio.dynamodb.examples.dynamodblocal.interop.CeInteropStreamUtilsExample"
  * }}}
  */
 object CeInteropStreamUtilsExample extends IOApp.Simple {

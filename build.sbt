@@ -43,7 +43,7 @@ lazy val root =
   project
     .in(file("."))
     .settings(publish / skip := true)
-    .aggregate(zioDynamodb, zioDynamodbCe, zioDynamodbJson, examples, benchmarks, docs)
+    .aggregate(zioDynamodb, zioDynamodbCe, zioDynamodbFuture, zioDynamodbJson, examples, benchmarks, docs)
 
 lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
   .enablePlugins(BuildInfoPlugin)
@@ -281,7 +281,7 @@ lazy val examples = module("zio-dynamodb-examples", "examples")
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
-  .dependsOn(zioDynamodb, zioDynamodbCe, zioDynamodbJson)
+  .dependsOn(zioDynamodb, zioDynamodbCe, zioDynamodbJson, zioDynamodbFuture)
 
 lazy val benchmarks = module("zio-dynamodb-benchmarks", "benchmarks")
   .settings(
@@ -306,6 +306,22 @@ lazy val zioDynamodbCe =
         "dev.zio"       %% "zio-test"         % zioVersion % "test",
         "dev.zio"       %% "zio-test-sbt"     % zioVersion % "test",
         "dev.zio"       %% "zio-interop-cats" % zioInteropCats3Version
+      ),
+      testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
+    )
+    .dependsOn(zioDynamodb)
+
+lazy val zioDynamodbFuture =
+  module("zio-dynamodb-future", "interop/dynamodb-future")
+    .enablePlugins(BuildInfoPlugin)
+    .settings(buildInfoSettings("zio.dynamodb"))
+    .configs(IntegrationTest)
+    .settings(
+      resolvers ++= Resolver.sonatypeOssRepos("releases"),
+      fork := true,
+      libraryDependencies ++= Seq(
+        "dev.zio" %% "zio-test"     % zioVersion % "test",
+        "dev.zio" %% "zio-test-sbt" % zioVersion % "test"
       ),
       testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
     )

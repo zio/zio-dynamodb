@@ -27,8 +27,11 @@ import zio.dynamodb.AttributeDefinition
 /**
  * Stand alone example using DynamoDBLocal.
  *
- * To run: sbt "zio-dynamodb-examples/runMain zio.dynamodb.examples.DynamoDBLocalMain"
- *
+ * To run in the console:
+ * {{{
+ * docker compose -f docker/docker-compose.yml up -d
+ * sbt "zio-dynamodb-examples/runMain zio.dynamodb.examples.DynamoDBLocalMain"
+ * }}}
  * For more comprehensive examples see integration tests under zio-dynamodb/src/it/scala/zio/dynamodb
  */
 object DynamoDBLocalMain extends ZIOAppDefault {
