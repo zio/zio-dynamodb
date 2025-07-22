@@ -9,13 +9,13 @@ private[dynamodb] object PartitionKey {
     def ===[To: ToAttributeValue](
       value: To
     ): PartitionKeyEquals[From] =
-      PartitionKeyEquals(pk, implicitly[ToAttributeValue[To]].toAttributeValue(value))
+      PartitionKeyEquals(pk, ToAttributeValue[To].toAttributeValue(value))
   }
   implicit class PartitionKeyOps[-From, To: ToAttributeValue](val pk: PartitionKey[From, To]) {
     def ===(
       value: To
     ): PartitionKeyEquals[From] =
-      PartitionKeyEquals(pk, implicitly[ToAttributeValue[To]].toAttributeValue(value))
+      PartitionKeyEquals(pk, ToAttributeValue[To].toAttributeValue(value))
   }
 
 }

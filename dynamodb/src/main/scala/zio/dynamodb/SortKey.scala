@@ -15,47 +15,47 @@ private[dynamodb] object SortKey {
     def ===[To: ToAttributeValue](
       value: To
     ): SortKeyEquals[From]                                                             =
-      SortKeyEquals(sk, implicitly[ToAttributeValue[To]].toAttributeValue(value))
+      SortKeyEquals(sk, ToAttributeValue[To].toAttributeValue(value))
     def >[To: ToAttributeValue](
       value: To
     ): ExtendedSortKeyExpr[From, To]                                                   =
       ExtendedSortKeyExpr.GreaterThan(
         sk.asInstanceOf[SortKey[From, To]],
-        implicitly(ToAttributeValue[To]).toAttributeValue(value)
+        ToAttributeValue[To].toAttributeValue(value)
       )
     def <[To: ToAttributeValue](
       value: To
     ): ExtendedSortKeyExpr[From, To]                                                   =
       ExtendedSortKeyExpr.LessThan(
         sk.asInstanceOf[SortKey[From, To]],
-        implicitly[ToAttributeValue[To]].toAttributeValue(value)
+        ToAttributeValue[To].toAttributeValue(value)
       )
     def <>[To: ToAttributeValue](
       value: To
     ): ExtendedSortKeyExpr[From, To]                                                   =
       ExtendedSortKeyExpr.NotEqual(
         sk.asInstanceOf[SortKey[From, To]],
-        implicitly(ToAttributeValue[To]).toAttributeValue(value)
+        ToAttributeValue[To].toAttributeValue(value)
       )
     def <=[To: ToAttributeValue](
       value: To
     ): ExtendedSortKeyExpr[From, To]                                                   =
       ExtendedSortKeyExpr.LessThanOrEqual(
         sk.asInstanceOf[SortKey[From, To]],
-        implicitly[ToAttributeValue[To]].toAttributeValue(value)
+        ToAttributeValue[To].toAttributeValue(value)
       )
     def >=[To: ToAttributeValue](
       value: To
     ): ExtendedSortKeyExpr[From, To]                                                   =
       ExtendedSortKeyExpr.GreaterThanOrEqual(
         sk.asInstanceOf[SortKey[From, To]],
-        implicitly[ToAttributeValue[To]].toAttributeValue(value)
+        ToAttributeValue[To].toAttributeValue(value)
       )
     def between[To: ToAttributeValue](min: To, max: To): ExtendedSortKeyExpr[From, To] =
       ExtendedSortKeyExpr.Between[From, To](
         sk.asInstanceOf[SortKey[From, To]],
-        implicitly[ToAttributeValue[To]].toAttributeValue(min),
-        implicitly[ToAttributeValue[To]].toAttributeValue(max)
+        ToAttributeValue[To].toAttributeValue(min),
+        ToAttributeValue[To].toAttributeValue(max)
       )
     def beginsWith[To: ToAttributeValue](
       prefix: To
@@ -63,7 +63,7 @@ private[dynamodb] object SortKey {
       val _ = ev
       ExtendedSortKeyExpr.BeginsWith[From, To](
         sk.asInstanceOf[SortKey[From, To]],
-        implicitly[ToAttributeValue[To]].toAttributeValue(prefix)
+        ToAttributeValue[To].toAttributeValue(prefix)
       )
     }
   }
@@ -72,47 +72,47 @@ private[dynamodb] object SortKey {
     def ===(
       value: To
     ): SortKeyEquals[From]                                       =
-      SortKeyEquals(sk, implicitly[ToAttributeValue[To]].toAttributeValue(value))
+      SortKeyEquals(sk, ToAttributeValue[To].toAttributeValue(value))
     def >(
       value: To
     ): ExtendedSortKeyExpr[From, To]                             =
       ExtendedSortKeyExpr.GreaterThan(
         sk.asInstanceOf[SortKey[From, To]],
-        implicitly(ToAttributeValue[To]).toAttributeValue(value)
+        ToAttributeValue[To].toAttributeValue(value)
       )
     def <(
       value: To
     ): ExtendedSortKeyExpr[From, To]                             =
       ExtendedSortKeyExpr.LessThan(
         sk.asInstanceOf[SortKey[From, To]],
-        implicitly[ToAttributeValue[To]].toAttributeValue(value)
+        ToAttributeValue[To].toAttributeValue(value)
       )
     def <>(
       value: To
     ): ExtendedSortKeyExpr[From, To]                             =
       ExtendedSortKeyExpr.NotEqual(
         sk.asInstanceOf[SortKey[From, To]],
-        implicitly(ToAttributeValue[To]).toAttributeValue(value)
+        ToAttributeValue[To].toAttributeValue(value)
       )
     def <=(
       value: To
     ): ExtendedSortKeyExpr[From, To]                             =
       ExtendedSortKeyExpr.LessThanOrEqual(
         sk.asInstanceOf[SortKey[From, To]],
-        implicitly[ToAttributeValue[To]].toAttributeValue(value)
+        ToAttributeValue[To].toAttributeValue(value)
       )
     def >=(
       value: To
     ): ExtendedSortKeyExpr[From, To]                             =
       ExtendedSortKeyExpr.GreaterThanOrEqual(
         sk.asInstanceOf[SortKey[From, To]],
-        implicitly[ToAttributeValue[To]].toAttributeValue(value)
+        ToAttributeValue[To].toAttributeValue(value)
       )
     def between(min: To, max: To): ExtendedSortKeyExpr[From, To] =
       ExtendedSortKeyExpr.Between[From, To](
         sk.asInstanceOf[SortKey[From, To]],
-        implicitly[ToAttributeValue[To]].toAttributeValue(min),
-        implicitly[ToAttributeValue[To]].toAttributeValue(max)
+        ToAttributeValue[To].toAttributeValue(min),
+        ToAttributeValue[To].toAttributeValue(max)
       )
     def beginsWith(
       prefix: To
@@ -120,7 +120,7 @@ private[dynamodb] object SortKey {
       val _ = ev
       ExtendedSortKeyExpr.BeginsWith[From, To](
         sk.asInstanceOf[SortKey[From, To]],
-        implicitly[ToAttributeValue[To]].toAttributeValue(prefix)
+        ToAttributeValue[To].toAttributeValue(prefix)
       )
     }
 
