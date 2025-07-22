@@ -587,7 +587,7 @@ object DynamoDBQuery {
     a: From
   ): Either[String, To] = {
     val fromEnumSchema: Schema.Enum[From]            = implicitly[Schema.Enum[From]]
-    val toSchema: Schema[To]                         = implicitly[Schema[To]]
+    val toSchema: Schema[To]                         = Schema[To]
     val maybeSchemaOfA: Option[Schema.Case[From, _]] = fromEnumSchema.caseOf(a)
 
     val toSchemaId: String =
@@ -667,7 +667,7 @@ object DynamoDBQuery {
     a: To
   ): DynamoDBQuery[To, Option[To]] = {
     val fromEnumSchema = implicitly[Schema.Enum[From]]
-    val toSchema       = implicitly[Schema[To]]
+    val toSchema       = Schema[To]
     putItem(tableName, toItem(a.asInstanceOf[From])(fromEnumSchema))
       .map(_.flatMap(item => fromItem(item)(toSchema).toOption))
   }
