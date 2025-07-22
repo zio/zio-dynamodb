@@ -110,112 +110,8 @@ object ProjectionExpressionSpec extends ZIOSpecDefault {
         }
       )
 
-    // private val typeUnsafeFunctionsSuite =
-    //   suite("type unsafe DDB functions suite")(
-    //     test("exists") {
-    //       val ex = MapElement(Root, "email").exists
-    //       assertTrue(ex.toString == s"AttributeExists($email)")
-    //     },
-    //     test("notExists") {
-    //       val ex = MapElement(Root, "email").notExists
-    //       assertTrue(ex.toString == s"AttributeNotExists($email)")
-    //     },
-    //     test("size for a set") {
-    //       val ex = MapElement(Root, "groups").size
-    //       assert(ex.toString)(startsWithString(s"Size($groups,"))
-    //     },
-    //     test("size for a list") {
-    //       val ex = $("addresses").size
-    //       assert(ex.toString)(startsWithString(s"Size($addresses,"))
-    //     },
-    //     test("isBinary") {
-    //       val ex = MapElement(Root, "groups").isBinary
-    //       assertTrue(ex.toString == s"AttributeType($groups,Binary)")
-    //     },
-    //     test("isNumber") {
-    //       val ex = MapElement(Root, "groups").isNumber
-    //       assertTrue(ex.toString == s"AttributeType($groups,Number)")
-    //     },
-    //     test("isString") {
-    //       val ex = MapElement(Root, "groups").isString
-    //       assertTrue(ex.toString == s"AttributeType($groups,String)")
-    //     },
-    //     test("isBool") {
-    //       val ex = MapElement(Root, "groups").isBool
-    //       assertTrue(ex.toString == s"AttributeType($groups,Bool)")
-    //     },
-    //     test("isBinarySet") {
-    //       val ex = MapElement(Root, "groups").isBinarySet
-    //       assertTrue(ex.toString == s"AttributeType($groups,BinarySet)")
-    //     },
-    //     test("isList") {
-    //       val ex = MapElement(Root, "groups").isList
-    //       assertTrue(ex.toString == s"AttributeType($groups,List)")
-    //     },
-    //     test("isMap") {
-    //       val ex = MapElement(Root, "groups").isMap
-    //       assertTrue(ex.toString == s"AttributeType($groups,Map)")
-    //     },
-    //     test("isNumberSet") {
-    //       val ex = MapElement(Root, "groups").isNumberSet
-    //       assertTrue(ex.toString == s"AttributeType($groups,NumberSet)")
-    //     },
-    //     test("isNull") {
-    //       val ex = MapElement(Root, "groups").isNull
-    //       assertTrue(ex.toString == s"AttributeType($groups,Null)")
-    //     },
-    //     test("isStringSet") {
-    //       val ex = MapElement(Root, "groups").isStringSet
-    //       assertTrue(ex.toString == s"AttributeType($groups,StringSet)")
-    //     },
-    //     test("beginsWith") {
-    //       val ex = MapElement(Root, "email").beginsWith("avi")
-    //       assertTrue(ex.toString == s"BeginsWith($email,String(avi))")
-    //     },
-    //     test("between using number range") {
-    //       val ex = MapElement(Root, "studentNumber").between(1, 3)
-    //       assertTrue(ex.toString == s"Between(ProjectionExpressionOperand($studentNumber),Number(1),Number(3))")
-    //     },
-    //     test("inSet for a collection attribute") {
-    //       val ex = MapElement(Root, "addresses").inSet(Set(List("Addr1")))
-    //       assertTrue(ex.toString == s"In(ProjectionExpressionOperand($addresses),Set(List(Chunk(String(Addr1)))))")
-    //     },
-    //     test("inSet for a scalar") {
-    //       val ex = MapElement(Root, "studentNumber").inSet(Set(1))
-    //       assertTrue(ex.toString == s"In(ProjectionExpressionOperand($studentNumber),Set(Number(1)))")
-    //     },
-    //     test("'in' for a collection attribute") {
-    //       val ex = MapElement(Root, "groups").in(Set("group1"), Set("group2"))
-    //       assertTrue(
-    //         ex.toString == s"In(ProjectionExpressionOperand($groups),Set(StringSet(Set(group2)), StringSet(Set(group1))))"
-    //       )
-    //     },
-    //     test("'in' for a scalar") {
-    //       val ex = MapElement(Root, "studentNumber").in(1, 2)
-    //       assertTrue(ex.toString == s"In(ProjectionExpressionOperand($studentNumber),Set(Number(2), Number(1)))")
-    //     },
-    //     test("'in' for a sum type") { // note we have to use scalar values as there is no notion of sum type in the type unsafe API
-    //       val ex = MapElement(Root, "payment").in(Payment.CreditCard.toString, Payment.PayPal.toString)
-    //       assertTrue(
-    //         ex.toString == s"In(ProjectionExpressionOperand($payment),Set(String(PayPal), String(CreditCard)))"
-    //       )
-    //     },
-    //     test("string contains") {
-    //       val ex = MapElement(Root, "collegeName").contains("foo")
-    //       assertTrue(ex.toString == s"Contains($collegeName,String(foo))")
-    //     },
-    //     test("set contains") {
-    //       val ex = MapElement(Root, "groups").contains("group1")
-    //       assertTrue(ex.toString == s"Contains($groups,String(group1))")
-    //     }
-    //   )
-
     private val typeUnsafeComparisonSuite =
       suite("type safe comparison suite")(
-        // test("PE === X") {
-        //   val ex = MapElement(Root, "studentNumber") === 1
-        //   assertTrue(ex.toString == s"Equals(ProjectionExpressionOperand($studentNumber),ValueOperand(Number(1)))")
-        // },
         test("PE === PE") {
           val ex = $("studentNumber") === $("studentNumber")
           assertTrue(
@@ -281,7 +177,6 @@ object ProjectionExpressionSpec extends ZIOSpecDefault {
     val typeUnsafeSuite =
       suite("Raw projection expression unsafe type suite")(
         typeUnsafeOpSuite,
-//        typeUnsafeFunctionsSuite,
         typeUnsafeComparisonSuite
       )
 
