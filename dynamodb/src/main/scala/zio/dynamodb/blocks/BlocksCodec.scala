@@ -1,0 +1,232 @@
+package zio.dynamodb.blocks
+
+import zio.dynamodb.AttributeValue
+import zio.dynamodb.DynamoDBError.ItemError.DecodingError
+import zio.dynamodb.FromAttributeValue
+import zio.dynamodb.Encoder
+import zio.dynamodb.Decoder
+import zio.blocks.schema._
+import zio.blocks.schema.binding.Constructor
+import zio.blocks.schema.binding.Register
+import zio.blocks.schema.binding.RegisterOffset
+import zio.blocks.schema.binding.Registers
+import zio.Chunk
+
+object BlocksCodec {
+  // type Encoder[A]  = A => AttributeValue
+  // type Decoder[+A] = AttributeValue => Either[ItemError, A]
+
+  def reflectEncoder[A](reflect: Reflect.Bound[A]): Encoder[A] =
+    reflect match {
+      case Reflect.Primitive(primitiveType, _, _, _, _)          =>
+        primitiveEncoder(primitiveType)
+      case r @ Reflect.Record(fields, _, _, _, modifiers)        =>
+        // TODO: Extract recordEncoder
+        (a: A) => {
+          val avMap = fields.foldLeft[AttributeValue.Map](AttributeValue.Map.empty) {
+            case (acc: AttributeValue.Map, field) =>
+              val fieldName        = field.name
+              val lens: Lens[A, _] = r.lensByName(fieldName).get // TODO: handle error
+              val fieldValue       = lens.get(a)
+              val enc              = reflectEncoder(field.value)
+              val av               = enc(fieldValue.asInstanceOf[field.value.Structure])
+              acc + (fieldName -> av) // TODO: use MapBuilder
+          }
+          avMap
+        }
+      case v @ Reflect.Variant(cases, _, _, _, variantModifiers) =>
+        (a: A) =>
+          val idx                = v.discriminator.discriminate(a)
+          val case_              = cases(idx)
+          val av: AttributeValue = case_.value match {
+            case Reflect.Record(fields, _, _, _, _) => // "default" vs "compact" encoding
+              if (fields.isEmpty)
+                // empty fields implies a case object
+                AttributeValue.String(case_.name)
+              else {
+                // TODO: Consider a NoDiscriminator modifier as well
+                val disc: Option[String] = maybeDiscriminatorNameModifier(variantModifiers)
+                val av: AttributeValue   = reflectEncoder(case_.value)(a.asInstanceOf[case_.value.Structure])
+                disc match {
+                  case Some(discName) =>
+                    val newMap = av match {
+                      case AttributeValue.Map(map) =>
+                        map + (AttributeValue.String(discName) -> AttributeValue.String(case_.name))
+                      case _                       =>
+                        throw new Exception(s"Could not encode $a with discriminator $disc")
+                    }
+                    AttributeValue.Map(newMap)
+                  case None           =>
+                    // tagged Variant encoding
+                    AttributeValue.Map(case_.name, av)
+                }
+              }
+            case r                                  =>
+              throw new Exception(s"Did not expect Reflect $r - only Record is valid")
+          }
+          av
+      case Reflect.Deferred(value)                               =>
+        val enc = reflectEncoder(value())
+        (a: A) => enc(a)
+      case r                                                     => throw new Exception(s"Could not encode $r just yet")
+    }
+
+  def maybeDiscriminatorNameModifier(
+    modifiers: Seq[Modifier.Variant]
+  ): Option[String] =
+    modifiers.collectFirst {
+      case Modifier.config("discriminatorName", value) => value
+    }
+
+  // TODO: handle all primitive types
+  def primitiveEncoder[A](primitiveType: PrimitiveType[A]): Encoder[A] =
+    (a: A) => {
+//      println(s"Encoding $a $primitiveType")
+      primitiveType match {
+        case PrimitiveType.String(_) => AttributeValue.String(a.toString)
+        case PrimitiveType.Int(_)    => AttributeValue.Number(BigDecimal(a.toString))
+        case _                       => throw new Exception(s"Could not encode $a of type $primitiveType")
+      }
+    }
+
+  def encoder[A](implicit schema: Schema[A]): Encoder[A] = reflectEncoder(schema.reflect)
+
+  // ================================================================================================
+
+  def reflectDecoder[A](reflect: Reflect.Bound[A]): Decoder[A] =
+    reflect match {
+      case Reflect.Primitive(primitiveType, _, _, _, _)          =>
+        primitiveDecoder(primitiveType)
+      case r @ Reflect.Record(fields, _, _, _, _)                =>
+        // TODO: extract recordDecoder
+        (av: AttributeValue) =>
+          if (fields.isEmpty) {
+            // empty fields implies a case object
+            val constructor: Constructor[A] = r.constructor
+            val registers                   = Registers(constructor.usedRegisters)
+            Right(r.constructor.construct(registers, RegisterOffset.Zero))
+          } else
+            av match {
+              case AttributeValue.Map(map) =>
+                var errors: Option[Chunk[String]] = None
+                def addError(e: String): Unit     = errors = errors.map(_ :+ e).orElse(Some(Chunk(e)))
+                val constructor: Constructor[A]   = r.constructor
+                val registers                     = Registers(constructor.usedRegisters)
+
+                fields.foreach {
+                  var idx = 0
+                  field =>
+                    val fieldName  = field.name
+                    val fieldValue = map.get(AttributeValue.String(fieldName))
+                    val dec        = reflectDecoder(field.value)
+                    if (fieldValue.isEmpty)
+                      addError(s"Field $fieldName not found")
+                    else
+                      dec(fieldValue.get) match {
+                        case Left(e)      =>
+                          addError(s"Field $fieldName: ${e.getMessage}")
+                        case Right(value) =>
+                          r.registers(idx).asInstanceOf[Register[Any]].set(registers, RegisterOffset.Zero, value)
+                      }
+                    idx += 1
+                }
+                if (errors.isEmpty)
+                  Right(constructor.construct(registers, RegisterOffset.Zero))
+                else
+                  Left(DecodingError(errors.mkString(", ")))
+
+              case av                      =>
+                Left(DecodingError(s"Could not decode $av just yet"))
+            }
+      case v @ Reflect.Variant(cases, _, _, _, variantModifiers) =>
+        maybeDiscriminatorNameModifier(variantModifiers) match { // TODO: Consider a NoDiscriminator modifier as well
+          case Some(discName) =>
+            (av: AttributeValue) =>
+              av match {
+                case m @ AttributeValue.Map(_) => // We only handle records
+                  m.get(discName) match {
+                    case Some(AttributeValue.String(name)) => // extract discriminator name
+                      v.caseByName(name) match {
+                        case None        =>
+                          Left(DecodingError(s"Could not find case $name"))
+                        case Some(case_) => // extract case so we can get case decoder
+                          val dec = reflectDecoder(case_.value)
+                          dec(av) match {
+                            case Left(e)  => Left(e)
+                            case Right(r) => Right(r.asInstanceOf[A])
+                          }
+                      }
+                    case _                                 =>
+                      Left(DecodingError(s"Could not find discriminator $discName"))
+                  }
+                case av                        =>
+                  Left(
+                    DecodingError(
+                      s"Expected an AttributeValue.Map but found ${av.getClass.getSimpleName}"
+                    )
+                  )
+              }
+          case None           => // no DiscriminatorName modifier
+            (av: AttributeValue) =>
+              av match {
+                case AttributeValue.Map(map)          => // We only expect map of discriminator name
+                  // map must have single entry only of AttributeValue.String(discriminatorName) -> AttributeValue
+                  if (map.size != 1)
+                    Left(DecodingError(s"Expected a single entry map but found ${map.size}"))
+                  else {
+                    val (AttributeValue.String(discriminatorName), av) = map.iterator.next()
+                    v.caseByName(discriminatorName) match {
+                      case None        =>
+                        Left(DecodingError(s"Could not find case $discriminatorName"))
+                      case Some(case_) => // extract case so we can get case decoder
+                        val dec = reflectDecoder(case_.value)
+                        dec(av) match {
+                          case Left(e)  => Left(e)
+                          case Right(r) => Right(r.asInstanceOf[A])
+                        }
+                    }
+
+                  }
+                case AttributeValue.String(enumValue) =>
+                  v.caseByName(enumValue) match {
+                    case None        =>
+                      Left(DecodingError(s"2 Could not find case $enumValue"))
+                    case Some(case_) => // extract case so we can get case decoder
+//                      println(s"XXXXXXXX case_: $case_")
+                      val dec = reflectDecoder(case_.value)
+                      dec(av) match {
+                        case Left(e)  => Left(e)
+                        case Right(r) => Right(r.asInstanceOf[A])
+                      }
+                  }
+                case av                               =>
+                  Left(
+                    DecodingError(
+                      s"2 Expected an AttributeValue.Map but found ${av.getClass.getSimpleName}"
+                    )
+                  )
+              }
+        }
+      case Reflect.Deferred(value)                               =>
+        val dec = reflectDecoder(value())
+        (av: AttributeValue) => dec(av)
+      case r                                                     =>
+        (_: AttributeValue) =>
+//          println(s"Decoding $r")
+          Left(DecodingError(s"Could not decode Reflect $r just yet"))
+    }
+
+  // TODO: handle all primitive types
+  def primitiveDecoder[A](primitiveType: PrimitiveType[A]): Decoder[A] =
+    (av: AttributeValue) => {
+//      println(s"Decoding $av $primitiveType")
+      primitiveType match {
+        case PrimitiveType.String(_) => FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av)
+        case PrimitiveType.Int(_)    => FromAttributeValue.intFromAttributeValue.fromAttributeValue(av)
+        case _                       => Left(DecodingError("Could not decode"))
+      }
+    }
+
+  def decoder[A](implicit schema: Schema[A]): Decoder[A] = reflectDecoder(schema.reflect)
+
+}

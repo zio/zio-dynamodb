@@ -72,14 +72,27 @@ object AttributeValue {
   }
 
   private[dynamodb] final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue { self =>
+
+    // TODO: search for usages of this and consider replacing with MapBuilder usage on the client side
     def +(t: (ScalaString, AttributeValue)): Map = {
       val (s, av) = t
       Map(self.value + ((String(s), av)))
     }
+
+    def get(key: ScalaString): Option[AttributeValue] = {
+      val (s, av) = (key, self.value) // TODO: extract
+      av.get(String(s))
+    }
   }
 
   private[dynamodb] object Map {
-    val empty = Map(ScalaMap.empty)
+    val empty = new Map(ScalaMap.empty)
+
+    // TODO: find occurrences of "AttributeValue.Map(Map" or "AttributeValue.Map(ScalaMap"
+    def apply(fieldName: ScalaString, value: AttributeValue): Map = {
+      val (s, av) = (fieldName, value)
+      Map(ScalaMap((String(s), av)))
+    }
   }
 
   private[dynamodb] final case class Number(value: BigDecimal)          extends AttributeValue
