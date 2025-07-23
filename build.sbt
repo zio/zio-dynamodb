@@ -36,7 +36,7 @@ val zioAwsVersion          = "7.28.29.13"
 val zioSchemaVersion       = "1.7.3"
 val zioPreludeVersion      = "1.0.0-RC41"
 val zioInteropCats3Version = "23.1.0.5"
-val catsEffect3Version     = "3.6.1"
+val catsEffect3Version     = "3.6.2"
 val fs2Version             = "3.12.0"
 
 lazy val root =
