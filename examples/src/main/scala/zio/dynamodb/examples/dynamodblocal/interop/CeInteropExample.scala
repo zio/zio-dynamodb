@@ -25,9 +25,10 @@ import cats.effect.kernel.Async
 /**
  * example cats effect interop application
  *
- * to run in the sbt console:
+ * to run in the console:
  * {{{
- * zio-dynamodb-examples/runMain zio.dynamodb.examples.dynamodblocal.interop.CeInteropExample
+ * docker compose -f docker/docker-compose.yml up -d
+ * sbt "zio-dynamodb-examples/runMain zio.dynamodb.examples.dynamodblocal.interop.CeInteropExample"
  * }}}
  */
 object CeInteropExample extends IOApp.Simple {

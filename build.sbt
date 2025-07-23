@@ -34,7 +34,7 @@ addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck"
 val zioVersion             = "2.1.18"
 val zioAwsVersion          = "7.28.29.13"
 val zioSchemaVersion       = "1.7.3"
-val zioPreludeVersion      = "1.0.0-RC40"
+val zioPreludeVersion      = "1.0.0-RC41"
 val zioInteropCats3Version = "23.1.0.5"
 val catsEffect3Version     = "3.6.1"
 val fs2Version             = "3.12.0"
@@ -43,7 +43,7 @@ lazy val root =
   project
     .in(file("."))
     .settings(publish / skip := true)
-    .aggregate(zioDynamodb, zioDynamodbCe, zioDynamodbJson, examples, benchmarks, docs)
+    .aggregate(zioDynamodb, zioDynamodbCe, zioDynamodbFuture, zioDynamodbJson, examples, benchmarks, docs)
 
 lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
   .enablePlugins(BuildInfoPlugin)
@@ -281,7 +281,7 @@ lazy val examples = module("zio-dynamodb-examples", "examples")
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
-  .dependsOn(zioDynamodb, zioDynamodbCe, zioDynamodbJson)
+  .dependsOn(zioDynamodb, zioDynamodbCe, zioDynamodbJson, zioDynamodbFuture)
 
 lazy val benchmarks = module("zio-dynamodb-benchmarks", "benchmarks")
   .settings(
@@ -311,6 +311,22 @@ lazy val zioDynamodbCe =
     )
     .dependsOn(zioDynamodb)
 
+lazy val zioDynamodbFuture =
+  module("zio-dynamodb-future", "interop/dynamodb-future")
+    .enablePlugins(BuildInfoPlugin)
+    .settings(buildInfoSettings("zio.dynamodb"))
+    .configs(IntegrationTest)
+    .settings(
+      resolvers ++= Resolver.sonatypeOssRepos("releases"),
+      fork := true,
+      libraryDependencies ++= Seq(
+        "dev.zio" %% "zio-test"     % zioVersion % "test",
+        "dev.zio" %% "zio-test-sbt" % zioVersion % "test"
+      ),
+      testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
+    )
+    .dependsOn(zioDynamodb)
+
 lazy val zioDynamodbJson =
   module("zio-dynamodb-json", "dynamodb-json")
     .enablePlugins(BuildInfoPlugin)
@@ -322,7 +338,7 @@ lazy val zioDynamodbJson =
       libraryDependencies ++= Seq(
         "dev.zio" %% "zio-test"     % zioVersion % "test",
         "dev.zio" %% "zio-test-sbt" % zioVersion % "test",
-        "dev.zio" %% "zio-json"     % "0.7.43"
+        "dev.zio" %% "zio-json"     % "0.7.44"
       ),
       testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
     )

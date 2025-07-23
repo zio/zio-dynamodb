@@ -31,6 +31,7 @@ const sidebars = {
             "guides/transactions",
             "guides/testing",
             "guides/ce-interop",
+            "guides/future-interop",
           ]
         },
         // Reference
