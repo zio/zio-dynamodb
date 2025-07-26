@@ -14,15 +14,15 @@ does Blocks macro honour implicit schema transformations in scope?
  */
 object BlocksApi {
   implicit def fromLensToProjectionExpression[S, A](lens: Lens[S, A]): ProjectionExpression[S, A] =
-    ToPE.pe(lens)
+    OpticToPE.pe(lens)
 
   implicit def fromOptionalToProjectionExpression[S, A](optional: Optional[S, A]): ProjectionExpression[S, A] =
-    ToPE.pe(optional)
+    OpticToPE.pe(optional)
 
   implicit def fromSchemaExprToPKExpression[A, B](
     expr: SchemaExpr[A, B]
   ): KeyConditionExpr.PrimaryKeyExpr[A] =
-    schemaExprToPKExpression(expr)
+    schemaExprToPartitionKeyExpr(expr)
 
   implicit def fromSchemaExprToConditionExpression[A, B](
     expr: SchemaExpr[A, B]
@@ -32,126 +32,17 @@ object BlocksApi {
   def opticToPE[S, A](optic: Optic[S, A]): ProjectionExpression[S, A] =
     optic match {
       case l: Lens[S, A]     =>
-        ToPE.pe(l)
+        OpticToPE.pe(l)
       case o: Optional[S, A] =>
-        ToPE.pe(o)
+        OpticToPE.pe(o)
       case _                 =>
         throw new Exception("not a lens")
     }
 
-  object ToPE {
-    def pe[S, A](lens: Lens[S, A]): ProjectionExpression[S, A] =
-      lens.source match {
-        case r @ Reflect.Record(fields, _, _, _, _) =>
-          var idx                            = 0
-          var maybeFieldName: Option[String] = None
-          while (idx < fields.length && maybeFieldName.isEmpty) {
-            val field = fields(idx)
-            if (r.lensByName(field.name).contains(lens))
-              maybeFieldName = new Some(field.name)
-            idx += 1
-          }
-          maybeFieldName match {
-            case Some(fieldName) =>
-              ProjectionExpression.MapElement[S, A](ProjectionExpression.Root, fieldName)
-            case None            =>
-              throw new Exception("could not find field name for lens")
-          }
-        case _                                      =>
-          throw new Exception("not a schema")
-      }
-
-    /*
-    object Node {
-      case class Field(name: String) extends Node
-      case class Case(name: String) extends Node
-      case class AtIndex(index: Int) extends Node
-      case class AtMapKey[K](key: K) extends Node
-      case class AtIndices(index: Seq[Int]) extends Node
-      case class AtMapKeys[K](keys: Seq[K]) extends Node
-      case object Elements extends Node
-      case object MapKeys extends Node
-      case object MapValues extends Node
-    }
-     */
-
-    /*
-    nodes: Vector(Field(maybeMap), Case(Some), Field(value), AtMapKey(a))
-    TODO: how did we handle SUM TYPES? I think they were just MapElements
-    while index is not last
-    - if current node is Case(Some) and next node is Field(value)
-
-val result = {
-  val b = Vector.newBuilder[Node]
-  var i = 0
-  while (i < vec.length) {
-    if (
-      i + 1 < vec.length &&
-      vec(i) == Case("Some") &&
-      vec(i + 1) == Field("value")
-    ) {
-      i += 2 // skip both
-    } else {
-      b += vec(i)
-      i += 1
-    }
-  }
-  b.result()
-}
-
-     */
-    def pruneOptionalNodes(nodes: IndexedSeq[DynamicOptic.Node]): IndexedSeq[DynamicOptic.Node] = {
-      val builder = Vector.newBuilder[DynamicOptic.Node]
-      var i       = 0
-      while (i < nodes.length)
-        if (
-          i + 1 < nodes.length &&
-          nodes(i) == DynamicOptic.Node.Case("Some") &&
-          nodes(i + 1) == DynamicOptic.Node.Field("value")
-        )
-          i += 2 // skip both
-        else {
-          builder += nodes(i)
-          i += 1
-        }
-      builder.result()
-    }
-
-    def pe[S, A](optional: Optional[S, A]): ProjectionExpression[S, A] = {
-
-      var prevPe: ProjectionExpression[_, _] = ProjectionExpression.Root
-      val nodes                              = optional.toDynamic.nodes
-      val nodesPruned                        = pruneOptionalNodes(nodes)
-
-      var idx = 0
-      while (idx < nodesPruned.length) {
-        val node   = nodesPruned(idx)
-        val nextPe = node match {
-          case DynamicOptic.Node.Field(name)           =>
-            ProjectionExpression.MapElement(prevPe, name)
-          case DynamicOptic.Node.AtIndex(index)        =>
-            ProjectionExpression.ListElement(prevPe, index)
-          case DynamicOptic.Node.AtMapKey(key: String) => // Only String Keys are supported in DDB
-            ProjectionExpression.MapElement(prevPe, key)
-          // TODO: handle all Node types
-          case DynamicOptic.Node.AtMapKey(key)         =>
-            throw new Exception(s"Only String Keys are supported in DDB")
-          case DynamicOptic.Node.Case(_)               => // We only need to deal with non optional SOME TYPES here
-            prevPe
-          case _                                       => throw new Exception(s"unexpected node: $node")
-        }
-        prevPe = nextPe
-        idx += 1
-      }
-      prevPe.asInstanceOf[ProjectionExpression[S, A]]
-    }
-
-  }
-
   implicit class OptionalToProjectionExpression[From, To: ToAttributeValue](optional: Optional[From, To]) {
     def set(a: To): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
-        ToPE.pe(optional),
+        OpticToPE.pe(optional),
         UpdateExpression.SetOperand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(a))
       )
   }
@@ -162,21 +53,27 @@ val result = {
   implicit class LensToProjectionExpression[From, To: ToAttributeValue](lens: Lens[From, To]) {
     def set(a: To): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
-        ToPE.pe(lens),
+        OpticToPE.pe(lens),
         UpdateExpression.SetOperand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(a))
       )
 
+    /*
+    TODO: we need to check at RUNTIME if the field is TOP level
+     */
     def partitionKey(implicit ev: IsPrimaryKey[To]): PartitionKey[From, To] = {
       val _  = ev
-      val pe = ToPE.pe(lens)
+      val pe = OpticToPE.pe(lens)
       pe match {
         case ProjectionExpression.MapElement(_, key) => PartitionKey[From, To](key)
         case _                                       => throw new IllegalArgumentException("Not a partition key") // should not happen
       }
     }
+    /*
+    TODO: we need to check at RUNTIME if the field is TOP level
+     */
     def sortKey(implicit ev: IsPrimaryKey[To]): SortKey[From, To] = {
       val _  = ev
-      val pe = ToPE.pe(lens)
+      val pe = OpticToPE.pe(lens)
       pe match {
         case ProjectionExpression.MapElement(_, key) => SortKey[From, To](key)
         case _                                       => throw new IllegalArgumentException("Not a sort key") // should not happen
@@ -245,9 +142,26 @@ val result = {
         ConditionExpression.Or(left, right)
     }
 
-  def schemaExprToPKExpression[A, B](
-    expr: SchemaExpr[A, B]
-  ): KeyConditionExpr.PrimaryKeyExpr[A] = ???
+  /*
+  KeyConditionExpr
+    ExtendedCompositePrimaryKeyExpr in KeyConditionExpr$ (zio.dynamodb)
+    PrimaryKeyExpr in KeyConditionExpr$ (zio.dynamodb)
+        CompositePrimaryKeyExpr in KeyConditionExpr$ (zio.dynamodb)
+        PartitionKeyEquals in KeyConditionExpr$ (zio.dynamodb)
+   */
+  def schemaExprToPartitionKeyExpr[S, A](
+    expr: SchemaExpr[S, A]
+  ): KeyConditionExpr.PrimaryKeyExpr[S] =
+    expr match {
+      case SchemaExpr.Relational(SchemaExpr.Optic(o), SchemaExpr.Literal(a, schema), operator) =>
+        val pe: ProjectionExpression[S, A] = opticToPE(o).asInstanceOf[ProjectionExpression[S, A]]
+        val enc: Encoder[Any]              = BlocksCodec.encoder(schema)
+        val attrVal: AttributeValue        = enc(a)
+        println(s"pe: $pe, a: $a, operator: $operator attrVal: $attrVal")
+        ???
+      case expr                                                                                =>
+        throw new Exception(s"unexpected SchemaExpr: $expr")
+    }
 
   def schemaExprToConditionExpression[A, B](
     expr: SchemaExpr[A, B]

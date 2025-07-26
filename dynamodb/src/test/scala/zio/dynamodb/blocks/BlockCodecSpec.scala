@@ -12,7 +12,6 @@ import zio.dynamodb.{
 }
 import zio.blocks.schema._
 import zio.test._
-import zio.dynamodb.blocks.BlocksApi.ToPE
 import zio.dynamodb.blocks.BlockCodecSpec.PersonWithCollections.addressNumberAt
 
 /*
@@ -228,7 +227,7 @@ object BlockCodecSpec extends ZIOSpecDefault {
   val spec = suite("BlockCodecSpec")(
     suite("Covert a sum type Optic to a PE")(
       test("non top level Optic") {
-        val debitCardFieldPE: ProjectionExpression[Person, Int] = ToPE.pe(Person.debitCardFieldI)
+        val debitCardFieldPE: ProjectionExpression[Person, Int] = OpticToPE.pe(Person.debitCardFieldI)
         println(debitCardFieldPE)
         val payment                                             = ProjectionExpression.MapElement[Person, Payment](
           ProjectionExpression.Root,
@@ -245,8 +244,8 @@ object BlockCodecSpec extends ZIOSpecDefault {
     suite("Covert an indexed Optic to a PE")(
       test("index a List with 'at'") {
         val addressOptic: Optional[PersonWithCollections, Address]   = PersonWithCollections.addressAt(0)
-        val pe: ProjectionExpression[PersonWithCollections, Address] = ToPE.pe(addressOptic)
-        val pe2: ProjectionExpression[PersonWithCollections, String] = ToPE.pe(addressNumberAt(0))
+        val pe: ProjectionExpression[PersonWithCollections, Address] = OpticToPE.pe(addressOptic)
+        val pe2: ProjectionExpression[PersonWithCollections, String] = OpticToPE.pe(addressNumberAt(0))
 
         val map    = ProjectionExpression.MapElement[PersonWithCollections, Address](
           ProjectionExpression.Root,
@@ -265,7 +264,7 @@ object BlockCodecSpec extends ZIOSpecDefault {
       test("index a map with 'atKey'") {
         val p: PersonWithCollections                             = PersonWithCollections("1", List(Address("1")), Map("a" -> 1, "b" -> 2))
         val mapValue: Option[Int]                                = PersonWithCollections.mapAtKey("a").getOption(p)
-        val pe: ProjectionExpression[PersonWithCollections, Int] = ToPE.pe(PersonWithCollections.mapAtKey("a"))
+        val pe: ProjectionExpression[PersonWithCollections, Int] = OpticToPE.pe(PersonWithCollections.mapAtKey("a"))
         val expectedPE                                           = ProjectionExpression.MapElement[PersonWithCollections, Int](
           ProjectionExpression.MapElement[PersonWithCollections, Int](
             ProjectionExpression.Root,
@@ -280,7 +279,8 @@ object BlockCodecSpec extends ZIOSpecDefault {
           PersonWithCollections(id = "1", addresses = List(Address("1")), maybeMap = Some(Map("a" -> 1, "b" -> 2)))
         val mapValue: Option[Int]    = PersonWithCollections.maybeMapAtKey("a").getOption(p)
 
-        val pe: ProjectionExpression[PersonWithCollections, Int] = ToPE.pe(PersonWithCollections.maybeMapAtKey("a"))
+        val pe: ProjectionExpression[PersonWithCollections, Int] =
+          OpticToPE.pe(PersonWithCollections.maybeMapAtKey("a"))
         val expectedPE                                           = ProjectionExpression.MapElement[PersonWithCollections, Int](
           ProjectionExpression.MapElement[PersonWithCollections, Int](
             ProjectionExpression.Root,
@@ -300,7 +300,7 @@ object BlockCodecSpec extends ZIOSpecDefault {
         val mapValue: Option[Int]    = PersonWithCollections.maybeNestedMapAtKey("a", "b").getOption(p)
 
         val pe: ProjectionExpression[PersonWithCollections, Int] =
-          ToPE.pe(PersonWithCollections.maybeNestedMapAtKey("a", "b"))
+          OpticToPE.pe(PersonWithCollections.maybeNestedMapAtKey("a", "b"))
         val rootPe                                               = ProjectionExpression.MapElement[PersonWithCollections, Int](
           ProjectionExpression.MapElement[PersonWithCollections, Int](
             ProjectionExpression.Root,
@@ -475,7 +475,7 @@ object BlockCodecSpec extends ZIOSpecDefault {
             UpdateExpression.SetOperand.ValueOperand(AttributeValue.String("John"))
           )
         )
-      } @@ TestAspect.ignore, // TODO: fix this
+      },
       test("SchemaExpr experiments") {
         import zio.dynamodb.blocks.BlocksApi._
 
@@ -495,7 +495,9 @@ object BlockCodecSpec extends ZIOSpecDefault {
         // "at" access to collections
         printConditionExpression(PersonWithCollections.addressAt(0) === Address("1"))
         printConditionExpression(PersonWithCollections.addressNumberAt(0) > "1")
-        printConditionExpression(PersonWithCollections.addressNumberAt(0) beginsWith "1")
+        printConditionExpression(
+          PersonWithCollections.addressNumberAt(0) beginsWith "1"
+        ) // we get "beginsWith" from syntax class for PE
         printConditionExpression(PersonWithCollections.mapAtKey("a") === 1)
         //printConditionExpression(PersonWithCollections.maybeAddresses.listValues === 1)
 
@@ -525,32 +527,48 @@ COULD THIS BE FIXED WITH A LOWER PRIORITY IMPLICIT CONVERSION FROM SCHEMAEXPR TO
       }
     ),
     suite("partitionKey/sortKey")(
-      test("partitionKey") {
-        import zio.dynamodb.blocks.BlocksApi._
+      suite("using Schema2 expressions")(
+        test("partitionKey") {
+          val pkExpr: SchemaExpr[PersonWithName, Boolean] = (PersonWithName.id === "1") && (PersonWithName.age > 21)
+          println(pkExpr)
+          /*
+          NEXT STEPS
+          - interpret SchemaExpr to PrimaryKeyExpr
+           */
+          assertTrue(true)
+        }
+      ),
+      suite("using existing API")(
+        test("partitionKey") {
+          import zio.dynamodb.blocks.BlocksApi._
 
-        val pk: PartitionKey[PersonWithName, String]       = PersonWithName.id.partitionKey
-        val expected: PartitionKey[PersonWithName, String] =
-          ProjectionExpression
-            .MapElement[PersonWithName, String](
-              ProjectionExpression.Root,
-              "id"
-            )
-            .partitionKey
-        assertTrue(pk == expected)
-      },
-      test("sortKey") {
-        import zio.dynamodb.blocks.BlocksApi._
+          val pk: PartitionKey[PersonWithName, String]       = PersonWithName.id.partitionKey
+          val expected: PartitionKey[PersonWithName, String] =
+            ProjectionExpression
+              .MapElement[PersonWithName, String](
+                ProjectionExpression.Root,
+                "id"
+              )
+              .partitionKey
 
-        val sk: SortKey[PersonWithName, String]       = PersonWithName.name.sortKey
-        val expected: SortKey[PersonWithName, String] =
-          ProjectionExpression
-            .MapElement[PersonWithName, String](
-              ProjectionExpression.Root,
-              "name"
-            )
-            .sortKey
-        assertTrue(sk == expected)
-      }
+          val pkExpr = PersonWithName.id.partitionKey === "1"
+          println(s"pkExpr: $pkExpr")
+          assertTrue(pk == expected)
+        },
+        test("sortKey") {
+          import zio.dynamodb.blocks.BlocksApi._
+
+          val sk: SortKey[PersonWithName, String]       = PersonWithName.name.sortKey
+          val expected: SortKey[PersonWithName, String] =
+            ProjectionExpression
+              .MapElement[PersonWithName, String](
+                ProjectionExpression.Root,
+                "name"
+              )
+              .sortKey
+          assertTrue(sk == expected)
+        }
+      )
     )
   )
 

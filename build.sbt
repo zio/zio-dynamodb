@@ -34,7 +34,7 @@ addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck"
 val zioVersion             = "2.1.18"
 val zioAwsVersion          = "7.28.29.13"
 val zioSchemaVersion       = "1.7.3"
-val zioBlocksVersion = "0.0.0+516-626a2320-SNAPSHOT" // 0.0.0+510-05968d92-SNAPSHOT
+val zioBlocksVersion       = "0.0.0+534-9b8bb2fc+20250726-0654-SNAPSHOT" // 0.0.0+516-626a2320-SNAPSHOT
 val zioPreludeVersion      = "1.0.0-RC41"
 val zioInteropCats3Version = "23.1.0.5"
 val catsEffect3Version     = "3.6.1"
@@ -276,11 +276,11 @@ lazy val examples = module("zio-dynamodb-examples", "examples")
     publish / skip := true,
     fork := true,
     libraryDependencies ++= Seq(
-      "org.typelevel" %% "cats-effect"  % catsEffect3Version,
-      "co.fs2"        %% "fs2-core"     % fs2Version,
+      "org.typelevel" %% "cats-effect"       % catsEffect3Version,
+      "co.fs2"        %% "fs2-core"          % fs2Version,
       "dev.zio"       %% "zio-blocks-schema" % zioBlocksVersion,
-      "dev.zio"       %% "zio-test"     % zioVersion % "test",
-      "dev.zio"       %% "zio-test-sbt" % zioVersion % "test"
+      "dev.zio"       %% "zio-test"          % zioVersion % "test",
+      "dev.zio"       %% "zio-test-sbt"      % zioVersion % "test"
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
