@@ -4,6 +4,9 @@ import zio.blocks.schema.{ DynamicOptic, Lens, Optional, Reflect }
 import zio.dynamodb.ProjectionExpression
 
 object OpticToPE {
+  // TODO: copy/extract this to BlocksApi to something like
+  //  def pe[S, A](lens: Lens[S, A]): IndexedSeq[Option[String]] = ???
+  // so that it can be reused for Lens -> PrimaryKeyExpr conversion function
   def pe[S, A](lens: Lens[S, A]): ProjectionExpression[S, A] =
     lens.source match {
       case r @ Reflect.Record(fields, _, _, _, _) =>

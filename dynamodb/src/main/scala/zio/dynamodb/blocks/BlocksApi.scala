@@ -1,5 +1,6 @@
 package zio.dynamodb.blocks
 
+import zio.blocks.schema.SchemaExpr.RelationalOperator
 import zio.dynamodb._
 import zio.blocks.schema._
 
@@ -153,13 +154,19 @@ object BlocksApi {
     expr: SchemaExpr[S, A]
   ): KeyConditionExpr.PrimaryKeyExpr[S] =
     expr match {
-      case SchemaExpr.Relational(SchemaExpr.Optic(o), SchemaExpr.Literal(a, schema), operator) =>
-        val pe: ProjectionExpression[S, A] = opticToPE(o).asInstanceOf[ProjectionExpression[S, A]]
+      // simplest use case - a single partition key at the top level with an equality op to a literal value
+      case SchemaExpr.Relational(
+            SchemaExpr.Optic(lens: Lens[_, _]),
+            SchemaExpr.Literal(a, schema),
+            RelationalOperator.Equal
+          ) =>
+        // get field name from the lens
+        val pe: ProjectionExpression[S, A] = opticToPE(lens).asInstanceOf[ProjectionExpression[S, A]]
         val enc: Encoder[Any]              = BlocksCodec.encoder(schema)
         val attrVal: AttributeValue        = enc(a)
-        println(s"pe: $pe, a: $a, operator: $operator attrVal: $attrVal")
+        println(s"pe: $pe, a: $a, attrVal: $attrVal")
         ???
-      case expr                                                                                =>
+      case expr =>
         throw new Exception(s"unexpected SchemaExpr: $expr")
     }
 
