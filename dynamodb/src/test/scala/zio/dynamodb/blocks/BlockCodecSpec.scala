@@ -11,6 +11,7 @@ import zio.dynamodb.{
   UpdateExpression
 }
 import zio.blocks.schema._
+import zio.dynamodb.KeyConditionExpr.PartitionKeyEquals
 import zio.test._
 import zio.dynamodb.blocks.BlockCodecSpec.PersonWithCollections.addressNumberAt
 
@@ -149,9 +150,9 @@ object BlockCodecSpec extends ZIOSpecDefault {
 
   final case class PersonWithAddress(id: String, address: Address)
   object PersonWithAddress extends CompanionOptics[PersonWithAddress] {
-    implicit val schema: Schema[PersonWithAddress] = Schema.derived
-    val id: Lens[PersonWithAddress, String]        = optic(_.id)
-    val address: Lens[PersonWithAddress, Address]  = optic(_.address)
+    implicit val schema: Schema[PersonWithAddress]     = Schema.derived
+    val id: Lens[PersonWithAddress, String]            = optic(_.id)
+    val address: Lens[PersonWithAddress, Address]      = optic(_.address)
     val addressNumber: Lens[PersonWithAddress, String] = optic(_.address.number)
   }
 
@@ -560,9 +561,11 @@ COULD THIS BE FIXED WITH A LOWER PRIORITY IMPLICIT CONVERSION FROM SCHEMAEXPR TO
               )
               .partitionKey
 
-          val pkExpr = PersonWithName.id.partitionKey === "1"
-          println(s"pkExpr: $pkExpr")
-          assertTrue(pk == expected)
+          // implicit def in play
+          val pkExpr: KeyConditionExpr.PrimaryKeyExpr[PersonWithName] = PersonWithName.id === "1"
+          val expectedPkExpr                                          = PartitionKeyEquals(PartitionKey("id"), AttributeValue.String("1"))
+
+          assertTrue(pk == expected && pkExpr == expectedPkExpr)
         },
         test("sortKey") {
           import zio.dynamodb.blocks.BlocksApi._

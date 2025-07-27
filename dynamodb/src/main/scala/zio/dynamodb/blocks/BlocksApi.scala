@@ -3,6 +3,7 @@ package zio.dynamodb.blocks
 import zio.blocks.schema.SchemaExpr.RelationalOperator
 import zio.dynamodb._
 import zio.blocks.schema._
+import zio.dynamodb.KeyConditionExpr.PartitionKeyEquals
 
 import scala.language.implicitConversions
 import zio.dynamodb.blocks.BlocksCodecViaDynamic.Person.schema
@@ -14,23 +15,22 @@ do we keep the 1 API + Phantom Type approach?
 does Blocks macro honour implicit schema transformations in scope?
  */
 object BlocksApi {
-  private[blocks] def topLevelField[S, A](lens: Lens[S, A]): Option[String] =
-    lens.source match {
-      case r @ Reflect.Record(fields, _, _, _, _) =>
-        var idx                            = 0
-        var maybeFieldName: Option[String] = None
-        while (idx < fields.length && maybeFieldName.isEmpty) {
-          val field = fields(idx)
-          if (r.lensByName(field.name).contains(lens))
-            maybeFieldName = new Some(field.name)
-          idx += 1
-        }
-        maybeFieldName
-      case _                                      =>
-        //throw new Exception("not a schema")
-        // TODO: should we return an Either with this error?
-        None
-    }
+  // def primaryKey[S, A](expr: SchemaExpr[S, A]): ProjectionExpression[S, A] = {
+  //   var prevPe: ProjectionExpression[_, _] = ProjectionExpression.Root
+  //   val nodes                              = lens.toDynamic.nodes
+  //   var idx                                = 0
+  //   while (idx < nodes.length) {
+  //     val node   = nodes(idx)
+  //     val nextPe = node match {
+  //       case DynamicOptic.Node.Field(name) =>
+  //         ProjectionExpression.MapElement(prevPe, name)
+  //       case node                          => throw new Exception(s"unexpected node: $node")
+  //     }
+  //     prevPe = nextPe
+  //     idx += 1
+  //   }
+  //   prevPe.asInstanceOf[ProjectionExpression[S, A]]
+  // }
 
   implicit def fromLensToProjectionExpression[S, A](lens: Lens[S, A]): ProjectionExpression[S, A] =
     OpticToPE.pe(lens)
@@ -168,22 +168,39 @@ object BlocksApi {
         CompositePrimaryKeyExpr in KeyConditionExpr$ (zio.dynamodb)
         PartitionKeyEquals in KeyConditionExpr$ (zio.dynamodb)
    */
+  private def topLevelLensFieldName[S, A](lens: Lens[S, A]): Option[String] = {
+    val nodes = lens.toDynamic.nodes
+    if (nodes.length != 1)
+      None
+    else
+      nodes(0) match {
+        case DynamicOptic.Node.Field(name) =>
+          Some(name)
+        case _                             => None
+      }
+
+  }
+
   def schemaExprToPartitionKeyExpr[S, A](
     expr: SchemaExpr[S, A]
   ): KeyConditionExpr.PrimaryKeyExpr[S] =
     expr match {
       // simplest use case - a single partition key at the top level with an equality op to a literal value
+      // TODO: Composite use case
       case SchemaExpr.Relational(
             SchemaExpr.Optic(lens: Lens[_, _]),
             SchemaExpr.Literal(a, schema),
             RelationalOperator.Equal
           ) =>
         // get field name from the lens
-        val pe: ProjectionExpression[S, A] = opticToPE(lens).asInstanceOf[ProjectionExpression[S, A]]
-        val enc: Encoder[Any]              = BlocksCodec.encoder(schema)
-        val attrVal: AttributeValue        = enc(a)
-        println(s"pe: $pe, a: $a, attrVal: $attrVal")
-        ???
+        topLevelLensFieldName(lens) match {
+          case Some(field) =>
+            val enc: Encoder[Any]       = BlocksCodec.encoder(schema)
+            val attrVal: AttributeValue = enc(a)
+            PartitionKeyEquals[S](PartitionKey(field), attrVal)
+          case _           =>
+            throw new Exception(s"Expected a top level field in the lens, got: $lens")
+        }
       case expr =>
         throw new Exception(s"unexpected SchemaExpr: $expr")
     }
