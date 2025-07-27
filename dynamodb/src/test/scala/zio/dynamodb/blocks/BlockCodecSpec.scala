@@ -561,11 +561,7 @@ COULD THIS BE FIXED WITH A LOWER PRIORITY IMPLICIT CONVERSION FROM SCHEMAEXPR TO
               )
               .partitionKey
 
-          // implicit def in play
-          val pkExpr: KeyConditionExpr.PrimaryKeyExpr[PersonWithName] = PersonWithName.id === "1"
-          val expectedPkExpr                                          = PartitionKeyEquals(PartitionKey("id"), AttributeValue.String("1"))
-
-          assertTrue(pk == expected && pkExpr == expectedPkExpr)
+          assertTrue(pk == expected)
         },
         test("sortKey") {
           import zio.dynamodb.blocks.BlocksApi._
@@ -579,6 +575,17 @@ COULD THIS BE FIXED WITH A LOWER PRIORITY IMPLICIT CONVERSION FROM SCHEMAEXPR TO
               )
               .sortKey
           assertTrue(sk == expected)
+        }
+      ),
+      suite("using new API")(
+        test("partitionKey") {
+          import zio.dynamodb.blocks.BlocksApi._
+
+          // implicit def in play
+          val pkExpr: KeyConditionExpr.PrimaryKeyExpr[PersonWithName] = PersonWithName.id === "1"
+          val expectedPkExpr                                          = PartitionKeyEquals(PartitionKey("id"), AttributeValue.String("1"))
+
+          assertTrue(pkExpr == expectedPkExpr)
         }
       )
     )
