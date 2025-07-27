@@ -147,6 +147,14 @@ object BlockCodecSpec extends ZIOSpecDefault {
     val maybeAge: Lens[PersonOpt, Option[Int]] = optic(_.age)
   }
 
+  final case class PersonWithAddress(id: String, address: Address)
+  object PersonWithAddress extends CompanionOptics[PersonWithAddress] {
+    implicit val schema: Schema[PersonWithAddress] = Schema.derived
+    val id: Lens[PersonWithAddress, String]        = optic(_.id)
+    val address: Lens[PersonWithAddress, Address]  = optic(_.address)
+    val addressNumber: Lens[PersonWithAddress, String] = optic(_.address.number)
+  }
+
   @Modifier.config(
     "discriminatorName",
     "paymentType"

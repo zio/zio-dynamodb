@@ -14,6 +14,24 @@ do we keep the 1 API + Phantom Type approach?
 does Blocks macro honour implicit schema transformations in scope?
  */
 object BlocksApi {
+  private[blocks] def topLevelField[S, A](lens: Lens[S, A]): Option[String] =
+    lens.source match {
+      case r @ Reflect.Record(fields, _, _, _, _) =>
+        var idx                            = 0
+        var maybeFieldName: Option[String] = None
+        while (idx < fields.length && maybeFieldName.isEmpty) {
+          val field = fields(idx)
+          if (r.lensByName(field.name).contains(lens))
+            maybeFieldName = new Some(field.name)
+          idx += 1
+        }
+        maybeFieldName
+      case _                                      =>
+        //throw new Exception("not a schema")
+        // TODO: should we return an Either with this error?
+        None
+    }
+
   implicit def fromLensToProjectionExpression[S, A](lens: Lens[S, A]): ProjectionExpression[S, A] =
     OpticToPE.pe(lens)
 

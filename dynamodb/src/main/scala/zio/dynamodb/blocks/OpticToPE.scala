@@ -1,34 +1,31 @@
 package zio.dynamodb.blocks
 
-import zio.blocks.schema.{ DynamicOptic, Lens, Optional, Reflect }
+import zio.blocks.schema.{ DynamicOptic, Lens, Optional }
 import zio.dynamodb.ProjectionExpression
 
 object OpticToPE {
-  // TODO: copy/extract this to BlocksApi to something like
-  //  def pe[S, A](lens: Lens[S, A]): IndexedSeq[Option[String]] = ???
-  // so that it can be reused for Lens -> PrimaryKeyExpr conversion function
-  def pe[S, A](lens: Lens[S, A]): ProjectionExpression[S, A] =
-    lens.source match {
-      case r @ Reflect.Record(fields, _, _, _, _) =>
-        var idx                            = 0
-        var maybeFieldName: Option[String] = None
-        while (idx < fields.length && maybeFieldName.isEmpty) {
-          val field = fields(idx)
-          if (r.lensByName(field.name).contains(lens))
-            maybeFieldName = new Some(field.name)
-          idx += 1
-        }
-        maybeFieldName match {
-          case Some(fieldName) =>
-            ProjectionExpression.MapElement[S, A](ProjectionExpression.Root, fieldName)
-          case None            =>
-            throw new Exception("could not find field name for lens")
-        }
-      case _                                      =>
-        throw new Exception("not a schema")
-    }
 
-  def pruneOptionalNodes(nodes: IndexedSeq[DynamicOptic.Node]): IndexedSeq[DynamicOptic.Node] = {
+  // Lens[S, A] implies that there is no INDEXED access in any part of the path
+  // so no need to prune optional nodes
+  // and we can assume MapElements all the way down
+  def pe[S, A](lens: Lens[S, A]): ProjectionExpression[S, A] = {
+    var prevPe: ProjectionExpression[_, _] = ProjectionExpression.Root
+    val nodes                              = lens.toDynamic.nodes
+    var idx                                = 0
+    while (idx < nodes.length) {
+      val node   = nodes(idx)
+      val nextPe = node match {
+        case DynamicOptic.Node.Field(name) =>
+          ProjectionExpression.MapElement(prevPe, name)
+        case node                          => throw new Exception(s"unexpected node: $node")
+      }
+      prevPe = nextPe
+      idx += 1
+    }
+    prevPe.asInstanceOf[ProjectionExpression[S, A]]
+  }
+
+  private[this] final def pruneOptionalNodes(nodes: IndexedSeq[DynamicOptic.Node]): IndexedSeq[DynamicOptic.Node] = {
     val builder = Vector.newBuilder[DynamicOptic.Node]
     var i       = 0
     while (i < nodes.length)
