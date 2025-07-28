@@ -578,7 +578,7 @@ COULD THIS BE FIXED WITH A LOWER PRIORITY IMPLICIT CONVERSION FROM SCHEMAEXPR TO
         }
       ),
       suite("using new API")(
-        test("partitionKey") {
+        test("partitionKey equality expression") {
           import zio.dynamodb.blocks.BlocksApi._
 
           // implicit def in play
@@ -586,6 +586,17 @@ COULD THIS BE FIXED WITH A LOWER PRIORITY IMPLICIT CONVERSION FROM SCHEMAEXPR TO
           val expectedPkExpr                                          = PartitionKeyEquals(PartitionKey("id"), AttributeValue.String("1"))
 
           assertTrue(pkExpr == expectedPkExpr)
+        },
+        test("partitionKey non-equality expression fails") {
+          import zio.dynamodb.blocks.BlocksApi._
+
+          try {
+            // implicit def in play
+            val _ = (PersonWithName.id > "1"): KeyConditionExpr.PrimaryKeyExpr[PersonWithName]
+            assertTrue(false) // should not reach here
+          } catch {
+            case _: Throwable => assertTrue(true) // expected failure
+          }
         }
       )
     )
