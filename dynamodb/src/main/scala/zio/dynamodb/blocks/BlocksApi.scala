@@ -21,29 +21,9 @@ QueryAPI                   | single API         | ???                           
 
 TODO
 - Create DynamoDBQuery2
-
-low level API vs new SchemaExpr API?- we now have Person.name > ""
-do we keep the 1 API + Phantom Type approach?
-does Blocks macro honour implicit schema transformations in scope?
+- keep tabs on Schema2 WrapperTypes + Transformations
  */
 object BlocksApi {
-  // def primaryKey[S, A](expr: SchemaExpr[S, A]): ProjectionExpression[S, A] = {
-  //   var prevPe: ProjectionExpression[_, _] = ProjectionExpression.Root
-  //   val nodes                              = lens.toDynamic.nodes
-  //   var idx                                = 0
-  //   while (idx < nodes.length) {
-  //     val node   = nodes(idx)
-  //     val nextPe = node match {
-  //       case DynamicOptic.Node.Field(name) =>
-  //         ProjectionExpression.MapElement(prevPe, name)
-  //       case node                          => throw new Exception(s"unexpected node: $node")
-  //     }
-  //     prevPe = nextPe
-  //     idx += 1
-  //   }
-  //   prevPe.asInstanceOf[ProjectionExpression[S, A]]
-  // }
-
   implicit def fromLensToProjectionExpression[S, A](lens: Lens[S, A]): ProjectionExpression[S, A] =
     OpticToPE.pe(lens)
 
@@ -77,29 +57,6 @@ object BlocksApi {
         OpticToPE.pe(lens),
         UpdateExpression.SetOperand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(a))
       )
-
-    // /*
-    // TODO: we need to check at RUNTIME if the field is TOP level
-    //  */
-    // def partitionKey(implicit ev: IsPrimaryKey[To]): PartitionKey[From, To] = {
-    //   val _  = ev
-    //   val pe = OpticToPE.pe(lens)
-    //   pe match {
-    //     case ProjectionExpression.MapElement(_, key) => PartitionKey[From, To](key)
-    //     case _                                       => throw new IllegalArgumentException("Not a partition key") // should not happen
-    //   }
-    // }
-    // /*
-    // TODO: we need to check at RUNTIME if the field is TOP level
-    //  */
-    // def sortKey(implicit ev: IsPrimaryKey[To]): SortKey[From, To] = {
-    //   val _  = ev
-    //   val pe = OpticToPE.pe(lens)
-    //   pe match {
-    //     case ProjectionExpression.MapElement(_, key) => SortKey[From, To](key)
-    //     case _                                       => throw new IllegalArgumentException("Not a sort key") // should not happen
-    //   }
-    // }
 
   }
 
