@@ -33,14 +33,15 @@ object BlocksApi {
   implicit def fromSchemaExprToPKExpression[A, B](
     expr: SchemaExpr[A, B]
   ): KeyConditionExpr.PrimaryKeyExpr[A] =
-    schemaExprToPartitionKeyExpr(expr)
+    schemaExprToPrimaryKeyExpr(expr)
 
   implicit def fromSchemaExprToConditionExpression[A, B](
     expr: SchemaExpr[A, B]
   ): ConditionExpression[A] =
     schemaExprToConditionExpression(expr)
 
-  implicit class OptionalToProjectionExpression[From, To: ToAttributeValue](optional: Optional[From, To]) {
+  implicit class OptionalToUpdateExpression[From, To: ToAttributeValue](optional: Optional[From, To]) {
+    // TODO: other ops like ADD etc etc
     def set(a: To): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
         OpticToPE.pe(optional),
@@ -48,10 +49,8 @@ object BlocksApi {
       )
   }
 
-  /*
-   Sort and Partition Keys have to be top level scalar values
-   */
-  implicit class LensToProjectionExpression[From, To: ToAttributeValue](lens: Lens[From, To]) {
+  implicit class LensToUpdateExpression[From, To: ToAttributeValue](lens: Lens[From, To]) {
+    // TODO: other ops like ADD etc etc
     def set(a: To): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
         OpticToPE.pe(lens),
@@ -60,48 +59,7 @@ object BlocksApi {
 
   }
 
-  /*
-  TODO
-  - we could fix A to String/Option[String]
-  - explore this Area some more
-  - List of DynamoDB specific methods
-  - The space of SchemaExpr is larger than DDB - what is exprn is not supported by DDB?
-   */
-
-  // TODO: this seems wrong
-  def toRelationalConditionExpression[A](
-    left: ConditionExpression.Operand[A, _],
-    right: ConditionExpression.Operand[A, _],
-    operator: SchemaExpr.RelationalOperator
-  ): ConditionExpression[A] =
-    operator match {
-      case SchemaExpr.RelationalOperator.GreaterThanOrEqual =>
-        ConditionExpression.GreaterThanOrEqual(left, right)
-      case SchemaExpr.RelationalOperator.GreaterThan        =>
-        ConditionExpression.GreaterThan(left, right)
-      case SchemaExpr.RelationalOperator.LessThanOrEqual    =>
-        ConditionExpression.LessThanOrEqual(left, right)
-      case SchemaExpr.RelationalOperator.LessThan           =>
-        ConditionExpression.LessThan(left, right)
-      case SchemaExpr.RelationalOperator.Equal              =>
-        ConditionExpression.Equals(left, right)
-      case SchemaExpr.RelationalOperator.NotEqual           =>
-        ConditionExpression.NotEqual(left, right)
-    }
-
-  def toLogicalConditionExpression[A](
-    left: ConditionExpression[A],
-    right: ConditionExpression[A],
-    operator: SchemaExpr.LogicalOperator
-  ): ConditionExpression[A] =
-    operator match {
-      case SchemaExpr.LogicalOperator.And =>
-        ConditionExpression.And(left, right)
-      case SchemaExpr.LogicalOperator.Or  =>
-        ConditionExpression.Or(left, right)
-    }
-
-  def schemaExprToPartitionKeyExpr[S, A](
+  private def schemaExprToPrimaryKeyExpr[S, A](
     expr: SchemaExpr[S, A]
   ): KeyConditionExpr.PrimaryKeyExpr[S] = {
     def topLevelLensFieldName[S, A](lens: Lens[S, A]): Option[String] = {
@@ -139,7 +97,7 @@ object BlocksApi {
     }
   }
 
-  def schemaExprToConditionExpression[A, B](
+  private def schemaExprToConditionExpression[A, B](
     expr: SchemaExpr[A, B]
   ): ConditionExpression[A] = {
     def opticToPE[S, A](optic: Optic[S, A]): ProjectionExpression[S, A] =
@@ -152,13 +110,46 @@ object BlocksApi {
           throw new Exception("not a lens")
       }
 
+    def toRelationalConditionExpression[A](
+      left: ConditionExpression.Operand[A, _],
+      right: ConditionExpression.Operand[A, _],
+      operator: SchemaExpr.RelationalOperator
+    ): ConditionExpression[A] =
+      operator match {
+        case SchemaExpr.RelationalOperator.GreaterThanOrEqual =>
+          ConditionExpression.GreaterThanOrEqual(left, right)
+        case SchemaExpr.RelationalOperator.GreaterThan        =>
+          ConditionExpression.GreaterThan(left, right)
+        case SchemaExpr.RelationalOperator.LessThanOrEqual    =>
+          ConditionExpression.LessThanOrEqual(left, right)
+        case SchemaExpr.RelationalOperator.LessThan           =>
+          ConditionExpression.LessThan(left, right)
+        case SchemaExpr.RelationalOperator.Equal              =>
+          ConditionExpression.Equals(left, right)
+        case SchemaExpr.RelationalOperator.NotEqual           =>
+          ConditionExpression.NotEqual(left, right)
+      }
+
+    def toLogicalConditionExpression[A](
+      left: ConditionExpression[A],
+      right: ConditionExpression[A],
+      operator: SchemaExpr.LogicalOperator
+    ): ConditionExpression[A] =
+      operator match {
+        case SchemaExpr.LogicalOperator.And =>
+          ConditionExpression.And(left, right)
+        case SchemaExpr.LogicalOperator.Or  =>
+          ConditionExpression.Or(left, right)
+      }
+
     expr match {
       case SchemaExpr.Relational(SchemaExpr.Optic(o), SchemaExpr.Literal(a, schema), operator) =>
-        val pe                      = opticToPE(o)
         val enc                     = BlocksCodec.encoder(schema)
         val attrVal: AttributeValue = enc(a)
-        val peOperand               = ConditionExpression.Operand.ProjectionExpressionOperand[A](pe)
-        val valueOperand            = ConditionExpression.Operand.ValueOperand[A](attrVal)
+
+        val pe           = opticToPE(o)
+        val peOperand    = ConditionExpression.Operand.ProjectionExpressionOperand[A](pe)
+        val valueOperand = ConditionExpression.Operand.ValueOperand[A](attrVal)
         toRelationalConditionExpression(peOperand, valueOperand, operator)
       case SchemaExpr.Logical(left, right, logicalOperator)                                    =>
         toLogicalConditionExpression(
@@ -174,31 +165,6 @@ object BlocksApi {
 }
 
 /*
-  object Operand {
-
-    private[dynamodb] final case class ProjectionExpressionOperand[From](pe: ProjectionExpression[From, _])
-        extends Operand[From, Any] // TODO: Avi is Any OK?
-    private[dynamodb] final case class ValueOperand[From](value: AttributeValue)
-        extends Operand[From, Any] // TODO: Avi is Any OK?
-    // needs to extend Operand[From, Long]
-    private[dynamodb] final case class Size[-From, To](path: ProjectionExpression[From, To], ev: Sizable[To])
-        extends Operand[From, Long]
-
-  }
-
- */
-
-/*
-private[dynamodb] final case class Equals[From](left: Operand[From, Any], right: Operand[From, Any])
-    extends ConditionExpression[Any]
-private[dynamodb] final case class And[From](left: ConditionExpression[From], right: ConditionExpression[From])
-    extends ConditionExpression[From]
-private[dynamodb] final case class GreaterThan[From](left: Operand[From, Any], right: Operand[From, Any])
-    extends ConditionExpression[Any]
-private[dynamodb] final case class Contains[From](path: ProjectionExpression[From, _], value: AttributeValue)
-    extends ConditionExpression[From]
-
-
 ConditionExpression
 AttributeExists in ConditionExpression$ (zio.dynamodb)
 NotEqual in ConditionExpression$ (zio.dynamodb)
