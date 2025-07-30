@@ -10,6 +10,16 @@ import zio.dynamodb.blocks.BlocksCodecViaDynamic.Person.schema
 import zio.dynamodb.proofs.IsPrimaryKey
 
 /*
+FUNCTIONALITY MATRIX
+
+Expression Type            | ZDDB1              | ZDDB2 |
+---------------------------|--------------------|-------|
+ProjectionExpression       | Schema1 accessors  | Raw Optic + implicit def -> PE |
+Filter/ConditionExpression | ZDDB API           | SchemaExpr + implicit def -> CE  |
+UpdateExpression           | ZDDB API           | SchemaExpr + implicit def ->  |
+Primary Keys               | ZDDB API           | SchemaExpr + implicit def -> PKExpr |
+QueryAPI                   | single API         | ???                               |
+
 low level API vs new SchemaExpr API?- we now have Person.name > ""
 do we keep the 1 API + Phantom Type approach?
 does Blocks macro honour implicit schema transformations in scope?
