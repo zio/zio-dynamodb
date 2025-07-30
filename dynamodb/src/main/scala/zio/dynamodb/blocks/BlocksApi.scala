@@ -118,17 +118,11 @@ object BlocksApi {
   //   def beginsWith(value: String)(implicit ev: Beginnable[String, A]): ConditionExpression[S] =
   //     ConditionExpression.BeginsWith(opticToPE(optic), AttributeValue.String(value))
   // }
-  implicit class SchemaExprSyntax[A](expr: SchemaExpr[A, Boolean])                           {
+  implicit class SchemaExprSyntax[A](expr: SchemaExpr[A, Boolean]) {
     def And(that: SchemaExpr[A, Boolean]): SchemaExpr[A, Boolean] =
       SchemaExpr.Logical[A](expr, that, SchemaExpr.LogicalOperator.And)
     def Or(that: SchemaExpr[A, Boolean]): SchemaExpr[A, Boolean]  =
       SchemaExpr.Logical[A](expr, that, SchemaExpr.LogicalOperator.Or)
-  }
-  implicit class ConditionExpressionAndSchemaExprSyntax[A](condExpr: ConditionExpression[A]) {
-    def And(that: SchemaExpr[A, Boolean]): ConditionExpression[A] =
-      condExpr && schemaExprToConditionExpression(that)
-    // def Or(that: SchemaExpr[A, Boolean]): ConditionExpression[A]  =
-    //   condExpr || schemaExprToConditionExpression(that)
   }
 
   def toRelationalConditionExpression[A](
