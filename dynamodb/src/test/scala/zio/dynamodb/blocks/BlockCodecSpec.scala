@@ -189,48 +189,6 @@ object BlockCodecSpec extends ZIOSpecDefault {
   sealed trait AbstractFieldAntiPattern {
     def id: String
   }
-  object AbstractFieldAntiPattern       {
-    final case class AbstractFieldAntiPattern1(id: String, field1: String) extends AbstractFieldAntiPattern
-    object AbstractFieldAntiPattern1                                       extends CompanionOptics[AbstractFieldAntiPattern1] {
-      implicit val schema: Schema[AbstractFieldAntiPattern1] = Schema.derived
-      val id: Lens[AbstractFieldAntiPattern1, String]        = optic(_.id)
-      val field1: Lens[AbstractFieldAntiPattern1, String]    = optic(_.field1)
-    }
-    final case class AbstractFieldAntiPattern2(id: String, field2: String) extends AbstractFieldAntiPattern
-    object AbstractFieldAntiPattern2                                       extends CompanionOptics[AbstractFieldAntiPattern2] {
-      implicit val schema: Schema[AbstractFieldAntiPattern2] = Schema.derived
-      val id: Lens[AbstractFieldAntiPattern2, String]        = optic(_.id)
-      val field2: Lens[AbstractFieldAntiPattern2, String]    = optic(_.field2)
-    }
-    implicit val schema: Schema[AbstractFieldAntiPattern] = Schema.derived
-  }
-
-  // TODO: looks like nested abstract fields are not supported in ZIO Blocks
-  // sealed trait NestedAbstractFieldAntiPattern {
-  //   def id: String
-  // }
-  // object NestedAbstractFieldAntiPattern       {
-  //   final case class AbstractFieldAntiPattern1(id: String, field1: String) extends NestedAbstractFieldAntiPattern
-  //   object AbstractFieldAntiPattern1                                       extends CompanionOptics[AbstractFieldAntiPattern1] {
-  //     implicit val schema: Schema[AbstractFieldAntiPattern1] = Schema.derived
-  //     val id: Lens[AbstractFieldAntiPattern1, String]        = optic(_.id)
-  //     val field1: Lens[AbstractFieldAntiPattern1, String]    = optic(_.field1)
-  //   }
-  //   sealed trait Nested extends NestedAbstractFieldAntiPattern {
-  //     def id: String
-  //     def foo: String
-  //   }
-  //   object Nested extends CompanionOptics[Nested] {
-  //     final case class Nested1(id: String, foo: String) extends Nested {
-  //       implicit val schema: Schema[Nested1] = Schema.derived
-  //       val id: Lens[Nested1, String]        = optic(_.id)
-  //       val foo: Lens[Nested1, String]       = optic(_.foo)
-  //     }
-  //     implicit val schema: Schema[Nested] = Schema.derived
-  //   }
-
-  //   implicit val schema: Schema[NestedAbstractFieldAntiPattern] = Schema.derived
-  // }
 
   val spec = suite("BlockCodecSpec")(
     suite("Covert a sum type Optic to a PE")(
@@ -358,27 +316,6 @@ object BlockCodecSpec extends ZIOSpecDefault {
       }
     ),
     suite("Encode/Decode")(
-      suite("abstract field anti pattern")(
-        test("encode top level sum type") {
-          val p: AbstractFieldAntiPattern = AbstractFieldAntiPattern.AbstractFieldAntiPattern1("1", "field1")
-          val enc                         = BlocksCodec.encoder[AbstractFieldAntiPattern]
-          val expected                    = AttrMap(
-            "id"              -> "1",
-            "field1"          -> "field1",
-            "antiPatternType" -> "AbstractFieldAntiPattern1"
-          ).toAttributeValue
-          assertTrue(enc(p) == expected)
-        },
-        test("decode top level sum type") {
-          val av  = AttrMap(
-            "id"              -> "1",
-            "field1"          -> "field1",
-            "antiPatternType" -> "AbstractFieldAntiPattern1"
-          ).toAttributeValue
-          val dec = BlocksCodec.decoder[AbstractFieldAntiPattern]
-          assertTrue(dec(av) == Right(AbstractFieldAntiPattern.AbstractFieldAntiPattern1("1", "field1")))
-        }
-      ),
       suite("Encode/Decode Case class with a simple enum")(
         test("encodes simple enum") {
           val p        = Person("1", Cash)
@@ -458,17 +395,6 @@ object BlockCodecSpec extends ZIOSpecDefault {
         }
         x && assertTrue(payment == Cash)
       },
-      // we do not need <some_path>.pe because we have implicit conversion functions
-      // test("optics to PE") {
-      //   import zio.dynamodb.blocks.BlocksApi._
-
-      //   val x: ProjectionExpression[PersonWithName, String] = PersonWithName.name.pe
-      //   val y: ProjectionExpression[PersonWithName, Int]    = PersonWithName.age.pe
-      //   val z: ConditionExpression[PersonWithName]          = y >= 21
-      //   // GreaterThanOrEqual(ProjectionExpressionOperand(age),ValueOperand(Number(21)))
-      //   println(s">>>>>>>>>> x: $x $y $z")
-      //   assertTrue(true)
-      // },
       test("optics to Update expr") {
         import zio.dynamodb.blocks.BlocksApi._
 
@@ -508,15 +434,7 @@ object BlockCodecSpec extends ZIOSpecDefault {
         printConditionExpression(PersonWithCollections.mapAtKey("a") === 1)
         //printConditionExpression(PersonWithCollections.maybeAddresses.listValues === 1)
 
-        // TODO: think about how we can handle updates to optional collections
-        // DDB does not have notion of "Optional" - updates are directly applied to the collection
-        // TODO: create a matrix of optional collection state VS update operations for Raw DDB vs ZIO DDB
-        // "optional" Maps are a special case - raw DDB will create the map if it does not exist
-
-        // TODO: think about how we can go from SchemaExpr -> PE -> UE
-        // Syntax class SchemaExpr with set method
-        //printUpdateExpression(PersonWithName.name.set("John"))
-
+        // LOW LEVEL API
         // we could keep existing PE -> CE FOR ****LOW LEVEL**** API ONLY
         printConditionExpression(
           (ProjectionExpression.$("X").beginsWith("John") || ProjectionExpression.$("X").beginsWith("John"))
@@ -529,35 +447,6 @@ object BlockCodecSpec extends ZIOSpecDefault {
       }
     ),
     suite("partitionKey/sortKey")(
-      // suite("using existing API")(
-      //   test("partitionKey") {
-      //     import zio.dynamodb.blocks.BlocksApi._
-
-      //     val pk: PartitionKey[PersonWithName, String]       = PersonWithName.id.partitionKey
-      //     val expected: PartitionKey[PersonWithName, String] =
-      //       ProjectionExpression
-      //         .MapElement[PersonWithName, String](
-      //           ProjectionExpression.Root,
-      //           "id"
-      //         )
-      //         .partitionKey
-
-      //     assertTrue(pk == expected)
-      //   },
-      //   test("sortKey") {
-      //     import zio.dynamodb.blocks.BlocksApi._
-
-      //     val sk: SortKey[PersonWithName, String]       = PersonWithName.name.sortKey
-      //     val expected: SortKey[PersonWithName, String] =
-      //       ProjectionExpression
-      //         .MapElement[PersonWithName, String](
-      //           ProjectionExpression.Root,
-      //           "name"
-      //         )
-      //         .sortKey
-      //     assertTrue(sk == expected)
-      //   }
-      // ),
       suite("using new API")(
         // TODO: Conjunction/Disjunction of PK with SK
         test("partitionKey equality expression") {
