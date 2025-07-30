@@ -489,7 +489,7 @@ object BlockCodecSpec extends ZIOSpecDefault {
         import zio.dynamodb.blocks.BlocksApi._
 
         val ageSchemaExpr: SchemaExpr[PersonWithName, Boolean]  = PersonWithName.age > 21
-        val ageSchemaExpr2: SchemaExpr[PersonWithName, Boolean] = PersonWithName.age > 21 And PersonWithName.age < 30
+        val ageSchemaExpr2: SchemaExpr[PersonWithName, Boolean] = PersonWithName.age > 21 && PersonWithName.age < 30
         val nameSchemaExpr: ConditionExpression[PersonWithName] =
           PersonWithName.name beginsWith "John" // via syntax class
         println(s"$ageSchemaExpr2 $ageSchemaExpr $nameSchemaExpr")
@@ -497,7 +497,7 @@ object BlockCodecSpec extends ZIOSpecDefault {
         def printConditionExpression[S](c: ConditionExpression[S]): Unit =
           println(s"example condExpr: $c")
 
-        printConditionExpression(PersonWithName.age > 21 Or PersonWithName.age < 30)
+        printConditionExpression(PersonWithName.age > 21 || PersonWithName.age < 30)
 
         // "at" access to collections
         printConditionExpression(PersonWithCollections.addressAt(0) === Address("1"))

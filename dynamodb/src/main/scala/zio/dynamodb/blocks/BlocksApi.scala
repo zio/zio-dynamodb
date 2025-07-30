@@ -111,20 +111,7 @@ object BlocksApi {
   - The space of SchemaExpr is larger than DDB - what is exprn is not supported by DDB?
    */
 
-  /**
-   * DynamoDb specific methods are implemented as extension methods
-   */
-  // implicit class DynamoOpticsSyntax[S, A](optic: Optic[S, A])      {
-  //   def beginsWith(value: String)(implicit ev: Beginnable[String, A]): ConditionExpression[S] =
-  //     ConditionExpression.BeginsWith(opticToPE(optic), AttributeValue.String(value))
-  // }
-  implicit class SchemaExprSyntax[A](expr: SchemaExpr[A, Boolean]) {
-    def And(that: SchemaExpr[A, Boolean]): SchemaExpr[A, Boolean] =
-      SchemaExpr.Logical[A](expr, that, SchemaExpr.LogicalOperator.And)
-    def Or(that: SchemaExpr[A, Boolean]): SchemaExpr[A, Boolean]  =
-      SchemaExpr.Logical[A](expr, that, SchemaExpr.LogicalOperator.Or)
-  }
-
+  // TODO: this seems wrong
   def toRelationalConditionExpression[A](
     left: ConditionExpression.Operand[A, _],
     right: ConditionExpression.Operand[A, _],
