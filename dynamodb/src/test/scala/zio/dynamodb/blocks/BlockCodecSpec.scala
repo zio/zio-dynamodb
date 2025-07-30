@@ -7,7 +7,6 @@ import zio.dynamodb.{
   KeyConditionExpr,
   PartitionKey,
   ProjectionExpression,
-  SortKey,
   UpdateExpression
 }
 import zio.blocks.schema._
@@ -499,8 +498,6 @@ object BlockCodecSpec extends ZIOSpecDefault {
           println(s"example condExpr: $c")
 
         printConditionExpression(PersonWithName.age > 21 Or PersonWithName.age < 30)
-        printConditionExpression(PersonWithName.name.exists Or PersonWithName.age < 30)
-        printConditionExpression(PersonWithName.name beginsWith "John" Or PersonWithName.age < 30)
 
         // "at" access to collections
         printConditionExpression(PersonWithCollections.addressAt(0) === Address("1"))
@@ -520,64 +517,49 @@ object BlockCodecSpec extends ZIOSpecDefault {
         // Syntax class SchemaExpr with set method
         //printUpdateExpression(PersonWithName.name.set("John"))
 
-        /*
-WE LOSE INTEROP WITH $(...) LOW LEVEL API - BUT THAT COULD BE OK
-type mismatch;
- found   : zio.blocks.schema.SchemaExpr[zio.dynamodb.blocks.BlockCodecSpec.PersonWithName,Boolean]
- required: zio.blocks.schema.SchemaExpr[Any,Boolean]
-Note: zio.dynamodb.blocks.BlockCodecSpec.PersonWithName <: Any, but trait SchemaExpr is invariant in type A.
-You may wish to define A as +A instead. (SLS 4.5)bloop
-COULD THIS BE FIXED WITH A LOWER PRIORITY IMPLICIT CONVERSION FROM SCHEMAEXPR TO PROJECTIONEXPRESSION WITH EXPLICIT TYPES??????
-         */
-        // printConditionExpression(
-        //   ProjectionExpression.$("X").beginsWith("John") Or PersonWithName.age < 30
-        // )
+        // we could keep existing PE -> CE FOR ****LOW LEVEL**** API ONLY
+        printConditionExpression(
+          (ProjectionExpression.$("X").beginsWith("John") || ProjectionExpression.$("X").beginsWith("John"))
+        )
+        printConditionExpression(
+          ProjectionExpression.$("X").beginsWith("John") && ProjectionExpression.$("X").beginsWith("John")
+        )
 
         assertTrue(true)
       }
     ),
     suite("partitionKey/sortKey")(
-      suite("using Schema2 expressions")(
-        test("partitionKey") {
-          val pkExpr: SchemaExpr[PersonWithName, Boolean] = (PersonWithName.id === "1") && (PersonWithName.age > 21)
-          println(pkExpr)
-          /*
-          NEXT STEPS
-          - interpret SchemaExpr to PrimaryKeyExpr
-           */
-          assertTrue(true)
-        }
-      ),
-      suite("using existing API")(
-        test("partitionKey") {
-          import zio.dynamodb.blocks.BlocksApi._
+      // suite("using existing API")(
+      //   test("partitionKey") {
+      //     import zio.dynamodb.blocks.BlocksApi._
 
-          val pk: PartitionKey[PersonWithName, String]       = PersonWithName.id.partitionKey
-          val expected: PartitionKey[PersonWithName, String] =
-            ProjectionExpression
-              .MapElement[PersonWithName, String](
-                ProjectionExpression.Root,
-                "id"
-              )
-              .partitionKey
+      //     val pk: PartitionKey[PersonWithName, String]       = PersonWithName.id.partitionKey
+      //     val expected: PartitionKey[PersonWithName, String] =
+      //       ProjectionExpression
+      //         .MapElement[PersonWithName, String](
+      //           ProjectionExpression.Root,
+      //           "id"
+      //         )
+      //         .partitionKey
 
-          assertTrue(pk == expected)
-        },
-        test("sortKey") {
-          import zio.dynamodb.blocks.BlocksApi._
+      //     assertTrue(pk == expected)
+      //   },
+      //   test("sortKey") {
+      //     import zio.dynamodb.blocks.BlocksApi._
 
-          val sk: SortKey[PersonWithName, String]       = PersonWithName.name.sortKey
-          val expected: SortKey[PersonWithName, String] =
-            ProjectionExpression
-              .MapElement[PersonWithName, String](
-                ProjectionExpression.Root,
-                "name"
-              )
-              .sortKey
-          assertTrue(sk == expected)
-        }
-      ),
+      //     val sk: SortKey[PersonWithName, String]       = PersonWithName.name.sortKey
+      //     val expected: SortKey[PersonWithName, String] =
+      //       ProjectionExpression
+      //         .MapElement[PersonWithName, String](
+      //           ProjectionExpression.Root,
+      //           "name"
+      //         )
+      //         .sortKey
+      //     assertTrue(sk == expected)
+      //   }
+      // ),
       suite("using new API")(
+        // TODO: Conjunction/Disjunction of PK with SK
         test("partitionKey equality expression") {
           import zio.dynamodb.blocks.BlocksApi._
 

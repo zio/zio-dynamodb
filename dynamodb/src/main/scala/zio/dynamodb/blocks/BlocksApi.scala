@@ -7,7 +7,6 @@ import zio.dynamodb.KeyConditionExpr.PartitionKeyEquals
 
 import scala.language.implicitConversions
 import zio.dynamodb.blocks.BlocksCodecViaDynamic.Person.schema
-import zio.dynamodb.proofs.IsPrimaryKey
 
 /*
 FUNCTIONALITY MATRIX
@@ -16,9 +15,12 @@ Expression Type            | ZDDB1              | ZDDB2 |
 ---------------------------|--------------------|-------|
 ProjectionExpression       | Schema1 accessors  | Raw Optic + implicit def -> PE |
 Filter/ConditionExpression | ZDDB API           | SchemaExpr + implicit def -> CE  |
-UpdateExpression           | ZDDB API           | SchemaExpr + implicit def ->  |
+UpdateExpression           | ZDDB API           | SchemaExpr + implicit def -> UE |
 Primary Keys               | ZDDB API           | SchemaExpr + implicit def -> PKExpr |
 QueryAPI                   | single API         | ???                               |
+
+TODO
+- Create DynamoDBQuery2
 
 low level API vs new SchemaExpr API?- we now have Person.name > ""
 do we keep the 1 API + Phantom Type approach?
@@ -58,16 +60,6 @@ object BlocksApi {
   ): ConditionExpression[A] =
     schemaExprToConditionExpression(expr)
 
-  def opticToPE[S, A](optic: Optic[S, A]): ProjectionExpression[S, A] =
-    optic match {
-      case l: Lens[S, A]     =>
-        OpticToPE.pe(l)
-      case o: Optional[S, A] =>
-        OpticToPE.pe(o)
-      case _                 =>
-        throw new Exception("not a lens")
-    }
-
   implicit class OptionalToProjectionExpression[From, To: ToAttributeValue](optional: Optional[From, To]) {
     def set(a: To): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
@@ -86,28 +78,28 @@ object BlocksApi {
         UpdateExpression.SetOperand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(a))
       )
 
-    /*
-    TODO: we need to check at RUNTIME if the field is TOP level
-     */
-    def partitionKey(implicit ev: IsPrimaryKey[To]): PartitionKey[From, To] = {
-      val _  = ev
-      val pe = OpticToPE.pe(lens)
-      pe match {
-        case ProjectionExpression.MapElement(_, key) => PartitionKey[From, To](key)
-        case _                                       => throw new IllegalArgumentException("Not a partition key") // should not happen
-      }
-    }
-    /*
-    TODO: we need to check at RUNTIME if the field is TOP level
-     */
-    def sortKey(implicit ev: IsPrimaryKey[To]): SortKey[From, To] = {
-      val _  = ev
-      val pe = OpticToPE.pe(lens)
-      pe match {
-        case ProjectionExpression.MapElement(_, key) => SortKey[From, To](key)
-        case _                                       => throw new IllegalArgumentException("Not a sort key") // should not happen
-      }
-    }
+    // /*
+    // TODO: we need to check at RUNTIME if the field is TOP level
+    //  */
+    // def partitionKey(implicit ev: IsPrimaryKey[To]): PartitionKey[From, To] = {
+    //   val _  = ev
+    //   val pe = OpticToPE.pe(lens)
+    //   pe match {
+    //     case ProjectionExpression.MapElement(_, key) => PartitionKey[From, To](key)
+    //     case _                                       => throw new IllegalArgumentException("Not a partition key") // should not happen
+    //   }
+    // }
+    // /*
+    // TODO: we need to check at RUNTIME if the field is TOP level
+    //  */
+    // def sortKey(implicit ev: IsPrimaryKey[To]): SortKey[From, To] = {
+    //   val _  = ev
+    //   val pe = OpticToPE.pe(lens)
+    //   pe match {
+    //     case ProjectionExpression.MapElement(_, key) => SortKey[From, To](key)
+    //     case _                                       => throw new IllegalArgumentException("Not a sort key") // should not happen
+    //   }
+    // }
 
   }
 
@@ -135,8 +127,8 @@ object BlocksApi {
   implicit class ConditionExpressionAndSchemaExprSyntax[A](condExpr: ConditionExpression[A]) {
     def And(that: SchemaExpr[A, Boolean]): ConditionExpression[A] =
       condExpr && schemaExprToConditionExpression(that)
-    def Or(that: SchemaExpr[A, Boolean]): ConditionExpression[A]  =
-      condExpr || schemaExprToConditionExpression(that)
+    // def Or(that: SchemaExpr[A, Boolean]): ConditionExpression[A]  =
+    //   condExpr || schemaExprToConditionExpression(that)
   }
 
   def toRelationalConditionExpression[A](
@@ -171,29 +163,22 @@ object BlocksApi {
         ConditionExpression.Or(left, right)
     }
 
-  /*
-  KeyConditionExpr
-    ExtendedCompositePrimaryKeyExpr in KeyConditionExpr$ (zio.dynamodb)
-    PrimaryKeyExpr in KeyConditionExpr$ (zio.dynamodb)
-        CompositePrimaryKeyExpr in KeyConditionExpr$ (zio.dynamodb)
-        PartitionKeyEquals in KeyConditionExpr$ (zio.dynamodb)
-   */
-  private def topLevelLensFieldName[S, A](lens: Lens[S, A]): Option[String] = {
-    val nodes = lens.toDynamic.nodes
-    if (nodes.length != 1)
-      None
-    else
-      nodes(0) match {
-        case DynamicOptic.Node.Field(name) =>
-          Some(name)
-        case _                             => None
-      }
-
-  }
-
   def schemaExprToPartitionKeyExpr[S, A](
     expr: SchemaExpr[S, A]
-  ): KeyConditionExpr.PrimaryKeyExpr[S] =
+  ): KeyConditionExpr.PrimaryKeyExpr[S] = {
+    def topLevelLensFieldName[S, A](lens: Lens[S, A]): Option[String] = {
+      val nodes = lens.toDynamic.nodes
+      if (nodes.length != 1)
+        None
+      else
+        nodes(0) match {
+          case DynamicOptic.Node.Field(name) =>
+            Some(name)
+          case _                             => None
+        }
+
+    }
+
     expr match {
       // simplest use case - a single partition key at the top level with an equality op to a literal value
       // TODO: Composite use case
@@ -214,10 +199,21 @@ object BlocksApi {
       case expr =>
         throw new Exception(s"unexpected SchemaExpr: $expr")
     }
+  }
 
   def schemaExprToConditionExpression[A, B](
     expr: SchemaExpr[A, B]
-  ): ConditionExpression[A] =
+  ): ConditionExpression[A] = {
+    def opticToPE[S, A](optic: Optic[S, A]): ProjectionExpression[S, A] =
+      optic match {
+        case l: Lens[S, A]     =>
+          OpticToPE.pe(l)
+        case o: Optional[S, A] =>
+          OpticToPE.pe(o)
+        case _                 =>
+          throw new Exception("not a lens")
+      }
+
     expr match {
       case SchemaExpr.Relational(SchemaExpr.Optic(o), SchemaExpr.Literal(a, schema), operator) =>
         val pe                      = opticToPE(o)
@@ -235,6 +231,7 @@ object BlocksApi {
       case expr                                                                                =>
         throw new Exception(s"unexpected SchemaExpr: $expr")
     }
+  }
 
 }
 
