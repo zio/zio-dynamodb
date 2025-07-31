@@ -1,7 +1,6 @@
 package zio.dynamodb
 
 import zio.Chunk
-import zio.schema.Schema
 import scala.collection.immutable.{ Map, Set }
 
 trait ToAttributeValue[A] {
@@ -83,9 +82,9 @@ trait ToAttributeValueLowPriorityImplicits0 extends ToAttributeValueLowPriorityI
 trait ToAttributeValueLowPriorityImplicits1 {
   implicit val nullToAttributeValue: ToAttributeValue[Null] = (_: Null) => AttributeValue.Null
 
-  implicit def schemaToAttributeValue[A](implicit schema: Schema[A]): ToAttributeValue[A] =
+  implicit def schemaToAttributeValue[A: SchemaCodec]: ToAttributeValue[A] =
     (a: A) => {
-      val enc = Codec.encoder(schema)
+      val enc = SchemaCodec[A].encoder
       enc(a)
     }
 
