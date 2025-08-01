@@ -4,6 +4,8 @@ import zio.dynamodb.{
   AttrMap,
   AttributeValue,
   ConditionExpression,
+  DynamoDBExecutor,
+  DynamoDBQuery,
   KeyConditionExpr,
   PartitionKey,
   ProjectionExpression,
@@ -39,30 +41,31 @@ object BlockCodecSpec extends ZIOSpecDefault {
   }
 
   sealed trait Payment // mixture of case objects and case classes
-  case object Cash                   extends Payment                    {
-    implicit val schema: Schema[Cash.type] = Schema.derived
-  }
-  case object CreditCard             extends Payment                    {
-    implicit val schema: Schema[CreditCard.type] = Schema.derived
-  }
-  final case class DebitCard(i: Int) extends Payment
-  object DebitCard                   extends CompanionOptics[DebitCard] {
-    implicit val schema: Schema[DebitCard] = Schema.derived
-    val i: Lens[DebitCard, Int]            = optic(_.i)
-  }
-  object Payment                     extends CompanionOptics[Payment]   {
-    implicit val schema: Schema[Payment]            = Schema.derived
+
+  object Payment extends CompanionOptics[Payment] {
+    case object Cash                   extends Payment                    {
+      implicit val schema: Schema[Cash.type] = Schema.derived
+    }
+    case object CreditCard             extends Payment                    {
+      implicit val schema: Schema[CreditCard.type] = Schema.derived
+    }
+    final case class DebitCard(i: Int) extends Payment
+    object DebitCard                   extends CompanionOptics[DebitCard] {
+      implicit val schema: Schema[DebitCard] = Schema.derived
+      val i: Lens[DebitCard, Int]            = optic(_.i)
+    }
+    implicit val schema: Schema[Payment] = Schema.derived
     val cash: Prism[Payment, Cash.type]             = optic(_.when[Cash.type])
     val creditCard: Prism[Payment, CreditCard.type] = optic(_.when[CreditCard.type])
     val debitCard: Prism[Payment, DebitCard]        = optic(_.when[DebitCard])
   }
   final case class Person(id: String, payment: Payment)
-  object Person                      extends CompanionOptics[Person]    {
+  object Person  extends CompanionOptics[Person]  {
     implicit val schema: Schema[Person]        = Schema.derived
     val id: Lens[Person, String]               = optic(_.id)
     val payment: Lens[Person, Payment]         = optic(_.payment)
     val debitCardFieldI: Optional[Person, Int] =
-      optic(_.payment.when[DebitCard].i) // example of digging into concrete sum type - NICE!!!!!
+      optic(_.payment.when[Payment.DebitCard].i) // example of digging into concrete sum type - NICE!!!!!
   }
 
   final case class PersonWithName(id: String, payment: Payment, name: String = "default", age: Int = 21)
@@ -181,16 +184,26 @@ object BlockCodecSpec extends ZIOSpecDefault {
     val payment: Lens[Person3, Payment3] = optic(_.payment)
   }
 
-  // see if abstract field anti pattern is possible to implement
-  @Modifier.config(
-    "discriminatorName",
-    "antiPatternType"
-  ) // TODO: see if we can add modifier programmatically to derived schema
-  sealed trait AbstractFieldAntiPattern {
-    def id: String
-  }
-
   val spec = suite("BlockCodecSpec")(
+    suite("DynamoDBQuery's with Schema2")(
+      test("put") {
+        import zio.dynamodb.blocks.BlocksApi._
+
+        final case class Person2(id: String, name: String)
+        object Person2 extends CompanionOptics[Person2] {
+          implicit val schema: Schema[Person2] = Schema.derived
+          val id: Lens[Person2, String]        = optic(_.id)
+          val name: Lens[Person2, String]      = optic(_.name)
+        }
+
+        val person = Person2("1", "Jones")
+        for {
+          // here we are going from blocks SchemaExpr to ProjectionExpression Person2.id -> PE, PE.exists (a ConditionExpression)
+          putQuery <- DynamoDBQuery.put("table1", person).where(Person2.id.exists).execute
+          found    <- DynamoDBQuery.get("table1")(Person2.id === "1").execute.absolve
+        } yield assertTrue(found == person)
+      }.provide(DynamoDBExecutor.test("table1" -> "id"))
+    ),
     suite("Covert a sum type Optic to a PE")(
       test("non top level Optic") {
         val debitCardFieldPE: ProjectionExpression[Person, Int] = OpticToPE.pe(Person.debitCardFieldI)
@@ -318,7 +331,7 @@ object BlockCodecSpec extends ZIOSpecDefault {
     suite("Encode/Decode")(
       suite("Encode/Decode Case class with a simple enum")(
         test("encodes simple enum") {
-          val p        = Person("1", Cash)
+          val p        = Person("1", Payment.Cash)
           val enc      = BlocksCodec.encoder[Person]
           val expected = AttrMap("id" -> "1", "payment" -> "Cash").toAttributeValue
           assertTrue(enc(p) == expected)
@@ -326,7 +339,7 @@ object BlockCodecSpec extends ZIOSpecDefault {
         test("decodes simple enum") {
           val av  = AttrMap("id" -> "1", "payment" -> "Cash").toAttributeValue
           val dec = BlocksCodec.decoder[Person]
-          assertTrue(dec(av) == Right(Person("1", Cash)))
+          assertTrue(dec(av) == Right(Person("1", Payment.Cash)))
         }
       ),
       suite("Encode/Decode Variant that is a product/record without discriminatorName modifier")(
@@ -382,18 +395,18 @@ object BlockCodecSpec extends ZIOSpecDefault {
     ), // end Encode/Decode
     suite("explore Optics")(
       test("use lens") {
-        val p  = PersonWithName("1", Cash)
+        val p  = PersonWithName("1", Payment.Cash)
         val id = PersonWithName.id.get(p)
         assertTrue(id == "1")
       },
       test("use prism") {
-        val p                = PersonWithName("1", Cash)
+        val p                = PersonWithName("1", Payment.Cash)
         val payment: Payment = PersonWithName.payment.get(p)
         val x: TestResult    = Payment.cash.getOption(payment) match {
-          case Some(c) => assertTrue(c == Cash)
+          case Some(c) => assertTrue(c == Payment.Cash)
           case None    => assertTrue(false)
         }
-        x && assertTrue(payment == Cash)
+        x && assertTrue(payment == Payment.Cash)
       },
       test("optics to Update expr") {
         import zio.dynamodb.blocks.BlocksApi._

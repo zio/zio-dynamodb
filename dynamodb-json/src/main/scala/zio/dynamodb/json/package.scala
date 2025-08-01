@@ -33,9 +33,9 @@ package object json {
       .fromAttributeValue(AttributeValue.encode(a))
       .getOrElse(throw new Exception(s"error encoding $a"))
 
-  private def fromItem[A: Schema](item: Item): Either[ItemError, A] = {
+  private def fromItem[A: SchemaCodec](item: Item): Either[ItemError, A] = {
     val av = ToAttributeValue.attrMapToAttributeValue.toAttributeValue(item)
-    av.decode(Schema[A])
+    av.decode(SchemaCodec[A])
   }
 
 }

@@ -4,12 +4,6 @@ import zio.dynamodb.{ AttrMap }
 import zio.blocks.schema._
 import zio.test._
 
-/*
-OPTICS
-- optional fields and navigation
-- Collections - List, Map, Set
-
- */
 object AbstractFieldAntiPatternSpec extends ZIOSpecDefault {
 
   // see if abstract field anti pattern is possible to implement
@@ -21,12 +15,14 @@ object AbstractFieldAntiPatternSpec extends ZIOSpecDefault {
     def id: String
   }
   object AbstractFieldAntiPattern       {
+    // direct concrete implementation, no intermediate abstract classes
     final case class AbstractFieldAntiPattern1(id: String, field1: String) extends AbstractFieldAntiPattern
     object AbstractFieldAntiPattern1                                       extends CompanionOptics[AbstractFieldAntiPattern1] {
       implicit val schema: Schema[AbstractFieldAntiPattern1] = Schema.derived
       val id: Lens[AbstractFieldAntiPattern1, String]        = optic(_.id)
       val field1: Lens[AbstractFieldAntiPattern1, String]    = optic(_.field1)
     }
+    // direct concrete implementation, no intermediate abstract classes
     final case class AbstractFieldAntiPattern2(id: String, field2: String) extends AbstractFieldAntiPattern
     object AbstractFieldAntiPattern2                                       extends CompanionOptics[AbstractFieldAntiPattern2] {
       implicit val schema: Schema[AbstractFieldAntiPattern2] = Schema.derived
