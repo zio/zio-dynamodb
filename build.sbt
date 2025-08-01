@@ -31,8 +31,6 @@ inThisBuild(
 addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
 
-//resolvers += Resolver.sonatypeCentralSnapshots
-
 val zioVersion       = "2.1.18"
 val zioAwsVersion    = "7.28.29.13"
 val zioSchemaVersion = "1.7.3"
