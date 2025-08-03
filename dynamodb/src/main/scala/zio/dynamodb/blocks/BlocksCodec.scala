@@ -16,10 +16,34 @@ object BlocksCodec {
   // type Encoder[A]  = A => AttributeValue
   // type Decoder[+A] = AttributeValue => Either[ItemError, A]
 
+  private val stringEncoder = encoder(Schema[String])
+
+  private def nativeMapEncoder[A, V](encoderV: Encoder[V]) =
+    (a: A) => {
+      val m = a.asInstanceOf[Map[String, V]]
+      AttributeValue.Map(m.map {
+        case (k, v) =>
+          (stringEncoder(k), encoderV(v))
+      }.asInstanceOf[Map[AttributeValue.String, AttributeValue]])
+    }
+
+  def mapEncoder[K, V](ks: Reflect.Bound[K], vs: Reflect.Bound[V]): Encoder[Map[K, V]] =
+    ks match {
+      case Reflect.Primitive(_: PrimitiveType.String, _, _, _, _) =>
+        nativeMapEncoder(reflectEncoder(vs))
+      case Reflect.Deferred(value)                                =>
+        mapEncoder(value(), vs)
+      case _                                                      =>
+        throw new Exception("TODO: nonNativeMapEncoder(encoder(ks), encoder(vs))")
+    }
+
   def reflectEncoder[A](reflect: Reflect.Bound[A]): Encoder[A] =
     reflect match {
       case Reflect.Primitive(primitiveType, _, _, _, _)          =>
         primitiveEncoder(primitiveType)
+      case Reflect.Map(key, value, _, _, _, _)                   =>
+        mapEncoder(key, value).asInstanceOf[Encoder[A]] // TODO: handle non-native maps
+
       case r @ Reflect.Record(fields, _, _, _, modifiers)        =>
         // TODO: Extract recordEncoder
         (a: A) => {
