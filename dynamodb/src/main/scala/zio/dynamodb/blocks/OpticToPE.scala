@@ -81,6 +81,7 @@ object OpticToPE {
       prevPe = nextPe
       idx += 1
     }
+    println(s"OpticToPE: $optional -> $prevPe")
     prevPe.asInstanceOf[ProjectionExpression[S, A]]
   }
 

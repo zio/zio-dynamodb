@@ -31,7 +31,7 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(found == person.copy(name = "Smith") && foundAfterDelete.isEmpty)
       }
     },
-    test("optional Map field update") {
+    test("mandatory Map field update") {
       withSingleIdKeyTable { tableName =>
         import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
 
@@ -47,6 +47,27 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
         for {
           _    <- DynamoDBQuery.put(tableName, person).execute
           _    <- DynamoDBQuery.update(tableName)(Person.id === "1")(Person.mapAtKey("key1").set(42)).execute
+          item <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
+          _     = println(s"Item after put: $item")
+        } yield assertTrue(true)
+      }
+    },
+    test("optional Map field update") {
+      withSingleIdKeyTable { tableName =>
+        import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
+
+        final case class Person(id: String, maybeMap: Option[Map[String, Int]] = None)
+        object Person extends CompanionOptics[Person] {
+          implicit val schema: Schema[Person]                   = Schema.derived
+          val id: Lens[Person, String]                          = optic(_.id)
+          def maybeMapAtKey(key: String): Optional[Person, Int] =
+            optic(_.maybeMap.when[Some[Map[String, Int]]].value.atKey(key))
+        }
+
+        val person = Person("1", Some(Map()))
+        for {
+          _    <- DynamoDBQuery.put(tableName, person).execute
+          _    <- DynamoDBQuery.update(tableName)(Person.id === "1")(Person.maybeMapAtKey("key1").set(42)).execute
           item <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
           _     = println(s"Item after put: $item")
         } yield assertTrue(true)
