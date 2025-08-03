@@ -54,7 +54,12 @@ object BlocksCodec {
               val fieldValue       = lens.get(a)
               val enc              = reflectEncoder(field.value)
               val av               = enc(fieldValue.asInstanceOf[field.value.Structure])
-              acc + (fieldName -> av) // TODO: use MapBuilder
+              field.value match {
+                case Reflect.Variant(_, typeName, _, _, _) if typeName.name == "Option" && fieldValue == None =>
+                  acc
+                case _                                                                                        =>
+                  acc + (fieldName -> av)
+              }
           }
           avMap
         }
@@ -64,10 +69,12 @@ object BlocksCodec {
           val case_              = cases(idx)
           val av: AttributeValue = case_.value match {
             case Reflect.Record(fields, _, _, _, _) => // "default" vs "compact" encoding
-              if (fields.isEmpty)
+              if (fields.isEmpty) {
+                println(s"1 XXXXXXXXXXXX")
                 // empty fields implies a case object
                 AttributeValue.String(case_.name)
-              else {
+              } else {
+                println(s"2 XXXXXXXXXXXX")
                 // TODO: Consider a NoDiscriminator modifier as well
                 val disc: Option[String] = maybeDiscriminatorNameModifier(variantModifiers)
                 val av: AttributeValue   = reflectEncoder(case_.value)(a.asInstanceOf[case_.value.Structure])
@@ -81,6 +88,7 @@ object BlocksCodec {
                     }
                     AttributeValue.Map(newMap)
                   case None           =>
+                    println(s"3 XXXXXXXXXXXX")
                     // tagged Variant encoding
                     AttributeValue.Map(case_.name, av)
                 }
