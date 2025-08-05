@@ -18,6 +18,24 @@ object BlocksCodec {
 
   private val stringEncoder = encoder(Schema[String])
 
+  def maybeDiscriminatorNameModifier(
+    modifiers: Seq[Modifier.Variant]
+  ): Option[String] =
+    modifiers.collectFirst {
+      case Modifier.config("discriminatorName", value) => value
+    }
+
+  // TODO: handle all primitive types
+  def primitiveEncoder[A](primitiveType: PrimitiveType[A]): Encoder[A] =
+    (a: A) => {
+//      println(s"Encoding $a $primitiveType")
+      primitiveType match {
+        case PrimitiveType.String(_) => AttributeValue.String(a.toString)
+        case PrimitiveType.Int(_)    => AttributeValue.Number(BigDecimal(a.toString))
+        case _                       => throw new Exception(s"Could not encode $a of type $primitiveType")
+      }
+    }
+
   private def nativeMapEncoder[A, V](encoderV: Encoder[V]) =
     (a: A) => {
       val m = a.asInstanceOf[Map[String, V]]
@@ -44,25 +62,26 @@ object BlocksCodec {
       case Reflect.Map(key, value, _, _, _, _)                   =>
         mapEncoder(key, value).asInstanceOf[Encoder[A]] // TODO: handle non-native maps
 
-      case r @ Reflect.Record(fields, _, _, _, modifiers)        =>
-        // TODO: Extract recordEncoder
-        (a: A) => {
-          val avMap = fields.foldLeft[AttributeValue.Map](AttributeValue.Map.empty) {
-            case (acc: AttributeValue.Map, field) =>
-              val fieldName        = field.name
-              val lens: Lens[A, _] = r.lensByName(fieldName).get // TODO: handle error
-              val fieldValue       = lens.get(a)
-              val enc              = reflectEncoder(field.value)
-              val av               = enc(fieldValue.asInstanceOf[field.value.Structure])
-              field.value match {
-                case Reflect.Variant(_, typeName, _, _, _) if typeName.name == "Option" && fieldValue == None =>
-                  acc
-                case _                                                                                        =>
-                  acc + (fieldName -> av)
-              }
-          }
-          avMap
+      case r @ Reflect.Record(fields, _, _, _, _)                =>
+//        recordEncoder(r) // TODO: handle empty records (case objects)
+      // TODO: Extract recordEncoder
+      (a: A) => {
+        val avMap = fields.foldLeft[AttributeValue.Map](AttributeValue.Map.empty) {
+          case (acc: AttributeValue.Map, field) =>
+            val fieldName        = field.name
+            val lens: Lens[A, _] = r.lensByName(fieldName).get // TODO: handle error
+            val fieldValue       = lens.get(a)
+            val enc              = reflectEncoder(field.value)
+            val av               = enc(fieldValue.asInstanceOf[field.value.Structure])
+            field.value match {
+              case Reflect.Variant(_, typeName, _, _, _) if typeName.name == "Option" && fieldValue == None =>
+                acc
+              case _                                                                                        =>
+                acc + (fieldName -> av)
+            }
         }
+        avMap
+      }
       case v @ Reflect.Variant(cases, _, _, _, variantModifiers) =>
         (a: A) =>
           val idx                = v.discriminator.discriminate(a)
@@ -101,24 +120,6 @@ object BlocksCodec {
         val enc = reflectEncoder(value())
         (a: A) => enc(a)
       case r                                                     => throw new Exception(s"Could not encode $r just yet")
-    }
-
-  def maybeDiscriminatorNameModifier(
-    modifiers: Seq[Modifier.Variant]
-  ): Option[String] =
-    modifiers.collectFirst {
-      case Modifier.config("discriminatorName", value) => value
-    }
-
-  // TODO: handle all primitive types
-  def primitiveEncoder[A](primitiveType: PrimitiveType[A]): Encoder[A] =
-    (a: A) => {
-//      println(s"Encoding $a $primitiveType")
-      primitiveType match {
-        case PrimitiveType.String(_) => AttributeValue.String(a.toString)
-        case PrimitiveType.Int(_)    => AttributeValue.Number(BigDecimal(a.toString))
-        case _                       => throw new Exception(s"Could not encode $a of type $primitiveType")
-      }
     }
 
   def encoder[A](implicit schema: Schema[A]): Encoder[A] = reflectEncoder(schema.reflect)
