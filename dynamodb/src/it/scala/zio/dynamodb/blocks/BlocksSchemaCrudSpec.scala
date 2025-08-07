@@ -7,6 +7,7 @@ import zio.dynamodb.PrimaryKey
 import zio.dynamodb.syntax._
 
 import zio.blocks.schema._
+import zio.dynamodb.Item
 
 object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
   val spec = suite("Blocks Schema Crud Spec")( // running against DynamoDB in LocalStack
@@ -64,7 +65,7 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
             optic(_.maybeMap.when[Some[Map[String, Int]]].value.atKey(key))
         }
 
-        val person = Person("1")
+        val person = Person("1", Some(Map()))
         for {
           _    <- DynamoDBQuery.put(tableName, person).execute
           _    <- DynamoDBQuery.update(tableName)(Person.id === "1")(Person.maybeMapAtKey("key1").set(42)).execute
@@ -75,7 +76,7 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
     },
     test("optional Int field update") {
       withSingleIdKeyTable { tableName =>
-//        import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
+        import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
 
         final case class Person(id: String, maybeInt: Option[Int] = None)
         object Person extends CompanionOptics[Person] {
@@ -87,11 +88,15 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
 
         val person = Person("1")
         for {
-          _    <- DynamoDBQuery.put(tableName, person).execute
-//          _    <- DynamoDBQuery.update(tableName)(Person.id === "1")(Person.maybeInt.set(42)).execute
-          item <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
-          _     = println(s"Item after put: $item")
-        } yield assertTrue(true)
+          _          <- DynamoDBQuery.put(tableName, person).execute
+          preUpdate  <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
+          _          <- DynamoDBQuery.update(tableName)(Person.id === "1")(Person.maybeInt.set(42)).execute
+          postUpdate <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
+          _           = println(s"Item after put: $postUpdate")
+        } yield assertTrue(
+          preUpdate == Some(Item("id" -> "1")),
+          postUpdate == Some(Item("id" -> "1", "maybeInt" -> 42))
+        )
       }
     }
   ) @@ TestAspect.nondeterministic
