@@ -95,7 +95,10 @@ object BlocksCodec {
           val case_              = cases(idx)
           val av: AttributeValue = case_.value match {
             case Reflect.Record(fields, _, _, _, _) => // "default" vs "compact" encoding. Variant instance is a Record
-              if (case_.name == "Some" && fields.length == 1) { // TODO: do more checks for Some here like package name
+              if (fields.isEmpty) // TODO: Note "None" is a case object
+                // empty fields implies a case object
+                AttributeValue.String(case_.name)
+              else if  (case_.name == "Some" && fields.length == 1) { // TODO: do more checks for Some here like package name
                 val valueField = fields(0)
                 // there is no native DDB Option type, so we need to dig into the schema of the "value" field in "Some"
                 a match {
@@ -108,10 +111,7 @@ object BlocksCodec {
                   case _           =>
                     throw new Exception(s"Expected Some but found None for case ${case_.name}")
                 }
-              } else if (fields.isEmpty) // TODO: Note "None" is a case object
-                // empty fields implies a case object
-                AttributeValue.String(case_.name)
-              else {
+              } else {
                 // TODO: Consider a NoDiscriminator modifier as well
                 val disc: Option[String] = maybeDiscriminatorNameModifier(variantModifiers)
                 val av: AttributeValue   = reflectEncoder(case_.value)(a.asInstanceOf[case_.value.Structure])
@@ -189,6 +189,7 @@ object BlocksCodec {
                 Left(DecodingError(s"Could not decode $av just yet"))
             }
       case v @ Reflect.Variant(cases, _, _, _, variantModifiers) =>
+        // TODO: decode Options
         maybeDiscriminatorNameModifier(variantModifiers) match { // TODO: Consider a NoDiscriminator modifier as well
           case Some(discName) =>
             (av: AttributeValue) =>

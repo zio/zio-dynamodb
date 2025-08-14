@@ -122,7 +122,7 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
         )
       }
     },
-    test("optional Int field put") {
+    test("optional Int field put of Some") {
       withSingleIdKeyTable { tableName =>
         final case class Person(id: String, maybeInt: Option[Int] = None)
         object Person extends CompanionOptics[Person] {
@@ -138,6 +138,25 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
           afterPut <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
         } yield assertTrue(
           afterPut == Some(Item("id" -> "1", "maybeInt" -> 42))
+        )
+      }
+    },
+    test("optional Int field put of None") {
+      withSingleIdKeyTable { tableName =>
+        final case class Person(id: String, maybeInt: Option[Int] = None)
+        object Person extends CompanionOptics[Person] {
+          implicit val schema: Schema[Person] = Schema.derived
+          val id: Lens[Person, String]        = optic(_.id)
+          val maybeInt: Optional[Person, Int] =
+            optic(_.maybeInt.when[Some[Int]].value)
+        }
+
+        val person = Person("1", None)
+        for {
+          _        <- DynamoDBQuery.put(tableName, person).execute
+          afterPut <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
+        } yield assertTrue(
+          afterPut == Some(Item("id" -> "1"))
         )
       }
     }
