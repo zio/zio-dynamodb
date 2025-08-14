@@ -28,7 +28,6 @@ object BlocksCodec {
   // TODO: handle all primitive types
   def primitiveEncoder[A](primitiveType: PrimitiveType[A]): Encoder[A] =
     (a: A) => {
-//      println(s"Encoding $a $primitiveType")
       primitiveType match {
         case PrimitiveType.String(_) => AttributeValue.String(a.toString)
         case PrimitiveType.Int(_)    => AttributeValue.Number(BigDecimal(a.toString))
@@ -38,11 +37,12 @@ object BlocksCodec {
 
   private def nativeMapEncoder[A, V](encoderV: Encoder[V]) =
     (a: A) => {
-      val m = a.asInstanceOf[Map[String, V]]
-      AttributeValue.Map(m.map {
+      val m  = a.asInstanceOf[Map[String, V]]
+      val av = AttributeValue.Map(m.map {
         case (k, v) =>
           (stringEncoder(k), encoderV(v))
       }.asInstanceOf[Map[AttributeValue.String, AttributeValue]])
+      av
     }
 
   def mapEncoder[K, V](ks: Reflect.Bound[K], vs: Reflect.Bound[V]): Encoder[Map[K, V]] =
@@ -55,6 +55,12 @@ object BlocksCodec {
         throw new Exception("TODO: nonNativeMapEncoder(encoder(ks), encoder(vs))")
     }
 
+  // SCHEMA V1
+  // private def optionalEncoder[A](encoder: Encoder[A]): Encoder[Option[A]] = {
+  //   case None        => AttributeValue.Null
+  //   case Some(value) => encoder(value)
+  // }
+
   def reflectEncoder[A](reflect: Reflect.Bound[A]): Encoder[A] =
     reflect match {
       case Reflect.Primitive(primitiveType, _, _, _, _)          =>
@@ -64,36 +70,48 @@ object BlocksCodec {
 
       case r @ Reflect.Record(fields, _, _, _, _)                =>
 //        recordEncoder(r) // TODO: handle empty records (case objects)
-      // TODO: Extract recordEncoder
-      (a: A) => {
-        val avMap = fields.foldLeft[AttributeValue.Map](AttributeValue.Map.empty) {
-          case (acc: AttributeValue.Map, field) =>
-            val fieldName        = field.name
-            val lens: Lens[A, _] = r.lensByName(fieldName).get // TODO: handle error
-            val fieldValue       = lens.get(a)
-            val enc              = reflectEncoder(field.value)
-            val av               = enc(fieldValue.asInstanceOf[field.value.Structure])
-            field.value match {
-              case Reflect.Variant(_, typeName, _, _, _) if typeName.name == "Option" && fieldValue == None =>
-                acc
-              case _                                                                                        =>
-                acc + (fieldName -> av)
-            }
+        // TODO: Extract recordEncoder
+        (a: A) => {
+          val avMap = fields.foldLeft[AttributeValue.Map](AttributeValue.Map.empty) {
+            case (acc: AttributeValue.Map, field) =>
+              val fieldName        = field.name
+              val lens: Lens[A, _] = r.lensByName(fieldName).get // TODO: handle error
+              val fieldValue       = lens.get(a)                 // if "a" is a Some(x) we need to deal with x and schema of x somehow
+              val enc              = reflectEncoder(field.value)
+              val av               = enc(fieldValue.asInstanceOf[field.value.Structure])
+              field.value match {
+                case Reflect.Variant(_, typeName, _, _, _) if typeName.name == "Option" && fieldValue == None =>
+                  acc
+                case _                                                                                        =>
+                  acc + (fieldName -> av)
+              }
+          }
+          avMap
         }
-        avMap
-      }
+      // TODO: we could extract to a function and pass in Optionality context here
       case v @ Reflect.Variant(cases, _, _, _, variantModifiers) =>
         (a: A) =>
           val idx                = v.discriminator.discriminate(a)
           val case_              = cases(idx)
           val av: AttributeValue = case_.value match {
-            case Reflect.Record(fields, _, _, _, _) => // "default" vs "compact" encoding
-              if (fields.isEmpty) {
-                println(s"1 XXXXXXXXXXXX")
+            case Reflect.Record(fields, _, _, _, _) => // "default" vs "compact" encoding. Variant instance is a Record
+              if (case_.name == "Some" && fields.length == 1) { // TODO: do more checks for Some here like package name
+                val valueField = fields(0)
+                // there is no native DDB Option type, so we need to dig into the schema of the "value" field in "Some"
+                a match {
+                  case Some(value) =>
+                    valueField match {
+                      case Term(name, value2, _, _) =>
+                        val enc = reflectEncoder(value2)
+                        enc(value.asInstanceOf[value2.Structure])
+                    }
+                  case _           =>
+                    throw new Exception(s"Expected Some but found None for case ${case_.name}")
+                }
+              } else if (fields.isEmpty) // TODO: Note "None" is a case object
                 // empty fields implies a case object
                 AttributeValue.String(case_.name)
-              } else {
-                println(s"2 XXXXXXXXXXXX")
+              else {
                 // TODO: Consider a NoDiscriminator modifier as well
                 val disc: Option[String] = maybeDiscriminatorNameModifier(variantModifiers)
                 val av: AttributeValue   = reflectEncoder(case_.value)(a.asInstanceOf[case_.value.Structure])
@@ -107,7 +125,6 @@ object BlocksCodec {
                     }
                     AttributeValue.Map(newMap)
                   case None           =>
-                    println(s"3 XXXXXXXXXXXX")
                     // tagged Variant encoding
                     AttributeValue.Map(case_.name, av)
                 }
@@ -225,7 +242,6 @@ object BlocksCodec {
                     case None        =>
                       Left(DecodingError(s"2 Could not find case $enumValue"))
                     case Some(case_) => // extract case so we can get case decoder
-//                      println(s"XXXXXXXX case_: $case_")
                       val dec = reflectDecoder(case_.value)
                       dec(av) match {
                         case Left(e)  => Left(e)
@@ -244,15 +260,12 @@ object BlocksCodec {
         val dec = reflectDecoder(value())
         (av: AttributeValue) => dec(av)
       case r                                                     =>
-        (_: AttributeValue) =>
-//          println(s"Decoding $r")
-          Left(DecodingError(s"Could not decode Reflect $r just yet"))
+        (_: AttributeValue) => Left(DecodingError(s"Could not decode Reflect $r just yet"))
     }
 
   // TODO: handle all primitive types
   def primitiveDecoder[A](primitiveType: PrimitiveType[A]): Decoder[A] =
     (av: AttributeValue) => {
-//      println(s"Decoding $av $primitiveType")
       primitiveType match {
         case PrimitiveType.String(_) => FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av)
         case PrimitiveType.Int(_)    => FromAttributeValue.intFromAttributeValue.fromAttributeValue(av)

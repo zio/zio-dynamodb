@@ -11,9 +11,35 @@ import zio.dynamodb.Item
 
 object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
   val spec = suite("Blocks Schema Crud Spec")( // running against DynamoDB in LocalStack
+    test("prelude new types") {
+      withSingleIdKeyTable { tableName =>
+        import zio.prelude._
+
+        type Name = Name.Type
+
+        object Name extends Subtype[String] {
+          implicit val schema: Schema[Name] = derive(Schema[String])
+        }
+
+        import zio.dynamodb.blocks.BlocksApi._
+
+        final case class Person(id: Name, name: Name)
+        object Person extends CompanionOptics[Person] {
+          implicit val schema: Schema[Person] = Schema.derived
+          val id: Lens[Person, Name]          = optic(_.id)
+          val name: Lens[Person, Name]        = optic(_.name)
+        }
+
+        val person = Person(Name("1"), Name("Jones"))
+        for {
+          _     <- DynamoDBQuery.put(tableName, person).where(Person.id.notExists).execute
+          found <- DynamoDBQuery.get(tableName)(Person.id === Name("1")).execute.absolve
+        } yield assertTrue(found == person)
+      }
+    },
     test("put and get") {
       withSingleIdKeyTable { tableName =>
-        import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
+        import zio.dynamodb.blocks.BlocksApi._
 
         final case class Person(id: String, name: String)
         object Person extends CompanionOptics[Person] {
@@ -49,8 +75,7 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
           _    <- DynamoDBQuery.put(tableName, person).execute
           _    <- DynamoDBQuery.update(tableName)(Person.id === "1")(Person.mapAtKey("key1").set(42)).execute
           item <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
-          _     = println(s"Item after put: $item")
-        } yield assertTrue(true)
+        } yield assertTrue(item == Some(Item("id" -> "1", "map" -> Map("key1" -> 42))))
       }
     },
     test("optional Map field update") {
@@ -70,8 +95,7 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
           _    <- DynamoDBQuery.put(tableName, person).execute
           _    <- DynamoDBQuery.update(tableName)(Person.id === "1")(Person.maybeMapAtKey("key1").set(42)).execute
           item <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
-          _     = println(s"Item after put: $item")
-        } yield assertTrue(true)
+        } yield assertTrue(item == Some(Item("id" -> "1", "maybeMap" -> Map("key1" -> 42))))
       }
     },
     test("optional Int field update") {
@@ -92,10 +116,28 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
           preUpdate  <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
           _          <- DynamoDBQuery.update(tableName)(Person.id === "1")(Person.maybeInt.set(42)).execute
           postUpdate <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
-          _           = println(s"Item after put: $postUpdate")
         } yield assertTrue(
           preUpdate == Some(Item("id" -> "1")),
           postUpdate == Some(Item("id" -> "1", "maybeInt" -> 42))
+        )
+      }
+    },
+    test("optional Int field put") {
+      withSingleIdKeyTable { tableName =>
+        final case class Person(id: String, maybeInt: Option[Int] = None)
+        object Person extends CompanionOptics[Person] {
+          implicit val schema: Schema[Person] = Schema.derived
+          val id: Lens[Person, String]        = optic(_.id)
+          val maybeInt: Optional[Person, Int] =
+            optic(_.maybeInt.when[Some[Int]].value)
+        }
+
+        val person = Person("1", Some(42))
+        for {
+          _        <- DynamoDBQuery.put(tableName, person).execute
+          afterPut <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
+        } yield assertTrue(
+          afterPut == Some(Item("id" -> "1", "maybeInt" -> 42))
         )
       }
     }
