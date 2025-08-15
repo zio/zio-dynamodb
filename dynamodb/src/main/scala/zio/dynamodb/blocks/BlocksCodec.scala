@@ -55,6 +55,22 @@ object BlocksCodec {
         throw new Exception("TODO: nonNativeMapEncoder(encoder(ks), encoder(vs))")
     }
 
+  def optionalSomeTerm[F[_, _]](term: Term[F, _, _]): Option[Reflect[F, _]] =
+    term.value match {
+      case Reflect.Variant(cases, typeName, _, _, _) if typeName.name == "Option" =>
+        val case_ = cases.find(_.name == "Some").get
+        case_.value match {
+          case Reflect.Record(fields, _, _, _, _) if fields.size == 1 =>
+            fields(0) match {
+              case Term(_, value2, _, _) => Some(value2)
+              case _                     => None
+            }
+
+          case _                                                      => None
+        }
+      case _                                                                      => None
+    }
+
   // SCHEMA V1
   // private def optionalEncoder[A](encoder: Encoder[A]): Encoder[Option[A]] = {
   //   case None        => AttributeValue.Null
