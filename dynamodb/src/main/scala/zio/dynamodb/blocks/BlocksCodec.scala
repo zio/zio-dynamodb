@@ -95,10 +95,10 @@ object BlocksCodec {
           val case_              = cases(idx)
           val av: AttributeValue = case_.value match {
             case Reflect.Record(fields, _, _, _, _) => // "default" vs "compact" encoding. Variant instance is a Record
-              if (fields.isEmpty) // TODO: Note "None" is a case object
+              if (fields.isEmpty) // TODO: Note "None" is a case object and is dealt with upstream so not expected here
                 // empty fields implies a case object
                 AttributeValue.String(case_.name)
-              else if  (case_.name == "Some" && fields.length == 1) { // TODO: do more checks for Some here like package name
+              else if (case_.name == "Some" && fields.length == 1) { // TODO: do more checks for Some here like package name
                 val valueField = fields(0)
                 // there is no native DDB Option type, so we need to dig into the schema of the "value" field in "Some"
                 a match {
@@ -166,19 +166,49 @@ object BlocksCodec {
                 fields.foreach {
                   var idx = 0
                   field =>
-                    val fieldName  = field.name
-                    val fieldValue = map.get(AttributeValue.String(fieldName))
-                    val dec        = reflectDecoder(field.value)
-                    if (fieldValue.isEmpty)
+                    val (isOption, cases)                  = field.value match {
+                      case Reflect.Variant(cases, typeName, _, _, _) if typeName.name == "Option" => (true, cases)
+                      case _                                                                      => (false, Vector.empty)
+                    }
+                    val fieldName                          = field.name
+                    val fieldValue: Option[AttributeValue] = map.get(AttributeValue.String(fieldName))
+
+                    val isNone = isOption && (fieldValue.isEmpty || fieldValue == Some(AttributeValue.Null))
+
+                    if (isNone)
+                      Right(None)
+                    else if (!fieldValue.isEmpty && isOption) {
+                      // we dealing with the Some case of Option Variant
+                      // so we can sort cut decoding of Option Variant to decoding of the value field of the Some case
+                      val case_ = cases.find(_.name == "Some").get // TODO - is there a better way to do this?
+                      case_.value match {
+                        case Reflect.Record(fields, _, _, _, _) if fields.size == 1 =>
+                          fields(0) match {
+                            case Term(_, value, _, _) =>
+                              val dec = reflectDecoder(value)
+                              dec(fieldValue.get) match { // TODO: Naked get on Option
+                                case Left(e)      =>
+                                  addError(s"Field $fieldName: ${e.getMessage}")
+                                case Right(value) =>
+                                  r.registers(idx)
+                                    .asInstanceOf[Register[Any]]
+                                    .set(registers, RegisterOffset.Zero, Some(value))
+                              }
+                          }
+                        case _                                                      => addError(s"Expected a record with a single field for Some")
+                      }
+                    } else if (fieldValue.isEmpty)
                       addError(s"Field $fieldName not found")
-                    else
-                      dec(fieldValue.get) match {
+                    else {
+                      val dec = reflectDecoder(field.value)
+                      dec(fieldValue.get) match { // TODO: Naked get on Option
                         case Left(e)      =>
                           addError(s"Field $fieldName: ${e.getMessage}")
                         case Right(value) =>
                           r.registers(idx).asInstanceOf[Register[Any]].set(registers, RegisterOffset.Zero, value)
                       }
-                    idx += 1
+                      idx += 1
+                    }
                 }
                 if (errors.isEmpty)
                   Right(constructor.construct(registers, RegisterOffset.Zero))
@@ -189,7 +219,6 @@ object BlocksCodec {
                 Left(DecodingError(s"Could not decode $av just yet"))
             }
       case v @ Reflect.Variant(cases, _, _, _, variantModifiers) =>
-        // TODO: decode Options
         maybeDiscriminatorNameModifier(variantModifiers) match { // TODO: Consider a NoDiscriminator modifier as well
           case Some(discName) =>
             (av: AttributeValue) =>
@@ -241,7 +270,7 @@ object BlocksCodec {
                 case AttributeValue.String(enumValue) =>
                   v.caseByName(enumValue) match {
                     case None        =>
-                      Left(DecodingError(s"2 Could not find case $enumValue"))
+                      Left(DecodingError(s"Could not find case $enumValue"))
                     case Some(case_) => // extract case so we can get case decoder
                       val dec = reflectDecoder(case_.value)
                       dec(av) match {
@@ -252,7 +281,7 @@ object BlocksCodec {
                 case av                               =>
                   Left(
                     DecodingError(
-                      s"2 Expected an AttributeValue.Map but found ${av.getClass.getSimpleName}"
+                      s"Expected an AttributeValue.Map but found ${av.getClass.getSimpleName}"
                     )
                   )
               }

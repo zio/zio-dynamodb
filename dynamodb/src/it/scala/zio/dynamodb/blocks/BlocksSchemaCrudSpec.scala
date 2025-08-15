@@ -141,6 +141,24 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
         )
       }
     },
+    test("optional Some of Int field get") {
+      withSingleIdKeyTable { tableName =>
+        import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
+        final case class Person(id: String, maybeInt: Option[Int] = None)
+        object Person extends CompanionOptics[Person] {
+          implicit val schema: Schema[Person] = Schema.derived
+          val id: Lens[Person, String]        = optic(_.id)
+          val maybeInt: Optional[Person, Int] =
+            optic(_.maybeInt.when[Some[Int]].value)
+        }
+
+        val person = Person("1", Some(42))
+        for {
+          _        <- DynamoDBQuery.put(tableName, person).execute
+          afterPut <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
+        } yield assertTrue(afterPut == person)
+      }
+    },
     test("optional Int field put of None") {
       withSingleIdKeyTable { tableName =>
         final case class Person(id: String, maybeInt: Option[Int] = None)
