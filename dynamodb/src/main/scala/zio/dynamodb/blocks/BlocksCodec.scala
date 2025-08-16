@@ -104,7 +104,6 @@ object BlocksCodec {
           }
           avMap
         }
-      // TODO: we could extract to a function and pass in Optionality context here
       case v @ Reflect.Variant(cases, _, _, _, variantModifiers) =>
         (a: A) =>
           val idx                = v.discriminator.discriminate(a)
@@ -161,9 +160,9 @@ object BlocksCodec {
 
   def reflectDecoder[A](reflect: Reflect.Bound[A]): Decoder[A] =
     reflect match {
-      case Reflect.Primitive(primitiveType, _, _, _, _)          =>
+      case Reflect.Primitive(primitiveType, _, _, _, _)                 =>
         primitiveDecoder(primitiveType)
-      case r @ Reflect.Record(fields, _, _, _, _)                =>
+      case r @ Reflect.Record(fields, _, _, _, _)                       =>
         // TODO: extract recordDecoder
         (av: AttributeValue) =>
           if (fields.isEmpty) {
@@ -234,7 +233,7 @@ object BlocksCodec {
               case av                      =>
                 Left(DecodingError(s"Could not decode $av just yet"))
             }
-      case v @ Reflect.Variant(cases, _, _, _, variantModifiers) =>
+      case v @ Reflect.Variant(cases, typeName, _, _, variantModifiers) =>
         maybeDiscriminatorNameModifier(variantModifiers) match { // TODO: Consider a NoDiscriminator modifier as well
           case Some(discName) =>
             (av: AttributeValue) =>
@@ -302,10 +301,10 @@ object BlocksCodec {
                   )
               }
         }
-      case Reflect.Deferred(value)                               =>
+      case Reflect.Deferred(value)                                      =>
         val dec = reflectDecoder(value())
         (av: AttributeValue) => dec(av)
-      case r                                                     =>
+      case r                                                            =>
         (_: AttributeValue) => Left(DecodingError(s"Could not decode Reflect $r just yet"))
     }
 
