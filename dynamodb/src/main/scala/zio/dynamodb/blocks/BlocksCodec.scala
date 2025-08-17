@@ -149,6 +149,8 @@ object BlocksCodec {
 
   // ================================================================================================
 
+  def optionDecoder[A](record: Reflect.Record.Bound[A]): Decoder[A] = ???
+
   def reflectDecoder[A](reflect: Reflect.Bound[A]): Decoder[A] =
     reflect match {
       case Reflect.Primitive(primitiveType, _, _, _, _)                 =>
@@ -184,27 +186,7 @@ object BlocksCodec {
 
                     if (isNone)
                       Right(None)
-                    else if (!fieldValue.isEmpty && isOption) {
-                      // we dealing with the Some case of Option Variant
-                      // so we can short cut decoding of Option Variant to decoding of the value field of the Some case
-                      val case_ = cases.find(_.name == "Some").get // TODO - is there a better way to do this?
-                      case_.value match {
-                        case Reflect.Record(fields, _, _, _, _) if fields.size == 1 =>
-                          fields(0) match {
-                            case Term(_, value, _, _) =>
-                              val dec = reflectDecoder(value)
-                              dec(fieldValue.get) match { // TODO: Naked get on Option
-                                case Left(e)      =>
-                                  addError(s"Field $fieldName: ${e.getMessage}")
-                                case Right(value) =>
-                                  r.registers(idx)
-                                    .asInstanceOf[Register[Any]]
-                                    .set(registers, RegisterOffset.Zero, Some(value))
-                              }
-                          }
-                        case _                                                      => addError(s"Expected a record with a single field for Some")
-                      }
-                    } else if (fieldValue.isEmpty)
+                    else if (fieldValue.isEmpty)
                       addError(s"Field $fieldName not found")
                     else {
                       val dec = reflectDecoder(field.value)
@@ -226,16 +208,61 @@ object BlocksCodec {
                 Left(DecodingError(s"Could not decode $av just yet"))
             }
       case v @ Reflect.Variant(cases, typeName, _, _, variantModifiers) =>
-        maybeDiscriminatorNameModifier(variantModifiers) match { // TODO: Consider a NoDiscriminator modifier as well
-          case Some(discName) =>
-            (av: AttributeValue) =>
-              av match {
-                case m @ AttributeValue.Map(_) => // We only handle records
-                  m.get(discName) match {
-                    case Some(AttributeValue.String(name)) => // extract discriminator name
-                      v.caseByName(name) match {
+        val isOption = typeName.name == "Option"
+        if (isOption) { (av: AttributeValue) =>
+          // we dealing with the Some case of Option Variant
+          // so we can short cut decoding of Option Variant to decoding of the value field of the Some case
+          val case_ = cases.find(_.name == "Some").get // TODO - is there a better way to do this?
+          case_.value match {
+            case Reflect.Record(fields, _, _, _, _) if fields.size == 1 =>
+              fields(0) match {
+                case Term(_, value, _, _) =>
+                  val dec = reflectDecoder(value)
+                  val x   = dec(av).map(Some(_))
+                  x.asInstanceOf[Either[DecodingError, A]]
+              }
+            case _                                                      => throw new Exception(s"Expected a record with a single field for Some")
+          }
+        } else
+          maybeDiscriminatorNameModifier(variantModifiers) match { // TODO: Consider a NoDiscriminator modifier as well
+            case Some(discName) =>
+              (av: AttributeValue) =>
+                av match {
+                  case m @ AttributeValue.Map(_) => // We only handle records
+                    m.get(discName) match {
+                      case Some(AttributeValue.String(name)) => // extract discriminator name
+                        v.caseByName(name) match {
+                          case None        =>
+                            Left(DecodingError(s"Could not find case $name"))
+                          case Some(case_) => // extract case so we can get case decoder
+                            val dec = reflectDecoder(case_.value)
+                            dec(av) match {
+                              case Left(e)  => Left(e)
+                              case Right(r) => Right(r.asInstanceOf[A])
+                            }
+                        }
+                      case _                                 =>
+                        Left(DecodingError(s"Could not find discriminator $discName"))
+                    }
+                  case av                        =>
+                    Left(
+                      DecodingError(
+                        s"Expected an AttributeValue.Map but found ${av.getClass.getSimpleName}"
+                      )
+                    )
+                }
+            case None           => // no DiscriminatorName modifier
+              (av: AttributeValue) =>
+                av match {
+                  case AttributeValue.Map(map)          => // We only expect map of discriminator name
+                    // map must have single entry only of AttributeValue.String(discriminatorName) -> AttributeValue
+                    if (map.size != 1)
+                      Left(DecodingError(s"Expected a single entry map but found ${map.size}"))
+                    else {
+                      val (AttributeValue.String(discriminatorName), av) = map.iterator.next()
+                      v.caseByName(discriminatorName) match {
                         case None        =>
-                          Left(DecodingError(s"Could not find case $name"))
+                          Left(DecodingError(s"Could not find case $discriminatorName"))
                         case Some(case_) => // extract case so we can get case decoder
                           val dec = reflectDecoder(case_.value)
                           dec(av) match {
@@ -243,28 +270,12 @@ object BlocksCodec {
                             case Right(r) => Right(r.asInstanceOf[A])
                           }
                       }
-                    case _                                 =>
-                      Left(DecodingError(s"Could not find discriminator $discName"))
-                  }
-                case av                        =>
-                  Left(
-                    DecodingError(
-                      s"Expected an AttributeValue.Map but found ${av.getClass.getSimpleName}"
-                    )
-                  )
-              }
-          case None           => // no DiscriminatorName modifier
-            (av: AttributeValue) =>
-              av match {
-                case AttributeValue.Map(map)          => // We only expect map of discriminator name
-                  // map must have single entry only of AttributeValue.String(discriminatorName) -> AttributeValue
-                  if (map.size != 1)
-                    Left(DecodingError(s"Expected a single entry map but found ${map.size}"))
-                  else {
-                    val (AttributeValue.String(discriminatorName), av) = map.iterator.next()
-                    v.caseByName(discriminatorName) match {
+
+                    }
+                  case AttributeValue.String(enumValue) =>
+                    v.caseByName(enumValue) match {
                       case None        =>
-                        Left(DecodingError(s"Could not find case $discriminatorName"))
+                        Left(DecodingError(s"Could not find case $enumValue"))
                       case Some(case_) => // extract case so we can get case decoder
                         val dec = reflectDecoder(case_.value)
                         dec(av) match {
@@ -272,27 +283,14 @@ object BlocksCodec {
                           case Right(r) => Right(r.asInstanceOf[A])
                         }
                     }
-
-                  }
-                case AttributeValue.String(enumValue) =>
-                  v.caseByName(enumValue) match {
-                    case None        =>
-                      Left(DecodingError(s"Could not find case $enumValue"))
-                    case Some(case_) => // extract case so we can get case decoder
-                      val dec = reflectDecoder(case_.value)
-                      dec(av) match {
-                        case Left(e)  => Left(e)
-                        case Right(r) => Right(r.asInstanceOf[A])
-                      }
-                  }
-                case av                               =>
-                  Left(
-                    DecodingError(
-                      s"Expected an AttributeValue.Map but found ${av.getClass.getSimpleName}"
+                  case av                               =>
+                    Left(
+                      DecodingError(
+                        s"Expected an AttributeValue.Map but found ${av.getClass.getSimpleName}"
+                      )
                     )
-                  )
-              }
-        }
+                }
+          }
       case Reflect.Deferred(value)                                      =>
         val dec = reflectDecoder(value())
         (av: AttributeValue) => dec(av)
