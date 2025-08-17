@@ -188,12 +188,12 @@ object BlocksCodec {
           val av: AttributeValue = case_.value match {
             case r: Reflect.Record.Bound[aa] => // "default" vs "compact" encoding. Variant instance is a Record
               // TODO: Note "None" is a case object and is dealt with upstream so not expected here
-              if (r.fields.isEmpty && !isOption) {
+              if (isOption) // TODO: do more checks for Some here like package name
+                optionEncoder2[aa](a.asInstanceOf[aa], r)
+              else if (r.fields.isEmpty)
                 // empty fields implies a case object
                 AttributeValue.String(case_.name)
-              } else if (isOption) { // TODO: do more checks for Some here like package name
-                optionEncoder2[aa](a.asInstanceOf[aa], r)
-              } else {
+              else {
                 // TODO: Consider a NoDiscriminator modifier as well
                 val disc: Option[String] = maybeDiscriminatorNameModifier(variantModifiers)
                 val av: AttributeValue   = reflectEncoder(case_.value)(a.asInstanceOf[case_.value.Structure])
