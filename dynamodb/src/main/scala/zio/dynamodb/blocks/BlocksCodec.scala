@@ -148,29 +148,16 @@ object BlocksCodec {
 //        recordEncoder(r) // TODO: handle empty records (case objects)
         // TODO: Extract recordEncoder
         (a: A) => {
+          // TODO: replace foldLeft with imperative loop
           val avMap = fields.foldLeft[AttributeValue.Map](AttributeValue.Map.empty) {
             case (acc: AttributeValue.Map, field) =>
               val fieldName        = field.name
               val lens: Lens[A, _] = r.lensByName(fieldName).get // TODO: handle error
-              val fieldValue       = lens.get(a)                 // if "a" is a Some(x) we need to deal with x and schema of x somehow
+              val fieldValue       = lens.get(a)
               val enc              = reflectEncoder(field.value)
               val av               = enc(fieldValue.asInstanceOf[field.value.Structure])
 
-              /*
-          @tailrec
-          def appendToMap[B](schema: Schema[B]): AttributeValue.Map =
-            schema match {
-              case l @ Schema.Lazy(_)                                                 =>
-                appendToMap(l.schema)
-              case _: Schema.Optional[_] if av.isInstanceOf[AttributeValue.Null.type] =>
-                AttributeValue.Map(s._2.value)
-              case _                                                                  =>
-                AttributeValue.Map(s._2.value + (AttributeValue.String(k) -> av))
-            }
-
-          appendToMap(s._1.schema)
-               */
-
+              // TODO: create extensions helper methods on Term for Option codec processing
               field.value match {
                 case Reflect.Variant(_, typeName, _, _, _) if typeName.name == "Option" && av == AttributeValue.Null =>
                   acc
