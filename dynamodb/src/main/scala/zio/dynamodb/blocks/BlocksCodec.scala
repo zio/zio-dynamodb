@@ -103,8 +103,10 @@ object BlocksCodec {
           case _           =>
             throw new Exception(s"Expected Some but found None")
         }
-      case ("None", 0)   => AttributeValue.Null
-      case (typeName, _) => throw new Exception(s"Could not encode Option for type $typeName")
+      case ("None", 0)   =>
+        AttributeValue.Null
+      case (typeName, _) =>
+        throw new Exception(s"Could not encode Option for type $typeName")
     }
     av
   }
@@ -153,10 +155,26 @@ object BlocksCodec {
               val fieldValue       = lens.get(a)                 // if "a" is a Some(x) we need to deal with x and schema of x somehow
               val enc              = reflectEncoder(field.value)
               val av               = enc(fieldValue.asInstanceOf[field.value.Structure])
+
+              /*
+          @tailrec
+          def appendToMap[B](schema: Schema[B]): AttributeValue.Map =
+            schema match {
+              case l @ Schema.Lazy(_)                                                 =>
+                appendToMap(l.schema)
+              case _: Schema.Optional[_] if av.isInstanceOf[AttributeValue.Null.type] =>
+                AttributeValue.Map(s._2.value)
+              case _                                                                  =>
+                AttributeValue.Map(s._2.value + (AttributeValue.String(k) -> av))
+            }
+
+          appendToMap(s._1.schema)
+               */
+
               field.value match {
-                case Reflect.Variant(_, typeName, _, _, _) if typeName.name == "Option" && fieldValue == None =>
+                case Reflect.Variant(_, typeName, _, _, _) if typeName.name == "Option" && av == AttributeValue.Null =>
                   acc
-                case _                                                                                        =>
+                case _                                                                                               =>
                   acc + (fieldName -> av)
               }
           }
@@ -167,16 +185,15 @@ object BlocksCodec {
           val idx                = v.discriminator.discriminate(a)
           val case_              = cases(idx)
           val isOption           = typeName.name == "Option"
-          println(s"XXXXXXX encoding Variant typename: ${typeName.name}")
           val av: AttributeValue = case_.value match {
             case r: Reflect.Record.Bound[aa] => // "default" vs "compact" encoding. Variant instance is a Record
               // TODO: Note "None" is a case object and is dealt with upstream so not expected here
-              if (r.fields.isEmpty)
+              if (r.fields.isEmpty && !isOption) {
                 // empty fields implies a case object
                 AttributeValue.String(case_.name)
-              else if (isOption) // TODO: do more checks for Some here like package name
+              } else if (isOption) { // TODO: do more checks for Some here like package name
                 optionEncoder2[aa](a.asInstanceOf[aa], r)
-              else {
+              } else {
                 // TODO: Consider a NoDiscriminator modifier as well
                 val disc: Option[String] = maybeDiscriminatorNameModifier(variantModifiers)
                 val av: AttributeValue   = reflectEncoder(case_.value)(a.asInstanceOf[case_.value.Structure])
