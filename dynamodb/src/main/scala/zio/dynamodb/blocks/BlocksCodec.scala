@@ -55,20 +55,78 @@ object BlocksCodec {
         throw new Exception("TODO: nonNativeMapEncoder(encoder(ks), encoder(vs))")
     }
 
-  def optionalSomeTerm[F[_, _]](term: Term[F, _, _]): Option[Reflect[F, _]] =
-    term.value match {
-      case Reflect.Variant(cases, typeName, _, _, _) if typeName.name == "Option" =>
-        val case_ = cases.find(_.name == "Some").get
-        case_.value match {
-          case Reflect.Record(fields, _, _, _, _) if fields.size == 1 =>
-            fields(0) match {
-              case Term(_, value2, _, _) => Some(value2)
-              case _                     => None
-            }
+  def optionEncoderOld[A](encoder: Encoder[A]): Encoder[Option[A]] =
+    (a: Option[A]) =>
+      a match {
+        case None        => AttributeValue.Null
+        case Some(value) => encoder(value)
+      }
 
-          case _                                                      => None
+  def optionEncoder[S, A](a: A, term: Term.Bound[S, A]): AttributeValue =
+    term.value match {
+      case r @ Reflect.Record(
+            fields,
+            _,
+            _,
+            _,
+            _
+          ) => // "default" vs "compact" encoding. Variant instance is a Record
+        if (r.typeName.name == "Some" && fields.length == 1) { // TODO: do more checks for Some here like package name
+          val valueField = fields(0)
+          // there is no native DDB Option type, so we need to dig into the schema of the "value" field in "Some"
+          a match {
+            case Some(value) =>
+              valueField match {
+                case Term(name, value2, _, _) =>
+                  val enc = reflectEncoder(value2)
+                  enc(value.asInstanceOf[value2.Structure])
+              }
+            case _           =>
+              throw new Exception(s"Expected Some but found None")
+          }
+        } else
+          AttributeValue.Null // TODO
+      case _ =>
+        throw new Exception(s"Unsupported term.value for optionEncoder: ${term.value}")
+    }
+  def optionEncoder2[A](a: A, record: Reflect.Record.Bound[A]): AttributeValue = {
+    val av = (record.typeName.name, record.fields.length) match {
+      case ("Some", 1)   =>
+        val valueField = record.fields(0)
+        a match {
+          case Some(value) =>
+            valueField match {
+              case Term(name, value2, _, _) =>
+                val enc = reflectEncoder(value2)
+                enc(value.asInstanceOf[value2.Structure])
+            }
+          case _           =>
+            throw new Exception(s"Expected Some but found None")
         }
-      case _                                                                      => None
+      case ("None", 0)   => AttributeValue.Null
+      case (typeName, _) => throw new Exception(s"Could not encode Option for type $typeName")
+    }
+    av
+  }
+
+  def optionEncoder3[A](record: Reflect.Record.Bound[A]): Encoder[A] =
+    (record.typeName.name, record.fields.length) match {
+      case ("Some", 1)   =>
+        (a: A) => {
+          val valueField = record.fields(0)
+          a match {
+            case Some(value) =>
+              valueField match {
+                case Term(name, value2, _, _) =>
+                  val enc = reflectEncoder(value2)
+                  enc(value.asInstanceOf[value2.Structure])
+              }
+            case _           =>
+              throw new Exception(s"Expected Some but found None")
+          }
+        }
+      case ("None", 0)   => _ => AttributeValue.Null
+      case (typeName, _) => throw new Exception(s"Could not encode Option for type $typeName")
     }
 
   // SCHEMA V1
@@ -79,12 +137,12 @@ object BlocksCodec {
 
   def reflectEncoder[A](reflect: Reflect.Bound[A]): Encoder[A] =
     reflect match {
-      case Reflect.Primitive(primitiveType, _, _, _, _)          =>
+      case Reflect.Primitive(primitiveType, _, _, _, _)                 =>
         primitiveEncoder(primitiveType)
-      case Reflect.Map(key, value, _, _, _, _)                   =>
+      case Reflect.Map(key, value, _, _, _, _)                          =>
         mapEncoder(key, value).asInstanceOf[Encoder[A]] // TODO: handle non-native maps
 
-      case r @ Reflect.Record(fields, _, _, _, _)                =>
+      case r @ Reflect.Record(fields, _, _, _, _)                       =>
 //        recordEncoder(r) // TODO: handle empty records (case objects)
         // TODO: Extract recordEncoder
         (a: A) => {
@@ -104,29 +162,21 @@ object BlocksCodec {
           }
           avMap
         }
-      case v @ Reflect.Variant(cases, _, _, _, variantModifiers) =>
+      case v @ Reflect.Variant(cases, typeName, _, _, variantModifiers) =>
         (a: A) =>
           val idx                = v.discriminator.discriminate(a)
           val case_              = cases(idx)
+          val isOption           = typeName.name == "Option"
+          println(s"XXXXXXX encoding Variant typename: ${typeName.name}")
           val av: AttributeValue = case_.value match {
-            case Reflect.Record(fields, _, _, _, _) => // "default" vs "compact" encoding. Variant instance is a Record
-              if (fields.isEmpty) // TODO: Note "None" is a case object and is dealt with upstream so not expected here
+            case r: Reflect.Record.Bound[aa] => // "default" vs "compact" encoding. Variant instance is a Record
+              // TODO: Note "None" is a case object and is dealt with upstream so not expected here
+              if (r.fields.isEmpty)
                 // empty fields implies a case object
                 AttributeValue.String(case_.name)
-              else if (case_.name == "Some" && fields.length == 1) { // TODO: do more checks for Some here like package name
-                val valueField = fields(0)
-                // there is no native DDB Option type, so we need to dig into the schema of the "value" field in "Some"
-                a match {
-                  case Some(value) =>
-                    valueField match {
-                      case Term(name, value2, _, _) =>
-                        val enc = reflectEncoder(value2)
-                        enc(value.asInstanceOf[value2.Structure])
-                    }
-                  case _           =>
-                    throw new Exception(s"Expected Some but found None for case ${case_.name}")
-                }
-              } else {
+              else if (isOption) // TODO: do more checks for Some here like package name
+                optionEncoder2[aa](a.asInstanceOf[aa], r)
+              else {
                 // TODO: Consider a NoDiscriminator modifier as well
                 val disc: Option[String] = maybeDiscriminatorNameModifier(variantModifiers)
                 val av: AttributeValue   = reflectEncoder(case_.value)(a.asInstanceOf[case_.value.Structure])
@@ -144,14 +194,13 @@ object BlocksCodec {
                     AttributeValue.Map(case_.name, av)
                 }
               }
-            case r                                  =>
+            case r                           =>
               throw new Exception(s"Did not expect Reflect $r - only Record is valid")
           }
           av
-      case Reflect.Deferred(value)                               =>
-        val enc = reflectEncoder(value())
-        (a: A) => enc(a)
-      case r                                                     => throw new Exception(s"Could not encode $r just yet")
+      case Reflect.Deferred(value)                                      =>
+        reflectEncoder(value())
+      case r                                                            => throw new Exception(s"Could not encode $r just yet")
     }
 
   def encoder[A](implicit schema: Schema[A]): Encoder[A] = reflectEncoder(schema.reflect)
