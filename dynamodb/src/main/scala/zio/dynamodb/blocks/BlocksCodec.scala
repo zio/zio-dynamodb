@@ -55,63 +55,7 @@ object BlocksCodec {
         throw new Exception("TODO: nonNativeMapEncoder(encoder(ks), encoder(vs))")
     }
 
-  def optionEncoderOld[A](encoder: Encoder[A]): Encoder[Option[A]] =
-    (a: Option[A]) =>
-      a match {
-        case None        => AttributeValue.Null
-        case Some(value) => encoder(value)
-      }
-
-  def optionEncoder[S, A](a: A, term: Term.Bound[S, A]): AttributeValue =
-    term.value match {
-      case r @ Reflect.Record(
-            fields,
-            _,
-            _,
-            _,
-            _
-          ) => // "default" vs "compact" encoding. Variant instance is a Record
-        if (r.typeName.name == "Some" && fields.length == 1) { // TODO: do more checks for Some here like package name
-          val valueField = fields(0)
-          // there is no native DDB Option type, so we need to dig into the schema of the "value" field in "Some"
-          a match {
-            case Some(value) =>
-              valueField match {
-                case Term(name, value2, _, _) =>
-                  val enc = reflectEncoder(value2)
-                  enc(value.asInstanceOf[value2.Structure])
-              }
-            case _           =>
-              throw new Exception(s"Expected Some but found None")
-          }
-        } else
-          AttributeValue.Null // TODO
-      case _ =>
-        throw new Exception(s"Unsupported term.value for optionEncoder: ${term.value}")
-    }
-  def optionEncoder2[A](a: A, record: Reflect.Record.Bound[A]): AttributeValue = {
-    val av = (record.typeName.name, record.fields.length) match {
-      case ("Some", 1)   =>
-        val valueField = record.fields(0)
-        a match {
-          case Some(value) =>
-            valueField match {
-              case Term(name, value2, _, _) =>
-                val enc = reflectEncoder(value2)
-                enc(value.asInstanceOf[value2.Structure])
-            }
-          case _           =>
-            throw new Exception(s"Expected Some but found None")
-        }
-      case ("None", 0)   =>
-        AttributeValue.Null
-      case (typeName, _) =>
-        throw new Exception(s"Could not encode Option for type $typeName")
-    }
-    av
-  }
-
-  def optionEncoder3[A](record: Reflect.Record.Bound[A]): Encoder[A] =
+  def optionEncoder[A](record: Reflect.Record.Bound[A]): Encoder[A] =
     (record.typeName.name, record.fields.length) match {
       case ("Some", 1)   =>
         (a: A) => {
@@ -170,7 +114,7 @@ object BlocksCodec {
             case r: Reflect.Record.Bound[aa] => // "default" vs "compact" encoding. Variant instance is a Record
               // TODO: Note "None" is a case object and is dealt with upstream so not expected here
               if (isOption) // TODO: do more checks for Some here like package name
-                optionEncoder3[aa](r).asInstanceOf[Encoder[A]]
+                optionEncoder[aa](r).asInstanceOf[Encoder[A]]
               else if (r.fields.isEmpty)
                 // empty fields implies a case object
                 _ => AttributeValue.String(case_.name)
@@ -235,6 +179,7 @@ object BlocksCodec {
                     val fieldName                          = field.name
                     val fieldValue: Option[AttributeValue] = map.get(AttributeValue.String(fieldName))
 
+                    // TODO: generalise missing field handling for Option and other container types
                     val isNone = isOption && (fieldValue.isEmpty || fieldValue == Some(AttributeValue.Null))
 
                     if (isNone)
