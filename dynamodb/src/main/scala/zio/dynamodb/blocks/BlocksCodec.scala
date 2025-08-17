@@ -131,12 +131,6 @@ object BlocksCodec {
       case (typeName, _) => throw new Exception(s"Could not encode Option for type $typeName")
     }
 
-  // SCHEMA V1
-  // private def optionalEncoder[A](encoder: Encoder[A]): Encoder[Option[A]] = {
-  //   case None        => AttributeValue.Null
-  //   case Some(value) => encoder(value)
-  // }
-
   def reflectEncoder[A](reflect: Reflect.Bound[A]): Encoder[A] =
     reflect match {
       case Reflect.Primitive(primitiveType, _, _, _, _)                 =>
@@ -145,7 +139,6 @@ object BlocksCodec {
         mapEncoder(key, value).asInstanceOf[Encoder[A]] // TODO: handle non-native maps
 
       case r @ Reflect.Record(fields, _, _, _, _)                       =>
-//        recordEncoder(r) // TODO: handle empty records (case objects)
         // TODO: Extract recordEncoder
         (a: A) => {
           // TODO: replace foldLeft with imperative loop
@@ -169,17 +162,18 @@ object BlocksCodec {
         }
       case v @ Reflect.Variant(cases, typeName, _, _, variantModifiers) =>
         (a: A) =>
-          val idx                = v.discriminator.discriminate(a)
-          val case_              = cases(idx)
-          val isOption           = typeName.name == "Option"
-          val av: AttributeValue = case_.value match {
+          val idx             = v.discriminator.discriminate(a)
+          val case_           = cases(idx)
+          val isOption        = typeName.name == "Option"
+          //TODO: extract to Term level Variant encoder
+          val enc: Encoder[A] = case_.value match {
             case r: Reflect.Record.Bound[aa] => // "default" vs "compact" encoding. Variant instance is a Record
               // TODO: Note "None" is a case object and is dealt with upstream so not expected here
               if (isOption) // TODO: do more checks for Some here like package name
-                optionEncoder2[aa](a.asInstanceOf[aa], r)
+                optionEncoder3[aa](r).asInstanceOf[Encoder[A]]
               else if (r.fields.isEmpty)
                 // empty fields implies a case object
-                AttributeValue.String(case_.name)
+                _ => AttributeValue.String(case_.name)
               else {
                 // TODO: Consider a NoDiscriminator modifier as well
                 val disc: Option[String] = maybeDiscriminatorNameModifier(variantModifiers)
@@ -192,16 +186,16 @@ object BlocksCodec {
                       case _                       =>
                         throw new Exception(s"Could not encode $a with discriminator $disc")
                     }
-                    AttributeValue.Map(newMap)
+                    _ => AttributeValue.Map(newMap)
                   case None           =>
                     // tagged Variant encoding
-                    AttributeValue.Map(case_.name, av)
+                    _ => AttributeValue.Map(case_.name, av)
                 }
               }
             case r                           =>
               throw new Exception(s"Did not expect Reflect $r - only Record is valid")
           }
-          av
+          enc(a)
       case Reflect.Deferred(value)                                      =>
         reflectEncoder(value())
       case r                                                            => throw new Exception(s"Could not encode $r just yet")
@@ -247,7 +241,7 @@ object BlocksCodec {
                       Right(None)
                     else if (!fieldValue.isEmpty && isOption) {
                       // we dealing with the Some case of Option Variant
-                      // so we can sort cut decoding of Option Variant to decoding of the value field of the Some case
+                      // so we can short cut decoding of Option Variant to decoding of the value field of the Some case
                       val case_ = cases.find(_.name == "Some").get // TODO - is there a better way to do this?
                       case_.value match {
                         case Reflect.Record(fields, _, _, _, _) if fields.size == 1 =>
