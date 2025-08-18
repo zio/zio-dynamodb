@@ -11,6 +11,7 @@ import zio.blocks.schema.binding.Register
 import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.binding.Registers
 import zio.Chunk
+import zio.blocks.schema.binding.Binding
 
 object BlocksCodec {
   // type Encoder[A]  = A => AttributeValue
@@ -151,6 +152,7 @@ object BlocksCodec {
 
   // ================================================================================================
 
+  /*
   def optionDecoder[A](v: Reflect.Variant.Bound[A]): Decoder[A] = { (av: AttributeValue) =>
     // we are dealing with the Some case of Option Variant
     // so we can short cut decoding of Option Variant to decoding of the value field of the Some case
@@ -166,6 +168,30 @@ object BlocksCodec {
       case _                                                      => throw new Exception(s"Expected a record with a single field for Some")
     }
 
+  }
+
+   */
+
+  def optionDecoder[A](v: Reflect.Variant.Bound[A]): Decoder[A] = { (av: AttributeValue) =>
+    // we are dealing with the Some case of Option Variant
+    // so we can short cut decoding of Option Variant to decoding of the value field of the Some case
+
+    val x: Option[Term[Binding, A, ? <: A]] = v.cases.find(_.name == "Some")
+    val y: Either[DecodingError, A]         = x match {
+      case Some(term) =>
+        term.value match {
+          case Reflect.Record(fields, _, _, _, _) if fields.size == 1 =>
+            fields(0) match {
+              case Term(_, value, _, _) =>
+                val dec = reflectDecoder(value)
+                val x   = dec(av).map(Some(_))
+                x.asInstanceOf[Either[DecodingError, A]]
+            }
+          case _                                                      => Left(DecodingError(s"Expected a record with a single field for Some"))
+        }
+      case None       => Left(DecodingError(s"Expected to find a case for Some")) // this should never happen
+    }
+    y
   }
 
   def reflectDecoder[A](reflect: Reflect.Bound[A]): Decoder[A] =
