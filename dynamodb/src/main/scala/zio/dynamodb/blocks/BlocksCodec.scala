@@ -80,12 +80,12 @@ object BlocksCodec {
 
   def reflectEncoder[A](reflect: Reflect.Bound[A]): Encoder[A] =
     reflect match {
-      case Reflect.Primitive(primitiveType, _, _, _, _)                 =>
+      case Reflect.Primitive(primitiveType, _, _, _, _)          =>
         primitiveEncoder(primitiveType)
-      case Reflect.Map(key, value, _, _, _, _)                          =>
+      case Reflect.Map(key, value, _, _, _, _)                   =>
         mapEncoder(key, value).asInstanceOf[Encoder[A]] // TODO: handle non-native maps
 
-      case r @ Reflect.Record(fields, _, _, _, _)                       =>
+      case r @ Reflect.Record(fields, _, _, _, _)                =>
         // TODO: Extract recordEncoder
         (a: A) => {
           // TODO: replace foldLeft with imperative loop
@@ -107,7 +107,7 @@ object BlocksCodec {
           }
           avMap
         }
-      case v @ Reflect.Variant(cases, typeName, _, _, variantModifiers) =>
+      case v @ Reflect.Variant(cases, _, _, _, variantModifiers) =>
         (a: A) =>
           val idx             = v.discriminator.discriminate(a)
           val case_           = cases(idx)
@@ -142,9 +142,9 @@ object BlocksCodec {
               throw new Exception(s"Did not expect Reflect $r - only Record is valid")
           }
           enc(a)
-      case Reflect.Deferred(value)                                      =>
+      case Reflect.Deferred(value)                               =>
         reflectEncoder(value())
-      case r                                                            => throw new Exception(s"Could not encode $r just yet")
+      case r                                                     => throw new Exception(s"Could not encode $r just yet")
     }
 
   def encoder[A](implicit schema: Schema[A]): Encoder[A] = reflectEncoder(schema.reflect)
