@@ -76,8 +76,46 @@ object BlocksCodec {
       case (typeName, _) => throw new Exception(s"Could not encode Option for type $typeName")
     }
 
+ def eitherEncoder[A](record: Reflect.Record.Bound[A]): Encoder[A] =
+    (record.typeName.name, record.fields.length) match {
+      case ("Right", 1)   =>
+        (a: A) => {
+          val valueField = record.fields(0)
+          a match {
+            case Right(value) =>
+              valueField match {
+                case Term(name, value2, _, _) =>
+                  val enc = reflectEncoder(value2)
+                  val x = enc(value.asInstanceOf[value2.Structure])
+                  AttributeValue.Map(Map.empty + (AttributeValue.String("Right") -> x)) 
+              }
+            case _           =>
+              throw new Exception(s"Expected Right")
+          }
+        }
+      case ("Left", 1)   =>
+        (a: A) => {
+          val valueField = record.fields(0)
+          a match {
+            case Left(value) =>
+              valueField match {
+                case Term(name, value2, _, _) =>
+                  val enc = reflectEncoder(value2)
+                  val x = enc(value.asInstanceOf[value2.Structure])
+                  AttributeValue.Map(Map.empty + (AttributeValue.String("Left") -> x)) 
+              }
+            case _           =>
+              throw new Exception(s"Expected Left")
+          }
+        }
+      case (typeName, _) => throw new Exception(s"Could not encode Either for type $typeName")
+    }
+
   def isOption[A](variant: Reflect.Variant.Bound[A]): Boolean =
     variant.typeName.name == "Option" && variant.typeName.namespace.packages.mkString(".") == "scala"
+
+  def isEither[A](variant: Reflect.Variant.Bound[A]): Boolean =
+    variant.typeName.name == "Either" && variant.typeName.namespace.packages.mkString(".") == "scala.util"
 
   def reflectEncoder[A](reflect: Reflect.Bound[A]): Encoder[A] =
     reflect match {
@@ -117,12 +155,17 @@ object BlocksCodec {
         (a: A) =>
           val idx             = v.discriminator.discriminate(a)
           val case_           = cases(idx)
+          println(s"XXXXXXXXX ${v.typeName.name} ${v.typeName.namespace.packages.mkString(".")} cases: ${cases.map(_.name)}")
+          println(s"XXXXXXXXX case_: ${case_}")
           val isOpt           = isOption(v)
+          val isEithr       = isEither(v)
           //TODO: extract to Term level Variant encoder
           val enc: Encoder[A] = case_.value match {
             case r: Reflect.Record.Bound[aa] => // "default" vs "compact" encoding. Variant instance is a Record
               if (isOpt)
                 optionEncoder[aa](r).asInstanceOf[Encoder[A]]
+              else if(isEithr)  
+                eitherEncoder[aa](r).asInstanceOf[Encoder[A]]
               else if (r.fields.isEmpty)
                 // empty fields implies a case object
                 _ => AttributeValue.String(case_.name)

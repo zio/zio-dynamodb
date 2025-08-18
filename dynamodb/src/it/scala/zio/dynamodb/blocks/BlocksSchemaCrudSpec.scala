@@ -195,6 +195,24 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
           afterPut == Some(Item("id" -> "1", "either" -> Item("Right" -> 42)))
         )
       }
-    } @@ TestAspect.ignore
+    },
+    test("Either put of Left") {
+      withSingleIdKeyTable { tableName =>
+        final case class Person(id: String, either: Either[String, Int])
+        object Person extends CompanionOptics[Person] {
+          implicit val schema: Schema[Person]           = Schema.derived
+          val id: Lens[Person, String]                  = optic(_.id)
+          val either: Lens[Person, Either[String, Int]] = optic(_.either)
+        }
+
+        val person = Person("1", Left("Meh"))
+        for {
+          _        <- DynamoDBQuery.put(tableName, person).execute
+          afterPut <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
+        } yield assertTrue(
+          afterPut == Some(Item("id" -> "1", "either" -> Item("Left" -> "Meh")))
+        )
+      }
+    }
   ) @@ TestAspect.nondeterministic
 }
