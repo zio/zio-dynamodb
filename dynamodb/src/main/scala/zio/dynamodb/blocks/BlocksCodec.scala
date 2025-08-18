@@ -151,7 +151,22 @@ object BlocksCodec {
 
   // ================================================================================================
 
-  def optionDecoder[A](record: Reflect.Record.Bound[A]): Decoder[A] = ???
+  def optionDecoder[A](v: Reflect.Variant.Bound[A]): Decoder[A] = { (av: AttributeValue) =>
+    // we are dealing with the Some case of Option Variant
+    // so we can short cut decoding of Option Variant to decoding of the value field of the Some case
+    val case_ = v.cases.find(_.name == "Some").get // TODO - is there a better way to do this?
+    case_.value match {
+      case Reflect.Record(fields, _, _, _, _) if fields.size == 1 =>
+        fields(0) match {
+          case Term(_, value, _, _) =>
+            val dec = reflectDecoder(value)
+            val x   = dec(av).map(Some(_))
+            x.asInstanceOf[Either[DecodingError, A]]
+        }
+      case _                                                      => throw new Exception(s"Expected a record with a single field for Some")
+    }
+
+  }
 
   def reflectDecoder[A](reflect: Reflect.Bound[A]): Decoder[A] =
     reflect match {
@@ -210,22 +225,9 @@ object BlocksCodec {
                 Left(DecodingError(s"Could not decode $av just yet"))
             }
       case v @ Reflect.Variant(cases, typeName, _, _, variantModifiers) =>
-        val isOpt = isOption(v)
-        if (isOpt) { (av: AttributeValue) =>
-          // we are dealing with the Some case of Option Variant
-          // so we can short cut decoding of Option Variant to decoding of the value field of the Some case
-          val case_ = cases.find(_.name == "Some").get // TODO - is there a better way to do this?
-          case_.value match {
-            case Reflect.Record(fields, _, _, _, _) if fields.size == 1 =>
-              fields(0) match {
-                case Term(_, value, _, _) =>
-                  val dec = reflectDecoder(value)
-                  val x   = dec(av).map(Some(_))
-                  x.asInstanceOf[Either[DecodingError, A]]
-              }
-            case _                                                      => throw new Exception(s"Expected a record with a single field for Some")
-          }
-        } else
+        if (isOption(v))
+          optionDecoder(v)
+        else
           maybeDiscriminatorNameModifier(variantModifiers) match { // TODO: Consider a NoDiscriminator modifier as well
             case Some(discName) =>
               (av: AttributeValue) =>
