@@ -75,6 +75,9 @@ object BlocksCodec {
       case (typeName, _) => throw new Exception(s"Could not encode Option for type $typeName")
     }
 
+  def isOption[A](variant: Reflect.Variant.Bound[A]): Boolean =
+    variant.typeName.name == "Option" && variant.typeName.namespace.packages.mkString(".") == "scala"
+
   def reflectEncoder[A](reflect: Reflect.Bound[A]): Encoder[A] =
     reflect match {
       case Reflect.Primitive(primitiveType, _, _, _, _)                 =>
@@ -94,11 +97,11 @@ object BlocksCodec {
               val enc              = reflectEncoder(field.value)
               val av               = enc(fieldValue.asInstanceOf[field.value.Structure])
 
-              // TODO: create extensions helper methods on Term for Option codec processing
               field.value match {
-                case Reflect.Variant(_, typeName, _, _, _) if typeName.name == "Option" && av == AttributeValue.Null =>
+                // TODO: use type matching
+                case v @ Reflect.Variant(_, _, _, _, _) if isOption(v) && av == AttributeValue.Null =>
                   acc
-                case _                                                                                               =>
+                case _                                                                              =>
                   acc + (fieldName -> av)
               }
           }
@@ -108,12 +111,11 @@ object BlocksCodec {
         (a: A) =>
           val idx             = v.discriminator.discriminate(a)
           val case_           = cases(idx)
-          val isOption        = typeName.name == "Option"
+          val isOpt           = isOption(v)
           //TODO: extract to Term level Variant encoder
           val enc: Encoder[A] = case_.value match {
             case r: Reflect.Record.Bound[aa] => // "default" vs "compact" encoding. Variant instance is a Record
-              // TODO: Note "None" is a case object and is dealt with upstream so not expected here
-              if (isOption) // TODO: do more checks for Some here like package name
+              if (isOpt)
                 optionEncoder[aa](r).asInstanceOf[Encoder[A]]
               else if (r.fields.isEmpty)
                 // empty fields implies a case object
@@ -174,7 +176,7 @@ object BlocksCodec {
                 fields.foreach {
                   var idx = 0
                   field =>
-                    val (isOption, cases)                  = field.value match {
+                    val (isOpt, cases)                     = field.value match {
                       case Reflect.Variant(cases, typeName, _, _, _) if typeName.name == "Option" => (true, cases)
                       case _                                                                      => (false, Vector.empty)
                     }
@@ -182,7 +184,7 @@ object BlocksCodec {
                     val fieldValue: Option[AttributeValue] = map.get(AttributeValue.String(fieldName))
 
                     // TODO: generalise missing field handling for Option and other container types
-                    val isNone = isOption && (fieldValue.isEmpty || fieldValue == Some(AttributeValue.Null))
+                    val isNone = isOpt && (fieldValue.isEmpty || fieldValue == Some(AttributeValue.Null))
 
                     if (isNone)
                       Right(None)
@@ -208,9 +210,9 @@ object BlocksCodec {
                 Left(DecodingError(s"Could not decode $av just yet"))
             }
       case v @ Reflect.Variant(cases, typeName, _, _, variantModifiers) =>
-        val isOption = typeName.name == "Option"
-        if (isOption) { (av: AttributeValue) =>
-          // we dealing with the Some case of Option Variant
+        val isOpt = isOption(v)
+        if (isOpt) { (av: AttributeValue) =>
+          // we are dealing with the Some case of Option Variant
           // so we can short cut decoding of Option Variant to decoding of the value field of the Some case
           val case_ = cases.find(_.name == "Some").get // TODO - is there a better way to do this?
           case_.value match {
