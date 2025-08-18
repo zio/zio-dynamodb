@@ -93,17 +93,22 @@ object BlocksCodec {
           val avMap = fields.foldLeft[AttributeValue.Map](AttributeValue.Map.empty) {
             case (acc: AttributeValue.Map, field) =>
               val fieldName        = field.name
-              val lens: Lens[A, _] = r.lensByName(fieldName).get // TODO: handle error
-              val fieldValue       = lens.get(a)
-              val enc              = reflectEncoder(field.value)
-              val av               = enc(fieldValue.asInstanceOf[field.value.Structure])
+              val maybeLens: Option[Lens[A, _]] = r.lensByName(fieldName)
+              if (maybeLens.isDefined) {
+                val lens = maybeLens.get
+                val fieldValue       = lens.get(a)
+                val enc              = reflectEncoder(field.value)
+                val av               = enc(fieldValue.asInstanceOf[field.value.Structure])
 
-              field.value match {
-                // TODO: use type matching
-                case v @ Reflect.Variant(_, _, _, _, _) if isOption(v) && av == AttributeValue.Null =>
-                  acc
-                case _                                                                              =>
-                  acc + (fieldName -> av)
+                field.value match {
+                  // TODO: use type matching
+                  case v @ Reflect.Variant(_, _, _, _, _) if isOption(v) && av == AttributeValue.Null =>
+                    acc
+                  case _                                                                              =>
+                    acc + (fieldName -> av)
+                }
+              } else {
+                throw new Exception(s"Field $fieldName not found in record") // this should not happen
               }
           }
           avMap
@@ -151,26 +156,6 @@ object BlocksCodec {
   def encoder[A](implicit schema: Schema[A]): Encoder[A] = reflectEncoder(schema.reflect)
 
   // ================================================================================================
-
-  /*
-  def optionDecoder[A](v: Reflect.Variant.Bound[A]): Decoder[A] = { (av: AttributeValue) =>
-    // we are dealing with the Some case of Option Variant
-    // so we can short cut decoding of Option Variant to decoding of the value field of the Some case
-    val case_ = v.cases.find(_.name == "Some").get // TODO - is there a better way to do this?
-    case_.value match {
-      case Reflect.Record(fields, _, _, _, _) if fields.size == 1 =>
-        fields(0) match {
-          case Term(_, value, _, _) =>
-            val dec = reflectDecoder(value)
-            val x   = dec(av).map(Some(_))
-            x.asInstanceOf[Either[DecodingError, A]]
-        }
-      case _                                                      => throw new Exception(s"Expected a record with a single field for Some")
-    }
-
-  }
-
-   */
 
   def optionDecoder[A](v: Reflect.Variant.Bound[A]): Decoder[A] = { (av: AttributeValue) =>
     // we are dealing with the Some case of Option Variant
@@ -233,7 +218,7 @@ object BlocksCodec {
                       addError(s"Field $fieldName not found")
                     else {
                       val dec = reflectDecoder(field.value)
-                      dec(fieldValue.get) match { // TODO: Naked get on Option
+                      dec(fieldValue.get) match { // naked get on Option is safe
                         case Left(e)      =>
                           addError(s"Field $fieldName: ${e.getMessage}")
                         case Right(value) =>
