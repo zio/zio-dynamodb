@@ -161,8 +161,8 @@ object BlocksCodec {
     // we are dealing with the Some case of Option Variant
     // so we can short cut decoding of Option Variant to decoding of the value field of the Some case
 
-    val x: Option[Term[Binding, A, ? <: A]] = v.cases.find(_.name == "Some")
-    val y: Either[DecodingError, A]         = x match {
+    val maybeCase: Option[Term[Binding, A, ? <: A]] = v.cases.find(_.name == "Some")
+    maybeCase match {
       case Some(term) =>
         term.value match {
           case Reflect.Record(fields, _, _, _, _) if fields.size == 1 =>
@@ -176,7 +176,6 @@ object BlocksCodec {
         }
       case None       => Left(DecodingError(s"Expected to find a case for Some")) // this should never happen
     }
-    y
   }
 
   def reflectDecoder[A](reflect: Reflect.Bound[A]): Decoder[A] =
