@@ -72,7 +72,7 @@ object AttributeValue {
 
   private[dynamodb] final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue { self =>
 
-    // For small insertions with a small no of items its OK to use immutable Map vs MapBuilder as later still does a 
+    // For small insertions with a small no of items its OK to use immutable Map vs MapBuilder as later still does a
     // copy at the end
     def +(t: (ScalaString, AttributeValue)): Map = {
       val (s, av) = t

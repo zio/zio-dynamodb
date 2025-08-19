@@ -182,8 +182,8 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
 [info] zio.schema.Schema[zio.dynamodb.codec.CaseClassOfMapOfInt] <: zio.dynamodb.SchemaCodec[zio.dynamodb.codec.CaseClassOfMapOfInt]?
 [info] false
 [error] one error found
-[error] (zio-dynamodb / Test / compileIncremental) Compilation failed    
-    */
+[error] (zio-dynamodb / Test / compileIncremental) Compilation failed
+     */
     // test("decodes map when field is missing") {
     //   val item     = Item.empty
     //   val expected = CaseClassOfMapOfInt(Map.empty)

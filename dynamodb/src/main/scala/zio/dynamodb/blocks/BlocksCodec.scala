@@ -85,25 +85,25 @@ object BlocksCodec {
             valueFieldTerm match {
               case Term(_, valueFieldValue, _, _) =>
                 val enc = reflectEncoder(valueFieldValue)
-                val x = enc(value.asInstanceOf[valueFieldValue.Structure])
+                val x   = enc(value.asInstanceOf[valueFieldValue.Structure])
                 AttributeValue.Map.empty + (label -> x)
             }
-          case None =>
+          case None        =>
             throw new Exception(s"Expected $label")
         }
       }
 
     (record.typeName.name, record.fields.length) match {
-      case ("Right", 1) => encodeBranch("Right", { case Right(v) => v })
-      case ("Left", 1)  => encodeBranch("Left",  { case Left(v)  => v })
+      case ("Right", 1)  => encodeBranch("Right", { case Right(v) => v })
+      case ("Left", 1)   => encodeBranch("Left", { case Left(v) => v })
       case (typeName, n) =>
         throw new Exception(s"Could not encode Either for type $typeName with $n fields")
     }
   }
 
- def eitherEncoderOld[A](record: Reflect.Record.Bound[A]): Encoder[A] = {
+  def eitherEncoderOld[A](record: Reflect.Record.Bound[A]): Encoder[A] =
     (record.typeName.name, record.fields.length) match {
-      case ("Right", 1)   =>
+      case ("Right", 1)  =>
         (a: A) => {
           val valueFieldTerm = record.fields(0)
           a match {
@@ -111,10 +111,10 @@ object BlocksCodec {
               valueFieldTerm match {
                 case Term(name, valueFieldValue, _, _) =>
                   val enc = reflectEncoder(valueFieldValue)
-                  val x = enc(value.asInstanceOf[valueFieldValue.Structure])
+                  val x   = enc(value.asInstanceOf[valueFieldValue.Structure])
                   AttributeValue.Map.empty + ("Right" -> x)
               }
-            case _           =>
+            case _            =>
               throw new Exception(s"Expected Right")
           }
         }
@@ -126,7 +126,7 @@ object BlocksCodec {
               valueFieldTerm match {
                 case Term(name, valueFieldTerm, _, _) =>
                   val enc = reflectEncoder(valueFieldTerm)
-                  val x = enc(value.asInstanceOf[valueFieldTerm.Structure])
+                  val x   = enc(value.asInstanceOf[valueFieldTerm.Structure])
                   AttributeValue.Map.empty + ("Left" -> x)
               }
             case _           =>
@@ -135,8 +135,7 @@ object BlocksCodec {
         }
       case (typeName, _) => throw new Exception(s"Could not encode Either for type $typeName")
     }
- }
-  def isOption[A](variant: Reflect.Variant.Bound[A]): Boolean =
+  def isOption[A](variant: Reflect.Variant.Bound[A]): Boolean          =
     variant.typeName.name == "Option" && variant.typeName.namespace.packages.mkString(".") == "scala"
 
   def isEither[A](variant: Reflect.Variant.Bound[A]): Boolean =
@@ -155,13 +154,13 @@ object BlocksCodec {
           // TODO: replace foldLeft with imperative loop
           val avMap = fields.foldLeft[AttributeValue.Map](AttributeValue.Map.empty) {
             case (acc: AttributeValue.Map, field) =>
-              val fieldName        = field.name
+              val fieldName                     = field.name
               val maybeLens: Option[Lens[A, _]] = r.lensByName(fieldName)
               if (maybeLens.isDefined) {
-                val lens = maybeLens.get
-                val fieldValue       = lens.get(a)
-                val enc              = reflectEncoder(field.value)
-                val av               = enc(fieldValue.asInstanceOf[field.value.Structure])
+                val lens       = maybeLens.get
+                val fieldValue = lens.get(a)
+                val enc        = reflectEncoder(field.value)
+                val av         = enc(fieldValue.asInstanceOf[field.value.Structure])
 
                 field.value match {
                   // TODO: use type matching
@@ -170,9 +169,8 @@ object BlocksCodec {
                   case _                                                                              =>
                     acc + (fieldName -> av)
                 }
-              } else {
+              } else
                 throw new Exception(s"Field $fieldName not found in record") // this should not happen
-              }
           }
           avMap
         }
@@ -181,13 +179,13 @@ object BlocksCodec {
           val idx             = v.discriminator.discriminate(a)
           val case_           = cases(idx)
           val isOpt           = isOption(v)
-          val isEithr       = isEither(v)
+          val isEithr         = isEither(v)
           //TODO: extract to Term level Variant encoder
           val enc: Encoder[A] = case_.value match {
             case r: Reflect.Record.Bound[aa] => // "default" vs "compact" encoding. Variant instance is a Record
               if (isOpt)
                 optionEncoder[aa](r).asInstanceOf[Encoder[A]]
-              else if(isEithr)  
+              else if (isEithr)
                 eitherEncoder[aa](r).asInstanceOf[Encoder[A]]
               else if (r.fields.isEmpty)
                 // empty fields implies a case object
@@ -227,7 +225,7 @@ object BlocksCodec {
     // we are dealing with the Some case of Option Variant
     // so we can short cut decoding of Option Variant to decoding of the value field of the Some case
 
-    val maybeCase: Option[Term[Binding, A, ? <: A]] = v.cases.find(_.name == "Some")
+    val maybeCase: Option[Term[Binding, A, _ <: A]] = v.cases.find(_.name == "Some")
     maybeCase match {
       case Some(term) =>
         term.value match {
