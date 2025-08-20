@@ -25,8 +25,10 @@ object BlocksCodec {
       case Modifier.config("discriminatorName", value) => value
     }
 
-  // Assumes case field if a Record with a single field named "value", and returns the binding for that field
-  // Applies to Some, Left and Right
+  /**
+   * Assumes case field is a Record with a single field named "value", and returns the binding for that field
+   * Applies to Some, Left and Right
+   */
   def reflectBindingForCaseValueField[A](
     caseLabel: String,
     v: Reflect.Variant.Bound[A]
