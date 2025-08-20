@@ -226,9 +226,10 @@ object BlocksCodec {
       case Some(value) =>
         reflectDecoder(value).asInstanceOf[Decoder[A]]
       case None        =>
-        (_ : AttributeValue) => Left(
-          DecodingError(s"Unexpected Schema shape for $label")
-        ) // this should never happen
+        (_: AttributeValue) =>
+          Left(
+            DecodingError(s"Unexpected Schema shape for $label")
+          ) // this should never happen
     }
 
   def eitherDecoder[A](v: Reflect.Variant.Bound[A]): Decoder[A] = {
