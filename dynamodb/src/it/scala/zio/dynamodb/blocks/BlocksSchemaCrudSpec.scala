@@ -213,6 +213,42 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
           afterPut == Some(Item("id" -> "1", "either" -> Item("Left" -> "Meh")))
         )
       }
+    },
+    test("Either get of Right") {
+      withSingleIdKeyTable { tableName =>
+        import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
+
+        final case class Person(id: String, either: Either[String, Int])
+        object Person extends CompanionOptics[Person] {
+          implicit val schema: Schema[Person]           = Schema.derived
+          val id: Lens[Person, String]                  = optic(_.id)
+          val either: Lens[Person, Either[String, Int]] = optic(_.either)
+        }
+
+        val person = Person("1", Right(42))
+        for {
+          _        <- DynamoDBQuery.put(tableName, person).execute
+          afterPut <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
+        } yield assertTrue(afterPut == person)
+      }
+    },
+    test("Either get of Left") {
+      withSingleIdKeyTable { tableName =>
+        import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
+
+        final case class Person(id: String, either: Either[String, Int])
+        object Person extends CompanionOptics[Person] {
+          implicit val schema: Schema[Person]           = Schema.derived
+          val id: Lens[Person, String]                  = optic(_.id)
+          val either: Lens[Person, Either[String, Int]] = optic(_.either)
+        }
+
+        val person = Person("1", Left("Meh"))
+        for {
+          _        <- DynamoDBQuery.put(tableName, person).execute
+          afterPut <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
+        } yield assertTrue(afterPut == person)
+      }
     }
   ) @@ TestAspect.nondeterministic
 }

@@ -221,6 +221,48 @@ object BlocksCodec {
 
   // ================================================================================================
 
+  def decodeEitherValue[A](isRight: Boolean, v: Reflect.Variant.Bound[A]): Decoder[A] = {
+    // Find the case for the given label
+    val case_ = v.cases.find(_.name == (if (isRight) "Right" else "Left"))
+
+    // dig into the structure of the found case to get the decoder for the value field
+    case_ match {
+      case Some(recordForValue) =>
+        recordForValue.value match {
+          case Reflect.Record(fields, _, _, _, _) if fields.size == 1 =>
+            fields(0) match {
+              case Term(_, value, _, _) =>
+                reflectDecoder(value).asInstanceOf[Decoder[A]] // TODO: handle non-record cases
+            }
+          case _                                                      =>
+            (_: AttributeValue) =>
+              Left(DecodingError(s"Expected a record with a single field for ${if (isRight) "Right" else "Left"}"))
+        }
+      case None                 =>
+        (_: AttributeValue) => Left(DecodingError(s"Could not find case for ${if (isRight) "Right" else "Left"}"))
+    }
+  }
+
+  def eitherDecoder[A](v: Reflect.Variant.Bound[A]): Decoder[A] = {
+    case AttributeValue.Map(map) if map.size == 1 =>
+      val iter  = map.iterator
+      val entry = iter.next() // Map.Entry[_, _] under the hood, no extra tuple
+      entry._1 match {
+        case AttributeValue.String("Right") =>
+          decodeEitherValue(isRight = true, v)(entry._2).map(Right(_)).asInstanceOf[Either[DecodingError, A]]
+        case AttributeValue.String("Left")  =>
+          decodeEitherValue(isRight = false, v)(entry._2).map(Left(_)).asInstanceOf[Either[DecodingError, A]]
+        case other                          =>
+          Left(DecodingError(s"Unexpected key in Either decoder: $other"))
+      }
+
+    case AttributeValue.Map(map)                  =>
+      Left(DecodingError(s"Expected single-element map, got keys: ${map.keys}"))
+
+    case av                                       =>
+      Left(DecodingError(s"Expected AttributeValue.Map but found ${av.showType}"))
+  }
+
   def optionDecoder[A](v: Reflect.Variant.Bound[A]): Decoder[A] = { (av: AttributeValue) =>
     // we are dealing with the Some case of Option Variant
     // so we can short cut decoding of Option Variant to decoding of the value field of the Some case
@@ -301,6 +343,8 @@ object BlocksCodec {
       case v @ Reflect.Variant(cases, typeName, _, _, variantModifiers) =>
         if (isOption(v))
           optionDecoder(v)
+        else if (isEither(v))
+          eitherDecoder(v)
         else
           maybeDiscriminatorNameModifier(variantModifiers) match { // TODO: Consider a NoDiscriminator modifier as well
             case Some(discName) =>
