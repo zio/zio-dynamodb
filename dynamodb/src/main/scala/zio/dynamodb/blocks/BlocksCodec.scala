@@ -94,7 +94,7 @@ object BlocksCodec {
     case _       => throw new Exception(s"Input type not an Option") // TODO: tighten up types
   }
 
-  def eitherEncoder[A](record: Reflect.Record.Bound[A]): Encoder[A] = {
+  def eitherEncoderOld[A](record: Reflect.Record.Bound[A]): Encoder[A] = {
     def encodeBranch[B](label: String, extract: PartialFunction[A, B]): Encoder[A] =
       (a: A) => {
         val valueFieldTerm = record.fields(0)
@@ -119,41 +119,22 @@ object BlocksCodec {
     }
   }
 
-  def eitherEncoderOld[A](record: Reflect.Record.Bound[A]): Encoder[A] =
-    (record.typeName.name, record.fields.length) match {
-      case ("Right", 1)  =>
-        (a: A) => {
-          val valueFieldTerm = record.fields(0)
-          a match {
-            case Right(value) =>
-              valueFieldTerm match {
-                case Term(name, valueFieldValue, _, _) =>
-                  val enc = reflectEncoder(valueFieldValue)
-                  val x   = enc(value.asInstanceOf[valueFieldValue.Structure])
-                  AttributeValue.Map.empty + ("Right" -> x)
-              }
-            case _            =>
-              throw new Exception(s"Expected Right")
-          }
-        }
-      case ("Left", 1)   =>
-        (a: A) => {
-          val valueFieldTerm = record.fields(0)
-          a match {
-            case Left(value) =>
-              valueFieldTerm match {
-                case Term(name, valueFieldTerm, _, _) =>
-                  val enc = reflectEncoder(valueFieldTerm)
-                  val x   = enc(value.asInstanceOf[valueFieldTerm.Structure])
-                  AttributeValue.Map.empty + ("Left" -> x)
-              }
-            case _           =>
-              throw new Exception(s"Expected Left")
-          }
-        }
-      case (typeName, _) => throw new Exception(s"Could not encode Either for type $typeName")
+  def eitherEncoder[A](v: Reflect.Variant.Bound[A]): Encoder[A] = {
+    case Right(r) => encodeCase("Right", r, v)
+    case Left(l)  => encodeCase("Left", l, v)
+    case _        => throw new Exception(s"Input type not an Either") // TODO: tighten types
+  }
+
+  private def encodeCase[A](tag: String, value: Any, v: Reflect.Variant.Bound[A]): AttributeValue =
+    reflectBindingForCaseValueField(tag, v) match {
+      case Some(binding) =>
+        val enc = reflectEncoder(binding)
+        AttributeValue.Map.empty + (tag -> enc(value.asInstanceOf[binding.Structure]))
+      case None          =>
+        throw new Exception(s"Unexpected Schema shape for $tag") // should never happen
     }
-  def isOption[A](variant: Reflect.Variant.Bound[A]): Boolean          =
+
+  def isOption[A](variant: Reflect.Variant.Bound[A]): Boolean =
     variant.typeName.name == "Option" && variant.typeName.namespace.packages.mkString(".") == "scala"
 
   def isEither[A](variant: Reflect.Variant.Bound[A]): Boolean =
@@ -194,19 +175,17 @@ object BlocksCodec {
         }
       case v @ Reflect.Variant(cases, _, _, _, variantModifiers) =>
         (a: A) =>
-          val idx     = v.discriminator.discriminate(a)
-          val case_   = cases(idx)
-          val isOpt   = isOption(v)
-          val isEithr = isEither(v)
-          if (isOpt)
+          val idx   = v.discriminator.discriminate(a)
+          val case_ = cases(idx)
+          if (isOption(v))
             optionEncoder(v)(a)
+          else if (isEither(v))
+            eitherEncoder(v)(a)
           else {
             //TODO: extract to Term level Variant encoder
             val enc: Encoder[A] = case_.value match {
               case r: Reflect.Record.Bound[aa] => // "default" vs "compact" encoding. Variant instance is a Record
-                if (isEithr)
-                  eitherEncoder[aa](r).asInstanceOf[Encoder[A]]
-                else if (r.fields.isEmpty)
+                if (r.fields.isEmpty)
                   // empty fields implies a case object
                   _ => AttributeValue.String(case_.name)
                 else {
