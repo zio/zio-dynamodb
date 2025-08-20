@@ -11,7 +11,6 @@ import zio.blocks.schema.binding.Register
 import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.binding.Registers
 import zio.Chunk
-import zio.blocks.schema.binding.Binding
 
 object BlocksCodec {
   // type Encoder[A]  = A => AttributeValue
@@ -25,6 +24,30 @@ object BlocksCodec {
     modifiers.collectFirst {
       case Modifier.config("discriminatorName", value) => value
     }
+
+  // Assumes case field if a Record with a single field named "value", and returns the binding for that field
+  // Applies to Some, Left and Right
+  def reflectBindingForCaseValueField[A](
+    caseLabel: String,
+    v: Reflect.Variant.Bound[A]
+  ): Option[Reflect.Bound[A]] = {
+    // Find the case for the given label
+    val case_ = v.cases.find(_.name == caseLabel)
+
+    // dig into the structure of the found case to get the binding for the value field
+    case_ match {
+      case Some(recordForValue) =>
+        recordForValue.value match {
+          case Reflect.Record(fields, _, _, _, _) if fields.size == 1 && fields(0).name == "value" =>
+            fields(0) match {
+              case Term(_, value, _, _) =>
+                Some(value.asInstanceOf[Reflect.Bound[A]])
+            }
+          case _                                                                                   => None
+        }
+      case None                 => None
+    }
+  }
 
   // TODO: handle all primitive types
   def primitiveEncoder[A](primitiveType: PrimitiveType[A]): Encoder[A] =
@@ -266,22 +289,11 @@ object BlocksCodec {
   def optionDecoder[A](v: Reflect.Variant.Bound[A]): Decoder[A] = { (av: AttributeValue) =>
     // we are dealing with the Some case of Option Variant
     // so we can short cut decoding of Option Variant to decoding of the value field of the Some case
-
-    val maybeCase: Option[Term[Binding, A, _ <: A]] = v.cases.find(_.name == "Some")
-    maybeCase match {
-      case Some(term) =>
-        term.value match {
-          case Reflect.Record(fields, _, _, _, _) if fields.size == 1 =>
-            fields(0) match {
-              case Term(_, value, _, _) =>
-                val dec = reflectDecoder(value)
-                val x   = dec(av).map(Some(_))
-                x.asInstanceOf[Either[DecodingError, A]]
-            }
-          case _                                                      => Left(DecodingError(s"Expected a record with a single field for Some"))
-        }
-      case None       => Left(DecodingError(s"Expected to find a case for Some")) // this should never happen
+    reflectBindingForCaseValueField("Some", v) match {
+      case Some(value) => reflectDecoder(value).apply(av).map(Some(_)).asInstanceOf[Either[DecodingError, A]]
+      case None        => Left(DecodingError(s"Unexpected Schema shape for Some")) // this should never happen
     }
+
   }
 
   def reflectDecoder[A](reflect: Reflect.Bound[A]): Decoder[A] =
