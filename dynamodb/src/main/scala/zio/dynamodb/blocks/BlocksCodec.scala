@@ -220,27 +220,16 @@ object BlocksCodec {
 
   // ================================================================================================
 
-  def decodeEitherValue[A](isRight: Boolean, v: Reflect.Variant.Bound[A]): Decoder[A] = {
-    // Find the case for the given label
-    val case_ = v.cases.find(_.name == (if (isRight) "Right" else "Left"))
-
+  private def decodeEitherValue[A](isRight: Boolean, v: Reflect.Variant.Bound[A]): Decoder[A] =
     // dig into the structure of the found case to get the decoder for the value field
-    case_ match {
-      case Some(recordForValue) =>
-        recordForValue.value match {
-          case Reflect.Record(fields, _, _, _, _) if fields.size == 1 =>
-            fields(0) match {
-              case Term(_, value, _, _) =>
-                reflectDecoder(value).asInstanceOf[Decoder[A]] // TODO: handle non-record cases
-            }
-          case _                                                      =>
-            (_: AttributeValue) =>
-              Left(DecodingError(s"Expected a record with a single field for ${if (isRight) "Right" else "Left"}"))
-        }
-      case None                 =>
-        (_: AttributeValue) => Left(DecodingError(s"Could not find case for ${if (isRight) "Right" else "Left"}"))
+    reflectBindingForCaseValueField(if (isRight) "Right" else "Left", v) match {
+      case Some(value) =>
+        reflectDecoder(value).asInstanceOf[Decoder[A]]
+      case None        =>
+        (_ : AttributeValue) => Left(
+          DecodingError(s"Unexpected Schema shape for ${if (isRight) "Right" else "Left"}")
+        ) // this should never happen
     }
-  }
 
   def eitherDecoder[A](v: Reflect.Variant.Bound[A]): Decoder[A] = {
     case AttributeValue.Map(map) if map.size == 1 =>
