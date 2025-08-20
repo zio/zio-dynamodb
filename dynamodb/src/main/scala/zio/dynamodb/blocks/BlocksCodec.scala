@@ -79,25 +79,18 @@ object BlocksCodec {
         throw new Exception("TODO: nonNativeMapEncoder(encoder(ks), encoder(vs))")
     }
 
-  def optionEncoder[A](record: Reflect.Record.Bound[A]): Encoder[A] =
-    (record.typeName.name, record.fields.length) match {
-      case ("Some", 1)   =>
-        (a: A) => {
-          val valueField = record.fields(0)
-          a match {
-            case Some(value) =>
-              valueField match {
-                case Term(name, value2, _, _) =>
-                  val enc = reflectEncoder(value2)
-                  enc(value.asInstanceOf[value2.Structure])
-              }
-            case _           =>
-              throw new Exception(s"Expected Some but found None")
-          }
-        }
-      case ("None", 0)   => _ => AttributeValue.Null
-      case (typeName, _) => throw new Exception(s"Could not encode Option for type $typeName")
-    }
+  def optionEncoder[A](v: Reflect.Variant.Bound[A]): Encoder[A] = {
+    case Some(a) =>
+      reflectBindingForCaseValueField("Some", v) match {
+        case Some(value) =>
+          val enc = reflectEncoder(value)
+          enc(a.asInstanceOf[value.Structure])
+        case None        =>
+          throw new Exception(s"Unexpected Schema shape for Some") // this should never happen
+      }
+    case None    => AttributeValue.Null                              // gets redacted at the Record level
+    case _       => throw new Exception(s"Input type not an Option") // TODO: tighten up types
+  }
 
   def eitherEncoder[A](record: Reflect.Record.Bound[A]): Encoder[A] = {
     def encodeBranch[B](label: String, extract: PartialFunction[A, B]): Encoder[A] =
@@ -199,42 +192,44 @@ object BlocksCodec {
         }
       case v @ Reflect.Variant(cases, _, _, _, variantModifiers) =>
         (a: A) =>
-          val idx             = v.discriminator.discriminate(a)
-          val case_           = cases(idx)
-          val isOpt           = isOption(v)
-          val isEithr         = isEither(v)
-          //TODO: extract to Term level Variant encoder
-          val enc: Encoder[A] = case_.value match {
-            case r: Reflect.Record.Bound[aa] => // "default" vs "compact" encoding. Variant instance is a Record
-              if (isOpt)
-                optionEncoder[aa](r).asInstanceOf[Encoder[A]]
-              else if (isEithr)
-                eitherEncoder[aa](r).asInstanceOf[Encoder[A]]
-              else if (r.fields.isEmpty)
-                // empty fields implies a case object
-                _ => AttributeValue.String(case_.name)
-              else {
-                // TODO: Consider a NoDiscriminator modifier as well
-                val disc: Option[String] = maybeDiscriminatorNameModifier(variantModifiers)
-                val av: AttributeValue   = reflectEncoder(case_.value)(a.asInstanceOf[case_.value.Structure])
-                disc match {
-                  case Some(discName) =>
-                    val newMap = av match {
-                      case AttributeValue.Map(map) =>
-                        map + (AttributeValue.String(discName) -> AttributeValue.String(case_.name))
-                      case _                       =>
-                        throw new Exception(s"Could not encode $a with discriminator $disc")
-                    }
-                    _ => AttributeValue.Map(newMap)
-                  case None           =>
-                    // tagged Variant encoding
-                    _ => AttributeValue.Map(case_.name, av)
+          val idx     = v.discriminator.discriminate(a)
+          val case_   = cases(idx)
+          val isOpt   = isOption(v)
+          val isEithr = isEither(v)
+          if (isOpt)
+            optionEncoder(v)(a)
+          else {
+            //TODO: extract to Term level Variant encoder
+            val enc: Encoder[A] = case_.value match {
+              case r: Reflect.Record.Bound[aa] => // "default" vs "compact" encoding. Variant instance is a Record
+                if (isEithr)
+                  eitherEncoder[aa](r).asInstanceOf[Encoder[A]]
+                else if (r.fields.isEmpty)
+                  // empty fields implies a case object
+                  _ => AttributeValue.String(case_.name)
+                else {
+                  // TODO: Consider a NoDiscriminator modifier as well
+                  val disc: Option[String] = maybeDiscriminatorNameModifier(variantModifiers)
+                  val av: AttributeValue   = reflectEncoder(case_.value)(a.asInstanceOf[case_.value.Structure])
+                  disc match {
+                    case Some(discName) =>
+                      val newMap = av match {
+                        case AttributeValue.Map(map) =>
+                          map + (AttributeValue.String(discName) -> AttributeValue.String(case_.name))
+                        case _                       =>
+                          throw new Exception(s"Could not encode $a with discriminator $disc")
+                      }
+                      _ => AttributeValue.Map(newMap)
+                    case None           =>
+                      // tagged Variant encoding
+                      _ => AttributeValue.Map(case_.name, av)
+                  }
                 }
-              }
-            case r                           =>
-              throw new Exception(s"Did not expect Reflect $r - only Record is valid")
+              case r                           =>
+                throw new Exception(s"Did not expect Reflect $r - only Record is valid")
+            }
+            enc(a)
           }
-          enc(a)
       case Reflect.Deferred(value)                               =>
         reflectEncoder(value())
       case r                                                     => throw new Exception(s"Could not encode $r just yet")
@@ -286,6 +281,8 @@ object BlocksCodec {
       Left(DecodingError(s"Expected AttributeValue.Map but found ${av.showType}"))
   }
 
+  // Note that None decoding (AttributeValue.Null or missing field value) is done upstream
+  // so we only focus on the Some case here
   def optionDecoder[A](v: Reflect.Variant.Bound[A]): Decoder[A] = { (av: AttributeValue) =>
     // we are dealing with the Some case of Option Variant
     // so we can short cut decoding of Option Variant to decoding of the value field of the Some case
