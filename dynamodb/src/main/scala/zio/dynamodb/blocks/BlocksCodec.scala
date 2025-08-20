@@ -220,14 +220,14 @@ object BlocksCodec {
 
   // ================================================================================================
 
-  private def decodeEitherValue[A](isRight: Boolean, v: Reflect.Variant.Bound[A]): Decoder[A] =
+  private def decodeEitherValue[A](label: String, v: Reflect.Variant.Bound[A]): Decoder[A] =
     // dig into the structure of the found case to get the decoder for the value field
-    reflectBindingForCaseValueField(if (isRight) "Right" else "Left", v) match {
+    reflectBindingForCaseValueField(label, v) match {
       case Some(value) =>
         reflectDecoder(value).asInstanceOf[Decoder[A]]
       case None        =>
         (_ : AttributeValue) => Left(
-          DecodingError(s"Unexpected Schema shape for ${if (isRight) "Right" else "Left"}")
+          DecodingError(s"Unexpected Schema shape for $label")
         ) // this should never happen
     }
 
@@ -237,9 +237,9 @@ object BlocksCodec {
       val entry = iter.next() // Map.Entry[_, _] under the hood, no extra tuple
       entry._1 match {
         case AttributeValue.String("Right") =>
-          decodeEitherValue(isRight = true, v)(entry._2).map(Right(_)).asInstanceOf[Either[DecodingError, A]]
+          decodeEitherValue("Right", v)(entry._2).map(Right(_)).asInstanceOf[Either[DecodingError, A]]
         case AttributeValue.String("Left")  =>
-          decodeEitherValue(isRight = false, v)(entry._2).map(Left(_)).asInstanceOf[Either[DecodingError, A]]
+          decodeEitherValue("Left", v)(entry._2).map(Left(_)).asInstanceOf[Either[DecodingError, A]]
         case other                          =>
           Left(DecodingError(s"Unexpected key in Either decoder: $other"))
       }
