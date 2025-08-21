@@ -125,13 +125,13 @@ object BlocksCodec {
     case _        => throw new Exception(s"Input type not an Either") // TODO: tighten types
   }
 
-  private def encodeCase[A](tag: String, value: Any, v: Reflect.Variant.Bound[A]): AttributeValue =
-    reflectBindingForCaseValueField(tag, v) match {
+  private def encodeCase[A](caseLabel: String, value: Any, v: Reflect.Variant.Bound[A]): AttributeValue =
+    reflectBindingForCaseValueField(caseLabel, v) match {
       case Some(binding) =>
         val enc = reflectEncoder(binding)
-        AttributeValue.Map.empty + (tag -> enc(value.asInstanceOf[binding.Structure]))
+        AttributeValue.Map.empty + (caseLabel -> enc(value.asInstanceOf[binding.Structure]))
       case None          =>
-        throw new Exception(s"Unexpected Schema shape for $tag") // should never happen
+        throw new Exception(s"Unexpected Schema shape for $caseLabel") // should never happen
     }
 
   def isOption[A](variant: Reflect.Variant.Bound[A]): Boolean =
