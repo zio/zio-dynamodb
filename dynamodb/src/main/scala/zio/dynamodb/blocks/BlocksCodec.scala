@@ -219,6 +219,8 @@ object BlocksCodec {
 
   def encoder[A](implicit schema: Schema[A]): Encoder[A] = reflectEncoder(schema.reflect)
 
+  def fooEncoder(implicit schema: Schema[?]): Encoder[?] = reflectEncoder(schema.reflect)
+
   // ================================================================================================
 
   private def decodeEitherValue[A](label: String, v: Reflect.Variant.Bound[A]): Decoder[A] =

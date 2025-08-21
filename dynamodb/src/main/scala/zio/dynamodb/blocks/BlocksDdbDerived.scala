@@ -9,7 +9,6 @@ import zio.blocks.schema.Term
 import zio.blocks.schema.Reflect
 import zio.blocks.schema.CompanionOptics
 import zio.blocks.schema.Schema
-import zio.blocks.schema.Lens
 import zio.dynamodb.{ Decoder, Encoder }
 
 trait DdbCodec[A] {
@@ -18,7 +17,7 @@ trait DdbCodec[A] {
   def decoder: Decoder[A]
 }
 
-object BlocksDdbDerived extends Deriver[DdbCodec] {
+object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
   override def derivePrimitive[F[_, _], A](
     primitiveType: PrimitiveType[A],
@@ -43,7 +42,18 @@ object BlocksDdbDerived extends Deriver[DdbCodec] {
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] =
     Lazy(
       new DdbCodec[A] {
-        override def encoder: Encoder[A] = ???
+        override def encoder: Encoder[A] = { (a: A) =>
+          val record = Reflect.Record(
+            fields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]],
+            typeName = typeName,
+            recordBinding = binding,
+            doc = doc,
+            modifiers = modifiers
+          )
+          val enc    = BlocksCodec.reflectEncoder(record)
+          val x      = enc(a.asInstanceOf[record.Structure])
+          x
+        }
         override def decoder: Decoder[A] = ???
       }
     )
@@ -93,11 +103,8 @@ object TestDerived extends App {
   final case class Person(id: String, count: Int)
   object Person extends CompanionOptics[Person] {
     implicit val schema: Schema[Person] = Schema.derived
-    val id: Lens[Person, String]        = optic(_.id)
-    val count: Lens[Person, Int]        = optic(_.count)
-    val codec: DdbCodec[Person]         = schema.derive(BlocksDdbDerived)
-
-    val y = codec.encoder(Person("1", 42))
-    println(s"Encoded Person: $y")
   }
+
+  val codec: DdbCodec[Person] = Person.schema.derive(BlocksDdbDerived)
+  println("XXXXXXXX" + codec.encoder(Person("1", 42)))
 }
