@@ -26,8 +26,9 @@ object BlocksCodec {
     }
 
   /**
-   * Assumes case field is a Record with a single field named "value", and returns the binding for that field
-   * Applies to Some, Left and Right
+   * Note that Some, Left and Right use value classes with a single field named "value" which equates to a schema Record.
+   * This function searches all cases in the Variant for the `caseLabel` and returns the binding for that field as a Some,
+   * else returns a None.
    */
   def reflectBindingForCaseValueField[A](
     caseLabel: String,
