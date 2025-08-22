@@ -91,33 +91,8 @@ object BlocksCodec {
         case None        =>
           throw new Exception(s"Unexpected Schema shape for Some") // this should never happen
       }
-    case None    => AttributeValue.Null                              // gets redacted at the Record level
+    case None    => AttributeValue.Null                              // gets removed at the Record level
     case _       => throw new Exception(s"Input type not an Option") // TODO: tighten up types
-  }
-
-  def eitherEncoderOld[A](record: Reflect.Record.Bound[A]): Encoder[A] = {
-    def encodeBranch[B](label: String, extract: PartialFunction[A, B]): Encoder[A] =
-      (a: A) => {
-        val valueFieldTerm = record.fields(0)
-        extract.lift(a) match {
-          case Some(value) =>
-            valueFieldTerm match {
-              case Term(_, valueFieldValue, _, _) =>
-                val enc = reflectEncoder(valueFieldValue)
-                val x   = enc(value.asInstanceOf[valueFieldValue.Structure])
-                AttributeValue.Map.empty + (label -> x)
-            }
-          case None        =>
-            throw new Exception(s"Expected $label")
-        }
-      }
-
-    (record.typeName.name, record.fields.length) match {
-      case ("Right", 1)  => encodeBranch("Right", { case Right(v) => v })
-      case ("Left", 1)   => encodeBranch("Left", { case Left(v) => v })
-      case (typeName, n) =>
-        throw new Exception(s"Could not encode Either for type $typeName with $n fields")
-    }
   }
 
   def eitherEncoder[A](v: Reflect.Variant.Bound[A]): Encoder[A] = {
@@ -155,7 +130,8 @@ object BlocksCodec {
           val avMap = fields.foldLeft[AttributeValue.Map](AttributeValue.Map.empty) {
             case (acc: AttributeValue.Map, field) =>
               val fieldName                     = field.name
-              val maybeLens: Option[Lens[A, _]] = r.lensByName(fieldName)
+              val maybeLens: Option[Lens[A, _]] =
+                r.lensByName(fieldName) // TODO: should we use a lower level deconstructor rather than a lens?
               if (maybeLens.isDefined) {
                 val lens       = maybeLens.get
                 val fieldValue = lens.get(a)
@@ -163,10 +139,9 @@ object BlocksCodec {
                 val av         = enc(fieldValue.asInstanceOf[field.value.Structure])
 
                 field.value match {
-                  // TODO: use type matching
-                  case v @ Reflect.Variant(_, _, _, _, _) if isOption(v) && av == AttributeValue.Null =>
+                  case v: Reflect.Variant.Bound[_] if isOption(v) && av == AttributeValue.Null =>
                     acc
-                  case _                                                                              =>
+                  case _                                                                       =>
                     acc + (fieldName -> av)
                 }
               } else
@@ -174,6 +149,7 @@ object BlocksCodec {
           }
           avMap
         }
+
       case v @ Reflect.Variant(cases, _, _, _, variantModifiers) =>
         (a: A) =>
           val idx   = v.discriminator.discriminate(a)
@@ -214,12 +190,10 @@ object BlocksCodec {
           }
       case Reflect.Deferred(value)                               =>
         reflectEncoder(value())
-      case r                                                     => throw new Exception(s"Could not encode $r just yet")
+      case r                                                     => throw new Exception(s"Could not encode ${r.getClass.getSimpleName} just yet")
     }
 
   def encoder[A](implicit schema: Schema[A]): Encoder[A] = reflectEncoder(schema.reflect)
-
-  def fooEncoder(implicit schema: Schema[?]): Encoder[?] = reflectEncoder(schema.reflect)
 
   // ================================================================================================
 
@@ -257,7 +231,7 @@ object BlocksCodec {
 
   // Note that None decoding (AttributeValue.Null or missing field value) is done upstream
   // so we only focus on the Some case here
-  def optionDecoder[A](v: Reflect.Variant.Bound[A]): Decoder[A] = { (av: AttributeValue) =>
+  def someDecoder[A](v: Reflect.Variant.Bound[A]): Decoder[A] = { (av: AttributeValue) =>
     // we are dealing with the Some case of Option Variant
     // so we can short cut decoding of Option Variant to decoding of the value field of the Some case
     reflectBindingForCaseValueField("Some", v) match {
@@ -325,7 +299,7 @@ object BlocksCodec {
             }
       case v @ Reflect.Variant(cases, typeName, _, _, variantModifiers) =>
         if (isOption(v))
-          optionDecoder(v)
+          someDecoder(v)
         else if (isEither(v))
           eitherDecoder(v)
         else
