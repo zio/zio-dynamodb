@@ -40,7 +40,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     binding: Binding[BindingType.Record, A],
     doc: Doc,
     modifiers: Seq[Modifier.Record]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] =
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]]    =
     Lazy(
       new DdbCodec[A] {
         val record = Reflect.Record(
@@ -67,8 +67,11 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     binding: Binding[BindingType.Variant, A],
     doc: Doc,
     modifiers: Seq[Modifier.Variant]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] = ???
-
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] = {
+    val variant = ???
+    println(s"TODO $variant")
+    ???
+  }
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
     typeName: TypeName[C[A]],
