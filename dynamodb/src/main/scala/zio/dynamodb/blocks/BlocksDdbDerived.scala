@@ -10,6 +10,7 @@ import zio.blocks.schema.Reflect
 import zio.blocks.schema.CompanionOptics
 import zio.blocks.schema.Schema
 import zio.dynamodb.{ Decoder, Encoder }
+import zio.dynamodb.AttributeValue
 
 trait DdbCodec[A] {
 
@@ -42,19 +43,21 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] =
     Lazy(
       new DdbCodec[A] {
+        val record = Reflect.Record(
+          fields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]],
+          typeName = typeName,
+          recordBinding = binding,
+          doc = doc,
+          modifiers = modifiers
+        )
         override def encoder: Encoder[A] = { (a: A) =>
-          val record = Reflect.Record(
-            fields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]],
-            typeName = typeName,
-            recordBinding = binding,
-            doc = doc,
-            modifiers = modifiers
-          )
-          val enc    = BlocksCodec.reflectEncoder(record)
-          val x      = enc(a.asInstanceOf[record.Structure])
-          x
+          val enc = BlocksCodec.reflectEncoder(record)
+          enc(a.asInstanceOf[record.Structure])
         }
-        override def decoder: Decoder[A] = ???
+        override def decoder: Decoder[A] = { (av: AttributeValue) =>
+          val dec = BlocksCodec.reflectDecoder(record)
+          dec(av)
+        }
       }
     )
 
@@ -106,5 +109,7 @@ object TestDerived extends App {
   }
 
   val codec: DdbCodec[Person] = Person.schema.derive(BlocksDdbDerived)
-  println("XXXXXXXX" + codec.encoder(Person("1", 42)))
+  val enc                     = codec.encoder(Person("1", 42))
+  val dec                     = codec.decoder(enc)
+  println(s"XXXXXXXX enc: $enc dec: $dec")
 }
