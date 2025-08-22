@@ -35,7 +35,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     )
 
   override def deriveRecord[F[_, _], A](
-    fields: IndexedSeq[Term[F, A, _]],
+    fields: IndexedSeq[Term[F, A, ?]],
     typeName: TypeName[A],
     binding: Binding[BindingType.Record, A],
     doc: Doc,
@@ -62,7 +62,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     )
 
   override def deriveVariant[F[_, _], A](
-    cases: IndexedSeq[Term[F, A, _]],
+    cases: IndexedSeq[Term[F, A, ?]],
     typeName: TypeName[A],
     binding: Binding[BindingType.Variant, A],
     doc: Doc,
