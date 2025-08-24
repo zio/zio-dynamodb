@@ -12,6 +12,20 @@ import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.binding.Registers
 import zio.Chunk
 
+/*
+Reflect
+TODO
+- Primitive in Reflect$ (zio.blocks.schema)
+- Sequence in Reflect$ (zio.blocks.schema)
+- Wrapper in Reflect$ (zio.blocks.schema)
+- Dynamic in Reflect$ (zio.blocks.schema)
+DONE
+- Record in Reflect$ (zio.blocks.schema)
+- Variant in Reflect$ (zio.blocks.schema)
+- Map in Reflect$ (zio.blocks.schema)
+- Deferred in Reflect$ (zio.blocks.schema)
+- Primitive in Reflect$ (zio.blocks.schema)
+ */
 object BlocksCodec {
   // type Encoder[A]  = A => AttributeValue
   // type Decoder[+A] = AttributeValue => Either[ItemError, A]
@@ -115,6 +129,16 @@ object BlocksCodec {
 
   def isEither[A](variant: Reflect.Variant.Bound[A]): Boolean =
     variant.typeName.name == "Either" && variant.typeName.namespace.packages.mkString(".") == "scala.util"
+
+  /*
+TODO: implement sequenceEncoder
+
+    private def sequenceEncoder[Col, A](encoder: Encoder[A], from: Col => Chunk[A]): Encoder[Col] =
+      (col: Col) => AttributeValue.List(from(col).map(encoder))
+
+        case s: Schema.Sequence[col, a, _]                                                                                                      =>
+          sequenceEncoder[col, a](encoder(s.elementSchema), s.toChunk)
+   */
 
   def reflectEncoder[A](reflect: Reflect.Bound[A]): Encoder[A] =
     reflect match {
