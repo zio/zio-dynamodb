@@ -93,7 +93,9 @@ object BlocksCodec {
       case Reflect.Deferred(value)                                =>
         mapEncoder(value(), vs)
       case _                                                      =>
-        throw new Exception("TODO: nonNativeMapEncoder(encoder(ks), encoder(vs))")
+        throw new Exception(
+          "TODO: nonNativeMapEncoder(encoder(ks), encoder(vs))"
+        ) // Non native Map encoder relies on Sequence encoder
     }
 
   def optionEncoder[A](v: Reflect.Variant.Bound[A]): Encoder[A] = {
@@ -130,22 +132,54 @@ object BlocksCodec {
   def isEither[A](variant: Reflect.Variant.Bound[A]): Boolean =
     variant.typeName.name == "Either" && variant.typeName.namespace.packages.mkString(".") == "scala.util"
 
-  /*
-TODO: implement sequenceEncoder
-
-    private def sequenceEncoder[Col, A](encoder: Encoder[A], from: Col => Chunk[A]): Encoder[Col] =
-      (col: Col) => AttributeValue.List(from(col).map(encoder))
-
-        case s: Schema.Sequence[col, a, _]                                                                                                      =>
-          sequenceEncoder[col, a](encoder(s.elementSchema), s.toChunk)
-   */
-
   def reflectEncoder[A](reflect: Reflect.Bound[A]): Encoder[A] =
     reflect match {
       case Reflect.Primitive(primitiveType, _, _, _, _)          =>
         primitiveEncoder(primitiveType)
       case Reflect.Map(key, value, _, _, _, _)                   =>
         mapEncoder(key, value).asInstanceOf[Encoder[A]] // TODO: handle non-native maps
+      /*
+    TODO: implement sequenceEncoder
+
+    private def sequenceEncoder[Col, A](encoder: Encoder[A], from: Col => Chunk[A]): Encoder[Col] =
+      (col: Col) => AttributeValue.List(from(col).map(encoder))
+
+        case s: Schema.Sequence[col, a, _]                                                                                                      =>
+          sequenceEncoder[col, a](encoder(s.elementSchema), s.toChunk)
+
+      case class Sequence[F[_, _], A, C[_]](
+        element: Reflect[F, A],
+        typeName: TypeName[C[A]],
+        seqBinding: F[BindingType.Seq[C], C[A]],
+        doc: Doc = Doc.Empty,
+        modifiers: Seq[Modifier.Seq] = Nil
+      ) extends Reflect[F, C[A]] { self =>
+
+final case class Term[F[_, _], S, A](
+  name: String,
+  value: Reflect[F, A], // access to Structure has been through Term.value up till now
+  doc: Doc = Doc.Empty,
+  modifiers: Seq[Modifier.Term] = Nil
+) extends Reflectable[A] { self =>
+
+       */
+      case Reflect.Sequence(element, _, _, _, _)                 => {
+        case (a: Iterable[_]) =>
+          println("XXXXXXXX 1")
+          val enc = reflectEncoder(element)
+          val av  = AttributeValue.List(a.map {
+            case v => enc(v.asInstanceOf[element.Structure])
+          })
+          av
+        case (a: Array[_])    =>
+          println("XXXXXXXX 2")
+          val enc = reflectEncoder(element)
+          val av  = AttributeValue.List(a.map {
+            case v => enc(v.asInstanceOf[element.Structure])
+          }.toSeq) // Array is not Iterable so convert to Seq
+          av
+        case c                => throw new Exception(s"Expected a collection type but found: ${c.getClass.getSimpleName}")
+      }
 
       case r @ Reflect.Record(fields, _, _, _, _)                =>
         // TODO: Extract recordEncoder

@@ -8,6 +8,7 @@ import zio.dynamodb.syntax._
 
 import zio.blocks.schema._
 import zio.dynamodb.Item
+import zio.dynamodb.AttributeValue
 
 object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
   val spec = suite("Blocks Schema Crud Spec")( // running against DynamoDB in LocalStack
@@ -248,6 +249,46 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
           _        <- DynamoDBQuery.put(tableName, person).execute
           afterPut <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
         } yield assertTrue(afterPut == person)
+      }
+    },
+    test("put of List") {
+      withSingleIdKeyTable { tableName =>
+        final case class Person(id: String, xs: List[Int])
+        object Person extends CompanionOptics[Person] {
+          implicit val schema: Schema[Person] = Schema.derived
+        }
+
+        val person = Person("1", List(42))
+        for {
+          _        <- DynamoDBQuery.put(tableName, person).execute
+          afterPut <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
+        } yield assertTrue(
+          afterPut == Some(Item("id" -> "1", "xs" -> List(42)))
+        )
+      }
+    },
+    test("put of Array") {
+      withSingleIdKeyTable { tableName =>
+        final case class Person(id: String, xs: Array[Int])
+        object Person extends CompanionOptics[Person] {
+          implicit val schema: Schema[Person] = Schema.derived
+        }
+
+        val person = Person("1", Array(21, 42))
+        for {
+          _        <- DynamoDBQuery.put(tableName, person).execute
+          afterPut <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
+          av        = AttributeValue.Map(
+                        Map(
+                          AttributeValue.String("id") -> AttributeValue.String("1"),
+                          AttributeValue.String("xs") -> AttributeValue.List(
+                            List(AttributeValue.Number(21), AttributeValue.Number(42))
+                          )
+                        )
+                      )
+        } yield assertTrue(
+          afterPut.get.toAttributeValue == av
+        )
       }
     }
   ) @@ TestAspect.nondeterministic
