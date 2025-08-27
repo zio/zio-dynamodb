@@ -11,6 +11,7 @@ import zio.blocks.schema.binding.Register
 import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.binding.Registers
 import zio.Chunk
+import zio.blocks.schema.binding.Binding
 
 /*
 Reflect
@@ -138,34 +139,10 @@ object BlocksCodec {
         primitiveEncoder(primitiveType)
       case Reflect.Map(key, value, _, _, _, _)                   =>
         mapEncoder(key, value).asInstanceOf[Encoder[A]] // TODO: handle non-native maps
-      /*
-    TODO: implement sequenceEncoder
 
-    private def sequenceEncoder[Col, A](encoder: Encoder[A], from: Col => Chunk[A]): Encoder[Col] =
-      (col: Col) => AttributeValue.List(from(col).map(encoder))
-
-        case s: Schema.Sequence[col, a, _]                                                                                                      =>
-          sequenceEncoder[col, a](encoder(s.elementSchema), s.toChunk)
-
-      case class Sequence[F[_, _], A, C[_]](
-        element: Reflect[F, A],
-        typeName: TypeName[C[A]],
-        seqBinding: F[BindingType.Seq[C], C[A]],
-        doc: Doc = Doc.Empty,
-        modifiers: Seq[Modifier.Seq] = Nil
-      ) extends Reflect[F, C[A]] { self =>
-
-final case class Term[F[_, _], S, A](
-  name: String,
-  value: Reflect[F, A], // access to Structure has been through Term.value up till now
-  doc: Doc = Doc.Empty,
-  modifiers: Seq[Modifier.Term] = Nil
-) extends Reflectable[A] { self =>
-
-       */
-      case Reflect.Sequence(element, _, _, _, _)                 => {
+      case Reflect.Sequence(element, _, binding, _, _)           => {
         case (a: Iterable[_]) =>
-          println("XXXXXXXX 1")
+          println(s"XXXXXXXX 1 $binding ")
           val enc = reflectEncoder(element)
           val av  = AttributeValue.List(a.map {
             case v => enc(v.asInstanceOf[element.Structure])
@@ -299,10 +276,35 @@ final case class Term[F[_, _], S, A](
 
   }
 
+  def fromChunk[C[_], A](r: Reflect.Sequence[Binding, A, C]): Chunk[A] => C[A] =
+    r.seqBinding match {
+      case l: Binding.Seq[ll, aa] =>
+        (c: Chunk[A]) =>
+          println(l)
+          c.toList
+      case _                      => throw new Exception("Unexpected binding type")
+    }
+
   def reflectDecoder[A](reflect: Reflect.Bound[A]): Decoder[A] =
     reflect match {
       case Reflect.Primitive(primitiveType, _, _, _, _)                 =>
         primitiveDecoder(primitiveType)
+      case Reflect.Sequence(element, _, binding, _, _)                  => {
+        case AttributeValue.List(avIterable) => // DynamoDBExecutor uses Chunk for avIterable
+          val dec    = reflectDecoder(element)
+          val xs     = avIterable.map(dec)
+          val errors = xs.collect {
+            case Left(e) => e
+          }
+          if (errors.isEmpty) {
+            val x = Right(xs.collect { case Right(v) => v }.asInstanceOf[A])
+            println(s"XXXXXXXX sequence decoder ${binding} ")
+            // TODO: investigate sequence bindings, maybe there is a Chunk[A] => Col[A] function there?
+            x.map(_.asInstanceOf[Chunk[element.Structure]].toList)
+          } else
+            Left(DecodingError(errors.mkString(", ")))
+        case av                              => Left(DecodingError(s"Expected AttributeValue.List but found ${av.showType}"))
+      }
       case r @ Reflect.Record(fields, _, _, _, _)                       =>
         // TODO: extract recordDecoder
         (av: AttributeValue) =>

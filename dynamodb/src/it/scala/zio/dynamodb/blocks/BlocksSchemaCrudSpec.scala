@@ -267,6 +267,7 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
         )
       }
     },
+    // Note Schema1 is not capable of deriving a schema for an Array - only case classes and sealed traits are handled
     test("put of Array") {
       withSingleIdKeyTable { tableName =>
         final case class Person(id: String, xs: Array[Int])
@@ -290,6 +291,26 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
           afterPut.get.toAttributeValue == av
         )
       }
-    }
+    },
+    test("get of List") {
+      withSingleIdKeyTable { tableName =>
+        import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
+
+        final case class Person(id: String, xs: List[Int])
+        object Person extends CompanionOptics[Person] {
+          implicit val schema: Schema[Person] = Schema.derived
+          val id: Lens[Person, String]        = optic(_.id)
+        }
+
+        val person = Person("1", List(42))
+        for {
+          _        <- DynamoDBQuery.put(tableName, person).execute
+          afterPut <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
+        } yield assertTrue(
+          afterPut == person
+        )
+      }
+    },
+
   ) @@ TestAspect.nondeterministic
 }
