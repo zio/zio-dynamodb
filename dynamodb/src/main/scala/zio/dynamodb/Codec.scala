@@ -572,11 +572,15 @@ private[dynamodb] object Codec {
           case AttributeValue.Map(map) =>
             structure.toChunk.forEach {
               case Schema.Field(key, schema: Schema[a], _, _, _, _) =>
-                val av  = map(AttributeValue.String(key))
-                val dec = decoder(schema)
-                dec(av) match {
-                  case Right(value) => Right(key -> value)
-                  case Left(s)      => Left(s)
+                map.get(AttributeValue.String(key)) match {
+                  case Some(av) =>
+                    val dec = decoder(schema)
+                    dec(av) match {
+                      case Right(value) => Right(key -> value)
+                      case Left(s)      => Left(s)
+                    }
+                  case None     => // empty document case
+                    Left(DecodingError(s"Expected AttributeValue.Map $key not found."))
                 }
             }
               .map(ls => ListMap.newBuilder.++=(ls).result())
