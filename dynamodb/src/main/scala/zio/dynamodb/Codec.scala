@@ -172,7 +172,10 @@ private[dynamodb] object Codec {
             val value              = valuesMap(key)
             val enc                = encoder[a](schema)
             val av: AttributeValue = enc(value.asInstanceOf[a])
-            AttributeValue.Map(avMap.value + (AttributeValue.String(key) -> av))
+            av match {
+              case AttributeValue.Null => avMap
+              case _                   => AttributeValue.Map(avMap.value + (AttributeValue.String(key) -> av))
+            }
         }
       }
 
@@ -579,8 +582,7 @@ private[dynamodb] object Codec {
                       case Right(value) => Right(key -> value)
                       case Left(s)      => Left(s)
                     }
-                  case None =>
-                    Right(key -> None)
+                  case None     => Right(key -> None)
                 }
             }
               .map(ls => ListMap.newBuilder.++=(ls).result())
