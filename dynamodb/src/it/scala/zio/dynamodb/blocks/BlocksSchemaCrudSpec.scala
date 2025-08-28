@@ -1,6 +1,7 @@
 package zio.dynamodb.blocks
 
 import zio.test._
+import zio.test.Assertion._
 import zio.dynamodb.DynamoDBLocalSpec
 import zio.dynamodb.DynamoDBQuery
 import zio.dynamodb.PrimaryKey
@@ -268,16 +269,20 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
       }
     },
     // Note Schema1 is not capable of deriving a schema for an Array - only case classes and sealed traits are handled
-    test("put of Array") {
+    test("put and get of Array") {
       withSingleIdKeyTable { tableName =>
+        import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
+
         final case class Person(id: String, xs: Array[Int])
         object Person extends CompanionOptics[Person] {
           implicit val schema: Schema[Person] = Schema.derived
+          val id: Lens[Person, String]        = optic(_.id)
         }
 
         val person = Person("1", Array(21, 42))
         for {
           _        <- DynamoDBQuery.put(tableName, person).execute
+          afterPut2 <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
           afterPut <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
           av        = AttributeValue.Map(
                         Map(
@@ -287,12 +292,14 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
                           )
                         )
                       )
+          _ = println(s"Original ${person.xs.getClass.getSimpleName}")            
+          _ = println(s"Decoded ${afterPut2.xs.getClass.getSimpleName}")            
         } yield assertTrue(
           afterPut.get.toAttributeValue == av
-        )
+        ) && assert(person.xs.size)(equalTo(afterPut2.xs.size))
       }
     },
-    test("get of List") {
+    test("put and get of List") {
       withSingleIdKeyTable { tableName =>
         import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
 
@@ -303,6 +310,25 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
         }
 
         val person = Person("1", List(42))
+        for {
+          _        <- DynamoDBQuery.put(tableName, person).execute
+          afterPut <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
+        } yield assertTrue(
+          afterPut == person
+        )
+      }
+    },
+    test("put and get of Vector") {
+      withSingleIdKeyTable { tableName =>
+        import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
+
+        final case class Person(id: String, xs: Vector[Int])
+        object Person extends CompanionOptics[Person] {
+          implicit val schema: Schema[Person] = Schema.derived
+          val id: Lens[Person, String]        = optic(_.id)
+        }
+
+        val person = Person("1", Vector(42))
         for {
           _        <- DynamoDBQuery.put(tableName, person).execute
           afterPut <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve

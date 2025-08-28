@@ -12,6 +12,7 @@ import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.binding.Registers
 import zio.Chunk
 import zio.blocks.schema.binding.Binding
+import zio.blocks.schema.binding.SeqConstructor
 
 /*
 Reflect
@@ -140,16 +141,14 @@ object BlocksCodec {
       case Reflect.Map(key, value, _, _, _, _)                   =>
         mapEncoder(key, value).asInstanceOf[Encoder[A]] // TODO: handle non-native maps
 
-      case Reflect.Sequence(element, _, binding, _, _)           => {
+      case Reflect.Sequence(element, _, _, _, _)                 => {
         case (a: Iterable[_]) =>
-          println(s"XXXXXXXX 1 $binding ")
           val enc = reflectEncoder(element)
           val av  = AttributeValue.List(a.map {
             case v => enc(v.asInstanceOf[element.Structure])
           })
           av
         case (a: Array[_])    =>
-          println("XXXXXXXX 2")
           val enc = reflectEncoder(element)
           val av  = AttributeValue.List(a.map {
             case v => enc(v.asInstanceOf[element.Structure])
@@ -276,31 +275,64 @@ object BlocksCodec {
 
   }
 
-  def fromChunk[C[_], A](r: Reflect.Sequence[Binding, A, C]): Chunk[A] => C[A] =
+  // TODO: think about how we handle instances of Array[A] eg primitive arrays VS JVM reference array (Object[])
+  def fromPrimitiveArray[C[_], A](r: Reflect.Sequence[Binding, A, C]): Iterable[A] => C[A] =
     r.seqBinding match {
-      case l: Binding.Seq[ll, aa] =>
-        (c: Chunk[A]) =>
-          println(l)
-          c.toList
-      case _                      => throw new Exception("Unexpected binding type")
+      case l: Binding.Seq[_, _] =>
+        (c: Iterable[A]) =>
+          val builder = l.constructor.newIntBuilder(c.size) // TODO: Hard code to Int for now
+          c.foreach { elem =>
+            l.constructor.addInt(builder, elem.asInstanceOf[Int])
+          }
+          val x       = l.constructor.resultInt(builder)
+          x
+      case _                    =>
+        throw new Exception("Unexpected binding type")
+    }
+
+  def fromIterable[C[_], A](r: Reflect.Sequence[Binding, A, C]): Iterable[A] => C[A] =
+    r.seqBinding match {
+      case l: Binding.Seq[_, _] =>
+        (c: Iterable[A]) =>
+          val builder = l.constructor.newObjectBuilder[A](c.size)
+          c.foreach { elem =>
+            l.constructor.addObject(builder, elem)
+          }
+          val x       = l.constructor.resultObject(builder)
+          x
+      case _                    =>
+        throw new Exception("Unexpected binding type")
     }
 
   def reflectDecoder[A](reflect: Reflect.Bound[A]): Decoder[A] =
     reflect match {
       case Reflect.Primitive(primitiveType, _, _, _, _)                 =>
         primitiveDecoder(primitiveType)
-      case Reflect.Sequence(element, _, binding, _, _)                  => {
+      case s @ Reflect.Sequence(element, _, seqBinding, _, _)           => {
         case AttributeValue.List(avIterable) => // DynamoDBExecutor uses Chunk for avIterable
-          val dec    = reflectDecoder(element)
-          val xs     = avIterable.map(dec)
-          val errors = xs.collect {
+          var isArray = false
+          seqBinding match {
+            case Binding.Seq(constructor, deconstructor, defaultValue, examples) =>
+              isArray = constructor.isInstanceOf[SeqConstructor.ArrayConstructor]
+              println(
+                s"XXXXXXXX Sequence Decoder isArray: $isArray constructor: $constructor deconstructor: $deconstructor defaultValue: $defaultValue examples: $examples"
+              )
+            case _                                                               => println(s"XXXXXXXX Sequence Decoder unknown binding: $seqBinding")
+          }
+          val dec     = reflectDecoder(element)
+          val xs      = avIterable.map(dec)
+          val errors  = xs.collect {
             case Left(e) => e
           }
           if (errors.isEmpty) {
-            val x = Right(xs.collect { case Right(v) => v }.asInstanceOf[A])
-            println(s"XXXXXXXX sequence decoder ${binding} ")
+            val xx: Iterable[Any] = xs.collect { case Right(v) => v } // .asInstanceOf[A]
+            println(s"XXXXXXXX Sequence Decoder xx: $xx") // Chunk[Int]
+            val xxx = if (isArray) fromPrimitiveArray(s)(xx) else fromIterable(s)(xx)
+            println(s"XXXXXXXX Sequence Decoder xxx: $xxx")
+            //val x                 = Right(xs.collect { case Right(v) => v }.asInstanceOf[A])
             // TODO: investigate sequence bindings, maybe there is a Chunk[A] => Col[A] function there?
-            x.map(_.asInstanceOf[Chunk[element.Structure]].toList)
+            //x.map(_.asInstanceOf[Chunk[element.Structure]].toList)
+            Right(xxx)
           } else
             Left(DecodingError(errors.mkString(", ")))
         case av                              => Left(DecodingError(s"Expected AttributeValue.List but found ${av.showType}"))
@@ -349,9 +381,10 @@ object BlocksCodec {
                       idx += 1
                     }
                 }
-                if (errors.isEmpty)
-                  Right(constructor.construct(registers, RegisterOffset.Zero))
-                else
+                if (errors.isEmpty) {
+                  val x = constructor.construct(registers, RegisterOffset.Zero)
+                  Right(x)
+                } else
                   Left(DecodingError(errors.mkString(", ")))
 
               case av                      =>
