@@ -14,6 +14,8 @@ import zio.ZIO
 import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException
 import zio.Scope
 
+import scala.annotation.nowarn
+
 object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
 
   case class PersonMetaData(address: Option[String], postcode: Option[String])
@@ -52,6 +54,20 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       : Schema.CaseClass5[String, String, List[Address], Map[String, Address], Set[String], PersonWithCollections] =
       DeriveSchema.gen[PersonWithCollections]
     val (id, surname, addressList, addressMap, addressSet)                                                         = ProjectionExpression.accessors[PersonWithCollections]
+  }
+
+  // format: off
+  case class Big(
+    id: String, f0: String, f1: String, f2: String, f3: String, f4: String, f5: String, f6: String, f7: String, f8: String, f9: String,
+    f10: String, f11: String, f12: String, f13: String, f14: String, f15: String, f16: String, f17: String, f18: String, f19: String,
+    f20: String, f21: String, f22: String, f23: String, f24: String, f25: String, f26: String, f27: String, f28: String, f29: Option[String], f30: Option[String]
+ )
+  // format: on
+  object Big {
+    @nowarn
+    implicit val schema = DeriveSchema.gen[Big]
+
+    val id: ProjectionExpression[Big, String] = ProjectionExpression.$$("id")
   }
 
   final case class PersonWithEither(id: String, address: Either[String, List[String]])
@@ -93,6 +109,20 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
             _ <- put(tableName, person).execute
             p <- get(tableName)(Person.id.partitionKey === "1").execute.absolve
           } yield assertTrue(p == person)
+        }
+      },
+      test("big case class simple round trip") {
+        withSingleIdKeyTable { tableName =>
+          // format: off
+          val big = Big(
+            "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20",
+            "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", Some("31"), Some("32")
+          )
+          // format: on
+          for {
+            _ <- put(tableName, big).execute
+            b <- get(tableName)(Big.id.partitionKey === "1").execute.absolve
+          } yield assertTrue(b == big)
         }
       },
       test("and get using maybeFound extension method") {
