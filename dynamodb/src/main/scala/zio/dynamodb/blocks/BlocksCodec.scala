@@ -17,6 +17,9 @@ import zio.blocks.schema.binding.SeqConstructor
 import java.time._
 import java.time.format.{ DateTimeFormatterBuilder, SignStyle }
 import java.time.temporal.ChronoField.YEAR
+import scala.util.Try
+import java.util.UUID
+import zio.dynamodb.DynamoDBError
 
 /*
 Reflect
@@ -268,6 +271,14 @@ object BlocksCodec {
   def encoder[A](implicit schema: Schema[A]): Encoder[A] = reflectEncoder(schema.reflect)
 
   // ================================================================================================
+  private def javaTimeStringParser[A](
+    av: AttributeValue
+  )(unsafeParse: String => A): Either[DynamoDBError.ItemError, A] =
+    FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av).flatMap { s =>
+      val stringOrA = Try(unsafeParse(s)).toEither.left
+        .map(e => DecodingError(s"error parsing string '$s': ${e.getMessage}"))
+      stringOrA
+    }
 
   private def decodeEitherValue[A](label: String, v: Reflect.Variant.Bound[A]): Decoder[A] =
     // dig into the structure of the found case to get the decoder for the value field
@@ -508,14 +519,94 @@ object BlocksCodec {
         (_: AttributeValue) => Left(DecodingError(s"Could not decode Reflect $r just yet"))
     }
 
-  // TODO: handle all primitive types
   def primitiveDecoder[A](primitiveType: PrimitiveType[A]): Decoder[A] =
-    (av: AttributeValue) => {
-      primitiveType match {
-        case PrimitiveType.String(_) => FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av)
-        case PrimitiveType.Int(_)    => FromAttributeValue.intFromAttributeValue.fromAttributeValue(av)
-        case _                       => Left(DecodingError("Could not decode"))
-      }
+    primitiveType match {
+      case PrimitiveType.Unit              => _ => Right(())
+      case PrimitiveType.String(_)         =>
+        (av: AttributeValue) => FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av)
+      case PrimitiveType.Boolean(_)        =>
+        (av: AttributeValue) => FromAttributeValue.booleanFromAttributeValue.fromAttributeValue(av)
+      case PrimitiveType.Short(_)          =>
+        (av: AttributeValue) => FromAttributeValue.shortFromAttributeValue.fromAttributeValue(av)
+      case PrimitiveType.Int(_)            =>
+        (av: AttributeValue) => FromAttributeValue.intFromAttributeValue.fromAttributeValue(av)
+      case PrimitiveType.Long(_)           =>
+        (av: AttributeValue) => FromAttributeValue.longFromAttributeValue.fromAttributeValue(av)
+      case PrimitiveType.Float(_)          =>
+        (av: AttributeValue) => FromAttributeValue.floatFromAttributeValue.fromAttributeValue(av)
+      case PrimitiveType.Double(_)         =>
+        (av: AttributeValue) => FromAttributeValue.doubleFromAttributeValue.fromAttributeValue(av)
+      case PrimitiveType.BigDecimal(_)     =>
+        (av: AttributeValue) =>
+          FromAttributeValue.bigDecimalFromAttributeValue
+            .fromAttributeValue(av)
+            .map(_.bigDecimal)
+      case PrimitiveType.BigInt(_)         =>
+        (av: AttributeValue) =>
+          FromAttributeValue.bigDecimalFromAttributeValue
+            .fromAttributeValue(av)
+            .map(_.toBigInt.bigInteger)
+        // case PrimitiveType.Binary(_)         =>
+        //   (av: AttributeValue) =>
+        //     FromAttributeValue.binaryFromAttributeValue
+        //       .fromAttributeValue(av)
+      //       .map(Chunk.fromIterable(_))
+      case PrimitiveType.Byte(_)           =>
+        (av: AttributeValue) =>
+          FromAttributeValue.byteFromAttributeValue
+            .fromAttributeValue(av)
+      case PrimitiveType.Char(_)           =>
+        (av: AttributeValue) =>
+          FromAttributeValue.stringFromAttributeValue
+            .fromAttributeValue(av)
+            .map { s =>
+              val array = s.toCharArray
+              array(0)
+            }
+      case PrimitiveType.UUID(_)           =>
+        (av: AttributeValue) =>
+          FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av).flatMap { s =>
+            Try(UUID.fromString(s)).toEither.left.map(iae => DecodingError(s"Invalid UUID: ${iae.getMessage}"))
+          }
+      case PrimitiveType.Currency(_)       =>
+        (av: AttributeValue) =>
+          FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av).flatMap { s =>
+            Try(java.util.Currency.getInstance(s)).toEither.left.map(e =>
+              DecodingError(s"Invalid Currency: ${e.getMessage}")
+            )
+          }
+      case PrimitiveType.DayOfWeek(_)      =>
+        (av: AttributeValue) => javaTimeStringParser(av)(DayOfWeek.valueOf(_))
+      case PrimitiveType.Duration(_)       =>
+        (av: AttributeValue) => javaTimeStringParser(av)(Duration.parse(_))
+      case PrimitiveType.Instant(_)        =>
+        (av: AttributeValue) => javaTimeStringParser(av)(Instant.parse)
+      case PrimitiveType.LocalDate(_)      =>
+        (av: AttributeValue) => javaTimeStringParser(av)(LocalDate.parse)
+      case PrimitiveType.LocalDateTime(_)  =>
+        (av: AttributeValue) => javaTimeStringParser(av)(LocalDateTime.parse)
+      case PrimitiveType.LocalTime(_)      =>
+        (av: AttributeValue) => javaTimeStringParser(av)(LocalTime.parse)
+      case PrimitiveType.Month(_)          =>
+        (av: AttributeValue) => javaTimeStringParser(av)(Month.valueOf(_))
+      case PrimitiveType.MonthDay(_)       =>
+        (av: AttributeValue) => javaTimeStringParser(av)(MonthDay.parse(_))
+      case PrimitiveType.OffsetDateTime(_) =>
+        (av: AttributeValue) => javaTimeStringParser(av)(OffsetDateTime.parse)
+      case PrimitiveType.OffsetTime(_)     =>
+        (av: AttributeValue) => javaTimeStringParser(av)(OffsetTime.parse)
+      case PrimitiveType.Period(_)         =>
+        (av: AttributeValue) => javaTimeStringParser(av)(Period.parse(_))
+      case PrimitiveType.Year(_)           =>
+        (av: AttributeValue) => javaTimeStringParser(av)(Year.parse(_))
+      case PrimitiveType.YearMonth(_)      =>
+        (av: AttributeValue) => javaTimeStringParser(av)(YearMonth.parse(_))
+      case PrimitiveType.ZonedDateTime(_)  =>
+        (av: AttributeValue) => javaTimeStringParser(av)(ZonedDateTime.parse)
+      case PrimitiveType.ZoneId(_)         =>
+        (av: AttributeValue) => javaTimeStringParser(av)(ZoneId.of(_))
+      case PrimitiveType.ZoneOffset(_)     =>
+        (av: AttributeValue) => javaTimeStringParser(av)(ZoneOffset.of(_))
     }
 
   def decoder[A](implicit schema: Schema[A]): Decoder[A] = reflectDecoder(schema.reflect)
