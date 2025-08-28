@@ -579,8 +579,8 @@ private[dynamodb] object Codec {
                       case Right(value) => Right(key -> value)
                       case Left(s)      => Left(s)
                     }
-                  case None     => // empty document case
-                    Left(DecodingError(s"Expected AttributeValue.Map $key not found."))
+                  case None =>
+                    Right(key -> None)
                 }
             }
               .map(ls => ListMap.newBuilder.++=(ls).result())
