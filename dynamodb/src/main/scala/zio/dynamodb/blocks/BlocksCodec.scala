@@ -24,11 +24,11 @@ import zio.dynamodb.DynamoDBError
 /*
 Reflect
 TODO
-- Primitive in Reflect$ (zio.blocks.schema)
 - Seq.Array in Reflect$ (zio.blocks.schema)
 - Wrapper in Reflect$ (zio.blocks.schema)
 - Dynamic in Reflect$ (zio.blocks.schema)
 DONE
+- Primitive in Reflect$ (zio.blocks.schema)
 - Sequence in Reflect$ (zio.blocks.schema)
 - Record in Reflect$ (zio.blocks.schema)
 - Variant in Reflect$ (zio.blocks.schema)
