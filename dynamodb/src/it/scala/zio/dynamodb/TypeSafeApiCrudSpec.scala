@@ -14,8 +14,6 @@ import zio.ZIO
 import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException
 import zio.Scope
 
-import scala.annotation.nowarn
-
 object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
 
   case class PersonMetaData(address: Option[String], postcode: Option[String])
@@ -64,8 +62,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
  )
   // format: on
   object Big {
-    @nowarn
-    implicit val schema = DeriveSchema.gen[Big]
+    implicit val schema: Schema[Big] = DeriveSchema.gen[Big]
 
     val id: ProjectionExpression[Big, String] = ProjectionExpression.$$("id")
   }

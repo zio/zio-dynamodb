@@ -1,6 +1,6 @@
 package zio.dynamodb.codec
 
-import zio.dynamodb.Codec
+import zio.dynamodb.{ AttributeValue, Codec, DynamoDBQuery }
 import zio.schema.{ DeriveSchema, Schema, StandardType }
 import zio.test.Assertion.{ equalTo, isRight }
 import zio.test._
@@ -9,6 +9,7 @@ import zio.{ Chunk, ZIO }
 import scala.collection.immutable.ListMap
 import zio.test.{ Gen, Sized, ZIOSpecDefault }
 import zio.schema.TypeId
+
 import java.time.ZoneOffset
 
 object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
@@ -23,7 +24,8 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
       sequenceSuite,
       enumerationSuite,
       transformSuite,
-      anySchemaSuite
+      anySchemaSuite,
+      bigSchemaSuite
     )
 
   private val eitherSuite = suite("either suite")(
@@ -343,6 +345,52 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
         case (schema, value) =>
           assertEncodesThenDecodes(schema.asInstanceOf[Schema[Any]], value)
       }
+    }
+  )
+
+  private val bigSchemaSuite = suite("big schema")(
+    test("encodes CaseClass TwentyOne, decodes to Big") {
+      // format: off
+      val case21 = Case21(
+        "id", "f0", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10",
+        "f11", "f12", "f13", "f14", "f15", "f16", "f17", None, Some("f19")
+      )
+
+      val big = Big(
+        "id", "f0", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10",
+        "f11", "f12", "f13", "f14", "f15", "f16", "f17", None, Some("f19"),
+        None, None, None, None, None, None, None, None, None, None, None
+      )
+      // format: on
+
+      val item       = DynamoDBQuery.toItem(case21)
+      val bigDecoded = DynamoDBQuery.fromItem[Big](item)
+
+      assert(bigDecoded)(isRight(equalTo(big)))
+    },
+    test("encodes Big, decodes to CaseClass TwentyOne, preserving document level backwards compatibility") {
+      // format: off
+      val case21 = Case21(
+        "id", "f0", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10",
+        "f11", "f12", "f13", "f14", "f15", "f16", "f17", None, Some("f19")
+      )
+
+      val big = Big(
+        "id", "f0", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10",
+        "f11", "f12", "f13", "f14", "f15", "f16", "f17", None, Some("f19"),
+        None, None, None, None, None, None, None, None, None, None, None
+      )
+      // format: on
+
+      val itemBig       = DynamoDBQuery.toItem(big)
+      val itemCase21    = DynamoDBQuery.toItem(case21)
+      val case21Decoded = DynamoDBQuery.fromItem[Case21](itemBig)
+
+      assert(case21Decoded)(isRight(equalTo(case21))) &&
+      assertTrue(
+        itemBig.map.values.filter(_ == AttributeValue.Null) ==
+          itemCase21.map.values.filter(_ == AttributeValue.Null)
+      )
     }
   )
 
