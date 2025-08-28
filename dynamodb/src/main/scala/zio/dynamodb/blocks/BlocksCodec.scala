@@ -14,14 +14,19 @@ import zio.Chunk
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.binding.SeqConstructor
 
+import java.time._
+import java.time.format.{ DateTimeFormatterBuilder, SignStyle }
+import java.time.temporal.ChronoField.YEAR
+
 /*
 Reflect
 TODO
 - Primitive in Reflect$ (zio.blocks.schema)
-- Sequence in Reflect$ (zio.blocks.schema)
+- Seq.Array in Reflect$ (zio.blocks.schema)
 - Wrapper in Reflect$ (zio.blocks.schema)
 - Dynamic in Reflect$ (zio.blocks.schema)
 DONE
+- Sequence in Reflect$ (zio.blocks.schema)
 - Record in Reflect$ (zio.blocks.schema)
 - Variant in Reflect$ (zio.blocks.schema)
 - Map in Reflect$ (zio.blocks.schema)
@@ -33,6 +38,8 @@ object BlocksCodec {
   // type Decoder[+A] = AttributeValue => Either[ItemError, A]
 
   private val stringEncoder = encoder(Schema[String])
+  private val yearFormatter =
+    new DateTimeFormatterBuilder().appendValue(YEAR, 4, 10, SignStyle.EXCEEDS_PAD).toFormatter
 
   def maybeDiscriminatorNameModifier(
     modifiers: Seq[Modifier.Variant]
@@ -68,14 +75,45 @@ object BlocksCodec {
     }
   }
 
-  // TODO: handle all primitive types
-  def primitiveEncoder[A](primitiveType: PrimitiveType[A]): Encoder[A] =
+  private def yearEncoder[A]: Encoder[A] =
     (a: A) => {
-      primitiveType match {
-        case PrimitiveType.String(_) => AttributeValue.String(a.toString)
-        case PrimitiveType.Int(_)    => AttributeValue.Number(BigDecimal(a.toString))
-        case _                       => throw new Exception(s"Could not encode $a of type $primitiveType")
-      }
+      val year      = a.asInstanceOf[Year]
+      val formatted = year.format(yearFormatter)
+      AttributeValue.String(formatted)
+    }
+
+  def primitiveEncoder[A](primitiveType: PrimitiveType[A]): Encoder[A] =
+    primitiveType match {
+      case PrimitiveType.Unit              => _ => AttributeValue.Null
+      case PrimitiveType.Char(_)           => (a: A) => AttributeValue.String(Character.toString(a))
+      case PrimitiveType.String(_)         => (a: A) => AttributeValue.String(a.toString)
+      case PrimitiveType.Boolean(_)        => (a: A) => AttributeValue.Bool(a.asInstanceOf[Boolean])
+      case PrimitiveType.Byte(_)           => (a: A) => AttributeValue.Binary(Chunk(a))
+      case PrimitiveType.Short(_)          => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+      case PrimitiveType.Int(_)            => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+      case PrimitiveType.Long(_)           => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+      case PrimitiveType.Float(_)          => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+      case PrimitiveType.Double(_)         => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+      case PrimitiveType.BigDecimal(_)     => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+      case PrimitiveType.BigInt(_)         => (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+      case PrimitiveType.Currency(_)       => (a: A) => AttributeValue.String(a.toString)
+      case PrimitiveType.DayOfWeek(_)      => (a: A) => AttributeValue.String(a.toString)
+      case PrimitiveType.Duration(_)       => (a: A) => AttributeValue.String(a.toString)
+      case PrimitiveType.Instant(_)        => (a: A) => AttributeValue.String(a.toString)
+      case PrimitiveType.LocalDate(_)      => (a: A) => AttributeValue.String(a.toString)
+      case PrimitiveType.LocalDateTime(_)  => (a: A) => AttributeValue.String(a.toString)
+      case PrimitiveType.LocalTime(_)      => (a: A) => AttributeValue.String(a.toString)
+      case PrimitiveType.Month(_)          => (a: A) => AttributeValue.String(a.toString)
+      case PrimitiveType.MonthDay(_)       => (a: A) => AttributeValue.String(a.toString)
+      case PrimitiveType.OffsetDateTime(_) => (a: A) => AttributeValue.String(a.toString)
+      case PrimitiveType.OffsetTime(_)     => (a: A) => AttributeValue.String(a.toString)
+      case PrimitiveType.Period(_)         => (a: A) => AttributeValue.String(a.toString)
+      case PrimitiveType.UUID(_)           => (a: A) => AttributeValue.String(a.toString)
+      case PrimitiveType.Year(_)           => yearEncoder
+      case PrimitiveType.YearMonth(_)      => (a: A) => AttributeValue.String(a.toString)
+      case PrimitiveType.ZonedDateTime(_)  => (a: A) => AttributeValue.String(a.toString)
+      case PrimitiveType.ZoneId(_)         => (a: A) => AttributeValue.String(a.toString)
+      case PrimitiveType.ZoneOffset(_)     => (a: A) => AttributeValue.String(a.toString)
     }
 
   private def nativeMapEncoder[A, V](encoderV: Encoder[V]) =
