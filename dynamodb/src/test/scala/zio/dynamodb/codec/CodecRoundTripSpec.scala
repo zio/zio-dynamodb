@@ -390,6 +390,10 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
       assertTrue(
         itemBig.map.values.filter(_ == AttributeValue.Null) ==
           itemCase21.map.values.filter(_ == AttributeValue.Null)
+      ) &&
+      assertTrue(
+        !itemBig.map.values.exists(_ == AttributeValue.Null) &&
+          !itemCase21.map.values.exists(_ == AttributeValue.Null)
       )
     }
   )
