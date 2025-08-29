@@ -378,9 +378,6 @@ object BlocksCodec {
             println(s"XXXXXXXX Sequence Decoder xx: $xx") // Chunk[Int]
             val xxx = if (isArray) fromPrimitiveArray(s)(xx) else fromIterable(s)(xx)
             println(s"XXXXXXXX Sequence Decoder xxx: $xxx")
-            //val x                 = Right(xs.collect { case Right(v) => v }.asInstanceOf[A])
-            // TODO: investigate sequence bindings, maybe there is a Chunk[A] => Col[A] function there?
-            //x.map(_.asInstanceOf[Chunk[element.Structure]].toList)
             Right(xxx)
           } else
             Left(DecodingError(errors.mkString(", ")))
