@@ -546,11 +546,6 @@ object BlocksCodec {
           FromAttributeValue.bigDecimalFromAttributeValue
             .fromAttributeValue(av)
             .map(_.toBigInt.bigInteger)
-        // case PrimitiveType.Binary(_)         =>
-        //   (av: AttributeValue) =>
-        //     FromAttributeValue.binaryFromAttributeValue
-        //       .fromAttributeValue(av)
-      //       .map(Chunk.fromIterable(_))
       case PrimitiveType.Byte(_)           =>
         (av: AttributeValue) =>
           FromAttributeValue.byteFromAttributeValue
