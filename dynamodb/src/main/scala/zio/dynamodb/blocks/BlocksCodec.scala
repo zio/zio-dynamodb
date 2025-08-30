@@ -12,7 +12,6 @@ import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.binding.Registers
 import zio.Chunk
 import zio.blocks.schema.binding.Binding
-import zio.blocks.schema.binding.SeqConstructor
 
 import java.time._
 import java.time.format.{ DateTimeFormatterBuilder, SignStyle }
@@ -271,6 +270,51 @@ object BlocksCodec {
   def encoder[A](implicit schema: Schema[A]): Encoder[A] = reflectEncoder(schema.reflect)
 
   // ================================================================================================
+
+  def fromAttributeValueList[A, C[_]](
+    r: Reflect.Sequence[Binding, A, C],
+    avList: AttributeValue.List
+  ): Either[List[DynamoDBError.ItemError], C[A]] = {
+    var error: List[DynamoDBError.ItemError] = Nil
+
+    def addError(e: DynamoDBError.ItemError): Unit = error = error :+ e
+
+    val elements: Iterable[AttributeValue] = avList.value
+    val constructor                        = r.seqConstructor
+
+    r.element.asPrimitive match {
+      case Some(primitive) =>
+        primitive.primitiveType match {
+          case _: PrimitiveType.Int =>
+            val builder = constructor.newIntBuilder(elements.size)
+            elements.foreach { elem =>
+              val dec = primitiveDecoder(primitive.primitiveType)
+              dec(elem) match {
+                case Right(value) =>
+                  constructor.addInt(builder, value.asInstanceOf[Int])
+                case Left(error)  =>
+                  addError(error)
+              }
+            }
+            if (error.isEmpty) new Right(constructor.resultInt(builder))
+            else new Left(error)
+          case _                    => // TODO: Object decoder
+            ???
+        }
+      case _               =>
+        val builder = constructor.newObjectBuilder[A](elements.size)
+        elements.foreach { elem =>
+          val dec = reflectDecoder(r.element)
+          dec(elem) match {
+            case Right(value) => constructor.addObject(builder, value)
+            case Left(error)  => addError(error)
+          }
+        }
+        if (error.isEmpty) new Right(constructor.resultObject(builder))
+        else new Left(error)
+    }
+  }
+
   private def javaTimeStringParser[A](
     av: AttributeValue
   )(unsafeParse: String => A): Either[DynamoDBError.ItemError, A] =
@@ -324,64 +368,16 @@ object BlocksCodec {
 
   }
 
-  // TODO: think about how we handle instances of Array[A] eg primitive arrays VS JVM reference array (Object[])
-  def fromPrimitiveArray[C[_], A](r: Reflect.Sequence[Binding, A, C]): Iterable[A] => C[A] =
-    r.seqBinding match {
-      case l: Binding.Seq[_, _] =>
-        (c: Iterable[A]) =>
-          val builder = l.constructor.newIntBuilder(c.size) // TODO: Hard code to Int for now
-          c.foreach { elem =>
-            l.constructor.addInt(builder, elem.asInstanceOf[Int])
-          }
-          val x       = l.constructor.resultInt(builder)
-          x
-      case _                    =>
-        throw new Exception("Unexpected binding type")
-    }
-
-  def fromIterable[C[_], A](r: Reflect.Sequence[Binding, A, C]): Iterable[A] => C[A] =
-    r.seqBinding match {
-      case l: Binding.Seq[_, _] =>
-        (c: Iterable[A]) =>
-          val builder = l.constructor.newObjectBuilder[A](c.size)
-          c.foreach { elem =>
-            l.constructor.addObject(builder, elem)
-          }
-          val x       = l.constructor.resultObject(builder)
-          x
-      case _                    =>
-        throw new Exception("Unexpected binding type")
-    }
-
   def reflectDecoder[A](reflect: Reflect.Bound[A]): Decoder[A] =
     reflect match {
       case Reflect.Primitive(primitiveType, _, _, _, _)                 =>
         primitiveDecoder(primitiveType)
       case s @ Reflect.Sequence(element, _, seqBinding, _, _)           => {
-        case AttributeValue.List(avIterable) => // DynamoDBExecutor uses Chunk for avIterable
-          var isArray = false
-          seqBinding match {
-            case Binding.Seq(constructor, deconstructor, defaultValue, examples) =>
-              isArray = constructor.isInstanceOf[SeqConstructor.ArrayConstructor]
-              println(
-                s"XXXXXXXX Sequence Decoder isArray: $isArray constructor: $constructor deconstructor: $deconstructor defaultValue: $defaultValue examples: $examples"
-              )
-            case _                                                               => println(s"XXXXXXXX Sequence Decoder unknown binding: $seqBinding")
-          }
-          val dec     = reflectDecoder(element)
-          val xs      = avIterable.map(dec)
-          val errors  = xs.collect {
-            case Left(e) => e
-          }
-          if (errors.isEmpty) {
-            val xx: Iterable[Any] = xs.collect { case Right(v) => v } // .asInstanceOf[A]
-            println(s"XXXXXXXX Sequence Decoder xx: $xx") // Chunk[Int]
-            val xxx = if (isArray) fromPrimitiveArray(s)(xx) else fromIterable(s)(xx)
-            println(s"XXXXXXXX Sequence Decoder xxx: $xxx")
-            Right(xxx)
-          } else
-            Left(DecodingError(errors.mkString(", ")))
-        case av                              => Left(DecodingError(s"Expected AttributeValue.List but found ${av.showType}"))
+        case l: AttributeValue.List => // DynamoDBExecutor uses Chunk for avIterable
+          val errorsOrCol: Either[List[DynamoDBError.ItemError], Any] = fromAttributeValueList(s, l)
+          errorsOrCol.left.map(xs => DecodingError(xs.mkString(", ")))
+
+        case av                     => Left(DecodingError(s"Expected AttributeValue.List but found ${av.showType}"))
       }
       case r @ Reflect.Record(fields, _, _, _, _)                       =>
         // TODO: extract recordDecoder

@@ -186,32 +186,6 @@ object BlocksCodecSpec extends ZIOSpecDefault {
 
   val spec = suite("BlockCodecSpec")(
     suite("DynamoDBQuery's with Schema2")(
-      suite("Sequence")(
-        test("investigate List") {
-          import zio.blocks.schema.binding._
-          import zio.test._
-          import zio.Chunk
-
-          val sequence1                                                                    = Reflect.Sequence[Binding, Double, List](
-            element = Reflect.double,
-            typeName = TypeName.list(TypeName.double),
-            seqBinding = Binding.Seq[List, Double](
-              constructor = SeqConstructor.listConstructor,
-              deconstructor = SeqDeconstructor.listDeconstructor
-            )
-          )
-          def foo[Col[_], El](r: Reflect.Sequence[Binding, El, Col]): Chunk[El] => Col[El] =
-            r.seqBinding match {
-              case _: Binding.Seq[_, _] => (c: Chunk[El]) => c.toList.asInstanceOf[Col[El]]
-              case _                    => throw new Exception("Unexpected binding type")
-            }
-
-          val xs = foo(sequence1)(Chunk(0.1, 0.2, 0.3))
-          println(s"XXXXXXXXXXX xs = $xs")
-
-          assertTrue(true)
-        }
-      ),
       test("put") {
         import zio.dynamodb.blocks.BlocksApi._
 
