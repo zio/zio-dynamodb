@@ -276,9 +276,9 @@ object BlocksCodec {
     r: Reflect.Sequence[Binding, A, C],
     avList: AttributeValue.List
   ): Either[List[DynamoDBError.ItemError], C[A]] = {
-    var error: List[DynamoDBError.ItemError] = Nil
+    var errors: List[DynamoDBError.ItemError] = Nil
 
-    def addError(e: DynamoDBError.ItemError): Unit = error = error :+ e
+    def addError(e: DynamoDBError.ItemError): Unit = errors = errors :+ e
 
     val elements: Iterable[AttributeValue] = avList.value
     val constructor                        = r.seqConstructor
@@ -297,8 +297,8 @@ object BlocksCodec {
                   addError(error)
               }
             }
-            if (error.isEmpty) new Right(constructor.resultInt(builder))
-            else new Left(error)
+            if (errors.isEmpty) new Right(constructor.resultInt(builder))
+            else new Left(errors)
           case _                    => // TODO: Object decoder
             ???
         }
@@ -311,8 +311,8 @@ object BlocksCodec {
             case Left(error)  => addError(error)
           }
         }
-        if (error.isEmpty) new Right(constructor.resultObject(builder))
-        else new Left(error)
+        if (errors.isEmpty) new Right(constructor.resultObject(builder))
+        else new Left(errors)
     }
   }
 
