@@ -282,7 +282,6 @@ object BlocksCodec {
 
     val elements: Iterable[AttributeValue] = avList.value
     val constructor                        = r.seqConstructor
-
     r.element.asPrimitive match {
       case Some(primitive) =>
         primitive.primitiveType match {
@@ -299,8 +298,17 @@ object BlocksCodec {
             }
             if (errors.isEmpty) new Right(constructor.resultInt(builder))
             else new Left(errors)
-          case _                    => // TODO: Object decoder
-            ???
+          case _                    =>
+            val builder = constructor.newObjectBuilder[A](elements.size)
+            elements.foreach { elem =>
+              val dec = reflectDecoder(r.element)
+              dec(elem) match {
+                case Right(value) => constructor.addObject(builder, value)
+                case Left(error)  => addError(error)
+              }
+            }
+            if (errors.isEmpty) new Right(constructor.resultObject(builder))
+            else new Left(errors)
         }
       case _               =>
         val builder = constructor.newObjectBuilder[A](elements.size)

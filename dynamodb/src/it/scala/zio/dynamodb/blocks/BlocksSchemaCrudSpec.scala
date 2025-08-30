@@ -269,7 +269,7 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
       }
     },
     // Note Schema1 is not capable of deriving a schema for an Array - only case classes and sealed traits are handled
-    test("put and get of Array") {
+    test("put and get of Array of Primitive") {
       withSingleIdKeyTable { tableName =>
         import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
 
@@ -281,19 +281,45 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
 
         val person = Person("1", Array(21, 42))
         for {
-          _        <- DynamoDBQuery.put(tableName, person).execute
+          _         <- DynamoDBQuery.put(tableName, person).execute
           afterPut2 <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
-          afterPut <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
-          av        = AttributeValue.Map(
-                        Map(
-                          AttributeValue.String("id") -> AttributeValue.String("1"),
-                          AttributeValue.String("xs") -> AttributeValue.List(
-                            List(AttributeValue.Number(21), AttributeValue.Number(42))
-                          )
-                        )
-                      )
-          _ = println(s"Original ${person.xs.getClass.getSimpleName}")            
-          _ = println(s"Decoded ${afterPut2.xs.getClass.getSimpleName}")            
+          afterPut  <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
+          av         = AttributeValue.Map(
+                         Map(
+                           AttributeValue.String("id") -> AttributeValue.String("1"),
+                           AttributeValue.String("xs") -> AttributeValue.List(
+                             List(AttributeValue.Number(21), AttributeValue.Number(42))
+                           )
+                         )
+                       )
+        } yield assertTrue(
+          afterPut.get.toAttributeValue == av
+        ) && assert(person.xs.size)(equalTo(afterPut2.xs.size))
+      }
+    },
+    test("put and get of Array of String") {
+      withSingleIdKeyTable { tableName =>
+        import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
+
+        final case class Person(id: String, xs: Array[String])
+        object Person extends CompanionOptics[Person] {
+          implicit val schema: Schema[Person] = Schema.derived
+          val id: Lens[Person, String]        = optic(_.id)
+        }
+
+        val person = Person("1", Array("21", "42"))
+        for {
+          _         <- DynamoDBQuery.put(tableName, person).execute
+          afterPut2 <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
+          afterPut  <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
+          av         = AttributeValue.Map(
+                         Map(
+                           AttributeValue.String("id") -> AttributeValue.String("1"),
+                           AttributeValue.String("xs") -> AttributeValue.List(
+                             List(AttributeValue.String("21"), AttributeValue.String("42"))
+                           )
+                         )
+                       )
         } yield assertTrue(
           afterPut.get.toAttributeValue == av
         ) && assert(person.xs.size)(equalTo(afterPut2.xs.size))
@@ -336,7 +362,6 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
           afterPut == person
         )
       }
-    },
-
+    }
   ) @@ TestAspect.nondeterministic
 }
