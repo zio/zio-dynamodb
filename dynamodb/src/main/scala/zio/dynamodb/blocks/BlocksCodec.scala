@@ -23,11 +23,11 @@ import zio.dynamodb.DynamoDBError
 /*
 Reflect
 TODO
-- Seq all primitive types
 - Wrapper in Reflect$ (zio.blocks.schema)
 - Dynamic in Reflect$ (zio.blocks.schema)
 - caching
 DONE
+- Seq all primitive types
 - Primitive in Reflect$ (zio.blocks.schema)
 - Sequence in Reflect$ (zio.blocks.schema)
 - Record in Reflect$ (zio.blocks.schema)
@@ -285,7 +285,46 @@ object BlocksCodec {
     r.element.asPrimitive match {
       case Some(primitive) =>
         primitive.primitiveType match {
-          case _: PrimitiveType.Int =>
+          case _: PrimitiveType.Boolean =>
+            val builder = constructor.newBooleanBuilder(elements.size)
+            elements.foreach { elem =>
+              val dec = primitiveDecoder(primitive.primitiveType)
+              dec(elem) match {
+                case Right(value) =>
+                  constructor.addBoolean(builder, value.asInstanceOf[Boolean])
+                case Left(error)  =>
+                  addError(error)
+              }
+            }
+            if (errors.isEmpty) new Right(constructor.resultBoolean(builder))
+            else new Left(errors)
+          case _: PrimitiveType.Byte    =>
+            val builder = constructor.newByteBuilder(elements.size)
+            elements.foreach { elem =>
+              val dec = primitiveDecoder(primitive.primitiveType)
+              dec(elem) match {
+                case Right(value) =>
+                  constructor.addByte(builder, value.asInstanceOf[Byte])
+                case Left(error)  =>
+                  addError(error)
+              }
+            }
+            if (errors.isEmpty) new Right(constructor.resultByte(builder))
+            else new Left(errors)
+          case _: PrimitiveType.Char    =>
+            val builder = constructor.newCharBuilder(elements.size)
+            elements.foreach { elem =>
+              val dec = primitiveDecoder(primitive.primitiveType)
+              dec(elem) match {
+                case Right(value) =>
+                  constructor.addChar(builder, value.asInstanceOf[Char])
+                case Left(error)  =>
+                  addError(error)
+              }
+            }
+            if (errors.isEmpty) new Right(constructor.resultChar(builder))
+            else new Left(errors)
+          case _: PrimitiveType.Int     =>
             val builder = constructor.newIntBuilder(elements.size)
             elements.foreach { elem =>
               val dec = primitiveDecoder(primitive.primitiveType)
@@ -298,7 +337,59 @@ object BlocksCodec {
             }
             if (errors.isEmpty) new Right(constructor.resultInt(builder))
             else new Left(errors)
-          case _                    =>
+          case _: PrimitiveType.Short   =>
+            val builder = constructor.newShortBuilder(elements.size)
+            elements.foreach { elem =>
+              val dec = primitiveDecoder(primitive.primitiveType)
+              dec(elem) match {
+                case Right(value) =>
+                  constructor.addShort(builder, value.asInstanceOf[Short])
+                case Left(error)  =>
+                  addError(error)
+              }
+            }
+            if (errors.isEmpty) new Right(constructor.resultShort(builder))
+            else new Left(errors)
+          case _: PrimitiveType.Long    =>
+            val builder = constructor.newLongBuilder(elements.size)
+            elements.foreach { elem =>
+              val dec = primitiveDecoder(primitive.primitiveType)
+              dec(elem) match {
+                case Right(value) =>
+                  constructor.addLong(builder, value.asInstanceOf[Long])
+                case Left(error)  =>
+                  addError(error)
+              }
+            }
+            if (errors.isEmpty) new Right(constructor.resultLong(builder))
+            else new Left(errors)
+          case _: PrimitiveType.Float   =>
+            val builder = constructor.newFloatBuilder(elements.size)
+            elements.foreach { elem =>
+              val dec = primitiveDecoder(primitive.primitiveType)
+              dec(elem) match {
+                case Right(value) =>
+                  constructor.addFloat(builder, value.asInstanceOf[Float])
+                case Left(error)  =>
+                  addError(error)
+              }
+            }
+            if (errors.isEmpty) new Right(constructor.resultFloat(builder))
+            else new Left(errors)
+          case _: PrimitiveType.Double  =>
+            val builder = constructor.newDoubleBuilder(elements.size)
+            elements.foreach { elem =>
+              val dec = primitiveDecoder(primitive.primitiveType)
+              dec(elem) match {
+                case Right(value) =>
+                  constructor.addDouble(builder, value.asInstanceOf[Double])
+                case Left(error)  =>
+                  addError(error)
+              }
+            }
+            if (errors.isEmpty) new Right(constructor.resultDouble(builder))
+            else new Left(errors)
+          case _                        =>
             val builder = constructor.newObjectBuilder[A](elements.size)
             elements.foreach { elem =>
               val dec = reflectDecoder(r.element)
