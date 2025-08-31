@@ -10,6 +10,7 @@ import zio.dynamodb.syntax._
 import zio.blocks.schema._
 import zio.dynamodb.Item
 import zio.dynamodb.AttributeValue
+import zio.blocks.schema.binding.Binding
 
 object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
   val spec = suite("Blocks Schema Crud Spec")( // running against DynamoDB in LocalStack
@@ -250,6 +251,36 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
           _        <- DynamoDBQuery.put(tableName, person).execute
           afterPut <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
         } yield assertTrue(afterPut == person)
+      }
+    },
+    test("explore Wrapped") {
+      final case class Email(value: String)
+
+      object Email {
+        val derivedSchema: Reflect.Record[Binding, Email] = Schema.derived[Email].reflect.asRecord.get
+
+        implicit val schema: Schema[Email] =
+          Schema(
+            Reflect.Wrapper(
+              Schema[String].reflect,
+              derivedSchema.typeName,
+              Binding.Wrapper[Email, String](s => Right(Email(s)), _.value)
+            )
+          )
+      }
+      final case class Person(id: String, email: Email)
+      object Person extends CompanionOptics[Person] {
+        implicit val schema: Schema[Person] = Schema.derived
+      }
+
+      withSingleIdKeyTable { tableName =>
+        val person = Person("1", Email("test@example.com"))
+        for {
+          _        <- DynamoDBQuery.put(tableName, person).execute
+          afterPut <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
+        } yield assertTrue(
+          afterPut == Some(Item("id" -> "1", "email" -> Item("value" -> "test@example.com")))
+        )
       }
     },
     test("put of List") {

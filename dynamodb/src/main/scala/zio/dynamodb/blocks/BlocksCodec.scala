@@ -265,6 +265,24 @@ object BlocksCodec {
           }
       case Reflect.Deferred(value)                               =>
         reflectEncoder(value())
+      /*
+      case class Wrapper[F[_, _], A, B](
+        wrapped: Reflect[F, B],
+        typeName: TypeName[A],
+        wrapperBinding: F[BindingType.Wrapper[A, B], A],
+        doc: Doc = Doc.Empty,
+        modifiers: Seq[Modifier.Wrapper] = Nil
+      ) extends Reflect[F, A] { self =>
+       */
+      case Reflect.Wrapper(wrapped, typeName, wrapperBinding, _, _)                        =>
+        println(s"$wrapped $typeName $wrapperBinding")
+        /* 
+         TODO
+         - use wrapperBinding to get "unwrap" function
+         - apply function to A to get B
+         - call reflectEncoder(wrapped)(b)
+         */
+        ???
       case r                                                     => throw new Exception(s"Could not encode ${r.getClass.getSimpleName} just yet")
     }
 
