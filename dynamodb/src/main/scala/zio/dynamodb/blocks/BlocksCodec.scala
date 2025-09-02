@@ -23,10 +23,10 @@ import zio.dynamodb.DynamoDBError
 /*
 Reflect
 TODO
-- Wrapper in Reflect$ (zio.blocks.schema)
 - Dynamic in Reflect$ (zio.blocks.schema)
 - caching
 DONE
+- Wrapper in Reflect$ (zio.blocks.schema)
 - Seq all primitive types
 - Primitive in Reflect$ (zio.blocks.schema)
 - Sequence in Reflect$ (zio.blocks.schema)

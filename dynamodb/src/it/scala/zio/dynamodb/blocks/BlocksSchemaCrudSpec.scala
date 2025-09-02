@@ -33,6 +33,16 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
           val name: Lens[Person, Name]        = optic(_.name)
         }
 
+        println(s"XXXXXXXX schema: ${Person.schema}")
+        /* 
+        Macro transforms automatically to underlying newtype type
+        XXXXXXXX schema: Schema(Record(
+          Vector(
+            Term(id,  Primitive(String(None),TypeName(Namespace(List(scala),List()),String,List()),Primitive(None,List()),Empty,List()),Empty,List()), 
+            Term(name,Primitive(String(None),TypeName(Namespace(List(scala),List()),String,List()),Primitive(None,List()),Empty,List()),Empty,List())
+            ),
+          TypeName(Namespace(List(zio, dynamodb, blocks),List(BlocksSchemaCrudSpec, spec , $anonfun)),Person,List()),Record(zio.dynamodb.blocks.BlocksSchemaCrudSpec$Person$2$$anon$1@997f149,zio.dynamodb.blocks.BlocksSchemaCrudSpec$Person$2$$anon$2@699183f2,None,List()),Empty,List()))
+         */
         val person = Person(Name("1"), Name("Jones"))
         for {
           _     <- DynamoDBQuery.put(tableName, person).where(Person.id.notExists).execute
