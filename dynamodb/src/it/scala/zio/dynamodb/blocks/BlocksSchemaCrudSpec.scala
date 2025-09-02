@@ -254,6 +254,7 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test("explore Wrapped") {
+      import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
       final case class Email(value: String)
 
       object Email {
@@ -271,15 +272,18 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
       final case class Person(id: String, email: Email)
       object Person extends CompanionOptics[Person] {
         implicit val schema: Schema[Person] = Schema.derived
+        val id: Lens[Person, String]        = optic(_.id)
       }
 
       withSingleIdKeyTable { tableName =>
         val person = Person("1", Email("test@example.com"))
         for {
-          _        <- DynamoDBQuery.put(tableName, person).execute
-          afterPut <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
+          _         <- DynamoDBQuery.put(tableName, person).execute
+          afterPut  <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
+          afterPut2 <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
         } yield assertTrue(
-          afterPut == Some(Item("id" -> "1", "email" -> "test@example.com"))
+          afterPut == Some(Item("id" -> "1", "email" -> "test@example.com")),
+          afterPut2 == person
         )
       }
     },

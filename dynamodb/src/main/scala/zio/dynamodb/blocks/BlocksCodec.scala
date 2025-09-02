@@ -208,7 +208,7 @@ object BlocksCodec {
               av
             }
 
-          case _                                   => throw new Exception("Unknown wrapper binding")
+          case _                                => throw new Exception("Unknown wrapper binding")
         }
 
       case r @ Reflect.Record(fields, _, _, _, _)                   =>
@@ -492,6 +492,19 @@ object BlocksCodec {
 
         case av                     => Left(DecodingError(s"Expected AttributeValue.List but found ${av.showType}"))
       }
+      case Reflect.Wrapper(wrapped, _, wrapperBinding, _, _)            =>
+        wrapperBinding match {
+          case Binding.Wrapper(wrap, _, _, _) =>
+            val dec = reflectDecoder(wrapped)
+            (av: AttributeValue) =>
+              dec(av) match {
+                case Left(e)  => Left(e)
+                case Right(b) =>
+                  val w = wrap(b)
+                  w.left.map(s => DecodingError(s"Error unwrapping $s"))
+              }
+          case _                              => (_: AttributeValue) => Left(DecodingError("Unknown wrapper binding"))
+        }
       case r @ Reflect.Record(fields, _, _, _, _)                       =>
         // TODO: extract recordDecoder
         (av: AttributeValue) =>
