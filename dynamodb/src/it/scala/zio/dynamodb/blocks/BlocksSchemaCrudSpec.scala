@@ -279,7 +279,7 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
           _        <- DynamoDBQuery.put(tableName, person).execute
           afterPut <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
         } yield assertTrue(
-          afterPut == Some(Item("id" -> "1", "email" -> Item("value" -> "test@example.com")))
+          afterPut == Some(Item("id" -> "1", "email" -> "test@example.com"))
         )
       }
     },

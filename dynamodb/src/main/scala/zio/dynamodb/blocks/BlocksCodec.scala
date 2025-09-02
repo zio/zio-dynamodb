@@ -177,12 +177,12 @@ object BlocksCodec {
 
   def reflectEncoder[A](reflect: Reflect.Bound[A]): Encoder[A] =
     reflect match {
-      case Reflect.Primitive(primitiveType, _, _, _, _)          =>
+      case Reflect.Primitive(primitiveType, _, _, _, _)             =>
         primitiveEncoder(primitiveType)
-      case Reflect.Map(key, value, _, _, _, _)                   =>
+      case Reflect.Map(key, value, _, _, _, _)                      =>
         mapEncoder(key, value).asInstanceOf[Encoder[A]] // TODO: handle non-native maps
 
-      case Reflect.Sequence(element, _, _, _, _)                 => {
+      case Reflect.Sequence(element, _, _, _, _)                    => {
         case (a: Iterable[_]) =>
           val enc = reflectEncoder(element)
           val av  = AttributeValue.List(a.map {
@@ -198,7 +198,20 @@ object BlocksCodec {
         case c                => throw new Exception(s"Expected a collection type but found: ${c.getClass.getSimpleName}")
       }
 
-      case r @ Reflect.Record(fields, _, _, _, _)                =>
+      case Reflect.Wrapper(wrapped, typeName, wrapperBinding, _, _) =>
+        wrapperBinding match {
+          case Binding.Wrapper(_, unwrap, _, _) =>
+            (a: A) => {
+              val b   = unwrap(a)
+              val enc = reflectEncoder(wrapped)
+              val av  = enc(b.asInstanceOf[wrapped.Structure])
+              av
+            }
+
+          case _                                   => throw new Exception("Unknown wrapper binding")
+        }
+
+      case r @ Reflect.Record(fields, _, _, _, _)                   =>
         // TODO: Extract recordEncoder
         (a: A) => {
           // TODO: replace foldLeft with imperative loop
@@ -225,7 +238,7 @@ object BlocksCodec {
           avMap
         }
 
-      case v @ Reflect.Variant(cases, _, _, _, variantModifiers) =>
+      case v @ Reflect.Variant(cases, _, _, _, variantModifiers)    =>
         (a: A) =>
           val idx   = v.discriminator.discriminate(a)
           val case_ = cases(idx)
@@ -263,27 +276,9 @@ object BlocksCodec {
             }
             enc(a)
           }
-      case Reflect.Deferred(value)                               =>
+      case Reflect.Deferred(value)                                  =>
         reflectEncoder(value())
-      /*
-      case class Wrapper[F[_, _], A, B](
-        wrapped: Reflect[F, B],
-        typeName: TypeName[A],
-        wrapperBinding: F[BindingType.Wrapper[A, B], A],
-        doc: Doc = Doc.Empty,
-        modifiers: Seq[Modifier.Wrapper] = Nil
-      ) extends Reflect[F, A] { self =>
-       */
-      case Reflect.Wrapper(wrapped, typeName, wrapperBinding, _, _)                        =>
-        println(s"$wrapped $typeName $wrapperBinding")
-        /* 
-         TODO
-         - use wrapperBinding to get "unwrap" function
-         - apply function to A to get B
-         - call reflectEncoder(wrapped)(b)
-         */
-        ???
-      case r                                                     => throw new Exception(s"Could not encode ${r.getClass.getSimpleName} just yet")
+      case r                                                        => throw new Exception(s"Could not encode ${r.getClass.getSimpleName} just yet")
     }
 
   def encoder[A](implicit schema: Schema[A]): Encoder[A] = reflectEncoder(schema.reflect)
