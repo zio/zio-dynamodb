@@ -34,11 +34,11 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
         }
 
         println(s"XXXXXXXX schema: ${Person.schema}")
-        /* 
+        /*
         Macro transforms automatically to underlying newtype type
         XXXXXXXX schema: Schema(Record(
           Vector(
-            Term(id,  Primitive(String(None),TypeName(Namespace(List(scala),List()),String,List()),Primitive(None,List()),Empty,List()),Empty,List()), 
+            Term(id,  Primitive(String(None),TypeName(Namespace(List(scala),List()),String,List()),Primitive(None,List()),Empty,List()),Empty,List()),
             Term(name,Primitive(String(None),TypeName(Namespace(List(scala),List()),String,List()),Primitive(None,List()),Empty,List()),Empty,List())
             ),
           TypeName(Namespace(List(zio, dynamodb, blocks),List(BlocksSchemaCrudSpec, spec , $anonfun)),Person,List()),Record(zio.dynamodb.blocks.BlocksSchemaCrudSpec$Person$2$$anon$1@997f149,zio.dynamodb.blocks.BlocksSchemaCrudSpec$Person$2$$anon$2@699183f2,None,List()),Empty,List()))
@@ -407,6 +407,32 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
           afterPut == person
         )
       }
-    }
+    },
+    suite("dynamic")(
+      test("encode of Dynamic") {
+        withSingleIdKeyTable { tableName =>
+          final case class Person(id: String, name: String)
+          object Person extends CompanionOptics[Person] {
+            implicit val schema: Schema[Person] = Schema.derived[Person]
+            val id: Lens[Person, String]        = optic(_.id)
+          }
+
+          val person = Person("1", "John Doe")
+          val dv     = Person.schema.toDynamicValue(person)
+          for {
+            _        <- DynamoDBQuery.put(tableName, dv).execute
+            afterPut <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
+            av        = AttributeValue.Map(
+                          Map(
+                            AttributeValue.String("id") -> AttributeValue.String("1"),
+                            AttributeValue.String("name") -> AttributeValue.String("John Doe")
+                          )
+                        )
+          } yield assertTrue(
+            afterPut.get.toAttributeValue == av
+          )
+        }
+      }
+    )
   ) @@ TestAspect.nondeterministic
 }

@@ -19,6 +19,7 @@ import java.time.temporal.ChronoField.YEAR
 import scala.util.Try
 import java.util.UUID
 import zio.dynamodb.DynamoDBError
+import zio.dynamodb.blocks.BlocksCodecViaDynamic.dynamicEncoder
 
 /*
 Reflect
@@ -278,6 +279,19 @@ object BlocksCodec {
           }
       case Reflect.Deferred(value)                                  =>
         reflectEncoder(value())
+      /*
+        case class Dynamic[F[_, _]](
+    dynamicBinding: F[BindingType.Dynamic, DynamicValue],
+    doc: Doc = Doc.Empty,
+    modifiers: Seq[Modifier.Dynamic] = Nil
+  ) extends Reflect[F, DynamicValue] {
+       */
+      case d @ Reflect.Dynamic(dynamicBinding, _, _)                =>
+        (a: A) => {
+          val dv = d.toDynamicValue(a)
+          println(s"XXXXXXXXX dv: $dv")
+          dynamicEncoder(dv)
+        }
       case r                                                        => throw new Exception(s"Could not encode ${r.getClass.getSimpleName} just yet")
     }
 
