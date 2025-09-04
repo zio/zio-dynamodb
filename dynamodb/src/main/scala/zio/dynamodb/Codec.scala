@@ -614,7 +614,7 @@ private[dynamodb] object Codec {
           case AttributeValue.Bool(value)      => Right(DynamicValue.Primitive(value, StandardType.BoolType))
           case AttributeValue.List(_)          =>
             sequenceDecoder[DynamicValue, DynamicValue](dynamicDecoder, DynamicValue.Sequence(_))(av)
-          case AttributeValue.Map(value)       =>
+          case AttributeValue.Map(_)           =>
             nativeMapDecoder(dynamicDecoder)(av).map((map) =>
               DynamicValue.Record(TypeId.parse("AttributeValue.Map"), ListMap(map.toList: _*))
             )
