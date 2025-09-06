@@ -89,6 +89,8 @@ object BuildHelper {
   def stdSettings(prjName: String) =
     Seq(
       name := s"$prjName",
+      organization := "dev.zio",
+      homepage := Some(url("https://github.com/zio/zio-dynamodb")),
       crossScalaVersions := Seq(Scala212, Scala213, Scala3),
       ThisBuild / scalaVersion := Scala213,
       scalacOptions := stdOptions ++ extraOptions(scalaVersion.value),
