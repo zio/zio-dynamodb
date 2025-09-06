@@ -575,15 +575,25 @@ private[dynamodb] object Codec {
           case AttributeValue.Map(map) =>
             structure.toChunk.forEach {
               case Schema.Field(key, schema: Schema[a], _, _, _, _) =>
-                map.get(AttributeValue.String(key)) match {
-                  case Some(av) =>
-                    val dec = decoder(schema)
-                    dec(av) match {
-                      case Right(value) => Right(key -> value)
-                      case Left(s)      => Left(s)
-                    }
-                  case None     => Right(key -> None)
-                }
+                val dec          = decoder(schema)
+                val k            = key // @fieldName is respected by the zio-schema macro
+                val maybeAv      = map.get(AttributeValue.String(k))
+                val errorOrValue =
+                  maybeAv
+                    .toRight(DecodingError(s"field '$k' not found in AttributeValue map"))
+                    .flatMap(dec)
+                    .map(k -> _)
+                if (maybeAv.isEmpty)
+                  ContainerField.containerField(schema) match {
+                    case ContainerField.Optional => Right(k -> None)
+                    case ContainerField.Chunk    => Right(k -> Chunk.empty)
+                    case ContainerField.Sequence => Right(k -> List.empty)
+                    case ContainerField.Map      => Right(k -> Map.empty)
+                    case ContainerField.Set      => Right(k -> Set.empty)
+                    case ContainerField.Scalar   => errorOrValue
+                  }
+                else
+                  errorOrValue
             }
               .map(ls => ListMap.newBuilder.++=(ls).result())
           case av                      => Left(DecodingError(s"Expected AttributeValue.Map but found ${av.showType}"))
