@@ -119,7 +119,7 @@ docker compose -f docker/docker-compose.yml down
 
 ## Documentation
 
-Learn more on the [ZIO DynamoDB homepage](https://zio.dev/zio-dynamodb/)!
+Learn more on the [ZIO DynamoDB homepage](https://github.com/zio/zio-dynamodb)!
 
 ## Contributing
 
