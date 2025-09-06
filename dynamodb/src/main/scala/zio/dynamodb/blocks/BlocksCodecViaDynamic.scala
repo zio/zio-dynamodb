@@ -138,7 +138,7 @@ object BlocksCodecViaDynamic extends App {
           }
           AttributeValue.Map(avs.toMap)
         case DynamicValue.Variant(variant, dv) =>
-          println(variant)
+          println(s"EEEEEEEEEEEE variant: $variant")
           variantEncoder(dv)
         case dv                                =>
           throw new Exception(s"Unsupported DynamicValue $dv")

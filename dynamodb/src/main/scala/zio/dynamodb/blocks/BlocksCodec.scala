@@ -20,6 +20,7 @@ import scala.util.Try
 import java.util.UUID
 import zio.dynamodb.DynamoDBError
 import zio.dynamodb.blocks.BlocksCodecViaDynamic.dynamicEncoder
+import zio.dynamodb.blocks.BlocksCodecViaDynamic.dynamicDecoder
 
 /*
 Reflect
@@ -286,7 +287,7 @@ object BlocksCodec {
     modifiers: Seq[Modifier.Dynamic] = Nil
   ) extends Reflect[F, DynamicValue] {
        */
-      case d @ Reflect.Dynamic(dynamicBinding, _, _)                =>
+      case d @ Reflect.Dynamic(_, _, _)                             =>
         (a: A) => {
           val dv = d.toDynamicValue(a)
           println(s"XXXXXXXXX dv: $dv")
@@ -648,6 +649,21 @@ object BlocksCodec {
       case Reflect.Deferred(value)                                      =>
         val dec = reflectDecoder(value())
         (av: AttributeValue) => dec(av)
+      case Reflect.Dynamic(dynamicBinding, _, _)                        =>
+        (av: AttributeValue) =>
+          println(s"XXXXXXXXX DynamicValue decoder")
+          val x: Either[DynamoDBError.ItemError, DynamicValue] = dynamicDecoder(av) match {
+            case Left(e)   => Left(e)
+            case Right(dv) =>
+              reflect.fromDynamicValue(dv) match {
+                case Left(e)  => Left(DecodingError(e.toString))
+                case Right(r) =>
+                  println(s"XXXXXXXXX DynamicValue decoder r: ${r.getClass.getName} $r")
+                  Right(r).asInstanceOf[Either[DynamoDBError.ItemError, DynamicValue]]
+              }
+          }
+          x
+
       case r                                                            =>
         (_: AttributeValue) => Left(DecodingError(s"Could not decode Reflect $r just yet"))
     }

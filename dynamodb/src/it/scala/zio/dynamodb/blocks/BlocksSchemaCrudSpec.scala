@@ -411,6 +411,8 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
     suite("dynamic")(
       test("encode of Dynamic") {
         withSingleIdKeyTable { tableName =>
+          import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
+
           final case class Person(id: String, name: String)
           object Person extends CompanionOptics[Person] {
             implicit val schema: Schema[Person] = Schema.derived[Person]
@@ -424,12 +426,45 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
             afterPut <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
             av        = AttributeValue.Map(
                           Map(
-                            AttributeValue.String("id") -> AttributeValue.String("1"),
+                            AttributeValue.String("id")   -> AttributeValue.String("1"),
                             AttributeValue.String("name") -> AttributeValue.String("John Doe")
                           )
                         )
+            dv2      <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
+            _         = println(s"XXXXXXXXXX decoded dv: ${dv2.getClass.getName} $dv2")
           } yield assertTrue(
             afterPut.get.toAttributeValue == av
+          )
+        }
+      },
+      test("decode of Dynamic") {
+        withSingleIdKeyTable { tableName =>
+          import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
+
+          final case class MetaData(key: String, value: String)
+          object MetaData extends CompanionOptics[MetaData] {
+            implicit val schema: Schema[MetaData] = Schema.derived[MetaData]
+            val key: Lens[MetaData, String]       = optic(_.key)
+            val value: Lens[MetaData, String]     = optic(_.value)
+          }
+
+          final case class Person(id: String, metaData: DynamicValue)
+          object Person extends CompanionOptics[Person] {
+            implicit val schema: Schema[Person] = Schema.derived[Person]
+            val id: Lens[Person, String]        = optic(_.id)
+          }
+
+          val dv: DynamicValue = MetaData.schema.toDynamicValue(MetaData("foo", "bar"))
+          println(s"XXXXXXXXXX MetaData.schema.toDynamicValue dv: ${dv.getClass.getName} $dv")
+          val person           = Person("1", dv)
+          for {
+            _           <- DynamoDBQuery.put(tableName, person).execute
+            foundPerson <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
+            _            = println(s"XXXXXXXXXX decoded dv: ${foundPerson.getClass.getName} $foundPerson")
+          } yield assertTrue(
+            foundPerson.id == person.id,
+            // TODO: DynamicValue.Record -> AV -> DynamicValue.Record does not preserve field ordering
+            foundPerson.metaData.toJson == person.metaData.toJson
           )
         }
       }
