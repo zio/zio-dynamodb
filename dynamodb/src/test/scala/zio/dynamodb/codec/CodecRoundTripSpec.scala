@@ -1,8 +1,9 @@
 package zio.dynamodb.codec
 
+import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb.{ AttributeValue, Codec, DynamoDBQuery }
 import zio.schema.{ DeriveSchema, Schema, StandardType }
-import zio.test.Assertion.{ equalTo, isRight }
+import zio.test.Assertion.{ equalTo, isLeft, isRight }
 import zio.test._
 import zio.{ Chunk, ZIO }
 
@@ -419,17 +420,12 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
         "f11", "f12", "f13", "f14", "f15", "f16", "f17", None, None,
         None, None, None, None, None, None, None, None, None, None, None
       )
-      val bigList = BigList(
-        "id", "f0", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10",
-        "f11", "f12", "f13", "f14", "f15", "f16", "f17", Nil, Nil,
-        Nil, Nil, Nil, Nil, Nil, Nil, Nil, Nil, Nil, Nil, Nil
-      )
       // format: on
 
       val itemBigOption  = DynamoDBQuery.toItem(bigOption)
       val bigListDecoded = DynamoDBQuery.fromItem[BigList](itemBigOption)
 
-      assert(bigListDecoded)(isRight(equalTo(bigList)))
+      assert(bigListDecoded)(isLeft(equalTo(DecodingError(message = "field 'f18' not found in AttributeValue map"))))
     }
   )
 

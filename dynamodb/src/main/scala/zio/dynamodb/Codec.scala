@@ -586,11 +586,7 @@ private[dynamodb] object Codec {
                 if (maybeAv.isEmpty)
                   ContainerField.containerField(schema) match {
                     case ContainerField.Optional => Right(k -> None)
-                    case ContainerField.Chunk    => Right(k -> Chunk.empty)
-                    case ContainerField.Sequence => Right(k -> List.empty)
-                    case ContainerField.Map      => Right(k -> Map.empty)
-                    case ContainerField.Set      => Right(k -> Set.empty)
-                    case ContainerField.Scalar   => errorOrValue
+                    case _                       => errorOrValue
                   }
                 else
                   errorOrValue
