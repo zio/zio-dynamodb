@@ -203,6 +203,42 @@ object Case21 {
 }
 
 // format: off
+case class Case21List(
+  id: String, f0: String, f1: String, f2: String, f3: String, f4: String, f5: String, f6: String, f7: String, f8: String, f9: String,
+  f10: String, f11: String, f12: String, f13: String, f14: String, f15: String, f16: String, f17: String, f18: List[String], f19: List[String]
+)
+// format: on
+object Case21List {
+  implicit val schema: Schema.CaseClass21[
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    List[String],
+    List[String],
+    Case21List
+  ] =
+    DeriveSchema.gen[Case21List]
+
+  val id: ProjectionExpression[Case21List, String] = ProjectionExpression.$$("id")
+}
+
+// format: off
 case class Big(
   id: String, f0: String, f1: String, f2: String, f3: String, f4: String, f5: String, f6: String, f7: String, f8: String, f9: String,
   f10: String, f11: String, f12: String, f13: String, f14: String, f15: String, f16: String, f17: String, f18: Option[String], f19: Option[String],
@@ -214,4 +250,18 @@ object Big {
   implicit val schema: Schema[Big] = DeriveSchema.gen[Big]
 
   val id: ProjectionExpression[Big, String] = ProjectionExpression.$$("id")
+}
+
+// format: off
+case class BigList(
+  id: String, f0: String, f1: String, f2: String, f3: String, f4: String, f5: String, f6: String, f7: String, f8: String, f9: String,
+  f10: String, f11: String, f12: String, f13: String, f14: String, f15: String, f16: String, f17: String, f18: List[String], f19: List[String],
+  f20: List[String], f21: List[String], f22: List[String], f23: List[String], f24: List[String], f25: List[String], f26: List[String], f27: List[String],
+  f28: List[String], f29: List[String], f30: List[String],
+)
+// format: on
+object BigList {
+  implicit val schema: Schema[BigList] = DeriveSchema.gen[BigList]
+
+  val id: ProjectionExpression[BigList, String] = ProjectionExpression.$$("id")
 }

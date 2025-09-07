@@ -395,6 +395,41 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
         !itemBig.map.values.exists(_ == AttributeValue.Null) &&
           !itemCase21.map.values.exists(_ == AttributeValue.Null)
       )
+    },
+    test("encodes Case21Option with empty values, decodes to Case21List with empty values") {
+      // format: off
+      val case21Option = Case21(
+        "id", "f0", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10",
+        "f11", "f12", "f13", "f14", "f15", "f16", "f17", None, None
+      )
+      val case21List = Case21List(
+        "id", "f0", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10",
+        "f11", "f12", "f13", "f14", "f15", "f16", "f17", Nil, Nil
+      )
+      // format: on
+
+      val itemCase21Option  = DynamoDBQuery.toItem(case21Option)
+      val itemCase21Decoded = DynamoDBQuery.fromItem[Case21List](itemCase21Option)
+      assert(itemCase21Decoded)(isRight(equalTo(case21List)))
+    },
+    test("encodes BigOption with empty values, decodes to BigList with empty values") {
+      // format: off
+      val bigOption = Big(
+        "id", "f0", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10",
+        "f11", "f12", "f13", "f14", "f15", "f16", "f17", None, None,
+        None, None, None, None, None, None, None, None, None, None, None
+      )
+      val bigList = BigList(
+        "id", "f0", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10",
+        "f11", "f12", "f13", "f14", "f15", "f16", "f17", Nil, Nil,
+        Nil, Nil, Nil, Nil, Nil, Nil, Nil, Nil, Nil, Nil, Nil
+      )
+      // format: on
+
+      val itemBigOption  = DynamoDBQuery.toItem(bigOption)
+      val bigListDecoded = DynamoDBQuery.fromItem[BigList](itemBigOption)
+
+      assert(bigListDecoded)(isRight(equalTo(bigList)))
     }
   )
 
