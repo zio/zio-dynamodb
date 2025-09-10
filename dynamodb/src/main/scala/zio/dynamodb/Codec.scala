@@ -6,7 +6,7 @@ import zio.dynamodb.DynamoDBError.ItemError
 import zio.prelude.{ FlipOps, ForEachOps }
 import zio.schema.Schema.{ Optional, Primitive }
 import zio.schema.annotation.caseName
-import zio.schema.{ Fallback, FieldSet, Schema, StandardType }
+import zio.schema.{ DynamicValue, Fallback, FieldSet, Schema, StandardType, TypeId }
 import zio.Chunk
 
 import java.math.BigInteger
@@ -179,8 +179,47 @@ private[dynamodb] object Codec {
         }
       }
 
-    private def dynamicEncoder[A]: Encoder[A] =
-      encoder(Schema.dynamicValue).asInstanceOf[Encoder[A]]
+    private def dynamicEncoder: Encoder[DynamicValue] =
+      (dynamicValue: DynamicValue) =>
+        dynamicValue match {
+          case DynamicValue.Record(_, values)              =>
+            values.foldRight(AttributeValue.Map(ListMap.empty)) {
+              case ((key, dv), avMap) =>
+                AttributeValue.Map(avMap.value + (AttributeValue.String(key) -> dynamicEncoder(dv)))
+            }
+          case DynamicValue.Enumeration(_, _)              =>
+            throw new Exception("DynamicValue.Enumeration is not supported")
+          case DynamicValue.Sequence(values)               =>
+            AttributeValue.List(values.map(dynamicEncoder))
+          case DynamicValue.Dictionary(_)                  =>
+            throw new Exception("DynamicValue.Dictionary is not supported")
+          case DynamicValue.SetValue(values)               => encodeSetValues(values.map(dynamicEncoder))
+          case DynamicValue.Primitive(value, standardType) => primitiveEncoder(standardType)(value)
+          case DynamicValue.Singleton(_)                   => AttributeValue.Map(ListMap.empty)
+          case DynamicValue.SomeValue(value)               => dynamicEncoder(value)
+          case DynamicValue.NoneValue                      => AttributeValue.Null
+          case DynamicValue.Tuple(left, right)             =>
+            AttributeValue.List(Chunk(dynamicEncoder(left), dynamicEncoder(right)))
+          case DynamicValue.LeftValue(value)               =>
+            AttributeValue.Map(Map(AttributeValue.String("Left") -> dynamicEncoder(value)))
+          case DynamicValue.RightValue(value)              =>
+            AttributeValue.Map(Map(AttributeValue.String("Right") -> dynamicEncoder(value)))
+          case DynamicValue.BothValue(_, _)                => throw new Exception("DynamicValue.BothValue is not supported")
+          case DynamicValue.DynamicAst(_)                  => throw new Exception("DynamicValue.DynamicAst is not supported")
+          case DynamicValue.Error(_)                       => throw new Exception("DynamicValue.Error is not supported")
+        }
+
+    private def encodeSetValues(encodedValues: Set[AttributeValue]): AttributeValue =
+      encodedValues.headOption match {
+        case Some(_: AttributeValue.String) if encodedValues.forall(_.isInstanceOf[AttributeValue.String]) =>
+          AttributeValue.StringSet(encodedValues.map(_.asInstanceOf[AttributeValue.String].value))
+        case Some(_: AttributeValue.Number) if encodedValues.forall(_.isInstanceOf[AttributeValue.Number]) =>
+          AttributeValue.NumberSet(encodedValues.map(_.asInstanceOf[AttributeValue.Number].value))
+        case Some(_: AttributeValue.Binary) if encodedValues.forall(_.isInstanceOf[AttributeValue.Binary]) =>
+          AttributeValue.BinarySet(encodedValues.map(_.asInstanceOf[AttributeValue.Binary].value))
+        case _                                                                                             =>
+          AttributeValue.List(encodedValues.toList)
+      }
 
     private def caseClassEncoder0[Z]: Encoder[Z] = _ => AttributeValue.Null
 
@@ -566,8 +605,35 @@ private[dynamodb] object Codec {
     private[dynamodb] def caseClass0Decoder[Z](schema: Schema.CaseClass0[Z]): Decoder[Z] =
       _ => Right(schema.defaultConstruct())
 
-    private def dynamicDecoder[A]: Decoder[A] =
-      decoder(Schema.dynamicValue).asInstanceOf[Decoder[A]]
+    private def dynamicDecoder: Decoder[DynamicValue] =
+      (av: AttributeValue) =>
+        av match {
+          case AttributeValue.Binary(value)    =>
+            Right(DynamicValue.Primitive(value.toChunk, StandardType.BinaryType))
+          case AttributeValue.BinarySet(value) =>
+            Right(
+              DynamicValue.SetValue(value.map(bi => DynamicValue.Primitive(bi.toChunk, StandardType.BinaryType)).toSet)
+            )
+          case AttributeValue.Bool(value)      => Right(DynamicValue.Primitive(value, StandardType.BoolType))
+          case AttributeValue.List(_)          =>
+            sequenceDecoder[DynamicValue, DynamicValue](dynamicDecoder, DynamicValue.Sequence(_))(av)
+          case AttributeValue.Map(_)           =>
+            nativeMapDecoder(dynamicDecoder)(av).map((map) =>
+              DynamicValue.Record(TypeId.parse("AttributeValue.Map"), ListMap(map.toList: _*))
+            )
+          case AttributeValue.Number(value)    =>
+            Right(DynamicValue.Primitive(value.bigDecimal, StandardType.BigDecimalType))
+          case AttributeValue.NumberSet(value) =>
+            Right(
+              DynamicValue.SetValue(
+                value.map(n => DynamicValue.Primitive(n.bigDecimal, StandardType.BigDecimalType)).toSet
+              )
+            )
+          case AttributeValue.Null             => Right(DynamicValue.NoneValue)
+          case AttributeValue.String(value)    => Right(DynamicValue.Primitive(value, StandardType.StringType))
+          case AttributeValue.StringSet(value) =>
+            Right(DynamicValue.SetValue(value.map(s => DynamicValue.Primitive(s, StandardType.StringType)).toSet))
+        }
 
     private def genericRecordDecoder(structure: FieldSet): Decoder[Any] =
       (av: AttributeValue) =>
