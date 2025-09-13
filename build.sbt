@@ -37,7 +37,7 @@ val zioSchemaVersion       = "1.7.3"
 val zioPreludeVersion      = "1.0.0-RC41"
 val zioInteropCats3Version = "23.1.0.5"
 val catsEffect3Version     = "3.6.3"
-val fs2Version             = "3.12.0"
+val fs2Version             = "3.12.2"
 
 lazy val root =
   project
