@@ -409,7 +409,7 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
       }
     },
     suite("dynamic")(
-      test("encode of Dynamic") {
+      test("encode/decode of a whole DynamicValue.Record") {
         withSingleIdKeyTable { tableName =>
           import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
 
@@ -421,6 +421,7 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
 
           val person = Person("1", "John Doe")
           val dv     = Person.schema.toDynamicValue(person)
+          println(s"XXXX dv: ${dv.getClass.getName} $dv")
           for {
             _        <- DynamoDBQuery.put(tableName, dv).execute
             afterPut <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
@@ -437,7 +438,7 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
           )
         }
       },
-      test("decode of Dynamic") {
+      test("decode of DynamicValue field") {
         withSingleIdKeyTable { tableName =>
           import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
 
