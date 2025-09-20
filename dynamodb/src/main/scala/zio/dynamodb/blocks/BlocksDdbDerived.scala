@@ -25,7 +25,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     typeName: TypeName[A],
     binding: Binding[BindingType.Primitive, A],
     doc: Doc,
-    modifiers: Seq[Modifier.Primitive]
+    modifiers: Seq[Modifier.Reflect]
   ): Lazy[DdbCodec[A]] =
     Lazy(
       new DdbCodec[A] {
@@ -39,7 +39,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     typeName: TypeName[A],
     binding: Binding[BindingType.Record, A],
     doc: Doc,
-    modifiers: Seq[Modifier.Record]
+    modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]]    =
     Lazy(
       new DdbCodec[A] {
@@ -107,7 +107,7 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
     typeName: TypeName[A],
     binding: Binding[BindingType.Variant, A],
     doc: Doc,
-    modifiers: Seq[Modifier.Variant]
+    modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] = 
     Lazy(
       new DdbCodec[A] {
@@ -133,7 +133,7 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
     typeName: TypeName[C[A]],
     binding: Binding[BindingType.Seq[C], C[A]],
     doc: Doc,
-    modifiers: Seq[Modifier.Seq]
+    modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[C[A]]] = ???
 
   override def deriveMap[F[_, _], M[_, _], K, V](
@@ -142,13 +142,13 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
     typeName: TypeName[M[K, V]],
     binding: Binding[BindingType.Map[M], M[K, V]],
     doc: Doc,
-    modifiers: Seq[Modifier.Map]
+    modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[M[K, V]]] = ???
 
   override def deriveDynamic[F[_, _]](
     binding: Binding[BindingType.Dynamic, DynamicValue],
     doc: Doc,
-    modifiers: Seq[Modifier.Dynamic]
+    modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[DynamicValue]] = ???
 
   override def deriveWrapper[F[_, _], A, B](
@@ -156,7 +156,7 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
     typeName: TypeName[A],
     binding: Binding[BindingType.Wrapper[A, B], A],
     doc: Doc,
-    modifiers: Seq[Modifier.Wrapper]
+    modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] = ???
 
 }

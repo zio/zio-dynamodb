@@ -36,7 +36,7 @@ val zioAwsVersion    = "7.28.29.13"
 val zioSchemaVersion = "1.7.3"
 
 val zioBlocksVersion =
-  "0.0.0+604-69687828-SNAPSHOT" // 0.0.0+600-8542b9ce-SNAPSHOT 0.0.0+586-40fcfbc0-SNAPSHOT 0.0.0+549-836e2a30-SNAPSHOT
+  "0.0.0+656-b2a8ac11-SNAPSHOT" // 0.0.0+604-69687828-SNAPSHOT 0.0.0+600-8542b9ce-SNAPSHOT 0.0.0+586-40fcfbc0-SNAPSHOT 0.0.0+549-836e2a30-SNAPSHOT
 val zioPreludeVersion      = "1.0.0-RC41"
 val zioInteropCats3Version = "23.1.0.5"
 val catsEffect3Version     = "3.6.1"

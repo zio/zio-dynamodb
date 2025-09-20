@@ -48,7 +48,7 @@ object BlocksCodec {
     new DateTimeFormatterBuilder().appendValue(YEAR, 4, 10, SignStyle.EXCEEDS_PAD).toFormatter
 
   def maybeDiscriminatorNameModifier(
-    modifiers: Seq[Modifier.Variant]
+    modifiers: Seq[Modifier]
   ): Option[String] =
     modifiers.collectFirst {
       case Modifier.config("discriminatorName", value) => value
@@ -288,7 +288,7 @@ object BlocksCodec {
     modifiers: Seq[Modifier.Dynamic] = Nil
   ) extends Reflect[F, DynamicValue] {
        */
-      case d @ Reflect.Dynamic(_, _, _)                             =>
+      case d @ Reflect.Dynamic(_, _, _, _)                             =>
         (a: A) => {
           val dv = d.toDynamicValue(a)
           println(s"XXXXXXXXX dv: $dv")
@@ -650,7 +650,7 @@ object BlocksCodec {
       case Reflect.Deferred(value)                                      =>
         val dec = reflectDecoder(value())
         (av: AttributeValue) => dec(av)
-      case Reflect.Dynamic(dynamicBinding, _, _)                        =>
+      case Reflect.Dynamic(dynamicBinding, _, _, _)                        =>
         (av: AttributeValue) =>
           println(s"XXXXXXXXX DynamicValue decoder")
           val x: Either[DynamoDBError.ItemError, DynamicValue] = dynamicDecoder(av) match {
