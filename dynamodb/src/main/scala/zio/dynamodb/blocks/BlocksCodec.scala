@@ -25,7 +25,7 @@ import zio.dynamodb.blocks.BlocksCodecViaDynamic.dynamicDecoder
 /*
 Reflect
 TODO
-- Dynamic in Reflect$ (zio.blocks.schema)
+- Remaining Dynamic in Reflect$ (zio.blocks.schema)
 - caching
 DONE
 - Wrapper in Reflect$ (zio.blocks.schema)
@@ -37,6 +37,7 @@ DONE
 - Map in Reflect$ (zio.blocks.schema)
 - Deferred in Reflect$ (zio.blocks.schema)
 - Primitive in Reflect$ (zio.blocks.schema)
+- Dynamic Primitive + Recordin Reflect$ (zio.blocks.schema)
  */
 object BlocksCodec {
   // type Encoder[A]  = A => AttributeValue
