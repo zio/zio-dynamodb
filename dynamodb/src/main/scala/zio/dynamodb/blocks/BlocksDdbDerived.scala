@@ -40,7 +40,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     binding: Binding[BindingType.Record, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]]    =
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] =
     Lazy(
       new DdbCodec[A] {
         val record = Reflect.Record(
@@ -108,25 +108,25 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
     binding: Binding[BindingType.Variant, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] = 
-    Lazy(
-      new DdbCodec[A] {
-    val variant = Reflect.Variant(
-      cases = cases.asInstanceOf[IndexedSeq[Term[Binding, A, ? <: A]]],
-      typeName = typeName,
-      variantBinding = binding,
-      doc = doc,
-      modifiers = modifiers
-    )
-    override def encoder: Encoder[A] = { (a: A) =>
-      val enc = BlocksCodec.reflectEncoder(variant)
-      enc(a.asInstanceOf[variant.Structure])
-    }
-    override def decoder: Decoder[A] = { (av: AttributeValue) =>
-      val dec = BlocksCodec.reflectDecoder(variant)
-      dec(av)
-    }
-  })
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] =
+    Lazy(new DdbCodec[A] {
+      val variant = Reflect.Variant(
+        cases = cases.asInstanceOf[IndexedSeq[Term[Binding, A, _ <: A]]], // TODO: get scalafmt error when I use ? <: A
+        typeName = typeName,
+        variantBinding = binding,
+        doc = doc,
+        modifiers = modifiers
+      )
+      override def encoder: Encoder[A] = { (a: A) =>
+        val enc = BlocksCodec.reflectEncoder(variant)
+//      enc(a.asInstanceOf[variant.Structure])
+        enc(a)
+      }
+      override def decoder: Decoder[A] = { (av: AttributeValue) =>
+        val dec = BlocksCodec.reflectDecoder(variant)
+        dec(av)
+      }
+    })
 
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
@@ -134,7 +134,21 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
     binding: Binding[BindingType.Seq[C], C[A]],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[C[A]]] = ???
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[C[A]]] =
+    Lazy(
+      new DdbCodec[C[A]] {
+        val sequence = Reflect.Sequence(
+          element = element.asInstanceOf[Reflect[Any, A]], // TODO: why do we need Any here?
+          typeName = typeName,
+          seqBinding = binding,                            // TODO: use binding
+          doc = doc,
+          modifiers = modifiers
+        )
+        println(sequence)
+        override def encoder: Encoder[C[A]] = ???
+        override def decoder: Decoder[C[A]] = ???
+      }
+    )
 
   override def deriveMap[F[_, _], M[_, _], K, V](
     key: Reflect[F, K],
@@ -165,13 +179,21 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
 zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
  */
 object TestDerived extends App {
-  final case class Person(id: String, either: Either[String, Int])
+  final case class PersonWithVariant(id: String, either: Either[String, Int])
+  object PersonWithVariant extends CompanionOptics[PersonWithVariant] {
+    implicit val schema: Schema[PersonWithVariant] = Schema.derived
+  }
+
+  final case class Person(id: String, age: Int)
   object Person extends CompanionOptics[Person] {
     implicit val schema: Schema[Person] = Schema.derived
   }
 
-  val codec: DdbCodec[Person] = Person.schema.derive(BlocksDdbDerived)
-  val enc                     = codec.encoder(Person("1", Right(42) ))
-  val dec                     = codec.decoder(enc)
+  val codec: DdbCodec[PersonWithVariant] = PersonWithVariant.schema.derive(BlocksDdbDerived)
+  val enc                                = codec.encoder(PersonWithVariant("1", Right(42)))
+//  val codec: DdbCodec[Person] = Person.schema.derive(BlocksDdbDerived)
+//  val enc                     = codec.encoder(Person("1", 42 ))
+
+  val dec = codec.decoder(enc)
   println(s"XXXXXXXX enc: $enc dec: $dec")
 }

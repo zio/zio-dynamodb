@@ -144,6 +144,16 @@ object BlocksCodec {
         ) // Non native Map encoder relies on Sequence encoder
     }
 
+  def sequenceEncoder[Col[_], A](enc: Encoder[A]): Encoder[Col[A]] =
+    (a: Col[A]) => {
+      val av: Iterable[AttributeValue] = a match {
+        case a: Iterable[_] => a.map(v => enc(v.asInstanceOf[A]))
+        case a: Array[_]    => a.map(v => enc(v.asInstanceOf[A])).toSeq
+        case c              => throw new Exception(s"Expected a collection type but found: ${c.getClass.getSimpleName}")
+      }
+      AttributeValue.List(av)
+    }
+
   def optionEncoder[A](v: Reflect.Variant.Bound[A]): Encoder[A] = {
     case Some(a) =>
       reflectBindingForCaseValueField("Some", v) match {
@@ -185,21 +195,9 @@ object BlocksCodec {
       case Reflect.Map(key, value, _, _, _, _)                      =>
         mapEncoder(key, value).asInstanceOf[Encoder[A]] // TODO: handle non-native maps
 
-      case Reflect.Sequence(element, _, _, _, _)                    => {
-        case (a: Iterable[_]) =>
-          val enc = reflectEncoder(element)
-          val av  = AttributeValue.List(a.map {
-            case v => enc(v.asInstanceOf[element.Structure])
-          })
-          av
-        case (a: Array[_])    =>
-          val enc = reflectEncoder(element)
-          val av  = AttributeValue.List(a.map {
-            case v => enc(v.asInstanceOf[element.Structure])
-          }.toSeq) // Array is not Iterable so convert to Seq
-          av
-        case c                => throw new Exception(s"Expected a collection type but found: ${c.getClass.getSimpleName}")
-      }
+      case Reflect.Sequence(element, _, _, _, _)                    =>
+        val enc: Encoder[element.Structure] = reflectEncoder(element)
+        sequenceEncoder(enc).asInstanceOf[Encoder[A]] // TODO: handle non-native sequences
 
       case Reflect.Wrapper(wrapped, typeName, wrapperBinding, _, _) =>
         wrapperBinding match {
@@ -288,7 +286,7 @@ object BlocksCodec {
     modifiers: Seq[Modifier.Dynamic] = Nil
   ) extends Reflect[F, DynamicValue] {
        */
-      case d @ Reflect.Dynamic(_, _, _, _)                             =>
+      case d @ Reflect.Dynamic(_, _, _, _)                          =>
         (a: A) => {
           val dv = d.toDynamicValue(a)
           println(s"XXXXXXXXX dv: $dv")
@@ -650,7 +648,7 @@ object BlocksCodec {
       case Reflect.Deferred(value)                                      =>
         val dec = reflectDecoder(value())
         (av: AttributeValue) => dec(av)
-      case Reflect.Dynamic(dynamicBinding, _, _, _)                        =>
+      case Reflect.Dynamic(dynamicBinding, _, _, _)                     =>
         (av: AttributeValue) =>
           println(s"XXXXXXXXX DynamicValue decoder")
           val x: Either[DynamoDBError.ItemError, DynamicValue] = dynamicDecoder(av) match {
