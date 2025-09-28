@@ -32,10 +32,9 @@ object DynamoDBError {
   /**
    * Encapsulates a Non Fatal error (as defined by scala.utils.control.NonFatal) that occurred during processing
    */
-  final case class UnknownError(cause: Throwable) extends DynamoDBError {
+  final case class UnknownNonFatalError(cause: Throwable) extends DynamoDBError {
     override def message: String = cause.getMessage
   }
-  // TODO: Avi - create an unapply method that tests for NonFatal
 
   /**
    * You need to consider this error if queries result in batching eg if you are using `DynamoDBQuery.batch` or manually `Zip`'ing
