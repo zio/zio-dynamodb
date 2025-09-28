@@ -30,7 +30,7 @@ object DynamoDBError {
   }
 
   /**
-   * Encapsulates a Non Fatal error (as defined by scala.utils.control.NonFatal) that occurred during processing
+   * Encapsulates a non-fatal error (as defined by scala.utils.control.NonFatal) that occurred during processing
    */
   final case class UnknownNonFatalError(cause: Throwable) extends DynamoDBError {
     override def message: String = cause.getMessage
