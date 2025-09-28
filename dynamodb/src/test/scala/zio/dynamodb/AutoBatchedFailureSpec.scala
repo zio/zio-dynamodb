@@ -239,7 +239,9 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
             getItem("mockBatches", itemOne) zip getItem("mockBatches", itemTwo)
           for {
             exit <- autoBatched.execute.exit
-          } yield assert(exit)(fails(isSubtype[DynamoDBError.UnknownNonFatalError](hasMessage(containsString("BOOOOOOM!")))))
+          } yield assert(exit)(
+            fails(isSubtype[DynamoDBError.UnknownNonFatalError](hasMessage(containsString("BOOOOOOM!"))))
+          )
         }.provideLayer(nonFatalErrorReturnMockBatchGet >>> DynamoDBExecutor.live),
         test("should die when BatchGetItem returns a fatal error") {
           val autoBatched =
