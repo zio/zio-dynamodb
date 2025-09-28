@@ -1,5 +1,6 @@
 package zio.dynamodb
 
+import software.amazon.awssdk.services.dynamodb.model.DynamoDbException
 import zio.aws.dynamodb.model.primitives.{ AttributeName, StringAttributeValue, TableArn }
 import zio.aws.dynamodb.model.{
   BatchWriteItemResponse,
@@ -22,7 +23,6 @@ import zio.test.Assertion.isSubtype
 import zio.test.Assertion
 import zio.test.assert
 import zio.Chunk
-
 import zio.schema.DeriveSchema
 import zio.test.Spec
 
@@ -183,21 +183,72 @@ object AutoBatchedFailureSpec extends ZIOSpecDefault with DynamoDBFixtures {
       )
     )
 
-  val errorReturnMockBatchGet: ULayer[DynamoDb] = DynamoDbMock
+  private val aswSdkException = DynamoDbException
+    .builder()
+    .message("BOOOOOOM!")
+    .build()
+
+  private val nonFatalError: IllegalStateException = new IllegalStateException("BOOOOOOM!")
+
+  private val nonFatalErrorReturnMockBatchGet: ULayer[DynamoDb] = DynamoDbMock
+    .BatchGetItem(equalTo(getRequestItemOneAndTwo()), failure(zio.aws.core.AwsError.fromThrowable(nonFatalError)))
+
+  private val awsSdkErrorReturnMockBatchGet: ULayer[DynamoDb] = DynamoDbMock
+    .BatchGetItem(equalTo(getRequestItemOneAndTwo()), failure(zio.aws.core.AwsError.fromThrowable(aswSdkException)))
+
+  private val zioDdbErrorReturnMockBatchGet: ULayer[DynamoDb] = DynamoDbMock
     .BatchGetItem(
       equalTo(getRequestItemOneAndTwo()),
-      failure(zio.aws.core.AwsError.fromThrowable(new IllegalStateException("BOOOOOOM!")))
+      failure(zio.aws.core.AwsError.fromThrowable(DynamoDBError.TransactionError.MixedTransactionTypes))
+    )
+
+  private val fatalError: Throwable                          = new VirtualMachineError("BADOOOOOOSH!") {}
+  private val fatalErrorReturnMockBatchGet: ULayer[DynamoDb] = DynamoDbMock
+    .BatchGetItem(
+      equalTo(getRequestItemOneAndTwo()),
+      failure(zio.aws.core.AwsError.fromThrowable(fatalError))
     )
 
   private val batchGetSuite =
     suite("batch gets")(
-      suite("with defects")(test("should die when BatchGetItem returns AWS error") {
-        val autoBatched =
-          getItem("mockBatches", itemOne) zip getItem("mockBatches", itemTwo)
-        for {
-          exit <- autoBatched.execute.exit
-        } yield assert(exit)(dies(isSubtype[IllegalStateException](hasMessage(containsString("BOOOOOOM!")))))
-      }).provideLayer(errorReturnMockBatchGet >>> DynamoDBExecutor.live) @@ TestAspect.withLiveClock,
+      suite("Non Fatal errors get propagated")(
+        test("should fail when BatchGetItem returns an AWS SDK error") {
+          val autoBatched =
+            getItem("mockBatches", itemOne) zip getItem("mockBatches", itemTwo)
+          for {
+            exit <- autoBatched.execute.exit
+          } yield assert(exit)(
+            fails(
+              isSubtype[DynamoDBError.AWSError]( // we expect a ZIO DynamoDBError wrapping the AWS SDK exception
+                anything
+              )
+            )
+          )
+        }.provideLayer(awsSdkErrorReturnMockBatchGet >>> DynamoDBExecutor.live),
+        test("should fail when BatchGetItem returns a ZIO DynamoDBError") {
+          val autoBatched =
+            getItem("mockBatches", itemOne) zip getItem("mockBatches", itemTwo)
+          for {
+            exit <- autoBatched.execute.exit
+          } yield assert(exit)(
+            fails(isSubtype[DynamoDBError.TransactionError.MixedTransactionTypes.type](anything))
+          )
+        }.provideLayer(zioDdbErrorReturnMockBatchGet >>> DynamoDBExecutor.live),
+        test("should fail when BatchGetItem returns a non fatal error") {
+          val autoBatched =
+            getItem("mockBatches", itemOne) zip getItem("mockBatches", itemTwo)
+          for {
+            exit <- autoBatched.execute.exit
+          } yield assert(exit)(fails(isSubtype[DynamoDBError.UnknownError](hasMessage(containsString("BOOOOOOM!")))))
+        }.provideLayer(nonFatalErrorReturnMockBatchGet >>> DynamoDBExecutor.live),
+        test("should die when BatchGetItem returns a fatal error") {
+          val autoBatched =
+            getItem("mockBatches", itemOne) zip getItem("mockBatches", itemTwo)
+          for {
+            exit <- autoBatched.execute.exit
+          } yield assert(exit)(dies(isSubtype[VirtualMachineError](anything)))
+        }.provideLayer(fatalErrorReturnMockBatchGet >>> DynamoDBExecutor.live)
+      ) @@ TestAspect.withLiveClock,
       suite("successful batch gets")(test("should retry when there are unprocessed keys") {
         val autoBatched = getItem("mockBatches", itemOne) zip getItem("mockBatches", itemTwo)
         assertZIO(autoBatched.execute.exit)(succeeds(anything))
