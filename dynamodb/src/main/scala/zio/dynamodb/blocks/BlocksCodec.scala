@@ -6,12 +6,8 @@ import zio.dynamodb.FromAttributeValue
 import zio.dynamodb.Encoder
 import zio.dynamodb.Decoder
 import zio.blocks.schema._
-import zio.blocks.schema.binding.Constructor
-import zio.blocks.schema.binding.Register
-import zio.blocks.schema.binding.RegisterOffset
-import zio.blocks.schema.binding.Registers
+import zio.blocks.schema.binding.{ Binding, Constructor, Register, RegisterOffset, Registers }
 import zio.Chunk
-import zio.blocks.schema.binding.Binding
 
 import java.time._
 import java.time.format.{ DateTimeFormatterBuilder, SignStyle }
@@ -144,10 +140,20 @@ object BlocksCodec {
         ) // Non native Map encoder relies on Sequence encoder
     }
 
+  /*
+    def toDynamicValue(value: C[A])(implicit F: HasBinding[F]): DynamicValue = {
+      val iterator = seqDeconstructor.deconstruct(value)
+      val builder  = Vector.newBuilder[DynamicValue]
+      while (iterator.hasNext) builder.addOne(element.toDynamicValue(iterator.next()))
+      new DynamicValue.Sequence(builder.result())
+    }
+   */
+  //def foo[Col[_], A](col: Col[A])(implicit F: HasBinding[F])
   def sequenceEncoder[Col[_], A](enc: Encoder[A]): Encoder[Col[A]] =
     (a: Col[A]) => {
       val av: Iterable[AttributeValue] = a match {
-        case a: Iterable[_] => a.map(v => enc(v.asInstanceOf[A]))
+        case a: Iterable[_] =>
+          a.map(v => enc(v.asInstanceOf[A])) // TODO: use Binding functionality to deconstruct a sequence
         case a: Array[_]    => a.map(v => enc(v.asInstanceOf[A])).toSeq
         case c              => throw new Exception(s"Expected a collection type but found: ${c.getClass.getSimpleName}")
       }
@@ -195,9 +201,40 @@ object BlocksCodec {
       case Reflect.Map(key, value, _, _, _, _)                      =>
         mapEncoder(key, value).asInstanceOf[Encoder[A]] // TODO: handle non-native maps
 
-      case Reflect.Sequence(element, _, _, _, _)                    =>
-        val enc: Encoder[element.Structure] = reflectEncoder(element)
-        sequenceEncoder(enc).asInstanceOf[Encoder[A]] // TODO: handle non-native sequences
+      /*
+  case class Sequence[F[_, _], A, C[_]](
+    element: Reflect[F, A],
+    typeName: TypeName[C[A]],
+    seqBinding: F[BindingType.Seq[C], C[A]],
+    doc: Doc = Doc.Empty,
+    modifiers: Seq[Modifier.Reflect] = Nil
+  ) extends Reflect[F, C[A]] { self =>
+
+    def toDynamicValue(value: C[A])(implicit F: HasBinding[F]): DynamicValue = {
+      val iterator = seqDeconstructor.deconstruct(value)
+      val builder  = Vector.newBuilder[DynamicValue]
+      while (iterator.hasNext) builder.addOne(element.toDynamicValue(iterator.next()))
+      new DynamicValue.Sequence(builder.result())
+    }
+
+       */
+      case Reflect.Sequence(element, _, _, _, _)                    => {
+        case (a: Iterable[_]) =>
+          println(s"XXXXXX BlocksCodec.reflectEncoder Reflect.Sequence Iterable")
+//          val x   = s.seqDeconstructor(seqBinding) // try to use Blocks Binding functionality for deconstruction
+          val enc = reflectEncoder(element)
+          val av  = AttributeValue.List(a.map {
+            case v => enc(v.asInstanceOf[element.Structure])
+          })
+          av
+        case (a: Array[_])    =>
+          val enc = reflectEncoder(element)
+          val av  = AttributeValue.List(a.map {
+            case v => enc(v.asInstanceOf[element.Structure])
+          }.toSeq) // Array is not Iterable so convert to Seq
+          av
+        case c                => throw new Exception(s"Expected a collection type but found: ${c.getClass.getSimpleName}")
+      }
 
       case Reflect.Wrapper(wrapped, typeName, wrapperBinding, _, _) =>
         wrapperBinding match {

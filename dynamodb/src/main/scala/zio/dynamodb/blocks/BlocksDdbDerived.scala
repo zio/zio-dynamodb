@@ -2,7 +2,7 @@ package zio.dynamodb.blocks
 
 import zio.blocks.schema.derive.Deriver
 import zio.blocks.schema.{ Doc, DynamicValue, Lazy, Modifier }
-import zio.blocks.schema.binding.{ Binding, BindingType, HasBinding }
+import zio.blocks.schema.binding.{ Binding, BindingType, HasBinding, SeqDeconstructor }
 import zio.blocks.schema.PrimitiveType
 import zio.blocks.schema.TypeName
 import zio.blocks.schema.Term
@@ -29,11 +29,26 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
   ): Lazy[DdbCodec[A]] =
     Lazy(
       new DdbCodec[A] {
-        override def encoder: Encoder[A] = BlocksCodec.primitiveEncoder(primitiveType)
-        override def decoder: Decoder[A] = BlocksCodec.primitiveDecoder(primitiveType)
+        override def encoder: Encoder[A] = {
+          print(s"XXXXXX BlocksDdbDerived.derivePrimitive ENCODER $primitiveType $typeName $binding $doc $modifiers")
+          BlocksCodec.primitiveEncoder(primitiveType)
+        }
+        override def decoder: Decoder[A] = {
+          println(s"XXXXXX BlocksDdbDerived.derivePrimitive DECODER $primitiveType $typeName $binding $doc $modifiers")
+          BlocksCodec.primitiveDecoder(primitiveType)
+        }
       }
     )
 
+  /*
+  case class Record[F[_, _], A](
+    fields: IndexedSeq[Term[F, A, ?]],
+    typeName: TypeName[A],
+    recordBinding: F[BindingType.Record, A],
+    doc: Doc = Doc.Empty,
+    modifiers: Seq[Modifier.Reflect] = Nil
+  ) extends Reflect[F, A] { self =>
+   */
   override def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],
     typeName: TypeName[A],
@@ -44,17 +59,22 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     Lazy(
       new DdbCodec[A] {
         val record = Reflect.Record(
-          fields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]],
+          fields = {
+            val x: IndexedSeq[Term[Binding, A, _]] = fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]]
+            x
+          },
           typeName = typeName,
           recordBinding = binding,
           doc = doc,
           modifiers = modifiers
         )
         override def encoder: Encoder[A] = { (a: A) =>
+          println(s"XXXXXX BlocksDdbDerived.deriveRecord ENCODER $record")
           val enc = BlocksCodec.reflectEncoder(record)
           enc(a.asInstanceOf[record.Structure])
         }
         override def decoder: Decoder[A] = { (av: AttributeValue) =>
+          println(s"XXXXXX BlocksDdbDerived.deriveRecord DECODER $record")
           val dec = BlocksCodec.reflectDecoder(record)
           dec(av)
         }
@@ -128,28 +148,91 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
       }
     })
 
+  def deriveSequence2[F[_, _], C[_], A](
+    element: Reflect[F, A],
+    typeName: TypeName[C[A]],
+    binding: F[BindingType.Seq[C], C[A]],
+    doc: Doc,
+    modifiers: Seq[Modifier.Reflect]
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[C[A]]] =
+    Lazy(
+      new DdbCodec[C[A]] {
+        val sequence: Reflect.Sequence[F, A, C] = Reflect.Sequence(
+          element = element,
+          typeName = typeName,
+          seqBinding = binding,
+          doc = doc,
+          modifiers = modifiers
+        )
+        println(s"$sequence $D")
+        val v: C[A]                             = ???
+        val deconstructor                       = sequence.seqDeconstructor // no type casts needed
+        val it: Iterator[A]                     = deconstructor.deconstruct(v)
+        println(it)
+        override def encoder: Encoder[C[A]]     =
+          ???
+        override def decoder: Decoder[C[A]]     = ???
+      }
+    )
+
+  /*
+   Type class derivation compile problem
+   I have a type class DdbCodec for which I am trying to derive a Sequence instance but it looks like the Derive trait
+   `def deriveSequence` method does not align with Reflect.Sequence constructor
+   When using
+
+   */
+
+  /*
+  This fixes need for element.asInstanceOf[Reflect[Any, A]] cast that causes F to be lost as Any
+  binding: F[BindingType.Seq[C], C[A]],   // <- use F here, not Binding
+  se deriveSequence2 above
+   */
+  /*
+  case class Sequence[F[_, _], A, C[_]](
+    element: Reflect[F, A],
+    typeName: TypeName[C[A]],
+    seqBinding: F[BindingType.Seq[C], C[A]],
+    doc: Doc = Doc.Empty,
+    modifiers: Seq[Modifier.Reflect] = Nil
+  ) extends Reflect[F, C[A]] { self =>
+   */
+
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
     typeName: TypeName[C[A]],
     binding: Binding[BindingType.Seq[C], C[A]],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[C[A]]] =
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[C[A]]]    =
     Lazy(
       new DdbCodec[C[A]] {
-        val sequence = Reflect.Sequence(
-          element = element.asInstanceOf[Reflect[Any, A]], // TODO: why do we need Any here?
+        val sequence: Reflect.Sequence[F, A, C] = Reflect.Sequence(
+          element = element,
           typeName = typeName,
-          seqBinding = binding,                            // TODO: use binding
+          seqBinding = binding.asInstanceOf[F[BindingType.Seq[C], C[A]]],
           doc = doc,
           modifiers = modifiers
         )
         println(sequence)
-        override def encoder: Encoder[C[A]] = ???
-        override def decoder: Decoder[C[A]] = ???
+        val v: C[A]                             = ???
+        val deconstructor: SeqDeconstructor[C]  = sequence.asInstanceOf[Reflect.Sequence[F, A, C]].seqDeconstructor
+        val it: Iterator[A]                     = deconstructor.deconstruct(v)
+        println(it)
+        override def encoder: Encoder[C[A]]     =
+          (ca: C[A]) => {
+            val x: Iterator[A]  = deconstructor.deconstruct(ca)
+            val enc: Encoder[A] = BlocksCodec.reflectEncoder(element.asInstanceOf[Reflect.Bound[A]])
+            println(enc)
+            x.foreach { a =>
+              val av = enc(a)
+              println(s"XXXXXX av: $av")
+            }
+            ???
+          }
+        override def decoder: Decoder[C[A]]     = ???
       }
     )
-
   override def deriveMap[F[_, _], M[_, _], K, V](
     key: Reflect[F, K],
     value: Reflect[F, V],
@@ -157,13 +240,34 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
     binding: Binding[BindingType.Map[M], M[K, V]],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[M[K, V]]] = ???
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[M[K, V]]] =
+    Lazy(
+      new DdbCodec[M[K, V]] {
+        val map                                = Reflect.Map(
+          key = key.asInstanceOf[Reflect[Any, K]],
+          value = value.asInstanceOf[Reflect[Any, V]],
+          typeName = typeName,
+          mapBinding = binding,
+          doc = doc,
+          modifiers = modifiers
+        )
+        println(map)
+        override def encoder: Encoder[M[K, V]] = ???
+        override def decoder: Decoder[M[K, V]] = ???
+      }
+    )
 
   override def deriveDynamic[F[_, _]](
     binding: Binding[BindingType.Dynamic, DynamicValue],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[DynamicValue]] = ???
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[DynamicValue]] =
+    Lazy(
+      new DdbCodec[DynamicValue] {
+        override def encoder: Encoder[DynamicValue] = ???
+        override def decoder: Decoder[DynamicValue] = ???
+      }
+    )
 
   override def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
@@ -171,7 +275,21 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
     binding: Binding[BindingType.Wrapper[A, B], A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] = ???
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] =
+    Lazy(
+      new DdbCodec[A] {
+        val wrapper                      = Reflect.Wrapper(
+          wrapped = wrapped.asInstanceOf[Reflect[Any, B]],
+          typeName = typeName,
+          wrapperBinding = binding,
+          doc = doc,
+          modifiers = modifiers
+        )
+        println(wrapper)
+        override def encoder: Encoder[A] = ???
+        override def decoder: Decoder[A] = ???
+      }
+    )
 
 }
 
@@ -179,8 +297,12 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
 zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
  */
 object TestDerived extends App {
+  final case class PersonWithCollections(id: String, numbers: List[Int] = Nil, names: Array[String] = Array.empty)
+  object PersonWithCollections extends CompanionOptics[PersonWithCollections] {
+    implicit val schema: Schema[PersonWithCollections] = Schema.derived
+  }
   final case class PersonWithVariant(id: String, either: Either[String, Int])
-  object PersonWithVariant extends CompanionOptics[PersonWithVariant] {
+  object PersonWithVariant     extends CompanionOptics[PersonWithVariant]     {
     implicit val schema: Schema[PersonWithVariant] = Schema.derived
   }
 
@@ -189,11 +311,15 @@ object TestDerived extends App {
     implicit val schema: Schema[Person] = Schema.derived
   }
 
-  val codec: DdbCodec[PersonWithVariant] = PersonWithVariant.schema.derive(BlocksDdbDerived)
-  val enc                                = codec.encoder(PersonWithVariant("1", Right(42)))
+//  val codec: DdbCodec[PersonWithVariant] = PersonWithVariant.schema.derive(BlocksDdbDerived)
+//  val enc                                = codec.encoder(PersonWithVariant("1", Right(42)))
 //  val codec: DdbCodec[Person] = Person.schema.derive(BlocksDdbDerived)
-//  val enc                     = codec.encoder(Person("1", 42 ))
+//  val enc                     = codec.encoder(Person("1", 42))
+  val codec: DdbCodec[PersonWithCollections] = PersonWithCollections.schema.derive(BlocksDdbDerived)
+  val enc                                    = codec.encoder(PersonWithCollections("1", numbers = List(1, 2)))
 
-  val dec = codec.decoder(enc)
-  println(s"XXXXXXXX enc: $enc dec: $dec")
+  println(s"XXXXXXXX enc: $enc")
+
+//  val dec = codec.decoder(enc)
+//  println(s"XXXXXXXX enc: $enc dec: $dec")
 }
