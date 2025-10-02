@@ -7,8 +7,9 @@ import zio.aws.dynamodb.model.{
   BatchGetItemResponse => ZIOAwsBatchGetItemResponse,
   KeysAndAttributes => ZIOAwsKeysAndAttributes
 }
-import zio.aws.dynamodb.{ DynamoDb, DynamoDbMock }
+import zio.aws.dynamodb.DynamoDb
 import zio.dynamodb.DynamoDBQuery._
+import zio.dynamodb.mock.DynamoDbMock
 import zio.mock.Expectation.value
 import zio.test.Assertion._
 import zio.test.{ assert, ZIOSpecDefault }

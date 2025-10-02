@@ -1,7 +1,6 @@
 package zio.dynamodb
 
 import zio.aws.dynamodb.DynamoDb
-import zio.aws.dynamodb.DynamoDbMock
 import zio.{ Chunk, ULayer }
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.ProjectionExpression.$
@@ -9,6 +8,7 @@ import zio.test.Assertion.{ contains, equalTo, fails, hasField, isSubtype }
 import zio.test._
 import zio.mock.Expectation.value
 import zio.aws.dynamodb.model.{ ItemResponse, TransactGetItemsResponse, TransactWriteItemsResponse }
+import zio.dynamodb.mock.DynamoDbMock
 
 object TransactionModelSpec extends ZIOSpecDefault {
   private val tableName                       = TableName("table")
