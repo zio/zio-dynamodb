@@ -38,6 +38,7 @@ val zioPreludeVersion      = "1.0.0-RC41"
 val zioInteropCats3Version = "23.1.0.5"
 val catsEffect3Version     = "3.6.3"
 val fs2Version             = "3.12.2"
+val zioMockVersion         = "1.0.0-RC12"
 
 lazy val root =
   project
@@ -58,6 +59,7 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
       "dev.zio" %% "zio-streams"           % zioVersion,
       "dev.zio" %% "zio-test"              % zioVersion % "it,test",
       "dev.zio" %% "zio-test-sbt"          % zioVersion % "it,test",
+      "dev.zio" %% "zio-mock"              % zioMockVersion,
       "dev.zio" %% "zio-schema"            % zioSchemaVersion,
       "dev.zio" %% "zio-schema-derivation" % zioSchemaVersion,
       "dev.zio" %% "zio-aws-netty"         % zioAwsVersion,
