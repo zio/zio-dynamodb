@@ -29,7 +29,7 @@ jobs:
         check-latest: true
     - uses: sbt/setup-sbt@v1
     - name: Check artifacts build process
-      run: sbt -J-XX:+UseG1GC -J-Xmx6g -J-Xms6g -J-Xss16m ++2.13.12 publishLocal
+      run: sbt -J-XX:+UseG1GC -J-Xmx6g -J-Xms6g -J-Xss16m ++2.13.16 publishLocal # TODO: Avi - fix hard coded scala version hack
     - name: Check website build process
       run: sbt docs/clean; sbt docs/buildWebsite
   update-readme:
