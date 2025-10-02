@@ -15,11 +15,6 @@ jobs:
   build:
     name: Build and Test
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        java: ['21']
-        scala: ['2.13']
     if: ${{ github.event_name == 'pull_request' }}
     steps:
     - name: Git Checkout
@@ -34,7 +29,7 @@ jobs:
         check-latest: true
     - uses: sbt/setup-sbt@v1
     - name: Check artifacts build process
-      run: sbt -J-XX:+UseG1GC -J-Xmx6g -J-Xms6g -J-Xss16m +publishLocal
+      run: sbt -J-XX:+UseG1GC -J-Xmx6g -J-Xms6g -J-Xss16m ++2.13.12 publishLocal
     - name: Check website build process
       run: sbt docs/clean; sbt docs/buildWebsite
   update-readme:
