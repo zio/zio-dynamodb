@@ -138,8 +138,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
     }
 
     result.refineOrDie {
-      case e: AwsSdkDynamoDbException => DynamoDBError.AWSError(e)
-      case e: DynamoDBError           => e
+      case e: AwsSdkDynamoDbException          => DynamoDBError.AWSError(e)
+      case e: DynamoDBError                    => e
+      case e if scala.util.control.NonFatal(e) => DynamoDBError.UnknownNonFatalError(e)
     }
   }
 
