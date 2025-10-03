@@ -8,7 +8,7 @@ import zio.aws.dynamodb.model.{
   BatchGetItemResponse => ZIOAwsBatchGetItemResponse,
   KeysAndAttributes => ZIOAwsKeysAndAttributes
 }
-import zio.aws.dynamodb.{ DynamoDb, DynamoDbMock }
+import zio.aws.dynamodb.DynamoDb
 import zio.dynamodb.DynamoDBError.BatchError
 import zio.dynamodb.DynamoDBQuery._
 import zio.mock.Expectation.value
@@ -23,6 +23,7 @@ import zio.test.Assertion.isSubtype
 import zio.test.Assertion
 import zio.test.assert
 import zio.Chunk
+import zio.dynamodb.mock.DynamoDbMock
 import zio.schema.DeriveSchema
 import zio.test.Spec
 
