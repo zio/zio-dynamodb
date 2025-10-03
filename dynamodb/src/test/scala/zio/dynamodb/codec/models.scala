@@ -165,3 +165,53 @@ object WithNoDiscriminatorError {
   implicit val schema: Schema.CaseClass1[NoDiscriminatorEnumError, WithNoDiscriminatorError] =
     DeriveSchema.gen[WithNoDiscriminatorError]
 }
+
+// format: off
+case class Case21(
+  id: String, f0: String, f1: String, f2: String, f3: String, f4: String, f5: String, f6: String, f7: String, f8: String, f9: String,
+  f10: String, f11: String, f12: String, f13: String, f14: String, f15: String, f16: String, f17: String, f18: Option[String], f19: Option[String]
+)
+// format: on
+object Case21 {
+  implicit val schema: Schema.CaseClass21[
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    Option[String],
+    Option[String],
+    Case21
+  ] =
+    DeriveSchema.gen[Case21]
+
+  val id: ProjectionExpression[Case21, String] = ProjectionExpression.$$("id")
+}
+
+// format: off
+case class Big(
+  id: String, f0: String, f1: String, f2: String, f3: String, f4: String, f5: String, f6: String, f7: String, f8: String, f9: String,
+  f10: String, f11: String, f12: String, f13: String, f14: String, f15: String, f16: String, f17: String, f18: Option[String], f19: Option[String],
+  f20: Option[String], f21: Option[String], f22: Option[String], f23: Option[String], f24: Option[String], f25: Option[String], f26: Option[String], f27: Option[String],
+  f28: Option[String], f29: Option[String], f30: Option[String],
+)
+// format: on
+object Big {
+  implicit val schema: Schema[Big] = DeriveSchema.gen[Big]
+
+  val id: ProjectionExpression[Big, String] = ProjectionExpression.$$("id")
+}

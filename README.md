@@ -22,7 +22,7 @@ To use ZIO DynamoDB, we need to add the following lines to our `build.sbt` file:
 
 ```scala
 libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb" % "1.0.0-RC19"
+  "dev.zio" %% "zio-dynamodb" % "1.0.0-RC22"
 )
 ```
 
@@ -32,7 +32,7 @@ To use the Cats Effect 3 interop module, we need to also add the following line 
 
 ```scala
 libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb-ce" % "1.0.0-RC19"
+  "dev.zio" %% "zio-dynamodb-ce" % "1.0.0-RC22"
 )
 ```
 
@@ -45,7 +45,7 @@ We need to add the following line to our `build.sbt` file:
 
 ```scala
 libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb-future" % "1.0.0-RC19"
+  "dev.zio" %% "zio-dynamodb-future" % "1.0.0-RC22"
 )
 ```
 
@@ -56,7 +56,7 @@ AWS tools like the CLI and Console read/write a special JSON representation of d
 
 ```scala
 libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb-json" % "1.0.0-RC19"
+  "dev.zio" %% "zio-dynamodb-json" % "1.0.0-RC22"
 )
 ```
 
@@ -119,7 +119,7 @@ docker compose -f docker/docker-compose.yml down
 
 ## Documentation
 
-Learn more on the [ZIO DynamoDB homepage](https://zio.dev/zio-dynamodb/)!
+Learn more on the [ZIO DynamoDB homepage](https://github.com/zio/zio-dynamodb)!
 
 ## Contributing
 

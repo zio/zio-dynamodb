@@ -5,7 +5,6 @@ import sbtbuildinfo.BuildInfoKeys.*
 
 object BuildHelper {
   // Align with zio-schema since we have a deep dependency on it
-  val Scala212                = "2.12.20"
   val Scala213                = "2.13.16"
   val Scala3                  = "3.3.6"
   private val SilencerVersion = "1.7.19"
@@ -89,7 +88,9 @@ object BuildHelper {
   def stdSettings(prjName: String) =
     Seq(
       name := s"$prjName",
-      crossScalaVersions := Seq(Scala212, Scala213, Scala3),
+      organization := "dev.zio",
+      homepage := Some(url("https://github.com/zio/zio-dynamodb")),
+      crossScalaVersions := Seq(Scala213, Scala3),
       ThisBuild / scalaVersion := Scala213,
       scalacOptions := stdOptions ++ extraOptions(scalaVersion.value),
       libraryDependencies ++= {
