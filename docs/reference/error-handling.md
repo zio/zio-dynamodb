@@ -26,3 +26,4 @@ The error hierarchy is as follows:
     - **`DynamoDBError.TransactionError.EmptyTransaction`**
     - **`DynamoDBError.TransactionError.MixedTransactionTypes`**
     - **`DynamoDBError.TransactionError.InvalidTransactionActions`**
+  - **`DynamoDBError.UnknownNonFatalError`** Encapsulates a non-fatal error (as defined by scala.utils.control.NonFatal) that occurred during processing
