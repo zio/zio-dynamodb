@@ -1036,6 +1036,7 @@ case object DynamoDBExecutorImpl {
       case ZIOAwsTableStatus.INACCESSIBLE_ENCRYPTION_CREDENTIALS => TableStatus.InaccessibleEncryptionCredentials
       case ZIOAwsTableStatus.ARCHIVING                           => TableStatus.Archiving
       case ZIOAwsTableStatus.ARCHIVED                            => TableStatus.Archived
+      case ZIOAwsTableStatus.REPLICATION_NOT_AUTHORIZED          => TableStatus.ReplicationNotAuthorized
       case ZIOAwsTableStatus.unknownToSdkVersion                 => TableStatus.unknownToSdkVersion
     }
 

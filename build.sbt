@@ -32,12 +32,13 @@ addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
 
 val zioVersion             = "2.1.20"
-val zioAwsVersion          = "7.28.29.13"
+val zioAwsVersion          = "7.34.5.1"
 val zioSchemaVersion       = "1.7.3"
 val zioPreludeVersion      = "1.0.0-RC41"
 val zioInteropCats3Version = "23.1.0.5"
 val catsEffect3Version     = "3.6.3"
 val fs2Version             = "3.12.2"
+val zioMockVersion         = "1.0.0-RC12"
 
 lazy val root =
   project
@@ -56,8 +57,9 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
       "dev.zio" %% "zio"                   % zioVersion,
       "dev.zio" %% "zio-prelude"           % zioPreludeVersion,
       "dev.zio" %% "zio-streams"           % zioVersion,
-      "dev.zio" %% "zio-test"              % zioVersion % "it,test",
-      "dev.zio" %% "zio-test-sbt"          % zioVersion % "it,test",
+      "dev.zio" %% "zio-test"              % zioVersion     % "it,test",
+      "dev.zio" %% "zio-test-sbt"          % zioVersion     % "it,test",
+      "dev.zio" %% "zio-mock"              % zioMockVersion % "test",
       "dev.zio" %% "zio-schema"            % zioSchemaVersion,
       "dev.zio" %% "zio-schema-derivation" % zioSchemaVersion,
       "dev.zio" %% "zio-aws-netty"         % zioAwsVersion,
