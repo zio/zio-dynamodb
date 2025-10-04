@@ -15,6 +15,7 @@ import zio.aws.dynamodb.model.primitives.{
   ScanSegment,
   ScanTotalSegments,
   StringAttributeValue,
+  TableArn,
   TagKeyString,
   TagValueString,
   AttributeName => ZIOAwsAttributeName,
@@ -26,7 +27,6 @@ import zio.aws.dynamodb.model.primitives.{
   KeyExpression => ZIOAwsKeyExpression,
   KeySchemaAttributeName => ZIOAwsKeySchemaAttributeName,
   ProjectionExpression => ZIOAwsProjectionExpression,
-  TableArn,
   UpdateExpression => ZIOAwsUpdateExpression
 }
 import zio.aws.dynamodb.model.{
@@ -87,6 +87,7 @@ import scala.collection.immutable.{ Map => ScalaMap }
 import software.amazon.awssdk.services.dynamodb.model.{ DynamoDbException => AwsSdkDynamoDbException }
 import zio.durationInt
 import zio.Schedule
+import zio.prelude.data.Optional
 
 private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynamoDb: DynamoDb)
     extends DynamoDBExecutor {
@@ -981,6 +982,16 @@ case object DynamoDBExecutorImpl {
   ): ScalaMap[ZIOAwsAttributeName, ZIOAwsAttributeValue]                                                 =
     attrMap.flatMap { case (k, v) => awsAttributeValue(v).map(a => (ZIOAwsAttributeName(k), a)) }
 
+  implicit class StrictZioAwsAttributeValueOps(self: zio.aws.dynamodb.model.AttributeValue.ReadOnly) {
+    def strictL: Optional[List[zio.aws.dynamodb.model.AttributeValue.ReadOnly]] =
+      if (self.hasL)
+        self.l
+      else
+        Optional.Absent
+  }
+  /*
+
+   */
   private def awsAttrValToAttrVal(attributeValue: ZIOAwsAttributeValue.ReadOnly): Option[AttributeValue] =
     attributeValue.s
       .map(AttributeValue.String.apply)
@@ -1003,7 +1014,7 @@ case object DynamoDBExecutorImpl {
         attributeValue.bs.flatMap(bs => toOption(bs).map(bs => AttributeValue.BinarySet(bs.toSet)))
       }
       .orElse {
-        attributeValue.l.flatMap(l =>
+        attributeValue.strictL.flatMap(l =>
           toOption(l).map(l => AttributeValue.List(Chunk.fromIterable(l.flatMap(awsAttrValToAttrVal))))
         )
       }
