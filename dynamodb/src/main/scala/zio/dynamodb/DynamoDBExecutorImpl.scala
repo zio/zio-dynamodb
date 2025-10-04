@@ -138,8 +138,9 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
     }
 
     result.refineOrDie {
-      case e: AwsSdkDynamoDbException => DynamoDBError.AWSError(e)
-      case e: DynamoDBError           => e
+      case e: AwsSdkDynamoDbException          => DynamoDBError.AWSError(e)
+      case e: DynamoDBError                    => e
+      case e if scala.util.control.NonFatal(e) => DynamoDBError.UnknownNonFatalError(e)
     }
   }
 
@@ -1035,6 +1036,7 @@ case object DynamoDBExecutorImpl {
       case ZIOAwsTableStatus.INACCESSIBLE_ENCRYPTION_CREDENTIALS => TableStatus.InaccessibleEncryptionCredentials
       case ZIOAwsTableStatus.ARCHIVING                           => TableStatus.Archiving
       case ZIOAwsTableStatus.ARCHIVED                            => TableStatus.Archived
+      case ZIOAwsTableStatus.REPLICATION_NOT_AUTHORIZED          => TableStatus.ReplicationNotAuthorized
       case ZIOAwsTableStatus.unknownToSdkVersion                 => TableStatus.unknownToSdkVersion
     }
 
