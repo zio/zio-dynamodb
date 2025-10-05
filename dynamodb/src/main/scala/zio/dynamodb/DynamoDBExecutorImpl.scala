@@ -1,5 +1,5 @@
 package zio.dynamodb
-import zio.aws.core.FieldIsNone
+import zio.aws.core.{ AwsError, FieldIsNone }
 import zio.aws.dynamodb.DynamoDb
 import zio.aws.dynamodb.model.primitives.{
   BinaryAttributeValue,
@@ -39,6 +39,7 @@ import zio.aws.dynamodb.model.{
   DescribeTableRequest,
   Get,
   GetItemRequest,
+  GetItemResponse,
   KeySchemaElement,
   KeyType,
   KeysAndAttributes,
@@ -81,12 +82,10 @@ import zio.dynamodb.DynamoDBQuery.BatchGetItem.TableGet
 import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.SSESpecification.SSEType
 import zio.stream.{ Stream, ZStream }
-import zio.{ Chunk, NonEmptyChunk, ZIO }
+import zio.{ durationInt, Chunk, IO, NonEmptyChunk, Schedule, ZIO }
 
 import scala.collection.immutable.{ Map => ScalaMap }
 import software.amazon.awssdk.services.dynamodb.model.{ DynamoDbException => AwsSdkDynamoDbException }
-import zio.durationInt
-import zio.Schedule
 import zio.prelude.data.Optional
 
 private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynamoDb: DynamoDb)
@@ -165,11 +164,27 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
   private def executePutItem(putItem: PutItem): ZIO[Any, Throwable, Option[Item]] =
     dynamoDb.putItem(awsPutItemRequest(putItem)).mapBoth(_.toThrowable, _.attributes.toOption.map(dynamoDBItem))
 
-  private def executeGetItem(getItem: GetItem): ZIO[Any, Throwable, Option[Item]] =
+  def executeGetItemOld(getItem: GetItem): ZIO[Any, Throwable, Option[Item]] =
     dynamoDb
       .getItem(awsGetItemRequest(getItem))
       .mapBoth(_.toThrowable, _.item.map(dynamoDBItem))
       .map(_.toOption.flatMap(item => if (item.map.isEmpty) None else Some(item)))
+  private def executeGetItem(getItem: GetItem): ZIO[Any, Throwable, Option[Item]] = {
+    val x: IO[AwsError, GetItemResponse.ReadOnly] = dynamoDb
+      .getItem(awsGetItemRequest(getItem))
+    val y                                         = x
+      .mapBoth(
+        _.toThrowable,
+        x => {
+//          println(s"XXXXXXXXXX executeGetItem x: ${x.item}")
+          val y: Optional[Item] = x.item.map(dynamoDBItem)
+//          println(s"XXXXXXXXXX executeGetItem: y: $y")
+          y
+        }
+      )
+      .map(_.toOption.flatMap(item => if (item.map.isEmpty) None else Some(item)))
+    y
+  }
 
   private def executeUpdateItem(updateItem: UpdateItem): ZIO[Any, Throwable, Option[Item]] =
     dynamoDb.updateItem(awsUpdateItemRequest(updateItem)).mapBoth(_.toThrowable, optionalItem)
@@ -984,9 +999,12 @@ case object DynamoDBExecutorImpl {
 
   implicit class StrictZioAwsAttributeValueOps(self: zio.aws.dynamodb.model.AttributeValue.ReadOnly) {
     def strictL: Optional[List[zio.aws.dynamodb.model.AttributeValue.ReadOnly]] =
-      if (self.hasL)
-        self.l
-      else
+//      println(s"XXXXXXXX 1. strictL: hasL: ${self.hasL}, hasM: ${self.hasM} av: $self")
+      if (self.hasL && !self.hasM) {
+        val x = self.l
+//        println(s"XXXXXXXX 2. x: $x")
+        x
+      } else
         Optional.Absent
   }
   /*
@@ -1014,9 +1032,13 @@ case object DynamoDBExecutorImpl {
         attributeValue.bs.flatMap(bs => toOption(bs).map(bs => AttributeValue.BinarySet(bs.toSet)))
       }
       .orElse {
-        attributeValue.strictL.flatMap(l =>
-          toOption(l).map(l => AttributeValue.List(Chunk.fromIterable(l.flatMap(awsAttrValToAttrVal))))
+        val x = attributeValue.strictL.flatMap(
+//          l =>
+//          toOption(l).map(l => AttributeValue.List(Chunk.fromIterable(l.flatMap(awsAttrValToAttrVal))))
+          l => AttributeValue.List(Chunk.fromIterable(l.flatMap(awsAttrValToAttrVal)))
         )
+//        println(s"XXXXXXXX 1. awsAttrValToAttrVal x: $x")
+        x
       }
       .orElse(attributeValue.nul.map(_ => AttributeValue.Null))
       .orElse(attributeValue.bool.map(AttributeValue.Bool.apply))

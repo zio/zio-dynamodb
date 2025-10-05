@@ -37,10 +37,17 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
   }
 
   final case class Address(number: String, Postcode: String)
-  object Address               {
+  object Address {
     implicit val schema: Schema.CaseClass2[String, String, Address] = DeriveSchema.gen[Address]
     val (number, postcode)                                          = ProjectionExpression.accessors[Address]
   }
+
+  final case class PersonWithList(id: String, numbers: List[Int])
+  object PersonWithList {
+    implicit val schema: Schema.CaseClass2[String, List[Int], PersonWithList] = DeriveSchema.gen[PersonWithList]
+    val (id, numbers)                                                         = ProjectionExpression.accessors[PersonWithList]
+  }
+
   final case class PersonWithCollections(
     id: String,
     surname: String,
@@ -48,6 +55,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
     addressMap: Map[String, Address] = Map.empty,
     addressSet: Set[String] = Set.empty
   )
+
   object PersonWithCollections {
     implicit val schema
       : Schema.CaseClass5[String, String, List[Address], Map[String, Address], Set[String], PersonWithCollections] =
@@ -599,6 +607,19 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
                ).execute
           p <- get(tableName)(PersonWithCollections.id.partitionKey === "1").execute.absolve
         } yield assertTrue(p == expected)
+      }
+    },
+    test(
+      "debug empty map for list"
+    ) {
+      withSingleIdKeyTable { tableName =>
+        val person = PersonWithList("1", Nil)
+        for {
+          _ <- put(tableName, person).execute
+          p <- get(tableName)(PersonWithList.id.partitionKey === "1").execute.absolve
+//          item <- getItem(tableName, PrimaryKey("id" -> "1")).execute
+          _  = println(s"TTTTTTTTTTT person = $p")
+        } yield assertTrue(true)
       }
     },
     test(
