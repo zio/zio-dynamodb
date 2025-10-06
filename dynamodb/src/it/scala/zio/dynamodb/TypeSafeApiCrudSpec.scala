@@ -13,16 +13,17 @@ import zio.stream.ZStream
 import zio.ZIO
 import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException
 import zio.Scope
+import zio.json.ast.Json
 
 object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
 
-  case class PersonMetaData(address: Option[String], postcode: Option[String])
+  final case class PersonMetaData(address: Option[String], postcode: Option[String])
   object PersonMetaData     {
     implicit val schema: Schema.CaseClass2[Option[String], Option[String], PersonMetaData] =
       DeriveSchema.gen[PersonMetaData]
     val address                                                                            = ProjectionExpression.accessors[PersonMetaData]
   }
-  case class PersonWithMetaData(id: String, personMetaData: PersonMetaData)
+  final case class PersonWithMetaData(id: String, personMetaData: PersonMetaData)
   object PersonWithMetaData {
     implicit val schema: Schema.CaseClass2[String, PersonMetaData, PersonWithMetaData] =
       DeriveSchema.gen[PersonWithMetaData]
@@ -76,6 +77,13 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
     final val (id, address)                                                                                  = ProjectionExpression.accessors[PersonWithEither]
   }
 
+  final case class PersonWithJson(id: String, name: String, metadata: Json)
+  object PersonWithJson {
+    import zio.schema.codec.json.schemaJson // needed for native compact direct derivation of Json codec
+    implicit val schema: Schema.CaseClass3[String, String, Json, PersonWithJson] = DeriveSchema.gen[PersonWithJson]
+    val (id, name, metadata)                                                     = ProjectionExpression.accessors[PersonWithJson]
+  }
+
   override def spec: Spec[Environment with Scope, Any] =
     suite("TypeSafeApiCrudSpec")(
       putSuite,
@@ -83,8 +91,28 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       deleteSuite,
       batchSuite,
       transactionSuite,
-      fallBackSchemaSuite
+      fallBackSchemaSuite,
+      jsonSuite
     ) @@ TestAspect.nondeterministic
+
+  private val jsonSuite = suite("json")(
+    test("put and get a case class with a Json field") {
+      withSingleIdKeyTable { tableName =>
+        val person = PersonWithJson("1", "John", Json.Obj("field1" -> Json.Str("value1"), "field2" -> Json.Num(42)))
+        for {
+          _         <- put(tableName, person).execute
+          p         <- get(tableName)(PersonWithJson.id.partitionKey === "1").execute.absolve
+          maybeItem <- getItem(tableName, PrimaryKey("id" -> "1")).execute
+        } yield assertTrue(
+          // note we need to import zio.schema.codec.json.schemaJson to make sure it is in scope
+          // for native compact direct derivation of Json codec
+          p == person && maybeItem == Some(
+            Item("id" -> "1", "name" -> "John", "metadata" -> Item("field1" -> "value1", "field2" -> 42))
+          )
+        )
+      }
+    }
+  )
 
   private val putSuite =
     suite("put")(
