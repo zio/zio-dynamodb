@@ -1,4 +1,4 @@
-package zio.dynamodb.json
+package zio.dynamodb.codec
 
 import zio.Scope
 import zio.dynamodb.{ AttributeValue, Codec }

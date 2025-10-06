@@ -35,6 +35,7 @@ val zioVersion             = "2.1.21"
 val zioAwsVersion          = "7.34.7.1"
 val zioSchemaVersion       = "1.7.5"
 val zioPreludeVersion      = "1.0.0-RC42"
+val zioJsonVersion         = "0.7.44"
 val zioInteropCats3Version = "23.1.0.5"
 val catsEffect3Version     = "3.6.3"
 val fs2Version             = "3.12.2"
@@ -57,9 +58,11 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
       "dev.zio" %% "zio"                   % zioVersion,
       "dev.zio" %% "zio-prelude"           % zioPreludeVersion,
       "dev.zio" %% "zio-streams"           % zioVersion,
-      "dev.zio" %% "zio-test"              % zioVersion     % "it,test",
-      "dev.zio" %% "zio-test-sbt"          % zioVersion     % "it,test",
-      "dev.zio" %% "zio-mock"              % zioMockVersion % "test",
+      "dev.zio" %% "zio-test"              % zioVersion       % "it,test",
+      "dev.zio" %% "zio-test-sbt"          % zioVersion       % "it,test",
+      "dev.zio" %% "zio-mock"              % zioMockVersion   % "test",
+      "dev.zio" %% "zio-json"              % zioJsonVersion   % "test",
+      "dev.zio" %% "zio-schema-json"       % zioSchemaVersion % "test",
       "dev.zio" %% "zio-schema"            % zioSchemaVersion,
       "dev.zio" %% "zio-schema-derivation" % zioSchemaVersion,
       "dev.zio" %% "zio-aws-netty"         % zioAwsVersion,
@@ -340,7 +343,7 @@ lazy val zioDynamodbJson =
       libraryDependencies ++= Seq(
         "dev.zio" %% "zio-test"        % zioVersion       % "test",
         "dev.zio" %% "zio-test-sbt"    % zioVersion       % "test",
-        "dev.zio" %% "zio-json"        % "0.7.44",
+        "dev.zio" %% "zio-json"        % zioJsonVersion,
         "dev.zio" %% "zio-schema-json" % zioSchemaVersion % "test"
       ),
       testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
