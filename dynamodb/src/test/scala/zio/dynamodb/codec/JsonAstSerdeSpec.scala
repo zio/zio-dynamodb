@@ -1,11 +1,11 @@
-package zio.dynamodb.json
+package zio.dynamodb.codec
 
 import zio.Scope
-import zio.dynamodb.{ AttributeValue, Codec }
+import zio.dynamodb.{AttributeValue, Codec}
 import zio.json.ast.Json
 import zio.schema.codec.json.schemaJson
 import zio.test.Assertion._
-import zio.test.{ assert, Spec, TestEnvironment, ZIOSpecDefault }
+import zio.test.{Spec, TestEnvironment, ZIOSpecDefault, assert}
 
 object JsonAstSerdeSpec extends ZIOSpecDefault {
 
