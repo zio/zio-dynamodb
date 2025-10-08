@@ -12,16 +12,16 @@ import zio.dynamodb.DynamoDBQuery._
 import zio.dynamodb.mock.DynamoDbMock
 import zio.mock.Expectation.value
 import zio.test.Assertion._
-import zio.test.{ assert, ZIOSpecDefault }
+import zio.test.{ assert, assertTrue, Spec, ZIOSpecDefault }
 import zio.{ Schedule, ULayer }
 
-import scala.collection.immutable.{ Map => ScalaMap }
-import zio.test.Spec
+import scala.collection.immutable.{ Map, Map => ScalaMap }
 
-object ExecutorSpec extends ZIOSpecDefault with DynamoDBFixtures {
+object DynamoDBExecutorSpec extends ZIOSpecDefault with DynamoDBFixtures {
 
   override def spec: Spec[Environment, Any] =
     suite("Executor spec")(
+      attributeValueSuite,
       batchRetries
     )
 
@@ -225,5 +225,20 @@ object ExecutorSpec extends ZIOSpecDefault with DynamoDBFixtures {
   private val batchRetries = suite("Batch retries")(
     batchGetSuite,
     batchWriteSuite
+  )
+
+  val attributeValueSuite = suite("AWS AttributeValue to ZIODynamoDB AttributeValue conversion suite")(
+    test("ZIO AWS empty List should be converted to AttributeValue.List(Nil)") {
+      val zioAwsAV = ZIOAwsAttributeValue(l = Some(Nil)).asReadOnly
+      val maybeAV  = DynamoDBExecutorImpl.awsAttrValToAttrVal(zioAwsAV)
+      assertTrue(maybeAV == Some(AttributeValue.List(Nil)))
+    },
+    test("ZIO AWS empty Map should be converted to AttributeValue.Map(Map.empty)") {
+      val emptyZioAwsMap = Map.empty[AttributeName, zio.aws.dynamodb.model.AttributeValue]
+      val emptyZioDdbMap = Map.empty[AttributeValue.String, AttributeValue]
+      val zioAwsAV       = ZIOAwsAttributeValue(m = Some(emptyZioAwsMap)).asReadOnly
+      val maybeAV        = DynamoDBExecutorImpl.awsAttrValToAttrVal(zioAwsAV)
+      assertTrue(maybeAV == Some(AttributeValue.Map(emptyZioDdbMap)))
+    }
   )
 }

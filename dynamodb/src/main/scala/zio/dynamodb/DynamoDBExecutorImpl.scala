@@ -393,7 +393,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
     }
 }
 
-case object DynamoDBExecutorImpl {
+object DynamoDBExecutorImpl {
 
   sealed trait TransactionType
   object TransactionType {
@@ -994,7 +994,7 @@ case object DynamoDBExecutorImpl {
 
   private[dynamodb] def awsAttributeValueMap(
     attrMap: ScalaMap[String, AttributeValue]
-  ): ScalaMap[ZIOAwsAttributeName, ZIOAwsAttributeValue]                                                 =
+  ): ScalaMap[ZIOAwsAttributeName, ZIOAwsAttributeValue]                                                           =
     attrMap.flatMap { case (k, v) => awsAttributeValue(v).map(a => (ZIOAwsAttributeName(k), a)) }
 
   implicit class StrictZioAwsAttributeValueOps(self: zio.aws.dynamodb.model.AttributeValue.ReadOnly) {
@@ -1010,7 +1010,7 @@ case object DynamoDBExecutorImpl {
   /*
 
    */
-  private def awsAttrValToAttrVal(attributeValue: ZIOAwsAttributeValue.ReadOnly): Option[AttributeValue] =
+  private[dynamodb] def awsAttrValToAttrVal(attributeValue: ZIOAwsAttributeValue.ReadOnly): Option[AttributeValue] =
     attributeValue.s
       .map(AttributeValue.String.apply)
       .orElse {
