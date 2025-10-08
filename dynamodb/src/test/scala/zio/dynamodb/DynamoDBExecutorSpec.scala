@@ -231,14 +231,14 @@ object DynamoDBExecutorSpec extends ZIOSpecDefault with DynamoDBFixtures {
     test("ZIO AWS empty List should be converted to AttributeValue.List(Nil)") {
       val zioAwsAV = ZIOAwsAttributeValue(l = Some(Nil)).asReadOnly
       val maybeAV  = DynamoDBExecutorImpl.awsAttrValToAttrVal(zioAwsAV)
-      assertTrue(maybeAV == Some(AttributeValue.List(Nil)))
+      assertTrue(maybeAV.contains(AttributeValue.List(Nil)))
     },
     test("ZIO AWS empty Map should be converted to AttributeValue.Map(Map.empty)") {
       val emptyZioAwsMap = Map.empty[AttributeName, zio.aws.dynamodb.model.AttributeValue]
       val emptyZioDdbMap = Map.empty[AttributeValue.String, AttributeValue]
       val zioAwsAV       = ZIOAwsAttributeValue(m = Some(emptyZioAwsMap)).asReadOnly
       val maybeAV        = DynamoDBExecutorImpl.awsAttrValToAttrVal(zioAwsAV)
-      assertTrue(maybeAV == Some(AttributeValue.Map(emptyZioDdbMap)))
+      assertTrue(maybeAV.contains(AttributeValue.Map(emptyZioDdbMap)))
     }
   )
 }
