@@ -197,6 +197,7 @@ object BlocksCodec {
   def reflectEncoder[A](reflect: Reflect.Bound[A]): Encoder[A] =
     reflect match {
       case Reflect.Primitive(primitiveType, _, _, _, _)             =>
+        println(s"XXXXXX BlocksCodec.reflectEncoder Reflect.Primitive")
         primitiveEncoder(primitiveType)
       case Reflect.Map(key, value, _, _, _, _)                      =>
         mapEncoder(key, value).asInstanceOf[Encoder[A]] // TODO: handle non-native maps

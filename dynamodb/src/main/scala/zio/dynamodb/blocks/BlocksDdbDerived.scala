@@ -1,16 +1,11 @@
 package zio.dynamodb.blocks
 
-import zio.blocks.schema.derive.Deriver
-import zio.blocks.schema.{ Doc, DynamicValue, Lazy, Modifier }
-import zio.blocks.schema.binding.{ Binding, BindingType, HasBinding, SeqDeconstructor }
-import zio.blocks.schema.PrimitiveType
-import zio.blocks.schema.TypeName
-import zio.blocks.schema.Term
-import zio.blocks.schema.Reflect
-import zio.blocks.schema.CompanionOptics
-import zio.blocks.schema.Schema
-import zio.dynamodb.{ Decoder, Encoder }
-import zio.dynamodb.AttributeValue
+import zio.blocks.schema.binding.{ Binding, BindingType, HasBinding, RegisterOffset, Registers, SeqDeconstructor }
+import zio.blocks.schema.derive.{ BindingInstance, Deriver }
+import zio.blocks.schema._
+import zio.dynamodb.{ AttributeValue, Decoder, Encoder, FromAttributeValue }
+
+import scala.collection.mutable
 
 trait DdbCodec[A] {
 
@@ -28,27 +23,19 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     modifiers: Seq[Modifier.Reflect]
   ): Lazy[DdbCodec[A]] =
     Lazy(
-      new DdbCodec[A] {
-        override def encoder: Encoder[A] = {
-          print(s"XXXXXX BlocksDdbDerived.derivePrimitive ENCODER $primitiveType $typeName $binding $doc $modifiers")
-          BlocksCodec.primitiveEncoder(primitiveType)
-        }
-        override def decoder: Decoder[A] = {
-          println(s"XXXXXX BlocksDdbDerived.derivePrimitive DECODER $primitiveType $typeName $binding $doc $modifiers")
-          BlocksCodec.primitiveDecoder(primitiveType)
-        }
-      }
+      deriveCodec(
+        new Schema(
+          Reflect.Primitive(
+            primitiveType = primitiveType,
+            typeName = typeName,
+            primitiveBinding = binding,
+            doc = doc,
+            modifiers = modifiers
+          )
+        )
+      )
     )
 
-  /*
-  case class Record[F[_, _], A](
-    fields: IndexedSeq[Term[F, A, ?]],
-    typeName: TypeName[A],
-    recordBinding: F[BindingType.Record, A],
-    doc: Doc = Doc.Empty,
-    modifiers: Seq[Modifier.Reflect] = Nil
-  ) extends Reflect[F, A] { self =>
-   */
   override def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],
     typeName: TypeName[A],
@@ -57,28 +44,17 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] =
     Lazy(
-      new DdbCodec[A] {
-        val record = Reflect.Record(
-          fields = {
-            val x: IndexedSeq[Term[Binding, A, _]] = fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]]
-            x
-          },
-          typeName = typeName,
-          recordBinding = binding,
-          doc = doc,
-          modifiers = modifiers
+      deriveCodec(
+        new Schema(
+          Reflect.Record(
+            fields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, _]]],
+            typeName = typeName,
+            recordBinding = binding,
+            doc = doc,
+            modifiers = modifiers
+          )
         )
-        override def encoder: Encoder[A] = { (a: A) =>
-          println(s"XXXXXX BlocksDdbDerived.deriveRecord ENCODER $record")
-          val enc = BlocksCodec.reflectEncoder(record)
-          enc(a.asInstanceOf[record.Structure])
-        }
-        override def decoder: Decoder[A] = { (av: AttributeValue) =>
-          println(s"XXXXXX BlocksDdbDerived.deriveRecord DECODER $record")
-          val dec = BlocksCodec.reflectDecoder(record)
-          dec(av)
-        }
-      }
+      )
     )
 
   /*
@@ -291,6 +267,112 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
       }
     )
 
+  private def deriveCodec[A](
+    schema: Schema[A],
+    cache: mutable.HashMap[TypeName[?], Array[DdbCodec[?]]] = new mutable.HashMap
+  ): DdbCodec[A] = {
+    val reflect = schema.reflect
+    if (reflect.isPrimitive) {
+      val primitiveType = reflect.asPrimitive.get.primitiveType
+      primitiveType match {
+        case _: PrimitiveType.String =>
+          new DdbCodec[A] {
+            override def encoder: Encoder[A] =
+              (a: A) => AttributeValue.String(a.toString)
+            override def decoder: Decoder[A] =
+              (av: AttributeValue) => FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av)
+          }
+        case _: PrimitiveType.Int    =>
+          new DdbCodec[A] {
+            override def encoder: Encoder[A] =
+              (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+
+            override def decoder: Decoder[A] =
+              (av: AttributeValue) =>
+                FromAttributeValue.intFromAttributeValue
+                  .fromAttributeValue(av)
+                  .asInstanceOf[Either[zio.dynamodb.DynamoDBError.ItemError, A]]
+          }
+        case _                       => ??? // TODO: Avi - other types
+      }
+    } else if (reflect.isRecord)
+      new DdbCodec[A] {
+        override def encoder: Encoder[A] = {
+          val record              = reflect.asRecord.get
+          val recordBinding       =
+            try record.recordBinding.asInstanceOf[Binding.Record[A]]
+            catch {
+              case _: Exception =>
+                record.recordBinding
+                  .asInstanceOf[BindingInstance[DdbCodec, ?, A]]
+                  .binding
+                  .asInstanceOf[Binding.Record[A]]
+            }
+          val constructor         = recordBinding.constructor
+          println(constructor)
+          val deconstructor       = recordBinding.deconstructor
+          val fields              = record.fields
+          val fieldCodecs         = cache.get(record.typeName) match {
+            case Some(x) => x
+            case _       =>
+              val codecs = new Array[DdbCodec[?]](fields.length)
+              cache.put(record.typeName, codecs)
+              val len    = fields.length
+              var idx    = 0
+              while (idx < len) {
+                val reflect = fields(idx).value
+                codecs(idx) = deriveCodec(new Schema(reflect), cache)
+                idx += 1
+              }
+              codecs
+          }
+          val encoder: Encoder[A] = (a: A) => {
+            var avMap     = AttributeValue.Map.empty // TODO: Avi - create a mutable builder API for AV Map
+            val registers = Registers(record.usedRegisters)
+            deconstructor.deconstruct(registers, RegisterOffset.Zero, a)
+            var offset    = RegisterOffset.Zero
+            var idx       = -1
+            fields.foreach { field =>
+              idx += 1
+              val encoder   = fieldCodecs(idx).encoder
+              val fieldName = field.name
+              val reflect   = field.value
+              if (reflect.isPrimitive) {
+                val primitiveType = reflect.asPrimitive.get.primitiveType
+                primitiveType match {
+                  case _: PrimitiveType.Int =>
+                    val av: AttributeValue = encoder.asInstanceOf[Int => AttributeValue](registers.getInt(offset, 0))
+                    avMap = avMap + (fieldName -> av)
+                    offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
+                  case _                    =>
+                    // TODO: Avi - AnyRef -> AV ?????
+                    val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
+                    avMap = avMap + (fieldName -> av)
+                    offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+                }
+              } else {
+                val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
+                avMap = avMap + (fieldName -> av)
+                offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+              }
+            }
+            avMap
+          }
+          encoder
+        }
+
+        override def decoder: Decoder[A] = ???
+      }
+    else
+      ??? // TODO: Avi - Variant, Sequence, Map, Wrapper, Dynamic
+  }
+
+  def isOption[A](variant: Reflect.Variant.Bound[A]): Boolean =
+    variant.typeName.name == "Option" && variant.typeName.namespace.packages.mkString(".") == "scala"
+
+  def isEither[A](variant: Reflect.Variant.Bound[A]): Boolean =
+    variant.typeName.name == "Either" && variant.typeName.namespace.packages.mkString(".") == "scala.util"
+
 }
 
 /*
@@ -315,8 +397,10 @@ object TestDerived extends App {
 //  val enc                                = codec.encoder(PersonWithVariant("1", Right(42)))
 //  val codec: DdbCodec[Person] = Person.schema.derive(BlocksDdbDerived)
 //  val enc                     = codec.encoder(Person("1", 42))
-  val codec: DdbCodec[PersonWithCollections] = PersonWithCollections.schema.derive(BlocksDdbDerived)
-  val enc                                    = codec.encoder(PersonWithCollections("1", numbers = List(1, 2)))
+//  val codec: DdbCodec[PersonWithCollections] = PersonWithCollections.schema.derive(BlocksDdbDerived)
+//  val enc                                    = codec.encoder(PersonWithCollections("1", numbers = List(1, 2)))
+  val codec: DdbCodec[Person] = Person.schema.derive(BlocksDdbDerived)
+  val enc                     = codec.encoder(Person("1", 1))
 
   println(s"XXXXXXXX enc: $enc")
 
