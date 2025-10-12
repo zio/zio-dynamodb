@@ -15,7 +15,7 @@ object DynamoDBError {
 
   sealed trait ItemError extends DynamoDBError
 
-  object ItemError {
+  object ItemError { // TODO: Avi - Make ItemError a composite
     final case class ValueNotFound(message: String) extends ItemError
     final case class DecodingError(message: String) extends ItemError
   }

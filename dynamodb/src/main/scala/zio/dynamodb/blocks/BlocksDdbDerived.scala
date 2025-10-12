@@ -309,7 +309,6 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
               .asInstanceOf[Binding.Record[A]]
         }
       val constructor   = recordBinding.constructor
-      println(constructor)
       val deconstructor = recordBinding.deconstructor
       val fields        = record.fields
       val fieldCodecs   = cache.get(record.typeName) match {
@@ -348,7 +347,6 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
                     avMap = avMap + (fieldName -> av)
                     offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
                   case _                    =>
-                    // TODO: Avi - AnyRef -> AV ?????
                     val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
                     avMap = avMap + (fieldName -> av)
                     offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
@@ -365,21 +363,22 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
         }
 
         override def decoder: Decoder[A] =
-          (indexedRecord: AttributeValue) => {
-            def fooGet(av: AttributeValue.Map, fieldName: String): Either[ItemError, AttributeValue] =
-              av.get(fieldName).toRight(ItemError.DecodingError(s"Field $fieldName not found in record $av"))
+          (av: AttributeValue) => {
 
             val errors: ArrayBuffer[String] = new ArrayBuffer
             val registers                   = Registers(record.usedRegisters)
             var offset                      = RegisterOffset.Zero
             var idx                         = -1
-            if (indexedRecord.isInstanceOf[AttributeValue.Map])
+            if (av.isInstanceOf[AttributeValue.Map])
               fields.foreach { field =>
                 idx += 1
-                val decoder = fieldCodecs(idx).decoder
-                val reflect = field.value
-                fooGet(
-                  indexedRecord.asInstanceOf[AttributeValue.Map],
+                val decoder                                                                                = fieldCodecs(idx).decoder
+                val reflect                                                                                = field.value
+                def getField(av: AttributeValue.Map, fieldName: String): Either[ItemError, AttributeValue] =
+                  av.get(fieldName).toRight(ItemError.DecodingError(s"Field $fieldName not found in record $av"))
+
+                getField(
+                  av.asInstanceOf[AttributeValue.Map],
                   field.name
                 ) match {
                   case Right(avValue) =>
@@ -409,15 +408,15 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
                           registers.setObject(offset, 0, anyRef)
                           offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                       }
-                  case _              => errors.addOne(s"Field ${field.name} not found in record $indexedRecord")
+                  case _              => errors.addOne(s"Field ${field.name} not found in record $av")
                 }
               }
             else
-              errors.addOne(s"Expected AttributeValue.Map, found $indexedRecord")
+              errors.addOne(s"Expected AttributeValue.Map, found $av")
             if (errors.isEmpty) {
               val a = constructor.construct(registers, RegisterOffset.Zero)
               Right(a) // TODO: Avi - handle errors
-            } else Left(ItemError.DecodingError(s"TODO: Avi - 6 error handling ${errors.toList}"))
+            } else Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
           }
 
       }
