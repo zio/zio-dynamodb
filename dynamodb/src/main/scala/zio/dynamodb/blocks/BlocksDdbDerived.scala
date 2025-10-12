@@ -3,9 +3,11 @@ package zio.dynamodb.blocks
 import zio.blocks.schema.binding.{ Binding, BindingType, HasBinding, RegisterOffset, Registers, SeqDeconstructor }
 import zio.blocks.schema.derive.{ BindingInstance, Deriver }
 import zio.blocks.schema._
+import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.{ AttributeValue, Decoder, Encoder, FromAttributeValue }
 
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
 trait DdbCodec[A] {
 
@@ -362,7 +364,61 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
           encoder
         }
 
-        override def decoder: Decoder[A] = ???
+        override def decoder: Decoder[A] =
+          (indexedRecord: AttributeValue) => {
+            def fooGet(av: AttributeValue.Map, fieldName: String): Either[ItemError, AttributeValue] =
+              av.get(fieldName).toRight(ItemError.DecodingError(s"Field $fieldName not found in record $av"))
+
+            val errors: ArrayBuffer[String] = new ArrayBuffer
+            val registers                   = Registers(record.usedRegisters)
+            var offset                      = RegisterOffset.Zero
+            var idx                         = -1
+            if (indexedRecord.isInstanceOf[AttributeValue.Map])
+              fields.foreach { field =>
+                idx += 1
+                val decoder = fieldCodecs(idx).decoder
+                val reflect = field.value
+                fooGet(
+                  indexedRecord.asInstanceOf[AttributeValue.Map],
+                  field.name
+                ) match {
+                  case Right(avValue) =>
+                    if (reflect.isPrimitive) {
+                      val primitiveType = reflect.asPrimitive.get.primitiveType
+                      primitiveType match {
+                        case _: PrimitiveType.Int =>
+                          decoder.asInstanceOf[AnyRef => Either[ItemError, Int]](avValue) match {
+                            case Left(err)  => errors.addOne(s"TODO: Avi - 3 error handling $err")
+                            case Right(int) =>
+                              registers.setInt(offset, 0, int)
+                              offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
+                          }
+                        case x                    =>
+                          println(s"XXXXXX unexpected primitive type $x")
+                          decoder.asInstanceOf[AnyRef => Either[ItemError, AnyRef]](avValue) match {
+                            case Left(err)     => errors.addOne(s"TODO: Avi - 4 error handling $err")
+                            case Right(anyRef) =>
+                              registers.setObject(offset, 0, anyRef)
+                              offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+                          }
+                      }
+                    } else
+                      decoder.asInstanceOf[AnyRef => Either[ItemError, AnyRef]](avValue) match {
+                        case Left(err)     => errors.addOne(s"TODO: Avi - 5 error handling $err")
+                        case Right(anyRef) =>
+                          registers.setObject(offset, 0, anyRef)
+                          offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+                      }
+                  case _              => errors.addOne(s"Field ${field.name} not found in record $indexedRecord")
+                }
+              }
+            else
+              errors.addOne(s"Expected AttributeValue.Map, found $indexedRecord")
+            if (errors.isEmpty) {
+              val a = constructor.construct(registers, RegisterOffset.Zero)
+              Right(a) // TODO: Avi - handle errors
+            } else Left(ItemError.DecodingError(s"TODO: Avi - 6 error handling ${errors.toList}"))
+          }
 
       }
     } else
@@ -403,8 +459,9 @@ object TestDerived extends App {
 //  val enc                                    = codec.encoder(PersonWithCollections("1", numbers = List(1, 2)))
   val codec: DdbCodec[Person] = Person.schema.derive(BlocksDdbDerived)
   val enc                     = codec.encoder(Person("1", 1))
-
+  val dec                     = codec.decoder(enc)
   println(s"XXXXXXXX enc: $enc")
+  println(s"XXXXXXXX dec: $dec")
 
 //  val dec = codec.decoder(enc)
 //  println(s"XXXXXXXX enc: $enc dec: $dec")
