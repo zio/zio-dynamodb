@@ -295,37 +295,38 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
           }
         case _                       => ??? // TODO: Avi - other types
       }
-    } else if (reflect.isRecord)
+    } else if (reflect.isRecord) {
+      val record        = reflect.asRecord.get
+      val recordBinding =
+        try record.recordBinding.asInstanceOf[Binding.Record[A]]
+        catch {
+          case _: Exception =>
+            record.recordBinding
+              .asInstanceOf[BindingInstance[DdbCodec, ?, A]]
+              .binding
+              .asInstanceOf[Binding.Record[A]]
+        }
+      val constructor   = recordBinding.constructor
+      println(constructor)
+      val deconstructor = recordBinding.deconstructor
+      val fields        = record.fields
+      val fieldCodecs   = cache.get(record.typeName) match {
+        case Some(x) => x
+        case _       =>
+          val codecs = new Array[DdbCodec[?]](fields.length)
+          cache.put(record.typeName, codecs)
+          val len    = fields.length
+          var idx    = 0
+          while (idx < len) {
+            val reflect = fields(idx).value
+            codecs(idx) = deriveCodec(new Schema(reflect), cache)
+            idx += 1
+          }
+          codecs
+      }
+
       new DdbCodec[A] {
         override def encoder: Encoder[A] = {
-          val record              = reflect.asRecord.get
-          val recordBinding       =
-            try record.recordBinding.asInstanceOf[Binding.Record[A]]
-            catch {
-              case _: Exception =>
-                record.recordBinding
-                  .asInstanceOf[BindingInstance[DdbCodec, ?, A]]
-                  .binding
-                  .asInstanceOf[Binding.Record[A]]
-            }
-          val constructor         = recordBinding.constructor
-          println(constructor)
-          val deconstructor       = recordBinding.deconstructor
-          val fields              = record.fields
-          val fieldCodecs         = cache.get(record.typeName) match {
-            case Some(x) => x
-            case _       =>
-              val codecs = new Array[DdbCodec[?]](fields.length)
-              cache.put(record.typeName, codecs)
-              val len    = fields.length
-              var idx    = 0
-              while (idx < len) {
-                val reflect = fields(idx).value
-                codecs(idx) = deriveCodec(new Schema(reflect), cache)
-                idx += 1
-              }
-              codecs
-          }
           val encoder: Encoder[A] = (a: A) => {
             var avMap     = AttributeValue.Map.empty // TODO: Avi - create a mutable builder API for AV Map
             val registers = Registers(record.usedRegisters)
@@ -362,8 +363,9 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
         }
 
         override def decoder: Decoder[A] = ???
+
       }
-    else
+    } else
       ??? // TODO: Avi - Variant, Sequence, Map, Wrapper, Dynamic
   }
 
