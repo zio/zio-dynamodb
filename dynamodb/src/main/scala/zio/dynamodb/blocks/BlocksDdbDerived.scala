@@ -59,47 +59,6 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       )
     )
 
-  /*
-Runtime class cast exception for Variant integration - looks like a bug in Blocks - park for now
-
-sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
-[info] compiling 1 Scala source to /Users/avinder/Workspaces/git/zio-dynamodb/dynamodb/target/scala-2.13/classes ...
-[info] running zio.dynamodb.blocks.TestDerived
-[error] java.lang.ClassCastException: class zio.blocks.schema.derive.BindingInstance cannot be cast to class zio.blocks.schema.binding.Binding (zio.blocks.schema.derive.BindingInstance and zio.blocks.schema.binding.Binding are in unnamed module of loader sbt.internal.LayeredClassLoader @40611741)
-[error]         at zio.blocks.schema.binding.Binding$$anon$26.binding(Binding.scala:375)
-[error]         at zio.blocks.schema.binding.HasBinding.variant(HasBinding.scala:37)
-[error]         at zio.blocks.schema.binding.HasBinding.variant$(HasBinding.scala:36)
-[error]         at zio.blocks.schema.binding.Binding$$anon$26.variant(Binding.scala:375)
-[error]         at zio.blocks.schema.binding.HasBinding.discriminator(HasBinding.scala:70)
-[error]         at zio.blocks.schema.binding.HasBinding.discriminator$(HasBinding.scala:70)
-[error]         at zio.blocks.schema.binding.Binding$$anon$26.discriminator(Binding.scala:375)
-[error]         at zio.blocks.schema.Reflect$Variant.discriminator(Reflect.scala:540)
-[error]         at zio.dynamodb.blocks.BlocksCodec$.$anonfun$reflectEncoder$3(BlocksCodec.scala:155)
-[error]         at zio.dynamodb.blocks.BlocksCodec$.$anonfun$reflectEncoder$2(BlocksCodec.scala:139)
-[error]         at scala.collection.IterableOnceOps.foldLeft(IterableOnce.scala:687)
-[error]         at scala.collection.IterableOnceOps.foldLeft$(IterableOnce.scala:721)
-[error]         at scala.collection.AbstractIterable.foldLeft(Iterable.scala:935)
-[error]         at zio.dynamodb.blocks.BlocksCodec$.$anonfun$reflectEncoder$1(BlocksCodec.scala:130)
-[error]         at zio.dynamodb.blocks.BlocksDdbDerived$$anon$2.$anonfun$encoder$1(BlocksDdbDerived.scala:55)
-[error]         at zio.dynamodb.blocks.TestDerived$.delayedEndpoint$zio$dynamodb$blocks$TestDerived$1(BlocksDdbDerived.scala:130)
-[error]         at zio.dynamodb.blocks.TestDerived$delayedInit$body.apply(BlocksDdbDerived.scala:123)
-[error]         at scala.Function0.apply$mcV$sp(Function0.scala:42)
-[error]         at scala.Function0.apply$mcV$sp$(Function0.scala:42)
-[error]         at scala.runtime.AbstractFunction0.apply$mcV$sp(AbstractFunction0.scala:17)
-[error]         at scala.App.$anonfun$main$1(App.scala:98)
-[error]         at scala.App.$anonfun$main$1$adapted(App.scala:98)
-[error]         at scala.collection.IterableOnceOps.foreach(IterableOnce.scala:619)
-[error]         at scala.collection.IterableOnceOps.foreach$(IterableOnce.scala:617)
-[error]         at scala.collection.AbstractIterable.foreach(Iterable.scala:935)
-[error]         at scala.App.main(App.scala:98)
-[error]         at scala.App.main$(App.scala:96)
-[error]         at zio.dynamodb.blocks.TestDerived$.main(BlocksDdbDerived.scala:123)
-[error]         at zio.dynamodb.blocks.TestDerived.main(BlocksDdbDerived.scala)
-[error]         at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
-[error]         at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
-[error]         at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
-[error]         at java.base/java.lang.reflect.Method.invoke(Method.java:566)
-   */
   override def deriveVariant[F[_, _], A](
     cases: IndexedSeq[Term[F, A, ?]], // TOD: update Derive deriveVariant signature to match Variant with ? <: A
     typeName: TypeName[A],
@@ -153,36 +112,35 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
       }
     )
 
-  /*
-   Type class derivation compile problem
-   I have a type class DdbCodec for which I am trying to derive a Sequence instance but it looks like the Derive trait
-   `def deriveSequence` method does not align with Reflect.Sequence constructor
-   When using
-
-   */
-
-  /*
-  This fixes need for element.asInstanceOf[Reflect[Any, A]] cast that causes F to be lost as Any
-  binding: F[BindingType.Seq[C], C[A]],   // <- use F here, not Binding
-  se deriveSequence2 above
-   */
-  /*
-  case class Sequence[F[_, _], A, C[_]](
-    element: Reflect[F, A],
-    typeName: TypeName[C[A]],
-    seqBinding: F[BindingType.Seq[C], C[A]],
-    doc: Doc = Doc.Empty,
-    modifiers: Seq[Modifier.Reflect] = Nil
-  ) extends Reflect[F, C[A]] { self =>
-   */
-
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
     typeName: TypeName[C[A]],
     binding: Binding[BindingType.Seq[C], C[A]],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[C[A]]]    =
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[C[A]]] =
+    Lazy(
+      deriveCodec(
+        new Schema(
+          Reflect.Sequence(
+            element = element.asInstanceOf[Reflect[Binding, A]],
+            typeName = typeName,
+            seqBinding = binding,
+            doc = doc,
+            modifiers = modifiers
+          )
+        )
+      )
+    )
+
+  def deriveSequenceOld[F[_, _], C[_], A](
+    element: Reflect[F, A],
+    typeName: TypeName[C[A]],
+    binding: Binding[BindingType.Seq[C], C[A]],
+    doc: Doc,
+    modifiers: Seq[Modifier.Reflect]
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[C[A]]] = {
+    println(D)
     Lazy(
       new DdbCodec[C[A]] {
         val sequence: Reflect.Sequence[F, A, C] = Reflect.Sequence(
@@ -211,6 +169,8 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
         override def decoder: Decoder[C[A]]     = ???
       }
     )
+  }
+
   override def deriveMap[F[_, _], M[_, _], K, V](
     key: Reflect[F, K],
     value: Reflect[F, V],
@@ -268,6 +228,9 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
         override def decoder: Decoder[A] = ???
       }
     )
+
+  type Elem
+  type Col[_]
 
   private def deriveCodec[A](
     schema: Schema[A],
@@ -420,6 +383,47 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
           }
 
       }
+    } else if (reflect.isSequence) {
+      val sequence      = reflect.asSequenceUnknown.get.sequence
+      val seqBinding    =
+        try sequence.seqBinding.asInstanceOf[Binding.Seq[Col, A]]
+        catch {
+          case _: Exception =>
+            sequence.seqBinding.asInstanceOf[BindingInstance[DdbCodec, ?, A]].binding.asInstanceOf[Binding.Seq[Col, A]]
+        }
+      val constructor   = seqBinding.constructor
+      val deconstructor = seqBinding.deconstructor
+      val element       = sequence.element
+      val elementCodec  = deriveCodec(new Schema(element), cache)
+      val encoder2      = elementCodec.encoder.asInstanceOf[A => AttributeValue]
+      val decoder2      = elementCodec.decoder //.asInstanceOf[Any => A]
+      println(s"$constructor $decoder2")
+      new DdbCodec[A] {
+        override def encoder: Encoder[A] =
+          (x: A) => {
+            val res = new ArrayBuffer[AttributeValue]
+            val it  = deconstructor.deconstruct(x.asInstanceOf[Col[A]])
+            while (it.hasNext) res.addOne(encoder2(it.next()))
+            AttributeValue.List(res.toList)
+          }
+        override def decoder: Decoder[A] =
+          (x: AttributeValue) =>
+            x match {
+              case AttributeValue.List(items) =>
+                val builder = constructor.newObjectBuilder[Elem](8)
+
+                // TODO: Avi - error handling
+                items.foreach { item =>
+                  decoder2(item) match {
+                    case Right(a)  => constructor.addObject(builder, a.asInstanceOf[Elem])
+                    case Left(err) => println(s"TODO: Avi - 6 handle error $err")
+                  }
+                }
+                val xs: Col[Elem] = constructor.resultObject[Elem](builder)
+                Right(xs.asInstanceOf[A])
+              case _                          => Left(ItemError.DecodingError(s"Expected AttributeValue.List, found $x"))
+            }
+      }
     } else
       ??? // TODO: Avi - Variant, Sequence, Map, Wrapper, Dynamic
   }
@@ -436,7 +440,11 @@ sbt:root> zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
 zio-dynamodb/runMain zio.dynamodb.blocks.TestDerived
  */
 object TestDerived extends App {
-  final case class PersonWithCollections(id: String, numbers: List[Int] = Nil, names: Array[String] = Array.empty)
+  final case class PersonWithCollections(
+    id: String,
+    numbers: List[Int] = Nil,
+    names: Array[String] = Array("BUMBACLAAAAT!!!!!!")
+  )
   object PersonWithCollections extends CompanionOptics[PersonWithCollections] {
     implicit val schema: Schema[PersonWithCollections] = Schema.derived
   }
@@ -454,13 +462,15 @@ object TestDerived extends App {
 //  val enc                                = codec.encoder(PersonWithVariant("1", Right(42)))
 //  val codec: DdbCodec[Person] = Person.schema.derive(BlocksDdbDerived)
 //  val enc                     = codec.encoder(Person("1", 42))
-//  val codec: DdbCodec[PersonWithCollections] = PersonWithCollections.schema.derive(BlocksDdbDerived)
-//  val enc                                    = codec.encoder(PersonWithCollections("1", numbers = List(1, 2)))
-  val codec: DdbCodec[Person] = Person.schema.derive(BlocksDdbDerived)
-  val enc                     = codec.encoder(Person("1", 1))
-  val dec                     = codec.decoder(enc)
+  val codec: DdbCodec[PersonWithCollections] = PersonWithCollections.schema.derive(BlocksDdbDerived)
+  val enc                                    = codec.encoder(PersonWithCollections("1", numbers = List(1, 2)))
+  val dec                                    = codec.decoder(enc)
+//  val codec: DdbCodec[Person] = Person.schema.derive(BlocksDdbDerived)
+//  val enc                     = codec.encoder(Person("1", 1))
+//  val dec                     = codec.decoder(enc)
   println(s"XXXXXXXX enc: $enc")
   println(s"XXXXXXXX dec: $dec")
+  println(s"XXXXXXXX dec: ${dec.map(_.names.toList)}")
 
 //  val dec = codec.decoder(enc)
 //  println(s"XXXXXXXX enc: $enc dec: $dec")
