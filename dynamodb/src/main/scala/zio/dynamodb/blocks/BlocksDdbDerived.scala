@@ -350,15 +350,14 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                       primitiveType match {
                         case _: PrimitiveType.Int =>
                           decoder.asInstanceOf[AnyRef => Either[ItemError, Int]](avValue) match {
-                            case Left(err)  => errors.addOne(s"TODO: Avi - 3 error handling $err")
+                            case Left(err)  => errors.addOne(err.message)
                             case Right(int) =>
                               registers.setInt(offset, 0, int)
                               offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
                           }
-                        case x                    =>
-                          println(s"XXXXXX unexpected primitive type $x")
+                        case _                    => // TODO: Avi - other primitive types
                           decoder.asInstanceOf[AnyRef => Either[ItemError, AnyRef]](avValue) match {
-                            case Left(err)     => errors.addOne(s"TODO: Avi - 4 error handling $err")
+                            case Left(err)     => errors.addOne(err.message)
                             case Right(anyRef) =>
                               registers.setObject(offset, 0, anyRef)
                               offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
@@ -366,7 +365,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                       }
                     } else
                       decoder.asInstanceOf[AnyRef => Either[ItemError, AnyRef]](avValue) match {
-                        case Left(err)     => errors.addOne(s"TODO: Avi - 5 error handling $err")
+                        case Left(err)     => errors.addOne(err.message)
                         case Right(anyRef) =>
                           registers.setObject(offset, 0, anyRef)
                           offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
@@ -375,10 +374,10 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                 }
               }
             else
-              errors.addOne(s"Expected AttributeValue.Map, found $av")
+              errors.addOne(s"Expected AttributeValue.Map, found ${av.showType}")
             if (errors.isEmpty) {
               val a = constructor.construct(registers, RegisterOffset.Zero)
-              Right(a) // TODO: Avi - handle errors
+              Right(a)
             } else Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
           }
 
@@ -443,7 +442,7 @@ object TestDerived extends App {
   final case class PersonWithCollections(
     id: String,
     numbers: List[Int] = Nil,
-    names: Array[String] = Array("BUMBACLAAAAT!!!!!!")
+    names: Array[String] = Array.empty
   )
   object PersonWithCollections extends CompanionOptics[PersonWithCollections] {
     implicit val schema: Schema[PersonWithCollections] = Schema.derived
