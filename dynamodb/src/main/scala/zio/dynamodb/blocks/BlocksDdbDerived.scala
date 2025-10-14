@@ -383,6 +383,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
       }
     } else if (reflect.isSequence) {
+      val errors        = new ArrayBuffer[String]
       val sequence      = reflect.asSequenceUnknown.get.sequence
       val seqBinding    =
         try sequence.seqBinding.asInstanceOf[Binding.Seq[Col, A]]
@@ -415,11 +416,14 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                 items.foreach { item =>
                   decoder2(item) match {
                     case Right(a)  => constructor.addObject(builder, a.asInstanceOf[Elem])
-                    case Left(err) => println(s"TODO: Avi - 6 handle error $err")
+                    case Left(err) => errors.addOne(err.message)
                   }
                 }
-                val xs: Col[Elem] = constructor.resultObject[Elem](builder)
-                Right(xs.asInstanceOf[A])
+                if (errors.isEmpty) {
+                  val xs: Col[Elem] = constructor.resultObject[Elem](builder)
+                  Right(xs.asInstanceOf[A])
+                } else
+                  Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
               case _                          => Left(ItemError.DecodingError(s"Expected AttributeValue.List, found $x"))
             }
       }
