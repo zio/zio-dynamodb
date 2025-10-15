@@ -446,10 +446,10 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       val deconstructor = mapBinding.deconstructor
       val keyCodec      = deriveCodec(new Schema(map.key), cache)
       val keyEncoder    = keyCodec.encoder.asInstanceOf[Key => AttributeValue.String]
-      val keyDecoder    = keyCodec.decoder.asInstanceOf[Any => Key]
+      val keyDecoder    = keyCodec.decoder.asInstanceOf[Any => Either[ItemError.DecodingError, Key]]
       val valueCodec    = deriveCodec(new Schema(map.value), cache)
       val valueEncoder  = valueCodec.encoder.asInstanceOf[Value => Any]
-      val valueDecoder  = valueCodec.decoder.asInstanceOf[Any => Value]
+      val valueDecoder  = valueCodec.decoder //.asInstanceOf[Any => Value]
       println(s"$constructor $keyDecoder $valueDecoder")
       new DdbCodec[A] {
         override def encoder: Encoder[A] =
@@ -466,10 +466,37 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
             map
           }
 
-        override def decoder: Decoder[A] = ???
+        override def decoder: Decoder[A] =
+          (av: AttributeValue) => {
+            if (!av.isInstanceOf[AttributeValue.Map])
+              Left(ItemError.DecodingError(s"Expected AttributeValue.Map, found ${av.showType}"))
+            else {
+              val errors  = new ArrayBuffer[String]
+              val map     = av.asInstanceOf[AttributeValue.Map]
+              val builder = constructor.newObjectBuilder[Key, Value](8)
+              val it      = map.value.iterator
+              while (it.hasNext) {
+                val kv = it.next()
+                (keyDecoder(kv._1), valueDecoder(kv._2)) match {
+                  case (Right(key), Right(value)) =>
+                    // TODO: Avi - why do we need this cast?
+                    constructor.addObject(builder, key, value.asInstanceOf[Value])
+                  case (Left(errL), Left(errR))   =>
+                    errors.addOne(errL.message)
+                    errors.addOne(errR.message)
+                  case (_, Left(err))             => errors.addOne(err.message)
+                  case (Left(err), _)             => errors.addOne(err.message)
+                }
+              }
+              if (errors.isEmpty) {
+                val m = constructor.resultObject[Key, Value](builder)
+                Right(m.asInstanceOf[A])
+              } else Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
+            }
+          }
       }
     } else
-      ??? // TODO: Avi - Variant, Map, Wrapper, Dynamic
+      ??? // TODO: Avi - Variant, Non Native Map, Wrapper, Dynamic
   }
 
   def isOption[A](variant: Reflect.Variant.Bound[A]): Boolean =
@@ -508,13 +535,13 @@ object TestDerived extends App {
 //  val codec: DdbCodec[Person] = Person.schema.derive(BlocksDdbDerived)
 //  val enc                     = codec.encoder(Person("1", 42))
   val codec: DdbCodec[PersonWithCollections] = PersonWithCollections.schema.derive(BlocksDdbDerived)
-  val enc                                    = codec.encoder(PersonWithCollections("1", numbers = List(1, 2), map = Map("a" -> 1)))
-//  val dec                                    = codec.decoder(enc)
+  val enc                                    = codec.encoder(PersonWithCollections("1", numbers = List(1, 2), map = Map("a" -> 1, "b" -> 2)))
+  val dec                                    = codec.decoder(enc)
 //  val codec: DdbCodec[Person] = Person.schema.derive(BlocksDdbDerived)
 //  val enc                     = codec.encoder(Person("1", 1))
 //  val dec                     = codec.decoder(enc)
   println(s"XXXXXXXX enc: $enc")
-//  println(s"XXXXXXXX dec: $dec")
+  println(s"XXXXXXXX dec: $dec")
 //  println(s"XXXXXXXX dec: ${dec.map(_.names.toList)}")
 
 //  val dec = codec.decoder(enc)
