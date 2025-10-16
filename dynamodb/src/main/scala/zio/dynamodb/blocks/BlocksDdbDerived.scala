@@ -247,6 +247,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
           new DdbCodec[A] {
             override def encoder: Encoder[A] =
               (a: A) => AttributeValue.String(a.toString)
+
             override def decoder: Decoder[A] =
               (av: AttributeValue) => FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av)
           }
@@ -338,8 +339,9 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
             if (av.isInstanceOf[AttributeValue.Map])
               fields.foreach { field =>
                 idx += 1
-                val decoder                                                                                = fieldCodecs(idx).decoder
-                val reflect                                                                                = field.value
+                val decoder = fieldCodecs(idx).decoder
+                val reflect = field.value
+
                 def getField(av: AttributeValue.Map, fieldName: String): Either[ItemError, AttributeValue] =
                   av.get(fieldName).toRight(ItemError.DecodingError(s"Field $fieldName not found in record $av"))
 
@@ -409,6 +411,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
             while (it.hasNext) res.addOne(encoder2(it.next()))
             AttributeValue.List(res.toList)
           }
+
         override def decoder: Decoder[A] =
           (av: AttributeValue) =>
             av match {
@@ -495,6 +498,45 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
             }
           }
       }
+    } else if (reflect.isVariant) {
+      val variant        = reflect.asVariant.get
+//      val variantBindingOld = variant.variantBinding.asInstanceOf[Binding.Variant[A]]
+      val variantBinding =
+        try variant.variantBinding.asInstanceOf[Binding.Variant[A]]
+        catch {
+          case _: Exception =>
+            variant.variantBinding
+              .asInstanceOf[BindingInstance[DdbCodec, ?, Value]]
+              .binding
+              .asInstanceOf[Binding.Variant[A]]
+        }
+
+      val cases         = variant.cases
+      val discriminator = variantBinding.discriminator
+      val caseCodecs    = cache.get(variant.typeName) match {
+        case Some(x) => x
+        case _       =>
+          val codecs = new Array[DdbCodec[?]](cases.length)
+          cache.put(variant.typeName, codecs)
+          val len    = cases.length
+          var idx    = 0
+          while (idx < len) {
+            val reflect = cases(idx).value
+            codecs(idx) = deriveCodec(new Schema(reflect), cache)
+            idx += 1
+          }
+          codecs
+      }
+      println(s"$discriminator $caseCodecs")
+      new DdbCodec[A] {
+        override def encoder: Encoder[A] = { (a: A) =>
+          val idx     = discriminator.discriminate(a)
+          val encoder = caseCodecs(idx).encoder.asInstanceOf[A => AttributeValue]
+          encoder(a)
+        }
+
+        override def decoder: Decoder[A] = ???
+      }
     } else
       ??? // TODO: Avi - Variant, Non Native Map, Wrapper, Dynamic
   }
@@ -530,18 +572,18 @@ object TestDerived extends App {
     implicit val schema: Schema[Person] = Schema.derived
   }
 
-//  val codec: DdbCodec[PersonWithVariant] = PersonWithVariant.schema.derive(BlocksDdbDerived)
-//  val enc                                = codec.encoder(PersonWithVariant("1", Right(42)))
-//  val codec: DdbCodec[Person] = Person.schema.derive(BlocksDdbDerived)
-//  val enc                     = codec.encoder(Person("1", 42))
-  val codec: DdbCodec[PersonWithCollections] = PersonWithCollections.schema.derive(BlocksDdbDerived)
-  val enc                                    = codec.encoder(PersonWithCollections("1", numbers = List(1, 2), map = Map("a" -> 1, "b" -> 2)))
-  val dec                                    = codec.decoder(enc)
+  val codec: DdbCodec[PersonWithVariant] = PersonWithVariant.schema.derive(BlocksDdbDerived)
+  val enc                                = codec.encoder(PersonWithVariant("1", Right(42)))
+//  val codec: DdbCodec[Person]            = Person.schema.derive(BlocksDdbDerived)
+//  val enc                                = codec.encoder(Person("1", 42))
+//  val codec: DdbCodec[PersonWithCollections] = PersonWithCollections.schema.derive(BlocksDdbDerived)
+//  val enc                                    = codec.encoder(PersonWithCollections("1", numbers = List(1, 2), map = Map("a" -> 1, "b" -> 2)))
+//  val dec                                    = codec.decoder(enc)
 //  val codec: DdbCodec[Person] = Person.schema.derive(BlocksDdbDerived)
 //  val enc                     = codec.encoder(Person("1", 1))
 //  val dec                     = codec.decoder(enc)
   println(s"XXXXXXXX enc: $enc")
-  println(s"XXXXXXXX dec: $dec")
+//  println(s"XXXXXXXX dec: $dec")
 //  println(s"XXXXXXXX dec: ${dec.map(_.names.toList)}")
 
 //  val dec = codec.decoder(enc)
