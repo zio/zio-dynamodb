@@ -279,13 +279,14 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       val constructor   = recordBinding.constructor
       val deconstructor = recordBinding.deconstructor
       val fields        = record.fields
+      println(s"XXXXXXXXXX record.typeName: ${record.typeName.name}")
       val fieldCodecs   = cache.get(record.typeName) match {
         case Some(x) => x
         case _       =>
           val codecs = new Array[DdbCodec[?]](fields.length)
-          cache.put(record.typeName, codecs)
-          val len    = fields.length
-          var idx    = 0
+          cache.put(record.typeName, codecs) // TODO: Avi - we could add isOption, isEither to the cache
+          val len = fields.length
+          var idx = 0
           while (idx < len) {
             val reflect = fields(idx).value
             codecs(idx) = deriveCodec(new Schema(reflect), cache)
@@ -349,10 +350,10 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                 val reflect = field.value
 
                 // TODO: Avi - see if we can optimise variant based processing
-                val isOpt = field.value match {
-                  case Reflect.Variant(_, typeName, _, _, _) if typeName.name == "Option" => true
-                  case _                                                                  => false
-                }
+                val isOpt =
+                  if (field.value.isVariant)
+                    isOption(field.value.asVariant.get)
+                  else false
 
                 def getField(av: AttributeValue.Map, fieldName: String): Either[ItemError, AttributeValue] =
                   av.get(fieldName).toRight(ItemError.DecodingError(s"Field $fieldName not found in record $av"))
@@ -714,7 +715,7 @@ object TestDerived extends App {
   }
 
   val codec: DdbCodec[PersonWithOption] = PersonWithOption.schema.derive(BlocksDdbDerived)
-  val enc                               = codec.encoder(PersonWithOption("1", None))
+  val enc                               = codec.encoder(PersonWithOption("1", Some(42)))
 //  val codec: DdbCodec[Person]            = Person.schema.derive(BlocksDdbDerived)
 //  val enc                                = codec.encoder(Person("1", 42))
 //  val codec: DdbCodec[PersonWithCollections] = PersonWithCollections.schema.derive(BlocksDdbDerived)
