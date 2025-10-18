@@ -1,9 +1,10 @@
 package zio.dynamodb.blocks
 
-import zio.blocks.schema.binding.{ Binding, BindingType, HasBinding, RegisterOffset, Registers, SeqDeconstructor }
-import zio.blocks.schema.derive.{ BindingInstance, Deriver }
 import zio.blocks.schema._
+import zio.blocks.schema.binding._
+import zio.blocks.schema.derive.{ BindingInstance, Deriver }
 import zio.dynamodb.DynamoDBError.ItemError
+import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb.{ AttributeValue, Decoder, Encoder, FromAttributeValue }
 
 import scala.collection.mutable
@@ -499,9 +500,9 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
           }
       }
     } else if (reflect.isVariant) {
-      val variant        = reflect.asVariant.get
+      val variant: Reflect.Variant[Binding, A] = reflect.asVariant.get
 //      val variantBindingOld = variant.variantBinding.asInstanceOf[Binding.Variant[A]]
-      val variantBinding =
+      val variantBinding                       =
         try variant.variantBinding.asInstanceOf[Binding.Variant[A]]
         catch {
           case _: Exception =>
@@ -530,12 +531,18 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       println(s"$discriminator $caseCodecs")
       new DdbCodec[A] {
         override def encoder: Encoder[A] = { (a: A) =>
-          val idx     = discriminator.discriminate(a)
-          val encoder = caseCodecs(idx).encoder.asInstanceOf[A => AttributeValue]
-          encoder(a)
+          if (isEither(variant))
+            eitherEncoder(variant)(a) // TODO: Avi - should eitherEncoder return an Encoder[A]? or an AV?
+          else {
+            val idx     = discriminator.discriminate(a)
+            val encoder = caseCodecs(idx).encoder.asInstanceOf[A => AttributeValue]
+            encoder(a)
+          }
         }
 
-        override def decoder: Decoder[A] = ???
+        override def decoder: Decoder[A] = { (av: AttributeValue) =>
+          eitherDecoder(variant)(av)
+        }
       }
     } else
       ??? // TODO: Avi - Variant, Non Native Map, Wrapper, Dynamic
@@ -546,6 +553,84 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
   def isEither[A](variant: Reflect.Variant.Bound[A]): Boolean =
     variant.typeName.name == "Either" && variant.typeName.namespace.packages.mkString(".") == "scala.util"
+
+  def eitherEncoder[A](v: Reflect.Variant.Bound[A]): Encoder[A] = { (a: A) =>
+    def encodeCase[A](caseLabel: String, value: Any, v: Reflect.Variant.Bound[A]): AttributeValue =
+      reflectBindingForCaseValueField(caseLabel, v) match {
+        case Some(binding) =>
+          val enc = deriveCodec(Schema(binding)).encoder
+          AttributeValue.Map.empty + (caseLabel -> enc(value.asInstanceOf[binding.Structure]))
+        case None          =>
+          throw new Exception(s"Unexpected Schema shape for $caseLabel") // should never happen
+      }
+
+    a match {
+      case Right(r) => encodeCase("Right", r, v)
+      case Left(l)  => encodeCase("Left", l, v)
+      case _        => throw new Exception(s"Input type not an Either") // TODO: tighten types
+    }
+  }
+
+  def eitherDecoder[A](v: Reflect.Variant.Bound[A]): Decoder[A] = {
+    def decodeEitherValue[A](label: String, v: Reflect.Variant.Bound[A]): Decoder[A] =
+      // dig into the structure of the found case to get the decoder for the value field
+      reflectBindingForCaseValueField(label, v) match {
+        case Some(value) =>
+          deriveCodec(Schema(value)).decoder
+        case None        =>
+          (_: AttributeValue) =>
+            Left(
+              DecodingError(s"Unexpected Schema shape for $label")
+            ) // this should never happen
+      }
+
+    {
+      case AttributeValue.Map(map) if map.size == 1 =>
+        val iter  = map.iterator
+        val entry = iter.next() // Map.Entry[_, _] under the hood, no extra tuple
+        entry._1 match {
+          case AttributeValue.String("Right") =>
+            decodeEitherValue("Right", v)(entry._2).map(Right(_)).asInstanceOf[Either[DecodingError, A]]
+          case AttributeValue.String("Left")  =>
+            decodeEitherValue("Left", v)(entry._2).map(Left(_)).asInstanceOf[Either[DecodingError, A]]
+          case other                          =>
+            Left(DecodingError(s"Unexpected key in Either decoder: $other"))
+        }
+
+      case AttributeValue.Map(map)                  =>
+        Left(DecodingError(s"Expected single-element map, got keys: ${map.keys}"))
+
+      case av                                       =>
+        Left(DecodingError(s"Expected AttributeValue.Map but found ${av.showType}"))
+    }
+  }
+
+  /**
+   * Note that Some, Left and Right use value classes with a single field named "value" which equates to a schema Record.
+   * This function searches all cases in the Variant for the `caseLabel` and returns the binding for that field as a Some,
+   * else returns a None.
+   */
+  def reflectBindingForCaseValueField[A](
+    caseLabel: String,
+    v: Reflect.Variant.Bound[A]
+  ): Option[Reflect.Bound[A]] = {
+    // Find the case for the given label
+    val maybeCase: Option[Term[Binding, A, _ <: A]] = v.cases.find(_.name == caseLabel)
+
+    // dig into the structure of the found case to get the binding for the value field
+    maybeCase match {
+      case Some(recordForValue) =>
+        recordForValue.value match {
+          case Reflect.Record(fields, _, _, _, _) if fields.size == 1 && fields(0).name == "value" =>
+            fields(0) match {
+              case Term(_, value, _, _) =>
+                Some(value.asInstanceOf[Reflect.Bound[A]])
+            }
+          case _                                                                                   => None
+        }
+      case None                 => None
+    }
+  }
 
 }
 
@@ -581,9 +666,10 @@ object TestDerived extends App {
 //  val dec                                    = codec.decoder(enc)
 //  val codec: DdbCodec[Person] = Person.schema.derive(BlocksDdbDerived)
 //  val enc                     = codec.encoder(Person("1", 1))
-//  val dec                     = codec.decoder(enc)
+
+  val dec = codec.decoder(enc)
   println(s"XXXXXXXX enc: $enc")
-//  println(s"XXXXXXXX dec: $dec")
+  println(s"XXXXXXXX dec: $dec")
 //  println(s"XXXXXXXX dec: ${dec.map(_.names.toList)}")
 
 //  val dec = codec.decoder(enc)

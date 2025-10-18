@@ -60,7 +60,7 @@ object BlocksCodec {
     v: Reflect.Variant.Bound[A]
   ): Option[Reflect.Bound[A]] = {
     // Find the case for the given label
-    val case_ = v.cases.find(_.name == caseLabel)
+    val case_ : Option[Term[Binding, A, _ <: A]] = v.cases.find(_.name == caseLabel)
 
     // dig into the structure of the found case to get the binding for the value field
     case_ match {
@@ -489,36 +489,38 @@ object BlocksCodec {
       stringOrA
     }
 
-  private def decodeEitherValue[A](label: String, v: Reflect.Variant.Bound[A]): Decoder[A] =
-    // dig into the structure of the found case to get the decoder for the value field
-    reflectBindingForCaseValueField(label, v) match {
-      case Some(value) =>
-        reflectDecoder(value).asInstanceOf[Decoder[A]]
-      case None        =>
-        (_: AttributeValue) =>
-          Left(
-            DecodingError(s"Unexpected Schema shape for $label")
-          ) // this should never happen
-    }
-
   def eitherDecoder[A](v: Reflect.Variant.Bound[A]): Decoder[A] = {
-    case AttributeValue.Map(map) if map.size == 1 =>
-      val iter  = map.iterator
-      val entry = iter.next() // Map.Entry[_, _] under the hood, no extra tuple
-      entry._1 match {
-        case AttributeValue.String("Right") =>
-          decodeEitherValue("Right", v)(entry._2).map(Right(_)).asInstanceOf[Either[DecodingError, A]]
-        case AttributeValue.String("Left")  =>
-          decodeEitherValue("Left", v)(entry._2).map(Left(_)).asInstanceOf[Either[DecodingError, A]]
-        case other                          =>
-          Left(DecodingError(s"Unexpected key in Either decoder: $other"))
+    def decodeEitherValue[A](label: String, v: Reflect.Variant.Bound[A]): Decoder[A] =
+      // dig into the structure of the found case to get the decoder for the value field
+      reflectBindingForCaseValueField(label, v) match {
+        case Some(value) =>
+          reflectDecoder(value).asInstanceOf[Decoder[A]]
+        case None        =>
+          (_: AttributeValue) =>
+            Left(
+              DecodingError(s"Unexpected Schema shape for $label")
+            ) // this should never happen
       }
 
-    case AttributeValue.Map(map)                  =>
-      Left(DecodingError(s"Expected single-element map, got keys: ${map.keys}"))
+    {
+      case AttributeValue.Map(map) if map.size == 1 =>
+        val iter  = map.iterator
+        val entry = iter.next() // Map.Entry[_, _] under the hood, no extra tuple
+        entry._1 match {
+          case AttributeValue.String("Right") =>
+            decodeEitherValue("Right", v)(entry._2).map(Right(_)).asInstanceOf[Either[DecodingError, A]]
+          case AttributeValue.String("Left")  =>
+            decodeEitherValue("Left", v)(entry._2).map(Left(_)).asInstanceOf[Either[DecodingError, A]]
+          case other                          =>
+            Left(DecodingError(s"Unexpected key in Either decoder: $other"))
+        }
 
-    case av                                       =>
-      Left(DecodingError(s"Expected AttributeValue.Map but found ${av.showType}"))
+      case AttributeValue.Map(map)                  =>
+        Left(DecodingError(s"Expected single-element map, got keys: ${map.keys}"))
+
+      case av                                       =>
+        Left(DecodingError(s"Expected AttributeValue.Map but found ${av.showType}"))
+    }
   }
 
   // Note that None decoding (AttributeValue.Null or missing field value) is done upstream
