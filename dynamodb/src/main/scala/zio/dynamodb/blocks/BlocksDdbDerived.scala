@@ -321,7 +321,12 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                 }
               } else {
                 val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
-                avMap = avMap + (fieldName -> av)
+                field.value match {
+                  case v: Reflect.Variant.Bound[_] if isOption(v) && av == AttributeValue.Null =>
+                    () // skip adding Null Optional fields to the map
+                  case _                                                                       =>
+                    avMap = avMap + (fieldName -> av)
+                }
                 offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
               }
             }
@@ -342,6 +347,12 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                 idx += 1
                 val decoder = fieldCodecs(idx).decoder
                 val reflect = field.value
+
+                // TODO: Avi - see if we can optimise variant based processing
+                val isOpt = field.value match {
+                  case Reflect.Variant(_, typeName, _, _, _) if typeName.name == "Option" => true
+                  case _                                                                  => false
+                }
 
                 def getField(av: AttributeValue.Map, fieldName: String): Either[ItemError, AttributeValue] =
                   av.get(fieldName).toRight(ItemError.DecodingError(s"Field $fieldName not found in record $av"))
@@ -369,6 +380,9 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                               offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                           }
                       }
+                    } else if (av == AttributeValue.Null && isOpt) { // we maybe reading a legacy DB
+                      registers.setObject(offset, 0, None)
+                      offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                     } else
                       decoder.asInstanceOf[AnyRef => Either[ItemError, AnyRef]](avValue) match {
                         case Left(err)     => errors.addOne(err.message)
@@ -376,7 +390,12 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                           registers.setObject(offset, 0, anyRef)
                           offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                       }
-                  case _              => errors.addOne(s"Field ${field.name} not found in record $av")
+                  case Left(error)    => // TODO: Avi - delay error creation to save a memory allocation
+                    if (isOpt) {
+                      registers.setObject(offset, 0, None)
+                      offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+                    } else
+                      errors.addOne(error.message)
                 }
               }
             else
@@ -531,8 +550,10 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       println(s"$discriminator $caseCodecs")
       new DdbCodec[A] {
         override def encoder: Encoder[A] = { (a: A) =>
-          if (isEither(variant))
-            eitherEncoder(variant)(a) // TODO: Avi - should eitherEncoder return an Encoder[A]? or an AV?
+          if (isOption(variant))
+            optionEncoder(variant)(a)
+          else if (isEither(variant))
+            eitherEncoder(variant)(a)
           else {
             val idx     = discriminator.discriminate(a)
             val encoder = caseCodecs(idx).encoder.asInstanceOf[A => AttributeValue]
@@ -541,7 +562,12 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         }
 
         override def decoder: Decoder[A] = { (av: AttributeValue) =>
-          eitherDecoder(variant)(av)
+          if (isOption(variant))
+            someDecoder(variant)(av)
+          else if (isEither(variant))
+            eitherDecoder(variant)(av)
+          else
+            ???
         }
       }
     } else
@@ -553,6 +579,31 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
   def isEither[A](variant: Reflect.Variant.Bound[A]): Boolean =
     variant.typeName.name == "Either" && variant.typeName.namespace.packages.mkString(".") == "scala.util"
+
+  def optionEncoder[A](v: Reflect.Variant.Bound[A]): Encoder[A] = {
+    case Some(a) =>
+      reflectBindingForCaseValueField("Some", v) match {
+        case Some(value) =>
+          val enc = deriveCodec(Schema(value)).encoder
+          enc(a.asInstanceOf[value.Structure])
+        case None        =>
+          throw new Exception(s"Unexpected Schema shape for Some") // this should never happen
+      }
+    case None    => AttributeValue.Null                              // gets removed at the Record level
+    case _       => throw new Exception(s"Input type not an Option") // TODO: tighten up types, this should never happen
+  }
+
+  // Note that None decoding (AttributeValue.Null or missing field value) is done upstream
+  // so we only focus on the Some case here
+  def someDecoder[A](v: Reflect.Variant.Bound[A]): Decoder[A] = { (av: AttributeValue) =>
+    // we are dealing with the Some case of Option Variant
+    // so we can short cut decoding of Option Variant to decoding of the value field of the Some case
+    reflectBindingForCaseValueField("Some", v) match {
+      case Some(value) =>
+        deriveCodec(Schema(value)).decoder.apply(av).map(Some(_)).asInstanceOf[Either[DecodingError, A]]
+      case None        => Left(DecodingError(s"Unexpected Schema shape for Some")) // this should never happen
+    }
+  }
 
   def eitherEncoder[A](v: Reflect.Variant.Bound[A]): Encoder[A] = { (a: A) =>
     def encodeCase[A](caseLabel: String, value: Any, v: Reflect.Variant.Bound[A]): AttributeValue =
@@ -648,8 +699,13 @@ object TestDerived extends App {
     implicit val schema: Schema[PersonWithCollections] = Schema.derived
   }
   final case class PersonWithVariant(id: String, either: Either[String, Int])
-  object PersonWithVariant     extends CompanionOptics[PersonWithVariant]     {
-    implicit val schema: Schema[PersonWithVariant] = Schema.derived
+  object PersonWithVariant     extends CompanionOptics[PersonWithOption]      {
+    implicit val schema: Schema[PersonWithOption] = Schema.derived
+  }
+
+  final case class PersonWithOption(id: String, option: Option[Int])
+  object PersonWithOption extends CompanionOptics[PersonWithOption] {
+    implicit val schema: Schema[PersonWithOption] = Schema.derived
   }
 
   final case class Person(id: String, age: Int)
@@ -657,8 +713,8 @@ object TestDerived extends App {
     implicit val schema: Schema[Person] = Schema.derived
   }
 
-  val codec: DdbCodec[PersonWithVariant] = PersonWithVariant.schema.derive(BlocksDdbDerived)
-  val enc                                = codec.encoder(PersonWithVariant("1", Right(42)))
+  val codec: DdbCodec[PersonWithOption] = PersonWithOption.schema.derive(BlocksDdbDerived)
+  val enc                               = codec.encoder(PersonWithOption("1", None))
 //  val codec: DdbCodec[Person]            = Person.schema.derive(BlocksDdbDerived)
 //  val enc                                = codec.encoder(Person("1", 42))
 //  val codec: DdbCodec[PersonWithCollections] = PersonWithCollections.schema.derive(BlocksDdbDerived)
