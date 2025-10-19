@@ -77,6 +77,12 @@ trait ToAttributeValueLowPriorityImplicits0 extends ToAttributeValueLowPriorityI
   ): ToAttributeValue[Col[A]] =
     (xs: Col[A]) => AttributeValue.List(Chunk.fromIterable(xs.map(element.toAttributeValue)))
 
+  // TODO: Avi - added for Blocks derivation which can handle Arrays
+  implicit def arrayToAttributeValue[A](implicit
+    element: ToAttributeValue[A]
+  ): ToAttributeValue[Array[A]] =
+    (xs: Array[A]) => AttributeValue.List(Chunk.fromIterable(xs.map(element.toAttributeValue)))
+
 }
 
 trait ToAttributeValueLowPriorityImplicits1 {
