@@ -15,25 +15,22 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
   object RecordWithCollections extends CompanionOptics[RecordWithCollections] {
     implicit val schema: Schema[RecordWithCollections] = Schema.derived
   }
-  final case class PersonWithArray(
-    id: String,
+  final case class RecordWithArray(
     // TODO: Avi - bottom out Array support in AttrMap/To/FromAttributeValue and equality checks
     names: Array[String] = Array.empty
   ) {
     override def equals(obj: Any): Boolean =
       obj match {
-        case that: PersonWithArray =>
-          this.id == that.id && this.names.toSeq == that.names.toSeq
+        case that: RecordWithArray =>
+          this.names.toSeq == that.names.toSeq
         case _                     => false
       }
 
-    override def hashCode(): Int = {
-      val state = Seq(id, names.toSeq)
-      state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
-    }
+    override def hashCode(): Int =
+      names.toSeq.hashCode()
   }
-  object PersonWithArray       extends CompanionOptics[PersonWithArray]       {
-    implicit val schema: Schema[PersonWithArray] = Schema.derived
+  object RecordWithArray       extends CompanionOptics[RecordWithArray]       {
+    implicit val schema: Schema[RecordWithArray] = Schema.derived
   }
   final case class PersonWithEither(id: String, either: Either[String, Int])
   object PersonWithEither      extends CompanionOptics[PersonWithEither]      {
@@ -79,18 +76,18 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     },
     test("use derived codec for Record with Array('a', 'b')") {
       val expectedItem                     =
-        Item("id" -> "1", "names" -> Array("a", "b"))
-      val codec: DdbCodec[PersonWithArray] = PersonWithArray.schema.derive(BlocksDdbDerived)
-      val expectedPerson                   = PersonWithArray("1", names = Array("a", "b"))
+        Item("names" -> Array("a", "b"))
+      val codec: DdbCodec[RecordWithArray] = RecordWithArray.schema.derive(BlocksDdbDerived)
+      val expectedPerson                   = RecordWithArray(names = Array("a", "b"))
       val enc                              = codec.encoder(expectedPerson)
       val dec                              = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
     test("use derived codec for Record with Array()") {
       val expectedItem                     =
-        Item("id" -> "1", "names" -> Array.empty[String])
-      val codec: DdbCodec[PersonWithArray] = PersonWithArray.schema.derive(BlocksDdbDerived)
-      val expectedPerson                   = PersonWithArray("1", names = Array())
+        Item("names" -> Array.empty[String])
+      val codec: DdbCodec[RecordWithArray] = RecordWithArray.schema.derive(BlocksDdbDerived)
+      val expectedPerson                   = RecordWithArray(names = Array())
       val enc                              = codec.encoder(expectedPerson)
       val dec                              = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
