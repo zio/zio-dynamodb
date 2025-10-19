@@ -67,50 +67,18 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] =
-    Lazy(new DdbCodec[A] {
-      val variant = Reflect.Variant(
-        cases = cases.asInstanceOf[IndexedSeq[Term[Binding, A, _ <: A]]], // TODO: get scalafmt error when I use ? <: A
-        typeName = typeName,
-        variantBinding = binding,
-        doc = doc,
-        modifiers = modifiers
-      )
-      override def encoder: Encoder[A] = { (a: A) =>
-        val enc = BlocksCodec.reflectEncoder(variant)
-//      enc(a.asInstanceOf[variant.Structure])
-        enc(a)
-      }
-      override def decoder: Decoder[A] = { (av: AttributeValue) =>
-        val dec = BlocksCodec.reflectDecoder(variant)
-        dec(av)
-      }
-    })
-
-  def deriveSequence2[F[_, _], C[_], A](
-    element: Reflect[F, A],
-    typeName: TypeName[C[A]],
-    binding: F[BindingType.Seq[C], C[A]],
-    doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[C[A]]] =
     Lazy(
-      new DdbCodec[C[A]] {
-        val sequence: Reflect.Sequence[F, A, C] = Reflect.Sequence(
-          element = element,
-          typeName = typeName,
-          seqBinding = binding,
-          doc = doc,
-          modifiers = modifiers
+      deriveCodec(
+        new Schema(
+          Reflect.Variant(
+            cases = cases.asInstanceOf[IndexedSeq[Term[Binding, A, ? <: A]]],
+            typeName = typeName,
+            variantBinding = binding,
+            doc = doc,
+            modifiers = modifiers
+          )
         )
-        println(s"$sequence $D")
-        val v: C[A]                             = ???
-        val deconstructor                       = sequence.seqDeconstructor // no type casts needed
-        val it: Iterator[A]                     = deconstructor.deconstruct(v)
-        println(it)
-        override def encoder: Encoder[C[A]]     =
-          ???
-        override def decoder: Decoder[C[A]]     = ???
-      }
+      )
     )
 
   override def deriveSequence[F[_, _], C[_], A](
@@ -134,44 +102,6 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       )
     )
 
-  def deriveSequenceOld[F[_, _], C[_], A](
-    element: Reflect[F, A],
-    typeName: TypeName[C[A]],
-    binding: Binding[BindingType.Seq[C], C[A]],
-    doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[C[A]]] = {
-    println(D)
-    Lazy(
-      new DdbCodec[C[A]] {
-        val sequence: Reflect.Sequence[F, A, C] = Reflect.Sequence(
-          element = element,
-          typeName = typeName,
-          seqBinding = binding.asInstanceOf[F[BindingType.Seq[C], C[A]]],
-          doc = doc,
-          modifiers = modifiers
-        )
-        println(sequence)
-        val v: C[A]                             = ???
-        val deconstructor: SeqDeconstructor[C]  = sequence.asInstanceOf[Reflect.Sequence[F, A, C]].seqDeconstructor
-        val it: Iterator[A]                     = deconstructor.deconstruct(v)
-        println(it)
-        override def encoder: Encoder[C[A]]     =
-          (ca: C[A]) => {
-            val x: Iterator[A]  = deconstructor.deconstruct(ca)
-            val enc: Encoder[A] = BlocksCodec.reflectEncoder(element.asInstanceOf[Reflect.Bound[A]])
-            println(enc)
-            x.foreach { a =>
-              val av = enc(a)
-              println(s"XXXXXX av: $av")
-            }
-            ???
-          }
-        override def decoder: Decoder[C[A]]     = ???
-      }
-    )
-  }
-
   override def deriveMap[F[_, _], M[_, _], K, V](
     key: Reflect[F, K],
     value: Reflect[F, V],
@@ -181,19 +111,18 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[M[K, V]]] =
     Lazy(
-      new DdbCodec[M[K, V]] {
-        val map                                = Reflect.Map(
-          key = key.asInstanceOf[Reflect[Any, K]],
-          value = value.asInstanceOf[Reflect[Any, V]],
-          typeName = typeName,
-          mapBinding = binding,
-          doc = doc,
-          modifiers = modifiers
+      deriveCodec(
+        new Schema(
+          Reflect.Map(
+            key = key.asInstanceOf[Reflect[Binding, K]],
+            value = value.asInstanceOf[Reflect[Binding, V]],
+            typeName = typeName,
+            mapBinding = binding,
+            doc = doc,
+            modifiers = modifiers
+          )
         )
-        println(map)
-        override def encoder: Encoder[M[K, V]] = ???
-        override def decoder: Decoder[M[K, V]] = ???
-      }
+      )
     )
 
   override def deriveDynamic[F[_, _]](
@@ -659,7 +588,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
   /**
    * Note that Some, Left and Right use value classes with a single field named "value" which equates to a schema Record.
-   * This function searches all cases in the Variant for the `caseLabel` and returns the binding for that field as a Some,
+   * This function searches cases in the Variant for the `caseLabel` and returns the binding for that field as a Some,
    * else returns a None.
    */
   def reflectBindingForCaseValueField[A](
@@ -714,12 +643,12 @@ object TestDerived extends App {
     implicit val schema: Schema[Person] = Schema.derived
   }
 
-  val codec: DdbCodec[PersonWithOption] = PersonWithOption.schema.derive(BlocksDdbDerived)
-  val enc                               = codec.encoder(PersonWithOption("1", Some(42)))
+//  val codec: DdbCodec[PersonWithOption] = PersonWithOption.schema.derive(BlocksDdbDerived)
+//  val enc                               = codec.encoder(PersonWithOption("1", Some(42)))
 //  val codec: DdbCodec[Person]            = Person.schema.derive(BlocksDdbDerived)
 //  val enc                                = codec.encoder(Person("1", 42))
-//  val codec: DdbCodec[PersonWithCollections] = PersonWithCollections.schema.derive(BlocksDdbDerived)
-//  val enc                                    = codec.encoder(PersonWithCollections("1", numbers = List(1, 2), map = Map("a" -> 1, "b" -> 2)))
+  val codec: DdbCodec[PersonWithCollections] = PersonWithCollections.schema.derive(BlocksDdbDerived)
+  val enc                                    = codec.encoder(PersonWithCollections("1", numbers = List(1, 2), map = Map("a" -> 1, "b" -> 2)))
 //  val dec                                    = codec.decoder(enc)
 //  val codec: DdbCodec[Person] = Person.schema.derive(BlocksDdbDerived)
 //  val enc                     = codec.encoder(Person("1", 1))
