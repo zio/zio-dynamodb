@@ -8,13 +8,12 @@ import zio.blocks.schema.binding.Binding
 import zio.dynamodb.Item
 
 object BlocksDeriveSpec extends ZIOSpecDefault {
-  final case class PersonWithCollections(
-    id: String,
+  final case class RecordWithCollections(
     numbers: List[Int] = Nil,
     map: Map[String, Int] = Map.empty
   )
-  object PersonWithCollections extends CompanionOptics[PersonWithCollections] {
-    implicit val schema: Schema[PersonWithCollections] = Schema.derived
+  object RecordWithCollections extends CompanionOptics[RecordWithCollections] {
+    implicit val schema: Schema[RecordWithCollections] = Schema.derived
   }
   final case class PersonWithArray(
     id: String,
@@ -62,18 +61,18 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     },
     test("use derived codec for Record with List(1, 2) ") {
       val expectedItem                           =
-        Item("id" -> "1", "numbers" -> List(1, 2), "map" -> Map.empty[String, Int])
-      val codec: DdbCodec[PersonWithCollections] = PersonWithCollections.schema.derive(BlocksDdbDerived)
-      val expectedPerson                         = PersonWithCollections("1", numbers = List(1, 2))
+        Item("numbers" -> List(1, 2), "map" -> Map.empty[String, Int])
+      val codec: DdbCodec[RecordWithCollections] = RecordWithCollections.schema.derive(BlocksDdbDerived)
+      val expectedPerson                         = RecordWithCollections(numbers = List(1, 2))
       val enc                                    = codec.encoder(expectedPerson)
       val dec                                    = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
     test("use derived codec for Record with List() ") {
       val expectedItem                           =
-        Item("id" -> "1", "numbers" -> List.empty[String], "map" -> Map.empty[String, Int])
-      val codec: DdbCodec[PersonWithCollections] = PersonWithCollections.schema.derive(BlocksDdbDerived)
-      val expectedPerson                         = PersonWithCollections("1", numbers = List())
+        Item("numbers" -> List.empty[String], "map" -> Map.empty[String, Int])
+      val codec: DdbCodec[RecordWithCollections] = RecordWithCollections.schema.derive(BlocksDdbDerived)
+      val expectedPerson                         = RecordWithCollections(numbers = List())
       val enc                                    = codec.encoder(expectedPerson)
       val dec                                    = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
@@ -98,18 +97,18 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     },
     test("use derived codec for Record with native Map[String, Int]") {
       val expectedItem                           =
-        Item("id" -> "1", "numbers" -> List.empty[String], "map" -> Map("a" -> 1, "b" -> 2))
-      val codec: DdbCodec[PersonWithCollections] = PersonWithCollections.schema.derive(BlocksDdbDerived)
-      val expectedPerson                         = PersonWithCollections("1", map = Map("a" -> 1, "b" -> 2))
+        Item("numbers" -> List.empty[String], "map" -> Map("a" -> 1, "b" -> 2))
+      val codec: DdbCodec[RecordWithCollections] = RecordWithCollections.schema.derive(BlocksDdbDerived)
+      val expectedPerson                         = RecordWithCollections(map = Map("a" -> 1, "b" -> 2))
       val enc                                    = codec.encoder(expectedPerson)
       val dec                                    = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
     test("use derived codec for Record with native Map()") {
       val expectedItem                           =
-        Item("id" -> "1", "numbers" -> List.empty[String], "map" -> Map.empty[String, Int])
-      val codec: DdbCodec[PersonWithCollections] = PersonWithCollections.schema.derive(BlocksDdbDerived)
-      val expectedPerson                         = PersonWithCollections("1", map = Map())
+        Item("numbers" -> List.empty[String], "map" -> Map.empty[String, Int])
+      val codec: DdbCodec[RecordWithCollections] = RecordWithCollections.schema.derive(BlocksDdbDerived)
+      val expectedPerson                         = RecordWithCollections(map = Map())
       val enc                                    = codec.encoder(expectedPerson)
       val dec                                    = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
