@@ -105,6 +105,15 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val dec                                    = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
+    test("use derived codec for Record with native Map()") {
+      val expectedItem                           =
+        Item("id" -> "1", "numbers" -> List.empty[String], "map" -> Map.empty[String, Int])
+      val codec: DdbCodec[PersonWithCollections] = PersonWithCollections.schema.derive(BlocksDdbDerived)
+      val expectedPerson                         = PersonWithCollections("1", map = Map())
+      val enc                                    = codec.encoder(expectedPerson)
+      val dec                                    = codec.decoder(enc)
+      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
+    },
     test("use derived codec for Record with Either[String, Int] Right(42)") {
       val expectedItem                      =
         Item("id" -> "1", "either" -> Item("Right" -> 42))
