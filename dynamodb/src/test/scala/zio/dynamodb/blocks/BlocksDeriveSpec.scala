@@ -11,12 +11,30 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
   final case class PersonWithCollections(
     id: String,
     numbers: List[Int] = Nil,
-    // TODO: Avi - bottom out Array support in AttrMap/To/FromAttributeValue and equality checks
-//    names: Array[String] = Array.empty,
     map: Map[String, Int] = Map.empty
   )
   object PersonWithCollections extends CompanionOptics[PersonWithCollections] {
     implicit val schema: Schema[PersonWithCollections] = Schema.derived
+  }
+  final case class PersonWithArray(
+    id: String,
+    // TODO: Avi - bottom out Array support in AttrMap/To/FromAttributeValue and equality checks
+    names: Array[String] = Array.empty
+  ) {
+    override def equals(obj: Any): Boolean =
+      obj match {
+        case that: PersonWithArray =>
+          this.id == that.id && this.names.toSeq == that.names.toSeq
+        case _                     => false
+      }
+
+    override def hashCode(): Int = {
+      val state = Seq(id, names.toSeq)
+      state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
+    }
+  }
+  object PersonWithArray       extends CompanionOptics[PersonWithArray]       {
+    implicit val schema: Schema[PersonWithArray] = Schema.derived
   }
   final case class PersonWithEither(id: String, either: Either[String, Int])
   object PersonWithEither      extends CompanionOptics[PersonWithEither]      {
@@ -42,13 +60,40 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val dec                     = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
-    test("use derived codec for Record with List[Int]") {
+    test("use derived codec for Record with List(1, 2) ") {
       val expectedItem                           =
         Item("id" -> "1", "numbers" -> List(1, 2), "map" -> Map.empty[String, Int])
       val codec: DdbCodec[PersonWithCollections] = PersonWithCollections.schema.derive(BlocksDdbDerived)
       val expectedPerson                         = PersonWithCollections("1", numbers = List(1, 2))
       val enc                                    = codec.encoder(expectedPerson)
       val dec                                    = codec.decoder(enc)
+      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
+    },
+    test("use derived codec for Record with List() ") {
+      val expectedItem                           =
+        Item("id" -> "1", "numbers" -> List.empty[String], "map" -> Map.empty[String, Int])
+      val codec: DdbCodec[PersonWithCollections] = PersonWithCollections.schema.derive(BlocksDdbDerived)
+      val expectedPerson                         = PersonWithCollections("1", numbers = List())
+      val enc                                    = codec.encoder(expectedPerson)
+      val dec                                    = codec.decoder(enc)
+      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
+    },
+    test("use derived codec for Record with Array('a', 'b')") {
+      val expectedItem                     =
+        Item("id" -> "1", "names" -> Array("a", "b"))
+      val codec: DdbCodec[PersonWithArray] = PersonWithArray.schema.derive(BlocksDdbDerived)
+      val expectedPerson                   = PersonWithArray("1", names = Array("a", "b"))
+      val enc                              = codec.encoder(expectedPerson)
+      val dec                              = codec.decoder(enc)
+      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
+    },
+    test("use derived codec for Record with Array()") {
+      val expectedItem                     =
+        Item("id" -> "1", "names" -> Array.empty[String])
+      val codec: DdbCodec[PersonWithArray] = PersonWithArray.schema.derive(BlocksDdbDerived)
+      val expectedPerson                   = PersonWithArray("1", names = Array())
+      val enc                              = codec.encoder(expectedPerson)
+      val dec                              = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
     test("use derived codec for Record with native Map[String, Int]") {
