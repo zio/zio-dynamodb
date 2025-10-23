@@ -8,6 +8,21 @@ import zio.blocks.schema.binding.Binding
 import zio.dynamodb.Item
 
 object BlocksDeriveSpec extends ZIOSpecDefault {
+
+  sealed trait TrafficLight
+  object TrafficLight {
+    final case object Red    extends TrafficLight
+    final case object Yellow extends TrafficLight
+    final case object Green  extends TrafficLight
+
+    implicit val schema: Schema[TrafficLight] = Schema.derived
+  }
+
+  final case class RecordWithEnum(light: TrafficLight)
+  object RecordWithEnum extends CompanionOptics[RecordWithEnum] {
+    implicit val schema: Schema[RecordWithEnum] = Schema.derived
+  }
+
   final case class RecordWithCollections(
     numbers: List[Int] = Nil,
     map: Map[String, Int] = Map.empty
@@ -32,14 +47,14 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
   object RecordWithArray       extends CompanionOptics[RecordWithArray]       {
     implicit val schema: Schema[RecordWithArray] = Schema.derived
   }
-  final case class PersonWithEither(id: String, either: Either[String, Int])
-  object PersonWithEither      extends CompanionOptics[PersonWithEither]      {
-    implicit val schema: Schema[PersonWithEither] = Schema.derived
+  final case class RecordWithEither(either: Either[String, Int])
+  object RecordWithEither      extends CompanionOptics[RecordWithEither]      {
+    implicit val schema: Schema[RecordWithEither] = Schema.derived
   }
 
-  final case class PersonWithOption(id: String, option: Option[Int])
-  object PersonWithOption extends CompanionOptics[PersonWithOption] {
-    implicit val schema: Schema[PersonWithOption] = Schema.derived
+  final case class RecordWithOption(id: String, option: Option[Int])
+  object RecordWithOption extends CompanionOptics[RecordWithOption] {
+    implicit val schema: Schema[RecordWithOption] = Schema.derived
   }
 
   final case class Person(id: String, age: Int)
@@ -112,18 +127,19 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     },
     test("use derived codec for Record with Either[String, Int] Right(42)") {
       val expectedItem                      =
-        Item("id" -> "1", "either" -> Item("Right" -> 42))
-      val codec: DdbCodec[PersonWithEither] = PersonWithEither.schema.derive(BlocksDdbDerived)
-      val expectedPerson                    = PersonWithEither("1", either = Right(42))
+        Item("either" -> Item("Right" -> 42))
+      val codec: DdbCodec[RecordWithEither] = RecordWithEither.schema.derive(BlocksDdbDerived)
+      val expectedPerson                    = RecordWithEither(either = Right(42))
       val enc                               = codec.encoder(expectedPerson)
+      println(s"TTTTTTTTTTTTTTT enc: $enc")
       val dec                               = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
     test("use derived codec for Record with Either[String, Int] Left('error')") {
       val expectedItem                      =
-        Item("id" -> "1", "either" -> Item("Left" -> "error"))
-      val codec: DdbCodec[PersonWithEither] = PersonWithEither.schema.derive(BlocksDdbDerived)
-      val expectedPerson                    = PersonWithEither("1", either = Left("error"))
+        Item("either" -> Item("Left" -> "error"))
+      val codec: DdbCodec[RecordWithEither] = RecordWithEither.schema.derive(BlocksDdbDerived)
+      val expectedPerson                    = RecordWithEither(either = Left("error"))
       val enc                               = codec.encoder(expectedPerson)
       val dec                               = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
@@ -131,8 +147,8 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     test("use derived codec for Record with Option[Int] Some(42)") {
       val expectedItem                      =
         Item("id" -> "1", "option" -> 42)
-      val codec: DdbCodec[PersonWithOption] = PersonWithOption.schema.derive(BlocksDdbDerived)
-      val expectedPerson                    = PersonWithOption("1", option = Some(42))
+      val codec: DdbCodec[RecordWithOption] = RecordWithOption.schema.derive(BlocksDdbDerived)
+      val expectedPerson                    = RecordWithOption("1", option = Some(42))
       val enc                               = codec.encoder(expectedPerson)
       val dec                               = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
@@ -140,11 +156,20 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     test("use derived codec for Record with Option[Int] None") {
       val expectedItem                      =
         Item("id" -> "1")
-      val codec: DdbCodec[PersonWithOption] = PersonWithOption.schema.derive(BlocksDdbDerived)
-      val expectedPerson                    = PersonWithOption("1", option = None)
+      val codec: DdbCodec[RecordWithOption] = RecordWithOption.schema.derive(BlocksDdbDerived)
+      val expectedPerson                    = RecordWithOption("1", option = None)
       val enc                               = codec.encoder(expectedPerson)
       val dec                               = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
+    },
+    test("use derived codec for Record with an enum") {
+      val expectedItem                    =
+        Item("light" -> "Green")
+      val codec: DdbCodec[RecordWithEnum] = RecordWithEnum.schema.derive(BlocksDdbDerived)
+      val expectedRecord                  = RecordWithEnum(TrafficLight.Green)
+      val enc                             = codec.encoder(expectedRecord)
+      val dec                             = codec.decoder(enc)
+      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedRecord))
     },
     test("explore Wrapped") {
       case class Email(value: String)

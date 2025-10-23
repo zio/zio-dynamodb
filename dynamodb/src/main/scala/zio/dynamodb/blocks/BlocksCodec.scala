@@ -277,7 +277,7 @@ object BlocksCodec {
           avMap
         }
 
-      case v @ Reflect.Variant(cases, _, _, _, variantModifiers)    =>
+      case v @ Reflect.Variant(cases, _, _, _, variantModifiers)    => // encoder
         (a: A) =>
           val idx   = v.discriminator.discriminate(a)
           val case_ = cases(idx)
@@ -612,7 +612,7 @@ object BlocksCodec {
               case av                      =>
                 Left(DecodingError(s"Could not decode $av just yet"))
             }
-      case v @ Reflect.Variant(cases, typeName, _, _, variantModifiers) =>
+      case v @ Reflect.Variant(cases, typeName, _, _, variantModifiers) => // decoder
         if (isOption(v))
           someDecoder(v)
         else if (isEither(v))

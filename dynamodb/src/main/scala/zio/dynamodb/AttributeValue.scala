@@ -83,6 +83,8 @@ object AttributeValue {
       val (s, av) = (key, self.value) // TODO: extract
       av.get(String(s))
     }
+
+    def size: Int = self.value.size
   }
 
   private[dynamodb] object Map {
