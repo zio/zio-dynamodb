@@ -658,22 +658,19 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                 val kv  = it.next() // kv: (String, AttributeValue)
                 val key = kv._1     // access tuple elements directly
                 val av  = kv._2
-                if (key.value == "Right")
-                  caseCodecs.byName("Right") match {
-                    case Some(codec) =>
-                      codec.decoder.asInstanceOf[Decoder[A]](m)
-                    case None        => // this should never happen
-                      Left(DecodingError(s"Unknown case in Either Variant decoder for AttributeValue: ${av.showType}"))
-                  }
-                else if (key.value == "Left")
-                  caseCodecs.byName("Left") match {
+
+                def decodeForLabel(label: String): Either[ItemError, A] =
+                  caseCodecs.byName(label) match {
                     case Some(codec) =>
                       codec.decoder.asInstanceOf[Decoder[A]](m)
                     case None        =>
-                      Left(
-                        DecodingError(s"1. Unknown case in Either Variant decoder for AttributeValue: ${av.showType}")
-                      )
+                      Left(DecodingError(s"Unknown case in Either Variant decoder for AttributeValue: ${av.showType}"))
                   }
+
+                if (key.value == "Right")
+                  decodeForLabel("Right")
+                else if (key.value == "Left")
+                  decodeForLabel("Left")
                 else // this should never happen
                   Left(DecodingError(s"Unknown key in Either Variant decoder: $key"))
 
