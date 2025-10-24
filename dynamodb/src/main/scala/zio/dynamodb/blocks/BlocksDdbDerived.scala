@@ -166,22 +166,6 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
   type Value
   type Map2[_, _]
 
-  final class CacheEntryOld[A] private (val structs: Array[DdbCodec[A]], names: Array[String]) {
-    private lazy val nameToIndex = names.zipWithIndex.toMap // one-off allocation
-
-    def addEntry(codec: DdbCodec[A], name: String, index: Int): Unit = {
-      structs(index) = codec
-      if (names.nonEmpty)
-        names(index) = name
-    }
-    def byIndex(i: Int): DdbCodec[A]           = structs(i)
-    def byName(n: String): Option[DdbCodec[A]] = nameToIndex.get(n).map(structs)
-  }
-  object CacheEntryOld                                                                         {
-    def makeWithNames[A](size: Int)    = new CacheEntryOld[A](new Array[DdbCodec[A]](size), new Array[String](size))
-    def makeWithoutNames[A](size: Int) = new CacheEntryOld[A](new Array[DdbCodec[A]](size), Array.empty)
-  }
-
   final class CacheEntry private (
     val fieldCodecs: Array[DdbCodec[?]],
     names: Array[String]
