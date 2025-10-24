@@ -200,12 +200,10 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
           local = Map.empty
         _nameToIndex = local
       }
-      println(s"CCCCCCCCCCCCCCC nameToIndex: $local")
       local
     }
 
     def addEntry(codec: DdbCodec[?], name: String, index: Int): Unit = {
-      println(s"CCCCCCCCCCCCC addEntry name: $name index: $index")
       fieldCodecs(index) = codec
       if (hasNames)
         names(index) = name
@@ -213,13 +211,9 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
     def byIndex(i: Int): DdbCodec[?] = fieldCodecs(i)
 
-    def byName(name: String): Option[DdbCodec[?]] = {
-      val x =
-        if (!hasNames) None
-        else nameToIndex.get(name).map(fieldCodecs)
-      println(s"CCCCCCCCCCCCCCC byName name: $name x: $x")
-      x
-    }
+    def byName(name: String): Option[DdbCodec[?]] =
+      if (!hasNames) None
+      else nameToIndex.get(name).map(fieldCodecs)
   }
   object CacheEntry {
     def makeWithNames(size: Int)       =
@@ -268,7 +262,6 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       }
     } else if (reflect.isRecord) {
       val record        = reflect.asRecord.get
-      println(s"ZZZZZZZZZZZZZZZ deriveCodec for record typeName: ${record.typeName.name} fields: ${record.fields.size}")
       val recordBinding =
         try record.recordBinding.asInstanceOf[Binding.Record[A]]
         catch {
@@ -281,26 +274,13 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       val constructor   = recordBinding.constructor
       val deconstructor = recordBinding.deconstructor
       val fields        = record.fields
-      if (fields.isEmpty)
-        println(s"XXXXXXXXXXXXXXX little bit enum I think, maybe cache: ${cache.get(record.typeName)}")
-      /*
-  def isEither[A](variant: Reflect.Variant.Bound[A]): Boolean =
-    variant.typeName.name == "Either" && variant.typeName.namespace.packages.mkString(".") == "scala.util"
-       */
-      if (
-        fields.length == 1 && (record.typeName.name == "Right" || record.typeName.name == "Left") && record.typeName.namespace.packages
-          .mkString(".") == "scala.util"
-      )
-        println(s"XXXXXXXXXXXXXXX little bit Either I think, fields(0).name: ${fields(0).name}")
 
-      println(s"XXXXXXXXXX record.typeName: ${record.typeName.name}")
       // TODO: Avi - we end up with empty CacheEntry memory alloc for simple enum that is not used
       val fieldCodecs = cache.get(record.typeName) match {
         case Some(x) => x
         case _       =>
           val codecs: CacheEntry = CacheEntry.makeWithNames(fields.length)
           if (!fields.isEmpty) {
-            println(s"XXXXXXXXXX cache miss for record typeName: ${record.typeName.name}")
             cache.put(record.typeName, codecs) // TODO: Avi - we could add isOption, isEither fields to the cache???
             val len = fields.length
             var idx = 0
@@ -409,18 +389,15 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                   val name =
                     if (fields.length == 1 && record.typeName.namespace.packages.mkString(".") == "scala.util")
                       record.typeName.name match {
-                        case "Right" =>
-                          "Right"
-                        case "Left"  =>
-                          "Left"
+                        case "Right" => "Right"
+                        case "Left"  => "Left"
                         case _       => throw new Exception("BOOOOOOOOOm! Should not happen") // TODO: Avi
                       }
                     else field.name
-                  println(s"ZZZZZZZZZZZZZZZZZ name: $name record.typeName.name: ${record.typeName.name}")
 
                   def getField(av: AttributeValue.Map, fieldName: String): Either[ItemError, AttributeValue] =
                     av.get(fieldName)
-                      .toRight(ItemError.DecodingError(s"Field name: '$fieldName' not found in record $av"))
+                      .toRight(ItemError.DecodingError(s"Field name: '$fieldName' not found in record ${av.showType}"))
 
                   getField(
                     av.asInstanceOf[AttributeValue.Map],
@@ -488,7 +465,6 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       val elementCodec  = deriveCodec(new Schema(element), cache)
       val encoder2      = elementCodec.encoder.asInstanceOf[A => AttributeValue]
       val decoder2      = elementCodec.decoder //.asInstanceOf[Any => A]
-      println(s"$constructor $decoder2")
       new DdbCodec[A] {
         override def encoder: Encoder[A] =
           (a: A) => {
@@ -539,7 +515,6 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       val valueCodec    = deriveCodec(new Schema(map.value), cache)
       val valueEncoder  = valueCodec.encoder.asInstanceOf[Value => Any]
       val valueDecoder  = valueCodec.decoder //.asInstanceOf[Any => Value]
-      println(s"$constructor $keyDecoder $valueDecoder")
       new DdbCodec[A] {
         override def encoder: Encoder[A] =
           (x: A) => {
@@ -602,14 +577,11 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         case Some(x) => x
         case _       =>
           val codecs = CacheEntry.makeWithNames(cases.length)
-          println(s"XXXXXXXXXX cache miss for variant typeName: ${variant.typeName.name}")
           cache.put(variant.typeName, codecs)
-          println(s"XXXXXXXXXX deriving variant typeName: ${variant.typeName.name}")
           val len    = cases.length
           var idx    = 0
           while (idx < len) {
             val reflect = cases(idx).value
-            println(s"XXXXXXXXXX idx: $idx case: ${cases(idx).name} reflect: ${reflect.typeName.name}")
             codecs.addEntry(deriveCodec(new Schema(reflect), cache), cases(idx).name, idx)
             idx += 1
           }
@@ -623,13 +595,10 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         ) true
         else false
 
-      println(s"XXXXXXXXXX caseCodecs: $caseCodecs")
       new DdbCodec[A] {
         override def encoder: Encoder[A] = { (a: A) =>
           if (isOption(variant))
             optionEncoder(variant)(a)
-//          else if (isEither(variant))
-//            eitherEncoder(variant)(a)
           else {
             val idx     = discriminator.discriminate(a)
             val encoder = caseCodecs.byIndex(idx).encoder.asInstanceOf[A => AttributeValue]
@@ -638,13 +607,13 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         }
 
         override def decoder: Decoder[A] = { (av: AttributeValue) =>
-          println(s"XXXXXXXXXX Variant decoder av: $av")
           if (isOption(variant))
             someDecoder(variant)(av)
 //          else if (isEither(variant))
 //            eitherDecoder(variant)(av)
           else
             av match {
+              // TODO: Avi - validate against Schema that this is a simple enum variant
               case AttributeValue.String(name)                      =>
                 caseCodecs.byName(name) match {
                   case Some(codec) =>

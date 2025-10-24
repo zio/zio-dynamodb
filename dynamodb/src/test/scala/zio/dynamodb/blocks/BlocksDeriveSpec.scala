@@ -131,7 +131,6 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val codec: DdbCodec[RecordWithEither] = RecordWithEither.schema.derive(BlocksDdbDerived)
       val expectedPerson                    = RecordWithEither(either = Right(42))
       val enc                               = codec.encoder(expectedPerson)
-      println(s"TTTTTTTTTTTTTTT enc: $enc")
       val dec                               = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
