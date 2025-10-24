@@ -645,39 +645,40 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 //            eitherDecoder(variant)(av)
           else
             av match {
-              case AttributeValue.String(name)       =>
+              case AttributeValue.String(name)                      =>
                 caseCodecs.byName(name) match {
                   case Some(codec) =>
                     codec.decoder.asInstanceOf[Decoder[A]](av)
                   case None        =>
                     Left(DecodingError(s"Unknown case in Variant decoder for AttributeValue: $av"))
                 }
-              case m: AttributeValue.Map if isEither =>
+              case m: AttributeValue.Map if isEither && m.size == 1 =>
                 // examine the single key to determine Left vs Right
-                m.get("Right") match {
-                  case Some(av) =>
-                    caseCodecs.byName("Right") match {
-                      case Some(codec) =>
-                        codec.decoder.asInstanceOf[Decoder[A]](m)
-                      case None        =>
-                        Left(DecodingError(s"Unknown case in Either Variant decoder for AttributeValue: $av"))
-                    }
-                  case _        =>
-                    m.get("Left") match {
-                      case Some(av) =>
-                        caseCodecs.byName("Left") match {
-                          case Some(codec) =>
-                            codec.decoder.asInstanceOf[Decoder[A]](m)
-                          case None        =>
-                            Left(DecodingError(s"1. Unknown case in Either Variant decoder for AttributeValue: $av"))
-                        }
-                      case None     =>
-                        Left(DecodingError(s"2. Unknown case in Either Variant decoder for AttributeValue: $av"))
-                    }
-                }
+                val it  = m.value.iterator
+                val kv  = it.next() // kv: (String, AttributeValue)
+                val key = kv._1     // access tuple elements directly
+                val av  = kv._2
+                if (key.value == "Right")
+                  caseCodecs.byName("Right") match {
+                    case Some(codec) =>
+                      codec.decoder.asInstanceOf[Decoder[A]](m)
+                    case None        => // this should never happen
+                      Left(DecodingError(s"Unknown case in Either Variant decoder for AttributeValue: ${av.showType}"))
+                  }
+                else if (key.value == "Left")
+                  caseCodecs.byName("Left") match {
+                    case Some(codec) =>
+                      codec.decoder.asInstanceOf[Decoder[A]](m)
+                    case None        =>
+                      Left(
+                        DecodingError(s"1. Unknown case in Either Variant decoder for AttributeValue: ${av.showType}")
+                      )
+                  }
+                else // this should never happen
+                  Left(DecodingError(s"Unknown key in Either Variant decoder: $key"))
 
-              case _: AttributeValue.Map             => Left(DecodingError(s"TODO: decode non enums and Either av: $av"))
-              case _                                 => Left(DecodingError(s"TODO: expected a Map, found ${av.showType}"))
+              case _: AttributeValue.Map                            => Left(DecodingError(s"TODO: decode non enums and Either av: $av"))
+              case _                                                => Left(DecodingError(s"TODO: expected a Map, found ${av.showType}"))
             }
         }
       }
