@@ -172,7 +172,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
   )                 {
     override def toString: String = s"CacheEntry(${fieldCodecs.toSeq}, ${names.toSeq})"
 
-    private[this] var _nameToIndex: Map[String, Int] = null
+    private[this] var _nameToIndex: Map[String, Int] = null // TODO: Avi - investigate savings in getting rid of Map
     private[this] val hasNames                       = names.nonEmpty
 
     private def nameToIndex: Map[String, Int] = {
@@ -280,6 +280,9 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       new DdbCodec[A] {
         override def encoder: Encoder[A] = {
           val encoder: Encoder[A] = (a: A) => {
+            // TODO: Avi - determine if we are in context variant - (may need to pass into deriveCodec ???)
+            // discriminator: add discriminator field
+            // default: add discriminator field Map -> record
             var avMap     = AttributeValue.Map.empty // TODO: Avi - create a mutable builder API for AV Map
             val registers = Registers(record.usedRegisters)
             deconstructor.deconstruct(registers, RegisterOffset.Zero, a)
@@ -321,11 +324,12 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                   }
                 }
                 if (fields.length == 1 && record.typeName.namespace.packages.mkString(".") == "scala.util")
+                  // TODO: Avi - optimise code to map.size == 1 check, then it = map.value.itereator; it.next etc for tuple access
                   (record.typeName.name, avMap.get("value")) match {
                     case ("Right", Some(r)) =>
                       AttributeValue.Map.empty + ("Right" -> r)
                     case ("Left", Some(l))  =>
-                      AttributeValue.Map.empty + ("Left" -> l)
+                      AttributeValue.Map.empty + ("Left" -> l) // TODO: Avi - investigate doing "Some" here as well
                     case _                  => avMap
                   }
                 else
@@ -354,6 +358,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                   )
               }
             else {
+              // TODO: Avi - determine if we are in context variant - (may need to pass into deriveCodec ???)
               val errors: ArrayBuffer[String] = new ArrayBuffer
               val registers                   = Registers(record.usedRegisters)
               var offset                      = RegisterOffset.Zero
