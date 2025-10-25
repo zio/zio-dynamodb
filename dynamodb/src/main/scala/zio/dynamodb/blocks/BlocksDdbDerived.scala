@@ -245,8 +245,9 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         case _                       => ??? // TODO: Avi - other types
       }
     } else if (reflect.isRecord) {
-      val record        = reflect.asRecord.get
-      val recordBinding =
+      val record         = reflect.asRecord.get
+      lazy val recordPkg = record.typeName.namespace.packages.mkString(".")
+      val recordBinding  =
         try record.recordBinding.asInstanceOf[Binding.Record[A]]
         catch {
           case _: Exception =>
@@ -255,9 +256,9 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
               .binding
               .asInstanceOf[Binding.Record[A]]
         }
-      val constructor   = recordBinding.constructor
-      val deconstructor = recordBinding.deconstructor
-      val fields        = record.fields
+      val constructor    = recordBinding.constructor
+      val deconstructor  = recordBinding.deconstructor
+      val fields         = record.fields
 
       // TODO: Avi - we end up with empty CacheEntry memory alloc for simple enum that is not used
       val fieldCodecs = cache.get(record.typeName) match {
@@ -323,7 +324,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                     offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                   }
                 }
-                if (fields.length == 1 && record.typeName.namespace.packages.mkString(".") == "scala.util")
+                if (fields.length == 1 && recordPkg == "scala.util")
                   // TODO: Avi - optimise code to map.size == 1 check, then it = map.value.itereator; it.next etc for tuple access
                   (record.typeName.name, avMap.get("value")) match {
                     case ("Right", Some(r)) =>
