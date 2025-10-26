@@ -58,6 +58,8 @@ object AttributeValue {
   import Predef.{ String => ScalaString }
   import scala.collection.immutable.{ Map => ScalaMap }
 
+  def single(fieldName: ScalaString, av: AttributeValue): Map = Map(ScalaMap(String(fieldName) -> av))
+
   type WithScalaType[X] = AttributeValue { type ScalaType = X }
 
   private[dynamodb] final case class Binary(value: Iterable[Byte])              extends AttributeValue

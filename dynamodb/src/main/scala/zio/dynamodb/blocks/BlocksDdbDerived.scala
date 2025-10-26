@@ -325,21 +325,20 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                     offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                   }
                 }
-                if (fields.length == 1 && recordPkg == "scala.util")
-                  if (avMap.size == 1) {
-                    val it = avMap.value.iterator
-                    val kv = it.next()
-                    (record.typeName.name, kv._1.value, kv._2) match {
-                      // TODO: Avi - investigate doing case ("Some", ...) here as well
-                      case ("Right", "value", r) =>
-                        AttributeValue.Map.empty + ("Right" -> r)
-                      case ("Left", "value", l)  =>
-                        AttributeValue.Map.empty + ("Left" -> l)
-                      case _                     => avMap
-                    }
-                  } else
-                    avMap
-                else
+                if (fields.length == 1 && recordPkg == "scala.util" && avMap.size == 1) {
+                  val it             = avMap.value.iterator
+                  val (kAttr, vAttr) = it.next()
+                  val keyName        = kAttr.value
+                  val typeName       = record.typeName.name
+
+                  if (typeName eq "Right")
+                    if (keyName eq "value") AttributeValue.single("Right", vAttr)
+                    else avMap
+                  else if (typeName eq "Left")
+                    if (keyName eq "value") AttributeValue.single("Left", vAttr)
+                    else avMap
+                  else avMap
+                } else
                   avMap
               }
             av
