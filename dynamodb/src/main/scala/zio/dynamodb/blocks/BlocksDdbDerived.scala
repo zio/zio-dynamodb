@@ -552,8 +552,8 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
               val builder = constructor.newObjectBuilder[Key, Value](8)
               val it      = map.value.iterator
               while (it.hasNext) {
-                val kv = it.next()
-                (keyDecoder(kv._1), valueDecoder(kv._2)) match {
+                val (k, v) = it.next()
+                (keyDecoder(k), valueDecoder(v)) match {
                   case (Right(key), Right(value)) =>
                     // TODO: Avi - why do we need this cast?
                     constructor.addObject(builder, key, value.asInstanceOf[Value])
