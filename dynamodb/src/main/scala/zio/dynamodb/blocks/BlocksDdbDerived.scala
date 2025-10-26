@@ -292,6 +292,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
             val av =
               if (fields.isEmpty) // TODO: Avi - do we need more info to validate this is an enum?
+                // TODO: Avi - investigate doing "None" case object enum here as well
                 // for simple enums no need to recurse any further as we can decode directly
                 AttributeValue.String(record.typeName.name)
               else {
@@ -325,14 +326,19 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                   }
                 }
                 if (fields.length == 1 && recordPkg == "scala.util")
-                  // TODO: Avi - optimise code to map.size == 1 check, then it = map.value.itereator; it.next etc for tuple access
-                  (record.typeName.name, avMap.get("value")) match {
-                    case ("Right", Some(r)) =>
-                      AttributeValue.Map.empty + ("Right" -> r)
-                    case ("Left", Some(l))  =>
-                      AttributeValue.Map.empty + ("Left" -> l) // TODO: Avi - investigate doing "Some" here as well
-                    case _                  => avMap
-                  }
+                  if (avMap.size == 1) {
+                    val it = avMap.value.iterator
+                    val kv = it.next()
+                    (record.typeName.name, kv._1.value, kv._2) match {
+                      // TODO: Avi - investigate doing case ("Some", ...) here as well
+                      case ("Right", "value", r) =>
+                        AttributeValue.Map.empty + ("Right" -> r)
+                      case ("Left", "value", l)  =>
+                        AttributeValue.Map.empty + ("Left" -> l)
+                      case _                     => avMap
+                    }
+                  } else
+                    avMap
                 else
                   avMap
               }
