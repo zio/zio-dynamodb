@@ -641,10 +641,8 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                 }
               case m: AttributeValue.Map if isEither && m.size == 1 =>
                 // examine the single key to determine Left vs Right
-                val it  = m.value.iterator
-                val kv  = it.next() // kv: (String, AttributeValue)
-                val key = kv._1     // access tuple elements directly
-                val av  = kv._2
+                val it        = m.value.iterator
+                val (key, av) = it.next() // kv: (String, AttributeValue)
 
                 def decodeForLabel(label: String): Either[ItemError, A] =
                   caseCodecs.byName(label) match {
