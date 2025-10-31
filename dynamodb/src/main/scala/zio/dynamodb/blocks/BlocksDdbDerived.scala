@@ -670,9 +670,15 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     }
   }
 
-  def isEither[A](variant: Reflect.Variant.Bound[A]): Boolean =
-    variant.typeName.name == "Either" && variant.typeName.namespace.packages.mkString(".") == "scala.util"
+  def isEither[A](variant: Reflect.Variant.Bound[A]): Boolean = {
+    val tn = variant.typeName
+    val ns = tn.namespace.packages
 
+    (tn.name eq "Either") &&
+    ns.lengthCompare(2) == 0 &&
+    ns.head == "scala" &&
+    ns(1) == "util"
+  }
 }
 
 /*
