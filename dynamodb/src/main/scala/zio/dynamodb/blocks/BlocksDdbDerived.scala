@@ -374,8 +374,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
               var offset                      = RegisterOffset.Zero
               var idx                         = -1
 
-              def foo(av: AttributeValue): Unit =
-                // TODO: Avi - extract to a function -> unit and call with a manufactured AV Map
+              def decodeAndSetRegisters(av: AttributeValue): Unit =
                 fields.foreach { field =>
                   idx += 1
                   val decoder = fieldCodecs.byIndex(idx).decoder
@@ -395,7 +394,6 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                         case _       => throw new Exception("BOOOOOOOOOm! Should not happen") // TODO: Avi
                       }
                     else field.name
-                  println(s"XXXXXXX foo name: $name")
 
                   def getField(av: AttributeValue.Map, fieldName: String): Either[ItemError, AttributeValue] =
                     av.get(fieldName)
@@ -407,7 +405,6 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                   ) match {
                     case Right(avValue) =>
                       if (reflect.isPrimitive) {
-                        println(s"XXXX foo isPrimitive")
                         val primitiveType = reflect.asPrimitive.get.primitiveType
                         primitiveType match {
                           case _: PrimitiveType.Int =>
@@ -442,16 +439,14 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                       } else
                         errors.addOne(error.message)
                   }
-                }
+                } // end decodeAndSetRegisters
 
               if (!av.isInstanceOf[AttributeValue.Map]) { // TODO: Avi - do a better condition
-                println(s"XXXXXXXXXXXX 4")
                 // align shape of AV with Schema for Some
-                foo(AttributeValue.Map("value", av))
+                decodeAndSetRegisters(AttributeValue.Map("value", av))
               } else if (av.isInstanceOf[AttributeValue.Map])
-                foo(av)
+                decodeAndSetRegisters(av)
               else {
-                println(s"XXXXXXXXXXXXXX 3 av: $av")
                 errors.addOne(s"Expected AttributeValue.Map, found ${av.showType}")
               }
               if (errors.isEmpty) {
@@ -620,11 +615,9 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
         override def decoder: Decoder[A] = { (av: AttributeValue) =>
           if (isOption(variant)) {
-            println(s"XXXXXXXXXXXXX 1.")
             //someDecoder(variant)(av)
             caseCodecs.byName("Some") match {
               case Some(codec) =>
-                println(s"XXXXXXXXXXXXX 2.")
                 codec.decoder.asInstanceOf[Decoder[A]](av)
               case None        =>
                 Left(DecodingError(s"Unknown case in Variant decoder for AttributeValue: $av"))
