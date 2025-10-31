@@ -158,20 +158,20 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
     test("encode Option[Person]") {
-      val expectedItem                      =
+      val expectedItem                              =
         Item("option" -> Item("id" -> "id", "age" -> 21)).toAttributeValue
       val codec: DdbCodec[RecordWithOptionalPerson] = RecordWithOptionalPerson.schema.derive(BlocksDdbDerived)
-      val person                    = RecordWithOptionalPerson(option = Some(Person("id", 21)))
-      val enc                               = codec.encoder(person)
+      val person                                    = RecordWithOptionalPerson(option = Some(Person("id", 21)))
+      val enc                                       = codec.encoder(person)
       assertTrue(enc == expectedItem)
     },
     test("decode Record with Option[Person]") {
-      val expectedItem                      =
+      val expectedItem                              =
         Item("option" -> Item("id" -> "id", "age" -> 21))
       val codec: DdbCodec[RecordWithOptionalPerson] = RecordWithOptionalPerson.schema.derive(BlocksDdbDerived)
-      val person                    = RecordWithOptionalPerson(option = Some(Person("id", 21)))
-      val enc                               = codec.encoder(person)
-  //  val dec                               = codec.decoder(expectedItem.toAttributeValue)
+      val person                                    = RecordWithOptionalPerson(option = Some(Person("id", 21)))
+      val enc                                       = codec.encoder(person)
+      //  val dec                               = codec.decoder(expectedItem.toAttributeValue)
       assertTrue(enc == expectedItem.toAttributeValue /* && dec == Right(person) */ )
     },
     test("decode Option[Int] Some(42)") {
@@ -186,7 +186,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val expectedItem                      =
         Item("id" -> "1", "option" -> 42).toAttributeValue
       val codec: DdbCodec[RecordWithOption] = RecordWithOption.schema.derive(BlocksDdbDerived)
-      val person                    = RecordWithOption("1", option = Some(42))
+      val person                            = RecordWithOption("1", option = Some(42))
       val enc                               = codec.encoder(person)
       assertTrue(enc == expectedItem)
     },
@@ -208,6 +208,16 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val dec                             = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedRecord))
     },
+// TODO: Avi - test caching somehow
+//    test("codec are cached") {
+//      val codec: DdbCodec[RecordWithOption] = RecordWithOption.schema.derive(BlocksDdbDerived)
+//      (1 to 100).foreach { i =>
+//        val person = RecordWithOption(i.toString, Some(i))
+//        val enc    = codec.encoder(person)
+//        codec.decoder(enc)
+//      }
+//      assertTrue(BlocksDdbDerived.cacheMissCounter == 3)
+//    },
     test("explore Wrapped") {
       case class Email(value: String)
 

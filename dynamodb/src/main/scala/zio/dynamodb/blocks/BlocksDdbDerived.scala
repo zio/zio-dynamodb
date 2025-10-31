@@ -170,6 +170,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     val fieldCodecs: Array[DdbCodec[?]],
     names: Array[String]
   )                 {
+    def size: Int                 = fieldCodecs.length // TODO: Avi - for debugging - remove
     override def toString: String = s"CacheEntry(${fieldCodecs.toSeq}, ${names.toSeq})"
 
     private[this] var _nameToIndex: Map[String, Int] = null // TODO: Avi - investigate savings in getting rid of Map
