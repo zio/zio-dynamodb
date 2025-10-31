@@ -661,10 +661,14 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       ??? // TODO: Avi - Variant, Non Native Map, Wrapper, Dynamic
   }
 
-  // TODO: Avi - re-write to reduce allocations
-  def isOption[A](variant: Reflect.Variant.Bound[A]): Boolean =
-    (variant.typeName.name == "Option" || variant.typeName.name == "None" || variant.typeName.name == "Some") && variant.typeName.namespace.packages
-      .mkString(".") == "scala"
+  def isOption[A](v: Reflect.Variant.Bound[A]): Boolean = {
+    val tn = v.typeName
+    val ns = tn.namespace.packages
+    (tn.name eq "Option") || (tn.name eq "Some") || (tn.name eq "None") match {
+      case true if ns.size == 1 && (ns.head eq "scala") => true
+      case _                                            => false
+    }
+  }
 
   def isEither[A](variant: Reflect.Variant.Bound[A]): Boolean =
     variant.typeName.name == "Either" && variant.typeName.namespace.packages.mkString(".") == "scala.util"
