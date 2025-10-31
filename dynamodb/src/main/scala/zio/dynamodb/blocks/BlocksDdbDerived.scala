@@ -441,14 +441,13 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                   }
                 } // end decodeAndSetRegisters
 
-              if (!av.isInstanceOf[AttributeValue.Map]) { // TODO: Avi - do a better condition
+              if (!av.isInstanceOf[AttributeValue.Map])                  // TODO: Avi - do a better condition
                 // align shape of AV with Schema for Some
                 decodeAndSetRegisters(AttributeValue.Map("value", av))
-              } else if (av.isInstanceOf[AttributeValue.Map])
+              else if (av.isInstanceOf[AttributeValue.Map])
                 decodeAndSetRegisters(av)
-              else {
+              else
                 errors.addOne(s"Expected AttributeValue.Map, found ${av.showType}")
-              }
               if (errors.isEmpty) {
                 val a = constructor.construct(registers, RegisterOffset.Zero)
                 Right(a)
@@ -614,7 +613,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         }
 
         override def decoder: Decoder[A] = { (av: AttributeValue) =>
-          if (isOption(variant)) {
+          if (isOption(variant))
             //someDecoder(variant)(av)
             caseCodecs.byName("Some") match {
               case Some(codec) =>
@@ -622,7 +621,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
               case None        =>
                 Left(DecodingError(s"Unknown case in Variant decoder for AttributeValue: $av"))
             }
-          } else
+          else
             av match {
               // TODO: Avi - validate against Schema that this is a simple enum variant
               case AttributeValue.String(name)                      =>
@@ -662,115 +661,13 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       ??? // TODO: Avi - Variant, Non Native Map, Wrapper, Dynamic
   }
 
+  // TODO: Avi - re-write to reduce allocations
   def isOption[A](variant: Reflect.Variant.Bound[A]): Boolean =
     (variant.typeName.name == "Option" || variant.typeName.name == "None" || variant.typeName.name == "Some") && variant.typeName.namespace.packages
       .mkString(".") == "scala"
 
   def isEither[A](variant: Reflect.Variant.Bound[A]): Boolean =
     variant.typeName.name == "Either" && variant.typeName.namespace.packages.mkString(".") == "scala.util"
-
-  def optionEncoder[A](v: Reflect.Variant.Bound[A]): Encoder[A] = {
-    case Some(a) =>
-      reflectBindingForCaseValueField("Some", v) match {
-        case Some(value) =>
-          val enc = deriveCodec(Schema(value)).encoder
-          enc(a.asInstanceOf[value.Structure])
-        case None        =>
-          throw new Exception(s"Unexpected Schema shape for Some") // this should never happen
-      }
-    case None    => AttributeValue.Null                              // gets removed at the Record level
-    case _       => throw new Exception(s"Input type not an Option") // TODO: tighten up types, this should never happen
-  }
-
-  // Note that None decoding (AttributeValue.Null or missing field value) is done upstream
-  // so we only focus on the Some case here
-  def someDecoder[A](v: Reflect.Variant.Bound[A]): Decoder[A] = { (av: AttributeValue) =>
-    // we are dealing with the Some case of Option Variant
-    // so we can short cut decoding of Option Variant to decoding of the value field of the Some case
-    reflectBindingForCaseValueField("Some", v) match {
-      case Some(value) =>
-        deriveCodec(Schema(value)).decoder.apply(av).map(Some(_)).asInstanceOf[Either[DecodingError, A]]
-      case None        => Left(DecodingError(s"Unexpected Schema shape for Some")) // this should never happen
-    }
-  }
-
-  def eitherEncoder[A](v: Reflect.Variant.Bound[A]): Encoder[A] = { (a: A) =>
-    def encodeCase[A](caseLabel: String, value: Any, v: Reflect.Variant.Bound[A]): AttributeValue =
-      reflectBindingForCaseValueField(caseLabel, v) match {
-        case Some(binding) =>
-          val enc = deriveCodec(Schema(binding)).encoder
-          AttributeValue.Map.empty + (caseLabel -> enc(value.asInstanceOf[binding.Structure]))
-        case None          =>
-          throw new Exception(s"Unexpected Schema shape for $caseLabel") // should never happen
-      }
-
-    a match {
-      case Right(r) => encodeCase("Right", r, v)
-      case Left(l)  => encodeCase("Left", l, v)
-      case _        => throw new Exception(s"Input type not an Either") // TODO: tighten types
-    }
-  }
-
-  def eitherDecoder[A](v: Reflect.Variant.Bound[A]): Decoder[A] = {
-    def decodeEitherValue[A](label: String, v: Reflect.Variant.Bound[A]): Decoder[A] =
-      // dig into the structure of the found case to get the decoder for the value field
-      reflectBindingForCaseValueField(label, v) match {
-        case Some(value) =>
-          deriveCodec(Schema(value)).decoder
-        case None        =>
-          (_: AttributeValue) =>
-            Left(
-              DecodingError(s"Unexpected Schema shape for $label")
-            ) // this should never happen
-      }
-
-    {
-      case AttributeValue.Map(map) if map.size == 1 =>
-        val iter  = map.iterator
-        val entry = iter.next() // Map.Entry[_, _] under the hood, no extra tuple
-        entry._1 match {
-          case AttributeValue.String("Right") =>
-            decodeEitherValue("Right", v)(entry._2).map(Right(_)).asInstanceOf[Either[DecodingError, A]]
-          case AttributeValue.String("Left")  =>
-            decodeEitherValue("Left", v)(entry._2).map(Left(_)).asInstanceOf[Either[DecodingError, A]]
-          case other                          =>
-            Left(DecodingError(s"Unexpected key in Either decoder: $other"))
-        }
-
-      case AttributeValue.Map(map)                  =>
-        Left(DecodingError(s"Expected single-element map, got keys: ${map.keys}"))
-
-      case av                                       =>
-        Left(DecodingError(s"Expected AttributeValue.Map but found ${av.showType}"))
-    }
-  }
-
-  /**
-   * Note that Some, Left and Right use value classes with a single field named "value" which equates to a schema Record.
-   * This function searches cases in the Variant for the `caseLabel` and returns the binding for that field as a Some,
-   * else returns a None.
-   */
-  def reflectBindingForCaseValueField[A](
-    caseLabel: String,
-    v: Reflect.Variant.Bound[A]
-  ): Option[Reflect.Bound[A]] = {
-    // Find the case for the given label
-    val maybeCase: Option[Term[Binding, A, _ <: A]] = v.cases.find(_.name == caseLabel)
-
-    // dig into the structure of the found case to get the binding for the value field
-    maybeCase match {
-      case Some(recordForValue) =>
-        recordForValue.value match {
-          case Reflect.Record(fields, _, _, _, _) if fields.size == 1 && fields(0).name == "value" =>
-            fields(0) match {
-              case Term(_, value, _, _) =>
-                Some(value.asInstanceOf[Reflect.Bound[A]])
-            }
-          case _                                                                                   => None
-        }
-      case None                 => None
-    }
-  }
 
 }
 
