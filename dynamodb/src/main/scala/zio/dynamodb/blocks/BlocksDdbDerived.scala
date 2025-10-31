@@ -252,7 +252,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       val (recordPackageIsScala, recordPackageIsScalaUtil) = {
         val len = recordPackages.length
         if (len == 0) (false, false)
-        else if (recordPackages(0) != "scala") (false, false)
+        else if (recordPackages(0) ne "scala") (false, false)
         else if (len == 2 && (recordPackages(1) eq "util")) (true, true)
         else (true, false)
       }
