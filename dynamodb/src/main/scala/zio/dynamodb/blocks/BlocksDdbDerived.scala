@@ -247,7 +247,17 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     } else if (reflect.isRecord) {
       val record         = reflect.asRecord.get
       lazy val recordPkg = record.typeName.namespace.packages.mkString(".")
-      val recordBinding  =
+
+      val recordPackages = record.typeName.namespace.packages
+      val (recordPackageIsScala, recordPackageIsScalaUtil) = {
+        val len = recordPackages.length
+        if (len == 0) (false, false)
+        else if (recordPackages(0) != "scala") (false, false)
+        else if (len == 2 && (recordPackages(1) eq "util")) (true, true)
+        else (true, false)
+      }
+
+      val recordBinding =
         try record.recordBinding.asInstanceOf[Binding.Record[A]]
         catch {
           case _: Exception =>
@@ -256,9 +266,9 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
               .binding
               .asInstanceOf[Binding.Record[A]]
         }
-      val constructor    = recordBinding.constructor
-      val deconstructor  = recordBinding.deconstructor
-      val fields         = record.fields
+      val constructor   = recordBinding.constructor
+      val deconstructor = recordBinding.deconstructor
+      val fields        = record.fields
 
       // TODO: Avi - we end up with empty CacheEntry memory alloc for simple enum that is not used
       val fieldCodecs = cache.get(record.typeName) match {
@@ -326,7 +336,10 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                     offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                   }
                 }
-                if (fields.length == 1 && (recordPkg == "scala" || recordPkg == "scala.util") && avMap.size == 1) {
+                if (fields.length == 1 && (recordPackageIsScala || recordPackageIsScalaUtil) && avMap.size == 1) {
+                  println(
+                    s"XXXXXXXXXXX recordPkg: $recordPkg recordPackageIsScalaUtil: $recordPackageIsScalaUtil ${recordPackages.length}"
+                  )
                   val it             = avMap.value.iterator
                   val (kAttr, vAttr) = it.next()
                   val keyName        = kAttr.value
@@ -387,7 +400,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                     else false
 
                   val name =
-                    if (fields.length == 1 && record.typeName.namespace.packages.mkString(".") == "scala.util")
+                    if (fields.length == 1 && recordPackageIsScalaUtil)
                       record.typeName.name match {
                         case "Right" => "Right"
                         case "Left"  => "Left"
