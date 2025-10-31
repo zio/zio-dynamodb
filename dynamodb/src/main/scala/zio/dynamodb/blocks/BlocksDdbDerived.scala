@@ -266,7 +266,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         case _       =>
           val codecs: CacheEntry = CacheEntry.makeWithNames(fields.length)
           if (!fields.isEmpty) {
-            cache.put(record.typeName, codecs) // TODO: Avi - we could add isOption, isEither fields to the cache???
+            cache.put(record.typeName, codecs)
             val len = fields.length
             var idx = 0
             while (idx < len) {
@@ -594,22 +594,11 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
           codecs
       }
 
-      def isEither =
-        if (
-          cases.length == 2 && variant.typeName.name == "Either" && variant.typeName.namespace.packages
-            .mkString(".") == "scala.util"
-        ) true
-        else false
-
       new DdbCodec[A] {
         override def encoder: Encoder[A] = { (a: A) =>
-//          if (isOption(variant))
-//            optionEncoder(variant)(a)
-//          else {
           val idx     = discriminator.discriminate(a)
           val encoder = caseCodecs.byIndex(idx).encoder.asInstanceOf[A => AttributeValue]
           encoder(a)
-//          }
         }
 
         override def decoder: Decoder[A] = { (av: AttributeValue) =>
@@ -624,14 +613,14 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
           else
             av match {
               // TODO: Avi - validate against Schema that this is a simple enum variant
-              case AttributeValue.String(name)                      =>
+              case AttributeValue.String(name)                               =>
                 caseCodecs.byName(name) match {
                   case Some(codec) =>
                     codec.decoder.asInstanceOf[Decoder[A]](av)
                   case None        =>
                     Left(DecodingError(s"Unknown case in Variant decoder for AttributeValue: $av"))
                 }
-              case m: AttributeValue.Map if isEither && m.size == 1 =>
+              case m: AttributeValue.Map if isEither(variant) && m.size == 1 =>
                 // examine the single key to determine Left vs Right
                 val it        = m.value.iterator
                 val (key, av) = it.next() // kv: (String, AttributeValue)
@@ -651,9 +640,9 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                 else // this should never happen
                   Left(DecodingError(s"Unknown key in Either Variant decoder: $key"))
 
-              case _: AttributeValue.Map                            =>
+              case _: AttributeValue.Map                                     =>
                 Left(DecodingError(s"TODO: decode non enums and Either av: $av"))
-              case _                                                => Left(DecodingError(s"TODO: expected a Map, found ${av.showType}"))
+              case _                                                         => Left(DecodingError(s"TODO: expected a Map, found ${av.showType}"))
             }
         }
       }
