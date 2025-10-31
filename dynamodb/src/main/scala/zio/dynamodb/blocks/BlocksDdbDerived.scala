@@ -245,8 +245,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         case _                       => ??? // TODO: Avi - other types
       }
     } else if (reflect.isRecord) {
-      val record         = reflect.asRecord.get
-      lazy val recordPkg = record.typeName.namespace.packages.mkString(".")
+      val record = reflect.asRecord.get
 
       val recordPackages = record.typeName.namespace.packages
       val (recordPackageIsScala, recordPackageIsScalaUtil) = {
@@ -337,9 +336,6 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                   }
                 }
                 if (fields.length == 1 && (recordPackageIsScala || recordPackageIsScalaUtil) && avMap.size == 1) {
-                  println(
-                    s"XXXXXXXXXXX recordPkg: $recordPkg recordPackageIsScalaUtil: $recordPackageIsScalaUtil ${recordPackages.length}"
-                  )
                   val it             = avMap.value.iterator
                   val (kAttr, vAttr) = it.next()
                   val keyName        = kAttr.value
