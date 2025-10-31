@@ -6,7 +6,7 @@ import sbtbuildinfo.BuildInfoKeys.*
 object BuildHelper {
   // Align with zio-schema since we have a deep dependency on it
   val Scala212                = "2.12.20"
-  val Scala213                = "2.13.16"
+  val Scala213                = "2.13.17"
   val Scala3                  = "3.3.6"
   private val SilencerVersion = "1.7.19"
 
@@ -99,7 +99,7 @@ object BuildHelper {
             ("com.github.ghik"                % "silencer-lib"    % SilencerVersion % Provided)
               .cross(CrossVersion.full),
             compilerPlugin(("com.github.ghik" % "silencer-plugin" % SilencerVersion).cross(CrossVersion.full)),
-            compilerPlugin(("org.typelevel"  %% "kind-projector"  % "0.13.3").cross(CrossVersion.full))
+            compilerPlugin(("org.typelevel"  %% "kind-projector"  % "0.13.4").cross(CrossVersion.full))
           )
       },
       incOptions ~= (_.withLogRecompileOnMacro(false))

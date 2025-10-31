@@ -188,8 +188,8 @@ object BlocksCodecViaDynamic extends App {
           Right(DynamicValue.Primitive(PrimitiveValue.Int(n.toInt)))
         case AttributeValue.Map(m)    =>
           //val fields = m.map { case (k, v) => k.value -> dynamicDecoder(v) }
-          val (errors, fields) = m.foldLeft[(Chunk[String], IndexedSeq[(String, DynamicValue)])](
-            (Chunk.empty[String], IndexedSeq.empty[(String, DynamicValue)])
+          val (errors, fields) = m.foldLeft[(Chunk[String], Vector[(String, DynamicValue)])](
+            (Chunk.empty[String], Vector.empty[(String, DynamicValue)])
           ) {
             case ((acc, x), (k, v)) =>
               val (k2, v2) = (k.value, dynamicDecoder(v))
