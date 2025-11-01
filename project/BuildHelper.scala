@@ -5,8 +5,8 @@ import sbtbuildinfo.BuildInfoKeys.*
 
 object BuildHelper {
   // Align with zio-schema since we have a deep dependency on it
-  val Scala213                = "2.13.16"
-  val Scala3                  = "3.3.6"
+  val Scala213                = "2.13.17"
+  val Scala3                  = "3.3.7"
   private val SilencerVersion = "1.7.19"
 
   private val stdOptions = Seq(
