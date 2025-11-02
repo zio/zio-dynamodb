@@ -694,7 +694,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
               case m: AttributeValue.Map                                     =>
                 variantMetaData2 match {
-                  case VariantMetaData.DefaultTaggedDiscriminationPolicy =>
+                  case VariantMetaData.DefaultTaggedDiscriminationPolicy   =>
                     if (m.size != 1)
                       Left(DecodingError(s"Expected single entry Map for Variant decoder, found size ${m.size}"))
                     else {
@@ -708,7 +708,25 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                           Left(DecodingError(s"Unknown case in Variant decoder for AttributeValue: $av"))
                       }
                     }
-                  case _                                                 =>
+                  case VariantMetaData.FieldDiscriminationPolicy(discName) =>
+                    m.get(discName) match {
+                      case Some(AttributeValue.String(typeName)) =>
+                        caseCodecs.byName(typeName) match {
+                          case Some(codec) =>
+                            codec.decoder.asInstanceOf[Decoder[A]](av)
+                          case None        =>
+                            Left(DecodingError(s"Unknown case in Variant decoder for AttributeValue: $av"))
+                        }
+                      case Some(otherAV)                         =>
+                        Left(
+                          DecodingError(
+                            s"Expected discriminator field '$discName' to be String, found: ${otherAV.showType}"
+                          )
+                        )
+                      case None                                  =>
+                        Left(DecodingError(s"Discriminator field '$discName' not found in AttributeValue: $av"))
+                    }
+                  case _                                                   =>
                     Left(DecodingError(s"TODO: decode non enums and Either av: $av"))
                 }
               case _                                                         => Left(DecodingError(s"TODO: expected a Map, found ${av.showType}"))

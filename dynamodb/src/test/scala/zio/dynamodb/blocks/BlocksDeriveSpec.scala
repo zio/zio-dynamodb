@@ -2,6 +2,7 @@ package zio.dynamodb.blocks
 
 import zio.test._
 import zio.blocks.schema.CompanionOptics
+import zio.blocks.schema.Modifier.config
 import zio.blocks.schema.Schema
 import zio.blocks.schema.Reflect
 import zio.blocks.schema.binding.Binding
@@ -35,6 +36,24 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
   final case class RecordWithPaymentMethod(method: PaymentMethod)
   object RecordWithPaymentMethod extends CompanionOptics[RecordWithPaymentMethod] {
     implicit val schema: Schema[RecordWithPaymentMethod] = Schema.derived
+  }
+
+  sealed trait PaymentMethod2
+  object PaymentMethod2 {
+    final case class CreditCard(number: String, cvv: String) extends PaymentMethod2
+    object CreditCard                                        extends CompanionOptics[CreditCard] {
+      implicit val schema: Schema[CreditCard] = Schema.derived
+    }
+    final case class PayPal(email: String)                   extends PaymentMethod2
+    object PayPal                                            extends CompanionOptics[PayPal]     {
+      implicit val schema: Schema[PayPal] = Schema.derived
+    }
+
+    implicit val schema: Schema[PaymentMethod2] = Schema.derived.modifier(config("discriminatorName", "discriminator"))
+  }
+  final case class RecordWithPaymentMethod2(method: PaymentMethod2)
+  object RecordWithPaymentMethod2 extends CompanionOptics[RecordWithPaymentMethod2] {
+    implicit val schema: Schema[RecordWithPaymentMethod2] = Schema.derived
   }
 
   final case class RecordWithEnum(light: TrafficLight)
@@ -227,13 +246,22 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val dec                             = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedRecord))
     },
-    test("use derived codec for Record with a complex enum") {
+    test("use derived codec for Record with a complex enum using default discriminator policy") {
       val expectedItem                             =
         Item("method" -> Item("CreditCard" -> Item("number" -> "1234", "cvv" -> "567")))
       val codec: DdbCodec[RecordWithPaymentMethod] = RecordWithPaymentMethod.schema.derive(BlocksDdbDerived)
       val expectedRecord                           = RecordWithPaymentMethod(CreditCard("1234", "567"))
       val enc                                      = codec.encoder(expectedRecord)
       val dec                                      = codec.decoder(enc)
+      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedRecord))
+    },
+    test("use derived codec for Record with a complex enum using field discriminator policy") {
+      val expectedItem                              =
+        Item("method" -> Item("number" -> "1234", "cvv" -> "567", "discriminator" -> "CreditCard"))
+      val codec: DdbCodec[RecordWithPaymentMethod2] = RecordWithPaymentMethod2.schema.derive(BlocksDdbDerived)
+      val expectedRecord                            = RecordWithPaymentMethod2(PaymentMethod2.CreditCard("1234", "567"))
+      val enc                                       = codec.encoder(expectedRecord)
+      val dec                                       = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedRecord))
     },
 // TODO: Avi - test caching somehow
