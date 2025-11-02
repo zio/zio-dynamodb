@@ -699,7 +699,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       ??? // TODO: Avi - Variant, Non Native Map, Wrapper, Dynamic
   }
 
-  def isOption[A](v: Reflect.Variant.Bound[A]): Boolean = {
+  private def isOption[A](v: Reflect.Variant.Bound[A]): Boolean = {
     val tn = v.typeName
     val ns = tn.namespace.packages
     (tn.name eq "Option") || (tn.name eq "Some") || (tn.name eq "None") match {
@@ -708,7 +708,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     }
   }
 
-  def isEither[A](variant: Reflect.Variant.Bound[A]): Boolean = {
+  private def isEither[A](variant: Reflect.Variant.Bound[A]): Boolean = {
     val tn = variant.typeName
     val ns = tn.namespace.packages
 
@@ -728,15 +728,29 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
   def variantMetaData[A](
     variant: Reflect.Variant.Bound[A],
     modifiers: Seq[Modifier]
-  ): VariantMetaData =
-    if (isOption(variant))
+  ): VariantMetaData = {
+    val tn = variant.typeName
+    val ns = tn.namespace.packages
+
+    val isOption =
+      ((tn.name eq "Option") || (tn.name eq "Some") || (tn.name eq "None")) &&
+        ns.lengthCompare(1) == 0 &&
+        (ns.head eq "scala")
+
+    val isEither =
+      (tn.name eq "Either") &&
+        ns.lengthCompare(2) == 0 &&
+        (ns.head eq "scala") &&
+        (ns(1) eq "util")
+
+    if (isOption)
       VariantMetaData.Option
-    else if (isEither(variant))
+    else if (isEither)
       VariantMetaData.Either
     else
       maybeDiscriminatorNameModifier(modifiers) match {
         case Some(name) => VariantMetaData.FieldDiscriminationPolicy(name)
-        case None       =>
-          VariantMetaData.DefaultTaggedDiscriminationPolicy
+        case None       => VariantMetaData.DefaultTaggedDiscriminationPolicy
       }
+  }
 }
