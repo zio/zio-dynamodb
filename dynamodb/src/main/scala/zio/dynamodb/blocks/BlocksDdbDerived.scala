@@ -699,6 +699,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       ??? // TODO: Avi - Variant, Non Native Map, Wrapper, Dynamic
   }
 
+  // TODO: Avi - delete as we have VariantMetaData now
   private def isOption[A](v: Reflect.Variant.Bound[A]): Boolean = {
     val tn = v.typeName
     val ns = tn.namespace.packages
@@ -708,6 +709,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     }
   }
 
+  // TODO: Avi - delete as we have VariantMetaData now
   private def isEither[A](variant: Reflect.Variant.Bound[A]): Boolean = {
     val tn = variant.typeName
     val ns = tn.namespace.packages
