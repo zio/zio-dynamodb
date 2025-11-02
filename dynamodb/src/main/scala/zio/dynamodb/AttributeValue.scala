@@ -87,14 +87,13 @@ object AttributeValue {
     def size: Int = self.value.size
   }
 
-  private[dynamodb] object Map {
+  /*private[dynamodb]*/
+  object Map {
     val empty = new Map(ScalaMap.empty)
 
     // TODO: find occurrences of "AttributeValue.Map(Map" or "AttributeValue.Map(ScalaMap"
-    def apply(fieldName: ScalaString, value: AttributeValue): Map = {
-      val (s, av) = (fieldName, value)
-      Map(ScalaMap((String(s), av)))
-    }
+    def apply(fieldName: ScalaString, value: AttributeValue): Map =
+      Map(ScalaMap((String(fieldName), value)))
   }
 
   private[dynamodb] final case class Number(value: BigDecimal)          extends AttributeValue

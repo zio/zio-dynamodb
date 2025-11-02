@@ -6,6 +6,7 @@ import zio.blocks.schema.Schema
 import zio.blocks.schema.Reflect
 import zio.blocks.schema.binding.Binding
 import zio.dynamodb.Item
+import zio.dynamodb.blocks.BlocksDeriveSpec.PaymentMethod.CreditCard
 
 object BlocksDeriveSpec extends ZIOSpecDefault {
 
@@ -16,6 +17,24 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     final case object Green  extends TrafficLight
 
     implicit val schema: Schema[TrafficLight] = Schema.derived
+  }
+
+  sealed trait PaymentMethod
+  object PaymentMethod {
+    final case class CreditCard(number: String, cvv: String) extends PaymentMethod
+    object CreditCard                                        extends CompanionOptics[CreditCard] {
+      implicit val schema: Schema[CreditCard] = Schema.derived
+    }
+    final case class PayPal(email: String)                   extends PaymentMethod
+    object PayPal                                            extends CompanionOptics[PayPal]     {
+      implicit val schema: Schema[PayPal] = Schema.derived
+    }
+
+    implicit val schema: Schema[PaymentMethod] = Schema.derived
+  }
+  final case class RecordWithPaymentMethod(method: PaymentMethod)
+  object RecordWithPaymentMethod extends CompanionOptics[RecordWithPaymentMethod] {
+    implicit val schema: Schema[RecordWithPaymentMethod] = Schema.derived
   }
 
   final case class RecordWithEnum(light: TrafficLight)
@@ -199,7 +218,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val dec                               = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
-    test("use derived codec for Record with an enum") {
+    test("use derived codec for Record with a simple enum") {
       val expectedItem                    =
         Item("light" -> "Green")
       val codec: DdbCodec[RecordWithEnum] = RecordWithEnum.schema.derive(BlocksDdbDerived)
@@ -207,6 +226,15 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val enc                             = codec.encoder(expectedRecord)
       val dec                             = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedRecord))
+    },
+    test("use derived codec for Record with a complex enum") {
+      val expectedItem                             =
+        Item("method" -> Item("CreditCard" -> Item("number" -> "1234", "cvv" -> "567")))
+      val codec: DdbCodec[RecordWithPaymentMethod] = RecordWithPaymentMethod.schema.derive(BlocksDdbDerived)
+      val expectedRecord                           = RecordWithPaymentMethod(CreditCard("1234", "567"))
+      val enc                                      = codec.encoder(expectedRecord)
+//      val dec                                      = codec.decoder(enc)
+      assertTrue(enc == expectedItem.toAttributeValue /* && dec == Right(expectedRecord) */ )
     },
 // TODO: Avi - test caching somehow
 //    test("codec are cached") {

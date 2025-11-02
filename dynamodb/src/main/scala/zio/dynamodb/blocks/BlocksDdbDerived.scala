@@ -17,6 +17,14 @@ trait DdbCodec[A] {
 }
 
 object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
+  sealed trait DiscriminatorPolicy // TODO: Avi - rename
+  object DiscriminatorPolicy {
+    case object Option                   extends DiscriminatorPolicy
+    case object Either                   extends DiscriminatorPolicy
+    case object Default                  extends DiscriminatorPolicy
+    final case class Field(name: String) extends DiscriminatorPolicy
+    case object NoDiscriminator          extends DiscriminatorPolicy
+  }
 
   override def derivePrimitive[F[_, _], A](
     primitiveType: PrimitiveType[A],
@@ -218,7 +226,8 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
   private def deriveCodec[A](
     schema: Schema[A],
-    cache: mutable.HashMap[TypeName[?], CacheEntry] = new mutable.HashMap
+    cache: mutable.HashMap[TypeName[?], CacheEntry] = new mutable.HashMap,
+    discriminatorPolicy: Option[DiscriminatorPolicy] = None
   ): DdbCodec[A] = {
     val reflect = schema.reflect
     if (reflect.isPrimitive) {
@@ -281,7 +290,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
             var idx = 0
             while (idx < len) {
               val reflect = fields(idx).value
-              codecs.addEntry(deriveCodec(new Schema(reflect), cache), fields(idx).name, idx)
+              codecs.addEntry(deriveCodec(new Schema(reflect), cache, discriminatorPolicy), fields(idx).name, idx)
               idx += 1
             }
           }
@@ -336,6 +345,11 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                     offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                   }
                 }
+
+                //
+                // enrich AttributeValue.Map for known Scala lib sum types
+                //
+
                 if (fields.length == 1 && (recordPackageIsScala || recordPackageIsScalaUtil) && avMap.size == 1) {
                   val it             = avMap.value.iterator
                   val (kAttr, vAttr) = it.next()
@@ -352,8 +366,27 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                     if (keyName eq "value") AttributeValue.Map("Left", vAttr)
                     else avMap
                   else avMap
-                } else
-                  avMap
+                } else {
+                  val x: AttributeValue.Map = discriminatorPolicy match {
+                    case None         => avMap
+                    case Some(policy) =>
+                      policy match {
+                        case DiscriminatorPolicy.Field(discriminatorFieldName) =>
+                          avMap + (discriminatorFieldName -> AttributeValue.String(record.typeName.name))
+                        case DiscriminatorPolicy.NoDiscriminator               =>
+                          // TODO: Avi - this is not relevant to record level processing
+                          avMap
+                        case DiscriminatorPolicy.Default                       =>
+                          // default behavior: add discriminator field
+                          AttributeValue.Map(record.typeName.name, avMap)
+                        case _                                                 => avMap
+                      }
+                  }
+                  println(
+                    s"XXXXXXXXX fields: ${avMap.value.keys.toList} discriminatorPolicy ${discriminatorPolicy} modified map: $x"
+                  )
+                  x
+                }
               }
             av
           }
@@ -478,7 +511,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       val constructor   = seqBinding.constructor
       val deconstructor = seqBinding.deconstructor
       val element       = sequence.element
-      val elementCodec  = deriveCodec(new Schema(element), cache)
+      val elementCodec  = deriveCodec(new Schema(element), cache, discriminatorPolicy)
       val encoder2      = elementCodec.encoder.asInstanceOf[A => AttributeValue]
       val decoder2      = elementCodec.decoder //.asInstanceOf[Any => A]
       new DdbCodec[A] {
@@ -525,10 +558,10 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         }
       val constructor   = mapBinding.constructor
       val deconstructor = mapBinding.deconstructor
-      val keyCodec      = deriveCodec(new Schema(map.key), cache)
+      val keyCodec      = deriveCodec(new Schema(map.key), cache, discriminatorPolicy)
       val keyEncoder    = keyCodec.encoder.asInstanceOf[Key => AttributeValue.String]
       val keyDecoder    = keyCodec.decoder.asInstanceOf[Any => Either[ItemError.DecodingError, Key]]
-      val valueCodec    = deriveCodec(new Schema(map.value), cache)
+      val valueCodec    = deriveCodec(new Schema(map.value), cache, discriminatorPolicy)
       val valueEncoder  = valueCodec.encoder.asInstanceOf[Value => Any]
       val valueDecoder  = valueCodec.decoder //.asInstanceOf[Any => Value]
       new DdbCodec[A] {
@@ -592,13 +625,14 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       val caseCodecs: CacheEntry = cache.get(variant.typeName) match {
         case Some(x) => x
         case _       =>
-          val codecs = CacheEntry.makeWithNames(cases.length)
+          val codecs              = CacheEntry.makeWithNames(cases.length)
           cache.put(variant.typeName, codecs)
-          val len    = cases.length
-          var idx    = 0
+          val len                 = cases.length
+          var idx                 = 0
+          val discriminatorPolicy = maybeDiscriminatorPolicy(variant, reflect.modifiers)
           while (idx < len) {
             val reflect = cases(idx).value
-            codecs.addEntry(deriveCodec(new Schema(reflect), cache), cases(idx).name, idx)
+            codecs.addEntry(deriveCodec(new Schema(reflect), cache, Some(discriminatorPolicy)), cases(idx).name, idx)
             idx += 1
           }
           codecs
@@ -678,4 +712,26 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     ns.head == "scala" &&
     ns(1) == "util"
   }
+
+  def maybeDiscriminatorNameModifier(
+    modifiers: Seq[Modifier]
+  ): Option[String] =
+    modifiers.collectFirst {
+      case Modifier.config("discriminatorName", value) => value
+    }
+
+  def maybeDiscriminatorPolicy[A](
+    variant: Reflect.Variant.Bound[A],
+    modifiers: Seq[Modifier]
+  ): DiscriminatorPolicy =
+    if (isOption(variant))
+      DiscriminatorPolicy.Option
+    else if (isEither(variant))
+      DiscriminatorPolicy.Either
+    else
+      maybeDiscriminatorNameModifier(modifiers) match {
+        case Some(name) => DiscriminatorPolicy.Field(name)
+        case None       =>
+          DiscriminatorPolicy.Default
+      }
 }
