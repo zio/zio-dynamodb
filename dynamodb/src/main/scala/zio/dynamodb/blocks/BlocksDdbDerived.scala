@@ -411,7 +411,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                     )
                   )
               }
-            else {
+            else { // fields not empty
               // TODO: Avi - determine if we are in context variant - (may need to pass into deriveCodec ???)
               val errors: ArrayBuffer[String] = new ArrayBuffer
               val registers                   = Registers(record.usedRegisters)
@@ -432,6 +432,8 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
                   val name =
                     if (fields.length == 1 && recordPackageIsScalaUtil)
+                      // both scala.util.Right and scala.util.Left are single field records with field named "value"
+                      // however we encode them with a field named "Right" or "Left"
                       record.typeName.name match {
                         case "Right" => "Right"
                         case "Left"  => "Left"
@@ -623,6 +625,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
       val cases                  = variant.cases
       val discriminator          = variantBinding.discriminator
+      val variantMetaData2       = variantMetaData(variant, reflect.modifiers)
       val caseCodecs: CacheEntry = cache.get(variant.typeName) match {
         case Some(x) => x
         case _       =>
@@ -634,7 +637,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
           while (idx < len) {
             val reflect = cases(idx).value
             codecs.addEntry(
-              deriveCodec(new Schema(reflect), cache, Some(variantMetaData(variant, reflect.modifiers))),
+              deriveCodec(new Schema(reflect), cache, Some(variantMetaData2)),
               cases(idx).name,
               idx
             )
@@ -689,8 +692,25 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                 else // this should never happen
                   Left(DecodingError(s"Unknown key in Either Variant decoder: $key"))
 
-              case _: AttributeValue.Map                                     =>
-                Left(DecodingError(s"TODO: decode non enums and Either av: $av"))
+              case m: AttributeValue.Map                                     =>
+                variantMetaData2 match {
+                  case VariantMetaData.DefaultTaggedDiscriminationPolicy =>
+                    if (m.size != 1)
+                      Left(DecodingError(s"Expected single entry Map for Variant decoder, found size ${m.size}"))
+                    else {
+                      val it        = m.value.iterator
+                      val (key, av) = it.next()
+
+                      caseCodecs.byName(key.value) match {
+                        case Some(codec) =>
+                          codec.decoder.asInstanceOf[Decoder[A]](av)
+                        case None        =>
+                          Left(DecodingError(s"Unknown case in Variant decoder for AttributeValue: $av"))
+                      }
+                    }
+                  case _                                                 =>
+                    Left(DecodingError(s"TODO: decode non enums and Either av: $av"))
+                }
               case _                                                         => Left(DecodingError(s"TODO: expected a Map, found ${av.showType}"))
             }
         }

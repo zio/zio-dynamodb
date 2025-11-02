@@ -233,8 +233,8 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val codec: DdbCodec[RecordWithPaymentMethod] = RecordWithPaymentMethod.schema.derive(BlocksDdbDerived)
       val expectedRecord                           = RecordWithPaymentMethod(CreditCard("1234", "567"))
       val enc                                      = codec.encoder(expectedRecord)
-//      val dec                                      = codec.decoder(enc)
-      assertTrue(enc == expectedItem.toAttributeValue /* && dec == Right(expectedRecord) */ )
+      val dec                                      = codec.decoder(enc)
+      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedRecord))
     },
 // TODO: Avi - test caching somehow
 //    test("codec are cached") {
