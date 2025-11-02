@@ -43,6 +43,8 @@ private[dynamodb] object Codec {
           tupleEncoder(encoder(l), encoder(r))
         case s: Schema.Sequence[col, a, _]                                                                                                      =>
           sequenceEncoder[col, a](encoder(s.elementSchema), s.toChunk)
+        case s: Schema.NonEmptySequence[col, a, i]                                                                                              =>
+          nonEmptySequenceEncoder[col, a, i](s.elementSchema, s.toChunk, s.identity)
         case Schema.Set(s, _)                                                                                                                   =>
           setEncoder(s)
         case Schema.Map(ks, vs, _)                                                                                                              =>
@@ -445,6 +447,20 @@ private[dynamodb] object Codec {
       se.asInstanceOf[Encoder[A]]
     }
 
+    private def nonEmptySequenceEncoder[Col, A, I](
+      elementSchema: Schema[A],
+      from: Col => Chunk[A],
+      identity: I
+    ): Encoder[Col] =
+      identity match {
+        case "NonEmptySet" =>
+          setEncoder(elementSchema)
+            .compose((nes: zio.prelude.NonEmptySet[A]) => nes.toSet)
+            .asInstanceOf[Encoder[Col]]
+        case _             =>
+          sequenceEncoder(encoder(elementSchema), from)
+      }
+
   } // end Encoder
 
   private[dynamodb] object Decoder extends GeneratedCaseClassDecoders {
@@ -486,6 +502,7 @@ private[dynamodb] object Codec {
         case Schema.Tuple2(l, r, _)                => tupleDecoder(decoder(l), decoder(r))
         case Schema.Transform(codec, f, _, _, _)   => transformDecoder(codec, f)
         case s: Schema.Sequence[col, a, _]         => sequenceDecoder[col, a](decoder(s.elementSchema), s.fromChunk)
+        case s: Schema.NonEmptySequence[col, a, i] => nonEmptySequenceDecoder[col, a, i](s.elementSchema, s.fromChunk, s.identity)
         case Schema.Either(l, r, _)                => eitherDecoder(decoder(l), decoder(r))
         case Primitive(standardType, _)            => primitiveDecoder(standardType)
         case l @ Schema.Lazy(_)                    =>
@@ -1012,6 +1029,22 @@ private[dynamodb] object Codec {
           Left(DecodingError(s"unexpected AttributeValue type ${av.showType}"))
       }
     }
+
+    private def nonEmptySequenceDecoder[Col, A, I](
+      elementSchema: Schema[A],
+      to: Chunk[A] => Col,
+      identity: I
+    ): Decoder[Col] =
+      identity match {
+        case "NonEmptySet" =>
+          setDecoder(elementSchema)
+            .andThen(
+              _.flatMap(zio.prelude.NonEmptySet.fromSetOption(_).toRight(DecodingError("expected a non empty set")))
+            )
+            .asInstanceOf[Decoder[Col]]
+        case _             =>
+          sequenceDecoder[Col, A](decoder(elementSchema), to)
+      }
 
     private[dynamodb] def decodeFields(
       av: AttributeValue,
