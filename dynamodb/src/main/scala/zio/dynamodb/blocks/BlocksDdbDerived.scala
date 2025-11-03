@@ -665,38 +665,47 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
           else
             av match {
               // TODO: Avi - validate against Schema that this is a simple enum variant
-              case AttributeValue.String(name)                               =>
+              case AttributeValue.String(name) =>
                 caseCodecs.byName(name) match {
                   case Some(codec) =>
                     codec.decoder.asInstanceOf[Decoder[A]](av)
                   case None        =>
                     Left(DecodingError(s"Unknown case in Variant decoder for AttributeValue: $av"))
                 }
-              case m: AttributeValue.Map if isEither(variant) && m.size == 1 =>
-                // examine the single key to determine Left vs Right
-                val it        = m.value.iterator
-                val (key, av) = it.next() // kv: (String, AttributeValue)
-
-                def decodeForLabel(label: String): Either[ItemError, A] =
-                  caseCodecs.byName(label) match {
-                    case Some(codec) =>
-                      codec.decoder.asInstanceOf[Decoder[A]](m)
-                    case None        =>
-                      Left(DecodingError(s"Unknown case in Either Variant decoder for AttributeValue: ${av.showType}"))
-                  }
-
-                if (key.value == "Right")
-                  decodeForLabel("Right")
-                else if (key.value == "Left")
-                  decodeForLabel("Left")
-                else // this should never happen
-                  Left(DecodingError(s"Unknown key in Either Variant decoder: $key"))
-
-              case m: AttributeValue.Map                                     =>
+              case m: AttributeValue.Map       =>
                 variantMetaData2 match {
+                  case VariantMetaData.Either                              =>
+                    if (m.size != 1)
+                      Left(
+                        DecodingError(s"Expected single entry Map for a tagged variant, found size ${m.size}")
+                      )
+                    else {
+                      val it        = m.value.iterator
+                      val (key, av) = it.next() // kv: (String, AttributeValue)
+
+                      def decodeForLabel(label: String): Either[ItemError, A] =
+                        caseCodecs.byName(label) match {
+                          case Some(codec) =>
+                            codec.decoder.asInstanceOf[Decoder[A]](m)
+                          case None        =>
+                            Left(
+                              DecodingError(
+                                s"Unknown case in Either Variant decoder for AttributeValue: ${av.showType}"
+                              )
+                            )
+                        }
+
+                      val v = key.value
+                      if (v eq "Right") decodeForLabel("Right")
+                      else if (v eq "Left") decodeForLabel("Left")
+                      else
+                        Left(DecodingError(s"Unknown key in Either Variant decoder: $key")) // this should never happen
+                    }
                   case VariantMetaData.DefaultTaggedDiscriminationPolicy   =>
                     if (m.size != 1)
-                      Left(DecodingError(s"Expected single entry Map for Variant decoder, found size ${m.size}"))
+                      Left(
+                        DecodingError(s"Expected single entry Map for a tagged variant, found size ${m.size}")
+                      )
                     else {
                       val it        = m.value.iterator
                       val (key, av) = it.next()
@@ -729,12 +738,12 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                   case _                                                   =>
                     Left(DecodingError(s"TODO: decode non enums and Either av: $av"))
                 }
-              case _                                                         => Left(DecodingError(s"TODO: expected a Map, found ${av.showType}"))
+              case _                           => Left(DecodingError(s"TODO: expected a Map, found ${av.showType}"))
             }
         }
       }
     } else
-      ??? // TODO: Avi - Variant, Non Native Map, Wrapper, Dynamic
+      ??? // TODO: Avi - Non Native Map, Wrapper, Dynamic
   }
 
   // TODO: Avi - delete as we have VariantMetaData now
@@ -745,17 +754,6 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       case true if ns.size == 1 && (ns.head eq "scala") => true
       case _                                            => false
     }
-  }
-
-  // TODO: Avi - delete as we have VariantMetaData now
-  private def isEither[A](variant: Reflect.Variant.Bound[A]): Boolean = {
-    val tn = variant.typeName
-    val ns = tn.namespace.packages
-
-    (tn.name eq "Either") &&
-    ns.lengthCompare(2) == 0 &&
-    ns.head == "scala" &&
-    ns(1) == "util"
   }
 
   def maybeDiscriminatorNameModifier(
