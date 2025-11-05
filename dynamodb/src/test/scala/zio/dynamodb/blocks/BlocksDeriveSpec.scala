@@ -100,7 +100,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     implicit val schema: Schema[RecordWithOptionalPerson] = Schema.derived
   }
 
-  final case class Person(id: String, age: Int)
+  final case class Person(id: String, age: Long)
   object Person extends CompanionOptics[Person] {
     implicit val schema: Schema[Person] = Schema.derived
   }

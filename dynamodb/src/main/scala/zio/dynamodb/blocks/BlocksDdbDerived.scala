@@ -258,6 +258,17 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                   .fromAttributeValue(av)
                   .asInstanceOf[Either[zio.dynamodb.DynamoDBError.ItemError, A]]
           }
+        case _: PrimitiveType.Long   =>
+          new DdbCodec[A] {
+            override def encoder: Encoder[A] =
+              (a: A) => AttributeValue.Number(BigDecimal(a.toString))
+
+            override def decoder: Decoder[A] =
+              (av: AttributeValue) =>
+                FromAttributeValue.longFromAttributeValue
+                  .fromAttributeValue(av)
+                  .asInstanceOf[Either[zio.dynamodb.DynamoDBError.ItemError, A]]
+          }
         case _                       => ??? // TODO: Avi - other types
       }
     } else if (reflect.isRecord) {
@@ -329,12 +340,17 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                   if (reflect.isPrimitive) {
                     val primitiveType = reflect.asPrimitive.get.primitiveType
                     primitiveType match {
-                      case _: PrimitiveType.Int =>
+                      case _: PrimitiveType.Int  =>
                         val av: AttributeValue =
                           encoder.asInstanceOf[Int => AttributeValue](registers.getInt(offset, 0))
                         avMap = avMap + (fieldName -> av)
                         offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
-                      case _                    =>
+                      case _: PrimitiveType.Long =>
+                        val av: AttributeValue =
+                          encoder.asInstanceOf[Long => AttributeValue](registers.getLong(offset, 0))
+                        avMap = avMap + (fieldName -> av)
+                        offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
+                      case _                     =>
                         val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
                         avMap = avMap + (fieldName -> av)
                         offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
@@ -453,14 +469,21 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                       if (reflect.isPrimitive) {
                         val primitiveType = reflect.asPrimitive.get.primitiveType
                         primitiveType match {
-                          case _: PrimitiveType.Int =>
+                          case _: PrimitiveType.Int  =>
                             decoder.asInstanceOf[AnyRef => Either[ItemError, Int]](avValue) match {
                               case Left(err)  => errors.addOne(err.message)
                               case Right(int) =>
                                 registers.setInt(offset, 0, int)
                                 offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
                             }
-                          case _                    => // TODO: Avi - other primitive types
+                          case _: PrimitiveType.Long =>
+                            decoder.asInstanceOf[AnyRef => Either[ItemError, Long]](avValue) match {
+                              case Left(err)  => errors.addOne(err.message)
+                              case Right(lng) =>
+                                registers.setLong(offset, 0, lng)
+                                offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
+                            }
+                          case _                     => // TODO: Avi - other primitive types
                             decoder.asInstanceOf[AnyRef => Either[ItemError, AnyRef]](avValue) match {
                               case Left(err)     => errors.addOne(err.message)
                               case Right(anyRef) =>
