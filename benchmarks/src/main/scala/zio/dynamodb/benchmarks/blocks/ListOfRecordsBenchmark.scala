@@ -2,13 +2,11 @@ package zio.dynamodb.benchmarks.blocks
 
 import org.openjdk.jmh.annotations._
 import zio.dynamodb.AttributeValue
-//import zio.Chunk
 import zio.blocks.schema.Schema
 import zio.dynamodb.{ Codec, Decoder, Encoder }
 import zio.dynamodb.blocks.{ BlocksDdbDerived, DdbCodec }
 import zio.schema.{ DeriveSchema, Schema => ZIOSchema }
 
-// sbt "zio-dynamodb-benchmarks/jmh:run ListOfRecordsBenchmark"
 class ListOfRecordsBenchmark extends BaseBenchmark {
   import ListOfRecordsDomain._
 
