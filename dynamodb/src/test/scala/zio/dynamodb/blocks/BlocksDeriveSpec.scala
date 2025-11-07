@@ -110,8 +110,8 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     implicit val schema: Schema[Person] = Schema.derived
   }
 
-  val spec = suite("BlocksDeriveSpec round trip spec")(
-    test("use derived codec for Record with Primitives") {
+  val spec = suite("Used derived codecs in a round trip spec")(
+    test("Record with Primitives") {
       val expectedItem            = Item("id" -> "1", "age" -> 42)
       val codec: DdbCodec[Person] = Person.schema.derive(BlocksDdbDerived)
       val expectedPerson          = Person("1", 42)
@@ -119,7 +119,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val dec                     = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
-    test("use derived codec for Record with List(1, 2) ") {
+    test("Record with List(1, 2) ") {
       val expectedItem                           =
         Item("numbers" -> List(1, 2), "map" -> Map.empty[String, Int])
       val codec: DdbCodec[RecordWithCollections] = RecordWithCollections.schema.derive(BlocksDdbDerived)
@@ -128,7 +128,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val dec                                    = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
-    test("use derived codec for Record with List() ") {
+    test("Record with List() ") {
       val expectedItem                           =
         Item("numbers" -> List.empty[String], "map" -> Map.empty[String, Int])
       val codec: DdbCodec[RecordWithCollections] = RecordWithCollections.schema.derive(BlocksDdbDerived)
@@ -137,7 +137,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val dec                                    = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
-    test("use derived codec for Record with Array('a', 'b')") {
+    test("Record with Array('a', 'b')") {
       val expectedItem                     =
         Item("names" -> Array("a", "b"))
       val codec: DdbCodec[RecordWithArray] = RecordWithArray.schema.derive(BlocksDdbDerived)
@@ -146,7 +146,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val dec                              = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
-    test("use derived codec for Record with Array()") {
+    test("Record with Array()") {
       val expectedItem                     =
         Item("names" -> Array.empty[String])
       val codec: DdbCodec[RecordWithArray] = RecordWithArray.schema.derive(BlocksDdbDerived)
@@ -155,7 +155,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val dec                              = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
-    test("use derived codec for Record with native Map[String, Int]") {
+    test("Record with native Map[String, Int]") {
       val expectedItem                           =
         Item("numbers" -> List.empty[String], "map" -> Map("a" -> 1, "b" -> 2))
       val codec: DdbCodec[RecordWithCollections] = RecordWithCollections.schema.derive(BlocksDdbDerived)
@@ -164,7 +164,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val dec                                    = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
-    test("use derived codec for Record with tuple") {
+    test("Record with tuple") {
       val expectedItem                     =
         Item("id" -> "1", "tuple" -> Item("_1" -> "a", "_2" -> 2))
       val codec: DdbCodec[RecordWithTuple] = RecordWithTuple.schema.derive(BlocksDdbDerived)
@@ -173,7 +173,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val dec                              = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expected))
     },
-    test("use derived codec for Record with native Map()") {
+    test("Record with native Map()") {
       val expectedItem                           =
         Item("numbers" -> List.empty[String], "map" -> Map.empty[String, Int])
       val codec: DdbCodec[RecordWithCollections] = RecordWithCollections.schema.derive(BlocksDdbDerived)
@@ -182,7 +182,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val dec                                    = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
-    test("use derived codec for Record with Either[String, Int] Right(42)") {
+    test("Record with Either[String, Int] Right(42)") {
       val expectedItem                      =
         Item("either" -> Item("Right" -> 42))
       val codec: DdbCodec[RecordWithEither] = RecordWithEither.schema.derive(BlocksDdbDerived)
@@ -191,7 +191,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val dec                               = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
-    test("use derived codec for Record with Either[String, Int] Left('error')") {
+    test("Record with Either[String, Int] Left('error')") {
       val expectedItem                      =
         Item("either" -> Item("Left" -> "error"))
       val codec: DdbCodec[RecordWithEither] = RecordWithEither.schema.derive(BlocksDdbDerived)
@@ -200,7 +200,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val dec                               = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
-    test("use derived codec for Record with Option[Int] Some(42)") {
+    test("Record with Option[Int] Some(42)") {
       val expectedItem                      =
         Item("id" -> "1", "option" -> 42)
       val codec: DdbCodec[RecordWithOption] = RecordWithOption.schema.derive(BlocksDdbDerived)
@@ -242,7 +242,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val enc                               = codec.encoder(person)
       assertTrue(enc == expectedItem)
     },
-    test("use derived codec for Record with Option[Int] None") {
+    test("Record with Option[Int] None") {
       val expectedItem                      =
         Item("id" -> "1")
       val codec: DdbCodec[RecordWithOption] = RecordWithOption.schema.derive(BlocksDdbDerived)
@@ -251,7 +251,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val dec                               = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
-    test("use derived codec for Record with a simple enum") {
+    test("Record with a simple enum") {
       val expectedItem                    =
         Item("light" -> "Green")
       val codec: DdbCodec[RecordWithEnum] = RecordWithEnum.schema.derive(BlocksDdbDerived)
@@ -260,7 +260,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val dec                             = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedRecord))
     },
-    test("use derived codec for Record with a complex enum using default discriminator policy") {
+    test("Record with a complex enum using default discriminator policy") {
       val expectedItem                             =
         Item("method" -> Item("CreditCard" -> Item("number" -> "1234", "cvv" -> "567")))
       val codec: DdbCodec[RecordWithPaymentMethod] = RecordWithPaymentMethod.schema.derive(BlocksDdbDerived)
@@ -269,7 +269,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val dec                                      = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedRecord))
     },
-    test("use derived codec for Record with a complex enum using field discriminator policy") {
+    test("Record with a complex enum using field discriminator policy") {
       val expectedItem                              =
         Item("method" -> Item("number" -> "1234", "cvv" -> "567", "discriminator" -> "CreditCard"))
       val codec: DdbCodec[RecordWithPaymentMethod2] = RecordWithPaymentMethod2.schema.derive(BlocksDdbDerived)
