@@ -590,6 +590,10 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       val valueCodec    = deriveCodec(new Schema(map.value), cache, maybeVariantMetaData)
       val valueEncoder  = valueCodec.encoder.asInstanceOf[Value => Any]
       val valueDecoder  = valueCodec.decoder //.asInstanceOf[Any => Value]
+
+      val keyIsString = map.key.asPrimitive.map(_.typeName.name == "String").getOrElse(false)
+      println(s"XXXXXXXXXXXX keyIsString: $keyIsString")
+
       new DdbCodec[A] {
         override def encoder: Encoder[A] =
           (x: A) => {

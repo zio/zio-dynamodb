@@ -95,6 +95,11 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     implicit val schema: Schema[RecordWithOption] = Schema.derived
   }
 
+  final case class RecordWithTuple(id: String, tuple: (String, Int))
+  object RecordWithTuple extends CompanionOptics[RecordWithTuple] {
+    implicit val schema: Schema[RecordWithTuple] = Schema.derived
+  }
+
   final case class RecordWithOptionalPerson(option: Option[Person])
   object RecordWithOptionalPerson extends CompanionOptics[RecordWithOptionalPerson] {
     implicit val schema: Schema[RecordWithOptionalPerson] = Schema.derived
@@ -158,6 +163,15 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val enc                                    = codec.encoder(expectedPerson)
       val dec                                    = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
+    },
+    test("use derived codec for Record with tuple") {
+      val expectedItem                     =
+        Item("id" -> "1", "tuple" -> Item("_1" -> "a", "_2" -> 2))
+      val codec: DdbCodec[RecordWithTuple] = RecordWithTuple.schema.derive(BlocksDdbDerived)
+      val expected                         = RecordWithTuple("1", ("a", 2))
+      val enc                              = codec.encoder(expected)
+      val dec                              = codec.decoder(enc)
+      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expected))
     },
     test("use derived codec for Record with native Map()") {
       val expectedItem                           =
