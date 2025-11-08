@@ -2,7 +2,7 @@ package zio.dynamodb.benchmarks.blocks
 
 import org.openjdk.jmh.annotations._
 import zio.dynamodb.AttributeValue
-import zio.blocks.schema.Schema
+import zio.blocks.schema.{ CompanionOptics, Schema }
 import zio.dynamodb.{ Codec, Decoder, Encoder }
 import zio.dynamodb.blocks.{ BlocksDdbDerived, DdbCodec }
 import zio.schema.{ DeriveSchema, Schema => ZIOSchema }
@@ -17,7 +17,18 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
 
   @Setup
   def setup(): Unit = {
-    listOfRecords = (1 to size).map(_ => Person(12345678901L, "John", 30, "123 Main St", List(5, 7, 9))).toList
+    listOfRecords = (1 to size)
+      .map(_ =>
+        Person(
+          12345678901L,
+          "John",
+          30,
+          "123 Main St",
+          List(5, 7, 9),
+          paymentMethod = PaymentMethod.CreditCard("John", 123)
+        )
+      )
+      .toList
     encodedListOfRecords = listOfRecords.map(zioBlocksCodec.encoder(_))
   }
 
@@ -48,7 +59,29 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
 }
 
 object ListOfRecordsDomain {
-  case class Person(id: Long, name: String, age: Int, address: String, childrenAges: List[Int])
+  sealed trait PaymentMethod
+  object PaymentMethod extends CompanionOptics[PaymentMethod] {
+    case class CreditCard(name: String, cvv: Int) extends PaymentMethod
+    object CreditCard {
+      implicit val zioSchema: ZIOSchema[CreditCard] = DeriveSchema.gen[CreditCard]
+
+      implicit val blocksSchema: Schema[CreditCard] = Schema.derived
+    }
+    case object DebitCard extends PaymentMethod
+    case object Paypal extends PaymentMethod
+
+    implicit val zioSchema: ZIOSchema[PaymentMethod] = DeriveSchema.gen[PaymentMethod]
+
+    implicit val blocksSchema: Schema[PaymentMethod] = Schema.derived
+  }
+  case class Person(
+    id: Long,
+    name: String,
+    age: Int,
+    address: String,
+    childrenAges: List[Int],
+    paymentMethod: PaymentMethod
+  )
 
   val zioSchema: ZIOSchema[Person] = DeriveSchema.gen[Person]
 
