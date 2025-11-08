@@ -644,18 +644,18 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         new DdbCodec[Map2[Key, Value]] {
           override def encoder: Encoder[Map2[Key, Value]] =
             (a: Map2[Key, Value]) => {
-              var arr = AttributeValue.List.empty
-              val it  = deconstructor.deconstruct(a)
-              while (it.hasNext) {
-                val kv           = it.next()
-                val key: Key     = deconstructor.getKey(kv)
-                val value: Value = deconstructor.getValue(kv)
-                val keyAv        = keyEncoder(key)
-                val valueAv      = valueEncoder(value)
-                val tupleAv      = AttributeValue.List(Iterable(keyAv, valueAv))
-                arr = arr + tupleAv
+              var avList = AttributeValue.List.empty // TODO: Avi - create mutable builder API for AV List
+              val map    = deconstructor.deconstruct(a)
+              while (map.hasNext) {
+                val kv                           = map.next()
+                val key: Key                     = deconstructor.getKey(kv)
+                val value: Value                 = deconstructor.getValue(kv)
+                val keyAv: AttributeValue        = keyEncoder(key)
+                val valueAv: AttributeValue      = valueEncoder(value)
+                val tupleAv: AttributeValue.List = AttributeValue.List(Iterable(keyAv, valueAv))
+                avList = avList + tupleAv
               }
-              arr
+              avList
             }
 
           override def decoder: Decoder[Map2[Key, Value]] = {

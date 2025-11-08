@@ -705,7 +705,6 @@ private[dynamodb] object Codec {
 
     private def tupleDecoder[A, B](decL: Decoder[A], decR: Decoder[B]): Decoder[(A, B)] =
       (av: AttributeValue) => {
-        println(s"XXXXXXXXXXX decoding tuple2 from AttributeValue: $av")
         av match {
           case AttributeValue.List(list: Seq[AttributeValue]) if list.size == 2 =>
             val avA = list(0)
@@ -721,7 +720,6 @@ private[dynamodb] object Codec {
 
     private def sequenceDecoder[Col, A](decoder: Decoder[A], to: Chunk[A] => Col): Decoder[Col] = {
       case AttributeValue.List(list)              =>
-        println(s"XXXXXXXXXX decoding list: $list")
         list.forEach(decoder(_)).map(xs => to(Chunk.fromIterable(xs)))
       // Low level AWS API will return an empty map for an empty list so we need to handle this case
       case AttributeValue.Map(map) if map.isEmpty => Right(to(Chunk.empty))
