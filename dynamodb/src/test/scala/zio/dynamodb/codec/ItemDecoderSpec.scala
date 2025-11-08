@@ -149,7 +149,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       assert(actual)(isRight(equalTo(expected)))
     },
     test("decode tuple2") {
-      val item     = new AttrMap(Map("tuple2" -> toAvTuple("1", 2)))
+      val item     = new AttrMap(Map("tuple2" -> toAvTupleList("1", 2)))
       val expected = CaseClassOfTuple2(("1", 2))
 
       val actual = DynamoDBQuery.fromItem[CaseClassOfTuple2](item)
@@ -157,7 +157,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       assert(actual)(isRight(equalTo(expected)))
     },
     test("decode tuple3") {
-      val item     = new AttrMap(Map("tuple" -> toAvList(toAvTuple(1, 2), toAvNum(3))))
+      val item     = new AttrMap(Map("tuple" -> toAvList(toAvTupleList(1, 2), toAvNum(3))))
       val expected = CaseClassOfTuple3((1, 2, 3))
 
       val actual = DynamoDBQuery.fromItem[CaseClassOfTuple3](item)

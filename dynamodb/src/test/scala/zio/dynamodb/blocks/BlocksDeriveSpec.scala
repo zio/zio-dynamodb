@@ -65,8 +65,14 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     numbers: List[Int] = Nil,
     map: Map[String, Int] = Map.empty
   )
-  object RecordWithCollections extends CompanionOptics[RecordWithCollections] {
+  object RecordWithCollections  extends CompanionOptics[RecordWithCollections]  {
     implicit val schema: Schema[RecordWithCollections] = Schema.derived
+  }
+  final case class RecordWithNonNativeMap(
+    map: Map[Int, Int] = Map.empty
+  )
+  object RecordWithNonNativeMap extends CompanionOptics[RecordWithNonNativeMap] {
+    implicit val schema: Schema[RecordWithNonNativeMap] = Schema.derived
   }
   final case class RecordWithArray(
     // TODO: Avi - bottom out Array support in AttrMap/To/FromAttributeValue and equality checks
@@ -82,11 +88,11 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     override def hashCode(): Int =
       names.toSeq.hashCode()
   }
-  object RecordWithArray       extends CompanionOptics[RecordWithArray]       {
+  object RecordWithArray        extends CompanionOptics[RecordWithArray]        {
     implicit val schema: Schema[RecordWithArray] = Schema.derived
   }
   final case class RecordWithEither(either: Either[String, Int])
-  object RecordWithEither      extends CompanionOptics[RecordWithEither]      {
+  object RecordWithEither       extends CompanionOptics[RecordWithEither]       {
     implicit val schema: Schema[RecordWithEither] = Schema.derived
   }
 
@@ -181,6 +187,14 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val enc                                    = codec.encoder(expectedPerson)
       val dec                                    = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
+    },
+    test("Record with NON native Map(1 -> 1, 2 -> 2)") {
+      val expectedItem                            = Item("map" -> List(List(1, 1), List(2, 2)))
+      val codec: DdbCodec[RecordWithNonNativeMap] = RecordWithNonNativeMap.schema.derive(BlocksDdbDerived)
+      val expectedRecord                          = RecordWithNonNativeMap(map = Map(1 -> 1, 2 -> 2))
+      val enc                                     = codec.encoder(expectedRecord)
+      val dec                                     = codec.decoder(enc)
+      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedRecord))
     },
     test("Record with Either[String, Int] Right(42)") {
       val expectedItem                      =

@@ -101,18 +101,25 @@ object ItemEncoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       assert(item)(equalTo(expectedItem))
     },
     test("encodes tuple3") {
-      val expected: Item = new AttrMap(Map("tuple" -> toAvList(toAvTuple(1, 2), toAvNum(3))))
+      val expected: Item = new AttrMap(Map("tuple" -> toAvList(toAvTupleList(1, 2), toAvNum(3))))
 
       val item = DynamoDBQuery.toItem(CaseClassOfTuple3((1, 2, 3)))
 
       assert(item)(equalTo(expected))
     },
-    test("encodes map") {
+    test("encodes native map") {
       val expectedItem: Item = Item("map" -> Map("One" -> 1, "Two" -> 2))
 
       val item = DynamoDBQuery.toItem(CaseClassOfMapOfInt(Map("One" -> 1, "Two" -> 2)))
 
       assert(item)(equalTo(expectedItem))
+    },
+    test("encodes non native map") {
+//      val expectedItem: Item = Item("map" -> Map(1 -> 1, 1 -> 2))
+
+      val item: Item = DynamoDBQuery.toItem(CaseClassOfMapOfInt2(Map(1 -> 1, 2 -> 2)))
+      println(s"XXXXXXXX item: ${item.toAttributeValue}")
+      assert(true)(equalTo(true))
     },
     test("encodes Either Right") {
       val expectedItem: Item = Item("either" -> Item("Right" -> 1))

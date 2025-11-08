@@ -60,6 +60,7 @@ final case class CaseClassOfInstant(instant: Instant)
 final case class CaseClassOfStatus(status: Status)
 
 final case class CaseClassOfMapOfInt(map: Map[String, Int])
+final case class CaseClassOfMapOfInt2(map: Map[Int, Int])
 
 final case class CaseClassOfSetOfInt(set: Set[Int])
 

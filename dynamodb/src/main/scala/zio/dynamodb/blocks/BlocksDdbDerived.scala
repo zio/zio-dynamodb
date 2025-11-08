@@ -571,7 +571,8 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
             }
       }
 
-    } else if (reflect.isMap) { // TODO: Avi - assume native DDB Map with String keys only for now
+    } else if (reflect.isMap) {
+      // TODO: Avi - Map as Tuple handling - Blocks encodes Tuples as Maps
       val map           = reflect.asMapUnknown.get.map
       val mapBinding    =
         try map.mapBinding.asInstanceOf[Binding.Map[Map2, Key, Value]]
@@ -584,61 +585,121 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         }
       val constructor   = mapBinding.constructor
       val deconstructor = mapBinding.deconstructor
-      val keyCodec      = deriveCodec(new Schema(map.key), cache, maybeVariantMetaData)
-      val keyEncoder    = keyCodec.encoder.asInstanceOf[Key => AttributeValue.String]
+      val keyCodec      =
+        deriveCodec(new Schema(map.key), cache, maybeVariantMetaData)
+          .asInstanceOf[DdbCodec[Key]]
+      val keyEncoder    = keyCodec.encoder   //.asInstanceOf[Key => AttributeValue.String]
       val keyDecoder    = keyCodec.decoder.asInstanceOf[Any => Either[ItemError.DecodingError, Key]]
-      val valueCodec    = deriveCodec(new Schema(map.value), cache, maybeVariantMetaData)
-      val valueEncoder  = valueCodec.encoder.asInstanceOf[Value => Any]
+      val valueCodec    = deriveCodec(new Schema(map.value), cache, maybeVariantMetaData).asInstanceOf[DdbCodec[Value]]
+      val valueEncoder  = valueCodec.encoder //.asInstanceOf[Value => Any]
       val valueDecoder  = valueCodec.decoder //.asInstanceOf[Any => Value]
 
-      val keyIsString = map.key.asPrimitive.map(_.typeName.name == "String").getOrElse(false)
-      println(s"XXXXXXXXXXXX keyIsString: $keyIsString")
+      val isNativeMap = map.key.asPrimitive.map(_.typeName.name == "String").getOrElse(false)
 
-      new DdbCodec[A] {
-        override def encoder: Encoder[A] =
-          (x: A) => {
-            var map = AttributeValue.Map.empty
-            val it  = deconstructor.deconstruct(x.asInstanceOf[Map2[Key, Value]])
-            while (it.hasNext) {
-              val kv             = it.next()
-              val key            = deconstructor.getKey(kv)
-              val value          = deconstructor.getValue(kv)
-              val keyVal: String = keyEncoder(key).value
-              map = map + (keyVal -> valueEncoder(value).asInstanceOf[AttributeValue])
-            }
-            map
-          }
-
-        override def decoder: Decoder[A] =
-          (av: AttributeValue) => {
-            if (!av.isInstanceOf[AttributeValue.Map])
-              Left(ItemError.DecodingError(s"Expected AttributeValue.Map, found ${av.showType}"))
-            else {
-              val errors  = new ArrayBuffer[String]
-              val map     = av.asInstanceOf[AttributeValue.Map]
-              val builder = constructor.newObjectBuilder[Key, Value](8)
-              val it      = map.value.iterator
+      if (isNativeMap)
+        new DdbCodec[Map2[Key, Value]] {
+          override def encoder: Encoder[Map2[Key, Value]] =
+            (m: Map2[Key, Value]) => {
+              var map = AttributeValue.Map.empty
+              val it  = deconstructor.deconstruct(m)
               while (it.hasNext) {
-                val (k, v) = it.next()
-                (keyDecoder(k), valueDecoder(v)) match {
-                  case (Right(key), Right(value)) =>
-                    // TODO: Avi - why do we need this cast?
-                    constructor.addObject(builder, key, value.asInstanceOf[Value])
-                  case (Left(errL), Left(errR))   =>
-                    errors.addOne(errL.message)
-                    errors.addOne(errR.message)
-                  case (_, Left(err))             => errors.addOne(err.message)
-                  case (Left(err), _)             => errors.addOne(err.message)
+                val kv             = it.next()
+                val key            = deconstructor.getKey(kv)
+                val value          = deconstructor.getValue(kv)
+                val keyVal: String = keyEncoder.asInstanceOf[Key => AttributeValue.String](key).value
+                map = map + (keyVal -> valueEncoder(value))
+              }
+              map
+            }
+
+          override def decoder: Decoder[Map2[Key, Value]] =
+            (av: AttributeValue) => {
+              if (!av.isInstanceOf[AttributeValue.Map])
+                Left(ItemError.DecodingError(s"Expected AttributeValue.Map, found ${av.showType}"))
+              else {
+                val errors  = new ArrayBuffer[String]
+                val map     = av.asInstanceOf[AttributeValue.Map]
+                val builder = constructor.newObjectBuilder[Key, Value](8)
+                val it      = map.value.iterator
+                while (it.hasNext) {
+                  val (k, v) = it.next()
+                  (keyDecoder(k), valueDecoder(v)) match {
+                    case (Right(key), Right(value)) =>
+                      constructor.addObject(builder, key, value)
+                    case (Left(errL), Left(errR))   =>
+                      errors.addOne(errL.message)
+                      errors.addOne(errR.message)
+                    case (_, Left(err))             => errors.addOne(err.message)
+                    case (Left(err), _)             => errors.addOne(err.message)
+                  }
+                }
+                if (errors.isEmpty) {
+                  val m = constructor.resultObject[Key, Value](builder)
+                  Right(m)
+                } else Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
+              }
+            }
+        }
+      else // non native Map encoding - Sequence of tuple2
+        new DdbCodec[Map2[Key, Value]] {
+          override def encoder: Encoder[Map2[Key, Value]] =
+            (a: Map2[Key, Value]) => {
+              var arr = AttributeValue.List.empty
+              val it  = deconstructor.deconstruct(a)
+              while (it.hasNext) {
+                val kv           = it.next()
+                val key: Key     = deconstructor.getKey(kv)
+                val value: Value = deconstructor.getValue(kv)
+                val keyAv        = keyEncoder(key)
+                val valueAv      = valueEncoder(value)
+                val tupleAv      = AttributeValue.List(Iterable(keyAv, valueAv))
+                arr = arr + tupleAv
+              }
+              arr
+            }
+
+          override def decoder: Decoder[Map2[Key, Value]] = {
+            case AttributeValue.List(value) =>
+              val it      = value.iterator
+              val errors  = new ArrayBuffer[String]
+              val builder = constructor.newObjectBuilder[Key, Value](8)
+
+              while (it.hasNext) {
+                val next = it.next()
+                next match {
+                  case AttributeValue.List(kvItems) if kvItems.size == 2 =>
+                    val it      = kvItems.iterator
+                    val keyAv   = it.next()
+                    val valueAv = it.next()
+                    // TODO: Avi - extract to a local method and call twice for native and non-native
+                    (keyDecoder(keyAv), valueDecoder(valueAv)) match {
+                      case (Right(key), Right(value)) =>
+                        constructor.addObject(builder, key, value)
+                      case (Left(errL), Left(errR))   =>
+                        errors.addOne(errL.message)
+                        errors.addOne(errR.message)
+                      case (_, Left(err))             => errors.addOne(err.message)
+                      case (Left(err), _)             => errors.addOne(err.message)
+                    }
+                  case other                                             =>
+                    errors.addOne(
+                      s"Expected AttributeValue.List of size 2 for Map entry, found: ${other.showType}"
+                    )
+
                 }
               }
+
               if (errors.isEmpty) {
                 val m = constructor.resultObject[Key, Value](builder)
-                Right(m.asInstanceOf[A])
+                Right(m)
               } else Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
-            }
+
+            case av                         => Left(ItemError.DecodingError(s"Expected AttributeValue.List, found ${av.showType}"))
           }
-      }
-    } else if (reflect.isVariant) {
+
+        }
+    }.asInstanceOf[DdbCodec[A]]
+    else if (reflect.isVariant) {
       val variant: Reflect.Variant[Binding, A] = reflect.asVariant.get
       val variantBinding                       =
         try variant.variantBinding.asInstanceOf[Binding.Variant[A]]
@@ -770,7 +831,8 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         }
       }
     } else
-      ??? // TODO: Avi - Non Native Map, Wrapper, Dynamic
+      ??? // TODO: Avi - Set - Native Sets SS, BS, NS and Non Native Set, Wrapper, Dynamic
+    // TODO: Avi - Tuple implementation inside of Map codec
   }
 
   // TODO: Avi - delete as we have VariantMetaData now

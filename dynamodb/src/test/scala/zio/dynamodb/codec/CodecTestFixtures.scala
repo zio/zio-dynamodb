@@ -59,7 +59,8 @@ trait CodecTestFixtures {
   lazy implicit val caseClassOfInstant: Schema[CaseClassOfInstant]                                 = DeriveSchema.gen[CaseClassOfInstant]
   lazy implicit val caseClassOfStatus: Schema[CaseClassOfStatus]                                   = DeriveSchema.gen[CaseClassOfStatus]
 
-  implicit val caseClassOfMapOfInt: Schema[CaseClassOfMapOfInt] = DeriveSchema.gen[CaseClassOfMapOfInt]
+  implicit val caseClassOfMapOfInt: Schema[CaseClassOfMapOfInt]   = DeriveSchema.gen[CaseClassOfMapOfInt]
+  implicit val caseClassOfMapOfInt2: Schema[CaseClassOfMapOfInt2] = DeriveSchema.gen[CaseClassOfMapOfInt2]
 
   implicit val caseClassOfSetOfInt: Schema[CaseClassOfSetOfInt] = DeriveSchema.gen[CaseClassOfSetOfInt]
 
@@ -67,9 +68,9 @@ trait CodecTestFixtures {
 
   implicit val statusSchema: Schema[Status] = DeriveSchema.gen[Status]
 
-  def toAvString(s: String): AttributeValue.String                                         = AttributeValue.String(s)
-  def toAvNum(i: Int): AttributeValue.Number                                               = AttributeValue.Number(BigDecimal(i))
-  def toAvList(xs: AttributeValue*): AttributeValue.List                                   = AttributeValue.List(xs.toList)
-  def toAvTuple[A: ToAttributeValue, B: ToAttributeValue](a: A, b: B): AttributeValue.List =
+  def toAvString(s: String): AttributeValue.String                                             = AttributeValue.String(s)
+  def toAvNum(i: Int): AttributeValue.Number                                                   = AttributeValue.Number(BigDecimal(i))
+  def toAvList(xs: AttributeValue*): AttributeValue.List                                       = AttributeValue.List(xs.toList)
+  def toAvTupleList[A: ToAttributeValue, B: ToAttributeValue](a: A, b: B): AttributeValue.List =
     toAvList(ToAttributeValue[A].toAttributeValue(a), ToAttributeValue[B].toAttributeValue(b))
 }
