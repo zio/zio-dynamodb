@@ -1,5 +1,6 @@
 package zio.dynamodb.blocks
 
+import zio.blocks.schema.Reflect.Bound
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.derive.{ BindingInstance, Deriver }
@@ -41,14 +42,12 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
   ): Lazy[DdbCodec[A]] =
     Lazy(
       deriveCodec(
-        new Schema(
-          Reflect.Primitive(
-            primitiveType = primitiveType,
-            typeName = typeName,
-            primitiveBinding = binding,
-            doc = doc,
-            modifiers = modifiers
-          )
+        Reflect.Primitive(
+          primitiveType = primitiveType,
+          typeName = typeName,
+          primitiveBinding = binding,
+          doc = doc,
+          modifiers = modifiers
         )
       )
     )
@@ -62,14 +61,12 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] =
     Lazy(
       deriveCodec(
-        new Schema(
-          Reflect.Record(
-            fields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, _]]],
-            typeName = typeName,
-            recordBinding = binding,
-            doc = doc,
-            modifiers = modifiers
-          )
+        Reflect.Record(
+          fields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, _]]],
+          typeName = typeName,
+          recordBinding = binding,
+          doc = doc,
+          modifiers = modifiers
         )
       )
     )
@@ -83,15 +80,13 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] =
     Lazy(
       deriveCodec(
-        new Schema(
-          Reflect.Variant(
-            cases =
-              cases.asInstanceOf[IndexedSeq[Term[Binding, A, _ <: A]]], // TODO: Avi - formatter complains about ? <: A
-            typeName = typeName,
-            variantBinding = binding,
-            doc = doc,
-            modifiers = modifiers
-          )
+        Reflect.Variant(
+          cases =
+            cases.asInstanceOf[IndexedSeq[Term[Binding, A, _ <: A]]], // TODO: Avi - formatter complains about ? <: A
+          typeName = typeName,
+          variantBinding = binding,
+          doc = doc,
+          modifiers = modifiers
         )
       )
     )
@@ -105,14 +100,12 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[C[A]]] =
     Lazy(
       deriveCodec(
-        new Schema(
-          Reflect.Sequence(
-            element = element.asInstanceOf[Reflect[Binding, A]],
-            typeName = typeName,
-            seqBinding = binding,
-            doc = doc,
-            modifiers = modifiers
-          )
+        Reflect.Sequence(
+          element = element.asInstanceOf[Reflect[Binding, A]],
+          typeName = typeName,
+          seqBinding = binding,
+          doc = doc,
+          modifiers = modifiers
         )
       )
     )
@@ -127,15 +120,13 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[M[K, V]]] =
     Lazy(
       deriveCodec(
-        new Schema(
-          Reflect.Map(
-            key = key.asInstanceOf[Reflect[Binding, K]],
-            value = value.asInstanceOf[Reflect[Binding, V]],
-            typeName = typeName,
-            mapBinding = binding,
-            doc = doc,
-            modifiers = modifiers
-          )
+        Reflect.Map(
+          key = key.asInstanceOf[Reflect[Binding, K]],
+          value = value.asInstanceOf[Reflect[Binding, V]],
+          typeName = typeName,
+          mapBinding = binding,
+          doc = doc,
+          modifiers = modifiers
         )
       )
     )
@@ -231,11 +222,10 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     }
 
   private def deriveCodec[A](
-    schema: Schema[A],
+    reflect: Bound[A],
     cache: mutable.HashMap[TypeName[?], CacheEntry] = new mutable.HashMap,
     maybeVariantMetaData: Option[VariantMetaData] = None
   ): DdbCodec[A] = {
-    val reflect = schema.reflect
     if (reflect.isPrimitive) {
       val primitiveType = reflect.asPrimitive.get.primitiveType
       primitiveType match {
@@ -307,7 +297,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
             var idx = 0
             while (idx < len) {
               val reflect = fields(idx).value
-              codecs.addEntry(deriveCodec(new Schema(reflect), cache, maybeVariantMetaData), fields(idx).name, idx)
+              codecs.addEntry(deriveCodec(reflect, cache, maybeVariantMetaData), fields(idx).name, idx)
               idx += 1
             }
           }
@@ -537,7 +527,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       val constructor   = seqBinding.constructor
       val deconstructor = seqBinding.deconstructor
       val element       = sequence.element
-      val elementCodec  = deriveCodec(new Schema(element), cache, maybeVariantMetaData)
+      val elementCodec  = deriveCodec(element, cache, maybeVariantMetaData)
       val encoder2      = elementCodec.encoder.asInstanceOf[A => AttributeValue]
       val decoder2      = elementCodec.decoder //.asInstanceOf[Any => A]
       new DdbCodec[A] {
@@ -586,11 +576,11 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       val constructor   = mapBinding.constructor
       val deconstructor = mapBinding.deconstructor
       val keyCodec      =
-        deriveCodec(new Schema(map.key), cache, maybeVariantMetaData)
+        deriveCodec(map.key, cache, maybeVariantMetaData)
           .asInstanceOf[DdbCodec[Key]]
       val keyEncoder    = keyCodec.encoder   //.asInstanceOf[Key => AttributeValue.String]
       val keyDecoder    = keyCodec.decoder.asInstanceOf[Any => Either[ItemError.DecodingError, Key]]
-      val valueCodec    = deriveCodec(new Schema(map.value), cache, maybeVariantMetaData).asInstanceOf[DdbCodec[Value]]
+      val valueCodec    = deriveCodec(map.value, cache, maybeVariantMetaData).asInstanceOf[DdbCodec[Value]]
       val valueEncoder  = valueCodec.encoder //.asInstanceOf[Value => Any]
       val valueDecoder  = valueCodec.decoder //.asInstanceOf[Any => Value]
 
@@ -725,7 +715,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
           while (idx < len) {
             val reflect = cases(idx).value
             codecs.addEntry(
-              deriveCodec(new Schema(reflect), cache, Some(variantMetaData2)),
+              deriveCodec(reflect, cache, Some(variantMetaData2)),
               cases(idx).name,
               idx
             )
