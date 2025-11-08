@@ -307,16 +307,13 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       new DdbCodec[A] {
         override def encoder: Encoder[A] = {
           val encoder: Encoder[A] = (a: A) => {
-            // TODO: Avi - determine if we are in context variant - (may need to pass into deriveCodec ???)
-            // discriminator: add discriminator field
-            // default: add discriminator field Map -> record
-            var avMap     = AttributeValue.Map.empty // TODO: Avi - create a mutable builder API for AV Map
-            val registers = Registers(record.usedRegisters)
+            var avMapBuilder = AttributeValue.Map.MapBuilder()
+            val registers    = Registers(record.usedRegisters)
             deconstructor.deconstruct(registers, RegisterOffset.Zero, a)
-            var offset    = RegisterOffset.Zero
-            var idx       = -1
+            var offset       = RegisterOffset.Zero
+            var idx          = -1
 
-            val av =
+            val av: AttributeValue =
               if (fields.isEmpty) // TODO: Avi - do we need more info to validate this is an enum?
                 // TODO: Avi - investigate doing "None" case object enum here as well
                 // for simple enums no need to recurse any further as we can decode directly
@@ -333,16 +330,16 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                       case _: PrimitiveType.Int  =>
                         val av: AttributeValue =
                           encoder.asInstanceOf[Int => AttributeValue](registers.getInt(offset, 0))
-                        avMap = avMap + (fieldName -> av)
+                        avMapBuilder = avMapBuilder.add(fieldName, av)
                         offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
                       case _: PrimitiveType.Long =>
                         val av: AttributeValue =
                           encoder.asInstanceOf[Long => AttributeValue](registers.getLong(offset, 0))
-                        avMap = avMap + (fieldName -> av)
+                        avMapBuilder = avMapBuilder.add(fieldName, av)
                         offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
                       case _                     =>
                         val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
-                        avMap = avMap + (fieldName -> av)
+                        avMapBuilder = avMapBuilder.add(fieldName, av)
                         offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                     }
                   } else {
@@ -352,7 +349,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                           if isOption(v) && (av == AttributeValue.String("None") || av == AttributeValue.Null) =>
                         () // skip adding Null Optional fields to the map
                       case _ =>
-                        avMap = avMap + (fieldName -> av)
+                        avMapBuilder = avMapBuilder.add(fieldName, av)
                     }
                     offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                   }
@@ -363,35 +360,35 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                 //
 
                 maybeVariantMetaData match {
-                  case None         => avMap
+                  case None         => avMapBuilder.build
                   case Some(policy) =>
                     policy match {
                       case VariantMetaData.Option | VariantMetaData.Either
-                          if fields.length == 1 && (recordPackageIsScala | recordPackageIsScalaUtil) && avMap.size == 1 =>
-                        val it             = avMap.value.iterator
+                          if fields.length == 1 && (recordPackageIsScala | recordPackageIsScalaUtil) && avMapBuilder.size == 1 =>
+                        val it             = avMapBuilder.iterator
                         val (kAttr, vAttr) = it.next()
                         val keyName        = kAttr.value
                         val typeName       = record.typeName.name
 
                         if (typeName eq "Some")
                           if (keyName eq "value") vAttr // Some is encoded without a Map
-                          else avMap
+                          else avMapBuilder.build
                         else if (typeName eq "Right")
                           if (keyName eq "value") AttributeValue.Map("Right", vAttr)
-                          else avMap
+                          else avMapBuilder.build
                         else if (typeName eq "Left")
                           if (keyName eq "value") AttributeValue.Map("Left", vAttr)
-                          else avMap
-                        else avMap
+                          else avMapBuilder.build
+                        else avMapBuilder.build
                       case VariantMetaData.FieldDiscriminationPolicy(discriminatorFieldName) =>
-                        avMap + (discriminatorFieldName -> AttributeValue.String(record.typeName.name))
+                        avMapBuilder.add(discriminatorFieldName, AttributeValue.String(record.typeName.name)).build
                       case VariantMetaData.NoDiscriminator                                   =>
                         // TODO: Avi - this is not relevant to record level processing
-                        avMap
+                        avMapBuilder.build
                       case VariantMetaData.DefaultTaggedDiscriminationPolicy                 =>
                         // default behavior: add discriminator field
-                        AttributeValue.Map(record.typeName.name, avMap)
-                      case _                                                                 => avMap
+                        AttributeValue.Map(record.typeName.name, avMapBuilder.build)
+                      case _                                                                 => avMapBuilder.build
                     }
                 }
               }
@@ -590,16 +587,16 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         new DdbCodec[Map2[Key, Value]] {
           override def encoder: Encoder[Map2[Key, Value]] =
             (m: Map2[Key, Value]) => {
-              var map = AttributeValue.Map.empty
-              val it  = deconstructor.deconstruct(m)
+              val mapBuilder = AttributeValue.Map.MapBuilder()
+              val it         = deconstructor.deconstruct(m)
               while (it.hasNext) {
                 val kv             = it.next()
                 val key            = deconstructor.getKey(kv)
                 val value          = deconstructor.getValue(kv)
                 val keyVal: String = keyEncoder.asInstanceOf[Key => AttributeValue.String](key).value
-                map = map + (keyVal -> valueEncoder(value))
+                mapBuilder.add(keyVal, valueEncoder(value))
               }
-              map
+              mapBuilder.build
             }
 
           override def decoder: Decoder[Map2[Key, Value]] =

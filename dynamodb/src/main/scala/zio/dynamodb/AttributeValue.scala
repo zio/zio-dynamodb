@@ -85,6 +85,7 @@ object AttributeValue {
     }
 
     def size: Int = self.value.size
+
   }
 
   /*private[dynamodb]*/
@@ -94,6 +95,41 @@ object AttributeValue {
     // TODO: find occurrences of "AttributeValue.Map(Map" or "AttributeValue.Map(ScalaMap"
     def apply(fieldName: ScalaString, value: AttributeValue): Map =
       Map(ScalaMap((String(fieldName), value)))
+
+    final class MapBuilder private () {
+      private val underlying = scala.collection.mutable.Map.empty[String, AttributeValue]
+
+      def iterator: Iterator[(String, AttributeValue)] = underlying.iterator
+
+      def size: Int = underlying.size
+
+      def add(key: ScalaString, value: AttributeValue): MapBuilder = {
+        underlying += (String(key) -> value)
+        this
+      }
+
+      def addAll(pairs: (ScalaString, AttributeValue)*): MapBuilder = {
+        pairs.foreach { case (k, v) => underlying += (String(k) -> v) }
+        this
+      }
+
+      def addIfDefined(key: ScalaString, value: Option[AttributeValue]): MapBuilder = {
+        value.foreach(v => underlying += (String(key) -> v))
+        this
+      }
+
+      def build: Map = Map(underlying.toMap)
+    }
+
+    object MapBuilder {
+      def apply(): MapBuilder = new MapBuilder()
+
+      def from(map: Map): MapBuilder = {
+        val builder = new MapBuilder()
+        builder.underlying ++= map.value
+        builder
+      }
+    }
   }
 
   private[dynamodb] final case class Number(value: BigDecimal)          extends AttributeValue
