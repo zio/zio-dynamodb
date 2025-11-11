@@ -291,7 +291,14 @@ lazy val benchmarks = module("zio-dynamodb-benchmarks", "benchmarks")
   .settings(
     resolvers += Resolver.sonatypeCentralSnapshots, //Resolver.sonatypeOssRepos("releases"),
     publish / skip := true,
-    fork := true
+    fork := true,
+    libraryDependencies ++= Seq(
+      "org.systemfw" %% "dynosaur-core" % "0.7.1",
+      "dev.zio"      %% "zio-test"      % zioVersion % "test",
+      "dev.zio"      %% "zio-test-sbt"  % zioVersion % "test",
+      "dev.zio"      %% "zio-json"      % "0.7.44"
+    ),
+    testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
   .dependsOn(zioDynamodb, zioDynamodbCe, zioDynamodbJson)
   .enablePlugins(JmhPlugin)

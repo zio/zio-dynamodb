@@ -1,5 +1,7 @@
 package zio.dynamodb.benchmarks.blocks
 
+import dynosaur.DynamoValue
+import dynosaur.Schema.WriteError
 import org.openjdk.jmh.annotations._
 import zio.dynamodb.AttributeValue
 import zio.blocks.schema.{ CompanionOptics, Schema }
@@ -11,9 +13,10 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
   import ListOfRecordsDomain._
 
   @Param(Array("1", "10", "100", "1000", "10000", "100000"))
-  var size: Int                                  = 1000
-  var listOfRecords: List[Person]                = _
-  var encodedListOfRecords: List[AttributeValue] = _
+  var size: Int                                          = 1000
+  var listOfRecords: List[Person]                        = _
+  var encodedListOfRecords: List[AttributeValue]         = _
+  var encodedListOfRecordsForDynosaur: List[DynamoValue] = _
 
   @Setup
   def setup(): Unit = {
@@ -30,7 +33,19 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
       )
       .toList
     encodedListOfRecords = listOfRecords.map(zioBlocksCodec.encoder(_))
+    encodedListOfRecordsForDynosaur = listOfRecords.map { x =>
+      DynosaurSchema.personSchema.write(x).getOrElse(throw new Exception("Failed to encode"))
+    }
   }
+
+  @Benchmark
+  def readingDynosaur: List[Person] =
+    encodedListOfRecordsForDynosaur.map(av =>
+      DynosaurSchema.personSchema.read(av) match {
+        case Right(value) => value
+        case Left(error)  => sys.error(error.getMessage)
+      }
+    )
 
   @Benchmark
   def readingZioBlocks: List[Person] =
@@ -49,6 +64,9 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
         case Left(error)  => sys.error(error.getMessage)
       }
     )
+
+  @Benchmark
+  def writingDynosaur: Seq[Either[WriteError, DynamoValue]] = listOfRecords.map(DynosaurSchema.personSchema.write)
 
   @Benchmark
   def writingZioBlocks: Seq[AttributeValue] = listOfRecords.map(zioBlocksCodec.encoder(_))

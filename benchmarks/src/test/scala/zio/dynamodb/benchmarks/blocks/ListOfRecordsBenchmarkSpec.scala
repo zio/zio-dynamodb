@@ -10,10 +10,13 @@ object ListOfRecordsBenchmarkSpec extends ZIOSpecDefault {
         benchmark.setup()
         assertTrue(benchmark.writingZioBlocks == benchmark.writingZioSchema)
       },
-      test("reading: zio blocks equals zio schema") {
+      test("reading: zio blocks equals zio schema equals dynosaur") {
         val benchmark = new ListOfRecordsBenchmark()
         benchmark.setup()
-        assertTrue(benchmark.readingZioBlocks == benchmark.readingZioSchema)
+        assertTrue(
+          benchmark.readingZioBlocks == benchmark.readingDynosaur,
+          benchmark.readingZioBlocks == benchmark.readingZioSchema
+        )
       }
     )
 
