@@ -513,6 +513,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
       }
     } else if (reflect.isSequence) {
+      println(s"XXXXXXXXXX isSequence: ${reflect.typeName.name}")
       val errors        = new ArrayBuffer[String]
       val sequence      = reflect.asSequenceUnknown.get.sequence
       val seqBinding    =
