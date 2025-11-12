@@ -33,6 +33,8 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     case object NoDiscriminator extends VariantMetaData
   }
 
+  // TODO: Avi - extract simple codecs that do not need context as vals to save memory allocations
+
   override def derivePrimitive[F[_, _], A](
     primitiveType: PrimitiveType[A],
     typeName: TypeName[A],
@@ -221,6 +223,34 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         ???
     }
 
+  private val intCodec: DdbCodec[Int]       = new DdbCodec[Int] {
+    override def encoder: Encoder[Int] =
+      (a: Int) => AttributeValue.Number(BigDecimal(a.toString))
+
+    override def decoder: Decoder[Int] =
+      (av: AttributeValue) =>
+        FromAttributeValue.intFromAttributeValue
+          .fromAttributeValue(av)
+          .asInstanceOf[Either[zio.dynamodb.DynamoDBError.ItemError, Int]]
+  }
+  private val stringCodec: DdbCodec[String] = new DdbCodec[String] {
+    override def encoder: Encoder[String] =
+      (a: String) => AttributeValue.String(a)
+
+    override def decoder: Decoder[String] =
+      (av: AttributeValue) => FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av)
+  }
+  private val longCodec                     = new DdbCodec[Long] {
+    override def encoder: Encoder[Long] =
+      (a: Long) => AttributeValue.Number(BigDecimal(a.toString))
+
+    override def decoder: Decoder[Long] =
+      (av: AttributeValue) =>
+        FromAttributeValue.longFromAttributeValue
+          .fromAttributeValue(av)
+          .asInstanceOf[Either[zio.dynamodb.DynamoDBError.ItemError, Long]]
+  }
+
   private def deriveCodec[A](
     reflect: Bound[A],
     cache: mutable.HashMap[TypeName[?], CacheEntry] = new mutable.HashMap,
@@ -230,36 +260,9 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       val primitiveType = reflect.asPrimitive.get.primitiveType
       primitiveType match {
         // TODO: Avi - extract these to vals & handle other primitive types
-        case _: PrimitiveType.String =>
-          new DdbCodec[A] {
-            override def encoder: Encoder[A] =
-              (a: A) => AttributeValue.String(a.toString)
-
-            override def decoder: Decoder[A] =
-              (av: AttributeValue) => FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av)
-          }
-        case _: PrimitiveType.Int    =>
-          new DdbCodec[A] {
-            override def encoder: Encoder[A] =
-              (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-
-            override def decoder: Decoder[A] =
-              (av: AttributeValue) =>
-                FromAttributeValue.intFromAttributeValue
-                  .fromAttributeValue(av)
-                  .asInstanceOf[Either[zio.dynamodb.DynamoDBError.ItemError, A]]
-          }
-        case _: PrimitiveType.Long   =>
-          new DdbCodec[A] {
-            override def encoder: Encoder[A] =
-              (a: A) => AttributeValue.Number(BigDecimal(a.toString))
-
-            override def decoder: Decoder[A] =
-              (av: AttributeValue) =>
-                FromAttributeValue.longFromAttributeValue
-                  .fromAttributeValue(av)
-                  .asInstanceOf[Either[zio.dynamodb.DynamoDBError.ItemError, A]]
-          }
+        case _: PrimitiveType.String => stringCodec
+        case _: PrimitiveType.Int    => intCodec
+        case _: PrimitiveType.Long   => longCodec
         case _                       => ??? // TODO: Avi - other types
       }
     } else if (reflect.isRecord) {
@@ -529,62 +532,11 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       val encoder2      = elementCodec.encoder.asInstanceOf[A => AttributeValue]
       val decoder2      = elementCodec.decoder //.asInstanceOf[Any => A]
 
-//      val isSet          = reflect.typeName.name.endsWith("Set")
+      val isSet          = reflect.typeName.name.endsWith("Set")
       val maybeNativeSet = NativeSet.fromTypeName(reflect.typeName, element.typeName)
       println(s"XXXXXXXXXX maybeNativeSet: $maybeNativeSet  ${element.isPrimitive}")
 
-      /*
-isPrimitive true => candidate for NativeSet
-isPrimitive false => what about BS - is it still a primitive ????
-
-we need:
-- Set codecs
-  - native set codec using AttributeValue.SS/BS/NS
-  - non native set codec whereby enc is AttributeValue.List ie Sequence codec ?
-- Sequence codec
-       */
-
-      if (maybeNativeSet.isDefined)
-        new DdbCodec[A] {
-          override def encoder: Encoder[A] =
-            (a: A) => {
-              maybeNativeSet match {
-                case Some(NativeSet.StringSet) =>
-                  val ss = a.asInstanceOf[Set[String]]
-                  AttributeValue.StringSet(ss)
-                case Some(NativeSet.NumberSet) =>
-                  element.asPrimitive.get.primitiveType match {
-                    case _: PrimitiveType.Int  =>
-                      val ns = a.asInstanceOf[Set[Int]].map(i => BigDecimal(i))
-                      AttributeValue.NumberSet(ns)
-                    case _: PrimitiveType.Long =>
-                      val ns = a.asInstanceOf[Set[Long]].map(l => BigDecimal(l))
-                      AttributeValue.NumberSet(ns)
-                    case _                     =>
-                      throw new Exception(
-                        "NativeSet NumberSet encoding not implemented yet for this primitive type"
-                      ) // TODO: Avi
-                  }
-                  println(s"XXXXXXXXXX Encoding NumberSet for value: $a")
-                  ???
-//                  val res = new ArrayBuffer[BigDecimal]
-//                  val it  = deconstructor.deconstruct(a.asInstanceOf[Col[A]])
-//                  while (it.hasNext) {
-//                    val encAvNumber = encoder2(it.next()).asInstanceOf[AttributeValue.Binary]
-//                    res.addOne(encAvNumber.value)
-//                  }
-//                  AttributeValue.NumberSet(res.toSet)
-                case _                         => throw new Exception("NativeSet encoding not implemented yet") // TODO: Avi
-              }
-            }
-
-          override def decoder: Decoder[A] = {
-            case AttributeValue.StringSet(value) => Right(value.asInstanceOf[A])
-            case av                              => Left(ItemError.DecodingError(s"Expected AttributeValue.StringSet, found ${av.showType}"))
-          }
-
-        }
-      else
+      val sequenceCodec: DdbCodec[A] =
         new DdbCodec[A] {
           override def encoder: Encoder[A] =
             (a: A) => {
@@ -615,6 +567,70 @@ we need:
                 case _                          => Left(ItemError.DecodingError(s"Expected AttributeValue.List, found ${av.showType}"))
               }
         }
+
+      /*
+isPrimitive true => candidate for NativeSet
+isPrimitive false => what about BS - is it still a primitive ????
+
+we need:
+- Set codecs
+  - native set codec using AttributeValue.SS/BS/NS
+  - non native set codec whereby enc is AttributeValue.List ie Sequence codec ?
+- Sequence codec
+
+if (isSet) {
+    if (isPrimitive) {
+      element.asPrimitive.get.primitiveType match {
+        case _: PrimitiveType.Int  =>
+          new DdbEncode[A] = ...
+      }
+        nativeSetCodec
+    } else {
+        sequenceCodec
+    }
+} else {
+  sequenceCodec
+}
+
+       */
+
+      if (isSet)
+        if (element.isPrimitive)
+          element.asPrimitive.get.primitiveType match {
+            case _: PrimitiveType.String =>
+              new DdbCodec[A] {
+                override def encoder: Encoder[A] =
+                  (a: A) => {
+                    val ss = a.asInstanceOf[Set[String]]
+                    AttributeValue.StringSet(ss)
+                  }
+
+                override def decoder: Decoder[A] = {
+                  case AttributeValue.StringSet(value) => Right(value.asInstanceOf[A])
+                  case av                              => Left(ItemError.DecodingError(s"Expected AttributeValue.StringSet, found ${av.showType}"))
+                }
+              }
+            case _: PrimitiveType.Int    =>
+              new DdbCodec[A] {
+                override def encoder: Encoder[A] =
+                  (a: A) => {
+                    val ns = a.asInstanceOf[Set[Int]]
+                    AttributeValue.NumberSet(ns.map(i => BigDecimal(i.toString)))
+                  }
+
+                override def decoder: Decoder[A] = {
+                  case AttributeValue.NumberSet(value) => Right(value.map(n => n.toInt).asInstanceOf[A])
+                  case av                              => Left(ItemError.DecodingError(s"Expected AttributeValue.StringSet, found ${av.showType}"))
+                }
+              }
+            case _                       =>
+              sequenceCodec
+          }
+        else // not a primitive
+          sequenceCodec
+      else   // not a Set
+        sequenceCodec
+
     } else if (reflect.isMap) {
       // TODO: Avi - Map as Tuple handling - Blocks encodes Tuples as Maps
       val map           = reflect.asMapUnknown.get.map
