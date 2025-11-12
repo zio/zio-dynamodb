@@ -115,6 +115,10 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
   object RecordWithStringSet extends CompanionOptics[RecordWithStringSet] {
     implicit val schema: Schema[RecordWithStringSet] = Schema.derived
   }
+  final case class RecordWithNumberSet(set: Set[Int])
+  object RecordWithNumberSet extends CompanionOptics[RecordWithNumberSet] {
+    implicit val schema: Schema[RecordWithNumberSet] = Schema.derived
+  }
 
   final case class Person(id: String, age: Long)
   object Person extends CompanionOptics[Person] {
@@ -170,10 +174,19 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val expectedItem                         =
         Item("set" -> Set("a", "b"))
       val codec: DdbCodec[RecordWithStringSet] = RecordWithStringSet.schema.derive(BlocksDdbDerived)
-      val expectedPerson                       = RecordWithStringSet(set = Set("a", "b"))
-      val enc                                  = codec.encoder(expectedPerson)
+      val expected                             = RecordWithStringSet(set = Set("a", "b"))
+      val enc                                  = codec.encoder(expected)
       val dec                                  = codec.decoder(enc)
-      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
+      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expected))
+    },
+    test("Record with Native Number Set") {
+      val expectedItem                         =
+        Item("set" -> Set(1, 2))
+      val codec: DdbCodec[RecordWithNumberSet] = RecordWithNumberSet.schema.derive(BlocksDdbDerived)
+      val expected                             = RecordWithNumberSet(set = Set(1, 2))
+      val enc                                  = codec.encoder(expected)
+      val dec                                  = codec.decoder(enc)
+      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expected))
     },
     test("Record with native Map[String, Int]") {
       val expectedItem                           =
