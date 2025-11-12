@@ -167,15 +167,13 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
     test("Record with Native String Set") {
-//      val expectedItem                     =
-//        Item("names" -> Array.empty[String])
+      val expectedItem                         =
+        Item("set" -> Set("a", "b"))
       val codec: DdbCodec[RecordWithStringSet] = RecordWithStringSet.schema.derive(BlocksDdbDerived)
-      val expectedPerson                   = RecordWithStringSet(set = Set("a", "b"))
-      val enc                              = codec.encoder(expectedPerson)
-      println(s"XXXXXXXX enc: $enc")
-//      val dec                              = codec.decoder(enc)
-//      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
-      assertTrue(true)
+      val expectedPerson                       = RecordWithStringSet(set = Set("a", "b"))
+      val enc                                  = codec.encoder(expectedPerson)
+      val dec                                  = codec.decoder(enc)
+      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
     test("Record with native Map[String, Int]") {
       val expectedItem                           =

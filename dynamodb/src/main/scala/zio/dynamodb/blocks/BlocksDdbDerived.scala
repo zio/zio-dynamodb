@@ -513,7 +513,6 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
       }
     } else if (reflect.isSequence) {
-      println(s"XXXXXXXXXX isSequence: ${reflect.typeName.name}")
       val errors        = new ArrayBuffer[String]
       val sequence      = reflect.asSequenceUnknown.get.sequence
       val seqBinding    =
@@ -528,37 +527,64 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       val elementCodec  = deriveCodec(element, cache, maybeVariantMetaData)
       val encoder2      = elementCodec.encoder.asInstanceOf[A => AttributeValue]
       val decoder2      = elementCodec.decoder //.asInstanceOf[Any => A]
-      new DdbCodec[A] {
-        override def encoder: Encoder[A] =
-          (a: A) => {
-            val res = new ArrayBuffer[AttributeValue]
-            val it  = deconstructor.deconstruct(a.asInstanceOf[Col[A]])
-            while (it.hasNext) res.addOne(encoder2(it.next()))
-            AttributeValue.List(res.toList)
+
+      val maybeNativeSet = NativeSet.fromTypeName(reflect.typeName, element.typeName)
+      println(s"XXXXXXXXXX maybeNativeSet: $maybeNativeSet")
+
+      if (maybeNativeSet.isDefined)
+        new DdbCodec[A] {
+          override def encoder: Encoder[A] =
+            (a: A) => {
+              maybeNativeSet match {
+                case Some(NativeSet.StringSet) =>
+                  val res = new ArrayBuffer[String]
+                  val it  = deconstructor.deconstruct(a.asInstanceOf[Col[A]])
+                  while (it.hasNext) {
+                    val encAvString = encoder2(it.next()).asInstanceOf[AttributeValue.String]
+                    res.addOne(encAvString.value)
+                  }
+                  AttributeValue.StringSet(res.toSet)
+                case _                         => throw new Exception("NativeSet encoding not implemented yet") // TODO: Avi
+              }
+            }
+
+          override def decoder: Decoder[A] = {
+            case AttributeValue.StringSet(value) => Right(value.asInstanceOf[A])
+            case av                              => Left(ItemError.DecodingError(s"Expected AttributeValue.StringSet, found ${av.showType}"))
           }
 
-        override def decoder: Decoder[A] =
-          (av: AttributeValue) =>
-            av match {
-              case AttributeValue.List(items) =>
-                val builder = constructor.newObjectBuilder[Elem](8)
-
-                // TODO: Avi - error handling
-                items.foreach { item =>
-                  decoder2(item) match {
-                    case Right(a)  => constructor.addObject(builder, a.asInstanceOf[Elem])
-                    case Left(err) => errors.addOne(err.message)
-                  }
-                }
-                if (errors.isEmpty) {
-                  val xs: Col[Elem] = constructor.resultObject[Elem](builder)
-                  Right(xs.asInstanceOf[A])
-                } else
-                  Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
-              case _                          => Left(ItemError.DecodingError(s"Expected AttributeValue.List, found ${av.showType}"))
+        }
+      else
+        new DdbCodec[A] {
+          override def encoder: Encoder[A] =
+            (a: A) => {
+              val res = new ArrayBuffer[AttributeValue]
+              val it  = deconstructor.deconstruct(a.asInstanceOf[Col[A]])
+              while (it.hasNext) res.addOne(encoder2(it.next()))
+              AttributeValue.List(res.toList)
             }
-      }
 
+          override def decoder: Decoder[A] =
+            (av: AttributeValue) =>
+              av match {
+                case AttributeValue.List(items) =>
+                  val builder = constructor.newObjectBuilder[Elem](8)
+
+                  // TODO: Avi - error handling
+                  items.foreach { item =>
+                    decoder2(item) match {
+                      case Right(a)  => constructor.addObject(builder, a.asInstanceOf[Elem])
+                      case Left(err) => errors.addOne(err.message)
+                    }
+                  }
+                  if (errors.isEmpty) {
+                    val xs: Col[Elem] = constructor.resultObject[Elem](builder)
+                    Right(xs.asInstanceOf[A])
+                  } else
+                    Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
+                case _                          => Left(ItemError.DecodingError(s"Expected AttributeValue.List, found ${av.showType}"))
+              }
+        }
     } else if (reflect.isMap) {
       // TODO: Avi - Map as Tuple handling - Blocks encodes Tuples as Maps
       val map           = reflect.asMapUnknown.get.map
@@ -867,5 +893,23 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         case Some(name) => VariantMetaData.FieldDiscriminationPolicy(name)
         case None       => VariantMetaData.DefaultTaggedDiscriminationPolicy
       }
+  }
+
+  sealed trait NativeSet
+  object NativeSet {
+    def fromTypeName(setTypeName: TypeName[?], elementTypeName: TypeName[?]): Option[NativeSet] = {
+      val setName     = setTypeName.name
+      val elementName = elementTypeName.name
+      if (setName eq "Set")
+        if (elementName eq "String") Some(StringSet)
+        else if (elementName eq "Number") Some(NumberSet)
+        else if (elementName eq "Binary") Some(BinarySet)
+        else None
+      else None
+    }
+    case object StringSet extends NativeSet
+    case object NumberSet extends NativeSet
+    case object BinarySet extends NativeSet
+
   }
 }
