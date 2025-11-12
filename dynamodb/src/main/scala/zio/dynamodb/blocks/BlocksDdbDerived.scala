@@ -532,9 +532,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       val encoder2      = elementCodec.encoder.asInstanceOf[A => AttributeValue]
       val decoder2      = elementCodec.decoder //.asInstanceOf[Any => A]
 
-      val isSet          = reflect.typeName.name.endsWith("Set")
-      val maybeNativeSet = NativeSet.fromTypeName(reflect.typeName, element.typeName)
-      println(s"XXXXXXXXXX maybeNativeSet: $maybeNativeSet  ${element.isPrimitive}")
+      val isSet = reflect.typeName.name.endsWith("Set")
 
       val sequenceCodec: DdbCodec[A] =
         new DdbCodec[A] {
@@ -567,33 +565,6 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                 case _                          => Left(ItemError.DecodingError(s"Expected AttributeValue.List, found ${av.showType}"))
               }
         }
-
-      /*
-isPrimitive true => candidate for NativeSet
-isPrimitive false => what about BS - is it still a primitive ????
-
-we need:
-- Set codecs
-  - native set codec using AttributeValue.SS/BS/NS
-  - non native set codec whereby enc is AttributeValue.List ie Sequence codec ?
-- Sequence codec
-
-if (isSet) {
-    if (isPrimitive) {
-      element.asPrimitive.get.primitiveType match {
-        case _: PrimitiveType.Int  =>
-          new DdbEncode[A] = ...
-      }
-        nativeSetCodec
-    } else {
-        sequenceCodec
-    }
-} else {
-  sequenceCodec
-}
-
-       */
-
       if (isSet)
         if (element.isPrimitive)
           element.asPrimitive.get.primitiveType match {
@@ -614,12 +585,21 @@ if (isSet) {
               new DdbCodec[A] {
                 override def encoder: Encoder[A] =
                   (a: A) => {
-                    val ns = a.asInstanceOf[Set[Int]]
-                    AttributeValue.NumberSet(ns.map(i => BigDecimal(i.toString)))
+                    val ns                           = a.asInstanceOf[Set[Int]]
+                    val builder                      = scala.collection.immutable.HashSet.newBuilder[BigDecimal]
+                    builder.sizeHint(ns.size)
+                    ns.foreach(i => builder += BigDecimal.valueOf(i.toLong))
+                    val bigDecimals: Set[BigDecimal] = builder.result()
+                    AttributeValue.NumberSet(bigDecimals)
                   }
 
                 override def decoder: Decoder[A] = {
-                  case AttributeValue.NumberSet(value) => Right(value.map(n => n.toInt).asInstanceOf[A])
+                  case AttributeValue.NumberSet(value) =>
+                    val builder        = scala.collection.immutable.HashSet.newBuilder[Int]
+                    builder.sizeHint(value.size)
+                    value.foreach(bd => builder += bd.intValue)
+                    val ints: Set[Int] = builder.result()
+                    Right(ints.asInstanceOf[A])
                   case av                              => Left(ItemError.DecodingError(s"Expected AttributeValue.StringSet, found ${av.showType}"))
                 }
               }
@@ -628,7 +608,7 @@ if (isSet) {
           }
         else // not a primitive
           sequenceCodec
-      else   // not a Set
+      else // not a Set
         sequenceCodec
 
     } else if (reflect.isMap) {
@@ -941,21 +921,4 @@ if (isSet) {
       }
   }
 
-  sealed trait NativeSet
-  object NativeSet {
-    def fromTypeName(setTypeName: TypeName[?], elementTypeName: TypeName[?]): Option[NativeSet] = {
-      val setName     = setTypeName.name
-      val elementName = elementTypeName.name
-      if (setName eq "Set")
-        if (elementName eq "String") Some(StringSet)
-        else if (elementName eq "Int") Some(NumberSet)
-        else if (elementName eq "Binary") Some(BinarySet) // TODO: Avi - BinarySet handling
-        else None
-      else None
-    }
-    case object StringSet extends NativeSet
-    case object NumberSet extends NativeSet
-    case object BinarySet extends NativeSet
-
-  }
 }
