@@ -1,7 +1,6 @@
 package zio.dynamodb.blocks
 
 import zio.test._
-import zio.blocks.schema.CompanionOptics
 import zio.blocks.schema.Modifier.config
 import zio.blocks.schema.Schema
 import zio.blocks.schema.Reflect
@@ -21,43 +20,43 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
   }
 
   sealed trait PaymentMethod
-  object PaymentMethod {
+  object PaymentMethod           {
     final case class CreditCard(number: String, cvv: String) extends PaymentMethod
-    object CreditCard                                        extends CompanionOptics[CreditCard] {
+    object CreditCard {
       implicit val schema: Schema[CreditCard] = Schema.derived
     }
-    final case class PayPal(email: String)                   extends PaymentMethod
-    object PayPal                                            extends CompanionOptics[PayPal]     {
+    final case class PayPal(email: String) extends PaymentMethod
+    object PayPal     {
       implicit val schema: Schema[PayPal] = Schema.derived
     }
 
     implicit val schema: Schema[PaymentMethod] = Schema.derived
   }
   final case class RecordWithPaymentMethod(method: PaymentMethod)
-  object RecordWithPaymentMethod extends CompanionOptics[RecordWithPaymentMethod] {
+  object RecordWithPaymentMethod {
     implicit val schema: Schema[RecordWithPaymentMethod] = Schema.derived
   }
 
   sealed trait PaymentMethod2
-  object PaymentMethod2 {
+  object PaymentMethod2           {
     final case class CreditCard(number: String, cvv: String) extends PaymentMethod2
-    object CreditCard                                        extends CompanionOptics[CreditCard] {
+    object CreditCard {
       implicit val schema: Schema[CreditCard] = Schema.derived
     }
-    final case class PayPal(email: String)                   extends PaymentMethod2
-    object PayPal                                            extends CompanionOptics[PayPal]     {
+    final case class PayPal(email: String) extends PaymentMethod2
+    object PayPal     {
       implicit val schema: Schema[PayPal] = Schema.derived
     }
 
     implicit val schema: Schema[PaymentMethod2] = Schema.derived.modifier(config("discriminatorName", "discriminator"))
   }
   final case class RecordWithPaymentMethod2(method: PaymentMethod2)
-  object RecordWithPaymentMethod2 extends CompanionOptics[RecordWithPaymentMethod2] {
+  object RecordWithPaymentMethod2 {
     implicit val schema: Schema[RecordWithPaymentMethod2] = Schema.derived
   }
 
   final case class RecordWithEnum(light: TrafficLight)
-  object RecordWithEnum extends CompanionOptics[RecordWithEnum] {
+  object RecordWithEnum {
     implicit val schema: Schema[RecordWithEnum] = Schema.derived
   }
 
@@ -65,19 +64,19 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     numbers: List[Int] = Nil,
     map: Map[String, Int] = Map.empty
   )
-  object RecordWithCollections  extends CompanionOptics[RecordWithCollections]  {
+  object RecordWithCollections  {
     implicit val schema: Schema[RecordWithCollections] = Schema.derived
   }
   final case class RecordWithNonNativeMap(
     map: Map[Int, Int] = Map.empty
   )
-  object RecordWithNonNativeMap extends CompanionOptics[RecordWithNonNativeMap] {
+  object RecordWithNonNativeMap {
     implicit val schema: Schema[RecordWithNonNativeMap] = Schema.derived
   }
   final case class RecordWithArray(
     // TODO: Avi - bottom out Array support in AttrMap/To/FromAttributeValue and equality checks
     names: Array[String] = Array.empty
-  ) {
+  )                             {
     override def equals(obj: Any): Boolean =
       obj match {
         case that: RecordWithArray =>
@@ -88,35 +87,35 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     override def hashCode(): Int =
       names.toSeq.hashCode()
   }
-  object RecordWithArray        extends CompanionOptics[RecordWithArray]        {
+  object RecordWithArray        {
     implicit val schema: Schema[RecordWithArray] = Schema.derived
   }
   final case class RecordWithEither(either: Either[String, Int])
-  object RecordWithEither       extends CompanionOptics[RecordWithEither]       {
+  object RecordWithEither       {
     implicit val schema: Schema[RecordWithEither] = Schema.derived
   }
 
   final case class RecordWithOption(id: String, option: Option[Int])
-  object RecordWithOption extends CompanionOptics[RecordWithOption] {
+  object RecordWithOption {
     implicit val schema: Schema[RecordWithOption] = Schema.derived
   }
 
   final case class RecordWithTuple(id: String, tuple: (String, Int))
-  object RecordWithTuple extends CompanionOptics[RecordWithTuple] {
+  object RecordWithTuple {
     implicit val schema: Schema[RecordWithTuple] = Schema.derived
   }
 
   final case class RecordWithOptionalPerson(option: Option[Person])
-  object RecordWithOptionalPerson extends CompanionOptics[RecordWithOptionalPerson] {
+  object RecordWithOptionalPerson {
     implicit val schema: Schema[RecordWithOptionalPerson] = Schema.derived
   }
 
   final case class RecordWithStringSet(set: Set[String])
-  object RecordWithStringSet extends CompanionOptics[RecordWithStringSet] {
+  object RecordWithStringSet {
     implicit val schema: Schema[RecordWithStringSet] = Schema.derived
   }
   final case class RecordWithNumberSet(set: Set[Int])
-  object RecordWithNumberSet extends CompanionOptics[RecordWithNumberSet] {
+  object RecordWithNumberSet {
     implicit val schema: Schema[RecordWithNumberSet] = Schema.derived
   }
 
@@ -126,7 +125,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
   }
 
   final case class Person(id: String, age: Long)
-  object Person extends CompanionOptics[Person] {
+  object Person {
     implicit val schema: Schema[Person] = Schema.derived
   }
 
