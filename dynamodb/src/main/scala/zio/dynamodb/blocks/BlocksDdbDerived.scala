@@ -606,6 +606,13 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       val decoder2      = elementCodec.decoder //.asInstanceOf[Any => A]
 
       val isSet = reflect.typeName.name.endsWith("Set")
+//      val isBinarySet =
+//        if (isSet && element.isSequence) {
+//          val x    = element.asSequence[].get
+//          val elmt = x.element
+//          elmt.isPrimitive && elmt.asPrimitive.get.primitiveType.isInstanceOf[PrimitiveType.Byte]
+//        } else false
+//      println(s"XXXXXXXXXXX isBinarySet: $isBinarySet")
 
       val sequenceCodec: DdbCodec[A] =
         new DdbCodec[A] {
@@ -652,6 +659,8 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         sequenceCodec
 
     } else if (reflect.isMap) {
+      val x             = reflect.typeName.name
+      println(s"XXXXXXXXXXX Map type name: $x")
       // TODO: Avi - Map as Tuple handling - Blocks encodes Tuples as Maps
       val map           = reflect.asMapUnknown.get.map
       val mapBinding    =
@@ -911,7 +920,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         }
       }
     } else
-      ??? // TODO: Avi - Set - Native Sets SS, BS, NS and Non Native Set, Wrapper, Dynamic
+      ??? // TODO: Avi - Set - Native Sets BS and Non Native Set, Wrapper, Dynamic
     // TODO: Avi - Tuple implementation inside of Map codec
   }
 

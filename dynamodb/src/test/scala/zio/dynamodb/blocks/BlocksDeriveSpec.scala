@@ -1,5 +1,6 @@
 package zio.dynamodb.blocks
 
+import zio.Chunk
 import zio.test._
 import zio.blocks.schema.Modifier.config
 import zio.blocks.schema.Schema
@@ -124,6 +125,11 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     implicit val schema: Schema[RecordWithNonNativeSet] = Schema.derived
   }
 
+  final case class RecordWithNativeBinarySet(set: Set[List[Byte]])
+  object RecordWithNativeBinarySet {
+    implicit val schema: Schema[RecordWithNativeBinarySet] = Schema.derived
+  }
+
   final case class Person(id: String, age: Long)
   object Person {
     implicit val schema: Schema[Person] = Schema.derived
@@ -192,6 +198,16 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val dec                                  = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expected))
     },
+    test("Record with Native Binary Set") {
+      val expectedItem                               =
+        Item("set" -> Set(Chunk("12".getBytes)))
+      val codec: DdbCodec[RecordWithNativeBinarySet] = RecordWithNativeBinarySet.schema.derive(BlocksDdbDerived)
+      val arr: Array[Byte]                           = "12".getBytes
+      val expected                                   = RecordWithNativeBinarySet(set = Set(arr.toList))
+      val enc                                        = codec.encoder(expected)
+      val dec                                        = codec.decoder(enc)
+      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expected))
+    },
     test("Record with Non Native Set of Person") {
       val expectedItem                            =
         Item("set" -> Set(Item("id" -> "1", "age" -> 21)))
@@ -210,6 +226,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val dec                                    = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
+    // TODO: Avi - implement Tuple codec
     test("Record with tuple") {
       val expectedItem                     =
         Item("id" -> "1", "tuple" -> Item("_1" -> "a", "_2" -> 2))
