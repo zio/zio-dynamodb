@@ -644,8 +644,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
             case _: PrimitiveType.String => nativeStringSetCodec.asInstanceOf[DdbCodec[A]]
             case _: PrimitiveType.Int    => nativeNumericSetCodec[Int].asInstanceOf[DdbCodec[A]]
             case _: PrimitiveType.Long   => nativeNumericSetCodec[Long].asInstanceOf[DdbCodec[A]]
-            case _                       =>
-              sequenceCodec
+            case _                       => sequenceCodec
           }
         else // not a primitive
           sequenceCodec
