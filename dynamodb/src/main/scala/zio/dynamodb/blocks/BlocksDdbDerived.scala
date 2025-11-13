@@ -8,6 +8,7 @@ import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb.{ AttributeValue, Decoder, Encoder, FromAttributeValue }
 
+import scala.collection.immutable.HashSet
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
@@ -223,7 +224,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         ???
     }
 
-  private val intCodec: DdbCodec[Int]       = new DdbCodec[Int] {
+  private val intCodec: DdbCodec[Int] = new DdbCodec[Int] {
     override def encoder: Encoder[Int] =
       (a: Int) => AttributeValue.Number(BigDecimal(a.toString))
 
@@ -233,6 +234,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
           .fromAttributeValue(av)
           .asInstanceOf[Either[zio.dynamodb.DynamoDBError.ItemError, Int]]
   }
+
   private val stringCodec: DdbCodec[String] = new DdbCodec[String] {
     override def encoder: Encoder[String] =
       (a: String) => AttributeValue.String(a)
@@ -250,6 +252,77 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
           .fromAttributeValue(av)
           .asInstanceOf[Either[zio.dynamodb.DynamoDBError.ItemError, Long]]
   }
+
+  val nativeStringSetCodec: DdbCodec[Set[String]] = new DdbCodec[Set[String]] {
+    override def encoder: Encoder[Set[String]] =
+      (a: Set[String]) => {
+        val ss = a
+        AttributeValue.StringSet(ss)
+      }
+
+    override def decoder: Decoder[Set[String]] = {
+      case AttributeValue.StringSet(value) => Right(value.asInstanceOf[Set[String]])
+      case av                              => Left(ItemError.DecodingError(s"Expected AttributeValue.StringSet, found ${av.showType}"))
+    }
+  }
+
+  trait NumberOps[A] {
+    def toBigDecimal(a: A): BigDecimal
+    def fromBigDecimal(bd: BigDecimal): A
+  }
+
+  object NumberOps {
+    implicit val intOps: NumberOps[Int] = new NumberOps[Int] {
+      def toBigDecimal(a: Int)           = BigDecimal.valueOf(a.toLong)
+      def fromBigDecimal(bd: BigDecimal) = bd.intValue
+    }
+
+    implicit val longOps: NumberOps[Long] = new NumberOps[Long] {
+      def toBigDecimal(a: Long)          = BigDecimal.valueOf(a)
+      def fromBigDecimal(bd: BigDecimal) = bd.longValue
+    }
+
+    implicit val floatOps: NumberOps[Float] = new NumberOps[Float] {
+      def toBigDecimal(a: Float)         = BigDecimal.decimal(a)
+      def fromBigDecimal(bd: BigDecimal) = bd.floatValue
+    }
+
+    implicit val doubleOps: NumberOps[Double] = new NumberOps[Double] {
+      def toBigDecimal(a: Double)        = BigDecimal.valueOf(a)
+      def fromBigDecimal(bd: BigDecimal) = bd.doubleValue
+    }
+
+    implicit val shortOps: NumberOps[Short] = new NumberOps[Short] {
+      def toBigDecimal(a: Short)         = BigDecimal.valueOf(a.toLong)
+      def fromBigDecimal(bd: BigDecimal) = bd.shortValue
+    }
+
+    implicit val bigDecOps: NumberOps[BigDecimal] = new NumberOps[BigDecimal] {
+      def toBigDecimal(a: BigDecimal)    = a
+      def fromBigDecimal(bd: BigDecimal) = bd
+    }
+  }
+
+  def nativeNumericSetCodec[A](implicit ops: NumberOps[A]): DdbCodec[Set[A]] =
+    new DdbCodec[Set[A]] {
+      override def encoder: Encoder[Set[A]] =
+        (ns: Set[A]) => {
+          val builder = HashSet.newBuilder[BigDecimal]
+          builder.sizeHint(ns.size)
+          ns.foreach(a => builder += ops.toBigDecimal(a))
+          AttributeValue.NumberSet(builder.result())
+        }
+
+      override def decoder: Decoder[Set[A]] = {
+        case AttributeValue.NumberSet(values) =>
+          val builder = HashSet.newBuilder[A]
+          builder.sizeHint(values.size)
+          values.foreach(bd => builder += ops.fromBigDecimal(bd))
+          Right(builder.result())
+        case av                               =>
+          Left(ItemError.DecodingError(s"Expected AttributeValue.NumberSet, found ${av.showType}"))
+      }
+    }
 
   private def deriveCodec[A](
     reflect: Bound[A],
@@ -568,41 +641,9 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       if (isSet)
         if (element.isPrimitive)
           element.asPrimitive.get.primitiveType match {
-            case _: PrimitiveType.String =>
-              new DdbCodec[A] {
-                override def encoder: Encoder[A] =
-                  (a: A) => {
-                    val ss = a.asInstanceOf[Set[String]]
-                    AttributeValue.StringSet(ss)
-                  }
-
-                override def decoder: Decoder[A] = {
-                  case AttributeValue.StringSet(value) => Right(value.asInstanceOf[A])
-                  case av                              => Left(ItemError.DecodingError(s"Expected AttributeValue.StringSet, found ${av.showType}"))
-                }
-              }
-            case _: PrimitiveType.Int    =>
-              new DdbCodec[A] {
-                override def encoder: Encoder[A] =
-                  (a: A) => {
-                    val ns                           = a.asInstanceOf[Set[Int]]
-                    val builder                      = scala.collection.immutable.HashSet.newBuilder[BigDecimal]
-                    builder.sizeHint(ns.size)
-                    ns.foreach(i => builder += BigDecimal.valueOf(i.toLong))
-                    val bigDecimals: Set[BigDecimal] = builder.result()
-                    AttributeValue.NumberSet(bigDecimals)
-                  }
-
-                override def decoder: Decoder[A] = {
-                  case AttributeValue.NumberSet(value) =>
-                    val builder        = scala.collection.immutable.HashSet.newBuilder[Int]
-                    builder.sizeHint(value.size)
-                    value.foreach(bd => builder += bd.intValue)
-                    val ints: Set[Int] = builder.result()
-                    Right(ints.asInstanceOf[A])
-                  case av                              => Left(ItemError.DecodingError(s"Expected AttributeValue.StringSet, found ${av.showType}"))
-                }
-              }
+            case _: PrimitiveType.String => nativeStringSetCodec.asInstanceOf[DdbCodec[A]]
+            case _: PrimitiveType.Int    => nativeNumericSetCodec[Int].asInstanceOf[DdbCodec[A]]
+            case _: PrimitiveType.Long   => nativeNumericSetCodec[Long].asInstanceOf[DdbCodec[A]]
             case _                       =>
               sequenceCodec
           }
