@@ -1,6 +1,8 @@
 package zio.dynamodb.codec
 
+import zio.Chunk
 import zio.dynamodb.{ AttributeValue, Codec }
+//import zio.schema.Schema.Primitive
 import zio.schema.{ DeriveSchema, Schema }
 import zio.test.Assertion.{ equalTo, isRight }
 import zio.test.{ ZIOSpecDefault, _ }
@@ -10,6 +12,10 @@ import scala.collection.immutable.Map
 
 object SetCodecSpec extends ZIOSpecDefault {
 
+  final case class HasBinarySet(set: Set[Chunk[Byte]])
+  object HasBinarySet            {
+    implicit val schema: Schema[HasBinarySet] = DeriveSchema.gen[HasBinarySet]
+  }
   final case class HasBigDecimalSet(set: Set[BigDecimal])
   object HasBigDecimalSet        {
     implicit val schema: Schema[HasBigDecimalSet] = DeriveSchema.gen[HasBigDecimalSet]
@@ -34,6 +40,17 @@ object SetCodecSpec extends ZIOSpecDefault {
   override def spec: Spec[zio.test.TestEnvironment, Any] =
     suite("Set codecs")(
       suite("when encoding")(
+        test("encodes set of Chunk[Byte] natively to a binary set") {
+          val byte1: Byte = 0x01
+          val byte2: Byte = 0x02
+
+          val actual: AttributeValue =
+            Codec.encoder(HasBinarySet.schema)(
+              HasBinarySet(Set(Chunk(byte1, byte2)))
+            )
+
+          assert(actual.toString)(equalTo("Map(Map(String(set) -> BinarySet(Set(Chunk(1,2)))))"))
+        },
         test("encodes set of BigDecimal natively") {
 
           val actual: AttributeValue =

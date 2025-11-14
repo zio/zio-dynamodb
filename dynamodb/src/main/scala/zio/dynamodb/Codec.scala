@@ -334,21 +334,21 @@ private[dynamodb] object Codec {
     private def setEncoder[A](s: Schema[A]): Encoder[Set[A]] =
       s match {
         // AttributeValue.StringSet
-        case Schema.Primitive(StandardType.StringType, _)     =>
+        case Schema.Primitive(StandardType.StringType, _)                    =>
           (a: Set[A]) => AttributeValue.StringSet(a.asInstanceOf[Set[String]])
 
         // AttributeValue.NumberSet
-        case Schema.Primitive(StandardType.IntType, _)        =>
+        case Schema.Primitive(StandardType.IntType, _)                       =>
           (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[Int]].map(BigDecimal(_)))
-        case Schema.Primitive(StandardType.LongType, _)       =>
+        case Schema.Primitive(StandardType.LongType, _)                      =>
           (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[Long]].map(BigDecimal(_)))
-        case Schema.Primitive(StandardType.ShortType, _)      =>
+        case Schema.Primitive(StandardType.ShortType, _)                     =>
           (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[Short]].map(s => BigDecimal(s.toInt)))
-        case Schema.Primitive(StandardType.DoubleType, _)     =>
+        case Schema.Primitive(StandardType.DoubleType, _)                    =>
           (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[Double]].map(BigDecimal(_)))
-        case Schema.Primitive(StandardType.FloatType, _)      =>
+        case Schema.Primitive(StandardType.FloatType, _)                     =>
           (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[Float]].map(f => BigDecimal(f.toString)))
-        case Schema.Primitive(StandardType.BigDecimalType, _) =>
+        case Schema.Primitive(StandardType.BigDecimalType, _)                =>
           (a: Set[A]) =>
             AttributeValue.NumberSet(
               a.asInstanceOf[Set[java.math.BigDecimal]].map(bd => BigDecimal(bd))
@@ -357,7 +357,7 @@ private[dynamodb] object Codec {
         case Schema.Transform(Schema.Primitive(bigDecimal, _), _, _, _, _)
             if bigDecimal.isInstanceOf[StandardType.BigDecimalType.type] =>
           (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[BigDecimal]])
-        case Schema.Primitive(StandardType.BigIntegerType, _) =>
+        case Schema.Primitive(StandardType.BigIntegerType, _)                =>
           (a: Set[A]) =>
             AttributeValue.NumberSet(a.asInstanceOf[Set[java.math.BigInteger]].map(i => BigDecimal(i.longValue)))
         // DerivedGen will wrap a java BigInteger with a Transform for a scala BigInt so we need to peek ahead here
@@ -366,14 +366,22 @@ private[dynamodb] object Codec {
           (a: Set[A]) => AttributeValue.NumberSet(a.asInstanceOf[Set[BigInt]].map(bi => BigDecimal(bi.bigInteger)))
 
         // AttributeValue.BinarySet
-        case Schema.Primitive(StandardType.BinaryType, _)     =>
+        case Schema.Primitive(StandardType.BinaryType, _)                    =>
           (a: Set[A]) => AttributeValue.BinarySet(a.asInstanceOf[Set[Chunk[Byte]]])
 
-        case l @ Schema.Lazy(_)                               =>
+        case Schema.Primitive(StandardType.ByteType, _)                      =>
+          (a: Set[A]) => AttributeValue.BinarySet(a.asInstanceOf[Set[Chunk[Byte]]])
+
+        // TODO: Avi - new experiments for Binary Set
+        case Schema.Sequence(Primitive(s, _), _, _, _, _) if s.tag == "byte" =>
+          (a: Set[A]) => AttributeValue.BinarySet(a.asInstanceOf[Set[Chunk[Byte]]])
+
+        case l @ Schema.Lazy(_)                                              =>
           setEncoder(l.schema)
 
         // Non native set
-        case schema                                           =>
+        case schema                                                          =>
+          println(s"XXXXXXXXX schema = $schema")
           sequenceEncoder[Chunk[A], A](encoder(schema), (c: Iterable[A]) => Chunk.fromIterable(c))
             .asInstanceOf[Encoder[Set[A]]]
       }

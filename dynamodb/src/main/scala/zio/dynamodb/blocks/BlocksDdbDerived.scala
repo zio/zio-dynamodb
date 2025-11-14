@@ -253,6 +253,17 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
           .asInstanceOf[Either[zio.dynamodb.DynamoDBError.ItemError, Long]]
   }
 
+  val byteCodec = new DdbCodec[Byte] {
+    override def encoder: Encoder[Byte] =
+      (a: Byte) => AttributeValue.Binary(zio.Chunk(a))
+
+    override def decoder: Decoder[Byte] =
+      (av: AttributeValue) =>
+        FromAttributeValue.byteFromAttributeValue
+          .fromAttributeValue(av)
+          .asInstanceOf[Either[zio.dynamodb.DynamoDBError.ItemError, Byte]]
+  }
+
   val nativeStringSetCodec: DdbCodec[Set[String]] = new DdbCodec[Set[String]] {
     override def encoder: Encoder[Set[String]] =
       (a: Set[String]) => {
@@ -336,6 +347,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         case _: PrimitiveType.String => stringCodec
         case _: PrimitiveType.Int    => intCodec
         case _: PrimitiveType.Long   => longCodec
+        case _: PrimitiveType.Byte   => byteCodec
         case _                       => ??? // TODO: Avi - other types
       }
     } else if (reflect.isRecord) {
