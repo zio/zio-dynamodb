@@ -1,12 +1,12 @@
 package zio.dynamodb.blocks
 
-import zio.blocks.schema.Reflect.Bound
+import zio.blocks.schema.Reflect.{Bound, Sequence}
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
-import zio.blocks.schema.derive.{ BindingInstance, Deriver }
+import zio.blocks.schema.derive.{BindingInstance, Deriver}
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
-import zio.dynamodb.{ AttributeValue, Decoder, Encoder, FromAttributeValue }
+import zio.dynamodb.{AttributeValue, Decoder, Encoder, FromAttributeValue}
 
 import scala.collection.immutable.HashSet
 import scala.collection.mutable
@@ -335,6 +335,16 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       }
     }
 
+  def binarySetCodec: DdbCodec[Set[zio.Chunk[Byte]]] = new DdbCodec[Set[zio.Chunk[Byte]]] {
+    override def encoder: Encoder[Set[zio.Chunk[Byte]]] =
+      (bs: Set[zio.Chunk[Byte]]) => AttributeValue.BinarySet(bs)
+
+    override def decoder: Decoder[Set[zio.Chunk[Byte]]] = {
+      case AttributeValue.BinarySet(values) => Right(values.asInstanceOf[Set[zio.Chunk[Byte]]])
+      case av                               => Left(ItemError.DecodingError(s"Expected AttributeValue.BinarySet, found ${av.showType}"))
+    }
+  }
+
   private def deriveCodec[A](
     reflect: Bound[A],
     cache: mutable.HashMap[TypeName[?], CacheEntry] = new mutable.HashMap,
@@ -618,14 +628,6 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       val decoder2      = elementCodec.decoder //.asInstanceOf[Any => A]
 
       val isSet = reflect.typeName.name.endsWith("Set")
-//      val isBinarySet =
-//        if (isSet && element.isSequence) {
-//          val x    = element.asSequence[].get
-//          val elmt = x.element
-//          elmt.isPrimitive && elmt.asPrimitive.get.primitiveType.isInstanceOf[PrimitiveType.Byte]
-//        } else false
-//      println(s"XXXXXXXXXXX isBinarySet: $isBinarySet")
-
       val sequenceCodec: DdbCodec[A] =
         new DdbCodec[A] {
           override def encoder: Encoder[A] =
@@ -657,20 +659,36 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                 case _                          => Left(ItemError.DecodingError(s"Expected AttributeValue.List, found ${av.showType}"))
               }
         }
-      if (isSet)
+
+      if (isSet) {
         if (element.isPrimitive)
           element.asPrimitive.get.primitiveType match {
-            case _: PrimitiveType.String => nativeStringSetCodec.asInstanceOf[DdbCodec[A]]
-            case _: PrimitiveType.Int    => nativeNumericSetCodec[Int].asInstanceOf[DdbCodec[A]]
-            case _: PrimitiveType.Long   => nativeNumericSetCodec[Long].asInstanceOf[DdbCodec[A]]
+            case _: PrimitiveType.String => nativeStringSetCodec
+            case _: PrimitiveType.Int    => nativeNumericSetCodec[Int]
+            case _: PrimitiveType.Long   => nativeNumericSetCodec[Long]
             case _                       => sequenceCodec
           }
-        else // not a primitive
+        else if (element.isSequence) {
+          val x: Sequence.Unknown[Binding] = element.asSequenceUnknown.get
+          val y = x.sequence.asSequence.get
+          val el: Reflect[Binding, x.ElementType] = y.element
+          if (el.isPrimitive) {
+            val p: PrimitiveType[x.ElementType] = el.asPrimitive.get.primitiveType
+            val isByte = p.isInstanceOf[PrimitiveType.Byte]
+            if (isByte) {
+              binarySetCodec
+            } else {
+              sequenceCodec
+            }
+          } else {
+            sequenceCodec
+          }
+        } else
           sequenceCodec
-      else // not a Set
+      } else // not a Set
         sequenceCodec
 
-    } else if (reflect.isMap) {
+    }.asInstanceOf[DdbCodec[A]] else if (reflect.isMap) {
       val x             = reflect.typeName.name
       println(s"XXXXXXXXXXX Map type name: $x")
       // TODO: Avi - Map as Tuple handling - Blocks encodes Tuples as Maps
