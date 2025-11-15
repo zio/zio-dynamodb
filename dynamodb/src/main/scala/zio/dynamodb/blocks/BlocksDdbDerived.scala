@@ -958,8 +958,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         }
       }
     } else
-      ??? // TODO: Avi - Set - Native Sets BS and Non Native Set, Wrapper, Dynamic
-    // TODO: Avi - Tuple implementation inside of Map codec
+      ??? // TODO: Avi - Wrapper, Dynamic, Tuple as nested Lists implementation inside of Map codec
   }
 
   // TODO: Avi - delete as we have VariantMetaData now
