@@ -101,7 +101,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     implicit val schema: Schema[RecordWithOption] = Schema.derived
   }
 
-  final case class RecordWithTuple(id: String, tuple: (String, Int))
+  final case class RecordWithTuple(tuple: (String, Int))
   object RecordWithTuple {
     implicit val schema: Schema[RecordWithTuple] = Schema.derived
   }
@@ -232,9 +232,9 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     // TODO: Avi - implement Tuple codec
     test("Record with tuple") {
       val expectedItem                     =
-        Item("id" -> "1", "tuple" -> Item("_1" -> "a", "_2" -> 2))
+        Item("tuple" -> Item("_1" -> "a", "_2" -> 2))
       val codec: DdbCodec[RecordWithTuple] = RecordWithTuple.schema.derive(BlocksDdbDerived)
-      val expected                         = RecordWithTuple("1", ("a", 2))
+      val expected                         = RecordWithTuple(("a", 2))
       val enc                              = codec.encoder(expected)
       val dec                              = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expected))
