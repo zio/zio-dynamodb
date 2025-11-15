@@ -125,7 +125,8 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     implicit val schema: Schema[RecordWithNonNativeSet] = Schema.derived
   }
 
-  final case class RecordWithNativeBinarySet(set: Set[List[Byte]])
+  // Get compile time error when I use Chunk - raised issue https://github.com/zio/zio-blocks/issues/447
+  final case class RecordWithNativeBinarySet(set: Set[Chunk[Byte]])
   object RecordWithNativeBinarySet {
     implicit val schema: Schema[RecordWithNativeBinarySet] = Schema.derived
   }
@@ -205,7 +206,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val expectedItem                               =
         AttributeValue.Map("set", AttributeValue.BinarySet(Set(Chunk(byte1, byte2), Chunk(byte3, byte4))))
       val codec: DdbCodec[RecordWithNativeBinarySet] = RecordWithNativeBinarySet.schema.derive(BlocksDdbDerived)
-      val expected                                   = RecordWithNativeBinarySet(set = Set(List(byte1, byte2), List(byte3, byte4)))
+      val expected                                   = RecordWithNativeBinarySet(set = Set(Chunk(byte1, byte2), Chunk(byte3, byte4)))
       val enc                                        = codec.encoder(expected)
       val dec                                        = codec.decoder(enc)
       assertTrue(enc == expectedItem && dec == Right(expected))
