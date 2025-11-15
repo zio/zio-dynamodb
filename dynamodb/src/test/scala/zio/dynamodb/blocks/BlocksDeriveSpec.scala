@@ -373,6 +373,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
             Reflect.Wrapper(
               Schema[String].reflect,
               derivedSchema.typeName,
+              None, // TODO: Avi investigate new wrapperPrimitiveType: Option[PrimitiveType[A]],
               Binding.Wrapper[Email, String](s => Right(Email(s)), _.value)
             )
           )
