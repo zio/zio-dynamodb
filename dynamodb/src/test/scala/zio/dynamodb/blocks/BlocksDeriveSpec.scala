@@ -6,7 +6,7 @@ import zio.blocks.schema.Modifier.config
 import zio.blocks.schema.Schema
 import zio.blocks.schema.Reflect
 import zio.blocks.schema.binding.Binding
-import zio.dynamodb.Item
+import zio.dynamodb.{ AttributeValue, Item }
 import zio.dynamodb.blocks.BlocksDeriveSpec.PaymentMethod.CreditCard
 
 object BlocksDeriveSpec extends ZIOSpecDefault {
@@ -190,23 +190,25 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expected))
     },
     test("Record with Native Number Set of Int") {
-      val expectedItem                         =
-        Item("set" -> Set(1, 2))
+      val expectedItem                         = AttributeValue.Map("set", AttributeValue.NumberSet(Set(1, 2)))
       val codec: DdbCodec[RecordWithNumberSet] = RecordWithNumberSet.schema.derive(BlocksDdbDerived)
       val expected                             = RecordWithNumberSet(set = Set(1, 2))
       val enc                                  = codec.encoder(expected)
       val dec                                  = codec.decoder(enc)
-      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expected))
+      assertTrue(enc == expectedItem && dec == Right(expected))
     },
     test("Record with Native Binary Set") {
+      val byte1: Byte                                = 0x01
+      val byte2: Byte                                = 0x02
+      val byte3: Byte                                = 0x03
+      val byte4: Byte                                = 0x04
       val expectedItem                               =
-        Item("set" -> Set(Chunk("12".getBytes)))
+        AttributeValue.Map("set", AttributeValue.BinarySet(Set(Chunk(byte1, byte2), Chunk(byte3, byte4))))
       val codec: DdbCodec[RecordWithNativeBinarySet] = RecordWithNativeBinarySet.schema.derive(BlocksDdbDerived)
-      val arr: Array[Byte]                           = "12".getBytes
-      val expected                                   = RecordWithNativeBinarySet(set = Set(arr.toList))
+      val expected                                   = RecordWithNativeBinarySet(set = Set(List(byte1, byte2), List(byte3, byte4)))
       val enc                                        = codec.encoder(expected)
       val dec                                        = codec.decoder(enc)
-      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expected))
+      assertTrue(enc == expectedItem && dec == Right(expected))
     },
     test("Record with Non Native Set of Person") {
       val expectedItem                            =
