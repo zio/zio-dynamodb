@@ -374,6 +374,36 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     else null
   }
 
+  def parseTupleN(s: String): Int = {
+    val len = s.length
+    // Fast fail if the string is too short
+    if (len <= 5) return -1
+
+    // Check pattern "Tuple"
+    if (
+      s.charAt(0) != 'T' ||
+      s.charAt(1) != 'u' ||
+      s.charAt(2) != 'p' ||
+      s.charAt(3) != 'l' ||
+      s.charAt(4) != 'e'
+    ) return -1
+
+    // Parse digits after "Tuple" into an Int
+    var i     = 5
+    var value = 0
+
+    if (i == len) return -1 // no digits
+
+    while (i < len) {
+      val c = s.charAt(i)
+      if (c < '0' || c > '9') return -1
+      value = value * 10 + (c - '0')
+      i += 1
+    }
+
+    value
+  }
+
   private def deriveCodec[A](
     reflect: Bound[A],
     cache: mutable.HashMap[TypeName[?], CacheEntry] = new mutable.HashMap,
@@ -390,6 +420,11 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         case _                       => ??? // TODO: Avi - other types
       }
     } else if (reflect.isRecord) {
+
+      val tupleN = parseTupleN(reflect.typeName.name)
+      println(
+        s"XXXXXXXXXX 1 deriveCodec Record for ${reflect.typeName.name} tupleN: $tupleN  maybeVariantMetaData: $maybeVariantMetaData"
+      )
       val record = reflect.asRecord.get
 
       val recordPackages = record.typeName.namespace.packages
@@ -420,11 +455,13 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         case _       =>
           val codecs: CacheEntry = CacheEntry.makeWithNames(fields.length)
           if (!fields.isEmpty) {
+            println(s"XXXXXXXX fields ${fields.map(_.name).mkString(", ")}")
             cache.put(record.typeName, codecs)
             val len = fields.length
             var idx = 0
             while (idx < len) {
               val reflect = fields(idx).value
+              println(s"XXXXXXXXXXXX 2 deriveCodec Record field ${fields(idx).name} for ${record.typeName.name}")
               codecs.addEntry(deriveCodec(reflect, cache, maybeVariantMetaData), fields(idx).name, idx)
               idx += 1
             }
@@ -435,7 +472,8 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       new DdbCodec[A] {
         override def encoder: Encoder[A] = {
           val encoder: Encoder[A] = (a: A) => {
-            var avMapBuilder = AttributeValue.Map.MapBuilder()
+            val avMapBuilder = AttributeValue.Map.MapBuilder()
+            val arrayBuilder = new mutable.ArrayBuffer[AttributeValue](fields.length)
             val registers    = Registers(record.usedRegisters)
             deconstructor.deconstruct(registers, RegisterOffset.Zero, a)
             var offset       = RegisterOffset.Zero
@@ -447,40 +485,76 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                 // for simple enums no need to recurse any further as we can decode directly
                 AttributeValue.String(record.typeName.name)
               else {
+                /*
+                TupleN are represented as Records in Schema2 - so we can process them here
+                instead of a AV.Map accumulator we can have a AV.List builder
+                 */
                 fields.foreach { field =>
                   idx += 1
-                  val encoder   = fieldCodecs.byIndex(idx).encoder
-                  val fieldName = field.name
-                  val reflect   = field.value
-                  if (reflect.isPrimitive) {
-                    val primitiveType = reflect.asPrimitive.get.primitiveType
-                    primitiveType match {
-                      case _: PrimitiveType.Int  =>
-                        val av: AttributeValue =
-                          encoder.asInstanceOf[Int => AttributeValue](registers.getInt(offset, 0))
-                        avMapBuilder = avMapBuilder.add(fieldName, av)
-                        offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
-                      case _: PrimitiveType.Long =>
-                        val av: AttributeValue =
-                          encoder.asInstanceOf[Long => AttributeValue](registers.getLong(offset, 0))
-                        avMapBuilder = avMapBuilder.add(fieldName, av)
-                        offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
-                      case _                     =>
-                        val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
-                        avMapBuilder = avMapBuilder.add(fieldName, av)
-                        offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+                  val encoder = fieldCodecs.byIndex(idx).encoder
+                  val reflect = field.value
+                  if (tupleN > -1)
+                    if (reflect.isPrimitive) {
+                      val primitiveType = reflect.asPrimitive.get.primitiveType
+                      primitiveType match {
+                        case _: PrimitiveType.Int  =>
+                          val av: AttributeValue =
+                            encoder.asInstanceOf[Int => AttributeValue](registers.getInt(offset, 0))
+                          arrayBuilder.addOne(av)
+                          offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
+                        case _: PrimitiveType.Long =>
+                          val av: AttributeValue =
+                            encoder.asInstanceOf[Long => AttributeValue](registers.getLong(offset, 0))
+                          arrayBuilder.addOne(av)
+                          offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
+                        case _                     =>
+                          val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
+                          arrayBuilder.addOne(av)
+                          offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+                      }
+                    } else {
+                      val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
+                      field.value match {
+                        case v: Reflect.Variant.Bound[_]
+                            if isOption(v) && (av == AttributeValue.String("None") || av == AttributeValue.Null) =>
+                          () // skip adding Null Optional fields to the map
+                        case _ =>
+                          arrayBuilder.addOne(av)
+                      }
+                      offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                     }
-                  } else {
-                    val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
-                    field.value match {
-                      case v: Reflect.Variant.Bound[_]
-                          if isOption(v) && (av == AttributeValue.String("None") || av == AttributeValue.Null) =>
-                        () // skip adding Null Optional fields to the map
-                      case _ =>
-                        avMapBuilder = avMapBuilder.add(fieldName, av)
+                  else { // Not a TupleN
+                    val fieldName = field.name
+                    if (reflect.isPrimitive) {
+                      val primitiveType = reflect.asPrimitive.get.primitiveType
+                      primitiveType match {
+                        case _: PrimitiveType.Int  =>
+                          val av: AttributeValue =
+                            encoder.asInstanceOf[Int => AttributeValue](registers.getInt(offset, 0))
+                          avMapBuilder.add(fieldName, av)
+                          offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
+                        case _: PrimitiveType.Long =>
+                          val av: AttributeValue =
+                            encoder.asInstanceOf[Long => AttributeValue](registers.getLong(offset, 0))
+                          avMapBuilder.add(fieldName, av)
+                          offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
+                        case _                     =>
+                          val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
+                          avMapBuilder.add(fieldName, av)
+                          offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+                      }
+                    } else {
+                      val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
+                      field.value match {
+                        case v: Reflect.Variant.Bound[_]
+                            if isOption(v) && (av == AttributeValue.String("None") || av == AttributeValue.Null) =>
+                          () // skip adding Null Optional fields to the map
+                        case _ =>
+                          avMapBuilder.add(fieldName, av)
+                      }
+                      offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                     }
-                    offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
-                  }
+                  } // end of not a TupleN
                 }
 
                 //
@@ -488,7 +562,10 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                 //
 
                 maybeVariantMetaData match {
-                  case None         => avMapBuilder.build
+                  case None         =>
+                    if (tupleN > -1)
+                      AttributeValue.List(arrayBuilder.toList)
+                    else avMapBuilder.build
                   case Some(policy) =>
                     policy match {
                       case VariantMetaData.Option | VariantMetaData.Either
@@ -544,7 +621,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
               }
             else { // fields not empty
               // TODO: Avi - determine if we are in context variant - (may need to pass into deriveCodec ???)
-              val errors: ArrayBuffer[String] = new ArrayBuffer
+              val errors: ArrayBuffer[String] = new ArrayBuffer // TODO: Avi - initialise size
               val registers                   = Registers(record.usedRegisters)
               var offset                      = RegisterOffset.Zero
               var idx                         = -1
