@@ -672,14 +672,11 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
               val isMap  = av.isInstanceOf[AttributeValue.Map]
               val isSome = reflect.typeName.name == "Some"
 
-              if (!isMap && isSome)
+              if (isSome)
                 // align shape of AV with Schema for Some
                 decodeAndSetRegisters(AttributeValue.Map("value", av))
               else if (isMap)
-                if (isSome)
-                  decodeAndSetRegisters(AttributeValue.Map("value", av))
-                else
-                  decodeAndSetRegisters(av)
+                decodeAndSetRegisters(av)
               else
                 errors.addOne(s"Expected AttributeValue.Map, found ${av.showType}")
               if (errors.isEmpty) {
