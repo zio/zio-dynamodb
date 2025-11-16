@@ -669,12 +669,14 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                   }
                 } // end decodeAndSetRegisters
 
-              // TODO: Avi - do a better condition
-              if (!av.isInstanceOf[AttributeValue.Map] && reflect.typeName.name == "Some")
+              val isMap  = av.isInstanceOf[AttributeValue.Map]
+              val isSome = reflect.typeName.name == "Some"
+
+              if (!isMap && isSome)
                 // align shape of AV with Schema for Some
                 decodeAndSetRegisters(AttributeValue.Map("value", av))
-              else if (av.isInstanceOf[AttributeValue.Map])
-                if (reflect.typeName.name == "Some")
+              else if (isMap)
+                if (isSome)
                   decodeAndSetRegisters(AttributeValue.Map("value", av))
                 else
                   decodeAndSetRegisters(av)
