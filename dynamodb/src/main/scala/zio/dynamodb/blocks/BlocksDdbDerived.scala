@@ -421,11 +421,9 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       }
     } else if (reflect.isRecord) {
 
-      val tupleN = parseTupleN(reflect.typeName.name)
-      println(
-        s"XXXXXXXXXX 1 deriveCodec Record for ${reflect.typeName.name} tupleN: $tupleN  maybeVariantMetaData: $maybeVariantMetaData"
-      )
-      val record = reflect.asRecord.get
+      val record  = reflect.asRecord.get
+      val tupleN  = parseTupleN(reflect.typeName.name)
+      val isTuple = tupleN > -1
 
       val recordPackages = record.typeName.namespace.packages
       val (recordPackageIsScala, recordPackageIsScalaUtil) = {
@@ -455,13 +453,11 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         case _       =>
           val codecs: CacheEntry = CacheEntry.makeWithNames(fields.length)
           if (!fields.isEmpty) {
-            println(s"XXXXXXXX fields ${fields.map(_.name).mkString(", ")}")
             cache.put(record.typeName, codecs)
             val len = fields.length
             var idx = 0
             while (idx < len) {
               val reflect = fields(idx).value
-              println(s"XXXXXXXXXXXX 2 deriveCodec Record field ${fields(idx).name} for ${record.typeName.name}")
               codecs.addEntry(deriveCodec(reflect, cache, maybeVariantMetaData), fields(idx).name, idx)
               idx += 1
             }
@@ -474,10 +470,11 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
           val encoder: Encoder[A] = (a: A) => {
             val avMapBuilder = AttributeValue.Map.MapBuilder()
             val arrayBuilder = new mutable.ArrayBuffer[AttributeValue](fields.length)
-            val registers    = Registers(record.usedRegisters)
+
+            val registers = Registers(record.usedRegisters)
             deconstructor.deconstruct(registers, RegisterOffset.Zero, a)
-            var offset       = RegisterOffset.Zero
-            var idx          = -1
+            var offset    = RegisterOffset.Zero
+            var idx       = -1
 
             val av: AttributeValue =
               if (fields.isEmpty) // TODO: Avi - do we need more info to validate this is an enum?
@@ -491,71 +488,39 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                  */
                 fields.foreach { field =>
                   idx += 1
-                  val encoder = fieldCodecs.byIndex(idx).encoder
-                  val reflect = field.value
-                  if (tupleN > -1)
-                    if (reflect.isPrimitive) {
-                      val primitiveType = reflect.asPrimitive.get.primitiveType
-                      primitiveType match {
-                        case _: PrimitiveType.Int  =>
-                          val av: AttributeValue =
-                            encoder.asInstanceOf[Int => AttributeValue](registers.getInt(offset, 0))
-                          arrayBuilder.addOne(av)
-                          offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
-                        case _: PrimitiveType.Long =>
-                          val av: AttributeValue =
-                            encoder.asInstanceOf[Long => AttributeValue](registers.getLong(offset, 0))
-                          arrayBuilder.addOne(av)
-                          offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
-                        case _                     =>
-                          val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
-                          arrayBuilder.addOne(av)
-                          offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
-                      }
-                    } else {
-                      val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
-                      field.value match {
-                        case v: Reflect.Variant.Bound[_]
-                            if isOption(v) && (av == AttributeValue.String("None") || av == AttributeValue.Null) =>
-                          () // skip adding Null Optional fields to the map
-                        case _ =>
-                          arrayBuilder.addOne(av)
-                      }
-                      offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+                  val encoder   = fieldCodecs.byIndex(idx).encoder
+                  val reflect   = field.value
+                  val fieldName = field.name
+                  if (reflect.isPrimitive) {
+                    val primitiveType = reflect.asPrimitive.get.primitiveType
+                    primitiveType match {
+                      case _: PrimitiveType.Int  =>
+                        val av: AttributeValue =
+                          encoder.asInstanceOf[Int => AttributeValue](registers.getInt(offset, 0))
+                        if (isTuple) arrayBuilder.addOne(av) else avMapBuilder.add(fieldName, av)
+                        offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
+                      case _: PrimitiveType.Long =>
+                        val av: AttributeValue =
+                          encoder.asInstanceOf[Long => AttributeValue](registers.getLong(offset, 0))
+                        if (isTuple) arrayBuilder.addOne(av) else avMapBuilder.add(fieldName, av)
+                        offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
+                      case _                     =>
+                        val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
+                        if (isTuple) arrayBuilder.addOne(av) else avMapBuilder.add(fieldName, av)
+                        offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                     }
-                  else { // Not a TupleN
-                    val fieldName = field.name
-                    if (reflect.isPrimitive) {
-                      val primitiveType = reflect.asPrimitive.get.primitiveType
-                      primitiveType match {
-                        case _: PrimitiveType.Int  =>
-                          val av: AttributeValue =
-                            encoder.asInstanceOf[Int => AttributeValue](registers.getInt(offset, 0))
-                          avMapBuilder.add(fieldName, av)
-                          offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
-                        case _: PrimitiveType.Long =>
-                          val av: AttributeValue =
-                            encoder.asInstanceOf[Long => AttributeValue](registers.getLong(offset, 0))
-                          avMapBuilder.add(fieldName, av)
-                          offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
-                        case _                     =>
-                          val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
-                          avMapBuilder.add(fieldName, av)
-                          offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
-                      }
-                    } else {
-                      val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
-                      field.value match {
-                        case v: Reflect.Variant.Bound[_]
-                            if isOption(v) && (av == AttributeValue.String("None") || av == AttributeValue.Null) =>
-                          () // skip adding Null Optional fields to the map
-                        case _ =>
-                          avMapBuilder.add(fieldName, av)
-                      }
-                      offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+                  } else {
+                    val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
+                    field.value match {
+                      case v: Reflect.Variant.Bound[_]
+                          if isOption(v) && (av == AttributeValue.String("None") || av == AttributeValue.Null) =>
+                        () // skip adding Null Optional fields to the map
+                      case _ =>
+                        if (isTuple) arrayBuilder.addOne(av) else avMapBuilder.add(fieldName, av)
                     }
-                  } // end of not a TupleN
-                }
+                    offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+                  }
+                } // end of not a TupleN
 
                 //
                 // enrich AttributeValue.Map for sum types
@@ -563,7 +528,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
                 maybeVariantMetaData match {
                   case None         =>
-                    if (tupleN > -1)
+                    if (isTuple)
                       AttributeValue.List(arrayBuilder.toList)
                     else avMapBuilder.build
                   case Some(policy) =>
