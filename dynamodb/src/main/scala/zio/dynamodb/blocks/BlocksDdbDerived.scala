@@ -585,12 +585,12 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                   )
               }
             else { // fields not empty
-              // TODO: Avi - determine if we are in context variant - (may need to pass into deriveCodec ???)
               val errors: ArrayBuffer[String] = new ArrayBuffer // TODO: Avi - initialise size
               val registers                   = Registers(record.usedRegisters)
               var offset                      = RegisterOffset.Zero
               var idx                         = -1
 
+              // set up registers with decoded values for later construction
               def decodeAndSetRegisters(av: AttributeValue): Unit =
                 fields.foreach { field =>
                   idx += 1
