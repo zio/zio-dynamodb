@@ -616,7 +616,9 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
                   def getField(av: AttributeValue.Map, fieldName: String): Either[ItemError, AttributeValue] =
                     av.get(fieldName)
-                      .toRight(ItemError.DecodingError(s"Field name: '$fieldName' not found in record ${av.showType}"))
+                      .toRight(
+                        ItemError.DecodingError(s"Field name: '$fieldName' not found in record ${av /*av.showType*/}")
+                      )
 
                   getField(
                     av.asInstanceOf[AttributeValue.Map],
@@ -667,11 +669,15 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                   }
                 } // end decodeAndSetRegisters
 
-              if (!av.isInstanceOf[AttributeValue.Map])                  // TODO: Avi - do a better condition
+              // TODO: Avi - do a better condition
+              if (!av.isInstanceOf[AttributeValue.Map] && reflect.typeName.name == "Some")
                 // align shape of AV with Schema for Some
                 decodeAndSetRegisters(AttributeValue.Map("value", av))
               else if (av.isInstanceOf[AttributeValue.Map])
-                decodeAndSetRegisters(av)
+                if (reflect.typeName.name == "Some")
+                  decodeAndSetRegisters(AttributeValue.Map("value", av))
+                else
+                  decodeAndSetRegisters(av)
               else
                 errors.addOne(s"Expected AttributeValue.Map, found ${av.showType}")
               if (errors.isEmpty) {
@@ -739,9 +745,6 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
     }.asInstanceOf[DdbCodec[A]]
     else if (reflect.isMap) {
-      // TODO: Avi - Map as Tuple handling - Blocks encodes Tuples as Maps
-      println(s"XXXXXXXXX map reflect: ${reflect.typeName.name}")
-
       val map           = reflect.asMapUnknown.get.map
       val mapBinding    =
         try map.mapBinding.asInstanceOf[Binding.Map[Map2, Key, Value]]
