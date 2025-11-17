@@ -527,12 +527,12 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                 //
 
                 maybeVariantMetaData match {
-                  case None         =>
+                  case None                  =>
                     if (isTuple)
                       AttributeValue.List(arrayBuilder.toList)
                     else avMapBuilder.build
-                  case Some(policy) =>
-                    policy match {
+                  case Some(variantMetaData) =>
+                    variantMetaData match {
                       case VariantMetaData.Option | VariantMetaData.Either
                           if fields.length == 1 && (recordPackageIsScala | recordPackageIsScalaUtil) && avMapBuilder.size == 1 =>
                         val it             = avMapBuilder.iterator
@@ -598,25 +598,12 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
                 fields.foreach { field =>
                   idx += 1
-                  val decoder = fieldCodecs.byIndex(idx).decoder
-                  val reflect = field.value
-
-                  // TODO: Avi - see if we can optimise variant based processing
-                  val isOpt =
+                  val fieldDecoder    = fieldCodecs.byIndex(idx).decoder
+                  val fieldReflect    = field.value
+                  val isFieldOptional =
                     if (field.value.isVariant)
                       isOption(field.value.asVariant.get)
                     else false
-
-                  val name =
-                    if (fields.length == 1 && recordPackageIsScalaUtil)
-                      // both scala.util.Right and scala.util.Left are single field records with field named "value"
-                      // however we encode them with a field named "Right" or "Left"
-                      record.typeName.name match {
-                        case "Right" => "Right"
-                        case "Left"  => "Left"
-                        case _       => throw new Exception("BOOOOOOOOOm! Should not happen") // TODO: Avi
-                      }
-                    else field.name
 
                   // TODO: Avi use Null return to save object allocation
                   def getField(av: AttributeValue, fieldName: String): Either[ItemError, AttributeValue] =
@@ -629,8 +616,8 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                             )
                           )
                       case _: AttributeValue.List if isTuple =>
-                        val value = it.next()
-                        Right(value)
+                        val av: AttributeValue = it.next()
+                        Right(av)
                       case _                                 =>
                         Left(
                           ItemError.DecodingError(
@@ -639,48 +626,60 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                         )
                     }
 
+                  val fieldNameAdjustedForEither =
+                    if (fields.length == 1 && recordPackageIsScalaUtil)
+                      // both scala.util.Right and scala.util.Left are single field records with field named "value"
+                      // however we encode them with a field named "Right" or "Left"
+                      record.typeName.name match {
+                        case "Right" => "Right"
+                        case "Left"  => "Left"
+                        case _       =>
+                          throw new Exception(s"Invalid type $record.typeName.name - expected 'Right' or 'Either'")
+                      }
+                    else field.name
+
                   getField(
                     av,
-                    name
+                    fieldNameAdjustedForEither
                   ) match {
                     case Right(avValue) =>
-                      if (reflect.isPrimitive) {
-                        val primitiveType = reflect.asPrimitive.get.primitiveType
+                      if (fieldReflect.isPrimitive) {
+                        val primitiveType = fieldReflect.asPrimitive.get.primitiveType
                         primitiveType match {
                           case _: PrimitiveType.Int  =>
-                            decoder.asInstanceOf[AnyRef => Either[ItemError, Int]](avValue) match {
+                            fieldDecoder.asInstanceOf[AnyRef => Either[ItemError, Int]](avValue) match {
                               case Left(err)  => errors.addOne(err.message)
                               case Right(int) =>
                                 registers.setInt(offset, 0, int)
                                 offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
                             }
                           case _: PrimitiveType.Long =>
-                            decoder.asInstanceOf[AnyRef => Either[ItemError, Long]](avValue) match {
+                            fieldDecoder.asInstanceOf[AnyRef => Either[ItemError, Long]](avValue) match {
                               case Left(err)  => errors.addOne(err.message)
                               case Right(lng) =>
                                 registers.setLong(offset, 0, lng)
                                 offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
                             }
                           case _                     => // TODO: Avi - other primitive types
-                            decoder.asInstanceOf[AnyRef => Either[ItemError, AnyRef]](avValue) match {
+                            fieldDecoder.asInstanceOf[AnyRef => Either[ItemError, AnyRef]](avValue) match {
                               case Left(err)     => errors.addOne(err.message)
                               case Right(anyRef) =>
                                 registers.setObject(offset, 0, anyRef)
                                 offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                             }
                         }
-                      } else if (av == AttributeValue.Null && isOpt) { // we maybe reading a legacy DB
+                      } else if (av == AttributeValue.Null && isFieldOptional) { // we maybe reading a legacy DB with Null's for None
                         registers.setObject(offset, 0, None)
                         offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                       } else
-                        decoder.asInstanceOf[AnyRef => Either[ItemError, AnyRef]](avValue) match {
+                        fieldDecoder.asInstanceOf[AnyRef => Either[ItemError, AnyRef]](avValue) match {
                           case Left(err)     => errors.addOne(err.message)
                           case Right(anyRef) =>
                             registers.setObject(offset, 0, anyRef)
                             offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                         }
-                    case Left(error)    => // TODO: Avi - delay error creation to save a memory allocation
-                      if (isOpt) {
+                    case Left(error)    => // TODO: Avi - delay error creation if possible to save a memory allocation
+                      if (isFieldOptional) {
                         registers.setObject(offset, 0, None) // Option of None is represented by missing field
                         offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                       } else
