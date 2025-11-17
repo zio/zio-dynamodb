@@ -3,9 +3,8 @@ package zio.dynamodb.blocks
 import zio.Chunk
 import zio.test._
 import zio.blocks.schema.Modifier.config
-import zio.blocks.schema.Schema
-import zio.blocks.schema.Reflect
-import zio.blocks.schema.binding.Binding
+import zio.blocks.schema.{ Namespace, Reflect, Schema, TypeName }
+import zio.blocks.schema.binding.{ Binding, SeqConstructor, SeqDeconstructor }
 import zio.dynamodb.{ AttributeValue, Item }
 import zio.dynamodb.blocks.BlocksDeriveSpec.PaymentMethod.CreditCard
 
@@ -125,9 +124,30 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     implicit val schema: Schema[RecordWithNonNativeSet] = Schema.derived
   }
 
-  // Get compile time error when I use Chunk - raised issue https://github.com/zio/zio-blocks/issues/447
-  final case class RecordWithNativeBinarySet(set: Set[List[Byte]])
+  // Blocks has zero dependency so we have to derive schema for Chunk - see issue https://github.com/zio/zio-blocks/issues/447
+  final case class RecordWithNativeBinarySet(set: Set[Chunk[Byte]])
   object RecordWithNativeBinarySet {
+    val chunkConstructor: SeqConstructor[Chunk] = new SeqConstructor.Boxed[Chunk] {
+      type ObjectBuilder[A] = zio.ChunkBuilder[A]
+      def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = zio.ChunkBuilder.make(sizeHint)
+      def addObject[A](builder: ObjectBuilder[A], a: A): Unit  = builder.addOne(a)
+      def resultObject[A](builder: ObjectBuilder[A]): Chunk[A] = builder.result()
+    }
+
+    val chunkDeconstructor: SeqDeconstructor[Chunk] = new SeqDeconstructor[Chunk] {
+      def deconstruct[A](c: Chunk[A]): Iterator[A] = c.iterator
+      def size[A](c: Chunk[A]): Int                = c.length
+    }
+
+    implicit def schemaChunk[V](implicit ev: Schema[V]): Schema[Chunk[V]] =
+      new Schema(
+        new Reflect.Sequence[Binding, V, Chunk](
+          ev.reflect,
+          TypeName(Namespace("zio" :: Nil, Nil), "Chunk"),
+          new Binding.Seq(chunkConstructor, chunkDeconstructor)
+        )
+      )
+
     implicit val schema: Schema[RecordWithNativeBinarySet] = Schema.derived
   }
 
@@ -206,7 +226,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val expectedItem                               =
         AttributeValue.Map("set", AttributeValue.BinarySet(Set(Chunk(byte1, byte2), Chunk(byte3, byte4))))
       val codec: DdbCodec[RecordWithNativeBinarySet] = RecordWithNativeBinarySet.schema.derive(BlocksDdbDerived)
-      val expected                                   = RecordWithNativeBinarySet(set = Set(List(byte1, byte2), List(byte3, byte4)))
+      val expected                                   = RecordWithNativeBinarySet(set = Set(Chunk(byte1, byte2), Chunk(byte3, byte4)))
       val enc                                        = codec.encoder(expected)
       val dec                                        = codec.decoder(enc)
       assertTrue(enc == expectedItem && dec == Right(expected))
@@ -236,8 +256,8 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val codec: DdbCodec[RecordWithTuple] = RecordWithTuple.schema.derive(BlocksDdbDerived)
       val expected                         = RecordWithTuple((1, 2, 3))
       val enc                              = codec.encoder(expected)
-//      val dec                              = codec.decoder(enc)
-      assertTrue(enc == expectedItem.toAttributeValue /* && dec == Right(expected) */ )
+      val dec                              = codec.decoder(enc)
+      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expected))
     },
     test("Record with native Map()") {
       val expectedItem                           =

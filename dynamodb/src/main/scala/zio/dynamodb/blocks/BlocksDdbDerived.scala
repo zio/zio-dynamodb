@@ -585,13 +585,17 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                   )
               }
             else { // fields not empty
-              val errors: ArrayBuffer[String] = new ArrayBuffer // TODO: Avi - initialise size
-              val registers                   = Registers(record.usedRegisters)
-              var offset                      = RegisterOffset.Zero
-              var idx                         = -1
+              val errors: ArrayBuffer[String]  = new ArrayBuffer // TODO: Avi - initialise size
+              val registers                    = Registers(record.usedRegisters)
+              var offset                       = RegisterOffset.Zero
+              var idx                          = -1
+              var it: Iterator[AttributeValue] = null
 
               // set up registers with decoded values for later construction
-              def decodeAndSetRegisters(av: AttributeValue): Unit =
+              def decodeAndSetRegisters(av: AttributeValue): Unit = {
+                if (av.isInstanceOf[AttributeValue.List])
+                  it = av.asInstanceOf[AttributeValue.List].value.iterator
+
                 fields.foreach { field =>
                   idx += 1
                   val decoder = fieldCodecs.byIndex(idx).decoder
@@ -614,14 +618,29 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                       }
                     else field.name
 
-                  def getField(av: AttributeValue.Map, fieldName: String): Either[ItemError, AttributeValue] =
-                    av.get(fieldName)
-                      .toRight(
-                        ItemError.DecodingError(s"Field name: '$fieldName' not found in record ${av /*av.showType*/}")
-                      )
+                  // TODO: Avi use Null return to save object allocation
+                  def getField(av: AttributeValue, fieldName: String): Either[ItemError, AttributeValue] =
+                    av match {
+                      case m: AttributeValue.Map             =>
+                        m.get(fieldName)
+                          .toRight(
+                            ItemError.DecodingError(
+                              s"Field name: '$fieldName' not found in record ${av /*av.showType*/}"
+                            )
+                          )
+                      case _: AttributeValue.List if isTuple =>
+                        val value = it.next()
+                        Right(value)
+                      case _                                 =>
+                        Left(
+                          ItemError.DecodingError(
+                            s"Error decoded - TODO: better error message ${av.showType}"
+                          )
+                        )
+                    }
 
                   getField(
-                    av.asInstanceOf[AttributeValue.Map],
+                    av,
                     name
                   ) match {
                     case Right(avValue) =>
@@ -668,14 +687,16 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                         errors.addOne(error.message)
                   }
                 } // end decodeAndSetRegisters
+              }
 
               val isMap  = av.isInstanceOf[AttributeValue.Map]
+              val isList = av.isInstanceOf[AttributeValue.List]
               val isSome = reflect.typeName.name == "Some"
 
               if (isSome)
                 // align shape of AV with Schema for Some
                 decodeAndSetRegisters(AttributeValue.Map("value", av))
-              else if (isMap)
+              else if (isMap || isList)
                 decodeAndSetRegisters(av)
               else
                 errors.addOne(s"Expected AttributeValue.Map, found ${av.showType}")
