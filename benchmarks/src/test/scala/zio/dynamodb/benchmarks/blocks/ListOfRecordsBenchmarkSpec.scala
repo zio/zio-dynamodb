@@ -15,7 +15,8 @@ object ListOfRecordsBenchmarkSpec extends ZIOSpecDefault {
         benchmark.setup()
         assertTrue(
           benchmark.readingZioBlocks == benchmark.readingDynosaur,
-          benchmark.readingZioBlocks == benchmark.readingZioSchema
+          benchmark.readingZioBlocks == benchmark.readingZioSchema,
+          benchmark.readingZioBlocks == benchmark.readingScanamo
         )
       }
     )

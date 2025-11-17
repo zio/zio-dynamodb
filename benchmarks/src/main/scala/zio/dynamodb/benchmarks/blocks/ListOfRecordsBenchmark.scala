@@ -1,8 +1,10 @@
 package zio.dynamodb.benchmarks.blocks
 
-import dynosaur.DynamoValue
+import org.scanamo.{ DynamoValue => ScanamoValue }
+import dynosaur.{ DynamoValue => DynosaurValue }
 import dynosaur.Schema.WriteError
 import org.openjdk.jmh.annotations._
+import org.scanamo.DynamoReadError.describe
 import zio.dynamodb.AttributeValue
 import zio.blocks.schema.{ CompanionOptics, Schema }
 import zio.dynamodb.{ Codec, Decoder, Encoder }
@@ -13,10 +15,11 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
   import ListOfRecordsDomain._
 
   @Param(Array("1", "10", "100", "1000", "10000", "100000"))
-  var size: Int                                          = 1000
-  var listOfRecords: List[Person]                        = _
-  var encodedListOfRecords: List[AttributeValue]         = _
-  var encodedListOfRecordsForDynosaur: List[DynamoValue] = _
+  var size: Int                                            = 1000
+  var listOfRecords: List[Person]                          = _
+  var encodedListOfRecords: List[AttributeValue]           = _
+  var encodedListOfRecordsForDynosaur: List[DynosaurValue] = _
+  var encodedListOfRecordsForScanamo: List[ScanamoValue]   = _
 
   @Setup
   def setup(): Unit = {
@@ -27,8 +30,8 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
           "John",
           30,
           "123 Main St",
-          List(5, 7, 9),
-          paymentMethod = PaymentMethod.CreditCard("John", 123)
+          List(5, 7, 9)
+//          paymentMethod = PaymentMethod.CreditCard("John", 123)
         )
       )
       .toList
@@ -36,7 +39,19 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
     encodedListOfRecordsForDynosaur = listOfRecords.map { x =>
       DynosaurSchema.personSchema.write(x).getOrElse(throw new Exception("Failed to encode"))
     }
+    encodedListOfRecordsForScanamo = listOfRecords.map { x =>
+      ScanamoCodec.person.write(x)
+    }
   }
+
+  @Benchmark
+  def readingScanamo: List[Person] =
+    encodedListOfRecordsForScanamo.map(av =>
+      ScanamoCodec.person.read(av) match {
+        case Right(value) => value
+        case Left(error)  => sys.error(describe(error))
+      }
+    )
 
   @Benchmark
   def readingDynosaur: List[Person] =
@@ -66,7 +81,10 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
     )
 
   @Benchmark
-  def writingDynosaur: Seq[Either[WriteError, DynamoValue]] = listOfRecords.map(DynosaurSchema.personSchema.write)
+  def writingScanamo: Seq[ScanamoValue] = listOfRecords.map(ScanamoCodec.person.write)
+
+  @Benchmark
+  def writingDynosaur: Seq[Either[WriteError, DynosaurValue]] = listOfRecords.map(DynosaurSchema.personSchema.write)
 
   @Benchmark
   def writingZioBlocks: Seq[AttributeValue] = listOfRecords.map(zioBlocksCodec.encoder(_))
@@ -97,8 +115,8 @@ object ListOfRecordsDomain {
     name: String,
     age: Int,
     address: String,
-    childrenAges: List[Int],
-    paymentMethod: PaymentMethod
+    childrenAges: List[Int]
+//    paymentMethod: PaymentMethod
   )
 
   val zioSchema: ZIOSchema[Person] = DeriveSchema.gen[Person]
