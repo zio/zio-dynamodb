@@ -688,14 +688,14 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                 } // end decodeAndSetRegisters
               }
 
-              val isMap  = av.isInstanceOf[AttributeValue.Map]
-              val isList = av.isInstanceOf[AttributeValue.List]
-              val isSome = reflect.typeName.name == "Some"
+              val isAvMap      = av.isInstanceOf[AttributeValue.Map]
+              val isAvList     = av.isInstanceOf[AttributeValue.List]
+              val isRecordSome = reflect.typeName.name == "Some"
 
-              if (isSome)
-                // align shape of AV with Schema for Some
+              if (isRecordSome)
+                // align shape of AV with Schema for Some record structure
                 decodeAndSetRegisters(AttributeValue.Map("value", av))
-              else if (isMap || isList)
+              else if (isAvMap || isAvList)
                 decodeAndSetRegisters(av)
               else
                 errors.addOne(s"Expected AttributeValue.Map, found ${av.showType}")
