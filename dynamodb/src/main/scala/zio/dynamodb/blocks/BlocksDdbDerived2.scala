@@ -190,44 +190,54 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
   type Map2[_, _]
 
   final class CacheEntry private (
-    val fieldCodecs: Array[DdbCodec[?]],
-    names: Array[String]
-  )                 {
-    def size: Int                 = fieldCodecs.length // TODO: Avi - for debugging - remove
-    override def toString: String = s"CacheEntry(${fieldCodecs.toSeq}, ${names.toSeq})"
+                                   val fieldCodecs: Array[DdbCodec[?]],
+                                   private val names: Array[String]
+                                 ) {
 
-    private[this] var _nameToIndex: Map[String, Int] = null // TODO: Avi - investigate savings in getting rid of Map
-    private[this] val hasNames                       = names.nonEmpty
+    private[this] val hasNames: Boolean = names.nonEmpty
 
-    private def nameToIndex: Map[String, Int] = {
-      var local = _nameToIndex
-      if (local eq null) {
-        if (hasNames)
-          local = names.zipWithIndex.toMap
-        else
-          local = Map.empty
-        _nameToIndex = local
-      }
-      local
-    }
-
+    /** Insert codec + name at index */
     def addEntry(codec: DdbCodec[?], name: String, index: Int): Unit = {
       fieldCodecs(index) = codec
-      if (hasNames)
-        names(index) = name
+      if (hasNames) names(index) = name
     }
 
-    def byIndex(i: Int): DdbCodec[?] = fieldCodecs(i)
+    /** Fast index-based get */
+    def byIndex(i: Int): DdbCodec[?] =
+      fieldCodecs(i)
 
-    def byName(name: String): Option[DdbCodec[?]] =
-      if (!hasNames) None
-      else nameToIndex.get(name).map(fieldCodecs)
+    /** Name lookup WITHOUT building a Map */
+    def byName(name: String): Option[DdbCodec[?]] = {
+      if (!hasNames) return None
+
+      // linear search (fast for small arrays, zero allocations)
+      val arr = names
+      var i   = 0
+      val n   = arr.length
+      while (i < n) {
+        if (arr(i) eq name) return Some(fieldCodecs(i)) // fast path: same reference
+        if (arr(i) != null && arr(i) == name) return Some(fieldCodecs(i))
+        i += 1
+      }
+      None
+    }
+
+    override def toString: String =
+      s"CacheEntry(${fieldCodecs.toSeq}, ${names.toSeq})"
   }
+
   object CacheEntry {
-    def makeWithNames(size: Int)       =
-      new CacheEntry(new Array[DdbCodec[?]](size), new Array[String](size))
-    def makeWithoutNames[A](size: Int) =
-      new CacheEntry(new Array[DdbCodec[?]](size), Array.empty)
+    def makeWithNames(size: Int): CacheEntry =
+      new CacheEntry(
+        new Array[DdbCodec[?]](size),
+        new Array[String](size)
+      )
+
+    def makeWithoutNames(size: Int): CacheEntry =
+      new CacheEntry(
+        new Array[DdbCodec[?]](size),
+        Array.empty
+      )
   }
 
   def enumCodec[A](typeName: TypeName[A]): DdbCodec[A] =
