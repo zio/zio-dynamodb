@@ -11,6 +11,40 @@ import scala.collection.immutable.HashSet
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
+/*
+
+POST Map.newBuilder
+[info] Benchmark                                (size)   Mode  Cnt        Score        Error  Units
+[info] ListOfRecordsBenchmark.writingScanamo         1  thrpt    5  6383223.763 ± 109285.892  ops/s
+[info] ListOfRecordsBenchmark.writingScanamo        10  thrpt    5   592785.841 ± 307448.711  ops/s
+[info] ListOfRecordsBenchmark.writingScanamo       100  thrpt    5    57567.340 ±    720.784  ops/s
+[info] ListOfRecordsBenchmark.writingScanamo      1000  thrpt    5     6023.016 ±     41.870  ops/s
+[info] ListOfRecordsBenchmark.writingScanamo     10000  thrpt    5      638.409 ±      7.033  ops/s
+[info] ListOfRecordsBenchmark.writingScanamo    100000  thrpt    5       61.156 ±      9.449  ops/s
+[info] ListOfRecordsBenchmark.writingZioBlocks       1  thrpt    5  7185477.945 ±  77214.133  ops/s
+[info] ListOfRecordsBenchmark.writingZioBlocks      10  thrpt    5   698850.669 ±  33846.364  ops/s
+[info] ListOfRecordsBenchmark.writingZioBlocks     100  thrpt    5    70798.658 ±   4309.871  ops/s
+[info] ListOfRecordsBenchmark.writingZioBlocks    1000  thrpt    5     9292.332 ±     37.143  ops/s
+[info] ListOfRecordsBenchmark.writingZioBlocks   10000  thrpt    5      696.708 ±     13.222  ops/s
+[info] ListOfRecordsBenchmark.writingZioBlocks  100000  thrpt    5       64.757 ±      3.424  ops/s
+
+PRE Map.newBuilder
+[info] Benchmark                                (size)   Mode  Cnt        Score       Error  Units
+[info] ListOfRecordsBenchmark.writingScanamo         1  thrpt    5  6344039.563 ± 78744.096  ops/s
+[info] ListOfRecordsBenchmark.writingScanamo        10  thrpt    5   732157.447 ± 31350.674  ops/s
+[info] ListOfRecordsBenchmark.writingScanamo       100  thrpt    5    59173.096 ±  1084.524  ops/s
+[info] ListOfRecordsBenchmark.writingScanamo      1000  thrpt    5     6104.072 ±    56.707  ops/s
+[info] ListOfRecordsBenchmark.writingScanamo     10000  thrpt    5      578.699 ±    15.813  ops/s
+[info] ListOfRecordsBenchmark.writingScanamo    100000  thrpt    5       53.999 ±     0.498  ops/s
+[info] ListOfRecordsBenchmark.writingZioBlocks       1  thrpt    5  6276361.435 ± 66446.325  ops/s
+[info] ListOfRecordsBenchmark.writingZioBlocks      10  thrpt    5   629014.681 ± 10876.644  ops/s
+[info] ListOfRecordsBenchmark.writingZioBlocks     100  thrpt    5    62657.094 ±  2319.145  ops/s
+[info] ListOfRecordsBenchmark.writingZioBlocks    1000  thrpt    5     6255.167 ±    45.180  ops/s
+[info] ListOfRecordsBenchmark.writingZioBlocks   10000  thrpt    5      506.316 ±    71.265  ops/s
+[info] ListOfRecordsBenchmark.writingZioBlocks  100000  thrpt    5       49.271 ±     5.240  ops/s
+
+ */
+
 object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
   sealed trait VariantMetaData
   // TODO: Avi - extract simple codecs that do not need context as vals to save memory allocations
@@ -435,7 +469,8 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
       new DdbCodec[A] {
         override def encoder: Encoder[A] = {
           val encoder: Encoder[A] = (a: A) => {
-            val mapAcc = scala.collection.mutable.Map.empty[AttributeValue.String, AttributeValue]
+            val mapBuilder = Map.newBuilder[AttributeValue.String, AttributeValue]
+            mapBuilder.sizeHint(fields.length)
 
             val registers = Registers(record.usedRegisters)
             deconstructor.deconstruct(registers, RegisterOffset.Zero, a)
@@ -456,26 +491,26 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
                     case _: PrimitiveType.Int  =>
                       val av: AttributeValue =
                         encoder.asInstanceOf[Int => AttributeValue](registers.getInt(offset, 0))
-                      mapAcc += (avStringFieldName ->  av)
+                      mapBuilder.addOne(avStringFieldName ->  av)
                       offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
                     case _: PrimitiveType.Long =>
                       val av: AttributeValue =
                         encoder.asInstanceOf[Long => AttributeValue](registers.getLong(offset, 0))
-                      mapAcc += (avStringFieldName ->  av)
+                      mapBuilder.addOne(avStringFieldName ->  av)
                       offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
                     case _                     =>
                       val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
-                      mapAcc += (avStringFieldName ->  av)
+                      mapBuilder.addOne(avStringFieldName ->  av)
                       offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                   }
                 } else {
                   val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
-                  mapAcc += (avStringFieldName ->  av)
+                  mapBuilder.addOne(avStringFieldName ->  av)
+
                   offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                 }
-
               }
-              AttributeValue.Map(mapAcc.toMap) // end of not a TupleN
+              AttributeValue.Map(mapBuilder.result()) // end of not a TupleN
             }
 
             av

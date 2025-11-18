@@ -3,7 +3,7 @@ package zio.dynamodb.benchmarks.blocks
 import ListOfRecordsDomain._
 
 object RunnerMain extends App {
-   val max: Long = 1000000000
+   val max: Long = 100000000L
    var i: Long = 0L
 
   val person = Person(
