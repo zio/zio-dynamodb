@@ -24,8 +24,8 @@ object DynosaurSchema {
         field("id", _.id),
         field("name", _.name),
         field("age", _.age),
-        field("address", _.address),
-        field("childrenAges", _.childrenAges)
+        field("address", _.address)
+//        field("childrenAges", _.childrenAges)
 //        field("paymentMethod", _.paymentMethod)
       ).mapN(Person.apply)
     }

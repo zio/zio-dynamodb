@@ -5,34 +5,14 @@ import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.derive.{ BindingInstance, Deriver }
 import zio.dynamodb.DynamoDBError.ItemError
-import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb.{ AttributeValue, Decoder, Encoder, FromAttributeValue }
 
 import scala.collection.immutable.HashSet
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-/*
-TODO:
-- decode simple enum - get CacheEntry for enum parent name
-- inline code primitive codecs
- */
-object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
+object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
   sealed trait VariantMetaData
-  object VariantMetaData {
-    case object Option extends VariantMetaData
-    case object Either extends VariantMetaData
-
-    // Discriminator is added as a top level Map wrapping the Record using the type name as the key
-    case object DefaultTaggedDiscriminationPolicy extends VariantMetaData
-
-    // Discriminator is added at the Record level as an extra field
-    final case class FieldDiscriminationPolicy(name: String) extends VariantMetaData
-
-    // No discriminator is encoded - so decoding has to try each case until one works - for legacy DBs
-    case object NoDiscriminator extends VariantMetaData
-  }
-
   // TODO: Avi - extract simple codecs that do not need context as vals to save memory allocations
 
   override def derivePrimitive[F[_, _], A](
@@ -405,8 +385,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
   private def deriveCodec[A](
     reflect: Bound[A],
-    cache: mutable.HashMap[TypeName[?], CacheEntry] = new mutable.HashMap,
-    maybeVariantMetaData: Option[VariantMetaData] = None
+    cache: mutable.HashMap[TypeName[?], CacheEntry] = new mutable.HashMap
   ): DdbCodec[A] = {
     if (reflect.isPrimitive) {
       val primitiveType = reflect.asPrimitive.get.primitiveType
@@ -420,18 +399,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       }
     } else if (reflect.isRecord) {
 
-      val record  = reflect.asRecord.get
-      val tupleN  = parseTupleN(reflect.typeName.name)
-      val isTuple = tupleN > -1
-
-      val recordPackages = record.typeName.namespace.packages
-      val (recordPackageIsScala, recordPackageIsScalaUtil) = {
-        val len = recordPackages.length
-        if (len == 0) (false, false)
-        else if (recordPackages(0) ne "scala") (false, false)
-        else if (len == 2 && (recordPackages(1) eq "util")) (true, true)
-        else (true, false)
-      }
+      val record = reflect.asRecord.get
 
       val recordBinding =
         try record.recordBinding.asInstanceOf[Binding.Record[A]]
@@ -457,7 +425,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
             var idx = 0
             while (idx < len) {
               val reflect = fields(idx).value
-              codecs.addEntry(deriveCodec(reflect, cache, maybeVariantMetaData), fields(idx).name, idx)
+              codecs.addEntry(deriveCodec(reflect, cache), fields(idx).name, idx)
               idx += 1
             }
           }
@@ -468,99 +436,46 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
         override def encoder: Encoder[A] = {
           val encoder: Encoder[A] = (a: A) => {
             val avMapBuilder = AttributeValue.Map.MapBuilder()
-            val arrayBuilder = new mutable.ArrayBuffer[AttributeValue](fields.length)
 
             val registers = Registers(record.usedRegisters)
             deconstructor.deconstruct(registers, RegisterOffset.Zero, a)
             var offset    = RegisterOffset.Zero
             var idx       = -1
 
-            val av: AttributeValue =
-              if (fields.isEmpty) // TODO: Avi - do we need more info to validate this is an enum?
-                // TODO: Avi - investigate doing "None" case object enum here as well
-                // for simple enums no need to recurse any further as we can decode directly
-                AttributeValue.String(record.typeName.name)
-              else {
-                /*
-                TupleN are represented as Records in Schema2 - so we can process them here
-                instead of a AV.Map accumulator we can have a AV.List builder
-                 */
-                fields.foreach { field =>
-                  idx += 1
-                  val encoder   = fieldCodecs.byIndex(idx).encoder
-                  val reflect   = field.value
-                  val fieldName = field.name
-                  if (reflect.isPrimitive) {
-                    val primitiveType = reflect.asPrimitive.get.primitiveType
-                    primitiveType match {
-                      case _: PrimitiveType.Int  =>
-                        val av: AttributeValue =
-                          encoder.asInstanceOf[Int => AttributeValue](registers.getInt(offset, 0))
-                        if (isTuple) arrayBuilder.addOne(av) else avMapBuilder.add(fieldName, av)
-                        offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
-                      case _: PrimitiveType.Long =>
-                        val av: AttributeValue =
-                          encoder.asInstanceOf[Long => AttributeValue](registers.getLong(offset, 0))
-                        if (isTuple) arrayBuilder.addOne(av) else avMapBuilder.add(fieldName, av)
-                        offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
-                      case _                     =>
-                        val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
-                        if (isTuple) arrayBuilder.addOne(av) else avMapBuilder.add(fieldName, av)
-                        offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
-                    }
-                  } else {
-                    val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
-                    field.value match {
-                      case v: Reflect.Variant.Bound[_]
-                          if isOption(v) && (av == AttributeValue.String("None") || av == AttributeValue.Null) =>
-                        () // skip adding Null Optional fields to the map
-                      case _ =>
-                        if (isTuple) arrayBuilder.addOne(av) else avMapBuilder.add(fieldName, av)
-                    }
-                    offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+            val av: AttributeValue = {
+              fields.foreach { field =>
+                idx += 1
+                val encoder   = fieldCodecs.byIndex(idx).encoder
+                val reflect   = field.value
+                val fieldName = field.name
+                if (reflect.isPrimitive) {
+                  val primitiveType = reflect.asPrimitive.get.primitiveType
+                  primitiveType match {
+                    case _: PrimitiveType.Int  =>
+                      val av: AttributeValue =
+                        encoder.asInstanceOf[Int => AttributeValue](registers.getInt(offset, 0))
+                      avMapBuilder.add(fieldName, av)
+                      offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
+                    case _: PrimitiveType.Long =>
+                      val av: AttributeValue =
+                        encoder.asInstanceOf[Long => AttributeValue](registers.getLong(offset, 0))
+                      avMapBuilder.add(fieldName, av)
+                      offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
+                    case _                     =>
+                      val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
+                      avMapBuilder.add(fieldName, av)
+                      offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                   }
-                } // end of not a TupleN
-
-                //
-                // enrich AttributeValue.Map for sum types
-                //
-
-                maybeVariantMetaData match {
-                  case None                  =>
-                    if (isTuple)
-                      AttributeValue.List(arrayBuilder.toList)
-                    else avMapBuilder.build
-                  case Some(variantMetaData) =>
-                    variantMetaData match {
-                      case VariantMetaData.Option | VariantMetaData.Either
-                          if fields.length == 1 && (recordPackageIsScala | recordPackageIsScalaUtil) && avMapBuilder.size == 1 =>
-                        val it             = avMapBuilder.iterator
-                        val (kAttr, vAttr) = it.next()
-                        val keyName        = kAttr.value
-                        val typeName       = record.typeName.name
-
-                        if (typeName eq "Some")
-                          if (keyName eq "value") vAttr // Some is encoded without a Map
-                          else avMapBuilder.build
-                        else if (typeName eq "Right")
-                          if (keyName eq "value") AttributeValue.Map("Right", vAttr)
-                          else avMapBuilder.build
-                        else if (typeName eq "Left")
-                          if (keyName eq "value") AttributeValue.Map("Left", vAttr)
-                          else avMapBuilder.build
-                        else avMapBuilder.build
-                      case VariantMetaData.FieldDiscriminationPolicy(discriminatorFieldName) =>
-                        avMapBuilder.add(discriminatorFieldName, AttributeValue.String(record.typeName.name)).build
-                      case VariantMetaData.NoDiscriminator                                   =>
-                        // TODO: Avi - this is not relevant to record level processing
-                        avMapBuilder.build
-                      case VariantMetaData.DefaultTaggedDiscriminationPolicy                 =>
-                        // default behavior: add discriminator field
-                        AttributeValue.Map(record.typeName.name, avMapBuilder.build)
-                      case _                                                                 => avMapBuilder.build
-                    }
+                } else {
+                  val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
+                  avMapBuilder.add(fieldName, av)
+                  offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                 }
+
               }
+              avMapBuilder.build // end of not a TupleN
+            }
+
             av
           }
           encoder
@@ -568,141 +483,93 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
         override def decoder: Decoder[A] =
           (av: AttributeValue) => {
-            if (fields.isEmpty)
-              // for simple enums no need to recurse any further as we can construct directly
-              av match {
-                case AttributeValue.String(name) if name == record.typeName.name =>
-                  val registers = Registers(record.usedRegisters)
-                  // looks like we can use constructor for zero fields record to construct a simple enum - nice!!!!
-                  val a         = constructor.construct(registers, RegisterOffset.Zero)
-                  Right(a)
-                case _                                                           =>
-                  Left(
-                    ItemError.DecodingError(
-                      s"Expected enum value ${record.typeName.name}, found AttributeValue: $av"
-                    )
-                  )
-              }
-            else { // fields not empty
-              val errors: ArrayBuffer[String]  = new ArrayBuffer // TODO: Avi - initialise size
-              val registers                    = Registers(record.usedRegisters)
-              var offset                       = RegisterOffset.Zero
-              var idx                          = -1
-              var it: Iterator[AttributeValue] = null
+            val errors: ArrayBuffer[String]  = new ArrayBuffer // TODO: Avi - initialise size
+            val registers                    = Registers(record.usedRegisters)
+            var offset                       = RegisterOffset.Zero
+            var idx                          = -1
+            var it: Iterator[AttributeValue] = null
 
-              // set up registers with decoded values for later construction
-              def decodeAndSetRegisters(av: AttributeValue): Unit = {
-                if (av.isInstanceOf[AttributeValue.List])
-                  it = av.asInstanceOf[AttributeValue.List].value.iterator
+            // set up registers with decoded values for later construction
+            def decodeAndSetRegisters(av: AttributeValue): Unit = {
+              if (av.isInstanceOf[AttributeValue.List])
+                it = av.asInstanceOf[AttributeValue.List].value.iterator
 
-                fields.foreach { field =>
-                  idx += 1
-                  val fieldDecoder    = fieldCodecs.byIndex(idx).decoder
-                  val fieldReflect    = field.value
-                  val isFieldOptional =
-                    if (field.value.isVariant)
-                      isOption(field.value.asVariant.get)
-                    else false
+              fields.foreach { field =>
+                idx += 1
+                val fieldDecoder = fieldCodecs.byIndex(idx).decoder
+                val fieldReflect = field.value
 
-                  // TODO: Avi use Null return to save object allocation
-                  def getField(av: AttributeValue, fieldName: String): Either[ItemError, AttributeValue] =
-                    av match {
-                      case m: AttributeValue.Map             =>
-                        m.get(fieldName)
-                          .toRight(
-                            ItemError.DecodingError(
-                              s"Field name: '$fieldName' not found in record ${av /*av.showType*/}"
-                            )
-                          )
-                      case _: AttributeValue.List if isTuple =>
-                        val av: AttributeValue = it.next()
-                        Right(av)
-                      case _                                 =>
-                        Left(
+                // TODO: Avi use Null return to save object allocation
+                def getField(av: AttributeValue, fieldName: String): Either[ItemError, AttributeValue] =
+                  av match {
+                    case m: AttributeValue.Map =>
+                      m.get(fieldName)
+                        .toRight(
                           ItemError.DecodingError(
-                            s"Error decoded - TODO: better error message ${av.showType}"
+                            s"Field name: '$fieldName' not found in record ${av /*av.showType*/}"
                           )
                         )
-                    }
-
-                  val fieldNameAdjustedForEither =
-                    if (fields.length == 1 && recordPackageIsScalaUtil)
-                      // both scala.util.Right and scala.util.Left are single field records with field named "value"
-                      // however we encode them with a field named "Right" or "Left"
-                      record.typeName.name match {
-                        case "Right" => "Right"
-                        case "Left"  => "Left"
-                        case _       =>
-                          throw new Exception(s"Invalid type $record.typeName.name - expected 'Right' or 'Either'")
-                      }
-                    else field.name
-
-                  getField(
-                    av,
-                    fieldNameAdjustedForEither
-                  ) match {
-                    case Right(avValue) =>
-                      if (fieldReflect.isPrimitive) {
-                        val primitiveType = fieldReflect.asPrimitive.get.primitiveType
-                        primitiveType match {
-                          case _: PrimitiveType.Int  =>
-                            fieldDecoder.asInstanceOf[AnyRef => Either[ItemError, Int]](avValue) match {
-                              case Left(err)  => errors.addOne(err.message)
-                              case Right(int) =>
-                                registers.setInt(offset, 0, int)
-                                offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
-                            }
-                          case _: PrimitiveType.Long =>
-                            fieldDecoder.asInstanceOf[AnyRef => Either[ItemError, Long]](avValue) match {
-                              case Left(err)  => errors.addOne(err.message)
-                              case Right(lng) =>
-                                registers.setLong(offset, 0, lng)
-                                offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
-                            }
-                          case _                     => // TODO: Avi - other primitive types
-                            fieldDecoder.asInstanceOf[AnyRef => Either[ItemError, AnyRef]](avValue) match {
-                              case Left(err)     => errors.addOne(err.message)
-                              case Right(anyRef) =>
-                                registers.setObject(offset, 0, anyRef)
-                                offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
-                            }
-                        }
-                      } else if (av == AttributeValue.Null && isFieldOptional) { // we maybe reading a legacy DB with Null's for None
-                        registers.setObject(offset, 0, None)
-                        offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
-                      } else
-                        fieldDecoder.asInstanceOf[AnyRef => Either[ItemError, AnyRef]](avValue) match {
-                          case Left(err)     => errors.addOne(err.message)
-                          case Right(anyRef) =>
-                            registers.setObject(offset, 0, anyRef)
-                            offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
-                        }
-                    case Left(error)    => // TODO: Avi - delay error creation if possible to save a memory allocation
-                      if (isFieldOptional) {
-                        registers.setObject(offset, 0, None) // Option of None is represented by missing field
-                        offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
-                      } else
-                        errors.addOne(error.message)
+                    case _                     =>
+                      Left(
+                        ItemError.DecodingError(
+                          s"Error decoded - TODO: better error message ${av.showType}"
+                        )
+                      )
                   }
-                } // end decodeAndSetRegisters
-              }
 
-              val isAvMap      = av.isInstanceOf[AttributeValue.Map]
-              val isAvList     = av.isInstanceOf[AttributeValue.List]
-              val isRecordSome = reflect.typeName.name == "Some"
-
-              if (isRecordSome)
-                // align shape of AV with Schema for Some record structure
-                decodeAndSetRegisters(AttributeValue.Map("value", av))
-              else if (isAvMap || isAvList)
-                decodeAndSetRegisters(av)
-              else
-                errors.addOne(s"Expected AttributeValue.Map, found ${av.showType}")
-              if (errors.isEmpty) {
-                val a = constructor.construct(registers, RegisterOffset.Zero)
-                Right(a)
-              } else Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
+                getField(
+                  av,
+                  field.name
+                ) match {
+                  case Right(avValue) =>
+                    if (fieldReflect.isPrimitive) {
+                      val primitiveType = fieldReflect.asPrimitive.get.primitiveType
+                      primitiveType match {
+                        case _: PrimitiveType.Int  =>
+                          fieldDecoder.asInstanceOf[AnyRef => Either[ItemError, Int]](avValue) match {
+                            case Left(err)  => errors.addOne(err.message)
+                            case Right(int) =>
+                              registers.setInt(offset, 0, int)
+                              offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
+                          }
+                        case _: PrimitiveType.Long =>
+                          fieldDecoder.asInstanceOf[AnyRef => Either[ItemError, Long]](avValue) match {
+                            case Left(err)  => errors.addOne(err.message)
+                            case Right(lng) =>
+                              registers.setLong(offset, 0, lng)
+                              offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
+                          }
+                        case _                     => // TODO: Avi - other primitive types
+                          fieldDecoder.asInstanceOf[AnyRef => Either[ItemError, AnyRef]](avValue) match {
+                            case Left(err)     => errors.addOne(err.message)
+                            case Right(anyRef) =>
+                              registers.setObject(offset, 0, anyRef)
+                              offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+                          }
+                      }
+                    } else
+                      fieldDecoder.asInstanceOf[AnyRef => Either[ItemError, AnyRef]](avValue) match {
+                        case Left(err)     => errors.addOne(err.message)
+                        case Right(anyRef) =>
+                          registers.setObject(offset, 0, anyRef)
+                          offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+                      }
+                  case Left(error)    => // TODO: Avi - delay error creation if possible to save a memory allocation
+                    errors.addOne(error.message)
+                }
+              } // end decodeAndSetRegisters
             }
+
+            val isAvMap = av.isInstanceOf[AttributeValue.Map]
+
+            if (isAvMap)
+              decodeAndSetRegisters(av)
+            else
+              errors.addOne(s"Expected AttributeValue.Map, found ${av.showType}")
+            if (errors.isEmpty) {
+              val a = constructor.construct(registers, RegisterOffset.Zero)
+              Right(a)
+            } else Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
           }
 
       }
@@ -718,7 +585,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       val constructor   = seqBinding.constructor
       val deconstructor = seqBinding.deconstructor
       val element       = sequence.element
-      val elementCodec  = deriveCodec(element, cache, maybeVariantMetaData)
+      val elementCodec  = deriveCodec(element, cache)
       val encoder2      = elementCodec.encoder.asInstanceOf[A => AttributeValue]
       val decoder2      = elementCodec.decoder //.asInstanceOf[Any => A]
 
@@ -776,11 +643,11 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       val constructor   = mapBinding.constructor
       val deconstructor = mapBinding.deconstructor
       val keyCodec      =
-        deriveCodec(map.key, cache, maybeVariantMetaData)
+        deriveCodec(map.key, cache)
           .asInstanceOf[DdbCodec[Key]]
       val keyEncoder    = keyCodec.encoder   //.asInstanceOf[Key => AttributeValue.String]
       val keyDecoder    = keyCodec.decoder.asInstanceOf[Any => Either[ItemError.DecodingError, Key]]
-      val valueCodec    = deriveCodec(map.value, cache, maybeVariantMetaData).asInstanceOf[DdbCodec[Value]]
+      val valueCodec    = deriveCodec(map.value, cache).asInstanceOf[DdbCodec[Value]]
       val valueEncoder  = valueCodec.encoder //.asInstanceOf[Value => Any]
       val valueDecoder  = valueCodec.decoder //.asInstanceOf[Any => Value]
 
@@ -889,185 +756,8 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
         }
     }.asInstanceOf[DdbCodec[A]]
-    else if (reflect.isVariant) {
-      val variant: Reflect.Variant[Binding, A] = reflect.asVariant.get
-      val variantBinding                       =
-        try variant.variantBinding.asInstanceOf[Binding.Variant[A]]
-        catch {
-          case _: Exception =>
-            variant.variantBinding
-              .asInstanceOf[BindingInstance[DdbCodec, ?, Value]]
-              .binding
-              .asInstanceOf[Binding.Variant[A]]
-        }
-
-      val cases                  = variant.cases
-      val discriminator          = variantBinding.discriminator
-      val variantMetaData2       = variantMetaData(variant, reflect.modifiers)
-      val caseCodecs: CacheEntry = cache.get(variant.typeName) match {
-        case Some(x) => x
-        case _       =>
-          val codecs = CacheEntry.makeWithNames(cases.length)
-          cache.put(variant.typeName, codecs)
-          val len    = cases.length
-          var idx    = 0
-
-          while (idx < len) {
-            val reflect = cases(idx).value
-            codecs.addEntry(
-              deriveCodec(reflect, cache, Some(variantMetaData2)),
-              cases(idx).name,
-              idx
-            )
-            idx += 1
-          }
-          codecs
-      }
-
-      new DdbCodec[A] {
-        override def encoder: Encoder[A] = { (a: A) =>
-          val idx     = discriminator.discriminate(a)
-          val encoder = caseCodecs.byIndex(idx).encoder.asInstanceOf[A => AttributeValue]
-          encoder(a)
-        }
-
-        override def decoder: Decoder[A] = { (av: AttributeValue) =>
-          if (isOption(variant))
-            //someDecoder(variant)(av)
-            caseCodecs.byName("Some") match {
-              case Some(codec) =>
-                codec.decoder.asInstanceOf[Decoder[A]](av)
-              case None        =>
-                Left(DecodingError(s"Unknown case in Variant decoder for AttributeValue: $av"))
-            }
-          else
-            av match {
-              // TODO: Avi - validate against Schema that this is a simple enum variant
-              case AttributeValue.String(name) =>
-                caseCodecs.byName(name) match {
-                  case Some(codec) =>
-                    codec.decoder.asInstanceOf[Decoder[A]](av)
-                  case None        =>
-                    Left(DecodingError(s"Unknown case in Variant decoder for AttributeValue: $av"))
-                }
-              case m: AttributeValue.Map       =>
-                variantMetaData2 match {
-                  case VariantMetaData.Either                              =>
-                    if (m.size != 1)
-                      Left(
-                        DecodingError(s"Expected single entry Map for a tagged variant, found size ${m.size}")
-                      )
-                    else {
-                      val it        = m.value.iterator
-                      val (key, av) = it.next() // kv: (String, AttributeValue)
-
-                      def decodeForLabel(label: String): Either[ItemError, A] =
-                        caseCodecs.byName(label) match {
-                          case Some(codec) =>
-                            codec.decoder.asInstanceOf[Decoder[A]](m)
-                          case None        =>
-                            Left(
-                              DecodingError(
-                                s"Unknown case in Either Variant decoder for AttributeValue: ${av.showType}"
-                              )
-                            )
-                        }
-
-                      val v = key.value
-                      if (v eq "Right") decodeForLabel("Right")
-                      else if (v eq "Left") decodeForLabel("Left")
-                      else
-                        Left(DecodingError(s"Unknown key in Either Variant decoder: $key")) // this should never happen
-                    }
-                  case VariantMetaData.DefaultTaggedDiscriminationPolicy   =>
-                    if (m.size != 1)
-                      Left(
-                        DecodingError(s"Expected single entry Map for a tagged variant, found size ${m.size}")
-                      )
-                    else {
-                      val it        = m.value.iterator
-                      val (key, av) = it.next()
-
-                      caseCodecs.byName(key.value) match {
-                        case Some(codec) =>
-                          codec.decoder.asInstanceOf[Decoder[A]](av)
-                        case None        =>
-                          Left(DecodingError(s"Unknown case in Variant decoder for AttributeValue: $av"))
-                      }
-                    }
-                  case VariantMetaData.FieldDiscriminationPolicy(discName) =>
-                    m.get(discName) match {
-                      case Some(AttributeValue.String(typeName)) =>
-                        caseCodecs.byName(typeName) match {
-                          case Some(codec) =>
-                            codec.decoder.asInstanceOf[Decoder[A]](av)
-                          case None        =>
-                            Left(DecodingError(s"Unknown case in Variant decoder for AttributeValue: $av"))
-                        }
-                      case Some(otherAV)                         =>
-                        Left(
-                          DecodingError(
-                            s"Expected discriminator field '$discName' to be String, found: ${otherAV.showType}"
-                          )
-                        )
-                      case None                                  =>
-                        Left(DecodingError(s"Discriminator field '$discName' not found in AttributeValue: $av"))
-                    }
-                  case _                                                   =>
-                    Left(DecodingError(s"TODO: decode non enums and Either av: $av"))
-                }
-              case _                           => Left(DecodingError(s"TODO: expected a Map, found ${av.showType}"))
-            }
-        }
-      }
-    } else
-      ??? // TODO: Avi - Wrapper, Dynamic, Tuple as nested Lists implementation inside of Map codec
-  }
-
-  // TODO: Avi - delete as we have VariantMetaData now
-  private def isOption[A](v: Reflect.Variant.Bound[A]): Boolean = {
-    val tn = v.typeName
-    val ns = tn.namespace.packages
-    (tn.name eq "Option") || (tn.name eq "Some") || (tn.name eq "None") match {
-      case true if ns.size == 1 && (ns.head eq "scala") => true
-      case _                                            => false
-    }
-  }
-
-  def maybeDiscriminatorNameModifier(
-    modifiers: Seq[Modifier]
-  ): Option[String] =
-    modifiers.collectFirst {
-      case Modifier.config("discriminatorName", value) => value
-    }
-
-  def variantMetaData[A](
-    variant: Reflect.Variant.Bound[A],
-    modifiers: Seq[Modifier]
-  ): VariantMetaData = {
-    val tn = variant.typeName
-    val ns = tn.namespace.packages
-
-    val isOption =
-      ((tn.name eq "Option") || (tn.name eq "Some") || (tn.name eq "None")) &&
-        ns.lengthCompare(1) == 0 &&
-        (ns.head eq "scala")
-
-    val isEither =
-      (tn.name eq "Either") &&
-        ns.lengthCompare(2) == 0 &&
-        (ns.head eq "scala") &&
-        (ns(1) eq "util")
-
-    if (isOption)
-      VariantMetaData.Option
-    else if (isEither)
-      VariantMetaData.Either
     else
-      maybeDiscriminatorNameModifier(modifiers) match {
-        case Some(name) => VariantMetaData.FieldDiscriminationPolicy(name)
-        case None       => VariantMetaData.DefaultTaggedDiscriminationPolicy
-      }
+      ??? // TODO: Avi - Wrapper, Dynamic, Tuple as nested Lists implementation inside of Map codec
   }
 
 }

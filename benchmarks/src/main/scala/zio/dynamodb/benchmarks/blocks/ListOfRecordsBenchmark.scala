@@ -8,7 +8,7 @@ import org.scanamo.DynamoReadError.describe
 import zio.dynamodb.AttributeValue
 import zio.blocks.schema.{ CompanionOptics, Schema }
 import zio.dynamodb.{ Codec, Decoder, Encoder }
-import zio.dynamodb.blocks.{ BlocksDdbDerived, DdbCodec }
+import zio.dynamodb.blocks.{ BlocksDdbDerived2, DdbCodec }
 import zio.schema.{ DeriveSchema, Schema => ZIOSchema }
 
 class ListOfRecordsBenchmark extends BaseBenchmark {
@@ -29,8 +29,8 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
           12345678901L,
           "John",
           30,
-          "123 Main St",
-          List(5, 7, 9)
+          "123 Main St"
+//          List(5, 7, 9)
 //          paymentMethod = PaymentMethod.CreditCard("John", 123)
         )
       )
@@ -44,7 +44,7 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
     }
   }
 
-  @Benchmark
+//  @Benchmark
   def readingScanamo: List[Person] =
     encodedListOfRecordsForScanamo.map(av =>
       ScanamoCodec.person.read(av) match {
@@ -53,7 +53,7 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
       }
     )
 
-  @Benchmark
+//  @Benchmark
   def readingDynosaur: List[Person] =
     encodedListOfRecordsForDynosaur.map(av =>
       DynosaurSchema.personSchema.read(av) match {
@@ -62,7 +62,7 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
       }
     )
 
-  @Benchmark
+//  @Benchmark
   def readingZioBlocks: List[Person] =
     encodedListOfRecords.map(av =>
       zioBlocksCodec.decoder(av) match {
@@ -71,7 +71,7 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
       }
     )
 
-  @Benchmark
+//  @Benchmark
   def readingZioSchema: List[Person] =
     encodedListOfRecords.map(av =>
       zioSchemaDecoder(av) match {
@@ -83,13 +83,13 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
   @Benchmark
   def writingScanamo: Seq[ScanamoValue] = listOfRecords.map(ScanamoCodec.person.write)
 
-  @Benchmark
+//  @Benchmark
   def writingDynosaur: Seq[Either[WriteError, DynosaurValue]] = listOfRecords.map(DynosaurSchema.personSchema.write)
 
   @Benchmark
   def writingZioBlocks: Seq[AttributeValue] = listOfRecords.map(zioBlocksCodec.encoder(_))
 
-  @Benchmark
+//  @Benchmark
   def writingZioSchema: Seq[AttributeValue] = listOfRecords.map(zioSchemaEncoder(_))
 
 }
@@ -114,8 +114,8 @@ object ListOfRecordsDomain {
     id: Long,
     name: String,
     age: Int,
-    address: String,
-    childrenAges: List[Int]
+    address: String
+//    childrenAges: List[Int]
 //    paymentMethod: PaymentMethod
   )
 
@@ -124,5 +124,5 @@ object ListOfRecordsDomain {
   val zioSchemaEncoder: Encoder[Person] = Codec.encoder[Person](zioSchema)
   val zioSchemaDecoder: Decoder[Person] = Codec.decoder[Person](zioSchema)
 
-  val zioBlocksCodec: DdbCodec[Person] = Schema.derived.deriving(BlocksDdbDerived).derive
+  val zioBlocksCodec: DdbCodec[Person] = Schema.derived.deriving(BlocksDdbDerived2).derive
 }
