@@ -435,7 +435,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
       new DdbCodec[A] {
         override def encoder: Encoder[A] = {
           val encoder: Encoder[A] = (a: A) => {
-            val avMapBuilder = AttributeValue.Map.MapBuilder()
+            val mapAcc = scala.collection.mutable.Map.empty[AttributeValue.String, AttributeValue]
 
             val registers = Registers(record.usedRegisters)
             deconstructor.deconstruct(registers, RegisterOffset.Zero, a)
@@ -448,32 +448,34 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
                 val encoder   = fieldCodecs.byIndex(idx).encoder
                 val reflect   = field.value
                 val fieldName = field.name
+                val avStringFieldName = AttributeValue.String(fieldName)
+
                 if (reflect.isPrimitive) {
                   val primitiveType = reflect.asPrimitive.get.primitiveType
                   primitiveType match {
                     case _: PrimitiveType.Int  =>
                       val av: AttributeValue =
                         encoder.asInstanceOf[Int => AttributeValue](registers.getInt(offset, 0))
-                      avMapBuilder.add(fieldName, av)
+                      mapAcc += (avStringFieldName ->  av)
                       offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
                     case _: PrimitiveType.Long =>
                       val av: AttributeValue =
                         encoder.asInstanceOf[Long => AttributeValue](registers.getLong(offset, 0))
-                      avMapBuilder.add(fieldName, av)
+                      mapAcc += (avStringFieldName ->  av)
                       offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
                     case _                     =>
                       val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
-                      avMapBuilder.add(fieldName, av)
+                      mapAcc += (avStringFieldName ->  av)
                       offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                   }
                 } else {
                   val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
-                  avMapBuilder.add(fieldName, av)
+                  mapAcc += (avStringFieldName ->  av)
                   offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                 }
 
               }
-              avMapBuilder.build // end of not a TupleN
+              AttributeValue.Map(mapAcc.toMap) // end of not a TupleN
             }
 
             av
