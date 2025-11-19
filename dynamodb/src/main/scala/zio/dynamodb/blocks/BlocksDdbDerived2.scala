@@ -187,7 +187,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
   type Col[_]
   type Key
   type Value
-  type Map2[_, _]
+  type Map[_, _]
 
   final class CacheEntry private (
                                    val fieldCodecs: Array[DdbCodec[?]],
@@ -679,13 +679,13 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
     else if (reflect.isMap) {
       val map           = reflect.asMapUnknown.get.map
       val mapBinding    =
-        try map.mapBinding.asInstanceOf[Binding.Map[Map2, Key, Value]]
+        try map.mapBinding.asInstanceOf[Binding.Map[Map, Key, Value]]
         catch {
           case _: Exception =>
             map.mapBinding
               .asInstanceOf[BindingInstance[DdbCodec, ?, Value]]
               .binding
-              .asInstanceOf[Binding.Map[Map2, Key, Value]]
+              .asInstanceOf[Binding.Map[Map, Key, Value]]
         }
       val constructor   = mapBinding.constructor
       val deconstructor = mapBinding.deconstructor
@@ -701,9 +701,9 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
       val isNativeMap = map.key.asPrimitive.map(_.typeName.name == "String").getOrElse(false)
 
       if (isNativeMap)
-        new DdbCodec[Map2[Key, Value]] {
-          override def encoder: Encoder[Map2[Key, Value]] =
-            (m: Map2[Key, Value]) => {
+        new DdbCodec[Map[Key, Value]] {
+          override def encoder: Encoder[Map[Key, Value]] =
+            (m: Map[Key, Value]) => {
               val mapBuilder = AttributeValue.Map.MapBuilder()
               val it         = deconstructor.deconstruct(m)
               while (it.hasNext) {
@@ -716,7 +716,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
               mapBuilder.build
             }
 
-          override def decoder: Decoder[Map2[Key, Value]] =
+          override def decoder: Decoder[Map[Key, Value]] =
             (av: AttributeValue) => {
               if (!av.isInstanceOf[AttributeValue.Map])
                 Left(ItemError.DecodingError(s"Expected AttributeValue.Map, found ${av.showType}"))
@@ -745,9 +745,9 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
             }
         }
       else // non native Map encoding - Sequence of tuple2
-        new DdbCodec[Map2[Key, Value]] {
-          override def encoder: Encoder[Map2[Key, Value]] =
-            (a: Map2[Key, Value]) => {
+        new DdbCodec[Map[Key, Value]] {
+          override def encoder: Encoder[Map[Key, Value]] =
+            (a: Map[Key, Value]) => {
               val avList = new ArrayBuffer[AttributeValue]
               val map    = deconstructor.deconstruct(a)
               while (map.hasNext) {
@@ -762,7 +762,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
               AttributeValue.List(avList.toList)
             }
 
-          override def decoder: Decoder[Map2[Key, Value]] = {
+          override def decoder: Decoder[Map[Key, Value]] = {
             case AttributeValue.List(value) =>
               val it      = value.iterator
               val errors  = new ArrayBuffer[String]
