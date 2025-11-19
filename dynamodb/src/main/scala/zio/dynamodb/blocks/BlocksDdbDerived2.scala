@@ -1,11 +1,12 @@
 package zio.dynamodb.blocks
 
-import zio.blocks.schema.Reflect.{ Bound }
+import zio.blocks.schema.Reflect.Bound
 import zio.blocks.schema._
+import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
-import zio.blocks.schema.derive.{ BindingInstance, Deriver }
+import zio.blocks.schema.derive.{BindingInstance, Deriver}
 import zio.dynamodb.DynamoDBError.ItemError
-import zio.dynamodb.{ AttributeValue, Decoder, Encoder, FromAttributeValue }
+import zio.dynamodb.{AttributeValue, Decoder, Encoder, FromAttributeValue}
 
 import scala.collection.immutable.HashSet
 import scala.collection.mutable
@@ -45,7 +46,7 @@ PRE Map.newBuilder
 
  */
 
-object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
+object BlocksDdbDerived2 extends Deriver[DdbCodec2] { self =>
   sealed trait VariantMetaData
   // TODO: Avi - extract simple codecs that do not need context as vals to save memory allocations
 
@@ -55,7 +56,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
     binding: Binding[BindingType.Primitive, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
-  ): Lazy[DdbCodec[A]] =
+  ): Lazy[DdbCodec2[A]] =
     Lazy(
       deriveCodec(
         Reflect.Primitive(
@@ -74,7 +75,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
     binding: Binding[BindingType.Record, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] =
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec2[A]] =
     Lazy(
       deriveCodec(
         Reflect.Record(
@@ -93,7 +94,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
     binding: Binding[BindingType.Variant, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] =
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec2[A]] =
     Lazy(
       deriveCodec(
         Reflect.Variant(
@@ -113,7 +114,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
     binding: Binding[BindingType.Seq[C], C[A]],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[C[A]]] =
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec2[C[A]]] =
     Lazy(
       deriveCodec(
         Reflect.Sequence(
@@ -133,7 +134,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
     binding: Binding[BindingType.Map[M], M[K, V]],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[M[K, V]]] =
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec2[M[K, V]]] =
     Lazy(
       deriveCodec(
         Reflect.Map(
@@ -151,9 +152,9 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
     binding: Binding[BindingType.Dynamic, DynamicValue],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[DynamicValue]] =
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec2[DynamicValue]] =
     Lazy(
-      new DdbCodec[DynamicValue] {
+      new DdbCodec2[DynamicValue](valueType = 0) { // TODO: Avi
         override def encoder: Encoder[DynamicValue] = ???
         override def decoder: Decoder[DynamicValue] = ???
       }
@@ -166,9 +167,9 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
     binding: Binding[BindingType.Wrapper[A, B], A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] =
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec2[A]] =
     Lazy(
-      new DdbCodec[A] {
+      new DdbCodec2[A](valueType = 0) { // TODO: Avi
         val wrapper                      = Reflect.Wrapper(
           wrapped = wrapped.asInstanceOf[Reflect[Any, B]],
           typeName = typeName,
@@ -190,24 +191,24 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
   type Map[_, _]
 
   final class CacheEntry private (
-                                   val fieldCodecs: Array[DdbCodec[?]],
+                                   val fieldCodecs: Array[DdbCodec2[?]],
                                    private val names: Array[String]
                                  ) {
 
     private[this] val hasNames: Boolean = names.nonEmpty
 
     /** Insert codec + name at index */
-    def addEntry(codec: DdbCodec[?], name: String, index: Int): Unit = {
+    def addEntry(codec: DdbCodec2[?], name: String, index: Int): Unit = {
       fieldCodecs(index) = codec
       if (hasNames) names(index) = name
     }
 
     /** Fast index-based get */
-    def byIndex(i: Int): DdbCodec[?] =
+    def byIndex(i: Int): DdbCodec2[?] =
       fieldCodecs(i)
 
     /** Name lookup WITHOUT building a Map */
-    def byName(name: String): Option[DdbCodec[?]] = {
+    def byName(name: String): Option[DdbCodec2[?]] = {
       if (!hasNames) return None
 
       // linear search (fast for small arrays, zero allocations)
@@ -229,19 +230,19 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
   object CacheEntry {
     def makeWithNames(size: Int): CacheEntry =
       new CacheEntry(
-        new Array[DdbCodec[?]](size),
+        new Array[DdbCodec2[?]](size),
         new Array[String](size)
       )
 
     def makeWithoutNames(size: Int): CacheEntry =
       new CacheEntry(
-        new Array[DdbCodec[?]](size),
+        new Array[DdbCodec2[?]](size),
         Array.empty
       )
   }
 
-  def enumCodec[A](typeName: TypeName[A]): DdbCodec[A] =
-    new DdbCodec[A] {
+  def enumCodec[A](typeName: TypeName[A]): DdbCodec2[A] =
+    new DdbCodec2[A](valueType = 0) { // TODO: Avi
       override def encoder: Encoder[A] = (_: A) => AttributeValue.String(typeName.name)
 
       override def decoder: Decoder[A] =
@@ -249,7 +250,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
         ???
     }
 
-  private val intCodec: DdbCodec[Int] = new DdbCodec[Int] {
+  private val intCodec: DdbCodec2[Int] = new DdbCodec2[Int](valueType = DdbCodec2.intType) {
     override def encoder: Encoder[Int] =
       (a: Int) => AttributeValue.Number(BigDecimal.valueOf(a.toLong))
 
@@ -260,14 +261,14 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
           .asInstanceOf[Either[zio.dynamodb.DynamoDBError.ItemError, Int]]
   }
 
-  private val stringCodec: DdbCodec[String] = new DdbCodec[String] {
+  private val stringCodec: DdbCodec2[String] = new DdbCodec2[String](valueType = DdbCodec2.objectType) {
     override def encoder: Encoder[String] =
       (a: String) => AttributeValue.String(a)
 
     override def decoder: Decoder[String] =
       (av: AttributeValue) => FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av)
   }
-  private val longCodec                     = new DdbCodec[Long] {
+  private val longCodec                     = new DdbCodec2[Long](valueType = DdbCodec2.longType) {
     override def encoder: Encoder[Long] =
       (a: Long) => AttributeValue.Number(BigDecimal.valueOf(a))
 
@@ -278,7 +279,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
           .asInstanceOf[Either[zio.dynamodb.DynamoDBError.ItemError, Long]]
   }
 
-  val byteCodec = new DdbCodec[Byte] {
+  val byteCodec = new DdbCodec2[Byte](valueType = DdbCodec2.objectType) {
     override def encoder: Encoder[Byte] =
       (a: Byte) => AttributeValue.Binary(zio.Chunk(a))
 
@@ -289,7 +290,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
           .asInstanceOf[Either[zio.dynamodb.DynamoDBError.ItemError, Byte]]
   }
 
-  val nativeStringSetCodec: DdbCodec[Set[String]] = new DdbCodec[Set[String]] {
+  val nativeStringSetCodec: DdbCodec2[Set[String]] = new DdbCodec2[Set[String]](valueType = DdbCodec2.objectType) {
     override def encoder: Encoder[Set[String]] =
       (a: Set[String]) => {
         val ss = a
@@ -339,8 +340,8 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
     }
   }
 
-  def nativeNumericSetCodec[A](implicit ops: NumberOps[A]): DdbCodec[Set[A]] =
-    new DdbCodec[Set[A]] {
+  def nativeNumericSetCodec[A](implicit ops: NumberOps[A]): DdbCodec2[Set[A]] =
+    new DdbCodec2[Set[A]](valueType = DdbCodec2.objectType) {
       override def encoder: Encoder[Set[A]] =
         (ns: Set[A]) => {
           val builder = HashSet.newBuilder[BigDecimal]
@@ -360,8 +361,8 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
       }
     }
 
-  def binarySetCodec: DdbCodec[Set[zio.Chunk[Byte]]] =
-    new DdbCodec[Set[zio.Chunk[Byte]]] {
+  def binarySetCodec: DdbCodec2[Set[zio.Chunk[Byte]]] =
+    new DdbCodec2[Set[zio.Chunk[Byte]]](valueType = DdbCodec2.objectType) {
       override def encoder: Encoder[Set[zio.Chunk[Byte]]] =
         (bs: Set[zio.Chunk[Byte]]) => AttributeValue.BinarySet(bs)
 
@@ -371,13 +372,13 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
       }
     }
 
-  private def primitiveSetCodecOrNull[A](element: Reflect[Binding, A]): DdbCodec[A] = {
+  private def primitiveSetCodecOrNull[A](element: Reflect[Binding, A]): DdbCodec2[A] = {
     if (!element.isPrimitive) return null
 
     element.asPrimitive.get.primitiveType match {
-      case _: PrimitiveType.String => nativeStringSetCodec.asInstanceOf[DdbCodec[A]]
-      case _: PrimitiveType.Int    => nativeNumericSetCodec[Int].asInstanceOf[DdbCodec[A]]
-      case _: PrimitiveType.Long   => nativeNumericSetCodec[Long].asInstanceOf[DdbCodec[A]]
+      case _: PrimitiveType.String => nativeStringSetCodec.asInstanceOf[DdbCodec2[A]]
+      case _: PrimitiveType.Int    => nativeNumericSetCodec[Int].asInstanceOf[DdbCodec2[A]]
+      case _: PrimitiveType.Long   => nativeNumericSetCodec[Long].asInstanceOf[DdbCodec2[A]]
       case _                       => null
     }
   }
@@ -390,10 +391,10 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
           seq.element.asPrimitive.get.primitiveType.isInstanceOf[PrimitiveType.Byte]
         }
       }
-  private def chooseNativeSetCodecOrNull[A](element: Reflect[Binding, A]): DdbCodec[A] = {
+  private def chooseNativeSetCodecOrNull[A](element: Reflect[Binding, A]): DdbCodec2[A] = {
     val prim = primitiveSetCodecOrNull(element)
     if (prim != null) prim
-    else if (isByteSequence(element)) binarySetCodec.asInstanceOf[DdbCodec[A]]
+    else if (isByteSequence(element)) binarySetCodec.asInstanceOf[DdbCodec2[A]]
     else null
   }
 
@@ -430,7 +431,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
   private def deriveCodec[A](
     reflect: Bound[A],
     cache: mutable.HashMap[TypeName[?], CacheEntry] = new mutable.HashMap
-  ): DdbCodec[A] = {
+  ): DdbCodec2[A] = {
     if (reflect.isPrimitive) {
       val primitiveType = reflect.asPrimitive.get.primitiveType
       primitiveType match {
@@ -450,7 +451,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
         catch {
           case _: Exception =>
             record.recordBinding
-              .asInstanceOf[BindingInstance[DdbCodec, ?, A]]
+              .asInstanceOf[BindingInstance[DdbCodec2, ?, A]]
               .binding
               .asInstanceOf[Binding.Record[A]]
         }
@@ -476,7 +477,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
           codecs
       }
 
-      new DdbCodec[A] {
+      new DdbCodec2[A](valueType = DdbCodec2.objectType) {
         override def encoder: Encoder[A] = {
           val encoder: Encoder[A] = (a: A) => {
             val mapBuilder = Map.newBuilder[AttributeValue.String, AttributeValue]
@@ -627,7 +628,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
         try sequence.seqBinding.asInstanceOf[Binding.Seq[Col, A]]
         catch {
           case _: Exception =>
-            sequence.seqBinding.asInstanceOf[BindingInstance[DdbCodec, ?, A]].binding.asInstanceOf[Binding.Seq[Col, A]]
+            sequence.seqBinding.asInstanceOf[BindingInstance[DdbCodec2, ?, A]].binding.asInstanceOf[Binding.Seq[Col, A]]
         }
       val constructor   = seqBinding.constructor
       val deconstructor = seqBinding.deconstructor
@@ -637,8 +638,8 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
       val decoder2      = elementCodec.decoder //.asInstanceOf[Any => A]
 
       val isSet                      = reflect.typeName.name.endsWith("Set")
-      val sequenceCodec: DdbCodec[A] =
-        new DdbCodec[A] {
+      val sequenceCodec: DdbCodec2[A] =
+        new DdbCodec2[A](valueType = DdbCodec2.objectType) {
           override def encoder: Encoder[A] =
             (a: A) => {
               val res = new ArrayBuffer[AttributeValue]
@@ -675,7 +676,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
       } else
         sequenceCodec
 
-    }.asInstanceOf[DdbCodec[A]]
+    }.asInstanceOf[DdbCodec2[A]]
     else if (reflect.isMap) {
       val map           = reflect.asMapUnknown.get.map
       val mapBinding    =
@@ -683,7 +684,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
         catch {
           case _: Exception =>
             map.mapBinding
-              .asInstanceOf[BindingInstance[DdbCodec, ?, Value]]
+              .asInstanceOf[BindingInstance[DdbCodec2, ?, Value]]
               .binding
               .asInstanceOf[Binding.Map[Map, Key, Value]]
         }
@@ -691,17 +692,17 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
       val deconstructor = mapBinding.deconstructor
       val keyCodec      =
         deriveCodec(map.key, cache)
-          .asInstanceOf[DdbCodec[Key]]
+          .asInstanceOf[DdbCodec2[Key]]
       val keyEncoder    = keyCodec.encoder   //.asInstanceOf[Key => AttributeValue.String]
       val keyDecoder    = keyCodec.decoder.asInstanceOf[Any => Either[ItemError.DecodingError, Key]]
-      val valueCodec    = deriveCodec(map.value, cache).asInstanceOf[DdbCodec[Value]]
+      val valueCodec    = deriveCodec(map.value, cache).asInstanceOf[DdbCodec2[Value]]
       val valueEncoder  = valueCodec.encoder //.asInstanceOf[Value => Any]
       val valueDecoder  = valueCodec.decoder //.asInstanceOf[Any => Value]
 
       val isNativeMap = map.key.asPrimitive.map(_.typeName.name == "String").getOrElse(false)
 
       if (isNativeMap)
-        new DdbCodec[Map[Key, Value]] {
+        new DdbCodec2[Map[Key, Value]](valueType = DdbCodec2.objectType) {
           override def encoder: Encoder[Map[Key, Value]] =
             (m: Map[Key, Value]) => {
               val mapBuilder = AttributeValue.Map.MapBuilder()
@@ -745,7 +746,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
             }
         }
       else // non native Map encoding - Sequence of tuple2
-        new DdbCodec[Map[Key, Value]] {
+        new DdbCodec2[Map[Key, Value]](valueType = DdbCodec2.objectType) {
           override def encoder: Encoder[Map[Key, Value]] =
             (a: Map[Key, Value]) => {
               val avList = new ArrayBuffer[AttributeValue]
@@ -802,9 +803,14 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec] { self =>
           }
 
         }
-    }.asInstanceOf[DdbCodec[A]]
+    }.asInstanceOf[DdbCodec2[A]]
     else
       ??? // TODO: Avi - Wrapper, Dynamic, Tuple as nested Lists implementation inside of Map codec
   }
+
+  private case class FieldInfo(name: String, offset: RegisterOffset, codec: DdbCodec2[?], isOptional: Boolean) {
+    val valueType: Int                 = codec.valueType
+  }
+
 
 }

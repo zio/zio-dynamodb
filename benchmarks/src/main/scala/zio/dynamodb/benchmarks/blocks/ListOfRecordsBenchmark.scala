@@ -8,7 +8,7 @@ import org.scanamo.DynamoReadError.describe
 import zio.dynamodb.AttributeValue
 import zio.blocks.schema.{ CompanionOptics, Schema }
 import zio.dynamodb.{ Codec, Decoder, Encoder }
-import zio.dynamodb.blocks.{ BlocksDdbDerived2, DdbCodec }
+import zio.dynamodb.blocks.{ BlocksDdbDerived2, DdbCodec2 }
 import zio.schema.{ DeriveSchema, Schema => ZIOSchema }
 
 class ListOfRecordsBenchmark extends BaseBenchmark {
@@ -124,5 +124,5 @@ object ListOfRecordsDomain {
   val zioSchemaEncoder: Encoder[Person] = Codec.encoder[Person](zioSchema)
   val zioSchemaDecoder: Decoder[Person] = Codec.decoder[Person](zioSchema)
 
-  val zioBlocksCodec: DdbCodec[Person] = Schema.derived.deriving(BlocksDdbDerived2).derive
+  val zioBlocksCodec: DdbCodec2[Person] = Schema.derived.deriving(BlocksDdbDerived2).derive
 }
