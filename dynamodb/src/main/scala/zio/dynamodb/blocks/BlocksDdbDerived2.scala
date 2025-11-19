@@ -4,12 +4,11 @@ import zio.blocks.schema.Reflect.Bound
 import zio.blocks.schema._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
-import zio.blocks.schema.derive.{BindingInstance, Deriver}
+import zio.blocks.schema.derive.{ BindingInstance, Deriver }
 import zio.dynamodb.DynamoDBError.ItemError
-import zio.dynamodb.{AttributeValue, Decoder, Encoder, FromAttributeValue}
+import zio.dynamodb.{ AttributeValue, Decoder, Encoder, FromAttributeValue }
 
 import scala.collection.immutable.HashSet
-import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 /*
@@ -191,9 +190,9 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec2] { self =>
   type Map[_, _]
 
   final class CacheEntry private (
-                                   val fieldCodecs: Array[DdbCodec2[?]],
-                                   private val names: Array[String]
-                                 ) {
+    val fieldCodecs: Array[DdbCodec2[?]],
+    private val names: Array[String]
+  ) {
 
     private[this] val hasNames: Boolean = names.nonEmpty
 
@@ -268,7 +267,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec2] { self =>
     override def decoder: Decoder[String] =
       (av: AttributeValue) => FromAttributeValue.stringFromAttributeValue.fromAttributeValue(av)
   }
-  private val longCodec                     = new DdbCodec2[Long](valueType = DdbCodec2.longType) {
+  private val longCodec                      = new DdbCodec2[Long](valueType = DdbCodec2.longType) {
     override def encoder: Encoder[Long] =
       (a: Long) => AttributeValue.Number(BigDecimal.valueOf(a))
 
@@ -430,7 +429,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec2] { self =>
 
   private def deriveCodec[A](
     reflect: Bound[A],
-    cache: mutable.HashMap[TypeName[?], CacheEntry] = new mutable.HashMap
+    cache: java.util.HashMap[TypeName[?], CacheEntry] = new java.util.HashMap()
   ): DdbCodec2[A] = {
     if (reflect.isPrimitive) {
       val primitiveType = reflect.asPrimitive.get.primitiveType
@@ -461,8 +460,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec2] { self =>
 
       // TODO: Avi - we end up with empty CacheEntry memory alloc for simple enum that is not used
       val fieldCodecs = cache.get(record.typeName) match {
-        case Some(x) => x
-        case _       =>
+        case null =>
           val codecs: CacheEntry = CacheEntry.makeWithNames(fields.length)
           if (!fields.isEmpty) {
             cache.put(record.typeName, codecs)
@@ -475,6 +473,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec2] { self =>
             }
           }
           codecs
+        case x    => x
       }
 
       new DdbCodec2[A](valueType = DdbCodec2.objectType) {
@@ -491,9 +490,9 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec2] { self =>
             val av: AttributeValue = {
               fields.foreach { field =>
                 idx += 1
-                val encoder   = fieldCodecs.byIndex(idx).encoder
-                val reflect   = field.value
-                val fieldName = field.name
+                val encoder           = fieldCodecs.byIndex(idx).encoder
+                val reflect           = field.value
+                val fieldName         = field.name
                 val avStringFieldName = AttributeValue.String(fieldName)
 
                 if (reflect.isPrimitive) {
@@ -502,21 +501,21 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec2] { self =>
                     case _: PrimitiveType.Int  =>
                       val av: AttributeValue =
                         encoder.asInstanceOf[Int => AttributeValue](registers.getInt(offset, 0))
-                      mapBuilder.addOne(avStringFieldName ->  av)
+                      mapBuilder.addOne(avStringFieldName -> av)
                       offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
                     case _: PrimitiveType.Long =>
                       val av: AttributeValue =
                         encoder.asInstanceOf[Long => AttributeValue](registers.getLong(offset, 0))
-                      mapBuilder.addOne(avStringFieldName ->  av)
+                      mapBuilder.addOne(avStringFieldName -> av)
                       offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
                     case _                     =>
                       val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
-                      mapBuilder.addOne(avStringFieldName ->  av)
+                      mapBuilder.addOne(avStringFieldName -> av)
                       offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                   }
                 } else {
                   val av = encoder.asInstanceOf[AnyRef => AttributeValue](registers.getObject(offset, 0))
-                  mapBuilder.addOne(avStringFieldName ->  av)
+                  mapBuilder.addOne(avStringFieldName -> av)
 
                   offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                 }
@@ -637,7 +636,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec2] { self =>
       val encoder2      = elementCodec.encoder.asInstanceOf[A => AttributeValue]
       val decoder2      = elementCodec.decoder //.asInstanceOf[Any => A]
 
-      val isSet                      = reflect.typeName.name.endsWith("Set")
+      val isSet                       = reflect.typeName.name.endsWith("Set")
       val sequenceCodec: DdbCodec2[A] =
         new DdbCodec2[A](valueType = DdbCodec2.objectType) {
           override def encoder: Encoder[A] =
@@ -809,8 +808,7 @@ object BlocksDdbDerived2 extends Deriver[DdbCodec2] { self =>
   }
 
   private case class FieldInfo(name: String, offset: RegisterOffset, codec: DdbCodec2[?], isOptional: Boolean) {
-    val valueType: Int                 = codec.valueType
+    val valueType: Int = codec.valueType
   }
-
 
 }
