@@ -121,6 +121,9 @@ object ListOfRecordsDomain {
 //    childrenAges: List[Int]
 //    paymentMethod: PaymentMethod
   )
+  object Person {
+    implicit val blocksSchema: Schema[Person] = Schema.derived
+  }
 
   val zioSchema: ZIOSchema[Person] = DeriveSchema.gen[Person]
 
