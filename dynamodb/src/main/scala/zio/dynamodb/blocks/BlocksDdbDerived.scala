@@ -13,6 +13,8 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 /*
+Exploratory codec derivation - borrows heavily from Andriy Plokhotnyuk's zio-blocks codecs https://github.com/zio/zio-blocks
+
 TODO:
 - decode simple enum - get CacheEntry for enum parent name
 - inline code primitive codecs

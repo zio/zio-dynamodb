@@ -5,6 +5,7 @@ import dynosaur.Schema
 object DynosaurSchema {
   import ListOfRecordsDomain._
 
+  // TODO: Avi - realistic codec using "oneOf"
   implicit val paymentMethodSchema: Schema[PaymentMethod] =
     Schema.string.imap[PaymentMethod] {
       case "DebitCard"                      => PaymentMethod.DebitCard

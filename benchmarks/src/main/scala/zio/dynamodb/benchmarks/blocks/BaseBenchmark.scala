@@ -1,9 +1,12 @@
 package zio.dynamodb.benchmarks.blocks
 
-import org.openjdk.jmh.annotations.{Scope => JScope, _}
+import org.openjdk.jmh.annotations.{ Scope => JScope, _ }
 
 import java.util.concurrent.TimeUnit
 
+/**
+ * borrows heavily from Andriy Plokhotnyuk's zio-blocks benchmarks https://github.com/zio/zio-blocks
+ */
 @State(JScope.Thread)
 @BenchmarkMode(Array(Mode.Throughput))
 @OutputTimeUnit(TimeUnit.SECONDS)
