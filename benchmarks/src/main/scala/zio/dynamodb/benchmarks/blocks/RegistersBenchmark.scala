@@ -32,14 +32,16 @@ class RegistersBenchmark extends BaseBenchmark {
       .toList
 
   @Benchmark
-  def encodeUsingRegisters(): Unit = listOfRecords.foreach(ExerciseRegistersNoCache.encode)
+  def encodeUsingRegisters(): Seq[(Long, AnyRef, RegisterOffset, AnyRef)] =
+    listOfRecords.map(ExerciseRegistersNoCache.encode)
 
   @Benchmark
-  def encodeUsingCachedRegisters(): Unit = listOfRecords.foreach(ExerciseRegistersWithCache.encode)
+  def encodeUsingCachedRegisters(): Seq[(Long, AnyRef, RegisterOffset, AnyRef)] =
+    listOfRecords.map(ExerciseRegistersWithCache.encode)
 
 }
 object ExerciseRegistersNoCache {
-  def encode(p: Person): Unit = {
+  def encode(p: Person): (Long, AnyRef, Int, AnyRef) = {
     val reflect       = RegistersDomain.Person.blocksSchema.reflect
     val record        = reflect.asRecord.get
     val recordBinding =
@@ -57,14 +59,15 @@ object ExerciseRegistersNoCache {
     val deconstructor = recordBinding.deconstructor
     deconstructor.deconstruct(registers, RegisterOffset.Zero, p)
     var offset        = RegisterOffset.Zero
-    registers.getLong(offset, 0)
+    val id            = registers.getLong(offset, 0)
     offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
-    registers.getObject(offset, 0)
+    val name          = registers.getObject(offset, 0)
     offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
-    registers.getInt(offset, 0)
+    val age           = registers.getInt(offset, 0)
     offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
-    registers.getObject(offset, 0)
+    val address       = registers.getObject(offset, 0)
     offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+    (id, name, age, address)
   }
 
   def decode(p: Person): Unit = {
@@ -98,15 +101,17 @@ object ExerciseRegistersNoCache {
 }
 
 object ExerciseRegistersWithCache {
-  class CachedOffsets(
-    var id: RegisterOffset,
-    var name: RegisterOffset,
-    var age: RegisterOffset,
-    var address: RegisterOffset
+  final class CachedOffsets(
+    val id: RegisterOffset,
+    val name: RegisterOffset,
+    val age: RegisterOffset,
+    val address: RegisterOffset
   )
+
+  @volatile
   var cachedOffsets: CachedOffsets = null
 
-  def encode(p: Person): Unit = {
+  def encode(p: Person): (Long, AnyRef, Int, AnyRef) = {
     val reflect       = RegistersDomain.Person.blocksSchema.reflect
     val record        = reflect.asRecord.get
     val recordBinding =
@@ -119,7 +124,7 @@ object ExerciseRegistersWithCache {
             .asInstanceOf[Binding.Record[Person]]
       }
 
-    if (cachedOffsets == null) {
+    if (cachedOffsets eq null) {
 //      println(s"XXXXXXXXXXXX Caching offsets for Person registers")
       var offset        = RegisterOffset.Zero
       val idOffset      = offset
@@ -137,11 +142,11 @@ object ExerciseRegistersWithCache {
     val registers     = Registers(record.usedRegisters)
     val deconstructor = recordBinding.deconstructor
     deconstructor.deconstruct(registers, RegisterOffset.Zero, p)
-    registers.getLong(cachedOffsets.id, 0)
-    registers.getObject(cachedOffsets.name, 0)
-    registers.getInt(cachedOffsets.age, 0)
-    registers.getObject(cachedOffsets.address, 0)
-    ()
+    val id            = registers.getLong(cachedOffsets.id, 0)
+    val name          = registers.getObject(cachedOffsets.name, 0)
+    val age           = registers.getInt(cachedOffsets.age, 0)
+    val address       = registers.getObject(cachedOffsets.address, 0)
+    (id, name, age, address)
   }
 
   def decode(p: Person): Unit = {
@@ -161,15 +166,11 @@ object ExerciseRegistersWithCache {
     val registers     = Registers(record.usedRegisters)
     val deconstructor = recordBinding.deconstructor
     deconstructor.deconstruct(registers, RegisterOffset.Zero, p)
-    var offset        = RegisterOffset.Zero
-    registers.getLong(offset, 0)
-    offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
-    registers.getObject(offset, 0)
-    offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
-    registers.getInt(offset, 0)
-    offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
-    registers.getObject(offset, 0)
-    offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+    registers.getLong(cachedOffsets.id, 0)
+    registers.getObject(cachedOffsets.name, 0)
+    registers.getInt(cachedOffsets.age, 0)
+    registers.getObject(cachedOffsets.address, 0)
+    ()
   }
 
 }
