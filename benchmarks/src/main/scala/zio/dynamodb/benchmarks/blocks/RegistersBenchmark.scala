@@ -37,7 +37,7 @@ class RegistersBenchmark extends BaseBenchmark {
 
   @Benchmark
   def encodeUsingCachedRegisters(): Seq[(Long, AnyRef, RegisterOffset, AnyRef)] =
-    listOfRecords.map(ExerciseRegistersThreadLocal.encode)
+    listOfRecords.map(ExerciseRegistersWithCache.encode)
 
 }
 object ExerciseRegistersNoCache {
@@ -109,7 +109,18 @@ object ExerciseRegistersWithCache {
   )
 
   @volatile
-  var cachedOffsets: CachedOffsets = null
+  var cachedOffsets: CachedOffsets = {
+    var offset        = RegisterOffset.Zero
+    val idOffset      = offset
+    offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
+    val nameOffset    = offset
+    offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+    val ageOffset     = offset
+    offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
+    val addressOffset = offset
+    offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+    new CachedOffsets(idOffset, nameOffset, ageOffset, addressOffset)
+  }
 
   def encode(p: Person): (Long, AnyRef, Int, AnyRef) = {
     val reflect       = RegistersDomain.Person.blocksSchema.reflect
@@ -124,28 +135,20 @@ object ExerciseRegistersWithCache {
             .asInstanceOf[Binding.Record[Person]]
       }
 
-    if (cachedOffsets eq null) {
-//      println(s"XXXXXXXXXXXX Caching offsets for Person registers")
-      var offset        = RegisterOffset.Zero
-      val idOffset      = offset
-      offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
-      val nameOffset    = offset
-      offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
-      val ageOffset     = offset
-      offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
-      val addressOffset = offset
-      offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
-      cachedOffsets = new CachedOffsets(idOffset, nameOffset, ageOffset, addressOffset)
-    }
-
     // encode
+    val co             = cachedOffsets
+    val id_offset      = co.id
+    val name_offset    = co.name
+    val age_offset     = co.age
+    val address_offset = co.address
+
     val registers     = Registers(record.usedRegisters)
     val deconstructor = recordBinding.deconstructor
     deconstructor.deconstruct(registers, RegisterOffset.Zero, p)
-    val id            = registers.getLong(cachedOffsets.id, 0)
-    val name          = registers.getObject(cachedOffsets.name, 0)
-    val age           = registers.getInt(cachedOffsets.age, 0)
-    val address       = registers.getObject(cachedOffsets.address, 0)
+    val id            = registers.getLong(id_offset, 0)
+    val name          = registers.getObject(name_offset, 0)
+    val age           = registers.getInt(age_offset, 0)
+    val address       = registers.getObject(address_offset, 0)
     (id, name, age, address)
   }
 
