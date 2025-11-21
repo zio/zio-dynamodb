@@ -1,10 +1,11 @@
 package zio.dynamodb.benchmarks.blocks
 
 import org.openjdk.jmh.annotations._
+import zio.blocks.schema.Reflect.Bound
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.{ Binding, RegisterOffset, Registers }
 import zio.blocks.schema.derive.BindingInstance
-import zio.blocks.schema.{ CompanionOptics, Schema }
+import zio.blocks.schema.{ CompanionOptics, Reflect, Schema }
 import zio.dynamodb.benchmarks.blocks.RegistersDomain._
 import zio.dynamodb.blocks.{ BlocksDdbDerived2, DdbCodec }
 
@@ -184,7 +185,6 @@ object ExerciseRegistersThreadLocal {
 
   private val threadLocal = new ThreadLocal[CachedOffsets] {
     override def initialValue(): CachedOffsets = {
-      // compute offsets per-thread (mirrors production)
       var offset        = RegisterOffset.Zero
       val idOffset      = offset
       offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
@@ -199,7 +199,6 @@ object ExerciseRegistersThreadLocal {
   }
 
   def encode(p: Person): (Long, AnyRef, Int, AnyRef) = {
-    // reflect/recordBinding in method as requested
     val reflect       = RegistersDomain.Person.blocksSchema.reflect
     val record        = reflect.asRecord.get
     val recordBinding =
@@ -212,7 +211,7 @@ object ExerciseRegistersThreadLocal {
             .asInstanceOf[Binding.Record[Person]]
       }
 
-    val co            = threadLocal.get() // fast per-thread
+    val co            = threadLocal.get()
     val registers     = Registers(record.usedRegisters)
     val deconstructor = recordBinding.deconstructor
     deconstructor.deconstruct(registers, RegisterOffset.Zero, p)
