@@ -175,6 +175,82 @@ object ExerciseRegistersWithCache {
 
 }
 
+object ExerciseRegistersWithExtendedCache {
+  final class CachedOffsets(
+    val id: RegisterOffset,
+    val name: RegisterOffset,
+    val age: RegisterOffset,
+    val address: RegisterOffset,
+    val reflect: Bound[Person],
+    val record: Reflect.Record[Binding, Person],
+    val recordBinding: Binding.Record[Person]
+  )
+  @volatile
+  var cachedOffsets: CachedOffsets = {
+    var offset        = RegisterOffset.Zero
+    val idOffset      = offset
+    offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
+    val nameOffset    = offset
+    offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+    val ageOffset     = offset
+    offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
+    val addressOffset = offset
+    offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+    val reflect       = RegistersDomain.Person.blocksSchema.reflect
+    val record        = reflect.asRecord.get
+    val recordBinding =
+      try record.recordBinding.asInstanceOf[Binding.Record[Person]]
+      catch {
+        case _: Exception =>
+          record.recordBinding
+            .asInstanceOf[BindingInstance[DdbCodec, ?, Person]]
+            .binding
+            .asInstanceOf[Binding.Record[Person]]
+      }
+
+    new CachedOffsets(idOffset, nameOffset, ageOffset, addressOffset, reflect, record, recordBinding)
+  }
+
+  def encode(p: Person): (Long, AnyRef, Int, AnyRef) = {
+    // encode
+    val co = cachedOffsets
+
+    val registers     = Registers(co.record.usedRegisters)
+    val deconstructor = co.recordBinding.deconstructor
+    deconstructor.deconstruct(registers, RegisterOffset.Zero, p)
+    val id            = registers.getLong(co.id, 0)
+    val name          = registers.getObject(co.name, 0)
+    val age           = registers.getInt(co.age, 0)
+    val address       = registers.getObject(co.address, 0)
+    (id, name, age, address)
+  }
+
+  def decode(p: Person): Unit = {
+    val reflect       = RegistersDomain.Person.blocksSchema.reflect
+    val record        = reflect.asRecord.get
+    val recordBinding =
+      try record.recordBinding.asInstanceOf[Binding.Record[Person]]
+      catch {
+        case _: Exception =>
+          record.recordBinding
+            .asInstanceOf[BindingInstance[DdbCodec, ?, Person]]
+            .binding
+            .asInstanceOf[Binding.Record[Person]]
+      }
+
+    // encode
+    val registers     = Registers(record.usedRegisters)
+    val deconstructor = recordBinding.deconstructor
+    deconstructor.deconstruct(registers, RegisterOffset.Zero, p)
+    registers.getLong(cachedOffsets.id, 0)
+    registers.getObject(cachedOffsets.name, 0)
+    registers.getInt(cachedOffsets.age, 0)
+    registers.getObject(cachedOffsets.address, 0)
+    ()
+  }
+
+}
+
 object ExerciseRegistersThreadLocal {
   final class CachedOffsets(
     val id: RegisterOffset,
