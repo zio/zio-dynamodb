@@ -37,7 +37,7 @@ class RegistersBenchmark extends BaseBenchmark {
 
   @Benchmark
   def encodeUsingCachedRegisters(): Seq[(Long, AnyRef, RegisterOffset, AnyRef)] =
-    listOfRecords.map(ExerciseRegistersWithCache.encode)
+    listOfRecords.map(ExerciseRegistersThreadLocal.encode)
 
 }
 object ExerciseRegistersNoCache {
@@ -173,6 +173,57 @@ object ExerciseRegistersWithCache {
     ()
   }
 
+}
+
+object ExerciseRegistersThreadLocal {
+  final class CachedOffsets(
+    val id: RegisterOffset,
+    val name: RegisterOffset,
+    val age: RegisterOffset,
+    val address: RegisterOffset
+  )
+
+  private val threadLocal = new ThreadLocal[CachedOffsets] {
+    override def initialValue(): CachedOffsets = {
+      // compute offsets per-thread (mirrors production)
+      var offset        = RegisterOffset.Zero
+      val idOffset      = offset
+      offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
+      val nameOffset    = offset
+      offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+      val ageOffset     = offset
+      offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
+      val addressOffset = offset
+      offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+      new CachedOffsets(idOffset, nameOffset, ageOffset, addressOffset)
+    }
+  }
+
+  def encode(p: Person): (Long, AnyRef, Int, AnyRef) = {
+    // reflect/recordBinding in method as requested
+    val reflect       = RegistersDomain.Person.blocksSchema.reflect
+    val record        = reflect.asRecord.get
+    val recordBinding =
+      try record.recordBinding.asInstanceOf[Binding.Record[Person]]
+      catch {
+        case _: Exception =>
+          record.recordBinding
+            .asInstanceOf[BindingInstance[DdbCodec, ?, Person]]
+            .binding
+            .asInstanceOf[Binding.Record[Person]]
+      }
+
+    val co            = threadLocal.get() // fast per-thread
+    val registers     = Registers(record.usedRegisters)
+    val deconstructor = recordBinding.deconstructor
+    deconstructor.deconstruct(registers, RegisterOffset.Zero, p)
+
+    val id      = registers.getLong(co.id, 0)
+    val name    = registers.getObject(co.name, 0)
+    val age     = registers.getInt(co.age, 0)
+    val address = registers.getObject(co.address, 0)
+    (id, name, age, address)
+  }
 }
 
 object RegistersDomain {
