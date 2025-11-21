@@ -136,19 +136,15 @@ object ExerciseRegistersWithCache {
       }
 
     // encode
-    val co             = cachedOffsets
-    val id_offset      = co.id
-    val name_offset    = co.name
-    val age_offset     = co.age
-    val address_offset = co.address
+    val co = cachedOffsets
 
     val registers     = Registers(record.usedRegisters)
     val deconstructor = recordBinding.deconstructor
     deconstructor.deconstruct(registers, RegisterOffset.Zero, p)
-    val id            = registers.getLong(id_offset, 0)
-    val name          = registers.getObject(name_offset, 0)
-    val age           = registers.getInt(age_offset, 0)
-    val address       = registers.getObject(address_offset, 0)
+    val id            = registers.getLong(co.id, 0)
+    val name          = registers.getObject(co.name, 0)
+    val age           = registers.getInt(co.age, 0)
+    val address       = registers.getObject(co.address, 0)
     (id, name, age, address)
   }
 
