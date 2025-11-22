@@ -407,7 +407,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
   private[this] def deriveCodec[A](
     reflect: Bound[A],
-    cache: mutable.HashMap[TypeName[?], CacheEntry] = new mutable.HashMap,
+    cache: java.util.HashMap[TypeName[?], CacheEntry] = new java.util.HashMap,
     maybeVariantMetaData: Option[VariantMetaData] = None
   ): DdbCodec[A] = {
     if (reflect.isPrimitive) {
@@ -450,8 +450,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
       // TODO: Avi - we end up with empty CacheEntry memory alloc for simple enum that is not used
       val fieldCodecs = cache.get(record.typeName) match {
-        case Some(x) => x
-        case _       =>
+        case null =>
           val codecs: CacheEntry = CacheEntry.makeWithNames(fields.length)
           if (!fields.isEmpty) {
             cache.put(record.typeName, codecs)
@@ -464,6 +463,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
             }
           }
           codecs
+        case x    => x
       }
 
       new DdbCodec[A] {
@@ -919,8 +919,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       val discriminator          = variantBinding.discriminator
       val variantMetaData2       = variantMetaData(variant, reflect.modifiers)
       val caseCodecs: CacheEntry = cache.get(variant.typeName) match {
-        case Some(x) => x
-        case _       =>
+        case null =>
           val codecs = CacheEntry.makeWithNames(cases.length)
           cache.put(variant.typeName, codecs)
           val len    = cases.length
@@ -936,6 +935,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
             idx += 1
           }
           codecs
+        case x    => x
       }
 
       new DdbCodec[A] {
