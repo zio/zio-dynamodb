@@ -3,7 +3,9 @@ package zio.dynamodb
 import zio.dynamodb.ConditionExpression.Operand._
 import zio.dynamodb.ConditionExpression._
 import zio.dynamodb.DynamoDBError.ItemError
+
 import scala.collection.immutable.Set
+import scala.collection.mutable
 import scala.util.Try
 
 sealed trait AttributeValue { self =>
@@ -96,39 +98,40 @@ object AttributeValue {
     def apply(fieldName: ScalaString, value: AttributeValue): Map =
       Map(ScalaMap((String(fieldName), value)))
 
-    final class MapBuilder private () {
-      private val underlying = scala.collection.mutable.Map.empty[String, AttributeValue]
+    final class MapBuilder private (len: Int) {
+      private[this] val underlying = new mutable.HashMap[String, AttributeValue]
+      underlying.sizeHint(len)
 
-      def iterator: Iterator[(String, AttributeValue)] = underlying.iterator
+      @inline def iterator: Iterator[(String, AttributeValue)] = underlying.iterator
 
-      def size: Int = underlying.size
+      @inline def size: Int = underlying.size
 
-      def add(key: ScalaString, value: AttributeValue): MapBuilder = {
+      @inline def add(key: ScalaString, value: AttributeValue): MapBuilder = {
         underlying += (String(key) -> value)
         this
       }
 
-      def addAll(pairs: (ScalaString, AttributeValue)*): MapBuilder = {
+      @inline def addAll(pairs: (ScalaString, AttributeValue)*): MapBuilder = {
         pairs.foreach { case (k, v) => underlying += (String(k) -> v) }
         this
       }
 
-      def addIfDefined(key: ScalaString, value: Option[AttributeValue]): MapBuilder = {
+      @inline def addIfDefined(key: ScalaString, value: Option[AttributeValue]): MapBuilder = {
         value.foreach(v => underlying += (String(key) -> v))
         this
       }
 
-      def build: Map = Map(underlying.toMap)
+      @inline def build: Map = Map(underlying.toMap)
     }
 
     object MapBuilder {
-      def apply(): MapBuilder = new MapBuilder()
+      def apply(size: Int = 8): MapBuilder = new MapBuilder(size)
 
-      def from(map: Map): MapBuilder = {
-        val builder = new MapBuilder()
-        builder.underlying ++= map.value
-        builder
-      }
+//      def from(map: Map): MapBuilder = {
+//        val builder = new MapBuilder(map.size)
+//        builder.underlying ++= map.value
+//        builder
+//      }
     }
   }
 
