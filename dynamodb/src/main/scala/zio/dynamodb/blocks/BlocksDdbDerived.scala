@@ -229,7 +229,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
 
   private val intCodec: DdbCodec[Int] = new DdbCodec[Int] {
     override def encoder: Encoder[Int] =
-      (a: Int) => AttributeValue.Number(BigDecimal(a.toString))
+      (a: Int) => AttributeValue.Number(BigDecimal.valueOf(a.toLong))
 
     override def decoder: Decoder[Int] =
       (av: AttributeValue) =>
@@ -247,7 +247,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
   }
   private val longCodec                     = new DdbCodec[Long] {
     override def encoder: Encoder[Long] =
-      (a: Long) => AttributeValue.Number(BigDecimal(a.toString))
+      (a: Long) => AttributeValue.Number(BigDecimal.valueOf(a))
 
     override def decoder: Decoder[Long] =
       (av: AttributeValue) =>
