@@ -32,7 +32,8 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
           12345678901L,
           "John",
           30,
-          "123 Main St"
+          "123 Main St",
+          map = Map("key1" -> 1, "key2" -> 2, "key3" -> 3)
 //          List(5, 7, 9)
 //          paymentMethod = PaymentMethod.CreditCard("John", 123)
         )
@@ -117,7 +118,8 @@ object ListOfRecordsDomain {
     id: Long,
     name: String,
     age: Int,
-    address: String
+    address: String,
+    map: Map[String, Int]
 //    childrenAges: List[Int]
 //    paymentMethod: PaymentMethod
   )

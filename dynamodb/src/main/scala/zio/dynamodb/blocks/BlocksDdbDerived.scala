@@ -802,21 +802,21 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       val valueDecoder  = valueCodec.decoder //.asInstanceOf[Any => Value]
 
       val isNativeMap = map.key.asPrimitive.map(_.typeName.name == "String").getOrElse(false)
-
       if (isNativeMap)
         new DdbCodec[Map2[Key, Value]] {
           override def encoder: Encoder[Map2[Key, Value]] =
             (m: Map2[Key, Value]) => {
-              val mapBuilder = AttributeValue.Map.MapBuilder() // TODO: Avi - use Map.newBuilder
+              val mapBuilder = Map.newBuilder[AttributeValue.String, AttributeValue]
+              mapBuilder.sizeHint(m.asInstanceOf[scala.collection.Map[Key, Value]].size)
               val it         = deconstructor.deconstruct(m)
               while (it.hasNext) {
                 val kv             = it.next()
                 val key            = deconstructor.getKey(kv)
                 val value          = deconstructor.getValue(kv)
                 val keyVal: String = keyEncoder.asInstanceOf[Key => AttributeValue.String](key).value
-                mapBuilder.add(keyVal, valueEncoder(value))
+                mapBuilder.addOne(AttributeValue.String(keyVal) -> valueEncoder(value))
               }
-              mapBuilder.build
+              AttributeValue.Map(mapBuilder.result())
             }
 
           override def decoder: Decoder[Map2[Key, Value]] =
