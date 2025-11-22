@@ -212,10 +212,10 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       else nameToIndex.get(name).map(fieldCodecs)
   }
   object CacheEntry {
-    def makeWithNames(size: Int)       =
+    def makeWithNames(size: Int) =
       new CacheEntry(new Array[DdbCodec[?]](size), new Array[String](size))
-    def makeWithoutNames[A](size: Int) =
-      new CacheEntry(new Array[DdbCodec[?]](size), Array.empty)
+//    def makeWithoutNames[A](size: Int) =
+//      new CacheEntry(new Array[DdbCodec[?]](size), Array.empty)
   }
 
   def enumCodec[A](typeName: TypeName[A]): DdbCodec[A] =
@@ -256,7 +256,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
           .asInstanceOf[Either[zio.dynamodb.DynamoDBError.ItemError, Long]]
   }
 
-  val byteCodec = new DdbCodec[Byte] {
+  private val byteCodec = new DdbCodec[Byte] {
     override def encoder: Encoder[Byte] =
       (a: Byte) => AttributeValue.Binary(zio.Chunk(a))
 
@@ -267,7 +267,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
           .asInstanceOf[Either[zio.dynamodb.DynamoDBError.ItemError, Byte]]
   }
 
-  val nativeStringSetCodec: DdbCodec[Set[String]] = new DdbCodec[Set[String]] {
+  private val nativeStringSetCodec: DdbCodec[Set[String]] = new DdbCodec[Set[String]] {
     override def encoder: Encoder[Set[String]] =
       (a: Set[String]) => {
         val ss = a
@@ -317,7 +317,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     }
   }
 
-  def nativeNumericSetCodec[A](implicit ops: NumberOps[A]): DdbCodec[Set[A]] =
+  private[this] def nativeNumericSetCodec[A](implicit ops: NumberOps[A]): DdbCodec[Set[A]] =
     new DdbCodec[Set[A]] {
       override def encoder: Encoder[Set[A]] =
         (ns: Set[A]) => {
@@ -338,7 +338,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       }
     }
 
-  def binarySetCodec: DdbCodec[Set[zio.Chunk[Byte]]] =
+  private[this] def binarySetCodec: DdbCodec[Set[zio.Chunk[Byte]]] =
     new DdbCodec[Set[zio.Chunk[Byte]]] {
       override def encoder: Encoder[Set[zio.Chunk[Byte]]] =
         (bs: Set[zio.Chunk[Byte]]) => AttributeValue.BinarySet(bs)
@@ -349,7 +349,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
       }
     }
 
-  private def primitiveSetCodecOrNull[A](element: Reflect[Binding, A]): DdbCodec[A] = {
+  private[this] def primitiveSetCodecOrNull[A](element: Reflect[Binding, A]): DdbCodec[A] = {
     if (!element.isPrimitive) return null
 
     element.asPrimitive.get.primitiveType match {
@@ -360,7 +360,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     }
   }
 
-  private def isByteSequence[A](element: Reflect[Binding, A]): Boolean =
+  private[this] def isByteSequence[A](element: Reflect[Binding, A]): Boolean =
     element.isSequence &&
       element.asSequenceUnknown.exists { unknown =>
         unknown.sequence.asSequence.exists { seq =>
@@ -368,14 +368,14 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
           seq.element.asPrimitive.get.primitiveType.isInstanceOf[PrimitiveType.Byte]
         }
       }
-  private def chooseNativeSetCodecOrNull[A](element: Reflect[Binding, A]): DdbCodec[A] = {
+  private[this] def chooseNativeSetCodecOrNull[A](element: Reflect[Binding, A]): DdbCodec[A] = {
     val prim = primitiveSetCodecOrNull(element)
     if (prim != null) prim
     else if (isByteSequence(element)) binarySetCodec.asInstanceOf[DdbCodec[A]]
     else null
   }
 
-  def parseTupleN(s: String): Int = {
+  private[this] def parseTupleN(s: String): Int = {
     val len = s.length
     // Fast fail if the string is too short
     if (len <= 5) return -1
@@ -405,10 +405,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     value
   }
 
-  def avMap(map: Map[AttributeValue.String, AttributeValue]): AttributeValue.Map =
-    AttributeValue.Map(map)
-
-  private def deriveCodec[A](
+  private[this] def deriveCodec[A](
     reflect: Bound[A],
     cache: mutable.HashMap[TypeName[?], CacheEntry] = new mutable.HashMap,
     maybeVariantMetaData: Option[VariantMetaData] = None
@@ -1042,7 +1039,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
   }
 
   // TODO: Avi - delete as we have VariantMetaData now
-  private def isOption[A](v: Reflect.Variant.Bound[A]): Boolean = {
+  private[this] def isOption[A](v: Reflect.Variant.Bound[A]): Boolean = {
     val tn = v.typeName
     val ns = tn.namespace.packages
     (tn.name eq "Option") || (tn.name eq "Some") || (tn.name eq "None") match {
@@ -1051,14 +1048,14 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
     }
   }
 
-  def maybeDiscriminatorNameModifier(
+  private[this] def maybeDiscriminatorNameModifier(
     modifiers: Seq[Modifier]
   ): Option[String] =
     modifiers.collectFirst {
       case Modifier.config("discriminatorName", value) => value
     }
 
-  def variantMetaData[A](
+  private[this] def variantMetaData[A](
     variant: Reflect.Variant.Bound[A],
     modifiers: Seq[Modifier]
   ): VariantMetaData = {
