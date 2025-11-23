@@ -20,20 +20,6 @@ TODO:
 - inline code primitive codecs
  */
 object BlocksDdbDerived extends Deriver[DdbCodec] {
-  sealed trait VariantMetaData
-  object VariantMetaData {
-    case object Option extends VariantMetaData
-    case object Either extends VariantMetaData
-
-    // Discriminator is added as a top level Map wrapping the Record using the type name as the key
-    case object DefaultTaggedDiscriminationPolicy extends VariantMetaData
-
-    // Discriminator is added at the Record level as an extra field
-    final case class FieldDiscriminationPolicy(name: String) extends VariantMetaData
-
-    // No discriminator is encoded - so decoding has to try each case until one works - for legacy DBs
-    case object NoDiscriminator extends VariantMetaData
-  }
 
   // TODO: Avi - extract simple codecs that do not need context as vals to save memory allocations
 
@@ -177,47 +163,6 @@ object BlocksDdbDerived extends Deriver[DdbCodec] {
   type Value
   type Map2[_, _]
 
-  final class CacheEntry private (
-    val fieldCodecs: Array[DdbCodec[?]],
-    names: Array[String]
-  )                 {
-    def size: Int                 = fieldCodecs.length // TODO: Avi - for debugging - remove
-    override def toString: String = s"CacheEntry(${fieldCodecs.toSeq}, ${names.toSeq})"
-
-    private[this] var _nameToIndex: Map[String, Int] = null // TODO: Avi - investigate savings in getting rid of Map
-    private[this] val hasNames                       = names.nonEmpty
-
-    private def nameToIndex: Map[String, Int] = {
-      var local = _nameToIndex
-      if (local eq null) {
-        if (hasNames)
-          local = names.zipWithIndex.toMap
-        else
-          local = Map.empty
-        _nameToIndex = local
-      }
-      local
-    }
-
-    def addEntry(codec: DdbCodec[?], name: String, index: Int): Unit = {
-      fieldCodecs(index) = codec
-      if (hasNames)
-        names(index) = name
-    }
-
-    def byIndex(i: Int): DdbCodec[?] = fieldCodecs(i)
-
-    def byName(name: String): Option[DdbCodec[?]] =
-      if (!hasNames) None
-      else nameToIndex.get(name).map(fieldCodecs)
-  }
-  object CacheEntry {
-    def makeWithNames(size: Int) =
-      new CacheEntry(new Array[DdbCodec[?]](size), new Array[String](size))
-//    def makeWithoutNames[A](size: Int) =
-//      new CacheEntry(new Array[DdbCodec[?]](size), Array.empty)
-  }
-
   def enumCodec[A](typeName: TypeName[A]): DdbCodec[A] =
     new DdbCodec[A] {
       override def encoder: Encoder[A] = (_: A) => AttributeValue.String(typeName.name)
@@ -277,43 +222,6 @@ object BlocksDdbDerived extends Deriver[DdbCodec] {
     override def decoder: Decoder[Set[String]] = {
       case AttributeValue.StringSet(value) => Right(value.asInstanceOf[Set[String]])
       case av                              => Left(ItemError.DecodingError(s"Expected AttributeValue.StringSet, found ${av.showType}"))
-    }
-  }
-
-  trait NumberOps[A] {
-    def toBigDecimal(a: A): BigDecimal
-    def fromBigDecimal(bd: BigDecimal): A
-  }
-
-  object NumberOps {
-    implicit val intOps: NumberOps[Int] = new NumberOps[Int] {
-      def toBigDecimal(a: Int)           = BigDecimal.valueOf(a.toLong)
-      def fromBigDecimal(bd: BigDecimal) = bd.intValue
-    }
-
-    implicit val longOps: NumberOps[Long] = new NumberOps[Long] {
-      def toBigDecimal(a: Long)          = BigDecimal.valueOf(a)
-      def fromBigDecimal(bd: BigDecimal) = bd.longValue
-    }
-
-    implicit val floatOps: NumberOps[Float] = new NumberOps[Float] {
-      def toBigDecimal(a: Float)         = BigDecimal.decimal(a)
-      def fromBigDecimal(bd: BigDecimal) = bd.floatValue
-    }
-
-    implicit val doubleOps: NumberOps[Double] = new NumberOps[Double] {
-      def toBigDecimal(a: Double)        = BigDecimal.valueOf(a)
-      def fromBigDecimal(bd: BigDecimal) = bd.doubleValue
-    }
-
-    implicit val shortOps: NumberOps[Short] = new NumberOps[Short] {
-      def toBigDecimal(a: Short)         = BigDecimal.valueOf(a.toLong)
-      def fromBigDecimal(bd: BigDecimal) = bd.shortValue
-    }
-
-    implicit val bigDecOps: NumberOps[BigDecimal] = new NumberOps[BigDecimal] {
-      def toBigDecimal(a: BigDecimal)    = a
-      def fromBigDecimal(bd: BigDecimal) = bd
     }
   }
 
@@ -1085,4 +993,97 @@ object BlocksDdbDerived extends Deriver[DdbCodec] {
       }
   }
 
+}
+
+sealed trait VariantMetaData
+object VariantMetaData {
+  case object Option extends VariantMetaData
+  case object Either extends VariantMetaData
+
+  // Discriminator is added as a top level Map wrapping the Record using the type name as the key
+  case object DefaultTaggedDiscriminationPolicy extends VariantMetaData
+
+  // Discriminator is added at the Record level as an extra field
+  final case class FieldDiscriminationPolicy(name: String) extends VariantMetaData
+
+  // No discriminator is encoded - so decoding has to try each case until one works - for legacy DBs
+  case object NoDiscriminator extends VariantMetaData
+}
+
+trait NumberOps[A] {
+  def toBigDecimal(a: A): BigDecimal
+  def fromBigDecimal(bd: BigDecimal): A
+}
+
+object NumberOps {
+  implicit val intOps: NumberOps[Int] = new NumberOps[Int] {
+    def toBigDecimal(a: Int)           = BigDecimal.valueOf(a.toLong)
+    def fromBigDecimal(bd: BigDecimal) = bd.intValue
+  }
+
+  implicit val longOps: NumberOps[Long] = new NumberOps[Long] {
+    def toBigDecimal(a: Long)          = BigDecimal.valueOf(a)
+    def fromBigDecimal(bd: BigDecimal) = bd.longValue
+  }
+
+  implicit val floatOps: NumberOps[Float] = new NumberOps[Float] {
+    def toBigDecimal(a: Float)         = BigDecimal.decimal(a)
+    def fromBigDecimal(bd: BigDecimal) = bd.floatValue
+  }
+
+  implicit val doubleOps: NumberOps[Double] = new NumberOps[Double] {
+    def toBigDecimal(a: Double)        = BigDecimal.valueOf(a)
+    def fromBigDecimal(bd: BigDecimal) = bd.doubleValue
+  }
+
+  implicit val shortOps: NumberOps[Short] = new NumberOps[Short] {
+    def toBigDecimal(a: Short)         = BigDecimal.valueOf(a.toLong)
+    def fromBigDecimal(bd: BigDecimal) = bd.shortValue
+  }
+
+  implicit val bigDecOps: NumberOps[BigDecimal] = new NumberOps[BigDecimal] {
+    def toBigDecimal(a: BigDecimal)    = a
+    def fromBigDecimal(bd: BigDecimal) = bd
+  }
+}
+
+final class CacheEntry private (
+  val fieldCodecs: Array[DdbCodec[?]],
+  names: Array[String]
+)                 {
+  def size: Int                 = fieldCodecs.length // TODO: Avi - for debugging - remove
+  override def toString: String = s"CacheEntry(${fieldCodecs.toSeq}, ${names.toSeq})"
+
+  private[this] var _nameToIndex: Map[String, Int] = null // TODO: Avi - investigate savings in getting rid of Map
+  private[this] val hasNames                       = names.nonEmpty
+
+  private def nameToIndex: Map[String, Int] = {
+    var local = _nameToIndex
+    if (local eq null) {
+      if (hasNames)
+        local = names.zipWithIndex.toMap
+      else
+        local = Map.empty
+      _nameToIndex = local
+    }
+    local
+  }
+
+  def addEntry(codec: DdbCodec[?], name: String, index: Int): Unit = {
+    fieldCodecs(index) = codec
+    if (hasNames)
+      names(index) = name
+  }
+
+  def byIndex(i: Int): DdbCodec[?] = fieldCodecs(i)
+
+  def byName(name: String): Option[DdbCodec[?]] =
+    if (!hasNames) None
+    else nameToIndex.get(name).map(fieldCodecs)
+}
+object CacheEntry {
+  def makeWithNames(size: Int) =
+    new CacheEntry(new Array[DdbCodec[?]](size), new Array[String](size))
+  //    def makeWithoutNames[A](size: Int) =
+  //      new CacheEntry(new Array[DdbCodec[?]](size), Array.empty)
 }

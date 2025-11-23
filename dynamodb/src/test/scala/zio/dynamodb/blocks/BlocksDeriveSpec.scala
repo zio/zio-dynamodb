@@ -185,6 +185,31 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val dec                            = codec.decoder(enc)
       assertTrue(enc == expectedAv && dec == Right("ONE_decoded"))
     },
+    test("investigate String field in record override codec") {
+      val codecToUpper: DdbCodec[String] = new DdbCodec[String] {
+        override def encoder: Encoder[String] =
+          s => {
+            println(s"XXXXXXXXXXXX 1")
+            AttributeValue.String(s.toUpperCase)
+          }
+
+        override def decoder: Decoder[String] = {
+          case AttributeValue.String(s) => Right(s + "_decoded")
+          case other                    => Left(DecodingError(s"Expected String attribute value but got: $other"))
+        }
+      }
+      println(s"$codecToUpper")
+      val expectedAv                     = AttributeValue.String("ONE")
+      val codec: DdbCodec[Person]        =
+        Person.schema
+          .deriving(BlocksDdbDerived)
+          .instance(DummyCodec.stringSchema.reflect.typeName, codecToUpper)
+          .derive
+      val person                         = Person("one", 21)
+      val enc                            = codec.encoder(person)
+      val dec                            = codec.decoder(enc)
+      assertTrue(enc == expectedAv && dec == Right(person))
+    },
     test("Record with Primitives") {
       val expectedItem            = Item("id" -> "1", "age" -> 42)
       val codec: DdbCodec[Person] = Person.schema.derive(BlocksDdbDerived)

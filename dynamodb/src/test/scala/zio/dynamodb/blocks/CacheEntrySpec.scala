@@ -1,6 +1,5 @@
 package zio.dynamodb.blocks
 
-import zio.dynamodb.blocks.BlocksDdbDerived.CacheEntry
 import zio.dynamodb.{ Decoder, Encoder }
 import zio.test._
 
