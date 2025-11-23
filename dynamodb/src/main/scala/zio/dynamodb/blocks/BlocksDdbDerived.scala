@@ -810,6 +810,7 @@ object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
                 val kv             = it.next()
                 val key            = deconstructor.getKey(kv)
                 val value          = deconstructor.getValue(kv)
+                // TODO: Avi we could use key directly with cast to String rather than encode it
                 val keyVal: String = keyEncoder.asInstanceOf[Key => AttributeValue.String](key).value
                 mapBuilder.addOne(AttributeValue.String(keyVal) -> valueEncoder(value))
               }
