@@ -19,7 +19,7 @@ TODO:
 - decode simple enum - get CacheEntry for enum parent name
 - inline code primitive codecs
  */
-object BlocksDdbDerived extends Deriver[DdbCodec] {
+class BlocksDdbDerived extends Deriver[DdbCodec] {
 
   // TODO: Avi - extract simple codecs that do not need context as vals to save memory allocations
 

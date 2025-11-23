@@ -132,5 +132,5 @@ object ListOfRecordsDomain {
   val zioSchemaEncoder: Encoder[Person] = Codec.encoder[Person](zioSchema)
   val zioSchemaDecoder: Decoder[Person] = Codec.decoder[Person](zioSchema)
 
-  val zioBlocksCodec: DdbCodec[Person] = Schema.derived.deriving(BlocksDdbDerived).derive
+  val zioBlocksCodec: DdbCodec[Person] = Schema.derived.deriving(new BlocksDdbDerived).derive
 }
