@@ -1,12 +1,13 @@
 package zio.dynamodb.blocks
 
 import zio.Chunk
-import zio.test._
 import zio.blocks.schema.Modifier.config
-import zio.blocks.schema.{ Namespace, Reflect, Schema, TypeName }
 import zio.blocks.schema.binding.{ Binding, SeqConstructor, SeqDeconstructor }
-import zio.dynamodb.{ AttributeValue, Item }
+import zio.blocks.schema._
+import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb.blocks.BlocksDeriveSpec.PaymentMethod.CreditCard
+import zio.dynamodb.{ AttributeValue, Decoder, Encoder, Item }
+import zio.test._
 
 object BlocksDeriveSpec extends ZIOSpecDefault {
 
@@ -91,8 +92,9 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     implicit val schema: Schema[RecordWithArray] = Schema.derived
   }
   final case class RecordWithEither(either: Either[String, Int])
-  object RecordWithEither       {
-    implicit val schema: Schema[RecordWithEither] = Schema.derived
+  object RecordWithEither extends CompanionOptics[RecordWithEither] {
+    implicit val schema: Schema[RecordWithEither]                = Schema.derived
+    val either /*: Lens[RecordWithEither, Either[String, Int]]*/ = optic(_.either)
   }
 
   final case class RecordWithOption(id: String, option: Option[Int])
@@ -152,11 +154,37 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
   }
 
   final case class Person(id: String, age: Long)
-  object Person {
+  object Person extends CompanionOptics[Person] {
     implicit val schema: Schema[Person] = Schema.derived
+
+    val id: Lens[Person, String] = $(_.id)
   }
 
   val spec = suite("Used derived codecs in a round trip spec")(
+    test("investigate String override codec") {
+      val codecToUpper: DdbCodec[String] = new DdbCodec[String] {
+        override def encoder: Encoder[String] =
+          s => {
+            println(s"XXXXXXXXXXXX 1")
+            AttributeValue.String(s.toUpperCase)
+          }
+
+        override def decoder: Decoder[String] = {
+          case AttributeValue.String(s) => Right(s + "_decoded")
+          case other                    => Left(DecodingError(s"Expected String attribute value but got: $other"))
+        }
+      }
+      println(s"$codecToUpper")
+      val expectedAv                     = AttributeValue.String("ONE")
+      val codec: DdbCodec[String]        =
+        DummyCodec.stringSchema
+          .deriving(new DummyCodec.DummyDeriver())
+          .instance(DummyCodec.stringSchema.reflect.typeName, codecToUpper)
+          .derive
+      val enc                            = codec.encoder("one")
+      val dec                            = codec.decoder(enc)
+      assertTrue(enc == expectedAv && dec == Right("ONE_decoded"))
+    },
     test("Record with Primitives") {
       val expectedItem            = Item("id" -> "1", "age" -> 42)
       val codec: DdbCodec[Person] = Person.schema.derive(BlocksDdbDerived)
@@ -285,6 +313,33 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val dec                               = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
+    test("investigate Either override codec") {
+      val codec1 = new DdbCodec[Either[String, Int]] {
+
+        override def encoder: Encoder[Either[String, Int]] = {
+          case Right(value) => AttributeValue.Number(value)
+          case Left(value)  => AttributeValue.String(value)
+        }
+
+        override def decoder: Decoder[Either[String, Int]] = ???
+      }
+      println(codec1)
+      /*
+        val codec2 = Record2.schema
+          .deriving(JsonFormat.deriver)
+          .instance(Record2.r1_1, codec1)
+          .instance(Record2.r1_2, codec1)
+          .derive
+       */
+      val expectedItem                      =
+        Item("either" -> 42)
+      val codec: DdbCodec[RecordWithEither] =
+        RecordWithEither.schema.deriving(BlocksDdbDerived).instance(RecordWithEither.either, codec1).derive
+      val expectedPerson                    = RecordWithEither(either = Right(42))
+      val enc                               = codec.encoder(expectedPerson)
+//      val dec                               = codec.decoder(enc)
+      assertTrue(enc == expectedItem.toAttributeValue /* && dec == Right(expectedPerson) */ )
+    } @@ TestAspect.ignore,
     test("Record with Either[String, Int] Left('error')") {
       val expectedItem                      =
         Item("either" -> Item("Left" -> "error"))

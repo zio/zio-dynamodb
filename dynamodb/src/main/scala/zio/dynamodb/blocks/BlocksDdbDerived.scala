@@ -19,7 +19,7 @@ TODO:
 - decode simple enum - get CacheEntry for enum parent name
 - inline code primitive codecs
  */
-object BlocksDdbDerived extends Deriver[DdbCodec] { self =>
+object BlocksDdbDerived extends Deriver[DdbCodec] {
   sealed trait VariantMetaData
   object VariantMetaData {
     case object Option extends VariantMetaData
