@@ -15,8 +15,8 @@ import zio.blocks.schema.{
   TypeName,
   Validation
 }
-import zio.blocks.schema.binding.{ Binding, BindingType, HasBinding }
-import zio.blocks.schema.derive.Deriver
+import zio.blocks.schema.binding.{ Binding, BindingType, HasBinding, Registers }
+import zio.blocks.schema.derive.{ BindingInstance, Deriver }
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb.{ AttributeValue, Decoder, Encoder }
 
@@ -34,9 +34,9 @@ object DummyCodec {
   def stringOnlyCodec[A](reflect: Bound[A]): DdbCodec[A] =
     new DdbCodec[A] {
       override def encoder: Encoder[A] =
-        _ => {
-          println(s"XXXXXXXXXXXX $reflect")
-          AttributeValue.String("blah blah blah")
+        a => {
+          println(s"XXXXX reflect: $reflect encoding value: $a")
+          AttributeValue.String(a.toString)
         }
 
       override def decoder: Decoder[A] = {
@@ -54,7 +54,7 @@ object DummyCodec {
       modifiers: Seq[Modifier.Reflect]
     ): Lazy[DdbCodec[A]] =
       Lazy(
-        stringOnlyCodec(
+        deriveCodec(
           Reflect.Primitive(
             primitiveType = primitiveType,
             typeName = typeName,
@@ -71,7 +71,18 @@ object DummyCodec {
       binding: Binding[BindingType.Record, A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect]
-    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] = ???
+    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] =
+      Lazy(
+        deriveCodec(
+          Reflect.Record(
+            fields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, _]]],
+            typeName = typeName,
+            recordBinding = binding,
+            doc = doc,
+            modifiers = modifiers
+          )
+        )
+      )
 
     override def deriveVariant[F[_, _], A](
       cases: IndexedSeq[Term[F, A, _]],
@@ -113,5 +124,52 @@ object DummyCodec {
       modifiers: Seq[Modifier.Reflect]
     )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] = ???
   }
+
+  def deriveCodec[A](reflect: Bound[A]): DdbCodec[A] =
+    if (reflect.isPrimitive) {
+      val primitive = reflect.asPrimitive.get
+      if (primitive.primitiveBinding.isInstanceOf[Binding[?, ?]]) {
+        println(s"XXXXX Deriving primitive codec for $reflect")
+        stringOnlyCodec(reflect)
+      } else primitive.primitiveBinding.asInstanceOf[BindingInstance[DdbCodec, ?, A]].instance.force
+    } else if (reflect.isRecord) {
+      val record = reflect.asRecord.get
+      if (record.recordBinding.isInstanceOf[Binding[?, ?]]) {
+        val binding = record.recordBinding.asInstanceOf[Binding.Record[A]]
+        val offset  = 0
+
+        //      val registers = Registers.computeRegisters(record)
+        println(s"XXXXX Deriving record codec for $reflect")
+        new DdbCodec[A] {
+//          val constructor   = binding.constructor
+          val deconstructor = binding.deconstructor
+          val fields        = record.fields
+          val usedRegisters = offset
+
+          override def encoder: Encoder[A] = { value =>
+            println(s"XXXXX Encoding record value: $value")
+            val regs       = Registers(usedRegisters)
+            var idx        = 0
+            deconstructor.deconstruct(regs, 0, value)
+            val mapBuilder = Map.newBuilder[AttributeValue.String, AttributeValue]
+            while (idx < fields.length) {
+              val field      = fields(idx)
+              val fieldValue = regs.getObject(offset, 0)
+              val encAv      = deriveCodec(field.value).asInstanceOf[DdbCodec[AnyRef]].encoder(fieldValue)
+              println(s"XXXXX Field: ${field.name} -> $fieldValue -> enc: $encAv")
+              // For demonstration, we encode all fields as String "dummy"
+              mapBuilder.addOne(AttributeValue.String(field.name) -> encAv)
+              idx += 1
+            }
+            AttributeValue.Map(mapBuilder.result())
+          }
+
+          override def decoder: Decoder[A] = ???
+        }
+      } else record.recordBinding.asInstanceOf[BindingInstance[DdbCodec, ?, A]].instance.force
+    } else {
+      println(s"XXXXX reflect: $reflect not handled yet")
+      ???
+    }
 
 }

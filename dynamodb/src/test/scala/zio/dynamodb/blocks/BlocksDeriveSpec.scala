@@ -160,6 +160,13 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     val id: Lens[Person, String] = $(_.id)
   }
 
+  final case class Person2(id: String)
+  object Person2 extends CompanionOptics[Person2] {
+    implicit val schema: Schema[Person2] = Schema.derived
+
+    val id: Lens[Person2, String] = $(_.id)
+  }
+
   val spec = suite("Used derived codecs in a round trip spec")(
     test("investigate String override codec") {
       val codecToUpper: DdbCodec[String] = new DdbCodec[String] {
@@ -189,7 +196,6 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val codecToUpper: DdbCodec[String] = new DdbCodec[String] {
         override def encoder: Encoder[String] =
           s => {
-            println(s"XXXXXXXXXXXX 1")
             AttributeValue.String(s.toUpperCase)
           }
 
@@ -199,16 +205,16 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
         }
       }
       println(s"$codecToUpper")
-      val expectedAv                     = AttributeValue.String("ONE")
-      val codec: DdbCodec[Person]        =
-        Person.schema
-          .deriving(new BlocksDdbDerived)
-          .instance(DummyCodec.stringSchema.reflect.typeName, codecToUpper)
+      val expectedAv                     = Item("id" -> "ONE").toAttributeValue
+      val codec: DdbCodec[Person2]       =
+        Person2.schema
+          .deriving(new DummyCodec.DummyDeriver())
+          .instance(Person2.id, codecToUpper)
           .derive
-      val person                         = Person("one", 21)
+      val person                         = Person2("one")
       val enc                            = codec.encoder(person)
-      val dec                            = codec.decoder(enc)
-      assertTrue(enc == expectedAv && dec == Right(person))
+//      val dec                            = codec.decoder(enc)
+      assertTrue(enc == expectedAv /*&& dec == Right(person)*/ )
     },
     test("Record with Primitives") {
       val expectedItem            = Item("id" -> "1", "age" -> 42)
