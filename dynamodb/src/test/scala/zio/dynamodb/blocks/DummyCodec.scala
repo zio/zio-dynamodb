@@ -45,7 +45,7 @@ object DummyCodec {
       }
     }
 
-  class DummyDeriver extends Deriver[DdbCodec] {
+  object DummyDeriver extends Deriver[DdbCodec] {
     override def derivePrimitive[F[_, _], A](
       primitiveType: PrimitiveType[A],
       typeName: TypeName[A],
@@ -125,7 +125,10 @@ object DummyCodec {
     )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] = ???
   }
 
-  def deriveCodec[A](reflect: Bound[A]): DdbCodec[A] =
+  def deriveCodec[A](
+    reflect: Bound[A],
+    cache: java.util.HashMap[TypeName[?], CacheEntry] = new java.util.HashMap
+  ): DdbCodec[A] =
     if (reflect.isPrimitive) {
       val primitive = reflect.asPrimitive.get
       if (primitive.primitiveBinding.isInstanceOf[Binding[?, ?]]) {
@@ -134,16 +137,41 @@ object DummyCodec {
       } else primitive.primitiveBinding.asInstanceOf[BindingInstance[DdbCodec, ?, A]].instance.force
     } else if (reflect.isRecord) {
       val record = reflect.asRecord.get
+      println(s"XXXXX reflect is record: ${record.typeName.name}")
       if (record.recordBinding.isInstanceOf[Binding[?, ?]]) {
+        println(s"XXXXX record is Binding: ${record.typeName.name}")
         val binding = record.recordBinding.asInstanceOf[Binding.Record[A]]
         val offset  = 0
+        val fields  = record.fields
 
         //      val registers = Registers.computeRegisters(record)
-        println(s"XXXXX Deriving record codec for $reflect")
+        println(s"XXXXX Deriving record codec for ${record.typeName.name}")
+
+        val fieldCodecs = cache.get(record.typeName) match {
+          case null =>
+            println(s"XXXXX Cache miss for record type: ${record.typeName.name}")
+            val codecs: CacheEntry = CacheEntry.makeWithNames(fields.length)
+            if (!fields.isEmpty) {
+              println(s"XXXXX Cache PUT for record type: ${record.typeName.name}")
+              cache.put(record.typeName, codecs)
+              val len = fields.length
+              var idx = 0
+              while (idx < len) {
+                val reflect = fields(idx).value
+                codecs.addEntry(deriveCodec(reflect, cache), fields(idx).name, idx)
+                idx += 1
+              }
+            }
+            codecs
+          case x    =>
+            println(s"XXXXX Cache HIT for record type: ${record.typeName.name}")
+            x
+        }
+
         new DdbCodec[A] {
+          println(s"XXXXXXXXXXXXXXX new DdbCodec for ${record.typeName.name}")
 //          val constructor   = binding.constructor
           val deconstructor = binding.deconstructor
-          val fields        = record.fields
           val usedRegisters = offset
 
           override def encoder: Encoder[A] = { value =>
@@ -155,7 +183,8 @@ object DummyCodec {
             while (idx < fields.length) {
               val field      = fields(idx)
               val fieldValue = regs.getObject(offset, 0)
-              val encAv      = deriveCodec(field.value).asInstanceOf[DdbCodec[AnyRef]].encoder(fieldValue)
+//              val encAv      = deriveCodec(field.value).asInstanceOf[DdbCodec[AnyRef]].encoder(fieldValue)
+              val encAv      = fieldCodecs.byIndex(idx).asInstanceOf[DdbCodec[AnyRef]].encoder(fieldValue)
               println(s"XXXXX Field: ${field.name} -> $fieldValue -> enc: $encAv")
               // For demonstration, we encode all fields as String "dummy"
               mapBuilder.addOne(AttributeValue.String(field.name) -> encAv)
@@ -166,7 +195,10 @@ object DummyCodec {
 
           override def decoder: Decoder[A] = ???
         }
-      } else record.recordBinding.asInstanceOf[BindingInstance[DdbCodec, ?, A]].instance.force
+      } else {
+        println(s"XXXXX record is NOT Binding: $reflect")
+        record.recordBinding.asInstanceOf[BindingInstance[DdbCodec, ?, A]].instance.force
+      }
     } else {
       println(s"XXXXX reflect: $reflect not handled yet")
       ???

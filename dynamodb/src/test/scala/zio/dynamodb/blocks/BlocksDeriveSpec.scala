@@ -185,7 +185,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val expectedAv                     = AttributeValue.String("ONE")
       val codec: DdbCodec[String]        =
         DummyCodec.stringSchema
-          .deriving(new DummyCodec.DummyDeriver())
+          .deriving(DummyCodec.DummyDeriver)
           .instance(DummyCodec.stringSchema.reflect.typeName, codecToUpper)
           .derive
       val enc                            = codec.encoder("one")
@@ -206,12 +206,13 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       }
       println(s"$codecToUpper")
       val expectedAv                     = Item("id" -> "ONE").toAttributeValue
-      val codec: DdbCodec[Person2]       =
+      def codec: DdbCodec[Person2]       =
         Person2.schema
-          .deriving(new DummyCodec.DummyDeriver())
+          .deriving(DummyCodec.DummyDeriver)
           .instance(Person2.id, codecToUpper)
           .derive
       val person                         = Person2("one")
+      val _                              = codec.encoder(person)
       val enc                            = codec.encoder(person)
 //      val dec                            = codec.decoder(enc)
       assertTrue(enc == expectedAv /*&& dec == Right(person)*/ )
