@@ -20,6 +20,8 @@ import zio.blocks.schema.derive.{ BindingInstance, Deriver }
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb.{ AttributeValue, Decoder, Encoder }
 
+import java.util
+
 object DummyCodec {
   val stringSchema = new Schema(
     Reflect.Primitive(
@@ -30,6 +32,11 @@ object DummyCodec {
       modifiers = Seq.empty
     )
   )
+
+  val cache: ThreadLocal[java.util.HashMap[TypeName[?], CacheEntry]] =
+    new ThreadLocal[util.HashMap[TypeName[_], CacheEntry]] {
+      override def initialValue(): java.util.HashMap[TypeName[?], CacheEntry] = new java.util.HashMap
+    }
 
   def stringOnlyCodec[A](reflect: Bound[A]): DdbCodec[A] =
     new DdbCodec[A] {
@@ -126,39 +133,34 @@ object DummyCodec {
   }
 
   def deriveCodec[A](
-    reflect: Bound[A],
-    cache: java.util.HashMap[TypeName[?], CacheEntry] = new java.util.HashMap
+    reflect: Bound[A]
+//    cache: java.util.HashMap[TypeName[?], CacheEntry] = new java.util.HashMap
   ): DdbCodec[A] =
     if (reflect.isPrimitive) {
       val primitive = reflect.asPrimitive.get
-      if (primitive.primitiveBinding.isInstanceOf[Binding[?, ?]]) {
-        println(s"XXXXX Deriving primitive codec for $reflect")
+      if (primitive.primitiveBinding.isInstanceOf[Binding[?, ?]])
         stringOnlyCodec(reflect)
-      } else primitive.primitiveBinding.asInstanceOf[BindingInstance[DdbCodec, ?, A]].instance.force
+      else primitive.primitiveBinding.asInstanceOf[BindingInstance[DdbCodec, ?, A]].instance.force
     } else if (reflect.isRecord) {
       val record = reflect.asRecord.get
-      println(s"XXXXX reflect is record: ${record.typeName.name}")
       if (record.recordBinding.isInstanceOf[Binding[?, ?]]) {
-        println(s"XXXXX record is Binding: ${record.typeName.name}")
         val binding = record.recordBinding.asInstanceOf[Binding.Record[A]]
         val offset  = 0
         val fields  = record.fields
 
         //      val registers = Registers.computeRegisters(record)
-        println(s"XXXXX Deriving record codec for ${record.typeName.name}")
 
-        val fieldCodecs = cache.get(record.typeName) match {
+        val fieldCodecs = cache.get.get(record.typeName) match {
           case null =>
-            println(s"XXXXX Cache miss for record type: ${record.typeName.name}")
             val codecs: CacheEntry = CacheEntry.makeWithNames(fields.length)
             if (!fields.isEmpty) {
               println(s"XXXXX Cache PUT for record type: ${record.typeName.name}")
-              cache.put(record.typeName, codecs)
+              cache.get.put(record.typeName, codecs)
               val len = fields.length
               var idx = 0
               while (idx < len) {
                 val reflect = fields(idx).value
-                codecs.addEntry(deriveCodec(reflect, cache), fields(idx).name, idx)
+                codecs.addEntry(deriveCodec(reflect), fields(idx).name, idx)
                 idx += 1
               }
             }
@@ -169,13 +171,11 @@ object DummyCodec {
         }
 
         new DdbCodec[A] {
-          println(s"XXXXXXXXXXXXXXX new DdbCodec for ${record.typeName.name}")
 //          val constructor   = binding.constructor
           val deconstructor = binding.deconstructor
           val usedRegisters = offset
 
           override def encoder: Encoder[A] = { value =>
-            println(s"XXXXX Encoding record value: $value")
             val regs       = Registers(usedRegisters)
             var idx        = 0
             deconstructor.deconstruct(regs, 0, value)
@@ -185,7 +185,6 @@ object DummyCodec {
               val fieldValue = regs.getObject(offset, 0)
 //              val encAv      = deriveCodec(field.value).asInstanceOf[DdbCodec[AnyRef]].encoder(fieldValue)
               val encAv      = fieldCodecs.byIndex(idx).asInstanceOf[DdbCodec[AnyRef]].encoder(fieldValue)
-              println(s"XXXXX Field: ${field.name} -> $fieldValue -> enc: $encAv")
               // For demonstration, we encode all fields as String "dummy"
               mapBuilder.addOne(AttributeValue.String(field.name) -> encAv)
               idx += 1
