@@ -10,8 +10,8 @@ object RunnerMain extends App {
     12345678901L,
     "John",
     30,
-    "123 Main St",
-    map = Map("key1" -> 1, "key2" -> 2, "key3" -> 3)
+    "123 Main St"
+//    map = Map("key1" -> 1, "key2" -> 2, "key3" -> 3)
     //          List(5, 7, 9)
     //          paymentMethod = PaymentMethod.CreditCard("John", 123)
   )

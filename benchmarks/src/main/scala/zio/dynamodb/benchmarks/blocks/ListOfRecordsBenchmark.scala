@@ -32,8 +32,8 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
           12345678901L,
           "John",
           30,
-          "123 Main St",
-          map = Map("key1" -> 1, "key2" -> 2, "key3" -> 3)
+          "123 Main St"
+//          map = Map("key1" -> 1, "key2" -> 2, "key3" -> 3)
 //          List(5, 7, 9)
 //          paymentMethod = PaymentMethod.CreditCard("John", 123)
         )
@@ -118,8 +118,8 @@ object ListOfRecordsDomain {
     id: Long,
     name: String,
     age: Int,
-    address: String,
-    map: Map[String, Int]
+    address: String
+//    map: Map[String, Int]
 //    childrenAges: List[Int]
 //    paymentMethod: PaymentMethod
   )
@@ -132,5 +132,5 @@ object ListOfRecordsDomain {
   val zioSchemaEncoder: Encoder[Person] = Codec.encoder[Person](zioSchema)
   val zioSchemaDecoder: Decoder[Person] = Codec.decoder[Person](zioSchema)
 
-  val zioBlocksCodec: DdbCodec[Person] = Schema.derived.deriving(new BlocksDdbDerived).derive
+  val zioBlocksCodec: DdbCodec[Person] = Schema.derived.deriving(BlocksDdbDerived).derive
 }

@@ -1,6 +1,6 @@
 package zio.dynamodb.blocks
 
-import zio.blocks.schema.Reflect.{ Bound }
+import zio.blocks.schema.Reflect.Bound
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.derive.{ BindingInstance, Deriver }
@@ -8,6 +8,7 @@ import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb.{ AttributeValue, Decoder, Encoder, FromAttributeValue }
 
+import java.util
 import scala.collection.immutable.HashSet
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -19,7 +20,12 @@ TODO:
 - decode simple enum - get CacheEntry for enum parent name
 - inline code primitive codecs
  */
-class BlocksDdbDerived extends Deriver[DdbCodec] {
+object BlocksDdbDerived extends Deriver[DdbCodec] {
+
+  val cache: ThreadLocal[java.util.HashMap[TypeName[?], CacheEntry]] =
+    new ThreadLocal[util.HashMap[TypeName[_], CacheEntry]] {
+      override def initialValue(): java.util.HashMap[TypeName[?], CacheEntry] = new java.util.HashMap
+    }
 
   // TODO: Avi - extract simple codecs that do not need context as vals to save memory allocations
 
@@ -315,7 +321,7 @@ class BlocksDdbDerived extends Deriver[DdbCodec] {
 
   private[this] def deriveCodec[A](
     reflect: Bound[A],
-    cache: java.util.HashMap[TypeName[?], CacheEntry] = new java.util.HashMap,
+//    cache: java.util.HashMap[TypeName[?], CacheEntry] = new java.util.HashMap,
     maybeVariantMetaData: Option[VariantMetaData] = None
   ): DdbCodec[A] = {
     if (reflect.isPrimitive) {
@@ -357,21 +363,22 @@ class BlocksDdbDerived extends Deriver[DdbCodec] {
       val fields        = record.fields
 
       // TODO: Avi - we end up with empty CacheEntry memory alloc for simple enum that is not used
-      val fieldCodecs = cache.get(record.typeName) match {
+      val fieldCodecs = cache.get.get(record.typeName) match {
         case null =>
           val codecs: CacheEntry = CacheEntry.makeWithNames(fields.length)
           if (!fields.isEmpty) {
-            cache.put(record.typeName, codecs)
+            cache.get.put(record.typeName, codecs)
             val len = fields.length
             var idx = 0
             while (idx < len) {
               val reflect = fields(idx).value
-              codecs.addEntry(deriveCodec(reflect, cache, maybeVariantMetaData), fields(idx).name, idx)
+              codecs.addEntry(deriveCodec(reflect, maybeVariantMetaData), fields(idx).name, idx)
               idx += 1
             }
           }
           codecs
-        case x    => x
+        case x    =>
+          x
       }
 
       new DdbCodec[A] {
@@ -640,7 +647,7 @@ class BlocksDdbDerived extends Deriver[DdbCodec] {
       val constructor   = seqBinding.constructor
       val deconstructor = seqBinding.deconstructor
       val element       = sequence.element
-      val elementCodec  = deriveCodec(element, cache, maybeVariantMetaData)
+      val elementCodec  = deriveCodec(element, maybeVariantMetaData)
       val encoder2      = elementCodec.encoder.asInstanceOf[A => AttributeValue]
       val decoder2      = elementCodec.decoder //.asInstanceOf[Any => A]
 
@@ -698,11 +705,11 @@ class BlocksDdbDerived extends Deriver[DdbCodec] {
       val constructor   = mapBinding.constructor
       val deconstructor = mapBinding.deconstructor
       val keyCodec      =
-        deriveCodec(map.key, cache, maybeVariantMetaData)
+        deriveCodec(map.key, maybeVariantMetaData)
           .asInstanceOf[DdbCodec[Key]]
       val keyEncoder    = keyCodec.encoder   //.asInstanceOf[Key => AttributeValue.String]
       val keyDecoder    = keyCodec.decoder.asInstanceOf[Any => Either[ItemError.DecodingError, Key]]
-      val valueCodec    = deriveCodec(map.value, cache, maybeVariantMetaData).asInstanceOf[DdbCodec[Value]]
+      val valueCodec    = deriveCodec(map.value, maybeVariantMetaData).asInstanceOf[DdbCodec[Value]]
       val valueEncoder  = valueCodec.encoder //.asInstanceOf[Value => Any]
       val valueDecoder  = valueCodec.decoder //.asInstanceOf[Any => Value]
 
@@ -827,17 +834,17 @@ class BlocksDdbDerived extends Deriver[DdbCodec] {
       val cases                  = variant.cases
       val discriminator          = variantBinding.discriminator
       val variantMetaData2       = variantMetaData(variant, reflect.modifiers)
-      val caseCodecs: CacheEntry = cache.get(variant.typeName) match {
+      val caseCodecs: CacheEntry = cache.get.get(variant.typeName) match {
         case null =>
           val codecs = CacheEntry.makeWithNames(cases.length)
-          cache.put(variant.typeName, codecs)
+          cache.get.put(variant.typeName, codecs)
           val len    = cases.length
           var idx    = 0
 
           while (idx < len) {
             val reflect = cases(idx).value
             codecs.addEntry(
-              deriveCodec(reflect, cache, Some(variantMetaData2)),
+              deriveCodec(reflect, Some(variantMetaData2)),
               cases(idx).name,
               idx
             )
