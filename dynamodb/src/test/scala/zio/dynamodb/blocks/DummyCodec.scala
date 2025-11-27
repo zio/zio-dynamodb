@@ -38,16 +38,16 @@ object DummyCodec {
       override def initialValue(): java.util.HashMap[TypeName[?], CacheEntry2] = new java.util.HashMap
     }
 
-  def stringOnlyCodec[A](reflect: Bound[A]): DynamoDbCodec[A] =
-    new DynamoDbCodec[A] {
-      override def encoder: Encoder[A] =
+  val stringCodec: DynamoDbCodec[String] =
+    new DynamoDbCodec[String](valueType = DynamoDbCodec.objectType) {
+      override def encoder: Encoder[String] =
         a => {
-          println(s"XXXXX reflect: $reflect encoding value: $a")
+          println(s"XXXXX encoding value: $a")
           AttributeValue.String(a.toString)
         }
 
-      override def decoder: Decoder[A] = {
-        case AttributeValue.String(s) => Left(DecodingError(s"Cannot decode to $s"))
+      override def decoder: Decoder[String] = {
+        case AttributeValue.String(s) => Right(s)
         case other                    => Left(DecodingError(s"Expected String attribute value but got: $other"))
       }
     }
@@ -138,7 +138,10 @@ object DummyCodec {
     if (reflect.isPrimitive) {
       val primitive = reflect.asPrimitive.get
       if (primitive.primitiveBinding.isInstanceOf[Binding[?, ?]])
-        stringOnlyCodec(reflect)
+        (primitive.primitiveType match {
+          case _: PrimitiveType.String => stringCodec
+          case _                       => ???
+        }).asInstanceOf[DynamoDbCodec[A]]
       else primitive.primitiveBinding.asInstanceOf[BindingInstance[DynamoDbCodec, ?, A]].instance.force
     } else if (reflect.isRecord) {
       val record = reflect.asRecord.get
