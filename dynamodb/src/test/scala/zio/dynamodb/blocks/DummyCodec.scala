@@ -2,6 +2,7 @@ package zio.dynamodb.blocks
 
 import zio.blocks.schema.Reflect.Bound
 import zio.blocks.schema.binding.BindingType.{ Primitive, Variant, Wrapper }
+import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.{
   Doc,
   DynamicValue,
@@ -244,4 +245,5 @@ object DummyCodec {
       new CacheEntry2(new Array[DynamoDbCodec[?]](size), new Array[String](size))
   }
 
+  final case class FieldInfo(name: String, offset: RegisterOffset, codec: DynamoDbCodec[?], isOptional: Boolean)
 }
