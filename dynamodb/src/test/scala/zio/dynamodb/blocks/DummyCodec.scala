@@ -33,13 +33,13 @@ object DummyCodec {
     )
   )
 
-  val cache: ThreadLocal[java.util.HashMap[TypeName[?], CacheEntry]] =
-    new ThreadLocal[util.HashMap[TypeName[_], CacheEntry]] {
-      override def initialValue(): java.util.HashMap[TypeName[?], CacheEntry] = new java.util.HashMap
+  val cache: ThreadLocal[java.util.HashMap[TypeName[?], CacheEntry2]] =
+    new ThreadLocal[util.HashMap[TypeName[_], CacheEntry2]] {
+      override def initialValue(): java.util.HashMap[TypeName[?], CacheEntry2] = new java.util.HashMap
     }
 
-  def stringOnlyCodec[A](reflect: Bound[A]): DdbCodec[A] =
-    new DdbCodec[A] {
+  def stringOnlyCodec[A](reflect: Bound[A]): DynamoDbCodec[A] =
+    new DynamoDbCodec[A] {
       override def encoder: Encoder[A] =
         a => {
           println(s"XXXXX reflect: $reflect encoding value: $a")
@@ -52,14 +52,14 @@ object DummyCodec {
       }
     }
 
-  object DummyDeriver extends Deriver[DdbCodec] {
+  object DummyDeriver extends Deriver[DynamoDbCodec] {
     override def derivePrimitive[F[_, _], A](
       primitiveType: PrimitiveType[A],
       typeName: TypeName[A],
       binding: Binding[Primitive, A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect]
-    ): Lazy[DdbCodec[A]] =
+    ): Lazy[DynamoDbCodec[A]] =
       Lazy(
         deriveCodec(
           Reflect.Primitive(
@@ -78,7 +78,7 @@ object DummyCodec {
       binding: Binding[BindingType.Record, A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect]
-    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] =
+    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDbCodec[A]] =
       Lazy(
         deriveCodec(
           Reflect.Record(
@@ -97,7 +97,7 @@ object DummyCodec {
       binding: Binding[Variant, A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect]
-    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] = ???
+    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDbCodec[A]] = ???
 
     override def deriveSequence[F[_, _], C[_], A](
       element: Reflect[F, A],
@@ -105,7 +105,7 @@ object DummyCodec {
       binding: Binding[BindingType.Seq[C], C[A]],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect]
-    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[C[A]]] = ???
+    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDbCodec[C[A]]] = ???
 
     override def deriveMap[F[_, _], M[_, _], K, V](
       key: Reflect[F, K],
@@ -114,13 +114,13 @@ object DummyCodec {
       binding: Binding[BindingType.Map[M], M[K, V]],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect]
-    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[M[K, V]]] = ???
+    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDbCodec[M[K, V]]] = ???
 
     override def deriveDynamic[F[_, _]](
       binding: Binding[BindingType.Dynamic, DynamicValue],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect]
-    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[DynamicValue]] = ???
+    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDbCodec[DynamicValue]] = ???
 
     override def deriveWrapper[F[_, _], A, B](
       wrapped: Reflect[F, B],
@@ -129,18 +129,17 @@ object DummyCodec {
       binding: Binding[Wrapper[A, B], A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect]
-    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DdbCodec[A]] = ???
+    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDbCodec[A]] = ???
   }
 
   def deriveCodec[A](
     reflect: Bound[A]
-//    cache: java.util.HashMap[TypeName[?], CacheEntry] = new java.util.HashMap
-  ): DdbCodec[A] =
+  ): DynamoDbCodec[A] =
     if (reflect.isPrimitive) {
       val primitive = reflect.asPrimitive.get
       if (primitive.primitiveBinding.isInstanceOf[Binding[?, ?]])
         stringOnlyCodec(reflect)
-      else primitive.primitiveBinding.asInstanceOf[BindingInstance[DdbCodec, ?, A]].instance.force
+      else primitive.primitiveBinding.asInstanceOf[BindingInstance[DynamoDbCodec, ?, A]].instance.force
     } else if (reflect.isRecord) {
       val record = reflect.asRecord.get
       if (record.recordBinding.isInstanceOf[Binding[?, ?]]) {
@@ -152,7 +151,7 @@ object DummyCodec {
 
         val fieldCodecs = cache.get.get(record.typeName) match {
           case null =>
-            val codecs: CacheEntry = CacheEntry.makeWithNames(fields.length)
+            val codecs: CacheEntry2 = CacheEntry2.makeWithNames(fields.length)
             if (!fields.isEmpty) {
               println(s"XXXXX Cache PUT for record type: ${record.typeName.name}")
               cache.get.put(record.typeName, codecs)
@@ -170,7 +169,7 @@ object DummyCodec {
             x
         }
 
-        new DdbCodec[A] {
+        new DynamoDbCodec[A] {
 //          val constructor   = binding.constructor
           val deconstructor = binding.deconstructor
           val usedRegisters = offset
@@ -183,8 +182,8 @@ object DummyCodec {
             while (idx < fields.length) {
               val field      = fields(idx)
               val fieldValue = regs.getObject(offset, 0)
-//              val encAv      = deriveCodec(field.value).asInstanceOf[DdbCodec[AnyRef]].encoder(fieldValue)
-              val encAv      = fieldCodecs.byIndex(idx).asInstanceOf[DdbCodec[AnyRef]].encoder(fieldValue)
+//              val encAv      = deriveCodec(field.value).asInstanceOf[DynamoDbCodec[AnyRef]].encoder(fieldValue)
+              val encAv      = fieldCodecs.byIndex(idx).asInstanceOf[DynamoDbCodec[AnyRef]].encoder(fieldValue)
               // For demonstration, we encode all fields as String "dummy"
               mapBuilder.addOne(AttributeValue.String(field.name) -> encAv)
               idx += 1
@@ -196,11 +195,50 @@ object DummyCodec {
         }
       } else {
         println(s"XXXXX record is NOT Binding: $reflect")
-        record.recordBinding.asInstanceOf[BindingInstance[DdbCodec, ?, A]].instance.force
+        record.recordBinding.asInstanceOf[BindingInstance[DynamoDbCodec, ?, A]].instance.force
       }
     } else {
       println(s"XXXXX reflect: $reflect not handled yet")
       ???
     }
+
+  final class CacheEntry2 private (
+    val fieldCodecs: Array[DynamoDbCodec[?]],
+    names: Array[String]
+  )                  {
+    def size: Int                 = fieldCodecs.length // TODO: Avi - for debugging - remove
+    override def toString: String = s"CacheEntry2(${fieldCodecs.toSeq}, ${names.toSeq})"
+
+    private[this] var _nameToIndex: Map[String, Int] = null // TODO: Avi - investigate savings in getting rid of Map
+    private[this] val hasNames                       = names.nonEmpty
+
+    private def nameToIndex: Map[String, Int] = {
+      var local = _nameToIndex
+      if (local eq null) {
+        if (hasNames)
+          local = names.zipWithIndex.toMap
+        else
+          local = Map.empty
+        _nameToIndex = local
+      }
+      local
+    }
+
+    def addEntry(codec: DynamoDbCodec[?], name: String, index: Int): Unit = {
+      fieldCodecs(index) = codec
+      if (hasNames)
+        names(index) = name
+    }
+
+    def byIndex(i: Int): DynamoDbCodec[?] = fieldCodecs(i)
+
+    def byName(name: String): Option[DynamoDbCodec[?]] =
+      if (!hasNames) None
+      else nameToIndex.get(name).map(fieldCodecs)
+  }
+  object CacheEntry2 {
+    def makeWithNames(size: Int) =
+      new CacheEntry2(new Array[DynamoDbCodec[?]](size), new Array[String](size))
+  }
 
 }

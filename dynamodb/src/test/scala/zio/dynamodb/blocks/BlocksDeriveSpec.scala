@@ -169,7 +169,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
 
   val spec = suite("Used derived codecs in a round trip spec")(
     test("investigate String override codec") {
-      val codecToUpper: DdbCodec[String] = new DdbCodec[String] {
+      val codecToUpper: DynamoDbCodec[String] = new DynamoDbCodec[String] {
         override def encoder: Encoder[String] =
           s => {
             println(s"XXXXXXXXXXXX 1")
@@ -182,18 +182,18 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
         }
       }
       println(s"$codecToUpper")
-      val expectedAv                     = AttributeValue.String("ONE")
-      val codec: DdbCodec[String]        =
+      val expectedAv                          = AttributeValue.String("ONE")
+      val codec: DynamoDbCodec[String]        =
         DummyCodec.stringSchema
           .deriving(DummyCodec.DummyDeriver)
           .instance(DummyCodec.stringSchema.reflect.typeName, codecToUpper)
           .derive
-      val enc                            = codec.encoder("one")
-      val dec                            = codec.decoder(enc)
+      val enc                                 = codec.encoder("one")
+      val dec                                 = codec.decoder(enc)
       assertTrue(enc == expectedAv && dec == Right("ONE_decoded"))
     },
     test("investigate String field in record override codec") {
-      val codecToUpper: DdbCodec[String] = new DdbCodec[String] {
+      val codecToUpper: DynamoDbCodec[String] = new DynamoDbCodec[String] {
         override def encoder: Encoder[String] =
           s => {
             AttributeValue.String(s.toUpperCase)
@@ -205,15 +205,15 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
         }
       }
       println(s"$codecToUpper")
-      val expectedAv                     = Item("id" -> "ONE").toAttributeValue
-      def codec: DdbCodec[Person2]       =
+      val expectedAv                          = Item("id" -> "ONE").toAttributeValue
+      def codec: DynamoDbCodec[Person2]       =
         Person2.schema
           .deriving(DummyCodec.DummyDeriver)
           .instance(Person2.id, codecToUpper)
           .derive
-      val person                         = Person2("one")
-      val _                              = codec.encoder(person)
-      val enc                            = codec.encoder(person)
+      val person                              = Person2("one")
+      val _                                   = codec.encoder(person)
+      val enc                                 = codec.encoder(person)
 //      val dec                            = codec.decoder(enc)
       assertTrue(enc == expectedAv /*&& dec == Right(person)*/ )
     },
