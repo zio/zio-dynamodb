@@ -192,27 +192,29 @@ object DummyCodec {
             val mapBuilder = Map.newBuilder[AttributeValue.String, AttributeValue]
             val len        = fields.length
             while (idx < len) {
-              val field              = fields(idx)
-              val name               = field.name
-              val offset             = field.offset
-              val codec              = field.codec
-              var av: AttributeValue = null
+              val field  = fields(idx)
+              val name   = field.name
+              val offset = field.offset
+              val codec  = field.codec
               field.valueType match {
                 case DynamoDbCodec.intType    =>
                   val value = regs.getInt(offset, 0)
-                  av = codec.asInstanceOf[DynamoDbCodec[Int]].encoder(value)
+                  val av    = codec.asInstanceOf[DynamoDbCodec[Int]].encoder(value)
+                  mapBuilder.addOne(AttributeValue.String(name) -> av)
                 case DynamoDbCodec.longType   =>
                   val value = regs.getLong(offset, 0)
-                  av = codec.asInstanceOf[DynamoDbCodec[Long]].encoder(value)
+                  val av    = codec.asInstanceOf[DynamoDbCodec[Long]].encoder(value)
+                  mapBuilder.addOne(AttributeValue.String(name) -> av)
                 case DynamoDbCodec.objectType =>
                   val value = regs.getObject(offset, 0)
-                  av = codec.asInstanceOf[DynamoDbCodec[AnyRef]].encoder(value)
+                  val av    = codec.asInstanceOf[DynamoDbCodec[AnyRef]].encoder(value)
+                  mapBuilder.addOne(AttributeValue.String(name) -> av)
                 case _                        =>
                   // TODO: think about what we do here
                   val value = regs.getObject(offset, 0)
-                  av = codec.asInstanceOf[DynamoDbCodec[AnyRef]].encoder(value)
+                  val av    = codec.asInstanceOf[DynamoDbCodec[AnyRef]].encoder(value)
+                  mapBuilder.addOne(AttributeValue.String(name) -> av)
               }
-              mapBuilder.addOne(AttributeValue.String(name) -> av)
               idx += 1
             }
             AttributeValue.Map(mapBuilder.result())
