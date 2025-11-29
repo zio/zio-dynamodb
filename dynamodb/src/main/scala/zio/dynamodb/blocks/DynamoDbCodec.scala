@@ -7,8 +7,8 @@ abstract class DynamoDbCodec[A](val valueType: Int = DynamoDbCodec.objectType) {
 
   val valueOffset: RegisterOffset.RegisterOffset = valueType match {
     case DynamoDbCodec.objectType => RegisterOffset(objects = 1)
-    case DynamoDbCodec.intType    => RegisterOffset(objects = 1)
-    case DynamoDbCodec.longType   => RegisterOffset(objects = 1)
+    case DynamoDbCodec.intType    => RegisterOffset(ints = 1)
+    case DynamoDbCodec.longType   => RegisterOffset(longs = 1)
     case _                        => RegisterOffset.Zero
   }
 

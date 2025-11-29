@@ -160,7 +160,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     val id: Lens[Person, String] = $(_.id)
   }
 
-  final case class Person2(id: String)
+  final case class Person2(id: String, age: Int, count: Long)
   object Person2 extends CompanionOptics[Person2] {
     implicit val schema: Schema[Person2] = Schema.derived
 
@@ -201,13 +201,13 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
           case other                    => Left(DecodingError(s"Expected String attribute value but got: $other"))
         }
       }
-      val expectedAv                          = Item("id" -> "ONE", "age" -> 21L).toAttributeValue
-      def codec: DynamoDbCodec[Person]        =
-        Person.schema
+      val expectedAv                          = Item("id" -> "ONE", "age" -> 21L, "count" -> 100).toAttributeValue
+      def codec: DynamoDbCodec[Person2]       =
+        Person2.schema
           .deriving(DummyCodec.DummyDeriver)
-          .instance(Person.id, codecToUpper)
+          .instance(Person2.id, codecToUpper)
           .derive
-      val person                              = Person("one", 21)
+      val person                              = Person2("one", 21, 100L)
       val _                                   = codec.encoder(person)
       val enc                                 = codec.encoder(person)
 //      val dec                            = codec.decoder(enc)

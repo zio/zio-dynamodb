@@ -39,7 +39,7 @@ object DummyCodec {
       }
     }
 
-  private[this] val intCodec: DynamoDbCodec[Int] = new DynamoDbCodec[Int](valueType = DynamoDbCodec.longType) {
+  private[this] val intCodec: DynamoDbCodec[Int] = new DynamoDbCodec[Int](valueType = DynamoDbCodec.intType) {
     override def encoder: Encoder[Int] =
       (a: Int) => AttributeValue.Number(BigDecimal.valueOf(a.toLong))
 
@@ -50,7 +50,7 @@ object DummyCodec {
     }
   }
 
-  private[this] val longCodec = new DynamoDbCodec[Long](valueType = DynamoDbCodec.longType) {
+  private[this] val longCodec: DynamoDbCodec[Long] = new DynamoDbCodec[Long](valueType = DynamoDbCodec.longType) {
     override def encoder: Encoder[Long] = { (a: Long) =>
       AttributeValue.Number(BigDecimal.valueOf(a))
     }
