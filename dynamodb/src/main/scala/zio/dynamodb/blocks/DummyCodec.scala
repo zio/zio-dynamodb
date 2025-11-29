@@ -2,13 +2,13 @@ package zio.dynamodb.blocks
 
 import zio.blocks.schema.Reflect.Bound
 import zio.blocks.schema._
-import zio.blocks.schema.binding.BindingType.{Primitive, Variant, Wrapper}
+import zio.blocks.schema.binding.BindingType.{ Primitive, Variant, Wrapper }
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
-import zio.blocks.schema.derive.{BindingInstance, Deriver}
+import zio.blocks.schema.derive.{ BindingInstance, Deriver }
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
-import zio.dynamodb.{AttributeValue, Decoder, Encoder}
+import zio.dynamodb.{ AttributeValue, Decoder, Encoder }
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -166,7 +166,7 @@ object DummyCodec {
 
         var fieldInfos: Array[FieldInfo] = null // TODO: investigate recursive cache
         val len                          = fields.length
-        if (fieldInfos == null) {
+        if (fieldInfos eq null) {
           fieldInfos = new Array[FieldInfo](len)
           var idx = 0
           while (idx < len) {
