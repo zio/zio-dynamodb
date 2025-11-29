@@ -148,48 +148,75 @@ object DummyCodec {
       val record = reflect.asRecord.get
       if (record.recordBinding.isInstanceOf[Binding[?, ?]]) {
         val binding = record.recordBinding.asInstanceOf[Binding.Record[A]]
-        val offset  = 0
+        var offset  = 0
         val fields  = record.fields
 
-        //      val registers = Registers.computeRegisters(record)
-
-        val fieldCodecs = cache.get.get(record.typeName) match {
-          case null =>
-            val codecs: CacheEntry2 = CacheEntry2.makeWithNames(fields.length)
-            if (!fields.isEmpty) {
-              println(s"XXXXX Cache PUT for record type: ${record.typeName.name}")
-              cache.get.put(record.typeName, codecs)
-              val len = fields.length
-              var idx = 0
-              while (idx < len) {
-                val reflect = fields(idx).value
-                codecs.addEntry(deriveCodec(reflect), fields(idx).name, idx)
-                idx += 1
-              }
-            }
-            codecs
-          case x    =>
-            println(s"XXXXX Cache HIT for record type: ${record.typeName.name}")
-            x
+        var fieldInfos: Array[FieldInfo] = null // TODO: investigate recursive cache
+        val len                          = fields.length
+        if (fieldInfos == null) {
+          fieldInfos = new Array[FieldInfo](len)
+          var idx = 0
+          while (idx < len) {
+            val field        = fields(idx)
+            val fieldReflect = field.value
+            val codec        = deriveCodec(fieldReflect)
+            fieldInfos(idx) = new FieldInfo(field.name, offset, codec)
+            offset += codec.valueOffset
+            idx += 1
+          }
         }
+
+//        val fieldCodecs = cache.get.get(record.typeName) match {
+//          case null =>
+//            val codecs: CacheEntry2 = CacheEntry2.makeWithNames(fields.length)
+//            if (!fields.isEmpty) {
+//              println(s"XXXXX Cache PUT for record type: ${record.typeName.name}")
+//              cache.get.put(record.typeName, codecs)
+//              val len = fields.length
+//              var idx = 0
+//              while (idx < len) {
+//                val reflect = fields(idx).value
+//                codecs.addEntry(deriveCodec(reflect), fields(idx).name, idx)
+//                idx += 1
+//              }
+//            }
+//            codecs
+//          case x    =>
+//            println(s"XXXXX Cache HIT for record type: ${record.typeName.name}")
+//            x
+//        }
 
         new DynamoDbCodec[A] {
 //          val constructor   = binding.constructor
-          val deconstructor = binding.deconstructor
-          val usedRegisters = offset
+          private[this] val deconstructor = binding.deconstructor
+          private[this] val usedRegisters = offset
+          private[this] val fields        = fieldInfos
 
           override def encoder: Encoder[A] = { value =>
             val regs       = Registers(usedRegisters)
             var idx        = 0
             deconstructor.deconstruct(regs, 0, value)
             val mapBuilder = Map.newBuilder[AttributeValue.String, AttributeValue]
-            while (idx < fields.length) {
-              val field      = fields(idx)
-              val fieldValue = regs.getObject(offset, 0)
+            val len        = fields.length
+            while (idx < len) {
+              val field              = fields(idx)
+              val name               = field.name
+              val offset             = field.offset
+              val codec              = field.codec
+              var av: AttributeValue = null
+              field.valueType match {
+                case DynamoDbCodec.objectType => // ok
+                  val value = regs.getObject(offset, 0)
+                  av = codec.asInstanceOf[DynamoDbCodec[AnyRef]].encoder(value)
+                case _                        =>
+                  val value = regs.getObject(offset, 0)
+                  av = codec.asInstanceOf[DynamoDbCodec[AnyRef]].encoder(value)
+              }
+//              val fieldValue         = regs.getObject(offset, 0)
 //              val encAv      = deriveCodec(field.value).asInstanceOf[DynamoDbCodec[AnyRef]].encoder(fieldValue)
-              val encAv      = fieldCodecs.byIndex(idx).asInstanceOf[DynamoDbCodec[AnyRef]].encoder(fieldValue)
+//              val encAv              = fieldCodecs.byIndex(idx).asInstanceOf[DynamoDbCodec[AnyRef]].encoder(fieldValue)
               // For demonstration, we encode all fields as String "dummy"
-              mapBuilder.addOne(AttributeValue.String(field.name) -> encAv)
+              mapBuilder.addOne(AttributeValue.String(name) -> av)
               idx += 1
             }
             AttributeValue.Map(mapBuilder.result())
@@ -245,5 +272,12 @@ object DummyCodec {
       new CacheEntry2(new Array[DynamoDbCodec[?]](size), new Array[String](size))
   }
 
-  final case class FieldInfo(name: String, offset: RegisterOffset, codec: DynamoDbCodec[?], isOptional: Boolean)
+  final case class FieldInfo(
+    name: String,
+    offset: RegisterOffset,
+    codec: DynamoDbCodec[?],
+    isOptional: Boolean = false
+  ) {
+    val valueType: Int = codec.valueType
+  }
 }
