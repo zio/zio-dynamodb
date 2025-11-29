@@ -218,11 +218,11 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       assertTrue(enc == expectedAv /*&& dec == Right(person)*/ )
     },
     test("Record with Primitives") {
-      val expectedItem            = Item("id" -> "1", "age" -> 42)
+      val expectedItem                 = Item("id" -> "1", "age" -> 42)
       val codec: DdbCodec[Person] = Person.schema.derive(BlocksDdbDerived)
-      val expectedPerson          = Person("1", 42)
-      val enc                     = codec.encoder(expectedPerson)
-      val dec                     = codec.decoder(enc)
+      val expectedPerson               = Person("1", 42)
+      val enc                          = codec.encoder(expectedPerson)
+      val dec                          = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
     test("Record with List(1, 2) ") {

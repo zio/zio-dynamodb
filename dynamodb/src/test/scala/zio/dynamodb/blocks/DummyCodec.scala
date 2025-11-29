@@ -3,25 +3,14 @@ package zio.dynamodb.blocks
 import zio.blocks.schema.Reflect.Bound
 import zio.blocks.schema.binding.BindingType.{ Primitive, Variant, Wrapper }
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
-import zio.blocks.schema.{
-  Doc,
-  DynamicValue,
-  Lazy,
-  Modifier,
-  Namespace,
-  PrimitiveType,
-  Reflect,
-  Schema,
-  Term,
-  TypeName,
-  Validation
-}
-import zio.blocks.schema.binding.{ Binding, BindingType, HasBinding, Registers }
+import zio.blocks.schema.binding._
 import zio.blocks.schema.derive.{ BindingInstance, Deriver }
+import zio.blocks.schema._
+import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb.{ AttributeValue, Decoder, Encoder }
 
-import java.util
+import scala.collection.mutable.ArrayBuffer
 
 object DummyCodec {
   val stringSchema = new Schema(
@@ -34,12 +23,12 @@ object DummyCodec {
     )
   )
 
-  val cache: ThreadLocal[java.util.HashMap[TypeName[?], CacheEntry2]] =
-    new ThreadLocal[util.HashMap[TypeName[_], CacheEntry2]] {
-      override def initialValue(): java.util.HashMap[TypeName[?], CacheEntry2] = new java.util.HashMap
-    }
+//  private[this] val cache: ThreadLocal[java.util.HashMap[TypeName[?], CacheEntry2]] =
+//    new ThreadLocal[util.HashMap[TypeName[_], CacheEntry2]] {
+//      override def initialValue(): java.util.HashMap[TypeName[?], CacheEntry2] = new java.util.HashMap
+//    }
 
-  val stringCodec: DynamoDbCodec[String] =
+  private[this] val stringCodec: DynamoDbCodec[String] =
     new DynamoDbCodec[String](valueType = DynamoDbCodec.objectType) {
       override def encoder: Encoder[String] =
         a => {
@@ -52,6 +41,28 @@ object DummyCodec {
         case other                    => Left(DecodingError(s"Expected String attribute value but got: $other"))
       }
     }
+
+  val intCodec: DdbCodec[Int] = new DdbCodec[Int] {
+    override def encoder: Encoder[Int] =
+      (a: Int) => AttributeValue.Number(BigDecimal.valueOf(a.toLong))
+
+    override def decoder: Decoder[Int] = {
+      case AttributeValue.Number(bd) => Right(bd.intValue)
+      case av                        =>
+        Left(DecodingError(s"Error getting int value. Expected AttributeValue.Number but found ${av.showType}"))
+    }
+  }
+
+  val longCodec = new DdbCodec[Long] {
+    override def encoder: Encoder[Long] =
+      (a: Long) => AttributeValue.Number(BigDecimal.valueOf(a))
+
+    override def decoder: Decoder[Long] = {
+      case AttributeValue.Number(bd) => Right(bd.longValue)
+      case av                        =>
+        Left(DecodingError(s"Error getting long value. Expected AttributeValue.Number but found ${av.showType}"))
+    }
+  }
 
   object DummyDeriver extends Deriver[DynamoDbCodec] {
     override def derivePrimitive[F[_, _], A](
@@ -141,7 +152,11 @@ object DummyCodec {
       if (primitive.primitiveBinding.isInstanceOf[Binding[?, ?]])
         (primitive.primitiveType match {
           case _: PrimitiveType.String => stringCodec
-          case _                       => ???
+//          case _: PrimitiveType.Int    => intCodec
+//          case _: PrimitiveType.Long   => longCodec
+          case x                       =>
+            println(s"XXXXX primitive type $x not handled yet")
+            ???
         }).asInstanceOf[DynamoDbCodec[A]]
       else primitive.primitiveBinding.asInstanceOf[BindingInstance[DynamoDbCodec, ?, A]].instance.force
     } else if (reflect.isRecord) {
@@ -166,28 +181,8 @@ object DummyCodec {
           }
         }
 
-//        val fieldCodecs = cache.get.get(record.typeName) match {
-//          case null =>
-//            val codecs: CacheEntry2 = CacheEntry2.makeWithNames(fields.length)
-//            if (!fields.isEmpty) {
-//              println(s"XXXXX Cache PUT for record type: ${record.typeName.name}")
-//              cache.get.put(record.typeName, codecs)
-//              val len = fields.length
-//              var idx = 0
-//              while (idx < len) {
-//                val reflect = fields(idx).value
-//                codecs.addEntry(deriveCodec(reflect), fields(idx).name, idx)
-//                idx += 1
-//              }
-//            }
-//            codecs
-//          case x    =>
-//            println(s"XXXXX Cache HIT for record type: ${record.typeName.name}")
-//            x
-//        }
-
         new DynamoDbCodec[A] {
-//          val constructor   = binding.constructor
+          private[this] val constructor   = binding.constructor
           private[this] val deconstructor = binding.deconstructor
           private[this] val usedRegisters = offset
           private[this] val fields        = fieldInfos
@@ -205,24 +200,75 @@ object DummyCodec {
               val codec              = field.codec
               var av: AttributeValue = null
               field.valueType match {
-                case DynamoDbCodec.objectType => // ok
+                case DynamoDbCodec.intType    =>
+                  val value = regs.getInt(offset, 0)
+                  av = codec.asInstanceOf[DynamoDbCodec[Int]].encoder(value)
+                case DynamoDbCodec.longType   =>
+                  val value = regs.getLong(offset, 0)
+                  av = codec.asInstanceOf[DynamoDbCodec[Long]].encoder(value)
+                case DynamoDbCodec.objectType =>
                   val value = regs.getObject(offset, 0)
                   av = codec.asInstanceOf[DynamoDbCodec[AnyRef]].encoder(value)
                 case _                        =>
+                  // TODO: think about what we do here
                   val value = regs.getObject(offset, 0)
                   av = codec.asInstanceOf[DynamoDbCodec[AnyRef]].encoder(value)
               }
-//              val fieldValue         = regs.getObject(offset, 0)
-//              val encAv      = deriveCodec(field.value).asInstanceOf[DynamoDbCodec[AnyRef]].encoder(fieldValue)
-//              val encAv              = fieldCodecs.byIndex(idx).asInstanceOf[DynamoDbCodec[AnyRef]].encoder(fieldValue)
-              // For demonstration, we encode all fields as String "dummy"
               mapBuilder.addOne(AttributeValue.String(name) -> av)
               idx += 1
             }
             AttributeValue.Map(mapBuilder.result())
           }
 
-          override def decoder: Decoder[A] = ???
+          override def decoder: Decoder[A] = {
+            val len                         = fields.length
+            var idx                         = 0
+            val regs                        = Registers(usedRegisters)
+            val avMapBuilder                = Map.newBuilder[AttributeValue.String, AttributeValue]
+            avMapBuilder.sizeHint(len)
+            val errors: ArrayBuffer[String] = new ArrayBuffer[String]()
+
+            (av: AttributeValue) =>
+              av match {
+                case avMap: AttributeValue.Map =>
+                  while (idx < len) {
+                    val field  = fields(idx)
+                    val offset = field.offset
+                    val name   = field.name
+
+                    val av: AttributeValue = avMap.value.get(AttributeValue.String(name)).getOrElse(null)
+                    if (av eq null) // TODO: obvs !!!
+                      throw new Exception(s"Missing attribute value for field: $name")
+
+                    field.valueType match {
+                      case DynamoDbCodec.intType    =>
+                        field.codec.asInstanceOf[DynamoDbCodec[Int]].decoder(av) match {
+                          case Right(value) => regs.setInt(offset, 0, value)
+                          case Left(err)    => errors.addOne(err.message)
+                        }
+                      case DynamoDbCodec.longType   =>
+                        field.codec.asInstanceOf[DynamoDbCodec[Long]].decoder(av) match {
+                          case Right(value) => regs.setLong(offset, 0, value)
+                          case Left(err)    => errors.addOne(err.message)
+                        }
+                      case DynamoDbCodec.objectType =>
+                        field.codec.asInstanceOf[DynamoDbCodec[AnyRef]].decoder(av) match {
+                          case Right(value) => regs.setObject(offset, 0, value)
+                          case Left(err)    => errors.addOne(err.message)
+                        }
+                      case _                        => throw new Exception("TODO: decide what to do here")
+                    }
+                    idx += 1
+                  }                                                          // end while
+                  if (errors.isEmpty) {
+                    val a = constructor.construct(regs, RegisterOffset.Zero)
+                    Right(a.asInstanceOf[A])
+                  } else Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
+
+                case av: AttributeValue        =>
+                  Left(DecodingError(s"Expected Map attribute value but got: ${av.showType}"))
+              }
+          }
         }
       } else {
         println(s"XXXXX record is NOT Binding: $reflect")
