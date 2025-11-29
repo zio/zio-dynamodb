@@ -210,8 +210,16 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       val person                              = Person2("one", 21, 100L)
       val _                                   = codec.encoder(person)
       val enc                                 = codec.encoder(person)
-//      val dec                            = codec.decoder(enc)
-      assertTrue(enc == expectedAv /*&& dec == Right(person)*/ )
+      val dec                                 = codec.decoder(enc)
+      assertTrue(enc == expectedAv && dec == Right(person.copy(id = "ONE_decoded")))
+    },
+    test("round trip Person2") {
+      val expectedItem                  = Item("id" -> "1", "age" -> 42, "count" -> 100)
+      val codec: DynamoDbCodec[Person2] = Person2.schema.derive(DummyCodec.DummyDeriver)
+      val expectedPerson                = Person2("1", 42, 100)
+      val enc                           = codec.encoder(expectedPerson)
+      val dec                           = codec.decoder(enc)
+      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
     test("Record with Primitives") {
       val expectedItem            = Item("id" -> "1", "age" -> 42)
