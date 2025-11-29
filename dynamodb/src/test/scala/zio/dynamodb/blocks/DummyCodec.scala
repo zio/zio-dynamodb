@@ -31,10 +31,7 @@ object DummyCodec {
   private[this] val stringCodec: DynamoDbCodec[String] =
     new DynamoDbCodec[String](valueType = DynamoDbCodec.objectType) {
       override def encoder: Encoder[String] =
-        a => {
-          println(s"XXXXX encoding value: $a")
-          AttributeValue.String(a.toString)
-        }
+        a => AttributeValue.String(a.toString)
 
       override def decoder: Decoder[String] = {
         case AttributeValue.String(s) => Right(s)
@@ -42,7 +39,7 @@ object DummyCodec {
       }
     }
 
-  val intCodec: DdbCodec[Int] = new DdbCodec[Int] {
+  private[this] val intCodec: DynamoDbCodec[Int] = new DynamoDbCodec[Int](valueType = DynamoDbCodec.longType) {
     override def encoder: Encoder[Int] =
       (a: Int) => AttributeValue.Number(BigDecimal.valueOf(a.toLong))
 
@@ -53,9 +50,10 @@ object DummyCodec {
     }
   }
 
-  val longCodec = new DdbCodec[Long] {
-    override def encoder: Encoder[Long] =
-      (a: Long) => AttributeValue.Number(BigDecimal.valueOf(a))
+  private[this] val longCodec = new DynamoDbCodec[Long](valueType = DynamoDbCodec.longType) {
+    override def encoder: Encoder[Long] = { (a: Long) =>
+      AttributeValue.Number(BigDecimal.valueOf(a))
+    }
 
     override def decoder: Decoder[Long] = {
       case AttributeValue.Number(bd) => Right(bd.longValue)
@@ -152,8 +150,8 @@ object DummyCodec {
       if (primitive.primitiveBinding.isInstanceOf[Binding[?, ?]])
         (primitive.primitiveType match {
           case _: PrimitiveType.String => stringCodec
-//          case _: PrimitiveType.Int    => intCodec
-//          case _: PrimitiveType.Long   => longCodec
+          case _: PrimitiveType.Int    => intCodec
+          case _: PrimitiveType.Long   => longCodec
           case x                       =>
             println(s"XXXXX primitive type $x not handled yet")
             ???

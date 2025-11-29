@@ -171,10 +171,7 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     test("investigate String override codec") {
       val codecToUpper: DynamoDbCodec[String] = new DynamoDbCodec[String] {
         override def encoder: Encoder[String] =
-          s => {
-            println(s"XXXXXXXXXXXX 1")
-            AttributeValue.String(s.toUpperCase)
-          }
+          s => AttributeValue.String(s.toUpperCase)
 
         override def decoder: Decoder[String] = {
           case AttributeValue.String(s) => Right(s + "_decoded")
@@ -204,25 +201,24 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
           case other                    => Left(DecodingError(s"Expected String attribute value but got: $other"))
         }
       }
-      println(s"$codecToUpper")
-      val expectedAv                          = Item("id" -> "ONE").toAttributeValue
-      def codec: DynamoDbCodec[Person2]       =
-        Person2.schema
+      val expectedAv                          = Item("id" -> "ONE", "age" -> 21L).toAttributeValue
+      def codec: DynamoDbCodec[Person]        =
+        Person.schema
           .deriving(DummyCodec.DummyDeriver)
-          .instance(Person2.id, codecToUpper)
+          .instance(Person.id, codecToUpper)
           .derive
-      val person                              = Person2("one")
+      val person                              = Person("one", 21)
       val _                                   = codec.encoder(person)
       val enc                                 = codec.encoder(person)
 //      val dec                            = codec.decoder(enc)
       assertTrue(enc == expectedAv /*&& dec == Right(person)*/ )
     },
     test("Record with Primitives") {
-      val expectedItem                 = Item("id" -> "1", "age" -> 42)
+      val expectedItem            = Item("id" -> "1", "age" -> 42)
       val codec: DdbCodec[Person] = Person.schema.derive(BlocksDdbDerived)
-      val expectedPerson               = Person("1", 42)
-      val enc                          = codec.encoder(expectedPerson)
-      val dec                          = codec.decoder(enc)
+      val expectedPerson          = Person("1", 42)
+      val enc                     = codec.encoder(expectedPerson)
+      val dec                     = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
     test("Record with List(1, 2) ") {
@@ -355,7 +351,6 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
 
         override def decoder: Decoder[Either[String, Int]] = ???
       }
-      println(codec1)
       /*
         val codec2 = Record2.schema
           .deriving(JsonFormat.deriver)
