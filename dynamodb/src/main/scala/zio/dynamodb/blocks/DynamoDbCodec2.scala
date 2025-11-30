@@ -3,7 +3,7 @@ package zio.dynamodb.blocks
 import zio.blocks.schema.binding.RegisterOffset
 import zio.dynamodb.blocks.DummyCodec2.{ Decoder2, Encoder2 }
 
-abstract class DynamoDbCodec2[A](val valueType: Int = DynamoDbCodec.objectType) {
+abstract class DynamoDbCodec2[A](val valueType: Int = DynamoDbCodec2.objectType) {
 
   val valueOffset: RegisterOffset.RegisterOffset = valueType match {
     case DynamoDbCodec.objectType => RegisterOffset(objects = 1)
