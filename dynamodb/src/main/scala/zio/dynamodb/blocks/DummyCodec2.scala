@@ -8,6 +8,7 @@ import zio.blocks.schema.binding._
 import zio.blocks.schema.derive.{ BindingInstance, Deriver }
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
+import zio.dynamodb.WrappedHashMap
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -298,13 +299,13 @@ object DummyCodec2 {
   object AttributeValue2       {
     final case class String(value: scala.Predef.String) extends AttributeValue2
     final case class Number(value: BigDecimal)          extends AttributeValue2
-    final case class Map(underlying: MyMap)             extends AttributeValue2 {
+    final case class Map(underlying: WrappedHashMap)    extends AttributeValue2 {
       def value: scala.collection.immutable.Map[scala.Predef.String, AttributeValue2] =
         underlying
     }
     object Map {
       def apply(value: java.util.HashMap[scala.Predef.String, AttributeValue2]): AttributeValue2.Map =
-        AttributeValue2.Map(new MyMap(value))
+        AttributeValue2.Map(new WrappedHashMap(value))
     }
 
   }
