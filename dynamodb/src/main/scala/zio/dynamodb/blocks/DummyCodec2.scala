@@ -176,11 +176,11 @@ object DummyCodec2 {
           private[this] val fields        = fieldInfos
 
           override def encoder: Encoder2[A] = { value =>
-            val regs       = Registers(usedRegisters)
-            var idx        = 0
+            val regs    = Registers(usedRegisters)
+            var idx     = 0
             deconstructor.deconstruct(regs, 0, value)
-            val len        = fields.length
-            val mapBuilder = new java.util.HashMap[String, AttributeValue2](len)
+            val len     = fields.length
+            val hashMap = new java.util.HashMap[String, AttributeValue2](len)
             while (idx < len) {
               val field  = fields(idx)
               val name   = field.name
@@ -190,24 +190,24 @@ object DummyCodec2 {
                 case DynamoDbCodec2.intType    =>
                   val value = regs.getInt(offset, 0)
                   val av    = codec.asInstanceOf[DynamoDbCodec2[Int]].encoder(value)
-                  mapBuilder.put(name, av)
+                  hashMap.put(name, av)
                 case DynamoDbCodec2.longType   =>
                   val value = regs.getLong(offset, 0)
                   val av    = codec.asInstanceOf[DynamoDbCodec2[Long]].encoder(value)
-                  mapBuilder.put(name, av)
+                  hashMap.put(name, av)
                 case DynamoDbCodec2.objectType =>
                   val value = regs.getObject(offset, 0)
                   val av    = codec.asInstanceOf[DynamoDbCodec2[AnyRef]].encoder(value)
-                  mapBuilder.put(name, av)
+                  hashMap.put(name, av)
                 case _                         =>
                   // TODO: think about what we do here
                   val value = regs.getObject(offset, 0)
                   val av    = codec.asInstanceOf[DynamoDbCodec2[AnyRef]].encoder(value)
-                  mapBuilder.put(name, av)
+                  hashMap.put(name, av)
               }
               idx += 1
             }
-            AttributeValue2.Map(mapBuilder)
+            AttributeValue2.Map(hashMap)
           }
 
           override def decoder: Decoder2[A] = {
@@ -226,7 +226,7 @@ object DummyCodec2 {
                     val offset = field.offset
                     val name   = field.name
 
-                    val av: AttributeValue2 = avMap.value.getNullable(name)
+                    val av: AttributeValue2 = avMap.underlying.getNullable(name)
                     if (av eq null) // TODO: obvs !!!
                       throw new Exception(s"Missing attribute value for field: $name")
 
@@ -298,7 +298,10 @@ object DummyCodec2 {
   object AttributeValue2       {
     final case class String(value: scala.Predef.String) extends AttributeValue2
     final case class Number(value: BigDecimal)          extends AttributeValue2
-    final case class Map(value: MyMap)                  extends AttributeValue2
+    final case class Map(underlying: MyMap)             extends AttributeValue2 {
+      def value: scala.collection.immutable.Map[scala.Predef.String, AttributeValue2] =
+        underlying
+    }
     object Map {
       def apply(value: java.util.HashMap[scala.Predef.String, AttributeValue2]): AttributeValue2.Map =
         AttributeValue2.Map(new MyMap(value))
@@ -306,12 +309,12 @@ object DummyCodec2 {
 
   }
 
-  class MyMap(private val underlying: java.util.HashMap[String, AttributeValue2])
-      extends scala.collection.immutable.AbstractMap[String, AttributeValue2] { self =>
+  final class MyMap(private val underlying: java.util.HashMap[String, AttributeValue2])
+      extends scala.collection.immutable.AbstractMap[String, AttributeValue2] {
 
     override def get(key: String): Option[AttributeValue2] = {
-      val value = underlying.get(key)
-      if (value eq null) None else Some(value)
+      val v = underlying.get(key)
+      if (v eq null) None else Some(v)
     }
 
     def getNullable(key: String): AttributeValue2 =
@@ -319,13 +322,19 @@ object DummyCodec2 {
 
     override def iterator: Iterator[(String, AttributeValue2)] = {
       import scala.jdk.CollectionConverters._
-      underlying.entrySet().asScala.iterator.map(entry => (entry.getKey, entry.getValue))
+      underlying.entrySet().asScala.iterator.map(e => (e.getKey, e.getValue))
     }
 
-    override def removed(key: String): scala.collection.immutable.Map[String, AttributeValue2] = ???
+    override def removed(key: String): MyMap = {
+      val copy = new java.util.HashMap[String, AttributeValue2](underlying)
+      copy.remove(key)
+      new MyMap(copy)
+    }
 
-    override def updated[V1 >: AttributeValue2](key: String, value: V1): scala.collection.immutable.Map[String, V1] =
-      ???
-
+    override def updated[V1 >: AttributeValue2](key: String, value: V1): MyMap = {
+      val copy = new java.util.HashMap[String, AttributeValue2](underlying)
+      copy.put(key, value.asInstanceOf[AttributeValue2])
+      new MyMap(copy)
+    }
   }
 }
