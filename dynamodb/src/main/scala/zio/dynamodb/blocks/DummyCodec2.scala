@@ -226,7 +226,7 @@ object DummyCodec2 {
                     val offset = field.offset
                     val name   = field.name
 
-                    val av: AttributeValue2 = avMap.value.get(name)
+                    val av: AttributeValue2 = avMap.value.getNullable(name)
                     if (av eq null) // TODO: obvs !!!
                       throw new Exception(s"Missing attribute value for field: $name")
 
@@ -296,15 +296,36 @@ object DummyCodec2 {
       }
   }
   object AttributeValue2       {
-    final case class String(value: scala.Predef.String)                                  extends AttributeValue2
-    final case class Number(value: BigDecimal)                                           extends AttributeValue2
-    final case class Map(value: java.util.HashMap[scala.Predef.String, AttributeValue2]) extends AttributeValue2 {
-      override def toString: scala.Predef.String = {
-        val entries = value.entrySet().toArray.map(_.toString).mkString(", ")
-        s"AttributeValue2.Map({$entries})"
-      }
-
+    final case class String(value: scala.Predef.String) extends AttributeValue2
+    final case class Number(value: BigDecimal)          extends AttributeValue2
+    final case class Map(value: MyMap)                  extends AttributeValue2
+    object Map {
+      def apply(value: java.util.HashMap[scala.Predef.String, AttributeValue2]): AttributeValue2.Map =
+        AttributeValue2.Map(new MyMap(value))
     }
+
   }
 
+  class MyMap(private val underlying: java.util.HashMap[String, AttributeValue2])
+      extends scala.collection.immutable.AbstractMap[String, AttributeValue2] { self =>
+
+    override def get(key: String): Option[AttributeValue2] = {
+      val value = underlying.get(key)
+      if (value eq null) None else Some(value)
+    }
+
+    def getNullable(key: String): AttributeValue2 =
+      underlying.get(key)
+
+    override def iterator: Iterator[(String, AttributeValue2)] = {
+      import scala.jdk.CollectionConverters._
+      underlying.entrySet().asScala.iterator.map(entry => (entry.getKey, entry.getValue))
+    }
+
+    override def removed(key: String): scala.collection.immutable.Map[String, AttributeValue2] = ???
+
+    override def updated[V1 >: AttributeValue2](key: String, value: V1): scala.collection.immutable.Map[String, V1] =
+      ???
+
+  }
 }
