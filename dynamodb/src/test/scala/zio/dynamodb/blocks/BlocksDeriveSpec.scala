@@ -167,6 +167,16 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
     val id: Lens[Person2, String] = $(_.id)
   }
 
+  val stringSchema = new Schema(
+    Reflect.Primitive(
+      primitiveType = PrimitiveType.String(Validation.None),
+      typeName = TypeName(Namespace("scala" :: Nil, Nil), "String"),
+      primitiveBinding = Binding.Primitive.string,
+      doc = Doc.Empty,
+      modifiers = Seq.empty
+    )
+  )
+
   val spec = suite("Used derived codecs in a round trip spec")(
     test("investigate String override codec") {
       val codecToUpper: DynamoDbCodec[String] = new DynamoDbCodec[String] {
@@ -181,9 +191,9 @@ object BlocksDeriveSpec extends ZIOSpecDefault {
       println(s"$codecToUpper")
       val expectedAv                          = AttributeValue.String("ONE")
       val codec: DynamoDbCodec[String]        =
-        DummyCodec.stringSchema
+        stringSchema
           .deriving(DummyCodec.DummyDeriver)
-          .instance(DummyCodec.stringSchema.reflect.typeName, codecToUpper)
+          .instance(stringSchema.reflect.typeName, codecToUpper)
           .derive
       val enc                                 = codec.encoder("one")
       val dec                                 = codec.decoder(enc)

@@ -13,15 +13,6 @@ import zio.dynamodb.{ AttributeValue, Decoder, Encoder }
 import scala.collection.mutable.ArrayBuffer
 
 object DummyCodec {
-  val stringSchema = new Schema(
-    Reflect.Primitive(
-      primitiveType = PrimitiveType.String(Validation.None),
-      typeName = TypeName(Namespace("scala" :: Nil, Nil), "String"),
-      primitiveBinding = Binding.Primitive.string,
-      doc = Doc.Empty,
-      modifiers = Seq.empty
-    )
-  )
 
 //  private[this] val cache: ThreadLocal[java.util.HashMap[TypeName[?], CacheEntry2]] =
 //    new ThreadLocal[util.HashMap[TypeName[_], CacheEntry2]] {
@@ -279,44 +270,11 @@ object DummyCodec {
       ???
     }
 
-  final class CacheEntry2 private (
-    val fieldCodecs: Array[DynamoDbCodec[?]],
-    names: Array[String]
-  )                  {
-    def size: Int                 = fieldCodecs.length // TODO: Avi - for debugging - remove
-    override def toString: String = s"CacheEntry2(${fieldCodecs.toSeq}, ${names.toSeq})"
-
-    private[this] var _nameToIndex: Map[String, Int] = null // TODO: Avi - investigate savings in getting rid of Map
-    private[this] val hasNames                       = names.nonEmpty
-
-    private def nameToIndex: Map[String, Int] = {
-      var local = _nameToIndex
-      if (local eq null) {
-        if (hasNames)
-          local = names.zipWithIndex.toMap
-        else
-          local = Map.empty
-        _nameToIndex = local
-      }
-      local
-    }
-
-    def addEntry(codec: DynamoDbCodec[?], name: String, index: Int): Unit = {
-      fieldCodecs(index) = codec
-      if (hasNames)
-        names(index) = name
-    }
-
-    def byIndex(i: Int): DynamoDbCodec[?] = fieldCodecs(i)
-
-    def byName(name: String): Option[DynamoDbCodec[?]] =
-      if (!hasNames) None
-      else nameToIndex.get(name).map(fieldCodecs)
-  }
-  object CacheEntry2 {
-    def makeWithNames(size: Int) =
-      new CacheEntry2(new Array[DynamoDbCodec[?]](size), new Array[String](size))
-  }
+//  private[this] def isTuple[F[_, _], A](reflect: Reflect[F, A]): Boolean =
+//    reflect.isRecord && {
+//      val typeName = reflect.typeName
+//      typeName.namespace == Namespace.scala && typeName.name.startsWith("Tuple")
+//    }
 
   final case class FieldInfo(
     name: String,
