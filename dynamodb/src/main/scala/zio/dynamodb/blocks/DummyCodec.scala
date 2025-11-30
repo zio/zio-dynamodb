@@ -262,7 +262,7 @@ object DummyCodec {
                   }                                                          // end while
                   if (errors.isEmpty) {
                     val a = constructor.construct(regs, RegisterOffset.Zero)
-                    Right(a.asInstanceOf[A])
+                    Right(a)
                   } else Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
 
                 case av: AttributeValue        =>
