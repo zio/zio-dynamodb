@@ -1,0 +1,24 @@
+package zio.dynamodb.benchmarks.blocks
+
+import zio.dynamodb.benchmarks.codecs.CodecBenchmarks
+import zio.test.{ZIOSpecDefault, assertTrue}
+
+object CodecBenchmarksSpec extends ZIOSpecDefault {
+  def spec =
+    suite("CodecBenchmarksSpec")(
+      test("writing: zio blocks equals zio schema") {
+        val benchmark = new CodecBenchmarks()
+        benchmark.setup()
+        assertTrue(benchmark.readingZioSchema == benchmark.listOfRecords)
+      },
+      test("reading: zio blocks equals zio schema equals dynosaur") {
+        val benchmark = new CodecBenchmarks()
+        benchmark.setup()
+        assertTrue(
+          benchmark.readingZioSchema == benchmark.readingDynosaur,
+          benchmark.readingZioSchema == benchmark.readingScanamo
+        )
+      }
+    )
+
+}
