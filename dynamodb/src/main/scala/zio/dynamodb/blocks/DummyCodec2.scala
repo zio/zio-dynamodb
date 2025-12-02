@@ -12,6 +12,7 @@ import zio.dynamodb.WrappedHashMap
 
 import scala.collection.mutable.ArrayBuffer
 
+// for experiments with optimised AttributeValue2 structures
 object DummyCodec2 {
 
 //  private[this] val cache: ThreadLocal[java.util.HashMap[TypeName[?], CacheEntry2]] =
@@ -304,8 +305,14 @@ object DummyCodec2 {
         underlying
     }
     object Map {
-      def apply(value: java.util.HashMap[scala.Predef.String, AttributeValue2]): AttributeValue2.Map =
-        AttributeValue2.Map(new WrappedHashMap(value))
+      def apply(value: java.util.HashMap[scala.Predef.String, AttributeValue2]): AttributeValue2.Map       =
+        AttributeValue2.Map(
+          new WrappedHashMap(value, m => new java.util.HashMap[scala.Predef.String, AttributeValue2](m))
+        )
+      def apply(value: java.util.LinkedHashMap[scala.Predef.String, AttributeValue2]): AttributeValue2.Map =
+        AttributeValue2.Map(
+          new WrappedHashMap(value, m => new java.util.LinkedHashMap[scala.Predef.String, AttributeValue2](m))
+        )
     }
 
   }
