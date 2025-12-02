@@ -170,20 +170,22 @@ object DummyCodec2 {
             idx += 1
           }
         }
+        val hashMapBuilder               = AttributeValue2.Map.hashMapBuilder
 
         new DynamoDbCodec2[A] {
           private[this] val constructor   = binding.constructor
           private[this] val deconstructor = binding.deconstructor
           private[this] val usedRegisters = offset
           private[this] val fields        = fieldInfos
+          private[this] val builder       = hashMapBuilder
 
           override def encoder: Encoder2[A] = { value =>
-            val regs    = Registers(usedRegisters)
-            var idx     = 0
+            val regs = Registers(usedRegisters)
+            var idx  = 0
             deconstructor.deconstruct(regs, 0, value)
-            val len     = fields.length
+            val len  = fields.length
             //val builder = new java.util.HashMap[String, AttributeValue2](len)
-            val builder = AttributeValue2.Map.hashMapBuilder
+            builder.clear()
             while (idx < len) {
               val field  = fields(idx)
               val name   = field.name
@@ -193,24 +195,24 @@ object DummyCodec2 {
                 case DynamoDbCodec2.intType    =>
                   val value = regs.getInt(offset, 0)
                   val av    = codec.asInstanceOf[DynamoDbCodec2[Int]].encoder(value)
-                  builder += (name, av)
+                  builder.addOne(name, av)
                 case DynamoDbCodec2.longType   =>
                   val value = regs.getLong(offset, 0)
                   val av    = codec.asInstanceOf[DynamoDbCodec2[Long]].encoder(value)
-                  builder += (name, av)
+                  builder.addOne(name, av)
                 case DynamoDbCodec2.objectType =>
                   val value = regs.getObject(offset, 0)
                   val av    = codec.asInstanceOf[DynamoDbCodec2[AnyRef]].encoder(value)
-                  builder += (name, av)
+                  builder.addOne(name, av)
                 case _                         =>
                   // TODO: think about what we do here
                   val value = regs.getObject(offset, 0)
                   val av    = codec.asInstanceOf[DynamoDbCodec2[AnyRef]].encoder(value)
-                  builder += (name, av)
+                  builder.addOne(name, av)
               }
               idx += 1
             }
-            builder.result()
+            builder.result
           }
 
           override def decoder: Decoder2[A] = {
@@ -315,29 +317,18 @@ object DummyCodec2 {
           new WrappedHashMap(value, m => new java.util.LinkedHashMap[scala.Predef.String, AttributeValue2](m))
         )
 
-      /**
-       * Create a builder that uses a plain java.util.HashMap
-       * (fastest, no guaranteed ordering)
-       */
       def hashMapBuilder: Builder =
         new Builder(
           new java.util.HashMap[scala.Predef.String, AttributeValue2](),
           m => new java.util.HashMap[scala.Predef.String, AttributeValue2](m)
         )
 
-      /**
-       * Create a builder that uses a java.util.LinkedHashMap
-       * (deterministic iteration order, slower than HashMap)
-       */
       def linkedHashMapBuilder: Builder =
         new Builder(
           new java.util.LinkedHashMap[scala.Predef.String, AttributeValue2](),
           m => new java.util.LinkedHashMap[scala.Predef.String, AttributeValue2](m)
         )
 
-      /**
-       * Generic builder that accumulates entries and produces an AttributeValue2.Map
-       */
       final class Builder(
         underlying: java.util.Map[scala.Predef.String, AttributeValue2],
         cloneFn: java.util.Map[scala.Predef.String, AttributeValue2] => java.util.Map[
@@ -345,7 +336,7 @@ object DummyCodec2 {
           AttributeValue2
         ]
       ) {
-        def +=(key: scala.Predef.String, value: AttributeValue2): Builder = {
+        def addOne(key: scala.Predef.String, value: AttributeValue2): Builder = {
           underlying.put(key, value)
           this
         }
@@ -355,8 +346,10 @@ object DummyCodec2 {
           this
         }
 
-        def result(): AttributeValue2.Map =
+        def result: AttributeValue2.Map =
           AttributeValue2.Map(new WrappedHashMap(underlying, cloneFn))
+
+        def clear(): Unit = underlying.clear()
       }
     }
 
