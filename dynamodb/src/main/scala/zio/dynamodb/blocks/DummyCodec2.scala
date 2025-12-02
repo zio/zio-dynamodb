@@ -182,7 +182,8 @@ object DummyCodec2 {
             var idx     = 0
             deconstructor.deconstruct(regs, 0, value)
             val len     = fields.length
-            val hashMap = new java.util.HashMap[String, AttributeValue2](len)
+            //val builder = new java.util.HashMap[String, AttributeValue2](len)
+            val builder = AttributeValue2.Map.hashMapBuilder
             while (idx < len) {
               val field  = fields(idx)
               val name   = field.name
@@ -192,24 +193,24 @@ object DummyCodec2 {
                 case DynamoDbCodec2.intType    =>
                   val value = regs.getInt(offset, 0)
                   val av    = codec.asInstanceOf[DynamoDbCodec2[Int]].encoder(value)
-                  hashMap.put(name, av)
+                  builder += (name, av)
                 case DynamoDbCodec2.longType   =>
                   val value = regs.getLong(offset, 0)
                   val av    = codec.asInstanceOf[DynamoDbCodec2[Long]].encoder(value)
-                  hashMap.put(name, av)
+                  builder += (name, av)
                 case DynamoDbCodec2.objectType =>
                   val value = regs.getObject(offset, 0)
                   val av    = codec.asInstanceOf[DynamoDbCodec2[AnyRef]].encoder(value)
-                  hashMap.put(name, av)
+                  builder += (name, av)
                 case _                         =>
                   // TODO: think about what we do here
                   val value = regs.getObject(offset, 0)
                   val av    = codec.asInstanceOf[DynamoDbCodec2[AnyRef]].encoder(value)
-                  hashMap.put(name, av)
+                  builder += (name, av)
               }
               idx += 1
             }
-            AttributeValue2.Map(hashMap)
+            builder.result()
           }
 
           override def decoder: Decoder2[A] = {
@@ -313,6 +314,50 @@ object DummyCodec2 {
         AttributeValue2.Map(
           new WrappedHashMap(value, m => new java.util.LinkedHashMap[scala.Predef.String, AttributeValue2](m))
         )
+
+      /**
+       * Create a builder that uses a plain java.util.HashMap
+       * (fastest, no guaranteed ordering)
+       */
+      def hashMapBuilder: Builder =
+        new Builder(
+          new java.util.HashMap[scala.Predef.String, AttributeValue2](),
+          m => new java.util.HashMap[scala.Predef.String, AttributeValue2](m)
+        )
+
+      /**
+       * Create a builder that uses a java.util.LinkedHashMap
+       * (deterministic iteration order, slower than HashMap)
+       */
+      def linkedHashMapBuilder: Builder =
+        new Builder(
+          new java.util.LinkedHashMap[scala.Predef.String, AttributeValue2](),
+          m => new java.util.LinkedHashMap[scala.Predef.String, AttributeValue2](m)
+        )
+
+      /**
+       * Generic builder that accumulates entries and produces an AttributeValue2.Map
+       */
+      final class Builder(
+        underlying: java.util.Map[scala.Predef.String, AttributeValue2],
+        cloneFn: java.util.Map[scala.Predef.String, AttributeValue2] => java.util.Map[
+          scala.Predef.String,
+          AttributeValue2
+        ]
+      ) {
+        def +=(key: scala.Predef.String, value: AttributeValue2): Builder = {
+          underlying.put(key, value)
+          this
+        }
+
+        def ++=(entries: Iterable[(scala.Predef.String, AttributeValue2)]): Builder = {
+          entries.foreach { case (k, v) => underlying.put(k, v) }
+          this
+        }
+
+        def result(): AttributeValue2.Map =
+          AttributeValue2.Map(new WrappedHashMap(underlying, cloneFn))
+      }
     }
 
   }
