@@ -8,7 +8,7 @@ import zio.blocks.schema.binding._
 import zio.blocks.schema.derive.{ BindingInstance, Deriver }
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
-import zio.dynamodb.WrappedHashMap
+import zio.dynamodb.WrappedMap
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -170,7 +170,7 @@ object DummyCodec2 {
             idx += 1
           }
         }
-        val hashMapBuilder               = AttributeValue2.Map.hashMapBuilder
+        val hashMapBuilder               = AttributeValue2.Map.hash.builder
 
         new DynamoDbCodec2[A] {
           private[this] val constructor   = binding.constructor
@@ -303,35 +303,52 @@ object DummyCodec2 {
   object AttributeValue2       {
     final case class String(value: scala.Predef.String) extends AttributeValue2
     final case class Number(value: BigDecimal)          extends AttributeValue2
-    final case class Map(underlying: WrappedHashMap)    extends AttributeValue2 {
+    final case class Map(underlying: WrappedMap)        extends AttributeValue2 {
       def value: scala.collection.immutable.Map[scala.Predef.String, AttributeValue2] =
         underlying
+
+      def size: Int = underlying.size
     }
+
     object Map {
-      def apply(value: java.util.HashMap[scala.Predef.String, AttributeValue2]): AttributeValue2.Map       =
-        AttributeValue2.Map(
-          new WrappedHashMap(value, m => new java.util.HashMap[scala.Predef.String, AttributeValue2](m))
-        )
-      def apply(value: java.util.LinkedHashMap[scala.Predef.String, AttributeValue2]): AttributeValue2.Map =
-        AttributeValue2.Map(
-          new WrappedHashMap(value, m => new java.util.LinkedHashMap[scala.Predef.String, AttributeValue2](m))
-        )
+      object hash   {
+        def builder: Builder =
+          new Builder(
+            new java.util.HashMap[scala.Predef.String, AttributeValue2](),
+            m => new java.util.HashMap[scala.Predef.String, AttributeValue2](m)
+          )
 
-      def hashMapBuilder: Builder =
-        new Builder(
-          new java.util.HashMap[scala.Predef.String, AttributeValue2](),
-          m => new java.util.HashMap[scala.Predef.String, AttributeValue2](m)
-        )
+        def single(key: scala.Predef.String, value: AttributeValue2): AttributeValue2.Map = {
+          val map = new java.util.HashMap[scala.Predef.String, AttributeValue2](1)
+          map.put(key, value)
+          AttributeValue2.Map(
+            new WrappedMap(map, m => new java.util.HashMap[scala.Predef.String, AttributeValue2](m))
+          )
+        }
 
-      def linkedHashMapBuilder: Builder =
-        new Builder(
-          new java.util.LinkedHashMap[scala.Predef.String, AttributeValue2](),
-          m => new java.util.LinkedHashMap[scala.Predef.String, AttributeValue2](m)
-        )
+        val empty: AttributeValue2.Map = AttributeValue2.Map(WrappedMap.emptyHashMap)
+      }
+      object linked {
+        def builder: Builder =
+          new Builder(
+            new java.util.LinkedHashMap[scala.Predef.String, AttributeValue2](),
+            m => new java.util.LinkedHashMap[scala.Predef.String, AttributeValue2](m)
+          )
+
+        def single(key: scala.Predef.String, value: AttributeValue2): AttributeValue2.Map = {
+          val map = new java.util.LinkedHashMap[scala.Predef.String, AttributeValue2](1)
+          map.put(key, value)
+          AttributeValue2.Map(
+            new WrappedMap(map, m => new java.util.LinkedHashMap[scala.Predef.String, AttributeValue2](m))
+          )
+        }
+
+        val empty: AttributeValue2.Map = AttributeValue2.Map(WrappedMap.emptyLinkedHashMap)
+      }
 
       final class Builder(
-        underlying: java.util.Map[scala.Predef.String, AttributeValue2],
-        cloneFn: java.util.Map[scala.Predef.String, AttributeValue2] => java.util.Map[
+        private val underlying: java.util.Map[scala.Predef.String, AttributeValue2],
+        private val cloneFn: java.util.Map[scala.Predef.String, AttributeValue2] => java.util.Map[
           scala.Predef.String,
           AttributeValue2
         ]
@@ -347,7 +364,7 @@ object DummyCodec2 {
         }
 
         def result: AttributeValue2.Map =
-          AttributeValue2.Map(new WrappedHashMap(underlying, cloneFn))
+          AttributeValue2.Map(new WrappedMap(underlying, cloneFn))
 
         def clear(): Unit = underlying.clear()
       }
@@ -355,32 +372,4 @@ object DummyCodec2 {
 
   }
 
-  final class MyMap(private val underlying: java.util.HashMap[String, AttributeValue2])
-      extends scala.collection.immutable.AbstractMap[String, AttributeValue2] {
-
-    override def get(key: String): Option[AttributeValue2] = {
-      val v = underlying.get(key)
-      if (v eq null) None else Some(v)
-    }
-
-    def getNullable(key: String): AttributeValue2 =
-      underlying.get(key)
-
-    override def iterator: Iterator[(String, AttributeValue2)] = {
-      import scala.jdk.CollectionConverters._
-      underlying.entrySet().asScala.iterator.map(e => (e.getKey, e.getValue))
-    }
-
-    override def removed(key: String): MyMap = {
-      val copy = new java.util.HashMap[String, AttributeValue2](underlying)
-      copy.remove(key)
-      new MyMap(copy)
-    }
-
-    override def updated[V1 >: AttributeValue2](key: String, value: V1): MyMap = {
-      val copy = new java.util.HashMap[String, AttributeValue2](underlying)
-      copy.put(key, value.asInstanceOf[AttributeValue2])
-      new MyMap(copy)
-    }
-  }
 }
