@@ -167,28 +167,33 @@ private[dynamodb] object Codec {
     private def fallbackEncoder[A, B](left: Encoder[A], right: Encoder[B]): Encoder[Fallback[A, B]] =
       (fb: Fallback[A, B]) => fb.fold(left, right)
 
-    private def genericRecordEncoder(structure: FieldSet): Encoder[ListMap[String, _]] =
+    private def genericRecordEncoder(structure: FieldSet): Encoder[ListMap[String, _]] = {
+      val builder = AttributeValue.Map.linked.builder // to preserve field order
       (valuesMap: ListMap[String, _]) => {
-        structure.toChunk.foldRight(AttributeValue.Map(ListMap.empty)) {
+        val b: AttributeValue.Map.Builder = structure.toChunk.foldRight(builder) {
           case (Schema.Field(key, schema: Schema[a], _, _, _, _), avMap) =>
             val value              = valuesMap(key)
             val enc                = encoder[a](schema)
             val av: AttributeValue = enc(value.asInstanceOf[a])
             av match {
               case AttributeValue.Null => avMap
-              case _                   => AttributeValue.Map(avMap.value + (AttributeValue.String(key) -> av))
+              case _                   => builder.addOne(AttributeValue.String(key), av)
             }
         }
+        b.result
       }
+    }
 
     private def dynamicEncoder: Encoder[DynamicValue] =
       (dynamicValue: DynamicValue) =>
         dynamicValue match {
           case DynamicValue.Record(_, values)              =>
-            values.foldRight(AttributeValue.Map(ListMap.empty)) {
-              case ((key, dv), avMap) =>
-                AttributeValue.Map(avMap.value + (AttributeValue.String(key) -> dynamicEncoder(dv)))
+            val builder = AttributeValue.Map.linked.builder
+            values.foldRight(builder) {
+              case ((key, dv), _) =>
+                builder.addOne(key, dynamicEncoder(dv))
             }
+            builder.result
           case DynamicValue.Enumeration(_, _)              =>
             throw new Exception("DynamicValue.Enumeration is not supported")
           case DynamicValue.Sequence(values)               =>
@@ -197,7 +202,7 @@ private[dynamodb] object Codec {
             throw new Exception("DynamicValue.Dictionary is not supported")
           case DynamicValue.SetValue(values)               => encodeSetValues(values.map(dynamicEncoder))
           case DynamicValue.Primitive(value, standardType) => primitiveEncoder(standardType)(value)
-          case DynamicValue.Singleton(_)                   => AttributeValue.Map(ListMap.empty)
+          case DynamicValue.Singleton(_)                   => AttributeValue.Map.linked.empty
           case DynamicValue.SomeValue(value)               => dynamicEncoder(value)
           case DynamicValue.NoneValue                      => AttributeValue.Null
           case DynamicValue.Tuple(left, right)             =>
@@ -226,12 +231,13 @@ private[dynamodb] object Codec {
     private def caseClassEncoder0[Z]: Encoder[Z] = _ => AttributeValue.Null
 
     private def caseClassEncoder[Z](fields: Schema.Field[Z, _]*): Encoder[Z] = { (a: Z) =>
+      // TODO: Avi - use new Builder
       fields.foldRight[AttributeValue.Map](AttributeValue.Map(Map.empty)) {
-        case s: (Schema.Field[Z, _], AttributeValue.Map) =>
-          val enc                 = encoder(s._1.schema)
-          val extractedFieldValue = s._1.get(a)
+        case t: (Schema.Field[Z, _], AttributeValue.Map) =>
+          val enc                 = encoder(t._1.schema)
+          val extractedFieldValue = t._1.get(a)
           val av                  = enc(extractedFieldValue)
-          val k                   = s._1.name
+          val k                   = t._1.name
 
           @tailrec
           def appendToMap[B](schema: Schema[B]): AttributeValue.Map =
@@ -239,12 +245,12 @@ private[dynamodb] object Codec {
               case l @ Schema.Lazy(_)                                                 =>
                 appendToMap(l.schema)
               case _: Schema.Optional[_] if av.isInstanceOf[AttributeValue.Null.type] =>
-                AttributeValue.Map(s._2.value)
+                AttributeValue.Map(t._2.value)
               case _                                                                  =>
-                AttributeValue.Map(s._2.value + (AttributeValue.String(k) -> av))
+                AttributeValue.Map(t._2.value + (AttributeValue.String(k) -> av))
             }
 
-          appendToMap(s._1.schema)
+          appendToMap(t._1.schema)
       }
 
     }

@@ -45,7 +45,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
 
   val encoderSuite = suite("encoder suite")(
     test("encode top level map of primitives") {
-      val avMap = AttributeValue.Map.empty +
+      val avMap = AttributeValue.Map.hash.empty +
         ("id"     -> AttributeValue.String("101")) +
         ("count"  -> AttributeValue.Number(BigDecimal(42))) +
         ("isTest" -> AttributeValue.Bool(true))
@@ -61,7 +61,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
       )
     },
     test("encode nested map") {
-      val avMap   = AttributeValue.Map.empty + ("foo" -> (AttributeValue.Map.empty + ("name" -> AttributeValue
+      val avMap   = AttributeValue.Map.hash.empty + ("foo" -> (AttributeValue.Map.hash.empty + ("name" -> AttributeValue
         .String("Avi"))))
       val encoded = DynamodbJsonCodec.Encoder.encode(avMap)
       assert(encoded)(
@@ -73,7 +73,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
       )
     },
     test("encode SS") {
-      val avMap   = AttributeValue.Map.empty + ("stringSet" -> AttributeValue.StringSet(Set("1", "2")))
+      val avMap   = AttributeValue.Map.hash.empty + ("stringSet" -> AttributeValue.StringSet(Set("1", "2")))
       val encoded = DynamodbJsonCodec.Encoder.encode(avMap)
       assert(encoded)(
         equalTo(
@@ -85,7 +85,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
     },
     test("encode NS") {
       val avMap =
-        AttributeValue.Map.empty + ("numberSet" -> AttributeValue.NumberSet(Set(BigDecimal(1), BigDecimal(2))))
+        AttributeValue.Map.hash.empty + ("numberSet" -> AttributeValue.NumberSet(Set(BigDecimal(1), BigDecimal(2))))
       val encoded = DynamodbJsonCodec.Encoder.encode(avMap)
       assert(encoded)(
         equalTo(
@@ -97,7 +97,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
     },
     test("encode L of String") {
       val avMap =
-        AttributeValue.Map.empty + ("listOfString" -> AttributeValue.List(
+        AttributeValue.Map.hash.empty + ("listOfString" -> AttributeValue.List(
           List(AttributeValue.String("1"), AttributeValue.String("2"))
         ))
       val encoded = DynamodbJsonCodec.Encoder.encode(avMap)
@@ -233,7 +233,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
       assert(decode(ast))(
         equalTo(
           Right(
-            AttributeValue.Map.empty +
+            AttributeValue.Map.hash.empty +
               ("id"     -> AttributeValue.String("101")) +
               ("count"  -> AttributeValue.Number(BigDecimal(42))) +
               ("isTest" -> AttributeValue.Bool(true))
@@ -252,7 +252,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
       assert(decode(ast))(
         equalTo(
           Right(
-            AttributeValue.Map.empty +
+            AttributeValue.Map.hash.empty +
               ("stringSet" -> AttributeValue.StringSet(Set("1", "2")))
           )
         )
@@ -269,7 +269,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
       assert(decode(ast))(
         equalTo(
           Right(
-            AttributeValue.Map.empty +
+            AttributeValue.Map.hash.empty +
               ("stringSet" -> AttributeValue.NumberSet(Set(BigDecimal(1), BigDecimal(2))))
           )
         )
@@ -286,8 +286,8 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
       assert(decode(ast))(
         equalTo(
           Right(
-            AttributeValue.Map.empty +
-              ("map" -> (AttributeValue.Map.empty + ("1" -> obj("bar")) + ("2" -> obj("baz"))))
+            AttributeValue.Map.hash.empty +
+              ("map" -> (AttributeValue.Map.hash.empty + ("1" -> obj("bar")) + ("2" -> obj("baz"))))
           )
         )
       )
@@ -303,7 +303,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
       assert(decode(ast))(
         equalTo(
           Right(
-            AttributeValue.Map.empty +
+            AttributeValue.Map.hash.empty +
               ("array" -> AttributeValue.List(List(AttributeValue.String("1"), AttributeValue.String("2"))))
           )
         )
@@ -321,7 +321,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
       assert(decode(ast))(
         equalTo(
           Right(
-            AttributeValue.Map.empty +
+            AttributeValue.Map.hash.empty +
               ("array" -> AttributeValue.List(List(obj("bar"), obj("baz"))))
           )
         )
@@ -340,7 +340,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
       assert(decode(ast))(
         equalTo(
           Right(
-            AttributeValue.Map.empty + ("foo" -> (AttributeValue.Map.empty + ("name" -> AttributeValue
+            AttributeValue.Map.hash.empty + ("foo" -> (AttributeValue.Map.hash.empty + ("name" -> AttributeValue
               .String("Avi"))))
           )
         )
@@ -393,7 +393,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
       decode(ast).flatMap(_.toAttrMap) match {
         case Right(am) =>
           assertTrue(
-            am == AttrMap.empty + ("foo" -> (AttributeValue.Map.empty + ("name" -> AttributeValue.String("Avi"))))
+            am == AttrMap.empty + ("foo" -> (AttributeValue.Map.hash.empty + ("name" -> AttributeValue.String("Avi"))))
           )
         case _         => assertTrue(false)
       }
@@ -430,7 +430,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
         ("isTest" -> AttributeValue.Bool(true))
       assert(avMap.toAttributeValue)(
         equalTo(
-          AttributeValue.Map.empty +
+          AttributeValue.Map.hash.empty +
             ("id"     -> AttributeValue.String("101")) +
             ("count"  -> AttributeValue.Number(BigDecimal(42))) +
             ("isTest" -> AttributeValue.Bool(true))
@@ -438,11 +438,11 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
       )
     },
     test("nested AttrMap to AttributeValue") {
-      val avMap = AttrMap.empty + ("foo" -> (AttributeValue.Map.empty + ("name" -> AttributeValue.String("Avi"))))
+      val avMap = AttrMap.empty + ("foo" -> (AttributeValue.Map.hash.empty + ("name" -> AttributeValue.String("Avi"))))
       assert(avMap.toAttributeValue)(
         equalTo(
-          AttributeValue.Map.empty +
-            ("foo" -> (AttributeValue.Map.empty + ("name" -> AttributeValue.String("Avi"))))
+          AttributeValue.Map.hash.empty +
+            ("foo" -> (AttributeValue.Map.hash.empty + ("name" -> AttributeValue.String("Avi"))))
         )
       )
     }
@@ -467,6 +467,6 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
     }
   )
 
-  def obj(value: String) = AttributeValue.Map.empty + ("foo" -> AttributeValue.String(value))
+  def obj(value: String) = AttributeValue.Map.hash.empty + ("foo" -> AttributeValue.String(value))
 
 }

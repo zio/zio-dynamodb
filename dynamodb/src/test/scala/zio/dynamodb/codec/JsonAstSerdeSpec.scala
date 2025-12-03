@@ -50,7 +50,7 @@ object JsonAstSerdeSpec extends ZIOSpecDefault {
       )
       val encoded = Codec.encoder(schemaJson)(json)
 
-      val expected = AttributeValue.Map.empty +
+      val expected = AttributeValue.Map.hash.empty +
         ("name"     -> AttributeValue.String("John")) +
         ("age"      -> AttributeValue.Number(BigDecimal(30))) +
         ("active"   -> AttributeValue.Bool(true)) +
@@ -91,8 +91,8 @@ object JsonAstSerdeSpec extends ZIOSpecDefault {
       )
       val encoded = Codec.encoder(schemaJson)(json)
 
-      val expected = AttributeValue.Map.empty +
-        ("user"   -> (AttributeValue.Map.empty +
+      val expected = AttributeValue.Map.hash.empty +
+        ("user"   -> (AttributeValue.Map.hash.empty +
           ("name" -> AttributeValue.String("Alice")) +
           ("age"  -> AttributeValue.Number(BigDecimal(25))))) +
         ("items"  -> AttributeValue.List(
@@ -108,7 +108,7 @@ object JsonAstSerdeSpec extends ZIOSpecDefault {
       val json    = Json.Obj()
       val encoded = Codec.encoder(schemaJson)(json)
 
-      assert(encoded)(equalTo(AttributeValue.Map.empty))
+      assert(encoded)(equalTo(AttributeValue.Map.hash.empty))
     },
     test("encode empty Json.Arr") {
       val json    = Json.Arr()
@@ -144,7 +144,7 @@ object JsonAstSerdeSpec extends ZIOSpecDefault {
       assert(decoded)(isRight(equalTo(Json.Null)))
     },
     test("decode AttributeValue.Map to Json") {
-      val av = AttributeValue.Map.empty +
+      val av = AttributeValue.Map.hash.empty +
         ("name"   -> AttributeValue.String("John")) +
         ("age"    -> AttributeValue.Number(BigDecimal(30))) +
         ("active" -> AttributeValue.Bool(true))
@@ -175,8 +175,8 @@ object JsonAstSerdeSpec extends ZIOSpecDefault {
       assert(decoded)(isRight(equalTo(expected)))
     },
     test("decode nested AttributeValue.Map to Json") {
-      val av = AttributeValue.Map.empty +
-        ("user"   -> (AttributeValue.Map.empty +
+      val av = AttributeValue.Map.hash.empty +
+        ("user"   -> (AttributeValue.Map.hash.empty +
           ("name" -> AttributeValue.String("Alice")) +
           ("age"  -> AttributeValue.Number(BigDecimal(25))))) +
         ("items"  -> AttributeValue.List(
@@ -201,7 +201,7 @@ object JsonAstSerdeSpec extends ZIOSpecDefault {
       assert(decoded)(isRight(equalTo(expected)))
     },
     test("decode empty AttributeValue.Map to Json") {
-      val av      = AttributeValue.Map.empty
+      val av      = AttributeValue.Map.hash.empty
       val decoded = Codec.decoder(schemaJson)(av)
 
       assert(decoded)(isRight(equalTo(Json.Obj())))
