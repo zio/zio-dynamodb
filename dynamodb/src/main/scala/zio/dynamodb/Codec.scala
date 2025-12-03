@@ -231,27 +231,29 @@ private[dynamodb] object Codec {
     private def caseClassEncoder0[Z]: Encoder[Z] = _ => AttributeValue.Null
 
     private def caseClassEncoder[Z](fields: Schema.Field[Z, _]*): Encoder[Z] = { (a: Z) =>
-      // TODO: Avi - use new Builder
-      fields.foldRight[AttributeValue.Map](AttributeValue.Map(Map.empty)) {
-        case t: (Schema.Field[Z, _], AttributeValue.Map) =>
-          val enc                 = encoder(t._1.schema)
-          val extractedFieldValue = t._1.get(a)
-          val av                  = enc(extractedFieldValue)
-          val k                   = t._1.name
+      val builder = AttributeValue.Map.linked.builder // preserve insertion order
+      fields
+        .foldRight[AttributeValue.Map.Builder](builder) {
+          case t: (Schema.Field[Z, _], AttributeValue.Map.Builder) =>
+            val enc                 = encoder(t._1.schema)
+            val extractedFieldValue = t._1.get(a)
+            val av                  = enc(extractedFieldValue)
+            val k                   = t._1.name
 
-          @tailrec
-          def appendToMap[B](schema: Schema[B]): AttributeValue.Map =
-            schema match {
-              case l @ Schema.Lazy(_)                                                 =>
-                appendToMap(l.schema)
-              case _: Schema.Optional[_] if av.isInstanceOf[AttributeValue.Null.type] =>
-                AttributeValue.Map(t._2.value)
-              case _                                                                  =>
-                AttributeValue.Map(t._2.value + (AttributeValue.String(k) -> av))
-            }
+            @tailrec
+            def appendToMap[B](schema: Schema[B]): AttributeValue.Map.Builder =
+              schema match {
+                case l @ Schema.Lazy(_)                                                 =>
+                  appendToMap(l.schema)
+                case _: Schema.Optional[_] if av.isInstanceOf[AttributeValue.Null.type] =>
+                  t._2
+                case _                                                                  =>
+                  t._2.addOne(AttributeValue.String(k), av)
+              }
 
-          appendToMap(t._1.schema)
-      }
+            appendToMap(t._1.schema)
+        }
+        .result
 
     }
 
