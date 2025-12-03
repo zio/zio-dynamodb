@@ -8,7 +8,7 @@ import zio.blocks.schema.binding._
 import zio.blocks.schema.derive.{ BindingInstance, Deriver }
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
-import zio.dynamodb.WrappedMap
+import zio.dynamodb.JMapView
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -303,7 +303,7 @@ object DummyCodec2 {
   object AttributeValue2       {
     final case class String(value: scala.Predef.String) extends AttributeValue2
     final case class Number(value: BigDecimal)          extends AttributeValue2
-    final case class Map(underlying: WrappedMap)        extends AttributeValue2 {
+    final case class Map(underlying: JMapView)        extends AttributeValue2 {
       def value: scala.collection.immutable.Map[scala.Predef.String, AttributeValue2] =
         underlying
 
@@ -322,11 +322,11 @@ object DummyCodec2 {
           val map = new java.util.HashMap[scala.Predef.String, AttributeValue2](1)
           map.put(key, value)
           AttributeValue2.Map(
-            new WrappedMap(map, m => new java.util.HashMap[scala.Predef.String, AttributeValue2](m))
+            new JMapView(map, m => new java.util.HashMap[scala.Predef.String, AttributeValue2](m))
           )
         }
 
-        val empty: AttributeValue2.Map = AttributeValue2.Map(WrappedMap.emptyHashMap)
+        val empty: AttributeValue2.Map = AttributeValue2.Map(JMapView.emptyHashMap)
       }
       object linked {
         def builder: Builder =
@@ -339,11 +339,11 @@ object DummyCodec2 {
           val map = new java.util.LinkedHashMap[scala.Predef.String, AttributeValue2](1)
           map.put(key, value)
           AttributeValue2.Map(
-            new WrappedMap(map, m => new java.util.LinkedHashMap[scala.Predef.String, AttributeValue2](m))
+            new JMapView(map, m => new java.util.LinkedHashMap[scala.Predef.String, AttributeValue2](m))
           )
         }
 
-        val empty: AttributeValue2.Map = AttributeValue2.Map(WrappedMap.emptyLinkedHashMap)
+        val empty: AttributeValue2.Map = AttributeValue2.Map(JMapView.emptyLinkedHashMap)
       }
 
       final class Builder(
@@ -364,7 +364,7 @@ object DummyCodec2 {
         }
 
         def result: AttributeValue2.Map =
-          AttributeValue2.Map(new WrappedMap(underlying, cloneFn))
+          AttributeValue2.Map(new JMapView(underlying, cloneFn))
 
         def clear(): Unit = underlying.clear()
       }

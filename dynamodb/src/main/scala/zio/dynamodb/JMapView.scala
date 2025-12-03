@@ -2,7 +2,7 @@ package zio.dynamodb
 
 import zio.dynamodb.blocks.DummyCodec2.AttributeValue2
 
-final class WrappedMap(
+final class JMapView(
   private val underlying: java.util.Map[String, AttributeValue2],
   cloneFn: java.util.Map[String, AttributeValue2] => java.util.Map[String, AttributeValue2]
 ) extends scala.collection.immutable.AbstractMap[String, AttributeValue2] {
@@ -20,28 +20,28 @@ final class WrappedMap(
     underlying.entrySet().asScala.iterator.map(e => (e.getKey, e.getValue))
   }
 
-  override def removed(key: String): WrappedMap = {
+  override def removed(key: String): JMapView = {
     val copy: java.util.Map[String, AttributeValue2] = cloneFn(underlying)
     copy.remove(key)
-    new WrappedMap(copy, cloneFn)
+    new JMapView(copy, cloneFn)
   }
 
-  override def updated[V1 >: AttributeValue2](key: String, value: V1): WrappedMap = {
+  override def updated[V1 >: AttributeValue2](key: String, value: V1): JMapView = {
     val copy: java.util.Map[String, AttributeValue2] = cloneFn(underlying)
     copy.put(key, value.asInstanceOf[AttributeValue2])
-    new WrappedMap(copy, cloneFn)
+    new JMapView(copy, cloneFn)
   }
 
 }
 
-object WrappedMap {
-  def emptyHashMap: WrappedMap       =
-    new WrappedMap(
+object JMapView {
+  def emptyHashMap: JMapView       =
+    new JMapView(
       new java.util.HashMap[String, AttributeValue2](),
       m => new java.util.HashMap[String, AttributeValue2](m)
     )
-  def emptyLinkedHashMap: WrappedMap =
-    new WrappedMap(
+  def emptyLinkedHashMap: JMapView =
+    new JMapView(
       new java.util.LinkedHashMap[String, AttributeValue2](),
       m => new java.util.LinkedHashMap[String, AttributeValue2](m)
     )
