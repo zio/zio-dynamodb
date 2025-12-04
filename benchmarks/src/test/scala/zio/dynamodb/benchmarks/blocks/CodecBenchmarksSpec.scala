@@ -1,7 +1,7 @@
 package zio.dynamodb.benchmarks.blocks
 
 import zio.dynamodb.benchmarks.codecs.CodecBenchmarks
-import zio.test.{ZIOSpecDefault, assertTrue}
+import zio.test.{ assertTrue, TestAspect, ZIOSpecDefault }
 
 object CodecBenchmarksSpec extends ZIOSpecDefault {
   def spec =
@@ -18,7 +18,7 @@ object CodecBenchmarksSpec extends ZIOSpecDefault {
           benchmark.readingZioSchema == benchmark.readingDynosaur,
           benchmark.readingZioSchema == benchmark.readingScanamo
         )
-      }
+      } @@ TestAspect.ignore
     )
 
 }

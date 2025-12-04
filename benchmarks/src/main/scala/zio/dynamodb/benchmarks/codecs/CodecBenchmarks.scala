@@ -16,7 +16,7 @@ class CodecBenchmarks extends BaseBenchmark {
   import BenchmarkDomain._
 
   @Param(Array("1", "10", "100", "1000", "10000", "100000"))
-  var size: Int                                            = 1000
+  var size: Int                                            = 10
   var listOfRecords: List[Person]                          = _
   var encodedListOfRecords: List[AttributeValue]           = _
   var encodedListOfRecordsForDynosaur: List[DynosaurValue] = _
@@ -34,6 +34,7 @@ class CodecBenchmarks extends BaseBenchmark {
         )
       )
       .toList
+
     encodedListOfRecords = listOfRecords.map(zioSchemaEncoder(_))
     encodedListOfRecordsForDynosaur = listOfRecords.map { x =>
       DynosaurSchema.personSchema.write(x).getOrElse(throw new Exception("Failed to encode"))
@@ -43,7 +44,7 @@ class CodecBenchmarks extends BaseBenchmark {
     }
   }
 
-  @Benchmark
+//  @Benchmark
   def readingScanamo: List[Person] =
     encodedListOfRecordsForScanamo.map(av =>
       ScanamoCodec.person.read(av) match {
@@ -52,7 +53,7 @@ class CodecBenchmarks extends BaseBenchmark {
       }
     )
 
-  @Benchmark
+//  @Benchmark
   def readingDynosaur: List[Person] =
     encodedListOfRecordsForDynosaur.map(av =>
       DynosaurSchema.personSchema.read(av) match {
@@ -61,7 +62,7 @@ class CodecBenchmarks extends BaseBenchmark {
       }
     )
 
-  @Benchmark
+//  @Benchmark
   def readingZioSchema: List[Person] =
     encodedListOfRecords.map(av =>
       zioSchemaDecoder(av) match {
@@ -73,7 +74,7 @@ class CodecBenchmarks extends BaseBenchmark {
   @Benchmark
   def writingScanamo: Seq[ScanamoValue] = listOfRecords.map(ScanamoCodec.person.write)
 
-  @Benchmark
+  //@Benchmark
   def writingDynosaur: Seq[Either[WriteError, DynosaurValue]] = listOfRecords.map(DynosaurSchema.personSchema.write)
 
   @Benchmark
