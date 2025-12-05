@@ -230,43 +230,77 @@ private[dynamodb] object Codec {
 
     private def caseClassEncoder0[Z]: Encoder[Z] = _ => AttributeValue.Null
 
-    private def caseClassEncoder[F](fields: Schema.Field[F, _]*): Encoder[F] = {
-      val len                                          = fields.length
-      val infos: java.util.HashMap[String, Encoder[_]] = new java.util.HashMap[String, Encoder[_]](len)
-      var idx                                          = 0
-      while (idx < len) {
-        val fieldName   = fields(idx).name
-        val fieldSchema = fields(idx).schema
-        infos.put(fieldName, encoder(fieldSchema))
+    private case class FieldInfo(name: String, field: Schema.Field[_, _], encoder: Encoder[_])
+
+    private def caseClassEncoder[Z](fields: Schema.Field[Z, _]*): Encoder[Z] = {
+      val len                          = fields.length
+//      val codecCache: java.util.HashMap[String, FieldInfo] = new java.util.HashMap[String, FieldInfo](len)
+      val fieldInfos: Array[FieldInfo] = new Array[FieldInfo](len)
+      var idx                          = 0
+      val it                           = fields.iterator
+      while (it.hasNext) {
+        val field           = it.next()
+        val fieldName       = field.name
+        val fieldSchema     = field.schema
+        val enc: Encoder[_] = encoder(fieldSchema)
+        val fieldInfo       = FieldInfo(fieldName, field, enc)
+//        codecCache.put(fieldName, fieldInfo)
+        fieldInfos(idx) = fieldInfo
         idx += 1
       }
 
-      (a: F) =>
-        val builder = AttributeValue.Map.linked.builder // preserve insertion order
-        var idx     = 0
-        fields
-          .foldRight[AttributeValue.Map.Builder](builder) {
-            case t: (Schema.Field[F, _], AttributeValue.Map.Builder) =>
-              val k                   = t._1.name
-              val enc                 = infos.get(k).asInstanceOf[Encoder[F]] //encoder(t._1.schema)
-              val extractedFieldValue = t._1.get(a)
-              val av                  = enc(extractedFieldValue.asInstanceOf[F])
+      (a: Z) =>
+        val builder2 = AttributeValue.Map.linked.builder // preserve insertion order
+        var idx2     = 0
+        while (idx2 < len) {
+          val fieldInfo                 = fieldInfos(idx2)
+          val fieldName                 = fieldInfo.name
+          val field: Schema.Field[_, _] = fieldInfo.field
+          val enc                       = fieldInfo.encoder.asInstanceOf[Encoder[Z]] //encoder(field.schema)
+          val deconstructed             = field.asInstanceOf[Schema.Field[Z, _]].get(a)
+          val av                        = enc(deconstructed.asInstanceOf[Z])
 
-              @tailrec
-              def appendToMap[B](schema: Schema[B]): AttributeValue.Map.Builder =
-                schema match {
-                  case l @ Schema.Lazy(_)                                                 =>
-                    appendToMap(l.schema)
-                  case _: Schema.Optional[_] if av.isInstanceOf[AttributeValue.Null.type] =>
-                    t._2
-                  case _                                                                  =>
-                    t._2.addOne(AttributeValue.String(k), av)
-                }
+          @tailrec
+          def appendToMapForcingLazy[B](schema: Schema[B]): AttributeValue.Map.Builder =
+            schema match {
+              case l @ Schema.Lazy(_)                                                 =>
+                appendToMapForcingLazy(l.schema)
+              case _: Schema.Optional[_] if av.isInstanceOf[AttributeValue.Null.type] =>
+                builder2
+              case _                                                                  =>
+                builder2.addOne(AttributeValue.String(fieldName), av)
+            }
 
-              idx += 1
-              appendToMap(t._1.schema)
-          }
-          .result
+          appendToMapForcingLazy(field.schema)
+          idx2 += 1
+        }
+        builder2.result
+
+//        val builder = AttributeValue.Map.linked.builder // preserve insertion order
+//        var idx     = 0
+//        fields
+//          .foldRight[AttributeValue.Map.Builder](builder) {
+//            case t: (Schema.Field[_, _], AttributeValue.Map.Builder) =>
+//              val k                   = t._1.name
+//              val enc                 = codecCache.get(k).encoder.asInstanceOf[Encoder[Z]] //encoder(t._1.schema)
+//              val extractedFieldValue = t._1.get(a)
+//              val av                  = enc(extractedFieldValue.asInstanceOf[Z])
+//
+//              @tailrec
+//              def appendToMapForcingLazy[B](schema: Schema[B]): AttributeValue.Map.Builder =
+//                schema match {
+//                  case l @ Schema.Lazy(_)                                                 =>
+//                    appendToMapForcingLazy(l.schema)
+//                  case _: Schema.Optional[_] if av.isInstanceOf[AttributeValue.Null.type] =>
+//                    t._2
+//                  case _                                                                  =>
+//                    t._2.addOne(AttributeValue.String(k), av)
+//                }
+//
+//              idx += 1
+//              appendToMapForcingLazy(t._1.schema)
+//          }
+//          .result
 
     }
 

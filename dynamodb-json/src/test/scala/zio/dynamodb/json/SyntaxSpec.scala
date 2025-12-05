@@ -25,12 +25,12 @@ object SyntaxSpec extends ZIOSpecDefault {
     test("encode with top level sum type renders discriminator") {
       val preBilled  = Invoice.PreBilled("id", "sku")
       val jsonString = preBilled.toJsonString[Invoice]
-      assertTrue(jsonString == """{"sku":{"S":"sku"},"id":{"S":"id"},"invoiceType":{"S":"PreBilled"}}""")
+      assertTrue(jsonString == """{"id":{"S":"id"},"sku":{"S":"sku"},"invoiceType":{"S":"PreBilled"}}""")
     },
     test("encode with concrete type does not render discriminator") {
       val preBilled  = Invoice.PreBilled("id", "sku")
       val jsonString = preBilled.toJsonString
-      assertTrue(jsonString == """{"sku":{"S":"sku"},"id":{"S":"id"}}""")
+      assertTrue(jsonString == """{"id":{"S":"id"},"sku":{"S":"sku"}}""")
     },
     test("decode with top level sum type") {
       val jsonString     = """{"sku":{"S":"sku"},"id":{"S":"id"},"invoiceType":{"S":"PreBilled"}}"""
