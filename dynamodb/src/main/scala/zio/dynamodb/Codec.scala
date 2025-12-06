@@ -14,7 +14,7 @@ import java.time._
 import java.time.format.{ DateTimeFormatterBuilder, SignStyle }
 import java.time.temporal.ChronoField.YEAR
 import java.util.UUID
-//import scala.annotation.tailrec
+import scala.annotation.tailrec
 import scala.collection.immutable.ListMap
 import scala.util.Try
 
@@ -233,71 +233,51 @@ private[dynamodb] object Codec {
     private case class FieldInfo(name: String, field: Schema.Field[_, _], encoder: Encoder[_])
 
     private def caseClassEncoder[Z](fields: Schema.Field[Z, _]*): Encoder[Z] = {
-//      val len                           = fields.length
-////      val fieldInfos2: Array[FieldInfo] = new Array[FieldInfo](len)
-//      var idx                           = 0
-////      val it                            = fields.iterator
-      val fieldInfos: Vector[FieldInfo] = fields.foldRight(Vector.empty[FieldInfo]) {
-        case (field, acc) =>
-          val fieldName       = field.name
-          val fieldSchema     = field.schema
-          val enc: Encoder[_] = encoder(fieldSchema)
-          val fieldInfo       = FieldInfo(fieldName, field, enc)
-          acc :+ fieldInfo
+
+      val len                          = fields.length
+      val fieldInfos: Array[FieldInfo] = new Array[FieldInfo](len)
+      var idx                          = 0
+      val it                           = fields.iterator
+      while (it.hasNext) {
+        val field           = it.next()
+        val fieldName       = field.name
+        val fieldSchema     = field.schema
+        val enc: Encoder[_] = encoder(fieldSchema)
+        val fieldInfo       = FieldInfo(fieldName, field, enc)
+        fieldInfos(idx) = fieldInfo
+        idx += 1
       }
-//      while (it.hasNext) {
-//        val field           = it.next()
-//        val fieldName       = field.name
-//        val fieldSchema     = field.schema
-//        val enc: Encoder[_] = encoder(fieldSchema)
-//        val fieldInfo       = FieldInfo(fieldName, field, enc)
-//        fieldInfos :+ fieldInfo
-//        idx += 1
-//      }
-//      println(s"XXXXXXXXX fieldInfos: $fieldInfos")
 
       (a: Z) =>
-        val avMap: Map[AttributeValue.String, AttributeValue] =
-          fieldInfos.foldRight(Map.empty[AttributeValue.String, AttributeValue]) {
-            case (field, acc) =>
-              val fieldName     = field.name
-              val enc           = field.encoder.asInstanceOf[Encoder[Z]] //encoder(field.schema)
-              val deconstructed = field.field.asInstanceOf[Schema.Field[Z, _]].get(a)
-              val av            = enc(deconstructed.asInstanceOf[Z])
-              av match {
-                case AttributeValue.Null => acc
-                case _                   => acc + (AttributeValue.String(fieldName) -> av)
-              }
-          }
-        AttributeValue.Map(avMap)
-//        idx = 0
-//        while (idx < len) {
-//          val fieldInfo                 = fieldInfos(idx)
-//          val fieldName                 = fieldInfo.name
-//          val field: Schema.Field[_, _] = fieldInfo.field
-//          val enc                       = fieldInfo.encoder.asInstanceOf[Encoder[Z]] //encoder(field.schema)
-//          val deconstructed             = field.asInstanceOf[Schema.Field[Z, _]].get(a)
-//          val av                        = enc(deconstructed.asInstanceOf[Z])
-//
-//          @tailrec
-//          def appendToMapForcingLazy[B](schema: Schema[B]): AttributeValue.Map =
-//            schema match {
-//              case l @ Schema.Lazy(_)                                                 =>
-//                appendToMapForcingLazy(l.schema)
-//              case _: Schema.Optional[_] if av.isInstanceOf[AttributeValue.Null.type] =>
-//                builder
-//              case _                                                                  =>
-//                val map: Map[AttributeValue.String, AttributeValue] =
-//                  builder.value + (AttributeValue.String(fieldName) -> av)
-//                println(s"XXXXXXXX appending to map - map: $map")
-//                AttributeValue.Map(map)
-//            }
-//
-//          appendToMapForcingLazy(field.schema)
-//          idx += 1
-//        }
-//        builder
+        val av: AttributeValue.Map = {
+          val builder = AttributeValue.Map.linked.builder
+          var idx     = 0
+          val len     = fieldInfos.length
+          while (idx < len) {
+            val fieldInfo                 = fieldInfos(idx)
+            val fieldName                 = fieldInfo.name
+            val field: Schema.Field[_, _] = fieldInfo.field
+            val enc                       = fieldInfo.encoder.asInstanceOf[Encoder[Z]] //encoder(field.schema)
+            val deconstructed             = field.asInstanceOf[Schema.Field[Z, _]].get(a)
+            val av                        = enc(deconstructed.asInstanceOf[Z])
 
+            @tailrec
+            def appendToMapForcingLazy[B](schema: Schema[B]): AttributeValue.Map.Builder =
+              schema match {
+                case l @ Schema.Lazy(_)                                                 =>
+                  appendToMapForcingLazy(l.schema)
+                case _: Schema.Optional[_] if av.isInstanceOf[AttributeValue.Null.type] =>
+                  builder
+                case _                                                                  =>
+                  builder.addOne(AttributeValue.String(fieldName), av)
+              }
+
+            appendToMapForcingLazy(field.schema)
+            idx += 1
+          }
+          builder.result
+        }
+        av
     }
 
     private def primitiveEncoder[A](standardType: StandardType[A]): Encoder[A] =
