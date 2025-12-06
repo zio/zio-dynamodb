@@ -47,4 +47,58 @@ object JMapView {
       m => new java.util.LinkedHashMap[String, AttributeValue](m)
     )
 
+  object hash {
+    def builder: Builder =
+      new Builder(
+        new java.util.HashMap[String, AttributeValue](),
+        m => new java.util.HashMap[String, AttributeValue](m)
+      )
+
+    def single(key: String, value: AttributeValue): Map[String, AttributeValue] = {
+      val map = new java.util.HashMap[String, AttributeValue](1)
+      map.put(key, value)
+      new JMapView(map, m => new java.util.HashMap[String, AttributeValue](m))
+    }
+
+  }
+
+  object linked {
+    def builder: Builder =
+      new Builder(
+        new java.util.LinkedHashMap[String, AttributeValue](),
+        m => new java.util.LinkedHashMap[String, AttributeValue](m)
+      )
+
+    def single(key: String, value: AttributeValue): Map[String, AttributeValue] = {
+      val map = new java.util.LinkedHashMap[String, AttributeValue](1)
+      map.put(key, value)
+      new JMapView(map, m => new java.util.LinkedHashMap[String, AttributeValue](m))
+    }
+
+  }
+
+  final class Builder(
+    private val underlying: java.util.Map[String, AttributeValue],
+    private val cloneFn: java.util.Map[String, AttributeValue] => java.util.Map[
+      String,
+      AttributeValue
+    ]
+  ) {
+
+    def addOne(key: String, value: AttributeValue): Builder = {
+      underlying.put(key, value)
+      this
+    }
+
+    def ++=(entries: Iterable[(String, AttributeValue)]): Builder = {
+      entries.foreach { case (k, v) => underlying.put(k, v) }
+      this
+    }
+
+    def result: Map[String, AttributeValue] =
+      new JMapView(underlying, cloneFn)
+
+    def clear(): Unit = underlying.clear()
+  }
+
 }

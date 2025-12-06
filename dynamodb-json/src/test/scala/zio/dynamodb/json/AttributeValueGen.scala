@@ -49,7 +49,9 @@ object AttributeValueGen {
       .zip(anyMapOfListOfMap)
       .map {
         case (primitives, maps, setsOfPrimitives, listOfPrimitives, listOfMaps) =>
-          primitives + maps + setsOfPrimitives + listOfPrimitives + listOfMaps
+          AttributeValue.Map(
+            primitives.value ++ maps.value ++ setsOfPrimitives.value ++ listOfPrimitives.value ++ listOfMaps.value
+          )
       }
 
 }

@@ -168,9 +168,9 @@ private[dynamodb] object Codec {
       (fb: Fallback[A, B]) => fb.fold(left, right)
 
     private def genericRecordEncoder(structure: FieldSet): Encoder[ListMap[String, _]] = {
-      val builder = AttributeValue.Map.linked.builder // to preserve field order
+      val builder = JMapView.linked.builder // to preserve field order
       (valuesMap: ListMap[String, _]) => {
-        val b: AttributeValue.Map.Builder = structure.toChunk.foldRight(builder) {
+        val b: JMapView.Builder = structure.toChunk.foldRight(builder) {
           case (Schema.Field(key, schema: Schema[a], _, _, _, _), avMap) =>
             val value              = valuesMap(key)
             val enc                = encoder[a](schema)
@@ -180,7 +180,7 @@ private[dynamodb] object Codec {
               case _                   => builder.addOne(AttributeValue.String(key), av)
             }
         }
-        b.result
+        AttributeValue.Map(b.result)
       }
     }
 
@@ -188,12 +188,10 @@ private[dynamodb] object Codec {
       (dynamicValue: DynamicValue) =>
         dynamicValue match {
           case DynamicValue.Record(_, values)              =>
-            val builder = AttributeValue.Map.linked.builder
-            values.foldRight(builder) {
-              case ((key, dv), _) =>
-                builder.addOne(key, dynamicEncoder(dv))
+            values.foldRight(AttributeValue.Map(ListMap.empty)) {
+              case ((key, dv), avMap) =>
+                AttributeValue.Map(avMap.value + (AttributeValue.String(key) -> dynamicEncoder(dv)))
             }
-            builder.result
           case DynamicValue.Enumeration(_, _)              =>
             throw new Exception("DynamicValue.Enumeration is not supported")
           case DynamicValue.Sequence(values)               =>
@@ -202,7 +200,7 @@ private[dynamodb] object Codec {
             throw new Exception("DynamicValue.Dictionary is not supported")
           case DynamicValue.SetValue(values)               => encodeSetValues(values.map(dynamicEncoder))
           case DynamicValue.Primitive(value, standardType) => primitiveEncoder(standardType)(value)
-          case DynamicValue.Singleton(_)                   => AttributeValue.Map.linked.empty
+          case DynamicValue.Singleton(_)                   => AttributeValue.Map(ListMap.empty)
           case DynamicValue.SomeValue(value)               => dynamicEncoder(value)
           case DynamicValue.NoneValue                      => AttributeValue.Null
           case DynamicValue.Tuple(left, right)             =>
@@ -250,7 +248,7 @@ private[dynamodb] object Codec {
 
       (a: Z) =>
         val av: AttributeValue.Map = {
-          val builder = AttributeValue.Map.linked.builder
+          val builder = JMapView.linked.builder
           var idx     = 0
           val len     = fieldInfos.length
           while (idx < len) {
@@ -262,7 +260,7 @@ private[dynamodb] object Codec {
             val av                        = enc(deconstructed.asInstanceOf[Z])
 
             @tailrec
-            def appendToMapForcingLazy[B](schema: Schema[B]): AttributeValue.Map.Builder =
+            def appendToMapForcingLazy[B](schema: Schema[B]): JMapView.Builder =
               schema match {
                 case l @ Schema.Lazy(_)                                                 =>
                   appendToMapForcingLazy(l.schema)
@@ -275,7 +273,7 @@ private[dynamodb] object Codec {
             appendToMapForcingLazy(field.schema)
             idx += 1
           }
-          builder.result
+          AttributeValue.Map(builder.result)
         }
         av
     }

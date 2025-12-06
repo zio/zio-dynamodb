@@ -92,12 +92,12 @@ private[dynamodb] object DynamodbJsonCodec {
         case Json.Obj(Chunk(("L", Json.Arr(a))))       => decodeL(a.toList, AttributeValue.List.empty)
         case Json.Obj(Chunk(("SS", Json.Arr(chunk))))  => decodeSS(chunk.toList, AttributeValue.StringSet.empty)
         case Json.Obj(Chunk(("NS", Json.Arr(chunk))))  => decodeNS(chunk.toList, AttributeValue.NumberSet.empty)
-        case Json.Obj(Chunk(("M", Json.Obj(fields))))  => createMap(fields, AttributeValue.Map.hash.empty)
+        case Json.Obj(Chunk(("M", Json.Obj(fields))))  => createMap(fields, AttributeValue.Map.empty)
         case b @ Json.Obj(Chunk(("B", _)))             => Left(s"The Binary type is not supported yet, found: $b")
         case bs @ Json.Obj(Chunk(("BS", _)))           => Left(s"The Binary Set type is not supported yet, found: $bs")
         case Json.Obj(fields) if fields.isEmpty        => Left("empty AttributeValue Map found")
         case Json.Obj(fields)                          =>
-          createMap(fields, AttributeValue.Map.hash.empty)
+          createMap(fields, AttributeValue.Map.empty)
         // for collections
         case Json.Str(s)                               => Right(AttributeValue.String(s))
         case Json.Bool(b)                              => Right(AttributeValue.Bool(b))

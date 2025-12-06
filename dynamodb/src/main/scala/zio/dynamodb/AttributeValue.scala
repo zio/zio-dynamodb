@@ -71,88 +71,15 @@ object AttributeValue {
     val empty = List(Iterable.empty)
   }
 
-  private[dynamodb] final case class Map(
-    // TODO: Avi - replace with JMapView
-    val value: ScalaMap[String, AttributeValue]
-  ) extends AttributeValue {
-    self =>
-
-    // TODO: Avi - replace with .addOne
+  private[dynamodb] final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue { self =>
     def +(t: (ScalaString, AttributeValue)): Map = {
       val (s, av) = t
-      Map(value + ((String(s), av)))
+      Map(self.value + ((String(s), av)))
     }
-
-    def +(m: Map): Map = Map(self.value ++ m.value)
-
-    def size: Int = self.value.size
   }
 
   private[dynamodb] object Map {
-    object hash   {
-      def builder: Builder =
-        new Builder(
-          new java.util.HashMap[String, AttributeValue](),
-          m => new java.util.HashMap[String, AttributeValue](m)
-        )
-
-      def single(key: String, value: AttributeValue): AttributeValue.Map = {
-        val map = new java.util.HashMap[String, AttributeValue](1)
-        map.put(key, value)
-        AttributeValue.Map(
-          new JMapView(map, m => new java.util.HashMap[String, AttributeValue](m))
-        )
-      }
-
-      val empty: AttributeValue.Map = AttributeValue.Map(JMapView.emptyHashMap)
-
-    }
-    object linked {
-      def builder: Builder =
-        new Builder(
-          new java.util.LinkedHashMap[String, AttributeValue](),
-          m => new java.util.LinkedHashMap[String, AttributeValue](m)
-        )
-
-      def single(key: String, value: AttributeValue): AttributeValue.Map = {
-        val map = new java.util.LinkedHashMap[String, AttributeValue](1)
-        map.put(key, value)
-        AttributeValue.Map(
-          new JMapView(map, m => new java.util.LinkedHashMap[String, AttributeValue](m))
-        )
-      }
-
-      val empty: AttributeValue.Map = AttributeValue.Map(JMapView.emptyLinkedHashMap)
-
-    }
-
-    final class Builder(
-      private val underlying: java.util.Map[String, AttributeValue],
-      private val cloneFn: java.util.Map[String, AttributeValue] => java.util.Map[
-        String,
-        AttributeValue
-      ]
-    ) {
-      def addOne(key: String, value: AttributeValue): Builder = {
-        underlying.put(key, value)
-        this
-      }
-      def addOne(key: ScalaString, value: AttributeValue): Builder = {
-        underlying.put(AttributeValue.String(key), value)
-        this
-      }
-
-      def ++=(entries: Iterable[(String, AttributeValue)]): Builder = {
-        entries.foreach { case (k, v) => underlying.put(k, v) }
-        this
-      }
-
-      def result: AttributeValue.Map =
-        AttributeValue.Map(new JMapView(underlying, cloneFn))
-
-      def clear(): Unit = underlying.clear()
-    }
-
+    val empty = Map(ScalaMap.empty)
   }
 
   private[dynamodb] final case class Number(value: BigDecimal)          extends AttributeValue
