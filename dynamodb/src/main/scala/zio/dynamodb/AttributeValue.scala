@@ -73,7 +73,7 @@ object AttributeValue {
 
   private[dynamodb] final case class Map(
     // TODO: Avi - replace with JMapView
-    private val value: ScalaMap[String, AttributeValue]
+    val value: ScalaMap[String, AttributeValue]
   ) extends AttributeValue {
     self =>
 

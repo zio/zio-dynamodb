@@ -16,7 +16,7 @@ class CodecBenchmarks extends BaseBenchmark {
   import BenchmarkDomain._
 
   @Param(Array("1", "10", "100", "1000", "10000", "100000"))
-  var size: Int                                            = 10
+  var size: Int                                            = 1
   var listOfRecords: List[Person]                          = _
   var encodedListOfRecords: List[AttributeValue]           = _
   var encodedListOfRecordsForDynosaur: List[DynosaurValue] = _
@@ -36,6 +36,7 @@ class CodecBenchmarks extends BaseBenchmark {
       .toList
 
     encodedListOfRecords = listOfRecords.map(zioSchemaEncoder(_))
+//    println(s"XXXXXX setup encodedListOfRecords: ${encodedListOfRecords}")
     encodedListOfRecordsForDynosaur = listOfRecords.map { x =>
       DynosaurSchema.personSchema.write(x).getOrElse(throw new Exception("Failed to encode"))
     }
