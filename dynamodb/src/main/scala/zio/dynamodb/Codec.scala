@@ -231,6 +231,7 @@ private[dynamodb] object Codec {
 
     private def caseClassEncoder[Z](fields: Schema.Field[Z, _]*): Encoder[Z] = {
 
+      // borrows from Andriy Plokhotnyuk's zio-blocks caching strategy https://github.com/zio/zio-blocks
       val len                          = fields.length
       val fieldInfos: Array[FieldInfo] = new Array[FieldInfo](len)
       var idx                          = 0
