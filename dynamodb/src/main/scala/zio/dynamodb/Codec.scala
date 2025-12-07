@@ -168,8 +168,8 @@ private[dynamodb] object Codec {
       (fb: Fallback[A, B]) => fb.fold(left, right)
 
     private def genericRecordEncoder(structure: FieldSet): Encoder[ListMap[String, _]] = {
-      val builder = AttributeValue.Map.JMapView.linked.builder // to preserve field order
-      (valuesMap: ListMap[String, _]) => {
+      (valuesMap: ListMap[String, _]) =>
+        val builder                                = AttributeValue.Map.JMapView.linked.builder // to preserve field order
         val b: AttributeValue.Map.JMapView.Builder = structure.toChunk.foldRight(builder) {
           case (Schema.Field(key, schema: Schema[a], _, _, _, _), avMap) =>
             val value              = valuesMap(key)
@@ -181,7 +181,6 @@ private[dynamodb] object Codec {
             }
         }
         AttributeValue.Map(b.result)
-      }
     }
 
     private def dynamicEncoder: Encoder[DynamicValue] =
