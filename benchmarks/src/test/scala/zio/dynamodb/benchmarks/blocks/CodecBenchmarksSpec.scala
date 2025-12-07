@@ -6,7 +6,7 @@ import zio.test.{ assertTrue, ZIOSpecDefault }
 object CodecBenchmarksSpec extends ZIOSpecDefault {
   def spec =
     suite("CodecBenchmarksSpec")(
-      test("writing: zio blocks equals zio schema") {
+      test("writing: zio schema equals expected model") {
         val benchmark = new CodecBenchmarks()
         benchmark.setup()
         assertTrue(benchmark.readingZioSchema == benchmark.listOfRecords)

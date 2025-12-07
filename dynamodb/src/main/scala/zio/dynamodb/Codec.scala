@@ -247,7 +247,7 @@ private[dynamodb] object Codec {
 
       (a: Z) =>
         val av: AttributeValue.Map = {
-          val builder = AttributeValue.Map.JMapView.hash.builder
+          val builder = AttributeValue.Map.JMapView.linked.builder // preserve order
           var idx     = 0
           val len     = fieldInfos.length
           while (idx < len) {

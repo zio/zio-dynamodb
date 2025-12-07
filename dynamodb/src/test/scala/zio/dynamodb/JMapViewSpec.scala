@@ -11,10 +11,10 @@ object JMapViewSpec extends ZIOSpecDefault {
   }
 
   val linkedHashMap: Map[AttributeValue.String, AttributeValue] = {
-    val hashMapBuilder = AttributeValue.Map.JMapView.linked.builder
-    hashMapBuilder.addOne("key1", AttributeValue.String("value1"))
-    hashMapBuilder.addOne("key2", AttributeValue.String("value2"))
-    hashMapBuilder.result
+    val linkedHashMapBuilder = AttributeValue.Map.JMapView.linked.builder
+    linkedHashMapBuilder.addOne("key1", AttributeValue.String("value1"))
+    linkedHashMapBuilder.addOne("key2", AttributeValue.String("value2"))
+    linkedHashMapBuilder.result
   }
 
   val singleHashMap = AttributeValue.Map.JMapView.hash.single(
@@ -61,6 +61,18 @@ object JMapViewSpec extends ZIOSpecDefault {
           singleHashMap.size == 1,
           singleHashMap.get(AttributeValue.String("singleKey")) == Some(AttributeValue.String("singleValue"))
         )
+      },
+      test("bulk add with ++=") {
+        val builder = AttributeValue.Map.JMapView.hash.builder
+        val entries = List(
+          (AttributeValue.String("key1"), AttributeValue.String("value1")),
+          (AttributeValue.String("key2"), AttributeValue.String("value2"))
+        )
+        val map     = builder.++=(entries).result
+        assertTrue(
+          map.get(AttributeValue.String("key1")) == Some(AttributeValue.String("value1")),
+          map.get(AttributeValue.String("key2")) == Some(AttributeValue.String("value2"))
+        )
       }
     ),
     suite("builds an immutable Scala Map using an underlying Java LinkedHashMap")(
@@ -95,6 +107,18 @@ object JMapViewSpec extends ZIOSpecDefault {
         assertTrue(
           singleLinkedHashMap.size == 1,
           singleLinkedHashMap.get(AttributeValue.String("singleKey")) == Some(AttributeValue.String("singleValue"))
+        )
+      },
+      test("bulk add with ++=") {
+        val builder = AttributeValue.Map.JMapView.linked.builder
+        val entries = List(
+          (AttributeValue.String("key1"), AttributeValue.String("value1")),
+          (AttributeValue.String("key2"), AttributeValue.String("value2"))
+        )
+        val map     = builder.++=(entries).result
+        assertTrue(
+          map.get(AttributeValue.String("key1")) == Some(AttributeValue.String("value1")),
+          map.get(AttributeValue.String("key2")) == Some(AttributeValue.String("value2"))
         )
       }
     )
