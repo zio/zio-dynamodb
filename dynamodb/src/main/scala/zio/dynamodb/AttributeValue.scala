@@ -82,9 +82,12 @@ object AttributeValue {
   private[dynamodb] object Map {
     val empty = Map(ScalaMap.empty)
 
-    final class JMapView(
+    /**
+     * An immutable Scala Map view over an underlying Java Map - for faster Map construction
+     */
+    private[dynamodb] final class JMapView(
       private val underlying: java.util.Map[String, AttributeValue],
-      cloneFn: java.util.Map[String, AttributeValue] => java.util.Map[String, AttributeValue]
+      private val cloneFn: java.util.Map[String, AttributeValue] => java.util.Map[String, AttributeValue]
     ) extends scala.collection.immutable.AbstractMap[String, AttributeValue] {
 
       override def get(key: String): Option[AttributeValue] = {
@@ -115,17 +118,6 @@ object AttributeValue {
     }
 
     object JMapView {
-      def emptyHashMap: JMapView       =
-        new JMapView(
-          new java.util.HashMap[String, AttributeValue](),
-          m => new java.util.HashMap[String, AttributeValue](m)
-        )
-      def emptyLinkedHashMap: JMapView =
-        new JMapView(
-          new java.util.LinkedHashMap[String, AttributeValue](),
-          m => new java.util.LinkedHashMap[String, AttributeValue](m)
-        )
-
       object hash {
         def builder: Builder =
           new Builder(
@@ -133,9 +125,9 @@ object AttributeValue {
             m => new java.util.HashMap[String, AttributeValue](m)
           )
 
-        def single(key: String, value: AttributeValue): SMap[String, AttributeValue] = {
+        def single(key: ScalaString, value: AttributeValue): SMap[String, AttributeValue] = {
           val map = new java.util.HashMap[String, AttributeValue](1)
-          map.put(key, value)
+          map.put(String(key), value)
           new JMapView(map, m => new java.util.HashMap[String, AttributeValue](m))
         }
 
@@ -148,30 +140,30 @@ object AttributeValue {
             m => new java.util.LinkedHashMap[String, AttributeValue](m)
           )
 
-        def single(key: String, value: AttributeValue): SMap[String, AttributeValue] = {
+        def single(key: ScalaString, value: AttributeValue): SMap[String, AttributeValue] = {
           val map = new java.util.LinkedHashMap[String, AttributeValue](1)
-          map.put(key, value)
+          map.put(String(key), value)
           new JMapView(map, m => new java.util.LinkedHashMap[String, AttributeValue](m))
         }
 
       }
 
-      final class Builder(
+      private[dynamodb] final class Builder(
         private val underlying: java.util.Map[String, AttributeValue],
         private val cloneFn: java.util.Map[String, AttributeValue] => java.util.Map[
           String,
           AttributeValue
         ]
-      ) {
+      ) { self =>
 
-        def addOne(key: String, value: AttributeValue): Builder = {
-          underlying.put(key, value)
-          this
+        def addOne(key: ScalaString, value: AttributeValue): Builder = {
+          underlying.put(String(key), value)
+          self
         }
 
         def ++=(entries: Iterable[(String, AttributeValue)]): Builder = {
           entries.foreach { case (k, v) => underlying.put(k, v) }
-          this
+          self
         }
 
         def result: SMap[String, AttributeValue] =

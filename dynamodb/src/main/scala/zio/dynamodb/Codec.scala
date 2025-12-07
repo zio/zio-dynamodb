@@ -177,7 +177,7 @@ private[dynamodb] object Codec {
             val av: AttributeValue = enc(value.asInstanceOf[a])
             av match {
               case AttributeValue.Null => avMap
-              case _                   => builder.addOne(AttributeValue.String(key), av)
+              case _                   => builder.addOne(key, av)
             }
         }
         AttributeValue.Map(b.result)
@@ -267,7 +267,7 @@ private[dynamodb] object Codec {
                 case _: Schema.Optional[_] if av.isInstanceOf[AttributeValue.Null.type] =>
                   builder
                 case _                                                                  =>
-                  builder.addOne(AttributeValue.String(fieldName), av)
+                  builder.addOne(fieldName, av)
               }
 
             appendToMapForcingLazy(field.schema)
