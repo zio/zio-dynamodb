@@ -109,7 +109,7 @@ object AttributeValue {
         new JMapView(copy, cloneFn)
       }
 
-      override def updated[V1 >: AttributeValue](key: String, value: V1): JMapView = {
+      override def updated[A >: AttributeValue](key: String, value: A): JMapView = {
         val copy: java.util.Map[String, AttributeValue] = cloneFn(underlying)
         copy.put(key, value.asInstanceOf[AttributeValue])
         new JMapView(copy, cloneFn)
