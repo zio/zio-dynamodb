@@ -89,7 +89,6 @@ object BenchmarkDomain {
     age: Int,
     address: String
   )
-  object Person {}
 
   val zioSchema: ZIOSchema[Person] = DeriveSchema.gen[Person]
 
