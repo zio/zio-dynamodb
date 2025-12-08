@@ -290,9 +290,17 @@ lazy val examples = module("zio-dynamodb-examples", "examples")
 
 lazy val benchmarks = module("zio-dynamodb-benchmarks", "benchmarks")
   .settings(
-    resolvers ++= Resolver.sonatypeOssRepos("releases"),
+    resolvers += Resolver.sonatypeCentralSnapshots,
     publish / skip := true,
-    fork := true
+    fork := true,
+    libraryDependencies ++= Seq(
+      "org.systemfw" %% "dynosaur-core" % "0.7.1",
+      "org.scanamo"  %% "scanamo"       % "5.0.0",
+      "dev.zio"      %% "zio-test"      % zioVersion % "test",
+      "dev.zio"      %% "zio-test-sbt"  % zioVersion % "test",
+      "dev.zio"      %% "zio-json"      % "0.7.44"
+    ),
+    testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
   .dependsOn(zioDynamodb, zioDynamodbCe, zioDynamodbJson)
   .enablePlugins(JmhPlugin)
@@ -303,7 +311,7 @@ lazy val zioDynamodbCe =
     .settings(buildInfoSettings("zio.dynamodb"))
     .configs(IntegrationTest)
     .settings(
-      resolvers ++= Resolver.sonatypeOssRepos("releases"),
+      resolvers += Resolver.sonatypeCentralSnapshots,
       fork := true,
       libraryDependencies ++= Seq(
         "org.typelevel" %% "cats-effect"      % catsEffect3Version,
@@ -322,7 +330,7 @@ lazy val zioDynamodbFuture =
     .settings(buildInfoSettings("zio.dynamodb"))
     .configs(IntegrationTest)
     .settings(
-      resolvers ++= Resolver.sonatypeOssRepos("releases"),
+      resolvers += Resolver.sonatypeCentralSnapshots,
       fork := true,
       libraryDependencies ++= Seq(
         "dev.zio" %% "zio-test"     % zioVersion % "test",
@@ -338,7 +346,7 @@ lazy val zioDynamodbJson =
     .settings(buildInfoSettings("zio.dynamodb"))
     .configs(IntegrationTest)
     .settings(
-      resolvers ++= Resolver.sonatypeOssRepos("releases"),
+      resolvers += Resolver.sonatypeCentralSnapshots,
       fork := true,
       libraryDependencies ++= Seq(
         "dev.zio" %% "zio-test"        % zioVersion       % "test",

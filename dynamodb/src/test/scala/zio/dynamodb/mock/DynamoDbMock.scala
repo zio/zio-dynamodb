@@ -68,6 +68,9 @@ import zio.aws.dynamodb.model.{
 }
 import zio.{ IO, URLayer, ZEnvironment, ZIO }
 import zio.stream.ZStream
+
+// ZIO AWS DynamoDB no longer comes with generated zio-mock's - also this library is deprecated - so as a short term
+// measure I have copied the mock here until another mock/stub solution is found.
 object DynamoDbMock extends Mock[DynamoDb] {
   object PutItem
       extends Effect[

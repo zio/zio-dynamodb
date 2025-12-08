@@ -167,19 +167,21 @@ private[dynamodb] object Codec {
     private def fallbackEncoder[A, B](left: Encoder[A], right: Encoder[B]): Encoder[Fallback[A, B]] =
       (fb: Fallback[A, B]) => fb.fold(left, right)
 
-    private def genericRecordEncoder(structure: FieldSet): Encoder[ListMap[String, _]] =
-      (valuesMap: ListMap[String, _]) => {
-        structure.toChunk.foldRight(AttributeValue.Map(ListMap.empty)) {
+    private def genericRecordEncoder(structure: FieldSet): Encoder[ListMap[String, _]] = {
+      (valuesMap: ListMap[String, _]) =>
+        val builder                                = AttributeValue.Map.JMapView.linked.builder // to preserve field order
+        val b: AttributeValue.Map.JMapView.Builder = structure.toChunk.foldRight(builder) {
           case (Schema.Field(key, schema: Schema[a], _, _, _, _), avMap) =>
             val value              = valuesMap(key)
             val enc                = encoder[a](schema)
             val av: AttributeValue = enc(value.asInstanceOf[a])
             av match {
               case AttributeValue.Null => avMap
-              case _                   => AttributeValue.Map(avMap.value + (AttributeValue.String(key) -> av))
+              case _                   => builder.addOne(key, av)
             }
         }
-      }
+        AttributeValue.Map(b.result)
+    }
 
     private def dynamicEncoder: Encoder[DynamicValue] =
       (dynamicValue: DynamicValue) =>
@@ -225,28 +227,55 @@ private[dynamodb] object Codec {
 
     private def caseClassEncoder0[Z]: Encoder[Z] = _ => AttributeValue.Null
 
-    private def caseClassEncoder[Z](fields: Schema.Field[Z, _]*): Encoder[Z] = { (a: Z) =>
-      fields.foldRight[AttributeValue.Map](AttributeValue.Map(Map.empty)) {
-        case s: (Schema.Field[Z, _], AttributeValue.Map) =>
-          val enc                 = encoder(s._1.schema)
-          val extractedFieldValue = s._1.get(a)
-          val av                  = enc(extractedFieldValue)
-          val k                   = s._1.name
+    private case class FieldInfo(name: String, field: Schema.Field[_, _], encoder: Encoder[_])
 
-          @tailrec
-          def appendToMap[B](schema: Schema[B]): AttributeValue.Map =
-            schema match {
-              case l @ Schema.Lazy(_)                                                 =>
-                appendToMap(l.schema)
-              case _: Schema.Optional[_] if av.isInstanceOf[AttributeValue.Null.type] =>
-                AttributeValue.Map(s._2.value)
-              case _                                                                  =>
-                AttributeValue.Map(s._2.value + (AttributeValue.String(k) -> av))
-            }
+    private def caseClassEncoder[Z](fields: Schema.Field[Z, _]*): Encoder[Z] = {
 
-          appendToMap(s._1.schema)
+      // borrows from Andriy Plokhotnyuk's zio-blocks caching strategy https://github.com/zio/zio-blocks
+      val len                          = fields.length
+      val fieldInfos: Array[FieldInfo] = new Array[FieldInfo](len)
+      var idx                          = 0
+      val it                           = fields.iterator
+      while (it.hasNext) {
+        val field           = it.next()
+        val fieldName       = field.name
+        val fieldSchema     = field.schema
+        val enc: Encoder[_] = encoder(fieldSchema)
+        val fieldInfo       = FieldInfo(fieldName, field, enc)
+        fieldInfos(idx) = fieldInfo
+        idx += 1
       }
 
+      (a: Z) =>
+        val av: AttributeValue.Map = {
+          val builder = AttributeValue.Map.JMapView.linked.builder // preserve order
+          var idx     = 0
+          val len     = fieldInfos.length
+          while (idx < len) {
+            val fieldInfo                 = fieldInfos(idx)
+            val fieldName                 = fieldInfo.name
+            val field: Schema.Field[_, _] = fieldInfo.field
+            val enc                       = fieldInfo.encoder.asInstanceOf[Encoder[Z]] //encoder(field.schema)
+            val deconstructed             = field.asInstanceOf[Schema.Field[Z, _]].get(a)
+            val av                        = enc(deconstructed.asInstanceOf[Z])
+
+            @tailrec
+            def appendToMapForcingLazy[B](schema: Schema[B]): AttributeValue.Map.JMapView.Builder =
+              schema match {
+                case l @ Schema.Lazy(_)                                                 =>
+                  appendToMapForcingLazy(l.schema)
+                case _: Schema.Optional[_] if av.isInstanceOf[AttributeValue.Null.type] =>
+                  builder
+                case _                                                                  =>
+                  builder.addOne(fieldName, av)
+              }
+
+            appendToMapForcingLazy(field.schema)
+            idx += 1
+          }
+          AttributeValue.Map(builder.result)
+        }
+        av
     }
 
     private def primitiveEncoder[A](standardType: StandardType[A]): Encoder[A] =
