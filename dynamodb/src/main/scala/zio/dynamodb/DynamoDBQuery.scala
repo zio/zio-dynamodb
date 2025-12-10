@@ -562,22 +562,22 @@ object DynamoDBQuery {
    *
    * Note this is an experimental API and may be subject to change.
    */
-//  def getWithNarrow[From: Schema.Enum, To <: From: Schema](tableName: String)(
-//    primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
-//  ): DynamoDBQuery[From, Either[ItemError, To]] = {
-//
-//    def getWithNarrowedKeyCondExpr[From: Schema.Enum, To <: From](tableName: String)(
-//      primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
-//    ): DynamoDBQuery[From, Either[ItemError, From]] =
-//      get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
-//
-//    getWithNarrowedKeyCondExpr[From, To](tableName)(primaryKeyExpr).map {
-//      case Right(found) =>
-//        narrow[From, To](found).left.map(DynamoDBError.ItemError.DecodingError.apply)
-//
-//      case Left(error)  => Left(error)
-//    }
-//  }
+  def getWithNarrow[From: Schema.Enum, To <: From: Schema](tableName: String)(
+    primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
+  ): DynamoDBQuery[From, Either[ItemError, To]] = {
+
+    def getWithNarrowedKeyCondExpr[From: Schema.Enum, To <: From](tableName: String)(
+      primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
+    ): DynamoDBQuery[From, Either[ItemError, From]] =
+      get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
+
+    getWithNarrowedKeyCondExpr[From, To](tableName)(primaryKeyExpr).map {
+      case Right(found) =>
+        narrow[From, To](found).left.map(DynamoDBError.ItemError.DecodingError.apply)
+
+      case Left(error)  => Left(error)
+    }
+  }
 
   /**
    * Safely narrows `a: From` to subtype type `To` and requires that there are implicit schemas in scope which
@@ -662,15 +662,17 @@ object DynamoDBQuery {
    *
    * Note this is an experimental API and may be subject to change.
    */
-//  def putWithNarrow[From: Schema.Enum, To <: From: Schema](
-//    tableName: String,
-//    a: To
-//  ): DynamoDBQuery[To, Option[To]] = {
+  def putWithNarrow[From: Schema.Enum, To <: From: Schema](
+    tableName: String,
+    a: To
+  ): DynamoDBQuery[To, Option[To]] = {
 //    val fromEnumSchema = implicitly[Schema.Enum[From]]
 //    val toSchema       = Schema[To]
-//    putItem(tableName, toItem(a.asInstanceOf[From])(fromEnumSchema))
-//      .map(_.flatMap(item => fromItem(item)(toSchema).toOption))
-//  }
+    val scFrom: SchemaCodec[From] = SchemaCodec[From]
+    val scTo: SchemaCodec[To]     = SchemaCodec[To]
+    putItem(tableName, toItem(a.asInstanceOf[From])(/*fromEnumSchema*/ scFrom))
+      .map(_.flatMap(item => fromItem(item)(/*toSchema*/ scTo).toOption))
+  }
 
   private[dynamodb] def toItem[A: SchemaCodec](a: A): Item =
     FromAttributeValue.attrMapFromAttributeValue
