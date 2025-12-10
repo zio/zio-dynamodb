@@ -547,10 +547,10 @@ object DynamoDBQuery {
   ): DynamoDBQuery[Any, Option[Item]] =
     GetItem(TableName(tableName), key, projections.toList)
 
-  def get[From: Schema](tableName: String)(
+  def get[From: SchemaCodec](tableName: String)(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
   ): DynamoDBQuery[From, Either[ItemError, From]] =
-    get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
+    get(tableName, primaryKeyExpr.asAttrMap, SchemaCodec[From].projectionsFromSchema)
 
   /**
    * Sometimes we want to save top level sum types to DynamoDB and we want to retrieve them back as the subtype
@@ -562,22 +562,22 @@ object DynamoDBQuery {
    *
    * Note this is an experimental API and may be subject to change.
    */
-  def getWithNarrow[From: Schema.Enum, To <: From: Schema](tableName: String)(
-    primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
-  ): DynamoDBQuery[From, Either[ItemError, To]] = {
-
-    def getWithNarrowedKeyCondExpr[From: Schema.Enum, To <: From](tableName: String)(
-      primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
-    ): DynamoDBQuery[From, Either[ItemError, From]] =
-      get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
-
-    getWithNarrowedKeyCondExpr[From, To](tableName)(primaryKeyExpr).map {
-      case Right(found) =>
-        narrow[From, To](found).left.map(DynamoDBError.ItemError.DecodingError.apply)
-
-      case Left(error)  => Left(error)
-    }
-  }
+//  def getWithNarrow[From: Schema.Enum, To <: From: Schema](tableName: String)(
+//    primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
+//  ): DynamoDBQuery[From, Either[ItemError, To]] = {
+//
+//    def getWithNarrowedKeyCondExpr[From: Schema.Enum, To <: From](tableName: String)(
+//      primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[To]
+//    ): DynamoDBQuery[From, Either[ItemError, From]] =
+//      get(tableName, primaryKeyExpr.asAttrMap, ProjectionExpression.projectionsFromSchema[From])
+//
+//    getWithNarrowedKeyCondExpr[From, To](tableName)(primaryKeyExpr).map {
+//      case Right(found) =>
+//        narrow[From, To](found).left.map(DynamoDBError.ItemError.DecodingError.apply)
+//
+//      case Left(error)  => Left(error)
+//    }
+//  }
 
   /**
    * Safely narrows `a: From` to subtype type `To` and requires that there are implicit schemas in scope which
@@ -631,7 +631,7 @@ object DynamoDBQuery {
     }
   }
 
-  private def get[A: Schema](
+  private def get[A: SchemaCodec](
     tableName: String,
     key: PrimaryKey,
     projections: Chunk[ProjectionExpression[_, _]]
@@ -642,14 +642,14 @@ object DynamoDBQuery {
       case None       => Left(ValueNotFound(s"value with key $key not found"))
     }
 
-  private[dynamodb] def fromItem[A: Schema](item: Item): Either[ItemError, A] = {
+  private[dynamodb] def fromItem[A: SchemaCodec](item: Item): Either[ItemError, A] = {
     val av = ToAttributeValue.attrMapToAttributeValue.toAttributeValue(item)
-    av.decode(Schema[A])
+    av.decode(SchemaCodec[A])
   }
 
   def putItem(tableName: String, item: Item): DynamoDBQuery[Any, Option[Item]] = PutItem(TableName(tableName), item)
 
-  def put[A: Schema](tableName: String, a: A): DynamoDBQuery[A, Option[A]] =
+  def put[A: SchemaCodec](tableName: String, a: A): DynamoDBQuery[A, Option[A]] =
     putItem(tableName, toItem(a)).map(_.flatMap(item => fromItem(item).toOption))
 
   /**
@@ -662,22 +662,22 @@ object DynamoDBQuery {
    *
    * Note this is an experimental API and may be subject to change.
    */
-  def putWithNarrow[From: Schema.Enum, To <: From: Schema](
-    tableName: String,
-    a: To
-  ): DynamoDBQuery[To, Option[To]] = {
-    val fromEnumSchema = implicitly[Schema.Enum[From]]
-    val toSchema       = Schema[To]
-    putItem(tableName, toItem(a.asInstanceOf[From])(fromEnumSchema))
-      .map(_.flatMap(item => fromItem(item)(toSchema).toOption))
-  }
+//  def putWithNarrow[From: Schema.Enum, To <: From: Schema](
+//    tableName: String,
+//    a: To
+//  ): DynamoDBQuery[To, Option[To]] = {
+//    val fromEnumSchema = implicitly[Schema.Enum[From]]
+//    val toSchema       = Schema[To]
+//    putItem(tableName, toItem(a.asInstanceOf[From])(fromEnumSchema))
+//      .map(_.flatMap(item => fromItem(item)(toSchema).toOption))
+//  }
 
-  private[dynamodb] def toItem[A](a: A)(implicit schema: Schema[A]): Item =
+  private[dynamodb] def toItem[A: SchemaCodec](a: A): Item =
     FromAttributeValue.attrMapFromAttributeValue
-      .fromAttributeValue(AttributeValue.encode(a)(schema))
+      .fromAttributeValue(AttributeValue.encode(a)(SchemaCodec[A]))
       .getOrElse(throw new Exception(s"error encoding $a"))
 
-  def update[From: Schema](tableName: String)(primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From])(
+  def update[From: SchemaCodec](tableName: String)(primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From])(
     action: Action[From]
   ): DynamoDBQuery[From, Option[From]] =
     updateItem(tableName, primaryKeyExpr.asAttrMap)(action).map(_.flatMap(item => fromItem(item).toOption))
@@ -689,14 +689,14 @@ object DynamoDBQuery {
       UpdateExpression(action)
     )
 
-  private[dynamodb] def update[A: Schema](tableName: String, key: PrimaryKey)(
+  private[dynamodb] def update[A: SchemaCodec](tableName: String, key: PrimaryKey)(
     action: Action[A]
   ): DynamoDBQuery[A, Option[A]] =
     updateItem(tableName, key)(action).map(_.flatMap(item => fromItem(item).toOption))
 
   def deleteItem(tableName: String, key: PrimaryKey): Write[Any, Option[Item]] = DeleteItem(TableName(tableName), key)
 
-  def deleteFrom[From: Schema](
+  def deleteFrom[From: SchemaCodec](
     tableName: String
   )(
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
@@ -717,12 +717,12 @@ object DynamoDBQuery {
   /**
    * when executed will return a Tuple of {{{Either[String,(Chunk[A], LastEvaluatedKey)]}}}
    */
-  def scanSome[A: Schema](
+  def scanSome[A: SchemaCodec](
     tableName: String,
     limit: Int
   ): DynamoDBQuery[A, (Chunk[A], LastEvaluatedKey)] =
     DynamoDBQuery.absolve(
-      scanSomeItem(tableName, limit, ProjectionExpression.projectionsFromSchema: _*).map {
+      scanSomeItem(tableName, limit, SchemaCodec[A].projectionsFromSchema: _*).map {
         case (itemsChunk, lek) =>
           itemsChunk.forEach(item => fromItem(item)).map(Chunk.fromIterable) match {
             case Right(chunk) => Right((chunk, lek))
@@ -744,10 +744,10 @@ object DynamoDBQuery {
   /**
    * when executed will return a ZStream of A
    */
-  def scanAll[A: Schema](
+  def scanAll[A: SchemaCodec](
     tableName: String
   ): DynamoDBQuery[A, Stream[Throwable, A]] =
-    scanAllItem(tableName, ProjectionExpression.projectionsFromSchema: _*).map(
+    scanAllItem(tableName, SchemaCodec[A].projectionsFromSchema: _*).map(
       _.mapZIO(item => ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_)))
     ) // TODO: think about error model
 
@@ -765,12 +765,12 @@ object DynamoDBQuery {
   /**
    * when executed will return a Tuple of {{{Either[String,(Chunk[A], LastEvaluatedKey)]}}}
    */
-  def querySome[A: Schema](
+  def querySome[A: SchemaCodec](
     tableName: String,
     limit: Int
   ): DynamoDBQuery[A, (Chunk[A], LastEvaluatedKey)] =
     DynamoDBQuery.absolve(
-      querySomeItem(tableName, limit, ProjectionExpression.projectionsFromSchema: _*).map {
+      querySomeItem(tableName, limit, SchemaCodec[A].projectionsFromSchema: _*).map {
         case (itemsChunk, lek) =>
           itemsChunk.forEach(item => fromItem(item)).map(Chunk.fromIterable) match {
             case Right(chunk) => Right((chunk, lek))
@@ -792,11 +792,11 @@ object DynamoDBQuery {
   /**
    * when executed will return a ZStream of A
    */
-  def queryAll[A: Schema](
+  def queryAll[A: SchemaCodec](
     tableName: String
     //keyConditionExpression: KeyConditionExpression, REVIEW: This is required by the dynamo API, should we make it required here?
   ): DynamoDBQuery[A, Stream[Throwable, A]] =
-    queryAllItem(tableName, ProjectionExpression.projectionsFromSchema: _*).map(
+    queryAllItem(tableName, SchemaCodec[A].projectionsFromSchema: _*).map(
       _.mapZIO(item => ZIO.fromEither(fromItem(item)).mapError(new IllegalStateException(_)))
     ) // TODO: think about error model
 

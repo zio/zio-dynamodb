@@ -173,6 +173,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       assert(actual)(isRight(equalTo(expected)))
     },
     test("decodes map when field is missing") {
+      import zio.dynamodb.SchemaCodec._
       val item     = Item.empty
       val expected = CaseClassOfMapOfInt(Map.empty)
 

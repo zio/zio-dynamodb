@@ -60,6 +60,9 @@ final case class CaseClassOfInstant(instant: Instant)
 final case class CaseClassOfStatus(status: Status)
 
 final case class CaseClassOfMapOfInt(map: Map[String, Int])
+object CaseClassOfMapOfInt {
+  implicit val schema: Schema[CaseClassOfMapOfInt] = DeriveSchema.gen[CaseClassOfMapOfInt]
+}
 
 final case class CaseClassOfSetOfInt(set: Set[Int])
 

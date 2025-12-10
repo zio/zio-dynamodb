@@ -34,10 +34,10 @@ object SchemaCodec {
   // Blocks Schema
   implicit def schema2ToSchemaCodec[A: zio.blocks.schema.Schema]: SchemaCodec[A] =
     new SchemaCodec[A] {
-      val blocksCodec: DynamoDBCodec[A] =
+      private[this] val blocksCodec: DynamoDBCodec[A] =
         zio.blocks.schema.Schema[A].derive(DynamoDBBlocks.DynamoDBDeriver)
-      override def encoder: Encoder[A]  = blocksCodec.encoder
-      override def decoder: Decoder[A]  = blocksCodec.decoder
+      override def encoder: Encoder[A]                = blocksCodec.encoder
+      override def decoder: Decoder[A]                = blocksCodec.decoder
 
       override def projectionsFromSchema: Chunk[ProjectionExpression[_, _]] = {
         def projections[A](reflect: zio.blocks.schema.Reflect.Bound[A]): Chunk[ProjectionExpression[_, _]] =
