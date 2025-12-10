@@ -177,7 +177,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       val item     = Item.empty
       val expected = CaseClassOfMapOfInt(Map.empty)
 
-      val actual = DynamoDBQuery.fromItem[CaseClassOfMapOfInt](item)(caseClassOfMapOfInt)
+      val actual = DynamoDBQuery.fromItem[CaseClassOfMapOfInt](item)
 
       assert(actual)(isRight(equalTo(expected)))
     },
