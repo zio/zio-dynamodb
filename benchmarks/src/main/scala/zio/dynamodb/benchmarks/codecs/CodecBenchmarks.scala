@@ -46,7 +46,7 @@ class CodecBenchmarks extends BaseBenchmark {
     }
   }
 
-//  @Benchmark
+  @Benchmark
   def readingScanamo: List[Person] =
     encodedListOfRecordsForScanamo.map(av =>
       ScanamoCodec.person.read(av) match {
@@ -55,7 +55,7 @@ class CodecBenchmarks extends BaseBenchmark {
       }
     )
 
-//  @Benchmark
+  @Benchmark
   def readingDynosaur: List[Person] =
     encodedListOfRecordsForDynosaur.map(av =>
       DynosaurSchema.personSchema.read(av) match {
@@ -64,7 +64,7 @@ class CodecBenchmarks extends BaseBenchmark {
       }
     )
 
-//  @Benchmark
+  @Benchmark
   def readingZioSchema: List[Person] =
     encodedListOfRecords.map(av =>
       zioSchemaDecoder(av) match {
@@ -73,7 +73,7 @@ class CodecBenchmarks extends BaseBenchmark {
       }
     )
 
-//  @Benchmark
+  @Benchmark
   def readingZioBlocks: List[Person] =
     encodedListOfRecords.map(av =>
       zioBlocksCodec.decoder(av) match {
@@ -85,10 +85,10 @@ class CodecBenchmarks extends BaseBenchmark {
   @Benchmark
   def writingScanamo: Seq[ScanamoValue] = listOfRecords.map(ScanamoCodec.person.write)
 
-//  @Benchmark
+  @Benchmark
   def writingDynosaur: Seq[Either[WriteError, DynosaurValue]] = listOfRecords.map(DynosaurSchema.personSchema.write)
 
-//  @Benchmark
+  @Benchmark
   def writingZioSchema: Seq[AttributeValue] = listOfRecords.map(zioSchemaEncoder(_))
 
   @Benchmark

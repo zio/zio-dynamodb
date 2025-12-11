@@ -6,7 +6,7 @@ import zio.blocks.schema.binding.BindingType.{ Primitive, Variant, Wrapper }
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
 import zio.blocks.schema.derive.{ BindingInstance, Deriver }
-`import zio.dynamodb.AttributeValue.Map.JMapView
+import zio.dynamodb.AttributeValue.Map.JMapView
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb.{ AttributeValue, Decoder, Encoder }
