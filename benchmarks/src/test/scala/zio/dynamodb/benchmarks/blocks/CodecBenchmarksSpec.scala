@@ -15,6 +15,7 @@ object CodecBenchmarksSpec extends ZIOSpecDefault {
         val benchmark = new CodecBenchmarks()
         benchmark.setup()
         assertTrue(
+          benchmark.readingZioBlocks == benchmark.readingZioSchema,
           benchmark.readingZioSchema == benchmark.readingDynosaur,
           benchmark.readingZioSchema == benchmark.readingScanamo
         )

@@ -35,7 +35,7 @@ object SchemaCodec {
   implicit def schema2ToSchemaCodec[A: zio.blocks.schema.Schema]: SchemaCodec[A] =
     new SchemaCodec[A] {
       private[this] val blocksCodec: DynamoDBCodec[A] =
-        zio.blocks.schema.Schema[A].derive(DynamoDBBlocks.DynamoDBDeriver)
+        zio.blocks.schema.Schema[A].derive(DynamoDBBlocks.Deriver)
       override def encoder: Encoder[A]                = blocksCodec.encoder
       override def decoder: Decoder[A]                = blocksCodec.decoder
 
