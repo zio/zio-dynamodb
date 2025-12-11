@@ -6,6 +6,7 @@ import zio.blocks.schema.binding.BindingType.{ Primitive, Variant, Wrapper }
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
 import zio.blocks.schema.derive.{ BindingInstance, Deriver }
+`import zio.dynamodb.AttributeValue.Map.JMapView
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb.{ AttributeValue, Decoder, Encoder }
@@ -13,11 +14,6 @@ import zio.dynamodb.{ AttributeValue, Decoder, Encoder }
 import scala.collection.mutable.ArrayBuffer
 
 object DynamoDBBlocks {
-
-//  private[this] val cache: ThreadLocal[java.util.HashMap[TypeName[?], CacheEntry2]] =
-//    new ThreadLocal[util.HashMap[TypeName[_], CacheEntry2]] {
-//      override def initialValue(): java.util.HashMap[TypeName[?], CacheEntry2] = new java.util.HashMap
-//    }
 
   private[this] val stringCodec: DynamoDBCodec[String] =
     new DynamoDBCodec[String](valueType = DynamoDBCodec.objectType) {
@@ -177,11 +173,11 @@ object DynamoDBBlocks {
           private[this] val fields        = fieldInfos
 
           override def encoder: Encoder[A] = { value =>
-            val regs       = Registers(usedRegisters)
-            var idx        = 0
+            val regs                         = Registers(usedRegisters)
+            var idx                          = 0
+            val mapBuilder: JMapView.Builder = AttributeValue.Map.JMapView.hash.builder
             deconstructor.deconstruct(regs, 0, value)
-            val mapBuilder = Map.newBuilder[AttributeValue.String, AttributeValue]
-            val len        = fields.length
+            val len                          = fields.length
             while (idx < len) {
               val field  = fields(idx)
               val name   = field.name
@@ -191,32 +187,30 @@ object DynamoDBBlocks {
                 case DynamoDBCodec.intType    =>
                   val value = regs.getInt(offset, 0)
                   val av    = codec.asInstanceOf[DynamoDBCodec[Int]].encoder(value)
-                  mapBuilder.addOne(AttributeValue.String(name) -> av)
+                  mapBuilder.addOne(name, av)
                 case DynamoDBCodec.longType   =>
                   val value = regs.getLong(offset, 0)
                   val av    = codec.asInstanceOf[DynamoDBCodec[Long]].encoder(value)
-                  mapBuilder.addOne(AttributeValue.String(name) -> av)
+                  mapBuilder.addOne(name, av)
                 case DynamoDBCodec.objectType =>
                   val value = regs.getObject(offset, 0)
                   val av    = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(value)
-                  mapBuilder.addOne(AttributeValue.String(name) -> av)
+                  mapBuilder.addOne(name, av)
                 case _                        =>
                   // TODO: think about what we do here
                   val value = regs.getObject(offset, 0)
                   val av    = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(value)
-                  mapBuilder.addOne(AttributeValue.String(name) -> av)
+                  mapBuilder.addOne(name, av)
               }
               idx += 1
             }
-            AttributeValue.Map(mapBuilder.result())
+            AttributeValue.Map(mapBuilder.result)
           }
 
           override def decoder: Decoder[A] = {
             val len                         = fields.length
             var idx                         = 0
             val regs                        = Registers(usedRegisters)
-            val avMapBuilder                = Map.newBuilder[AttributeValue.String, AttributeValue]
-            avMapBuilder.sizeHint(len)
             val errors: ArrayBuffer[String] = new ArrayBuffer[String]()
 
             (av: AttributeValue) =>
@@ -269,12 +263,6 @@ object DynamoDBBlocks {
       println(s"XXXXX reflect: $reflect not handled yet")
       ???
     }
-
-//  private[this] def isTuple[F[_, _], A](reflect: Reflect[F, A]): Boolean =
-//    reflect.isRecord && {
-//      val typeName = reflect.typeName
-//      typeName.namespace == Namespace.scala && typeName.name.startsWith("Tuple")
-//    }
 
   final case class FieldInfo(
     name: String,
