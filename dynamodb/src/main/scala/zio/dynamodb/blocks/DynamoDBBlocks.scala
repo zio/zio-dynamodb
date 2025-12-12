@@ -13,6 +13,9 @@ import zio.dynamodb.{ AttributeValue, Decoder, Encoder }
 
 import scala.collection.mutable.ArrayBuffer
 
+/**
+ * borrows heavily from Andriy Plokhotnyuk's zio-blocks JSON codec https://github.com/zio/zio-blocks
+ */
 object DynamoDBBlocks {
 
   private[this] val stringCodec: DynamoDBCodec[String] =

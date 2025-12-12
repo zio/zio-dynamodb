@@ -124,7 +124,8 @@ object BlocksCodecSpec extends ZIOSpecDefault {
     implicit val schema: Schema[RecordWithNonNativeSet] = Schema.derived
   }
 
-  // Blocks has zero dependency so we have to derive schema for Chunk - see issue https://github.com/zio/zio-blocks/issues/447
+  // Blocks has zero dependency so we have to derive schema for Chunk
+  // Code taken from comment by ghostdogpr on issue https://github.com/zio/zio-blocks/issues/447
   final case class RecordWithNativeBinarySet(set: Set[Chunk[Byte]])
   object RecordWithNativeBinarySet {
     val chunkConstructor: SeqConstructor[Chunk] = new SeqConstructor.Boxed[Chunk] {
