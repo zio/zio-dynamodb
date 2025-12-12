@@ -6,8 +6,10 @@ import dynosaur.Schema.WriteError
 import org.openjdk.jmh.annotations._
 import org.scanamo.DynamoReadError.describe
 import zio.dynamodb.AttributeValue
+import zio.dynamodb.blocks.{ DynamoDBBlocks, DynamoDBCodec }
 import zio.dynamodb.{ Codec, Decoder, Encoder }
 import zio.schema.{ DeriveSchema, Schema => ZIOSchema }
+import zio.blocks.schema.Schema
 
 /**
  * borrows heavily from Andriy Plokhotnyuk's zio-blocks benchmarks https://github.com/zio/zio-blocks
@@ -72,6 +74,15 @@ class CodecBenchmarks extends BaseBenchmark {
     )
 
   @Benchmark
+  def readingZioBlocks: List[Person] =
+    encodedListOfRecords.map(av =>
+      zioBlocksCodec.decoder(av) match {
+        case Right(value) => value
+        case Left(error)  => sys.error(error.getMessage)
+      }
+    )
+
+  @Benchmark
   def writingScanamo: Seq[ScanamoValue] = listOfRecords.map(ScanamoCodec.person.write)
 
   @Benchmark
@@ -79,6 +90,9 @@ class CodecBenchmarks extends BaseBenchmark {
 
   @Benchmark
   def writingZioSchema: Seq[AttributeValue] = listOfRecords.map(zioSchemaEncoder(_))
+
+  @Benchmark
+  def writingZioBlocks: Seq[AttributeValue] = listOfRecords.map(zioBlocksCodec.encoder(_))
 
 }
 
@@ -89,10 +103,13 @@ object BenchmarkDomain {
     age: Int,
     address: String
   )
-
+  object Person {
+    implicit val blocksSchema: Schema[Person] = Schema.derived
+  }
   val zioSchema: ZIOSchema[Person] = DeriveSchema.gen[Person]
 
   val zioSchemaEncoder: Encoder[Person] = Codec.encoder[Person](zioSchema)
   val zioSchemaDecoder: Decoder[Person] = Codec.decoder[Person](zioSchema)
 
+  val zioBlocksCodec: DynamoDBCodec[Person] = Schema.derived.deriving(DynamoDBBlocks.Deriver).derive
 }

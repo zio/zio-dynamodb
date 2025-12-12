@@ -3,7 +3,7 @@ package zio.dynamodb
 import zio.dynamodb.ConditionExpression.Operand._
 import zio.dynamodb.ConditionExpression._
 import zio.dynamodb.DynamoDBError.ItemError
-import zio.schema.Schema
+
 import scala.collection.immutable.Set
 import scala.collection.immutable.{ Map => SMap }
 import scala.util.Try
@@ -14,7 +14,7 @@ sealed trait AttributeValue { self =>
   def toAttrMap: Either[ItemError, AttrMap] =
     FromAttributeValue.attrMapFromAttributeValue.fromAttributeValue(self)
 
-  def decode[A](implicit schema: Schema[A]): Either[ItemError, A] = Codec.decoder(schema)(self)
+  def decode[A: SchemaCodec]: Either[ItemError, A] = SchemaCodec[A].decoder(self)
 
   def ===[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From]                  = Equals(ValueOperand(self), that)
   def <>[From](that: Operand.Size[From, ScalaType]): ConditionExpression[From]                   = NotEqual(ValueOperand(self), that)
@@ -196,7 +196,7 @@ object AttributeValue {
   def apply[A](a: A)(implicit ev: ToAttributeValue[A]): AttributeValue.WithScalaType[A] =
     ev.toAttributeValue(a).asInstanceOf[AttributeValue.WithScalaType[A]]
 
-  def encode[A](a: A)(implicit schema: Schema[A]): AttributeValue = Codec.encoder(schema)(a)
+  def encode[A: SchemaCodec](a: A): AttributeValue = SchemaCodec[A].encoder(a)
 
   implicit val attributeValueToAttributeValue: ToAttributeValue[AttributeValue] = scala.Predef.identity(_)
 }

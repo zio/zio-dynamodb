@@ -14,7 +14,7 @@ package object dynamodb {
   val Item = AttrMap
 
   type Encoder[A]  = A => AttributeValue
-  type Decoder[+A] = AttributeValue => Either[ItemError, A]
+  type Decoder[+A] = AttributeValue => Either[ItemError, A] // TODO: Avi - Change ItemError to ItemError.DecodingError
 
   private[dynamodb] def ddbExecute[A](query: DynamoDBQuery[_, A]): ZIO[DynamoDBExecutor, DynamoDBError, A] =
     ZIO.serviceWithZIO[DynamoDBExecutor](_.execute(query))
