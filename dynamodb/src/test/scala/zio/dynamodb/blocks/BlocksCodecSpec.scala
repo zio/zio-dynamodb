@@ -11,9 +11,9 @@ import zio.test.{ assertTrue, ZIOSpecDefault }
 object BlocksCodecSpec extends ZIOSpecDefault {
   sealed trait TrafficLight
   object TrafficLight {
-    final object Red    extends TrafficLight
-    final object Yellow extends TrafficLight
-    final object Green  extends TrafficLight
+    case object Red    extends TrafficLight
+    case object Yellow extends TrafficLight
+    case object Green  extends TrafficLight
 
     implicit val schema: Schema[TrafficLight] = Schema.derived
   }
