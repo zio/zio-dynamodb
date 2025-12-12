@@ -670,8 +670,8 @@ object DynamoDBQuery {
 //    val toSchema       = Schema[To]
     val scFrom: SchemaCodec[From] = SchemaCodec[From]
     val scTo: SchemaCodec[To]     = SchemaCodec[To]
-    putItem(tableName, toItem(a.asInstanceOf[From])(/*fromEnumSchema*/ scFrom))
-      .map(_.flatMap(item => fromItem(item)(/*toSchema*/ scTo).toOption))
+    putItem(tableName, toItem(a.asInstanceOf[From])( /*fromEnumSchema*/ scFrom))
+      .map(_.flatMap(item => fromItem(item)( /*toSchema*/ scTo).toOption))
   }
 
   private[dynamodb] def toItem[A: SchemaCodec](a: A): Item =
