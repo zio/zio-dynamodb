@@ -8,7 +8,7 @@ import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb.{ AttributeValue, Decoder, Encoder, Item }
 import zio.test.{ assertTrue, ZIOSpecDefault }
 
-object BlocksSpec extends ZIOSpecDefault {
+object BlocksCodecSpec extends ZIOSpecDefault {
   sealed trait TrafficLight
   object TrafficLight {
     final case object Red    extends TrafficLight
