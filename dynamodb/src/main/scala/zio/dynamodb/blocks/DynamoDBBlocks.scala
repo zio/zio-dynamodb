@@ -225,8 +225,8 @@ object DynamoDBBlocks {
                     val name   = field.name
 
                     val av: AttributeValue = avMap.value.get(AttributeValue.String(name)).getOrElse(null)
-                    if (av eq null) // TODO: obvs !!!
-                      throw new Exception(s"Missing attribute value for field: $name")
+                    if (av eq null) // TODO: Avi - should we fast fail on this?
+                      errors.addOne(s"Missing attribute value for field: $name  len: $len")
 
                     field.valueType match {
                       case DynamoDBCodec.intType    =>
@@ -259,11 +259,9 @@ object DynamoDBBlocks {
           }
         }
       } else {
-        println(s"XXXXX record is NOT Binding: $reflect")
         record.recordBinding.asInstanceOf[BindingInstance[DynamoDBCodec, ?, A]].instance.force
       }
     } else {
-      println(s"XXXXX reflect: $reflect not handled yet")
       ???
     }
 

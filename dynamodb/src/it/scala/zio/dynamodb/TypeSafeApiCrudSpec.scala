@@ -127,6 +127,15 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           } yield assertTrue(rtrn == Some(originalPerson) && updated == updatedPerson)
         }
       },
+      test("put only") {
+        withSingleIdKeyTable { tableName =>
+          val person = Person("1", "Smith", Some("John"), 21)
+          for {
+            _ <- put(tableName, person).execute
+            _  = println(s"XXXXX after put")
+          } yield assertTrue(true)
+        }
+      },
       test("and get simple round trip") {
         withSingleIdKeyTable { tableName =>
           val person = Person("1", "Smith", Some("John"), 21)
