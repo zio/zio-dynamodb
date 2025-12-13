@@ -258,12 +258,10 @@ object DynamoDBBlocks {
               }
           }
         }
-      } else {
+      } else
         record.recordBinding.asInstanceOf[BindingInstance[DynamoDBCodec, ?, A]].instance.force
-      }
-    } else {
+    } else
       ???
-    }
 
   final case class FieldInfo(
     name: String,
