@@ -84,7 +84,7 @@ object BlocksApi {
         // get field name from the lens
         topLevelLensFieldName(lens) match {
           case Some(field) =>
-            val enc: Encoder[Any]       = schema.derive(DynamoDBBlocks.Deriver).encoder
+            val enc                     = schema.derive(DynamoDBBlocks.Deriver).encoder
             val attrVal: AttributeValue = enc(a)
             PartitionKeyEquals[S](PartitionKey(field), attrVal)
           case _           =>
