@@ -3,7 +3,7 @@ package zio.dynamodb.blocks
 import zio.blocks.schema.SchemaExpr.RelationalOperator
 import zio.dynamodb._
 import zio.blocks.schema._
-import zio.dynamodb.KeyConditionExpr.PartitionKeyEquals
+import zio.dynamodb.KeyConditionExpr.{ CompositePrimaryKeyExpr, PartitionKeyEquals }
 
 import scala.language.implicitConversions
 
@@ -22,6 +22,31 @@ TODO
 - Schema2 WrapperTypes + Transformations
  */
 object BlocksApi {
+  implicit class SchemaExprOps[A, B](expr: SchemaExpr[A, B]) {
+
+    final def &&[B2](
+      that: SchemaExpr[A, B2]
+    )(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean] =
+      SchemaExpr.Logical(
+        expr.asEquivalent[Boolean],
+        that.asEquivalent[Boolean],
+        SchemaExpr.LogicalOperator.And
+      )
+
+    final def ||[B2](
+      that: SchemaExpr[A, B2]
+    )(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean] =
+      SchemaExpr.Logical(
+        expr.asEquivalent[Boolean],
+        that.asEquivalent[Boolean],
+        SchemaExpr.LogicalOperator.Or
+      )
+
+    final def asEquivalent[B2](implicit ev: B <:< B2): SchemaExpr[A, B2] =
+      expr.asInstanceOf[SchemaExpr[A, B2]]
+
+  }
+
   implicit def fromLensToProjectionExpression[S, A](lens: Lens[S, A]): ProjectionExpression[S, A] =
     OpticToPE.pe(lens)
 
@@ -75,7 +100,6 @@ object BlocksApi {
 
     expr match {
       // simplest use case - a single partition key at the top level with an equality op to a literal value
-      // TODO: Composite use case
       case SchemaExpr.Relational(
             SchemaExpr.Optic(lens: Lens[_, _]),
             SchemaExpr.Literal(a, schema),
@@ -90,6 +114,37 @@ object BlocksApi {
           case _           =>
             throw new Exception(s"Expected a top level field in the lens, got: $lens")
         }
+      // composite primary key expression - partition key equality And sort key equality
+      case SchemaExpr.Logical(
+            SchemaExpr.Relational(
+              SchemaExpr.Optic(pkLens: Lens[_, _]),
+              SchemaExpr.Literal(pkVal, pkSchema),
+              RelationalOperator.Equal
+            ),
+            SchemaExpr.Relational(
+              SchemaExpr.Optic(skLens: Lens[_, _]),
+              SchemaExpr.Literal(skVal, skSchema),
+              RelationalOperator.Equal // TODO: expand to other ops
+            ),
+            SchemaExpr.LogicalOperator.And
+          ) =>
+        val pkEquals = topLevelLensFieldName(pkLens) match {
+          case Some(field) =>
+            val enc                     = pkSchema.derive(DynamoDBBlocks.Deriver).encoder
+            val attrVal: AttributeValue = enc(pkVal)
+            PartitionKeyEquals[S](PartitionKey(field), attrVal)
+          case _           =>
+            throw new Exception(s"Expected a top level field in the lens, got: $pkLens")
+        }
+        val skEquals = topLevelLensFieldName(skLens) match {
+          case Some(field) =>
+            val enc                     = skSchema.derive(DynamoDBBlocks.Deriver).encoder
+            val attrVal: AttributeValue = enc(skVal)
+            KeyConditionExpr.SortKeyEquals[S](SortKey(field), attrVal)
+          case _           =>
+            throw new Exception(s"Expected a top level field in the lens, got: $skLens")
+        }
+        CompositePrimaryKeyExpr(pkEquals, skEquals)
       case expr =>
         throw new Exception(s"unexpected SchemaExpr: $expr")
     }
