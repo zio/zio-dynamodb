@@ -18,17 +18,17 @@ UpdateExpression           | ZDDB API           | SchemaExpr + implicit def -> U
 Primary Keys               | ZDDB API           | SchemaExpr + implicit def -> PKExpr |
 QueryAPI                   | single API         | single API                               |
 
-TODO
-- Schema2 WrapperTypes + Transformations
  */
-object BlocksApi {
-  implicit class SchemaExprOps[A, B](expr: SchemaExpr[A, B]) {
+object BlocksApi extends LowPrioritySchemaExprConversions {
+
+  // TODO: Avi - delete when we have this capability in Blocks
+  implicit final class SchemaExprOps[A, B](expr: SchemaExpr[A, B]) {
 
     final def &&[B2](
       that: SchemaExpr[A, B2]
     )(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean] =
       SchemaExpr.Logical(
-        expr.asEquivalent[Boolean],
+        asEquivalent[Boolean],
         that.asEquivalent[Boolean],
         SchemaExpr.LogicalOperator.And
       )
@@ -37,7 +37,7 @@ object BlocksApi {
       that: SchemaExpr[A, B2]
     )(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean] =
       SchemaExpr.Logical(
-        expr.asEquivalent[Boolean],
+        asEquivalent[Boolean],
         that.asEquivalent[Boolean],
         SchemaExpr.LogicalOperator.Or
       )
@@ -52,16 +52,6 @@ object BlocksApi {
 
   implicit def fromOptionalToProjectionExpression[S, A](optional: Optional[S, A]): ProjectionExpression[S, A] =
     OpticToPE.pe(optional)
-
-  implicit def fromSchemaExprToPKExpression[A, B](
-    expr: SchemaExpr[A, B]
-  ): KeyConditionExpr.PrimaryKeyExpr[A] =
-    schemaExprToPrimaryKeyExpr(expr)
-
-  implicit def fromSchemaExprToConditionExpression[A, B](
-    expr: SchemaExpr[A, B]
-  ): ConditionExpression[A] =
-    schemaExprToConditionExpression(expr)
 
   implicit class OptionalToUpdateExpression[From, To: ToAttributeValue](optional: Optional[From, To]) {
     // TODO: other ops like ADD etc etc
@@ -79,10 +69,111 @@ object BlocksApi {
         OpticToPE.pe(lens),
         UpdateExpression.SetOperand.ValueOperand(ToAttributeValue[To].toAttributeValue(a))
       )
+  }
+}
 
+/*
+ConditionExpression
+  AttributeExists
+  NotEqual
+  AttributeType
+  And
+  LessThanOrEqual
+  Contains
+  Not
+  Between
+  LessThan
+  Equals
+  AttributeNotExists
+  In
+  Or
+  GreaterThan
+  BeginsWith
+  GreaterThanOrEqual
+
+Operand extends ConditionExpression
+  Size
+  ValueOperand
+  ProjectionExpressionOperand
+ */
+
+trait LowPrioritySchemaExprConversions {
+  implicit def fromSchemaExprToPKExpression[A, B](
+    expr: SchemaExpr[A, B]
+  ): KeyConditionExpr.PrimaryKeyExpr[A] =
+    schemaExprToPrimaryKeyExpr(expr)
+
+  implicit def fromSchemaExprToConditionExpression[A, B](
+    expr: SchemaExpr[A, B]
+  ): ConditionExpression[A] =
+    schemaExprToConditionExpression(expr)
+
+  private def schemaExprToConditionExpression[A, B](
+    expr: SchemaExpr[A, B]
+  ): ConditionExpression[A] = {
+    def opticToPE[S, A](optic: Optic[S, A]): ProjectionExpression[S, A] =
+      optic match {
+        case l: Lens[S, A]     =>
+          OpticToPE.pe(l)
+        case o: Optional[S, A] =>
+          OpticToPE.pe(o)
+        case _                 =>
+          throw new Exception("not a lens")
+      }
+
+    def toRelationalConditionExpression[A](
+      left: ConditionExpression.Operand[A, _],
+      right: ConditionExpression.Operand[A, _],
+      operator: SchemaExpr.RelationalOperator
+    ): ConditionExpression[A] =
+      operator match {
+        case SchemaExpr.RelationalOperator.GreaterThanOrEqual =>
+          ConditionExpression.GreaterThanOrEqual(left, right)
+        case SchemaExpr.RelationalOperator.GreaterThan        =>
+          ConditionExpression.GreaterThan(left, right)
+        case SchemaExpr.RelationalOperator.LessThanOrEqual    =>
+          ConditionExpression.LessThanOrEqual(left, right)
+        case SchemaExpr.RelationalOperator.LessThan           =>
+          ConditionExpression.LessThan(left, right)
+        case SchemaExpr.RelationalOperator.Equal              =>
+          ConditionExpression.Equals(left, right)
+        case SchemaExpr.RelationalOperator.NotEqual           =>
+          ConditionExpression.NotEqual(left, right)
+      }
+
+    def toLogicalConditionExpression[A](
+      left: ConditionExpression[A],
+      right: ConditionExpression[A],
+      operator: SchemaExpr.LogicalOperator
+    ): ConditionExpression[A] =
+      operator match {
+        case SchemaExpr.LogicalOperator.And =>
+          ConditionExpression.And(left, right)
+        case SchemaExpr.LogicalOperator.Or  =>
+          ConditionExpression.Or(left, right)
+      }
+
+    expr match {
+      case SchemaExpr.Relational(SchemaExpr.Optic(o), SchemaExpr.Literal(a, schema), operator) =>
+        val enc                     = schema.derive(DynamoDBBlocks.Deriver).encoder
+        val attrVal: AttributeValue = enc(a)
+
+        val pe           = opticToPE(o)
+        val peOperand    = ConditionExpression.Operand.ProjectionExpressionOperand[A](pe)
+        val valueOperand = ConditionExpression.Operand.ValueOperand[A](attrVal)
+        toRelationalConditionExpression(peOperand, valueOperand, operator)
+      case SchemaExpr.Logical(left, right, logicalOperator)                                    =>
+        toLogicalConditionExpression(
+          schemaExprToConditionExpression(left),
+          schemaExprToConditionExpression(right),
+          logicalOperator
+        )
+      case expr                                                                                =>
+        throw new Exception(s"unexpected SchemaExpr: $expr")
+    }
   }
 
-  private def schemaExprToPrimaryKeyExpr[S, A](
+  private[this] def schemaExprToPrimaryKeyExpr[S, A](
     expr: SchemaExpr[S, A]
   ): KeyConditionExpr.PrimaryKeyExpr[S] = {
     def topLevelLensFieldName[S, A](lens: Lens[S, A]): Option[String] = {
@@ -150,94 +241,4 @@ object BlocksApi {
     }
   }
 
-  private def schemaExprToConditionExpression[A, B](
-    expr: SchemaExpr[A, B]
-  ): ConditionExpression[A] = {
-    def opticToPE[S, A](optic: Optic[S, A]): ProjectionExpression[S, A] =
-      optic match {
-        case l: Lens[S, A]     =>
-          OpticToPE.pe(l)
-        case o: Optional[S, A] =>
-          OpticToPE.pe(o)
-        case _                 =>
-          throw new Exception("not a lens")
-      }
-
-    def toRelationalConditionExpression[A](
-      left: ConditionExpression.Operand[A, _],
-      right: ConditionExpression.Operand[A, _],
-      operator: SchemaExpr.RelationalOperator
-    ): ConditionExpression[A] =
-      operator match {
-        case SchemaExpr.RelationalOperator.GreaterThanOrEqual =>
-          ConditionExpression.GreaterThanOrEqual(left, right)
-        case SchemaExpr.RelationalOperator.GreaterThan        =>
-          ConditionExpression.GreaterThan(left, right)
-        case SchemaExpr.RelationalOperator.LessThanOrEqual    =>
-          ConditionExpression.LessThanOrEqual(left, right)
-        case SchemaExpr.RelationalOperator.LessThan           =>
-          ConditionExpression.LessThan(left, right)
-        case SchemaExpr.RelationalOperator.Equal              =>
-          ConditionExpression.Equals(left, right)
-        case SchemaExpr.RelationalOperator.NotEqual           =>
-          ConditionExpression.NotEqual(left, right)
-      }
-
-    def toLogicalConditionExpression[A](
-      left: ConditionExpression[A],
-      right: ConditionExpression[A],
-      operator: SchemaExpr.LogicalOperator
-    ): ConditionExpression[A] =
-      operator match {
-        case SchemaExpr.LogicalOperator.And =>
-          ConditionExpression.And(left, right)
-        case SchemaExpr.LogicalOperator.Or  =>
-          ConditionExpression.Or(left, right)
-      }
-
-    expr match {
-      case SchemaExpr.Relational(SchemaExpr.Optic(o), SchemaExpr.Literal(a, schema), operator) =>
-        val enc                     = schema.derive(DynamoDBBlocks.Deriver).encoder
-        val attrVal: AttributeValue = enc(a)
-
-        val pe           = opticToPE(o)
-        val peOperand    = ConditionExpression.Operand.ProjectionExpressionOperand[A](pe)
-        val valueOperand = ConditionExpression.Operand.ValueOperand[A](attrVal)
-        toRelationalConditionExpression(peOperand, valueOperand, operator)
-      case SchemaExpr.Logical(left, right, logicalOperator)                                    =>
-        toLogicalConditionExpression(
-          schemaExprToConditionExpression(left),
-          schemaExprToConditionExpression(right),
-          logicalOperator
-        )
-      case expr                                                                                =>
-        throw new Exception(s"unexpected SchemaExpr: $expr")
-    }
-  }
-
 }
-
-/*
-ConditionExpression
-  AttributeExists
-  NotEqual
-  AttributeType
-  And
-  LessThanOrEqual
-  Contains
-  Not
-  Between
-  LessThan
-  Equals
-  AttributeNotExists
-  In
-  Or
-  GreaterThan
-  BeginsWith
-  GreaterThanOrEqual
-
-Operand extends ConditionExpression
-  Size
-  ValueOperand
-  ProjectionExpressionOperand
- */
