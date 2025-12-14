@@ -7,7 +7,7 @@ import zio.test._
 
 object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
   val spec = suite("Blocks Schema Crud Spec")(
-    test("put and get using expressions in query API") {
+    test("put and get using Blocks expressions in query API") {
       withSingleIdKeyTable { tableName =>
         import zio.dynamodb.blocks.BlocksApi._
 

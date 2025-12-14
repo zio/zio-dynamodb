@@ -43,7 +43,7 @@ object BlocksApi {
     def set(a: To): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
         OpticToPE.pe(optional),
-        UpdateExpression.SetOperand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(a))
+        UpdateExpression.SetOperand.ValueOperand(ToAttributeValue[To].toAttributeValue(a))
       )
   }
 
@@ -52,7 +52,7 @@ object BlocksApi {
     def set(a: To): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
         OpticToPE.pe(lens),
-        UpdateExpression.SetOperand.ValueOperand(implicitly[ToAttributeValue[To]].toAttributeValue(a))
+        UpdateExpression.SetOperand.ValueOperand(ToAttributeValue[To].toAttributeValue(a))
       )
 
   }
