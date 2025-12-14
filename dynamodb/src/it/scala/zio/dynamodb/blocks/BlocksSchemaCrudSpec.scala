@@ -41,7 +41,7 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
         for {
           _     <- DynamoDBQuery.put(tableName, person).where(Person.id.notExists).execute
           _     <- DynamoDBQuery
-                     .update(tableName)((Person.id === "1").&&(Person.year === "2025"))(Person.name.set("Smith"))
+                     .update(tableName)(Person.id === "1" && Person.year === "2025")(Person.name.set("Smith"))
                      .execute
           found <- DynamoDBQuery.get(tableName)(Person.id === "1" && Person.year === "2025").execute.absolve
         } yield assertTrue(found == person.copy(name = "Smith"))
