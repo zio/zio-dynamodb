@@ -92,7 +92,7 @@ object BlocksCodecSpec extends ZIOSpecDefault {
   final case class RecordWithEither(either: Either[String, Int])
   object RecordWithEither extends CompanionOptics[RecordWithEither] {
     implicit val schema: Schema[RecordWithEither]                = Schema.derived
-    val either /*: Lens[RecordWithEither, Either[String, Int]]*/ = optic(_.either)
+    val either /*: Lens[RecordWithEither, Either[String, Int]]*/ = $(_.either)
   }
 
   final case class RecordWithOption(id: String, option: Option[Int])
@@ -177,7 +177,7 @@ object BlocksCodecSpec extends ZIOSpecDefault {
   }
 
   val spec = suite("BlocksSpec")(
-    test("investigate String field in record override codec") {
+    test("investigate field codec override") {
       val codecToUpper: DynamoDBCodec[String] = new DynamoDBCodec[String] {
         override def encoder: Encoder[String] =
           s => {

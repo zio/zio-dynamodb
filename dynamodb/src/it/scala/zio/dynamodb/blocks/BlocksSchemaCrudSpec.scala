@@ -13,8 +13,8 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
         final case class Person(id: String, name: String)
         object Person extends CompanionOptics[Person] {
           implicit val schema: Schema[Person] = Schema.derived
-          val id: Lens[Person, String]        = optic(_.id)
-          val name: Lens[Person, String]      = optic(_.name)
+          val id: Lens[Person, String]        = $(_.id)
+          val name: Lens[Person, String]      = $(_.name)
         }
 
         val person = Person("1", "Jones")
@@ -32,9 +32,9 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
         final case class Person(id: String, year: String, name: String)
         object Person extends CompanionOptics[Person] {
           implicit val schema: Schema[Person] = Schema.derived
-          val id: Lens[Person, String]        = optic(_.id)
-          val year: Lens[Person, String]      = optic(_.year)
-          val name: Lens[Person, String]      = optic(_.name)
+          val id: Lens[Person, String]        = $(_.id)
+          val year: Lens[Person, String]      = $(_.year)
+          val name: Lens[Person, String]      = $(_.name)
         }
 
         val person = Person("1", "2025", "Jones")
