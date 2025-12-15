@@ -21,32 +21,6 @@ QueryAPI                   | single API         | single API                    
  */
 object BlocksApi extends LowPrioritySchemaExprConversions {
 
-  // TODO: Avi - delete when we have this capability in Blocks
-  implicit final class SchemaExprOps[A, B](expr: SchemaExpr[A, B]) {
-
-    final def &&[B2](
-      that: SchemaExpr[A, B2]
-    )(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean] =
-      SchemaExpr.Logical(
-        asEquivalent[Boolean],
-        that.asEquivalent[Boolean],
-        SchemaExpr.LogicalOperator.And
-      )
-
-    final def ||[B2](
-      that: SchemaExpr[A, B2]
-    )(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean] =
-      SchemaExpr.Logical(
-        asEquivalent[Boolean],
-        that.asEquivalent[Boolean],
-        SchemaExpr.LogicalOperator.Or
-      )
-
-    final def asEquivalent[B2](implicit ev: B <:< B2): SchemaExpr[A, B2] =
-      expr.asInstanceOf[SchemaExpr[A, B2]]
-
-  }
-
   implicit def fromLensToProjectionExpression[S, A](lens: Lens[S, A]): ProjectionExpression[S, A] =
     OpticToPE.pe(lens)
 
