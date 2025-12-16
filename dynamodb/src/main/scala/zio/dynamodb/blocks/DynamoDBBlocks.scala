@@ -13,92 +13,100 @@ import zio.dynamodb.{ AttributeValue, Decoder, Encoder }
 
 import scala.collection.mutable.ArrayBuffer
 
-object DynamoDBCodecDeriver extends DynamoDBBlocks.DynamoDBCodecDeriver()
-
 /**
  * borrows heavily from Andriy Plokhotnyuk's zio-blocks JSON codec https://github.com/zio/zio-blocks
  */
-object DynamoDBBlocks {
+object DynamoDBCodecDeriver extends DynamoDBCodecDeriver(requireOptionFields = false) {}
 
-  class DynamoDBCodecDeriver() extends Deriver[DynamoDBCodec] {
-    override def derivePrimitive[F[_, _], A](
-      primitiveType: PrimitiveType[A],
-      typeName: TypeName[A],
-      binding: Binding[Primitive, A],
-      doc: Doc,
-      modifiers: Seq[Modifier.Reflect]
-    ): Lazy[DynamoDBCodec[A]] =
-      Lazy(
-        deriveCodec(
-          Reflect.Primitive(
-            primitiveType = primitiveType,
-            typeName = typeName,
-            primitiveBinding = binding,
-            doc = doc,
-            modifiers = modifiers
-          )
+// TODO: Avi - create an issue in Blocks to either expose these or to provide higher level APIs to check for common Scala types
+private object Namespace {
+  private[blocks] val javaTime: Namespace                 = new Namespace("java" :: "time" :: Nil)
+  private[blocks] val javaUtil: Namespace                 = new Namespace("java" :: "util" :: Nil)
+  private[blocks] val scala: Namespace                    = new Namespace("scala" :: Nil)
+  private[blocks] val scalaCollectionImmutable: Namespace = new Namespace(
+    "scala" :: "collection" :: "immutable" :: Nil
+  )
+  private[blocks] val zioBlocksSchema: Namespace          = new Namespace("zio" :: "blocks" :: "schema" :: Nil)
+}
+
+class DynamoDBCodecDeriver private (requireOptionFields: Boolean) extends Deriver[DynamoDBCodec] {
+  override def derivePrimitive[F[_, _], A](
+    primitiveType: PrimitiveType[A],
+    typeName: TypeName[A],
+    binding: Binding[Primitive, A],
+    doc: Doc,
+    modifiers: Seq[Modifier.Reflect]
+  ): Lazy[DynamoDBCodec[A]] =
+    Lazy(
+      deriveCodec(
+        Reflect.Primitive(
+          primitiveType = primitiveType,
+          typeName = typeName,
+          primitiveBinding = binding,
+          doc = doc,
+          modifiers = modifiers
         )
       )
+    )
 
-    override def deriveRecord[F[_, _], A](
-      fields: IndexedSeq[Term[F, A, _]],
-      typeName: TypeName[A],
-      binding: Binding[BindingType.Record, A],
-      doc: Doc,
-      modifiers: Seq[Modifier.Reflect]
-    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[A]] =
-      Lazy(
-        deriveCodec(
-          Reflect.Record(
-            fields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, _]]],
-            typeName = typeName,
-            recordBinding = binding,
-            doc = doc,
-            modifiers = modifiers
-          )
+  override def deriveRecord[F[_, _], A](
+    fields: IndexedSeq[Term[F, A, _]],
+    typeName: TypeName[A],
+    binding: Binding[BindingType.Record, A],
+    doc: Doc,
+    modifiers: Seq[Modifier.Reflect]
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[A]] =
+    Lazy(
+      deriveCodec(
+        Reflect.Record(
+          fields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, _]]],
+          typeName = typeName,
+          recordBinding = binding,
+          doc = doc,
+          modifiers = modifiers
         )
       )
+    )
 
-    override def deriveVariant[F[_, _], A](
-      cases: IndexedSeq[Term[F, A, _]],
-      typeName: TypeName[A],
-      binding: Binding[Variant, A],
-      doc: Doc,
-      modifiers: Seq[Modifier.Reflect]
-    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[A]] = ???
+  override def deriveVariant[F[_, _], A](
+    cases: IndexedSeq[Term[F, A, _]],
+    typeName: TypeName[A],
+    binding: Binding[Variant, A],
+    doc: Doc,
+    modifiers: Seq[Modifier.Reflect]
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[A]] = ???
 
-    override def deriveSequence[F[_, _], C[_], A](
-      element: Reflect[F, A],
-      typeName: TypeName[C[A]],
-      binding: Binding[BindingType.Seq[C], C[A]],
-      doc: Doc,
-      modifiers: Seq[Modifier.Reflect]
-    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[C[A]]] = ???
+  override def deriveSequence[F[_, _], C[_], A](
+    element: Reflect[F, A],
+    typeName: TypeName[C[A]],
+    binding: Binding[BindingType.Seq[C], C[A]],
+    doc: Doc,
+    modifiers: Seq[Modifier.Reflect]
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[C[A]]] = ???
 
-    override def deriveMap[F[_, _], M[_, _], K, V](
-      key: Reflect[F, K],
-      value: Reflect[F, V],
-      typeName: TypeName[M[K, V]],
-      binding: Binding[BindingType.Map[M], M[K, V]],
-      doc: Doc,
-      modifiers: Seq[Modifier.Reflect]
-    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[M[K, V]]] = ???
+  override def deriveMap[F[_, _], M[_, _], K, V](
+    key: Reflect[F, K],
+    value: Reflect[F, V],
+    typeName: TypeName[M[K, V]],
+    binding: Binding[BindingType.Map[M], M[K, V]],
+    doc: Doc,
+    modifiers: Seq[Modifier.Reflect]
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[M[K, V]]] = ???
 
-    override def deriveDynamic[F[_, _]](
-      binding: Binding[BindingType.Dynamic, DynamicValue],
-      doc: Doc,
-      modifiers: Seq[Modifier.Reflect]
-    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[DynamicValue]] = ???
+  override def deriveDynamic[F[_, _]](
+    binding: Binding[BindingType.Dynamic, DynamicValue],
+    doc: Doc,
+    modifiers: Seq[Modifier.Reflect]
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[DynamicValue]] = ???
 
-    override def deriveWrapper[F[_, _], A, B](
-      wrapped: Reflect[F, B],
-      typeName: TypeName[A],
-      wrapperPrimitiveType: Option[PrimitiveType[A]],
-      binding: Binding[Wrapper[A, B], A],
-      doc: Doc,
-      modifiers: Seq[Modifier.Reflect]
-    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[A]] = ???
-  }
+  override def deriveWrapper[F[_, _], A, B](
+    wrapped: Reflect[F, B],
+    typeName: TypeName[A],
+    wrapperPrimitiveType: Option[PrimitiveType[A]],
+    binding: Binding[Wrapper[A, B], A],
+    doc: Doc,
+    modifiers: Seq[Modifier.Reflect]
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[A]] = ???
 
   private[this] val stringCodec: DynamoDBCodec[String] =
     new DynamoDBCodec[String](valueType = DynamoDBCodec.objectType) {
@@ -165,7 +173,8 @@ object DynamoDBBlocks {
             val field        = fields(idx)
             val fieldReflect = field.value
             val codec        = deriveCodec(fieldReflect)
-            fieldInfos(idx) = new FieldInfo(field.name, offset, codec)
+            val optRequired  = isOptional(fieldReflect)
+            fieldInfos(idx) = new FieldInfo(field.name, offset, codec, optRequired)
             offset += codec.valueOffset
             idx += 1
           }
@@ -262,25 +271,27 @@ object DynamoDBBlocks {
         }
       } else
         record.recordBinding.asInstanceOf[BindingInstance[DynamoDBCodec, ?, A]].instance.force
-    } else
+    } else {
+      println(s"XXXXX reflect type $reflect not handled yet")
       ???
+    } // end deriveCodec
 
-  final case class FieldInfo(
-    name: String,
-    offset: RegisterOffset,
-    codec: DynamoDBCodec[?],
-    isOptional: Boolean = false
-  ) {
-    val valueType: Int = codec.valueType
-  }
+  private[this] def isOptional[F[_, _], A](reflect: Reflect[F, A]): Boolean =
+    !requireOptionFields && reflect.isVariant && {
+      val variant  = reflect.asVariant.get
+      val typeName = reflect.typeName
+      val cases    = variant.cases
+      typeName.namespace == Namespace.scala && typeName.name == "Option" &&
+      cases.length == 2 && cases(1).name == "Some"
+    }
 
-//  private[this] def isOptional[F[_, _], A](reflect: Reflect[F, A]): Boolean =
-//    !requireOptionFields && reflect.isVariant && {
-//      val variant  = reflect.asVariant.get
-//      val typeName = reflect.typeName
-//      val cases    = variant.cases
-//      typeName.namespace == Namespace.scala && typeName.name == "Option" &&
-//      cases.length == 2 && cases(1).name == "Some"
-//    }
+} // end class DynamoDBCodecDeriver
 
+private final case class FieldInfo(
+  name: String,
+  offset: RegisterOffset,
+  codec: DynamoDBCodec[?],
+  isOptional: Boolean
+) {
+  val valueType: Int = codec.valueType
 }
