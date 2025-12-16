@@ -13,46 +13,14 @@ import zio.dynamodb.{ AttributeValue, Decoder, Encoder }
 
 import scala.collection.mutable.ArrayBuffer
 
+object DynamoDBCodecDeriver extends DynamoDBBlocks.DynamoDBCodecDeriver()
+
 /**
  * borrows heavily from Andriy Plokhotnyuk's zio-blocks JSON codec https://github.com/zio/zio-blocks
  */
 object DynamoDBBlocks {
 
-  private[this] val stringCodec: DynamoDBCodec[String] =
-    new DynamoDBCodec[String](valueType = DynamoDBCodec.objectType) {
-      override def encoder: Encoder[String] =
-        a => AttributeValue.String(a.toString)
-
-      override def decoder: Decoder[String] = {
-        case AttributeValue.String(s) => Right(s)
-        case other                    => Left(DecodingError(s"Expected String attribute value but got: $other"))
-      }
-    }
-
-  private[this] val intCodec: DynamoDBCodec[Int] = new DynamoDBCodec[Int](valueType = DynamoDBCodec.intType) {
-    override def encoder: Encoder[Int] =
-      (a: Int) => AttributeValue.Number(BigDecimal.valueOf(a.toLong))
-
-    override def decoder: Decoder[Int] = {
-      case AttributeValue.Number(bd) => Right(bd.intValue)
-      case av                        =>
-        Left(DecodingError(s"Error getting int value. Expected AttributeValue.Number but found ${av.showType}"))
-    }
-  }
-
-  private[this] val longCodec: DynamoDBCodec[Long] = new DynamoDBCodec[Long](valueType = DynamoDBCodec.longType) {
-    override def encoder: Encoder[Long] = { (a: Long) =>
-      AttributeValue.Number(BigDecimal.valueOf(a))
-    }
-
-    override def decoder: Decoder[Long] = {
-      case AttributeValue.Number(bd) => Right(bd.longValue)
-      case av                        =>
-        Left(DecodingError(s"Error getting long value. Expected AttributeValue.Number but found ${av.showType}"))
-    }
-  }
-
-  object Deriver extends Deriver[DynamoDBCodec] {
+  class DynamoDBCodecDeriver() extends Deriver[DynamoDBCodec] {
     override def derivePrimitive[F[_, _], A](
       primitiveType: PrimitiveType[A],
       typeName: TypeName[A],
@@ -130,6 +98,40 @@ object DynamoDBBlocks {
       doc: Doc,
       modifiers: Seq[Modifier.Reflect]
     )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[A]] = ???
+  }
+
+  private[this] val stringCodec: DynamoDBCodec[String] =
+    new DynamoDBCodec[String](valueType = DynamoDBCodec.objectType) {
+      override def encoder: Encoder[String] =
+        a => AttributeValue.String(a.toString)
+
+      override def decoder: Decoder[String] = {
+        case AttributeValue.String(s) => Right(s)
+        case other                    => Left(DecodingError(s"Expected String attribute value but got: $other"))
+      }
+    }
+
+  private[this] val intCodec: DynamoDBCodec[Int] = new DynamoDBCodec[Int](valueType = DynamoDBCodec.intType) {
+    override def encoder: Encoder[Int] =
+      (a: Int) => AttributeValue.Number(BigDecimal.valueOf(a.toLong))
+
+    override def decoder: Decoder[Int] = {
+      case AttributeValue.Number(bd) => Right(bd.intValue)
+      case av                        =>
+        Left(DecodingError(s"Error getting int value. Expected AttributeValue.Number but found ${av.showType}"))
+    }
+  }
+
+  private[this] val longCodec: DynamoDBCodec[Long] = new DynamoDBCodec[Long](valueType = DynamoDBCodec.longType) {
+    override def encoder: Encoder[Long] = { (a: Long) =>
+      AttributeValue.Number(BigDecimal.valueOf(a))
+    }
+
+    override def decoder: Decoder[Long] = {
+      case AttributeValue.Number(bd) => Right(bd.longValue)
+      case av                        =>
+        Left(DecodingError(s"Error getting long value. Expected AttributeValue.Number but found ${av.showType}"))
+    }
   }
 
   def deriveCodec[A](
@@ -271,4 +273,14 @@ object DynamoDBBlocks {
   ) {
     val valueType: Int = codec.valueType
   }
+
+//  private[this] def isOptional[F[_, _], A](reflect: Reflect[F, A]): Boolean =
+//    !requireOptionFields && reflect.isVariant && {
+//      val variant  = reflect.asVariant.get
+//      val typeName = reflect.typeName
+//      val cases    = variant.cases
+//      typeName.namespace == Namespace.scala && typeName.name == "Option" &&
+//      cases.length == 2 && cases(1).name == "Some"
+//    }
+
 }

@@ -129,7 +129,7 @@ trait LowPrioritySchemaExprConversions {
 
     expr match {
       case SchemaExpr.Relational(SchemaExpr.Optic(o), SchemaExpr.Literal(a, schema), operator) =>
-        val enc                     = schema.derive(DynamoDBBlocks.Deriver).encoder
+        val enc                     = schema.derive(DynamoDBCodecDeriver).encoder
         val attrVal: AttributeValue = enc(a)
 
         val pe           = opticToPE(o)
@@ -173,7 +173,7 @@ trait LowPrioritySchemaExprConversions {
         // get field name from the lens
         topLevelLensFieldName(lens) match {
           case Some(field) =>
-            val enc                     = schema.derive(DynamoDBBlocks.Deriver).encoder
+            val enc                     = schema.derive(DynamoDBCodecDeriver).encoder
             val attrVal: AttributeValue = enc(a)
             PartitionKeyEquals[S](PartitionKey(field), attrVal)
           case _           =>
@@ -195,7 +195,7 @@ trait LowPrioritySchemaExprConversions {
           ) =>
         val pkEquals = topLevelLensFieldName(pkLens) match {
           case Some(field) =>
-            val enc                     = pkSchema.derive(DynamoDBBlocks.Deriver).encoder
+            val enc                     = pkSchema.derive(DynamoDBCodecDeriver).encoder
             val attrVal: AttributeValue = enc(pkVal)
             PartitionKeyEquals[S](PartitionKey(field), attrVal)
           case _           =>
@@ -203,7 +203,7 @@ trait LowPrioritySchemaExprConversions {
         }
         val skEquals = topLevelLensFieldName(skLens) match {
           case Some(field) =>
-            val enc                     = skSchema.derive(DynamoDBBlocks.Deriver).encoder
+            val enc                     = skSchema.derive(DynamoDBCodecDeriver).encoder
             val attrVal: AttributeValue = enc(skVal)
             KeyConditionExpr.SortKeyEquals[S](SortKey(field), attrVal)
           case _           =>

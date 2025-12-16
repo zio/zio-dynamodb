@@ -192,7 +192,7 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       val expectedAv                          = Item("id" -> "ONE", "age" -> 21L, "count" -> 100).toAttributeValue
       def codec: DynamoDBCodec[Person2]       =
         Person2.schema
-          .deriving(DynamoDBBlocks.Deriver)
+          .deriving(DynamoDBCodecDeriver)
           .instance(Person2.id, codecToUpper)
           .derive
       val person                              = Person2("one", 21, 100L)
@@ -203,7 +203,7 @@ object BlocksCodecSpec extends ZIOSpecDefault {
     },
     test("round trip Person2") {
       val expectedItem                  = Item("id" -> "1", "age" -> 42, "count" -> 100)
-      val codec: DynamoDBCodec[Person2] = Person2.schema.derive(DynamoDBBlocks.Deriver)
+      val codec: DynamoDBCodec[Person2] = Person2.schema.derive(DynamoDBCodecDeriver)
       val expectedPerson                = Person2("1", 42, 100)
       val enc                           = codec.encoder(expectedPerson)
       val dec                           = codec.decoder(enc)

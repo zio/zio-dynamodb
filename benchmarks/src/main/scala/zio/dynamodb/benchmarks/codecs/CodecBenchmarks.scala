@@ -6,7 +6,7 @@ import dynosaur.Schema.WriteError
 import org.openjdk.jmh.annotations._
 import org.scanamo.DynamoReadError.describe
 import zio.dynamodb.AttributeValue
-import zio.dynamodb.blocks.{ DynamoDBBlocks, DynamoDBCodec }
+import zio.dynamodb.blocks.{ DynamoDBCodec, DynamoDBCodecDeriver }
 import zio.dynamodb.{ Codec, Decoder, Encoder }
 import zio.schema.{ DeriveSchema, Schema => ZIOSchema }
 import zio.blocks.schema.Schema
@@ -111,5 +111,5 @@ object BenchmarkDomain {
   val zioSchemaEncoder: Encoder[Person] = Codec.encoder[Person](zioSchema)
   val zioSchemaDecoder: Decoder[Person] = Codec.decoder[Person](zioSchema)
 
-  val zioBlocksCodec: DynamoDBCodec[Person] = Schema.derived.deriving(DynamoDBBlocks.Deriver).derive
+  val zioBlocksCodec: DynamoDBCodec[Person] = Schema.derived.deriving(DynamoDBCodecDeriver).derive
 }
