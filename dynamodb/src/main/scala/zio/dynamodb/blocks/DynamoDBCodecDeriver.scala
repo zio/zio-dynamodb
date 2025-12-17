@@ -16,10 +16,10 @@ import scala.collection.mutable.ArrayBuffer
 /**
  * borrows heavily from Andriy Plokhotnyuk's zio-blocks JSON codec https://github.com/zio/zio-blocks
  */
-object DynamoDBCodecDeriver extends DynamoDBCodecDeriver(requireOptionFields = false) {}
+object DynamoDBCodecDeriver extends DynamoDBCodecDeriver(transientNone = true, requireOptionFields = false) {}
 
 // TODO: Avi - create an issue in Blocks to either expose these or to provide higher level APIs to check for common Scala types
-private object Namespace {
+private[blocks] object Namespace {
   private[blocks] val javaTime: Namespace                 = new Namespace("java" :: "time" :: Nil)
   private[blocks] val javaUtil: Namespace                 = new Namespace("java" :: "util" :: Nil)
   private[blocks] val scala: Namespace                    = new Namespace("scala" :: Nil)
@@ -29,7 +29,10 @@ private object Namespace {
   private[blocks] val zioBlocksSchema: Namespace          = new Namespace("zio" :: "blocks" :: "schema" :: Nil)
 }
 
-class DynamoDBCodecDeriver private (requireOptionFields: Boolean) extends Deriver[DynamoDBCodec] {
+class DynamoDBCodecDeriver private (
+  transientNone: Boolean,
+  requireOptionFields: Boolean
+) extends Deriver[DynamoDBCodec] {
   override def derivePrimitive[F[_, _], A](
     primitiveType: PrimitiveType[A],
     typeName: TypeName[A],
@@ -74,7 +77,19 @@ class DynamoDBCodecDeriver private (requireOptionFields: Boolean) extends Derive
     binding: Binding[Variant, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[A]] = ???
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[A]] =
+    Lazy(
+      deriveCodec(
+        new Reflect.Variant(
+          cases = cases.asInstanceOf[IndexedSeq[Term[Binding, A, ? <: A]]],
+          typeName = typeName,
+          variantBinding = binding,
+          doc = doc,
+          modifiers = modifiers
+        )
+      )
+    )
+
 
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
@@ -157,6 +172,26 @@ class DynamoDBCodecDeriver private (requireOptionFields: Boolean) extends Derive
             ???
         }).asInstanceOf[DynamoDBCodec[A]]
       else primitive.primitiveBinding.asInstanceOf[BindingInstance[DynamoDBCodec, ?, A]].instance.force
+    } else if (reflect.isVariant) {
+      val variant = reflect.asVariant.get
+      if (variant.variantBinding.isInstanceOf[Binding[?, ?]])
+        option(variant) match {
+          case Some(value) =>
+            val valueCodec = deriveCodec(value).asInstanceOf[DynamoDBCodec[Any]]
+            new DynamoDBCodec[Option[Any]]() {
+              override def encoder: Encoder[Option[Any]] =
+                a =>
+                  a match {
+                    case Some(value) => valueCodec.encoder(value)
+                    case None        => AttributeValue.Null
+                  }
+
+              override def decoder: Decoder[Option[Any]] = ???
+            }.asInstanceOf[DynamoDBCodec[A]]
+          case _           => ???
+        }
+      else
+        variant.variantBinding.asInstanceOf[BindingInstance[DynamoDBCodec, ?, A]].instance.force
     } else if (reflect.isRecord) {
       val record = reflect.asRecord.get
       if (record.recordBinding.isInstanceOf[Binding[?, ?]]) {
@@ -185,6 +220,7 @@ class DynamoDBCodecDeriver private (requireOptionFields: Boolean) extends Derive
           private[this] val deconstructor = binding.deconstructor
           private[this] val usedRegisters = offset
           private[this] val fields        = fieldInfos
+          private[this] val skipNone      = transientNone
 
           override def encoder: Encoder[A] = { value =>
             val regs                         = Registers(usedRegisters)
@@ -197,25 +233,28 @@ class DynamoDBCodecDeriver private (requireOptionFields: Boolean) extends Derive
               val name   = field.name
               val offset = field.offset
               val codec  = field.codec
-              field.valueType match {
-                case DynamoDBCodec.intType    =>
-                  val value = regs.getInt(offset, 0)
-                  val av    = codec.asInstanceOf[DynamoDBCodec[Int]].encoder(value)
-                  mapBuilder.addOne(name, av)
-                case DynamoDBCodec.longType   =>
-                  val value = regs.getLong(offset, 0)
-                  val av    = codec.asInstanceOf[DynamoDBCodec[Long]].encoder(value)
-                  mapBuilder.addOne(name, av)
-                case DynamoDBCodec.objectType =>
-                  val value = regs.getObject(offset, 0)
-                  val av    = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(value)
-                  mapBuilder.addOne(name, av)
-                case _                        =>
-                  // TODO: think about what we do here
-                  val value = regs.getObject(offset, 0)
-                  val av    = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(value)
-                  mapBuilder.addOne(name, av)
-              }
+              val isOpt  = field.isOptional
+
+              if (!isOpt || (isOpt && !skipNone))
+                field.valueType match {
+                  case DynamoDBCodec.intType    =>
+                    val value = regs.getInt(offset, 0)
+                    val av    = codec.asInstanceOf[DynamoDBCodec[Int]].encoder(value)
+                    mapBuilder.addOne(name, av)
+                  case DynamoDBCodec.longType   =>
+                    val value = regs.getLong(offset, 0)
+                    val av    = codec.asInstanceOf[DynamoDBCodec[Long]].encoder(value)
+                    mapBuilder.addOne(name, av)
+                  case DynamoDBCodec.objectType =>
+                    val value = regs.getObject(offset, 0)
+                    val av    = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(value)
+                    mapBuilder.addOne(name, av)
+                  case _                        =>
+                    // TODO: think about what we do here
+                    val value = regs.getObject(offset, 0)
+                    val av    = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(value)
+                    mapBuilder.addOne(name, av)
+                }
               idx += 1
             }
             AttributeValue.Map(mapBuilder.result)
@@ -234,9 +273,19 @@ class DynamoDBCodecDeriver private (requireOptionFields: Boolean) extends Derive
                     val field  = fields(idx)
                     val offset = field.offset
                     val name   = field.name
+                    val isOpt  = field.isOptional
+                    val _      = isOpt // TODO: Avi - handle optional fields
+
+                    /*
+                    if (isOpt && skipNone) {
+                      // Set av to AV Null
+                    } else {
+                      // proceed as normal
+                    }
+                     */
 
                     val av: AttributeValue = avMap.value.get(AttributeValue.String(name)).getOrElse(null)
-                    if (av eq null) // TODO: Avi - should we fast fail on this?
+                    if (av eq null) // TODO: Avi - should we fail fast on this?
                       errors.addOne(s"Missing attribute value for field: $name  len: $len")
 
                     field.valueType match {
@@ -275,6 +324,16 @@ class DynamoDBCodecDeriver private (requireOptionFields: Boolean) extends Derive
       println(s"XXXXX reflect type $reflect not handled yet")
       ???
     } // end deriveCodec
+
+  private[this] def option[F[_, _], A](variant: Reflect.Variant[F, A]): Option[Reflect[F, ?]] = {
+    val typeName = variant.typeName
+    val cases    = variant.cases
+    if (
+      typeName.namespace == Namespace.scala && typeName.name == "Option" &&
+      cases.length == 2 && cases(1).name == "Some"
+    ) cases(1).value.asRecord.map(_.fields(0).value)
+    else None
+  }
 
   private[this] def isOptional[F[_, _], A](reflect: Reflect[F, A]): Boolean =
     !requireOptionFields && reflect.isVariant && {
