@@ -81,7 +81,7 @@ class DynamoDBCodecDeriver private (
     Lazy(
       deriveCodec(
         new Reflect.Variant(
-          cases = cases.asInstanceOf[IndexedSeq[Term[Binding, A, ? <: A]]],
+          cases = cases.asInstanceOf[IndexedSeq[Term[Binding, A, _ <: A]]],
           typeName = typeName,
           variantBinding = binding,
           doc = doc,
@@ -89,7 +89,6 @@ class DynamoDBCodecDeriver private (
         )
       )
     )
-
 
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
