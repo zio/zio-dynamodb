@@ -186,13 +186,12 @@ class DynamoDBCodecDeriver private (
           case Some(optReflect) =>
             val valueCodec = deriveCodec(optReflect).asInstanceOf[DynamoDBCodec[Any]]
             new DynamoDBCodec[Option[Any]]() {
-              override def encoder: Encoder[Option[Any]] =
-                {
-                  case Some(value) =>
-                    valueCodec.encoder(value)
-                  case None =>
-                    AttributeValue.Null
-                }
+              override def encoder: Encoder[Option[Any]] = {
+                case Some(value) =>
+                  valueCodec.encoder(value)
+                case None        =>
+                  AttributeValue.Null
+              }
 
               override def decoder: Decoder[Option[Any]] = {
                 case AttributeValue.Null =>
