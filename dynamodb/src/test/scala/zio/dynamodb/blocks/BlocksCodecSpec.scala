@@ -209,23 +209,24 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       val dec                           = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
-//    test("Record with Option[Int] Some(42)") {
-//      val expectedItem                           =
-//        Item("id" -> "1", "option" -> 42)
-//      val codec: DynamoDBCodec[RecordWithOption] = RecordWithOption.schema.derive(DynamoDBCodecDeriver)
-//      val expectedPerson                         = RecordWithOption("1", option = Some(42))
-//      val enc                                    = codec.encoder(expectedPerson)
-//      val dec                                    = codec.decoder(enc)
-//      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
-//    },
+    test("Record with Option[Int] Some(42)") {
+      val expectedItem                           =
+        Item("id" -> "1", "option" -> 42)
+      val codec: DynamoDBCodec[RecordWithOption] = RecordWithOption.schema.derive(DynamoDBCodecDeriver)
+      val expectedPerson                         = RecordWithOption("1", option = Some(42))
+      val enc                                    = codec.encoder(expectedPerson)
+      val dec                                    = codec.decoder(enc)
+      println(s"XXXXXXXXX dec: $dec")
+      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
+    },
     test("Record with Option[Int] None") {
       val expectedItem                           =
         Item("id" -> "1")
       val codec: DynamoDBCodec[RecordWithOption] = RecordWithOption.schema.derive(DynamoDBCodecDeriver)
       val expectedPerson                         = RecordWithOption("1", option = None)
       val enc                                    = codec.encoder(expectedPerson)
-//      val dec                                    = codec.decoder(enc)
-      assertTrue(enc == expectedItem.toAttributeValue /* && dec == Right(expectedPerson) */ )
+      val dec                                    = codec.decoder(enc)
+      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     }
   )
 

@@ -175,19 +175,30 @@ class DynamoDBCodecDeriver private (
       val variant = reflect.asVariant.get
       if (variant.variantBinding.isInstanceOf[Binding[?, ?]])
         option(variant) match {
-          case Some(value) =>
-            val valueCodec = deriveCodec(value).asInstanceOf[DynamoDBCodec[Any]]
+          case Some(optReflect) =>
+            val valueCodec = deriveCodec(optReflect).asInstanceOf[DynamoDBCodec[Any]]
             new DynamoDBCodec[Option[Any]]() {
               override def encoder: Encoder[Option[Any]] =
                 a =>
                   a match {
-                    case Some(value) => valueCodec.encoder(value)
-                    case None        => AttributeValue.Null
+                    case Some(value) =>
+                      valueCodec.encoder(value)
+                    case None        =>
+                      AttributeValue.Null
                   }
 
-              override def decoder: Decoder[Option[Any]] = ???
+              override def decoder: Decoder[Option[Any]] = {
+                case AttributeValue.Null =>
+                  Right(None)
+                case av                  =>
+                  valueCodec.decoder(av) match {
+                    case Right(value) => Right(Some(value))
+                    case Left(err)    => Left(err)
+                  }
+              }
             }.asInstanceOf[DynamoDBCodec[A]]
-          case _           => ???
+          case _                =>
+            ???
         }
       else
         variant.variantBinding.asInstanceOf[BindingInstance[DynamoDBCodec, ?, A]].instance.force
@@ -234,26 +245,27 @@ class DynamoDBCodecDeriver private (
               val codec  = field.codec
               val isOpt  = field.isOptional
 
-              if (!isOpt || (isOpt && !skipNone))
-                field.valueType match {
-                  case DynamoDBCodec.intType    =>
-                    val value = regs.getInt(offset, 0)
-                    val av    = codec.asInstanceOf[DynamoDBCodec[Int]].encoder(value)
+              field.valueType match {
+                case DynamoDBCodec.intType    =>
+                  val value = regs.getInt(offset, 0)
+                  val av    = codec.asInstanceOf[DynamoDBCodec[Int]].encoder(value)
+                  mapBuilder.addOne(name, av)
+                case DynamoDBCodec.longType   =>
+                  val value = regs.getLong(offset, 0)
+                  val av    = codec.asInstanceOf[DynamoDBCodec[Long]].encoder(value)
+                  mapBuilder.addOne(name, av)
+                case DynamoDBCodec.objectType =>
+                  val value = regs.getObject(offset, 0)
+                  if (!(isOpt && skipNone && (value == None))) {
+                    val av = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(value)
                     mapBuilder.addOne(name, av)
-                  case DynamoDBCodec.longType   =>
-                    val value = regs.getLong(offset, 0)
-                    val av    = codec.asInstanceOf[DynamoDBCodec[Long]].encoder(value)
-                    mapBuilder.addOne(name, av)
-                  case DynamoDBCodec.objectType =>
-                    val value = regs.getObject(offset, 0)
-                    val av    = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(value)
-                    mapBuilder.addOne(name, av)
-                  case _                        =>
-                    // TODO: think about what we do here
-                    val value = regs.getObject(offset, 0)
-                    val av    = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(value)
-                    mapBuilder.addOne(name, av)
-                }
+                  }
+                case _                        =>
+                  // TODO: think about what we do here
+                  val value = regs.getObject(offset, 0)
+                  val av    = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(value)
+                  mapBuilder.addOne(name, av)
+              }
               idx += 1
             }
             AttributeValue.Map(mapBuilder.result)
@@ -273,17 +285,11 @@ class DynamoDBCodecDeriver private (
                     val offset = field.offset
                     val name   = field.name
                     val isOpt  = field.isOptional
-                    val _      = isOpt // TODO: Avi - handle optional fields
 
-                    /*
-                    if (isOpt && skipNone) {
-                      // Set av to AV Null
-                    } else {
-                      // proceed as normal
-                    }
-                     */
+                    var av: AttributeValue = avMap.value.get(AttributeValue.String(name)).getOrElse(null)
+                    if (isOpt && skipNone && (av eq null))
+                      av = AttributeValue.Null
 
-                    val av: AttributeValue = avMap.value.get(AttributeValue.String(name)).getOrElse(null)
                     if (av eq null) // TODO: Avi - should we fail fast on this?
                       errors.addOne(s"Missing attribute value for field: $name  len: $len")
 
