@@ -32,7 +32,15 @@ private[blocks] object Namespace {
 class DynamoDBCodecDeriver private (
   transientNone: Boolean,
   requireOptionFields: Boolean
-) extends Deriver[DynamoDBCodec] {
+) extends Deriver[DynamoDBCodec] { self =>
+
+  def withTransientNone(transientNone: Boolean): DynamoDBCodecDeriver = copy(transientNone = transientNone)
+
+  def copy(
+    transientNone: Boolean = transientNone,
+    requireOptionFields: Boolean = requireOptionFields
+  ): DynamoDBCodecDeriver = new DynamoDBCodecDeriver(transientNone, requireOptionFields)
+
   override def derivePrimitive[F[_, _], A](
     primitiveType: PrimitiveType[A],
     typeName: TypeName[A],
@@ -179,13 +187,12 @@ class DynamoDBCodecDeriver private (
             val valueCodec = deriveCodec(optReflect).asInstanceOf[DynamoDBCodec[Any]]
             new DynamoDBCodec[Option[Any]]() {
               override def encoder: Encoder[Option[Any]] =
-                a =>
-                  a match {
-                    case Some(value) =>
-                      valueCodec.encoder(value)
-                    case None        =>
-                      AttributeValue.Null
-                  }
+                {
+                  case Some(value) =>
+                    valueCodec.encoder(value)
+                  case None =>
+                    AttributeValue.Null
+                }
 
               override def decoder: Decoder[Option[Any]] = {
                 case AttributeValue.Null =>
@@ -286,7 +293,7 @@ class DynamoDBCodecDeriver private (
                     val name   = field.name
                     val isOpt  = field.isOptional
 
-                    var av: AttributeValue = avMap.value.get(AttributeValue.String(name)).getOrElse(null)
+                    var av: AttributeValue = avMap.value.getOrElse(AttributeValue.String(name), null)
                     if (isOpt && skipNone && (av eq null))
                       av = AttributeValue.Null
 
