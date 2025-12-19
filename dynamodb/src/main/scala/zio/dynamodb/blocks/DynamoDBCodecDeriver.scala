@@ -41,6 +41,12 @@ class DynamoDBCodecDeriver private (
     requireOptionFields: Boolean = requireOptionFields
   ): DynamoDBCodecDeriver = new DynamoDBCodecDeriver(transientNone, requireOptionFields)
 
+  type Elem
+  type Col[_]
+  type Key
+  type Value
+  type Map[_, _]
+
   override def derivePrimitive[F[_, _], A](
     primitiveType: PrimitiveType[A],
     typeName: TypeName[A],
@@ -113,7 +119,19 @@ class DynamoDBCodecDeriver private (
     binding: Binding[BindingType.Map[M], M[K, V]],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[M[K, V]]] = ???
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[M[K, V]]] =
+    Lazy {
+      deriveCodec(
+        new Reflect.Map(
+          key = key.asInstanceOf[Reflect[Binding, K]],
+          value = value.asInstanceOf[Reflect[Binding, V]],
+          typeName = typeName,
+          mapBinding = binding,
+          doc = doc,
+          modifiers = modifiers
+        )
+      )
+    }
 
   override def deriveDynamic[F[_, _]](
     binding: Binding[BindingType.Dynamic, DynamicValue],
@@ -208,7 +226,71 @@ class DynamoDBCodecDeriver private (
         }
       else
         variant.variantBinding.asInstanceOf[BindingInstance[DynamoDBCodec, ?, A]].instance.force
-    } else if (reflect.isRecord) {
+    } else if (reflect.isMap) {
+      val map = reflect.asMapUnknown.get.map
+      if (map.mapBinding.isInstanceOf[Binding[?, ?]]) {
+        val binding       = map.mapBinding.asInstanceOf[Binding.Map[Map, Key, Value]]
+        val constructor   = binding.constructor
+        val deconstructor = binding.deconstructor
+        val keyCodec      =
+          deriveCodec(map.key)
+            .asInstanceOf[DynamoDBCodec[Key]]
+        val keyEncoder    = keyCodec.encoder
+        val keyDecoder    = keyCodec.decoder.asInstanceOf[Any => Either[ItemError.DecodingError, Key]]
+        val valueCodec    = deriveCodec(map.value).asInstanceOf[DynamoDBCodec[Value]]
+        val valueEncoder  = valueCodec.encoder
+        val valueDecoder  = valueCodec.decoder
+        val isNativeMap   = map.key.asPrimitive.exists(_.typeName.name == "String")
+
+        if (isNativeMap)
+          new DynamoDBCodec[Map[Key, Value]] {
+            override def encoder: Encoder[Map[Key, Value]] =
+              (m: Map[Key, Value]) => {
+                val mapBuilder = AttributeValue.Map.JMapView.hash.builder
+                val it         = deconstructor.deconstruct(m)
+                while (it.hasNext) {
+                  val kv             = it.next()
+                  val key            = deconstructor.getKey(kv)
+                  val value          = deconstructor.getValue(kv)
+                  val keyVal: String = keyEncoder.asInstanceOf[Key => AttributeValue.String](key).value
+                  mapBuilder.addOne(keyVal, valueEncoder(value))
+                }
+                AttributeValue.Map(mapBuilder.result)
+              }
+
+            override def decoder: Decoder[Map[Key, Value]] =
+              (av: AttributeValue) => {
+                if (!av.isInstanceOf[AttributeValue.Map])
+                  Left(ItemError.DecodingError(s"Expected AttributeValue.Map, found ${av.showType}"))
+                else {
+                  val errors  = new ArrayBuffer[String]
+                  val map     = av.asInstanceOf[AttributeValue.Map]
+                  val builder = constructor.newObjectBuilder[Key, Value](8)
+                  val it      = map.value.iterator
+                  while (it.hasNext) {
+                    val (k, v) = it.next()
+                    (keyDecoder(k), valueDecoder(v)) match {
+                      case (Right(key), Right(value)) =>
+                        constructor.addObject(builder, key, value)
+                      case (Left(errL), Left(errR))   =>
+                        errors.addOne(errL.message)
+                        errors.addOne(errR.message)
+                      case (_, Left(err))             => errors.addOne(err.message)
+                      case (Left(err), _)             => errors.addOne(err.message)
+                    }
+                  }
+                  if (errors.isEmpty) {
+                    val m = constructor.resultObject[Key, Value](builder)
+                    Right(m)
+                  } else Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
+                }
+              }
+          }
+        else // TODO: non native Map encoding - Sequence of tuple2
+          ???
+      } else map.mapBinding.asInstanceOf[BindingInstance[DynamoDBCodec, ?, A]].instance.force
+    }.asInstanceOf[DynamoDBCodec[A]]
+    else if (reflect.isRecord) {
       val record = reflect.asRecord.get
       if (record.recordBinding.isInstanceOf[Binding[?, ?]]) {
         val binding = record.recordBinding.asInstanceOf[Binding.Record[A]]

@@ -60,7 +60,7 @@ object BlocksCodecSpec extends ZIOSpecDefault {
   }
 
   final case class RecordWithCollections(
-    numbers: List[Int] = Nil,
+//    numbers: List[Int] = Nil,
     map: Map[String, Int] = Map.empty
   )
   object RecordWithCollections  {
@@ -245,6 +245,15 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       val enc                                            = codec.encoder(person)
       val dec                                            = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(person))
+    },
+    test("Record with native Map[String, Int]") {
+      val expectedItem                                =
+        Item("map" -> Map("a" -> 1, "b" -> 2))
+      val codec: DynamoDBCodec[RecordWithCollections] = RecordWithCollections.schema.derive(DynamoDBCodecDeriver)
+      val expectedPerson                              = RecordWithCollections(map = Map("a" -> 1, "b" -> 2))
+      val enc                                         = codec.encoder(expectedPerson)
+      val dec                                         = codec.decoder(enc)
+      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     }
   )
 
