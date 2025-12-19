@@ -295,7 +295,7 @@ lazy val benchmarks = module("zio-dynamodb-benchmarks", "benchmarks")
     fork := true,
     libraryDependencies ++= Seq(
       "org.systemfw" %% "dynosaur-core" % "0.7.1",
-      "org.scanamo"  %% "scanamo"       % "5.0.0",
+      "org.scanamo"  %% "scanamo"       % "6.0.0",
       "dev.zio"      %% "zio-test"      % zioVersion % "test",
       "dev.zio"      %% "zio-test-sbt"  % zioVersion % "test",
       "dev.zio"      %% "zio-json"      % "0.7.44"
