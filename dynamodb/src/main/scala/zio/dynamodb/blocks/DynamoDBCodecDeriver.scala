@@ -261,7 +261,11 @@ class DynamoDBCodecDeriver private (
             override def decoder: Decoder[Map[Key, Value]] =
               (av: AttributeValue) => {
                 if (!av.isInstanceOf[AttributeValue.Map])
-                  Left(ItemError.DecodingError(s"Expected AttributeValue.Map, found ${av.showType}"))
+                  Left(
+                    ItemError.DecodingError(
+                      s"Expected AttributeValue.Map, found ${if (av == null) "NULL!!!!!!" else av.showType}"
+                    )
+                  )
                 else {
                   val errors  = new ArrayBuffer[String]
                   val map     = av.asInstanceOf[AttributeValue.Map]

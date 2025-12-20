@@ -3,7 +3,7 @@ package zio.dynamodb.blocks
 import zio.blocks.schema._
 import zio.dynamodb.blocks.BlocksApi._
 import zio.dynamodb.syntax._
-import zio.dynamodb.{ DynamoDBLocalSpec, DynamoDBQuery }
+import zio.dynamodb.{ DynamoDBLocalSpec, DynamoDBQuery, Item, PrimaryKey }
 import zio.test._
 
 object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
@@ -45,6 +45,30 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
                      .execute
           found <- DynamoDBQuery.get(tableName)(Person.id === "1" && Person.year === "2025").execute.absolve
         } yield assertTrue(found == person.copy(name = "Smith"))
+      }
+    },
+    test("Map field update") {
+      withSingleIdKeyTable { tableName =>
+        import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
+
+        final case class Person(id: String, map: Map[String, Int] = Map.empty)
+        object Person extends CompanionOptics[Person] {
+          implicit val schema: Schema[Person]              = Schema.derived
+          val id: Lens[Person, String]                     = $(_.id)
+          val map: Lens[Person, Map[String, Int]]          = $(_.map)
+          def mapAtKey(key: String): Optional[Person, Int] = $(_.map.atKey(key))
+        }
+
+        val person = Person("1", Map("key1" -> 1))
+        for {
+          _     <- DynamoDBQuery.put(tableName, person).execute
+          _     <- DynamoDBQuery.update(tableName)(Person.id === "1")(Person.mapAtKey("key1").set(42)).execute
+          item  <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
+          found <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
+        } yield assertTrue(
+          item == Some(Item("id" -> "1", "map" -> Map("key1" -> 42))),
+          found == person.copy(map = Map("key1" -> 42))
+        )
       }
     }
   ) @@ TestAspect.nondeterministic
