@@ -32,7 +32,8 @@ class CodecBenchmarks extends BaseBenchmark {
           12345678901L,
           "John",
           30,
-          "123 Main St"
+          Some("123 Main St"),
+          Map("a" -> 1, "b" -> 2, "c" -> 3)
         )
       )
       .toList
@@ -101,7 +102,8 @@ object BenchmarkDomain {
     id: Long,
     name: String,
     age: Int,
-    address: String
+    address: Option[String],
+    map: Map[String, Int]
   )
   object Person {
     implicit val blocksSchema: Schema[Person] = Schema.derived
