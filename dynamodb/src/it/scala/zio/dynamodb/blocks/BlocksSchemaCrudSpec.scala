@@ -59,15 +59,18 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
           def mapAtKey(key: String): Optional[Person, Int] = $(_.map.atKey(key))
         }
 
-        val person = Person("1", Map("key1" -> 1))
+        val person = Person("1", Map.empty)
         for {
-          _     <- DynamoDBQuery.put(tableName, person).execute
-          _     <- DynamoDBQuery.update(tableName)(Person.id === "1")(Person.mapAtKey("key1").set(42)).execute
-          item  <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
-          found <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
+          _      <- DynamoDBQuery.put(tableName, person).execute
+          _      <- DynamoDBQuery.update(tableName)(Person.id === "1")(Person.mapAtKey("key1").set(42)).execute
+          item   <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
+          found  <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
+          _      <- DynamoDBQuery.update(tableName)(Person.id === "1")(Person.mapAtKey("key1").set(21)).execute
+          found2 <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
         } yield assertTrue(
           item == Some(Item("id" -> "1", "map" -> Map("key1" -> 42))),
-          found == person.copy(map = Map("key1" -> 42))
+          found == person.copy(map = Map("key1" -> 42)),
+          found2 == person.copy(map = Map("key1" -> 21))
         )
       }
     }
