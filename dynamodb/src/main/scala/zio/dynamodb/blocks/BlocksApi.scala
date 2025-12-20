@@ -34,6 +34,17 @@ object BlocksApi extends LowPrioritySchemaExprConversions {
         OpticToPE.pe(optional),
         UpdateExpression.SetOperand.ValueOperand(ToAttributeValue[To].toAttributeValue(a))
       )
+
+    def setIfNotExists(a: To): UpdateExpression.Action.SetAction[From, To] = {
+      val pe = OpticToPE.pe(optional)
+      UpdateExpression.Action.SetAction(
+        pe,
+        UpdateExpression.SetOperand.IfNotExists(
+          pe,
+          ToAttributeValue[To].toAttributeValue(a)
+        )
+      )
+    }
   }
 
   implicit class LensToUpdateExpression[From, To: ToAttributeValue](lens: Lens[From, To]) {
@@ -43,6 +54,17 @@ object BlocksApi extends LowPrioritySchemaExprConversions {
         OpticToPE.pe(lens),
         UpdateExpression.SetOperand.ValueOperand(ToAttributeValue[To].toAttributeValue(a))
       )
+
+    def setIfNotExists(a: To): UpdateExpression.Action.SetAction[From, To] = {
+      val pe = OpticToPE.pe(lens)
+      UpdateExpression.Action.SetAction(
+        pe,
+        UpdateExpression.SetOperand.IfNotExists(
+          pe,
+          ToAttributeValue[To].toAttributeValue(a)
+        )
+      )
+    }
   }
 }
 
