@@ -316,26 +316,90 @@ class DynamoDBCodecDeriver private (
             idx += 1
           }
         }
-        if (isTuple(reflect)) {
-          println("TODO")
-          /*
-          import scala.collection.immutable.ArraySeq
-
-          val arr: Array[Byte] = encoder.result()
-          val it: Iterable[Byte] = ArraySeq.unsafeWrapArray(arr)
-           */
+        if (isTuple(reflect))
           new DynamoDBCodec[A] {
+            private[this] val deconstructor = binding.deconstructor
+//            private[this] val constructor   = binding.constructor
+            private[this] val usedRegisters = offset
             override def encoder: Encoder[A] = { value =>
               val arr: Array[AttributeValue]   = new Array[AttributeValue](len)
-              val avList                       = AttributeValue.List.empty
+              val regs                         = Registers(usedRegisters)
+              deconstructor.deconstruct(regs, 0, value)
+              var idx                          = 0
+              while (idx < len) {
+                val field  = fieldInfos(idx)
+                val offset = field.offset
+                val codec  = field.codec
+                field.valueType match {
+                  case DynamoDBCodec.intType    =>
+                    val v  = regs.getInt(offset, 0)
+                    // TODO: Avi - investigate direct encoding optimisations for primitives
+                    val av = codec.asInstanceOf[DynamoDBCodec[Int]].encoder(v)
+                    arr(idx) = av
+                  case DynamoDBCodec.longType   =>
+                    val v  = regs.getLong(offset, 0)
+                    val av = codec.asInstanceOf[DynamoDBCodec[Long]].encoder(v)
+                    arr(idx) = av
+                  case DynamoDBCodec.objectType =>
+                    val v  = regs.getObject(offset, 0)
+                    val av = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(v)
+                    arr(idx) = av
+                  case _                        =>
+                    val v  = regs.getObject(offset, 0)
+                    val av = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(v)
+                    arr(idx) = av
+                }
+                idx += 1
+              }
               val it: Iterable[AttributeValue] = scala.collection.immutable.ArraySeq.unsafeWrapArray(arr)
-              println(s"$value $avList")
               AttributeValue.List(it)
             }
 
-            override def decoder: Decoder[A] = ???
+            override def decoder: Decoder[A] = {
+              val regs                        = Registers(usedRegisters)
+              val errors: ArrayBuffer[String] = new ArrayBuffer[String]()
+
+              (av: AttributeValue) =>
+                av match {
+                  case avList: AttributeValue.List =>
+                    val it  = avList.value.iterator
+                    var idx = 0
+                    while (it.hasNext && idx < len) {
+                      val field  = fieldInfos(idx)
+                      val offset = field.offset
+                      val value  = it.next()
+
+                      field.valueType match {
+                        case DynamoDBCodec.intType    =>
+                          field.codec.asInstanceOf[DynamoDBCodec[Int]].decoder(value) match {
+                            case Right(v)  => regs.setInt(offset, 0, v)
+                            case Left(err) => errors.addOne(err.message)
+                          }
+                        case DynamoDBCodec.longType   =>
+                          field.codec.asInstanceOf[DynamoDBCodec[Long]].decoder(value) match {
+                            case Right(v)  => regs.setLong(offset, 0, v)
+                            case Left(err) => errors.addOne(err.message)
+                          }
+                        case DynamoDBCodec.objectType =>
+                          field.codec.asInstanceOf[DynamoDBCodec[AnyRef]].decoder(value) match {
+                            case Right(v)  => regs.setObject(offset, 0, v)
+                            case Left(err) => errors.addOne(err.message)
+                          }
+                        case _                        => throw new Exception("TODO: decide what to do here")
+                      }
+                      idx += 1
+                    } // end while
+                    if (errors.isEmpty) {
+                      val a = binding.constructor.construct(regs, RegisterOffset.Zero)
+                      Right(a)
+                    } else Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
+
+                  case av: AttributeValue          =>
+                    Left(DecodingError(s"Expected List attribute value but got: ${av.showType}"))
+                }
+            }
           }
-        } else
+        else
           new DynamoDBCodec[A] {
             private[this] val constructor   = binding.constructor
             private[this] val deconstructor = binding.deconstructor

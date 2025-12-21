@@ -280,6 +280,27 @@ object BlocksCodecSpec extends ZIOSpecDefault {
         val dec                                        = codec.decoder(enc)
         assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
       }
+    ),
+    suite("tuple")(
+      test("record with tuple (Int, Int, Int)") {
+        val expectedItem                          =
+          AttributeValue.Map(
+            Map(
+              AttributeValue.String("tuple") -> AttributeValue.List(
+                Chunk(
+                  AttributeValue.Number(BigDecimal(1)),
+                  AttributeValue.Number(BigDecimal(2)),
+                  AttributeValue.Number(BigDecimal(3))
+                )
+              )
+            )
+          )
+        val codec: DynamoDBCodec[RecordWithTuple] = RecordWithTuple.schema.derive(DynamoDBCodecDeriver)
+        val expectedPerson                        = RecordWithTuple(tuple = (1, 2, 3))
+        val enc                                   = codec.encoder(expectedPerson)
+        val dec                                   = codec.decoder(enc)
+        assertTrue(enc == expectedItem && dec == Right(expectedPerson))
+      }
     )
   )
 

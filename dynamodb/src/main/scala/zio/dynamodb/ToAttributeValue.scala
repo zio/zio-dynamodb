@@ -74,7 +74,9 @@ object ToAttributeValue extends ToAttributeValueLowPriorityImplicits0 {
 trait ToAttributeValueLowPriorityImplicits0 extends ToAttributeValueLowPriorityImplicits1 {
   implicit def collectionToAttributeValue[Col[X] <: Iterable[X], A](implicit
     element: ToAttributeValue[A]
-  ): ToAttributeValue[Col[A]] =
+  ): ToAttributeValue[
+    Col[A]
+  ] = // TODO: Avi - looks like an unnecessary extra nesting of tuple collection inside a Chunk here
     (xs: Col[A]) => AttributeValue.List(Chunk.fromIterable(xs.map(element.toAttributeValue)))
 
 }
