@@ -73,7 +73,7 @@ object OpticToPE {
           ProjectionExpression.MapElement(prevPe, key)
         // TODO: handle all Node types
         case DynamicOptic.Node.AtMapKey(key)         =>
-          throw new Exception(s"Only String Keys are supported in DDB")
+          throw new Exception(s"Found key '$key' - however only String Keys are supported in DDB")
         case DynamicOptic.Node.Case(_)               => // We only need to deal with non optional SOME TYPES here
           prevPe
         case _                                       => throw new Exception(s"unexpected node: $node")
