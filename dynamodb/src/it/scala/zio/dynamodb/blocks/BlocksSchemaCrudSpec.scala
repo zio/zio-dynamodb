@@ -47,52 +47,92 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(found == person.copy(name = "Smith"))
       }
     },
-    test("Map field update") {
-      withSingleIdKeyTable { tableName =>
-        import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
+    suite("native Map")(
+      test("native Map of primitive field update") {
+        withSingleIdKeyTable { tableName =>
+          import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
 
-        final case class Person(id: String, map: Map[String, Int] = Map.empty)
-        object Person extends CompanionOptics[Person] {
-          implicit val schema: Schema[Person]              = Schema.derived
-          val id: Lens[Person, String]                     = $(_.id)
-          val map: Lens[Person, Map[String, Int]]          = $(_.map)
-          def mapAtKey(key: String): Optional[Person, Int] = $(_.map.atKey(key))
+          final case class Person(id: String, map: Map[String, Int] = Map.empty)
+          object Person extends CompanionOptics[Person] {
+            implicit val schema: Schema[Person]              = Schema.derived
+            val id: Lens[Person, String]                     = $(_.id)
+            val map: Lens[Person, Map[String, Int]]          = $(_.map)
+            def mapAtKey(key: String): Optional[Person, Int] = $(_.map.atKey(key))
+          }
+
+          val person = Person("1", Map.empty)
+          for {
+            _      <- DynamoDBQuery.put(tableName, person).execute
+            _      <- DynamoDBQuery.update(tableName)(Person.id === "1")(Person.mapAtKey("key1").set(42)).execute
+            item   <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
+            found  <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
+            _      <- DynamoDBQuery.update(tableName)(Person.id === "1")(Person.mapAtKey("key1").set(21)).execute
+            found2 <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
+          } yield assertTrue(
+            item == Some(Item("id" -> "1", "map" -> Map("key1" -> 42))),
+            found == person.copy(map = Map("key1" -> 42)),
+            found2 == person.copy(map = Map("key1" -> 21))
+          )
         }
+      },
+      test("native Map of record") {
+        withSingleIdKeyTable { tableName =>
+          import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
+//          import zio.dynamodb.AttributeValue._ // bring implicit conversions into scope
+          final case class Address(postcode: String, number: Int)
+          object Address extends CompanionOptics[Address] {
+            implicit val schema: Schema[Address] = Schema.derived
+            val postcode: Lens[Address, String]  = $(_.postcode)
+            val number: Lens[Address, Int]       = $(_.number)
+          }
+          final case class Person(id: String, map: Map[String, Address])
+          object Person  extends CompanionOptics[Person]  {
+            implicit val schema: Schema[Person]                  = Schema.derived
+            val id: Lens[Person, String]                         = $(_.id)
+            def mapAtKey(key: String): Optional[Person, Address] = $(_.map.atKey(key))
+          }
 
-        val person = Person("1", Map.empty)
-        for {
-          _      <- DynamoDBQuery.put(tableName, person).execute
-          _      <- DynamoDBQuery.update(tableName)(Person.id === "1")(Person.mapAtKey("key1").set(42)).execute
-          item   <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
-          found  <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
-          _      <- DynamoDBQuery.update(tableName)(Person.id === "1")(Person.mapAtKey("key1").set(21)).execute
-          found2 <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
-        } yield assertTrue(
-          item == Some(Item("id" -> "1", "map" -> Map("key1" -> 42))),
-          found == person.copy(map = Map("key1" -> 42)),
-          found2 == person.copy(map = Map("key1" -> 21))
-        )
-      }
-    },
-    test("optional Map field update") {
-      withSingleIdKeyTable { tableName =>
-        import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
-
-        final case class Person(id: String, maybeMap: Option[Map[String, Int]] = None)
-        object Person extends CompanionOptics[Person] {
-          implicit val schema: Schema[Person]                   = Schema.derived
-          val id: Lens[Person, String]                          = optic(_.id)
-          def maybeMapAtKey(key: String): Optional[Person, Int] =
-            optic(_.maybeMap.when[Some[Map[String, Int]]].value.atKey(key))
+          val person = Person("1", Map.empty)
+          for {
+            _      <- DynamoDBQuery.put(tableName, person).execute
+            _      <- DynamoDBQuery
+                        .update(tableName)(Person.id === "1")(Person.mapAtKey("postcode1").set(Address("postcode1", 1)))
+                        .execute
+            item   <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
+            found  <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
+            _      <- DynamoDBQuery
+                        .update(tableName)(Person.id === "1")(Person.mapAtKey("postcode1").set(Address("postcode1", 2)))
+                        .execute
+            found2 <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
+          } yield assertTrue(
+            item == Some(
+              Item("id" -> "1", "map" -> Map("postcode1" -> Item("postcode" -> "postcode1", "number" -> 1)))
+            ),
+            found == person.copy(map = Map("postcode1" -> Address("postcode1", 1))),
+            found2 == person.copy(map = Map("postcode1" -> Address("postcode1", 2)))
+          )
         }
+      },
+      test("optional Map field update") {
+        withSingleIdKeyTable { tableName =>
+          import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
 
-        val person = Person("1", Some(Map()))
-        for {
-          _    <- DynamoDBQuery.put(tableName, person).execute
-          _    <- DynamoDBQuery.update(tableName)(Person.id === "1")(Person.maybeMapAtKey("key1").set(42)).execute
-          item <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
-        } yield assertTrue(item == Some(Item("id" -> "1", "maybeMap" -> Map("key1" -> 42))))
+          final case class Person(id: String, maybeMap: Option[Map[String, Int]] = None)
+          object Person extends CompanionOptics[Person] {
+            implicit val schema: Schema[Person]                   = Schema.derived
+            val id: Lens[Person, String]                          = optic(_.id)
+            def maybeMapAtKey(key: String): Optional[Person, Int] =
+              optic(_.maybeMap.when[Some[Map[String, Int]]].value.atKey(key))
+          }
+
+          val person = Person("1", Some(Map()))
+          for {
+            _    <- DynamoDBQuery.put(tableName, person).execute
+            _    <- DynamoDBQuery.update(tableName)(Person.id === "1")(Person.maybeMapAtKey("key1").set(42)).execute
+            item <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
+          } yield assertTrue(item == Some(Item("id" -> "1", "maybeMap" -> Map("key1" -> 42))))
+        }
       }
-    }
+    )
   ) @@ TestAspect.nondeterministic
 }
