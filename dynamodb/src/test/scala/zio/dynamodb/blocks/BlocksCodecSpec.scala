@@ -54,6 +54,14 @@ object BlocksCodecSpec extends ZIOSpecDefault {
     implicit val schema: Schema[RecordWithPaymentMethod2] = Schema.derived
   }
 
+  final case class Address(postcode: String, number: Int)
+  object Address extends CompanionOptics[Address] {
+    implicit val schema: Schema[Address] = Schema.derived
+
+    val postcode: Lens[Address, String] = $(_.postcode)
+    val number: Lens[Address, Int]      = $(_.number)
+  }
+
   final case class RecordWithEnum(light: TrafficLight)
   object RecordWithEnum {
     implicit val schema: Schema[RecordWithEnum] = Schema.derived
@@ -246,15 +254,33 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       val dec                                            = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(person))
     },
-    test("Record with native Map[String, Int]") {
-      val expectedItem                                =
-        Item("map" -> Map("a" -> 1, "b" -> 2))
-      val codec: DynamoDBCodec[RecordWithCollections] = RecordWithCollections.schema.derive(DynamoDBCodecDeriver)
-      val expectedPerson                              = RecordWithCollections(map = Map("a" -> 1, "b" -> 2))
-      val enc                                         = codec.encoder(expectedPerson)
-      val dec                                         = codec.decoder(enc)
-      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
-    }
+    suite("Native Map")(
+      test("Record with native Map[String, Int]") {
+        val expectedItem                                =
+          Item("map" -> Map("a" -> 1, "b" -> 2))
+        val codec: DynamoDBCodec[RecordWithCollections] = RecordWithCollections.schema.derive(DynamoDBCodecDeriver)
+        val expectedPerson                              = RecordWithCollections(map = Map("a" -> 1, "b" -> 2))
+        val enc                                         = codec.encoder(expectedPerson)
+        val dec                                         = codec.decoder(enc)
+        assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
+      },
+      test("Record with native map of record - Map[String, Address]") {
+        final case class RecordWithAddressMap(
+          map: Map[String, Address]
+        )
+        object RecordWithAddressMap {
+          implicit val schema: Schema[RecordWithAddressMap] = Schema.derived
+        }
+
+        val expectedItem                               =
+          Item("map" -> Map("home" -> Item("postcode" -> "12345", "number" -> 10)))
+        val codec: DynamoDBCodec[RecordWithAddressMap] = RecordWithAddressMap.schema.derive(DynamoDBCodecDeriver)
+        val expectedPerson                             = RecordWithAddressMap(map = Map("home" -> Address("12345", 10)))
+        val enc                                        = codec.encoder(expectedPerson)
+        val dec                                        = codec.decoder(enc)
+        assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
+      }
+    )
   )
 
 }

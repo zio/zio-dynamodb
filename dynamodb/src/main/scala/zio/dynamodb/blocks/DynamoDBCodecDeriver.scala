@@ -316,105 +316,124 @@ class DynamoDBCodecDeriver private (
             idx += 1
           }
         }
+        if (isTuple(reflect)) {
+          println("TODO")
+          /*
+          import scala.collection.immutable.ArraySeq
 
-        new DynamoDBCodec[A] {
-          private[this] val constructor   = binding.constructor
-          private[this] val deconstructor = binding.deconstructor
-          private[this] val usedRegisters = offset
-          private[this] val fields        = fieldInfos
-          private[this] val skipNone      = transientNone
-
-          override def encoder: Encoder[A] = { value =>
-            val regs                         = Registers(usedRegisters)
-            var idx                          = 0
-            val mapBuilder: JMapView.Builder = AttributeValue.Map.JMapView.hash.builder
-            deconstructor.deconstruct(regs, 0, value)
-            val len                          = fields.length
-            while (idx < len) {
-              val field  = fields(idx)
-              val name   = field.name
-              val offset = field.offset
-              val codec  = field.codec
-              val isOpt  = field.isOptional
-
-              field.valueType match {
-                case DynamoDBCodec.intType    =>
-                  val value = regs.getInt(offset, 0)
-                  val av    = codec.asInstanceOf[DynamoDBCodec[Int]].encoder(value)
-                  mapBuilder.addOne(name, av)
-                case DynamoDBCodec.longType   =>
-                  val value = regs.getLong(offset, 0)
-                  val av    = codec.asInstanceOf[DynamoDBCodec[Long]].encoder(value)
-                  mapBuilder.addOne(name, av)
-                case DynamoDBCodec.objectType =>
-                  val value = regs.getObject(offset, 0)
-                  if (!(isOpt && skipNone && (value == None))) {
-                    val av = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(value)
-                    mapBuilder.addOne(name, av)
-                  }
-                case _                        =>
-                  // TODO: think about what we do here
-                  val value = regs.getObject(offset, 0)
-                  val av    = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(value)
-                  mapBuilder.addOne(name, av)
-              }
-              idx += 1
+          val arr: Array[Byte] = encoder.result()
+          val it: Iterable[Byte] = ArraySeq.unsafeWrapArray(arr)
+           */
+          new DynamoDBCodec[A] {
+            override def encoder: Encoder[A] = { value =>
+              val arr: Array[AttributeValue]   = new Array[AttributeValue](len)
+              val avList                       = AttributeValue.List.empty
+              val it: Iterable[AttributeValue] = scala.collection.immutable.ArraySeq.unsafeWrapArray(arr)
+              println(s"$value $avList")
+              AttributeValue.List(it)
             }
-            AttributeValue.Map(mapBuilder.result)
+
+            override def decoder: Decoder[A] = ???
           }
+        } else
+          new DynamoDBCodec[A] {
+            private[this] val constructor   = binding.constructor
+            private[this] val deconstructor = binding.deconstructor
+            private[this] val usedRegisters = offset
+            private[this] val fields        = fieldInfos
+            private[this] val skipNone      = transientNone
 
-          override def decoder: Decoder[A] = {
-            val len                         = fields.length
-            var idx                         = 0
-            val regs                        = Registers(usedRegisters)
-            val errors: ArrayBuffer[String] = new ArrayBuffer[String]()
+            override def encoder: Encoder[A] = { value =>
+              val regs                         = Registers(usedRegisters)
+              var idx                          = 0
+              val mapBuilder: JMapView.Builder = AttributeValue.Map.JMapView.hash.builder
+              deconstructor.deconstruct(regs, 0, value)
+              val len                          = fields.length
+              while (idx < len) {
+                val field  = fields(idx)
+                val name   = field.name
+                val offset = field.offset
+                val codec  = field.codec
+                val isOpt  = field.isOptional
 
-            (av: AttributeValue) =>
-              av match {
-                case avMap: AttributeValue.Map =>
-                  while (idx < len) {
-                    val field  = fields(idx)
-                    val offset = field.offset
-                    val name   = field.name
-                    val isOpt  = field.isOptional
-
-                    var av: AttributeValue = avMap.value.getOrElse(AttributeValue.String(name), null)
-                    if (isOpt && skipNone && (av eq null))
-                      av = AttributeValue.Null
-
-                    if (av eq null) // TODO: Avi - should we fail fast on this?
-                      errors.addOne(s"Missing attribute value for field: $name  len: $len")
-
-                    field.valueType match {
-                      case DynamoDBCodec.intType    =>
-                        field.codec.asInstanceOf[DynamoDBCodec[Int]].decoder(av) match {
-                          case Right(value) => regs.setInt(offset, 0, value)
-                          case Left(err)    => errors.addOne(err.message)
-                        }
-                      case DynamoDBCodec.longType   =>
-                        field.codec.asInstanceOf[DynamoDBCodec[Long]].decoder(av) match {
-                          case Right(value) => regs.setLong(offset, 0, value)
-                          case Left(err)    => errors.addOne(err.message)
-                        }
-                      case DynamoDBCodec.objectType =>
-                        field.codec.asInstanceOf[DynamoDBCodec[AnyRef]].decoder(av) match {
-                          case Right(value) => regs.setObject(offset, 0, value)
-                          case Left(err)    => errors.addOne(err.message)
-                        }
-                      case _                        => throw new Exception("TODO: decide what to do here")
+                field.valueType match {
+                  case DynamoDBCodec.intType    =>
+                    val value = regs.getInt(offset, 0)
+                    val av    = codec.asInstanceOf[DynamoDBCodec[Int]].encoder(value)
+                    mapBuilder.addOne(name, av)
+                  case DynamoDBCodec.longType   =>
+                    val value = regs.getLong(offset, 0)
+                    val av    = codec.asInstanceOf[DynamoDBCodec[Long]].encoder(value)
+                    mapBuilder.addOne(name, av)
+                  case DynamoDBCodec.objectType =>
+                    val value = regs.getObject(offset, 0)
+                    if (!(isOpt && skipNone && (value == None))) {
+                      val av = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(value)
+                      mapBuilder.addOne(name, av)
                     }
-                    idx += 1
-                  }                                                          // end while
-                  if (errors.isEmpty) {
-                    val a = constructor.construct(regs, RegisterOffset.Zero)
-                    Right(a)
-                  } else Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
-
-                case av: AttributeValue        =>
-                  Left(DecodingError(s"Expected Map attribute value but got: ${av.showType}"))
+                  case _                        =>
+                    // TODO: think about what we do here
+                    val value = regs.getObject(offset, 0)
+                    val av    = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(value)
+                    mapBuilder.addOne(name, av)
+                }
+                idx += 1
               }
-          }
-        }
+              AttributeValue.Map(mapBuilder.result)
+            }
+
+            override def decoder: Decoder[A] = {
+              val len                         = fields.length
+              var idx                         = 0
+              val regs                        = Registers(usedRegisters)
+              val errors: ArrayBuffer[String] = new ArrayBuffer[String]()
+
+              (av: AttributeValue) =>
+                av match {
+                  case avMap: AttributeValue.Map =>
+                    while (idx < len) {
+                      val field  = fields(idx)
+                      val offset = field.offset
+                      val name   = field.name
+                      val isOpt  = field.isOptional
+
+                      var av: AttributeValue = avMap.value.getOrElse(AttributeValue.String(name), null)
+                      if (isOpt && skipNone && (av eq null))
+                        av = AttributeValue.Null
+
+                      if (av eq null) // TODO: Avi - should we fail fast on this?
+                        errors.addOne(s"Missing attribute value for field: $name  len: $len")
+
+                      field.valueType match {
+                        case DynamoDBCodec.intType    =>
+                          field.codec.asInstanceOf[DynamoDBCodec[Int]].decoder(av) match {
+                            case Right(value) => regs.setInt(offset, 0, value)
+                            case Left(err)    => errors.addOne(err.message)
+                          }
+                        case DynamoDBCodec.longType   =>
+                          field.codec.asInstanceOf[DynamoDBCodec[Long]].decoder(av) match {
+                            case Right(value) => regs.setLong(offset, 0, value)
+                            case Left(err)    => errors.addOne(err.message)
+                          }
+                        case DynamoDBCodec.objectType =>
+                          field.codec.asInstanceOf[DynamoDBCodec[AnyRef]].decoder(av) match {
+                            case Right(value) => regs.setObject(offset, 0, value)
+                            case Left(err)    => errors.addOne(err.message)
+                          }
+                        case _                        => throw new Exception("TODO: decide what to do here")
+                      }
+                      idx += 1
+                    }                                                          // end while
+                    if (errors.isEmpty) {
+                      val a = constructor.construct(regs, RegisterOffset.Zero)
+                      Right(a)
+                    } else Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
+
+                  case av: AttributeValue        =>
+                    Left(DecodingError(s"Expected Map attribute value but got: ${av.showType}"))
+                }
+            }
+          } // end if else not tuple
       } else
         record.recordBinding.asInstanceOf[BindingInstance[DynamoDBCodec, ?, A]].instance.force
     } else {
@@ -439,6 +458,12 @@ class DynamoDBCodecDeriver private (
       val cases    = variant.cases
       typeName.namespace == Namespace.scala && typeName.name == "Option" &&
       cases.length == 2 && cases(1).name == "Some"
+    }
+
+  private[this] def isTuple[F[_, _], A](reflect: Reflect[F, A]): Boolean =
+    reflect.isRecord && {
+      val typeName = reflect.typeName
+      typeName.namespace == Namespace.scala && typeName.name.startsWith("Tuple")
     }
 
 } // end class DynamoDBCodecDeriver
