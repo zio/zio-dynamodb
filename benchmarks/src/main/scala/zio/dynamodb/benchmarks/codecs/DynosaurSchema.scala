@@ -14,7 +14,8 @@ object DynosaurSchema {
         field("name", _.name),
         field("age", _.age),
         field.opt("address", _.address),
-        field("map", _.map)
+        field("map", _.map),
+        field("list", _.list)
       ).mapN(Person.apply)
     }
 

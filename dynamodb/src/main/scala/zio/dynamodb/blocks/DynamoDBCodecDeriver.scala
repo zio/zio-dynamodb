@@ -110,7 +110,12 @@ class DynamoDBCodecDeriver private (
     binding: Binding[BindingType.Seq[C], C[A]],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[C[A]]] = ???
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[C[A]]] =
+    Lazy {
+      deriveCodec(
+        new Reflect.Sequence(element.asInstanceOf[Reflect[Binding, A]], typeName, binding, doc, modifiers)
+      )
+    }
 
   override def deriveMap[F[_, _], M[_, _], K, V](
     key: Reflect[F, K],
@@ -294,7 +299,55 @@ class DynamoDBCodecDeriver private (
           ???
       } else map.mapBinding.asInstanceOf[BindingInstance[DynamoDBCodec, ?, A]].instance.force
     }.asInstanceOf[DynamoDBCodec[A]]
-    else if (reflect.isRecord) {
+    else if (reflect.isSequence) {
+      val sequence = reflect.asSequenceUnknown.get.sequence
+      if (sequence.seqBinding.isInstanceOf[Binding[?, ?]]) {
+        val binding       = sequence.seqBinding.asInstanceOf[Binding.Seq[Col, Elem]]
+        val constructor   = binding.constructor
+        val deconstructor = binding.deconstructor
+        val elementCodec  = deriveCodec(sequence.element).asInstanceOf[DynamoDBCodec[Elem]]
+
+        // TODO: optimise for primitive types
+        new DynamoDBCodec[Col[Elem]] {
+          override def encoder: Encoder[Col[Elem]] = { (col: Col[Elem]) =>
+            val len = deconstructor.size(col)
+            val avs = new Array[AttributeValue](len)
+            var idx = 0
+            val it  = deconstructor.deconstruct(col)
+            while (it.hasNext) {
+              val el = it.next()
+              val av = elementCodec.encoder(el)
+              avs(idx) = av
+              idx += 1
+            }
+            AttributeValue.List(scala.collection.immutable.ArraySeq.unsafeWrapArray(avs))
+          }
+
+          override def decoder: Decoder[Col[Elem]] = { (av: AttributeValue) =>
+            val errors = new ArrayBuffer[String]
+            av match {
+              case AttributeValue.List(items) =>
+                val builder = constructor.newObjectBuilder[Elem](8)
+
+                // TODO: Avi - error handling
+                items.foreach { item =>
+                  elementCodec.decoder(item) match {
+                    case Right(a)  => constructor.addObject(builder, a.asInstanceOf[Elem])
+                    case Left(err) => errors.addOne(err.message)
+                  }
+                }
+                if (errors.isEmpty) {
+                  val xs: Col[Elem] = constructor.resultObject[Elem](builder)
+                  Right(xs)
+                } else
+                  Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
+              case _                          => Left(ItemError.DecodingError(s"Expected AttributeValue.List, found ${av.showType}"))
+            }
+          }
+        }
+      }.asInstanceOf[DynamoDBCodec[A]]
+      else sequence.seqBinding.asInstanceOf[BindingInstance[DynamoDBCodec, ?, A]].instance.force
+    } else if (reflect.isRecord) {
       val record = reflect.asRecord.get
       if (record.recordBinding.isInstanceOf[Binding[?, ?]]) {
         val binding = record.recordBinding.asInstanceOf[Binding.Record[A]]
@@ -319,7 +372,7 @@ class DynamoDBCodecDeriver private (
         if (isTuple(reflect))
           new DynamoDBCodec[A] {
             private[this] val deconstructor = binding.deconstructor
-//            private[this] val constructor   = binding.constructor
+            private[this] val constructor   = binding.constructor
             private[this] val usedRegisters = offset
             override def encoder: Encoder[A] = { value =>
               val arr: Array[AttributeValue]   = new Array[AttributeValue](len)
@@ -390,7 +443,7 @@ class DynamoDBCodecDeriver private (
                       idx += 1
                     } // end while
                     if (errors.isEmpty) {
-                      val a = binding.constructor.construct(regs, RegisterOffset.Zero)
+                      val a = constructor.construct(regs, RegisterOffset.Zero)
                       Right(a)
                     } else Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
 

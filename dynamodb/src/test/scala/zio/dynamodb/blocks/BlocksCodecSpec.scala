@@ -301,6 +301,27 @@ object BlocksCodecSpec extends ZIOSpecDefault {
         val dec                                   = codec.decoder(enc)
         assertTrue(enc == expectedItem && dec == Right(expectedPerson))
       }
+    ),
+    suite("sequence")(
+      test("record with Array[String]") {
+        val expectedItem                          =
+          AttributeValue.Map(
+            Map(
+              AttributeValue.String("names") -> AttributeValue.List(
+                Chunk(
+                  AttributeValue.String("Alice"),
+                  AttributeValue.String("Bob"),
+                  AttributeValue.String("Tharloachan")
+                )
+              )
+            )
+          )
+        val codec: DynamoDBCodec[RecordWithArray] = RecordWithArray.schema.derive(DynamoDBCodecDeriver)
+        val expectedPerson                        = RecordWithArray(names = Array("Alice", "Bob", "Tharloachan"))
+        val enc                                   = codec.encoder(expectedPerson)
+        val dec                                   = codec.decoder(enc)
+        assertTrue(enc == expectedItem && dec == Right(expectedPerson))
+      }
     )
   )
 
