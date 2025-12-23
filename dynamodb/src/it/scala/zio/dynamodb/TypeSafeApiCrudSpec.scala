@@ -132,7 +132,6 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           val person = Person("1", "Smith", Some("John"), 21)
           for {
             _ <- put(tableName, person).execute
-            _  = println(s"XXXXX after put")
           } yield assertTrue(true)
         }
       },

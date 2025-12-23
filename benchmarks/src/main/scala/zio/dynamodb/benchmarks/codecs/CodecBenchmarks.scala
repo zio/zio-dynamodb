@@ -18,11 +18,12 @@ class CodecBenchmarks extends BaseBenchmark {
   import BenchmarkDomain._
 
   @Param(Array("1", "10", "100", "1000", "10000", "100000"))
-  var size: Int                                            = 1
-  var listOfRecords: List[Person]                          = _
-  var encodedListOfRecords: List[AttributeValue]           = _
-  var encodedListOfRecordsForDynosaur: List[DynosaurValue] = _
-  var encodedListOfRecordsForScanamo: List[ScanamoValue]   = _
+  var size: Int                                              = 1
+  var listOfRecords: List[Person]                            = _
+  var encodedListOfRecordsForBlocks: List[AttributeValue]    = _
+  var encodedListOfRecordsForZioSchema: List[AttributeValue] = _
+  var encodedListOfRecordsForDynosaur: List[DynosaurValue]   = _
+  var encodedListOfRecordsForScanamo: List[ScanamoValue]     = _
 
   @Setup
   def setup(): Unit = {
@@ -33,13 +34,15 @@ class CodecBenchmarks extends BaseBenchmark {
           "John",
           30,
           Some("123 Main St"),
-          Map("a" -> 1, "b" -> 2, "c" -> 3),
-          Vector(1, 2, 3, 4, 5)
+//          Map("a" -> 1, "b" -> 2, "c" -> 3),
+//          Vector(1, 2, 3, 4, 5),
+          (1, 2L, "3")
         )
       )
       .toList
 
-    encodedListOfRecords = listOfRecords.map(zioSchemaEncoder(_))
+    encodedListOfRecordsForBlocks = listOfRecords.map(zioBlocksCodec.encoder(_))
+    encodedListOfRecordsForZioSchema = listOfRecords.map(zioSchemaEncoder(_))
     encodedListOfRecordsForDynosaur = listOfRecords.map { x =>
       DynosaurSchema.personSchema.write(x).getOrElse(throw new Exception("Failed to encode"))
     }
@@ -68,7 +71,7 @@ class CodecBenchmarks extends BaseBenchmark {
 
   @Benchmark
   def readingZioSchema: List[Person] =
-    encodedListOfRecords.map(av =>
+    encodedListOfRecordsForZioSchema.map(av =>
       zioSchemaDecoder(av) match {
         case Right(value) => value
         case Left(error)  => sys.error(error.getMessage)
@@ -77,12 +80,12 @@ class CodecBenchmarks extends BaseBenchmark {
 
   @Benchmark
   def readingZioBlocks: List[Person] =
-    encodedListOfRecords.map(av =>
+    encodedListOfRecordsForBlocks.map { av =>
       zioBlocksCodec.decoder(av) match {
         case Right(value) => value
         case Left(error)  => sys.error(error.getMessage)
       }
-    )
+    }
 
   @Benchmark
   def writingScanamo: Seq[ScanamoValue] = listOfRecords.map(ScanamoCodec.person.write)
@@ -104,8 +107,9 @@ object BenchmarkDomain {
     name: String,
     age: Int,
     address: Option[String],
-    map: Map[String, Int],
-    list: Vector[Int]
+//    map: Map[String, Int],
+//    list: Vector[Int],
+    tuple: (Int, Long, String)
   )
   object Person {
     implicit val blocksSchema: Schema[Person] = Schema.derived

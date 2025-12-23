@@ -282,7 +282,7 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       }
     ),
     suite("tuple")(
-      test("record with tuple (Int, Int, Int)") {
+      test("record with tuple (Int, Long, String)") {
         val expectedItem                          =
           AttributeValue.Map(
             Map(
