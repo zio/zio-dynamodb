@@ -22,7 +22,7 @@ object CodecCompatibilitySpec extends ZIOSpecDefault {
 
   val spec = suite("BlocksCodecSpec2")(
     test("round trip Person2") {
-      withCodecs(Person2.zioSchema, Person2.blocksSchema) { codec: SchemaCodec[Person2] =>
+      withCodecs(Person2.zioSchema, Person2.blocksSchema) { (codec: SchemaCodec[Person2]) =>
         val expectedItem   = Item("id" -> "1", "age" -> 42, "count" -> 100)
         val expectedPerson = Person2("1", 42, 100)
         val enc            = codec.encoder(expectedPerson)
