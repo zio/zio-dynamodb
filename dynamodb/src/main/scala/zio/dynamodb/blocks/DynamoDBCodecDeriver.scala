@@ -371,7 +371,7 @@ class DynamoDBCodecDeriver private (
             idx += 1
           }
         }
-        if (isTuple(reflect))
+        if (isTuple(reflect)) {
           new DynamoDBCodec[A] {
             private[this] val deconstructor = binding.deconstructor
             private[this] val constructor   = binding.constructor
@@ -497,7 +497,7 @@ class DynamoDBCodecDeriver private (
                 }
             }
           }
-        else
+        } else
           new DynamoDBCodec[A] {
             private[this] val constructor   = binding.constructor
             private[this] val deconstructor = binding.deconstructor
