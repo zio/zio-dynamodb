@@ -6,7 +6,7 @@ import zio.blocks.schema.binding.{ Binding, SeqConstructor, SeqDeconstructor }
 import zio.blocks.schema.{ CompanionOptics, Doc, Lens, Namespace, PrimitiveType, Reflect, Schema, TypeName, Validation }
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb._
-import zio.test.{ assertTrue, Spec, TestAspect, TestResult, ZIOSpecDefault }
+import zio.test.{ assertTrue, Spec, TestResult, ZIOSpecDefault }
 
 object BlocksCodecSpec extends ZIOSpecDefault {
   sealed trait TrafficLight
@@ -289,28 +289,38 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       }
     ),
     suite("tuple")(
-      testWithCodecs("record with tuple (Int, Long, String)")(RecordWithTuple.zioSchema, RecordWithTuple.schema) {
-        codec =>
-          val expectedItem =
-            AttributeValue.Map(
-              Map(
-                AttributeValue.String("tuple") -> AttributeValue.List(
-                  Chunk(
-                    AttributeValue.Number(BigDecimal(1)),
-                    AttributeValue.Number(BigDecimal(2L)),
-                    AttributeValue.String("3"),
-                    AttributeValue.String("4")
-                  )
+      // Schema2 encoding will never be symmetric with Schema1
+      test("record with tuple (Int, Long, String)") {
+        val codec        = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple.schema)
+        val expectedItem =
+          AttributeValue.Map(
+            Map(
+              AttributeValue.String("tuple") -> AttributeValue.List(
+                Chunk(
+                  AttributeValue.Number(BigDecimal(1)),
+                  AttributeValue.Number(BigDecimal(2L)),
+                  AttributeValue.String("3"),
+                  AttributeValue.String("4")
                 )
               )
             )
+          )
 
-          val expectedPerson = RecordWithTuple(tuple = (1, 2, "3", "4"))
-          val enc            = codec.encoder(expectedPerson)
-          val dec            = codec.decoder(enc)
-          assertTrue(enc == expectedItem && dec == Right(expectedPerson))
+        val expectedPerson = RecordWithTuple(tuple = (1, 2, "3", "4"))
+        val enc            = codec.encoder(expectedPerson)
+        val dec            = codec.decoder(enc)
+        assertTrue(enc == expectedItem && dec == Right(expectedPerson))
       }
-    ) @@ TestAspect.ignore, // TODO: fix compatibility
+    ),
+    test("tuple compatibility") {
+      val blocksCodec    = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple.schema)
+      val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithTuple.zioSchema)
+
+      val recordWithTuple = RecordWithTuple(tuple = (1, 2, "3", "4"))
+      val av              = zioSchemaCodec.encoder(recordWithTuple)
+      val a               = blocksCodec.decoder(av)
+      assertTrue(a == Right(recordWithTuple)) // Blocks codec can decode a tuple encoded by a ZIO Schema codec
+    },
     suite("sequence")(
       // Note ZIO Schema does not work with Arrays
       test("record with Array[String]") {

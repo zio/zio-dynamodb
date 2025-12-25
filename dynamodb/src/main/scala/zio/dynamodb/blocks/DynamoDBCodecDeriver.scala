@@ -1,5 +1,6 @@
 package zio.dynamodb.blocks
 
+import zio.Chunk
 import zio.blocks.schema.Reflect.Bound
 import zio.blocks.schema._
 import zio.blocks.schema.binding.BindingType.{ Primitive, Variant, Wrapper }
@@ -11,6 +12,7 @@ import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb.{ AttributeValue, Decoder, Encoder }
 
+import scala.annotation.tailrec
 import scala.collection.mutable.ArrayBuffer
 
 /**
@@ -411,6 +413,64 @@ class DynamoDBCodecDeriver private (
             override def decoder: Decoder[A] = {
               val regs                        = Registers(usedRegisters)
               val errors: ArrayBuffer[String] = new ArrayBuffer[String]()
+              val legacyDecodeFallback        = true
+
+              def setValue(field: FieldInfo, value: AttributeValue): Unit =
+                field.valueType match {
+                  case DynamoDBCodec.intType    =>
+                    field.codec.asInstanceOf[DynamoDBCodec[Int]].decoder(value) match {
+                      case Right(v)  => regs.setInt(field.offset, 0, v)
+                      case Left(err) => errors.addOne(err.message)
+                    }
+                  case DynamoDBCodec.longType   =>
+                    field.codec.asInstanceOf[DynamoDBCodec[Long]].decoder(value) match {
+                      case Right(v)  => regs.setLong(field.offset, 0, v)
+                      case Left(err) => errors.addOne(err.message)
+                    }
+                  case DynamoDBCodec.objectType =>
+                    field.codec.asInstanceOf[DynamoDBCodec[AnyRef]].decoder(value) match {
+                      case Right(v)  => regs.setObject(field.offset, 0, v)
+                      case Left(err) => errors.addOne(err.message)
+                    }
+                  case _                        => throw new Exception("TODO: decide what to do here")
+                }
+
+              def decodeLegacy(av: AttributeValue.List): Either[ItemError.DecodingError, A] = {
+                errors.clear()
+
+                @tailrec
+                def peelLast(
+                  avList: Chunk[AttributeValue],
+                  count: Int
+                ): Unit = {
+                  val len = avList.size
+                  if (len != 2)
+                    errors.addOne(s"Cannot peel last element from empty AttributeValue.List of size $len")
+                  else if (count > -1) {
+                    val chunk: Chunk[AttributeValue]  = avList.asInstanceOf[zio.Chunk[AttributeValue]]
+                    val avLastElement: AttributeValue = chunk(1)
+                    val avRest: AttributeValue        = chunk(0)
+
+                    val field = fieldInfos(count)
+                    setValue(field, avLastElement)
+                    avRest match {
+                      case l: AttributeValue.List =>
+                        peelLast(l.value.asInstanceOf[Chunk[AttributeValue]], count - 1)
+                      case scalar                 =>
+                        val field = fieldInfos(count - 1) // skip to first element in list
+                        setValue(field, scalar)
+                    }
+                  }
+                }
+
+                peelLast(av.value.asInstanceOf[Chunk[AttributeValue]], len - 1)
+
+                if (errors.isEmpty) {
+                  val a = constructor.construct(regs, RegisterOffset.Zero)
+                  Right(a)
+                } else Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
+
+              }
 
               (av: AttributeValue) =>
                 av match {
@@ -418,36 +478,21 @@ class DynamoDBCodecDeriver private (
                     val it  = avList.value.iterator
                     var idx = 0
                     while (it.hasNext && idx < len) {
-                      val field  = fieldInfos(idx)
-                      val offset = field.offset
-                      val value  = it.next()
+                      val field = fieldInfos(idx)
+                      val value = it.next()
 
-                      field.valueType match {
-                        case DynamoDBCodec.intType    =>
-                          field.codec.asInstanceOf[DynamoDBCodec[Int]].decoder(value) match {
-                            case Right(v)  => regs.setInt(offset, 0, v)
-                            case Left(err) => errors.addOne(err.message)
-                          }
-                        case DynamoDBCodec.longType   =>
-                          field.codec.asInstanceOf[DynamoDBCodec[Long]].decoder(value) match {
-                            case Right(v)  => regs.setLong(offset, 0, v)
-                            case Left(err) => errors.addOne(err.message)
-                          }
-                        case DynamoDBCodec.objectType =>
-                          field.codec.asInstanceOf[DynamoDBCodec[AnyRef]].decoder(value) match {
-                            case Right(v)  => regs.setObject(offset, 0, v)
-                            case Left(err) => errors.addOne(err.message)
-                          }
-                        case _                        => throw new Exception("TODO: decide what to do here")
-                      }
+                      setValue(field, value)
                       idx += 1
                     } // end while
                     if (errors.isEmpty) {
                       val a = constructor.construct(regs, RegisterOffset.Zero)
                       Right(a)
-                    } else Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
-
+                    } else if (legacyDecodeFallback)
+                      decodeLegacy(avList)
+                    else
+                      Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
                   case av: AttributeValue          =>
+                    // TODO: compatibility - deal with scalar values for tuple1
                     Left(DecodingError(s"Expected List attribute value but got: ${av.showType}"))
                 }
             }
