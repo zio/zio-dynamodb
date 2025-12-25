@@ -117,6 +117,13 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       zio.schema.DeriveSchema.gen[RecordWithTuple]
   }
 
+  final case class RecordWithTuple1(tuple: (Int))
+  object RecordWithTuple1 {
+    implicit val schema: Schema[RecordWithTuple1]               = Schema.derived
+    implicit val zioSchema: zio.schema.Schema[RecordWithTuple1] =
+      zio.schema.DeriveSchema.gen[RecordWithTuple1]
+  }
+
   final case class RecordWithOptionalPerson(option: Option[Person])
   object RecordWithOptionalPerson {
     implicit val schema: Schema[RecordWithOptionalPerson] = Schema.derived
@@ -312,11 +319,20 @@ object BlocksCodecSpec extends ZIOSpecDefault {
         assertTrue(enc == expectedItem && dec == Right(expectedPerson))
       }
     ),
-    test("tuple compatibility") {
+    test("tuple compatibility - nested lists") {
       val blocksCodec    = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple.schema)
       val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithTuple.zioSchema)
 
       val recordWithTuple = RecordWithTuple(tuple = (1, 2, "3", "4"))
+      val av              = zioSchemaCodec.encoder(recordWithTuple)
+      val a               = blocksCodec.decoder(av)
+      assertTrue(a == Right(recordWithTuple)) // Blocks codec can decode a tuple encoded by a ZIO Schema codec
+    },
+    test("tuple compatibility - single scalar value for Tuple1") {
+      val blocksCodec    = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple1.schema)
+      val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithTuple1.zioSchema)
+
+      val recordWithTuple = RecordWithTuple1(tuple = (1))
       val av              = zioSchemaCodec.encoder(recordWithTuple)
       val a               = blocksCodec.decoder(av)
       assertTrue(a == Right(recordWithTuple)) // Blocks codec can decode a tuple encoded by a ZIO Schema codec
