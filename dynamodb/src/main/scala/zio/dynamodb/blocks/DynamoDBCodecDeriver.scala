@@ -18,7 +18,8 @@ import scala.collection.mutable.ArrayBuffer
 /**
  * borrows heavily from Andriy Plokhotnyuk's zio-blocks JSON codec https://github.com/zio/zio-blocks
  */
-object DynamoDBCodecDeriver extends DynamoDBCodecDeriver(transientNone = true, requireOptionFields = false) {}
+object DynamoDBCodecDeriver
+    extends DynamoDBCodecDeriver(zioSchema1Compatibility = true, transientNone = true, requireOptionFields = false) {}
 
 // TODO: Avi - create an issue in Blocks to either expose these or to provide higher level APIs to check for common Scala types
 private[blocks] object Namespace {
@@ -32,6 +33,7 @@ private[blocks] object Namespace {
 }
 
 class DynamoDBCodecDeriver private (
+  zioSchema1Compatibility: Boolean,
   transientNone: Boolean,
   requireOptionFields: Boolean
 ) extends Deriver[DynamoDBCodec] { self =>
@@ -39,9 +41,10 @@ class DynamoDBCodecDeriver private (
   def withTransientNone(transientNone: Boolean): DynamoDBCodecDeriver = copy(transientNone = transientNone)
 
   def copy(
+    zioSchema1Compatibility: Boolean = zioSchema1Compatibility,
     transientNone: Boolean = transientNone,
     requireOptionFields: Boolean = requireOptionFields
-  ): DynamoDBCodecDeriver = new DynamoDBCodecDeriver(transientNone, requireOptionFields)
+  ): DynamoDBCodecDeriver = new DynamoDBCodecDeriver(zioSchema1Compatibility, transientNone, requireOptionFields)
 
   type Elem
   type Col[_]
@@ -413,7 +416,6 @@ class DynamoDBCodecDeriver private (
             override def decoder: Decoder[A] = {
               val regs                        = Registers(usedRegisters)
               val errors: ArrayBuffer[String] = new ArrayBuffer[String]()
-              val legacyDecodeFallback        = true
 
               def setValue(field: FieldInfo, value: AttributeValue): Unit =
                 field.valueType match {
@@ -487,7 +489,7 @@ class DynamoDBCodecDeriver private (
                     if (errors.isEmpty) {
                       val a = constructor.construct(regs, RegisterOffset.Zero)
                       Right(a)
-                    } else if (legacyDecodeFallback)
+                    } else if (zioSchema1Compatibility)
                       decodeLegacy(avList)
                     else
                       Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
