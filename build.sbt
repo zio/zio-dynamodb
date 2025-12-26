@@ -34,7 +34,7 @@ addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck"
 val zioVersion             = "2.1.23"
 val zioAwsVersion          = "7.39.6.4"
 val zioSchemaVersion       = "1.7.5"
-val zioBlocksVersion       = "0.0.0+797-3ee20a65-SNAPSHOT"
+val zioBlocksVersion       = "0.0.1"
 val zioPreludeVersion      = "1.0.0-RC44"
 val zioJsonVersion         = "0.7.45"
 val zioInteropCats3Version = "23.1.0.11"
@@ -54,7 +54,6 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
   .configs(IntegrationTest)
   .settings(
     Defaults.itSettings,
-    resolvers += Resolver.sonatypeCentralSnapshots, //Resolver.sonatypeOssRepos("releases"),
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio"                   % zioVersion,
       "dev.zio" %% "zio-prelude"           % zioPreludeVersion,
