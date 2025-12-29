@@ -447,14 +447,15 @@ class DynamoDBCodecDeriver private (
                   val len = avList.size
                   avList match {
                     case Chunk(avRest, avLastElement) =>
-                      val field = fieldInfos(count)
+                      val field          = fieldInfos(count)
                       setValue(field, avLastElement)
+                      val isNotFinalPair = count > 1
                       avRest match {
-                        case l: AttributeValue.List =>
+                        case l: AttributeValue.List if isNotFinalPair =>
                           setRegisterValueForLastElement(l.value.asInstanceOf[Chunk[AttributeValue]], count - 1)
-                        case avScalar               =>
+                        case avFirst                                  =>
                           val field = fieldInfos(count - 1) // skip to first element in list
-                          setValue(field, avScalar)
+                          setValue(field, avFirst)
                       }
                     case _                            => errors.addOne(s"Expected list size of 2 but found $len")
                   }

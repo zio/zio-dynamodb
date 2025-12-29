@@ -117,6 +117,20 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       zio.schema.DeriveSchema.gen[RecordWithTuple]
   }
 
+  final case class RecordWithListAsFirstInTuple(tuple: (List[Int], Long, String))
+  object RecordWithListAsFirstInTuple {
+    implicit val schema: Schema[RecordWithListAsFirstInTuple]               = Schema.derived
+    implicit val zioSchema: zio.schema.Schema[RecordWithListAsFirstInTuple] =
+      zio.schema.DeriveSchema.gen[RecordWithListAsFirstInTuple]
+  }
+
+  final case class RecordWithListAsSecondInTuple(tuple: (Int, List[Long], String))
+  object RecordWithListAsSecondInTuple {
+    implicit val schema: Schema[RecordWithListAsSecondInTuple]               = Schema.derived
+    implicit val zioSchema: zio.schema.Schema[RecordWithListAsSecondInTuple] =
+      zio.schema.DeriveSchema.gen[RecordWithListAsSecondInTuple]
+  }
+
   final case class RecordWithTuple1(tuple: (Int))
   object RecordWithTuple1 {
     implicit val schema: Schema[RecordWithTuple1]               = Schema.derived
@@ -335,6 +349,26 @@ object BlocksCodecSpec extends ZIOSpecDefault {
         val av              = zioSchemaCodec.encoder(recordWithTuple)
         val a               = blocksCodec.decoder(av)
         assertTrue(a == Right(recordWithTuple)) // Blocks codec can decode a tuple encoded by a ZIO Schema codec
+      },
+      test("tuple compatibility - tuple with first element as List") {
+        val blocksCodec    = SchemaCodec.schema2ToSchemaCodec(RecordWithListAsFirstInTuple.schema)
+        val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithListAsFirstInTuple.zioSchema)
+
+        val recordWithTuple = RecordWithListAsFirstInTuple(tuple = (List(1, 2), 2L, "3"))
+        val av1             = zioSchemaCodec.encoder(recordWithTuple)
+        val dec2            = blocksCodec.decoder(av1)
+
+        assertTrue(dec2 == Right(recordWithTuple))
+      },
+      test("tuple compatibility - tuple with second element as List") {
+        val blocksCodec    = SchemaCodec.schema2ToSchemaCodec(RecordWithListAsSecondInTuple.schema)
+        val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithListAsSecondInTuple.zioSchema)
+
+        val recordWithTuple = RecordWithListAsSecondInTuple(tuple = (1, List(1L, 2L), "3"))
+        val av1             = zioSchemaCodec.encoder(recordWithTuple)
+        val dec2            = blocksCodec.decoder(av1)
+
+        assertTrue(dec2 == Right(recordWithTuple))
       }
     ),
     suite("sequence")(
