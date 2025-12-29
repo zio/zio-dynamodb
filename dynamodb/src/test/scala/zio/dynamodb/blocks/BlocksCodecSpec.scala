@@ -79,7 +79,9 @@ object BlocksCodecSpec extends ZIOSpecDefault {
     map: Map[Int, Int] = Map.empty
   )
   object RecordWithNonNativeMap {
-    implicit val schema: Schema[RecordWithNonNativeMap] = Schema.derived
+    implicit val zioSchema: zio.schema.Schema[RecordWithNonNativeMap] =
+      zio.schema.DeriveSchema.gen[RecordWithNonNativeMap]
+    implicit val schema: Schema[RecordWithNonNativeMap]               = Schema.derived
   }
   final case class RecordWithArray(
     // TODO: Avi - bottom out Array support in AttrMap/To/FromAttributeValue and equality checks
@@ -309,12 +311,14 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       }
     ),
     suite("non native Map")(
-      test("Record with NON native Map(1 -> 1, 2 -> 2)") {
-        val expectedItem                                 = Item("map" -> List(List(1, 1), List(2, 2)))
-        val codec: DynamoDBCodec[RecordWithNonNativeMap] = RecordWithNonNativeMap.schema.derive(DynamoDBCodecDeriver)
-        val expectedRecord                               = RecordWithNonNativeMap(map = Map(1 -> 1, 2 -> 2))
-        val enc                                          = codec.encoder(expectedRecord)
-        val dec                                          = codec.decoder(enc)
+      testWithCodecs("Record with NON native Map(1 -> 1, 2 -> 2)")(
+        RecordWithNonNativeMap.zioSchema,
+        RecordWithNonNativeMap.schema
+      ) { codec =>
+        val expectedItem   = Item("map" -> List(List(1, 1), List(2, 2)))
+        val expectedRecord = RecordWithNonNativeMap(map = Map(1 -> 1, 2 -> 2))
+        val enc            = codec.encoder(expectedRecord)
+        val dec            = codec.decoder(enc)
         assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedRecord))
       }
     ),
