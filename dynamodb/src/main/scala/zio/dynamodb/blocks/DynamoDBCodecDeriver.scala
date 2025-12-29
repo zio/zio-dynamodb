@@ -438,16 +438,15 @@ class DynamoDBCodecDeriver private (
                 }
 
               def decodeLegacy(av: AttributeValue.List): Either[ItemError.DecodingError, A] = {
-                errors.clear()
 
                 @tailrec
-                def peelLast(
+                def setRegisterValueForLastElement(
                   avList: Chunk[AttributeValue],
                   count: Int
                 ): Unit = {
                   val len = avList.size
                   if (len != 2)
-                    errors.addOne(s"Cannot peel last element from empty AttributeValue.List of size $len")
+                    errors.addOne(s"Expected list size of 2 but found $len")
                   else if (count > -1) {
                     val chunk: Chunk[AttributeValue]  = avList.asInstanceOf[zio.Chunk[AttributeValue]]
                     val avLastElement: AttributeValue = chunk(1)
@@ -457,15 +456,15 @@ class DynamoDBCodecDeriver private (
                     setValue(field, avLastElement)
                     avRest match {
                       case l: AttributeValue.List =>
-                        peelLast(l.value.asInstanceOf[Chunk[AttributeValue]], count - 1)
-                      case scalar                 =>
+                        setRegisterValueForLastElement(l.value.asInstanceOf[Chunk[AttributeValue]], count - 1)
+                      case avScalar               =>
                         val field = fieldInfos(count - 1) // skip to first element in list
-                        setValue(field, scalar)
+                        setValue(field, avScalar)
                     }
                   }
                 }
 
-                peelLast(av.value.asInstanceOf[Chunk[AttributeValue]], len - 1)
+                setRegisterValueForLastElement(av.value.asInstanceOf[Chunk[AttributeValue]], len - 1)
 
                 if (errors.isEmpty) {
                   val a = constructor.construct(regs, RegisterOffset.Zero)
@@ -489,12 +488,12 @@ class DynamoDBCodecDeriver private (
                     if (errors.isEmpty) {
                       val a = constructor.construct(regs, RegisterOffset.Zero)
                       Right(a)
-                    } else if (zioSchema1Compatibility)
+                    } else if (zioSchema1Compatibility) {
+                      errors.clear()
                       decodeLegacy(avList)
-                    else
+                    } else
                       Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
                   case av: AttributeValue          =>
-                    // TODO: compatibility - deal with scalar values for tuple1
                     Left(DecodingError(s"Expected List attribute value but got: ${av.showType}"))
                 }
             }
