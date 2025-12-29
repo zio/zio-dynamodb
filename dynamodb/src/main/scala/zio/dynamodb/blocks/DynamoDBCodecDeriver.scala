@@ -445,22 +445,18 @@ class DynamoDBCodecDeriver private (
                   count: Int
                 ): Unit = {
                   val len = avList.size
-                  if (len != 2)
-                    errors.addOne(s"Expected list size of 2 but found $len")
-                  else if (count > -1) {
-                    val chunk: Chunk[AttributeValue]  = avList.asInstanceOf[zio.Chunk[AttributeValue]]
-                    val avLastElement: AttributeValue = chunk(1)
-                    val avRest: AttributeValue        = chunk(0)
-
-                    val field = fieldInfos(count)
-                    setValue(field, avLastElement)
-                    avRest match {
-                      case l: AttributeValue.List =>
-                        setRegisterValueForLastElement(l.value.asInstanceOf[Chunk[AttributeValue]], count - 1)
-                      case avScalar               =>
-                        val field = fieldInfos(count - 1) // skip to first element in list
-                        setValue(field, avScalar)
-                    }
+                  avList match {
+                    case Chunk(avRest, avLastElement) =>
+                      val field = fieldInfos(count)
+                      setValue(field, avLastElement)
+                      avRest match {
+                        case l: AttributeValue.List =>
+                          setRegisterValueForLastElement(l.value.asInstanceOf[Chunk[AttributeValue]], count - 1)
+                        case avScalar               =>
+                          val field = fieldInfos(count - 1) // skip to first element in list
+                          setValue(field, avScalar)
+                      }
+                    case _                            => errors.addOne(s"Expected list size of 2 but found $len")
                   }
                 }
 
