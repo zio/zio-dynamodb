@@ -67,14 +67,13 @@ object BlocksCodecSpec extends ZIOSpecDefault {
     implicit val schema: Schema[RecordWithEnum] = Schema.derived
   }
 
-  final case class RecordWithCollections(
-//    numbers: List[Int] = Nil,
+  final case class RecordWithNativeMap(
     map: Map[String, Int] = Map.empty
   )
-  object RecordWithCollections  {
-    implicit val schema: Schema[RecordWithCollections]               = Schema.derived
-    implicit val zioSchema: zio.schema.Schema[RecordWithCollections] =
-      zio.schema.DeriveSchema.gen[RecordWithCollections]
+  object RecordWithNativeMap    {
+    implicit val schema: Schema[RecordWithNativeMap]               = Schema.derived
+    implicit val zioSchema: zio.schema.Schema[RecordWithNativeMap] =
+      zio.schema.DeriveSchema.gen[RecordWithNativeMap]
   }
   final case class RecordWithNonNativeMap(
     map: Map[Int, Int] = Map.empty
@@ -282,12 +281,12 @@ object BlocksCodecSpec extends ZIOSpecDefault {
     },
     suite("Native Map")(
       testWithCodecs("Record with native Map[String, Int]")(
-        RecordWithCollections.zioSchema,
-        RecordWithCollections.schema
+        RecordWithNativeMap.zioSchema,
+        RecordWithNativeMap.schema
       ) { codec =>
         val expectedItem   =
           Item("map" -> Map("a" -> 1, "b" -> 2))
-        val expectedPerson = RecordWithCollections(map = Map("a" -> 1, "b" -> 2))
+        val expectedPerson = RecordWithNativeMap(map = Map("a" -> 1, "b" -> 2))
         val enc            = codec.encoder(expectedPerson)
         val dec            = codec.decoder(enc)
         assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
@@ -307,6 +306,16 @@ object BlocksCodecSpec extends ZIOSpecDefault {
         val enc                                        = codec.encoder(expectedPerson)
         val dec                                        = codec.decoder(enc)
         assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
+      }
+    ),
+    suite("non native Map")(
+      test("Record with NON native Map(1 -> 1, 2 -> 2)") {
+        val expectedItem                                 = Item("map" -> List(List(1, 1), List(2, 2)))
+        val codec: DynamoDBCodec[RecordWithNonNativeMap] = RecordWithNonNativeMap.schema.derive(DynamoDBCodecDeriver)
+        val expectedRecord                               = RecordWithNonNativeMap(map = Map(1 -> 1, 2 -> 2))
+        val enc                                          = codec.encoder(expectedRecord)
+        val dec                                          = codec.decoder(enc)
+        assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedRecord))
       }
     ),
     suite("tuple")(

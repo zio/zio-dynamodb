@@ -301,7 +301,65 @@ class DynamoDBCodecDeriver private (
               }
           }
         else // TODO: non native Map encoding - Sequence of tuple2
-          ???
+          new DynamoDBCodec[Map[Key, Value]] {
+            def encoder: Encoder[Map[Key, Value]] =
+              (m: Map[Key, Value]) => {
+                val len = deconstructor.size(m)
+                val avs = new Array[AttributeValue](len)
+                var idx = 0
+                val it  = deconstructor.deconstruct(m)
+                while (it.hasNext) {
+                  val kv      = it.next()
+                  val keyAv   = keyEncoder(deconstructor.getKey(kv))
+                  val valueAv = valueEncoder(deconstructor.getValue(kv))
+                  val tupleAv = AttributeValue.List(
+                    scala.collection.immutable.ArraySeq(keyAv, valueAv)
+                  )
+                  avs(idx) = tupleAv
+                  idx += 1
+                }
+                AttributeValue.List(scala.collection.immutable.ArraySeq.unsafeWrapArray(avs))
+              }
+
+            def decoder: Decoder[Map[Key, Value]] = {
+              case AttributeValue.List(value) =>
+                val it      = value.iterator
+                val errors  = new ArrayBuffer[String]
+                val builder = constructor.newObjectBuilder[Key, Value](8)
+
+                while (it.hasNext) {
+                  val next = it.next()
+                  next match {
+                    case AttributeValue.List(kvItems) if kvItems.size == 2 =>
+                      val it      = kvItems.iterator
+                      val keyAv   = it.next()
+                      val valueAv = it.next()
+                      (keyDecoder(keyAv), valueDecoder(valueAv)) match {
+                        case (Right(key), Right(value)) =>
+                          constructor.addObject(builder, key, value)
+                        case (Left(errL), Left(errR))   =>
+                          errors.addOne(errL.message)
+                          errors.addOne(errR.message)
+                        case (_, Left(err))             => errors.addOne(err.message)
+                        case (Left(err), _)             => errors.addOne(err.message)
+                      }
+                    case other                                             =>
+                      errors.addOne(
+                        s"Expected AttributeValue.List of size 2 for Map entry, found: ${other.showType}"
+                      )
+                  }
+                }
+
+                if (errors.isEmpty) {
+                  val m = constructor.resultObject[Key, Value](builder)
+                  Right(m)
+                } else Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
+
+              case av                         => Left(ItemError.DecodingError(s"Expected AttributeValue.List, found ${av.showType}"))
+
+            }
+
+          }
       } else map.mapBinding.asInstanceOf[BindingInstance[DynamoDBCodec, ?, A]].instance.force
     }.asInstanceOf[DynamoDBCodec[A]]
     else if (reflect.isSequence) {
