@@ -34,8 +34,8 @@ class CodecBenchmarks extends BaseBenchmark {
           "John",
           30,
           Some("123 Main St"),
-//          Map("a" -> 1, "b" -> 2, "c" -> 3),
-//          Vector(1, 2, 3, 4, 5),
+          Map("a" -> 1, "b" -> 2, "c" -> 3),
+          Vector(1, 2, 3, 4, 5),
           (1, 2L, "3")
         )
       )
@@ -107,8 +107,8 @@ object BenchmarkDomain {
     name: String,
     age: Int,
     address: Option[String],
-//    map: Map[String, Int],
-//    list: Vector[Int],
+    map: Map[String, Int],
+    list: Vector[Int],
     tuple: (Int, Long, String)
   )
   object Person {
