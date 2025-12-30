@@ -70,23 +70,31 @@ object BlocksCodecSpec extends ZIOSpecDefault {
   final case class RecordWithNativeMap(
     map: Map[String, Int] = Map.empty
   )
-  object RecordWithNativeMap    {
+  object RecordWithNativeMap            {
     implicit val schema: Schema[RecordWithNativeMap]               = Schema.derived
     implicit val zioSchema: zio.schema.Schema[RecordWithNativeMap] =
       zio.schema.DeriveSchema.gen[RecordWithNativeMap]
   }
-  final case class RecordWithNonNativeMap(
+  final case class RecordWithNonNativeMapOfInt(
     map: Map[Int, Int] = Map.empty
   )
-  object RecordWithNonNativeMap {
-    implicit val zioSchema: zio.schema.Schema[RecordWithNonNativeMap] =
-      zio.schema.DeriveSchema.gen[RecordWithNonNativeMap]
-    implicit val schema: Schema[RecordWithNonNativeMap]               = Schema.derived
+  object RecordWithNonNativeMapOfInt    {
+    implicit val zioSchema: zio.schema.Schema[RecordWithNonNativeMapOfInt] =
+      zio.schema.DeriveSchema.gen[RecordWithNonNativeMapOfInt]
+    implicit val schema: Schema[RecordWithNonNativeMapOfInt]               = Schema.derived
+  }
+  final case class RecordWithNonNativeMapOfPerson(
+    map: Map[Int, Person] = Map.empty
+  )
+  object RecordWithNonNativeMapOfPerson {
+    implicit val zioSchema: zio.schema.Schema[RecordWithNonNativeMapOfPerson] =
+      zio.schema.DeriveSchema.gen[RecordWithNonNativeMapOfPerson]
+    implicit val schema: Schema[RecordWithNonNativeMapOfPerson]               = Schema.derived
   }
   final case class RecordWithArray(
     // TODO: Avi - bottom out Array support in AttrMap/To/FromAttributeValue and equality checks
     names: Array[String] = Array.empty
-  )                             {
+  )                                     {
     override def equals(obj: Any): Boolean =
       obj match {
         case that: RecordWithArray =>
@@ -97,7 +105,7 @@ object BlocksCodecSpec extends ZIOSpecDefault {
     override def hashCode(): Int =
       names.toSeq.hashCode()
   }
-  object RecordWithArray        {
+  object RecordWithArray                {
     implicit val schema: Schema[RecordWithArray] = Schema.derived
   }
   final case class RecordWithEither(either: Either[String, Int])
@@ -207,7 +215,9 @@ object BlocksCodecSpec extends ZIOSpecDefault {
 
   final case class Person(id: String, age: Long)
   object Person extends CompanionOptics[Person] {
-    implicit val schema: Schema[Person] = Schema.derived
+    implicit val zioSchema: zio.schema.Schema[Person] =
+      zio.schema.DeriveSchema.gen[Person]
+    implicit val schema: Schema[Person]               = Schema.derived
 
     val id: Lens[Person, String] = $(_.id)
   }
@@ -311,15 +321,45 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       }
     ),
     suite("non native Map")(
-      testWithCodecs("Record with NON native Map(1 -> 1, 2 -> 2)")(
-        RecordWithNonNativeMap.zioSchema,
-        RecordWithNonNativeMap.schema
+      testWithCodecs("Record with Map[Int, Int]")(
+        RecordWithNonNativeMapOfInt.zioSchema,
+        RecordWithNonNativeMapOfInt.schema
       ) { codec =>
         val expectedItem   = Item("map" -> List(List(1, 1), List(2, 2)))
-        val expectedRecord = RecordWithNonNativeMap(map = Map(1 -> 1, 2 -> 2))
+        val expectedRecord = RecordWithNonNativeMapOfInt(map = Map(1 -> 1, 2 -> 2))
         val enc            = codec.encoder(expectedRecord)
         val dec            = codec.decoder(enc)
         assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedRecord))
+      },
+      testWithCodecs("Record with Map[Int, Person]")(
+        RecordWithNonNativeMapOfPerson.zioSchema,
+        RecordWithNonNativeMapOfPerson.schema
+      ) { codec =>
+        val expectedItem   = AttributeValue.Map(
+          Map(
+            AttributeValue.String("map") -> AttributeValue.List(
+              Chunk(
+                AttributeValue.List(
+                  Chunk(
+                    AttributeValue.Number(BigDecimal(1)),
+                    AttributeValue.Map(
+                      Map(
+                        AttributeValue.String("id")  -> AttributeValue.String("id"),
+                        AttributeValue.String("age") -> AttributeValue.Number(
+                          BigDecimal(21)
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+        val expectedRecord = RecordWithNonNativeMapOfPerson(Map(1 -> Person("id", 21)))
+        val enc            = codec.encoder(expectedRecord)
+        val dec            = codec.decoder(enc)
+        assertTrue(enc == expectedItem && dec == Right(expectedRecord))
       }
     ),
     suite("tuple")(
