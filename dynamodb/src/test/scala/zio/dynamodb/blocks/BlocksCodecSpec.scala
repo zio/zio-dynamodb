@@ -272,6 +272,23 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       val dec                                    = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
     },
+    test("Record with Option[Int] None with required None via config") {
+      final case class RecordWithOption2(id: String, option: Option[Int])
+      object RecordWithOption2 {
+        implicit val cfg: DynamoDBCodecConfig[RecordWithOption2] =
+          (d: DynamoDBCodecDeriver) => d.withTransientNone(false)
+
+        implicit val schema: Schema[RecordWithOption2] = Schema.derived
+      }
+
+      val expectedItem                          =
+        Item("id" -> "1", "option" -> null)
+      val codec: SchemaCodec[RecordWithOption2] = implicitly[SchemaCodec[RecordWithOption2]]
+      val expectedPerson                        = RecordWithOption2("1", option = None)
+      val enc                                   = codec.encoder(expectedPerson)
+      val dec                                   = codec.decoder(enc)
+      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
+    },
     test("Record with Option[Int] None with required None") {
       val expectedItem                           =
         Item("id" -> "1", "option" -> null)
