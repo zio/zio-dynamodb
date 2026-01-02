@@ -365,7 +365,7 @@ object BlocksCodecSpec extends ZIOSpecDefault {
     suite("tuple")(
       // Schema2 encoding will never be symmetric with Schema1
       test("record with tuple (Int, Long, String)") {
-        val codec        = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple.schema)
+        val codec        = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple.schema, DynamoDBCodecConfig.identity)
         val expectedItem =
           AttributeValue.Map(
             Map(
@@ -386,7 +386,7 @@ object BlocksCodecSpec extends ZIOSpecDefault {
         assertTrue(enc == expectedItem && dec == Right(expectedPerson))
       },
       test("tuple compatibility - nested lists") {
-        val blocksCodec    = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple.schema)
+        val blocksCodec    = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple.schema, DynamoDBCodecConfig.identity)
         val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithTuple.zioSchema)
 
         val recordWithTuple = RecordWithTuple(tuple = (1, 2, "3", "4"))
@@ -395,7 +395,7 @@ object BlocksCodecSpec extends ZIOSpecDefault {
         assertTrue(a == Right(recordWithTuple)) // Blocks codec can decode a tuple encoded by a ZIO Schema codec
       },
       test("tuple compatibility - single scalar value for Tuple1") {
-        val blocksCodec    = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple1.schema)
+        val blocksCodec    = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple1.schema, DynamoDBCodecConfig.identity)
         val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithTuple1.zioSchema)
 
         val recordWithTuple = RecordWithTuple1(tuple = (1))
@@ -404,7 +404,8 @@ object BlocksCodecSpec extends ZIOSpecDefault {
         assertTrue(a == Right(recordWithTuple)) // Blocks codec can decode a tuple encoded by a ZIO Schema codec
       },
       test("tuple compatibility - tuple with first element as List") {
-        val blocksCodec    = SchemaCodec.schema2ToSchemaCodec(RecordWithListAsFirstInTuple.schema)
+        val blocksCodec    =
+          SchemaCodec.schema2ToSchemaCodec(RecordWithListAsFirstInTuple.schema, DynamoDBCodecConfig.identity)
         val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithListAsFirstInTuple.zioSchema)
 
         val recordWithTuple = RecordWithListAsFirstInTuple(tuple = (List(1, 2), 2L, "3"))
@@ -414,7 +415,8 @@ object BlocksCodecSpec extends ZIOSpecDefault {
         assertTrue(dec2 == Right(recordWithTuple))
       },
       test("tuple compatibility - tuple with second element as List") {
-        val blocksCodec    = SchemaCodec.schema2ToSchemaCodec(RecordWithListAsSecondInTuple.schema)
+        val blocksCodec    =
+          SchemaCodec.schema2ToSchemaCodec(RecordWithListAsSecondInTuple.schema, DynamoDBCodecConfig.identity)
         val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithListAsSecondInTuple.zioSchema)
 
         val recordWithTuple = RecordWithListAsSecondInTuple(tuple = (1, List(1L, 2L), "3"))
@@ -452,12 +454,13 @@ object BlocksCodecSpec extends ZIOSpecDefault {
     name: String
   )(
     zioSchema: zio.schema.Schema[A],
-    blocks: Schema[A]
+    blocks: Schema[A],
+    cfg: DynamoDBCodecConfig[A] = DynamoDBCodecConfig.identity[A]
   )(
     testBody: SchemaCodec[A] => TestResult
   ): Spec[Any, Nothing] = {
 
-    val scBlocks = SchemaCodec.schema2ToSchemaCodec(blocks)
+    val scBlocks = SchemaCodec.schema2ToSchemaCodec(blocks, cfg)
     val scZio    = SchemaCodec.schema1ToSchemaCodec(zioSchema)
 
     suite(name)(
