@@ -12,7 +12,7 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
       withSingleIdKeyTable { tableName =>
         final case class Person(id: String, name: String)
         object Person extends CompanionOptics[Person] {
-          implicit val cfg: DynamoDBCodecConfig[Person] = (d: DynamoDBCodecDeriver) => d.withTransientNone(false)
+          implicit val cfg: DynamoDBCodecConfigure[Person] = (d: DynamoDBCodecDeriver) => d.withTransientNone(false)
           implicit val schema: Schema[Person]           = Schema.derived
           val id: Lens[Person, String]                  = $(_.id)
           val name: Lens[Person, String]                = $(_.name)

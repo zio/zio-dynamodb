@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.blocks.{ DynamoDBCodec, DynamoDBCodecConfig, DynamoDBCodecDeriver }
+import zio.dynamodb.blocks.{ DynamoDBCodec, DynamoDBCodecConfigure, DynamoDBCodecDeriver }
 import zio.schema.Schema
 import zio.Chunk
 
@@ -32,7 +32,7 @@ object SchemaCodec {
     }
 
   // Blocks Schema
-  implicit def schema2ToSchemaCodec[A: zio.blocks.schema.Schema](implicit cfg: DynamoDBCodecConfig[A]): SchemaCodec[A] =
+  implicit def schema2ToSchemaCodec[A: zio.blocks.schema.Schema](implicit cfg: DynamoDBCodecConfigure[A]): SchemaCodec[A] =
     new SchemaCodec[A] {
       private[this] val blocksCodec: DynamoDBCodec[A] =
         zio.blocks.schema.Schema[A].derive(cfg.configure(DynamoDBCodecDeriver))
