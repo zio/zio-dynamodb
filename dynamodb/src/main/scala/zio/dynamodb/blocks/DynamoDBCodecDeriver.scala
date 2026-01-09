@@ -414,7 +414,7 @@ class DynamoDBCodecDeriver private (
       val record = reflect.asRecord.get
       if (record.recordBinding.isInstanceOf[Binding[?, ?]]) {
         val binding = record.recordBinding.asInstanceOf[Binding.Record[A]]
-        var offset  = 0
+        var offset  = 0L
         val fields  = record.fields
 
         var fieldInfos: Array[FieldInfo] = null // TODO: investigate recursive cache
@@ -428,7 +428,8 @@ class DynamoDBCodecDeriver private (
             val codec        = deriveCodec(fieldReflect)
             val optRequired  = isOptional(fieldReflect)
             fieldInfos(idx) = new FieldInfo(field.name, offset, codec, optRequired)
-            offset += codec.valueOffset
+            //offset += codec.valueOffset
+            offset = RegisterOffset.add(codec.valueOffset, offset)
             idx += 1
           }
         }
@@ -448,20 +449,20 @@ class DynamoDBCodecDeriver private (
                 val codec  = field.codec
                 field.valueType match {
                   case DynamoDBCodec.intType    =>
-                    val v  = regs.getInt(offset, 0)
+                    val v  = regs.getInt(offset)
                     // TODO: Avi - investigate direct encoding optimisations for primitives
                     val av = codec.asInstanceOf[DynamoDBCodec[Int]].encoder(v)
                     arr(idx) = av
                   case DynamoDBCodec.longType   =>
-                    val v  = regs.getLong(offset, 0)
+                    val v  = regs.getLong(offset)
                     val av = codec.asInstanceOf[DynamoDBCodec[Long]].encoder(v)
                     arr(idx) = av
                   case DynamoDBCodec.objectType =>
-                    val v  = regs.getObject(offset, 0)
+                    val v  = regs.getObject(offset)
                     val av = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(v)
                     arr(idx) = av
                   case _                        =>
-                    val v  = regs.getObject(offset, 0)
+                    val v  = regs.getObject(offset)
                     val av = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(v)
                     arr(idx) = av
                 }
@@ -479,17 +480,17 @@ class DynamoDBCodecDeriver private (
                 field.valueType match {
                   case DynamoDBCodec.intType    =>
                     field.codec.asInstanceOf[DynamoDBCodec[Int]].decoder(value) match {
-                      case Right(v)  => regs.setInt(field.offset, 0, v)
+                      case Right(v)  => regs.setInt(field.offset, v)
                       case Left(err) => errors.addOne(err.message)
                     }
                   case DynamoDBCodec.longType   =>
                     field.codec.asInstanceOf[DynamoDBCodec[Long]].decoder(value) match {
-                      case Right(v)  => regs.setLong(field.offset, 0, v)
+                      case Right(v)  => regs.setLong(field.offset, v)
                       case Left(err) => errors.addOne(err.message)
                     }
                   case DynamoDBCodec.objectType =>
                     field.codec.asInstanceOf[DynamoDBCodec[AnyRef]].decoder(value) match {
-                      case Right(v)  => regs.setObject(field.offset, 0, v)
+                      case Right(v)  => regs.setObject(field.offset, v)
                       case Left(err) => errors.addOne(err.message)
                     }
                   case _                        => throw new Exception("TODO: decide what to do here")
@@ -576,22 +577,22 @@ class DynamoDBCodecDeriver private (
 
                 field.valueType match {
                   case DynamoDBCodec.intType    =>
-                    val value = regs.getInt(offset, 0)
+                    val value = regs.getInt(offset)
                     val av    = codec.asInstanceOf[DynamoDBCodec[Int]].encoder(value)
                     mapBuilder.addOne(name, av)
                   case DynamoDBCodec.longType   =>
-                    val value = regs.getLong(offset, 0)
+                    val value = regs.getLong(offset)
                     val av    = codec.asInstanceOf[DynamoDBCodec[Long]].encoder(value)
                     mapBuilder.addOne(name, av)
                   case DynamoDBCodec.objectType =>
-                    val value = regs.getObject(offset, 0)
+                    val value = regs.getObject(offset)
                     if (!(isOpt && skipNone && (value == None))) {
                       val av = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(value)
                       mapBuilder.addOne(name, av)
                     }
                   case _                        =>
                     // TODO: think about what we do here
-                    val value = regs.getObject(offset, 0)
+                    val value = regs.getObject(offset)
                     val av    = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(value)
                     mapBuilder.addOne(name, av)
                 }
@@ -625,17 +626,17 @@ class DynamoDBCodecDeriver private (
                       field.valueType match {
                         case DynamoDBCodec.intType    =>
                           field.codec.asInstanceOf[DynamoDBCodec[Int]].decoder(av) match {
-                            case Right(value) => regs.setInt(offset, 0, value)
+                            case Right(value) => regs.setInt(offset, value)
                             case Left(err)    => errors.addOne(err.message)
                           }
                         case DynamoDBCodec.longType   =>
                           field.codec.asInstanceOf[DynamoDBCodec[Long]].decoder(av) match {
-                            case Right(value) => regs.setLong(offset, 0, value)
+                            case Right(value) => regs.setLong(offset, value)
                             case Left(err)    => errors.addOne(err.message)
                           }
                         case DynamoDBCodec.objectType =>
                           field.codec.asInstanceOf[DynamoDBCodec[AnyRef]].decoder(av) match {
-                            case Right(value) => regs.setObject(offset, 0, value)
+                            case Right(value) => regs.setObject(offset, value)
                             case Left(err)    => errors.addOne(err.message)
                           }
                         case _                        => throw new Exception("TODO: decide what to do here")

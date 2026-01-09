@@ -175,6 +175,8 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = zio.ChunkBuilder.make(sizeHint)
       def addObject[A](builder: ObjectBuilder[A], a: A): Unit  = builder.addOne(a)
       def resultObject[A](builder: ObjectBuilder[A]): Chunk[A] = builder.result()
+
+      override def emptyObject[A]: Chunk[A] = Chunk.empty // TODO: Avi
     }
 
     val chunkDeconstructor: SeqDeconstructor[Chunk] = new SeqDeconstructor[Chunk] {
