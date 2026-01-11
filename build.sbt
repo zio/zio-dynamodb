@@ -33,9 +33,9 @@ addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck"
 
 val zioVersion             = "2.1.23"
 val zioAwsVersion          = "7.39.6.4"
-val zioSchemaVersion       = "1.7.5"
+val zioSchemaVersion       = "1.7.6"
 val zioPreludeVersion      = "1.0.0-RC44"
-val zioJsonVersion         = "0.7.45"
+val zioJsonVersion         = "0.8.0"
 val zioInteropCats3Version = "23.1.0.13"
 val catsEffect3Version     = "3.6.3"
 val fs2Version             = "3.12.2"
@@ -298,7 +298,7 @@ lazy val benchmarks = module("zio-dynamodb-benchmarks", "benchmarks")
       "org.scanamo"  %% "scanamo"       % "6.0.0",
       "dev.zio"      %% "zio-test"      % zioVersion % "test",
       "dev.zio"      %% "zio-test-sbt"  % zioVersion % "test",
-      "dev.zio"      %% "zio-json"      % "0.7.44"
+      "dev.zio"      %% "zio-json"      % zioJsonVersion
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
