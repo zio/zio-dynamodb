@@ -23,7 +23,7 @@ jobs:
         uses: actions/setup-java@v4.5.0
         with:
           distribution: temurin
-          java-version: 11
+          java-version: 17
           check-latest: true
       - uses: sbt/setup-sbt@v1
       - name: Cache scala dependencies
@@ -37,7 +37,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: ['11', '21']
+        java: ['17', '21']
         scala: ['3.3', '2.13']
     env:
       AWS_ACCESS_KEY_ID: dummykey
@@ -75,7 +75,7 @@ jobs:
         uses: actions/setup-java@v4.5.0
         with:
           distribution: temurin
-          java-version: 11
+          java-version: 17
           check-latest: true
       - uses: sbt/setup-sbt@v1
       - name: Setup GPG
@@ -105,7 +105,7 @@ jobs:
         uses: actions/setup-java@v4.5.0
         with:
           distribution: temurin
-          java-version: 11
+          java-version: 17
           check-latest: true
       - uses: sbt/setup-sbt@v1
       - run: sbt -J-XX:+UseG1GC -J-Xmx6g -J-Xms6g -J-Xss16m ci-release
