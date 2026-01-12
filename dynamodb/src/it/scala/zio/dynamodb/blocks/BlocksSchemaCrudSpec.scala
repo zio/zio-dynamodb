@@ -13,9 +13,9 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
         final case class Person(id: String, name: String)
         object Person extends CompanionOptics[Person] {
           implicit val cfg: DynamoDBCodecConfigure[Person] = (d: DynamoDBCodecDeriver) => d.withTransientNone(false)
-          implicit val schema: Schema[Person]           = Schema.derived
-          val id: Lens[Person, String]                  = $(_.id)
-          val name: Lens[Person, String]                = $(_.name)
+          implicit val schema: Schema[Person]              = Schema.derived
+          val id: Lens[Person, String]                     = $(_.id)
+          val name: Lens[Person, String]                   = $(_.name)
         }
 
         val person = Person("1", "Jones")
