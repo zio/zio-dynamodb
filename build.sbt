@@ -34,6 +34,7 @@ addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck"
 val zioVersion             = "2.1.23"
 val zioAwsVersion          = "7.39.6.4"
 val zioSchemaVersion       = "1.7.6"
+val zioBlocksVersion       = "0.0.10"
 val zioPreludeVersion      = "1.0.0-RC44"
 val zioJsonVersion         = "0.8.0"
 val zioInteropCats3Version = "23.1.0.13"
@@ -64,6 +65,7 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
       "dev.zio" %% "zio-json"              % zioJsonVersion   % "it,test",
       "dev.zio" %% "zio-schema-json"       % zioSchemaVersion % "it,test",
       "dev.zio" %% "zio-schema"            % zioSchemaVersion,
+      "dev.zio" %% "zio-blocks-schema"     % zioBlocksVersion,
       "dev.zio" %% "zio-schema-derivation" % zioSchemaVersion,
       "dev.zio" %% "zio-aws-netty"         % zioAwsVersion,
       "dev.zio" %% "zio-aws-dynamodb"      % zioAwsVersion
@@ -294,11 +296,12 @@ lazy val benchmarks = module("zio-dynamodb-benchmarks", "benchmarks")
     publish / skip := true,
     fork := true,
     libraryDependencies ++= Seq(
-      "org.systemfw" %% "dynosaur-core" % "0.7.1",
-      "org.scanamo"  %% "scanamo"       % "6.0.0",
-      "dev.zio"      %% "zio-test"      % zioVersion % "test",
-      "dev.zio"      %% "zio-test-sbt"  % zioVersion % "test",
-      "dev.zio"      %% "zio-json"      % zioJsonVersion
+      "org.systemfw" %% "dynosaur-core"     % "0.7.1",
+      "org.scanamo"  %% "scanamo"           % "6.0.0",
+      "dev.zio"      %% "zio-blocks-schema" % zioBlocksVersion,
+      "dev.zio"      %% "zio-test"          % zioVersion % "test",
+      "dev.zio"      %% "zio-test-sbt"      % zioVersion % "test",
+      "dev.zio"      %% "zio-json"          % zioJsonVersion
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )

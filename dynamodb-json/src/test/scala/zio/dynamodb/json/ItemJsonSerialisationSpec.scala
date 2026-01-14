@@ -22,7 +22,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
 
   val pbtSuite = suite("property based testing suite")(
     test("round trip encode and decode") {
-      checkRoundTrip(debug = false)
+      checkRoundTrip(debug = true)
     }
   )
 
@@ -31,13 +31,19 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
       val json = DynamodbJsonCodec.Encoder.encode(avMap)
       val av   = DynamodbJsonCodec.Decoder.decode(json)
       for {
-        _      <- if (debug) ZIO.debug(json.toString) else ZIO.unit
+        _      <- if (debug)
+                    ZIO.debug(avMap) *>
+                      ZIO.debug(json.toString)
+                  else ZIO.unit
         checked = av match {
                     case Right(value)                           =>
+                      if (value != avMap)
+                        println(s"XXXXXXXX actual: $value, expected: $avMap")
                       assertTrue(value == avMap)
                     case Left("empty AttributeValue Map found") => // expected for empty maps
                       assertTrue(true)
-                    case Left(_)                                =>
+                    case Left(error)                            =>
+                      println(s"XXXXXXXX 3. error: $error")
                       assertTrue(false)
                   }
       } yield checked
@@ -213,6 +219,20 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
       assert(decode(ast))(
         equalTo(
           Left("empty AttributeValue Map found")
+        )
+      )
+    },
+    test("decode map of single boolean primitive") {
+      val s   =
+        """{"M":{"BOOL":true}}"""
+      val ast = s.fromJson[Json].getOrElse(Json.Null)
+      println(s"XXXXXX Json AST: $ast")
+      assert(decode(ast))(
+        equalTo(
+          Right(
+            AttributeValue.Map.empty +
+              ("M" -> AttributeValue.Bool(true))
+          )
         )
       )
     },

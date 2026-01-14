@@ -8,6 +8,8 @@ import zio.json.ast.Json
 import scala.util.Try
 
 private[dynamodb] object DynamodbJsonCodec {
+  private val ddbTags: Set[String] =
+    Set("S", "N", "BOOL", "NULL", "L", "SS", "NS", "M", "B", "BS")
 
   object Encoder {
     def encode(av: AttributeValue): Json =
@@ -81,31 +83,69 @@ private[dynamodb] object DynamodbJsonCodec {
     def decode(json: Json): Either[String, AttributeValue] =
       json match {
         // Note a Number AttributeValue is represented as a Json.Str
-        case Json.Obj(Chunk(("N", Json.Str(d))))       =>
+        case Json.Obj(Chunk(("N", Json.Str(d))))      =>
+          println(s"XXXXXX 1")
           Try(BigDecimal(d)).fold(
             _ => Left(s"Invalid Number $d"),
             n => Right(AttributeValue.Number(n))
           )
-        case Json.Obj(Chunk(("S", Json.Str(s))))       => Right(AttributeValue.String(s))
-        case Json.Obj(Chunk((("BOOL", Json.Bool(b))))) => Right(AttributeValue.Bool(b))
-        case Json.Obj(Chunk(("NULL", Json.Null)))      => Right(AttributeValue.Null)
-        case Json.Obj(Chunk(("L", Json.Arr(a))))       => decodeL(a.toList, AttributeValue.List.empty)
-        case Json.Obj(Chunk(("SS", Json.Arr(chunk))))  => decodeSS(chunk.toList, AttributeValue.StringSet.empty)
-        case Json.Obj(Chunk(("NS", Json.Arr(chunk))))  => decodeNS(chunk.toList, AttributeValue.NumberSet.empty)
-        case Json.Obj(Chunk(("M", Json.Obj(fields))))  => createMap(fields, AttributeValue.Map.empty)
-        case b @ Json.Obj(Chunk(("B", _)))             => Left(s"The Binary type is not supported yet, found: $b")
-        case bs @ Json.Obj(Chunk(("BS", _)))           => Left(s"The Binary Set type is not supported yet, found: $bs")
-        case Json.Obj(fields) if fields.isEmpty        => Left("empty AttributeValue Map found")
-        case Json.Obj(fields)                          =>
+        case Json.Obj(Chunk(("S", Json.Str(s))))      =>
+          println(s"XXXXXX 2")
+          Right(AttributeValue.String(s))
+        case Json.Obj(Chunk(("BOOL", Json.Bool(b))))  =>
+          println(s"XXXXXX 3")
+          Right(AttributeValue.Bool(b))
+        case Json.Obj(Chunk(("NULL", Json.Null)))     =>
+          println(s"XXXXXX 4")
+          Right(AttributeValue.Null)
+        case Json.Obj(Chunk(("L", Json.Arr(a))))      =>
+          println(s"XXXXXX 5")
+          decodeL(a.toList, AttributeValue.List.empty)
+        case Json.Obj(Chunk(("SS", Json.Arr(chunk)))) =>
+          println(s"XXXXXX 6")
+          decodeSS(chunk.toList, AttributeValue.StringSet.empty)
+        case Json.Obj(Chunk(("NS", Json.Arr(chunk)))) =>
+          println(s"XXXXXX 7")
+          decodeNS(chunk.toList, AttributeValue.NumberSet.empty)
+        case Json.Obj(Chunk(("M", Json.Obj(fields)))) if fields.forall { case (_, v) => looksLikeAttributeValue(v) } =>
+          println(s"XXXXXX 8")
+          createMap(fields, AttributeValue.Map.empty)
+        case b @ Json.Obj(Chunk(("B", _)))            =>
+          println(s"XXXXXX 9")
+          Left(s"The Binary type is not supported yet, found: $b, original json: ${Json.toString}")
+        case bs @ Json.Obj(Chunk(("BS", _)))          =>
+          println(s"XXXXXX 10")
+          Left(s"The Binary Set type is not supported yet, found: $bs")
+        case Json.Obj(fields) if fields.isEmpty       =>
+          println(s"XXXXXX 11")
+          Left("empty AttributeValue Map found")
+        case Json.Obj(fields)                         =>
+          println(s"XXXXXX 12")
           createMap(fields, AttributeValue.Map.empty)
         // for collections
-        case Json.Str(s)                               => Right(AttributeValue.String(s))
-        case Json.Bool(b)                              => Right(AttributeValue.Bool(b))
-        case Json.Null                                 => Right(AttributeValue.Null)
+        case Json.Str(s)                              =>
+          println(s"XXXXXX 13")
+          Right(AttributeValue.String(s))
+        case Json.Bool(b)                             =>
+          println(s"XXXXXX 14")
+          Right(AttributeValue.Bool(b))
+        case Json.Null                                =>
+          println(s"XXXXXX 15")
+          Right(AttributeValue.Null)
         // Note Json.Num is handled via Json.Str
-        case n @ Json.Num(_)                           => Left(s"Unexpected Num $n")
+        case n @ Json.Num(_)                          =>
+          println(s"XXXXXX 16")
+          Left(s"Unexpected Num $n")
 
-        case a @ Json.Arr(_) => Left(s"top level arrays are not supported, found $a")
+        case a @ Json.Arr(_)                          =>
+          println(s"XXXXXX 17")
+          Left(s"top level arrays are not supported, found $a")
+      }
+
+    private def looksLikeAttributeValue(json: Json): Boolean =
+      json match {
+        case Json.Obj(Chunk((k, _))) => ddbTags.contains(k)
+        case _                       => false
       }
 
     def jsonStringToAttributeValue(json: String): Either[String, AttributeValue] =
