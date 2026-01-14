@@ -82,64 +82,96 @@ private[dynamodb] object DynamodbJsonCodec {
 
     def decode(json: Json): Either[String, AttributeValue] =
       json match {
-        // Note a Number AttributeValue is represented as a Json.Str
-        case Json.Obj(Chunk(("N", Json.Str(d))))      =>
-          println(s"XXXXXX 1")
-          Try(BigDecimal(d)).fold(
-            _ => Left(s"Invalid Number $d"),
-            n => Right(AttributeValue.Number(n))
-          )
-        case Json.Obj(Chunk(("S", Json.Str(s))))      =>
-          println(s"XXXXXX 2")
-          Right(AttributeValue.String(s))
-        case Json.Obj(Chunk(("BOOL", Json.Bool(b))))  =>
-          println(s"XXXXXX 3")
-          Right(AttributeValue.Bool(b))
-        case Json.Obj(Chunk(("NULL", Json.Null)))     =>
-          println(s"XXXXXX 4")
-          Right(AttributeValue.Null)
-        case Json.Obj(Chunk(("L", Json.Arr(a))))      =>
-          println(s"XXXXXX 5")
-          decodeL(a.toList, AttributeValue.List.empty)
-        case Json.Obj(Chunk(("SS", Json.Arr(chunk)))) =>
-          println(s"XXXXXX 6")
-          decodeSS(chunk.toList, AttributeValue.StringSet.empty)
-        case Json.Obj(Chunk(("NS", Json.Arr(chunk)))) =>
-          println(s"XXXXXX 7")
-          decodeNS(chunk.toList, AttributeValue.NumberSet.empty)
-        case Json.Obj(Chunk(("M", Json.Obj(fields)))) if fields.forall { case (_, v) => looksLikeAttributeValue(v) } =>
-          println(s"XXXXXX 8")
+
+        // 🔑 Centralised envelope handling
+        case Json.Obj(fields) if isDdbEnvelope(fields) =>
+          decodeEnvelope(fields)
+
+        // Plain map fallback
+        case Json.Obj(fields)                          =>
           createMap(fields, AttributeValue.Map.empty)
-        case b @ Json.Obj(Chunk(("B", _)))            =>
-          println(s"XXXXXX 9")
-          Left(s"The Binary type is not supported yet, found: $b, original json: ${Json.toString}")
-        case bs @ Json.Obj(Chunk(("BS", _)))          =>
-          println(s"XXXXXX 10")
-          Left(s"The Binary Set type is not supported yet, found: $bs")
-        case Json.Obj(fields) if fields.isEmpty       =>
-          println(s"XXXXXX 11")
-          Left("empty AttributeValue Map found")
-        case Json.Obj(fields)                         =>
-          println(s"XXXXXX 12")
-          createMap(fields, AttributeValue.Map.empty)
-        // for collections
-        case Json.Str(s)                              =>
-          println(s"XXXXXX 13")
-          Right(AttributeValue.String(s))
-        case Json.Bool(b)                             =>
-          println(s"XXXXXX 14")
-          Right(AttributeValue.Bool(b))
-        case Json.Null                                =>
-          println(s"XXXXXX 15")
-          Right(AttributeValue.Null)
-        // Note Json.Num is handled via Json.Str
-        case n @ Json.Num(_)                          =>
-          println(s"XXXXXX 16")
+
+        // Scalars
+        case Json.Str(s)                               => Right(AttributeValue.String(s))
+        case Json.Bool(b)                              => Right(AttributeValue.Bool(b))
+        case Json.Null                                 => Right(AttributeValue.Null)
+
+        case n @ Json.Num(_) =>
           Left(s"Unexpected Num $n")
 
-        case a @ Json.Arr(_)                          =>
-          println(s"XXXXXX 17")
+        case a @ Json.Arr(_) =>
           Left(s"top level arrays are not supported, found $a")
+      }
+
+    private def decodeEnvelope(
+      fields: Chunk[(String, Json)]
+    ): Either[String, AttributeValue]                                 =
+      fields.head match {
+        case ("S", Json.Str(s))       =>
+          Right(AttributeValue.String(s))
+
+        case ("N", Json.Str(d))       =>
+          Try(BigDecimal(d)).toEither.left
+            .map(_ => s"Invalid Number $d")
+            .map(AttributeValue.Number(_))
+
+        case ("BOOL", Json.Bool(b))   =>
+          Right(AttributeValue.Bool(b))
+
+        case ("NULL", Json.Null)      =>
+          Right(AttributeValue.Null)
+
+        case ("L", Json.Arr(values))  =>
+          decodeL(values.toList, AttributeValue.List.empty)
+
+        case ("SS", Json.Arr(values)) =>
+          decodeSS(values.toList, AttributeValue.StringSet.empty)
+
+        case ("NS", Json.Arr(values)) =>
+          decodeNS(values.toList, AttributeValue.NumberSet.empty)
+
+        case ("M", Json.Obj(fields))  =>
+          createMap(fields, AttributeValue.Map.empty)
+
+        case ("B", _)                 =>
+          Left("Binary type not supported")
+
+        case ("BS", _)                =>
+          Left("Binary Set type not supported")
+
+        case (k, v)                   =>
+          Left(s"Invalid DDB envelope $k -> $v")
+      }
+    private def isDdbEnvelope(fields: Chunk[(String, Json)]): Boolean =
+      fields.length == 1 &&
+        fields.headOption.exists {
+          case (k, v) =>
+            ddbTags.contains(k) && isValidDdbValue(k, v)
+        }
+    private def isValidDdbValue(tag: String, json: Json): Boolean     =
+      (tag, json) match {
+        case ("S", Json.Str(_))     => true
+        case ("N", Json.Str(_))     => true
+        case ("BOOL", Json.Bool(_)) => true
+        case ("NULL", Json.Null)    => true
+
+        case ("L", Json.Arr(values))  =>
+          values.forall(looksLikeAttributeValue)
+
+        case ("SS", Json.Arr(values)) =>
+          values.forall(_.isInstanceOf[Json.Str])
+
+        case ("NS", Json.Arr(values)) =>
+          values.forall(_.isInstanceOf[Json.Str])
+
+        case ("M", Json.Obj(fields))  =>
+          fields.forall { case (_, v) => looksLikeAttributeValue(v) }
+
+        // unsupported but still valid envelope
+        case ("B" | "BS", _)          =>
+          true
+
+        case _                        => false
       }
 
     private def looksLikeAttributeValue(json: Json): Boolean =
