@@ -22,7 +22,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
 
   val pbtSuite = suite("property based testing suite")(
     test("round trip encode and decode") {
-      checkRoundTrip(debug = true)
+      checkRoundTrip(debug = false)
     }
   )
 
@@ -37,13 +37,10 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
                   else ZIO.unit
         checked = av match {
                     case Right(value)                           =>
-                      if (value != avMap)
-                        println(s"XXXXXXXX actual: $value, expected: $avMap")
                       assertTrue(value == avMap)
                     case Left("empty AttributeValue Map found") => // expected for empty maps
                       assertTrue(true)
-                    case Left(error)                            =>
-                      println(s"XXXXXXXX 3. error: $error")
+                    case Left(_)                            =>
                       assertTrue(false)
                   }
       } yield checked
@@ -222,6 +219,10 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
         )
       )
     },
+/*
+ 'Map(String(map) -> Map(Map(String(M) -> Map(Map(String(1) -> Map(Map(String(foo) -> String(bar))), String(2) -> Map(Map(String(foo) -> String(baz))))))))'
+ 'Map(String(map) -> Map(Map(String(1) -> Map(Map(String(foo) -> String(bar))), String(2) -> Map(Map(String(foo) -> String(baz))))))'
+ */
     test("decode map of single boolean primitive") {
       val s   =
         """{"M":{"BOOL":true}}"""
@@ -303,13 +304,11 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
               }
           }"""
       val ast = s.fromJson[Json].getOrElse(Json.Null)
-      assert(decode(ast))(
-        equalTo(
-          Right(
-            AttributeValue.Map.empty +
+      val decoded = decode(ast)
+      assertTrue(decoded ==           Right(
+             AttributeValue.Map.empty +
               ("map" -> (AttributeValue.Map.empty + ("1" -> obj("bar")) + ("2" -> obj("baz"))))
-          )
-        )
+            )
       )
     },
     test("decode L of string") {
