@@ -8,20 +8,23 @@ object AttributeValueGen {
   private val min = BigDecimal(-1000000000.0000002)
   private val max = BigDecimal(1000000000.0000001)
 
-  private val anyBigDecimal                                    = Gen.bigDecimal(min, max)
-  private val anyString                                        = Gen.alphaNumericStringBounded(1, 15).map(AttributeValue.String.apply)
-  private val anyNumber                                        =
+  private val anyBigDecimal                                                      = Gen.bigDecimal(min, max)
+  private val anyString                                                          = Gen.alphaNumericStringBounded(1, 15).map(AttributeValue.String.apply)
+  private val anyNonDbdKeyString                                                 = Gen.alphaNumericStringBounded(5, 15).map(AttributeValue.String.apply)
+  private val anyNumber                                                          =
     anyBigDecimal.map(AttributeValue.Number.apply)
-  private val anyBool                                          = Gen.boolean.map(AttributeValue.Bool.apply)
-  private val anyPrimitive: Gen[Any, AttributeValue]           =
+  private val anyBool                                                            = Gen.boolean.map(AttributeValue.Bool.apply)
+  private val anyPrimitive: Gen[Any, AttributeValue]                             =
     Gen.oneOf(
       anyString,
       anyNumber,
       anyBool,
       Gen.const(AttributeValue.Null)
     )
-  private val anyMapOfPrimitives: Gen[Any, AttributeValue.Map] =
+  private val anyMapOfPrimitives: Gen[Any, AttributeValue.Map]                   =
     Gen.mapOf(anyString, anyPrimitive).map(AttributeValue.Map.apply)
+  private val anyMapOfNonDbdKeyStringAndPrimitives: Gen[Any, AttributeValue.Map] =
+    Gen.mapOf(anyNonDbdKeyString, anyPrimitive).map(AttributeValue.Map.apply)
 
   private val anyPrimitiveList: Gen[Any, AttributeValue.List]      = Gen.listOf(anyPrimitive).map(AttributeValue.List.apply)
   private val anyMapOfPrimitivesList: Gen[Any, AttributeValue.Map] =
@@ -42,7 +45,7 @@ object AttributeValueGen {
     Gen.mapOf(anyString, anyMapOfPrimitives).map(AttributeValue.Map.apply)
 
   val anyItem: Gen[Any, AttributeValue] =
-    anyMapOfPrimitives
+    anyMapOfNonDbdKeyStringAndPrimitives
       .zip(anyMapOfMap)
       .zip(anyMapOfPrimitiveSet)
       .zip(anyMapOfPrimitivesList)
