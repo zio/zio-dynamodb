@@ -1,6 +1,6 @@
 package zio.dynamodb.blocks
 
-import zio.blocks.schema.{ DynamicOptic, Lens, Optional }
+import zio.blocks.schema.{ DynamicOptic, DynamicValue, Lens, Optional, PrimitiveValue }
 import zio.dynamodb.ProjectionExpression
 
 object OpticToPE {
@@ -65,18 +65,20 @@ object OpticToPE {
     while (idx < nodesPruned.length) {
       val node   = nodesPruned(idx)
       val nextPe = node match {
-        case DynamicOptic.Node.Field(name)           =>
+        case DynamicOptic.Node.Field(name)    =>
           ProjectionExpression.MapElement(prevPe, name)
-        case DynamicOptic.Node.AtIndex(index)        =>
+        case DynamicOptic.Node.AtIndex(index) =>
           ProjectionExpression.ListElement(prevPe, index)
-        case DynamicOptic.Node.AtMapKey(key: String) => // Only String Keys are supported in DDB
+        case DynamicOptic.Node.AtMapKey(
+              DynamicValue.Primitive(PrimitiveValue.String(key))
+            ) => // Only String Keys are supported in DDB
           ProjectionExpression.MapElement(prevPe, key)
         // TODO: handle all Node types
-        case DynamicOptic.Node.AtMapKey(key)         =>
+        case DynamicOptic.Node.AtMapKey(key)  =>
           throw new Exception(s"Found key '$key' - however only String Keys are supported in DDB")
-        case DynamicOptic.Node.Case(_)               => // We only need to deal with non optional SOME TYPES here
+        case DynamicOptic.Node.Case(_)        => // We only need to deal with non optional SOME TYPES here
           prevPe
-        case _                                       => throw new Exception(s"unexpected node: $node")
+        case _                                => throw new Exception(s"unexpected node: $node")
       }
       prevPe = nextPe
       idx += 1
