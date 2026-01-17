@@ -34,9 +34,10 @@ class CodecBenchmarks extends BaseBenchmark {
           "John",
           30,
           Some("123 Main St"),
-          Map("a" -> 1, "b" -> 2, "c" -> 3),
-          Vector(1, 2, 3, 4, 5),
-          (1, 2L, "3")
+//          Map("a" -> 1, "b" -> 2, "c" -> 3),
+//          Vector(1, 2, 3, 4, 5),
+//          (1, 2L, "3"),
+          TrafficLight.Green
         )
       )
       .toList
@@ -102,16 +103,25 @@ class CodecBenchmarks extends BaseBenchmark {
 }
 
 object BenchmarkDomain {
+  sealed trait TrafficLight
+  object TrafficLight {
+    case object Red    extends TrafficLight
+    case object Yellow extends TrafficLight
+    case object Green  extends TrafficLight
+
+    implicit val schema: Schema[TrafficLight] = Schema.derived
+  }
   case class Person(
     id: Long,
     name: String,
     age: Int,
     address: Option[String],
-    map: Map[String, Int],
-    list: Vector[Int],
-    tuple: (Int, Long, String)
+//    map: Map[String, Int],
+//    list: Vector[Int],
+//    tuple: (Int, Long, String),
+    light: TrafficLight
   )
-  object Person {
+  object Person       {
     implicit val blocksSchema: Schema[Person] = Schema.derived
   }
   val zioSchema: ZIOSchema[Person] = DeriveSchema.gen[Person]

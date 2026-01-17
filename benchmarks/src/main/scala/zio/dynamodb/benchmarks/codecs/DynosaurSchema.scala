@@ -2,8 +2,26 @@ package zio.dynamodb.benchmarks.codecs
 
 import cats.implicits._
 import dynosaur.Schema
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue
 object DynosaurSchema {
   import BenchmarkDomain._
+
+  implicit val schema: Schema[TrafficLight] = Schema.attributeValue.imap[TrafficLight] { av =>
+    av.s() match {
+      case "Red"    => TrafficLight.Red
+      case "Yellow" => TrafficLight.Yellow
+      case "Green"  => TrafficLight.Green
+      case other    => throw new Exception(s"Unknown TrafficLight: $other")
+    }
+  } { trafficLight =>
+    // Encode TrafficLight to DynamoDB String
+    val name = trafficLight match {
+      case TrafficLight.Red    => "Red"
+      case TrafficLight.Yellow => "Yellow"
+      case TrafficLight.Green  => "Green"
+    }
+    AttributeValue.builder().s(name).build()
+  }
 
   implicit val mapSchema: Schema[Map[String, Int]] = Schema.dict
 
@@ -22,9 +40,10 @@ object DynosaurSchema {
         field("name", _.name),
         field("age", _.age),
         field.opt("address", _.address),
-        field("map", _.map),
-        field("list", _.list),
-        field("tuple", _.tuple)
+//        field("map", _.map),
+//        field("list", _.list),
+//        field("tuple", _.tuple),
+        field("light", _.light)
       ).mapN(Person.apply)
     }
 

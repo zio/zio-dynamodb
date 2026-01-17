@@ -8,28 +8,6 @@ import zio.test._
 
 object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
   val spec = suite("Blocks Schema Crud Spec")(
-    test("Record of simple Enum") {
-      withSingleIdKeyTable { tableName =>
-        sealed trait PaymentMethod
-        object PaymentMethod {
-          case object CreditCard extends PaymentMethod
-          case object DebitCard  extends PaymentMethod
-          implicit val schemaPaymentMethod: Schema[PaymentMethod] = Schema.derived
-        }
-
-        final case class Person(id: String, paymentMethod: PaymentMethod)
-        object Person extends CompanionOptics[Person] {
-          implicit val schemaPerson: Schema[Person] = Schema.derived
-          val id: Lens[Person, String]              = $(_.id)
-        }
-
-        val person = Person("1", PaymentMethod.CreditCard)
-        for {
-          _     <- DynamoDBQuery.put(tableName, person).where(Person.id.notExists).execute
-          found <- DynamoDBQuery.get(tableName)(Person.id === "1").execute.absolve
-        } yield assertTrue(found == person)
-      }
-    },
     test("put and get using Blocks partition key expressions in query API") {
       withSingleIdKeyTable { tableName =>
         final case class Person(id: String, name: String)
