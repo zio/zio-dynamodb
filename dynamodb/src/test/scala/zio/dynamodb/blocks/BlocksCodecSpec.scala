@@ -64,7 +64,9 @@ object BlocksCodecSpec extends ZIOSpecDefault {
 
   final case class RecordWithEnum(light: TrafficLight)
   object RecordWithEnum {
-    implicit val schema: Schema[RecordWithEnum] = Schema.derived
+    implicit val schema: Schema[RecordWithEnum]               = Schema.derived
+    implicit val zioSchema: zio.schema.Schema[RecordWithEnum] =
+      zio.schema.DeriveSchema.gen[RecordWithEnum]
   }
 
   final case class RecordWithNativeMap(
@@ -225,6 +227,15 @@ object BlocksCodecSpec extends ZIOSpecDefault {
   }
 
   val spec = suite("BlocksSpec")(
+    suite("enum suite")(
+      testWithCodecs("enum round trip")(RecordWithEnum.zioSchema, RecordWithEnum.schema) { codec =>
+        val expectedItem = Item("light" -> "Green")
+        val expected     = RecordWithEnum(TrafficLight.Green)
+        val enc          = codec.encoder(expected)
+        val dec          = codec.decoder(enc)
+        assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expected))
+      }
+    ),
     test("investigate field codec override") {
       val codecToUpper: DynamoDBCodec[String] = new DynamoDBCodec[String] {
         override def encoder: Encoder[String] =

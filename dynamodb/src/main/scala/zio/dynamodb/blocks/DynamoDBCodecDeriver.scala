@@ -1,7 +1,6 @@
 package zio.dynamodb.blocks
 
 import zio.Chunk
-import zio.blocks.schema.Reflect.Bound
 import zio.blocks.schema._
 import zio.blocks.schema.binding.BindingType.{ Primitive, Variant, Wrapper }
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
@@ -37,6 +36,7 @@ class DynamoDBCodecDeriver private (
   transientNone: Boolean,
   requireOptionFields: Boolean
 ) extends Deriver[DynamoDBCodec] { self =>
+  private[this] val enumValuesAsStrings = true // TODO: Avi - promote to config
 
   def withTransientNone(transientNone: Boolean): DynamoDBCodecDeriver = copy(transientNone = transientNone)
 
@@ -51,6 +51,7 @@ class DynamoDBCodecDeriver private (
   type Key
   type Value
   type Map[_, _]
+  type TC[_]
 
   override def derivePrimitive[F[_, _], A](
     primitiveType: PrimitiveType[A],
@@ -192,9 +193,9 @@ class DynamoDBCodecDeriver private (
     }
   }
 
-  def deriveCodec[A](
-    reflect: Bound[A]
-  ): DynamoDBCodec[A] =
+  def deriveCodec[F[_, _], A](
+    reflect: Reflect[F, A]
+  ): DynamoDBCodec[A] = {
     if (reflect.isPrimitive) {
       val primitive = reflect.asPrimitive.get
       if (primitive.primitiveBinding.isInstanceOf[Binding[?, ?]])
@@ -206,7 +207,7 @@ class DynamoDBCodecDeriver private (
             println(s"XXXXX primitive type $x not handled yet")
             ???
         }).asInstanceOf[DynamoDBCodec[A]]
-      else primitive.primitiveBinding.asInstanceOf[BindingInstance[DynamoDBCodec, ?, A]].instance.force
+      else primitive.primitiveBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
     } else if (reflect.isVariant) {
       val variant = reflect.asVariant.get
       if (variant.variantBinding.isInstanceOf[Binding[?, ?]])
@@ -232,10 +233,76 @@ class DynamoDBCodecDeriver private (
               }
             }.asInstanceOf[DynamoDBCodec[A]]
           case _                =>
-            ???
+            val discr: Discriminator[A] = variant.variantBinding.asInstanceOf[Binding.Variant[A]].discriminator
+            if (isEnumeration(variant)) {
+              val map = new java.util.HashMap[String, Constructor[?]](variant.cases.length)
+
+              def getInfos(variant: Reflect.Variant[F, A]): Array[EnumInfo] = {
+                val cases = variant.cases
+                val len   = cases.length
+                val infos = new Array[EnumInfo](len)
+                var idx   = 0
+                while (idx < len) {
+                  val case_       = cases(idx)
+                  val caseReflect = case_.value
+                  infos(idx) =
+                    if (caseReflect.isVariant)
+                      new EnumNodeInfo(
+                        discriminator(caseReflect),
+                        getInfos(caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]])
+                      )
+                    else {
+                      val constructor  = caseReflect.asRecord.get.recordBinding
+                        .asInstanceOf[BindingInstance[TC, ?, ?]]
+                        .binding
+                        .asInstanceOf[Binding.Record[?]]
+                        .constructor
+                      var name: String = null
+                      case_.modifiers.foreach {
+                        case m: Modifier.rename => if (name eq null) name = m.name
+                        case m: Modifier.alias  => map.put(m.name, constructor)
+                        case _                  =>
+                      }
+                      // TODO: Avi - introduce caseNameMapper
+                      name = case_.name
+                      //if (name eq null) name = caseNameMapper(case_.name)
+                      map.put(name, constructor)
+                      new EnumLeafInfo(name, constructor)
+                    }
+                  idx += 1
+                }
+                infos
+              }
+
+              new DynamoDBCodec[A]() {
+                private[this] val root           = EnumNodeInfo(discr, getInfos(variant))
+                private[this] val constructorMap = map
+
+                override def encoder: Encoder[A] =
+                  (a: A) => {
+                    val leafInfo: EnumLeafInfo = root.discriminate(a)
+                    AttributeValue.String(leafInfo.name)
+                  }
+
+                override def decoder: Decoder[A] = {
+                  case AttributeValue.String(name) =>
+                    val constructor = constructorMap.get(name)
+                    if (constructor eq null)
+                      Left(ItemError.DecodingError("TODO"))
+                    else {
+                      val a: A = constructor.construct(null, 0).asInstanceOf[A]
+                      Right(a)
+                    }
+                  case av                          =>
+                    // TODO: Avi - debug why this is part of happy path
+                    Left(ItemError.DecodingError(s"TODO ${av}"))
+                }
+              }
+            } else
+              ??? // TODO: Avi - Non Enum Variants
         }
       else
-        variant.variantBinding.asInstanceOf[BindingInstance[DynamoDBCodec, ?, A]].instance.force
+        variant.variantBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
     } else if (reflect.isMap) {
       val map = reflect.asMapUnknown.get.map
       if (map.mapBinding.isInstanceOf[Binding[?, ?]]) {
@@ -360,7 +427,7 @@ class DynamoDBCodecDeriver private (
             }
 
           }
-      } else map.mapBinding.asInstanceOf[BindingInstance[DynamoDBCodec, ?, A]].instance.force
+      } else map.mapBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
     }.asInstanceOf[DynamoDBCodec[A]]
     else if (reflect.isSequence) {
       val sequence = reflect.asSequenceUnknown.get.sequence
@@ -409,7 +476,7 @@ class DynamoDBCodecDeriver private (
           }
         }
       }.asInstanceOf[DynamoDBCodec[A]]
-      else sequence.seqBinding.asInstanceOf[BindingInstance[DynamoDBCodec, ?, A]].instance.force
+      else sequence.seqBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
     } else if (reflect.isRecord) {
       val record = reflect.asRecord.get
       if (record.recordBinding.isInstanceOf[Binding[?, ?]]) {
@@ -654,11 +721,12 @@ class DynamoDBCodecDeriver private (
             }
           } // end if else not tuple
       } else
-        record.recordBinding.asInstanceOf[BindingInstance[DynamoDBCodec, ?, A]].instance.force
+        record.recordBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
     } else {
       println(s"XXXXX reflect type $reflect not handled yet")
       ???
-    } // end deriveCodec
+    }
+  }.asInstanceOf[DynamoDBCodec[A]]
 
   private[this] def option[F[_, _], A](variant: Reflect.Variant[F, A]): Option[Reflect[F, ?]] = {
     val typeName = variant.typeName
@@ -685,6 +753,20 @@ class DynamoDBCodecDeriver private (
       typeName.namespace == Namespace.scala && typeName.name.startsWith("Tuple")
     }
 
+  private[this] def isEnumeration[F[_, _], A](variant: Reflect.Variant[F, A]): Boolean =
+    enumValuesAsStrings && variant.cases.forall { case_ =>
+      val caseReflect = case_.value
+      caseReflect.asRecord.exists(_.fields.isEmpty) ||
+      caseReflect.isVariant && caseReflect.asVariant.forall(isEnumeration)
+    }
+
+  private[this] def discriminator[F[_, _], A](caseReflect: Reflect[F, A]): Discriminator[?] =
+    caseReflect.asVariant.get.variantBinding
+      .asInstanceOf[BindingInstance[TC, ?, ?]]
+      .binding
+      .asInstanceOf[Binding.Variant[A]]
+      .discriminator
+
 } // end class DynamoDBCodecDeriver
 
 private final case class FieldInfo(
@@ -694,4 +776,23 @@ private final case class FieldInfo(
   isOptional: Boolean
 ) {
   val valueType: Int = codec.valueType
+}
+
+trait EnumInfo
+
+private case class EnumLeafInfo(name: String, constructor: Constructor[?]) extends EnumInfo
+
+private case class EnumNodeInfo[A](
+  discriminator: Discriminator[A],
+  enumInfos: Array[EnumInfo]
+) extends EnumInfo {
+  @tailrec
+  final def discriminate(x: A): EnumLeafInfo =
+    enumInfos(discriminator.discriminate(x)) match {
+      case eli: EnumLeafInfo => eli
+      case eni               => eni.asInstanceOf[EnumNodeInfo[A]].discriminate(x)
+    }
+
+  // TODO: Avi - delete
+  override def toString: String = s"enumInfos: ${enumInfos.toList}"
 }
