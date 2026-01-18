@@ -227,13 +227,20 @@ object BlocksCodecSpec extends ZIOSpecDefault {
   }
 
   val spec = suite("BlocksSpec")(
-    suite("enum suite")(
+    suite("variant suite")(
       testWithCodecs("enum round trip")(RecordWithEnum.zioSchema, RecordWithEnum.schema) { codec =>
         val expectedItem = Item("light" -> "Green")
         val expected     = RecordWithEnum(TrafficLight.Green)
         val enc          = codec.encoder(expected)
         val dec          = codec.decoder(enc)
         assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expected))
+      },
+      test("Record of variant with leaf record cases") {
+        val codec    = RecordWithPaymentMethod.schema.deriving(DynamoDBCodecDeriver.withFieldDiscriminator("foo")).derive
+        val record   = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
+        val enc      = codec.encoder(record)
+        val expected = Item("method" -> Item("email" -> "a@b.com"))
+        assertTrue(enc == expected.toAttributeValue)
       }
     ),
     test("investigate field codec override") {
