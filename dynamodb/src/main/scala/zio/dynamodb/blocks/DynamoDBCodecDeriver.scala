@@ -376,8 +376,7 @@ class DynamoDBCodecDeriver private (
                     private[this] val discriminatorFieldName = AttributeValue.String(fieldName)
 
                     override def encoder: Encoder[A] =
-                      (a: A) =>
-                        root.discriminate(a).codec.asInstanceOf[DynamoDBCodec[A]].encoder(a)
+                      (a: A) => root.discriminate(a).codec.asInstanceOf[DynamoDBCodec[A]].encoder(a)
 
                     override def decoder: Decoder[A] = { (av: AttributeValue) =>
                       av match {

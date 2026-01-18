@@ -33,7 +33,7 @@ sealed trait NameMapper extends (String => String)
  */
 object NameMapper {
   private[this] def enforceCamelOrPascalCase(s: String, toPascal: Boolean): String =
-    if (s.indexOf('_') == -1 && s.indexOf('-') == -1) {
+    if (s.indexOf('_') == -1 && s.indexOf('-') == -1)
       if (s.isEmpty) s
       else {
         val ch      = s.charAt(0)
@@ -42,7 +42,7 @@ object NameMapper {
           else toLowerCase(ch)
         s"$fixedCh${s.substring(1)}"
       }
-    } else {
+    else {
       val len             = s.length
       val sb              = new StringBuilder(len)
       var i               = 0
