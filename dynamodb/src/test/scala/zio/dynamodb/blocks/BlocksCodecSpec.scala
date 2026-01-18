@@ -239,8 +239,9 @@ object BlocksCodecSpec extends ZIOSpecDefault {
         val codec    = RecordWithPaymentMethod.schema.deriving(DynamoDBCodecDeriver.withFieldDiscriminator("foo")).derive
         val record   = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
         val enc      = codec.encoder(record)
-        val expected = Item("method" -> Item("email" -> "a@b.com"))
-        assertTrue(enc == expected.toAttributeValue)
+        val expected = Item("method" -> Item("foo" -> "PayPal", "email" -> "a@b.com"))
+        val dec      = codec.decoder(enc)
+        assertTrue(enc == expected.toAttributeValue && dec == Right(record))
       }
     ),
     test("investigate field codec override") {

@@ -47,6 +47,8 @@ class DynamoDBCodecDeriver private (
   requireOptionFields: Boolean
 ) extends Deriver[DynamoDBCodec] { self =>
   // TODO: Avi - promote to config
+  val requireDefaultValueFields: Boolean = false
+  val requireCollectionFields: Boolean   = false // Schema1 codecs assumes this is false
 
   def withTransientNone(transientNone: Boolean): DynamoDBCodecDeriver = copy(transientNone = transientNone)
   def withDiscriminatorKind(discriminatorKind: DiscriminatorKind)     = copy(discriminatorKind = discriminatorKind)
@@ -216,6 +218,11 @@ class DynamoDBCodecDeriver private (
     }
   }
 
+  private[this] val recursiveRecordCache = new ThreadLocal[java.util.HashMap[TypeName[?], Array[FieldInfo]]] {
+    override def initialValue: java.util.HashMap[TypeName[?], Array[FieldInfo]] = new java.util.HashMap
+  }
+  println(s"XXXXXXX recursiveRecordCache: $recursiveRecordCache") // TODO: Avi
+
   private[this] val discriminatorFields = new ThreadLocal[List[DiscriminatorFieldInfo]] {
     override def initialValue: List[DiscriminatorFieldInfo] = Nil
   }
@@ -259,7 +266,7 @@ class DynamoDBCodecDeriver private (
                   }
               }
             }.asInstanceOf[DynamoDBCodec[A]]
-          case _                =>
+          case _                => // Enum or Vanilla Variant
             val discr: Discriminator[A] = variant.variantBinding.asInstanceOf[Binding.Variant[A]].discriminator
             if (isEnumeration(variant)) {
               val map = new java.util.HashMap[String, Constructor[?]](variant.cases.length)
@@ -325,7 +332,7 @@ class DynamoDBCodecDeriver private (
                     Left(ItemError.DecodingError(s"TODO ${av}"))
                 }
               }
-            } else // TODO: Avi - Non Enum Variants
+            } else // TODO: Avi - Vanilla Variants
               discriminatorKind match {
 
                 case DiscriminatorKind.Field(fieldName) if hasOnlyRecordAndVariantCases(variant) =>
@@ -366,18 +373,36 @@ class DynamoDBCodecDeriver private (
                   new DynamoDBCodec[A]() {
                     private[this] val root                   = new CaseNodeInfo(discr, getInfos(variant, Nil))
                     private[this] val caseMap                = map
-                    private[this] val discriminatorFieldName = fieldName
+                    private[this] val discriminatorFieldName = AttributeValue.String(fieldName)
 
                     override def encoder: Encoder[A] =
-                      (a: A) => {
-                        val x: AttributeValue = root.discriminate(a).codec.asInstanceOf[DynamoDBCodec[A]].encoder(a)
-                        x
+                      (a: A) =>
+                        root.discriminate(a).codec.asInstanceOf[DynamoDBCodec[A]].encoder(a)
+
+                    override def decoder: Decoder[A] = { (av: AttributeValue) =>
+                      av match {
+                        case avm: AttributeValue.Map =>
+                          val maybeDiscriminatorValue = avm.value.get(discriminatorFieldName)
+                          maybeDiscriminatorValue match {
+                            case Some(AttributeValue.String(discriminatorValue)) =>
+                              val caseInfo = caseMap.get(discriminatorValue)
+                              if (caseInfo ne null)
+                                caseInfo.codec.decoder(av)
+                              else
+                                Left(ItemError.DecodingError(s"Discriminator case for $discriminatorValue not found"))
+                            case _                                               =>
+                              Left(
+                                ItemError.DecodingError(
+                                  s"Not implemented, discriminatorValue: $maybeDiscriminatorValue"
+                                )
+                              )
+                          }
+
+                        case av                      =>
+                          Left(ItemError.DecodingError(s"Expected an AttributeValue.Map but found ${av.showType}"))
                       }
 
-                    override def decoder: Decoder[A] = {
-                      println(s"XXXXXXX $caseMap $discriminatorFieldName")
-                      ???
-                    }
+                    }.asInstanceOf[Decoder[A]]
                   }
 
                 case DiscriminatorKind.None                                                      => ???
@@ -707,11 +732,12 @@ class DynamoDBCodecDeriver private (
           }
         } else
           new DynamoDBCodec[A] {
-            private[this] val constructor   = binding.constructor
-            private[this] val deconstructor = binding.deconstructor
-            private[this] val usedRegisters = offset
-            private[this] val fields        = fieldInfos
-            private[this] val skipNone      = transientNone
+            private[this] val constructor        = binding.constructor
+            private[this] val deconstructor      = binding.deconstructor
+            private[this] val usedRegisters      = offset
+            private[this] val fields             = fieldInfos
+            private[this] val skipNone           = transientNone
+            private[this] val discriminatorField = discriminatorFields.get.headOption.orNull
 
             override def encoder: Encoder[A] = { value =>
               val regs                         = Registers(usedRegisters)
@@ -719,6 +745,12 @@ class DynamoDBCodecDeriver private (
               val mapBuilder: JMapView.Builder = AttributeValue.Map.JMapView.hash.builder
               deconstructor.deconstruct(regs, 0, value)
               val len                          = fields.length
+              if (discriminatorField ne null) {
+                val name  = discriminatorField.name
+                val value = discriminatorField.value
+                mapBuilder.addOne(name, AttributeValue.String(value))
+              }
+
               while (idx < len) {
                 val field  = fields(idx)
                 val name   = field.name
@@ -844,6 +876,23 @@ class DynamoDBCodecDeriver private (
       caseReflect.isVariant && caseReflect.asVariant.forall(isEnumeration)
     }
 
+  /*private[this]*/
+  def defaultValue[F[_, _], A](fieldReflect: Reflect[F, A]): Option[() => ?] =
+    if (requireDefaultValueFields) None
+    else {
+      if (fieldReflect.isPrimitive) fieldReflect.asPrimitive.get.primitiveBinding
+      else if (fieldReflect.isRecord) fieldReflect.asRecord.get.recordBinding
+      else if (fieldReflect.isVariant) fieldReflect.asVariant.get.variantBinding
+      else if (fieldReflect.isSequence) fieldReflect.asSequenceUnknown.get.sequence.seqBinding
+      else if (fieldReflect.isMap) fieldReflect.asMapUnknown.get.map.mapBinding
+      else if (fieldReflect.isWrapper) fieldReflect.asWrapperUnknown.get.wrapper.wrapperBinding
+      else fieldReflect.asDynamic.get.dynamicBinding
+    }.asInstanceOf[BindingInstance[TC, ?, A]].binding.defaultValue
+
+  /*private[this]*/
+  def isCollection[F[_, _], A](reflect: Reflect[F, A]): Boolean =
+    !requireCollectionFields && (reflect.isSequence || reflect.isMap)
+
   private[this] def discriminator[F[_, _], A](caseReflect: Reflect[F, A]): Discriminator[?] =
     caseReflect.asVariant.get.variantBinding
       .asInstanceOf[BindingInstance[TC, ?, ?]]
@@ -860,10 +909,11 @@ class DynamoDBCodecDeriver private (
 } // end class DynamoDBCodecDeriver
 
 private final case class FieldInfo(
-  name: String,
+  name: String,                 // TODO: Avi - use DynamicOptic.Node.Field
   offset: RegisterOffset,
   codec: DynamoDBCodec[?],
-  isOptional: Boolean
+  isOptional: Boolean,
+  isCollection: Boolean = false // TODO: Avi
 ) {
   val valueType: Int = codec.valueType
 }
