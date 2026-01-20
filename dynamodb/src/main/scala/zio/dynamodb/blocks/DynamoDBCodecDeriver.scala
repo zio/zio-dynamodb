@@ -402,9 +402,56 @@ class DynamoDBCodecDeriver private (
                     }.asInstanceOf[Decoder[A]]
                   }
 
-                case DiscriminatorKind.None                                                      => ???
+                case DiscriminatorKind.None                                                      =>
+                  val codecs = Array.newBuilder[DynamoDBCodec[?]]
 
-                case _ =>
+                  def getInfos(variant: Reflect.Variant[F, A]): Array[CaseInfo] = {
+                    val cases = variant.cases
+                    val len   = cases.length
+                    val infos = new Array[CaseInfo](len)
+                    var idx   = 0
+                    while (idx < len) {
+                      val caseReflect = cases(idx).value
+                      infos(idx) = if (caseReflect.isVariant) {
+                        val caseVariant = caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]]
+                        new CaseNodeInfo(discriminator(caseReflect), getInfos(caseVariant))
+                      } else {
+                        val codec = deriveCodec(caseReflect)
+                        codecs.addOne(codec)
+                        new CaseLeafInfo(codec, Nil)
+                      }
+                      idx += 1
+                    }
+                    infos
+                  }
+
+                  new DynamoDBCodec[A]() {
+                    private[this] val root           = new CaseNodeInfo(discr, getInfos(variant))
+                    private[this] val caseLeafCodecs = codecs.result()
+
+                    override def encoder: Encoder[A] =
+                      (a: A) => root.discriminate(a).codec.asInstanceOf[DynamoDBCodec[A]].encoder(a)
+
+                    override def decoder: Decoder[A] =
+                      (av: AttributeValue) => {
+                        var idx                        = 0
+                        var rtrn: Either[ItemError, A] = null
+                        while (idx < caseLeafCodecs.length && (rtrn eq null)) {
+                          val codec = caseLeafCodecs(idx).asInstanceOf[DynamoDBCodec[A]]
+                          val x     = codec.decoder(av)
+                          if (x.isRight)
+                            rtrn = x
+                          idx += 1
+                        }
+
+                        if (rtrn eq null)
+                          Left(ItemError.DecodingError("Tried all cases using DiscriminatorKind.None without success"))
+                        else
+                          rtrn
+                      }
+                  }
+
+                case _                                                                           =>
                   val map = new java.util.HashMap[String, CaseLeafInfo](variant.cases.length)
 
                   def getInfos(variant: Reflect.Variant[F, A], spans: List[DynamicOptic.Node.Case]): Array[CaseInfo] = {

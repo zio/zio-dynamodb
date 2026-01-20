@@ -235,7 +235,7 @@ object BlocksCodecSpec extends ZIOSpecDefault {
         val dec          = codec.decoder(enc)
         assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expected))
       },
-      test("Record of variant with leaf record cases using DiscriminatorField") {
+      test("Record of variant with leaf record cases using DiscriminatorKind.Field") {
         val codec    = RecordWithPaymentMethod.schema.deriving(DynamoDBCodecDeriver.withFieldDiscriminator("foo")).derive
         val record   = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
         val enc      = codec.encoder(record)
@@ -243,11 +243,21 @@ object BlocksCodecSpec extends ZIOSpecDefault {
         val dec      = codec.decoder(enc)
         assertTrue(enc == expected.toAttributeValue && dec == Right(record))
       },
-      test("Record of variant with leaf record cases using DiscriminatorKey") {
+      test("Record of variant with leaf record cases using DiscriminatorKind.Key") {
         val codec    = RecordWithPaymentMethod.schema.deriving(DynamoDBCodecDeriver).derive
         val record   = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
         val enc      = codec.encoder(record)
         val expected = Item("method" -> Item("PayPal" -> Item("email" -> "a@b.com")))
+        val dec      = codec.decoder(enc)
+        assertTrue(enc == expected.toAttributeValue && dec == Right(record))
+      },
+      test("Record of variant with leaf record cases using DiscriminatorKind.None") {
+        val codec    = RecordWithPaymentMethod.schema
+          .deriving(DynamoDBCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None))
+          .derive
+        val record   = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
+        val enc      = codec.encoder(record)
+        val expected = Item("method" -> Item("email" -> "a@b.com"))
         val dec      = codec.decoder(enc)
         assertTrue(enc == expected.toAttributeValue && dec == Right(record))
       }
