@@ -235,11 +235,19 @@ object BlocksCodecSpec extends ZIOSpecDefault {
         val dec          = codec.decoder(enc)
         assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expected))
       },
-      test("Record of variant with leaf record cases") {
+      test("Record of variant with leaf record cases using DiscriminatorField") {
         val codec    = RecordWithPaymentMethod.schema.deriving(DynamoDBCodecDeriver.withFieldDiscriminator("foo")).derive
         val record   = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
         val enc      = codec.encoder(record)
         val expected = Item("method" -> Item("foo" -> "PayPal", "email" -> "a@b.com"))
+        val dec      = codec.decoder(enc)
+        assertTrue(enc == expected.toAttributeValue && dec == Right(record))
+      },
+      test("Record of variant with leaf record cases using DiscriminatorKey") {
+        val codec    = RecordWithPaymentMethod.schema.deriving(DynamoDBCodecDeriver).derive
+        val record   = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
+        val enc      = codec.encoder(record)
+        val expected = Item("method" -> Item("PayPal" -> Item("email" -> "a@b.com")))
         val dec      = codec.decoder(enc)
         assertTrue(enc == expected.toAttributeValue && dec == Right(record))
       }

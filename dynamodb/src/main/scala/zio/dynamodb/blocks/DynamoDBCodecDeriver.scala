@@ -297,9 +297,7 @@ class DynamoDBCodecDeriver private (
                         case m: Modifier.alias  => map.put(m.name, constructor)
                         case _                  =>
                       }
-                      // TODO: Avi - introduce caseNameMapper
-                      name = case_.name
-                      //if (name eq null) name = caseNameMapper(case_.name)
+                      if (name eq null) name = caseNameMapper(case_.name)
                       map.put(name, constructor)
                       new EnumLeafInfo(name, constructor)
                     }
@@ -406,7 +404,68 @@ class DynamoDBCodecDeriver private (
 
                 case DiscriminatorKind.None                                                      => ???
 
-                case _ => ???
+                case _ =>
+                  val map = new java.util.HashMap[String, CaseLeafInfo](variant.cases.length)
+
+                  def getInfos(variant: Reflect.Variant[F, A], spans: List[DynamicOptic.Node.Case]): Array[CaseInfo] = {
+                    val cases = variant.cases
+                    val len   = cases.length
+                    val infos = new Array[CaseInfo](len)
+                    var idx   = 0
+                    while (idx < len) {
+                      val case_       = cases(idx)
+                      val caseReflect = case_.value
+                      val span        = new DynamicOptic.Node.Case(case_.name)
+                      infos(idx) = if (caseReflect.isVariant) {
+                        val caseVariant = caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]]
+                        new CaseNodeInfo(discriminator(caseReflect), getInfos(caseVariant, span :: spans))
+                      } else {
+                        val caseLeafInfo = new CaseLeafInfo(deriveCodec(caseReflect), span :: spans)
+                        var name: String = null
+                        case_.modifiers.foreach {
+                          case m: Modifier.rename => if (name eq null) name = m.name
+                          case m: Modifier.alias  => map.put(m.name, caseLeafInfo)
+                          case _                  =>
+                        }
+                        if (name eq null) name = caseNameMapper(case_.name)
+                        map.put(name, caseLeafInfo)
+                        caseLeafInfo.setName(name)
+                        caseLeafInfo
+                      }
+                      idx += 1
+                    }
+                    infos
+                  }
+
+                  new DynamoDBCodec[A]() {
+                    private[this] val root    = new CaseNodeInfo(discr, getInfos(variant, Nil))
+                    private[this] val caseMap = map
+
+                    override def encoder: Encoder[A] =
+                      (a: A) => {
+                        // TODO: Avi - create a wrapper Singleton Map with CaseName as key
+                        val caseInfo = root.discriminate(a)
+                        val av       = caseInfo.codec.asInstanceOf[DynamoDBCodec[A]].encoder(a)
+                        AttributeValue.Map(AttributeValue.Map.JMapView.hash.single(caseInfo.getName, av))
+                      }
+
+                    override def decoder: Decoder[A] = { (avKeyMap: AttributeValue) =>
+                      avKeyMap match {
+                        case AttributeValue.Map(m) =>
+                          val it = m.iterator
+                          if (it.hasNext) {
+                            val (key, avInner) = it.next()
+                            val caseLeafInfo   = caseMap.get(key.value)
+                            if (caseLeafInfo ne null)
+                              caseLeafInfo.codec.decoder(avInner)
+                            else Left(ItemError.DecodingError(s"Case ${key.value} not found for Variant"))
+                          } else Left(ItemError.DecodingError(s"Can't decode an empty AttributeValue.Map"))
+                        case av                    =>
+                          Left(ItemError.DecodingError(s"Unexpected AttributeValue ${av.showType}"))
+                      }
+                    }.asInstanceOf[Decoder[A]]
+                  }
+
               }
         }
       else
@@ -803,7 +862,7 @@ class DynamoDBCodecDeriver private (
                         av = AttributeValue.Null
 
                       if (av eq null) // TODO: Avi - should we fail fast on this?
-                        errors.addOne(s"Missing attribute value for field: $name  len: $len")
+                        errors.addOne(s"Missing attribute value for field: $name")
 
                       field.valueType match {
                         case DynamoDBCodec.intType    =>
@@ -930,6 +989,7 @@ private class CaseLeafInfo(
   def setName(name: String): Unit =
     this.name = name
 
+  def getName = this.name
 }
 
 private class CaseNodeInfo[A](
