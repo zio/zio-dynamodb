@@ -75,6 +75,7 @@ class DynamoDBCodecDeriver private (
   type Col[_]
   type Key
   type Value
+  type Wrapped
   type Map[_, _]
   type TC[_]
 
@@ -182,7 +183,19 @@ class DynamoDBCodecDeriver private (
     binding: Binding[Wrapper[A, B], A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[A]] = ???
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[A]] =
+    Lazy {
+      deriveCodec(
+        new Reflect.Wrapper(
+          wrapped.asInstanceOf[Reflect[Binding, B]],
+          typeName,
+          wrapperPrimitiveType,
+          binding,
+          doc,
+          modifiers
+        )
+      )
+    }
 
   private[this] val stringCodec: DynamoDBCodec[String] =
     new DynamoDBCodec[String](valueType = DynamoDBCodec.objectType) {
@@ -943,6 +956,34 @@ class DynamoDBCodecDeriver private (
           } // end if else not tuple
       } else
         record.recordBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
+    } else if (reflect.isWrapper) {
+      val wrapper = reflect.asWrapperUnknown.get.wrapper
+      if (wrapper.wrapperBinding.isInstanceOf[Binding[?, ?]]) {
+        val binding = wrapper.wrapperBinding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
+        val codec   = deriveCodec(wrapper.wrapped).asInstanceOf[DynamoDBCodec[Wrapped]]
+        new DynamoDBCodec[A](wrapper.wrapperPrimitiveType.fold(DynamoDBCodec.objectType) {
+          case _: PrimitiveType.Int  => DynamoDBCodec.intType
+          case _: PrimitiveType.Long => DynamoDBCodec.longType
+          case _                     => DynamoDBCodec.objectType
+        }) {
+          private[this] val unwrap       = binding.unwrap
+          private[this] val wrap         = binding.wrap
+          private[this] val wrappedCodec = codec
+
+          override def encoder: Encoder[A] = (a: A) => wrappedCodec.encoder(unwrap(a))
+
+          override def decoder: Decoder[A] =
+            (av: AttributeValue) => {
+              val x: Either[ItemError, Wrapped] = wrappedCodec.decoder(av)
+              x match {
+                // TODO: Avi - interpret Block's wrapped error
+                case Right(w) => wrap(w).left.map(ItemError.DecodingError)
+                case Left(e)  => Left(e)
+              }
+            }
+        }
+      } else
+        wrapper.wrapperBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
     } else {
       println(s"XXXXX reflect type $reflect not handled yet")
       ???

@@ -226,7 +226,39 @@ object BlocksCodecSpec extends ZIOSpecDefault {
     val id: Lens[Person, String] = $(_.id)
   }
 
+  final case class Email(value: String)
+  object Email {
+    val derivedSchema: Reflect.Record[Binding, Email] = Schema.derived[Email].reflect.asRecord.get
+
+    implicit val schema: Schema[Email] =
+      Schema(
+        Reflect.Wrapper(
+          Schema[String].reflect,
+          derivedSchema.typeName,
+          None,
+          Binding.Wrapper[Email, String](s => Right(Email(s)), _.value)
+        )
+      )
+  }
+  final case class RecordWithWrapped(id: String, email: Email)
+  object RecordWithWrapped extends CompanionOptics[RecordWithWrapped] {
+    implicit val schema: Schema[RecordWithWrapped] = Schema.derived
+    val id: Lens[RecordWithWrapped, String]        = optic(_.id)
+  }
+
   val spec = suite("BlocksSpec")(
+    suite("wrapped")(
+      test("round trip record with wrapped Email") {
+        val expected = Item("id" -> "1", "email" -> "test@example.com")
+        val codec    = RecordWithWrapped.schema.deriving(DynamoDBCodecDeriver).derive
+        val record   = RecordWithWrapped("1", Email("test@example.com"))
+
+        val enc = codec.encoder(record)
+        val dec = codec.decoder(enc)
+
+        assertTrue(enc == expected.toAttributeValue && dec == Right(record))
+      }
+    ),
     suite("variant suite")(
       testWithCodecs("enum round trip")(RecordWithEnum.zioSchema, RecordWithEnum.schema) { codec =>
         val expectedItem = Item("light" -> "Green")
