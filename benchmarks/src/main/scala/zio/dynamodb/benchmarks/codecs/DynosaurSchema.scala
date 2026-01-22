@@ -3,8 +3,34 @@ package zio.dynamodb.benchmarks.codecs
 import cats.implicits._
 import dynosaur.Schema
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue
+
 object DynosaurSchema {
   import BenchmarkDomain._
+
+  implicit val paymentMethod: Schema[PaymentMethod] = Schema.oneOf[PaymentMethod] { alt =>
+    val creditCard: Schema[PaymentMethod.CreditCard] = Schema
+      .record[PaymentMethod.CreditCard] { field =>
+        (
+          field("number", _.number),
+          field("cvv", _.cvv)
+        ).mapN(PaymentMethod.CreditCard.apply)
+      }
+      .tag("CreditCard")
+    val debitCard: Schema[PaymentMethod.DebitCard]   = Schema
+      .record[PaymentMethod.DebitCard] { field =>
+        (
+          field("number", _.number),
+          field("cvv", _.cvv)
+        ).mapN(PaymentMethod.DebitCard.apply)
+      }
+      .tag("DebitCard")
+    val payPal: Schema[PaymentMethod.PayPal]         = Schema
+      .record[PaymentMethod.PayPal] { field =>
+        field("email", _.email).map(PaymentMethod.PayPal.apply)
+      }
+      .tag("PayPal")
+    alt(creditCard) |+| alt(debitCard) |+| alt(payPal)
+  }
 
   implicit val schema: Schema[TrafficLight] = Schema.attributeValue.imap[TrafficLight] { av =>
     av.s() match {
@@ -39,11 +65,12 @@ object DynosaurSchema {
         field("id", _.id),
         field("name", _.name),
         field("age", _.age),
-        field.opt("address", _.address),
+//        field.opt("address", _.address),
 //        field("map", _.map),
 //        field("list", _.list),
 //        field("tuple", _.tuple),
-        field("light", _.light)
+//        field("light", _.light)
+        field("paymentType", _.paymentMethod)
       ).mapN(Person.apply)
     }
 

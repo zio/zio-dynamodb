@@ -33,11 +33,12 @@ class CodecBenchmarks extends BaseBenchmark {
           12345678901L,
           "John",
           30,
-          Some("123 Main St"),
+//          Some("123 Main St"),
 //          Map("a" -> 1, "b" -> 2, "c" -> 3),
 //          Vector(1, 2, 3, 4, 5),
 //          (1, 2L, "3"),
-          TrafficLight.Green
+//          TrafficLight.Green,
+          PaymentMethod.DebitCard("123", "123")
         )
       )
       .toList
@@ -103,6 +104,28 @@ class CodecBenchmarks extends BaseBenchmark {
 }
 
 object BenchmarkDomain {
+  sealed trait PaymentMethod
+  object PaymentMethod {
+    final case class CreditCard(number: String, cvv: String) extends PaymentMethod
+    object CreditCard {
+      implicit val schema: Schema[CreditCard]       = Schema.derived
+      implicit val zioSchema: ZIOSchema[CreditCard] = DeriveSchema.gen[CreditCard]
+    }
+    final case class DebitCard(number: String, cvv: String) extends PaymentMethod
+    object DebitCard  {
+      implicit val schema: Schema[DebitCard]       = Schema.derived
+      implicit val zioSchema: ZIOSchema[DebitCard] = DeriveSchema.gen[DebitCard]
+    }
+    final case class PayPal(email: String) extends PaymentMethod
+    object PayPal     {
+      implicit val schema: Schema[PayPal]       = Schema.derived
+      implicit val zioSchema: ZIOSchema[PayPal] = DeriveSchema.gen[PayPal]
+    }
+
+    implicit val schema: Schema[PaymentMethod]       = Schema.derived
+    implicit val zioSchema: ZIOSchema[PaymentMethod] = DeriveSchema.gen[PaymentMethod]
+  }
+
   sealed trait TrafficLight
   object TrafficLight {
     case object Red    extends TrafficLight
@@ -115,11 +138,12 @@ object BenchmarkDomain {
     id: Long,
     name: String,
     age: Int,
-    address: Option[String],
+//    address: Option[String],
 //    map: Map[String, Int],
 //    list: Vector[Int],
 //    tuple: (Int, Long, String),
-    light: TrafficLight
+//    light: TrafficLight,
+    paymentMethod: PaymentMethod
   )
   object Person       {
     implicit val blocksSchema: Schema[Person] = Schema.derived
