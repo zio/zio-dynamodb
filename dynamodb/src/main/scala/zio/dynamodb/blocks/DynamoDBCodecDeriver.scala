@@ -24,7 +24,8 @@ object DynamoDBCodecDeriver
       enumValuesAsStrings = true,
       caseNameMapper = NameMapper.Identity,
       transientNone = true,
-      requireOptionFields = false
+      requireOptionFields = false,
+      requireCollectionFields = false
     ) {}
 
 // TODO: Avi - create an issue in Blocks to either expose these or to provide higher level APIs to check for common Scala types
@@ -44,15 +45,17 @@ class DynamoDBCodecDeriver private (
   enumValuesAsStrings: Boolean,
   caseNameMapper: NameMapper,
   transientNone: Boolean,
-  requireOptionFields: Boolean
+  requireOptionFields: Boolean,
+  requireCollectionFields: Boolean // Schema1 codecs assumes this is false
 ) extends Deriver[DynamoDBCodec] { self =>
   // TODO: Avi - promote to config
   val requireDefaultValueFields: Boolean = false
-  val requireCollectionFields: Boolean   = false // Schema1 codecs assumes this is false
 
-  def withTransientNone(transientNone: Boolean): DynamoDBCodecDeriver = copy(transientNone = transientNone)
-  def withDiscriminatorKind(discriminatorKind: DiscriminatorKind)     = copy(discriminatorKind = discriminatorKind)
-  def withFieldDiscriminator(name: String)                            = copy(discriminatorKind = DiscriminatorKind.Field(name))
+  def withTransientNone(transientNone: Boolean): DynamoDBCodecDeriver                      = copy(transientNone = transientNone)
+  def withDiscriminatorKind(discriminatorKind: DiscriminatorKind): DynamoDBCodecDeriver    =
+    copy(discriminatorKind = discriminatorKind)
+  def withRequiredCollectionFields(requireCollectionFields: Boolean): DynamoDBCodecDeriver =
+    copy(requireCollectionFields = requireCollectionFields)
 
   def copy(
     zioSchema1Compatibility: Boolean = zioSchema1Compatibility,
@@ -60,7 +63,8 @@ class DynamoDBCodecDeriver private (
     enumValuesAsStrings: Boolean = enumValuesAsStrings,
     caseNameMapper: NameMapper = caseNameMapper,
     transientNone: Boolean = transientNone,
-    requireOptionFields: Boolean = requireOptionFields
+    requireOptionFields: Boolean = requireOptionFields,
+    requireCollectionFields: Boolean = requireCollectionFields
   ): DynamoDBCodecDeriver =
     new DynamoDBCodecDeriver(
       zioSchema1Compatibility,
@@ -68,7 +72,8 @@ class DynamoDBCodecDeriver private (
       enumValuesAsStrings,
       caseNameMapper,
       transientNone,
-      requireOptionFields
+      requireOptionFields,
+      requireCollectionFields
     )
 
   type Elem
@@ -463,7 +468,7 @@ class DynamoDBCodecDeriver private (
                           rtrn
                       }
                   }
-
+                // DiscriminatorKind.Key
                 case _                                                                           =>
                   val map = new java.util.HashMap[String, CaseLeafInfo](variant.cases.length)
 

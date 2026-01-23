@@ -268,7 +268,9 @@ object BlocksCodecSpec extends ZIOSpecDefault {
         assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expected))
       },
       test("Record of variant with leaf record cases using DiscriminatorKind.Field") {
-        val codec    = RecordWithPaymentMethod.schema.deriving(DynamoDBCodecDeriver.withFieldDiscriminator("foo")).derive
+        val codec    = RecordWithPaymentMethod.schema
+          .deriving(DynamoDBCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("foo")))
+          .derive
         val record   = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
         val enc      = codec.encoder(record)
         val expected = Item("method" -> Item("foo" -> "PayPal", "email" -> "a@b.com"))
