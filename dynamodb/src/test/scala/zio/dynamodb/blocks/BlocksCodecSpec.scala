@@ -121,6 +121,13 @@ object BlocksCodecSpec extends ZIOSpecDefault {
     implicit val schema: Schema[RecordWithOption] = Schema.derived
   }
 
+  final case class RecordWithListOfInt(list: List[Int])
+  object RecordWithListOfInt {
+    implicit val schema: Schema[RecordWithListOfInt]               = Schema.derived
+    implicit val zioSchema: zio.schema.Schema[RecordWithListOfInt] =
+      zio.schema.DeriveSchema.gen[RecordWithListOfInt]
+  }
+
   final case class RecordWithTuple(tuple: (Int, Long, String, String))
   object RecordWithTuple {
     implicit val schema: Schema[RecordWithTuple]               = Schema.derived
@@ -247,6 +254,30 @@ object BlocksCodecSpec extends ZIOSpecDefault {
   }
 
   val spec = suite("BlocksSpec")(
+    suite("sequences")(
+      testWithCodecs("Record with List[Int]")(
+        RecordWithListOfInt.zioSchema,
+        RecordWithListOfInt.schema
+      ) { codec =>
+        val expectedItem   =
+          Item("list" -> List(1, 2, 3))
+        val expectedPerson = RecordWithListOfInt(list = List(1, 2, 3))
+        val enc            = codec.encoder(expectedPerson)
+        val dec            = codec.decoder(enc)
+        assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
+      },
+      testWithCodecs("Record with empty List[Int]")(
+        RecordWithListOfInt.zioSchema,
+        RecordWithListOfInt.schema
+      ) { codec =>
+        val expectedItem: AttributeValue =
+          AttributeValue.Map(Map(AttributeValue.String("list") -> AttributeValue.List.empty))
+        val expectedPerson               = RecordWithListOfInt(list = Nil)
+        val enc                          = codec.encoder(expectedPerson)
+        val dec                          = codec.decoder(enc)
+        assertTrue(enc == expectedItem && dec == Right(expectedPerson))
+      }
+    ),
     suite("wrapped")(
       test("round trip record with wrapped Email") {
         val expected = Item("id" -> "1", "email" -> "test@example.com")

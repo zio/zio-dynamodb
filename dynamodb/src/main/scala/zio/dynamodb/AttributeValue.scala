@@ -69,7 +69,7 @@ object AttributeValue {
     def +(av: AttributeValue): List = List(self.value ++ Iterable(av))
   }
   private[dynamodb] object List {
-    val empty = List(Iterable.empty)
+    val empty: List = List(Iterable.empty)
   }
 
   private[dynamodb] final case class Map(value: ScalaMap[String, AttributeValue]) extends AttributeValue { self =>
