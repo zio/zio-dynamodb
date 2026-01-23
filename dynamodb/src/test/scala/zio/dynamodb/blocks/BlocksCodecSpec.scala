@@ -33,7 +33,9 @@ object BlocksCodecSpec extends ZIOSpecDefault {
   }
   final case class RecordWithPaymentMethod(method: PaymentMethod)
   object RecordWithPaymentMethod {
-    implicit val schema: Schema[RecordWithPaymentMethod] = Schema.derived
+    implicit val schema: Schema[RecordWithPaymentMethod]               = Schema.derived
+    implicit val zioSchema: zio.schema.Schema[RecordWithPaymentMethod] =
+      zio.schema.DeriveSchema.gen[RecordWithPaymentMethod]
   }
 
   sealed trait PaymentMethod2
@@ -308,8 +310,10 @@ object BlocksCodecSpec extends ZIOSpecDefault {
         val dec      = codec.decoder(enc)
         assertTrue(enc == expected.toAttributeValue && dec == Right(record))
       },
-      test("Record of variant with leaf record cases using DiscriminatorKind.Key") {
-        val codec    = RecordWithPaymentMethod.schema.deriving(DynamoDBCodecDeriver).derive
+      testWithCodecs("Record of variant with leaf record cases using DiscriminatorKind.Key")(
+        RecordWithPaymentMethod.zioSchema,
+        RecordWithPaymentMethod.schema
+      ) { codec =>
         val record   = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
         val enc      = codec.encoder(record)
         val expected = Item("method" -> Item("PayPal" -> Item("email" -> "a@b.com")))
