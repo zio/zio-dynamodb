@@ -262,87 +262,56 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       testWithCodecs("Record with List[Int]")(
         RecordWithListOfInt.zioSchema,
         RecordWithListOfInt.schema
-      ) { codec =>
-        val expectedItem   =
-          Item("list" -> List(1, 2, 3))
-        val expectedPerson = RecordWithListOfInt(list = List(1, 2, 3))
-        val enc            = codec.encoder(expectedPerson)
-        val dec            = codec.decoder(enc)
-        assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
-      },
+      )(expectedItem = Item("list" -> List(1, 2, 3)).toAttributeValue)(
+        expectedRecord = RecordWithListOfInt(list = List(1, 2, 3))
+      ),
       testWithCodecs("Record with empty List[Int]")(
         RecordWithListOfInt.zioSchema,
         RecordWithListOfInt.schema,
         _.withRequiredCollectionFields(true)
-      ) { codec =>
-        val expectedItem: AttributeValue =
-          AttributeValue.Map(Map(AttributeValue.String("list") -> AttributeValue.List.empty))
-        val expectedPerson               = RecordWithListOfInt(list = Nil)
-        val enc                          = codec.encoder(expectedPerson)
-        val dec                          = codec.decoder(enc)
-        assertTrue(enc == expectedItem && dec == Right(expectedPerson))
-      }
-    ),
-    suite("wrapped")(
-      test("round trip record with wrapped Email") {
-        val expected = Item("id" -> "1", "email" -> "test@example.com")
-        val codec    = RecordWithWrapped.schema.deriving(DynamoDBCodecDeriver).derive
-        val record   = RecordWithWrapped("1", Email("test@example.com"))
+      )(expectedItem = AttributeValue.Map(Map(AttributeValue.String("list") -> AttributeValue.List.empty)))(
+        expectedRecord = RecordWithListOfInt(list = Nil)
+      ),
+      suite("wrapped")(
+        test("round trip record with wrapped Email") {
+          val expected = Item("id" -> "1", "email" -> "test@example.com")
+          val codec    = RecordWithWrapped.schema.deriving(DynamoDBCodecDeriver).derive
+          val record   = RecordWithWrapped("1", Email("test@example.com"))
 
-        val enc = codec.encoder(record)
-        val dec = codec.decoder(enc)
+          val enc = codec.encoder(record)
+          val dec = codec.decoder(enc)
 
-        assertTrue(enc == expected.toAttributeValue && dec == Right(record))
-      }
-    ),
-    suite("variant suite")(
-      suite("Option Suite")(
-        testWithCodecs("Record with Option[Int] Some(42) - transientNone = true")(
-          RecordWithOption.zioSchema,
-          RecordWithOption.schema
-        ) { codec =>
-          val expectedItem   =
-            Item("option" -> 42)
-          val expectedPerson = RecordWithOption(option = Some(42))
-          val enc            = codec.encoder(expectedPerson)
-          val dec            = codec.decoder(enc)
-          assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
-        },
-        testWithCodecs("Record with Option[Int] None - transientNone = true")(
-          RecordWithOption.zioSchema,
-          RecordWithOption.schema
-        ) { codec =>
-          val expectedItem   = Item.empty
-          val expectedPerson = RecordWithOption(option = None)
-          val enc            = codec.encoder(expectedPerson)
-          val dec            = codec.decoder(enc)
-          assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
-        },
-        testWithBlocksCodec("Record with Option[Int] None - transientNone = true")(
-          RecordWithOption.schema,
-          _.withTransientNone(false)
-        ) { codec =>
-          val expectedItem   = Item("option" -> null)
-          val expectedPerson = RecordWithOption(option = None)
-          val enc            = codec.encoder(expectedPerson)
-          val dec            = codec.decoder(enc)
-          assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
-        },
-        testWithBlocksCodec("Record with Option of record")(RecordWithOptionalPerson.schema) { codec =>
-          val expectedItem = Item("option" -> Item("id" -> "id", "age" -> 21))
-          val person       = RecordWithOptionalPerson(option = Some(Person("id", 21)))
-          val enc          = codec.encoder(person)
-          val dec          = codec.decoder(enc)
-          assertTrue(enc == expectedItem.toAttributeValue && dec == Right(person))
+          assertTrue(enc == expected.toAttributeValue && dec == Right(record))
         }
       ),
-      testWithCodecs("enum round trip")(RecordWithEnum.zioSchema, RecordWithEnum.schema) { codec =>
-        val expectedItem = Item("light" -> "Green")
-        val expected     = RecordWithEnum(TrafficLight.Green)
-        val enc          = codec.encoder(expected)
-        val dec          = codec.decoder(enc)
-        assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expected))
-      },
+      suite("variant suite")(
+        suite("Option Suite")(
+          testWithCodecs("Record with Option[Int] Some(42) - transientNone = true")(
+            RecordWithOption.zioSchema,
+            RecordWithOption.schema
+          )(expectedItem = Item("option" -> 42).toAttributeValue)(
+            expectedRecord = RecordWithOption(option = Some(42))
+          ),
+          testWithCodecs("Record with Option[Int] None - transientNone = true")(
+            RecordWithOption.zioSchema,
+            RecordWithOption.schema
+          )(expectedItem = Item.empty.toAttributeValue)(
+            expectedRecord = RecordWithOption(option = None)
+          ),
+          testWithBlocksCodec("Record with Option[Int] None - transientNone = true")(
+            RecordWithOption.schema,
+            _.withTransientNone(false)
+          )(expectedItem = Item("option" -> null).toAttributeValue)(
+            expectedRecord = RecordWithOption(option = None)
+          ),
+          testWithBlocksCodec("Record with Option of record")(RecordWithOptionalPerson.schema)(
+            expectedItem = Item("option" -> Item("id" -> "id", "age" -> 21)).toAttributeValue
+          )(expectedRecord = RecordWithOptionalPerson(option = Some(Person("id", 21))))
+        ),
+        testWithCodecs("enum round trip")(RecordWithEnum.zioSchema, RecordWithEnum.schema)(
+          expectedItem = Item("light" -> "Green").toAttributeValue
+        )(expectedRecord = RecordWithEnum(TrafficLight.Green))
+      ),
       test("Record of variant with leaf record cases using DiscriminatorKind.Field") {
         val codec    = RecordWithPaymentMethod.schema
           .deriving(DynamoDBCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("foo")))
@@ -356,13 +325,9 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       testWithCodecs("Record of variant with leaf record cases using DiscriminatorKind.Key")(
         RecordWithPaymentMethod.zioSchema,
         RecordWithPaymentMethod.schema
-      ) { codec =>
-        val record   = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
-        val enc      = codec.encoder(record)
-        val expected = Item("method" -> Item("PayPal" -> Item("email" -> "a@b.com")))
-        val dec      = codec.decoder(enc)
-        assertTrue(enc == expected.toAttributeValue && dec == Right(record))
-      },
+      )(expectedItem = Item("method" -> Item("PayPal" -> Item("email" -> "a@b.com"))).toAttributeValue)(
+        expectedRecord = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
+      ),
       test("Record of variant with leaf record cases using DiscriminatorKind.None") {
         val codec    = RecordWithPaymentMethod.schema
           .deriving(DynamoDBCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None))
@@ -398,25 +363,18 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       val dec                                 = codec.decoder(enc)
       assertTrue(enc == expectedAv && dec == Right(person.copy(id = "ONE_decoded")))
     },
-    testWithCodecs("round trip Person2")(Person2.zioSchema, Person2.schema) { codec =>
-      val expectedItem   = Item("id" -> "1", "age" -> 42, "count" -> 100)
-      val expectedPerson = Person2("1", 42, 100)
-      val enc            = codec.encoder(expectedPerson)
-      val dec            = codec.decoder(enc)
-      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
-    },
+    testWithCodecs("round trip Person2")(Person2.zioSchema, Person2.schema)(
+      expectedItem = Item("id" -> "1", "age" -> 42, "count" -> 100).toAttributeValue
+    )(
+      expectedRecord = Person2("1", 42, 100)
+    ),
     suite("Native Map")(
       testWithCodecs("Record with native Map[String, Int]")(
         RecordWithNativeMap.zioSchema,
         RecordWithNativeMap.schema
-      ) { codec =>
-        val expectedItem   =
-          Item("map" -> Map("a" -> 1, "b" -> 2))
-        val expectedPerson = RecordWithNativeMap(map = Map("a" -> 1, "b" -> 2))
-        val enc            = codec.encoder(expectedPerson)
-        val dec            = codec.decoder(enc)
-        assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
-      },
+      )(expectedItem = Item("map" -> Map("a" -> 1, "b" -> 2)).toAttributeValue)(
+        expectedRecord = RecordWithNativeMap(map = Map("a" -> 1, "b" -> 2))
+      ),
       test("Record with native map of record - Map[String, Address]") {
         final case class RecordWithAddressMap(
           map: Map[String, Address]
@@ -438,18 +396,14 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       testWithCodecs("Record with Map[Int, Int]")(
         RecordWithNonNativeMapOfInt.zioSchema,
         RecordWithNonNativeMapOfInt.schema
-      ) { codec =>
-        val expectedItem   = Item("map" -> List(List(1, 1), List(2, 2)))
-        val expectedRecord = RecordWithNonNativeMapOfInt(map = Map(1 -> 1, 2 -> 2))
-        val enc            = codec.encoder(expectedRecord)
-        val dec            = codec.decoder(enc)
-        assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedRecord))
-      },
+      )(expectedItem = Item("map" -> List(List(1, 1), List(2, 2))).toAttributeValue)(
+        expectedRecord = RecordWithNonNativeMapOfInt(map = Map(1 -> 1, 2 -> 2))
+      ),
       testWithCodecs("Record with Map[Int, Person]")(
         RecordWithNonNativeMapOfPerson.zioSchema,
         RecordWithNonNativeMapOfPerson.schema
-      ) { codec =>
-        val expectedItem   = AttributeValue.Map(
+      )(expectedItem =
+        AttributeValue.Map(
           Map(
             AttributeValue.String("map") -> AttributeValue.List(
               Chunk(
@@ -470,112 +424,117 @@ object BlocksCodecSpec extends ZIOSpecDefault {
             )
           )
         )
-        val expectedRecord = RecordWithNonNativeMapOfPerson(Map(1 -> Person("id", 21)))
-        val enc            = codec.encoder(expectedRecord)
-        val dec            = codec.decoder(enc)
-        assertTrue(enc == expectedItem && dec == Right(expectedRecord))
-      }
-    ),
-    suite("tuple")(
-      // Schema2 encoding will never be symmetric with Schema1
-      test("record with tuple (Int, Long, String)") {
-        val codec        = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple.schema, DynamoDBCodecConfigure.identity)
-        val expectedItem =
-          AttributeValue.Map(
-            Map(
-              AttributeValue.String("tuple") -> AttributeValue.List(
-                Chunk(
-                  AttributeValue.Number(BigDecimal(1)),
-                  AttributeValue.Number(BigDecimal(2L)),
-                  AttributeValue.String("3"),
-                  AttributeValue.String("4")
+      )(
+        expectedRecord = RecordWithNonNativeMapOfPerson(Map(1 -> Person("id", 21)))
+      ),
+      suite("tuple")(
+        // Schema2 encoding will never be symmetric with Schema1
+        test("record with tuple (Int, Long, String)") {
+          val codec        = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple.schema, DynamoDBCodecConfigure.identity)
+          val expectedItem =
+            AttributeValue.Map(
+              Map(
+                AttributeValue.String("tuple") -> AttributeValue.List(
+                  Chunk(
+                    AttributeValue.Number(BigDecimal(1)),
+                    AttributeValue.Number(BigDecimal(2L)),
+                    AttributeValue.String("3"),
+                    AttributeValue.String("4")
+                  )
                 )
               )
             )
-          )
 
-        val expectedPerson = RecordWithTuple(tuple = (1, 2, "3", "4"))
-        val enc            = codec.encoder(expectedPerson)
-        val dec            = codec.decoder(enc)
-        assertTrue(enc == expectedItem && dec == Right(expectedPerson))
-      },
-      test("tuple compatibility - nested lists") {
-        val blocksCodec    = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple.schema, DynamoDBCodecConfigure.identity)
-        val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithTuple.zioSchema)
+          val expectedPerson = RecordWithTuple(tuple = (1, 2, "3", "4"))
+          val enc            = codec.encoder(expectedPerson)
+          val dec            = codec.decoder(enc)
+          assertTrue(enc == expectedItem && dec == Right(expectedPerson))
+        },
+        test("tuple compatibility - nested lists") {
+          val blocksCodec    = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple.schema, DynamoDBCodecConfigure.identity)
+          val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithTuple.zioSchema)
 
-        val recordWithTuple = RecordWithTuple(tuple = (1, 2, "3", "4"))
-        val av              = zioSchemaCodec.encoder(recordWithTuple)
-        val a               = blocksCodec.decoder(av)
-        assertTrue(a == Right(recordWithTuple)) // Blocks codec can decode a tuple encoded by a ZIO Schema codec
-      },
-      test("tuple compatibility - single scalar value for Tuple1") {
-        val blocksCodec    = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple1.schema, DynamoDBCodecConfigure.identity)
-        val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithTuple1.zioSchema)
+          val recordWithTuple = RecordWithTuple(tuple = (1, 2, "3", "4"))
+          val av              = zioSchemaCodec.encoder(recordWithTuple)
+          val a               = blocksCodec.decoder(av)
+          assertTrue(a == Right(recordWithTuple)) // Blocks codec can decode a tuple encoded by a ZIO Schema codec
+        },
+        test("tuple compatibility - single scalar value for Tuple1") {
+          val blocksCodec    = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple1.schema, DynamoDBCodecConfigure.identity)
+          val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithTuple1.zioSchema)
 
-        val recordWithTuple = RecordWithTuple1(tuple = (1))
-        val av              = zioSchemaCodec.encoder(recordWithTuple)
-        val a               = blocksCodec.decoder(av)
-        assertTrue(a == Right(recordWithTuple)) // Blocks codec can decode a tuple encoded by a ZIO Schema codec
-      },
-      test("tuple compatibility - tuple with first element as List") {
-        val blocksCodec    =
-          SchemaCodec.schema2ToSchemaCodec(RecordWithListAsFirstInTuple.schema, DynamoDBCodecConfigure.identity)
-        val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithListAsFirstInTuple.zioSchema)
+          val recordWithTuple = RecordWithTuple1(tuple = (1))
+          val av              = zioSchemaCodec.encoder(recordWithTuple)
+          val a               = blocksCodec.decoder(av)
+          assertTrue(a == Right(recordWithTuple)) // Blocks codec can decode a tuple encoded by a ZIO Schema codec
+        },
+        test("tuple compatibility - tuple with first element as List") {
+          val blocksCodec    =
+            SchemaCodec.schema2ToSchemaCodec(RecordWithListAsFirstInTuple.schema, DynamoDBCodecConfigure.identity)
+          val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithListAsFirstInTuple.zioSchema)
 
-        val recordWithTuple = RecordWithListAsFirstInTuple(tuple = (List(1, 2), 2L, "3"))
-        val av1             = zioSchemaCodec.encoder(recordWithTuple)
-        val dec2            = blocksCodec.decoder(av1)
+          val recordWithTuple = RecordWithListAsFirstInTuple(tuple = (List(1, 2), 2L, "3"))
+          val av1             = zioSchemaCodec.encoder(recordWithTuple)
+          val dec2            = blocksCodec.decoder(av1)
 
-        assertTrue(dec2 == Right(recordWithTuple))
-      },
-      test("tuple compatibility - tuple with second element as List") {
-        val blocksCodec    =
-          SchemaCodec.schema2ToSchemaCodec(RecordWithListAsSecondInTuple.schema, DynamoDBCodecConfigure.identity)
-        val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithListAsSecondInTuple.zioSchema)
+          assertTrue(dec2 == Right(recordWithTuple))
+        },
+        test("tuple compatibility - tuple with second element as List") {
+          val blocksCodec    =
+            SchemaCodec.schema2ToSchemaCodec(RecordWithListAsSecondInTuple.schema, DynamoDBCodecConfigure.identity)
+          val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithListAsSecondInTuple.zioSchema)
 
-        val recordWithTuple = RecordWithListAsSecondInTuple(tuple = (1, List(1L, 2L), "3"))
-        val av1             = zioSchemaCodec.encoder(recordWithTuple)
-        val dec2            = blocksCodec.decoder(av1)
+          val recordWithTuple = RecordWithListAsSecondInTuple(tuple = (1, List(1L, 2L), "3"))
+          val av1             = zioSchemaCodec.encoder(recordWithTuple)
+          val dec2            = blocksCodec.decoder(av1)
 
-        assertTrue(dec2 == Right(recordWithTuple))
-      }
-    ),
-    suite("sequence")(
-      // Note ZIO Schema does not work with Arrays
-      test("record with Array[String]") {
-        val expectedItem                          =
-          AttributeValue.Map(
-            Map(
-              AttributeValue.String("names") -> AttributeValue.List(
-                Chunk(
-                  AttributeValue.String("Alice"),
-                  AttributeValue.String("Bob"),
-                  AttributeValue.String("Tharloachan")
+          assertTrue(dec2 == Right(recordWithTuple))
+        }
+      ),
+      suite("sequence")(
+        // Note ZIO Schema does not work with Arrays
+        test("record with Array[String]") {
+          val expectedItem                          =
+            AttributeValue.Map(
+              Map(
+                AttributeValue.String("names") -> AttributeValue.List(
+                  Chunk(
+                    AttributeValue.String("Alice"),
+                    AttributeValue.String("Bob"),
+                    AttributeValue.String("Tharloachan")
+                  )
                 )
               )
             )
-          )
-        val codec: DynamoDBCodec[RecordWithArray] = RecordWithArray.schema.derive(DynamoDBCodecDeriver)
-        val expectedPerson                        = RecordWithArray(names = Array("Alice", "Bob", "Tharloachan"))
-        val enc                                   = codec.encoder(expectedPerson)
-        val dec                                   = codec.decoder(enc)
-        assertTrue(enc == expectedItem && dec == Right(expectedPerson))
-      }
+          val codec: DynamoDBCodec[RecordWithArray] = RecordWithArray.schema.derive(DynamoDBCodecDeriver)
+          val expectedPerson                        = RecordWithArray(names = Array("Alice", "Bob", "Tharloachan"))
+          val enc                                   = codec.encoder(expectedPerson)
+          val dec                                   = codec.decoder(enc)
+          assertTrue(enc == expectedItem && dec == Right(expectedPerson))
+        }
+      )
     )
   )
 
-  def testWithCodecs[A](
+  private def testWithCodecs[A](
     name: String
   )(
     zioSchema: zio.schema.Schema[A],
     blocks: Schema[A],
     cfg: DynamoDBCodecConfigure[A] = DynamoDBCodecConfigure.identity[A]
   )(
-    testBody: SchemaCodec[A] => TestResult
+    expectedItem: AttributeValue
+  )(
+    expectedRecord: A
   ): Spec[Any, Nothing] = {
-
     val scBlocks = SchemaCodec.schema2ToSchemaCodec(blocks, cfg)
     val scZio    = SchemaCodec.schema1ToSchemaCodec(zioSchema)
+
+    val testBody: SchemaCodec[A] => TestResult = { codec =>
+      val enc = codec.encoder(expectedRecord)
+      val dec = codec.decoder(enc)
+      assertTrue(enc == expectedItem && dec == Right(expectedRecord))
+    }
 
     suite(name)(
       test("zio-schema") {
@@ -593,8 +552,16 @@ object BlocksCodecSpec extends ZIOSpecDefault {
     blocks: Schema[A],
     cfg: DynamoDBCodecConfigure[A] = DynamoDBCodecConfigure.identity[A]
   )(
-    testBody: SchemaCodec[A] => TestResult
+    expectedItem: AttributeValue
+  )(
+    expectedRecord: A
   ): Spec[Any, Nothing] = {
+
+    val testBody: SchemaCodec[A] => TestResult = { codec =>
+      val enc = codec.encoder(expectedRecord)
+      val dec = codec.decoder(enc)
+      assertTrue(enc == expectedItem && dec == Right(expectedRecord))
+    }
 
     val scBlocks = SchemaCodec.schema2ToSchemaCodec(blocks, cfg)
 
