@@ -118,9 +118,11 @@ object BlocksCodecSpec extends ZIOSpecDefault {
     val either /*: Lens[RecordWithEither, Either[String, Int]]*/ = $(_.either)
   }
 
-  final case class RecordWithOption(id: String, option: Option[Int])
+  final case class RecordWithOption(option: Option[Int])
   object RecordWithOption {
-    implicit val schema: Schema[RecordWithOption] = Schema.derived
+    implicit val schema: Schema[RecordWithOption]               = Schema.derived
+    implicit val zioSchema: zio.schema.Schema[RecordWithOption] =
+      zio.schema.DeriveSchema.gen[RecordWithOption]
   }
 
   final case class RecordWithListOfInt(list: List[Int])
@@ -270,7 +272,8 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       },
       testWithCodecs("Record with empty List[Int]")(
         RecordWithListOfInt.zioSchema,
-        RecordWithListOfInt.schema
+        RecordWithListOfInt.schema,
+        _.withRequiredCollectionFields(true)
       ) { codec =>
         val expectedItem: AttributeValue =
           AttributeValue.Map(Map(AttributeValue.String("list") -> AttributeValue.List.empty))
@@ -293,6 +296,46 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       }
     ),
     suite("variant suite")(
+      suite("Option Suite")(
+        testWithCodecs("Record with Option[Int] Some(42) - transientNone = true")(
+          RecordWithOption.zioSchema,
+          RecordWithOption.schema
+        ) { codec =>
+          val expectedItem   =
+            Item("option" -> 42)
+          val expectedPerson = RecordWithOption(option = Some(42))
+          val enc            = codec.encoder(expectedPerson)
+          val dec            = codec.decoder(enc)
+          assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
+        },
+        testWithCodecs("Record with Option[Int] None - transientNone = true")(
+          RecordWithOption.zioSchema,
+          RecordWithOption.schema
+        ) { codec =>
+          val expectedItem   = Item.empty
+          val expectedPerson = RecordWithOption(option = None)
+          val enc            = codec.encoder(expectedPerson)
+          val dec            = codec.decoder(enc)
+          assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
+        },
+        testWithBlocksCodec("Record with Option[Int] None - transientNone = true")(
+          RecordWithOption.schema,
+          _.withTransientNone(false)
+        ) { codec =>
+          val expectedItem   = Item("option" -> null)
+          val expectedPerson = RecordWithOption(option = None)
+          val enc            = codec.encoder(expectedPerson)
+          val dec            = codec.decoder(enc)
+          assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
+        },
+        testWithBlocksCodec("Record with Option of record")(RecordWithOptionalPerson.schema) { codec =>
+          val expectedItem = Item("option" -> Item("id" -> "id", "age" -> 21))
+          val person       = RecordWithOptionalPerson(option = Some(Person("id", 21)))
+          val enc          = codec.encoder(person)
+          val dec          = codec.decoder(enc)
+          assertTrue(enc == expectedItem.toAttributeValue && dec == Right(person))
+        }
+      ),
       testWithCodecs("enum round trip")(RecordWithEnum.zioSchema, RecordWithEnum.schema) { codec =>
         val expectedItem = Item("light" -> "Green")
         val expected     = RecordWithEnum(TrafficLight.Green)
@@ -361,60 +404,6 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       val enc            = codec.encoder(expectedPerson)
       val dec            = codec.decoder(enc)
       assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
-    },
-    test("Record with Option[Int] Some(42)") {
-      val expectedItem                           =
-        Item("id" -> "1", "option" -> 42)
-      val codec: DynamoDBCodec[RecordWithOption] = RecordWithOption.schema.derive(DynamoDBCodecDeriver)
-      val expectedPerson                         = RecordWithOption("1", option = Some(42))
-      val enc                                    = codec.encoder(expectedPerson)
-      val dec                                    = codec.decoder(enc)
-      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
-    },
-    test("Record with Option[Int] None") {
-      val expectedItem                           =
-        Item("id" -> "1")
-      val codec: DynamoDBCodec[RecordWithOption] = RecordWithOption.schema.derive(DynamoDBCodecDeriver)
-      val expectedPerson                         = RecordWithOption("1", option = None)
-      val enc                                    = codec.encoder(expectedPerson)
-      val dec                                    = codec.decoder(enc)
-      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
-    },
-    test("Record with Option[Int] None with required None via config") {
-      final case class RecordWithOption2(id: String, option: Option[Int])
-      object RecordWithOption2 {
-        implicit val cfg: DynamoDBCodecConfigure[RecordWithOption2] =
-          (d: DynamoDBCodecDeriver) => d.withTransientNone(false)
-
-        implicit val schema: Schema[RecordWithOption2] = Schema.derived
-      }
-
-      val expectedItem                          =
-        Item("id" -> "1", "option" -> null)
-      val codec: SchemaCodec[RecordWithOption2] = implicitly[SchemaCodec[RecordWithOption2]]
-      val expectedPerson                        = RecordWithOption2("1", option = None)
-      val enc                                   = codec.encoder(expectedPerson)
-      val dec                                   = codec.decoder(enc)
-      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
-    },
-    test("Record with Option[Int] None with required None") {
-      val expectedItem                           =
-        Item("id" -> "1", "option" -> null)
-      val codec: DynamoDBCodec[RecordWithOption] =
-        RecordWithOption.schema.derive(DynamoDBCodecDeriver.withTransientNone(false))
-      val expectedPerson                         = RecordWithOption("1", option = None)
-      val enc                                    = codec.encoder(expectedPerson)
-      val dec                                    = codec.decoder(enc)
-      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
-    },
-    test("Record with Option of record") {
-      val expectedItem                                   =
-        Item("option" -> Item("id" -> "id", "age" -> 21))
-      val codec: DynamoDBCodec[RecordWithOptionalPerson] = RecordWithOptionalPerson.schema.derive(DynamoDBCodecDeriver)
-      val person                                         = RecordWithOptionalPerson(option = Some(Person("id", 21)))
-      val enc                                            = codec.encoder(person)
-      val dec                                            = codec.decoder(enc)
-      assertTrue(enc == expectedItem.toAttributeValue && dec == Right(person))
     },
     suite("Native Map")(
       testWithCodecs("Record with native Map[String, Int]")(
@@ -597,4 +586,23 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       }
     )
   }
+
+  def testWithBlocksCodec[A](
+    name: String
+  )(
+    blocks: Schema[A],
+    cfg: DynamoDBCodecConfigure[A] = DynamoDBCodecConfigure.identity[A]
+  )(
+    testBody: SchemaCodec[A] => TestResult
+  ): Spec[Any, Nothing] = {
+
+    val scBlocks = SchemaCodec.schema2ToSchemaCodec(blocks, cfg)
+
+    suite(name)(
+      test("blocks-schema") {
+        testBody(scBlocks)
+      }
+    )
+  }
+
 }

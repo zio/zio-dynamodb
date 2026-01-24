@@ -1,6 +1,6 @@
 package zio.dynamodb.blocks
 
-trait DynamoDBCodecConfigure[A] {
+trait DynamoDBCodecConfigure[+A] {
   def configure(d: DynamoDBCodecDeriver): DynamoDBCodecDeriver
 }
 
