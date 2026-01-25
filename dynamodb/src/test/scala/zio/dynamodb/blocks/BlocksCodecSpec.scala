@@ -6,7 +6,8 @@ import zio.blocks.schema.binding.{ Binding, SeqConstructor, SeqDeconstructor }
 import zio.blocks.schema.{ CompanionOptics, Doc, Lens, Namespace, PrimitiveType, Reflect, Schema, TypeName, Validation }
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb._
-import zio.test.{ assertTrue, Spec, TestResult, ZIOSpecDefault }
+import zio.test.Assertion.{ equalTo, isLeft }
+import zio.test.{ assert, assertTrue, Spec, TestResult, ZIOSpecDefault }
 
 object BlocksCodecSpec extends ZIOSpecDefault {
   sealed trait TrafficLight
@@ -265,18 +266,26 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       )(expectedItem = Item("list" -> List(1, 2, 3)).toAttributeValue)(
         expectedRecord = RecordWithListOfInt(list = List(1, 2, 3))
       ),
-      testWithCodecs("Record with empty List[Int], requiredCollectionFields = true")(
+      testWithCodecs("Record with empty List[Int], transientEmptyCollection = false, requiredCollectionFields = true")(
         RecordWithListOfInt.zioSchema,
-        RecordWithListOfInt.schema,
-        _.withRequiredCollectionFields(true)
+        RecordWithListOfInt.schema
       )(expectedItem = AttributeValue.Map(Map(AttributeValue.String("list") -> AttributeValue.List.empty)))(
         expectedRecord = RecordWithListOfInt(list = Nil)
       ),
-      testWithBlocksCodec("Record with empty List[Int], requiredCollectionFields = false")(
+      testWithBlocksCodec(
+        "Record with empty List[Int], transientEmptyCollection = true, requiredCollectionFields = false"
+      )(
         RecordWithListOfInt.schema,
         _.withTransientEmptyCollection(true).withRequiredCollectionFields(false)
       )(expectedItem = Item.empty.toAttributeValue)(
         expectedRecord = RecordWithListOfInt(list = Nil)
+      ),
+      decodeErrorWithCodecs("returns error when decoding invalid Record with List[Int]")(
+        RecordWithListOfInt.zioSchema,
+        RecordWithListOfInt.schema,
+        _.withTransientEmptyCollection(true).withRequiredCollectionFields(false)
+      )(item = Item("list" -> 1).toAttributeValue)(
+        errorMessage = "unable to decode AttributeValue.Number as a list"
       ),
       // Note ZIO Schema does not work with Arrays
       test("record with Array[String]") {
@@ -538,6 +547,35 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       val enc = codec.encoder(expectedRecord)
       val dec = codec.decoder(enc)
       assertTrue(enc == expectedItem && dec == Right(expectedRecord))
+    }
+
+    suite(name + " [compatibility]")(
+      test("zio-schema") {
+        testBody(scZio)
+      },
+      test("blocks-schema") {
+        testBody(scBlocks)
+      }
+    )
+  }
+
+  private def decodeErrorWithCodecs[A](
+    name: String
+  )(
+    zioSchema: zio.schema.Schema[A],
+    blocks: Schema[A],
+    cfg: DynamoDBCodecConfigure[A] // = DynamoDBCodecConfigure.identity[A]
+  )(
+    item: AttributeValue
+  )(
+    errorMessage: String
+  ): Spec[Any, Nothing] = {
+    val scBlocks = SchemaCodec.schema2ToSchemaCodec(blocks, cfg)
+    val scZio    = SchemaCodec.schema1ToSchemaCodec(zioSchema)
+
+    val testBody: SchemaCodec[A] => TestResult = { codec =>
+      val dec = codec.decoder(item)
+      assert(dec)(isLeft(equalTo(DecodingError(errorMessage))))
     }
 
     suite(name + " [compatibility]")(

@@ -709,7 +709,7 @@ class DynamoDBCodecDeriver private (
                   Right(xs)
                 } else
                   Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
-              case _                          => Left(ItemError.DecodingError(s"Expected AttributeValue.List, found $av")) // ${av.showType}
+              case _                          => Left(ItemError.DecodingError(s"unable to decode ${av.showType} as a list")) // ${av.showType}
             }
           }
         }
