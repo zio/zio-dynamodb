@@ -897,21 +897,13 @@ class DynamoDBCodecDeriver private (
                     val av    = codec.asInstanceOf[DynamoDBCodec[Long]].encoder(value)
                     mapBuilder.addOne(name, av)
                   case DynamoDBCodec.objectType =>
-                    // TODO: Avi - move to object scope
-                    def isCollectionEmpty(value: AnyRef): Boolean =
-                      value match {
-                        case value: Iterable[?] => value.isEmpty
-                        case value: Array[?]    => value.length == 0
-                        case _                  => false
-                      }
-
                     val value = regs.getObject(offset)
 
-                    if (isOpt && skipNone && (value == None)) {
+                    if (isOpt && skipNone && (value == None))
                       ()
-                    } else if (field.isCollection && skipEmptyCollection && isCollectionEmpty(value)) {
+                    else if (field.isCollection && skipEmptyCollection && isCollectionEmpty(value))
                       ()
-                    } else {
+                    else {
                       val av = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(value)
                       mapBuilder.addOne(name, av)
                     }
@@ -1063,9 +1055,15 @@ class DynamoDBCodecDeriver private (
       else fieldReflect.asDynamic.get.dynamicBinding
     }.asInstanceOf[BindingInstance[TC, ?, A]].binding.defaultValue
 
-  /*private[this]*/
-  def isCollection[F[_, _], A](reflect: Reflect[F, A]): Boolean =
+  private[this] def isCollection[F[_, _], A](reflect: Reflect[F, A]): Boolean =
     !requireCollectionFields && (reflect.isSequence || reflect.isMap)
+
+  private[this] def isCollectionEmpty(value: AnyRef): Boolean =
+    value match {
+      case value: Iterable[?] => value.isEmpty
+      case value: Array[?]    => value.length == 0
+      case _                  => false
+    }
 
   private[this] def discriminator[F[_, _], A](caseReflect: Reflect[F, A]): Discriminator[?] =
     caseReflect.asVariant.get.variantBinding
