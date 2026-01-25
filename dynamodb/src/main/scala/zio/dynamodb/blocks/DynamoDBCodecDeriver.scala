@@ -25,6 +25,7 @@ object DynamoDBCodecDeriver
       caseNameMapper = NameMapper.Identity,
       transientNone = true,
       requireOptionFields = false,
+      transientEmptyCollection = false,
       requireCollectionFields = false
     ) {}
 
@@ -46,16 +47,19 @@ class DynamoDBCodecDeriver private (
   caseNameMapper: NameMapper,
   transientNone: Boolean,
   requireOptionFields: Boolean,
+  transientEmptyCollection: Boolean,
   requireCollectionFields: Boolean // Schema1 codecs assumes this is false
 ) extends Deriver[DynamoDBCodec] { self =>
   // TODO: Avi - promote to config
   val requireDefaultValueFields: Boolean = false
 
-  def withTransientNone(transientNone: Boolean): DynamoDBCodecDeriver                      = copy(transientNone = transientNone)
-  def withDiscriminatorKind(discriminatorKind: DiscriminatorKind): DynamoDBCodecDeriver    =
+  def withTransientNone(transientNone: Boolean): DynamoDBCodecDeriver                       = copy(transientNone = transientNone)
+  def withDiscriminatorKind(discriminatorKind: DiscriminatorKind): DynamoDBCodecDeriver     =
     copy(discriminatorKind = discriminatorKind)
-  def withRequiredCollectionFields(requireCollectionFields: Boolean): DynamoDBCodecDeriver =
+  def withRequiredCollectionFields(requireCollectionFields: Boolean): DynamoDBCodecDeriver  =
     copy(requireCollectionFields = requireCollectionFields)
+  def withTransientEmptyCollection(transientEmptyCollection: Boolean): DynamoDBCodecDeriver =
+    copy(transientEmptyCollection = transientEmptyCollection)
 
   def copy(
     zioSchema1Compatibility: Boolean = zioSchema1Compatibility,
@@ -64,6 +68,7 @@ class DynamoDBCodecDeriver private (
     caseNameMapper: NameMapper = caseNameMapper,
     transientNone: Boolean = transientNone,
     requireOptionFields: Boolean = requireOptionFields,
+    transientEmptyCollection: Boolean = transientEmptyCollection,
     requireCollectionFields: Boolean = requireCollectionFields
   ): DynamoDBCodecDeriver =
     new DynamoDBCodecDeriver(
@@ -73,6 +78,7 @@ class DynamoDBCodecDeriver private (
       caseNameMapper,
       transientNone,
       requireOptionFields,
+      transientEmptyCollection,
       requireCollectionFields
     )
 
@@ -703,7 +709,7 @@ class DynamoDBCodecDeriver private (
                   Right(xs)
                 } else
                   Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
-              case _                          => Left(ItemError.DecodingError(s"Expected AttributeValue.List, found ${av.showType}"))
+              case _                          => Left(ItemError.DecodingError(s"Expected AttributeValue.List, found $av")) // ${av.showType}
             }
           }
         }
@@ -726,8 +732,7 @@ class DynamoDBCodecDeriver private (
             val fieldReflect = field.value
             val codec        = deriveCodec(fieldReflect)
             val optRequired  = isOptional(fieldReflect)
-            fieldInfos(idx) = new FieldInfo(field.name, offset, codec, optRequired)
-            //offset += codec.valueOffset
+            fieldInfos(idx) = new FieldInfo(field.name, offset, codec, optRequired, isCollection(fieldReflect))
             offset = RegisterOffset.add(codec.valueOffset, offset)
             idx += 1
           }
@@ -853,14 +858,15 @@ class DynamoDBCodecDeriver private (
                 }
             }
           }
-        } else
+        } else // Vanilla Record
           new DynamoDBCodec[A] {
-            private[this] val constructor        = binding.constructor
-            private[this] val deconstructor      = binding.deconstructor
-            private[this] val usedRegisters      = offset
-            private[this] val fields             = fieldInfos
-            private[this] val skipNone           = transientNone
-            private[this] val discriminatorField = discriminatorFields.get.headOption.orNull
+            private[this] val constructor         = binding.constructor
+            private[this] val deconstructor       = binding.deconstructor
+            private[this] val usedRegisters       = offset
+            private[this] val fields              = fieldInfos
+            private[this] val skipNone            = transientNone
+            private[this] val skipEmptyCollection = transientEmptyCollection
+            private[this] val discriminatorField  = discriminatorFields.get.headOption.orNull
 
             override def encoder: Encoder[A] = { value =>
               val regs                         = Registers(usedRegisters)
@@ -891,11 +897,25 @@ class DynamoDBCodecDeriver private (
                     val av    = codec.asInstanceOf[DynamoDBCodec[Long]].encoder(value)
                     mapBuilder.addOne(name, av)
                   case DynamoDBCodec.objectType =>
+                    // TODO: Avi - move to object scope
+                    def isCollectionEmpty(value: AnyRef): Boolean =
+                      value match {
+                        case value: Iterable[?] => value.isEmpty
+                        case value: Array[?]    => value.length == 0
+                        case _                  => false
+                      }
+
                     val value = regs.getObject(offset)
-                    if (!(isOpt && skipNone && (value == None))) {
+
+                    if (isOpt && skipNone && (value == None)) {
+                      ()
+                    } else if (field.isCollection && skipEmptyCollection && isCollectionEmpty(value)) {
+                      ()
+                    } else {
                       val av = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(value)
                       mapBuilder.addOne(name, av)
                     }
+
                   case _                        =>
                     // TODO: think about what we do here
                     val value = regs.getObject(offset)
@@ -920,11 +940,14 @@ class DynamoDBCodecDeriver private (
                       val field  = fields(idx)
                       val offset = field.offset
                       val name   = field.name
-                      val isOpt  = field.isOptional
 
-                      var av: AttributeValue = avMap.value.getOrElse(AttributeValue.String(name), null)
-                      if (isOpt && skipNone && (av eq null))
+                      var av: AttributeValue          = avMap.value.getOrElse(AttributeValue.String(name), null)
+                      val skipEmptyValueForOption     = field.isOptional && skipNone && (av eq null)
+                      val skipEmptyValueForCollection = field.isCollection && skipEmptyCollection && (av eq null)
+                      if (skipEmptyValueForOption)
                         av = AttributeValue.Null
+                      else if (skipEmptyValueForCollection)
+                        av = AttributeValue.List.empty
 
                       if (av eq null) // TODO: Avi - should we fail fast on this?
                         errors.addOne(s"Missing attribute value for field: $name")
@@ -1059,14 +1082,17 @@ class DynamoDBCodecDeriver private (
 
 } // end class DynamoDBCodecDeriver
 
+// TODO: Avi - change to non case class
 private final case class FieldInfo(
-  name: String,                 // TODO: Avi - use DynamicOptic.Node.Field
+  name: String, // TODO: Avi - use DynamicOptic.Node.Field
   offset: RegisterOffset,
   codec: DynamoDBCodec[?],
   isOptional: Boolean,
-  isCollection: Boolean = false // TODO: Avi
+  isCollection: Boolean
 ) {
-  val valueType: Int = codec.valueType
+  val valueType: Int        = codec.valueType
+  var nonTransient: Boolean = true // TODO: Avi - override in the field processing loop
+
 }
 
 private case class DiscriminatorFieldInfo(name: String, value: String)
