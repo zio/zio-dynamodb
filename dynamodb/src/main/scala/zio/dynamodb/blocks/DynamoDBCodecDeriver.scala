@@ -19,7 +19,8 @@ import scala.collection.mutable.ArrayBuffer
  */
 object DynamoDBCodecDeriver
     extends DynamoDBCodecDeriver(
-      zioSchema1Compatibility = true,
+      // TODO: Avi - should we rename this to be tuple specific?
+      zioSchema1Compatibility = true, // for Tuple representation compatibility
       discriminatorKind = DiscriminatorKind.Key,
       enumValuesAsStrings = true,
       caseNameMapper = NameMapper.Identity,

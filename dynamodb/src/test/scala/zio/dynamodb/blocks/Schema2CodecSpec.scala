@@ -9,33 +9,33 @@ import zio.dynamodb._
 import zio.test.Assertion.{ equalTo, isLeft }
 import zio.test.{ assert, assertTrue, Spec, TestResult, ZIOSpecDefault }
 
-object BlocksCodecSpec extends ZIOSpecDefault {
+object Schema2CodecSpec extends ZIOSpecDefault {
   sealed trait TrafficLight
   object TrafficLight {
     case object Red    extends TrafficLight
     case object Yellow extends TrafficLight
     case object Green  extends TrafficLight
 
-    implicit val schema: Schema[TrafficLight] = Schema.derived
+    implicit val schema2: Schema[TrafficLight] = Schema.derived
   }
 
   sealed trait PaymentMethod
   object PaymentMethod           {
     final case class CreditCard(number: String, cvv: String) extends PaymentMethod
     object CreditCard {
-      implicit val schema: Schema[CreditCard] = Schema.derived
+      implicit val schema2: Schema[CreditCard] = Schema.derived
     }
     final case class PayPal(email: String) extends PaymentMethod
     object PayPal     {
-      implicit val schema: Schema[PayPal] = Schema.derived
+      implicit val schema2: Schema[PayPal] = Schema.derived
     }
 
-    implicit val schema: Schema[PaymentMethod] = Schema.derived
+    implicit val schema2: Schema[PaymentMethod] = Schema.derived
   }
   final case class RecordWithPaymentMethod(method: PaymentMethod)
   object RecordWithPaymentMethod {
-    implicit val schema: Schema[RecordWithPaymentMethod]               = Schema.derived
-    implicit val zioSchema: zio.schema.Schema[RecordWithPaymentMethod] =
+    implicit val schema2: Schema[RecordWithPaymentMethod]            = Schema.derived
+    implicit val schema1: zio.schema.Schema[RecordWithPaymentMethod] =
       zio.schema.DeriveSchema.gen[RecordWithPaymentMethod]
   }
 
@@ -43,23 +43,23 @@ object BlocksCodecSpec extends ZIOSpecDefault {
   object PaymentMethod2           {
     final case class CreditCard(number: String, cvv: String) extends PaymentMethod2
     object CreditCard {
-      implicit val schema: Schema[CreditCard] = Schema.derived
+      implicit val schema2: Schema[CreditCard] = Schema.derived
     }
     final case class PayPal(email: String) extends PaymentMethod2
     object PayPal     {
-      implicit val schema: Schema[PayPal] = Schema.derived
+      implicit val schema2: Schema[PayPal] = Schema.derived
     }
 
-    implicit val schema: Schema[PaymentMethod2] = Schema.derived.modifier(config("discriminatorName", "discriminator"))
+    implicit val schema2: Schema[PaymentMethod2] = Schema.derived.modifier(config("discriminatorName", "discriminator"))
   }
   final case class RecordWithPaymentMethod2(method: PaymentMethod2)
   object RecordWithPaymentMethod2 {
-    implicit val schema: Schema[RecordWithPaymentMethod2] = Schema.derived
+    implicit val schema2: Schema[RecordWithPaymentMethod2] = Schema.derived
   }
 
   final case class Address(postcode: String, number: Int)
   object Address extends CompanionOptics[Address] {
-    implicit val schema: Schema[Address] = Schema.derived
+    implicit val schema2: Schema[Address] = Schema.derived
 
     val postcode: Lens[Address, String] = $(_.postcode)
     val number: Lens[Address, Int]      = $(_.number)
@@ -67,8 +67,8 @@ object BlocksCodecSpec extends ZIOSpecDefault {
 
   final case class RecordWithEnum(light: TrafficLight)
   object RecordWithEnum {
-    implicit val schema: Schema[RecordWithEnum]               = Schema.derived
-    implicit val zioSchema: zio.schema.Schema[RecordWithEnum] =
+    implicit val schema2: Schema[RecordWithEnum]            = Schema.derived
+    implicit val schema1: zio.schema.Schema[RecordWithEnum] =
       zio.schema.DeriveSchema.gen[RecordWithEnum]
   }
 
@@ -76,25 +76,25 @@ object BlocksCodecSpec extends ZIOSpecDefault {
     map: Map[String, Int] = Map.empty
   )
   object RecordWithNativeMap            {
-    implicit val schema: Schema[RecordWithNativeMap]               = Schema.derived
-    implicit val zioSchema: zio.schema.Schema[RecordWithNativeMap] =
+    implicit val schema2: Schema[RecordWithNativeMap]            = Schema.derived
+    implicit val schema1: zio.schema.Schema[RecordWithNativeMap] =
       zio.schema.DeriveSchema.gen[RecordWithNativeMap]
   }
   final case class RecordWithNonNativeMapOfInt(
     map: Map[Int, Int] = Map.empty
   )
   object RecordWithNonNativeMapOfInt    {
-    implicit val zioSchema: zio.schema.Schema[RecordWithNonNativeMapOfInt] =
+    implicit val schema1: zio.schema.Schema[RecordWithNonNativeMapOfInt] =
       zio.schema.DeriveSchema.gen[RecordWithNonNativeMapOfInt]
-    implicit val schema: Schema[RecordWithNonNativeMapOfInt]               = Schema.derived
+    implicit val schema2: Schema[RecordWithNonNativeMapOfInt]            = Schema.derived
   }
   final case class RecordWithNonNativeMapOfPerson(
     map: Map[Int, Person] = Map.empty
   )
   object RecordWithNonNativeMapOfPerson {
-    implicit val zioSchema: zio.schema.Schema[RecordWithNonNativeMapOfPerson] =
+    implicit val schema1: zio.schema.Schema[RecordWithNonNativeMapOfPerson] =
       zio.schema.DeriveSchema.gen[RecordWithNonNativeMapOfPerson]
-    implicit val schema: Schema[RecordWithNonNativeMapOfPerson]               = Schema.derived
+    implicit val schema2: Schema[RecordWithNonNativeMapOfPerson]            = Schema.derived
   }
   final case class RecordWithArray(
     // TODO: Avi - bottom out Array support in AttrMap/To/FromAttributeValue and equality checks
@@ -111,76 +111,76 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       names.toSeq.hashCode()
   }
   object RecordWithArray                {
-    implicit val schema: Schema[RecordWithArray] = Schema.derived
+    implicit val schema2: Schema[RecordWithArray] = Schema.derived
   }
   final case class RecordWithEither(either: Either[String, Int])
   object RecordWithEither extends CompanionOptics[RecordWithEither] {
-    implicit val schema: Schema[RecordWithEither]                = Schema.derived
+    implicit val schema2: Schema[RecordWithEither]               = Schema.derived
     val either /*: Lens[RecordWithEither, Either[String, Int]]*/ = $(_.either)
   }
 
   final case class RecordWithOption(option: Option[Int])
   object RecordWithOption {
-    implicit val schema: Schema[RecordWithOption]               = Schema.derived
-    implicit val zioSchema: zio.schema.Schema[RecordWithOption] =
+    implicit val schema2: Schema[RecordWithOption]            = Schema.derived
+    implicit val schema1: zio.schema.Schema[RecordWithOption] =
       zio.schema.DeriveSchema.gen[RecordWithOption]
   }
 
   final case class RecordWithListOfInt(list: List[Int])
   object RecordWithListOfInt {
-    implicit val schema: Schema[RecordWithListOfInt]               = Schema.derived
-    implicit val zioSchema: zio.schema.Schema[RecordWithListOfInt] =
+    implicit val schema2: Schema[RecordWithListOfInt]            = Schema.derived
+    implicit val schema1: zio.schema.Schema[RecordWithListOfInt] =
       zio.schema.DeriveSchema.gen[RecordWithListOfInt]
   }
 
   final case class RecordWithTuple(tuple: (Int, Long, String, String))
   object RecordWithTuple {
-    implicit val schema: Schema[RecordWithTuple]               = Schema.derived
-    implicit val zioSchema: zio.schema.Schema[RecordWithTuple] =
+    implicit val schema2: Schema[RecordWithTuple]            = Schema.derived
+    implicit val schema1: zio.schema.Schema[RecordWithTuple] =
       zio.schema.DeriveSchema.gen[RecordWithTuple]
   }
 
   final case class RecordWithListAsFirstInTuple(tuple: (List[Int], Long, String))
   object RecordWithListAsFirstInTuple {
-    implicit val schema: Schema[RecordWithListAsFirstInTuple]               = Schema.derived
-    implicit val zioSchema: zio.schema.Schema[RecordWithListAsFirstInTuple] =
+    implicit val schema2: Schema[RecordWithListAsFirstInTuple]            = Schema.derived
+    implicit val schema1: zio.schema.Schema[RecordWithListAsFirstInTuple] =
       zio.schema.DeriveSchema.gen[RecordWithListAsFirstInTuple]
   }
 
   final case class RecordWithListAsSecondInTuple(tuple: (Int, List[Long], String))
   object RecordWithListAsSecondInTuple {
-    implicit val schema: Schema[RecordWithListAsSecondInTuple]               = Schema.derived
-    implicit val zioSchema: zio.schema.Schema[RecordWithListAsSecondInTuple] =
+    implicit val schema2: Schema[RecordWithListAsSecondInTuple]            = Schema.derived
+    implicit val schema1: zio.schema.Schema[RecordWithListAsSecondInTuple] =
       zio.schema.DeriveSchema.gen[RecordWithListAsSecondInTuple]
   }
 
   final case class RecordWithTuple1(tuple: (Int))
   object RecordWithTuple1 {
-    implicit val schema: Schema[RecordWithTuple1]               = Schema.derived
-    implicit val zioSchema: zio.schema.Schema[RecordWithTuple1] =
+    implicit val schema2: Schema[RecordWithTuple1]            = Schema.derived
+    implicit val schema1: zio.schema.Schema[RecordWithTuple1] =
       zio.schema.DeriveSchema.gen[RecordWithTuple1]
   }
 
   final case class RecordWithOptionalPerson(option: Option[Person])
   object RecordWithOptionalPerson {
-    implicit val schema: Schema[RecordWithOptionalPerson] = Schema.derived
+    implicit val schema2: Schema[RecordWithOptionalPerson] = Schema.derived
   }
 
   final case class RecordWithStringSet(set: Set[String])
   object RecordWithStringSet {
-    implicit val schema: Schema[RecordWithStringSet] = Schema.derived
+    implicit val schema2: Schema[RecordWithStringSet] = Schema.derived
   }
   final case class RecordWithNumberSet(set: Set[Int])
   object RecordWithNumberSet {
-    implicit val schema: Schema[RecordWithNumberSet] = Schema.derived
+    implicit val schema2: Schema[RecordWithNumberSet] = Schema.derived
   }
 
   final case class RecordWithNonNativeSet(set: Set[Person])
   object RecordWithNonNativeSet {
-    implicit val schema: Schema[RecordWithNonNativeSet] = Schema.derived
+    implicit val schema2: Schema[RecordWithNonNativeSet] = Schema.derived
   }
 
-  // Blocks has zero dependency so we have to derive schema for Chunk
+  // Schema2 has zero dependency so we have to derive schema for Chunk
   // Code taken from comment by ghostdogpr on issue https://github.com/zio/zio-blocks/issues/447
   final case class RecordWithNativeBinarySet(set: Set[Chunk[Byte]])
   object RecordWithNativeBinarySet {
@@ -207,13 +207,13 @@ object BlocksCodecSpec extends ZIOSpecDefault {
         )
       )
 
-    implicit val schema: Schema[RecordWithNativeBinarySet] = Schema.derived
+    implicit val schema2: Schema[RecordWithNativeBinarySet] = Schema.derived
   }
 
   final case class Person2(id: String, age: Int, count: Long)
   object Person2 extends CompanionOptics[Person2] {
-    implicit val schema: Schema[Person2]               = Schema.derived
-    implicit val zioSchema: zio.schema.Schema[Person2] =
+    implicit val schema2: Schema[Person2]            = Schema.derived
+    implicit val schema1: zio.schema.Schema[Person2] =
       zio.schema.DeriveSchema.gen[Person2]
 
     val id: Lens[Person2, String] = $(_.id)
@@ -231,9 +231,9 @@ object BlocksCodecSpec extends ZIOSpecDefault {
 
   final case class Person(id: String, age: Long)
   object Person extends CompanionOptics[Person] {
-    implicit val zioSchema: zio.schema.Schema[Person] =
+    implicit val schema1: zio.schema.Schema[Person] =
       zio.schema.DeriveSchema.gen[Person]
-    implicit val schema: Schema[Person]               = Schema.derived
+    implicit val schema2: Schema[Person]            = Schema.derived
 
     val id: Lens[Person, String] = $(_.id)
   }
@@ -242,7 +242,7 @@ object BlocksCodecSpec extends ZIOSpecDefault {
   object Email {
     val derivedSchema: Reflect.Record[Binding, Email] = Schema.derived[Email].reflect.asRecord.get
 
-    implicit val schema: Schema[Email] =
+    implicit val schema2: Schema[Email] =
       Schema(
         Reflect.Wrapper(
           Schema[String].reflect,
@@ -254,35 +254,37 @@ object BlocksCodecSpec extends ZIOSpecDefault {
   }
   final case class RecordWithWrapped(id: String, email: Email)
   object RecordWithWrapped extends CompanionOptics[RecordWithWrapped] {
-    implicit val schema: Schema[RecordWithWrapped] = Schema.derived
-    val id: Lens[RecordWithWrapped, String]        = optic(_.id)
+    implicit val schema2: Schema[RecordWithWrapped] = Schema.derived
+    val id: Lens[RecordWithWrapped, String]         = optic(_.id)
   }
 
-  val spec = suite("BlocksSpec")(
+  val spec = suite("Schema2Spec")(
     suite("sequences")(
-      testWithCodecs("Record with List[Int]")(
-        RecordWithListOfInt.zioSchema,
-        RecordWithListOfInt.schema
+      testRoundTripWithCodecs("Record with List[Int]")(
+        RecordWithListOfInt.schema1,
+        RecordWithListOfInt.schema2
       )(expectedItem = Item("list" -> List(1, 2, 3)).toAttributeValue)(
         expectedRecord = RecordWithListOfInt(list = List(1, 2, 3))
       ),
-      testWithCodecs("Record with empty List[Int], transientEmptyCollection = false, requiredCollectionFields = true")(
-        RecordWithListOfInt.zioSchema,
-        RecordWithListOfInt.schema
+      testRoundTripWithCodecs(
+        "Record with empty List[Int], transientEmptyCollection = false, requiredCollectionFields = true"
+      )(
+        RecordWithListOfInt.schema1,
+        RecordWithListOfInt.schema2
       )(expectedItem = AttributeValue.Map(Map(AttributeValue.String("list") -> AttributeValue.List.empty)))(
         expectedRecord = RecordWithListOfInt(list = Nil)
       ),
-      testWithBlocksCodec(
+      testRoundTripWithSchema2Codec(
         "Record with empty List[Int], transientEmptyCollection = true, requiredCollectionFields = false"
       )(
-        RecordWithListOfInt.schema,
+        RecordWithListOfInt.schema2,
         _.withTransientEmptyCollection(true).withRequiredCollectionFields(false)
       )(expectedItem = Item.empty.toAttributeValue)(
         expectedRecord = RecordWithListOfInt(list = Nil)
       ),
-      decodeErrorWithCodecs("returns error when decoding invalid Record with List[Int]")(
-        RecordWithListOfInt.zioSchema,
-        RecordWithListOfInt.schema,
+      testDecodeErrorWithCodecs("returns error when decoding invalid Record with List[Int]")(
+        RecordWithListOfInt.schema1,
+        RecordWithListOfInt.schema2,
         _.withTransientEmptyCollection(true).withRequiredCollectionFields(false)
       )(item = Item("list" -> 1).toAttributeValue)(
         errorMessage = "unable to decode AttributeValue.Number as a list"
@@ -301,7 +303,7 @@ object BlocksCodecSpec extends ZIOSpecDefault {
               )
             )
           )
-        val codec: DynamoDBCodec[RecordWithArray] = RecordWithArray.schema.derive(DynamoDBCodecDeriver)
+        val codec: DynamoDBCodec[RecordWithArray] = RecordWithArray.schema2.derive(DynamoDBCodecDeriver)
         val expectedPerson                        = RecordWithArray(names = Array("Alice", "Bob", "Tharloachan"))
         val enc                                   = codec.encoder(expectedPerson)
         val dec                                   = codec.decoder(enc)
@@ -311,7 +313,7 @@ object BlocksCodecSpec extends ZIOSpecDefault {
     suite("wrapped")(
       test("round trip record with wrapped Email") {
         val expected = Item("id" -> "1", "email" -> "test@example.com")
-        val codec    = RecordWithWrapped.schema.deriving(DynamoDBCodecDeriver).derive
+        val codec    = RecordWithWrapped.schema2.deriving(DynamoDBCodecDeriver).derive
         val record   = RecordWithWrapped("1", Email("test@example.com"))
 
         val enc = codec.encoder(record)
@@ -322,33 +324,33 @@ object BlocksCodecSpec extends ZIOSpecDefault {
     ),
     suite("variant suite")(
       suite("Option Suite")(
-        testWithCodecs("Record with Option[Int] Some(42) - transientNone = true")(
-          RecordWithOption.zioSchema,
-          RecordWithOption.schema
+        testRoundTripWithCodecs("Record with Option[Int] Some(42) - transientNone = true")(
+          RecordWithOption.schema1,
+          RecordWithOption.schema2
         )(expectedItem = Item("option" -> 42).toAttributeValue)(
           expectedRecord = RecordWithOption(option = Some(42))
         ),
-        testWithCodecs("Record with Option[Int] None - transientNone = true")(
-          RecordWithOption.zioSchema,
-          RecordWithOption.schema
+        testRoundTripWithCodecs("Record with Option[Int] None - transientNone = true")(
+          RecordWithOption.schema1,
+          RecordWithOption.schema2
         )(expectedItem = Item.empty.toAttributeValue)(
           expectedRecord = RecordWithOption(option = None)
         ),
-        testWithBlocksCodec("Record with Option[Int] None - transientNone = true")(
-          RecordWithOption.schema,
+        testRoundTripWithSchema2Codec("Record with Option[Int] None - transientNone = true")(
+          RecordWithOption.schema2,
           _.withTransientNone(false)
         )(expectedItem = Item("option" -> null).toAttributeValue)(
           expectedRecord = RecordWithOption(option = None)
         ),
-        testWithBlocksCodec("Record with Option of record")(RecordWithOptionalPerson.schema)(
+        testRoundTripWithSchema2Codec("Record with Option of record")(RecordWithOptionalPerson.schema2)(
           expectedItem = Item("option" -> Item("id" -> "id", "age" -> 21)).toAttributeValue
         )(expectedRecord = RecordWithOptionalPerson(option = Some(Person("id", 21))))
       ),
-      testWithCodecs("enum round trip")(RecordWithEnum.zioSchema, RecordWithEnum.schema)(
+      testRoundTripWithCodecs("enum round trip")(RecordWithEnum.schema1, RecordWithEnum.schema2)(
         expectedItem = Item("light" -> "Green").toAttributeValue
       )(expectedRecord = RecordWithEnum(TrafficLight.Green)),
       test("Record of variant with leaf record cases using DiscriminatorKind.Field") {
-        val codec    = RecordWithPaymentMethod.schema
+        val codec    = RecordWithPaymentMethod.schema2
           .deriving(DynamoDBCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("foo")))
           .derive
         val record   = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
@@ -357,14 +359,14 @@ object BlocksCodecSpec extends ZIOSpecDefault {
         val dec      = codec.decoder(enc)
         assertTrue(enc == expected.toAttributeValue && dec == Right(record))
       },
-      testWithCodecs("Record of variant with leaf record cases using DiscriminatorKind.Key")(
-        RecordWithPaymentMethod.zioSchema,
-        RecordWithPaymentMethod.schema
+      testRoundTripWithCodecs("Record of variant with leaf record cases using DiscriminatorKind.Key")(
+        RecordWithPaymentMethod.schema1,
+        RecordWithPaymentMethod.schema2
       )(expectedItem = Item("method" -> Item("PayPal" -> Item("email" -> "a@b.com"))).toAttributeValue)(
         expectedRecord = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
       ),
       test("Record of variant with leaf record cases using DiscriminatorKind.None") {
-        val codec    = RecordWithPaymentMethod.schema
+        val codec    = RecordWithPaymentMethod.schema2
           .deriving(DynamoDBCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None))
           .derive
         val record   = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
@@ -388,7 +390,7 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       }
       val expectedAv                          = Item("id" -> "ONE", "age" -> 21L, "count" -> 100).toAttributeValue
       def codec: DynamoDBCodec[Person2]       =
-        Person2.schema
+        Person2.schema2
           .deriving(DynamoDBCodecDeriver)
           .instance(Person2.id, codecToUpper)
           .derive
@@ -398,15 +400,15 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       val dec                                 = codec.decoder(enc)
       assertTrue(enc == expectedAv && dec == Right(person.copy(id = "ONE_decoded")))
     },
-    testWithCodecs("round trip Person2")(Person2.zioSchema, Person2.schema)(
+    testRoundTripWithCodecs("round trip Person2")(Person2.schema1, Person2.schema2)(
       expectedItem = Item("id" -> "1", "age" -> 42, "count" -> 100).toAttributeValue
     )(
       expectedRecord = Person2("1", 42, 100)
     ),
     suite("Native Map")(
-      testWithCodecs("Record with native Map[String, Int]")(
-        RecordWithNativeMap.zioSchema,
-        RecordWithNativeMap.schema
+      testRoundTripWithCodecs("Record with native Map[String, Int]")(
+        RecordWithNativeMap.schema1,
+        RecordWithNativeMap.schema2
       )(expectedItem = Item("map" -> Map("a" -> 1, "b" -> 2)).toAttributeValue)(
         expectedRecord = RecordWithNativeMap(map = Map("a" -> 1, "b" -> 2))
       ),
@@ -415,12 +417,12 @@ object BlocksCodecSpec extends ZIOSpecDefault {
           map: Map[String, Address]
         )
         object RecordWithAddressMap {
-          implicit val schema: Schema[RecordWithAddressMap] = Schema.derived
+          implicit val schema2: Schema[RecordWithAddressMap] = Schema.derived
         }
 
         val expectedItem                               =
           Item("map" -> Map("home" -> Item("postcode" -> "12345", "number" -> 10)))
-        val codec: DynamoDBCodec[RecordWithAddressMap] = RecordWithAddressMap.schema.derive(DynamoDBCodecDeriver)
+        val codec: DynamoDBCodec[RecordWithAddressMap] = RecordWithAddressMap.schema2.derive(DynamoDBCodecDeriver)
         val expectedPerson                             = RecordWithAddressMap(map = Map("home" -> Address("12345", 10)))
         val enc                                        = codec.encoder(expectedPerson)
         val dec                                        = codec.decoder(enc)
@@ -428,15 +430,15 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       }
     ),
     suite("non native Map")(
-      testWithCodecs("Record with Map[Int, Int]")(
-        RecordWithNonNativeMapOfInt.zioSchema,
-        RecordWithNonNativeMapOfInt.schema
+      testRoundTripWithCodecs("Record with Map[Int, Int]")(
+        RecordWithNonNativeMapOfInt.schema1,
+        RecordWithNonNativeMapOfInt.schema2
       )(expectedItem = Item("map" -> List(List(1, 1), List(2, 2))).toAttributeValue)(
         expectedRecord = RecordWithNonNativeMapOfInt(map = Map(1 -> 1, 2 -> 2))
       ),
-      testWithCodecs("Record with Map[Int, Person]")(
-        RecordWithNonNativeMapOfPerson.zioSchema,
-        RecordWithNonNativeMapOfPerson.schema
+      testRoundTripWithCodecs("Record with Map[Int, Person]")(
+        RecordWithNonNativeMapOfPerson.schema1,
+        RecordWithNonNativeMapOfPerson.schema2
       )(expectedItem =
         AttributeValue.Map(
           Map(
@@ -466,7 +468,7 @@ object BlocksCodecSpec extends ZIOSpecDefault {
     suite("tuple")(
       // Schema2 encoding will never be symmetric with Schema1
       test("record with tuple (Int, Long, String)") {
-        val codec        = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple.schema, DynamoDBCodecConfigure.identity)
+        val codec        = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple.schema2, DynamoDBCodecConfigure.identity)
         val expectedItem =
           AttributeValue.Map(
             Map(
@@ -487,61 +489,61 @@ object BlocksCodecSpec extends ZIOSpecDefault {
         assertTrue(enc == expectedItem && dec == Right(expectedPerson))
       },
       test("tuple compatibility - nested lists") {
-        val blocksCodec    = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple.schema, DynamoDBCodecConfigure.identity)
-        val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithTuple.zioSchema)
+        val schema2Codec   = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple.schema2, DynamoDBCodecConfigure.identity)
+        val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithTuple.schema1)
 
         val recordWithTuple = RecordWithTuple(tuple = (1, 2, "3", "4"))
         val av              = zioSchemaCodec.encoder(recordWithTuple)
-        val a               = blocksCodec.decoder(av)
-        assertTrue(a == Right(recordWithTuple)) // Blocks codec can decode a tuple encoded by a ZIO Schema codec
+        val a               = schema2Codec.decoder(av)
+        assertTrue(a == Right(recordWithTuple)) // Schema2 codec can decode a tuple encoded by a ZIO Schema codec
       },
       test("tuple compatibility - single scalar value for Tuple1") {
-        val blocksCodec    = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple1.schema, DynamoDBCodecConfigure.identity)
-        val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithTuple1.zioSchema)
+        val schema2Codec   = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple1.schema2, DynamoDBCodecConfigure.identity)
+        val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithTuple1.schema1)
 
         val recordWithTuple = RecordWithTuple1(tuple = (1))
         val av              = zioSchemaCodec.encoder(recordWithTuple)
-        val a               = blocksCodec.decoder(av)
-        assertTrue(a == Right(recordWithTuple)) // Blocks codec can decode a tuple encoded by a ZIO Schema codec
+        val a               = schema2Codec.decoder(av)
+        assertTrue(a == Right(recordWithTuple)) // Schema2 codec can decode a tuple encoded by a ZIO Schema codec
       },
       test("tuple compatibility - tuple with first element as List") {
-        val blocksCodec    =
-          SchemaCodec.schema2ToSchemaCodec(RecordWithListAsFirstInTuple.schema, DynamoDBCodecConfigure.identity)
-        val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithListAsFirstInTuple.zioSchema)
+        val schema2Codec   =
+          SchemaCodec.schema2ToSchemaCodec(RecordWithListAsFirstInTuple.schema2, DynamoDBCodecConfigure.identity)
+        val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithListAsFirstInTuple.schema1)
 
         val recordWithTuple = RecordWithListAsFirstInTuple(tuple = (List(1, 2), 2L, "3"))
         val av1             = zioSchemaCodec.encoder(recordWithTuple)
-        val dec2            = blocksCodec.decoder(av1)
+        val dec2            = schema2Codec.decoder(av1)
 
         assertTrue(dec2 == Right(recordWithTuple))
       },
       test("tuple compatibility - tuple with second element as List") {
-        val blocksCodec    =
-          SchemaCodec.schema2ToSchemaCodec(RecordWithListAsSecondInTuple.schema, DynamoDBCodecConfigure.identity)
-        val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithListAsSecondInTuple.zioSchema)
+        val schema2Codec   =
+          SchemaCodec.schema2ToSchemaCodec(RecordWithListAsSecondInTuple.schema2, DynamoDBCodecConfigure.identity)
+        val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithListAsSecondInTuple.schema1)
 
         val recordWithTuple = RecordWithListAsSecondInTuple(tuple = (1, List(1L, 2L), "3"))
         val av1             = zioSchemaCodec.encoder(recordWithTuple)
-        val dec2            = blocksCodec.decoder(av1)
+        val dec2            = schema2Codec.decoder(av1)
 
         assertTrue(dec2 == Right(recordWithTuple))
       }
     )
   )
 
-  private def testWithCodecs[A](
+  private def testRoundTripWithCodecs[A](
     name: String
   )(
-    zioSchema: zio.schema.Schema[A],
-    blocks: Schema[A],
+    schema1: zio.schema.Schema[A],
+    schema2: Schema[A],
     cfg: DynamoDBCodecConfigure[A] = DynamoDBCodecConfigure.identity[A]
   )(
     expectedItem: AttributeValue
   )(
     expectedRecord: A
   ): Spec[Any, Nothing] = {
-    val scBlocks = SchemaCodec.schema2ToSchemaCodec(blocks, cfg)
-    val scZio    = SchemaCodec.schema1ToSchemaCodec(zioSchema)
+    val schema2Codec = SchemaCodec.schema2ToSchemaCodec(schema2, cfg)
+    val schema1Codec = SchemaCodec.schema1ToSchemaCodec(schema1)
 
     val testBody: SchemaCodec[A] => TestResult = { codec =>
       val enc = codec.encoder(expectedRecord)
@@ -550,28 +552,28 @@ object BlocksCodecSpec extends ZIOSpecDefault {
     }
 
     suite(name + " [compatibility]")(
-      test("zio-schema") {
-        testBody(scZio)
+      test("schema1") {
+        testBody(schema1Codec)
       },
-      test("blocks-schema") {
-        testBody(scBlocks)
+      test("schema2") {
+        testBody(schema2Codec)
       }
     )
   }
 
-  private def decodeErrorWithCodecs[A](
+  private def testDecodeErrorWithCodecs[A](
     name: String
   )(
-    zioSchema: zio.schema.Schema[A],
-    blocks: Schema[A],
+    schema1: zio.schema.Schema[A],
+    schema2: Schema[A],
     cfg: DynamoDBCodecConfigure[A] // = DynamoDBCodecConfigure.identity[A]
   )(
     item: AttributeValue
   )(
     errorMessage: String
   ): Spec[Any, Nothing] = {
-    val scBlocks = SchemaCodec.schema2ToSchemaCodec(blocks, cfg)
-    val scZio    = SchemaCodec.schema1ToSchemaCodec(zioSchema)
+    val schema2Codec = SchemaCodec.schema2ToSchemaCodec(schema2, cfg)
+    val schema1Codec = SchemaCodec.schema1ToSchemaCodec(schema1)
 
     val testBody: SchemaCodec[A] => TestResult = { codec =>
       val dec = codec.decoder(item)
@@ -579,19 +581,19 @@ object BlocksCodecSpec extends ZIOSpecDefault {
     }
 
     suite(name + " [compatibility]")(
-      test("zio-schema") {
-        testBody(scZio)
+      test("schema1") {
+        testBody(schema1Codec)
       },
-      test("blocks-schema") {
-        testBody(scBlocks)
+      test("schema2") {
+        testBody(schema2Codec)
       }
     )
   }
 
-  def testWithBlocksCodec[A](
+  def testRoundTripWithSchema2Codec[A](
     name: String
   )(
-    blocks: Schema[A],
+    schema2: Schema[A],
     cfg: DynamoDBCodecConfigure[A] = DynamoDBCodecConfigure.identity[A]
   )(
     expectedItem: AttributeValue
@@ -605,11 +607,11 @@ object BlocksCodecSpec extends ZIOSpecDefault {
       assertTrue(enc == expectedItem && dec == Right(expectedRecord))
     }
 
-    val scBlocks = SchemaCodec.schema2ToSchemaCodec(blocks, cfg)
+    val schema2Codec = SchemaCodec.schema2ToSchemaCodec(schema2, cfg)
 
     suite(name)(
-      test("blocks-schema") {
-        testBody(scBlocks)
+      test("schema2") {
+        testBody(schema2Codec)
       }
     )
   }
