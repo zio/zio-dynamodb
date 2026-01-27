@@ -710,7 +710,8 @@ class DynamoDBCodecDeriver private (
                   Right(xs)
                 } else
                   Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
-              case _                          => Left(ItemError.DecodingError(s"unable to decode ${av.showType} as a list")) // ${av.showType}
+              case _                          =>
+                Left(ItemError.DecodingError(s"unable to decode ${av.showType} as a list"))
             }
           }
         }
@@ -944,25 +945,25 @@ class DynamoDBCodecDeriver private (
 
                       if (av eq null) // TODO: Avi - should we fail fast on this?
                         errors.addOne(s"Missing attribute value for field: $name")
-
-                      field.valueType match {
-                        case DynamoDBCodec.intType    =>
-                          field.codec.asInstanceOf[DynamoDBCodec[Int]].decoder(av) match {
-                            case Right(value) => regs.setInt(offset, value)
-                            case Left(err)    => errors.addOne(err.message)
-                          }
-                        case DynamoDBCodec.longType   =>
-                          field.codec.asInstanceOf[DynamoDBCodec[Long]].decoder(av) match {
-                            case Right(value) => regs.setLong(offset, value)
-                            case Left(err)    => errors.addOne(err.message)
-                          }
-                        case DynamoDBCodec.objectType =>
-                          field.codec.asInstanceOf[DynamoDBCodec[AnyRef]].decoder(av) match {
-                            case Right(value) => regs.setObject(offset, value)
-                            case Left(err)    => errors.addOne(err.message)
-                          }
-                        case _                        => throw new Exception("TODO: decide what to do here")
-                      }
+                      else
+                        field.valueType match {
+                          case DynamoDBCodec.intType    =>
+                            field.codec.asInstanceOf[DynamoDBCodec[Int]].decoder(av) match {
+                              case Right(value) => regs.setInt(offset, value)
+                              case Left(err)    => errors.addOne(err.message)
+                            }
+                          case DynamoDBCodec.longType   =>
+                            field.codec.asInstanceOf[DynamoDBCodec[Long]].decoder(av) match {
+                              case Right(value) => regs.setLong(offset, value)
+                              case Left(err)    => errors.addOne(err.message)
+                            }
+                          case DynamoDBCodec.objectType =>
+                            field.codec.asInstanceOf[DynamoDBCodec[AnyRef]].decoder(av) match {
+                              case Right(value) => regs.setObject(offset, value)
+                              case Left(err)    => errors.addOne(err.message)
+                            }
+                          case _                        => throw new Exception("TODO: decide what to do here")
+                        }
                       idx += 1
                     }                                                          // end while
                     if (errors.isEmpty) {

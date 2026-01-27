@@ -271,25 +271,35 @@ object Schema2CodecSpec extends ZIOSpecDefault {
       )(
         RecordWithListOfInt.schema1,
         RecordWithListOfInt.schema2
+        // Note default is:
+        //_.withTransientEmptyCollection(true).withRequiredCollectionFields(true)
       )(expectedItem = AttributeValue.Map(Map(AttributeValue.String("list") -> AttributeValue.List.empty)))(
         expectedRecord = RecordWithListOfInt(list = Nil)
       ),
       testRoundTripWithSchema2Codec(
-        "Record with empty List[Int], transientEmptyCollection = true, requiredCollectionFields = false"
+        "Record of List[Int] with empty AttributeValue, transientEmptyCollection = true, requiredCollectionFields = false"
       )(
         RecordWithListOfInt.schema2,
         _.withTransientEmptyCollection(true).withRequiredCollectionFields(false)
       )(expectedItem = Item.empty.toAttributeValue)(
         expectedRecord = RecordWithListOfInt(list = Nil)
       ),
-      testDecodeErrorWithCodecs("returns error when decoding invalid Record with List[Int]")(
+      testDecodeErrorWithCodecs("returns error when decoding invalid AttributeValue for Record with List[Int]")(
         RecordWithListOfInt.schema1,
         RecordWithListOfInt.schema2,
         _.withTransientEmptyCollection(true).withRequiredCollectionFields(false)
       )(item = Item("list" -> 1).toAttributeValue)(
         errorMessage = "unable to decode AttributeValue.Number as a list"
       ),
-      // Note ZIO Schema does not work with Arrays
+      testDecodeErrorWithSchema2Codec(
+        "Record of List[Int] with empty AttributeValue, transientEmptyCollection = false, requiredCollectionFields = true"
+      )(
+        RecordWithListOfInt.schema2,
+        _.withTransientEmptyCollection(false).withRequiredCollectionFields(true)
+      )(item = Item.empty.toAttributeValue)(
+        errorMessage = "Missing attribute value for field: list"
+      ),
+      // Note Schema1 does not work with Arrays
       test("record with Array[String]") {
         val expectedItem                          =
           AttributeValue.Map(
@@ -561,6 +571,32 @@ object Schema2CodecSpec extends ZIOSpecDefault {
     )
   }
 
+  def testRoundTripWithSchema2Codec[A](
+    name: String
+  )(
+    schema2: Schema[A],
+    cfg: DynamoDBCodecConfigure[A] = DynamoDBCodecConfigure.identity[A]
+  )(
+    expectedItem: AttributeValue
+  )(
+    expectedRecord: A
+  ): Spec[Any, Nothing] = {
+
+    val testBody: SchemaCodec[A] => TestResult = { codec =>
+      val enc = codec.encoder(expectedRecord)
+      val dec = codec.decoder(enc)
+      assertTrue(enc == expectedItem && dec == Right(expectedRecord))
+    }
+
+    val schema2Codec = SchemaCodec.schema2ToSchemaCodec(schema2, cfg)
+
+    suite(name)(
+      test("schema2") {
+        testBody(schema2Codec)
+      }
+    )
+  }
+
   private def testDecodeErrorWithCodecs[A](
     name: String
   )(
@@ -590,24 +626,22 @@ object Schema2CodecSpec extends ZIOSpecDefault {
     )
   }
 
-  def testRoundTripWithSchema2Codec[A](
+  private def testDecodeErrorWithSchema2Codec[A](
     name: String
   )(
     schema2: Schema[A],
-    cfg: DynamoDBCodecConfigure[A] = DynamoDBCodecConfigure.identity[A]
+    cfg: DynamoDBCodecConfigure[A] // = DynamoDBCodecConfigure.identity[A]
   )(
-    expectedItem: AttributeValue
+    item: AttributeValue
   )(
-    expectedRecord: A
+    errorMessage: String
   ): Spec[Any, Nothing] = {
+    val schema2Codec = SchemaCodec.schema2ToSchemaCodec(schema2, cfg)
 
     val testBody: SchemaCodec[A] => TestResult = { codec =>
-      val enc = codec.encoder(expectedRecord)
-      val dec = codec.decoder(enc)
-      assertTrue(enc == expectedItem && dec == Right(expectedRecord))
+      val dec = codec.decoder(item)
+      assert(dec)(isLeft(equalTo(DecodingError(errorMessage))))
     }
-
-    val schema2Codec = SchemaCodec.schema2ToSchemaCodec(schema2, cfg)
 
     suite(name)(
       test("schema2") {
