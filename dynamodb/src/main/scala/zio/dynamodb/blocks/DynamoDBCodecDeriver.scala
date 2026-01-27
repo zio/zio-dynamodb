@@ -998,7 +998,7 @@ class DynamoDBCodecDeriver private (
               val x: Either[ItemError, Wrapped] = wrappedCodec.decoder(av)
               x match {
                 // TODO: Avi - interpret Block's wrapped error
-                case Right(w) => wrap(w).left.map(ItemError.DecodingError.apply)
+                case Right(w) => wrap(w).left.map(schemaError => ItemError.DecodingError(schemaError.message))
                 case Left(e)  => Left(e)
               }
             }
