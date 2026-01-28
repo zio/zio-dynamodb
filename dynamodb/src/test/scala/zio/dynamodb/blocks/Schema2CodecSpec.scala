@@ -133,6 +133,12 @@ object Schema2CodecSpec extends ZIOSpecDefault {
       zio.schema.DeriveSchema.gen[RecordWithListOfInt]
   }
 
+// TODO: Avi - enable when Schema2 implicit for Blocks Chunk is available
+//  final case class RecordWithBlocksChunkOfInt(chunk: zio.blocks.chunk.Chunk[Int])
+//  object RecordWithBlocksChunkOfInt {
+//    implicit val schema2: Schema[RecordWithBlocksChunkOfInt] = Schema.derived
+//  }
+
   final case class RecordWithTuple(tuple: (Int, Long, String, String))
   object RecordWithTuple {
     implicit val schema2: Schema[RecordWithTuple]            = Schema.derived
@@ -268,7 +274,12 @@ object Schema2CodecSpec extends ZIOSpecDefault {
   val spec = suite("Schema2Spec")(
     // TODO: Avi - Unit support
     suite("sequences")(
-      // TODO: Avi - add test for record with Schema2 Chunk (with implicit built in implicit for Chunk)
+      // TODO: Avi - add test for record with Schema2 Chunk (with implicit built in implicit for Chunk, when available)
+//      testRoundTripWithSchema2Codec("Record with Blocks Chunk[Int]")(
+//        RecordWithBlocksChunkOfInt.schema2
+//      )(expectedItem = Item("list" -> List(1, 2, 3)).toAttributeValue)(
+//        expectedRecord = RecordWithBlocksChunkOfInt(chunk = zio.blocks.chunk.Chunk(1, 2, 3))
+//      ),
       testRoundTripWithCodecs("Record with List[Int]")(
         RecordWithListOfInt.schema1,
         RecordWithListOfInt.schema2
