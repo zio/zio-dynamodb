@@ -385,32 +385,26 @@ object Schema2CodecSpec extends ZIOSpecDefault {
             expectedRecord = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
           )
         ),
-        test("Record of variant with leaf record cases using DiscriminatorKind.Field") {
-          val codec    = RecordWithPaymentMethod.schema2
-            .deriving(DynamoDBCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("foo")))
-            .derive
-          val record   = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
-          val enc      = codec.encoder(record)
-          val expected = Item("method" -> Item("foo" -> "PayPal", "email" -> "a@b.com"))
-          val dec      = codec.decoder(enc)
-          assertTrue(enc == expected.toAttributeValue && dec == Right(record))
-        },
+        testRoundTripWithSchema2Codec("Record of variant with leaf record cases using DiscriminatorKind.Field")(
+          RecordWithPaymentMethod.schema2,
+          _.withDiscriminatorKind(DiscriminatorKind.Field("foo"))
+        )(expectedItem = Item("method" -> Item("foo" -> "PayPal", "email" -> "a@b.com")).toAttributeValue)(
+          expectedRecord = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
+        ),
         testRoundTripWithCodecs("Record of variant with leaf record cases using DiscriminatorKind.Key")(
           RecordWithPaymentMethod.schema1,
           RecordWithPaymentMethod.schema2
         )(expectedItem = Item("method" -> Item("PayPal" -> Item("email" -> "a@b.com"))).toAttributeValue)(
           expectedRecord = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
         ),
-        test("Record of variant with leaf record cases using DiscriminatorKind.None") {
-          val codec    = RecordWithPaymentMethod.schema2
-            .deriving(DynamoDBCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None))
-            .derive
-          val record   = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
-          val enc      = codec.encoder(record)
-          val expected = Item("method" -> Item("email" -> "a@b.com"))
-          val dec      = codec.decoder(enc)
-          assertTrue(enc == expected.toAttributeValue && dec == Right(record))
-        }
+        testRoundTripWithSchema2Codec("Record of variant with leaf record cases using DiscriminatorKind.None")(
+          RecordWithPaymentMethod.schema2,
+          _.withDiscriminatorKind(DiscriminatorKind.None)
+        )(
+          expectedItem = Item("method" -> Item("email" -> "a@b.com")).toAttributeValue
+        )(
+          expectedRecord = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
+        )
       )
     ),
     test("investigate field codec override") {
