@@ -328,16 +328,11 @@ object Schema2CodecSpec extends ZIOSpecDefault {
       )
     ),
     suite("wrapped")(
-      test("round trip record with wrapped Email") {
-        val expected = Item("id" -> "1", "email" -> "test@example.com")
-        val codec    = RecordWithWrapped.schema2.deriving(DynamoDBCodecDeriver).derive
-        val record   = RecordWithWrapped("1", Email("test@example.com"))
-
-        val enc = codec.encoder(record)
-        val dec = codec.decoder(enc)
-
-        assertTrue(enc == expected.toAttributeValue && dec == Right(record))
-      }
+      testRoundTripWithSchema2Codec("round trip record with wrapped Email")(RecordWithWrapped.schema2)(
+        expectedItem = Item("id" -> "1", "email" -> "test@example.com").toAttributeValue
+      )(
+        expectedRecord = RecordWithWrapped("1", Email("test@example.com"))
+      )
       // TODO: Avi - new types
     ),
     suite("variant suite")(
