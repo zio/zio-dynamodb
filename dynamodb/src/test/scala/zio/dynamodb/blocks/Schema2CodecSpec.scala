@@ -309,25 +309,23 @@ object Schema2CodecSpec extends ZIOSpecDefault {
         errorMessage = "Missing attribute value for field: list"
       ),
       // Note Schema1 does not work with Arrays
-      test("record with Array[String]") {
-        val expectedItem                          =
-          AttributeValue.Map(
-            Map(
-              AttributeValue.String("names") -> AttributeValue.List(
-                Chunk(
-                  AttributeValue.String("Alice"),
-                  AttributeValue.String("Bob"),
-                  AttributeValue.String("Tharloachan")
-                )
+      testRoundTripWithSchema2Codec("record with Array[String]")(
+        RecordWithArray.schema2
+      )(
+        expectedItem = AttributeValue.Map(
+          Map(
+            AttributeValue.String("names") -> AttributeValue.List(
+              Chunk(
+                AttributeValue.String("Alice"),
+                AttributeValue.String("Bob"),
+                AttributeValue.String("Tharloachan")
               )
             )
           )
-        val codec: DynamoDBCodec[RecordWithArray] = RecordWithArray.schema2.derive(DynamoDBCodecDeriver)
-        val expectedPerson                        = RecordWithArray(names = Array("Alice", "Bob", "Tharloachan"))
-        val enc                                   = codec.encoder(expectedPerson)
-        val dec                                   = codec.decoder(enc)
-        assertTrue(enc == expectedItem && dec == Right(expectedPerson))
-      }
+        )
+      )(
+        expectedRecord = RecordWithArray(names = Array("Alice", "Bob", "Tharloachan"))
+      )
     ),
     suite("wrapped")(
       test("round trip record with wrapped Email") {
