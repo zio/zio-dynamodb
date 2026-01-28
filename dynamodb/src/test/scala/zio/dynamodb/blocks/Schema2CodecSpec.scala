@@ -258,6 +258,13 @@ object Schema2CodecSpec extends ZIOSpecDefault {
     val id: Lens[RecordWithWrapped, String]         = optic(_.id)
   }
 
+  final case class RecordWithAddressMap(
+    map: Map[String, Address]
+  )
+  object RecordWithAddressMap {
+    implicit val schema2: Schema[RecordWithAddressMap] = Schema.derived
+  }
+
   val spec = suite("Schema2Spec")(
     // TODO: Avi - Unit support
     suite("sequences")(
@@ -443,22 +450,13 @@ object Schema2CodecSpec extends ZIOSpecDefault {
       )(expectedItem = Item("map" -> Map("a" -> 1, "b" -> 2)).toAttributeValue)(
         expectedRecord = RecordWithNativeMap(map = Map("a" -> 1, "b" -> 2))
       ),
-      test("Record with native map of record - Map[String, Address]") {
-        final case class RecordWithAddressMap(
-          map: Map[String, Address]
-        )
-        object RecordWithAddressMap {
-          implicit val schema2: Schema[RecordWithAddressMap] = Schema.derived
-        }
-
-        val expectedItem                               =
-          Item("map" -> Map("home" -> Item("postcode" -> "12345", "number" -> 10)))
-        val codec: DynamoDBCodec[RecordWithAddressMap] = RecordWithAddressMap.schema2.derive(DynamoDBCodecDeriver)
-        val expectedPerson                             = RecordWithAddressMap(map = Map("home" -> Address("12345", 10)))
-        val enc                                        = codec.encoder(expectedPerson)
-        val dec                                        = codec.decoder(enc)
-        assertTrue(enc == expectedItem.toAttributeValue && dec == Right(expectedPerson))
-      }
+      testRoundTripWithSchema2Codec("Record with native map of record - Map[String, Address]")(
+        RecordWithAddressMap.schema2
+      )(
+        expectedItem = Item("map" -> Map("home" -> Item("postcode" -> "12345", "number" -> 10))).toAttributeValue
+      )(
+        expectedRecord = RecordWithAddressMap(map = Map("home" -> Address("12345", 10)))
+      )
     ),
     suite("non native Map")(
       testRoundTripWithCodecs("Record with Map[Int, Int]")(
