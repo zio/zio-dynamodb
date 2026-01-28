@@ -489,27 +489,24 @@ object Schema2CodecSpec extends ZIOSpecDefault {
     ),
     suite("tuple")(
       // Schema2 encoding will never be symmetric with Schema1
-      test("record with tuple (Int, Long, String)") {
-        val codec        = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple.schema2, DynamoDBCodecConfigure.identity)
-        val expectedItem =
-          AttributeValue.Map(
-            Map(
-              AttributeValue.String("tuple") -> AttributeValue.List(
-                Chunk(
-                  AttributeValue.Number(BigDecimal(1)),
-                  AttributeValue.Number(BigDecimal(2L)),
-                  AttributeValue.String("3"),
-                  AttributeValue.String("4")
-                )
+      testRoundTripWithSchema2Codec("record with tuple (Int, Long, String)")(
+        RecordWithTuple.schema2
+      )(
+        expectedItem = AttributeValue.Map(
+          Map(
+            AttributeValue.String("tuple") -> AttributeValue.List(
+              Chunk(
+                AttributeValue.Number(BigDecimal(1)),
+                AttributeValue.Number(BigDecimal(2L)),
+                AttributeValue.String("3"),
+                AttributeValue.String("4")
               )
             )
           )
-
-        val expectedPerson = RecordWithTuple(tuple = (1, 2, "3", "4"))
-        val enc            = codec.encoder(expectedPerson)
-        val dec            = codec.decoder(enc)
-        assertTrue(enc == expectedItem && dec == Right(expectedPerson))
-      },
+        )
+      )(
+        expectedRecord = RecordWithTuple(tuple = (1, 2, "3", "4"))
+      ),
       test("tuple compatibility - nested lists") {
         val schema2Codec   = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple.schema2, DynamoDBCodecConfigure.identity)
         val zioSchemaCodec = SchemaCodec.schema1ToSchemaCodec(RecordWithTuple.schema1)
