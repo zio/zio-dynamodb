@@ -367,13 +367,23 @@ object Schema2CodecSpec extends ZIOSpecDefault {
         )(expectedRecord = RecordWithEnum(TrafficLight.Green))
       ),
       suite("Variants that are records")(
-        testRoundTripWithSchema2Codec("case name mapper for DiscriminatorKind.Key")(
-          RecordWithPaymentMethod.schema2,
-          _.withCaseNameMapper(NameMapper.Custom(_.toLowerCase))
-        )(
-          expectedItem = Item("method" -> Item("paypal" -> Item("email" -> "a@b.com"))).toAttributeValue
-        )(
-          expectedRecord = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
+        suite("case name mappers")(
+          testRoundTripWithSchema2Codec("custom case name mapper for DiscriminatorKind.Key")(
+            RecordWithPaymentMethod.schema2,
+            _.withCaseNameMapper(NameMapper.Custom(_.toLowerCase))
+          )(
+            expectedItem = Item("method" -> Item("paypal" -> Item("email" -> "a@b.com"))).toAttributeValue
+          )(
+            expectedRecord = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
+          ),
+          testRoundTripWithSchema2Codec("KebabCase name mapper for DiscriminatorKind.Key")(
+            RecordWithPaymentMethod.schema2,
+            _.withCaseNameMapper(NameMapper.KebabCase)
+          )(
+            expectedItem = Item("method" -> Item("pay-pal" -> Item("email" -> "a@b.com"))).toAttributeValue
+          )(
+            expectedRecord = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
+          )
         ),
         test("Record of variant with leaf record cases using DiscriminatorKind.Field") {
           val codec    = RecordWithPaymentMethod.schema2
