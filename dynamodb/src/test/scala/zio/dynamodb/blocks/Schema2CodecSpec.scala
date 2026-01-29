@@ -1,11 +1,11 @@
 package zio.dynamodb.blocks
 
 import zio.Chunk
-import zio.blocks.schema.Modifier.config
 import zio.blocks.schema.binding.{ Binding, SeqConstructor, SeqDeconstructor }
 import zio.blocks.schema.{ CompanionOptics, Doc, Lens, Namespace, PrimitiveType, Reflect, Schema, TypeName, Validation }
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb._
+import zio.schema.annotation.{ discriminatorName, noDiscriminator }
 import zio.test.Assertion.{ equalTo, isLeft }
 import zio.test.{ assert, assertTrue, Spec, TestResult, ZIOSpecDefault }
 
@@ -19,8 +19,9 @@ object Schema2CodecSpec extends ZIOSpecDefault {
     implicit val schema2: Schema[TrafficLight] = Schema.derived
   }
 
+  /** uses DiscriminatorKind.Key in tests */
   sealed trait PaymentMethod
-  object PaymentMethod           {
+  object PaymentMethod {
     final case class CreditCard(number: String, cvv: String) extends PaymentMethod
     object CreditCard {
       implicit val schema2: Schema[CreditCard] = Schema.derived
@@ -32,15 +33,11 @@ object Schema2CodecSpec extends ZIOSpecDefault {
 
     implicit val schema2: Schema[PaymentMethod] = Schema.derived
   }
-  final case class RecordWithPaymentMethod(method: PaymentMethod)
-  object RecordWithPaymentMethod {
-    implicit val schema2: Schema[RecordWithPaymentMethod]            = Schema.derived
-    implicit val schema1: zio.schema.Schema[RecordWithPaymentMethod] =
-      zio.schema.DeriveSchema.gen[RecordWithPaymentMethod]
-  }
 
+  /** uses DiscriminatorKind.Field in tests */
+  @discriminatorName("foo")
   sealed trait PaymentMethod2
-  object PaymentMethod2           {
+  object PaymentMethod2 {
     final case class CreditCard(number: String, cvv: String) extends PaymentMethod2
     object CreditCard {
       implicit val schema2: Schema[CreditCard] = Schema.derived
@@ -50,11 +47,47 @@ object Schema2CodecSpec extends ZIOSpecDefault {
       implicit val schema2: Schema[PayPal] = Schema.derived
     }
 
-    implicit val schema2: Schema[PaymentMethod2] = Schema.derived.modifier(config("discriminatorName", "discriminator"))
+    implicit val schema2: Schema[PaymentMethod2] = Schema.derived
   }
-  final case class RecordWithPaymentMethod2(method: PaymentMethod2)
-  object RecordWithPaymentMethod2 {
-    implicit val schema2: Schema[RecordWithPaymentMethod2] = Schema.derived
+
+  /** uses DiscriminatorKind.None in tests */
+  @noDiscriminator
+  sealed trait PaymentMethod3
+  object PaymentMethod3 {
+    final case class CreditCard(number: String, cvv: String) extends PaymentMethod3
+    object CreditCard {
+      implicit val schema2: Schema[CreditCard] = Schema.derived
+    }
+    final case class PayPal(email: String) extends PaymentMethod3
+    object PayPal     {
+      implicit val schema2: Schema[PayPal] = Schema.derived
+    }
+
+    implicit val schema2: Schema[PaymentMethod3] = Schema.derived
+  }
+
+  /** uses DiscriminatorKind.Key in tests */
+  final case class RecordWithPaymentMethodUsingKey(method: PaymentMethod)
+  object RecordWithPaymentMethodUsingKey {
+    implicit val schema2: Schema[RecordWithPaymentMethodUsingKey]            = Schema.derived
+    implicit val schema1: zio.schema.Schema[RecordWithPaymentMethodUsingKey] =
+      zio.schema.DeriveSchema.gen[RecordWithPaymentMethodUsingKey]
+  }
+
+  /** uses DiscriminatorKind.Field in tests */
+  final case class RecordWithPaymentMethodUsingField(method: PaymentMethod2)
+  object RecordWithPaymentMethodUsingField {
+    implicit val schema2: Schema[RecordWithPaymentMethodUsingField]            = Schema.derived
+    implicit val schema1: zio.schema.Schema[RecordWithPaymentMethodUsingField] =
+      zio.schema.DeriveSchema.gen[RecordWithPaymentMethodUsingField]
+  }
+
+  /** uses DiscriminatorKind.None in tests */
+  final case class RecordWithPaymentMethodUsingNone(method: PaymentMethod3)
+  object RecordWithPaymentMethodUsingNone {
+    implicit val schema2: Schema[RecordWithPaymentMethodUsingNone]            = Schema.derived
+    implicit val schema1: zio.schema.Schema[RecordWithPaymentMethodUsingNone] =
+      zio.schema.DeriveSchema.gen[RecordWithPaymentMethodUsingNone]
   }
 
   final case class Address(postcode: String, number: Int)
@@ -380,41 +413,43 @@ object Schema2CodecSpec extends ZIOSpecDefault {
       suite("Variants that are records")(
         suite("case name mappers")(
           testRoundTripWithSchema2Codec("custom case name mapper for DiscriminatorKind.Key")(
-            RecordWithPaymentMethod.schema2,
+            RecordWithPaymentMethodUsingKey.schema2,
             _.withCaseNameMapper(NameMapper.Custom(_.toLowerCase))
           )(
             expectedItem = Item("method" -> Item("paypal" -> Item("email" -> "a@b.com"))).toAttributeValue
           )(
-            expectedRecord = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
+            expectedRecord = RecordWithPaymentMethodUsingKey(PaymentMethod.PayPal("a@b.com"))
           ),
           testRoundTripWithSchema2Codec("KebabCase name mapper for DiscriminatorKind.Key")(
-            RecordWithPaymentMethod.schema2,
+            RecordWithPaymentMethodUsingKey.schema2,
             _.withCaseNameMapper(NameMapper.KebabCase)
           )(
             expectedItem = Item("method" -> Item("pay-pal" -> Item("email" -> "a@b.com"))).toAttributeValue
           )(
-            expectedRecord = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
+            expectedRecord = RecordWithPaymentMethodUsingKey(PaymentMethod.PayPal("a@b.com"))
           )
         ),
-        testRoundTripWithSchema2Codec("Record of variant with leaf record cases using DiscriminatorKind.Field")(
-          RecordWithPaymentMethod.schema2,
+        testRoundTripWithCodecs("Record of variant with leaf record cases using DiscriminatorKind.Key")(
+          RecordWithPaymentMethodUsingKey.schema1,
+          RecordWithPaymentMethodUsingKey.schema2
+        )(expectedItem = Item("method" -> Item("PayPal" -> Item("email" -> "a@b.com"))).toAttributeValue)(
+          expectedRecord = RecordWithPaymentMethodUsingKey(PaymentMethod.PayPal("a@b.com"))
+        ),
+        testRoundTripWithCodecs("Record of variant with leaf record cases using DiscriminatorKind.Field")(
+          RecordWithPaymentMethodUsingField.schema1,
+          RecordWithPaymentMethodUsingField.schema2,
           _.withDiscriminatorKind(DiscriminatorKind.Field("foo"))
         )(expectedItem = Item("method" -> Item("foo" -> "PayPal", "email" -> "a@b.com")).toAttributeValue)(
-          expectedRecord = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
+          expectedRecord = RecordWithPaymentMethodUsingField(PaymentMethod2.PayPal("a@b.com"))
         ),
-        testRoundTripWithCodecs("Record of variant with leaf record cases using DiscriminatorKind.Key")(
-          RecordWithPaymentMethod.schema1,
-          RecordWithPaymentMethod.schema2
-        )(expectedItem = Item("method" -> Item("PayPal" -> Item("email" -> "a@b.com"))).toAttributeValue)(
-          expectedRecord = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
-        ),
-        testRoundTripWithSchema2Codec("Record of variant with leaf record cases using DiscriminatorKind.None")(
-          RecordWithPaymentMethod.schema2,
+        testRoundTripWithCodecs("Record of variant with leaf record cases using DiscriminatorKind.None")(
+          RecordWithPaymentMethodUsingNone.schema1,
+          RecordWithPaymentMethodUsingNone.schema2,
           _.withDiscriminatorKind(DiscriminatorKind.None)
         )(
           expectedItem = Item("method" -> Item("email" -> "a@b.com")).toAttributeValue
         )(
-          expectedRecord = RecordWithPaymentMethod(PaymentMethod.PayPal("a@b.com"))
+          expectedRecord = RecordWithPaymentMethodUsingNone(PaymentMethod3.PayPal("a@b.com"))
         )
       )
     ),
