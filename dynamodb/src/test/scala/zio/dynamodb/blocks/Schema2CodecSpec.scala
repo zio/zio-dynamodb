@@ -1,6 +1,6 @@
 package zio.dynamodb.blocks
 
-import zio.Chunk
+import zio.{ schema, Chunk }
 import zio.blocks.schema.binding.{ Binding, SeqConstructor, SeqDeconstructor }
 import zio.blocks.schema.{ CompanionOptics, Doc, Lens, Namespace, PrimitiveType, Reflect, Schema, TypeName, Validation }
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
@@ -10,6 +10,12 @@ import zio.test.Assertion.{ equalTo, isLeft }
 import zio.test.{ assert, assertTrue, Spec, TestResult, ZIOSpecDefault }
 
 object Schema2CodecSpec extends ZIOSpecDefault {
+  case class RecordWithUnit(unit: Unit)
+  object RecordWithUnit {
+    implicit val schema1: schema.Schema[RecordWithUnit] = zio.schema.DeriveSchema.gen[RecordWithUnit]
+    implicit val schema2: Schema[RecordWithUnit]        = Schema.derived
+  }
+
   sealed trait TrafficLight
   object TrafficLight {
     case object Red    extends TrafficLight
@@ -281,7 +287,12 @@ object Schema2CodecSpec extends ZIOSpecDefault {
   }
 
   val spec = suite("Schema2Spec")(
-    // TODO: Avi - Unit support
+    // TODO: Avi - Schema2 Unit support
+    testDecodeErrorWithSchema1Codec("schema1 Record with Unit")(RecordWithUnit.schema1)(
+      expectedItem = Item("unit" -> null).toAttributeValue
+    )(
+      expectedRecord = RecordWithUnit(())
+    ),
     suite("sequences")(
       // TODO: Avi - add test for record with Schema2 Chunk (with implicit built in implicit for Chunk, when available)
 //      testRoundTripWithSchema2Codec("Record with Blocks Chunk[Int]")(
@@ -624,6 +635,30 @@ object Schema2CodecSpec extends ZIOSpecDefault {
     suite(name)(
       test("schema2") {
         testBody(schema2Codec)
+      }
+    )
+  }
+
+  private def testDecodeErrorWithSchema1Codec[A](
+    name: String
+  )(
+    schema1: zio.schema.Schema[A]
+  )(
+    expectedItem: AttributeValue
+  )(
+    expectedRecord: A
+  ): Spec[Any, Nothing] = {
+    val schema1Codec = SchemaCodec.schema1ToSchemaCodec(schema1)
+
+    val testBody: SchemaCodec[A] => TestResult = { codec =>
+      val enc = codec.encoder(expectedRecord)
+      val dec = codec.decoder(enc)
+      assertTrue(enc == expectedItem && dec == Right(expectedRecord))
+    }
+
+    suite(name)(
+      test("schema1") {
+        testBody(schema1Codec)
       }
     )
   }
