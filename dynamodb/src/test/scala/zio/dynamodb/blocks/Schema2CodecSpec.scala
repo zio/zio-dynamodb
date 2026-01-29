@@ -480,7 +480,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
       )(expectedItem = Item("map" -> List(List(1, 1), List(2, 2))).toAttributeValue)(
         expectedRecord = RecordWithNonNativeMapOfInt(map = Map(1 -> 1, 2 -> 2))
       ),
-      testRoundTripWithCodecs("Record with Map[Int, Person]")(
+      testRoundTripWithCodecs("Record with non native Map[Int, Person]")(
         RecordWithNonNativeMapOfPerson.schema1,
         RecordWithNonNativeMapOfPerson.schema2
       )(expectedItem =
