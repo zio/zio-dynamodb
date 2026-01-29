@@ -288,7 +288,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
 
   val spec = suite("Schema2Spec")(
     // TODO: Avi - Schema2 Unit support
-    testDecodeErrorWithSchema1Codec("schema1 Record with Unit")(RecordWithUnit.schema1)(
+    testRoundTripWithSchema1Codec("schema1 Record with Unit")(RecordWithUnit.schema1)(
       expectedItem = Item("unit" -> null).toAttributeValue
     )(
       expectedRecord = RecordWithUnit(())
@@ -639,7 +639,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
     )
   }
 
-  private def testDecodeErrorWithSchema1Codec[A](
+  private def testRoundTripWithSchema1Codec[A](
     name: String
   )(
     schema1: zio.schema.Schema[A]
