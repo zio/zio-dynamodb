@@ -23,15 +23,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
   sealed trait PaymentMethod
   object PaymentMethod {
     final case class CreditCard(number: String, cvv: String) extends PaymentMethod
-    object CreditCard {
-      implicit val schema2: Schema[CreditCard] = Schema.derived
-    }
-    final case class PayPal(email: String) extends PaymentMethod
-    object PayPal     {
-      implicit val schema2: Schema[PayPal] = Schema.derived
-    }
-
-    implicit val schema2: Schema[PaymentMethod] = Schema.derived
+    final case class PayPal(email: String)                   extends PaymentMethod
   }
 
   /** uses DiscriminatorKind.Field in tests */
@@ -39,15 +31,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
   sealed trait PaymentMethod2
   object PaymentMethod2 {
     final case class CreditCard(number: String, cvv: String) extends PaymentMethod2
-    object CreditCard {
-      implicit val schema2: Schema[CreditCard] = Schema.derived
-    }
-    final case class PayPal(email: String) extends PaymentMethod2
-    object PayPal     {
-      implicit val schema2: Schema[PayPal] = Schema.derived
-    }
-
-    implicit val schema2: Schema[PaymentMethod2] = Schema.derived
+    final case class PayPal(email: String)                   extends PaymentMethod2
   }
 
   /** uses DiscriminatorKind.None in tests */
@@ -55,15 +39,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
   sealed trait PaymentMethod3
   object PaymentMethod3 {
     final case class CreditCard(number: String, cvv: String) extends PaymentMethod3
-    object CreditCard {
-      implicit val schema2: Schema[CreditCard] = Schema.derived
-    }
-    final case class PayPal(email: String) extends PaymentMethod3
-    object PayPal     {
-      implicit val schema2: Schema[PayPal] = Schema.derived
-    }
-
-    implicit val schema2: Schema[PaymentMethod3] = Schema.derived
+    final case class PayPal(email: String)                   extends PaymentMethod3
   }
 
   /** uses DiscriminatorKind.Key in tests */
