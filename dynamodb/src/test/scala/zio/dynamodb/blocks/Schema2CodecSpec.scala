@@ -395,6 +395,12 @@ object Schema2CodecSpec extends ZIOSpecDefault {
       suite("simple enumerations")(
         testRoundTripWithCodecs("enum round trip")(RecordWithEnum.schema1, RecordWithEnum.schema2)(
           expectedItem = Item("light" -> "Green").toAttributeValue
+        )(expectedRecord = RecordWithEnum(TrafficLight.Green)),
+        testRoundTripWithSchema2Codec("enum round trip with enumValuesAsStrings=false")(
+          RecordWithEnum.schema2,
+          _.withEnumValuesAsStrings(false)
+        )(
+          expectedItem = Item("light" -> Item("Green" -> Item.empty)).toAttributeValue
         )(expectedRecord = RecordWithEnum(TrafficLight.Green))
       ),
       suite("Variants that are records")(

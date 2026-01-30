@@ -54,6 +54,8 @@ class DynamoDBCodecDeriver private (
   // TODO: Avi - promote to config
   val requireDefaultValueFields: Boolean = false
 
+  def withEnumValuesAsStrings(enumValuesAsStrings: Boolean): DynamoDBCodecDeriver           =
+    copy(enumValuesAsStrings = enumValuesAsStrings)
   def withCaseNameMapper(caseNameMapper: NameMapper): DynamoDBCodecDeriver                  = copy(caseNameMapper = caseNameMapper)
   def withTransientNone(transientNone: Boolean): DynamoDBCodecDeriver                       = copy(transientNone = transientNone)
   def withDiscriminatorKind(discriminatorKind: DiscriminatorKind): DynamoDBCodecDeriver     =
