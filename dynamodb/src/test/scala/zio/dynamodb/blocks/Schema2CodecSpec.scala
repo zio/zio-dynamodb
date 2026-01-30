@@ -413,7 +413,23 @@ object Schema2CodecSpec extends ZIOSpecDefault {
           )(
             expectedRecord = RecordWithPaymentMethodUsingKey(PaymentMethod.PayPal("a@b.com"))
           ),
-          testRoundTripWithSchema2Codec("KebabCase name mapper for DiscriminatorKind.Key")(
+          testRoundTripWithSchema2Codec("snake_case name mapper for DiscriminatorKind.Key")(
+            RecordWithPaymentMethodUsingKey.schema2,
+            _.withCaseNameMapper(NameMapper.SnakeCase)
+          )(
+            expectedItem = Item("method" -> Item("pay_pal" -> Item("email" -> "a@b.com"))).toAttributeValue
+          )(
+            expectedRecord = RecordWithPaymentMethodUsingKey(PaymentMethod.PayPal("a@b.com"))
+          ),
+          testRoundTripWithSchema2Codec("camelCase name mapper for DiscriminatorKind.Key")(
+            RecordWithPaymentMethodUsingKey.schema2,
+            _.withCaseNameMapper(NameMapper.CamelCase)
+          )(
+            expectedItem = Item("method" -> Item("payPal" -> Item("email" -> "a@b.com"))).toAttributeValue
+          )(
+            expectedRecord = RecordWithPaymentMethodUsingKey(PaymentMethod.PayPal("a@b.com"))
+          ),
+          testRoundTripWithSchema2Codec("kebab-case name mapper for DiscriminatorKind.Key")(
             RecordWithPaymentMethodUsingKey.schema2,
             _.withCaseNameMapper(NameMapper.KebabCase)
           )(
