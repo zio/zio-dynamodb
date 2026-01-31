@@ -291,20 +291,20 @@ object Schema2CodecSpec extends ZIOSpecDefault {
     testRoundTripWithSchema1Codec("schema1 Record with Unit")(RecordWithUnit.schema1)(
       expectedItem = Item("unit" -> null).toAttributeValue
     )(
-      expectedRecord = RecordWithUnit(())
+      expectedValue = RecordWithUnit(())
     ),
     suite("sequences")(
       // TODO: Avi - add test for record with Schema2 Chunk (with implicit built in implicit for Chunk, when available)
 //      testRoundTripWithSchema2Codec("Record with Blocks Chunk[Int]")(
 //        RecordWithBlocksChunkOfInt.schema2
 //      )(expectedItem = Item("list" -> List(1, 2, 3)).toAttributeValue)(
-//        expectedRecord = RecordWithBlocksChunkOfInt(chunk = zio.blocks.chunk.Chunk(1, 2, 3))
+//        expectedValue = RecordWithBlocksChunkOfInt(chunk = zio.blocks.chunk.Chunk(1, 2, 3))
 //      ),
       testRoundTripWithCodecs("Record with List[Int]")(
         RecordWithListOfInt.schema1,
         RecordWithListOfInt.schema2
       )(expectedItem = Item("list" -> List(1, 2, 3)).toAttributeValue)(
-        expectedRecord = RecordWithListOfInt(list = List(1, 2, 3))
+        expectedValue = RecordWithListOfInt(list = List(1, 2, 3))
       ),
       testRoundTripWithCodecs(
         "Record with empty List[Int], transientEmptyCollection = false, requiredCollectionFields = true"
@@ -314,7 +314,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
         // Note default is:
         //_.withTransientEmptyCollection(true).withRequiredCollectionFields(true)
       )(expectedItem = AttributeValue.Map(Map(AttributeValue.String("list") -> AttributeValue.List.empty)))(
-        expectedRecord = RecordWithListOfInt(list = Nil)
+        expectedValue = RecordWithListOfInt(list = Nil)
       ),
       testRoundTripWithSchema2Codec(
         "Record of List[Int] with empty AttributeValue, transientEmptyCollection = true, requiredCollectionFields = false"
@@ -322,7 +322,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
         RecordWithListOfInt.schema2,
         _.withTransientEmptyCollection(true).withRequiredCollectionFields(false)
       )(expectedItem = Item.empty.toAttributeValue)(
-        expectedRecord = RecordWithListOfInt(list = Nil)
+        expectedValue = RecordWithListOfInt(list = Nil)
       ),
       testDecodeErrorWithCodecs("returns error when decoding invalid AttributeValue for Record with List[Int]")(
         RecordWithListOfInt.schema1,
@@ -355,14 +355,14 @@ object Schema2CodecSpec extends ZIOSpecDefault {
           )
         )
       )(
-        expectedRecord = RecordWithArray(names = Array("Alice", "Bob", "Tharloachan"))
+        expectedValue = RecordWithArray(names = Array("Alice", "Bob", "Tharloachan"))
       )
     ),
     suite("wrapped")(
       testRoundTripWithSchema2Codec("round trip record with wrapped Email")(RecordWithWrapped.schema2)(
         expectedItem = Item("id" -> "1", "email" -> "test@example.com").toAttributeValue
       )(
-        expectedRecord = RecordWithWrapped("1", Email("test@example.com"))
+        expectedValue = RecordWithWrapped("1", Email("test@example.com"))
       )
       // TODO: Avi - new types
     ),
@@ -372,36 +372,36 @@ object Schema2CodecSpec extends ZIOSpecDefault {
           RecordWithOption.schema1,
           RecordWithOption.schema2
         )(expectedItem = Item("option" -> 42).toAttributeValue)(
-          expectedRecord = RecordWithOption(option = Some(42))
+          expectedValue = RecordWithOption(option = Some(42))
         ),
         testRoundTripWithCodecs("Record with Option[Int] None - transientNone = true")(
           RecordWithOption.schema1,
           RecordWithOption.schema2
         )(expectedItem = Item.empty.toAttributeValue)(
-          expectedRecord = RecordWithOption(option = None)
+          expectedValue = RecordWithOption(option = None)
         ),
         testRoundTripWithSchema2Codec("Record with Option[Int] None - transientNone = true")(
           RecordWithOption.schema2,
           _.withTransientNone(false)
         )(expectedItem = Item("option" -> null).toAttributeValue)(
-          expectedRecord = RecordWithOption(option = None)
+          expectedValue = RecordWithOption(option = None)
         ),
         testRoundTripWithSchema2Codec("Record with Option of record")(RecordWithOptionalPerson.schema2)(
           expectedItem = Item("option" -> Item("id" -> "id", "age" -> 21)).toAttributeValue
-        )(expectedRecord = RecordWithOptionalPerson(option = Some(Person("id", 21))))
+        )(expectedValue = RecordWithOptionalPerson(option = Some(Person("id", 21))))
         // TODO: Avi - compatibility decode error tests
         // TODO: Avi - full coverage for Schema2 flag combinations
       ),
       suite("simple enumerations")(
         testRoundTripWithCodecs("enum round trip")(RecordWithEnum.schema1, RecordWithEnum.schema2)(
           expectedItem = Item("light" -> "Green").toAttributeValue
-        )(expectedRecord = RecordWithEnum(TrafficLight.Green)),
+        )(expectedValue = RecordWithEnum(TrafficLight.Green)),
         testRoundTripWithSchema2Codec("enum round trip with enumValuesAsStrings=false")(
           RecordWithEnum.schema2,
           _.withEnumValuesAsStrings(false)
         )(
           expectedItem = Item("light" -> Item("Green" -> Item.empty)).toAttributeValue
-        )(expectedRecord = RecordWithEnum(TrafficLight.Green))
+        )(expectedValue = RecordWithEnum(TrafficLight.Green))
       ),
       suite("Variants that are records")(
         suite("case name mappers")(
@@ -411,7 +411,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
           )(
             expectedItem = Item("method" -> Item("paypal" -> Item("email" -> "a@b.com"))).toAttributeValue
           )(
-            expectedRecord = RecordWithPaymentMethodUsingKey(PaymentMethod.PayPal("a@b.com"))
+            expectedValue = RecordWithPaymentMethodUsingKey(PaymentMethod.PayPal("a@b.com"))
           ),
           testRoundTripWithSchema2Codec("snake_case name mapper for DiscriminatorKind.Key")(
             RecordWithPaymentMethodUsingKey.schema2,
@@ -419,7 +419,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
           )(
             expectedItem = Item("method" -> Item("pay_pal" -> Item("email" -> "a@b.com"))).toAttributeValue
           )(
-            expectedRecord = RecordWithPaymentMethodUsingKey(PaymentMethod.PayPal("a@b.com"))
+            expectedValue = RecordWithPaymentMethodUsingKey(PaymentMethod.PayPal("a@b.com"))
           ),
           testRoundTripWithSchema2Codec("camelCase name mapper for DiscriminatorKind.Key")(
             RecordWithPaymentMethodUsingKey.schema2,
@@ -427,7 +427,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
           )(
             expectedItem = Item("method" -> Item("payPal" -> Item("email" -> "a@b.com"))).toAttributeValue
           )(
-            expectedRecord = RecordWithPaymentMethodUsingKey(PaymentMethod.PayPal("a@b.com"))
+            expectedValue = RecordWithPaymentMethodUsingKey(PaymentMethod.PayPal("a@b.com"))
           ),
           testRoundTripWithSchema2Codec("kebab-case name mapper for DiscriminatorKind.Key")(
             RecordWithPaymentMethodUsingKey.schema2,
@@ -435,21 +435,21 @@ object Schema2CodecSpec extends ZIOSpecDefault {
           )(
             expectedItem = Item("method" -> Item("pay-pal" -> Item("email" -> "a@b.com"))).toAttributeValue
           )(
-            expectedRecord = RecordWithPaymentMethodUsingKey(PaymentMethod.PayPal("a@b.com"))
+            expectedValue = RecordWithPaymentMethodUsingKey(PaymentMethod.PayPal("a@b.com"))
           )
         ),
         testRoundTripWithCodecs("Record of variant with leaf record cases using DiscriminatorKind.Key")(
           RecordWithPaymentMethodUsingKey.schema1,
           RecordWithPaymentMethodUsingKey.schema2
         )(expectedItem = Item("method" -> Item("PayPal" -> Item("email" -> "a@b.com"))).toAttributeValue)(
-          expectedRecord = RecordWithPaymentMethodUsingKey(PaymentMethod.PayPal("a@b.com"))
+          expectedValue = RecordWithPaymentMethodUsingKey(PaymentMethod.PayPal("a@b.com"))
         ),
         testRoundTripWithCodecs("Record of variant with leaf record cases using DiscriminatorKind.Field")(
           RecordWithPaymentMethodUsingField.schema1,
           RecordWithPaymentMethodUsingField.schema2,
           _.withDiscriminatorKind(DiscriminatorKind.Field("foo"))
         )(expectedItem = Item("method" -> Item("foo" -> "PayPal", "email" -> "a@b.com")).toAttributeValue)(
-          expectedRecord = RecordWithPaymentMethodUsingField(PaymentMethod2.PayPal("a@b.com"))
+          expectedValue = RecordWithPaymentMethodUsingField(PaymentMethod2.PayPal("a@b.com"))
         ),
         testRoundTripWithCodecs("Record of variant with leaf record cases using DiscriminatorKind.None")(
           RecordWithPaymentMethodUsingNone.schema1,
@@ -458,7 +458,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
         )(
           expectedItem = Item("method" -> Item("email" -> "a@b.com")).toAttributeValue
         )(
-          expectedRecord = RecordWithPaymentMethodUsingNone(PaymentMethod3.PayPal("a@b.com"))
+          expectedValue = RecordWithPaymentMethodUsingNone(PaymentMethod3.PayPal("a@b.com"))
         )
       )
     ),
@@ -489,21 +489,21 @@ object Schema2CodecSpec extends ZIOSpecDefault {
     testRoundTripWithCodecs("round trip Person2")(Person2.schema1, Person2.schema2)(
       expectedItem = Item("id" -> "1", "age" -> 42, "count" -> 100).toAttributeValue
     )(
-      expectedRecord = Person2("1", 42, 100)
+      expectedValue = Person2("1", 42, 100)
     ),
     suite("Native Map")(
       testRoundTripWithCodecs("Record with native Map[String, Int]")(
         RecordWithNativeMap.schema1,
         RecordWithNativeMap.schema2
       )(expectedItem = Item("map" -> Map("a" -> 1, "b" -> 2)).toAttributeValue)(
-        expectedRecord = RecordWithNativeMap(map = Map("a" -> 1, "b" -> 2))
+        expectedValue = RecordWithNativeMap(map = Map("a" -> 1, "b" -> 2))
       ),
       testRoundTripWithSchema2Codec("Record with native map of record - Map[String, Address]")(
         RecordWithAddressMap.schema2
       )(
         expectedItem = Item("map" -> Map("home" -> Item("postcode" -> "12345", "number" -> 10))).toAttributeValue
       )(
-        expectedRecord = RecordWithAddressMap(map = Map("home" -> Address("12345", 10)))
+        expectedValue = RecordWithAddressMap(map = Map("home" -> Address("12345", 10)))
       )
     ),
     suite("non native Map")(
@@ -511,7 +511,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
         RecordWithNonNativeMapOfInt.schema1,
         RecordWithNonNativeMapOfInt.schema2
       )(expectedItem = Item("map" -> List(List(1, 1), List(2, 2))).toAttributeValue)(
-        expectedRecord = RecordWithNonNativeMapOfInt(map = Map(1 -> 1, 2 -> 2))
+        expectedValue = RecordWithNonNativeMapOfInt(map = Map(1 -> 1, 2 -> 2))
       ),
       testRoundTripWithCodecs("Record with non native Map[Int, Person]")(
         RecordWithNonNativeMapOfPerson.schema1,
@@ -539,7 +539,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
           )
         )
       )(
-        expectedRecord = RecordWithNonNativeMapOfPerson(Map(1 -> Person("id", 21)))
+        expectedValue = RecordWithNonNativeMapOfPerson(Map(1 -> Person("id", 21)))
       )
     ),
     suite("tuple")(
@@ -560,7 +560,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
           )
         )
       )(
-        expectedRecord = RecordWithTuple(tuple = (1, 2, "3", "4"))
+        expectedValue = RecordWithTuple(tuple = (1, 2, "3", "4"))
       ),
       test("tuple compatibility - nested lists") {
         val schema2Codec = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple.schema2, DynamoDBCodecConfigure.identity)
@@ -614,15 +614,15 @@ object Schema2CodecSpec extends ZIOSpecDefault {
   )(
     expectedItem: AttributeValue
   )(
-    expectedRecord: A
+    expectedValue: A
   ): Spec[Any, Nothing] = {
     val schema2Codec = SchemaCodec.schema2ToSchemaCodec(schema2, cfg)
     val schema1Codec = SchemaCodec.schema1ToSchemaCodec(schema1)
 
     val testBody: SchemaCodec[A] => TestResult = { codec =>
-      val enc = codec.encoder(expectedRecord)
+      val enc = codec.encoder(expectedValue)
       val dec = codec.decoder(enc)
-      assertTrue(enc == expectedItem && dec == Right(expectedRecord))
+      assertTrue(enc == expectedItem && dec == Right(expectedValue))
     }
 
     suite(name + " [compatibility]")(
@@ -643,13 +643,13 @@ object Schema2CodecSpec extends ZIOSpecDefault {
   )(
     expectedItem: AttributeValue
   )(
-    expectedRecord: A
+    expectedValue: A
   ): Spec[Any, Nothing] = {
 
     val testBody: SchemaCodec[A] => TestResult = { codec =>
-      val enc = codec.encoder(expectedRecord)
+      val enc = codec.encoder(expectedValue)
       val dec = codec.decoder(enc)
-      assertTrue(enc == expectedItem && dec == Right(expectedRecord))
+      assertTrue(enc == expectedItem && dec == Right(expectedValue))
     }
 
     val schema2Codec = SchemaCodec.schema2ToSchemaCodec(schema2, cfg)
@@ -668,14 +668,14 @@ object Schema2CodecSpec extends ZIOSpecDefault {
   )(
     expectedItem: AttributeValue
   )(
-    expectedRecord: A
+    expectedValue: A
   ): Spec[Any, Nothing] = {
     val schema1Codec = SchemaCodec.schema1ToSchemaCodec(schema1)
 
     val testBody: SchemaCodec[A] => TestResult = { codec =>
-      val enc = codec.encoder(expectedRecord)
+      val enc = codec.encoder(expectedValue)
       val dec = codec.decoder(enc)
-      assertTrue(enc == expectedItem && dec == Right(expectedRecord))
+      assertTrue(enc == expectedItem && dec == Right(expectedValue))
     }
 
     suite(name)(
