@@ -259,6 +259,13 @@ object Schema2CodecSpec extends ZIOSpecDefault {
     val id: Lens[Person, String] = $(_.id)
   }
 
+  final case class Person3(foreName: String)
+  object Person3 extends CompanionOptics[Person3] {
+    implicit val schema1: zio.schema.Schema[Person3] =
+      zio.schema.DeriveSchema.gen[Person3]
+    implicit val schema2: Schema[Person3]            = Schema.derived
+  }
+
   final case class Email(value: String)
   object Email {
     val derivedSchema: Reflect.Record[Binding, Email] = Schema.derived[Email].reflect.asRecord.get
@@ -602,6 +609,48 @@ object Schema2CodecSpec extends ZIOSpecDefault {
 
         assertTrue(dec2 == Right(recordWithTuple))
       }
+    ),
+    suite("field name mapper applied at record level")(
+      testRoundTripWithSchema2Codec("snake_case name mapper for Person")(
+        Person3.schema2,
+        _.withFieldNameMapper(NameMapper.SnakeCase)
+      )(
+        expectedItem = Item("fore_name" -> "John").toAttributeValue
+      )(
+        expectedValue = Person3(foreName = "John")
+      ),
+      testRoundTripWithSchema2Codec("kebab-case name mapper for Person")(
+        Person3.schema2,
+        _.withFieldNameMapper(NameMapper.KebabCase)
+      )(
+        expectedItem = Item("fore-name" -> "John").toAttributeValue
+      )(
+        expectedValue = Person3(foreName = "John")
+      ),
+      testRoundTripWithSchema2Codec("camelCase name mapper for Person")(
+        Person3.schema2,
+        _.withFieldNameMapper(NameMapper.KebabCase).withFieldNameMapper(NameMapper.CamelCase)
+      )(
+        expectedItem = Item("foreName" -> "John").toAttributeValue
+      )(
+        expectedValue = Person3(foreName = "John")
+      ),
+      testRoundTripWithSchema2Codec("PascalCase name mapper for Person")(
+        Person3.schema2,
+        _.withFieldNameMapper(NameMapper.PascalCase)
+      )(
+        expectedItem = Item("ForeName" -> "John").toAttributeValue
+      )(
+        expectedValue = Person3(foreName = "John")
+      ),
+      testRoundTripWithSchema2Codec("custom name mapper for Person")(
+        Person3.schema2,
+        _.withFieldNameMapper(NameMapper.Custom(_.toLowerCase))
+      )(
+        expectedItem = Item("forename" -> "John").toAttributeValue
+      )(
+        expectedValue = Person3(foreName = "John")
+      )
     )
   )
 

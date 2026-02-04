@@ -23,6 +23,7 @@ object DynamoDBCodecDeriver
       zioSchema1Compatibility = true, // for Tuple representation compatibility
       discriminatorKind = DiscriminatorKind.Key,
       enumValuesAsStrings = true,
+      fieldNameMapper = NameMapper.Identity,
       caseNameMapper = NameMapper.Identity,
       transientNone = true,
       requireOptionFields = false,
@@ -45,6 +46,7 @@ class DynamoDBCodecDeriver private (
   zioSchema1Compatibility: Boolean,
   discriminatorKind: DiscriminatorKind,
   enumValuesAsStrings: Boolean,
+  fieldNameMapper: NameMapper,
   caseNameMapper: NameMapper,
   transientNone: Boolean,
   requireOptionFields: Boolean,
@@ -56,6 +58,7 @@ class DynamoDBCodecDeriver private (
 
   def withEnumValuesAsStrings(enumValuesAsStrings: Boolean): DynamoDBCodecDeriver           =
     copy(enumValuesAsStrings = enumValuesAsStrings)
+  def withFieldNameMapper(fieldNameMapper: NameMapper): DynamoDBCodecDeriver                = copy(fieldNameMapper = fieldNameMapper)
   def withCaseNameMapper(caseNameMapper: NameMapper): DynamoDBCodecDeriver                  = copy(caseNameMapper = caseNameMapper)
   def withTransientNone(transientNone: Boolean): DynamoDBCodecDeriver                       = copy(transientNone = transientNone)
   def withDiscriminatorKind(discriminatorKind: DiscriminatorKind): DynamoDBCodecDeriver     =
@@ -69,6 +72,7 @@ class DynamoDBCodecDeriver private (
     zioSchema1Compatibility: Boolean = zioSchema1Compatibility,
     discriminatorKind: DiscriminatorKind = discriminatorKind,
     enumValuesAsStrings: Boolean = enumValuesAsStrings,
+    fieldNameMapper: NameMapper = fieldNameMapper,
     caseNameMapper: NameMapper = caseNameMapper,
     transientNone: Boolean = transientNone,
     requireOptionFields: Boolean = requireOptionFields,
@@ -79,6 +83,7 @@ class DynamoDBCodecDeriver private (
       zioSchema1Compatibility,
       discriminatorKind,
       enumValuesAsStrings,
+      fieldNameMapper,
       caseNameMapper,
       transientNone,
       requireOptionFields,
@@ -729,6 +734,7 @@ class DynamoDBCodecDeriver private (
 
         var fieldInfos: Array[FieldInfo] = null // TODO: investigate recursive cache
         val len                          = fields.length
+        val aliasMap                     = new java.util.HashMap[String, FieldInfo](len)
         if (fieldInfos eq null) {
           fieldInfos = new Array[FieldInfo](len)
           var idx = 0
@@ -737,7 +743,20 @@ class DynamoDBCodecDeriver private (
             val fieldReflect = field.value
             val codec        = deriveCodec(fieldReflect)
             val optRequired  = isOptional(fieldReflect)
-            fieldInfos(idx) = new FieldInfo(field.name, offset, codec, optRequired, isCollection(fieldReflect))
+            val fieldInfo    = new FieldInfo(field.name, offset, codec, optRequired, isCollection(fieldReflect))
+            fieldInfos(idx) = fieldInfo
+            var name: String = null
+            // TODO: Avi - have a separate cache for tuple as it needs less info
+            field.modifiers.foreach {
+              case m: Modifier.rename    => if (name eq null) name = m.name
+              case m: Modifier.alias     => aliasMap.put(m.name, fieldInfo)
+              case _: Modifier.transient => fieldInfo.nonTransient = false
+              case _                     =>
+            }
+            if (name eq null) name = fieldNameMapper(field.name)
+            aliasMap.put(name, fieldInfo)
+            fieldInfo.setName(name)
+
             offset = RegisterOffset.add(codec.valueOffset, offset)
             idx += 1
           }
@@ -747,6 +766,7 @@ class DynamoDBCodecDeriver private (
             private[this] val deconstructor = binding.deconstructor
             private[this] val constructor   = binding.constructor
             private[this] val usedRegisters = offset
+
             override def encoder: Encoder[A] = { value =>
               val arr: Array[AttributeValue]   = new Array[AttributeValue](len)
               val regs                         = Registers(usedRegisters)
@@ -1087,7 +1107,7 @@ class DynamoDBCodecDeriver private (
 
 // TODO: Avi - change to non case class
 private final case class FieldInfo(
-  name: String, // TODO: Avi - use DynamicOptic.Node.Field
+  var name: String, // TODO: Avi - use DynamicOptic.Node.Field
   offset: RegisterOffset,
   codec: DynamoDBCodec[?],
   isOptional: Boolean,
@@ -1096,6 +1116,8 @@ private final case class FieldInfo(
   val valueType: Int        = codec.valueType
   var nonTransient: Boolean = true // TODO: Avi - override in the field processing loop
 
+  def setName(name: String): Unit =
+    this.name = name
 }
 
 private case class DiscriminatorFieldInfo(name: String, value: String)
