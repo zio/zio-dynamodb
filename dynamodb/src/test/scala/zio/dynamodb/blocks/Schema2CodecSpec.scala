@@ -570,7 +570,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
         expectedValue = RecordWithTuple(tuple = (1, 2, "3", "4"))
       ),
       test("tuple compatibility - nested lists") {
-        val schema2Codec = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple.schema2, DynamoDBCodecConfigure.identity)
+        val schema2Codec = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple.schema2, DynamoDBCodecDeriverConfigure.identity)
         val schema1Codec = SchemaCodec.schema1ToSchemaCodec(RecordWithTuple.schema1)
 
         val recordWithTuple = RecordWithTuple(tuple = (1, 2, "3", "4"))
@@ -579,7 +579,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
         assertTrue(a == Right(recordWithTuple)) // Schema2 codec can decode a tuple encoded by a ZIO Schema codec
       },
       test("tuple compatibility - single scalar value for Tuple1") {
-        val schema2Codec = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple1.schema2, DynamoDBCodecConfigure.identity)
+        val schema2Codec = SchemaCodec.schema2ToSchemaCodec(RecordWithTuple1.schema2, DynamoDBCodecDeriverConfigure.identity)
         val schema1Codec = SchemaCodec.schema1ToSchemaCodec(RecordWithTuple1.schema1)
 
         val recordWithTuple = RecordWithTuple1(tuple = (1))
@@ -589,7 +589,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
       },
       test("tuple compatibility - tuple with first element as List") {
         val schema2Codec =
-          SchemaCodec.schema2ToSchemaCodec(RecordWithListAsFirstInTuple.schema2, DynamoDBCodecConfigure.identity)
+          SchemaCodec.schema2ToSchemaCodec(RecordWithListAsFirstInTuple.schema2, DynamoDBCodecDeriverConfigure.identity)
         val schema1Codec = SchemaCodec.schema1ToSchemaCodec(RecordWithListAsFirstInTuple.schema1)
 
         val recordWithTuple = RecordWithListAsFirstInTuple(tuple = (List(1, 2), 2L, "3"))
@@ -600,7 +600,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
       },
       test("tuple compatibility - tuple with second element as List") {
         val schema2Codec =
-          SchemaCodec.schema2ToSchemaCodec(RecordWithListAsSecondInTuple.schema2, DynamoDBCodecConfigure.identity)
+          SchemaCodec.schema2ToSchemaCodec(RecordWithListAsSecondInTuple.schema2, DynamoDBCodecDeriverConfigure.identity)
         val schema1Codec = SchemaCodec.schema1ToSchemaCodec(RecordWithListAsSecondInTuple.schema1)
 
         val recordWithTuple = RecordWithListAsSecondInTuple(tuple = (1, List(1L, 2L), "3"))
@@ -659,7 +659,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
   )(
     schema1: zio.schema.Schema[A],
     schema2: Schema[A],
-    cfg: DynamoDBCodecConfigure[A] = DynamoDBCodecConfigure.identity[A]
+    cfg: DynamoDBCodecDeriverConfigure[A] = DynamoDBCodecDeriverConfigure.identity[A]
   )(
     expectedItem: AttributeValue
   )(
@@ -688,7 +688,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
     name: String
   )(
     schema2: Schema[A],
-    cfg: DynamoDBCodecConfigure[A] = DynamoDBCodecConfigure.identity[A]
+    cfg: DynamoDBCodecDeriverConfigure[A] = DynamoDBCodecDeriverConfigure.identity[A]
   )(
     expectedItem: AttributeValue
   )(
@@ -737,9 +737,9 @@ object Schema2CodecSpec extends ZIOSpecDefault {
   private def testDecodeErrorWithCodecs[A](
     name: String
   )(
-    schema1: zio.schema.Schema[A],
-    schema2: Schema[A],
-    cfg: DynamoDBCodecConfigure[A] // = DynamoDBCodecConfigure.identity[A]
+                                            schema1: zio.schema.Schema[A],
+                                            schema2: Schema[A],
+                                            cfg: DynamoDBCodecDeriverConfigure[A] // = DynamoDBCodecConfigure.identity[A]
   )(
     item: AttributeValue
   )(
@@ -766,8 +766,8 @@ object Schema2CodecSpec extends ZIOSpecDefault {
   private def testDecodeErrorWithSchema2Codec[A](
     name: String
   )(
-    schema2: Schema[A],
-    cfg: DynamoDBCodecConfigure[A] // = DynamoDBCodecConfigure.identity[A]
+                                                  schema2: Schema[A],
+                                                  cfg: DynamoDBCodecDeriverConfigure[A] // = DynamoDBCodecConfigure.identity[A]
   )(
     item: AttributeValue
   )(

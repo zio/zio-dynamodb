@@ -14,7 +14,7 @@ object CodecCompatibilitySpec extends ZIOSpecDefault {
   def withCodecs[A](zioSchema: zio.schema.Schema[A], blocks: Schema[A])(
     testBody: SchemaCodec[A] => TestResult
   ): TestResult = {
-    val scBlocks: SchemaCodec[A] = SchemaCodec.schema2ToSchemaCodec(blocks, DynamoDBCodecConfigure.default)
+    val scBlocks: SchemaCodec[A] = SchemaCodec.schema2ToSchemaCodec(blocks, DynamoDBCodecDeriverConfigure.default)
     val scZio: SchemaCodec[A]    = SchemaCodec.schema1ToSchemaCodec(zioSchema)
 
     testBody(scBlocks) && testBody(scZio)
