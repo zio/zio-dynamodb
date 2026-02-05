@@ -1,6 +1,6 @@
 package zio.dynamodb
 
-import zio.dynamodb.blocks.{ DynamoDBCodec, DynamoDBCodecDeriverConfigure, DynamoDBCodecDeriver }
+import zio.dynamodb.blocks.{ DynamoDBCodec, DynamoDBCodecDeriver, DynamoDBCodecDeriverConfigure }
 import zio.schema.Schema
 import zio.Chunk
 
