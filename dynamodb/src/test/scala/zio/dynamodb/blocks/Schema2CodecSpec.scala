@@ -2,7 +2,19 @@ package zio.dynamodb.blocks
 
 import zio.{ schema, Chunk }
 import zio.blocks.schema.binding.{ Binding, SeqConstructor, SeqDeconstructor }
-import zio.blocks.schema.{ CompanionOptics, Doc, Lens, Namespace, PrimitiveType, Reflect, Schema, TypeName, Validation }
+import zio.blocks.schema.derive.DerivationBuilder
+import zio.blocks.schema.{
+  CompanionOptics,
+  Doc,
+  Lens,
+  Modifier,
+  Namespace,
+  PrimitiveType,
+  Reflect,
+  Schema,
+  TypeName,
+  Validation
+}
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb._
 import zio.schema.annotation.{ discriminatorName, noDiscriminator }
@@ -264,6 +276,8 @@ object Schema2CodecSpec extends ZIOSpecDefault {
     implicit val schema1: zio.schema.Schema[Person3] =
       zio.schema.DeriveSchema.gen[Person3]
     implicit val schema2: Schema[Person3]            = Schema.derived
+
+    val foreName: Lens[Person3, String] = $(_.foreName)
   }
 
   final case class Email(value: String)
@@ -656,6 +670,15 @@ object Schema2CodecSpec extends ZIOSpecDefault {
       )(
         expectedValue = Person3(foreName = "John")
       )
+    ),
+    testRoundTripWithSchema2Codec2("modify a field name")(
+      Person3.schema2,
+      builderConfigure =
+        (x: DerivationBuilder[DynamoDBCodec, Person3]) => x.modifier(Person3.foreName, Modifier.rename("forename"))
+    )(
+      expectedItem = Item("forename" -> "John").toAttributeValue
+    )(
+      expectedValue = Person3(foreName = "John")
     )
   )
 
@@ -683,6 +706,33 @@ object Schema2CodecSpec extends ZIOSpecDefault {
       test("schema1") {
         testBody(schema1Codec)
       },
+      test("schema2") {
+        testBody(schema2Codec)
+      }
+    )
+  }
+
+  def testRoundTripWithSchema2Codec2[A](
+    name: String
+  )(
+    schema2: Schema[A],
+    deriverConfigure: DynamoDBCodecDeriverConfigure[A] = DynamoDBCodecDeriverConfigure.identity[A],
+    builderConfigure: DerivationBuilderConfigure[A] = DerivationBuilderConfigure.identity[A]
+  )(
+    expectedItem: AttributeValue
+  )(
+    expectedValue: A
+  ): Spec[Any, Nothing] = {
+
+    val testBody: SchemaCodec[A] => TestResult = { codec =>
+      val enc = codec.encoder(expectedValue)
+      val dec = codec.decoder(enc)
+      assertTrue(enc == expectedItem && dec == Right(expectedValue))
+    }
+
+    val schema2Codec = SchemaCodec.schema2ToSchemaCodec2(schema2, deriverConfigure, builderConfigure)
+
+    suite(name)(
       test("schema2") {
         testBody(schema2Codec)
       }

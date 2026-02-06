@@ -1,8 +1,14 @@
 package zio.dynamodb
 
-import zio.dynamodb.blocks.{ DynamoDBCodec, DynamoDBCodecDeriver, DynamoDBCodecDeriverConfigure }
+import zio.dynamodb.blocks.{
+  DerivationBuilderConfigure,
+  DynamoDBCodec,
+  DynamoDBCodecDeriver,
+  DynamoDBCodecDeriverConfigure
+}
 import zio.schema.Schema
 import zio.Chunk
+import zio.blocks.schema.derive.DerivationBuilder
 
 // Captures schema based codec capabilities
 trait SchemaCodec[A] {
@@ -38,6 +44,34 @@ object SchemaCodec {
     new SchemaCodec[A] {
       private[this] val blocksCodec: DynamoDBCodec[A] =
         zio.blocks.schema.Schema[A].derive(cfg.configure(DynamoDBCodecDeriver))
+      override def encoder: Encoder[A]                = blocksCodec.encoder
+      override def decoder: Decoder[A]                = blocksCodec.decoder
+
+      override def projectionsFromSchema: Chunk[ProjectionExpression[_, _]] = {
+        def projections[A](reflect: zio.blocks.schema.Reflect.Bound[A]): Chunk[ProjectionExpression[_, _]] =
+          reflect match {
+            case zio.blocks.schema.Reflect.Record(fields, _, _, _, modifiers) =>
+              Chunk.fromIterable(fields.map { f =>
+                ProjectionExpression.MapElement(ProjectionExpression.Root, f.name)
+              })
+            case _                                                            => Chunk.empty
+          }
+
+        projections(zio.blocks.schema.Schema[A].reflect)
+      }
+    }
+
+  // Blocks Schema
+  // TODO: Avi - make this the single implicit
+  def schema2ToSchemaCodec2[A: zio.blocks.schema.Schema](implicit
+    deriverConfigure: DynamoDBCodecDeriverConfigure[A],
+    builderConfigure: DerivationBuilderConfigure[A]
+  ): SchemaCodec[A] =
+    new SchemaCodec[A] {
+      val db: DerivationBuilder[DynamoDBCodec, A]     =
+        zio.blocks.schema.Schema[A].deriving(deriverConfigure.configure(DynamoDBCodecDeriver))
+      val bc                                          = builderConfigure.configure(db)
+      private[this] val blocksCodec: DynamoDBCodec[A] = bc.derive
       override def encoder: Encoder[A]                = blocksCodec.encoder
       override def decoder: Decoder[A]                = blocksCodec.decoder
 
