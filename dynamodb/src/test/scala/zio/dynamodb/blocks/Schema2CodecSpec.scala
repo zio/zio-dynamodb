@@ -1,20 +1,9 @@
 package zio.dynamodb.blocks
 
 import zio.{ schema, Chunk }
-import zio.blocks.schema.binding.{ Binding, SeqConstructor, SeqDeconstructor }
+import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.derive.DerivationBuilder
-import zio.blocks.schema.{
-  CompanionOptics,
-  Doc,
-  Lens,
-  Modifier,
-  Namespace,
-  PrimitiveType,
-  Reflect,
-  Schema,
-  TypeName,
-  Validation
-}
+import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, Reflect, Schema }
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb._
 import zio.schema.annotation.{ discriminatorName, noDiscriminator }
@@ -213,35 +202,36 @@ object Schema2CodecSpec extends ZIOSpecDefault {
     implicit val schema2: Schema[RecordWithNonNativeSet] = Schema.derived
   }
 
-  // Schema2 has zero dependency so we have to derive schema for Chunk
-  // Code taken from comment by ghostdogpr on issue https://github.com/zio/zio-blocks/issues/447
-  final case class RecordWithNativeBinarySet(set: Set[Chunk[Byte]])
-  object RecordWithNativeBinarySet {
-    val chunkConstructor: SeqConstructor[Chunk] = new SeqConstructor.Boxed[Chunk] {
-      type ObjectBuilder[A] = zio.ChunkBuilder[A]
-      def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = zio.ChunkBuilder.make(sizeHint)
-      def addObject[A](builder: ObjectBuilder[A], a: A): Unit  = builder.addOne(a)
-      def resultObject[A](builder: ObjectBuilder[A]): Chunk[A] = builder.result()
-
-      override def emptyObject[A]: Chunk[A] = Chunk.empty // TODO: Avi
-    }
-
-    val chunkDeconstructor: SeqDeconstructor[Chunk] = new SeqDeconstructor[Chunk] {
-      def deconstruct[A](c: Chunk[A]): Iterator[A] = c.iterator
-      def size[A](c: Chunk[A]): Int                = c.length
-    }
-
-    implicit def schemaChunk[V](implicit ev: Schema[V]): Schema[Chunk[V]] =
-      new Schema(
-        new Reflect.Sequence[Binding, V, Chunk](
-          ev.reflect,
-          TypeName(Namespace("zio" :: Nil, Nil), "Chunk"),
-          new Binding.Seq(chunkConstructor, chunkDeconstructor)
-        )
-      )
-
-    implicit val schema2: Schema[RecordWithNativeBinarySet] = Schema.derived
-  }
+  // TODO: Avi - figure out how to do this in modified Blocks API
+//  // Schema2 has zero dependency so we have to derive schema for Chunk
+//  // Code taken from comment by ghostdogpr on issue https://github.com/zio/zio-blocks/issues/447
+//  final case class RecordWithNativeBinarySet(set: Set[Chunk[Byte]])
+//  object RecordWithNativeBinarySet {
+//    val chunkConstructor: SeqConstructor[Chunk] = new SeqConstructor.Boxed[Chunk] {
+//      type ObjectBuilder[A] = zio.ChunkBuilder[A]
+//      def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = zio.ChunkBuilder.make(sizeHint)
+//      def addObject[A](builder: ObjectBuilder[A], a: A): Unit  = builder.addOne(a)
+//      def resultObject[A](builder: ObjectBuilder[A]): Chunk[A] = builder.result()
+//
+//      override def emptyObject[A]: Chunk[A] = Chunk.empty // TODO: Avi
+//    }
+//
+//    val chunkDeconstructor: SeqDeconstructor[Chunk] = new SeqDeconstructor[Chunk] {
+//      def deconstruct[A](c: Chunk[A]): Iterator[A] = c.iterator
+//      def size[A](c: Chunk[A]): Int                = c.length
+//    }
+//
+//    implicit def schemaChunk[V](implicit ev: Schema[V]): Schema[Chunk[V]] =
+//      new Schema(
+//        new Reflect.Sequence[Binding, V, Chunk](
+//          ev.reflect,
+//          TypeName(Namespace("zio" :: Nil, Nil), "Chunk"),
+//          new Binding.Seq(chunkConstructor, chunkDeconstructor)
+//        )
+//      )
+//
+//    implicit val schema2: Schema[RecordWithNativeBinarySet] = Schema.derived
+//  }
 
   final case class Person2(id: String, age: Int, count: Long)
   object Person2 extends CompanionOptics[Person2] {
@@ -252,15 +242,15 @@ object Schema2CodecSpec extends ZIOSpecDefault {
     val id: Lens[Person2, String] = $(_.id)
   }
 
-  val stringSchema = new Schema(
-    Reflect.Primitive(
-      primitiveType = PrimitiveType.String(Validation.None),
-      typeName = TypeName(Namespace("scala" :: Nil, Nil), "String"),
-      primitiveBinding = Binding.Primitive.string,
-      doc = Doc.Empty,
-      modifiers = Seq.empty
-    )
-  )
+//  val stringSchema = new Schema(
+//    Reflect.Primitive(
+//      primitiveType = PrimitiveType.String(Validation.None),
+//      typeId = TypeName(Namespace("scala" :: Nil, Nil), "String"),
+//      primitiveBinding = Binding.Primitive.string,
+//      doc = Doc.Empty,
+//      modifiers = Seq.empty
+//    )
+//  )
 
   final case class Person(id: String, age: Long)
   object Person extends CompanionOptics[Person] {
@@ -287,10 +277,9 @@ object Schema2CodecSpec extends ZIOSpecDefault {
     implicit val schema2: Schema[Email] =
       Schema(
         Reflect.Wrapper(
-          Schema[String].reflect,
-          derivedSchema.typeName,
-          None,
-          Binding.Wrapper[Email, String](s => Right(Email(s)), _.value)
+          wrapped = Schema[String].reflect,
+          typeId = derivedSchema.typeId,
+          wrapperBinding = Binding.Wrapper[Email, String](s => Email(s), _.value)
         )
       )
   }

@@ -50,11 +50,11 @@ object SchemaCodec {
       override def projectionsFromSchema: Chunk[ProjectionExpression[_, _]] = {
         def projections[A](reflect: zio.blocks.schema.Reflect.Bound[A]): Chunk[ProjectionExpression[_, _]] =
           reflect match {
-            case zio.blocks.schema.Reflect.Record(fields, _, _, _, modifiers) =>
+            case zio.blocks.schema.Reflect.Record(fields, _, _, _, modifiers, _, _) =>
               Chunk.fromIterable(fields.map { f =>
                 ProjectionExpression.MapElement(ProjectionExpression.Root, f.name)
               })
-            case _                                                            => Chunk.empty
+            case _                                                                  => Chunk.empty
           }
 
         projections(zio.blocks.schema.Schema[A].reflect)
@@ -78,11 +78,11 @@ object SchemaCodec {
       override def projectionsFromSchema: Chunk[ProjectionExpression[_, _]] = {
         def projections[A](reflect: zio.blocks.schema.Reflect.Bound[A]): Chunk[ProjectionExpression[_, _]] =
           reflect match {
-            case zio.blocks.schema.Reflect.Record(fields, _, _, _, modifiers) =>
+            case zio.blocks.schema.Reflect.Record(fields, _, _, _, modifiers, _, _) =>
               Chunk.fromIterable(fields.map { f =>
                 ProjectionExpression.MapElement(ProjectionExpression.Root, f.name)
               })
-            case _                                                            => Chunk.empty
+            case _                                                                  => Chunk.empty
           }
 
         projections(zio.blocks.schema.Schema[A].reflect)
