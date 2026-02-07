@@ -259,6 +259,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
     implicit val schema2: Schema[Person]            = Schema.derived
 
     val id: Lens[Person, String] = $(_.id)
+    val age: Lens[Person, Long]  = $(_.age)
   }
 
   final case class Person3(foreName: String)
@@ -660,14 +661,14 @@ object Schema2CodecSpec extends ZIOSpecDefault {
         expectedValue = Person3(foreName = "John")
       )
     ),
-    testRoundTripWithSchema2Codec2("modify a field name")(
-      Person3.schema2,
+    testRoundTripWithSchema2Codec2("modify a field name using Optic to index")(
+      Person.schema2,
       builderConfigure =
-        (x: DerivationBuilder[DynamoDBCodec, Person3]) => x.modifier(Person3.foreName, Modifier.rename("forename"))
+        (x: DerivationBuilder[DynamoDBCodec, Person]) => x.modifier(Person.age, Modifier.rename("modifiedAge"))
     )(
-      expectedItem = Item("forename" -> "John").toAttributeValue
+      expectedItem = Item("id" -> "id", "modifiedAge" -> 21).toAttributeValue
     )(
-      expectedValue = Person3(foreName = "John")
+      expectedValue = Person(id = "id", age = 21)
     )
   )
 
