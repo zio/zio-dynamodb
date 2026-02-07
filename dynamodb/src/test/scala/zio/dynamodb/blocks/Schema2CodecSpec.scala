@@ -662,7 +662,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
       )
     ),
     // TODO: Avi - add test for modify a field name using field type to index
-    testRoundTripWithSchema2Codec2("modify a field name using Optic to index")(
+    testRoundTripWithSchema2Codec("modify a field name using Optic to index")(
       Person.schema2,
       builderConfigure =
         (x: DerivationBuilder[DynamoDBCodec, Person]) => x.modifier(Person.age, Modifier.rename("modifiedAge"))
@@ -671,7 +671,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
     )(
       expectedValue = Person(id = "id", age = 21)
     ),
-    testRoundTripWithSchema2Codec2("custom codec instance using Optic to index")(
+    testRoundTripWithSchema2Codec("custom codec instance using Optic to index")(
       Person.schema2,
       builderConfigure = (x: DerivationBuilder[DynamoDBCodec, Person]) =>
         x.instance(
@@ -724,7 +724,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
     )
   }
 
-  def testRoundTripWithSchema2Codec2[A](
+  def testRoundTripWithSchema2Codec[A](
     name: String
   )(
     schema2: Schema[A],
@@ -746,32 +746,6 @@ object Schema2CodecSpec extends ZIOSpecDefault {
     }
 
     val schema2Codec = SchemaCodec.schema2ToSchemaCodec2(schema2, deriverConfigure, builderConfigure)
-
-    suite(name)(
-      test("schema2") {
-        testBody(schema2Codec)
-      }
-    )
-  }
-
-  def testRoundTripWithSchema2Codec[A](
-    name: String
-  )(
-    schema2: Schema[A],
-    cfg: DynamoDBCodecDeriverConfigure[A] = DynamoDBCodecDeriverConfigure.identity[A]
-  )(
-    expectedItem: AttributeValue
-  )(
-    expectedValue: A
-  ): Spec[Any, Nothing] = {
-
-    val testBody: SchemaCodec[A] => TestResult = { codec =>
-      val enc = codec.encoder(expectedValue)
-      val dec = codec.decoder(enc)
-      assertTrue(enc == expectedItem && dec == Right(expectedValue))
-    }
-
-    val schema2Codec = SchemaCodec.schema2ToSchemaCodec(schema2, cfg)
 
     suite(name)(
       test("schema2") {
