@@ -661,6 +661,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
         expectedValue = Person3(foreName = "John")
       )
     ),
+    // TODO: Avi - add test for modify a field name using field type to index
     testRoundTripWithSchema2Codec2("modify a field name using Optic to index")(
       Person.schema2,
       builderConfigure =
@@ -668,6 +669,27 @@ object Schema2CodecSpec extends ZIOSpecDefault {
     )(
       expectedItem = Item("id" -> "id", "modifiedAge" -> 21).toAttributeValue
     )(
+      expectedValue = Person(id = "id", age = 21)
+    ),
+    testRoundTripWithSchema2Codec2("custom codec instance using Optic to index")(
+      Person.schema2,
+      builderConfigure = (x: DerivationBuilder[DynamoDBCodec, Person]) =>
+        x.instance(
+          Person.age,
+          new DynamoDBCodec[Long](valueType = DynamoDBCodec.longType) { // custom codec to lie about one's age for fun and profit
+            override def encoder: Encoder[Long] =
+              age => AttributeValue.Number(BigDecimal.valueOf(age - 1))
+
+            override def decoder: Decoder[Long] = {
+              case AttributeValue.Number(n) => Right(n.toLong)
+              case other                    => Left(DecodingError(s"Expected Number attribute value but got: $other"))
+            }
+          }
+        )
+    )(
+      expectedItem = Item("id" -> "id", "age" -> 21).toAttributeValue
+    )(
+      initialValue = Some(Person(id = "id", age = 22)), // start with age 22, but codec will encode as 21
       expectedValue = Person(id = "id", age = 21)
     )
   )
@@ -711,11 +733,14 @@ object Schema2CodecSpec extends ZIOSpecDefault {
   )(
     expectedItem: AttributeValue
   )(
+    initialValue: Option[A] = None,
     expectedValue: A
   ): Spec[Any, Nothing] = {
 
+    val initial = initialValue.getOrElse(expectedValue)
+
     val testBody: SchemaCodec[A] => TestResult = { codec =>
-      val enc = codec.encoder(expectedValue)
+      val enc = codec.encoder(initial)
       val dec = codec.decoder(enc)
       assertTrue(enc == expectedItem && dec == Right(expectedValue))
     }
