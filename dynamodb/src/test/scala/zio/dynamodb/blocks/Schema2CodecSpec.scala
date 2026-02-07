@@ -4,6 +4,7 @@ import zio.{ schema, Chunk }
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.derive.DerivationBuilder
 import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, Reflect, Schema }
+import zio.blocks.typeid.TypeId
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb._
 import zio.schema.annotation.{ discriminatorName, noDiscriminator }
@@ -676,6 +677,27 @@ object Schema2CodecSpec extends ZIOSpecDefault {
       builderConfigure = (x: DerivationBuilder[DynamoDBCodec, Person]) =>
         x.instance(
           Person.age,
+          new DynamoDBCodec[Long](valueType = DynamoDBCodec.longType) { // custom codec to lie about one's age for fun and profit
+            override def encoder: Encoder[Long] =
+              age => AttributeValue.Number(BigDecimal.valueOf(age - 1))
+
+            override def decoder: Decoder[Long] = {
+              case AttributeValue.Number(n) => Right(n.toLong)
+              case other                    => Left(DecodingError(s"Expected Number attribute value but got: $other"))
+            }
+          }
+        )
+    )(
+      expectedItem = Item("id" -> "id", "age" -> 21).toAttributeValue
+    )(
+      initialValue = Some(Person(id = "id", age = 22)), // start with age 22, but codec will encode as 21
+      expectedValue = Person(id = "id", age = 21)
+    ),
+    testRoundTripWithSchema2Codec("custom codec instance using TypeId to index")(
+      Person.schema2,
+      builderConfigure = (x: DerivationBuilder[DynamoDBCodec, Person]) =>
+        x.instance(
+          TypeId.long,
           new DynamoDBCodec[Long](valueType = DynamoDBCodec.longType) { // custom codec to lie about one's age for fun and profit
             override def encoder: Encoder[Long] =
               age => AttributeValue.Number(BigDecimal.valueOf(age - 1))
