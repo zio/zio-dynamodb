@@ -21,8 +21,7 @@ import scala.reflect.ClassTag
  */
 object DynamoDBCodecDeriver
     extends DynamoDBCodecDeriver(
-      // TODO: Avi - should we rename this to be tuple specific?
-      zioSchema1Compatibility = true, // for Tuple representation compatibility
+      schema1TupleCompatibility = true, // for Tuple representation compatibility
       discriminatorKind = DiscriminatorKind.Key,
       enumValuesAsStrings = true,
       fieldNameMapper = NameMapper.Identity,
@@ -34,7 +33,7 @@ object DynamoDBCodecDeriver
     ) {}
 
 class DynamoDBCodecDeriver private (
-  zioSchema1Compatibility: Boolean,
+  schema1TupleCompatibility: Boolean,
   discriminatorKind: DiscriminatorKind,
   enumValuesAsStrings: Boolean,
   fieldNameMapper: NameMapper,
@@ -47,20 +46,22 @@ class DynamoDBCodecDeriver private (
   // TODO: Avi - promote to config
   val requireDefaultValueFields: Boolean = false
 
-  def withEnumValuesAsStrings(enumValuesAsStrings: Boolean): DynamoDBCodecDeriver           =
+  def withSchema1TupleCompatibility(schema1TupleCompatibility: Boolean): DynamoDBCodecDeriver =
+    copy(schema1TupleCompatibility = schema1TupleCompatibility)
+  def withEnumValuesAsStrings(enumValuesAsStrings: Boolean): DynamoDBCodecDeriver             =
     copy(enumValuesAsStrings = enumValuesAsStrings)
-  def withFieldNameMapper(fieldNameMapper: NameMapper): DynamoDBCodecDeriver                = copy(fieldNameMapper = fieldNameMapper)
-  def withCaseNameMapper(caseNameMapper: NameMapper): DynamoDBCodecDeriver                  = copy(caseNameMapper = caseNameMapper)
-  def withTransientNone(transientNone: Boolean): DynamoDBCodecDeriver                       = copy(transientNone = transientNone)
-  def withDiscriminatorKind(discriminatorKind: DiscriminatorKind): DynamoDBCodecDeriver     =
+  def withFieldNameMapper(fieldNameMapper: NameMapper): DynamoDBCodecDeriver                  = copy(fieldNameMapper = fieldNameMapper)
+  def withCaseNameMapper(caseNameMapper: NameMapper): DynamoDBCodecDeriver                    = copy(caseNameMapper = caseNameMapper)
+  def withTransientNone(transientNone: Boolean): DynamoDBCodecDeriver                         = copy(transientNone = transientNone)
+  def withDiscriminatorKind(discriminatorKind: DiscriminatorKind): DynamoDBCodecDeriver       =
     copy(discriminatorKind = discriminatorKind)
-  def withRequiredCollectionFields(requireCollectionFields: Boolean): DynamoDBCodecDeriver  =
+  def withRequiredCollectionFields(requireCollectionFields: Boolean): DynamoDBCodecDeriver    =
     copy(requireCollectionFields = requireCollectionFields)
-  def withTransientEmptyCollection(transientEmptyCollection: Boolean): DynamoDBCodecDeriver =
+  def withTransientEmptyCollection(transientEmptyCollection: Boolean): DynamoDBCodecDeriver   =
     copy(transientEmptyCollection = transientEmptyCollection)
 
   def copy(
-    zioSchema1Compatibility: Boolean = zioSchema1Compatibility,
+    schema1TupleCompatibility: Boolean = schema1TupleCompatibility,
     discriminatorKind: DiscriminatorKind = discriminatorKind,
     enumValuesAsStrings: Boolean = enumValuesAsStrings,
     fieldNameMapper: NameMapper = fieldNameMapper,
@@ -71,7 +72,7 @@ class DynamoDBCodecDeriver private (
     requireCollectionFields: Boolean = requireCollectionFields
   ): DynamoDBCodecDeriver =
     new DynamoDBCodecDeriver(
-      zioSchema1Compatibility,
+      schema1TupleCompatibility,
       discriminatorKind,
       enumValuesAsStrings,
       fieldNameMapper,
@@ -878,7 +879,7 @@ class DynamoDBCodecDeriver private (
                     if (errors.isEmpty) {
                       val a = constructor.construct(regs, RegisterOffset.Zero)
                       Right(a)
-                    } else if (zioSchema1Compatibility) {
+                    } else if (schema1TupleCompatibility) {
                       errors.clear()
                       decodeLegacy(avList)
                     } else
