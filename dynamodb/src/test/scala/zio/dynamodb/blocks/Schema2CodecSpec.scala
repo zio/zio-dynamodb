@@ -560,7 +560,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
         RecordWithTuple.schema2
       )(
         expectedItem = AttributeValue.Map(
-          Map(
+          Map( // schema2 always encodes tuples as flat lists
             AttributeValue.String("tuple") -> AttributeValue.List(
               Chunk(
                 AttributeValue.Number(BigDecimal(1)),
