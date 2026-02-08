@@ -436,9 +436,7 @@ object ItemDecoderSpec extends ZIOSpecDefault with CodecTestFixtures {
       assert(actual)(
         isLeft(
           equalTo(
-            ItemError.DecodingError(message =
-              "All sub type decoders failed for AttributeValue.Map with noDiscriminator annotation present"
-            )
+            ItemError.DecodingError(message = "All sub type decoders failed for AttributeValue.Map")
           )
         )
       )

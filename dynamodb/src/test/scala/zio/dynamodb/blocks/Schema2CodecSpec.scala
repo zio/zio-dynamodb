@@ -471,6 +471,13 @@ object Schema2CodecSpec extends ZIOSpecDefault {
           expectedItem = Item("method" -> Item("email" -> "a@b.com")).toAttributeValue
         )(
           expectedValue = RecordWithPaymentMethodUsingNone(PaymentMethod3.PayPal("a@b.com"))
+        ),
+        testDecodeErrorWithCodecs("error when using DiscriminatorKind.None and there are no matches")(
+          RecordWithPaymentMethodUsingNone.schema1,
+          RecordWithPaymentMethodUsingNone.schema2,
+          _.withDiscriminatorKind(DiscriminatorKind.None)
+        )(item = Item("method" -> Item("shape" -> "X", "does not" -> "X", "match" -> "X")).toAttributeValue)(
+          errorMessage = "All sub type decoders failed for AttributeValue.Map"
         )
       )
     ),

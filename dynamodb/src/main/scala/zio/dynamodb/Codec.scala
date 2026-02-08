@@ -1031,7 +1031,7 @@ private[dynamodb] object Codec {
             case Nil      =>
               Left(
                 ItemError.DecodingError(
-                  s"All sub type decoders failed for ${av.showType} with noDiscriminator annotation present"
+                  s"All sub type decoders failed for ${av.showType}"
                 )
               )
             case a :: Nil => a.map(_.asInstanceOf[Z])

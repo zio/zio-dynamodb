@@ -480,7 +480,7 @@ class DynamoDBCodecDeriver private (
                         }
 
                         if (rtrn eq null)
-                          Left(ItemError.DecodingError("Tried all cases using DiscriminatorKind.None without success"))
+                          Left(ItemError.DecodingError("All sub type decoders failed for AttributeValue.Map"))
                         else
                           rtrn
                       }
