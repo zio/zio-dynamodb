@@ -43,8 +43,6 @@ class DynamoDBCodecDeriver private (
   transientEmptyCollection: Boolean,
   requireCollectionFields: Boolean // Schema1 codecs assumes this is false
 ) extends Deriver[DynamoDBCodec] { self =>
-  // TODO: Avi - promote to config
-  val requireDefaultValueFields: Boolean = false
 
   def withSchema1TupleCompatibility(schema1TupleCompatibility: Boolean): DynamoDBCodecDeriver =
     copy(schema1TupleCompatibility = schema1TupleCompatibility)
@@ -1073,11 +1071,6 @@ class DynamoDBCodecDeriver private (
       caseReflect.asRecord.exists(_.fields.isEmpty) ||
       caseReflect.isVariant && caseReflect.asVariant.forall(isEnumeration)
     }
-
-  /*private[this]*/ // TODO: Avi - use defaults
-  def defaultValue[F[_, _], A](fieldReflect: Reflect[F, A]): Option[() => ?] =
-    if (requireDefaultValueFields) None
-    else fieldReflect.asInstanceOf[Reflect[Binding, A]].getDefaultValue.map(v => () => v)
 
   private[this] def isCollection[F[_, _], A](reflect: Reflect[F, A]): Boolean =
     !requireCollectionFields && (reflect.isSequence || reflect.isMap)
