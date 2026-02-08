@@ -1,9 +1,10 @@
 package zio.dynamodb.blocks
 
-import zio.{ schema, Chunk }
+import zio.blocks.chunk.Chunk
+import zio.schema
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.derive.DerivationBuilder
-import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, Reflect, Schema }
+import zio.blocks.schema.{ CompanionOptics, DynamicValue, Lens, Modifier, PrimitiveValue, Reflect, Schema }
 import zio.blocks.typeid.TypeId
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb._
@@ -669,57 +670,89 @@ object Schema2CodecSpec extends ZIOSpecDefault {
         expectedValue = Person3(foreName = "John")
       )
     ),
-    // TODO: Avi - add test for modify a field name using field type to index
-    testRoundTripWithSchema2Codec("modify a field name using Optic to index")(
-      Person.schema2,
-      builderConfigure =
-        (x: DerivationBuilder[DynamoDBCodec, Person]) => x.modifier(Person.age, Modifier.rename("modifiedAge"))
-    )(
-      expectedItem = Item("id" -> "id", "modifiedAge" -> 21).toAttributeValue
-    )(
-      expectedValue = Person(id = "id", age = 21)
-    ),
-    testRoundTripWithSchema2Codec("custom codec instance using Optic to index")(
-      Person.schema2,
-      builderConfigure = (x: DerivationBuilder[DynamoDBCodec, Person]) =>
-        x.instance(
-          Person.age,
-          new DynamoDBCodec[Long](valueType = DynamoDBCodec.longType) { // custom codec to lie about one's age for fun and profit
-            override def encoder: Encoder[Long] =
-              age => AttributeValue.Number(BigDecimal.valueOf(age - 1))
+    suite("modifier and instance suite")(
+      // TODO: Avi - add test for modify a field name using field type to index
+      testRoundTripWithSchema2Codec("modify a field name using Optic to index")(
+        Person.schema2,
+        builderConfigure =
+          (x: DerivationBuilder[DynamoDBCodec, Person]) => x.modifier(Person.age, Modifier.rename("modifiedAge"))
+      )(
+        expectedItem = Item("id" -> "id", "modifiedAge" -> 21).toAttributeValue
+      )(
+        expectedValue = Person(id = "id", age = 21)
+      ),
+      testRoundTripWithSchema2Codec("custom codec instance using Optic to index")(
+        Person.schema2,
+        builderConfigure = (x: DerivationBuilder[DynamoDBCodec, Person]) =>
+          x.instance(
+            Person.age,
+            new DynamoDBCodec[Long](valueType = DynamoDBCodec.longType) { // custom codec to lie about one's age for fun and profit
+              override def encoder: Encoder[Long] =
+                age => AttributeValue.Number(BigDecimal.valueOf(age - 1))
 
-            override def decoder: Decoder[Long] = {
-              case AttributeValue.Number(n) => Right(n.toLong)
-              case other                    => Left(DecodingError(s"Expected Number attribute value but got: $other"))
+              override def decoder: Decoder[Long] = {
+                case AttributeValue.Number(n) => Right(n.toLong)
+                case other                    => Left(DecodingError(s"Expected Number attribute value but got: $other"))
+              }
             }
-          }
-        )
-    )(
-      expectedItem = Item("id" -> "id", "age" -> 21).toAttributeValue
-    )(
-      initialValue = Some(Person(id = "id", age = 22)), // start with age 22, but codec will encode as 21
-      expectedValue = Person(id = "id", age = 21)
-    ),
-    testRoundTripWithSchema2Codec("custom codec instance using TypeId to index")(
-      Person.schema2,
-      builderConfigure = (x: DerivationBuilder[DynamoDBCodec, Person]) =>
-        x.instance(
-          TypeId.long,
-          new DynamoDBCodec[Long](valueType = DynamoDBCodec.longType) { // custom codec to lie about one's age for fun and profit
-            override def encoder: Encoder[Long] =
-              age => AttributeValue.Number(BigDecimal.valueOf(age - 1))
+          )
+      )(
+        expectedItem = Item("id" -> "id", "age" -> 21).toAttributeValue
+      )(
+        initialValue = Some(Person(id = "id", age = 22)), // start with age 22, but codec will encode as 21
+        expectedValue = Person(id = "id", age = 21)
+      ),
+      testRoundTripWithSchema2Codec("custom codec instance using TypeId to index")(
+        Person.schema2,
+        builderConfigure = (x: DerivationBuilder[DynamoDBCodec, Person]) =>
+          x.instance(
+            TypeId.long,
+            new DynamoDBCodec[Long](valueType = DynamoDBCodec.longType) { // custom codec to lie about one's age for fun and profit
+              override def encoder: Encoder[Long] =
+                age => AttributeValue.Number(BigDecimal.valueOf(age - 1))
 
-            override def decoder: Decoder[Long] = {
-              case AttributeValue.Number(n) => Right(n.toLong)
-              case other                    => Left(DecodingError(s"Expected Number attribute value but got: $other"))
+              override def decoder: Decoder[Long] = {
+                case AttributeValue.Number(n) => Right(n.toLong)
+                case other                    => Left(DecodingError(s"Expected Number attribute value but got: $other"))
+              }
             }
-          }
+          )
+      )(
+        expectedItem = Item("id" -> "id", "age" -> 21).toAttributeValue
+      )(
+        initialValue = Some(Person(id = "id", age = 22)), // start with age 22, but codec will encode as 21
+        expectedValue = Person(id = "id", age = 21)
+      )
+    ),
+    suite("DynamicValue suite")(
+      testRoundTripWithSchema2Codec("round trip DynamicValue.Null")(Schema.dynamic)(expectedItem = AttributeValue.Null)(
+        expectedValue = DynamicValue.Null
+      ),
+      testRoundTripWithSchema2Codec("round trip DynamicValue.Null")(Schema.dynamic)(expectedItem =
+        AttributeValue.String("john")
+      )(
+        expectedValue = new DynamicValue.Primitive(new PrimitiveValue.String("john"))
+      ),
+      testRoundTripWithSchema2Codec("round trip DynamicValue.Null")(Schema.dynamic)(expectedItem =
+        AttributeValue.Number(BigDecimal(123))
+      )(
+        expectedValue = new DynamicValue.Primitive(PrimitiveValue.Int(123))
+      ),
+      testRoundTripWithSchema2Codec("round trip DynamicValue with BigDecimal")(Schema.dynamic)(expectedItem =
+        AttributeValue.Number(BigDecimal("9223372036854775808"))
+      )(
+        expectedValue = new DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal("9223372036854775808")))
+      ),
+      testRoundTripWithSchema2Codec("round trip DynamicValue with a simple record")(Schema.dynamic)(expectedItem =
+        Item("AA" -> 1, "BB" -> 2).toAttributeValue
+      )(
+        expectedValue = DynamicValue.Record(
+          Chunk(
+            ("AA", DynamicValue.Primitive(PrimitiveValue.Int(1))),
+            ("BB", DynamicValue.Primitive(PrimitiveValue.Int(2)))
+          )
         )
-    )(
-      expectedItem = Item("id" -> "id", "age" -> 21).toAttributeValue
-    )(
-      initialValue = Some(Person(id = "id", age = 22)), // start with age 22, but codec will encode as 21
-      expectedValue = Person(id = "id", age = 21)
+      )
     )
   )
 

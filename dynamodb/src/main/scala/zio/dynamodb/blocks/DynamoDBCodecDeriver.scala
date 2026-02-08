@@ -1,6 +1,6 @@
 package zio.dynamodb.blocks
 
-import zio.Chunk
+import zio.blocks.chunk.ChunkBuilder
 import zio.blocks.schema._
 import zio.blocks.schema.binding.BindingType.Variant
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
@@ -10,6 +10,7 @@ import zio.blocks.typeid.{ Owner, TypeId }
 import zio.dynamodb.AttributeValue.Map.JMapView
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
+import zio.dynamodb.blocks.DynamoDBCodecDeriver.dynamicValueCodec
 import zio.dynamodb.{ AttributeValue, Decoder, Encoder }
 
 import scala.annotation.tailrec
@@ -30,7 +31,108 @@ object DynamoDBCodecDeriver
       requireOptionFields = false,
       transientEmptyCollection = false,
       requireCollectionFields = false
-    ) {}
+    ) {
+
+  val dynamicValueCodec: DynamoDBCodec[DynamicValue] =
+    new DynamoDBCodec[DynamicValue](valueType = DynamoDBCodec.objectType) {
+//      private[this] val falseValue       = new DynamicValue.Primitive(new PrimitiveValue.Boolean(false))
+//      private[this] val trueValue        = new DynamicValue.Primitive(new PrimitiveValue.Boolean(true))
+//      private[this] val emptyArrayValue  = new DynamicValue.Sequence(Chunk.empty)
+//      private[this] val emptyObjectValue = new DynamicValue.Map(Chunk.empty)
+
+      override def encoder: Encoder[DynamicValue] =
+        (dv: DynamicValue) => {
+          dv match {
+            case primitive: DynamicValue.Primitive =>
+              primitive.value match {
+                case _: PrimitiveValue.Unit.type  => AttributeValue.Null
+                case v: PrimitiveValue.String     => AttributeValue.String(v.value)
+                case v: PrimitiveValue.Int        => AttributeValue.Number(BigDecimal.valueOf(v.value.toLong))
+                case v: PrimitiveValue.Long       => AttributeValue.Number(BigDecimal.valueOf(v.value))
+                case v: PrimitiveValue.BigDecimal => AttributeValue.Number(BigDecimal(v.value.bigDecimal))
+                case v                            =>
+                  throw new RuntimeException(
+                    s"Unsupported PrimitiveValue type: ${v.getClass}"
+                  ) // TODO: Avi - make this exhaustive and remove the default case
+              }
+            case DynamicValue.Null                 => AttributeValue.Null
+            case sequence: DynamicValue.Sequence   =>
+              val builder = ChunkBuilder.make[AttributeValue]()
+              val it      = sequence.elements.iterator
+              while (it.hasNext) {
+                val item = it.next()
+                val enc  = encoder(item)
+                builder.addOne(enc)
+              }
+              AttributeValue.List(builder.result())
+            case record: DynamicValue.Record       =>
+              val builder = JMapView.linked.builder
+              val fields  = record.fields
+              val it      = fields.iterator
+              while (it.hasNext) {
+                val kv  = it.next()
+                val enc = encoder(kv._2)
+                builder.addOne(kv._1, enc)
+              }
+              AttributeValue.Map(builder.result)
+            case av                                =>
+              throw new RuntimeException(
+                s"Unknown DynamicValue type: ${av.getClass}"
+              ) // TODO: Avi - make this exhaustive and remove the default case
+          }
+        }
+
+      override def decoder: Decoder[DynamicValue] = {
+        case AttributeValue.Null       => Right(DynamicValue.Null)
+        case av: AttributeValue.String => Right(new DynamicValue.Primitive(new PrimitiveValue.String(av.value)))
+        case av: AttributeValue.Number =>
+          val bd: BigDecimal     = av.value
+          val longValue          = bd.bigDecimal.longValue
+          // Start with BigDecimal and attempt to narrow down to the smallest numeric type
+          val dv: PrimitiveValue = if (bd == BigDecimal(longValue)) {
+            val intValue = longValue.toInt
+            if (longValue == intValue) new PrimitiveValue.Int(intValue)
+            else new PrimitiveValue.Long(longValue)
+          } else new PrimitiveValue.BigDecimal(bd)
+
+          Right(new DynamicValue.Primitive(dv))
+        case av: AttributeValue.List   =>
+          val builder = ChunkBuilder.make[DynamicValue]()
+          val it      = av.value.iterator
+          val errors  = new ArrayBuffer[String]
+          while (it.hasNext) {
+            val item = it.next()
+            decoder(item) match {
+              case Right(dv) => builder.addOne(dv)
+              case Left(err) => errors.addOne(err.message)
+            }
+          }
+          if (errors.isEmpty)
+            Right(new DynamicValue.Sequence(builder.result()))
+          else
+            Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
+        case av: AttributeValue.Map    =>
+          val builder = ChunkBuilder.make[(String, DynamicValue)]()
+          val it      = av.value.iterator
+          val errors  = new ArrayBuffer[String]
+          while (it.hasNext) {
+            val kv = it.next()
+            decoder(kv._2) match {
+              case Right(dv) => builder.addOne((kv._1.value, dv))
+              case Left(err) => errors.addOne(err.message)
+            }
+          }
+          if (errors.isEmpty)
+            Right(new DynamicValue.Record(builder.result()))
+          else
+            Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
+        case av                        =>
+          // TODO: Avi - full coverage
+          Left(ItemError.DecodingError(s"Unknown AttributeValue type:${av.showType}"))
+      }
+
+    }
+}
 
 class DynamoDBCodecDeriver private (
   schema1TupleCompatibility: Boolean,
@@ -196,7 +298,8 @@ class DynamoDBCodecDeriver private (
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[DynamicValue],
     examples: Seq[DynamicValue]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[DynamicValue]] = ???
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[DynamicValue]] =
+    Lazy(deriveCodec(new Reflect.Dynamic(binding, TypeId.of[DynamicValue], doc, modifiers)))
 
   override def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
@@ -833,27 +936,27 @@ class DynamoDBCodecDeriver private (
 
                 @tailrec
                 def setRegisterValueForLastElement(
-                  avList: Chunk[AttributeValue],
+                  avList: zio.Chunk[AttributeValue],
                   count: Int
                 ): Unit = {
                   val len = avList.size
                   avList match {
-                    case Chunk(avRest, avLastElement) =>
+                    case zio.Chunk(avRest, avLastElement) =>
                       val field          = fieldInfos(count)
                       setValue(field, avLastElement)
                       val isNotFinalPair = count > 1
                       avRest match {
                         case l: AttributeValue.List if isNotFinalPair =>
-                          setRegisterValueForLastElement(l.value.asInstanceOf[Chunk[AttributeValue]], count - 1)
+                          setRegisterValueForLastElement(l.value.asInstanceOf[zio.Chunk[AttributeValue]], count - 1)
                         case avFirst                                  =>
                           val field = fieldInfos(count - 1) // skip to first element in list
                           setValue(field, avFirst)
                       }
-                    case _                            => errors.addOne(s"Expected list size of 2 but found $len")
+                    case _                                => errors.addOne(s"Expected list size of 2 but found $len")
                   }
                 }
 
-                setRegisterValueForLastElement(av.value.asInstanceOf[Chunk[AttributeValue]], len - 1)
+                setRegisterValueForLastElement(av.value.asInstanceOf[zio.Chunk[AttributeValue]], len - 1)
 
                 if (errors.isEmpty) {
                   val a = constructor.construct(regs, RegisterOffset.Zero)
@@ -1035,8 +1138,9 @@ class DynamoDBCodecDeriver private (
       } else
         wrapper.wrapperBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
     } else {
-      println(s"XXXXX reflect type $reflect not handled yet")
-      ???
+      val dynamic = reflect.asDynamic.get
+      if (dynamic.dynamicBinding.isInstanceOf[Binding[?, ?]]) dynamicValueCodec
+      else dynamic.dynamicBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
     }
   }.asInstanceOf[DynamoDBCodec[A]]
 
