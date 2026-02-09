@@ -45,7 +45,7 @@ object DynamoDBCodecDeriver
           dv match {
             case primitive: DynamicValue.Primitive =>
               primitive.value match {
-                case _: PrimitiveValue.Unit.type  => AttributeValue.Null
+                case _: PrimitiveValue.Unit.type  => AttributeValue.Map.empty
                 case v: PrimitiveValue.String     => AttributeValue.String(v.value)
                 case v: PrimitiveValue.Int        => AttributeValue.Number(BigDecimal.valueOf(v.value.toLong))
                 case v: PrimitiveValue.Long       => AttributeValue.Number(BigDecimal.valueOf(v.value))
@@ -83,20 +83,21 @@ object DynamoDBCodecDeriver
         }
 
       override def decoder: Decoder[DynamicValue] = {
-        case AttributeValue.Null       => Right(DynamicValue.Null)
-        case av: AttributeValue.String => Right(new DynamicValue.Primitive(new PrimitiveValue.String(av.value)))
-        case av: AttributeValue.Number =>
-          val bd: BigDecimal     = av.value
-          val longValue          = bd.bigDecimal.longValue
+        // TODO: Avi - how do we distinguish between DV Null and Unit?
+        case m: AttributeValue.Map if m.value.isEmpty => Right(DynamicValue.unit)
+        case AttributeValue.Null                      => Right(DynamicValue.Null)
+        case av: AttributeValue.String                => Right(DynamicValue.string(av.value))
+        case av: AttributeValue.Number                =>
+          val bd: BigDecimal = av.value
+          val longValue      = bd.bigDecimal.longValue
           // Start with BigDecimal and attempt to narrow down to the smallest numeric type
-          val dv: PrimitiveValue = if (bd == BigDecimal(longValue)) {
+          val dv             = if (bd == BigDecimal(longValue)) {
             val intValue = longValue.toInt
-            if (longValue == intValue) new PrimitiveValue.Int(intValue)
-            else new PrimitiveValue.Long(longValue)
-          } else new PrimitiveValue.BigDecimal(bd)
-
-          Right(new DynamicValue.Primitive(dv))
-        case av: AttributeValue.List   =>
+            if (longValue == intValue) DynamicValue.int(intValue)
+            else DynamicValue.long(longValue)
+          } else DynamicValue.bigDecimal(bd)
+          Right(dv)
+        case av: AttributeValue.List                  =>
           val builder = ChunkBuilder.make[DynamicValue]()
           val it      = av.value.iterator
           val errors  = new ArrayBuffer[String]
@@ -111,7 +112,7 @@ object DynamoDBCodecDeriver
             Right(new DynamicValue.Sequence(builder.result()))
           else
             Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
-        case av: AttributeValue.Map    =>
+        case av: AttributeValue.Map                   =>
           val builder = ChunkBuilder.make[(String, DynamicValue)]()
           val it      = av.value.iterator
           val errors  = new ArrayBuffer[String]
@@ -126,7 +127,7 @@ object DynamoDBCodecDeriver
             Right(new DynamicValue.Record(builder.result()))
           else
             Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
-        case av                        =>
+        case av                                       =>
           // TODO: Avi - full coverage
           Left(ItemError.DecodingError(s"Unknown AttributeValue type:${av.showType}"))
       }

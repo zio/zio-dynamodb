@@ -725,23 +725,28 @@ object Schema2CodecSpec extends ZIOSpecDefault {
       )
     ),
     suite("DynamicValue suite")(
-      testRoundTripWithSchema2Codec("round trip DynamicValue.Null")(Schema.dynamic)(expectedItem = AttributeValue.Null)(
+      testRoundTripWithSchema2Codec("round trip DynamicValue Unit")(Schema.dynamic)(expectedItem =
+        AttributeValue.Map.empty
+      )(
+        expectedValue = DynamicValue.Primitive(PrimitiveValue.Unit)
+      ),
+      testRoundTripWithSchema2Codec("round trip DynamicValue Null")(Schema.dynamic)(expectedItem = AttributeValue.Null)(
         expectedValue = DynamicValue.Null
       ),
-      testRoundTripWithSchema2Codec("round trip DynamicValue.Null")(Schema.dynamic)(expectedItem =
+      testRoundTripWithSchema2Codec("round trip PrimitiveValue.String")(Schema.dynamic)(expectedItem =
         AttributeValue.String("john")
       )(
-        expectedValue = new DynamicValue.Primitive(new PrimitiveValue.String("john"))
+        expectedValue = DynamicValue.Primitive(PrimitiveValue.String("john"))
       ),
-      testRoundTripWithSchema2Codec("round trip DynamicValue.Null")(Schema.dynamic)(expectedItem =
+      testRoundTripWithSchema2Codec("round trip DynamicValue PrimitiveValue.Int")(Schema.dynamic)(expectedItem =
         AttributeValue.Number(BigDecimal(123))
       )(
-        expectedValue = new DynamicValue.Primitive(PrimitiveValue.Int(123))
+        expectedValue = DynamicValue.Primitive(PrimitiveValue.Int(123))
       ),
       testRoundTripWithSchema2Codec("round trip DynamicValue with BigDecimal")(Schema.dynamic)(expectedItem =
         AttributeValue.Number(BigDecimal("9223372036854775808"))
       )(
-        expectedValue = new DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal("9223372036854775808")))
+        expectedValue = DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal("9223372036854775808")))
       ),
       testRoundTripWithSchema2Codec("round trip DynamicValue with a simple record")(Schema.dynamic)(expectedItem =
         Item("AA" -> 1, "BB" -> 2).toAttributeValue
