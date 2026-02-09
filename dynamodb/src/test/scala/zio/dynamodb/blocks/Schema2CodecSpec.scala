@@ -743,10 +743,20 @@ object Schema2CodecSpec extends ZIOSpecDefault {
       )(
         expectedValue = DynamicValue.Primitive(PrimitiveValue.Int(123))
       ),
+      testRoundTripWithSchema2Codec("round trip DynamicValue PrimitiveValue.Long")(Schema.dynamic)(expectedItem =
+        AttributeValue.Number(BigDecimal("922337203685477580"))
+      )(
+        expectedValue = DynamicValue.Primitive(PrimitiveValue.Long(922337203685477580L))
+      ),
       testRoundTripWithSchema2Codec("round trip DynamicValue with BigDecimal")(Schema.dynamic)(expectedItem =
         AttributeValue.Number(BigDecimal("9223372036854775808"))
       )(
         expectedValue = DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal("9223372036854775808")))
+      ),
+      testRoundTripWithSchema2Codec("round trip DynamicValue with a Sequence of Int")(Schema.dynamic)(expectedItem =
+        AttributeValue.List(Chunk(AttributeValue.Number(BigDecimal.valueOf(1)), AttributeValue.Number(BigDecimal.valueOf(2))))
+      )(
+        expectedValue = DynamicValue.Sequence(DynamicValue.int(1), DynamicValue.int(2))
       ),
       testRoundTripWithSchema2Codec("round trip DynamicValue with a simple record")(Schema.dynamic)(expectedItem =
         Item("AA" -> 1, "BB" -> 2).toAttributeValue
