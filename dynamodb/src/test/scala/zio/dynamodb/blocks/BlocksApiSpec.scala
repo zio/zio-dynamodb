@@ -2,7 +2,15 @@ package zio.dynamodb.blocks
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.ConditionExpression.Operand
-import zio.dynamodb.{ AttributeValue, ConditionExpression, ProjectionExpression }
+import zio.dynamodb.KeyConditionExpr.{ CompositePrimaryKeyExpr, PartitionKeyEquals, SortKeyEquals }
+import zio.dynamodb.{
+  AttributeValue,
+  ConditionExpression,
+  KeyConditionExpr,
+  PartitionKey,
+  ProjectionExpression,
+  SortKey
+}
 import zio.test.{ assertTrue, ZIOSpecDefault }
 
 object BlocksApiSpec extends ZIOSpecDefault {
@@ -91,6 +99,25 @@ object BlocksApiSpec extends ZIOSpecDefault {
           )
         }
       )
+    ), // end ConditionExpression suite
+    suite("KeyCondition")(
+      test("Person.id === 'abc'") {
+        val kce: KeyConditionExpr[Person] = Person.id === "abc"
+
+        assertTrue(
+          kce == PartitionKeyEquals(PartitionKey("id"), AttributeValue("abc"))
+        )
+      },
+      test("Person.id === 'abc' && Person.age == 18") {
+        val kce: KeyConditionExpr[Person] = (Person.id === "abc") && (Person.age === 18)
+
+        assertTrue(
+          kce == CompositePrimaryKeyExpr(
+            PartitionKeyEquals(PartitionKey("id"), value = AttributeValue("abc")),
+            SortKeyEquals(SortKey("age"), value = AttributeValue.Number(BigDecimal.valueOf(18)))
+          )
+        )
+      }
     )
   )
 
