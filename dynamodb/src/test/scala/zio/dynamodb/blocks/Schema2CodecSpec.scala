@@ -767,9 +767,40 @@ object Schema2CodecSpec extends ZIOSpecDefault {
         Item("AA" -> 1, "BB" -> 2).toAttributeValue
       )(
         expectedValue = DynamicValue.Record(
+          Chunk(("AA", DynamicValue.int(1)), ("BB", DynamicValue.int(2)))
+        )
+      ),
+      // TODO: Avi - Variants are not symmetric
+      testRoundTripWithSchema2Codec("round trip simple Int DynamicValue.Variant")(Schema.dynamic)(expectedItem =
+        Item("Int" -> 1).toAttributeValue
+      )(
+        initialValue = Some(DynamicValue.Variant("Int", DynamicValue.int(1))),
+        expectedValue = DynamicValue.Record(fields = Chunk(("Int", DynamicValue.int(1))))
+      ),
+      // TODO: Avi - Variants are not symmetric
+      testRoundTripWithSchema2Codec("round trip DynamicValue variant that is a Record")(Schema.dynamic)(
+        expectedItem = Item(
+          "id"          -> "123",
+          "someVariant" -> Item("CreditCard" -> Item("number" -> "123"))
+        ).toAttributeValue
+      )(
+        initialValue = Some(
+          DynamicValue.Record(fields =
+            Chunk(
+              "id"          -> DynamicValue.string("123"),
+              "someVariant" -> DynamicValue.Variant(
+                "CreditCard",
+                DynamicValue.Record(Chunk("number" -> DynamicValue.string("123")))
+              )
+            )
+          )
+        ),
+        expectedValue = DynamicValue.Record(fields =
           Chunk(
-            ("AA", DynamicValue.Primitive(PrimitiveValue.Int(1))),
-            ("BB", DynamicValue.Primitive(PrimitiveValue.Int(2)))
+            "id"          -> DynamicValue.string("123"),
+            "someVariant" -> DynamicValue.Record(fields =
+              Chunk(("CreditCard", DynamicValue.Record(Chunk("number" -> DynamicValue.string("123")))))
+            )
           )
         )
       )
@@ -825,6 +856,32 @@ object Schema2CodecSpec extends ZIOSpecDefault {
       val enc = codec.encoder(initial)
       val dec = codec.decoder(enc)
       assertTrue(enc == expectedItem && dec == Right(expectedValue))
+    }
+
+    val schema2Codec = SchemaCodec.schema2ToSchemaCodec2(schema2, deriverConfigure, builderConfigure)
+
+    suite(name)(
+      test("schema2") {
+        testBody(schema2Codec)
+      }
+    )
+  }
+
+  def encodeWithSchema2Codec[A](
+    name: String
+  )(
+    schema2: Schema[A],
+    deriverConfigure: DynamoDBCodecDeriverConfigure[A] = DynamoDBCodecDeriverConfigure.identity[A],
+    builderConfigure: DerivationBuilderConfigure[A] = DerivationBuilderConfigure.identity[A]
+  )(
+    expectedItem: AttributeValue
+  )(
+    initialValue: A
+  ): Spec[Any, Nothing] = {
+
+    val testBody: SchemaCodec[A] => TestResult = { codec =>
+      val enc = codec.encoder(initialValue)
+      assertTrue(enc == expectedItem)
     }
 
     val schema2Codec = SchemaCodec.schema2ToSchemaCodec2(schema2, deriverConfigure, builderConfigure)

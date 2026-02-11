@@ -56,6 +56,11 @@ object DynamoDBCodecDeriver
                   ) // TODO: Avi - make this exhaustive and remove the default case
               }
             case DynamicValue.Null                 => AttributeValue.Null
+            case variant: DynamicValue.Variant     =>
+              val av               = encoder(variant.value)
+              val builder          = JMapView.linked.builder
+              val keyDiscriminated = builder.addOne(variant.caseNameValue, av).result
+              AttributeValue.Map(keyDiscriminated)
             case sequence: DynamicValue.Sequence   =>
               val builder = ChunkBuilder.make[AttributeValue]()
               val it      = sequence.elements.iterator
