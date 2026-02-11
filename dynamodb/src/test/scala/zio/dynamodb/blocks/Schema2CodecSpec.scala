@@ -395,7 +395,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
         )(expectedItem = Item.empty.toAttributeValue)(
           expectedValue = RecordWithOption(option = None)
         ),
-        testRoundTripWithSchema2Codec("Record with Option[Int] None - transientNone = true")(
+        testRoundTripWithSchema2Codec("Record with Option[Int] None - transientNone = false")(
           RecordWithOption.schema2,
           _.withTransientNone(false)
         )(expectedItem = Item("option" -> null).toAttributeValue)(
