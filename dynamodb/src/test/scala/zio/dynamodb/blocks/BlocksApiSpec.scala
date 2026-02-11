@@ -1,9 +1,10 @@
 package zio.dynamodb.blocks
 
-import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
+import zio.blocks.schema.{ CompanionOptics, Lens, Schema, SchemaExpr }
 import zio.dynamodb.ConditionExpression.Operand
 import zio.dynamodb.KeyConditionExpr.{ CompositePrimaryKeyExpr, PartitionKeyEquals, SortKeyEquals }
 import zio.dynamodb.{
+  blocks,
   AttributeValue,
   ConditionExpression,
   KeyConditionExpr,
@@ -11,6 +12,7 @@ import zio.dynamodb.{
   ProjectionExpression,
   SortKey
 }
+import zio.prelude.Newtype
 import zio.test.{ assertTrue, ZIOSpecDefault }
 
 object BlocksApiSpec extends ZIOSpecDefault {
@@ -23,6 +25,17 @@ object BlocksApiSpec extends ZIOSpecDefault {
     val id: Lens[Person, String] = $(_.id)
     val age: Lens[Person, Int]   = $(_.age)
   }
+
+  object PersonId extends Newtype[String]
+  type PersonId = PersonId.Type
+
+  final case class PersonWithPreludeNewtype(personId: PersonId, age: Int)
+  object PersonWithPreludeNewtype extends CompanionOptics[PersonWithPreludeNewtype] {
+    implicit val schema: Schema[PersonWithPreludeNewtype]  = Schema.derived
+    val personId: Lens[PersonWithPreludeNewtype, PersonId] = $(_.personId)
+    val age: Lens[PersonWithPreludeNewtype, Int]           = $(_.age)
+  }
+
   val spec = suite("BlocksApiSpec")(
     suite("ConditionExpression")(
       suite("ProjectionExpressionOperand with ValueOperand")(
@@ -102,10 +115,24 @@ object BlocksApiSpec extends ZIOSpecDefault {
     ), // end ConditionExpression suite
     suite("KeyCondition")(
       test("Person.id === 'abc'") {
-        val kce: KeyConditionExpr[Person] = Person.id === "abc"
+        val schemaExpr: SchemaExpr[Person, Boolean] = Person.id === "abc"
+        val kce: KeyConditionExpr[Person]           = schemaExpr
 
         assertTrue(
-          kce == PartitionKeyEquals(PartitionKey("id"), AttributeValue("abc"))
+          kce == PartitionKeyEquals(PartitionKey("id"), AttributeValue.String("abc"))
+        )
+      },
+      test("PersonWithPreludeNewType.personId === 'abc'") {
+        // TODO: Avi - see if there is any Blocks machinery to auto derive Newtype schemas
+        implicit val x: Schema[blocks.BlocksApiSpec.PersonId.Type] =
+          Schema[String].transform(s => PersonId(s), (personId: PersonId) => PersonId.unwrap(personId))
+
+        val schemaExpr: SchemaExpr[PersonWithPreludeNewtype, Boolean] =
+          PersonWithPreludeNewtype.personId === PersonId("abc")
+        val kce: KeyConditionExpr[PersonWithPreludeNewtype]           = schemaExpr
+
+        assertTrue(
+          kce == PartitionKeyEquals(PartitionKey("personId"), AttributeValue.String("abc"))
         )
       },
       test("Person.id === 'abc' && Person.age == 18") {
@@ -113,7 +140,7 @@ object BlocksApiSpec extends ZIOSpecDefault {
 
         assertTrue(
           kce == CompositePrimaryKeyExpr(
-            PartitionKeyEquals(PartitionKey("id"), value = AttributeValue("abc")),
+            PartitionKeyEquals(PartitionKey("id"), value = AttributeValue.String("abc")),
             SortKeyEquals(SortKey("age"), value = AttributeValue.Number(BigDecimal.valueOf(18)))
           )
         )
