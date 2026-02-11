@@ -7,11 +7,11 @@ import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
 import zio.blocks.schema.derive.{ BindingInstance, Deriver }
 import zio.blocks.typeid.{ Owner, TypeId }
-import zio.dynamodb.AttributeValue.Map.JMapView
+import zio.dynamodb.AttributeValue
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.dynamodb.blocks.DynamoDBCodecDeriver.dynamicValueCodec
-import zio.dynamodb.{ AttributeValue, Decoder, Encoder }
+import zio.dynamodb.{ Decoder, Encoder }
 
 import scala.annotation.tailrec
 import scala.collection.mutable.ArrayBuffer
@@ -56,11 +56,8 @@ object DynamoDBCodecDeriver
                   ) // TODO: Avi - make this exhaustive and remove the default case
               }
             case DynamicValue.Null                 => AttributeValue.Null
-            case variant: DynamicValue.Variant     =>
-              val av               = encoder(variant.value)
-              val builder          = JMapView.linked.builder
-              val keyDiscriminated = builder.addOne(variant.caseNameValue, av).result
-              AttributeValue.Map(keyDiscriminated)
+            case _: DynamicValue.Variant           =>
+              throw new IllegalStateException("DynamicValue.Variant not supported")
             case sequence: DynamicValue.Sequence   =>
               val builder = ChunkBuilder.make[AttributeValue]()
               val it      = sequence.elements.iterator
@@ -71,7 +68,7 @@ object DynamoDBCodecDeriver
               }
               AttributeValue.List(builder.result())
             case record: DynamicValue.Record       =>
-              val builder = JMapView.linked.builder
+              val builder = AttributeValue.Map.JMapView.linked.builder
               val fields  = record.fields
               val it      = fields.iterator
               while (it.hasNext) {
@@ -80,10 +77,8 @@ object DynamoDBCodecDeriver
                 builder.addOne(kv._1, enc)
               }
               AttributeValue.Map(builder.result)
-            case av                                =>
-              throw new RuntimeException(
-                s"Unknown DynamicValue type: ${av.getClass}"
-              ) // TODO: Avi - make this exhaustive and remove the default case
+            case _: DynamicValue.Map               =>
+              throw new IllegalStateException("DynamicValue.Map not supported")
           }
         }
 
@@ -1007,11 +1002,11 @@ class DynamoDBCodecDeriver private (
             private[this] val discriminatorField  = discriminatorFields.get.headOption.orNull
 
             override def encoder: Encoder[A] = { value =>
-              val regs                         = Registers(usedRegisters)
-              var idx                          = 0
-              val mapBuilder: JMapView.Builder = AttributeValue.Map.JMapView.hash.builder
+              val regs                                            = Registers(usedRegisters)
+              var idx                                             = 0
+              val mapBuilder: AttributeValue.Map.JMapView.Builder = AttributeValue.Map.JMapView.hash.builder
               deconstructor.deconstruct(regs, 0, value)
-              val len                          = fields.length
+              val len                                             = fields.length
               if (discriminatorField ne null) {
                 val name  = discriminatorField.name
                 val value = discriminatorField.value

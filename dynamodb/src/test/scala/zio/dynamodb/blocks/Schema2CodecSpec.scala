@@ -12,6 +12,8 @@ import zio.schema.annotation.{ discriminatorName, noDiscriminator }
 import zio.test.Assertion.{ equalTo, isLeft }
 import zio.test.{ assert, assertTrue, Spec, TestResult, ZIOSpecDefault }
 
+import scala.util.Try
+
 object Schema2CodecSpec extends ZIOSpecDefault {
   case class RecordWithUnit(unit: Unit)
   object RecordWithUnit {
@@ -770,39 +772,15 @@ object Schema2CodecSpec extends ZIOSpecDefault {
           Chunk(("AA", DynamicValue.int(1)), ("BB", DynamicValue.int(2)))
         )
       ),
-      // TODO: Avi - Variants are not symmetric
-      testRoundTripWithSchema2Codec("round trip simple Int DynamicValue.Variant")(Schema.dynamic)(expectedItem =
-        Item("Int" -> 1).toAttributeValue
+      encodeErrorSchema2Codec("encoding of DynamicValue.Variant is not allowed")(Schema.dynamic)(initialValue =
+        DynamicValue.Variant("Int", DynamicValue.int(1))
       )(
-        initialValue = Some(DynamicValue.Variant("Int", DynamicValue.int(1))),
-        expectedValue = DynamicValue.Record(fields = Chunk(("Int", DynamicValue.int(1))))
+        expectedErrorMsg = "DynamicValue.Variant not supported"
       ),
-      // TODO: Avi - Variants are not symmetric
-      testRoundTripWithSchema2Codec("round trip DynamicValue variant that is a Record")(Schema.dynamic)(
-        expectedItem = Item(
-          "id"          -> "123",
-          "someVariant" -> Item("CreditCard" -> Item("number" -> "123"))
-        ).toAttributeValue
+      encodeErrorSchema2Codec("encoding of DynamicValue.Map is not allowed")(Schema.dynamic)(initialValue =
+        DynamicValue.Map(entries = Chunk.empty)
       )(
-        initialValue = Some(
-          DynamicValue.Record(fields =
-            Chunk(
-              "id"          -> DynamicValue.string("123"),
-              "someVariant" -> DynamicValue.Variant(
-                "CreditCard",
-                DynamicValue.Record(Chunk("number" -> DynamicValue.string("123")))
-              )
-            )
-          )
-        ),
-        expectedValue = DynamicValue.Record(fields =
-          Chunk(
-            "id"          -> DynamicValue.string("123"),
-            "someVariant" -> DynamicValue.Record(fields =
-              Chunk(("CreditCard", DynamicValue.Record(Chunk("number" -> DynamicValue.string("123")))))
-            )
-          )
-        )
+        expectedErrorMsg = "DynamicValue.Map not supported"
       )
     )
   )
@@ -856,6 +834,35 @@ object Schema2CodecSpec extends ZIOSpecDefault {
       val enc = codec.encoder(initial)
       val dec = codec.decoder(enc)
       assertTrue(enc == expectedItem && dec == Right(expectedValue))
+    }
+
+    val schema2Codec = SchemaCodec.schema2ToSchemaCodec2(schema2, deriverConfigure, builderConfigure)
+
+    suite(name)(
+      test("schema2") {
+        testBody(schema2Codec)
+      }
+    )
+  }
+
+  def encodeErrorSchema2Codec[A](
+    name: String
+  )(
+    schema2: Schema[A],
+    deriverConfigure: DynamoDBCodecDeriverConfigure[A] = DynamoDBCodecDeriverConfigure.identity[A],
+    builderConfigure: DerivationBuilderConfigure[A] = DerivationBuilderConfigure.identity[A]
+  )(
+    initialValue: A
+  )(
+    expectedErrorMsg: String
+  ): Spec[Any, Nothing] = {
+
+    val testBody: SchemaCodec[A] => TestResult = { codec =>
+      Try(codec.encoder(initialValue)) match {
+        case scala.util.Failure(exception) => assertTrue(exception.getMessage.contains(expectedErrorMsg))
+        case scala.util.Success(_)         => assertTrue(false)
+      }
+
     }
 
     val schema2Codec = SchemaCodec.schema2ToSchemaCodec2(schema2, deriverConfigure, builderConfigure)
