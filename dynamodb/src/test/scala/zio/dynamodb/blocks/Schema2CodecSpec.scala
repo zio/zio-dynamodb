@@ -765,6 +765,11 @@ object Schema2CodecSpec extends ZIOSpecDefault {
       )(
         expectedValue = DynamicValue.Sequence(DynamicValue.int(1), DynamicValue.long(922337203685477580L))
       ),
+      testRoundTripWithSchema2Codec("round trip DynamicValue with an empty Sequence")(Schema.dynamic)(expectedItem =
+        AttributeValue.List(Chunk.empty)
+      )(
+        expectedValue = DynamicValue.Sequence.empty
+      ),
       testRoundTripWithSchema2Codec("round trip DynamicValue with a simple record")(Schema.dynamic)(expectedItem =
         Item("AA" -> 1, "BB" -> 2).toAttributeValue
       )(
