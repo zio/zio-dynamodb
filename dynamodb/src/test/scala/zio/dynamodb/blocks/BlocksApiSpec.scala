@@ -10,7 +10,8 @@ import zio.dynamodb.{
   KeyConditionExpr,
   PartitionKey,
   ProjectionExpression,
-  SortKey
+  SortKey,
+  UpdateExpression
 }
 import zio.prelude.Newtype
 import zio.test.{ assertTrue, ZIOSpecDefault }
@@ -181,6 +182,52 @@ object BlocksApiSpec extends ZIOSpecDefault {
             PartitionKeyEquals(PartitionKey("id"), value = AttributeValue.String("abc")),
             SortKeyEquals(SortKey("age"), value = AttributeValue.Number(BigDecimal.valueOf(18)))
           )
+        )
+      }
+    ),
+    suite("automatically convert SchemaExpr to an UpdateExpression")(
+      test("Person.age.set(42)") {
+        val ue: UpdateExpression.Action.SetAction[Person, Int] = Person.age.set(42)
+
+        assertTrue(
+          ue ==
+            UpdateExpression.Action.SetAction[Person, Int](
+              ProjectionExpression.MapElement(parent = ProjectionExpression.Root, key = "age"),
+              UpdateExpression.SetOperand.ValueOperand(AttributeValue.Number(BigDecimal.valueOf(42)))
+            )
+        )
+      },
+      test("UpdateExpression conjunction - Person.age.set(42) + Person.age.set(42)") {
+        val ue: UpdateExpression.Action[Person] = Person.age.set(42) + Person.age.set(42)
+
+        assertTrue(
+          ue ==
+            UpdateExpression.Action.Actions[Person](
+              zio.Chunk(
+                UpdateExpression.Action.SetAction[Person, Int](
+                  ProjectionExpression.MapElement(parent = ProjectionExpression.Root, key = "age"),
+                  UpdateExpression.SetOperand.ValueOperand(AttributeValue.Number(BigDecimal.valueOf(42)))
+                ),
+                UpdateExpression.Action.SetAction[Person, Int](
+                  ProjectionExpression.MapElement(parent = ProjectionExpression.Root, key = "age"),
+                  UpdateExpression.SetOperand.ValueOperand(AttributeValue.Number(BigDecimal.valueOf(42)))
+                )
+              )
+            )
+        )
+      },
+      test("Person.age.setIfNotExists(42)") {
+        val ue: UpdateExpression.Action.SetAction[Person, Int] = Person.age.setIfNotExists(42)
+
+        assertTrue(
+          ue ==
+            UpdateExpression.Action.SetAction[Person, Int](
+              ProjectionExpression.MapElement(parent = ProjectionExpression.Root, key = "age"),
+              UpdateExpression.SetOperand.IfNotExists(
+                ProjectionExpression.MapElement(parent = ProjectionExpression.Root, key = "age"),
+                AttributeValue.Number(BigDecimal.valueOf(42))
+              )
+            )
         )
       }
     )
