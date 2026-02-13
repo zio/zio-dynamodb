@@ -12,11 +12,11 @@ FUNCTIONALITY MATRIX
 
 Expression Type            | SCHEMA1            | SCHEMA2 |
 ---------------------------|--------------------|-------|
-ProjectionExpression       | Schema1 accessors  | Raw Optic + implicit def -> PE |
-Filter/ConditionExpression | ZDDB API           | SchemaExpr + implicit def -> CE  |
-UpdateExpression           | ZDDB API           | SchemaExpr + implicit def -> UE |
-Primary Keys               | ZDDB API           | SchemaExpr + implicit def -> PKExpr |
-QueryAPI                   | single API         | single API                               |
+[X] ProjectionExpression       | Schema1 accessors  | Raw Optic + implicit def -> PE |
+[X] Filter/ConditionExpression | ZDDB API           | SchemaExpr + implicit def -> CE  |
+[X] UpdateExpression           | ZDDB API           | SchemaExpr + implicit def -> UE |
+[X] Primary Keys               | ZDDB API           | SchemaExpr + implicit def -> PKExpr |
+[] QueryAPI                    | single API         | single API                               |
 
  */
 object BlocksApi extends LowPrioritySchemaExprConversions {
