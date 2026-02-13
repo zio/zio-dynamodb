@@ -93,6 +93,11 @@ object BlocksApi extends LowPrioritySchemaExprConversions {
         ToAttributeValue[To].toAttributeValue(a)
       )
 
+    def remove: UpdateExpression.Action.RemoveAction[From] =
+      UpdateExpression.Action.RemoveAction(
+        OpticToPE.pe(optic)
+      )
+
     def setIfNotExists(a: To): UpdateExpression.Action.SetAction[From, To] = {
       val pe = OpticToPE.pe(optic)
       UpdateExpression.Action.SetAction(

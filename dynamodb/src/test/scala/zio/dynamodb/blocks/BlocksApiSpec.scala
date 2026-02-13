@@ -1,8 +1,9 @@
 package zio.dynamodb.blocks
 
-import zio.blocks.schema.{ CompanionOptics, Lens, Schema, SchemaExpr }
+import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema, SchemaExpr }
 import zio.dynamodb.ConditionExpression.Operand
 import zio.dynamodb.KeyConditionExpr.{ CompositePrimaryKeyExpr, PartitionKeyEquals, SortKeyEquals }
+import zio.dynamodb.UpdateExpression.Action
 import zio.dynamodb.{
   blocks,
   AttributeValue,
@@ -19,12 +20,14 @@ import zio.test.{ assertTrue, ZIOSpecDefault }
 object BlocksApiSpec extends ZIOSpecDefault {
   import BlocksApi._
 
-  final case class Person(id: String, age: Int)
+  final case class Person(id: String, age: Int, list: List[String], map: Map[String, Int])
   object Person extends CompanionOptics[Person] {
     implicit val schema: Schema[Person] = Schema.derived
 
-    val id: Lens[Person, String] = $(_.id)
-    val age: Lens[Person, Int]   = $(_.age)
+    val id: Lens[Person, String]                 = $(_.id)
+    val age: Lens[Person, Int]                   = $(_.age)
+    val list: Lens[Person, List[String]]         = $(_.list)
+    def atList(i: Int): Optional[Person, String] = $(_.list.at(i))
   }
 
   object PersonId extends Newtype[String] {
@@ -194,6 +197,29 @@ object BlocksApiSpec extends ZIOSpecDefault {
             UpdateExpression.Action.AddAction[Person](
               ProjectionExpression.MapElement(parent = ProjectionExpression.Root, key = "age"),
               AttributeValue.Number(BigDecimal.valueOf(1))
+            )
+        )
+      },
+      test("Person.age.remove") {
+        val ue: UpdateExpression.Action.RemoveAction[Person] = Person.age.remove
+
+        assertTrue(
+          ue ==
+            UpdateExpression.Action.RemoveAction[Person](
+              ProjectionExpression.MapElement(parent = ProjectionExpression.Root, key = "age")
+            )
+        )
+      },
+      test("Person.list[0].remove") {
+        val ue: Action.RemoveAction[Person] = Person.atList(0).remove[Person]
+
+        assertTrue(
+          ue ==
+            UpdateExpression.Action.RemoveAction[Person](
+              ProjectionExpression.ListElement(
+                parent = ProjectionExpression.MapElement(parent = ProjectionExpression.Root, key = "list"),
+                index = 0
+              )
             )
         )
       },
