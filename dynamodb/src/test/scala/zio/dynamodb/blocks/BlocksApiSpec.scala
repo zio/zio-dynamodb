@@ -186,6 +186,17 @@ object BlocksApiSpec extends ZIOSpecDefault {
       }
     ),
     suite("automatically convert SchemaExpr to an UpdateExpression")(
+      test("Person.age.add(1)") {
+        val ue: UpdateExpression.Action.AddAction[Person] = Person.age.add(1)
+
+        assertTrue(
+          ue ==
+            UpdateExpression.Action.AddAction[Person](
+              ProjectionExpression.MapElement(parent = ProjectionExpression.Root, key = "age"),
+              AttributeValue.Number(BigDecimal.valueOf(1))
+            )
+        )
+      },
       test("Person.age.set(42)") {
         val ue: UpdateExpression.Action.SetAction[Person, Int] = Person.age.set(42)
 
