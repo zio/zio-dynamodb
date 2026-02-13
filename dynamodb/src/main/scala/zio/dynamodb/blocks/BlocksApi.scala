@@ -10,7 +10,7 @@ import scala.language.implicitConversions
 /*
 FUNCTIONALITY MATRIX
 
-Expression Type            | ZDDB1              | ZDDB2 |
+Expression Type            | SCHEMA1            | SCHEMA2 |
 ---------------------------|--------------------|-------|
 ProjectionExpression       | Schema1 accessors  | Raw Optic + implicit def -> PE |
 Filter/ConditionExpression | ZDDB API           | SchemaExpr + implicit def -> CE  |

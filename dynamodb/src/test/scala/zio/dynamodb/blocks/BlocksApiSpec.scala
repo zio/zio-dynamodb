@@ -38,6 +38,44 @@ object BlocksApiSpec extends ZIOSpecDefault {
 
   val spec = suite("BlocksApiSpec")(
     suite("ConditionExpression")(
+      suite("conjunction")(
+        test("Person.age > 18 && Person.age < 65") {
+          val ce: ConditionExpression[Person] = Person.age > 18 && Person.age < 65
+
+          assertTrue(
+            ce ==
+              ConditionExpression.And(
+                ConditionExpression.GreaterThan(
+                  ConditionExpression.Operand.ProjectionExpressionOperand(rootMapElement("age")),
+                  numberValueOperand(BigDecimal.valueOf(18))
+                ),
+                ConditionExpression.LessThan(
+                  ConditionExpression.Operand.ProjectionExpressionOperand(rootMapElement("age")),
+                  numberValueOperand(BigDecimal.valueOf(65))
+                )
+              )
+          )
+        }
+      ),
+      suite("disjunction")(
+        test("Person.age < 18 || Person.age > 65") {
+          val ce: ConditionExpression[Person] = Person.age < 18 || Person.age > 65
+
+          assertTrue(
+            ce ==
+              ConditionExpression.Or(
+                ConditionExpression.LessThan(
+                  ConditionExpression.Operand.ProjectionExpressionOperand(rootMapElement("age")),
+                  numberValueOperand(BigDecimal.valueOf(18))
+                ),
+                ConditionExpression.GreaterThan(
+                  ConditionExpression.Operand.ProjectionExpressionOperand(rootMapElement("age")),
+                  numberValueOperand(BigDecimal.valueOf(65))
+                )
+              )
+          )
+        }
+      ),
       suite("ProjectionExpressionOperand with ValueOperand")(
         test("Person.age > 18") {
           val ce: ConditionExpression[Person] = Person.age > 18
