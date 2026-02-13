@@ -26,7 +26,10 @@ object BlocksApiSpec extends ZIOSpecDefault {
     val age: Lens[Person, Int]   = $(_.age)
   }
 
-  object PersonId extends Newtype[String]
+  object PersonId extends Newtype[String] {
+    implicit val x: Schema[blocks.BlocksApiSpec.PersonId.Type] =
+      Schema[String].transform(s => PersonId(s), (personId: PersonId) => PersonId.unwrap(personId))
+  }
   type PersonId = PersonId.Type
 
   final case class PersonWithPreludeNewtype(personId: PersonId, age: Int)
@@ -37,7 +40,7 @@ object BlocksApiSpec extends ZIOSpecDefault {
   }
 
   val spec = suite("BlocksApiSpec should")(
-    suite("automatically convert ShemaExpr to a ConditionExpression")(
+    suite("automatically convert SchemaExpr to a ConditionExpression")(
       suite("conjunction")(
         test("Person.age > 18 && Person.age < 65") {
           val ce: ConditionExpression[Person] = Person.age > 18 && Person.age < 65
@@ -151,7 +154,7 @@ object BlocksApiSpec extends ZIOSpecDefault {
         }
       )
     ), // end ConditionExpression suite
-    suite("automatically convert ShemaExpr to a KeyCondition")(
+    suite("automatically convert SchemaExpr to a KeyCondition")(
       test("Person.id === 'abc'") {
         val schemaExpr: SchemaExpr[Person, Boolean] = Person.id === "abc"
         val kce: KeyConditionExpr[Person]           = schemaExpr
@@ -161,9 +164,6 @@ object BlocksApiSpec extends ZIOSpecDefault {
         )
       },
       test("PersonWithPreludeNewType.personId === 'abc'") {
-        // TODO: Avi - see if there is any Blocks machinery to auto derive Newtype schemas
-        implicit val x: Schema[blocks.BlocksApiSpec.PersonId.Type] =
-          Schema[String].transform(s => PersonId(s), (personId: PersonId) => PersonId.unwrap(personId))
 
         val schemaExpr: SchemaExpr[PersonWithPreludeNewtype, Boolean] =
           PersonWithPreludeNewtype.personId === PersonId("abc")
