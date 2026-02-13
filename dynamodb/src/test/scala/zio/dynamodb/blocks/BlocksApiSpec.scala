@@ -36,8 +36,8 @@ object BlocksApiSpec extends ZIOSpecDefault {
     val age: Lens[PersonWithPreludeNewtype, Int]           = $(_.age)
   }
 
-  val spec = suite("BlocksApiSpec")(
-    suite("ConditionExpression")(
+  val spec = suite("BlocksApiSpec should")(
+    suite("automatically convert ShemaExpr to a ConditionExpression")(
       suite("conjunction")(
         test("Person.age > 18 && Person.age < 65") {
           val ce: ConditionExpression[Person] = Person.age > 18 && Person.age < 65
@@ -151,7 +151,7 @@ object BlocksApiSpec extends ZIOSpecDefault {
         }
       )
     ), // end ConditionExpression suite
-    suite("KeyCondition")(
+    suite("automatically convert ShemaExpr to a KeyCondition")(
       test("Person.id === 'abc'") {
         val schemaExpr: SchemaExpr[Person, Boolean] = Person.id === "abc"
         val kce: KeyConditionExpr[Person]           = schemaExpr

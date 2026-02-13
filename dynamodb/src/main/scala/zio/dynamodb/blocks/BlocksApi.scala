@@ -215,7 +215,7 @@ trait LowPrioritySchemaExprConversions {
             ),
             SchemaExpr.LogicalOperator.And
           ) =>
-        val pkEquals = topLevelLensFieldName(pkLens) match {
+        val pkEquals                                    = topLevelLensFieldName(pkLens) match {
           case Some(field) =>
             val enc                     = pkSchema.derive(DynamoDBCodecDeriver).encoder
             val attrVal: AttributeValue = enc(pkVal)
@@ -223,7 +223,7 @@ trait LowPrioritySchemaExprConversions {
           case _           =>
             throw new Exception(s"Expected a top level field in the lens, got: $pkLens")
         }
-        val skEquals = topLevelLensFieldName(skLens) match {
+        val skEquals: KeyConditionExpr.SortKeyEquals[S] = topLevelLensFieldName(skLens) match {
           case Some(field) =>
             val enc                     = skSchema.derive(DynamoDBCodecDeriver).encoder
             val attrVal: AttributeValue = enc(skVal)
