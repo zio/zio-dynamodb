@@ -27,33 +27,59 @@ object BlocksApi extends LowPrioritySchemaExprConversions {
   implicit def fromOptionalToProjectionExpression[S, A](optional: Optional[S, A]): ProjectionExpression[S, A] =
     OpticToPE.pe(optional)
 
-  implicit class OptionalToUpdateExpression[From, To: ToAttributeValue](optional: Optional[From, To]) {
-    // TODO: other ops like ADD etc etc
-    def set(a: To): UpdateExpression.Action.SetAction[From, To] =
-      UpdateExpression.Action.SetAction(
-        OpticToPE.pe(optional),
-        UpdateExpression.SetOperand.ValueOperand(ToAttributeValue[To].toAttributeValue(a))
-      )
+//  implicit class OptionalToUpdateExpression[From, To: ToAttributeValue](optional: Optional[From, To]) {
+//    // TODO: other ops like ADD etc etc
+//    def set(a: To): UpdateExpression.Action.SetAction[From, To] =
+//      UpdateExpression.Action.SetAction(
+//        OpticToPE.pe(optional),
+//        UpdateExpression.SetOperand.ValueOperand(ToAttributeValue[To].toAttributeValue(a))
+//      )
+//
+//    def add(a: To): UpdateExpression.Action.AddAction[From] =
+//      UpdateExpression.Action.AddAction(
+//        OpticToPE.pe(optional),
+//        ToAttributeValue[To].toAttributeValue(a)
+//      )
+//
+//    def setIfNotExists(a: To): UpdateExpression.Action.SetAction[From, To] = {
+//      val pe = OpticToPE.pe(optional)
+//      UpdateExpression.Action.SetAction(
+//        pe,
+//        UpdateExpression.SetOperand.IfNotExists(
+//          pe,
+//          ToAttributeValue[To].toAttributeValue(a)
+//        )
+//      )
+//    }
+//  }
 
-    def add(a: To): UpdateExpression.Action.AddAction[From] =
-      UpdateExpression.Action.AddAction(
-        OpticToPE.pe(optional),
-        ToAttributeValue[To].toAttributeValue(a)
-      )
+//  implicit class LensToUpdateExpression[From, To: ToAttributeValue](lens: Lens[From, To]) {
+//    // TODO: other ops like ADD etc etc
+//    def set(a: To): UpdateExpression.Action.SetAction[From, To] =
+//      UpdateExpression.Action.SetAction(
+//        OpticToPE.pe(lens),
+//        UpdateExpression.SetOperand.ValueOperand(ToAttributeValue[To].toAttributeValue(a))
+//      )
+//
+//    def add(a: To): UpdateExpression.Action.AddAction[From] =
+//      UpdateExpression.Action.AddAction(
+//        OpticToPE.pe(lens),
+//        ToAttributeValue[To].toAttributeValue(a)
+//      )
+//
+//    def setIfNotExists(a: To): UpdateExpression.Action.SetAction[From, To] = {
+//      val pe = OpticToPE.pe(lens)
+//      UpdateExpression.Action.SetAction(
+//        pe,
+//        UpdateExpression.SetOperand.IfNotExists(
+//          pe,
+//          ToAttributeValue[To].toAttributeValue(a)
+//        )
+//      )
+//    }
+//  }
 
-    def setIfNotExists(a: To): UpdateExpression.Action.SetAction[From, To] = {
-      val pe = OpticToPE.pe(optional)
-      UpdateExpression.Action.SetAction(
-        pe,
-        UpdateExpression.SetOperand.IfNotExists(
-          pe,
-          ToAttributeValue[To].toAttributeValue(a)
-        )
-      )
-    }
-  }
-
-  implicit class LensToUpdateExpression[From, To: ToAttributeValue](lens: Lens[From, To]) {
+  implicit class OpticToUpdateExpression[From, To: ToAttributeValue](lens: Optic[From, To]) {
     // TODO: other ops like ADD etc etc
     def set(a: To): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
@@ -78,6 +104,7 @@ object BlocksApi extends LowPrioritySchemaExprConversions {
       )
     }
   }
+
 }
 
 /*

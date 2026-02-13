@@ -1,9 +1,16 @@
 package zio.dynamodb.blocks
 
-import zio.blocks.schema.{ DynamicOptic, DynamicValue, Lens, Optional, PrimitiveValue }
+import zio.blocks.schema.{ DynamicOptic, DynamicValue, Lens, Optic, Optional, PrimitiveValue }
 import zio.dynamodb.ProjectionExpression
 
 object OpticToPE {
+
+  def pe[S, A](optic: Optic[S, A]): ProjectionExpression[S, A] =
+    optic match {
+      case lens: Lens[S, A]         => pe(lens)
+      case optional: Optional[S, A] => pe(optional)
+      case _                        => throw new Exception(s"unexpected optic: $optic")
+    }
 
   // Lens[S, A] implies that there is no INDEXED access in any part of the path
   // so no need to prune optional nodes
