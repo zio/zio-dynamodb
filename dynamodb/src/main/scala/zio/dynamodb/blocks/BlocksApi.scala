@@ -79,22 +79,22 @@ object BlocksApi extends LowPrioritySchemaExprConversions {
 //    }
 //  }
 
-  implicit class OpticToUpdateExpression[From, To: ToAttributeValue](lens: Optic[From, To]) {
+  implicit class OpticToUpdateExpression[From, To: ToAttributeValue](optic: Optic[From, To]) {
     // TODO: other ops like ADD etc etc
     def set(a: To): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
-        OpticToPE.pe(lens),
+        OpticToPE.pe(optic),
         UpdateExpression.SetOperand.ValueOperand(ToAttributeValue[To].toAttributeValue(a))
       )
 
     def add(a: To): UpdateExpression.Action.AddAction[From] =
       UpdateExpression.Action.AddAction(
-        OpticToPE.pe(lens),
+        OpticToPE.pe(optic),
         ToAttributeValue[To].toAttributeValue(a)
       )
 
     def setIfNotExists(a: To): UpdateExpression.Action.SetAction[From, To] = {
-      val pe = OpticToPE.pe(lens)
+      val pe = OpticToPE.pe(optic)
       UpdateExpression.Action.SetAction(
         pe,
         UpdateExpression.SetOperand.IfNotExists(
