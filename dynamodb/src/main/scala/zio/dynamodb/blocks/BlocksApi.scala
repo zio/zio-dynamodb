@@ -164,19 +164,6 @@ trait LowPrioritySchemaExprConversions {
   def schemaExprToPrimaryKeyExpr[S, A](
     expr: SchemaExpr[S, A]
   ): KeyConditionExpr.PrimaryKeyExpr[S] = {
-    def topLevelLensFieldName[S, A](lens: Lens[S, A]): Option[String] = {
-      val nodes = lens.toDynamic.nodes
-      if (nodes.length != 1)
-        None
-      else
-        nodes(0) match {
-          case DynamicOptic.Node.Field(name) =>
-            Some(name)
-          case _                             => None
-        }
-
-    }
-
     def topLevelLensFieldNameUnsafe[S, A](lens: Lens[S, A]): String = {
       val nodes = lens.toDynamic.nodes
       if (nodes.length != 1)
