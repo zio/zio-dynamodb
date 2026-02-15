@@ -99,15 +99,6 @@ trait LowPrioritySchemaExprConversions {
   private def schemaExprToConditionExpression[A, B](
     expr: SchemaExpr[A, B]
   ): ConditionExpression[A] = {
-    def opticToPE[S, A](optic: Optic[S, A]): ProjectionExpression[S, A] =
-      optic match {
-        case l: Lens[S, A]     =>
-          OpticToPE.pe(l)
-        case o: Optional[S, A] =>
-          OpticToPE.pe(o)
-        case _                 =>
-          throw new Exception("not a lens")
-      }
 
     def toRelationalConditionExpression[A](
       left: ConditionExpression.Operand[A, _],
@@ -146,7 +137,7 @@ trait LowPrioritySchemaExprConversions {
         val enc                     = schema.derive(DynamoDBCodecDeriver).encoder
         val attrVal: AttributeValue = enc(a)
 
-        val pe           = opticToPE(o)
+        val pe           = OpticToPE.pe(o)
         val peOperand    = ConditionExpression.Operand.ProjectionExpressionOperand[A](pe)
         val valueOperand = ConditionExpression.Operand.ValueOperand[A](attrVal)
         toRelationalConditionExpression(peOperand, valueOperand, operator)
