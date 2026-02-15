@@ -212,4 +212,13 @@ trait LowPrioritySchemaExprConversions {
     }
   }
 
+  implicit def fromSchemaExprToExtendedCompositePrimaryKeyExpr[A, B](
+    expr: SchemaExpr[A, B]
+  ): KeyConditionExpr.ExtendedCompositePrimaryKeyExpr[A] =
+    schemaExprToExtendedCompositePrimaryKeyExpr(expr)
+
+  private[this] def schemaExprToExtendedCompositePrimaryKeyExpr[S, A](
+    expr: SchemaExpr[S, A]
+  ): KeyConditionExpr.ExtendedCompositePrimaryKeyExpr[S] = ???
+
 }

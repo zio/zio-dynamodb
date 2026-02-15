@@ -2,7 +2,12 @@ package zio.dynamodb.blocks
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema, SchemaExpr }
 import zio.dynamodb.ConditionExpression.Operand
-import zio.dynamodb.KeyConditionExpr.{ CompositePrimaryKeyExpr, PartitionKeyEquals, SortKeyEquals }
+import zio.dynamodb.KeyConditionExpr.{
+  CompositePrimaryKeyExpr,
+  ExtendedCompositePrimaryKeyExpr,
+  PartitionKeyEquals,
+  SortKeyEquals
+}
 import zio.dynamodb.UpdateExpression.Action
 import zio.dynamodb.{
   blocks,
@@ -15,7 +20,7 @@ import zio.dynamodb.{
   UpdateExpression
 }
 import zio.prelude.Newtype
-import zio.test.{ assertTrue, ZIOSpecDefault }
+import zio.test.{ assertTrue, TestAspect, ZIOSpecDefault }
 
 object BlocksApiSpec extends ZIOSpecDefault {
   import BlocksApi._
@@ -186,7 +191,18 @@ object BlocksApiSpec extends ZIOSpecDefault {
             SortKeyEquals(SortKey("age"), value = AttributeValue.Number(BigDecimal.valueOf(18)))
           )
         )
-      }
+      },
+      test("Person.id === 'abc' && Person.age > 18") {
+        val kce: KeyConditionExpr[Person] = (Person.id === "abc") && (Person.age >= 18)
+
+        assertTrue(
+          kce == ExtendedCompositePrimaryKeyExpr(
+            PartitionKeyEquals(PartitionKey("id"), value = AttributeValue.String("abc")),
+            KeyConditionExpr.ExtendedSortKeyExpr
+              .GreaterThan(SortKey("age"), value = AttributeValue.Number(BigDecimal.valueOf(18)))
+          )
+        )
+      } @@ TestAspect.ignore
     ),
     suite("automatically convert SchemaExpr to an UpdateExpression")(
       test("Person.age.add(1)") {
