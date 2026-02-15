@@ -27,58 +27,6 @@ object BlocksApi extends LowPrioritySchemaExprConversions {
   implicit def fromOptionalToProjectionExpression[S, A](optional: Optional[S, A]): ProjectionExpression[S, A] =
     OpticToPE.pe(optional)
 
-//  implicit class OptionalToUpdateExpression[From, To: ToAttributeValue](optional: Optional[From, To]) {
-//    // TODO: other ops like ADD etc etc
-//    def set(a: To): UpdateExpression.Action.SetAction[From, To] =
-//      UpdateExpression.Action.SetAction(
-//        OpticToPE.pe(optional),
-//        UpdateExpression.SetOperand.ValueOperand(ToAttributeValue[To].toAttributeValue(a))
-//      )
-//
-//    def add(a: To): UpdateExpression.Action.AddAction[From] =
-//      UpdateExpression.Action.AddAction(
-//        OpticToPE.pe(optional),
-//        ToAttributeValue[To].toAttributeValue(a)
-//      )
-//
-//    def setIfNotExists(a: To): UpdateExpression.Action.SetAction[From, To] = {
-//      val pe = OpticToPE.pe(optional)
-//      UpdateExpression.Action.SetAction(
-//        pe,
-//        UpdateExpression.SetOperand.IfNotExists(
-//          pe,
-//          ToAttributeValue[To].toAttributeValue(a)
-//        )
-//      )
-//    }
-//  }
-
-//  implicit class LensToUpdateExpression[From, To: ToAttributeValue](lens: Lens[From, To]) {
-//    // TODO: other ops like ADD etc etc
-//    def set(a: To): UpdateExpression.Action.SetAction[From, To] =
-//      UpdateExpression.Action.SetAction(
-//        OpticToPE.pe(lens),
-//        UpdateExpression.SetOperand.ValueOperand(ToAttributeValue[To].toAttributeValue(a))
-//      )
-//
-//    def add(a: To): UpdateExpression.Action.AddAction[From] =
-//      UpdateExpression.Action.AddAction(
-//        OpticToPE.pe(lens),
-//        ToAttributeValue[To].toAttributeValue(a)
-//      )
-//
-//    def setIfNotExists(a: To): UpdateExpression.Action.SetAction[From, To] = {
-//      val pe = OpticToPE.pe(lens)
-//      UpdateExpression.Action.SetAction(
-//        pe,
-//        UpdateExpression.SetOperand.IfNotExists(
-//          pe,
-//          ToAttributeValue[To].toAttributeValue(a)
-//        )
-//      )
-//    }
-//  }
-
   implicit class OpticToUpdateExpression[From, To: ToAttributeValue](optic: Optic[From, To]) {
     // TODO: other ops like ADD etc etc
     def set(a: To): UpdateExpression.Action.SetAction[From, To] =
@@ -138,6 +86,24 @@ Operand extends ConditionExpression
  */
 
 trait LowPrioritySchemaExprConversions {
+  def topLevelLensFieldNameAndAttrVal[S, A](lens: Lens[S, A], s: Schema[A], a: A): Option[(String, AttributeValue)] = {
+    val nodes      = lens.toDynamic.nodes
+    val maybeField =
+      if (nodes.length != 1)
+        None
+      else
+        nodes(0) match {
+          case DynamicOptic.Node.Field(name) =>
+            Some(name)
+          case _                             => None
+        }
+    for {
+      field <- maybeField
+      enc     = s.derive(DynamoDBCodecDeriver).encoder
+      attrVal = enc(a)
+    } yield (field, attrVal)
+  }
+
   implicit def fromSchemaExprToPKExpression[A, B](
     expr: SchemaExpr[A, B]
   ): KeyConditionExpr.PrimaryKeyExpr[A] =
