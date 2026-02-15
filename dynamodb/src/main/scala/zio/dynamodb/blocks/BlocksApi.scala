@@ -20,6 +20,10 @@ Expression Type            | SCHEMA1            | SCHEMA2 |
 
  */
 object BlocksApi extends LowPrioritySchemaExprConversions {
+  implicit def fromSchemaExprToPKExpression[A, B](
+    expr: SchemaExpr[A, B]
+  ): KeyConditionExpr.PrimaryKeyExpr[A] =
+    schemaExprToPrimaryKeyExpr(expr)
 
   implicit def fromLensToProjectionExpression[S, A](lens: Lens[S, A]): ProjectionExpression[S, A] =
     OpticToPE.pe(lens)
@@ -86,28 +90,6 @@ Operand extends ConditionExpression
  */
 
 trait LowPrioritySchemaExprConversions {
-  def topLevelLensFieldNameAndAttrVal[S, A](lens: Lens[S, A], s: Schema[A], a: A): Option[(String, AttributeValue)] = {
-    val nodes      = lens.toDynamic.nodes
-    val maybeField =
-      if (nodes.length != 1)
-        None
-      else
-        nodes(0) match {
-          case DynamicOptic.Node.Field(name) =>
-            Some(name)
-          case _                             => None
-        }
-    for {
-      field <- maybeField
-      enc     = s.derive(DynamoDBCodecDeriver).encoder
-      attrVal = enc(a)
-    } yield (field, attrVal)
-  }
-
-  implicit def fromSchemaExprToPKExpression[A, B](
-    expr: SchemaExpr[A, B]
-  ): KeyConditionExpr.PrimaryKeyExpr[A] =
-    schemaExprToPrimaryKeyExpr(expr)
 
   implicit def fromSchemaExprToConditionExpression[A, B](
     expr: SchemaExpr[A, B]
@@ -179,7 +161,7 @@ trait LowPrioritySchemaExprConversions {
     }
   }
 
-  private[this] def schemaExprToPrimaryKeyExpr[S, A](
+  def schemaExprToPrimaryKeyExpr[S, A](
     expr: SchemaExpr[S, A]
   ): KeyConditionExpr.PrimaryKeyExpr[S] = {
     def topLevelLensFieldName[S, A](lens: Lens[S, A]): Option[String] = {
@@ -195,6 +177,19 @@ trait LowPrioritySchemaExprConversions {
 
     }
 
+    def topLevelLensFieldNameUnsafe[S, A](lens: Lens[S, A]): String = {
+      val nodes = lens.toDynamic.nodes
+      if (nodes.length != 1)
+        throw new Exception(s"Expected a single node in the lens, got: ${nodes.length}")
+      else
+        nodes(0) match {
+          case DynamicOptic.Node.Field(name) =>
+            name
+          case _                             => throw new Exception(s"Expected a field node in the lens, got: ${nodes(0)}")
+        }
+
+    }
+
     expr match {
       // simplest use case - a single partition key at the top level with an equality op to a literal value
       case SchemaExpr.Relational(
@@ -203,14 +198,10 @@ trait LowPrioritySchemaExprConversions {
             RelationalOperator.Equal
           ) =>
         // get field name from the lens
-        topLevelLensFieldName(lens) match {
-          case Some(field) =>
-            val enc                     = schema.derive(DynamoDBCodecDeriver).encoder
-            val attrVal: AttributeValue = enc(a)
-            PartitionKeyEquals[S](PartitionKey(field), attrVal)
-          case _           =>
-            throw new Exception(s"Expected a top level field in the lens, got: $lens")
-        }
+        val field                   = topLevelLensFieldNameUnsafe(lens)
+        val enc                     = schema.derive(DynamoDBCodecDeriver).encoder
+        val attrVal: AttributeValue = enc(a)
+        PartitionKeyEquals[S](PartitionKey(field), attrVal)
       // composite primary key expression - partition key equality And sort key equality
       case SchemaExpr.Logical(
             SchemaExpr.Relational(
@@ -225,21 +216,17 @@ trait LowPrioritySchemaExprConversions {
             ),
             SchemaExpr.LogicalOperator.And
           ) =>
-        val pkEquals                                    = topLevelLensFieldName(pkLens) match {
-          case Some(field) =>
-            val enc                     = pkSchema.derive(DynamoDBCodecDeriver).encoder
-            val attrVal: AttributeValue = enc(pkVal)
-            PartitionKeyEquals[S](PartitionKey(field), attrVal)
-          case _           =>
-            throw new Exception(s"Expected a top level field in the lens, got: $pkLens")
+        val pkEquals = {
+          val field                   = topLevelLensFieldNameUnsafe(pkLens)
+          val enc                     = pkSchema.derive(DynamoDBCodecDeriver).encoder
+          val attrVal: AttributeValue = enc(pkVal)
+          PartitionKeyEquals[S](PartitionKey(field), attrVal)
         }
-        val skEquals: KeyConditionExpr.SortKeyEquals[S] = topLevelLensFieldName(skLens) match {
-          case Some(field) =>
-            val enc                     = skSchema.derive(DynamoDBCodecDeriver).encoder
-            val attrVal: AttributeValue = enc(skVal)
-            KeyConditionExpr.SortKeyEquals[S](SortKey(field), attrVal)
-          case _           =>
-            throw new Exception(s"Expected a top level field in the lens, got: $skLens")
+        val skEquals: KeyConditionExpr.SortKeyEquals[S] = {
+          val field                   = topLevelLensFieldNameUnsafe(skLens)
+          val enc                     = skSchema.derive(DynamoDBCodecDeriver).encoder
+          val attrVal: AttributeValue = enc(skVal)
+          KeyConditionExpr.SortKeyEquals[S](SortKey(field), attrVal)
         }
         CompositePrimaryKeyExpr(pkEquals, skEquals)
       case expr =>
