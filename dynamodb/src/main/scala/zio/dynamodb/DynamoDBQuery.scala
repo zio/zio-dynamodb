@@ -26,10 +26,12 @@ import zio.dynamodb.DynamoDBQuery.{
   Zip
 }
 import zio.dynamodb.UpdateExpression.Action
+import zio.dynamodb.blocks.BlocksApi
 import zio.prelude.ForEachOps
 import zio.schema.Schema
 import zio.stream.Stream
 import zio.{ Chunk, Schedule, ZIO }
+
 import scala.annotation.nowarn
 
 sealed trait DynamoDBQuery[-In, +Out] { self =>
@@ -551,6 +553,14 @@ object DynamoDBQuery {
     primaryKeyExpr: KeyConditionExpr.PrimaryKeyExpr[From]
   ): DynamoDBQuery[From, Either[ItemError, From]] =
     get(tableName, primaryKeyExpr.asAttrMap, SchemaCodec[From].projectionsFromSchema)
+
+  // TODO: Avi - use TableName name to differentiate overloading for now
+  def get[A, From: SchemaCodec](tableName: TableName)(
+    primaryKeyExpr: zio.blocks.schema.SchemaExpr[From, A]
+  ): DynamoDBQuery[From, Either[ItemError, From]] = {
+    val pkExpr: KeyConditionExpr.PrimaryKeyExpr[From] = BlocksApi.schemaExprToPrimaryKeyExpr(primaryKeyExpr)
+    get(tableName.value, pkExpr.asAttrMap, SchemaCodec[From].projectionsFromSchema)
+  }
 
   /**
    * Sometimes we want to save top level sum types to DynamoDB and we want to retrieve them back as the subtype
