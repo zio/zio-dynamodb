@@ -1,5 +1,6 @@
 package zio.dynamodb
 
+import zio.blocks.schema.SchemaExpr
 import zio.dynamodb.DynamoDBError.BatchError
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.DynamoDBError.ItemError.ValueNotFound
@@ -26,6 +27,7 @@ import zio.dynamodb.DynamoDBQuery.{
   Zip
 }
 import zio.dynamodb.UpdateExpression.Action
+import zio.dynamodb.blocks.BlocksApi
 import zio.prelude.ForEachOps
 import zio.schema.Schema
 import zio.stream.Stream
@@ -390,6 +392,27 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         s.copy(keyConditionExpr = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case _            => self
     }
+
+  def whereKey[A, From](schemaExpr: SchemaExpr[From, A]): DynamoDBQuery[In, Out] = {
+    println(s"XXXXXX whereKey with schemaExpr: $schemaExpr")
+    self match {
+      case Zip(left, right, zippable, _) =>
+        Zip(left.whereKey(schemaExpr), right.whereKey(schemaExpr), zippable)
+      case Map(query, mapper)            => Map(query.whereKey(schemaExpr), mapper)
+      case Absolve(query)                => Absolve(query.whereKey(schemaExpr))
+
+      case s: QuerySome =>
+        val pkExpr =
+          BlocksApi.schemaExprToExtendedCompositePrimaryKeyExpr(schemaExpr)
+        s.copy(keyConditionExpr = Some(pkExpr)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case s: QueryAll  =>
+        val pkExpr =
+          BlocksApi.schemaExprToExtendedCompositePrimaryKeyExpr(schemaExpr)
+        println(s"XXXXXX whereKey with native expr: $pkExpr")
+        s.copy(keyConditionExpr = Some(pkExpr)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case _            => self
+    }
+  }
 
   def withRetryPolicy(retryPolicy: Schedule[Any, Throwable, Any]): DynamoDBQuery[In, Out] =
     self match {

@@ -1,9 +1,9 @@
 package zio.dynamodb.blocks
 
 import zio.blocks.schema.SchemaExpr.RelationalOperator
-import zio.dynamodb._
 import zio.blocks.schema._
 import zio.dynamodb.KeyConditionExpr.{ CompositePrimaryKeyExpr, PartitionKeyEquals }
+import zio.dynamodb._
 
 import scala.language.implicitConversions
 
@@ -20,10 +20,6 @@ Expression Type            | SCHEMA1            | SCHEMA2 |
 
  */
 object BlocksApi extends LowPrioritySchemaExprConversions {
-  implicit def fromSchemaExprToPKExpression[A, B](
-    expr: SchemaExpr[A, B]
-  ): KeyConditionExpr.PrimaryKeyExpr[A] =
-    schemaExprToPrimaryKeyExpr(expr)
 
   implicit def fromLensToProjectionExpression[S, A](lens: Lens[S, A]): ProjectionExpression[S, A] =
     OpticToPE.pe(lens)
@@ -152,22 +148,22 @@ trait LowPrioritySchemaExprConversions {
     }
   }
 
+  private def topLevelLensFieldNameUnsafe[S, A](lens: Optic[S, A]): String = {
+    val nodes = lens.toDynamic.nodes
+    if (nodes.length != 1)
+      throw new Exception(s"Expected a single node in the lens, got: ${nodes.length}")
+    else
+      nodes(0) match {
+        case DynamicOptic.Node.Field(name) =>
+          name
+        case _                             => throw new Exception(s"Expected a field node in the lens, got: ${nodes(0)}")
+      }
+
+  }
+
   def schemaExprToPrimaryKeyExpr[S, A](
     expr: SchemaExpr[S, A]
-  ): KeyConditionExpr.PrimaryKeyExpr[S] = {
-    def topLevelLensFieldNameUnsafe[S, A](lens: Lens[S, A]): String = {
-      val nodes = lens.toDynamic.nodes
-      if (nodes.length != 1)
-        throw new Exception(s"Expected a single node in the lens, got: ${nodes.length}")
-      else
-        nodes(0) match {
-          case DynamicOptic.Node.Field(name) =>
-            name
-          case _                             => throw new Exception(s"Expected a field node in the lens, got: ${nodes(0)}")
-        }
-
-    }
-
+  ): KeyConditionExpr.PrimaryKeyExpr[S] =
     expr match {
       // simplest use case - a single partition key at the top level with an equality op to a literal value
       case SchemaExpr.Relational(
@@ -210,15 +206,49 @@ trait LowPrioritySchemaExprConversions {
       case expr =>
         throw new Exception(s"unexpected SchemaExpr: $expr")
     }
-  }
 
+  def schemaExprToExtendedCompositePrimaryKeyExpr[S, A](
+    expr: SchemaExpr[S, A]
+  ): KeyConditionExpr.ExtendedCompositePrimaryKeyExpr[S] =
+    expr match { // (Person.id === "abc") && (Person.age > 18)
+      case SchemaExpr.Logical(
+            SchemaExpr.Relational(
+              SchemaExpr.Optic(pkLens),
+              SchemaExpr.Literal(pkVal, pkSchema),
+              RelationalOperator.Equal
+            ),
+            SchemaExpr.Relational(
+              SchemaExpr.Optic(skLens),
+              SchemaExpr.Literal(skVal, skSchema),
+              nonEqualityOp
+            ),
+            SchemaExpr.LogicalOperator.And
+          ) =>
+        val pkEquals = {
+          val field                   = topLevelLensFieldNameUnsafe(pkLens)
+          val enc                     = pkSchema.derive(DynamoDBCodecDeriver).encoder
+          val attrVal: AttributeValue = enc(pkVal)
+          PartitionKeyEquals[S](PartitionKey(field), attrVal)
+        }
+        val skCompare: KeyConditionExpr.ExtendedSortKeyExpr[S, A] = {
+          val field                   = topLevelLensFieldNameUnsafe(skLens)
+          val enc                     = skSchema.derive(DynamoDBCodecDeriver).encoder
+          val attrVal: AttributeValue = enc(skVal)
+          println(s"XXXXXXXXX $nonEqualityOp")
+          nonEqualityOp match {
+            case RelationalOperator.GreaterThan =>
+              KeyConditionExpr.ExtendedSortKeyExpr.GreaterThan(SortKey(field), attrVal)
+            case _                              => ??? // TODO: Avi - implement other ops like LessThan, GreaterThan, LessThanOrEqual
+          }
+        }
+        KeyConditionExpr.ExtendedCompositePrimaryKeyExpr(pkEquals, skCompare)
+      case expr => throw new Exception(s"unexpected SchemaExpr 3 for ExtendedCompositePrimaryKeyExpr: $expr")
+    }
+
+  // TODO: Avi - delete
   implicit def fromSchemaExprToExtendedCompositePrimaryKeyExpr[A, B](
     expr: SchemaExpr[A, B]
   ): KeyConditionExpr.ExtendedCompositePrimaryKeyExpr[A] =
     schemaExprToExtendedCompositePrimaryKeyExpr(expr)
-
-  private[this] def schemaExprToExtendedCompositePrimaryKeyExpr[S, A](
-    expr: SchemaExpr[S, A]
-  ): KeyConditionExpr.ExtendedCompositePrimaryKeyExpr[S] = ???
 
 }
