@@ -9,18 +9,9 @@ import zio.dynamodb.KeyConditionExpr.{
   SortKeyEquals
 }
 import zio.dynamodb.UpdateExpression.Action
-import zio.dynamodb.{
-  blocks,
-  AttributeValue,
-  ConditionExpression,
-  KeyConditionExpr,
-  PartitionKey,
-  ProjectionExpression,
-  SortKey,
-  UpdateExpression
-}
+import zio.dynamodb._
 import zio.prelude.Newtype
-import zio.test.{ assertTrue, TestAspect, ZIOSpecDefault }
+import zio.test.{ assertTrue, ZIOSpecDefault }
 
 object BlocksApiSpec extends ZIOSpecDefault {
   import BlocksApi._
@@ -166,7 +157,7 @@ object BlocksApiSpec extends ZIOSpecDefault {
     suite("automatically convert SchemaExpr to a KeyCondition")(
       test("Person.id === 'abc'") {
         val schemaExpr: SchemaExpr[Person, Boolean] = Person.id === "abc"
-        val kce: KeyConditionExpr[Person]           = schemaExpr
+        val kce: KeyConditionExpr[Person]           = BlocksApi.schemaExprToPrimaryKeyExpr(schemaExpr)
 
         assertTrue(
           kce == PartitionKeyEquals(PartitionKey("id"), AttributeValue.String("abc"))
@@ -176,14 +167,15 @@ object BlocksApiSpec extends ZIOSpecDefault {
 
         val schemaExpr: SchemaExpr[PersonWithPreludeNewtype, Boolean] =
           PersonWithPreludeNewtype.personId === PersonId("abc")
-        val kce: KeyConditionExpr[PersonWithPreludeNewtype]           = schemaExpr
+        val kce: KeyConditionExpr[PersonWithPreludeNewtype]           = BlocksApi.schemaExprToPrimaryKeyExpr(schemaExpr)
 
         assertTrue(
           kce == PartitionKeyEquals(PartitionKey("personId"), AttributeValue.String("abc"))
         )
       },
       test("Person.id === 'abc' && Person.age == 18") {
-        val kce: KeyConditionExpr[Person] = (Person.id === "abc") && (Person.age === 18)
+        val schemaExpr                    = Person.id === "abc" && Person.age === 18
+        val kce: KeyConditionExpr[Person] = BlocksApi.schemaExprToPrimaryKeyExpr(schemaExpr)
 
         assertTrue(
           kce == CompositePrimaryKeyExpr(
@@ -193,7 +185,8 @@ object BlocksApiSpec extends ZIOSpecDefault {
         )
       },
       test("Person.id === 'abc' && Person.age > 18") {
-        val kce: KeyConditionExpr[Person] = (Person.id === "abc") && (Person.age >= 18)
+        val schemaExpr                    = Person.id === "abc" && Person.age > 18
+        val kce: KeyConditionExpr[Person] = BlocksApi.schemaExprToExtendedCompositePrimaryKeyExpr(schemaExpr)
 
         assertTrue(
           kce == ExtendedCompositePrimaryKeyExpr(
@@ -202,7 +195,7 @@ object BlocksApiSpec extends ZIOSpecDefault {
               .GreaterThan(SortKey("age"), value = AttributeValue.Number(BigDecimal.valueOf(18)))
           )
         )
-      } @@ TestAspect.ignore
+      }
     ),
     suite("automatically convert SchemaExpr to an UpdateExpression")(
       test("Person.age.add(1)") {
