@@ -8,7 +8,7 @@ import zio.test._
 
 object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
   val spec = suite("Blocks Schema Crud Spec")(
-    test("put and get using Blocks partition key expressions in query API") {
+    test("put and get using Blocks composite primary key expression in query API") {
       withIdAndYearKeyTable { tableName =>
         final case class Person(id: String, year: String, name: String)
         object Person extends CompanionOptics[Person] {
@@ -36,26 +36,6 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
           foundAfterDelete <-
             DynamoDBQuery2.get(tableName)(Person.id === "1" && Person.year === "2026").execute.maybeFound
         } yield assertTrue(found == person.copy(name = "Smith") && people.size == 1 && foundAfterDelete.isEmpty)
-      }
-    },
-    test("put and get using Blocks composite primary key expression in query API") {
-      withIdAndYearKeyTable { tableName =>
-        final case class Person(id: String, year: String, name: String)
-        object Person extends CompanionOptics[Person] {
-          implicit val schema: Schema[Person] = Schema.derived
-          val id: Lens[Person, String]        = $(_.id)
-          val year: Lens[Person, String]      = $(_.year)
-          val name: Lens[Person, String]      = $(_.name)
-        }
-
-        val person = Person("1", "2025", "Jones")
-        for {
-          _     <- DynamoDBQuery2.put(tableName, person).where(Person.id.notExists).execute
-          _     <- DynamoDBQuery2
-                     .update(tableName)(Person.id === "1" && Person.year === "2025")(Person.name.set("Smith"))
-                     .execute
-          found <- DynamoDBQuery2.get(tableName)(Person.id === "1" && Person.year === "2025").execute.absolve
-        } yield assertTrue(found == person.copy(name = "Smith"))
       }
     },
     suite("native Map")(
