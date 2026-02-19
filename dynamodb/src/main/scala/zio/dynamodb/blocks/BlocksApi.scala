@@ -245,7 +245,6 @@ trait LowPrioritySchemaExprConversions {
       case expr => throw new Exception(s"unexpected SchemaExpr 3 for ExtendedCompositePrimaryKeyExpr: $expr")
     }
 
-  // TODO: Avi - delete
   implicit def fromSchemaExprToExtendedCompositePrimaryKeyExpr[A, B](
     expr: SchemaExpr[A, B]
   ): KeyConditionExpr.ExtendedCompositePrimaryKeyExpr[A] =
