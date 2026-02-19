@@ -9,24 +9,33 @@ import zio.test._
 object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
   val spec = suite("Blocks Schema Crud Spec")(
     test("put and get using Blocks partition key expressions in query API") {
-      withSingleIdKeyTable { tableName =>
-        final case class Person(id: String, name: String)
+      withIdAndYearKeyTable { tableName =>
+        final case class Person(id: String, year: String, name: String)
         object Person extends CompanionOptics[Person] {
           implicit val cfg: DynamoDBCodecDeriverConfigure[Person] =
             (d: DynamoDBCodecDeriver) => d.withTransientNone(false)
           implicit val schema: Schema[Person]                     = Schema.derived
           val id: Lens[Person, String]                            = $(_.id)
           val name: Lens[Person, String]                          = $(_.name)
+          val year: Lens[Person, String]                          = $(_.year)
         }
 
-        val person = Person("1", "Jones")
+        val person = Person("1", "2026", "Jones")
         for {
           _                <- DynamoDBQuery2.put(tableName, person).where(Person.id.notExists).execute
-          _                <- DynamoDBQuery2.update(tableName)(Person.id === "1")(Person.name.set("Smith")).execute
-          found            <- DynamoDBQuery2.get(tableName)(Person.id === "1").execute.absolve
-          _                <- DynamoDBQuery2.deleteFrom(tableName)(Person.id === "1").execute
-          foundAfterDelete <- DynamoDBQuery2.get(tableName)(Person.id === "1").execute.maybeFound
-        } yield assertTrue(found == person.copy(name = "Smith") && foundAfterDelete.isEmpty)
+          _                <- DynamoDBQuery2
+                                .update(tableName)(Person.id === "1" && Person.year === "2026")(Person.name.set("Smith"))
+                                .execute
+          found            <- DynamoDBQuery2.get(tableName)(Person.id === "1" && Person.year === "2026").execute.absolve
+          stream           <- DynamoDBQuery2
+                                .queryAll[Person](tableName)
+                                .whereKey(Person.id === "1" && Person.year > "2025")
+                                .execute
+          people           <- stream.runCollect
+          _                <- DynamoDBQuery2.deleteFrom(tableName)(Person.id === "1" && Person.year === "2026").execute
+          foundAfterDelete <-
+            DynamoDBQuery2.get(tableName)(Person.id === "1" && Person.year === "2026").execute.maybeFound
+        } yield assertTrue(found == person.copy(name = "Smith") && people.size == 1 && foundAfterDelete.isEmpty)
       }
     },
     test("put and get using Blocks composite primary key expression in query API") {

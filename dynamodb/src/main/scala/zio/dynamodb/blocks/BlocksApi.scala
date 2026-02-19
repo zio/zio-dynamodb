@@ -16,7 +16,7 @@ Expression Type            | SCHEMA1            | SCHEMA2 |
 [X] Filter/ConditionExpression | ZDDB API           | SchemaExpr + implicit def -> CE  |
 [X] UpdateExpression           | ZDDB API           | SchemaExpr + implicit def -> UE |
 [X] Primary Keys               | ZDDB API           | SchemaExpr + implicit def -> PKExpr |
-[] QueryAPI                    | single API         | single API                               |
+[X] QueryAPI                   | single API         | single API                               |
 
  */
 object BlocksApi extends LowPrioritySchemaExprConversions {
