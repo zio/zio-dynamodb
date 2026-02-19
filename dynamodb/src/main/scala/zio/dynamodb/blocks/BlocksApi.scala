@@ -148,7 +148,7 @@ trait LowPrioritySchemaExprConversions {
     }
   }
 
-  private def topLevelLensFieldNameUnsafe[S, A](lens: Optic[S, A]): String = {
+  private def topLevelLensFieldNameUnsafe[S, A](lens: Lens[S, A]): String = {
     val nodes = lens.toDynamic.nodes
     if (nodes.length != 1)
       throw new Exception(s"Expected a single node in the lens, got: ${nodes.length}")
@@ -213,12 +213,12 @@ trait LowPrioritySchemaExprConversions {
     expr match { // (Person.id === "abc") && (Person.age > 18)
       case SchemaExpr.Logical(
             SchemaExpr.Relational(
-              SchemaExpr.Optic(pkLens),
+              SchemaExpr.Optic(pkLens: Lens[_, _]),
               SchemaExpr.Literal(pkVal, pkSchema),
               RelationalOperator.Equal
             ),
             SchemaExpr.Relational(
-              SchemaExpr.Optic(skLens),
+              SchemaExpr.Optic(skLens: Lens[_, _]),
               SchemaExpr.Literal(skVal, skSchema),
               nonEqualityOp
             ),
