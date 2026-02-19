@@ -61,7 +61,9 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
       case PutItem(tableName, item, _, _, _, _, _)                                =>
         fakePut(tableName, item)
 
-      // TODO Note UpdateItem is not currently supported as it uses an UpdateExpression
+      // TODO Note UpdateItem is not currently supported and is just a NOP
+      case UpdateItem(tableName, key, _, _, _, _, _)                              =>
+        fakeUpdate(tableName, key)
 
       case DeleteItem(tableName, key, _, _, _, _, _)                              =>
         fakeDelete(tableName, key)
@@ -113,6 +115,12 @@ private[dynamodb] final case class TestDynamoDBExecutorImpl private[dynamodb] (
       (tableMap, _) <- tableMapAndPkName(tableName)
       maybeItem     <- tableMap.get(pk)
     } yield maybeItem).commit
+
+  private def fakeUpdate(tableName: TableName, item: Item): IO[DynamoDBError, Option[Item]] = {
+    val _ = tableName
+    val _ = item
+    ZIO.none
+  }
 
   private def fakePut(tableName: TableName, item: Item): IO[DynamoDBError, Option[Item]] =
     (for {

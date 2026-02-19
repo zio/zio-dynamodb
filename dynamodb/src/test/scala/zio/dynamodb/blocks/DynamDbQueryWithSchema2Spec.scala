@@ -16,7 +16,7 @@ object DynamDbQueryWithSchema2Spec extends ZIOSpecDefault {
   }
   val personTable = "person"
 
-//  import BlocksApi._
+  import BlocksApi._
 
   def spec =
     suite("DynamDbQueryWithSchema2Spec")(
@@ -25,6 +25,7 @@ object DynamDbQueryWithSchema2Spec extends ZIOSpecDefault {
         for {
           _      <- DynamoDBQuery2.put(personTable, Person(id = "id", age = 42)).execute
           person <- DynamoDBQuery2.get(personTable)(Person.id === "id").execute
+          _      <- DynamoDBQuery2.update(personTable)(Person.id === "id")(Person.age.set(42)).execute
         } yield assertTrue(person.isRight)
       }
     ).provide(DynamoDBExecutor.test(personTable -> "id"))
