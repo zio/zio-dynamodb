@@ -1,7 +1,7 @@
 package zio.dynamodb.blocks
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema }
-import zio.dynamodb.{ DynamoDBExecutor, DynamoDBQuery, TableName }
+import zio.dynamodb.DynamoDBExecutor
 import zio.test.{ assertTrue, ZIOSpecDefault }
 
 object DynamDbQueryWithSchema2Spec extends ZIOSpecDefault {
@@ -14,7 +14,7 @@ object DynamDbQueryWithSchema2Spec extends ZIOSpecDefault {
     val list: Lens[Person, List[String]]         = $(_.list)
     def atList(i: Int): Optional[Person, String] = $(_.list.at(i))
   }
-  val personTable = TableName("person")
+  val personTable = "person"
 
 //  import BlocksApi._
 
@@ -23,9 +23,9 @@ object DynamDbQueryWithSchema2Spec extends ZIOSpecDefault {
       test("get using Schema2") {
 
         for {
-          _      <- DynamoDBQuery.put(personTable.value, Person(id = "id", age = 42)).execute
-          person <- DynamoDBQuery.get(personTable)(Person.id === "id").execute
+          _      <- DynamoDBQuery2.put(personTable, Person(id = "id", age = 42)).execute
+          person <- DynamoDBQuery2.get(personTable)(Person.id === "id").execute
         } yield assertTrue(person.isRight)
       }
-    ).provide(DynamoDBExecutor.test(personTable.value -> "id"))
+    ).provide(DynamoDBExecutor.test(personTable -> "id"))
 }
