@@ -403,11 +403,11 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
       case s: QuerySome =>
         val pkExpr =
-          BlocksApi.schemaExprToKeyConditionExpr(schemaExpr)
+          BlocksApi.schemaExprToKeyConditionExprUnsafe(schemaExpr)
         s.copy(keyConditionExpr = Some(pkExpr)).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: QueryAll  =>
         val pkExpr =
-          BlocksApi.schemaExprToKeyConditionExpr(schemaExpr)
+          BlocksApi.schemaExprToKeyConditionExprUnsafe(schemaExpr)
         println(s"XXXXXX whereKey with native expr: $pkExpr")
         s.copy(keyConditionExpr = Some(pkExpr)).asInstanceOf[DynamoDBQuery[In, Out]]
       case _            => self

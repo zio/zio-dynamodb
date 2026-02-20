@@ -161,9 +161,17 @@ trait LowPrioritySchemaExprConversions {
 
   }
 
-  def schemaExprToPrimaryKeyExpr[S, A](
+  def schemaExprToPrimaryKeyExprUnsafe[S, A](
     expr: SchemaExpr[S, A]
   ): KeyConditionExpr.PrimaryKeyExpr[S] =
+    schemaExprToPrimaryKeyExpr(expr) match {
+      case Right(pkExpr) => pkExpr
+      case Left(error)   => throw new IllegalArgumentException(s"Failed to convert SchemaExpr to PrimaryKeyExpr: $error")
+    }
+
+  private def schemaExprToPrimaryKeyExpr[S, A](
+    expr: SchemaExpr[S, A]
+  ): Either[String, KeyConditionExpr.PrimaryKeyExpr[S]] =
     expr match {
       // simplest use case - a single partition key at the top level with an equality op to a literal value
       case SchemaExpr.Relational(
@@ -175,7 +183,7 @@ trait LowPrioritySchemaExprConversions {
         val field                   = topLevelLensFieldNameUnsafe(lens)
         val enc                     = schema.derive(DynamoDBCodecDeriver).encoder
         val attrVal: AttributeValue = enc(a)
-        PartitionKeyEquals[S](PartitionKey(field), attrVal)
+        Right(PartitionKeyEquals[S](PartitionKey(field), attrVal))
       // composite primary key expression - partition key equality And sort key equality
       case SchemaExpr.Logical(
             SchemaExpr.Relational(
@@ -202,47 +210,54 @@ trait LowPrioritySchemaExprConversions {
           val attrVal: AttributeValue = enc(skVal)
           KeyConditionExpr.SortKeyEquals[S](SortKey(field), attrVal)
         }
-        CompositePrimaryKeyExpr(pkEquals, skEquals)
+        Right(CompositePrimaryKeyExpr(pkEquals, skEquals))
       case expr =>
-        throw new Exception(s"unexpected SchemaExpr: $expr")
+        Left(s"unexpected SchemaExpr: $expr")
     }
 
-  def schemaExprToKeyConditionExpr[S, A](
+  def schemaExprToKeyConditionExprUnsafe[S, A](
     expr: SchemaExpr[S, A]
-  ): KeyConditionExpr[S] =
-    expr match {
-      case SchemaExpr.Logical(
-            SchemaExpr.Relational(
-              SchemaExpr.Optic(pkLens: Lens[_, _]),
-              SchemaExpr.Literal(pkVal, pkSchema),
-              RelationalOperator.Equal
-            ),
-            SchemaExpr.Relational(
-              SchemaExpr.Optic(skLens: Lens[_, _]),
-              SchemaExpr.Literal(skVal, skSchema),
-              nonEqualityOp
-            ),
-            SchemaExpr.LogicalOperator.And
-          ) =>
-        val pkEquals = {
-          val field                   = topLevelLensFieldNameUnsafe(pkLens)
-          val enc                     = pkSchema.derive(DynamoDBCodecDeriver).encoder
-          val attrVal: AttributeValue = enc(pkVal)
-          PartitionKeyEquals[S](PartitionKey(field), attrVal)
-        }
-        val skCompare: KeyConditionExpr.ExtendedSortKeyExpr[S, A] = {
-          val field                   = topLevelLensFieldNameUnsafe(skLens)
-          val enc                     = skSchema.derive(DynamoDBCodecDeriver).encoder
-          val attrVal: AttributeValue = enc(skVal)
-          println(s"XXXXXXXXX $nonEqualityOp")
-          nonEqualityOp match {
-            case RelationalOperator.GreaterThan =>
-              KeyConditionExpr.ExtendedSortKeyExpr.GreaterThan(SortKey(field), attrVal)
-            case _                              => ??? // TODO: Avi - implement other ops like LessThan, GreaterThan, LessThanOrEqual
+  ): KeyConditionExpr[S] = {
+    def toKeyConditionExpr(expr: SchemaExpr[S, A]) =
+      expr match {
+        case SchemaExpr.Logical(
+              SchemaExpr.Relational(
+                SchemaExpr.Optic(pkLens: Lens[_, _]),
+                SchemaExpr.Literal(pkVal, pkSchema),
+                RelationalOperator.Equal
+              ),
+              SchemaExpr.Relational(
+                SchemaExpr.Optic(skLens: Lens[_, _]),
+                SchemaExpr.Literal(skVal, skSchema),
+                nonEqualityOp
+              ),
+              SchemaExpr.LogicalOperator.And
+            ) =>
+          val pkEquals = {
+            val field                   = topLevelLensFieldNameUnsafe(pkLens)
+            val enc                     = pkSchema.derive(DynamoDBCodecDeriver).encoder
+            val attrVal: AttributeValue = enc(pkVal)
+            PartitionKeyEquals[S](PartitionKey(field), attrVal)
           }
-        }
-        KeyConditionExpr.ExtendedCompositePrimaryKeyExpr(pkEquals, skCompare)
-      case expr => throw new Exception(s"unexpected SchemaExpr 3 for ExtendedCompositePrimaryKeyExpr: $expr")
+          val skCompare: KeyConditionExpr.ExtendedSortKeyExpr[S, A] = {
+            val field                   = topLevelLensFieldNameUnsafe(skLens)
+            val enc                     = skSchema.derive(DynamoDBCodecDeriver).encoder
+            val attrVal: AttributeValue = enc(skVal)
+            println(s"XXXXXXXXX $nonEqualityOp")
+            nonEqualityOp match {
+              case RelationalOperator.GreaterThan =>
+                KeyConditionExpr.ExtendedSortKeyExpr.GreaterThan(SortKey(field), attrVal)
+              case _                              => ??? // TODO: Avi - implement other ops like LessThan, GreaterThan, LessThanOrEqual
+            }
+          }
+          KeyConditionExpr.ExtendedCompositePrimaryKeyExpr(pkEquals, skCompare)
+        case expr => throw new Exception(s"unexpected SchemaExpr 3 for ExtendedCompositePrimaryKeyExpr: $expr")
+      }
+
+    schemaExprToPrimaryKeyExpr(expr) match {
+      case Right(pkExpr) => pkExpr
+      case Left(_)       => toKeyConditionExpr(expr)
     }
+  }
 
 }

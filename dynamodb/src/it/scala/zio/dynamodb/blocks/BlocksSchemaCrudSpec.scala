@@ -27,15 +27,22 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
                                 .update(tableName)(Person.id === "1" && Person.year === "2026")(Person.name.set("Smith"))
                                 .execute
           found            <- DynamoDBQuery2.get(tableName)(Person.id === "1" && Person.year === "2026").execute.absolve
-          stream           <- DynamoDBQuery2
+          stream1          <- DynamoDBQuery2
+                                .queryAll[Person](tableName)
+                                .whereKey(Person.id === "1")
+                                .execute
+          people1          <- stream1.runCollect
+          stream2          <- DynamoDBQuery2
                                 .queryAll[Person](tableName)
                                 .whereKey(Person.id === "1" && Person.year > "2025")
                                 .execute
-          people           <- stream.runCollect
+          people2          <- stream2.runCollect
           _                <- DynamoDBQuery2.deleteFrom(tableName)(Person.id === "1" && Person.year === "2026").execute
           foundAfterDelete <-
             DynamoDBQuery2.get(tableName)(Person.id === "1" && Person.year === "2026").execute.maybeFound
-        } yield assertTrue(found == person.copy(name = "Smith") && people.size == 1 && foundAfterDelete.isEmpty)
+        } yield assertTrue(
+          found == person.copy(name = "Smith") && people1.size == 1 && people2.size == 1 && foundAfterDelete.isEmpty
+        )
       }
     },
     suite("native Map")(

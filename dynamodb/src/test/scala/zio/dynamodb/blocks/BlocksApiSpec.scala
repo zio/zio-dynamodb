@@ -157,7 +157,7 @@ object BlocksApiSpec extends ZIOSpecDefault {
     suite("automatically convert SchemaExpr to a KeyCondition")(
       test("Person.id === 'abc'") {
         val schemaExpr: SchemaExpr[Person, Boolean] = Person.id === "abc"
-        val kce: KeyConditionExpr[Person]           = BlocksApi.schemaExprToPrimaryKeyExpr(schemaExpr)
+        val kce: KeyConditionExpr[Person]           = BlocksApi.schemaExprToPrimaryKeyExprUnsafe(schemaExpr)
 
         assertTrue(
           kce == PartitionKeyEquals(PartitionKey("id"), AttributeValue.String("abc"))
@@ -167,7 +167,7 @@ object BlocksApiSpec extends ZIOSpecDefault {
 
         val schemaExpr: SchemaExpr[PersonWithPreludeNewtype, Boolean] =
           PersonWithPreludeNewtype.personId === PersonId("abc")
-        val kce: KeyConditionExpr[PersonWithPreludeNewtype]           = BlocksApi.schemaExprToPrimaryKeyExpr(schemaExpr)
+        val kce: KeyConditionExpr[PersonWithPreludeNewtype]           = BlocksApi.schemaExprToPrimaryKeyExprUnsafe(schemaExpr)
 
         assertTrue(
           kce == PartitionKeyEquals(PartitionKey("personId"), AttributeValue.String("abc"))
@@ -175,7 +175,7 @@ object BlocksApiSpec extends ZIOSpecDefault {
       },
       test("Person.id === 'abc' && Person.age == 18") {
         val schemaExpr                    = Person.id === "abc" && Person.age === 18
-        val kce: KeyConditionExpr[Person] = BlocksApi.schemaExprToPrimaryKeyExpr(schemaExpr)
+        val kce: KeyConditionExpr[Person] = BlocksApi.schemaExprToPrimaryKeyExprUnsafe(schemaExpr)
 
         assertTrue(
           kce == CompositePrimaryKeyExpr(
@@ -186,7 +186,7 @@ object BlocksApiSpec extends ZIOSpecDefault {
       },
       test("Person.id === 'abc' && Person.age > 18") {
         val schemaExpr                    = Person.id === "abc" && Person.age > 18
-        val kce: KeyConditionExpr[Person] = BlocksApi.schemaExprToKeyConditionExpr(schemaExpr)
+        val kce: KeyConditionExpr[Person] = BlocksApi.schemaExprToKeyConditionExprUnsafe(schemaExpr)
 
         assertTrue(
           kce == ExtendedCompositePrimaryKeyExpr(
