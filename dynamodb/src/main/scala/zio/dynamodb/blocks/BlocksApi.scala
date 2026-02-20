@@ -207,10 +207,10 @@ trait LowPrioritySchemaExprConversions {
         throw new Exception(s"unexpected SchemaExpr: $expr")
     }
 
-  def schemaExprToExtendedCompositePrimaryKeyExpr[S, A](
+  def schemaExprToKeyConditionExpr[S, A](
     expr: SchemaExpr[S, A]
-  ): KeyConditionExpr.ExtendedCompositePrimaryKeyExpr[S] =
-    expr match { // (Person.id === "abc") && (Person.age > 18)
+  ): KeyConditionExpr[S] =
+    expr match {
       case SchemaExpr.Logical(
             SchemaExpr.Relational(
               SchemaExpr.Optic(pkLens: Lens[_, _]),
@@ -244,10 +244,5 @@ trait LowPrioritySchemaExprConversions {
         KeyConditionExpr.ExtendedCompositePrimaryKeyExpr(pkEquals, skCompare)
       case expr => throw new Exception(s"unexpected SchemaExpr 3 for ExtendedCompositePrimaryKeyExpr: $expr")
     }
-
-  implicit def fromSchemaExprToExtendedCompositePrimaryKeyExpr[A, B](
-    expr: SchemaExpr[A, B]
-  ): KeyConditionExpr.ExtendedCompositePrimaryKeyExpr[A] =
-    schemaExprToExtendedCompositePrimaryKeyExpr(expr)
 
 }

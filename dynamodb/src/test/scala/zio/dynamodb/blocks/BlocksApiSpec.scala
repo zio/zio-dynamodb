@@ -186,7 +186,7 @@ object BlocksApiSpec extends ZIOSpecDefault {
       },
       test("Person.id === 'abc' && Person.age > 18") {
         val schemaExpr                    = Person.id === "abc" && Person.age > 18
-        val kce: KeyConditionExpr[Person] = BlocksApi.schemaExprToExtendedCompositePrimaryKeyExpr(schemaExpr)
+        val kce: KeyConditionExpr[Person] = BlocksApi.schemaExprToKeyConditionExpr(schemaExpr)
 
         assertTrue(
           kce == ExtendedCompositePrimaryKeyExpr(
