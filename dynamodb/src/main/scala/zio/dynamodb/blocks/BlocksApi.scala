@@ -169,7 +169,7 @@ trait LowPrioritySchemaExprConversions {
       case Left(error)   => throw new IllegalArgumentException(s"Failed to convert SchemaExpr to PrimaryKeyExpr: $error")
     }
 
-  private def schemaExprToPrimaryKeyExpr[S, A](
+  private[blocks] def schemaExprToPrimaryKeyExpr[S, A](
     expr: SchemaExpr[S, A]
   ): Either[String, KeyConditionExpr.PrimaryKeyExpr[S]] =
     expr match {
@@ -217,47 +217,54 @@ trait LowPrioritySchemaExprConversions {
 
   def schemaExprToKeyConditionExprUnsafe[S, A](
     expr: SchemaExpr[S, A]
-  ): KeyConditionExpr[S] = {
-    def toKeyConditionExpr(expr: SchemaExpr[S, A]) =
-      expr match {
-        case SchemaExpr.Logical(
-              SchemaExpr.Relational(
-                SchemaExpr.Optic(pkLens: Lens[_, _]),
-                SchemaExpr.Literal(pkVal, pkSchema),
-                RelationalOperator.Equal
-              ),
-              SchemaExpr.Relational(
-                SchemaExpr.Optic(skLens: Lens[_, _]),
-                SchemaExpr.Literal(skVal, skSchema),
-                nonEqualityOp
-              ),
-              SchemaExpr.LogicalOperator.And
-            ) =>
-          val pkEquals = {
-            val field                   = topLevelLensFieldNameUnsafe(pkLens)
-            val enc                     = pkSchema.derive(DynamoDBCodecDeriver).encoder
-            val attrVal: AttributeValue = enc(pkVal)
-            PartitionKeyEquals[S](PartitionKey(field), attrVal)
-          }
-          val skCompare: KeyConditionExpr.ExtendedSortKeyExpr[S, A] = {
-            val field                   = topLevelLensFieldNameUnsafe(skLens)
-            val enc                     = skSchema.derive(DynamoDBCodecDeriver).encoder
-            val attrVal: AttributeValue = enc(skVal)
-            println(s"XXXXXXXXX $nonEqualityOp")
-            nonEqualityOp match {
-              case RelationalOperator.GreaterThan =>
-                KeyConditionExpr.ExtendedSortKeyExpr.GreaterThan(SortKey(field), attrVal)
-              case _                              => ??? // TODO: Avi - implement other ops like LessThan, GreaterThan, LessThanOrEqual
-            }
-          }
-          KeyConditionExpr.ExtendedCompositePrimaryKeyExpr(pkEquals, skCompare)
-        case expr => throw new Exception(s"unexpected SchemaExpr 3 for ExtendedCompositePrimaryKeyExpr: $expr")
-      }
-
+  ): KeyConditionExpr[S] =
     schemaExprToPrimaryKeyExpr(expr) match {
       case Right(pkExpr) => pkExpr
-      case Left(_)       => toKeyConditionExpr(expr)
+      case Left(_)       =>
+        toKeyConditionExpr(expr) match {
+          case Right(extended) => extended
+          case Left(error)     =>
+            throw new IllegalArgumentException(s"Failed to convert SchemaExpr $expr to a KeyConditionExpr: $error")
+        }
     }
-  }
+
+  private[blocks] def toKeyConditionExpr[S, A](
+    expr: SchemaExpr[S, A]
+  ): Either[String, KeyConditionExpr.ExtendedCompositePrimaryKeyExpr[S]] =
+    expr match {
+      case SchemaExpr.Logical(
+            SchemaExpr.Relational(
+              SchemaExpr.Optic(pkLens: Lens[_, _]),
+              SchemaExpr.Literal(pkVal, pkSchema),
+              RelationalOperator.Equal
+            ),
+            SchemaExpr.Relational(
+              SchemaExpr.Optic(skLens: Lens[_, _]),
+              SchemaExpr.Literal(skVal, skSchema),
+              nonEqualityOp
+            ),
+            SchemaExpr.LogicalOperator.And
+          ) =>
+        val pkEquals = {
+          val field                   = topLevelLensFieldNameUnsafe(pkLens)
+          val enc                     = pkSchema.derive(DynamoDBCodecDeriver).encoder
+          val attrVal: AttributeValue = enc(pkVal)
+          PartitionKeyEquals[S](PartitionKey(field), attrVal)
+        }
+        val skCompare: KeyConditionExpr.ExtendedSortKeyExpr[S, A] = {
+          val field                   = topLevelLensFieldNameUnsafe(skLens)
+          val enc                     = skSchema.derive(DynamoDBCodecDeriver).encoder
+          val attrVal: AttributeValue = enc(skVal)
+          println(s"XXXXXXXXX $nonEqualityOp")
+          nonEqualityOp match {
+            case RelationalOperator.GreaterThan =>
+              KeyConditionExpr.ExtendedSortKeyExpr.GreaterThan(SortKey(field), attrVal)
+            case _                              => ??? // TODO: Avi - implement other ops like LessThan, GreaterThan, LessThanOrEqual
+          }
+        }
+        Right(KeyConditionExpr.ExtendedCompositePrimaryKeyExpr(pkEquals, skCompare))
+      case expr =>
+        Left(s"unexpected SchemaExpr for ExtendedCompositePrimaryKeyExpr: $expr")
+    }
 
 }
