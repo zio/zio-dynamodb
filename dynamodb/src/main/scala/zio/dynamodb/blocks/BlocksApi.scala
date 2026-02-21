@@ -19,7 +19,7 @@ Expression Type            | SCHEMA1            | SCHEMA2 |
 [X] QueryAPI                   | single API         | single API                               |
 
  */
-object BlocksApi extends LowPrioritySchemaExprConversions {
+object BlocksApi {
 
   implicit def fromLensToProjectionExpression[S, A](lens: Lens[S, A]): ProjectionExpression[S, A] =
     OpticToPE.pe(lens)
