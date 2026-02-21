@@ -2,8 +2,11 @@ package zio.dynamodb.blocks
 
 import zio.blocks.schema.SchemaExpr.RelationalOperator
 import zio.blocks.schema._
+import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.KeyConditionExpr.{ CompositePrimaryKeyExpr, PartitionKeyEquals }
+import zio.dynamodb.UpdateExpression.Action
 import zio.dynamodb._
+import zio.stream.Stream
 
 import scala.language.implicitConversions
 
@@ -18,9 +21,56 @@ Expression Type            | SCHEMA1            | SCHEMA2 |
 [X] Primary Keys               | ZDDB API           | SchemaExpr + implicit def -> PKExpr |
 [X] QueryAPI                   | single API         | single API                               |
 
+implicit conversions
+--------------------
+Lens[S, A] -> ProjectionExpression[S, A]
+Optional[S, A] -> ProjectionExpression[S, A]
+optic: Optic[From, To] -> UpdateExpression // extension
  */
-object BlocksApi {
+object BlocksApi extends Conversions {
 
+  def put[A: SchemaCodec](tableName: String, a: A): DynamoDBQuery[A, Option[A]] =
+    DynamoDBQuery
+      .putItem(tableName, DynamoDBQuery.toItem(a))
+      .map(_.flatMap(item => DynamoDBQuery.fromItem(item).toOption))
+
+  def get[A, From: SchemaCodec](tableName: String)(
+    primaryKeyExpr: zio.blocks.schema.SchemaExpr[From, A]
+  ): DynamoDBQuery[From, Either[ItemError, From]] = {
+    val pkExpr: KeyConditionExpr.PrimaryKeyExpr[From] = BlocksApi.schemaExprToPrimaryKeyExprUnsafe(primaryKeyExpr)
+    DynamoDBQuery.get(tableName, pkExpr.asAttrMap, SchemaCodec[From].projectionsFromSchema)
+  }
+
+  def update[A, From: SchemaCodec](tableName: String)(primaryKeyExpr: zio.blocks.schema.SchemaExpr[From, A])(
+    action: Action[From]
+  ): DynamoDBQuery[From, Option[From]] = {
+    val pkExpr: KeyConditionExpr.PrimaryKeyExpr[From] = BlocksApi.schemaExprToPrimaryKeyExprUnsafe(primaryKeyExpr)
+    DynamoDBQuery
+      .updateItem(tableName, pkExpr.asAttrMap)(action)
+      .map(_.flatMap(item => DynamoDBQuery.fromItem(item).toOption))
+  }
+
+  def deleteFrom[A, From: SchemaCodec](
+    tableName: String
+  )(
+    primaryKeyExpr: zio.blocks.schema.SchemaExpr[From, A]
+  ): DynamoDBQuery[Any, Option[From]] = {
+    val pkExpr: KeyConditionExpr.PrimaryKeyExpr[From] = BlocksApi.schemaExprToPrimaryKeyExprUnsafe(primaryKeyExpr)
+    DynamoDBQuery
+      .deleteItem(tableName, pkExpr.asAttrMap)
+      .map(_.flatMap(item => DynamoDBQuery.fromItem(item).toOption))
+  }
+
+  /**
+   * when executed will return a ZStream of A
+   */
+  def queryAll[A: SchemaCodec](
+    tableName: String
+  ): DynamoDBQuery[A, Stream[Throwable, A]] = DynamoDBQuery.queryAll(tableName)
+
+}
+
+trait Conversions {
   implicit def fromLensToProjectionExpression[S, A](lens: Lens[S, A]): ProjectionExpression[S, A] =
     OpticToPE.pe(lens)
 

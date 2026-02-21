@@ -23,11 +23,11 @@ object DynamDbQueryWithSchema2Spec extends ZIOSpecDefault {
       test("get using Schema2") {
 
         for {
-          _      <- DynamoDBQuery2.put(personTable, Person(id = "id", age = 42)).execute
-          person <- DynamoDBQuery2.get(personTable)(Person.id === "id").execute
-          _      <- DynamoDBQuery2.update(personTable)(Person.id === "id")(Person.age.set(42)).execute
-          _      <- DynamoDBQuery2.deleteFrom(personTable)(Person.id === "id").execute
-          _      <- DynamoDBQuery2.queryAll[Person](personTable).whereKey(Person.id === "id" && Person.age > 18).execute
+          _      <- BlocksApi.put(personTable, Person(id = "id", age = 42)).execute
+          person <- BlocksApi.get(personTable)(Person.id === "id").execute
+          _      <- BlocksApi.update(personTable)(Person.id === "id")(Person.age.set(42)).execute
+          _      <- BlocksApi.deleteFrom(personTable)(Person.id === "id").execute
+          _      <- BlocksApi.queryAll[Person](personTable).whereKey(Person.id === "id" && Person.age > 18).execute
         } yield assertTrue(person.isRight)
       }
     ).provide(DynamoDBExecutor.test(personTable -> "id"))

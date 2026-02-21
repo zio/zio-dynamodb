@@ -22,24 +22,23 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
 
         val person = Person("1", "2026", "Jones")
         for {
-          _                <- DynamoDBQuery2.put(tableName, person).where(Person.id.notExists).execute
-          _                <- DynamoDBQuery2
+          _                <- BlocksApi.put(tableName, person).where(Person.id.notExists).execute
+          _                <- BlocksApi
                                 .update(tableName)(Person.id === "1" && Person.year === "2026")(Person.name.set("Smith"))
                                 .execute
-          found            <- DynamoDBQuery2.get(tableName)(Person.id === "1" && Person.year === "2026").execute.absolve
-          stream1          <- DynamoDBQuery2
+          found            <- BlocksApi.get(tableName)(Person.id === "1" && Person.year === "2026").execute.absolve
+          stream1          <- BlocksApi
                                 .queryAll[Person](tableName)
                                 .whereKey(Person.id === "1")
                                 .execute
           people1          <- stream1.runCollect
-          stream2          <- DynamoDBQuery2
+          stream2          <- BlocksApi
                                 .queryAll[Person](tableName)
                                 .whereKey(Person.id === "1" && Person.year > "2025")
                                 .execute
           people2          <- stream2.runCollect
-          _                <- DynamoDBQuery2.deleteFrom(tableName)(Person.id === "1" && Person.year === "2026").execute
-          foundAfterDelete <-
-            DynamoDBQuery2.get(tableName)(Person.id === "1" && Person.year === "2026").execute.maybeFound
+          _                <- BlocksApi.deleteFrom(tableName)(Person.id === "1" && Person.year === "2026").execute
+          foundAfterDelete <- BlocksApi.get(tableName)(Person.id === "1" && Person.year === "2026").execute.maybeFound
         } yield assertTrue(
           found == person.copy(name = "Smith") && people1.size == 1 && people2.size == 1 && foundAfterDelete.isEmpty
         )
@@ -60,12 +59,12 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
 
           val person = Person("1", Map.empty)
           for {
-            _      <- DynamoDBQuery2.put(tableName, person).execute
-            _      <- DynamoDBQuery2.update(tableName)(Person.id === "1")(Person.mapAtKey("key1").set(42)).execute
+            _      <- BlocksApi.put(tableName, person).execute
+            _      <- BlocksApi.update(tableName)(Person.id === "1")(Person.mapAtKey("key1").set(42)).execute
             item   <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
-            found  <- DynamoDBQuery2.get(tableName)(Person.id === "1").execute.absolve
-            _      <- DynamoDBQuery2.update(tableName)(Person.id === "1")(Person.mapAtKey("key1").set(21)).execute
-            found2 <- DynamoDBQuery2.get(tableName)(Person.id === "1").execute.absolve
+            found  <- BlocksApi.get(tableName)(Person.id === "1").execute.absolve
+            _      <- BlocksApi.update(tableName)(Person.id === "1")(Person.mapAtKey("key1").set(21)).execute
+            found2 <- BlocksApi.get(tableName)(Person.id === "1").execute.absolve
           } yield assertTrue(
             item == Some(Item("id" -> "1", "map" -> Map("key1" -> 42))),
             found == person.copy(map = Map("key1" -> 42)),
@@ -92,16 +91,16 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
 
           val person = Person("1", Map.empty)
           for {
-            _      <- DynamoDBQuery2.put(tableName, person).execute
-            _      <- DynamoDBQuery2
+            _      <- BlocksApi.put(tableName, person).execute
+            _      <- BlocksApi
                         .update(tableName)(Person.id === "1")(Person.mapAtKey("postcode1").set(Address("postcode1", 1)))
                         .execute
             item   <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
-            found  <- DynamoDBQuery2.get(tableName)(Person.id === "1").execute.absolve
-            _      <- DynamoDBQuery2
+            found  <- BlocksApi.get(tableName)(Person.id === "1").execute.absolve
+            _      <- BlocksApi
                         .update(tableName)(Person.id === "1")(Person.mapAtKey("postcode1").set(Address("postcode1", 2)))
                         .execute
-            found2 <- DynamoDBQuery2.get(tableName)(Person.id === "1").execute.absolve
+            found2 <- BlocksApi.get(tableName)(Person.id === "1").execute.absolve
           } yield assertTrue(
             item == Some(
               Item("id" -> "1", "map" -> Map("postcode1" -> Item("postcode" -> "postcode1", "number" -> 1)))
@@ -125,8 +124,8 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
 
           val person = Person("1", Some(Map()))
           for {
-            _    <- DynamoDBQuery2.put(tableName, person).execute
-            _    <- DynamoDBQuery2.update(tableName)(Person.id === "1")(Person.maybeMapAtKey("key1").set(42)).execute
+            _    <- BlocksApi.put(tableName, person).execute
+            _    <- BlocksApi.update(tableName)(Person.id === "1")(Person.maybeMapAtKey("key1").set(42)).execute
             item <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "1")).execute
           } yield assertTrue(item == Some(Item("id" -> "1", "maybeMap" -> Map("key1" -> 42))))
         }
