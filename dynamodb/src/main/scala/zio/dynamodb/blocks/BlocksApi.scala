@@ -19,13 +19,13 @@ Expression Type            | SCHEMA1            | SCHEMA2 |
 [X] Filter/ConditionExpression | ZDDB API           | SchemaExpr + implicit def -> CE  |
 [X] UpdateExpression           | ZDDB API           | SchemaExpr + implicit def -> UE |
 [X] Primary Keys               | ZDDB API           | SchemaExpr + implicit def -> PKExpr |
-[X] QueryAPI                   | single API         | single API                               |
+[X] QueryAPI                   | single API         | separate entry point, same API  |
 
 implicit conversions
 --------------------
 Lens[S, A] -> ProjectionExpression[S, A]
 Optional[S, A] -> ProjectionExpression[S, A]
-optic: Optic[From, To] -> UpdateExpression // extension
+optic: Optic[From, To] -> UpdateExpression // via extension methods
  */
 object BlocksApi extends Conversions {
 
@@ -40,6 +40,11 @@ object BlocksApi extends Conversions {
     val pkExpr: KeyConditionExpr.PrimaryKeyExpr[From] = BlocksApi.schemaExprToPrimaryKeyExprUnsafe(primaryKeyExpr)
     DynamoDBQuery.get(tableName, pkExpr.asAttrMap, SchemaCodec[From].projectionsFromSchema)
   }
+  def getItem(
+    tableName: String,
+    key: PrimaryKey,
+    projections: ProjectionExpression[_, _]*
+  ): DynamoDBQuery[Any, Option[Item]]                                           = DynamoDBQuery.getItem(tableName, key, projections: _*)
 
   def update[A, From: SchemaCodec](tableName: String)(primaryKeyExpr: zio.blocks.schema.SchemaExpr[From, A])(
     action: Action[From]
