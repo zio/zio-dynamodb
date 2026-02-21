@@ -87,86 +87,25 @@ Operand extends ConditionExpression
 
 trait LowPrioritySchemaExprConversions {
 
-//  implicit def fromSchemaExprToConditionExpression[A, B](
-//    expr: SchemaExpr[A, B]
-//  ): ConditionExpression[A] =
-//    schemaExprToConditionExpression(expr)
-
-//  def schemaExprToConditionExpression[A, B](
-//    expr: SchemaExpr[A, B]
-//  ): ConditionExpression[A] = {
-//
-//    def toRelationalConditionExpression[A](
-//      left: ConditionExpression.Operand[A, _],
-//      right: ConditionExpression.Operand[A, _],
-//      operator: SchemaExpr.RelationalOperator
-//    ): ConditionExpression[A] =
-//      operator match {
-//        case SchemaExpr.RelationalOperator.GreaterThanOrEqual =>
-//          ConditionExpression.GreaterThanOrEqual(left, right)
-//        case SchemaExpr.RelationalOperator.GreaterThan        =>
-//          ConditionExpression.GreaterThan(left, right)
-//        case SchemaExpr.RelationalOperator.LessThanOrEqual    =>
-//          ConditionExpression.LessThanOrEqual(left, right)
-//        case SchemaExpr.RelationalOperator.LessThan           =>
-//          ConditionExpression.LessThan(left, right)
-//        case SchemaExpr.RelationalOperator.Equal              =>
-//          ConditionExpression.Equals(left, right)
-//        case SchemaExpr.RelationalOperator.NotEqual           =>
-//          ConditionExpression.NotEqual(left, right)
-//      }
-//
-//    def toLogicalConditionExpression[A](
-//      left: ConditionExpression[A],
-//      right: ConditionExpression[A],
-//      operator: SchemaExpr.LogicalOperator
-//    ): ConditionExpression[A] =
-//      operator match {
-//        case SchemaExpr.LogicalOperator.And =>
-//          ConditionExpression.And(left, right)
-//        case SchemaExpr.LogicalOperator.Or  =>
-//          ConditionExpression.Or(left, right)
-//      }
-//
-//    expr match {
-//      case SchemaExpr.Relational(SchemaExpr.Optic(o), SchemaExpr.Literal(a, schema), operator) =>
-//        val enc                     = schema.derive(DynamoDBCodecDeriver).encoder
-//        val attrVal: AttributeValue = enc(a)
-//
-//        val pe           = OpticToPE.pe(o)
-//        val peOperand    = ConditionExpression.Operand.ProjectionExpressionOperand[A](pe)
-//        val valueOperand = ConditionExpression.Operand.ValueOperand[A](attrVal)
-//        toRelationalConditionExpression(peOperand, valueOperand, operator)
-//      case SchemaExpr.Logical(left, right, logicalOperator)                                    =>
-//        toLogicalConditionExpression(
-//          schemaExprToConditionExpression(left),
-//          schemaExprToConditionExpression(right),
-//          logicalOperator
-//        )
-//      case expr                                                                                =>
-//        throw new Exception(s"unexpected SchemaExpr: $expr")
-//    }
-//  }
-
-  private def topLevelLensFieldNameUnsafe[S, A](lens: Lens[S, A]): String = {
-    val nodes = lens.toDynamic.nodes
-    if (nodes.length != 1)
-      throw new Exception(s"Expected a single node in the lens, got: ${nodes.length}")
-    else
-      nodes(0) match {
-        case DynamicOptic.Node.Field(name) =>
-          name
-        case _                             => throw new Exception(s"Expected a field node in the lens, got: ${nodes(0)}")
-      }
-
-  }
-
   def schemaExprToPrimaryKeyExprUnsafe[S, A](
     expr: SchemaExpr[S, A]
   ): KeyConditionExpr.PrimaryKeyExpr[S] =
     schemaExprToPrimaryKeyExpr(expr) match {
       case Right(pkExpr) => pkExpr
       case Left(error)   => throw new IllegalArgumentException(s"Failed to convert SchemaExpr to PrimaryKeyExpr: $error")
+    }
+
+  def schemaExprToKeyConditionExprUnsafe[S, A](
+    expr: SchemaExpr[S, A]
+  ): KeyConditionExpr[S] =
+    schemaExprToPrimaryKeyExpr(expr) match {
+      case Right(pkExpr) => pkExpr
+      case Left(_)       =>
+        toKeyConditionExpr(expr) match {
+          case Right(extended) => extended
+          case Left(error)     =>
+            throw new IllegalArgumentException(s"Failed to convert SchemaExpr $expr to a KeyConditionExpr: $error")
+        }
     }
 
   private[blocks] def schemaExprToPrimaryKeyExpr[S, A](
@@ -215,18 +154,18 @@ trait LowPrioritySchemaExprConversions {
         Left(s"unexpected SchemaExpr: $expr")
     }
 
-  def schemaExprToKeyConditionExprUnsafe[S, A](
-    expr: SchemaExpr[S, A]
-  ): KeyConditionExpr[S] =
-    schemaExprToPrimaryKeyExpr(expr) match {
-      case Right(pkExpr) => pkExpr
-      case Left(_)       =>
-        toKeyConditionExpr(expr) match {
-          case Right(extended) => extended
-          case Left(error)     =>
-            throw new IllegalArgumentException(s"Failed to convert SchemaExpr $expr to a KeyConditionExpr: $error")
-        }
-    }
+  private def topLevelLensFieldNameUnsafe[S, A](lens: Lens[S, A]): String = {
+    val nodes = lens.toDynamic.nodes
+    if (nodes.length != 1)
+      throw new Exception(s"Expected a single node in the lens, got: ${nodes.length}")
+    else
+      nodes(0) match {
+        case DynamicOptic.Node.Field(name) =>
+          name
+        case _                             => throw new Exception(s"Expected a field node in the lens, got: ${nodes(0)}")
+      }
+
+  }
 
   private[blocks] def toKeyConditionExpr[S, A](
     expr: SchemaExpr[S, A]
