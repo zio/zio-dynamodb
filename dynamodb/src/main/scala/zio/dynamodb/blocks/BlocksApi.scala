@@ -58,35 +58,6 @@ object BlocksApi extends LowPrioritySchemaExprConversions {
     }
   }
 
-}
-
-/*
-ConditionExpression
-  AttributeExists
-  NotEqual
-  AttributeType
-  And
-  LessThanOrEqual
-  Contains
-  Not
-  Between
-  LessThan
-  Equals
-  AttributeNotExists
-  In
-  Or
-  GreaterThan
-  BeginsWith
-  GreaterThanOrEqual
-
-Operand extends ConditionExpression
-  Size
-  ValueOperand
-  ProjectionExpressionOperand
- */
-
-trait LowPrioritySchemaExprConversions {
-
   def schemaExprToPrimaryKeyExprUnsafe[S, A](
     expr: SchemaExpr[S, A]
   ): KeyConditionExpr.PrimaryKeyExpr[S] =
@@ -207,3 +178,28 @@ trait LowPrioritySchemaExprConversions {
     }
 
 }
+
+/*
+ConditionExpression
+  AttributeExists
+  NotEqual
+  AttributeType
+  And
+  LessThanOrEqual
+  Contains
+  Not
+  Between
+  LessThan
+  Equals
+  AttributeNotExists
+  In
+  Or
+  GreaterThan
+  BeginsWith
+  GreaterThanOrEqual
+
+Operand extends ConditionExpression
+  Size
+  ValueOperand
+  ProjectionExpressionOperand
+ */
