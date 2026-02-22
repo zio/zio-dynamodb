@@ -111,7 +111,23 @@ trait Conversions {
         )
       )
     }
+
+    def between(minValue: To, maxValue: To): ConditionExpression[From] = {
+      val pe = OpticToPE.pe(optic)
+      ConditionExpression.Operand
+        .ProjectionExpressionOperand(pe)
+        .between(
+          ToAttributeValue[To].toAttributeValue(minValue),
+          ToAttributeValue[To].toAttributeValue(maxValue)
+        )
+    }
+
   }
+
+  implicit def fromSchemaExprToConditionExpression[A, B](
+    expr: SchemaExpr[A, B]
+  ): ConditionExpression[A] =
+    schemaExprToConditionExpression(expr)
 
   def schemaExprToPrimaryKeyExprUnsafe[S, A](
     expr: SchemaExpr[S, A]
@@ -231,11 +247,6 @@ trait Conversions {
       case expr =>
         Left(s"unexpected SchemaExpr for ExtendedCompositePrimaryKeyExpr: $expr")
     }
-
-  implicit def fromSchemaExprToConditionExpression[A, B](
-    expr: SchemaExpr[A, B]
-  ): ConditionExpression[A] =
-    schemaExprToConditionExpression(expr)
 
   def schemaExprToConditionExpression[A, B](
     expr: SchemaExpr[A, B]

@@ -25,7 +25,7 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
         for {
           _                <- put(tableName, person).where(Person.id.notExists).execute
           _                <- update(tableName)(Person.id === "1" && Person.year === "2026")(Person.name.set("Smith"))
-                                .where(Person.year > "2025" && Person.year < "2027")
+                                .where(Person.year.between("2025", "2027"))
                                 .execute
           found            <- get(tableName)(Person.id === "1" && Person.year === "2026").execute.absolve
           stream1          <- queryAll[Person](tableName)
