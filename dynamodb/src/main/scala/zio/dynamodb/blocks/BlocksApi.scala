@@ -232,10 +232,10 @@ trait Conversions {
         Left(s"unexpected SchemaExpr for ExtendedCompositePrimaryKeyExpr: $expr")
     }
 
-//  implicit def fromSchemaExprToConditionExpression[A, B](
-//    expr: SchemaExpr[A, B]
-//  ): ConditionExpression[A] =
-//    schemaExprToConditionExpression(expr)
+  implicit def fromSchemaExprToConditionExpression[A, B](
+    expr: SchemaExpr[A, B]
+  ): ConditionExpression[A] =
+    schemaExprToConditionExpression(expr)
 
   def schemaExprToConditionExpression[A, B](
     expr: SchemaExpr[A, B]

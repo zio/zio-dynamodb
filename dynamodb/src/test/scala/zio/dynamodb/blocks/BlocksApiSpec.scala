@@ -22,9 +22,13 @@ object BlocksApiSpec extends ZIOSpecDefault {
   def spec                                                                                                         =
     suite("BlocksApiSpec")(
       test("API examples") {
-
         for {
           _      <- BlocksApi.put(personTable, Person(id = "id", age = 42)).where(Person.id.notExists).execute
+          _      <- BlocksApi
+                      .put(personTable, Person(id = "id", age = 42))
+                      .where(Person.id.exists && Person.id > "1")
+                      .execute
+          _      <- BlocksApi.put(personTable, Person(id = "id", age = 42)).where(Person.id > "1" && Person.id < "2").execute
           person <- BlocksApi.get(personTable)(Person.id === "id").execute
           _      <- BlocksApi.update(personTable)(Person.id === "id")(Person.age.set(42)).execute
           _      <- BlocksApi.deleteFrom(personTable)(Person.id === "id").execute
