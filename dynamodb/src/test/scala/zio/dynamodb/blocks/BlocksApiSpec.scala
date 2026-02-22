@@ -24,7 +24,7 @@ object BlocksApiSpec extends ZIOSpecDefault {
       test("API examples") {
 
         for {
-          _      <- BlocksApi.put(personTable, Person(id = "id", age = 42)).execute
+          _      <- BlocksApi.put(personTable, Person(id = "id", age = 42)).where(Person.id.notExists).execute
           person <- BlocksApi.get(personTable)(Person.id === "id").execute
           _      <- BlocksApi.update(personTable)(Person.id === "id")(Person.age.set(42)).execute
           _      <- BlocksApi.deleteFrom(personTable)(Person.id === "id").execute

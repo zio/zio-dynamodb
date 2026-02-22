@@ -232,6 +232,67 @@ trait Conversions {
         Left(s"unexpected SchemaExpr for ExtendedCompositePrimaryKeyExpr: $expr")
     }
 
+//  implicit def fromSchemaExprToConditionExpression[A, B](
+//    expr: SchemaExpr[A, B]
+//  ): ConditionExpression[A] =
+//    schemaExprToConditionExpression(expr)
+
+  def schemaExprToConditionExpression[A, B](
+    expr: SchemaExpr[A, B]
+  ): ConditionExpression[A] = {
+
+    def toRelationalConditionExpression[A](
+      left: ConditionExpression.Operand[A, _],
+      right: ConditionExpression.Operand[A, _],
+      operator: SchemaExpr.RelationalOperator
+    ): ConditionExpression[A] =
+      operator match {
+        case SchemaExpr.RelationalOperator.GreaterThanOrEqual =>
+          ConditionExpression.GreaterThanOrEqual(left, right)
+        case SchemaExpr.RelationalOperator.GreaterThan        =>
+          ConditionExpression.GreaterThan(left, right)
+        case SchemaExpr.RelationalOperator.LessThanOrEqual    =>
+          ConditionExpression.LessThanOrEqual(left, right)
+        case SchemaExpr.RelationalOperator.LessThan           =>
+          ConditionExpression.LessThan(left, right)
+        case SchemaExpr.RelationalOperator.Equal              =>
+          ConditionExpression.Equals(left, right)
+        case SchemaExpr.RelationalOperator.NotEqual           =>
+          ConditionExpression.NotEqual(left, right)
+      }
+
+    def toLogicalConditionExpression[A](
+      left: ConditionExpression[A],
+      right: ConditionExpression[A],
+      operator: SchemaExpr.LogicalOperator
+    ): ConditionExpression[A] =
+      operator match {
+        case SchemaExpr.LogicalOperator.And =>
+          ConditionExpression.And(left, right)
+        case SchemaExpr.LogicalOperator.Or  =>
+          ConditionExpression.Or(left, right)
+      }
+
+    expr match {
+      case SchemaExpr.Relational(SchemaExpr.Optic(o), SchemaExpr.Literal(a, schema), operator) =>
+        val enc                     = schema.derive(DynamoDBCodecDeriver).encoder
+        val attrVal: AttributeValue = enc(a)
+
+        val pe           = OpticToPE.pe(o)
+        val peOperand    = ConditionExpression.Operand.ProjectionExpressionOperand[A](pe)
+        val valueOperand = ConditionExpression.Operand.ValueOperand[A](attrVal)
+        toRelationalConditionExpression(peOperand, valueOperand, operator)
+      case SchemaExpr.Logical(left, right, logicalOperator)                                    =>
+        toLogicalConditionExpression(
+          schemaExprToConditionExpression(left),
+          schemaExprToConditionExpression(right),
+          logicalOperator
+        )
+      case expr                                                                                =>
+        throw new Exception(s"unexpected SchemaExpr: $expr")
+    }
+  }
+
 }
 
 /*
