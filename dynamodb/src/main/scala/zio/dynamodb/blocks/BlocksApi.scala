@@ -5,7 +5,7 @@ import zio.blocks.schema._
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.KeyConditionExpr.{ CompositePrimaryKeyExpr, PartitionKeyEquals }
 import zio.dynamodb.UpdateExpression.Action
-import zio.dynamodb.UpdateExpression.SetOperand.PathOperand
+import zio.dynamodb.UpdateExpression.SetOperand.{ ListAppend, PathOperand }
 import zio.dynamodb._
 import zio.stream.Stream
 
@@ -115,6 +115,24 @@ trait Conversions {
           pe,
           ToAttributeValue[To].toAttributeValue(a)
         )
+      )
+    }
+
+    def append[A](
+      a: A
+    )(implicit ev: To <:< Iterable[A], to: ToAttributeValue[A]): UpdateExpression.Action.SetAction[From, To] =
+      appendList(List(a).asInstanceOf[To])
+
+    /**
+     * Add list `xs` to the end of this list attribute
+     */
+    def appendList[A](
+      xs: To
+    )(implicit ev: To <:< Iterable[A], to: ToAttributeValue[A]): UpdateExpression.Action.SetAction[From, To] = {
+      val self = OpticToPE.pe(optic)
+      UpdateExpression.Action.SetAction(
+        self,
+        ListAppend(self, AttributeValue.List(xs.toList.map(a => to.toAttributeValue(a))))
       )
     }
 

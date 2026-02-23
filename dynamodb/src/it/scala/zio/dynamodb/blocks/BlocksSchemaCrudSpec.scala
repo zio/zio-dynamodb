@@ -69,6 +69,24 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
           )
         }
       },
+      test("update operations on a list field") {
+        withSingleIdKeyTable { tableName =>
+          final case class Person(id: String, list: List[Int] = Nil)
+          object Person extends CompanionOptics[Person] {
+            implicit val schema: Schema[Person] = Schema.derived
+            val id: Lens[Person, String]        = optic(_.id)
+            val list: Lens[Person, List[Int]]   = optic(_.list)
+          }
+
+          val person = Person("1", List(1, 2))
+          for {
+            _    <- put(tableName, person).execute
+            _    <- update(tableName)(Person.id === "1")(Person.list.append(3)).execute
+            _    <- update(tableName)(Person.id === "1")(Person.list.appendList(List(4, 5))).execute
+            item <- getItem(tableName, PrimaryKey("id" -> "1")).execute
+          } yield assertTrue(item == Some(Item("id" -> "1", "list" -> List(1, 2, 3, 4, 5))))
+        }
+      },
       test("native Map of record") {
         withSingleIdKeyTable { tableName =>
           final case class Address(postcode: String, number: Int)
