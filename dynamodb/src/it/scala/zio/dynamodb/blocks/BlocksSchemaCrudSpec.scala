@@ -1,7 +1,8 @@
 package zio.dynamodb.blocks
 
 import zio.blocks.schema._
-import zio.dynamodb.blocks.BlocksApi._ // bring implicit conversions into scope
+import zio.dynamodb.blocks.BlocksApi._
+import zio.prelude.Newtype // bring implicit conversions into scope
 // no direct imports for DynamoDBQuery
 import zio.dynamodb.syntax._
 import zio.dynamodb.{ DynamoDBLocalSpec, Item, PrimaryKey }
@@ -135,6 +136,35 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
             _    <- update(tableName)(Person.id === "1")(Person.maybeMapAtKey("key1").set(42)).execute
             item <- getItem(tableName, PrimaryKey("id" -> "1")).execute
           } yield assertTrue(item == Some(Item("id" -> "1", "maybeMap" -> Map("key1" -> 42))))
+        }
+      },
+      test("update fields with new types") {
+        withSingleIdKeyTable { tableName =>
+          object PersonId extends Newtype[String] {
+            implicit val x: Schema[Type] =
+              Schema[String].transform(s => PersonId(s), (personId: PersonId) => PersonId.unwrap(personId))
+          }
+          type PersonId = PersonId.Type
+
+          final case class Person(id: PersonId, age: Int, partner: PersonId, family: List[PersonId])
+          object Person extends CompanionOptics[Person] {
+            implicit val schema: Schema[Person]      = Schema.derived
+            val id: Lens[Person, PersonId]           = $(_.id)
+            val age: Lens[Person, Int]               = $(_.age)
+            val partner: Lens[Person, PersonId]      = $(_.partner)
+            val family: Lens[Person, List[PersonId]] = $(_.family)
+          }
+
+          val person = Person(PersonId("1"), 42, PersonId("2"), List(PersonId("1"), PersonId("2")))
+          for {
+            _    <- put(tableName, person).execute
+            _    <- update(tableName)(Person.id === PersonId("1"))(
+                      Person.partner.set(PersonId("20")) + Person.family.append(PersonId("20"))
+                    ).execute
+            item <- getItem(tableName, PrimaryKey("id" -> "1")).execute
+          } yield assertTrue(
+            item == Some(Item("id" -> "1", "age" -> 42, "partner" -> "20", "family" -> List("1", "2", "20")))
+          )
         }
       }
     )
