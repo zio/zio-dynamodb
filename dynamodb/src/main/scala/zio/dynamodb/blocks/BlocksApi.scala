@@ -84,39 +84,36 @@ trait Conversions {
     OpticToPE.pe(optional)
 
   implicit class OpticToDdbExpr[From, To: ToAttributeValue](optic: Optic[From, To]) {
+    private def self = OpticToPE.pe(optic)
+
     // TODO: other ops like ADD etc etc
     def set(a: To): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
-        OpticToPE.pe(optic),
+        self,
         UpdateExpression.SetOperand.ValueOperand(ToAttributeValue[To].toAttributeValue(a))
       )
     def set(expr: Optic[From, To]): UpdateExpression.Action.SetAction[From, To] = {
-      val self = OpticToPE.pe(optic)
-      val pe   = OpticToPE.pe(expr)
+      val pe = OpticToPE.pe(expr)
       UpdateExpression.Action.SetAction(self, PathOperand(pe))
     }
 
     def add(a: To): UpdateExpression.Action.AddAction[From] =
       UpdateExpression.Action.AddAction(
-        OpticToPE.pe(optic),
+        self,
         ToAttributeValue[To].toAttributeValue(a)
       )
 
     def remove: UpdateExpression.Action.RemoveAction[From] =
-      UpdateExpression.Action.RemoveAction(
-        OpticToPE.pe(optic)
-      )
+      UpdateExpression.Action.RemoveAction(self)
 
-    def setIfNotExists(a: To): UpdateExpression.Action.SetAction[From, To] = {
-      val pe = OpticToPE.pe(optic)
+    def setIfNotExists(a: To): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
-        pe,
+        self,
         UpdateExpression.SetOperand.IfNotExists(
-          pe,
+          self,
           ToAttributeValue[To].toAttributeValue(a)
         )
       )
-    }
 
     def append[A](
       a: A
@@ -128,23 +125,19 @@ trait Conversions {
      */
     def appendList[A](
       xs: To
-    )(implicit ev: To <:< Iterable[A], to: ToAttributeValue[A]): UpdateExpression.Action.SetAction[From, To] = {
-      val self = OpticToPE.pe(optic)
+    )(implicit ev: To <:< Iterable[A], to: ToAttributeValue[A]): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
         self,
         ListAppend(self, AttributeValue.List(xs.toList.map(a => to.toAttributeValue(a))))
       )
-    }
 
-    def between(minValue: To, maxValue: To): ConditionExpression[From] = {
-      val pe: ProjectionExpression[From, To] = OpticToPE.pe(optic)
+    def between(minValue: To, maxValue: To): ConditionExpression[From] =
       ConditionExpression.Operand
-        .ProjectionExpressionOperand(pe)
+        .ProjectionExpressionOperand(self)
         .between(
           ToAttributeValue[To].toAttributeValue(minValue),
           ToAttributeValue[To].toAttributeValue(maxValue)
         )
-    }
 
   }
 
