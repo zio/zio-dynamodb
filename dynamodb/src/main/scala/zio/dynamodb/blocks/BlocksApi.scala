@@ -5,6 +5,7 @@ import zio.blocks.schema._
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.KeyConditionExpr.{ CompositePrimaryKeyExpr, PartitionKeyEquals }
 import zio.dynamodb.UpdateExpression.Action
+import zio.dynamodb.UpdateExpression.SetOperand.PathOperand
 import zio.dynamodb._
 import zio.stream.Stream
 
@@ -82,13 +83,18 @@ trait Conversions {
   implicit def fromOptionalToProjectionExpression[S, A](optional: Optional[S, A]): ProjectionExpression[S, A] =
     OpticToPE.pe(optional)
 
-  implicit class OpticToUpdateExpression[From, To: ToAttributeValue](optic: Optic[From, To]) {
+  implicit class OpticToDdbExpr[From, To: ToAttributeValue](optic: Optic[From, To]) {
     // TODO: other ops like ADD etc etc
     def set(a: To): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
         OpticToPE.pe(optic),
         UpdateExpression.SetOperand.ValueOperand(ToAttributeValue[To].toAttributeValue(a))
       )
+    def set(expr: Optic[From, To]): UpdateExpression.Action.SetAction[From, To] = {
+      val self = OpticToPE.pe(optic)
+      val pe   = OpticToPE.pe(expr)
+      UpdateExpression.Action.SetAction(self, PathOperand(pe))
+    }
 
     def add(a: To): UpdateExpression.Action.AddAction[From] =
       UpdateExpression.Action.AddAction(
@@ -113,7 +119,7 @@ trait Conversions {
     }
 
     def between(minValue: To, maxValue: To): ConditionExpression[From] = {
-      val pe = OpticToPE.pe(optic)
+      val pe: ProjectionExpression[From, To] = OpticToPE.pe(optic)
       ConditionExpression.Operand
         .ProjectionExpressionOperand(pe)
         .between(

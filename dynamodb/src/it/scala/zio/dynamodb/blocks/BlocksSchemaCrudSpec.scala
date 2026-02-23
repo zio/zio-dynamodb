@@ -24,7 +24,7 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
         val person = Person("1", "2026", "Jones")
         for {
           _                <- put(tableName, person).where(Person.id.notExists).execute
-          _                <- update(tableName)(Person.id === "1" && Person.year === "2026")(Person.name.set("Smith"))
+          _                <- update(tableName)(Person.id === "1" && Person.year === "2026")(Person.name.set(Person.id))
                                 .where(Person.year.between("2025", "2027"))
                                 .execute
           found            <- get(tableName)(Person.id === "1" && Person.year === "2026").execute.absolve
@@ -39,7 +39,7 @@ object BlocksSchemaCrudSpec extends DynamoDBLocalSpec {
           _                <- deleteFrom(tableName)(Person.id === "1" && Person.year === "2026").execute
           foundAfterDelete <- get(tableName)(Person.id === "1" && Person.year === "2026").execute.maybeFound
         } yield assertTrue(
-          found == person.copy(name = "Smith") && people1.size == 1 && people2.size == 1 && foundAfterDelete.isEmpty
+          found == person.copy(name = "1") && people1.size == 1 && people2.size == 1 && foundAfterDelete.isEmpty
         )
       }
     },
