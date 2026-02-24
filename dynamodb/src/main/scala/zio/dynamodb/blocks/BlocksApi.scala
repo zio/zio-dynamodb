@@ -5,8 +5,8 @@ import zio.blocks.schema._
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.KeyConditionExpr.{ CompositePrimaryKeyExpr, PartitionKeyEquals }
 import zio.dynamodb.UpdateExpression.Action
-import zio.dynamodb.UpdateExpression.SetOperand.{ ListAppend, PathOperand }
 import zio.dynamodb._
+import zio.dynamodb.proofs.Addable
 import zio.stream.Stream
 
 import scala.language.implicitConversions
@@ -87,38 +87,26 @@ trait Conversions {
     private def self = OpticToPE.pe(optic)
 
     // TODO: other ops like ADD etc etc
-    def set(a: To): UpdateExpression.Action.SetAction[From, To] =
-      UpdateExpression.Action.SetAction(
-        self,
-        UpdateExpression.SetOperand.ValueOperand(ToAttributeValue[To].toAttributeValue(a))
-      )
-    def set(expr: Optic[From, To]): UpdateExpression.Action.SetAction[From, To] = {
-      val pe = OpticToPE.pe(expr)
-      UpdateExpression.Action.SetAction(self, PathOperand(pe))
-    }
+    def set(a: To): UpdateExpression.Action.SetAction[From, To]                 =
+      ProjectionExpressionOps.set(self, a)
+    def set(expr: Optic[From, To]): UpdateExpression.Action.SetAction[From, To] =
+      ProjectionExpressionOps.setExpr(self, OpticToPE.pe(expr))
 
-    def add(a: To): UpdateExpression.Action.AddAction[From] =
-      UpdateExpression.Action.AddAction(
-        self,
-        ToAttributeValue[To].toAttributeValue(a)
-      )
+    def add(a: To)(implicit
+      ev: Addable[To, To]
+    ): UpdateExpression.Action.AddAction[From] =
+      ProjectionExpressionOps.add(self, a)
 
     def remove: UpdateExpression.Action.RemoveAction[From] =
       UpdateExpression.Action.RemoveAction(self)
 
     def setIfNotExists(a: To): UpdateExpression.Action.SetAction[From, To] =
-      UpdateExpression.Action.SetAction(
-        self,
-        UpdateExpression.SetOperand.IfNotExists(
-          self,
-          ToAttributeValue[To].toAttributeValue(a)
-        )
-      )
+      ProjectionExpressionOps.setIfNotExists(self, a)
 
     def append[A](
       a: A
     )(implicit ev: To <:< Iterable[A], to: ToAttributeValue[A]): UpdateExpression.Action.SetAction[From, To] =
-      appendList(List(a).asInstanceOf[To])
+      ProjectionExpressionOps.append(self, a)
 
     /**
      * Add list `xs` to the end of this list attribute
@@ -126,18 +114,10 @@ trait Conversions {
     def appendList[A](
       xs: To
     )(implicit ev: To <:< Iterable[A], to: ToAttributeValue[A]): UpdateExpression.Action.SetAction[From, To] =
-      UpdateExpression.Action.SetAction(
-        self,
-        ListAppend(self, AttributeValue.List(xs.toList.map(a => to.toAttributeValue(a))))
-      )
+      ProjectionExpressionOps.appendList(self, xs)
 
     def between(minValue: To, maxValue: To): ConditionExpression[From] =
-      ConditionExpression.Operand
-        .ProjectionExpressionOperand(self)
-        .between(
-          ToAttributeValue[To].toAttributeValue(minValue),
-          ToAttributeValue[To].toAttributeValue(maxValue)
-        )
+      ProjectionExpressionOps.between(self, minValue, maxValue)
 
   }
 

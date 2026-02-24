@@ -20,10 +20,11 @@ object SchemaExprConversionSpec extends ZIOSpecDefault {
   object Person extends CompanionOptics[Person] {
     implicit val schema: Schema[Person] = Schema.derived
 
-    val id: Lens[Person, String]                 = $(_.id)
-    val age: Lens[Person, Int]                   = $(_.age)
-    val list: Lens[Person, List[String]]         = $(_.list)
-    def atList(i: Int): Optional[Person, String] = $(_.list.at(i))
+    val id: Lens[Person, String]                     = $(_.id)
+    val age: Lens[Person, Int]                       = $(_.age)
+    val list: Lens[Person, List[String]]             = $(_.list)
+    def listAt(i: Int): Optional[Person, String]     = $(_.list.at(i))
+    def mapAtKey(key: String): Optional[Person, Int] = $(_.map.atKey(key))
   }
 
   object PersonId extends Newtype[String] {
@@ -221,8 +222,8 @@ object SchemaExprConversionSpec extends ZIOSpecDefault {
             )
         )
       },
-      test("Person.list[0].remove") {
-        val ue: Action.RemoveAction[Person] = Person.atList(0).remove[Person]
+      test("Person.listAt[0].remove") {
+        val ue: Action.RemoveAction[Person] = Person.listAt(0).remove[Person]
 
         assertTrue(
           ue ==
