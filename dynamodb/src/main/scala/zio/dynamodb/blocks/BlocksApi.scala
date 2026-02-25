@@ -248,7 +248,7 @@ trait Conversions {
     expr: SchemaExpr[A, B]
   ): ConditionExpression[A] = {
 
-    def toRelationalConditionExpression[A](
+    def toRelationalConditionExpression(
       left: ConditionExpression.Operand[A, _],
       right: ConditionExpression.Operand[A, _],
       operator: SchemaExpr.RelationalOperator
@@ -268,7 +268,7 @@ trait Conversions {
           ConditionExpression.NotEqual(left, right)
       }
 
-    def toLogicalConditionExpression[A](
+    def toLogicalConditionExpression(
       left: ConditionExpression[A],
       right: ConditionExpression[A],
       operator: SchemaExpr.LogicalOperator
