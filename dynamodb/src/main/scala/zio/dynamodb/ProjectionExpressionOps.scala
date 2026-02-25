@@ -5,30 +5,29 @@ import zio.dynamodb.proofs.{ Addable, Containable }
 
 private[dynamodb] object ProjectionExpressionOps {
 
-  def set[From, To: ToAttributeValue](
+  def add[From, To](
     self: ProjectionExpression[From, To],
     a: To
-  ): UpdateExpression.Action.SetAction[From, To] =
-    UpdateExpression.Action.SetAction(
+  )(implicit
+    ev: Addable[To, To],
+    to: ToAttributeValue[To]
+  ): UpdateExpression.Action.AddAction[From] =
+    UpdateExpression.Action.AddAction(
       self,
-      UpdateExpression.SetOperand.ValueOperand(
-        ToAttributeValue[To].toAttributeValue(a)
-      )
+      to.toAttributeValue(a)
     )
 
-  def setExpr[From, To](
+  def addSet[From, To, A](
     self: ProjectionExpression[From, To],
-    pe: ProjectionExpression[From, To]
-  ): UpdateExpression.Action.SetAction[From, To] =
-    UpdateExpression.Action.SetAction(self, PathOperand(pe))
-
-  def setIfNotExists[From, To: ToAttributeValue](
-    self: ProjectionExpression[From, To],
-    a: To
-  ): UpdateExpression.Action.SetAction[From, To] =
-    UpdateExpression.Action.SetAction(
+    set: Set[A]
+  )(implicit
+    ev: Addable[To, A],
+    evSet: Set[A] <:< To,
+    to: ToAttributeValue[To]
+  ): UpdateExpression.Action.AddAction[From] =
+    UpdateExpression.Action.AddAction(
       self,
-      IfNotExists(self, ToAttributeValue[To].toAttributeValue(a))
+      to.toAttributeValue(evSet(set))
     )
 
   def append[From, To, A](
@@ -55,36 +54,6 @@ private[dynamodb] object ProjectionExpressionOps {
       )
     )
 
-  def prepend[From, To, A](
-    self: ProjectionExpression[From, To],
-    a: A
-  )(implicit
-    ev: To <:< Iterable[A],
-    to: ToAttributeValue[A]
-  ): UpdateExpression.Action.SetAction[From, To] =
-    UpdateExpression.Action.SetAction(
-      self,
-      ListPrepend(
-        self,
-        AttributeValue.List(List(a).map(to.toAttributeValue))
-      )
-    )
-
-  def prependList[From, To, A](
-    self: ProjectionExpression[From, To],
-    xs: To
-  )(implicit
-    ev: To <:< Iterable[A],
-    to: ToAttributeValue[A]
-  ): UpdateExpression.Action.SetAction[From, To] =
-    UpdateExpression.Action.SetAction(
-      self,
-      ListPrepend(
-        self,
-        AttributeValue.List(xs.toList.map(to.toAttributeValue))
-      )
-    )
-
   def between[From, To: ToAttributeValue](
     self: ProjectionExpression[From, To],
     minValue: To,
@@ -96,6 +65,25 @@ private[dynamodb] object ProjectionExpressionOps {
         ToAttributeValue[To].toAttributeValue(minValue),
         ToAttributeValue[To].toAttributeValue(maxValue)
       )
+
+  def contains[From, To, A](
+    self: ProjectionExpression[From, To],
+    a: A
+  )(implicit
+    ev: Containable[To, A],
+    to: ToAttributeValue[A]
+  ): ConditionExpression[From] =
+    ConditionExpression.Contains(self, to.toAttributeValue(a))
+
+  def containsSet[From, To, A](
+    self: ProjectionExpression[From, To],
+    head: A,
+    tail: Set[A]
+  )(implicit
+    ev: Containable[To, A],
+    to: ToAttributeValue[A]
+  ): ConditionExpression[From] =
+    tail.foldLeft(contains(self, head))((acc, a) => acc && contains(self, a))
 
   def deleteFromSet[From, To](
     self: ProjectionExpression[From, To],
@@ -128,47 +116,59 @@ private[dynamodb] object ProjectionExpressionOps {
       .in(set.map(ToAttributeValue[To].toAttributeValue))
   }
 
-  def contains[From, To, A](
+  def prepend[From, To, A](
     self: ProjectionExpression[From, To],
     a: A
   )(implicit
-    ev: Containable[To, A],
+    ev: To <:< Iterable[A],
     to: ToAttributeValue[A]
-  ): ConditionExpression[From] =
-    ConditionExpression.Contains(self, to.toAttributeValue(a))
-
-  def containsSet[From, To, A](
-    self: ProjectionExpression[From, To],
-    head: A,
-    tail: Set[A]
-  )(implicit
-    ev: Containable[To, A],
-    to: ToAttributeValue[A]
-  ): ConditionExpression[From] =
-    tail.foldLeft(contains(self, head))((acc, a) => acc && contains(self, a))
-
-  def add[From, To](
-    self: ProjectionExpression[From, To],
-    a: To
-  )(implicit
-    ev: Addable[To, To],
-    to: ToAttributeValue[To]
-  ): UpdateExpression.Action.AddAction[From] =
-    UpdateExpression.Action.AddAction(
+  ): UpdateExpression.Action.SetAction[From, To] =
+    UpdateExpression.Action.SetAction(
       self,
-      to.toAttributeValue(a)
+      ListPrepend(
+        self,
+        AttributeValue.List(List(a).map(to.toAttributeValue))
+      )
     )
 
-  def addSet[From, To, A](
+  def prependList[From, To, A](
     self: ProjectionExpression[From, To],
-    set: Set[A]
+    xs: To
   )(implicit
-    ev: Addable[To, A],
-    evSet: Set[A] <:< To,
-    to: ToAttributeValue[To]
-  ): UpdateExpression.Action.AddAction[From] =
-    UpdateExpression.Action.AddAction(
+    ev: To <:< Iterable[A],
+    to: ToAttributeValue[A]
+  ): UpdateExpression.Action.SetAction[From, To] =
+    UpdateExpression.Action.SetAction(
       self,
-      to.toAttributeValue(evSet(set))
+      ListPrepend(
+        self,
+        AttributeValue.List(xs.toList.map(to.toAttributeValue))
+      )
+    )
+
+  def set[From, To: ToAttributeValue](
+    self: ProjectionExpression[From, To],
+    a: To
+  ): UpdateExpression.Action.SetAction[From, To] =
+    UpdateExpression.Action.SetAction(
+      self,
+      UpdateExpression.SetOperand.ValueOperand(
+        ToAttributeValue[To].toAttributeValue(a)
+      )
+    )
+
+  def set[From, To](
+    self: ProjectionExpression[From, To],
+    pe: ProjectionExpression[From, To]
+  ): UpdateExpression.Action.SetAction[From, To] =
+    UpdateExpression.Action.SetAction(self, PathOperand(pe))
+
+  def setIfNotExists[From, To: ToAttributeValue](
+    self: ProjectionExpression[From, To],
+    a: To
+  ): UpdateExpression.Action.SetAction[From, To] =
+    UpdateExpression.Action.SetAction(
+      self,
+      IfNotExists(self, ToAttributeValue[To].toAttributeValue(a))
     )
 }

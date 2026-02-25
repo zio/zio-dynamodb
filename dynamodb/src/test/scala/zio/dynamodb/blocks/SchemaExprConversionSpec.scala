@@ -291,6 +291,7 @@ object SchemaExprConversionSpec extends ZIOSpecDefault {
 
   private def extractCE[In, Out](q: DynamoDBQuery[In, Out]): Option[ConditionExpression[_]] =
     q match {
+      // DynamoDB queries created via the High Level API are wrapped in a Map
       case DynamoDBQuery.Map(PutItem(_, _, ce, _, _, _, _), _) => ce
       case _                                                   => None
     }

@@ -17,7 +17,7 @@ FUNCTIONALITY MATRIX
 Expression Type            | SCHEMA1            | SCHEMA2 |
 ---------------------------|--------------------|-------|
 [X] ProjectionExpression       | Schema1 accessors  | Raw Optic + implicit def -> PE |
-[X] Filter/ConditionExpression | ZDDB API           | SchemaExpr + implicit def -> CE  |
+[X] Filter/ConditionExpression | ZDDB API           | explicit SchemaExpr -> CE  |
 [X] UpdateExpression           | ZDDB API           | SchemaExpr + implicit def -> UE |
 [X] Primary Keys               | ZDDB API           | SchemaExpr + implicit def -> PKExpr |
 [X] QueryAPI                   | single API         | separate entry point, same API  |
@@ -86,22 +86,10 @@ trait Conversions {
   implicit class OpticToDdbExpr[From, To: ToAttributeValue](optic: Optic[From, To]) {
     private def self = OpticToPE.pe(optic)
 
-    // TODO: other ops like ADD etc etc
-    def set(a: To): UpdateExpression.Action.SetAction[From, To]                 =
-      ProjectionExpressionOps.set(self, a)
-    def set(expr: Optic[From, To]): UpdateExpression.Action.SetAction[From, To] =
-      ProjectionExpressionOps.setExpr(self, OpticToPE.pe(expr))
-
     def add(a: To)(implicit
       ev: Addable[To, To]
     ): UpdateExpression.Action.AddAction[From] =
       ProjectionExpressionOps.add(self, a)
-
-    def remove: UpdateExpression.Action.RemoveAction[From] =
-      UpdateExpression.Action.RemoveAction(self)
-
-    def setIfNotExists(a: To): UpdateExpression.Action.SetAction[From, To] =
-      ProjectionExpressionOps.setIfNotExists(self, a)
 
     def append[A](
       a: A
@@ -119,6 +107,17 @@ trait Conversions {
     def between(minValue: To, maxValue: To): ConditionExpression[From] =
       ProjectionExpressionOps.between(self, minValue, maxValue)
 
+    def remove: UpdateExpression.Action.RemoveAction[From] =
+      UpdateExpression.Action.RemoveAction(self)
+
+    def set(a: To): UpdateExpression.Action.SetAction[From, To] =
+      ProjectionExpressionOps.set(self, a)
+
+    def set(expr: Optic[From, To]): UpdateExpression.Action.SetAction[From, To] =
+      ProjectionExpressionOps.set(self, OpticToPE.pe(expr))
+
+    def setIfNotExists(a: To): UpdateExpression.Action.SetAction[From, To] =
+      ProjectionExpressionOps.setIfNotExists(self, a)
   }
 
   implicit def fromSchemaExprToConditionExpression[A, B](
