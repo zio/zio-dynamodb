@@ -233,7 +233,6 @@ trait Conversions {
           val field                   = topLevelLensFieldNameUnsafe(skLens)
           val enc                     = skSchema.derive(DynamoDBCodecDeriver).encoder
           val attrVal: AttributeValue = enc(skVal)
-          println(s"XXXXXXXXX $nonEqualityOp")
           nonEqualityOp match {
             case RelationalOperator.GreaterThan =>
               KeyConditionExpr.ExtendedSortKeyExpr.GreaterThan(SortKey(field), attrVal)

@@ -2,6 +2,7 @@ package zio.dynamodb.blocks
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema, SchemaExpr }
 import zio.dynamodb.ConditionExpression.Operand
+import zio.dynamodb.DynamoDBQuery.PutItem
 import zio.dynamodb.KeyConditionExpr.{
   CompositePrimaryKeyExpr,
   ExtendedCompositePrimaryKeyExpr,
@@ -40,12 +41,13 @@ object SchemaExprConversionSpec extends ZIOSpecDefault {
     val age: Lens[PersonWithPreludeNewtype, Int]           = $(_.age)
   }
 
+  val putQuery = BlocksApi.put("table", Person("1", 30, List.empty, Map.empty))
+
   val spec = suite("SchemaExprSpec should")(
     suite("convert SchemaExpr to a ConditionExpression")(
       suite("conjunction")(
         test("Person.age > 18 && Person.age < 65") {
-          val ce =
-            BlocksApi.schemaExprToConditionExpression(Person.age > 18 && Person.age < 65)
+          val ce = extractCE(putQuery.where(Person.age > 18 && Person.age < 65)).get
 
           assertTrue(
             ce ==
@@ -64,8 +66,7 @@ object SchemaExprConversionSpec extends ZIOSpecDefault {
       ),
       suite("disjunction")(
         test("Person.age < 18 || Person.age > 65") {
-          val ce: ConditionExpression[Person] =
-            BlocksApi.schemaExprToConditionExpression(Person.age < 18 || Person.age > 65)
+          val ce = extractCE(putQuery.where(Person.age < 18 || Person.age > 65)).get
 
           assertTrue(
             ce ==
@@ -84,7 +85,7 @@ object SchemaExprConversionSpec extends ZIOSpecDefault {
       ),
       suite("ProjectionExpressionOperand with ValueOperand")(
         test("Person.age > 18") {
-          val ce: ConditionExpression[Person] = BlocksApi.schemaExprToConditionExpression(Person.age > 18)
+          val ce = extractCE(putQuery.where(Person.age > 18)).get
 
           assertTrue(
             ce ==
@@ -96,7 +97,7 @@ object SchemaExprConversionSpec extends ZIOSpecDefault {
           )
         },
         test("Person.age >= 18") {
-          val ce: ConditionExpression[Person] = BlocksApi.schemaExprToConditionExpression(Person.age >= 18)
+          val ce = extractCE(putQuery.where(Person.age >= 18)).get
 
           assertTrue(
             ce ==
@@ -108,7 +109,7 @@ object SchemaExprConversionSpec extends ZIOSpecDefault {
           )
         },
         test("Person.age === 18") {
-          val ce: ConditionExpression[Person] = BlocksApi.schemaExprToConditionExpression(Person.age === 18)
+          val ce = extractCE(putQuery.where(Person.age === 18)).get
 
           assertTrue(
             ce ==
@@ -120,7 +121,7 @@ object SchemaExprConversionSpec extends ZIOSpecDefault {
           )
         },
         test("Person.age != 18") {
-          val ce: ConditionExpression[Person] = BlocksApi.schemaExprToConditionExpression(Person.age != 18)
+          val ce = extractCE(putQuery.where(Person.age != 18)).get
 
           assertTrue(
             ce ==
@@ -132,7 +133,7 @@ object SchemaExprConversionSpec extends ZIOSpecDefault {
           )
         },
         test("Person.age < 18") {
-          val ce: ConditionExpression[Person] = BlocksApi.schemaExprToConditionExpression(Person.age < 18)
+          val ce = extractCE(putQuery.where(Person.age < 18)).get
 
           assertTrue(
             ce ==
@@ -144,7 +145,7 @@ object SchemaExprConversionSpec extends ZIOSpecDefault {
           )
         },
         test("Person.age <= 18") {
-          val ce: ConditionExpression[Person] = BlocksApi.schemaExprToConditionExpression(Person.age <= 18)
+          val ce = extractCE(putQuery.where(Person.age <= 18)).get
 
           assertTrue(
             ce ==
@@ -287,4 +288,11 @@ object SchemaExprConversionSpec extends ZIOSpecDefault {
 
   private def numberValueOperand[A](n: BigDecimal): ConditionExpression.Operand[A, _] =
     Operand.ValueOperand(AttributeValue.Number(n))
+
+  private def extractCE[In, Out](q: DynamoDBQuery[In, Out]): Option[ConditionExpression[_]] =
+    q match {
+      case DynamoDBQuery.Map(PutItem(_, _, ce, _, _, _, _), _) => ce
+      case _                                                   => None
+    }
+
 }
