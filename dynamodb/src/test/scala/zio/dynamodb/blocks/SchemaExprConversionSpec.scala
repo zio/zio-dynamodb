@@ -225,6 +225,20 @@ object SchemaExprConversionSpec extends ZIOSpecDefault {
             )
         )
       },
+      test("Person.set.contains(1)") {
+        val ce: ConditionExpression[Person] = Person.set.contains(1)
+
+        assertTrue(
+          ce ==
+            ConditionExpression.Contains(
+              ProjectionExpression.MapElement(
+                parent = ProjectionExpression.Root,
+                key = "set"
+              ),
+              AttributeValue.Number(BigDecimal.valueOf(1))
+            )
+        )
+      },
       test("Person.age.remove") {
         val ue: UpdateExpression.Action.RemoveAction[Person] = Person.age.remove
 

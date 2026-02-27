@@ -6,7 +6,7 @@ import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.KeyConditionExpr.{ CompositePrimaryKeyExpr, PartitionKeyEquals }
 import zio.dynamodb.UpdateExpression.Action
 import zio.dynamodb._
-import zio.dynamodb.proofs.Addable
+import zio.dynamodb.proofs.{ Addable, Containable }
 import zio.stream.Stream
 
 import scala.language.implicitConversions
@@ -114,6 +114,13 @@ trait Conversions {
 
     def between(minValue: To, maxValue: To): ConditionExpression[From] =
       ProjectionExpressionOps.between(self, minValue, maxValue)
+
+    def contains[A](
+      a: A
+    )(implicit
+      ev: Containable[To, A],
+      to: ToAttributeValue[A]
+    ): ConditionExpression[From] = ProjectionExpressionOps.contains(self, a)
 
     def remove: UpdateExpression.Action.RemoveAction[From] =
       UpdateExpression.Action.RemoveAction(self)
