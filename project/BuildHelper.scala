@@ -85,6 +85,13 @@ object BuildHelper {
       buildInfoObject := "BuildInfo"
     )
 
+  def versionSpecificSourceDirectories(sourceDir: File, scalaVersion: String): Seq[File] =
+    CrossVersion.partialVersion(scalaVersion) match {
+      case Some((2, _)) => Seq(sourceDir / "scala-2")
+      case Some((3, _)) => Seq(sourceDir / "scala-3")
+      case _            => Seq.empty
+    }
+
   def stdSettings(prjName: String) =
     Seq(
       name := s"$prjName",

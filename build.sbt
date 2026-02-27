@@ -55,30 +55,12 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
   .settings(
     Defaults.itSettings,
     // Configure Scala version-specific source directories
-    Compile / unmanagedSourceDirectories ++= {
-      val sourceDir = (Compile / sourceDirectory).value
-      CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((2, _)) => Seq(sourceDir / "scala-2")
-        case Some((3, _)) => Seq(sourceDir / "scala-3")
-        case _            => Seq.empty
-      }
-    },
-    Test / unmanagedSourceDirectories ++= {
-      val sourceDir = (Test / sourceDirectory).value
-      CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((2, _)) => Seq(sourceDir / "scala-2")
-        case Some((3, _)) => Seq(sourceDir / "scala-3")
-        case _            => Seq.empty
-      }
-    },
-    IntegrationTest / unmanagedSourceDirectories ++= {
-      val sourceDir = (IntegrationTest / sourceDirectory).value
-      CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((2, _)) => Seq(sourceDir / "scala-2")
-        case Some((3, _)) => Seq(sourceDir / "scala-3")
-        case _            => Seq.empty
-      }
-    },
+    Compile / unmanagedSourceDirectories ++= 
+      versionSpecificSourceDirectories((Compile / sourceDirectory).value, scalaVersion.value),
+    Test / unmanagedSourceDirectories ++= 
+      versionSpecificSourceDirectories((Test / sourceDirectory).value, scalaVersion.value),
+    IntegrationTest / unmanagedSourceDirectories ++= 
+      versionSpecificSourceDirectories((IntegrationTest / sourceDirectory).value, scalaVersion.value),
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio"                   % zioVersion,
       "dev.zio" %% "zio-prelude"           % zioPreludeVersion,
