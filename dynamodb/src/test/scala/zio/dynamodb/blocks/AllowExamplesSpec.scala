@@ -1,6 +1,6 @@
 package zio.dynamodb.blocks
 
-import zio.test.{ZIOSpecDefault, assertTrue}
+import zio.test.{ assertTrue, ZIOSpecDefault }
 
 import java.time.Instant
 
@@ -22,15 +22,13 @@ object AllowExamples {
 
     // Only JSON-representable scalars (no UUID, Char, java.time.*)
     type JsonPrimitive =
-      Primitive.Boolean | Primitive.Int | Primitive.Long |
-        Primitive.Double | Primitive.String | Primitive.BigDecimal |
-        Primitive.BigInt | Primitive.Unit
+      Primitive.Boolean | Primitive.Int | Primitive.Long | Primitive.Double | Primitive.String | Primitive.BigDecimal | Primitive.BigInt | Primitive.Unit
 
     def toJson[A](doc: A)(implicit ev: Allows[A, Record[JsonPrimitive | Self]]): String = ???
 
     // Only numeric types
-    type Numeric = Primitive.Int | Primitive.Long | Primitive.Double | Primitive.Float |
-      Primitive.BigInt | Primitive.BigDecimal
+    type Numeric =
+      Primitive.Int | Primitive.Long | Primitive.Double | Primitive.Float | Primitive.BigInt | Primitive.BigDecimal
 
     def aggregate[A](data: A)(implicit ev: Allows[A, Record[Numeric]]): Double = ???
 
@@ -38,10 +36,10 @@ object AllowExamples {
     final case class Person1(date: Instant)
 
     // val x = toJson(Person(42))
-/*
+    /*
 [error] /Users/avinder.bahra/Workspaces/avi/zio-dynamodb/dynamodb/src/test/scala/zio/dynamodb/blocks/AllowExamplesSpec.scala:44:19: could not find implicit value for parameter ev: zio.blocks.schema.comptime.Allows[zio.dynamodb.blocks.AllowExamples.Json1.Person,zio.blocks.schema.comptime.Allows.Record[zio.dynamodb.blocks.AllowExamples.Json1.JsonPrimitive | zio.blocks.schema.comptime.Allows.Self]]
 [error]     val x = toJson(Person(42))
- */
+     */
 
   }
   object Csv1 {
@@ -53,7 +51,9 @@ object AllowExamples {
     def writeCsv[A: Schema](rows: Seq[A])(implicit ev: Allows[A, Record[Primitive | Optional[Primitive]]]): Unit = ???
 
     // RDBMS INSERT: primitives, optional primitives, or string-keyed maps (JSONB)
-    def insert[A: Schema](value: A)(implicit ev: Allows[A, Record[Primitive | Optional[Primitive] | Allows.Map[Primitive, Primitive]]]): String = ???
+    def insert[A: Schema](value: A)(implicit
+      ev: Allows[A, Record[Primitive | Optional[Primitive] | Allows.Map[Primitive, Primitive]]]
+    ): String = ???
 
     final case class Person(age: Int)
     object Person {
@@ -62,10 +62,10 @@ object AllowExamples {
 
 //    val x = writeCsv(Seq(Person(42)))
 
-/* In Scala 2 I get below compile error, in Scala3 it compiles OK
+    /* In Scala 2 I get below compile error, in Scala3 it compiles OK
 [error] /Users/avinder.bahra/Workspaces/avi/zio-dynamodb/dynamodb/src/test/scala/zio/dynamodb/blocks/AllowExamplesSpec.scala:63:21:
 could not find implicit value for parameter ev: zio.blocks.schema.comptime.Allows[zio.dynamodb.blocks.AllowExamples.Csv1.Person,zio.blocks.schema.comptime.Allows.Record[zio.blocks.schema.comptime.Allows.Primitive | zio.blocks.schema.comptime.Allows.Optional[zio.blocks.schema.comptime.Allows.Primitive]]]
 [error]     val x = writeCsv(Seq(Person(42)))
-*/
+     */
   }
 }
