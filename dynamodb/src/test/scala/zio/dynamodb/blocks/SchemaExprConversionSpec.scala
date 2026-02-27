@@ -157,7 +157,44 @@ object SchemaExprConversionSpec extends ZIOSpecDefault {
                 )
           )
         }
-      )
+      ),
+      test("Person.set.contains(1)") {
+        val ce: ConditionExpression[Person] = Person.set.contains(1)
+
+        assertTrue(
+          ce ==
+            ConditionExpression.Contains(
+              ProjectionExpression.MapElement(
+                parent = ProjectionExpression.Root,
+                key = "set"
+              ),
+              AttributeValue.Number(BigDecimal.valueOf(1))
+            )
+        )
+      },
+      test("Person.set.containsSet(1, Set(2)") {
+        val ce: ConditionExpression[Person] = Person.set.containsSet(1, Set(2))
+
+        assertTrue(
+          ce ==
+            ConditionExpression.And(
+              left = ConditionExpression.Contains(
+                ProjectionExpression.MapElement(
+                  parent = ProjectionExpression.Root,
+                  key = "set"
+                ),
+                AttributeValue.Number(BigDecimal.valueOf(1))
+              ),
+              right = ConditionExpression.Contains(
+                ProjectionExpression.MapElement(
+                  parent = ProjectionExpression.Root,
+                  key = "set"
+                ),
+                AttributeValue.Number(BigDecimal.valueOf(2))
+              )
+            )
+        )
+      }
     ), // end ConditionExpression suite
     suite("automatically convert SchemaExpr to a KeyCondition")(
       test("Person.id === 'abc'") {
@@ -225,17 +262,14 @@ object SchemaExprConversionSpec extends ZIOSpecDefault {
             )
         )
       },
-      test("Person.set.contains(1)") {
-        val ce: ConditionExpression[Person] = Person.set.contains(1)
+      test("Person.set.deleteFromSet(Set(1))") {
+        val ue: UpdateExpression.Action.DeleteAction[Person] = Person.set.deleteFromSet(Set(1))
 
         assertTrue(
-          ce ==
-            ConditionExpression.Contains(
-              ProjectionExpression.MapElement(
-                parent = ProjectionExpression.Root,
-                key = "set"
-              ),
-              AttributeValue.Number(BigDecimal.valueOf(1))
+          ue ==
+            UpdateExpression.Action.DeleteAction[Person](
+              ProjectionExpression.MapElement(parent = ProjectionExpression.Root, key = "set"),
+              AttributeValue.NumberSet(Set(BigDecimal.valueOf(1)))
             )
         )
       },

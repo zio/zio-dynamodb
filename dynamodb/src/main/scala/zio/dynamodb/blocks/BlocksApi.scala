@@ -122,6 +122,22 @@ trait Conversions {
       to: ToAttributeValue[A]
     ): ConditionExpression[From] = ProjectionExpressionOps.contains(self, a)
 
+    def containsSet[A](
+      head: A,
+      tail: Set[A]
+    )(implicit
+      ev: Containable[To, A],
+      to: ToAttributeValue[A]
+    ): ConditionExpression[From] =
+      ProjectionExpressionOps.containsSet(self, head, tail)
+
+    def deleteFromSet(
+      set: To
+    )(implicit
+      ev: To <:< Set[_]
+    ): UpdateExpression.Action.DeleteAction[From] =
+      ProjectionExpressionOps.deleteFromSet(self, set)
+
     def remove: UpdateExpression.Action.RemoveAction[From] =
       UpdateExpression.Action.RemoveAction(self)
 
