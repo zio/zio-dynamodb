@@ -84,12 +84,20 @@ trait Conversions {
     OpticToPE.pe(optional)
 
   implicit class OpticToDdbExpr[From, To: ToAttributeValue](optic: Optic[From, To]) {
-    private def self = OpticToPE.pe(optic)
+    private def self: ProjectionExpression[From, To] = OpticToPE.pe(optic)
 
     def add(a: To)(implicit
       ev: Addable[To, To]
     ): UpdateExpression.Action.AddAction[From] =
       ProjectionExpressionOps.add(self, a)
+
+    def addSet[A](
+      set: Set[A]
+    )(implicit
+      ev: Addable[To, A],
+      evSet: Set[A] <:< To
+    ): UpdateExpression.Action.AddAction[From] =
+      ProjectionExpressionOps.addSet(self, set)
 
     def append[A](
       a: A

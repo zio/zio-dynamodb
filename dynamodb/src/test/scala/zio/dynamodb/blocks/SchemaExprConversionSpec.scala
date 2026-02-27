@@ -17,7 +17,7 @@ import zio.test.{ assertTrue, ZIOSpecDefault }
 object SchemaExprConversionSpec extends ZIOSpecDefault {
   import BlocksApi._
 
-  final case class Person(id: String, age: Int, list: List[String], map: Map[String, Int])
+  final case class Person(id: String, age: Int, list: List[String], map: Map[String, Int], set: Set[Int] = Set.empty)
   object Person extends CompanionOptics[Person] {
     implicit val schema: Schema[Person] = Schema.derived
 
@@ -26,6 +26,7 @@ object SchemaExprConversionSpec extends ZIOSpecDefault {
     val list: Lens[Person, List[String]]             = $(_.list)
     def listAt(i: Int): Optional[Person, String]     = $(_.list.at(i))
     def mapAtKey(key: String): Optional[Person, Int] = $(_.map.atKey(key))
+    val set: Lens[Person, Set[Int]]                  = $(_.set)
   }
 
   object PersonId extends Newtype[String] {
@@ -210,6 +211,17 @@ object SchemaExprConversionSpec extends ZIOSpecDefault {
             UpdateExpression.Action.AddAction[Person](
               ProjectionExpression.MapElement(parent = ProjectionExpression.Root, key = "age"),
               AttributeValue.Number(BigDecimal.valueOf(1))
+            )
+        )
+      },
+      test("Person.set.addSet(Set(1)) - native set addition") {
+        val ue: UpdateExpression.Action.AddAction[Person] = Person.set.addSet(Set(1))
+
+        assertTrue(
+          ue ==
+            UpdateExpression.Action.AddAction[Person](
+              ProjectionExpression.MapElement(parent = ProjectionExpression.Root, key = "set"),
+              AttributeValue.NumberSet(Set(BigDecimal.valueOf(1)))
             )
         )
       },
