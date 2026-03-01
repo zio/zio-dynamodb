@@ -55,11 +55,11 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
   .settings(
     Defaults.itSettings,
     // Configure Scala version-specific source directories
-    Compile / unmanagedSourceDirectories ++= 
+    Compile / unmanagedSourceDirectories ++=
       versionSpecificSourceDirectories((Compile / sourceDirectory).value, scalaVersion.value),
-    Test / unmanagedSourceDirectories ++= 
+    Test / unmanagedSourceDirectories ++=
       versionSpecificSourceDirectories((Test / sourceDirectory).value, scalaVersion.value),
-    IntegrationTest / unmanagedSourceDirectories ++= 
+    IntegrationTest / unmanagedSourceDirectories ++=
       versionSpecificSourceDirectories((IntegrationTest / sourceDirectory).value, scalaVersion.value),
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio"                   % zioVersion,
