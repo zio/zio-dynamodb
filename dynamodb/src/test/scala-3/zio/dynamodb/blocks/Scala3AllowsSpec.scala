@@ -14,6 +14,15 @@ import zio.prelude.Newtype
 import zio.test.{ assertTrue, ZIOSpecDefault }
 
 object Scala3AllowsSpec extends ZIOSpecDefault {
+  opaque type OpaqueId = Int
+  object OpaqueId {
+    def apply(value: Int): OpaqueId = value
+  }
+  extension (id: OpaqueId) {
+    def value: Int = id
+  }
+
+
   object PersonId extends Newtype[Int] {
     implicit val x: Schema[PersonId.Type] =
       Schema[Int].transform(s => PersonId(s), (personId: PersonId) => PersonId.unwrap(personId))
@@ -30,6 +39,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
     id: PersonId,
     name: String,
     age: Int,
+    opaqueInt: OpaqueId,
     ageWrapped: Age,
     setInt: Set[Int] = Set.empty,
     setString: Set[String] = Set.empty,
@@ -42,6 +52,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
     val id: Optic[Person, PersonId]               = $(_.id)
     val name: Optic[Person, String]               = $(_.name)
     val age: Optic[Person, Int]                   = $(_.age)
+    val opaqueInt: Optic[Person, OpaqueId]       = $(_.opaqueInt)
     val ageWrapped: Optic[Person, Age]            = $(_.ageWrapped)
     val setInt: Optic[Person, Set[Int]]           = $(_.setInt)
     val setString: Optic[Person, Set[String]]     = $(_.setString)
@@ -57,6 +68,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
       test("using extension methods") {
         Person.id.add(PersonId(1))
         Person.age.add(1)
+        Person.opaqueInt.add(OpaqueId(1))
         Person.ageWrapped.add(1.0)
         Person.setInt.addSet(Set(1))
         Person.setString.addSet(Set("hello"))
