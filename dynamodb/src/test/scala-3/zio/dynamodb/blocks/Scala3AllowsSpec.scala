@@ -112,20 +112,19 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
     type N    = Primitive.Int | Primitive.Long | Primitive.Float | Primitive.Double | Primitive.Short
     type S    = Primitive.String
     type BOOL = Primitive.Boolean
+    // I think we can ignore NULL for incomming Scala types
 
     // sets - approximate a Set using Sequence for now
-    type NS = Sequence[N] | Sequence[Wrapped[N]]
-    type SS = Sequence[S] | Sequence[Wrapped[S]]
-    type BS = Sequence[Sequence[Primitive.Byte]]
+    type NS = Sequence[N | Wrapped[N]]
+    type SS = Sequence[S | Wrapped[S]]
+    type BS = Sequence[Sequence[Primitive.Byte] | Wrapped[Sequence[Primitive.Byte]]]
 
     // recursive containers
     type L = Sequence[All | Record[All]]
 
     // single recursive root
     type All =
-      N | S | BOOL | NS | SS| BS| Record[Self]| Sequence[Self]| Map[S, Self]
-
-    type DdbRecord = Record[All]
+      N | S | BOOL | NS | SS| BS| Record[Self]| Sequence[Self]| Map[Self, Self]
 
     implicit class OpticToDdbExpr[From, To: ToAttributeValue](optic: Optic[From, To]) {
       private def self: ProjectionExpression[From, To] = OpticToPE.pe(optic)
