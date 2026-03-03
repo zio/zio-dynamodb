@@ -45,6 +45,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
                      id: PersonId,
                      name: String,
                      age: Int,
+                     tupleMixed: (String, Int, Address),
                      opaqueInt: OpaqueId,
                      ageNewtype: Age,
                      setInt: Set[Int] = Set.empty,
@@ -59,6 +60,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
     val id: Optic[Person, PersonId]               = $(_.id)
     val name: Optic[Person, String]               = $(_.name)
     val age: Optic[Person, Int]                   = $(_.age)
+    val tupleMixed: Optic[Person, (String, Int, Address)] = $(_.tupleMixed)
     val opaqueInt: Optic[Person, OpaqueId]       = $(_.opaqueInt)
     val ageNewtype: Optic[Person, Age]            = $(_.ageNewtype)
     val setInt: Optic[Person, Set[Int]]           = $(_.setInt)
