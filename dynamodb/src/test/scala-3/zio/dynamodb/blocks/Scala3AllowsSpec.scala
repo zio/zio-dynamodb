@@ -1,16 +1,10 @@
 package zio.dynamodb.blocks
 
-import zio.blocks.schema.{ CompanionOptics, Optic, Schema }
-import zio.dynamodb.proofs.{ Addable, ListRemoveable }
-import zio.dynamodb.{
-  blocks,
-  AttributeValue,
-  ProjectionExpression,
-  ToAttributeValue,
-  UpdateExpression
-}
+import zio.blocks.schema.{CompanionOptics, Optic, Schema}
+import zio.dynamodb.proofs.{Addable, ListRemoveable}
+import zio.dynamodb.{AttributeValue, ConditionExpression, ProjectionExpression, ToAttributeValue, UpdateExpression, blocks}
 import zio.prelude.Newtype
-import zio.test.{ assertTrue, ZIOSpecDefault }
+import zio.test.{ZIOSpecDefault, assertTrue}
 
 object Scala3AllowsSpec extends ZIOSpecDefault {
   opaque type OpaqueId = Int
@@ -86,6 +80,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
         Person.listInt.remove(1)
         Person.listAddress.remove(1)
         Person.setInt.addSet(Set(1))
+        Person.setPersonId.contains(PersonId(1))
 
         assertTrue(true)
       },
@@ -111,8 +106,8 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
     import Allows._
 
     // scalars
-    type N    = Primitive.Int | Primitive.Long | Primitive.Float | Primitive.Double | Primitive.Short
-    type S    = Primitive.String
+    type N = Primitive.Int | Primitive.Long | Primitive.Float | Primitive.Double | Primitive.Short
+    type S = Primitive.String
     type BOOL = Primitive.Boolean
     // I think we can ignore NULL for incomming Scala types
 
@@ -127,7 +122,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
 
     // single recursive root
     type All =
-      N | S | BOOL | NS | SS| BS| Record[Self]| Sequence[Self]| Map[Self, Self]
+      N | S | BOOL | NS | SS | BS | Record[Self] | Sequence[Self] | Map[Self, Self]
 
     implicit class OpticToDdbExpr[From, To: ToAttributeValue](optic: Optic[From, To]) {
       private def self: ProjectionExpression[From, To] = OpticToPE.pe(optic)
@@ -168,6 +163,15 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
           ToAttributeValue[To].toAttributeValue(evSet(set))
         )
 
+      def contains[A](
+                       a: A
+                     )(implicit
+                       ev: Allows[To, NS | SS | BS | L | S],
+                       ev2: Containable[To, A],
+                       to: ToAttributeValue[A]
+                     ): ConditionExpression[From] =
+        ConditionExpression.Contains(self, to.toAttributeValue(a))
+
       /*
   Remove at index UpdateExpression behaviour
   | Attribute Type | Allowed? |
@@ -185,6 +189,16 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
                 )(implicit ev: Allows[To, L]): UpdateExpression.Action.RemoveAction[From] =
         UpdateExpression.Action.RemoveAction(ProjectionExpression.ListElement(self, index))
 
+    }
+
+    sealed trait Containable[X, -A]
+
+    object Containable {
+      implicit def set[A]: Containable[Set[A], A] = new Containable[Set[A], A] {}
+
+      implicit def list[A]: Containable[List[A], A] = new Containable[List[A], A] {}
+
+      implicit def string: Containable[String, String] = new Containable[String, String] {}
     }
   }
 }
