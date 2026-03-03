@@ -119,7 +119,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
     type BS = Sequence[Sequence[Primitive.Byte]]
 
     // recursive containers
-    type L = Sequence[All] | Sequence[Record[All]]
+    type L = Sequence[All | Record[All]]
 
     // single recursive root
     type All =
