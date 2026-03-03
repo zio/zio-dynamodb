@@ -109,24 +109,31 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
     import Allows._
 
     // scalars
-    type N = Primitive.Int | Primitive.Long | Primitive.Float | Primitive.Double | Primitive.Short
-    type S = Primitive.String
+    type N    = Primitive.Int | Primitive.Long | Primitive.Float | Primitive.Double | Primitive.Short
+    type S    = Primitive.String
     type BOOL = Primitive.Boolean
 
-    // DynamoDb native collections
-    type NativeMap = Map[Primitive.String, All]
-    // we have no Set so use Sequence as an approximation for now
+    // sets
     type NS = Sequence[N] | Sequence[Wrapped[N]]
-    type SS = Sequence[Primitive.String] | Sequence[Wrapped[Primitive.String]]
+    type SS = Sequence[S] | Sequence[Wrapped[S]]
     type BS = Sequence[Sequence[Primitive.Byte]]
 
-    //type NULL = Primitive.Unit ????? // I think we can ignore this in the world of Scala types
+    // recursive containers
+    type L = Sequence[All] | Sequence[Record[All]]
 
-    type DdbRecord = Record[N | S | BOOL | NS | SS | BS | Self]
-    type L = Sequence[All]
+    // single recursive root
+    type All =
+      N
+      | S
+      | BOOL
+      | NS
+      | SS
+      | BS
+      | Record[Self]
+      | Sequence[Self]
+      | Map[S, Self]
 
-    type All = N | NS | SS | BS | S | BOOL | DdbRecord | Sequence[Self] | Map[Self, Self]
-
+    type DdbRecord = Record[All]
 
     implicit class OpticToDdbExpr[From, To: ToAttributeValue](optic: Optic[From, To]) {
       private def self: ProjectionExpression[From, To] = OpticToPE.pe(optic)
