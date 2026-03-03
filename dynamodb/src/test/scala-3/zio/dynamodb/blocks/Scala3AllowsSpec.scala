@@ -46,7 +46,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
                      name: String,
                      age: Int,
                      opaqueInt: OpaqueId,
-                     ageWrapped: Age,
+                     ageNewtype: Age,
                      setInt: Set[Int] = Set.empty,
                      setString: Set[String] = Set.empty,
                      setPersonId: Set[PersonId] = Set.empty,
@@ -60,7 +60,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
     val name: Optic[Person, String]               = $(_.name)
     val age: Optic[Person, Int]                   = $(_.age)
     val opaqueInt: Optic[Person, OpaqueId]       = $(_.opaqueInt)
-    val ageWrapped: Optic[Person, Age]            = $(_.ageWrapped)
+    val ageNewtype: Optic[Person, Age]            = $(_.ageNewtype)
     val setInt: Optic[Person, Set[Int]]           = $(_.setInt)
     val setString: Optic[Person, Set[String]]     = $(_.setString)
     val setPersonId: Optic[Person, Set[PersonId]] = $(_.setPersonId)
@@ -77,7 +77,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
         Person.id.add(PersonId(1))
         Person.age.add(1)
         Person.opaqueInt.add(OpaqueId(1))
-        Person.ageWrapped.add(1.0)
+        Person.ageNewtype.add(1.0)
         Person.setInt.addSet(Set(1))
         Person.setString.addSet(Set("hello"))
         Person.setPersonId.addSet(Set(PersonId(1)))
@@ -88,14 +88,14 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
         assertTrue(true)
       },
       test("add age wrapper type") {
-        val x = Person.ageWrapped.add(Age(21))
+        val x = Person.ageNewtype.add(Age(21))
 
         assertTrue(
           x == UpdateExpression.Action
             .AddAction(
               ProjectionExpression.MapElement(
                 ProjectionExpression.Root,
-                "ageWrapped"
+                "ageNewtype"
               ),
               AttributeValue.Number(BigDecimal.valueOf(21))
             )
@@ -113,7 +113,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
     type S    = Primitive.String
     type BOOL = Primitive.Boolean
 
-    // sets
+    // sets - approximate a Set using Sequence for now
     type NS = Sequence[N] | Sequence[Wrapped[N]]
     type SS = Sequence[S] | Sequence[Wrapped[S]]
     type BS = Sequence[Sequence[Primitive.Byte]]
@@ -123,15 +123,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
 
     // single recursive root
     type All =
-      N
-      | S
-      | BOOL
-      | NS
-      | SS
-      | BS
-      | Record[Self]
-      | Sequence[Self]
-      | Map[S, Self]
+      N | S | BOOL | NS | SS| BS| Record[Self]| Sequence[Self]| Map[S, Self]
 
     type DdbRecord = Record[All]
 
@@ -191,10 +183,6 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
                 )(implicit ev: Allows[To, L]): UpdateExpression.Action.RemoveAction[From] =
         UpdateExpression.Action.RemoveAction(ProjectionExpression.ListElement(self, index))
 
-      def removeOld[From2 <: From](
-                                    index: Int
-                                  )(implicit ev: ListRemoveable[To]): UpdateExpression.Action.RemoveAction[From2] =
-        UpdateExpression.Action.RemoveAction(ProjectionExpression.ListElement(self, index))
     }
   }
 }
