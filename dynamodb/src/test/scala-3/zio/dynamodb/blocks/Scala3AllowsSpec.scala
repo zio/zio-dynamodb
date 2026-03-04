@@ -2,7 +2,14 @@ package zio.dynamodb.blocks
 
 import zio.blocks.schema.{ CompanionOptics, Optic, Optional, Schema }
 import zio.dynamodb.proofs.{ Addable, ListRemoveable }
-import zio.dynamodb.{ blocks, AttributeValue, ProjectionExpression, ToAttributeValue, UpdateExpression }
+import zio.dynamodb.{
+  blocks,
+  AttributeValue,
+  ConditionExpression,
+  ProjectionExpression,
+  ToAttributeValue,
+  UpdateExpression
+}
 import zio.prelude.Newtype
 import zio.test.{ assertTrue, ZIOSpecDefault }
 
@@ -166,12 +173,12 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
         )
 
       def contains[A](
-                       a: A
-                     )(implicit
-                       ev: Allows[To, NS | SS | BS | L | S],
-                       ev2: Containable[To, A],
-                       to: ToAttributeValue[A]
-                     ): ConditionExpression[From] =
+        a: A
+      )(implicit
+        ev: Allows[To, NS | SS | BS | L | S],
+        ev2: Containable[To, A],
+        to: ToAttributeValue[A]
+      ): ConditionExpression[From] =
         ConditionExpression.Contains(self, to.toAttributeValue(a))
 
       /*
