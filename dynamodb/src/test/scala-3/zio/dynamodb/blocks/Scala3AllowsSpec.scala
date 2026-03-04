@@ -1,10 +1,10 @@
 package zio.dynamodb.blocks
 
-import zio.blocks.schema.{CompanionOptics, Optic, Schema}
-import zio.dynamodb.proofs.{Addable, ListRemoveable}
-import zio.dynamodb.{AttributeValue, ConditionExpression, ProjectionExpression, ToAttributeValue, UpdateExpression, blocks}
+import zio.blocks.schema.{ CompanionOptics, Optic, Schema }
+import zio.dynamodb.proofs.{ Addable, ListRemoveable }
+import zio.dynamodb.{ blocks, AttributeValue, ProjectionExpression, ToAttributeValue, UpdateExpression }
 import zio.prelude.Newtype
-import zio.test.{ZIOSpecDefault, assertTrue}
+import zio.test.{ assertTrue, ZIOSpecDefault }
 
 object Scala3AllowsSpec extends ZIOSpecDefault {
   opaque type OpaqueId = Int
@@ -14,7 +14,6 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
   extension (id: OpaqueId) {
     def value: Int = id
   }
-
 
   object PersonId extends Newtype[Int] {
     implicit val x: Schema[PersonId.Type] =
@@ -31,41 +30,41 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
   case class Address(number: String, postcode: String)
   object Address extends CompanionOptics[Address] {
     implicit val schema: Schema[Address] = Schema.derived
-    val number: Optic[Address, String] = $(_.number)
+    val number: Optic[Address, String]   = $(_.number)
     val postcode: Optic[Address, String] = $(_.postcode)
   }
 
   case class Person(
-                     id: PersonId,
-                     name: String,
-                     age: Int,
-                     tupleMixed: (String, Int, Address),
-                     opaqueInt: OpaqueId,
-                     ageNewtype: Age,
-                     setInt: Set[Int] = Set.empty,
-                     setString: Set[String] = Set.empty,
-                     setPersonId: Set[PersonId] = Set.empty,
-                     map: Map[String, Int] = Map.empty,
-                     mapOfAddress: Map[String, Address]= Map.empty,
-                     listInt: List[Int] = Nil,
-                     listAddress: List[Address] = Nil
+    id: PersonId,
+    name: String,
+    age: Int,
+    tupleMixed: (String, Int, Address),
+    opaqueInt: OpaqueId,
+    ageNewtype: Age,
+    setInt: Set[Int] = Set.empty,
+    setString: Set[String] = Set.empty,
+    setPersonId: Set[PersonId] = Set.empty,
+    map: Map[String, Int] = Map.empty,
+    mapOfAddress: Map[String, Address] = Map.empty,
+    listInt: List[Int] = Nil,
+    listAddress: List[Address] = Nil
   )
   object Person extends CompanionOptics[Person] {
-    implicit val schema: Schema[Person]           = Schema.derived
-    val id: Optic[Person, PersonId]               = $(_.id)
-    val name: Optic[Person, String]               = $(_.name)
-    val age: Optic[Person, Int]                   = $(_.age)
+    implicit val schema: Schema[Person]                   = Schema.derived
+    val id: Optic[Person, PersonId]                       = $(_.id)
+    val name: Optic[Person, String]                       = $(_.name)
+    val age: Optic[Person, Int]                           = $(_.age)
     val tupleMixed: Optic[Person, (String, Int, Address)] = $(_.tupleMixed)
-    val opaqueInt: Optic[Person, OpaqueId]       = $(_.opaqueInt)
-    val ageNewtype: Optic[Person, Age]            = $(_.ageNewtype)
-    val setInt: Optic[Person, Set[Int]]           = $(_.setInt)
-    val setString: Optic[Person, Set[String]]     = $(_.setString)
-    val setPersonId: Optic[Person, Set[PersonId]] = $(_.setPersonId)
-    val map: Optic[Person, Map[String, Int]]      = $(_.map)
+    val opaqueInt: Optic[Person, OpaqueId]                = $(_.opaqueInt)
+    val ageNewtype: Optic[Person, Age]                    = $(_.ageNewtype)
+    val setInt: Optic[Person, Set[Int]]                   = $(_.setInt)
+    val setString: Optic[Person, Set[String]]             = $(_.setString)
+    val setPersonId: Optic[Person, Set[PersonId]]         = $(_.setPersonId)
+    val map: Optic[Person, Map[String, Int]]              = $(_.map)
     val mapOfAddress: Optic[Person, Map[String, Address]] = $(_.mapOfAddress)
-    def mapOfAddressAt(key: String): Any = $(_.mapOfAddress.atKey(key))
-    val listInt: Optic[Person, List[Int]]         = $(_.listInt)
-    val listAddress: Optic[Person, List[Address]]   = $(_.listAddress)
+    def mapOfAddressAt(key: String): Any                  = $(_.mapOfAddress.atKey(key))
+    val listInt: Optic[Person, List[Int]]                 = $(_.listInt)
+    val listAddress: Optic[Person, List[Address]]         = $(_.listAddress)
   }
 
   import ExtensionMethods._
@@ -109,8 +108,8 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
     import Allows._
 
     // scalars
-    type N = Primitive.Int | Primitive.Long | Primitive.Float | Primitive.Double | Primitive.Short
-    type S = Primitive.String
+    type N    = Primitive.Int | Primitive.Long | Primitive.Float | Primitive.Double | Primitive.Short
+    type S    = Primitive.String
     type BOOL = Primitive.Boolean
     // I think we can ignore NULL for incomming Scala types
 
@@ -146,9 +145,9 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
        */
 
       def add[A](a: A)(implicit
-                       ev: Allows[A, N | Wrapped[N]],
-                       ev2: Allows[To, N | Wrapped[N]],
-                       to: ToAttributeValue[A]
+        ev: Allows[A, N | Wrapped[N]],
+        ev2: Allows[To, N | Wrapped[N]],
+        to: ToAttributeValue[A]
       ): UpdateExpression.Action.AddAction[From] =
         UpdateExpression.Action.AddAction(
           self,
@@ -156,11 +155,11 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
         )
 
       def addSet[A](
-                     set: Set[A]
-                   )(implicit
-                     ev: Allows[To, NS | SS | BS],
-                     evSet: Set[A] <:< To
-                   ): UpdateExpression.Action.AddAction[From] =
+        set: Set[A]
+      )(implicit
+        ev: Allows[To, NS | SS | BS],
+        evSet: Set[A] <:< To
+      ): UpdateExpression.Action.AddAction[From] =
         UpdateExpression.Action.AddAction(
           self,
           ToAttributeValue[To].toAttributeValue(evSet(set))
@@ -188,8 +187,8 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
   | `M`            | ❌        |
        */
       def remove(
-                  index: Int
-                )(implicit ev: Allows[To, L]): UpdateExpression.Action.RemoveAction[From] =
+        index: Int
+      )(implicit ev: Allows[To, L]): UpdateExpression.Action.RemoveAction[From] =
         UpdateExpression.Action.RemoveAction(ProjectionExpression.ListElement(self, index))
 
     }
