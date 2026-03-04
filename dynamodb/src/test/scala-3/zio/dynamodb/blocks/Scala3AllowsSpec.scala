@@ -46,6 +46,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
                      setString: Set[String] = Set.empty,
                      setPersonId: Set[PersonId] = Set.empty,
                      map: Map[String, Int] = Map.empty,
+                     mapOfAddress: Map[String, Address]= Map.empty,
                      listInt: List[Int] = Nil,
                      listAddress: List[Address] = Nil
   )
@@ -61,6 +62,8 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
     val setString: Optic[Person, Set[String]]     = $(_.setString)
     val setPersonId: Optic[Person, Set[PersonId]] = $(_.setPersonId)
     val map: Optic[Person, Map[String, Int]]      = $(_.map)
+    val mapOfAddress: Optic[Person, Map[String, Address]] = $(_.mapOfAddress)
+    def mapOfAddressAt(key: String): Any = $(_.mapOfAddress.atKey(key))
     val listInt: Optic[Person, List[Int]]         = $(_.listInt)
     val listAddress: Optic[Person, List[Address]]   = $(_.listAddress)
   }
@@ -117,7 +120,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
     type BS = Sequence[Sequence[Primitive.Byte] | Wrapped[Sequence[Primitive.Byte]]]
 
     // recursive containers
-    type L = Sequence[All | Record[All]]
+    type L = Sequence[All | Record[All]] // need to explicitly add Record here for List[Address ]
     type M = Map[Primitive.String, All]
 
     // single recursive root
@@ -176,8 +179,8 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
   Remove at index UpdateExpression behaviour
   | Attribute Type | Allowed? |
   | -------------- | -------- |
-  | `L` (List)     | ✅        |
-  | `SS`           | ❌        |
+  | `L` (List)     | ✅       |
+  | `SS`           | ❌       |
   | `NS`           | ❌        |
   | `BS`           | ❌        |
   | `N`            | ❌        |
