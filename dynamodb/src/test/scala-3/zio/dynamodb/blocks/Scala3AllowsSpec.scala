@@ -1,6 +1,6 @@
 package zio.dynamodb.blocks
 
-import zio.blocks.schema.{ CompanionOptics, Optic, Schema }
+import zio.blocks.schema.{ CompanionOptics, Optic, Optional, Schema }
 import zio.dynamodb.proofs.{ Addable, ListRemoveable }
 import zio.dynamodb.{ blocks, AttributeValue, ProjectionExpression, ToAttributeValue, UpdateExpression }
 import zio.prelude.Newtype
@@ -50,21 +50,21 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
     listAddress: List[Address] = Nil
   )
   object Person extends CompanionOptics[Person] {
-    implicit val schema: Schema[Person]                   = Schema.derived
-    val id: Optic[Person, PersonId]                       = $(_.id)
-    val name: Optic[Person, String]                       = $(_.name)
-    val age: Optic[Person, Int]                           = $(_.age)
-    val tupleMixed: Optic[Person, (String, Int, Address)] = $(_.tupleMixed)
-    val opaqueInt: Optic[Person, OpaqueId]                = $(_.opaqueInt)
-    val ageNewtype: Optic[Person, Age]                    = $(_.ageNewtype)
-    val setInt: Optic[Person, Set[Int]]                   = $(_.setInt)
-    val setString: Optic[Person, Set[String]]             = $(_.setString)
-    val setPersonId: Optic[Person, Set[PersonId]]         = $(_.setPersonId)
-    val map: Optic[Person, Map[String, Int]]              = $(_.map)
-    val mapOfAddress: Optic[Person, Map[String, Address]] = $(_.mapOfAddress)
-    def mapOfAddressAt(key: String): Any                  = $(_.mapOfAddress.atKey(key))
-    val listInt: Optic[Person, List[Int]]                 = $(_.listInt)
-    val listAddress: Optic[Person, List[Address]]         = $(_.listAddress)
+    implicit val schema: Schema[Person]                        = Schema.derived
+    val id: Optic[Person, PersonId]                            = $(_.id)
+    val name: Optic[Person, String]                            = $(_.name)
+    val age: Optic[Person, Int]                                = $(_.age)
+    val tupleMixed: Optic[Person, (String, Int, Address)]      = $(_.tupleMixed)
+    val opaqueInt: Optic[Person, OpaqueId]                     = $(_.opaqueInt)
+    val ageNewtype: Optic[Person, Age]                         = $(_.ageNewtype)
+    val setInt: Optic[Person, Set[Int]]                        = $(_.setInt)
+    val setString: Optic[Person, Set[String]]                  = $(_.setString)
+    val setPersonId: Optic[Person, Set[PersonId]]              = $(_.setPersonId)
+    val map: Optic[Person, Map[String, Int]]                   = $(_.map)
+    val mapOfAddress: Optic[Person, Map[String, Address]]      = $(_.mapOfAddress)
+    def mapOfAddressAt(key: String): Optional[Person, Address] = $(_.mapOfAddress.atKey(key))
+    val listInt: Optic[Person, List[Int]]                      = $(_.listInt)
+    val listAddress: Optic[Person, List[Address]]              = $(_.listAddress)
   }
 
   import ExtensionMethods._
