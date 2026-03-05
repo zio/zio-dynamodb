@@ -25,11 +25,11 @@ object ZStreamPipeliningSpec extends ZIOSpecDefault {
     suite("ZStream piplelining suite")(
       test("round trip test") {
         for {
-          _           <- TestDynamoDBExecutor.addTable("person", "id")
-          _           <- batchWriteFromStream(personStream) { person =>
-                           put("person", person)
-                         }.runDrain
-          xs          <-
+          _  <- TestDynamoDBExecutor.addTable("person", "id")
+          _  <- batchWriteFromStream(personStream) { person =>
+                  put("person", person)
+                }.runDrain
+          xs <-
             batchReadFromStream("person", personStream)(person => Person.id.partitionKey === person.id).right.runCollect
           actualPeople = xs.toList.map { case (_, p) => p }.collect { case Some(b) => b }
         } yield assert(actualPeople)(equalTo(people))

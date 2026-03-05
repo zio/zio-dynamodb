@@ -63,9 +63,9 @@ sealed trait ProjectionExpression[-From, +To] { self =>
   // unary ConditionExpressions
 
   // applies to all types
-  def exists: ConditionExpression[From]    = ConditionExpression.AttributeExists(self)
+  def exists: ConditionExpression[From]                                                       = ConditionExpression.AttributeExists(self)
   // applies to all types
-  def notExists: ConditionExpression[From] = ConditionExpression.AttributeNotExists(self)
+  def notExists: ConditionExpression[From]                                                    = ConditionExpression.AttributeNotExists(self)
   // Applies to all types except Number and Boolean
   def size[To2 >: To](implicit ev: Sizable[To2]): ConditionExpression.Operand.Size[From, To2] = {
     val _ = ev
@@ -114,7 +114,7 @@ sealed trait ProjectionExpression[-From, +To] { self =>
     @tailrec
     def loop(pe: ProjectionExpression[_, _], acc: List[String]): List[String] =
       pe match {
-        case Root                                               =>
+        case Root =>
           acc // identity
         case ProjectionExpression.MapElement(Root, pathSegment) =>
           loop(Root, acc :+ pathSegment)
@@ -143,7 +143,7 @@ trait ProjectionExpressionLowPriorityImplicits {
         case _                                       => throw new IllegalArgumentException("Not a partition key") // should not happen
       }
     }
-    def sortKey(implicit ev: IsPrimaryKey[To]): SortKey[From, To] = {
+    def sortKey(implicit ev: IsPrimaryKey[To]): SortKey[From, To]           = {
       val _ = ev
       self match {
         case ProjectionExpression.MapElement(_, key) => SortKey[From, To](key)
@@ -722,18 +722,17 @@ object ProjectionExpression extends ProjectionExpressionLowPriorityImplicits {
 
       val elements: List[String] = regexDotOutsideBackticks.split(s).toList
 
-      val builder = elements.foldLeft(Builder()) {
-        case (accBuilder, s) =>
-          s match {
-            case regexIndexedElement(name, _) =>
-              val indexesString = s.substring(s.indexOf('['))
-              val indexes       = regexGroupedIndexes.findAllMatchIn(indexesString).map(_.group(2).toInt).toList
-              accBuilder.listElement(name, indexes)
-            case regexMapElement(name)        =>
-              accBuilder.mapElement(name)
-            case _                            =>
-              accBuilder.addError(s)
-          }
+      val builder = elements.foldLeft(Builder()) { case (accBuilder, s) =>
+        s match {
+          case regexIndexedElement(name, _) =>
+            val indexesString = s.substring(s.indexOf('['))
+            val indexes       = regexGroupedIndexes.findAllMatchIn(indexesString).map(_.group(2).toInt).toList
+            accBuilder.listElement(name, indexes)
+          case regexMapElement(name)        =>
+            accBuilder.mapElement(name)
+          case _                            =>
+            accBuilder.addError(s)
+        }
       }
 
       builder.either.left.map(_.mkString(","))

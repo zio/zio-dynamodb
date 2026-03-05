@@ -42,7 +42,7 @@ object DynamoDBCodecDeriver
 //      private[this] val emptyObjectValue = new DynamicValue.Map(Chunk.empty)
 
       override def encoder: Encoder[DynamicValue] =
-        (dv: DynamicValue) => {
+        (dv: DynamicValue) =>
           dv match {
             case primitive: DynamicValue.Primitive =>
               primitive.value match {
@@ -81,7 +81,6 @@ object DynamoDBCodecDeriver
             case _: DynamicValue.Map               =>
               throw new IllegalStateException("DynamicValue.Map not supported")
           }
-        }
 
       override def decoder: Decoder[DynamicValue] = {
         // TODO: Avi - how do we distinguish between DV Null and Unit?
@@ -535,14 +534,14 @@ class DynamoDBCodecDeriver private (
                               )
                           }
 
-                        case av                      =>
+                        case av =>
                           Left(ItemError.DecodingError(s"Expected an AttributeValue.Map but found ${av.showType}"))
                       }
 
                     }.asInstanceOf[Decoder[A]]
                   }
 
-                case DiscriminatorKind.None                                                      =>
+                case DiscriminatorKind.None =>
                   val codecs = Array.newBuilder[DynamoDBCodec[?]]
 
                   def getInfos(variant: Reflect.Variant[F, A]): Array[CaseInfo] = {
@@ -591,7 +590,7 @@ class DynamoDBCodecDeriver private (
                       }
                   }
                 // DiscriminatorKind.Key
-                case _                                                                           =>
+                case _                      =>
                   val map = new java.util.HashMap[String, CaseLeafInfo](variant.cases.length)
 
                   def getInfos(variant: Reflect.Variant[F, A], spans: List[DynamicOptic.Node.Case]): Array[CaseInfo] = {
@@ -690,7 +689,7 @@ class DynamoDBCodecDeriver private (
               }
 
             override def decoder: Decoder[Map[Key, Value]] =
-              (av: AttributeValue) => {
+              (av: AttributeValue) =>
                 if (!av.isInstanceOf[AttributeValue.Map])
                   Left(
                     ItemError.DecodingError(
@@ -719,7 +718,6 @@ class DynamoDBCodecDeriver private (
                     Right(m)
                   } else Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
                 }
-              }
           }
         else // TODO: non native Map encoding - Sequence of tuple2
           new DynamoDBCodec[Map[Key, Value]] {
@@ -776,7 +774,7 @@ class DynamoDBCodecDeriver private (
                   Right(m)
                 } else Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
 
-              case av                         => Left(ItemError.DecodingError(s"Expected AttributeValue.List, found ${av.showType}"))
+              case av => Left(ItemError.DecodingError(s"Expected AttributeValue.List, found ${av.showType}"))
 
             }
 
@@ -1042,7 +1040,7 @@ class DynamoDBCodecDeriver private (
                       mapBuilder.addOne(name, av)
                     }
 
-                  case _                        =>
+                  case _ =>
                     // TODO: think about what we do here
                     val value = regs.getObject(offset)
                     val av    = codec.asInstanceOf[DynamoDBCodec[AnyRef]].encoder(value)
@@ -1097,13 +1095,13 @@ class DynamoDBCodecDeriver private (
                           case _                        => throw new Exception("TODO: decide what to do here")
                         }
                       idx += 1
-                    }                                                          // end while
+                    } // end while
                     if (errors.isEmpty) {
                       val a = constructor.construct(regs, RegisterOffset.Zero)
                       Right(a)
                     } else Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
 
-                  case av: AttributeValue        =>
+                  case av: AttributeValue =>
                     Left(DecodingError(s"Expected Map attribute value but got: ${av.showType}"))
                 }
             }

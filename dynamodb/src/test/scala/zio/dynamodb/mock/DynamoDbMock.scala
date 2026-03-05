@@ -151,11 +151,15 @@ object DynamoDbMock extends Mock[DynamoDb] {
         zio.aws.dynamodb.model.DeleteTableResponse.ReadOnly
       ]
   object ExecuteStatement
-      extends Effect[ExecuteStatementRequest, AwsError, StreamingOutputResult[
-        Any,
-        zio.aws.dynamodb.model.ExecuteStatementResponse.ReadOnly,
-        Map[AttributeName, zio.aws.dynamodb.model.AttributeValue.ReadOnly]
-      ]]
+      extends Effect[
+        ExecuteStatementRequest,
+        AwsError,
+        StreamingOutputResult[
+          Any,
+          zio.aws.dynamodb.model.ExecuteStatementResponse.ReadOnly,
+          Map[AttributeName, zio.aws.dynamodb.model.AttributeValue.ReadOnly]
+        ]
+      ]
   object ExecuteStatementPaginated
       extends Effect[
         ExecuteStatementRequest,
@@ -523,11 +527,15 @@ object DynamoDbMock extends Mock[DynamoDb] {
             ]                                                                = proxy(DeleteTable, request)
             def executeStatement(
               request: ExecuteStatementRequest
-            ): ZIO[Any, AwsError, StreamingOutputResult[
+            ): ZIO[
               Any,
-              zio.aws.dynamodb.model.ExecuteStatementResponse.ReadOnly,
-              Map[AttributeName, zio.aws.dynamodb.model.AttributeValue.ReadOnly]
-            ]]                                                               = proxy(ExecuteStatement, request)
+              AwsError,
+              StreamingOutputResult[
+                Any,
+                zio.aws.dynamodb.model.ExecuteStatementResponse.ReadOnly,
+                Map[AttributeName, zio.aws.dynamodb.model.AttributeValue.ReadOnly]
+              ]
+            ]                                                                = proxy(ExecuteStatement, request)
             def executeStatementPaginated(request: ExecuteStatementRequest): IO[
               AwsError,
               zio.aws.dynamodb.model.ExecuteStatementResponse.ReadOnly

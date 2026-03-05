@@ -17,7 +17,7 @@ private[dynamodb] final case class AliasMap private[dynamodb] (map: Map[AliasMap
     @tailrec
     def loop(pe: ProjectionExpression[_, _], acc: (AliasMap, List[String])): (AliasMap, List[String]) =
       pe match {
-        case ProjectionExpression.Root                                                 =>
+        case ProjectionExpression.Root =>
           acc // identity
         case ProjectionExpression.MapElement(ProjectionExpression.Root, mapElementKey) =>
           val name =

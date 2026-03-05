@@ -3,7 +3,7 @@ package zio.dynamodb.examples
 import zio.aws.core.config
 import zio.aws.{ dynamodb, netty }
 import zio.dynamodb.DynamoDBQuery.{ get, put }
-import zio.dynamodb.{ DynamoDBExecutor }
+import zio.dynamodb.DynamoDBExecutor
 import zio.schema.{ DeriveSchema, Schema }
 import zio.ZIOAppDefault
 import zio.dynamodb.ProjectionExpression

@@ -23,7 +23,7 @@ object SimpleDecodedExample extends ZIOAppDefault {
   implicit lazy val simpleCaseClass3: Schema[SimpleCaseClass3] = DeriveSchema.gen[SimpleCaseClass3]
 
   private val program = for {
-    _         <-
+    _ <-
       put("table1", NestedCaseClass2(id = 1, SimpleCaseClass3(2, "Avi", flag = true))).execute // Save case class to DB
     caseClass <- get("table1")(NestedCaseClass2.id.partitionKey === 2).execute // read case class from DB
     _         <- printLine(s"get: found $caseClass")

@@ -2,7 +2,7 @@ package zio.dynamodb
 
 import zio.Scope
 import zio.test.Spec
-import zio.test.{ assertTrue }
+import zio.test.assertTrue
 import zio.test.TestEnvironment
 import zio.test.TestAspect
 import zio.schema.annotation.discriminatorName
@@ -55,7 +55,7 @@ object TypeSafeApiAlternateModeling extends DynamoDBLocalSpec {
       accountId: Option[String],   // secondary keys have to be scalar and at top level
       isTest: Boolean,
       body: ContractBody
-    )               {
+    ) {
       val contractType: String =
         body match {
           case ContractBody.Simple(_)                     => "simple"

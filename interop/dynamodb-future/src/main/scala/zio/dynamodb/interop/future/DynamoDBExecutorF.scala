@@ -13,13 +13,13 @@ import zio.Unsafe
 import zio.CancelableFuture
 import zio.ZLayer
 
-import software.amazon.awssdk.http.nio.netty.{ NettyNioAsyncHttpClient }
+import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient
 import zio.aws.core.httpclient.Protocol
 
 class DynamoDBExecutorF private (
   runtime: zio.Runtime.Scoped[DynamoDBExecutor],
   implicit val unsafe: Unsafe
-)                        {
+) {
   def execute[A](query: DynamoDBQuery[_, A]): CancelableFuture[A] = {
     val zio: ZIO[DynamoDBExecutor, Throwable, A] =
       query.execute

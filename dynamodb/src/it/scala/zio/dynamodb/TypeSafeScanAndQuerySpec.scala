@@ -87,13 +87,13 @@ object TypeSafeScanAndQuerySpec extends DynamoDBLocalSpec {
     test("without filter pages until lastEvaluatedKey is empty") {
       withSingleIdKeyTable { tableName =>
         for {
-          _                         <- put(tableName, Person("1", "Smith", Some("John"), 21)).execute
-          _                         <- put(tableName, Person("2", "Brown", None, 42)).execute
-          t                         <- scanSome[Person](tableName, 1).execute
+          _  <- put(tableName, Person("1", "Smith", Some("John"), 21)).execute
+          _  <- put(tableName, Person("2", "Brown", None, 42)).execute
+          t  <- scanSome[Person](tableName, 1).execute
           (page1, lastEvaluatedKey1) = t
-          t2                        <- scanSome[Person](tableName, 1).startKey(lastEvaluatedKey1).execute
+          t2 <- scanSome[Person](tableName, 1).startKey(lastEvaluatedKey1).execute
           (page2, lastEvaluatedKey2) = t2
-          t3                        <- scanSome[Person](tableName, 1).startKey(lastEvaluatedKey2).execute
+          t3 <- scanSome[Person](tableName, 1).startKey(lastEvaluatedKey2).execute
           (page3, lastEvaluatedKey3) = t3
         } yield assertTrue(page1 == Chunk(Person("1", "Smith", Some("John"), 21))) &&
           assertTrue(page2 == Chunk(Person("2", "Brown", None, 42))) &&
@@ -107,18 +107,18 @@ object TypeSafeScanAndQuerySpec extends DynamoDBLocalSpec {
       withSingleIdKeyTable { tableName =>
         val scanSomeWithFilter = scanSome[Person](tableName, 1).filter(Person.forename.exists)
         for {
-          _                               <- put(tableName, Person("1", "Smith", Some("John"), 21)).execute
-          _                               <- put(tableName, Person("2", "Brown", None, 42)).execute
-          t                               <- scanSomeWithFilter.execute
+          _  <- put(tableName, Person("1", "Smith", Some("John"), 21)).execute
+          _  <- put(tableName, Person("2", "Brown", None, 42)).execute
+          t  <- scanSomeWithFilter.execute
           (peopleScan1, lastEvaluatedKey1) = t
-          t2                              <- scanSomeWithFilter.startKey(lastEvaluatedKey1).execute
+          t2 <- scanSomeWithFilter.startKey(lastEvaluatedKey1).execute
           (peopleScan2, lastEvaluatedKey2) = t2
         } yield assertTrue(peopleScan1 == Chunk(Person("1", "Smith", Some("John"), 21))) &&
           assertTrue(peopleScan2.isEmpty) &&
           assertTrue(lastEvaluatedKey1.isDefined) &&
           assertTrue(peopleScan2.isEmpty) &&
           assertTrue(lastEvaluatedKey2.isDefined)
-      // note lastEvaluatedKey2 is present as item is still read by DynamoDB
+        // note lastEvaluatedKey2 is present as item is still read by DynamoDB
       }
     }
   )
@@ -208,13 +208,13 @@ object TypeSafeScanAndQuerySpec extends DynamoDBLocalSpec {
       withIdAndYearKeyTable { tableName =>
         val querySomeWithPartitionKey = querySome[Equipment](tableName, 1).whereKey(Equipment.id.partitionKey === "1")
         for {
-          _                         <- put(tableName, Equipment("1", "2020", "Widget1", 1.0)).execute
-          _                         <- put(tableName, Equipment("1", "2021", "Widget1", 2.0)).execute
-          t                         <- querySomeWithPartitionKey.execute
+          _  <- put(tableName, Equipment("1", "2020", "Widget1", 1.0)).execute
+          _  <- put(tableName, Equipment("1", "2021", "Widget1", 2.0)).execute
+          t  <- querySomeWithPartitionKey.execute
           (page1, lastEvaluatedKey1) = t
-          t2                        <- querySomeWithPartitionKey.startKey(lastEvaluatedKey1).execute
+          t2 <- querySomeWithPartitionKey.startKey(lastEvaluatedKey1).execute
           (page2, lastEvaluatedKey2) = t2
-          t3                        <- querySomeWithPartitionKey.startKey(lastEvaluatedKey2).execute
+          t3 <- querySomeWithPartitionKey.startKey(lastEvaluatedKey2).execute
           (page3, lastEvaluatedKey3) = t3
         } yield assertTrue(page1 == Chunk(Equipment("1", "2020", "Widget1", 1.0))) &&
           assertTrue(page2 == Chunk(Equipment("1", "2021", "Widget1", 2.0))) &&
@@ -230,11 +230,11 @@ object TypeSafeScanAndQuerySpec extends DynamoDBLocalSpec {
           Equipment.id.partitionKey === "1" && Equipment.year.sortKey === "2020"
         )
         for {
-          _                         <- put(tableName, Equipment("1", "2020", "Widget1", 1.0)).execute
-          _                         <- put(tableName, Equipment("1", "2021", "Widget1", 2.0)).execute
-          t                         <- query.execute
+          _  <- put(tableName, Equipment("1", "2020", "Widget1", 1.0)).execute
+          _  <- put(tableName, Equipment("1", "2021", "Widget1", 2.0)).execute
+          t  <- query.execute
           (page1, lastEvaluatedKey1) = t
-          t2                        <- query.startKey(lastEvaluatedKey1).execute
+          t2 <- query.startKey(lastEvaluatedKey1).execute
           (page2, lastEvaluatedKey2) = t2
         } yield assertTrue(page1 == Chunk(Equipment("1", "2020", "Widget1", 1.0))) &&
           assertTrue(page2.isEmpty) &&
@@ -259,18 +259,18 @@ object TypeSafeScanAndQuerySpec extends DynamoDBLocalSpec {
           val person2 = PersonGsi("2", Some("account1"), "Jane", 42)
           val person3 = PersonGsi("3", Some("account2"), "Tarlochan", 42)
           for {
-            _         <- put(personTable, person1).execute
-            _         <- put(personTable, person2).execute
-            _         <- put(personTable, person3).execute
-            stream    <- queryAll[PersonGsi](personTable)
-                           .whereKey(PersonGsi.accountId.partitionKey === Some("account1"))
-                           .indexName("accountId")
-                           .execute
-            xs        <- stream.runCollect
-            t         <- querySome[PersonGsi](personTable, 3)
-                           .whereKey(PersonGsi.accountId.partitionKey === Some("account1"))
-                           .indexName("accountId")
-                           .execute
+            _      <- put(personTable, person1).execute
+            _      <- put(personTable, person2).execute
+            _      <- put(personTable, person3).execute
+            stream <- queryAll[PersonGsi](personTable)
+                        .whereKey(PersonGsi.accountId.partitionKey === Some("account1"))
+                        .indexName("accountId")
+                        .execute
+            xs     <- stream.runCollect
+            t      <- querySome[PersonGsi](personTable, 3)
+                        .whereKey(PersonGsi.accountId.partitionKey === Some("account1"))
+                        .indexName("accountId")
+                        .execute
             (xs2, lek) = t
           } yield assertTrue(xs == Chunk(person1, person2), xs2 == Chunk(person1, person2), lek == None)
         }

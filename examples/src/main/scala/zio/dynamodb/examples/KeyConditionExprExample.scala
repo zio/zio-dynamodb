@@ -49,7 +49,7 @@ object KeyConditionExprExample extends App {
   val pkAndSk: CompositePrimaryKeyExpr[Student] =
     Student.email.partitionKey === "x" && Student.subject.sortKey === "y"
 
-  //val three = Student.email.primaryKey === "x" && Student.subject.sortKey === "y" && Student.subject.sortKey // 3 terms not allowed
+  // val three = Student.email.primaryKey === "x" && Student.subject.sortKey === "y" && Student.subject.sortKey // 3 terms not allowed
   val pkAndSkExtended1 =
     Student.email.partitionKey === "x" && Student.subject.sortKey > "y"
   val pkAndSkExtended2 =

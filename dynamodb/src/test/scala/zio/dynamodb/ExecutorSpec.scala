@@ -2,9 +2,9 @@ package zio.dynamodb
 
 import zio.aws.dynamodb.model.primitives.{ AttributeName, StringAttributeValue, TableArn }
 import zio.aws.dynamodb.model.{
-  BatchWriteItemResponse,
   AttributeValue => ZIOAwsAttributeValue,
   BatchGetItemResponse => ZIOAwsBatchGetItemResponse,
+  BatchWriteItemResponse,
   KeysAndAttributes => ZIOAwsKeysAndAttributes
 }
 import zio.aws.dynamodb.DynamoDb

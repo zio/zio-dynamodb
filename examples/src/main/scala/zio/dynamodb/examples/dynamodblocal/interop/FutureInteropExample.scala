@@ -38,7 +38,7 @@ object FutureInteropExample extends App {
                 .executeToF
     _      <- put(tableName = "Person", Person(id = "avi", name = "Avinder")).executeToF
     result <- get(tableName = "Person")(Person.id.partitionKey === "avi").executeToF
-    _       = println(s"found=$result")
+    _ = println(s"found=$result")
     _      <- DynamoDBQuery.deleteTable("Person").executeToF
 
   } yield ()

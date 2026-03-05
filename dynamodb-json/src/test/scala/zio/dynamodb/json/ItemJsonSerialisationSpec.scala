@@ -31,7 +31,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
       val json = DynamodbJsonCodec.Encoder.encode(avMap)
       val av   = DynamodbJsonCodec.Decoder.decode(json)
       for {
-        _      <- if (debug) ZIO.debug(json.toString) else ZIO.unit
+        _ <- if (debug) ZIO.debug(json.toString) else ZIO.unit
         checked = av match {
                     case Right(value)                           =>
                       assertTrue(value == avMap)
@@ -45,11 +45,11 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
 
   val encoderSuite = suite("encoder suite")(
     test("encode top level map of primitives") {
-      val avMap = AttributeValue.Map.empty +
+      val avMap     = AttributeValue.Map.empty +
         ("id"     -> AttributeValue.String("101")) +
         ("count"  -> AttributeValue.Number(BigDecimal(42))) +
         ("isTest" -> AttributeValue.Bool(true))
-      val encoded = DynamodbJsonCodec.Encoder.encode(avMap)
+      val encoded   = DynamodbJsonCodec.Encoder.encode(avMap)
       assert(encoded)(
         equalTo(
           Json.Obj(
@@ -84,7 +84,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
       )
     },
     test("encode NS") {
-      val avMap =
+      val avMap   =
         AttributeValue.Map.empty + ("numberSet" -> AttributeValue.NumberSet(Set(BigDecimal(1), BigDecimal(2))))
       val encoded = DynamodbJsonCodec.Encoder.encode(avMap)
       assert(encoded)(
@@ -96,7 +96,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
       )
     },
     test("encode L of String") {
-      val avMap =
+      val avMap   =
         AttributeValue.Map.empty + ("listOfString" -> AttributeValue.List(
           List(AttributeValue.String("1"), AttributeValue.String("2"))
         ))
@@ -424,7 +424,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
   )
   val attrMapToAVSuite = suite("AttrMap to AttributeValue")(
     test("top level only AttrMap to AttributeValue") {
-      val avMap = AttrMap.empty +
+      val avMap     = AttrMap.empty +
         ("id"     -> AttributeValue.String("101")) +
         ("count"  -> AttributeValue.Number(BigDecimal(42))) +
         ("isTest" -> AttributeValue.Bool(true))
@@ -452,7 +452,7 @@ object ItemJsonSerialisationSpec extends ZIOSpecDefault {
   val endToEndSuite = suite("AttrMap end to end")(
     test("from AttrMap -> Json string -> AttrMap") {
 
-      val am = AttrMap.empty +
+      val am     = AttrMap.empty +
         ("id"     -> AttributeValue.String("101")) +
         ("nested" -> obj("bar")) +
         ("count"  -> AttributeValue.Number(BigDecimal(101)))

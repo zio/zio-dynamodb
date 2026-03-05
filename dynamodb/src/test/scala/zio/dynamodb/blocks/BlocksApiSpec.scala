@@ -19,7 +19,7 @@ object BlocksApiSpec extends ZIOSpecDefault {
   }
   val personTable = "person"
 
-  def spec                                                                                                         =
+  def spec =
     suite("BlocksApiSpec")(
       test("API examples") {
         for {

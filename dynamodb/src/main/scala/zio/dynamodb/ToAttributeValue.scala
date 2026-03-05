@@ -30,8 +30,8 @@ object ToAttributeValue extends ToAttributeValueLowPriorityImplicits0 {
   implicit val attrMapToAttributeValue: ToAttributeValue[AttrMap] =
     (attrMap: AttrMap) =>
       AttributeValue.Map {
-        attrMap.map.map {
-          case (key, value) => (AttributeValue.String(key), value)
+        attrMap.map.map { case (key, value) =>
+          (AttributeValue.String(key), value)
         }
       }
 
@@ -39,16 +39,16 @@ object ToAttributeValue extends ToAttributeValueLowPriorityImplicits0 {
     (map: Map[ScalaString, A]) =>
       AttributeValue.Map(map.map { case (k, v) => (AttributeValue.String(k), ev.toAttributeValue(v)) })
 
-  implicit val stringToAttributeValue: ToAttributeValue[ScalaString]                                           = AttributeValue.String(_)
-  implicit val stringSetToAttributeValue: ToAttributeValue[Set[ScalaString]]                                   =
+  implicit val stringToAttributeValue: ToAttributeValue[ScalaString]            = AttributeValue.String(_)
+  implicit val stringSetToAttributeValue: ToAttributeValue[Set[ScalaString]]    =
     AttributeValue.StringSet(_)
   // BigDecimal support
-  implicit val bigDecimalToAttributeValue: ToAttributeValue[BigDecimal]                                        = AttributeValue.Number(_)
-  implicit val bigDecimalSetToAttributeValue: ToAttributeValue[Set[BigDecimal]]                                = AttributeValue.NumberSet(_)
+  implicit val bigDecimalToAttributeValue: ToAttributeValue[BigDecimal]         = AttributeValue.Number(_)
+  implicit val bigDecimalSetToAttributeValue: ToAttributeValue[Set[BigDecimal]] = AttributeValue.NumberSet(_)
   // short support
-  implicit val shortToAttributeValue: ToAttributeValue[Short]                                                  = (a: Short) =>
+  implicit val shortToAttributeValue: ToAttributeValue[Short]                   = (a: Short) =>
     AttributeValue.Number(BigDecimal(a.toString))
-  implicit val shortSetToAttributeValue: ToAttributeValue[Set[Short]]                                          = (a: Set[Short]) =>
+  implicit val shortSetToAttributeValue: ToAttributeValue[Set[Short]]           = (a: Set[Short]) =>
     AttributeValue.NumberSet(a.map(s => BigDecimal(s.toString)))
 
   // Int support

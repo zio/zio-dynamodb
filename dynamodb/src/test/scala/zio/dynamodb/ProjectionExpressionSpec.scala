@@ -311,7 +311,9 @@ object ProjectionExpressionSpec extends ZIOSpecDefault {
           val ex = $("studentNumber").in(1, 2)
           assertTrue(ex.toString == s"In(ProjectionExpressionOperand($studentNumber),Set(Number(2), Number(1)))")
         },
-        test("'in' for a sum type") { // note we have to use scalar values as there is no notion of sum type in the type unsafe API
+        test(
+          "'in' for a sum type"
+        ) { // note we have to use scalar values as there is no notion of sum type in the type unsafe API
           val ex = $("payment").in(Payment.CreditCard.toString, Payment.PayPal.toString)
           assertTrue(
             ex.toString == s"In(ProjectionExpressionOperand($payment),Set(String(PayPal), String(CreditCard)))"

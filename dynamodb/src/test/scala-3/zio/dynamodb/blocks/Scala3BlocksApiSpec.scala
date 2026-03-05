@@ -1,9 +1,9 @@
 package zio.dynamodb.blocks
 
-import zio.blocks.schema.{CompanionOptics, Optic, Schema}
+import zio.blocks.schema.{ CompanionOptics, Optic, Schema }
 import zio.dynamodb.proofs.Addable
-import zio.dynamodb.{ProjectionExpression, ProjectionExpressionOps, ToAttributeValue, UpdateExpression}
-import zio.test.{ZIOSpecDefault, assertTrue}
+import zio.dynamodb.{ ProjectionExpression, ProjectionExpressionOps, ToAttributeValue, UpdateExpression }
+import zio.test.{ assertTrue, ZIOSpecDefault }
 
 object Scala3BlocksApiSpec extends ZIOSpecDefault {
 

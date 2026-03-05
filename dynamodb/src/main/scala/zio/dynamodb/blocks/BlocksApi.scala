@@ -45,7 +45,7 @@ object BlocksApi extends Conversions {
     tableName: String,
     key: PrimaryKey,
     projections: ProjectionExpression[_, _]*
-  ): DynamoDBQuery[Any, Option[Item]]                                           = DynamoDBQuery.getItem(tableName, key, projections: _*)
+  ): DynamoDBQuery[Any, Option[Item]]             = DynamoDBQuery.getItem(tableName, key, projections: _*)
 
   def update[A, From: SchemaCodec](tableName: String)(primaryKeyExpr: zio.blocks.schema.SchemaExpr[From, A])(
     action: Action[From]
@@ -206,7 +206,7 @@ trait Conversions {
             ),
             SchemaExpr.LogicalOperator.And
           ) =>
-        val pkEquals = {
+        val pkEquals                                    = {
           val field                   = topLevelLensFieldNameUnsafe(pkLens)
           val enc                     = pkSchema.derive(DynamoDBCodecDeriver).encoder
           val attrVal: AttributeValue = enc(pkVal)
@@ -253,7 +253,7 @@ trait Conversions {
             ),
             SchemaExpr.LogicalOperator.And
           ) =>
-        val pkEquals = {
+        val pkEquals                                              = {
           val field                   = topLevelLensFieldNameUnsafe(pkLens)
           val enc                     = pkSchema.derive(DynamoDBCodecDeriver).encoder
           val attrVal: AttributeValue = enc(pkVal)

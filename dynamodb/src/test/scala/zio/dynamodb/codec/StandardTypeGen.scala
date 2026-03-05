@@ -42,7 +42,7 @@ object StandardTypeGen {
           (StandardType.ZonedDateTimeType),
           (StandardType.ZoneIdType)
         )
-        //FIXME For some reason adding this causes other unrelated tests to break.
+        // FIXME For some reason adding this causes other unrelated tests to break.
 //    Gen.const(StandardType.ZoneOffset)
       )
       .asInstanceOf[Gen[Any, StandardType[A]]]

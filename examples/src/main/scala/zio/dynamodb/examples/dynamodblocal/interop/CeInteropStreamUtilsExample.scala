@@ -54,28 +54,27 @@ object CeInteropStreamUtilsExample extends IOApp.Simple {
     } yield (dynamo, dispatcher)
 
     for {
-      _ <- resources.use {
-             case (dynamoDBExceutorF, dispatcher) =>
-               implicit val dynamo_     = dynamoDBExceutorF // To use executeToF extension method we need this implicit here
-               implicit val dispatcher_ = dispatcher
+      _ <- resources.use { case (dynamoDBExceutorF, dispatcher) =>
+             implicit val dynamo_     = dynamoDBExceutorF // To use executeToF extension method we need this implicit here
+             implicit val dispatcher_ = dispatcher
 
-               for {
-                 _         <- createTable("Person", KeySchema("id"), BillingMode.PayPerRequest)(
-                                AttributeDefinition.attrDefnString("id")
-                              ).executeToF
-                 fs2Input   = fs2.Stream(Person("avi", "avi")).covary[F]
-                 _         <- batchWriteFromStreamF(fs2Input)(p => put("Person", p)).compile.drain
-                 console    = Console.make[F]
-                 fs2Stream <- scanAll[Person]("Person").executeToF
-                 _         <- fs2Stream.evalTap(p => console.println(s"scanned $p")).compile.drain
-                 _         <- batchReadFromStreamF("Person", fs2Input) { p =>
-                                Person.id.partitionKey === p.id
-                              }.evalTap(p => console.println(s"person $p")).compile.toList
-                 _         <- batchReadItemFromStreamF("Person", fs2Input) { p =>
-                                PrimaryKey("id" -> p.id)
-                              }.evalTap(item => console.println(s"item $item")).compile.toList
-                 _         <- deleteTable("Person").executeToF
-               } yield ()
+             for {
+               _         <- createTable("Person", KeySchema("id"), BillingMode.PayPerRequest)(
+                              AttributeDefinition.attrDefnString("id")
+                            ).executeToF
+               fs2Input = fs2.Stream(Person("avi", "avi")).covary[F]
+               _         <- batchWriteFromStreamF(fs2Input)(p => put("Person", p)).compile.drain
+               console = Console.make[F]
+               fs2Stream <- scanAll[Person]("Person").executeToF
+               _         <- fs2Stream.evalTap(p => console.println(s"scanned $p")).compile.drain
+               _         <- batchReadFromStreamF("Person", fs2Input) { p =>
+                              Person.id.partitionKey === p.id
+                            }.evalTap(p => console.println(s"person $p")).compile.toList
+               _         <- batchReadItemFromStreamF("Person", fs2Input) { p =>
+                              PrimaryKey("id" -> p.id)
+                            }.evalTap(item => console.println(s"item $item")).compile.toList
+               _         <- deleteTable("Person").executeToF
+             } yield ()
            }
     } yield ()
   }

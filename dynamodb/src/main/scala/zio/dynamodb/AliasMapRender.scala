@@ -45,10 +45,9 @@ private[dynamodb] object AliasMapRender {
 
   def forEach(paths: List[ProjectionExpression[_, _]]): AliasMapRender[List[String]] =
     AliasMapRender { aliasMap =>
-      val (am, pathStrings) = paths.foldLeft((aliasMap, List.empty[String])) {
-        case ((am, acc), path) =>
-          val (am2, str) = am.getOrInsert(path)
-          (am2, acc :+ str)
+      val (am, pathStrings) = paths.foldLeft((aliasMap, List.empty[String])) { case ((am, acc), path) =>
+        val (am2, str) = am.getOrInsert(path)
+        (am2, acc :+ str)
       }
       (am, pathStrings)
     }

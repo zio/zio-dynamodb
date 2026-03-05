@@ -254,7 +254,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
           for {
             xs <- outputStream.runCollect
           } yield assertTrue(xs == Chunk(Right(None), Right(None)))
-        // Note this test is only an example, we cannot force an AWS batch error with unprocessed item to occur in the local DynamoDB
+          // Note this test is only an example, we cannot force an AWS batch error with unprocessed item to occur in the local DynamoDB
         }
       }
     )
@@ -449,7 +449,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "setIfNotExists fails silently when the attribute already exists"                    // this is AWS API behavior
+      "setIfNotExists fails silently when the attribute already exists" // this is AWS API behavior
     ) {
       withSingleIdKeyTable { tableName =>
         val person = Person("1", "Smith", None, 21)
@@ -572,7 +572,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "remove'ing a map element when it does not exists fails silently"                    // this is AWS API behavior
+      "remove'ing a map element when it does not exists fails silently" // this is AWS API behavior
     ) {
       withSingleIdKeyTable { tableName =>
         val person = PersonWithCollections(
@@ -686,7 +686,7 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
       }
     },
     test(
-      "remove(100) on a list of 2 elements fails silently"                                 // this is AWS API behaviour
+      "remove(100) on a list of 2 elements fails silently" // this is AWS API behaviour
     ) {
       withSingleIdKeyTable { tableName =>
         val address1 = Address("1", "AAAA")
@@ -916,7 +916,9 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         } yield assertTrue(people == Chunk.empty)
       }
     },
-    test("returns an unbatchable error for an update query") { // note there is no AWS API for batch update so batch returns an error
+    test(
+      "returns an unbatchable error for an update query"
+    ) { // note there is no AWS API for batch update so batch returns an error
       withSingleIdKeyTable { tableName =>
         val person1 = Person("1", "Smith", Some("John"), 21)
         val person2 = Person("2", "Brown", Some("Peter"), 42)
@@ -951,16 +953,16 @@ object TypeSafeApiCrudSpec extends DynamoDBLocalSpec {
         val putPerson1 = put(tableName, person1.copy(forename = Some("Updated"))).where(Person.id <> "2")
         val putPerson2 = put(tableName, person2.copy(forename = Some("Updated"))).where(Person.id <> "2")
         for {
-          _         <- batch(Chunk(person1, person2))(person => put(tableName, person)).execute
-          result    <- (putPerson1 zip putPerson2).transaction.execute.either
+          _      <- batch(Chunk(person1, person2))(person => put(tableName, person)).execute
+          result <- (putPerson1 zip putPerson2).transaction.execute.either
           hasTXError = result match {
                          case Left(DynamoDBError.AWSError(_: TransactionCanceledException)) => true
                          case _                                                             => false
                        }
-          stream    <- scanAll[Person](tableName).execute
-          people    <- stream.runCollect
+          stream <- scanAll[Person](tableName).execute
+          people <- stream.runCollect
         } yield assertTrue(hasTXError) && assertTrue(!people.exists(_.forename == Some("Updated")))
-      // without the transaction the 1st put would have succeeded
+        // without the transaction the 1st put would have succeeded
       }
     },
     test("get queries with multiple tables") {

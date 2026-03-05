@@ -86,7 +86,7 @@ package object dynamodb {
             }
           )
         for {
-          r <- ZIO.environment[DynamoDBExecutor]
+          r    <- ZIO.environment[DynamoDBExecutor]
           list <- batchGetItem.execute.provideEnvironment(r)
         } yield list
       }
@@ -128,7 +128,7 @@ package object dynamodb {
               }
             }
         for {
-          r <- ZIO.environment[DynamoDBExecutor]
+          r    <- ZIO.environment[DynamoDBExecutor]
           list <- batchGetItem.execute.provideEnvironment(r)
         } yield list
       }

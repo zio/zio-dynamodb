@@ -28,7 +28,7 @@ private[dynamodb] object Annotations {
       case _                => false
     }
 
-  def maybeCaseName(annotations: Chunk[Any]): Option[String]      =
+  def maybeCaseName(annotations: Chunk[Any]): Option[String] =
     annotations.collect { case caseName(name) => name }.headOption
 
   def maybeDiscriminator(annotations: Chunk[Any]): Option[String] =

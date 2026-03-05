@@ -19,7 +19,7 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
   )
   private val beforeAddTable1AndTable3 = TestAspect.before(
     TestDynamoDBExecutor
-      .addTable(tableName1.value, "k1", primaryKeyT1                     -> itemT1, primaryKeyT1_2 -> itemT1_2) *>
+      .addTable(tableName1.value, "k1", primaryKeyT1 -> itemT1, primaryKeyT1_2 -> itemT1_2) *>
       TestDynamoDBExecutor.addTable(tableName3.value, "k3", primaryKeyT3 -> itemT3)
   )
 
@@ -159,11 +159,11 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
   private val batchingViaZipSuite = suite("batching via zip")(
     test("batch putItem1 zip putItem1_2") {
       for {
-        _                                                             <- TestDynamoDBExecutor.addTable(tableName1.value, "k1")
+        _               <- TestDynamoDBExecutor.addTable(tableName1.value, "k1")
         query1: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap])] = putItemT1 zip putItemT1_2
         query2: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap])] = getItemT1 zip getItemT1_2
-        putItemsResults                                               <- query1.execute
-        getItemsResults                                               <- query2.execute
+        putItemsResults <- query1.execute
+        getItemsResults <- query2.execute
       } yield assert(putItemsResults)(equalTo((None, None))) && assert(getItemsResults)(
         equalTo((Some(itemT1), Some(itemT1_2)))
       )
@@ -172,7 +172,7 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
       val query1: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap])]                  = getItemT1 zip getItemT1_2
       val query2: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap], Option[AttrMap])] = query1 zip getItemT3
       for {
-        result  <- query2.execute
+        result <- query2.execute
         expected = (Some(itemT1), Some(itemT1_2), Some(itemT3))
       } yield assert(result)(equalTo(expected))
     } @@ beforeAddTable1AndTable3,
@@ -181,7 +181,7 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
       val query2: DynamoDBQuery[Any, (Option[AttrMap], Option[AttrMap], Option[AttrMap])] =
         query1 zip getItemT1_NotExists
       for {
-        result  <- query2.execute
+        result <- query2.execute
         expected = (Some(itemT1), Some(itemT1_2), None)
       } yield assert(result)(equalTo(expected))
     } @@ beforeAddTable1,
@@ -306,7 +306,9 @@ object BatchingDSLSpec extends ZIOSpecDefault with DynamoDBFixtures {
         items <- TestDynamoDBExecutor.itemsForTable(tableName1)
       } yield assertQueryBatched(query) && assertTrue(items == Set.empty[Item])
     } @@ beforeAddEmptyTable1,
-    test("using batch of UpdateItems should result in an error") { // Batching of UpdateItem's is not supported by AWS API
+    test(
+      "using batch of UpdateItems should result in an error"
+    ) { // Batching of UpdateItem's is not supported by AWS API
       for {
         exit <- batch(1 to 2) { i =>
                   updateItem(tableName1.value, PrimaryKey("k1" -> s"v$i"))($("v1").set("Blah"))

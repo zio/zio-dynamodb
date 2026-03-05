@@ -119,7 +119,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
   final case class RecordWithArray(
     // TODO: Avi - bottom out Array support in AttrMap/To/FromAttributeValue and equality checks
     names: Array[String] = Array.empty
-  )                                     {
+  ) {
     override def equals(obj: Any): Boolean =
       obj match {
         case that: RecordWithArray =>
@@ -327,7 +327,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
         RecordWithListOfInt.schema1,
         RecordWithListOfInt.schema2
         // Note default is:
-        //_.withTransientEmptyCollection(true).withRequiredCollectionFields(true)
+        // _.withTransientEmptyCollection(true).withRequiredCollectionFields(true)
       )(expectedItem = AttributeValue.Map(Map(AttributeValue.String("list") -> AttributeValue.List.empty)))(
         expectedValue = RecordWithListOfInt(list = Nil)
       ),
@@ -487,9 +487,7 @@ object Schema2CodecSpec extends ZIOSpecDefault {
     test("investigate field codec override") {
       val codecToUpper: DynamoDBCodec[String] = new DynamoDBCodec[String] {
         override def encoder: Encoder[String] =
-          s => {
-            AttributeValue.String(s.toUpperCase)
-          }
+          s => AttributeValue.String(s.toUpperCase)
 
         override def decoder: Decoder[String] = {
           case AttributeValue.String(s) => Right(s + "_decoded")

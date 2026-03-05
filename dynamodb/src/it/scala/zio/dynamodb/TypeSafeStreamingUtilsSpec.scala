@@ -35,12 +35,12 @@ object TypeSafeStreamingUtilsSpec extends DynamoDBLocalSpec {
             _            <- put(personLegacyTable, PersonLegacy("1", "John")).execute
             _            <- put(personLegacyTable, PersonLegacy("2", "Peter")).execute
             personStream <- scanAll[Person](personTable).execute
-            migrated      = batchReadFromStream(personLegacyTable, personStream) { person =>
-                              PersonLegacy.id.partitionKey === person.id
-                            }.absolve.map { // we effectively do a left outer join here on the 2 tables
-                              case (person, Some(legacy)) => person.copy(forename = Some(legacy.forename))
-                              case (person, _)            => person
-                            }
+            migrated = batchReadFromStream(personLegacyTable, personStream) { person =>
+                         PersonLegacy.id.partitionKey === person.id
+                       }.absolve.map { // we effectively do a left outer join here on the 2 tables
+                         case (person, Some(legacy)) => person.copy(forename = Some(legacy.forename))
+                         case (person, _)            => person
+                       }
             _            <- batchWriteFromStream(migrated)(person => put(personTable, person)).runDrain
             migrated     <- scanAll[Person](personTable).execute.flatMap(_.runCollect)
           } yield assertTrue(
