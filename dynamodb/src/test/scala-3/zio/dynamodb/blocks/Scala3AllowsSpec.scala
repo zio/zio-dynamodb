@@ -13,6 +13,8 @@ import zio.dynamodb.{
 import zio.prelude.Newtype
 import zio.test.{ assertTrue, ZIOSpecDefault }
 
+import java.time.Instant
+
 object Scala3AllowsSpec extends ZIOSpecDefault {
   opaque type OpaqueId = Int
   object OpaqueId {
@@ -51,6 +53,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
     setInt: Set[Int] = Set.empty,
     setString: Set[String] = Set.empty,
     setPersonId: Set[PersonId] = Set.empty,
+    setInstant: Set[Instant] = Set.empty,
     map: Map[String, Int] = Map.empty,
     mapOfAddress: Map[String, Address] = Map.empty,
     listInt: List[Int] = Nil,
@@ -67,6 +70,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
     val setInt: Optic[Person, Set[Int]]                        = $(_.setInt)
     val setString: Optic[Person, Set[String]]                  = $(_.setString)
     val setPersonId: Optic[Person, Set[PersonId]]              = $(_.setPersonId)
+    val setInstant: Optic[Person, Set[Instant]]                = $(_.setInstant)
     val map: Optic[Person, Map[String, Int]]                   = $(_.map)
     val mapOfAddress: Optic[Person, Map[String, Address]]      = $(_.mapOfAddress)
     def mapOfAddressAt(key: String): Optional[Person, Address] = $(_.mapOfAddress.atKey(key))
@@ -86,6 +90,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
         Person.setInt.addSet(Set(1))
         Person.setString.addSet(Set("hello"))
         Person.setPersonId.addSet(Set(PersonId(1)))
+        Person.setInstant.contains(Instant.now)
         Person.listInt.remove(1)
         Person.listAddress.remove(1)
         Person.setInt.addSet(Set(1))
@@ -173,6 +178,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
           ToAttributeValue[To].toAttributeValue(evSet(set))
         )
 
+      // we need additional proof Containable to align collection element type with A
       def contains[A](
         a: A
       )(implicit
