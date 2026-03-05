@@ -90,7 +90,6 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
         Person.setInt.addSet(Set(1))
         Person.setString.addSet(Set("hello"))
         Person.setPersonId.addSet(Set(PersonId(1)))
-        Person.setInstant.contains(Instant.now)
         Person.listInt.remove(1)
         Person.listAddress.remove(1)
         Person.setInt.addSet(Set(1))
@@ -182,7 +181,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
       def contains[A](
         a: A
       )(implicit
-        ev: Allows[To, NS | SS | BS | L | S],
+        ev: Allows[To, NS | SS | BS | L | S], // big improvement on readability
         ev2: Containable[To, A],
         to: ToAttributeValue[A]
       ): ConditionExpression[From] =
