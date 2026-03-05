@@ -90,6 +90,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
         Person.listAddress.remove(1)
         Person.setInt.addSet(Set(1))
         Person.setPersonId.contains(PersonId(1))
+        Person.mapOfAddressAt("42").remove
 
         assertTrue(true)
       },
@@ -180,6 +181,12 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
         to: ToAttributeValue[A]
       ): ConditionExpression[From] =
         ConditionExpression.Contains(self, to.toAttributeValue(a))
+
+      /**
+       * Removes this PathExpression from an item
+       */
+      def remove[From2 <: From]: UpdateExpression.Action.RemoveAction[From2] =
+        UpdateExpression.Action.RemoveAction[From2](self)
 
       /*
   Remove at index UpdateExpression behaviour
