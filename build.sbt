@@ -2,10 +2,10 @@ import BuildHelper.*
 
 inThisBuild(
   List(
-    organization := "dev.zio",
-    homepage := Some(url("https://zio.dev/zio-dynamodb/")),
-    licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
-    developers := List(
+    organization  := "dev.zio",
+    homepage      := Some(url("https://zio.dev/zio-dynamodb/")),
+    licenses      := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
+    developers    := List(
       Developer(
         "jdegoes",
         "John De Goes",
@@ -22,7 +22,7 @@ inThisBuild(
     pgpPassphrase := sys.env.get("PGP_PASSWORD").map(_.toArray),
     pgpPublicRing := file("/tmp/public.asc"),
     pgpSecretRing := file("/tmp/secret.asc"),
-    scmInfo := Some(
+    scmInfo       := Some(
       ScmInfo(url("https://github.com/zio/zio-dynamodb"), "scm:git:git@github.com:zio/zio-dynamodb.git")
     )
   )
@@ -285,7 +285,7 @@ lazy val examples = module("zio-dynamodb-examples", "examples")
   .settings(
     resolvers ++= Resolver.sonatypeOssRepos("releases"),
     publish / skip := true,
-    fork := true,
+    fork           := true,
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats-effect"  % catsEffect3Version,
       "co.fs2"        %% "fs2-core"     % fs2Version,
@@ -300,7 +300,7 @@ lazy val benchmarks = module("zio-dynamodb-benchmarks", "benchmarks")
   .settings(
     resolvers ++= Resolver.sonatypeOssRepos("releases"),
     publish / skip := true,
-    fork := true,
+    fork           := true,
     libraryDependencies ++= Seq(
       "org.systemfw" %% "dynosaur-core"     % "0.7.1",
       "org.scanamo"  %% "scanamo"           % "6.0.0",
@@ -321,7 +321,7 @@ lazy val zioDynamodbCe =
     .configs(IntegrationTest)
     .settings(
       resolvers ++= Resolver.sonatypeOssRepos("releases"),
-      fork := true,
+      fork           := true,
       libraryDependencies ++= Seq(
         "org.typelevel" %% "cats-effect"      % catsEffect3Version,
         "co.fs2"        %% "fs2-core"         % fs2Version,
@@ -340,7 +340,7 @@ lazy val zioDynamodbFuture =
     .configs(IntegrationTest)
     .settings(
       resolvers ++= Resolver.sonatypeOssRepos("releases"),
-      fork := true,
+      fork           := true,
       libraryDependencies ++= Seq(
         "dev.zio" %% "zio-test"     % zioVersion % "test",
         "dev.zio" %% "zio-test-sbt" % zioVersion % "test"
@@ -356,7 +356,7 @@ lazy val zioDynamodbJson =
     .configs(IntegrationTest)
     .settings(
       resolvers ++= Resolver.sonatypeOssRepos("releases"),
-      fork := true,
+      fork           := true,
       libraryDependencies ++= Seq(
         "dev.zio" %% "zio-test"        % zioVersion       % "test",
         "dev.zio" %% "zio-test-sbt"    % zioVersion       % "test",
@@ -380,16 +380,16 @@ lazy val docs = project
   .in(file("zio-dynamodb-docs"))
   .settings(stdSettings("zio-dynamodb-docs"))
   .settings(
-    fork := false,
-    moduleName := "zio-dynamodb-docs",
+    fork                                       := false,
+    moduleName                                 := "zio-dynamodb-docs",
     scalacOptions -= "-Yno-imports",
     scalacOptions -= "-Xfatal-warnings",
-    projectName := "ZIO DynamoDB",
-    mainModuleName := (zioDynamodb / moduleName).value,
-    projectStage := ProjectStage.Development,
+    projectName                                := "ZIO DynamoDB",
+    mainModuleName                             := (zioDynamodb / moduleName).value,
+    projectStage                               := ProjectStage.Development,
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(zioDynamodb),
     libraryDependencies ++= Seq("dev.zio" %% "zio" % zioVersion),
-    publish / skip := true,
+    publish / skip                             := true,
     mdocVariables ++= Map("ZIO_VERSION" -> zioVersion)
   )
   .dependsOn(zioDynamodb, zioDynamodbCe, zioDynamodbJson)

@@ -88,6 +88,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
         Person.opaqueInt.add(OpaqueId(1))
         Person.ageNewtype.add(1.0)
         Person.setInt.addSet(Set(1))
+//        Person.setInt.remove(1)
         Person.setString.addSet(Set("hello"))
         Person.setPersonId.addSet(Set(PersonId(1)))
         Person.listInt.remove(1)
@@ -190,8 +191,8 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
       /**
        * Removes this PathExpression from an item
        */
-      def remove[From2 <: From]: UpdateExpression.Action.RemoveAction[From2] =
-        UpdateExpression.Action.RemoveAction[From2](self)
+      def remove: UpdateExpression.Action.RemoveAction[From] =
+        UpdateExpression.Action.RemoveAction[From](self)
 
       /*
   Remove at index UpdateExpression behaviour
@@ -206,8 +207,8 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
   | `M`            | ❌        |
        */
       def remove(
-        index: Int
-      )(implicit ev: Allows[To, L]): UpdateExpression.Action.RemoveAction[From] =
+        index: Int // we need extra constraint to exclude Sets etc: evSeq: To <:< Seq[_]
+      )(implicit ev: Allows[To, L], evSeq: To <:< Seq[_]): UpdateExpression.Action.RemoveAction[From] =
         UpdateExpression.Action.RemoveAction(ProjectionExpression.ListElement(self, index))
 
     }
