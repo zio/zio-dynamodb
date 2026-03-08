@@ -1,5 +1,9 @@
 import BuildHelper.*
 
+ThisBuild / resolvers +=
+  "Sonatype Central Snapshots" at
+    "https://central.sonatype.com/repository/maven-snapshots/"
+
 inThisBuild(
   List(
     organization  := "dev.zio",
@@ -34,7 +38,7 @@ addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck"
 val zioVersion             = "2.1.24"
 val zioAwsVersion          = "7.41.19.4"
 val zioSchemaVersion       = "1.8.1"
-val zioBlocksVersion       = "0.0.27"
+val zioBlocksVersion       = "0.0.27+24-1efc4a17-SNAPSHOT" // "0.0.27"
 val zioPreludeVersion      = "1.0.0-RC46"
 val zioJsonVersion         = "0.9.0"
 val zioInteropCats3Version = "23.1.0.13"
@@ -283,7 +287,8 @@ lazy val zioDynamodb = module("zio-dynamodb", "dynamodb")
 
 lazy val examples = module("zio-dynamodb-examples", "examples")
   .settings(
-    resolvers ++= Resolver.sonatypeOssRepos("releases"),
+    resolvers += "Sonatype Central Snapshots" at
+      "https://central.sonatype.com/repository/maven-snapshots/",
     publish / skip := true,
     fork           := true,
     libraryDependencies ++= Seq(
@@ -298,7 +303,8 @@ lazy val examples = module("zio-dynamodb-examples", "examples")
 
 lazy val benchmarks = module("zio-dynamodb-benchmarks", "benchmarks")
   .settings(
-    resolvers ++= Resolver.sonatypeOssRepos("releases"),
+    resolvers += "Sonatype Central Snapshots" at
+      "https://central.sonatype.com/repository/maven-snapshots/",
     publish / skip := true,
     fork           := true,
     libraryDependencies ++= Seq(
@@ -320,7 +326,8 @@ lazy val zioDynamodbCe =
     .settings(buildInfoSettings("zio.dynamodb"))
     .configs(IntegrationTest)
     .settings(
-      resolvers ++= Resolver.sonatypeOssRepos("releases"),
+      resolvers += "Sonatype Central Snapshots" at
+        "https://central.sonatype.com/repository/maven-snapshots/",
       fork           := true,
       libraryDependencies ++= Seq(
         "org.typelevel" %% "cats-effect"      % catsEffect3Version,
@@ -339,7 +346,8 @@ lazy val zioDynamodbFuture =
     .settings(buildInfoSettings("zio.dynamodb"))
     .configs(IntegrationTest)
     .settings(
-      resolvers ++= Resolver.sonatypeOssRepos("releases"),
+      resolvers += "Sonatype Central Snapshots" at
+        "https://central.sonatype.com/repository/maven-snapshots/",
       fork           := true,
       libraryDependencies ++= Seq(
         "dev.zio" %% "zio-test"     % zioVersion % "test",
@@ -355,7 +363,8 @@ lazy val zioDynamodbJson =
     .settings(buildInfoSettings("zio.dynamodb"))
     .configs(IntegrationTest)
     .settings(
-      resolvers ++= Resolver.sonatypeOssRepos("releases"),
+      resolvers += "Sonatype Central Snapshots" at
+        "https://central.sonatype.com/repository/maven-snapshots/",
       fork           := true,
       libraryDependencies ++= Seq(
         "dev.zio" %% "zio-test"        % zioVersion       % "test",

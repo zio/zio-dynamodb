@@ -37,6 +37,7 @@ object AllowExamples {
 
     // val x = toJson(Person(42))
     /*
+    In Scala 2.13.18 I get below compile error, in Scala3 it compiles OK
 [error] /Users/avinder.bahra/Workspaces/avi/zio-dynamodb/dynamodb/src/test/scala/zio/dynamodb/blocks/AllowExamplesSpec.scala:44:19: could not find implicit value for parameter ev: zio.blocks.schema.comptime.Allows[zio.dynamodb.blocks.AllowExamples.Json1.Person,zio.blocks.schema.comptime.Allows.Record[zio.dynamodb.blocks.AllowExamples.Json1.JsonPrimitive | zio.blocks.schema.comptime.Allows.Self]]
 [error]     val x = toJson(Person(42))
      */
@@ -62,7 +63,7 @@ object AllowExamples {
 
 //    val x = writeCsv(Seq(Person(42)))
 
-    /* In Scala 2 I get below compile error, in Scala3 it compiles OK
+    /* In Scala 2.13.18 I get below compile error, in Scala3 it compiles OK
 [error] /Users/avinder.bahra/Workspaces/avi/zio-dynamodb/dynamodb/src/test/scala/zio/dynamodb/blocks/AllowExamplesSpec.scala:63:21:
 could not find implicit value for parameter ev: zio.blocks.schema.comptime.Allows[zio.dynamodb.blocks.AllowExamples.Csv1.Person,zio.blocks.schema.comptime.Allows.Record[zio.blocks.schema.comptime.Allows.Primitive | zio.blocks.schema.comptime.Allows.Optional[zio.blocks.schema.comptime.Allows.Primitive]]]
 [error]     val x = writeCsv(Seq(Person(42)))

@@ -80,9 +80,9 @@ object BuildHelper {
 
   def buildInfoSettings(packageName: String) =
     Seq(
-      buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion, isSnapshot),
+      buildInfoKeys    := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion, isSnapshot),
       buildInfoPackage := packageName,
-      buildInfoObject := "BuildInfo"
+      buildInfoObject  := "BuildInfo"
     )
 
   def versionSpecificSourceDirectories(sourceDir: File, scalaVersion: String): Seq[File] =
@@ -94,17 +94,17 @@ object BuildHelper {
 
   def stdSettings(prjName: String) =
     Seq(
-      name := s"$prjName",
-      organization := "dev.zio",
-      homepage := Some(url("https://github.com/zio/zio-dynamodb")),
-      crossScalaVersions := Seq(Scala213, Scala3),
+      name                     := s"$prjName",
+      organization             := "dev.zio",
+      homepage                 := Some(url("https://github.com/zio/zio-dynamodb")),
+      crossScalaVersions       := Seq(Scala213, Scala3),
       ThisBuild / scalaVersion := Scala213,
-      scalacOptions := stdOptions ++ extraOptions(scalaVersion.value),
+      scalacOptions            := stdOptions ++ extraOptions(scalaVersion.value),
       libraryDependencies ++= {
         if (scalaVersion.value == Scala3) Seq()
         else
           Seq(
-            ("com.github.ghik"                % "silencer-lib"    % SilencerVersion % Provided)
+            ("com.github.ghik" % "silencer-lib" % SilencerVersion % Provided)
               .cross(CrossVersion.full),
             compilerPlugin(("com.github.ghik" % "silencer-plugin" % SilencerVersion).cross(CrossVersion.full)),
             compilerPlugin(("org.typelevel"  %% "kind-projector"  % "0.13.4").cross(CrossVersion.full))
