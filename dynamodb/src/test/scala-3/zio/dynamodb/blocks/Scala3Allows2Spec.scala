@@ -1,10 +1,11 @@
 package zio.dynamodb.blocks
 
-import zio.blocks.schema.{CompanionOptics, Optic, Optional, Schema}
-import zio.dynamodb.proofs.{Addable, ListRemoveable}
+import zio.blocks.schema.{ CompanionOptics, Optic, Optional, Schema }
+import zio.dynamodb.proofs.{ Addable, ListRemoveable }
 import zio.dynamodb.*
+import zio.dynamodb.UpdateExpression.SetOperand.ListAppend
 import zio.prelude.Newtype
-import zio.test.{ZIOSpecDefault, assertTrue}
+import zio.test.{ assertTrue, ZIOSpecDefault }
 
 import java.time.Instant
 
@@ -52,7 +53,9 @@ object Scala3Allows2Spec extends ZIOSpecDefault {
     map: Map[String, Int] = Map.empty,
     mapOfAddress: Map[String, Address] = Map.empty,
     listInt: List[Int] = Nil,
-    listAddress: List[Address] = Nil
+    listAddress: List[Address] = Nil,
+    binary: List[Byte] = Nil,
+    binarySet: Set[List[Byte]] = Set.empty
   )
   object Person extends CompanionOptics[Person] {
     implicit val schema: Schema[Person]                        = Schema.derived
@@ -71,6 +74,8 @@ object Scala3Allows2Spec extends ZIOSpecDefault {
     def mapOfAddressAt(key: String): Optional[Person, Address] = $(_.mapOfAddress.atKey(key))
     val listInt: Optic[Person, List[Int]]                      = $(_.listInt)
     val listAddress: Optic[Person, List[Address]]              = $(_.listAddress)
+    val binary: Optic[Person, List[Byte]]                      = $(_.binary)
+    val binarySet: Optic[Person, Set[List[Byte]]]              = $(_.binarySet)
   }
 
   import ExtensionMethods.*
@@ -79,21 +84,37 @@ object Scala3Allows2Spec extends ZIOSpecDefault {
     suite("Allows syntax experiments")(
       test("using extension methods") {
         Person.id.add(PersonId(1))
+        Person.id.between(PersonId(1), PersonId(3))
+        Person.id.inSet(Set(PersonId(1), PersonId(2)))
         Person.age.add(1)
+        Person.age.between(18, 21)
         Person.opaqueInt.add(OpaqueId(1))
+        Person.opaqueInt.between(18, 21)
         Person.ageNewtype.add(1.0)
         Person.setInt.addSet(Set(1))
+        Person.setInt.deleteFromSet(Set(1))
+//        Person.setInt.between(1, 10)
 //        Person.setInt.remove(1)
         Person.setString.addSet(Set("hello"))
+        Person.setString.deleteFromSet(Set("hello"))
 //        Person.setString.contains(1)
         Person.setPersonId.addSet(Set(PersonId(1)))
         Person.listInt.remove(1)
+        Person.listInt.contains(1)
+        Person.listInt.appendList(List(1, 2))
+
         Person.listAddress.remove(1)
         Person.setInt.addSet(Set(1))
+//        Person.setInt.appendList(List(1, 2))
         Person.setPersonId.contains(PersonId(1))
 
         Person.mapOfAddressAt("42").remove
         Person.name.contains("1")
+        Person.name.between("A", "Z")
+        Person.name.inSet(Set("Alice", "Bob"))
+        Person.binary.between(List(Byte.MinValue), List(Byte.MaxValue))
+
+//        Person.setInstant.deleteFromSet(Set.empty)
 
         assertTrue(true)
       },
@@ -120,14 +141,15 @@ object Scala3Allows2Spec extends ZIOSpecDefault {
     import zio.blocks.typeid.IsNominalType
 
     // scalars
-    type N    = Primitive.Int | Primitive.Long | Primitive.Float | Primitive.Double | Primitive.Short
-    type S    = Primitive.String
+    type N    = Primitive.Int | Primitive.Long | Primitive.Float | Primitive.Double | Primitive.Short | Wrapped[Self]
+    type S    = Primitive.String | Wrapped[Self]
     type BOOL = Primitive.Boolean
+    type B    = Sequence[Primitive.Byte] | Wrapped[Self]
     // I think we can ignore NULL for incoming Scala types
 
     type NS = Sequence.Set[N | Wrapped[N]]
     type SS = Sequence.Set[S | Wrapped[S]]
-    type BS = Sequence.Set[Sequence[Primitive.Byte]]
+    type BS = Sequence.Set[B]
 
     // list excludes Sets - note we need to explicitly add Record here for List[Address]
     type L = Sequence.List[All | Record[All]] | Sequence.Vector[All | Record[All]] | Sequence.Array[All | Record[All]] |
@@ -137,7 +159,7 @@ object Scala3Allows2Spec extends ZIOSpecDefault {
 
     // single recursive root
     type All =
-      N | S | BOOL | NS | SS | BS | Record[Self] | Sequence[Self] | Map[Self, Self]
+      N | S | BOOL | B | NS | SS | BS | Record[Self] | Sequence[Self] | Map[Self, Self]
 
     implicit class OpticToDdbExpr[From, To: ToAttributeValue](optic: Optic[From, To]) {
       private def self: ProjectionExpression[From, To] = OpticToPE.pe(optic)
@@ -167,6 +189,23 @@ object Scala3Allows2Spec extends ZIOSpecDefault {
           to.toAttributeValue(a)
         )
 
+      /** Only applies to a List */
+      def appendList[A](
+        xs: To
+      )(implicit
+        ev: Allows[To, L],
+//        ev2: Allows[To, Sequence[IsType[A]]],
+        ev3: To <:< Iterable[A],
+        to: ToAttributeValue[A]
+      ): UpdateExpression.Action.SetAction[From, To] =
+        UpdateExpression.Action.SetAction(
+          self,
+          ListAppend(
+            self,
+            AttributeValue.List(xs.toList.map(to.toAttributeValue))
+          )
+        )
+
       def addSet[A](
         set: Set[A]
       )(implicit
@@ -178,23 +217,17 @@ object Scala3Allows2Spec extends ZIOSpecDefault {
           ToAttributeValue[To].toAttributeValue(evSet(set))
         )
 
-//      // we need additional proof Containable to align collection element type with A
-//      def contains[A](
-//        a: A
-//      )(implicit
-//        ev: Allows[To, NS | SS | BS | L | S], // big improvement on readability
-//        ev2: Containable[To, A],
-//        to: ToAttributeValue[A]
-//      ): ConditionExpression[From] =
-//        ConditionExpression.Contains(self, to.toAttributeValue(a))
-
-      // `To` must be a Set (or any supported collection kind) whose element type is exactly `A`.
-      // IsNominalType[A] ensures A is concrete at the call site — passing an abstract
-      // type parameter without the constraint fails to compile.
-      def containsOld[A: IsNominalType](a: A)(implicit
-        ev: Allows[To, NS | SS | BS | Sequence.List[IsType[A]]],
-        to: ToAttributeValue[A]
-      ): ConditionExpression[From] = ConditionExpression.Contains(self, to.toAttributeValue(a))
+      /** valid for N | S | B */
+      def between(
+        minValue: To,
+        maxValue: To
+      )(implicit ex: Allows[To, N | S | B]): ConditionExpression[From] =
+        ConditionExpression.Operand
+          .ProjectionExpressionOperand(self)
+          .between(
+            ToAttributeValue[To].toAttributeValue(minValue),
+            ToAttributeValue[To].toAttributeValue(maxValue)
+          )
 
       def contains[A: IsNominalType](a: A)(implicit
         ev: Allows[To, NS | SS | BS | L],
@@ -205,6 +238,27 @@ object Scala3Allows2Spec extends ZIOSpecDefault {
       def contains(a: String)(implicit
         ev: Allows[To, S]
       ): ConditionExpression[From] = ConditionExpression.Contains(self, AttributeValue.String(a))
+
+      def deleteFromSet(
+        set: To
+      )(implicit
+        ev: Allows[To, NS | SS | BS],
+        to: ToAttributeValue[To]
+      ): UpdateExpression.Action.DeleteAction[From] =
+        UpdateExpression.Action.DeleteAction(
+          self,
+          to.toAttributeValue(set)
+        )
+
+      /** Attribute must be a scalar ie N | S | B */
+      def inSet(
+        values: Set[To]
+      )(implicit ev: Allows[To, N | S | B]): ConditionExpression[From] =
+        ConditionExpression.Operand
+          .ProjectionExpressionOperand(self)
+          .in(values.map(ToAttributeValue[To].toAttributeValue))
+
+      // TODO: prepend - only valid for a L attribute
 
       /**
        * Removes this PathExpression from an item - always valid as we have a valid path via an optic in hand
@@ -231,14 +285,5 @@ object Scala3Allows2Spec extends ZIOSpecDefault {
 
     }
 
-//    sealed trait Containable[X, -A]
-//
-//    object Containable {
-//      implicit def set[A]: Containable[Set[A], A] = new Containable[Set[A], A] {}
-//
-//      implicit def list[A]: Containable[List[A], A] = new Containable[List[A], A] {}
-//
-//      implicit def string: Containable[String, String] = new Containable[String, String] {}
-//    }
   }
 }
