@@ -3,7 +3,7 @@ package zio.dynamodb.blocks
 import zio.blocks.schema.{ CompanionOptics, Optic, Optional, Schema }
 import zio.dynamodb.proofs.{ Addable, ListRemoveable }
 import zio.dynamodb.*
-import zio.dynamodb.UpdateExpression.SetOperand.ListAppend
+import zio.dynamodb.UpdateExpression.SetOperand.{ ListAppend, ListPrepend, PathOperand }
 import zio.prelude.Newtype
 import zio.test.{ assertTrue, ZIOSpecDefault }
 
@@ -43,6 +43,7 @@ object Scala3Allows2Spec extends ZIOSpecDefault {
     id: PersonId,
     name: String,
     age: Int,
+    count: Int,
     tupleMixed: (String, Int, Address),
     opaqueInt: OpaqueId,
     ageNewtype: Age,
@@ -62,6 +63,7 @@ object Scala3Allows2Spec extends ZIOSpecDefault {
     val id: Optic[Person, PersonId]                            = $(_.id)
     val name: Optic[Person, String]                            = $(_.name)
     val age: Optic[Person, Int]                                = $(_.age)
+    val count: Optic[Person, Int]                              = $(_.count)
     val tupleMixed: Optic[Person, (String, Int, Address)]      = $(_.tupleMixed)
     val opaqueInt: Optic[Person, OpaqueId]                     = $(_.opaqueInt)
     val ageNewtype: Optic[Person, Age]                         = $(_.ageNewtype)
@@ -73,6 +75,7 @@ object Scala3Allows2Spec extends ZIOSpecDefault {
     val mapOfAddress: Optic[Person, Map[String, Address]]      = $(_.mapOfAddress)
     def mapOfAddressAt(key: String): Optional[Person, Address] = $(_.mapOfAddress.atKey(key))
     val listInt: Optic[Person, List[Int]]                      = $(_.listInt)
+    def listIntAt(index: Int): Optional[Person, Int]           = $(_.listInt.at(index))
     val listAddress: Optic[Person, List[Address]]              = $(_.listAddress)
     val binary: Optic[Person, List[Byte]]                      = $(_.binary)
     val binarySet: Optic[Person, Set[List[Byte]]]              = $(_.binarySet)
@@ -88,11 +91,15 @@ object Scala3Allows2Spec extends ZIOSpecDefault {
         Person.id.inSet(Set(PersonId(1), PersonId(2)))
         Person.age.add(1)
         Person.age.between(18, 21)
+        Person.age.set(21)
+        Person.age.set(Person.count)
         Person.opaqueInt.add(OpaqueId(1))
         Person.opaqueInt.between(18, 21)
         Person.ageNewtype.add(1.0)
         Person.setInt.addSet(Set(1))
         Person.setInt.deleteFromSet(Set(1))
+        Person.listInt.prependList(List(1, 2))
+        Person.listIntAt(1).set(21)
 //        Person.setInt.between(1, 10)
 //        Person.setInt.remove(1)
         Person.setString.addSet(Set("hello"))
@@ -250,6 +257,21 @@ object Scala3Allows2Spec extends ZIOSpecDefault {
           to.toAttributeValue(set)
         )
 
+      def prependList[A](
+        xs: To
+      )(implicit
+        ev: Allows[To, L],
+        ev2: To <:< Iterable[A],
+        to: ToAttributeValue[A]
+      ): UpdateExpression.Action.SetAction[From, To] =
+        UpdateExpression.Action.SetAction(
+          self,
+          ListPrepend(
+            self,
+            AttributeValue.List(xs.toList.map(to.toAttributeValue))
+          )
+        )
+
       /** Attribute must be a scalar ie N | S | B */
       def inSet(
         values: Set[To]
@@ -282,6 +304,23 @@ object Scala3Allows2Spec extends ZIOSpecDefault {
         index: Int // we need extra constraint to exclude Sets etc: evSeq: To <:< Seq[_]
       )(implicit ev: Allows[To, L]): UpdateExpression.Action.RemoveAction[From] =
         UpdateExpression.Action.RemoveAction(ProjectionExpression.ListElement(self, index))
+
+      def set(
+        a: To
+      ): UpdateExpression.Action.SetAction[From, To] =
+        UpdateExpression.Action.SetAction(
+          self,
+          UpdateExpression.SetOperand.ValueOperand(
+            ToAttributeValue[To].toAttributeValue(a)
+          )
+        )
+
+      def set(
+        o: Optic[From, To]
+      ): UpdateExpression.Action.SetAction[From, To] = {
+        val oAsPE = OpticToPE.pe(o)
+        UpdateExpression.Action.SetAction(self, PathOperand(oAsPE))
+      }
 
     }
 
