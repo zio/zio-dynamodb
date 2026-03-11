@@ -49,19 +49,13 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
     name: String,
     trafficLight: TrafficLight
   )
-  object Person extends CompanionOptics[Person] {
-    implicit val schema: Schema[Person]           = Schema.derived
-    val id: Optic[Person, OpaqueId]               = $(_.id)
-    val name: Optic[Person, String]               = $(_.name)
-    val trafficLight: Optic[Person, TrafficLight] = $(_.trafficLight)
-  }
 
   override def spec =
     suite("Scala 3 codec suite")(
       test("Scala 3 enums") {
         assertTrue(1 == 1)
       },
-      testRoundTripWithSchema2Codec("simple enum")(Person.schema)(
+      testRoundTripWithSchema2Codec("Person with simple enum")(Schema.derived[Person])(
         expectedItem = Item("id" -> OpaqueId(123), "name" -> "John Doe", "trafficLight" -> "Green").toAttributeValue
       )(
         expectedValue = Person(
