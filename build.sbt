@@ -38,7 +38,7 @@ val zioPreludeVersion      = "1.0.0-RC46"
 val zioJsonVersion         = "0.9.0"
 val zioInteropCats3Version = "23.1.0.13"
 val catsEffect3Version     = "3.6.3"
-val fs2Version             = "3.12.2"
+val fs2Version             = "3.13.0"
 val zioMockVersion         = "1.0.0-RC12"
 
 lazy val root =
