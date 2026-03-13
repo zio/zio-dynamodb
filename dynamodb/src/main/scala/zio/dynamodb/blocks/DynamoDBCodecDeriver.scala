@@ -195,7 +195,7 @@ class DynamoDBCodecDeriver private (
   override def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
     typeId: TypeId[A],
-    binding: Binding[BindingType.Primitive, A],
+    binding: Binding.Primitive[A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
@@ -216,7 +216,7 @@ class DynamoDBCodecDeriver private (
   override def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, _]],
     typeId: TypeId[A],
-    binding: Binding[BindingType.Record, A],
+    binding: Binding.Record[A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
@@ -237,7 +237,7 @@ class DynamoDBCodecDeriver private (
   override def deriveVariant[F[_, _], A](
     cases: IndexedSeq[Term[F, A, _]],
     typeId: TypeId[A],
-    binding: Binding[Variant, A],
+    binding: Binding.Variant[A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
@@ -258,7 +258,7 @@ class DynamoDBCodecDeriver private (
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
     typeId: TypeId[C[A]],
-    binding: Binding[BindingType.Seq[C], C[A]],
+    binding: Binding.Seq[C, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[C[A]],
@@ -274,7 +274,7 @@ class DynamoDBCodecDeriver private (
     key: Reflect[F, K],
     value: Reflect[F, V],
     typeId: TypeId[M[K, V]],
-    binding: Binding[BindingType.Map[M], M[K, V]],
+    binding: Binding.Map[M, K, V],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[M[K, V]],
@@ -294,7 +294,7 @@ class DynamoDBCodecDeriver private (
     }
 
   override def deriveDynamic[F[_, _]](
-    binding: Binding[BindingType.Dynamic, DynamicValue],
+    binding: Binding.Dynamic,
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[DynamicValue],
@@ -305,7 +305,7 @@ class DynamoDBCodecDeriver private (
   override def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeId: TypeId[A],
-    binding: Binding[BindingType.Wrapper[A, B], A],
+    binding: Binding.Wrapper[A, B],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
