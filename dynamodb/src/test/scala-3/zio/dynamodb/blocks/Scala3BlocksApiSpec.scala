@@ -95,7 +95,24 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
         expectedItem = AttributeValue.Number(BigDecimal(1))
       )(
         expectedValue = PersonId(1)
-      )
+      ),
+      test("Generic tuple") {
+        type GenericTuple4 = String *: Long *: Int *: String *: EmptyTuple
+        val schema: Schema[GenericTuple4] = Schema.derived
+
+        roundTripWithSchema2Codec(schema)(
+          AttributeValue.List(
+            List(
+              AttributeValue.String("foo"),
+              AttributeValue.Number(BigDecimal(2)),
+              AttributeValue.Number(BigDecimal(3L)),
+              AttributeValue.String("bar")
+            )
+          )
+        )(
+          expectedValue = "foo" *: 2L *: 3 *: "bar" *: EmptyTuple
+        )
+      }
     )
 
   private def testRoundTripWithSchema2Codec[A](
@@ -126,6 +143,30 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
         testBody(schema2Codec)
       }
     )
+  }
+
+  private def roundTripWithSchema2Codec[A](
+    schema2: Schema[A],
+    deriverConfigure: DynamoDBCodecDeriverConfigure[A] = DynamoDBCodecDeriverConfigure.identity[A],
+    builderConfigure: DerivationBuilderConfigure[A] = DerivationBuilderConfigure.identity[A]
+  )(
+    expectedItem: AttributeValue
+  )(
+    initialValue: Option[A] = None,
+    expectedValue: A
+  ): TestResult = {
+
+    val initial = initialValue.getOrElse(expectedValue)
+
+    val testBody: SchemaCodec[A] => TestResult = { codec =>
+      val enc = codec.encoder(initial)
+      val dec = codec.decoder(enc)
+      assertTrue(enc == expectedItem && dec == Right(expectedValue))
+    }
+
+    val schema2Codec = SchemaCodec.schema2ToSchemaCodec2(schema2, deriverConfigure, builderConfigure)
+
+    testBody(schema2Codec)
   }
 
 }
