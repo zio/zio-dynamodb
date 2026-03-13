@@ -140,6 +140,28 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
           )
         )(expectedValue = List(1, 2))
       },
+      test("union type without discriminator") {
+        type Value = Int | String | (Int, String) | List[Int]
+        val schema = Schema.derived[Value]
+
+        roundTripWithSchema2Codec(schema, _.withDiscriminatorKind(DiscriminatorKind.None))(
+          AttributeValue.String("foo")
+        )(expectedValue = "foo") &&
+        roundTripWithSchema2Codec(schema, _.withDiscriminatorKind(DiscriminatorKind.None))(
+          AttributeValue.List(
+            List(
+              AttributeValue.Number(BigDecimal(1)),
+              AttributeValue.String("foo")
+            )
+          )
+        )(expectedValue = (1, "foo")) &&
+        roundTripWithSchema2Codec(
+          schema,
+          _.withDiscriminatorKind(DiscriminatorKind.None).withSchema1TupleCompatibility(false)
+        )(
+          AttributeValue.List(List(AttributeValue.Number(BigDecimal(1)), AttributeValue.Number(BigDecimal(2))))
+        )(expectedValue = List(1, 2))
+      },
       test("string primitive") {
         val schema = Schema.derived[String]
 
