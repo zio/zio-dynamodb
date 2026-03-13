@@ -3,7 +3,6 @@ package zio.dynamodb.blocks
 import zio.blocks.chunk.ChunkBuilder
 import zio.blocks.docs.Doc
 import zio.blocks.schema._
-import zio.blocks.schema.binding.BindingType.Variant
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
 import zio.blocks.schema.derive.{ BindingInstance, Deriver }
