@@ -112,6 +112,38 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
         )(
           expectedValue = "foo" *: 2L *: 3 *: "bar" *: EmptyTuple
         )
+      },
+      test("union type with key discriminator") {
+        type Value = Int | String | (Int, String) | List[Int]
+        val schema = Schema.derived[Value]
+
+        roundTripWithSchema2Codec(schema)(Item("java.lang.String" -> "foo").toAttributeValue)(expectedValue = "foo") &&
+        roundTripWithSchema2Codec(schema)(
+          AttributeValue.Map(
+            Map(
+              AttributeValue.String("scala.Tuple2") ->
+                AttributeValue.List(
+                  List(
+                    AttributeValue.Number(BigDecimal(1)),
+                    AttributeValue.String("foo")
+                  )
+                )
+            )
+          )
+        )(expectedValue = (1, "foo")) &&
+        roundTripWithSchema2Codec(schema)(
+          AttributeValue.Map(
+            Map(
+              AttributeValue.String("scala.collection.immutable.List") ->
+                AttributeValue.List(List(AttributeValue.Number(BigDecimal(1)), AttributeValue.Number(BigDecimal(2))))
+            )
+          )
+        )(expectedValue = List(1, 2))
+      },
+      test("string primitive") {
+        val schema = Schema.derived[String]
+
+        roundTripWithSchema2Codec(schema)(AttributeValue.String("foo"))(expectedValue = "foo")
       }
     )
 
