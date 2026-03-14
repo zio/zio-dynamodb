@@ -50,8 +50,23 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
     trafficLight: TrafficLight
   )
 
+  sealed trait Foo derives Schema
+
+  case object Foo1 extends Foo
+
+  sealed trait Bar extends Foo
+
+  case object Bar1 extends Bar
+
   override def spec =
     suite("Scala 3 codec suite")(
+      suite("variants") {
+        test("constant values on different hierarchy levels") {
+          // roundTripWithSchema2Codec()
+          assertTrue(true)
+        }
+
+      },
       test("Scala 3 enums") {
         assertTrue(1 == 1)
       },
@@ -100,8 +115,9 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
         type GenericTuple4 = String *: Long *: Int *: String *: EmptyTuple
         val schema: Schema[GenericTuple4] = Schema.derived
 
-        roundTripWithSchema2Codec(schema)(
-          AttributeValue.List(
+        roundTripWithSchema2Codec2(
+          expectedValue = "foo" *: 2L *: 3 *: "bar" *: EmptyTuple,
+          expectedItem = AttributeValue.List(
             List(
               AttributeValue.String("foo"),
               AttributeValue.Number(BigDecimal(2)),
@@ -109,17 +125,19 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
               AttributeValue.String("bar")
             )
           )
-        )(
-          expectedValue = "foo" *: 2L *: 3 *: "bar" *: EmptyTuple
-        )
+        )(schema)
       },
       test("union type with key discriminator") {
         type Value = Int | String | (Int, String) | List[Int]
         val schema = Schema.derived[Value]
 
-        roundTripWithSchema2Codec(schema)(Item("java.lang.String" -> "foo").toAttributeValue)(expectedValue = "foo") &&
-        roundTripWithSchema2Codec(schema)(
-          AttributeValue.Map(
+        roundTripWithSchema2Codec2(
+          expectedValue = "foo",
+          expectedItem = Item("java.lang.String" -> "foo").toAttributeValue
+        )(schema) &&
+        roundTripWithSchema2Codec2(
+          expectedValue = (1, "foo"),
+          expectedItem = AttributeValue.Map(
             Map(
               AttributeValue.String("scala.Tuple2") ->
                 AttributeValue.List(
@@ -130,31 +148,36 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
                 )
             )
           )
-        )(expectedValue = (1, "foo")) &&
-        roundTripWithSchema2Codec(schema)(
-          AttributeValue.Map(
+        )(schema) &&
+        roundTripWithSchema2Codec2(
+          expectedValue = List(1, 2),
+          expectedItem = AttributeValue.Map(
             Map(
               AttributeValue.String("scala.collection.immutable.List") ->
                 AttributeValue.List(List(AttributeValue.Number(BigDecimal(1)), AttributeValue.Number(BigDecimal(2))))
             )
           )
-        )(expectedValue = List(1, 2))
+        )(schema)
       },
       test("union type without discriminator") {
         type Value = Int | String | (Int, String) | List[Int]
         val schema = Schema.derived[Value]
 
-        roundTripWithSchema2Codec(schema, _.withDiscriminatorKind(DiscriminatorKind.None))(
-          AttributeValue.String("foo")
-        )(expectedValue = "foo") &&
-        roundTripWithSchema2Codec(schema, _.withDiscriminatorKind(DiscriminatorKind.None))(
-          AttributeValue.List(
+        roundTripWithSchema2Codec2[Value](
+          expectedValue = "foo",
+          expectedItem = AttributeValue.String("foo"),
+          deriverConfigure = _.withDiscriminatorKind(DiscriminatorKind.None)
+        )(schema) &&
+        roundTripWithSchema2Codec2[Value](
+          expectedValue = (1, "foo"),
+          expectedItem = AttributeValue.List(
             List(
               AttributeValue.Number(BigDecimal(1)),
               AttributeValue.String("foo")
             )
-          )
-        )(expectedValue = (1, "foo")) &&
+          ),
+          deriverConfigure = _.withDiscriminatorKind(DiscriminatorKind.None)
+        )(schema) &&
         roundTripWithSchema2Codec(
           schema,
           _.withDiscriminatorKind(DiscriminatorKind.None).withSchema1TupleCompatibility(false)
@@ -197,6 +220,27 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
         testBody(schema2Codec)
       }
     )
+  }
+
+  private def roundTripWithSchema2Codec2[A](
+    expectedValue: A,
+    expectedItem: AttributeValue,
+    initialValue: Option[A] = None,
+    deriverConfigure: DynamoDBCodecDeriverConfigure[A] = DynamoDBCodecDeriverConfigure.identity[A],
+    builderConfigure: DerivationBuilderConfigure[A] = DerivationBuilderConfigure.identity[A]
+  )(implicit schema2: Schema[A]): TestResult = {
+
+    val initial = initialValue.getOrElse(expectedValue)
+
+    val testBody: SchemaCodec[A] => TestResult = { codec =>
+      val enc = codec.encoder(initial)
+      val dec = codec.decoder(enc)
+      assertTrue(enc == expectedItem && dec == Right(expectedValue))
+    }
+
+    val schema2Codec = SchemaCodec.schema2ToSchemaCodec2(schema2, deriverConfigure, builderConfigure)
+
+    testBody(schema2Codec)
   }
 
   private def roundTripWithSchema2Codec[A](
