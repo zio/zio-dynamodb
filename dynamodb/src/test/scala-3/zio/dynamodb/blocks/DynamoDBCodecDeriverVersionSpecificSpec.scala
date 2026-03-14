@@ -1,7 +1,7 @@
 package zio.dynamodb.blocks
 
 import zio.blocks.schema.{ CompanionOptics, Modifier, Optic, Schema }
-import zio.dynamodb.{ AttributeValue, Item, SchemaCodec, ToAttributeValue }
+import zio.dynamodb.{ AttributeValue, DynamoDBError, Item, SchemaCodec, ToAttributeValue }
 import zio.prelude.Newtype
 import zio.test.{ assertTrue, Spec, TestAspect, TestResult, ZIOSpecDefault }
 
@@ -70,6 +70,24 @@ object DynamoDBCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
 
   override def spec: Spec[Any, Any] =
     suite("Scala 3 codec suite")(
+      suite("records")(
+        test("Generic tuple") {
+          type GenericTuple4 = String *: Long *: Int *: String *: EmptyTuple
+          val schema: Schema[GenericTuple4] = Schema.derived
+
+          roundTripWithSchema2Codec(
+            expectedValue = "foo" *: 2L *: 3 *: "bar" *: EmptyTuple,
+            expectedAV = AttributeValue.List(
+              List(
+                AttributeValue.String("foo"),
+                AttributeValue.Number(BigDecimal(2)),
+                AttributeValue.Number(BigDecimal(3L)),
+                AttributeValue.String("bar")
+              )
+            )
+          )(schema)
+        }
+      ),
       suite("variants")(
         test("constant values on different hierarchy levels") {
           roundTripWithSchema2Codec[Foo](Foo1, AttributeValue.String("Foo1")) &&
@@ -276,21 +294,40 @@ object DynamoDBCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
           expectedAV = AttributeValue.Number(BigDecimal(1))
         )
       },
-      test("Generic tuple") {
-        type GenericTuple4 = String *: Long *: Int *: String *: EmptyTuple
-        val schema: Schema[GenericTuple4] = Schema.derived
+      test("sequences") {
+        implicit val schema1: Schema[IArray[Int]]    = Schema.derived
+        implicit val schema2: Schema[IArray[Long]]   = Schema.derived
+        implicit val schema3: Schema[IArray[String]] = Schema.derived
 
         roundTripWithSchema2Codec(
-          expectedValue = "foo" *: 2L *: 3 *: "bar" *: EmptyTuple,
+          expectedValue = IArray(1, 2, 3),
           expectedAV = AttributeValue.List(
             List(
-              AttributeValue.String("foo"),
+              AttributeValue.Number(BigDecimal(1)),
               AttributeValue.Number(BigDecimal(2)),
-              AttributeValue.Number(BigDecimal(3L)),
-              AttributeValue.String("bar")
+              AttributeValue.Number(BigDecimal(3))
             )
-          )
-        )(schema)
+          ),
+          compareFn = (a: IArray[Int], b: IArray[Int]) => a.toList == b.toList
+        )(schema1) &&
+        roundTripWithSchema2Codec(
+          expectedValue = IArray(1L, 2L, 3L),
+          expectedAV = AttributeValue.List(
+            List(
+              AttributeValue.Number(BigDecimal(1)),
+              AttributeValue.Number(BigDecimal(2)),
+              AttributeValue.Number(BigDecimal(3))
+            )
+          ),
+          compareFn = (a: IArray[Long], b: IArray[Long]) => a.toList == b.toList
+        )(schema2) &&
+        roundTripWithSchema2Codec(
+          expectedValue = IArray("A", "B", "C"),
+          expectedAV = AttributeValue.List(
+            List(AttributeValue.String("A"), AttributeValue.String("B"), AttributeValue.String("C"))
+          ),
+          compareFn = (a: IArray[String], b: IArray[String]) => a.toList == b.toList
+        )(schema3)
       }
     )
 
@@ -299,13 +336,14 @@ object DynamoDBCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
     expectedAV: AttributeValue,
     initialValue: Option[A] = None,
     deriverConfigure: DynamoDBCodecDeriverConfigure[A] = DynamoDBCodecDeriverConfigure.identity[A],
-    builderConfigure: DerivationBuilderConfigure[A] = DerivationBuilderConfigure.identity[A]
+    builderConfigure: DerivationBuilderConfigure[A] = DerivationBuilderConfigure.identity[A],
+    compareFn: (A, A) => Boolean = (a1: A, a2: A) => a1 == a2
   )(implicit schema2: Schema[A]): TestResult = {
     val initial                                = initialValue.getOrElse(expectedValue)
     val testBody: SchemaCodec[A] => TestResult = { codec =>
       val enc = codec.encoder(initial)
       val dec = codec.decoder(enc)
-      assertTrue(enc == expectedAV && dec == Right(expectedValue))
+      assertTrue(enc == expectedAV && dec.map(value => compareFn(value, expectedValue)).getOrElse(false))
     }
     val schema2Codec                           = SchemaCodec.schema2ToSchemaCodec2(schema2, deriverConfigure, builderConfigure)
     testBody(schema2Codec)
