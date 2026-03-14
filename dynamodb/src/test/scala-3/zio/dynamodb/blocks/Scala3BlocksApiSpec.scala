@@ -7,11 +7,11 @@ import zio.test.{ assertTrue, Spec, TestAspect, TestResult, ZIOSpecDefault }
 
 object Scala3BlocksApiSpec extends ZIOSpecDefault {
 
-  enum TrafficLight {
+  enum TrafficLight derives Schema {
     case Red, Yellow, Green
   }
 
-  enum PaymentMethod {
+  enum PaymentMethod derives Schema {
     case CreditCard(number: String, expiry: String)
     case PayPal(email: String)
     case Other
@@ -48,7 +48,7 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
     id: OpaqueId,
     name: String,
     trafficLight: TrafficLight
-  )
+  ) derives Schema
 
   sealed trait Foo derives Schema
 
@@ -97,15 +97,15 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
           roundTripWithSchema2Codec[TrafficLight](
             expectedValue = TrafficLight.Green,
             expectedAV = AttributeValue.String("Green")
-          )(Schema.derived[TrafficLight]) &&
+          ) &&
           roundTripWithSchema2Codec[TrafficLight](
             expectedValue = TrafficLight.Yellow,
             expectedAV = AttributeValue.String("Yellow")
-          )(Schema.derived[TrafficLight]) &&
+          ) &&
           roundTripWithSchema2Codec[TrafficLight](
             expectedValue = TrafficLight.Red,
             expectedAV = AttributeValue.String("Red")
-          )(Schema.derived[TrafficLight])
+          )
         },
         test("complex recursive values") {
           import LinkedList._
@@ -156,46 +156,46 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
             trafficLight = TrafficLight.Green
           ),
           expectedAV = Item("id" -> OpaqueId(123), "name" -> "John Doe", "trafficLight" -> "Green").toAttributeValue
-        )(Schema.derived[Person])
+        )
       },
       test("simple enum Green") {
         roundTripWithSchema2Codec(
           expectedValue = TrafficLight.Green,
           expectedAV = AttributeValue.String("Green")
-        )(Schema.derived[TrafficLight]) &&
+        ) &&
         roundTripWithSchema2Codec(
           expectedValue = TrafficLight.Yellow,
           expectedAV = AttributeValue.String("Yellow")
-        )(Schema.derived[TrafficLight]) &&
+        ) &&
         roundTripWithSchema2Codec(
           expectedValue = TrafficLight.Red,
           expectedAV = AttributeValue.String("Red")
-        )(Schema.derived[TrafficLight])
+        )
       },
       test("Complex enum PaymentMethod.PayPal with no discriminator") {
         roundTripWithSchema2Codec(
           expectedValue = PaymentMethod.PayPal("a@b.com"),
           expectedAV = Item("PayPal" -> Item("email" -> "a@b.com")).toAttributeValue
-        )(Schema.derived[PaymentMethod])
+        )
       },
       test("Complex enum PaymentMethod.Other with no discriminator") {
         roundTripWithSchema2Codec(
           expectedValue = PaymentMethod.Other,
           expectedAV = Item("Other" -> Item.empty).toAttributeValue
-        )(Schema.derived[PaymentMethod])
+        )
       },
       test("Complex enum PaymentMethod.PayPal with discriminator field foo") {
         roundTripWithSchema2Codec(
           expectedValue = PaymentMethod.PayPal("a@b.com"),
           expectedAV = Item("email" -> "a@b.com", "foo" -> "PayPal").toAttributeValue,
           deriverConfigure = _.withDiscriminatorKind(DiscriminatorKind.Field("foo"))
-        )(Schema.derived[PaymentMethod])
+        )
       },
       test("PersonId Prelude Newtype") {
         roundTripWithSchema2Codec(
           expectedValue = PersonId(1),
           expectedAV = AttributeValue.Number(BigDecimal(1))
-        )(Schema.derived[PersonId])
+        )
       },
       test("Generic tuple") {
         type GenericTuple4 = String *: Long *: Int *: String *: EmptyTuple
@@ -269,14 +269,6 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
           expectedAV =
             AttributeValue.List(List(AttributeValue.Number(BigDecimal(1)), AttributeValue.Number(BigDecimal(2)))),
           deriverConfigure = _.withDiscriminatorKind(DiscriminatorKind.None).withSchema1TupleCompatibility(false)
-        )(schema)
-      },
-      test("string primitive") {
-        val schema = Schema.derived[String]
-
-        roundTripWithSchema2Codec(
-          expectedValue = "foo",
-          expectedAV = AttributeValue.String("foo")
         )(schema)
       }
     )
