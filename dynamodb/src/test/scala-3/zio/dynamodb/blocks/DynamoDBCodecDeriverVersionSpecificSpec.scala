@@ -5,7 +5,7 @@ import zio.dynamodb.{ AttributeValue, Item, SchemaCodec, ToAttributeValue }
 import zio.prelude.Newtype
 import zio.test.{ assertTrue, Spec, TestAspect, TestResult, ZIOSpecDefault }
 
-object Scala3BlocksApiSpec extends ZIOSpecDefault {
+object DynamoDBCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
 
   enum TrafficLight derives Schema {
     case Red, Yellow, Green
