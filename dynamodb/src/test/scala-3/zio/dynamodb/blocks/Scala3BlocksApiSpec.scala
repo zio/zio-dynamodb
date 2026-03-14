@@ -1,6 +1,6 @@
 package zio.dynamodb.blocks
 
-import zio.blocks.schema.{ CompanionOptics, Modifier, Optic, Schema }
+import zio.blocks.schema.{ CompanionOptics, Optic, Schema }
 import zio.dynamodb.{ AttributeValue, Item, SchemaCodec, ToAttributeValue }
 import zio.prelude.Newtype
 import zio.test.{ assertTrue, Spec, TestResult, ZIOSpecDefault }
@@ -70,54 +70,54 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
       test("Scala 3 enums") {
         assertTrue(1 == 1)
       },
-      testRoundTripWithSchema2Codec("Person with simple enum")(Schema.derived[Person])(
-        expectedItem = Item("id" -> OpaqueId(123), "name" -> "John Doe", "trafficLight" -> "Green").toAttributeValue
-      )(
-        expectedValue = Person(
-          id = 123,
-          name = "John Doe",
-          trafficLight = TrafficLight.Green
-        )
-      ),
-      testRoundTripWithSchema2Codec("simple enum Green")(Schema.derived[TrafficLight])(
-        expectedItem = AttributeValue.String("Green")
-      )(
-        expectedValue = TrafficLight.Green
-      ),
-      testRoundTripWithSchema2Codec("Complex enum PaymentMethod.PayPal with no discriminator")(
-        Schema.derived[PaymentMethod]
-      )(
-        expectedItem = Item("PayPal" -> Item("email" -> "a@b.com")).toAttributeValue
-      )(
-        expectedValue = PaymentMethod.PayPal("a@b.com")
-      ),
-      testRoundTripWithSchema2Codec("Complex enum PaymentMethod.Other with no discriminator")(
-        Schema.derived[PaymentMethod]
-      )(
-        expectedItem = Item("Other" -> Item.empty).toAttributeValue
-      )(
-        expectedValue = PaymentMethod.Other
-      ),
-      testRoundTripWithSchema2Codec("Complex enum PaymentMethod.PayPal with discriminator field foo")(
-        Schema.derived[PaymentMethod],
-        _.withDiscriminatorKind(DiscriminatorKind.Field("foo"))
-      )(
-        expectedItem = Item("email" -> "a@b.com", "foo" -> "PayPal").toAttributeValue
-      )(
-        expectedValue = PaymentMethod.PayPal("a@b.com")
-      ),
-      testRoundTripWithSchema2Codec("PersonId Prelude Newtype")(Schema.derived[PersonId])(
-        expectedItem = AttributeValue.Number(BigDecimal(1))
-      )(
-        expectedValue = PersonId(1)
-      ),
+      test("Person with simple enum") {
+        roundTripWithSchema2Codec(
+          expectedValue = Person(
+            id = 123,
+            name = "John Doe",
+            trafficLight = TrafficLight.Green
+          ),
+          expectedAV = Item("id" -> OpaqueId(123), "name" -> "John Doe", "trafficLight" -> "Green").toAttributeValue
+        )(Schema.derived[Person])
+      },
+      test("simple enum Green") {
+        roundTripWithSchema2Codec(
+          expectedValue = TrafficLight.Green,
+          expectedAV = AttributeValue.String("Green")
+        )(Schema.derived[TrafficLight])
+      },
+      test("Complex enum PaymentMethod.PayPal with no discriminator") {
+        roundTripWithSchema2Codec(
+          expectedValue = PaymentMethod.PayPal("a@b.com"),
+          expectedAV = Item("PayPal" -> Item("email" -> "a@b.com")).toAttributeValue
+        )(Schema.derived[PaymentMethod])
+      },
+      test("Complex enum PaymentMethod.Other with no discriminator") {
+        roundTripWithSchema2Codec(
+          expectedValue = PaymentMethod.Other,
+          expectedAV = Item("Other" -> Item.empty).toAttributeValue
+        )(Schema.derived[PaymentMethod])
+      },
+      test("Complex enum PaymentMethod.PayPal with discriminator field foo") {
+        roundTripWithSchema2Codec(
+          expectedValue = PaymentMethod.PayPal("a@b.com"),
+          expectedAV = Item("email" -> "a@b.com", "foo" -> "PayPal").toAttributeValue,
+          deriverConfigure = _.withDiscriminatorKind(DiscriminatorKind.Field("foo"))
+        )(Schema.derived[PaymentMethod])
+      },
+      test("PersonId Prelude Newtype") {
+        roundTripWithSchema2Codec(
+          expectedValue = PersonId(1),
+          expectedAV = AttributeValue.Number(BigDecimal(1))
+        )(Schema.derived[PersonId])
+      },
       test("Generic tuple") {
         type GenericTuple4 = String *: Long *: Int *: String *: EmptyTuple
         val schema: Schema[GenericTuple4] = Schema.derived
 
-        roundTripWithSchema2Codec2(
+        roundTripWithSchema2Codec(
           expectedValue = "foo" *: 2L *: 3 *: "bar" *: EmptyTuple,
-          expectedItem = AttributeValue.List(
+          expectedAV = AttributeValue.List(
             List(
               AttributeValue.String("foo"),
               AttributeValue.Number(BigDecimal(2)),
@@ -131,13 +131,13 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
         type Value = Int | String | (Int, String) | List[Int]
         val schema = Schema.derived[Value]
 
-        roundTripWithSchema2Codec2(
+        roundTripWithSchema2Codec(
           expectedValue = "foo",
-          expectedItem = Item("java.lang.String" -> "foo").toAttributeValue
+          expectedAV = Item("java.lang.String" -> "foo").toAttributeValue
         )(schema) &&
-        roundTripWithSchema2Codec2(
+        roundTripWithSchema2Codec(
           expectedValue = (1, "foo"),
-          expectedItem = AttributeValue.Map(
+          expectedAV = AttributeValue.Map(
             Map(
               AttributeValue.String("scala.Tuple2") ->
                 AttributeValue.List(
@@ -149,9 +149,9 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
             )
           )
         )(schema) &&
-        roundTripWithSchema2Codec2(
+        roundTripWithSchema2Codec(
           expectedValue = List(1, 2),
-          expectedItem = AttributeValue.Map(
+          expectedAV = AttributeValue.Map(
             Map(
               AttributeValue.String("scala.collection.immutable.List") ->
                 AttributeValue.List(List(AttributeValue.Number(BigDecimal(1)), AttributeValue.Number(BigDecimal(2))))
@@ -163,14 +163,14 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
         type Value = Int | String | (Int, String) | List[Int]
         val schema = Schema.derived[Value]
 
-        roundTripWithSchema2Codec2[Value](
+        roundTripWithSchema2Codec[Value](
           expectedValue = "foo",
-          expectedItem = AttributeValue.String("foo"),
+          expectedAV = AttributeValue.String("foo"),
           deriverConfigure = _.withDiscriminatorKind(DiscriminatorKind.None)
         )(schema) &&
-        roundTripWithSchema2Codec2[Value](
+        roundTripWithSchema2Codec[Value](
           expectedValue = (1, "foo"),
-          expectedItem = AttributeValue.List(
+          expectedAV = AttributeValue.List(
             List(
               AttributeValue.Number(BigDecimal(1)),
               AttributeValue.String("foo")
@@ -178,53 +178,26 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
           ),
           deriverConfigure = _.withDiscriminatorKind(DiscriminatorKind.None)
         )(schema) &&
-        roundTripWithSchema2Codec(
-          schema,
-          _.withDiscriminatorKind(DiscriminatorKind.None).withSchema1TupleCompatibility(false)
-        )(
-          AttributeValue.List(List(AttributeValue.Number(BigDecimal(1)), AttributeValue.Number(BigDecimal(2))))
-        )(expectedValue = List(1, 2))
+        roundTripWithSchema2Codec[Value](
+          expectedValue = List(1, 2),
+          expectedAV =
+            AttributeValue.List(List(AttributeValue.Number(BigDecimal(1)), AttributeValue.Number(BigDecimal(2)))),
+          deriverConfigure = _.withDiscriminatorKind(DiscriminatorKind.None).withSchema1TupleCompatibility(false)
+        )(schema)
       },
       test("string primitive") {
         val schema = Schema.derived[String]
 
-        roundTripWithSchema2Codec(schema)(AttributeValue.String("foo"))(expectedValue = "foo")
+        roundTripWithSchema2Codec(
+          expectedValue = "foo",
+          expectedAV = AttributeValue.String("foo")
+        )(schema)
       }
     )
 
-  private def testRoundTripWithSchema2Codec[A](
-    name: String
-  )(
-    schema2: Schema[A],
-    deriverConfigure: DynamoDBCodecDeriverConfigure[A] = DynamoDBCodecDeriverConfigure.identity[A],
-    builderConfigure: DerivationBuilderConfigure[A] = DerivationBuilderConfigure.identity[A]
-  )(
-    expectedItem: AttributeValue
-  )(
-    initialValue: Option[A] = None,
-    expectedValue: A
-  ): Spec[Any, Nothing] = {
-
-    val initial = initialValue.getOrElse(expectedValue)
-
-    val testBody: SchemaCodec[A] => TestResult = { codec =>
-      val enc = codec.encoder(initial)
-      val dec = codec.decoder(enc)
-      assertTrue(enc == expectedItem && dec == Right(expectedValue))
-    }
-
-    val schema2Codec = SchemaCodec.schema2ToSchemaCodec2(schema2, deriverConfigure, builderConfigure)
-
-    suite(name)(
-      test("schema2") {
-        testBody(schema2Codec)
-      }
-    )
-  }
-
-  private def roundTripWithSchema2Codec2[A](
+  private def roundTripWithSchema2Codec[A](
     expectedValue: A,
-    expectedItem: AttributeValue,
+    expectedAV: AttributeValue,
     initialValue: Option[A] = None,
     deriverConfigure: DynamoDBCodecDeriverConfigure[A] = DynamoDBCodecDeriverConfigure.identity[A],
     builderConfigure: DerivationBuilderConfigure[A] = DerivationBuilderConfigure.identity[A]
@@ -235,31 +208,7 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
     val testBody: SchemaCodec[A] => TestResult = { codec =>
       val enc = codec.encoder(initial)
       val dec = codec.decoder(enc)
-      assertTrue(enc == expectedItem && dec == Right(expectedValue))
-    }
-
-    val schema2Codec = SchemaCodec.schema2ToSchemaCodec2(schema2, deriverConfigure, builderConfigure)
-
-    testBody(schema2Codec)
-  }
-
-  private def roundTripWithSchema2Codec[A](
-    schema2: Schema[A],
-    deriverConfigure: DynamoDBCodecDeriverConfigure[A] = DynamoDBCodecDeriverConfigure.identity[A],
-    builderConfigure: DerivationBuilderConfigure[A] = DerivationBuilderConfigure.identity[A]
-  )(
-    expectedItem: AttributeValue
-  )(
-    initialValue: Option[A] = None,
-    expectedValue: A
-  ): TestResult = {
-
-    val initial = initialValue.getOrElse(expectedValue)
-
-    val testBody: SchemaCodec[A] => TestResult = { codec =>
-      val enc = codec.encoder(initial)
-      val dec = codec.decoder(enc)
-      assertTrue(enc == expectedItem && dec == Right(expectedValue))
+      assertTrue(enc == expectedAV && dec == Right(expectedValue))
     }
 
     val schema2Codec = SchemaCodec.schema2ToSchemaCodec2(schema2, deriverConfigure, builderConfigure)
