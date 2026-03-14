@@ -1,9 +1,9 @@
 package zio.dynamodb.blocks
 
-import zio.blocks.schema.{ CompanionOptics, Optic, Schema }
+import zio.blocks.schema.{ CompanionOptics, Modifier, Optic, Schema }
 import zio.dynamodb.{ AttributeValue, Item, SchemaCodec, ToAttributeValue }
 import zio.prelude.Newtype
-import zio.test.{ assertTrue, Spec, TestResult, ZIOSpecDefault }
+import zio.test.{ assertTrue, Spec, TestAspect, TestResult, ZIOSpecDefault }
 
 object Scala3BlocksApiSpec extends ZIOSpecDefault {
 
@@ -58,18 +58,96 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
 
   case object Bar1 extends Bar
 
-  override def spec =
-    suite("Scala 3 codec suite")(
-      suite("variants") {
-        test("constant values on different hierarchy levels") {
-          // roundTripWithSchema2Codec()
-          assertTrue(true)
-        }
+  enum LinkedList[+T] {
+    @Modifier.rename("::")
+    case Node(
+      @Modifier.rename("val") value: T,
+      @Modifier.rename("nxt") next: LinkedList[T]
+    )
 
-      },
-      test("Scala 3 enums") {
-        assertTrue(1 == 1)
-      },
+    case End
+  }
+
+  // Add the roundTripWithSchema2Codec definition here for test usage
+  private def roundTripWithSchema2Codec[A](
+    expectedValue: A,
+    expectedAV: AttributeValue,
+    initialValue: Option[A] = None,
+    deriverConfigure: DynamoDBCodecDeriverConfigure[A] = DynamoDBCodecDeriverConfigure.identity[A],
+    builderConfigure: DerivationBuilderConfigure[A] = DerivationBuilderConfigure.identity[A]
+  )(implicit schema2: Schema[A]): TestResult = {
+    val initial                                = initialValue.getOrElse(expectedValue)
+    val testBody: SchemaCodec[A] => TestResult = { codec =>
+      val enc = codec.encoder(initial)
+      val dec = codec.decoder(enc)
+      assertTrue(enc == expectedAV && dec == Right(expectedValue))
+    }
+    val schema2Codec                           = SchemaCodec.schema2ToSchemaCodec2(schema2, deriverConfigure, builderConfigure)
+    testBody(schema2Codec)
+  }
+
+  override def spec: Spec[Any, Any] =
+    suite("Scala 3 codec suite")(
+      suite("variants")(
+        test("constant values on different hierarchy levels") {
+          roundTripWithSchema2Codec[Foo](Foo1, AttributeValue.String("Foo1")) &&
+          roundTripWithSchema2Codec[Foo](Bar1, AttributeValue.String("Bar1"))
+        },
+        test("constant values") {
+          roundTripWithSchema2Codec[TrafficLight](
+            expectedValue = TrafficLight.Green,
+            expectedAV = AttributeValue.String("Green")
+          )(Schema.derived[TrafficLight]) &&
+          roundTripWithSchema2Codec[TrafficLight](
+            expectedValue = TrafficLight.Yellow,
+            expectedAV = AttributeValue.String("Yellow")
+          )(Schema.derived[TrafficLight]) &&
+          roundTripWithSchema2Codec[TrafficLight](
+            expectedValue = TrafficLight.Red,
+            expectedAV = AttributeValue.String("Red")
+          )(Schema.derived[TrafficLight])
+        },
+        test("complex recursive values") {
+          import LinkedList._
+
+          val schema1 = Schema.derived[LinkedList[Int]]
+          val schema2 = Schema.derived[LinkedList[Option[String]]]
+          roundTripWithSchema2Codec(
+            expectedValue = Node(1, Node(2, End)),
+            expectedAV = Item(
+              "::" -> Item("val" -> 1, "nxt" -> Item("::" -> Item("val" -> 2, "nxt" -> Item("End" -> Item.empty))))
+            ).toAttributeValue
+          )(schema1) &&
+          roundTripWithSchema2Codec(
+            expectedValue = Node(Some("VVV"), Node(None, End)),
+            expectedAV = AttributeValue.Map(
+              Map(
+                AttributeValue.String("::") -> AttributeValue.Map(
+                  Map(
+                    AttributeValue.String("val") -> AttributeValue.String("VVV"),
+                    AttributeValue.String("nxt") -> AttributeValue.Map(
+                      Map(
+                        AttributeValue.String("::") -> AttributeValue.Map(
+                          Map(
+                            AttributeValue.String("val") -> AttributeValue.Null,
+                            AttributeValue.String("nxt") -> AttributeValue.Map(
+                              Map(
+                                AttributeValue.String("End") -> AttributeValue.Map(
+                                  Map.empty[AttributeValue.String, AttributeValue]
+                                )
+                              )
+                            )
+                          )
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )(schema2)
+        } @@ TestAspect.ignore // TODO: Avi - implement recursive cache in codec
+      ),
       test("Person with simple enum") {
         roundTripWithSchema2Codec(
           expectedValue = Person(
@@ -84,6 +162,14 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
         roundTripWithSchema2Codec(
           expectedValue = TrafficLight.Green,
           expectedAV = AttributeValue.String("Green")
+        )(Schema.derived[TrafficLight]) &&
+        roundTripWithSchema2Codec(
+          expectedValue = TrafficLight.Yellow,
+          expectedAV = AttributeValue.String("Yellow")
+        )(Schema.derived[TrafficLight]) &&
+        roundTripWithSchema2Codec(
+          expectedValue = TrafficLight.Red,
+          expectedAV = AttributeValue.String("Red")
         )(Schema.derived[TrafficLight])
       },
       test("Complex enum PaymentMethod.PayPal with no discriminator") {
@@ -194,26 +280,4 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
         )(schema)
       }
     )
-
-  private def roundTripWithSchema2Codec[A](
-    expectedValue: A,
-    expectedAV: AttributeValue,
-    initialValue: Option[A] = None,
-    deriverConfigure: DynamoDBCodecDeriverConfigure[A] = DynamoDBCodecDeriverConfigure.identity[A],
-    builderConfigure: DerivationBuilderConfigure[A] = DerivationBuilderConfigure.identity[A]
-  )(implicit schema2: Schema[A]): TestResult = {
-
-    val initial = initialValue.getOrElse(expectedValue)
-
-    val testBody: SchemaCodec[A] => TestResult = { codec =>
-      val enc = codec.encoder(initial)
-      val dec = codec.decoder(enc)
-      assertTrue(enc == expectedAV && dec == Right(expectedValue))
-    }
-
-    val schema2Codec = SchemaCodec.schema2ToSchemaCodec2(schema2, deriverConfigure, builderConfigure)
-
-    testBody(schema2Codec)
-  }
-
 }
