@@ -68,23 +68,6 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
     case End
   }
 
-  private def roundTripWithSchema2Codec[A](
-    expectedValue: A,
-    expectedAV: AttributeValue,
-    initialValue: Option[A] = None,
-    deriverConfigure: DynamoDBCodecDeriverConfigure[A] = DynamoDBCodecDeriverConfigure.identity[A],
-    builderConfigure: DerivationBuilderConfigure[A] = DerivationBuilderConfigure.identity[A]
-  )(implicit schema2: Schema[A]): TestResult = {
-    val initial                                = initialValue.getOrElse(expectedValue)
-    val testBody: SchemaCodec[A] => TestResult = { codec =>
-      val enc = codec.encoder(initial)
-      val dec = codec.decoder(enc)
-      assertTrue(enc == expectedAV && dec == Right(expectedValue))
-    }
-    val schema2Codec                           = SchemaCodec.schema2ToSchemaCodec2(schema2, deriverConfigure, builderConfigure)
-    testBody(schema2Codec)
-  }
-
   override def spec: Spec[Any, Any] =
     suite("Scala 3 codec suite")(
       suite("variants")(
@@ -310,4 +293,22 @@ object Scala3BlocksApiSpec extends ZIOSpecDefault {
         )(schema)
       }
     )
+
+  private def roundTripWithSchema2Codec[A](
+    expectedValue: A,
+    expectedAV: AttributeValue,
+    initialValue: Option[A] = None,
+    deriverConfigure: DynamoDBCodecDeriverConfigure[A] = DynamoDBCodecDeriverConfigure.identity[A],
+    builderConfigure: DerivationBuilderConfigure[A] = DerivationBuilderConfigure.identity[A]
+  )(implicit schema2: Schema[A]): TestResult = {
+    val initial                                = initialValue.getOrElse(expectedValue)
+    val testBody: SchemaCodec[A] => TestResult = { codec =>
+      val enc = codec.encoder(initial)
+      val dec = codec.decoder(enc)
+      assertTrue(enc == expectedAV && dec == Right(expectedValue))
+    }
+    val schema2Codec                           = SchemaCodec.schema2ToSchemaCodec2(schema2, deriverConfigure, builderConfigure)
+    testBody(schema2Codec)
+  }
+
 }
