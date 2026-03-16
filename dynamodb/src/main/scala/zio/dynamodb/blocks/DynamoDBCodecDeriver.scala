@@ -212,6 +212,9 @@ class DynamoDBCodecDeriver private (
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
   }.asInstanceOf[Lazy[DynamoDBCodec[A]]]
 
+  /*
+  TODO: use D.instance rather than pattern match on reflect
+   */
   override def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, _]],
     typeId: TypeId[A],
