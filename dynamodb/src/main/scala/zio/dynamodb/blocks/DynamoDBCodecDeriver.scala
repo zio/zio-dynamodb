@@ -212,9 +212,6 @@ class DynamoDBCodecDeriver private (
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
   }.asInstanceOf[Lazy[DynamoDBCodec[A]]]
 
-  /*
-  TODO: use D.instance rather than pattern match on reflect
-   */
   override def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, _]],
     typeId: TypeId[A],
@@ -522,6 +519,67 @@ class DynamoDBCodecDeriver private (
     )
 
   override def deriveSequence[F[_, _], C[_], A](
+    element: Reflect[F, A],
+    typeId: TypeId[C[A]],
+    binding: Binding.Seq[C, A],
+    doc: Doc,
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[C[A]],
+    examples: Seq[C[A]]
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[C[A]]] = {
+    if (binding.isInstanceOf[Binding[?, ?]]) {
+      val seqBinding = binding.asInstanceOf[Binding.Seq[Col, Elem]]
+      D.instance(element.metadata).map { elementCodec =>
+        val constructor   = seqBinding.constructor
+        val deconstructor = seqBinding.deconstructor
+
+        // TODO: optimise for primitive types
+        new DynamoDBCodec[Col[Elem]] {
+          override def encoder: Encoder[Col[Elem]] = { (col: Col[Elem]) =>
+            val len = deconstructor.size(col)
+            val avs = new Array[AttributeValue](len)
+            var idx = 0
+            val it  = deconstructor.deconstruct(col)
+            while (it.hasNext) {
+              val el = it.next()
+              val av = elementCodec.asInstanceOf[DynamoDBCodec[Elem]].encoder(el)
+              avs(idx) = av
+              idx += 1
+            }
+            AttributeValue.List(scala.collection.immutable.ArraySeq.unsafeWrapArray(avs))
+          }
+
+          private[this] val elemClassTag = element.typeId.classTag.asInstanceOf[ClassTag[Elem]]
+
+          override def decoder: Decoder[Col[Elem]] = { (av: AttributeValue) =>
+            val errors = new ArrayBuffer[String]
+            av match {
+              case AttributeValue.List(items) =>
+                val builder = constructor.newBuilder[Elem](8)(elemClassTag)
+
+                // TODO: Avi - error handling
+                items.foreach { item =>
+                  elementCodec.decoder(item) match {
+                    case Right(a)  => constructor.add(builder, a.asInstanceOf[Elem])
+                    case Left(err) => errors.addOne(err.message)
+                  }
+                }
+                if (errors.isEmpty) {
+                  val xs: Col[Elem] = constructor.result[Elem](builder)
+                  Right(xs)
+                } else
+                  Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
+              case _                          =>
+                Left(ItemError.DecodingError(s"unable to decode ${av.showType} as a list"))
+            }
+          }
+        }
+      }
+    } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
+  }.asInstanceOf[Lazy[DynamoDBCodec[C[A]]]]
+
+  /*override*/
+  def deriveSequenceX[F[_, _], C[_], A](
     element: Reflect[F, A],
     typeId: TypeId[C[A]],
     binding: Binding.Seq[C, A],
