@@ -760,19 +760,6 @@ class DynamoDBCodecDeriver private (
   def deriveCodec[F[_, _], A](
     reflect: Reflect[F, A]
   ): DynamoDBCodec[A] = {
-//    if (reflect.isPrimitive) {
-//      val primitive = reflect.asPrimitive.get
-//      if (primitive.primitiveBinding.isInstanceOf[Binding[?, ?]])
-//        (primitive.primitiveType match {
-//          case _: PrimitiveType.String => stringCodec
-//          case _: PrimitiveType.Int    => intCodec
-//          case _: PrimitiveType.Long   => longCodec
-//          case x                       =>
-//            println(s"XXXXX primitive type $x not handled yet")
-//            ???
-//        }).asInstanceOf[DynamoDBCodec[A]]
-//      else primitive.primitiveBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
-//    } else
     if (reflect.isVariant) {
       val variant = reflect.asVariant.get
       if (variant.variantBinding.isInstanceOf[Binding[?, ?]])
