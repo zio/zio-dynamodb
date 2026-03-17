@@ -497,6 +497,21 @@ class DynamoDBCodecDeriver private (
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
   }.asInstanceOf[Lazy[DynamoDBCodec[A]]]
 
+  /*override*/
+  def deriveVariant2[F[_, _], A](
+    cases: IndexedSeq[Term[F, A, _]],
+    typeId: TypeId[A],
+    binding: Binding.Variant[A],
+    doc: Doc,
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[A],
+    examples: Seq[A]
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[A]] = {
+    if (binding.isInstanceOf[Binding[?, ?]]) {
+      ???
+    } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
+  }.asInstanceOf[Lazy[DynamoDBCodec[A]]]
+
   override def deriveVariant[F[_, _], A](
     cases: IndexedSeq[Term[F, A, _]],
     typeId: TypeId[A],
