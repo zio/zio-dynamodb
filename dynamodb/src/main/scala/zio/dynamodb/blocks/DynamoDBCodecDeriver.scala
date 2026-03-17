@@ -238,7 +238,7 @@ class DynamoDBCodecDeriver private (
         while (idx < len) {
           val field        = fields(idx)
           val fieldReflect = field.value
-          val codec        = deriveCodec(fieldReflect)
+          val codec        = D.instance(fieldReflect.metadata).force
           val optRequired  = isOptional(fieldReflect)
           val fieldInfo    = new FieldInfo(field.name, offset, codec, optRequired, isCollection(fieldReflect))
           fieldInfos(idx) = fieldInfo
@@ -551,12 +551,10 @@ class DynamoDBCodecDeriver private (
       val binding       = bindingX.asInstanceOf[Binding.Map[Map, Key, Value]]
       val constructor   = binding.constructor
       val deconstructor = binding.deconstructor
-      val keyCodec      =
-        deriveCodec(map.key)
-          .asInstanceOf[DynamoDBCodec[Key]]
+      val keyCodec      = D.instance(map.key.metadata).force.asInstanceOf[DynamoDBCodec[Key]]
       val keyEncoder    = keyCodec.encoder
       val keyDecoder    = keyCodec.decoder.asInstanceOf[Any => Either[ItemError.DecodingError, Key]]
-      val valueCodec    = deriveCodec(map.value).asInstanceOf[DynamoDBCodec[Value]]
+      val valueCodec    = D.instance(map.value.metadata).force.asInstanceOf[DynamoDBCodec[Value]]
       val valueEncoder  = valueCodec.encoder
       val valueDecoder  = valueCodec.decoder
       val isNativeMap   = map.key.asPrimitive.exists(_.typeId.name == "String")
@@ -670,19 +668,6 @@ class DynamoDBCodecDeriver private (
         }
     } else bindingX.asInstanceOf[BindingInstance[TC, ?, ?]].instance
   }.asInstanceOf[Lazy[DynamoDBCodec[M[K, V]]]]
-//  Lazy {
-//      deriveCodec(
-//        new Reflect.Map(
-//          key = key.asInstanceOf[Reflect[Binding, K]],
-//          value = value.asInstanceOf[Reflect[Binding, V]],
-//          typeId = typeId,
-//          mapBinding = binding,
-//          doc = doc,
-//          modifiers = modifiers
-//        )
-//      )
-//    }
-//  }
 
   override def deriveDynamic[F[_, _]](
     binding: Binding.Dynamic,
