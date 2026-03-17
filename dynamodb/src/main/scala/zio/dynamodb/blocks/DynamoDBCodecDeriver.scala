@@ -1078,57 +1078,6 @@ class DynamoDBCodecDeriver private (
         }
       else
         variant.variantBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
-    } else if (reflect.isSequence) {
-      val sequence = reflect.asSequenceUnknown.get.sequence
-      if (sequence.seqBinding.isInstanceOf[Binding[?, ?]]) {
-        val binding       = sequence.seqBinding.asInstanceOf[Binding.Seq[Col, Elem]]
-        val constructor   = binding.constructor
-        val deconstructor = binding.deconstructor
-        val elementCodec  = deriveCodec(sequence.element).asInstanceOf[DynamoDBCodec[Elem]]
-
-        // TODO: optimise for primitive types
-        new DynamoDBCodec[Col[Elem]] {
-          override def encoder: Encoder[Col[Elem]] = { (col: Col[Elem]) =>
-            val len = deconstructor.size(col)
-            val avs = new Array[AttributeValue](len)
-            var idx = 0
-            val it  = deconstructor.deconstruct(col)
-            while (it.hasNext) {
-              val el = it.next()
-              val av = elementCodec.encoder(el)
-              avs(idx) = av
-              idx += 1
-            }
-            AttributeValue.List(scala.collection.immutable.ArraySeq.unsafeWrapArray(avs))
-          }
-
-          private[this] val elemClassTag = sequence.elemClassTag.asInstanceOf[ClassTag[Elem]]
-
-          override def decoder: Decoder[Col[Elem]] = { (av: AttributeValue) =>
-            val errors = new ArrayBuffer[String]
-            av match {
-              case AttributeValue.List(items) =>
-                val builder = constructor.newBuilder[Elem](8)(elemClassTag)
-
-                // TODO: Avi - error handling
-                items.foreach { item =>
-                  elementCodec.decoder(item) match {
-                    case Right(a)  => constructor.add(builder, a.asInstanceOf[Elem])
-                    case Left(err) => errors.addOne(err.message)
-                  }
-                }
-                if (errors.isEmpty) {
-                  val xs: Col[Elem] = constructor.result[Elem](builder)
-                  Right(xs)
-                } else
-                  Left(ItemError.DecodingError(errors.mkString(","))) // TODO: Avi - Make ItemError a composite
-              case _                          =>
-                Left(ItemError.DecodingError(s"unable to decode ${av.showType} as a list"))
-            }
-          }
-        }
-      }.asInstanceOf[DynamoDBCodec[A]]
-      else sequence.seqBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
     } else if (reflect.isWrapper) {
       val wrapper = reflect.asWrapperUnknown.get.wrapper
       if (wrapper.wrapperBinding.isInstanceOf[Binding[?, ?]]) {
