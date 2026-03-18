@@ -497,8 +497,7 @@ class DynamoDBCodecDeriver private (
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
   }.asInstanceOf[Lazy[DynamoDBCodec[A]]]
 
-  /*override*/
-  def deriveVariant2[F[_, _], A](
+  override def deriveVariant[F[_, _], A](
     cases: IndexedSeq[Term[F, A, _]],
     typeId: TypeId[A],
     binding: Binding.Variant[A],
@@ -508,30 +507,299 @@ class DynamoDBCodecDeriver private (
     examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[A]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
-      ???
+      if (typeId.isOption) {
+        D.instance(cases(1).value.asRecord.get.fields(0).value.metadata).map { codec =>
+          new DynamoDBCodec[Option[Any]]() {
+            private[this] val valueCodec = codec.asInstanceOf[DynamoDBCodec[Any]]
+
+            override def encoder: Encoder[Option[Any]] = {
+              case Some(value) =>
+                valueCodec.encoder(value)
+              case None        =>
+                AttributeValue.Null
+            }
+
+            override def decoder: Decoder[Option[Any]] = {
+              case AttributeValue.Null =>
+                Right(None)
+              case av                  =>
+                valueCodec.decoder(av) match {
+                  case Right(value) => Right(Some(value))
+                  case Left(err)    => Left(err)
+                }
+            }
+          }
+        }
+      } else {
+        val discr = binding.asInstanceOf[Binding.Variant[A]].discriminator
+        if (isEnumeration(cases)) {
+          val map = new java.util.HashMap[String, Constructor[?]](cases.length)
+
+          def getInfos(cases: IndexedSeq[Term[F, A, ?]]): Array[EnumInfo] = {
+            val len   = cases.length
+            val infos = new Array[EnumInfo](len)
+            var idx   = 0
+            while (idx < len) {
+              val case_       = cases(idx)
+              val caseReflect = case_.value
+              infos(idx) =
+                if (caseReflect.isVariant)
+                  new EnumNodeInfo(
+                    discriminator(caseReflect),
+                    getInfos(caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]].cases)
+                  )
+                else {
+                  val constructor  = caseReflect.asRecord.get.recordBinding
+                    .asInstanceOf[BindingInstance[TC, ?, ?]]
+                    .binding
+                    .asInstanceOf[Binding.Record[?]]
+                    .constructor
+                  var name: String = null
+                  case_.modifiers.foreach {
+                    case m: Modifier.rename => if (name eq null) name = m.name
+                    case m: Modifier.alias  => map.put(m.name, constructor)
+                    case _                  =>
+                  }
+                  if (name eq null) name = caseNameMapper(case_.name)
+                  map.put(name, constructor)
+                  new EnumLeafInfo(name, constructor)
+                }
+              idx += 1
+            }
+            infos
+          }
+
+          val enumInfos = getInfos(cases)
+
+          new DynamoDBCodec[A]() {
+            private[this] val root           = EnumNodeInfo(discr, enumInfos)
+            private[this] val constructorMap = map
+
+            override def encoder: Encoder[A] =
+              (a: A) => {
+                val leafInfo: EnumLeafInfo = root.discriminate(a)
+                AttributeValue.String(leafInfo.name)
+              }
+
+            override def decoder: Decoder[A] = {
+              case AttributeValue.String(name) =>
+                val constructor = constructorMap.get(name)
+                if (constructor eq null)
+                  Left(ItemError.DecodingError("TODO"))
+                else {
+                  val a: A = constructor.construct(null, 0).asInstanceOf[A]
+                  Right(a)
+                }
+              case av                          =>
+                // TODO: Avi - debug why this is part of happy path
+                Left(ItemError.DecodingError(s"TODO ${av}"))
+            }
+          }
+        } else // TODO: Avi - Vanilla Variants
+          discriminatorKind match {
+
+            case DiscriminatorKind.Field(fieldName) if hasOnlyRecordAndVariantCases(cases) =>
+              val map = new java.util.HashMap[String, CaseLeafInfo](cases.length)
+
+              def getInfos(cases: IndexedSeq[Term[F, A, ?]], spans: List[DynamicOptic.Node.Case]): Array[CaseInfo] = {
+                val len   = cases.length
+                val infos = new Array[CaseInfo](len)
+                var idx   = 0
+                while (idx < len) {
+                  val case_       = cases(idx)
+                  val caseReflect = case_.value
+                  val span        = new DynamicOptic.Node.Case(case_.name)
+                  infos(idx) = if (caseReflect.isVariant) {
+                    val caseVariant = caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]]
+                    new CaseNodeInfo(discriminator(caseReflect), getInfos(caseVariant.cases, span :: spans))
+                  } else {
+                    val caseLeafInfo = new CaseLeafInfo(null, span :: spans)
+                    var name: String = null
+                    case_.modifiers.foreach {
+                      case m: Modifier.rename => if (name eq null) name = m.name
+                      case m: Modifier.alias  => map.put(m.name, caseLeafInfo)
+                      case _                  =>
+                    }
+                    if (name eq null) name = caseNameMapper(case_.name)
+                    map.put(name, caseLeafInfo)
+                    discriminatorFields.set(new DiscriminatorFieldInfo(fieldName, name) :: discriminatorFields.get)
+                    caseLeafInfo.codec = D.instance(caseReflect.metadata).force
+                    discriminatorFields.set(discriminatorFields.get.tail)
+                    caseLeafInfo
+                  }
+                  idx += 1
+                }
+                infos
+              }
+
+              new DynamoDBCodec[A]() {
+                private[this] val root                   = new CaseNodeInfo(discr, getInfos(cases, Nil))
+                private[this] val caseMap                = map
+                private[this] val discriminatorFieldName = AttributeValue.String(fieldName)
+
+                override def encoder: Encoder[A] =
+                  (a: A) => root.discriminate(a).codec.asInstanceOf[DynamoDBCodec[A]].encoder(a)
+
+                override def decoder: Decoder[A] = { (av: AttributeValue) =>
+                  av match {
+                    case avm: AttributeValue.Map =>
+                      val maybeDiscriminatorValue = avm.value.get(discriminatorFieldName)
+                      maybeDiscriminatorValue match {
+                        case Some(AttributeValue.String(discriminatorValue)) =>
+                          val caseInfo = caseMap.get(discriminatorValue)
+                          if (caseInfo ne null)
+                            caseInfo.codec.decoder(av)
+                          else
+                            Left(ItemError.DecodingError(s"Discriminator case for $discriminatorValue not found"))
+                        case _                                               =>
+                          Left(
+                            ItemError.DecodingError(
+                              s"Not implemented, discriminatorValue: $maybeDiscriminatorValue"
+                            )
+                          )
+                      }
+
+                    case av =>
+                      Left(ItemError.DecodingError(s"Expected an AttributeValue.Map but found ${av.showType}"))
+                  }
+
+                }.asInstanceOf[Decoder[A]]
+              }
+
+            case DiscriminatorKind.None =>
+              val codecs = Array.newBuilder[DynamoDBCodec[?]]
+
+              def getInfos(cases: IndexedSeq[Term[F, A, ?]]): Array[CaseInfo] = {
+                val len   = cases.length
+                val infos = new Array[CaseInfo](len)
+                var idx   = 0
+                while (idx < len) {
+                  val caseReflect = cases(idx).value
+                  infos(idx) = if (caseReflect.isVariant) {
+                    val caseVariant = caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]]
+                    new CaseNodeInfo(discriminator(caseReflect), getInfos(caseVariant.cases))
+                  } else {
+                    val codec = D.instance(caseReflect.metadata).force
+                    codecs.addOne(codec)
+                    new CaseLeafInfo(codec, Nil)
+                  }
+                  idx += 1
+                }
+                infos
+              }
+
+              new DynamoDBCodec[A]() {
+                private[this] val root           = new CaseNodeInfo(discr, getInfos(cases))
+                private[this] val caseLeafCodecs = codecs.result()
+
+                override def encoder: Encoder[A] =
+                  (a: A) => root.discriminate(a).codec.asInstanceOf[DynamoDBCodec[A]].encoder(a)
+
+                override def decoder: Decoder[A] =
+                  (av: AttributeValue) => {
+                    var idx                        = 0
+                    var rtrn: Either[ItemError, A] = null
+                    while (idx < caseLeafCodecs.length && (rtrn eq null)) {
+                      val codec = caseLeafCodecs(idx).asInstanceOf[DynamoDBCodec[A]]
+                      val x     = codec.decoder(av)
+                      if (x.isRight)
+                        rtrn = x
+                      idx += 1
+                    }
+
+                    if (rtrn eq null)
+                      Left(ItemError.DecodingError("All sub type decoders failed for AttributeValue.Map"))
+                    else
+                      rtrn
+                  }
+              }
+            // DiscriminatorKind.Key
+            case _                      =>
+              val map = new java.util.HashMap[String, CaseLeafInfo](cases.length)
+
+              def getInfos(cases: IndexedSeq[Term[F, A, ?]], spans: List[DynamicOptic.Node.Case]): Array[CaseInfo] = {
+                val len   = cases.length
+                val infos = new Array[CaseInfo](len)
+                var idx   = 0
+                while (idx < len) {
+                  val case_       = cases(idx)
+                  val caseReflect = case_.value
+                  val span        = new DynamicOptic.Node.Case(case_.name)
+                  infos(idx) = if (caseReflect.isVariant) {
+                    val caseVariant = caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]]
+                    new CaseNodeInfo(discriminator(caseReflect), getInfos(caseVariant.cases, span :: spans))
+                  } else {
+                    val caseLeafInfo = new CaseLeafInfo(D.instance(caseReflect.metadata).force, span :: spans)
+                    var name: String = null
+                    case_.modifiers.foreach {
+                      case m: Modifier.rename => if (name eq null) name = m.name
+                      case m: Modifier.alias  => map.put(m.name, caseLeafInfo)
+                      case _                  =>
+                    }
+                    if (name eq null) name = caseNameMapper(case_.name)
+                    map.put(name, caseLeafInfo)
+                    caseLeafInfo.setName(name)
+                    caseLeafInfo
+                  }
+                  idx += 1
+                }
+                infos
+              }
+
+              new DynamoDBCodec[A]() {
+                private[this] val root    = new CaseNodeInfo(discr, getInfos(cases, Nil))
+                private[this] val caseMap = map
+
+                override def encoder: Encoder[A] =
+                  (a: A) => {
+                    // TODO: Avi - create a wrapper Singleton Map with CaseName as key
+                    val caseInfo = root.discriminate(a)
+                    val av       = caseInfo.codec.asInstanceOf[DynamoDBCodec[A]].encoder(a)
+                    AttributeValue.Map(AttributeValue.Map.JMapView.hash.single(caseInfo.getName, av))
+                  }
+
+                override def decoder: Decoder[A] = { (avKeyMap: AttributeValue) =>
+                  avKeyMap match {
+                    case AttributeValue.Map(m) =>
+                      val it = m.iterator
+                      if (it.hasNext) {
+                        val (key, avInner) = it.next()
+                        val caseLeafInfo   = caseMap.get(key.value)
+                        if (caseLeafInfo ne null)
+                          caseLeafInfo.codec.decoder(avInner)
+                        else Left(ItemError.DecodingError(s"Case ${key.value} not found for Variant"))
+                      } else Left(ItemError.DecodingError(s"Can't decode an empty AttributeValue.Map"))
+                    case av                    =>
+                      Left(ItemError.DecodingError(s"Unexpected AttributeValue ${av.showType}"))
+                  }
+                }.asInstanceOf[Decoder[A]]
+              }
+
+          }
+      }
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
   }.asInstanceOf[Lazy[DynamoDBCodec[A]]]
 
-  override def deriveVariant[F[_, _], A](
-    cases: IndexedSeq[Term[F, A, _]],
-    typeId: TypeId[A],
-    binding: Binding.Variant[A],
-    doc: Doc,
-    modifiers: Seq[Modifier.Reflect],
-    defaultValue: Option[A],
-    examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[A]] =
-    Lazy(
-      deriveCodec(
-        new Reflect.Variant(
-          cases = cases.asInstanceOf[IndexedSeq[Term[Binding, A, _ <: A]]],
-          typeId = typeId,
-          variantBinding = binding,
-          doc = doc,
-          modifiers = modifiers
-        )
-      )
-    )
+//  override def deriveVariant[F[_, _], A](
+//    cases: IndexedSeq[Term[F, A, _]],
+//    typeId: TypeId[A],
+//    binding: Binding.Variant[A],
+//    doc: Doc,
+//    modifiers: Seq[Modifier.Reflect],
+//    defaultValue: Option[A],
+//    examples: Seq[A]
+//  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[A]] =
+//    Lazy(
+//      deriveCodec(
+//        new Reflect.Variant(
+//          cases = cases.asInstanceOf[IndexedSeq[Term[Binding, A, _ <: A]]],
+//          typeId = typeId,
+//          variantBinding = binding,
+//          doc = doc,
+//          modifiers = modifiers
+//        )
+//      )
+//    )
 
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
@@ -593,6 +861,7 @@ class DynamoDBCodecDeriver private (
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
   }.asInstanceOf[Lazy[DynamoDBCodec[C[A]]]]
 
+  // TODO: Avi - delete
   /*override*/
   def deriveSequenceX[F[_, _], C[_], A](
     element: Reflect[F, A],
@@ -1154,11 +1423,18 @@ class DynamoDBCodecDeriver private (
       typeId.owner == Owner.fromPackagePath("scala") && typeId.name.startsWith("Tuple")
     }
 
-  private[this] def isEnumeration[F[_, _], A](variant: Reflect.Variant[F, A]): Boolean =
+  // TODO: Avi - delete
+  private[this] def isEnumeration[F[_, _], A](variant: Reflect.Variant[F, A]): Boolean   =
     enumValuesAsStrings && variant.cases.forall { case_ =>
       val caseReflect = case_.value
       caseReflect.asRecord.exists(_.fields.isEmpty) ||
       caseReflect.isVariant && caseReflect.asVariant.forall(isEnumeration)
+    }
+  private[this] def isEnumeration[F[_, _], A](cases: IndexedSeq[Term[F, A, ?]]): Boolean =
+    enumValuesAsStrings && cases.forall { case_ =>
+      val caseReflect = case_.value
+      caseReflect.asRecord.exists(_.fields.isEmpty) ||
+      caseReflect.isVariant && caseReflect.asVariant.map(_.cases).forall(isEnumeration)
     }
 
   private[this] def isCollection[F[_, _], A](reflect: Reflect[F, A]): Boolean =
@@ -1178,8 +1454,14 @@ class DynamoDBCodecDeriver private (
       .asInstanceOf[Binding.Variant[A]]
       .discriminator
 
-  private[this] def hasOnlyRecordAndVariantCases[F[_, _], A](variant: Reflect.Variant[F, A]): Boolean =
+  // TODO: Avi - delete
+  private[this] def hasOnlyRecordAndVariantCases[F[_, _], A](variant: Reflect.Variant[F, A]): Boolean   =
     variant.cases.forall { case_ =>
+      val caseReflect = case_.value
+      caseReflect.isRecord || caseReflect.isVariant && caseReflect.asVariant.forall(hasOnlyRecordAndVariantCases)
+    }
+  private[this] def hasOnlyRecordAndVariantCases[F[_, _], A](cases: IndexedSeq[Term[F, A, ?]]): Boolean =
+    cases.forall { case_ =>
       val caseReflect = case_.value
       caseReflect.isRecord || caseReflect.isVariant && caseReflect.asVariant.forall(hasOnlyRecordAndVariantCases)
     }
