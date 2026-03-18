@@ -780,27 +780,6 @@ class DynamoDBCodecDeriver private (
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
   }.asInstanceOf[Lazy[DynamoDBCodec[A]]]
 
-//  override def deriveVariant[F[_, _], A](
-//    cases: IndexedSeq[Term[F, A, _]],
-//    typeId: TypeId[A],
-//    binding: Binding.Variant[A],
-//    doc: Doc,
-//    modifiers: Seq[Modifier.Reflect],
-//    defaultValue: Option[A],
-//    examples: Seq[A]
-//  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[A]] =
-//    Lazy(
-//      deriveCodec(
-//        new Reflect.Variant(
-//          cases = cases.asInstanceOf[IndexedSeq[Term[Binding, A, _ <: A]]],
-//          typeId = typeId,
-//          variantBinding = binding,
-//          doc = doc,
-//          modifiers = modifiers
-//        )
-//      )
-//    )
-
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
     typeId: TypeId[C[A]],
@@ -860,23 +839,6 @@ class DynamoDBCodecDeriver private (
       }
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
   }.asInstanceOf[Lazy[DynamoDBCodec[C[A]]]]
-
-  // TODO: Avi - delete
-  /*override*/
-  def deriveSequenceX[F[_, _], C[_], A](
-    element: Reflect[F, A],
-    typeId: TypeId[C[A]],
-    binding: Binding.Seq[C, A],
-    doc: Doc,
-    modifiers: Seq[Modifier.Reflect],
-    defaultValue: Option[C[A]],
-    examples: Seq[C[A]]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[C[A]]] =
-    Lazy {
-      deriveCodec(
-        new Reflect.Sequence(element.asInstanceOf[Reflect[Binding, A]], typeId, binding, doc, modifiers)
-      )
-    }
 
   override def deriveMap[F[_, _], M[_, _], K, V](
     key: Reflect[F, K],
@@ -1148,13 +1110,6 @@ class DynamoDBCodecDeriver private (
       typeId.owner == Owner.fromPackagePath("scala") && typeId.name.startsWith("Tuple")
     }
 
-  // TODO: Avi - delete
-  private[this] def isEnumeration[F[_, _], A](variant: Reflect.Variant[F, A]): Boolean   =
-    enumValuesAsStrings && variant.cases.forall { case_ =>
-      val caseReflect = case_.value
-      caseReflect.asRecord.exists(_.fields.isEmpty) ||
-      caseReflect.isVariant && caseReflect.asVariant.forall(isEnumeration)
-    }
   private[this] def isEnumeration[F[_, _], A](cases: IndexedSeq[Term[F, A, ?]]): Boolean =
     enumValuesAsStrings && cases.forall { case_ =>
       val caseReflect = case_.value
@@ -1179,16 +1134,10 @@ class DynamoDBCodecDeriver private (
       .asInstanceOf[Binding.Variant[A]]
       .discriminator
 
-  // TODO: Avi - delete
-  private[this] def hasOnlyRecordAndVariantCases[F[_, _], A](variant: Reflect.Variant[F, A]): Boolean   =
-    variant.cases.forall { case_ =>
-      val caseReflect = case_.value
-      caseReflect.isRecord || caseReflect.isVariant && caseReflect.asVariant.forall(hasOnlyRecordAndVariantCases)
-    }
   private[this] def hasOnlyRecordAndVariantCases[F[_, _], A](cases: IndexedSeq[Term[F, A, ?]]): Boolean =
     cases.forall { case_ =>
       val caseReflect = case_.value
-      caseReflect.isRecord || caseReflect.isVariant && caseReflect.asVariant.forall(hasOnlyRecordAndVariantCases)
+      caseReflect.isRecord || caseReflect.asVariant.map(_.cases).forall(hasOnlyRecordAndVariantCases)
     }
 
 } // end class DynamoDBCodecDeriver
@@ -1250,7 +1199,4 @@ private case class EnumNodeInfo[A](
       case eli: EnumLeafInfo => eli
       case eni               => eni.asInstanceOf[EnumNodeInfo[A]].discriminate(x)
     }
-
-  // TODO: Avi - delete
-  override def toString: String = s"enumInfos: ${enumInfos.toList}"
 }
