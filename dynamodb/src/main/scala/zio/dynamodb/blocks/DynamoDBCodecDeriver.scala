@@ -973,6 +973,7 @@ class DynamoDBCodecDeriver private (
     } else bindingX.asInstanceOf[BindingInstance[TC, ?, ?]].instance
   }.asInstanceOf[Lazy[DynamoDBCodec[M[K, V]]]]
 
+  // TODO: Avi - migrate
   override def deriveDynamic[F[_, _]](
     binding: Binding.Dynamic,
     doc: Doc,
@@ -982,26 +983,45 @@ class DynamoDBCodecDeriver private (
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[DynamicValue]] =
     Lazy(deriveCodec(new Reflect.Dynamic(binding, TypeId.of[DynamicValue], doc, modifiers)))
 
+  // TODO: Avi - migrate
   override def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeId: TypeId[A],
-    binding: Binding.Wrapper[A, B],
+    bindingX: Binding.Wrapper[A, B],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[A]] =
-    Lazy {
-      deriveCodec(
-        new Reflect.Wrapper(
-          wrapped.asInstanceOf[Reflect[Binding, B]],
-          typeId,
-          binding,
-          doc,
-          modifiers
-        )
-      )
-    }
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[A]] = {
+    if (bindingX.isInstanceOf[Binding[?, ?]]) {
+      val binding = bindingX.asInstanceOf[Binding.Wrapper[A, Wrapped]]
+      val wrapper = wrapped.asWrapperUnknown.get.wrapper
+      D.instance(wrapped.metadata).map { codec =>
+        new DynamoDBCodec[A](wrapper.underlyingPrimitiveType.fold(DynamoDBCodec.objectType) {
+          case _: PrimitiveType.Int  => DynamoDBCodec.intType
+          case _: PrimitiveType.Long => DynamoDBCodec.longType
+          case _                     => DynamoDBCodec.objectType
+        }) {
+          private[this] val unwrap                               = binding.unwrap
+          private[this] val wrap                                 = binding.wrap
+          private[this] val wrappedCodec: DynamoDBCodec[Wrapped] = codec.asInstanceOf[DynamoDBCodec[Wrapped]]
+
+          override def encoder: Encoder[A] = (a: A) => wrappedCodec.encoder(unwrap(a))
+
+          override def decoder: Decoder[A] =
+            (av: AttributeValue) => {
+              val x: Either[ItemError, Wrapped] = wrappedCodec.decoder(av)
+              x match {
+                case Right(w) =>
+                  val a: A = wrap(w)
+                  Right(a)
+                case Left(e)  => Left(e)
+              }
+            }
+        }
+      }
+    } else bindingX.asInstanceOf[BindingInstance[TC, ?, A]].instance
+  }.asInstanceOf[Lazy[DynamoDBCodec[A]]]
 
   private[this] val stringCodec: DynamoDBCodec[String] =
     new DynamoDBCodec[String](valueType = DynamoDBCodec.objectType) {
@@ -1049,40 +1069,9 @@ class DynamoDBCodecDeriver private (
   def deriveCodec[F[_, _], A](
     reflect: Reflect[F, A]
   ): DynamoDBCodec[A] = {
-    if (reflect.isWrapper) {
-      val wrapper = reflect.asWrapperUnknown.get.wrapper
-      if (wrapper.wrapperBinding.isInstanceOf[Binding[?, ?]]) {
-        val binding = wrapper.wrapperBinding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
-        val codec   = deriveCodec(wrapper.wrapped).asInstanceOf[DynamoDBCodec[Wrapped]]
-        new DynamoDBCodec[A](wrapper.underlyingPrimitiveType.fold(DynamoDBCodec.objectType) {
-          case _: PrimitiveType.Int  => DynamoDBCodec.intType
-          case _: PrimitiveType.Long => DynamoDBCodec.longType
-          case _                     => DynamoDBCodec.objectType
-        }) {
-          private[this] val unwrap                               = binding.unwrap
-          private[this] val wrap                                 = binding.wrap
-          private[this] val wrappedCodec: DynamoDBCodec[Wrapped] = codec
-
-          override def encoder: Encoder[A] = (a: A) => wrappedCodec.encoder(unwrap(a))
-
-          override def decoder: Decoder[A] =
-            (av: AttributeValue) => {
-              val x: Either[ItemError, Wrapped] = wrappedCodec.decoder(av)
-              x match {
-                case Right(w) =>
-                  val a: A = wrap(w)
-                  Right(a)
-                case Left(e)  => Left(e)
-              }
-            }
-        }
-      } else
-        wrapper.wrapperBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
-    } else {
-      val dynamic = reflect.asDynamic.get
-      if (dynamic.dynamicBinding.isInstanceOf[Binding[?, ?]]) dynamicValueCodec
-      else dynamic.dynamicBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
-    }
+    val dynamic = reflect.asDynamic.get
+    if (dynamic.dynamicBinding.isInstanceOf[Binding[?, ?]]) dynamicValueCodec
+    else dynamic.dynamicBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
   }.asInstanceOf[DynamoDBCodec[A]]
 
   private[this] def option[F[_, _], A](variant: Reflect.Variant[F, A]): Option[Reflect[F, ?]] = {
