@@ -973,17 +973,17 @@ class DynamoDBCodecDeriver private (
     } else bindingX.asInstanceOf[BindingInstance[TC, ?, ?]].instance
   }.asInstanceOf[Lazy[DynamoDBCodec[M[K, V]]]]
 
-  // TODO: Avi - migrate
   override def deriveDynamic[F[_, _]](
     binding: Binding.Dynamic,
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[DynamicValue],
     examples: Seq[DynamicValue]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[DynamicValue]] =
-    Lazy(deriveCodec(new Reflect.Dynamic(binding, TypeId.of[DynamicValue], doc, modifiers)))
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[DynamicValue]] = {
+    if (binding.isInstanceOf[Binding[?, ?]]) Lazy(dynamicValueCodec)
+    else binding.asInstanceOf[BindingInstance[TC, ?, ?]].instance
+  }.asInstanceOf[Lazy[DynamoDBCodec[DynamicValue]]]
 
-  // TODO: Avi - migrate
   override def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeId: TypeId[A],
@@ -1065,14 +1065,6 @@ class DynamoDBCodecDeriver private (
   private[this] val discriminatorFields = new ThreadLocal[List[DiscriminatorFieldInfo]] {
     override def initialValue: List[DiscriminatorFieldInfo] = Nil
   }
-
-  def deriveCodec[F[_, _], A](
-    reflect: Reflect[F, A]
-  ): DynamoDBCodec[A] = {
-    val dynamic = reflect.asDynamic.get
-    if (dynamic.dynamicBinding.isInstanceOf[Binding[?, ?]]) dynamicValueCodec
-    else dynamic.dynamicBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
-  }.asInstanceOf[DynamoDBCodec[A]]
 
   private[this] def option[F[_, _], A](variant: Reflect.Variant[F, A]): Option[Reflect[F, ?]] = {
     val typeId = variant.typeId
