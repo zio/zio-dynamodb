@@ -1104,16 +1104,6 @@ class DynamoDBCodecDeriver private (
     override def initialValue: List[DiscriminatorFieldInfo] = Nil
   }
 
-  private[this] def option[F[_, _], A](variant: Reflect.Variant[F, A]): Option[Reflect[F, ?]] = {
-    val typeId = variant.typeId
-    val cases  = variant.cases
-    if (
-      typeId.owner == Owner.fromPackagePath("scala") && typeId.name == "Option" &&
-      cases.length == 2 && cases(1).name == "Some"
-    ) cases(1).value.asRecord.map(_.fields(0).value)
-    else None
-  }
-
   private[this] def isOptional[F[_, _], A](reflect: Reflect[F, A]): Boolean =
     !requireOptionFields && reflect.isVariant && {
       val variant = reflect.asVariant.get
@@ -1121,12 +1111,6 @@ class DynamoDBCodecDeriver private (
       val cases   = variant.cases
       typeId.owner == Owner.fromPackagePath("scala") && typeId.name == "Option" &&
       cases.length == 2 && cases(1).name == "Some"
-    }
-
-  private[this] def isTuple[F[_, _], A](reflect: Reflect[F, A]): Boolean =
-    reflect.isRecord && {
-      val typeId = reflect.typeId
-      typeId.owner == Owner.fromPackagePath("scala") && typeId.name.startsWith("Tuple")
     }
 
   private[this] def isEnumeration[F[_, _], A](cases: IndexedSeq[Term[F, A, ?]]): Boolean =
