@@ -899,7 +899,11 @@ class DynamoDBCodecDeriver private (
         val valueCodec    = codec2.asInstanceOf[DynamoDBCodec[Value]]
         val valueEncoder  = valueCodec.encoder
         val valueDecoder  = valueCodec.decoder
-        val isNativeMap   = typeId.name == "String"
+        val isNativeMap   =
+          if (key.isPrimitive)
+            key.asPrimitive.get.typeId.name == "String"
+          else
+            false
 
         if (isNativeMap)
           new DynamoDBCodec[Map[Key, Value]] {
