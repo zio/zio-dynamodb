@@ -117,7 +117,7 @@ object DynamoDBCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
             expectedAV = Item(
               "::" -> Item("val" -> 1, "nxt" -> Item("::" -> Item("val" -> 2, "nxt" -> Item("End" -> Item.empty))))
             ).toAttributeValue
-          )(schema1) &&
+          )(schema1) /* &&
           roundTripWithSchema2Codec(
             expectedValue = Node(Some("VVV"), Node(None, End)),
             expectedAV = AttributeValue.Map(
@@ -145,8 +145,8 @@ object DynamoDBCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
                 )
               )
             )
-          )(schema2)
-        } @@ TestAspect.ignore, // TODO: Avi - ignore until recursive cache in codec is implemented
+          )(schema2) */
+        }, // @@ TestAspect.ignore, // TODO: Avi - ignore until recursive cache in codec is implemented
         test("Person with simple enum") {
           roundTripWithSchema2Codec(
             expectedValue = Person(
