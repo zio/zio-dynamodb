@@ -232,7 +232,6 @@ class DynamoDBCodecDeriver private (
             val fieldReflect = field.value
             val codec        = D.instance(fieldReflect.metadata).force
             val optRequired  = isOptional(fieldReflect)
-            println(s"XXXXXXXX isTuple field: ${field.name}, offset: $offset")
             val fieldInfo    = new FieldInfo(field.name, offset, /*codec, */ optRequired, isCollection(fieldReflect))
             fieldInfo.setCodec(codec)
             fieldInfos(idx) = fieldInfo
@@ -433,10 +432,6 @@ class DynamoDBCodecDeriver private (
             private[this] val skipEmptyCollection = transientEmptyCollection
             private[this] val discriminatorField  = discriminatorFields.get.headOption.orNull
 
-            println(
-              s"XXXXXXXX discriminatorField: ${if (discriminatorField ne null) discriminatorField.name else "null"}"
-            )
-
             override def encoder: Encoder[A] = { value =>
               val regs                                            = Registers(usedRegisters)
               var idx                                             = 0
@@ -456,8 +451,6 @@ class DynamoDBCodecDeriver private (
                 val codec  = field.codec
                 val isOpt  = field.isOptional
 
-                println(s"XXXXXXXX field: $name, offset: $offset, isOpt: $isOpt")
-
                 field.valueType match {
                   case DynamoDBCodec.intType    =>
                     val value = regs.getInt(offset)
@@ -469,7 +462,6 @@ class DynamoDBCodecDeriver private (
                     mapBuilder.addOne(name, av)
                   case DynamoDBCodec.objectType =>
                     val value = regs.getObject(offset)
-                    println(s"XXXXXXXX value for field $name: $value")
 
                     if (isOpt && skipNone && (value == None))
                       ()
@@ -631,7 +623,6 @@ class DynamoDBCodecDeriver private (
 
             override def encoder: Encoder[A] =
               (a: A) => {
-                println(s"XXXXXXXX 1 $a")
                 val leafInfo: EnumLeafInfo = root.discriminate(a)
                 AttributeValue.String(leafInfo.name)
               }
@@ -655,7 +646,6 @@ class DynamoDBCodecDeriver private (
           discriminatorKind match {
 
             case DiscriminatorKind.Field(fieldName) if hasOnlyRecordAndVariantCases(cases) =>
-              println(s"XXXXXXXX DiscriminatorKind.Field: $fieldName")
               Lazy {
                 val map = new java.util.HashMap[String, CaseLeafInfo](cases.length)
 
@@ -671,7 +661,6 @@ class DynamoDBCodecDeriver private (
                       val caseVariant = caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]]
                       new CaseNodeInfo(discriminator(caseReflect), getInfos(caseVariant.cases, span :: spans))
                     } else {
-                      println(s"XXXXXXXX case leaf 1")
                       val caseLeafInfo = new CaseLeafInfo(null, span :: spans)
                       var name: String = null
                       case_.modifiers.foreach {
@@ -682,7 +671,6 @@ class DynamoDBCodecDeriver private (
                       if (name eq null) name = caseNameMapper(case_.name)
                       map.put(name, caseLeafInfo)
                       discriminatorFields.set(new DiscriminatorFieldInfo(fieldName, name) :: discriminatorFields.get)
-                      println(s"XXXXXXXX case leaf 2 discriminatorFields ${discriminatorFields.get}")
                       caseLeafInfo.codec = D.instance(caseReflect.metadata).force
                       discriminatorFields.set(discriminatorFields.get.tail)
                       caseLeafInfo
@@ -696,8 +684,6 @@ class DynamoDBCodecDeriver private (
                   private[this] val root                   = new CaseNodeInfo(discr, getInfos(cases, Nil))
                   private[this] val caseMap                = map
                   private[this] val discriminatorFieldName = AttributeValue.String(fieldName)
-
-                  println(s"XXXXXXXX infos: ${root.caseInfos.toList}")
 
                   override def encoder: Encoder[A] =
                     (a: A) => root.discriminate(a).codec.asInstanceOf[DynamoDBCodec[A]].encoder(a)
@@ -1242,7 +1228,7 @@ private class CaseLeafInfo(
 
 private class CaseNodeInfo[A](
   private[this] val discriminator: Discriminator[A],
-  /*private[this]*/ val caseInfos: Array[CaseInfo]
+  private[this] val caseInfos: Array[CaseInfo]
 ) extends CaseInfo {
   @tailrec
   final def discriminate(x: A): CaseLeafInfo =
