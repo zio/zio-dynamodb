@@ -412,7 +412,7 @@ class DynamoDBCodecDeriver private (
           }
           var idx                          = 0
           while (idx < len) {
-            val field        = fields(idx)
+            val field = fields(idx)
             if (deriveCodecs) {
               fieldInfos(idx).setCodec(D.instance(field.value.metadata).force)
             }
