@@ -263,8 +263,8 @@ class DynamoDBCodecDeriver private (
             while (idx < len) {
               val field  = fieldInfos(idx)
               val offset = field.offset
-              val codec  = field.codec
-              field.valueType match {
+              val codec  = field.getCodec
+              field.getValueType match {
                 case DynamoDBCodec.intType    =>
                   val v  = regs.getInt(offset)
                   // TODO: Avi - investigate direct encoding optimisations for primitives
@@ -294,19 +294,19 @@ class DynamoDBCodecDeriver private (
             val errors: ArrayBuffer[String] = new ArrayBuffer[String]()
 
             def setValue(field: FieldInfo, value: AttributeValue): Unit =
-              field.valueType match {
+              field.getValueType match {
                 case DynamoDBCodec.intType    =>
-                  field.codec.asInstanceOf[DynamoDBCodec[Int]].decoder(value) match {
+                  field.getCodec.asInstanceOf[DynamoDBCodec[Int]].decoder(value) match {
                     case Right(v)  => regs.setInt(field.offset, v)
                     case Left(err) => errors.addOne(err.message)
                   }
                 case DynamoDBCodec.longType   =>
-                  field.codec.asInstanceOf[DynamoDBCodec[Long]].decoder(value) match {
+                  field.getCodec.asInstanceOf[DynamoDBCodec[Long]].decoder(value) match {
                     case Right(v)  => regs.setLong(field.offset, v)
                     case Left(err) => errors.addOne(err.message)
                   }
                 case DynamoDBCodec.objectType =>
-                  field.codec.asInstanceOf[DynamoDBCodec[AnyRef]].decoder(value) match {
+                  field.getCodec.asInstanceOf[DynamoDBCodec[AnyRef]].decoder(value) match {
                     case Right(v)  => regs.setObject(field.offset, v)
                     case Left(err) => errors.addOne(err.message)
                   }
@@ -446,10 +446,10 @@ class DynamoDBCodecDeriver private (
                 val field  = fields(idx)
                 val name   = field.name
                 val offset = field.offset
-                val codec  = field.codec
+                val codec  = field.getCodec
                 val isOpt  = field.isOptional
 
-                field.valueType match {
+                field.getValueType match {
                   case DynamoDBCodec.intType    =>
                     val value = regs.getInt(offset)
                     val av    = codec.asInstanceOf[DynamoDBCodec[Int]].encoder(value)
@@ -506,19 +506,19 @@ class DynamoDBCodecDeriver private (
                       if (av eq null) // TODO: Avi - should we fail fast on this?
                         errors.addOne(s"Missing attribute value for field: $name")
                       else
-                        field.valueType match {
+                        field.getValueType match {
                           case DynamoDBCodec.intType    =>
-                            field.codec.asInstanceOf[DynamoDBCodec[Int]].decoder(av) match {
+                            field.getCodec.asInstanceOf[DynamoDBCodec[Int]].decoder(av) match {
                               case Right(value) => regs.setInt(offset, value)
                               case Left(err)    => errors.addOne(err.message)
                             }
                           case DynamoDBCodec.longType   =>
-                            field.codec.asInstanceOf[DynamoDBCodec[Long]].decoder(av) match {
+                            field.getCodec.asInstanceOf[DynamoDBCodec[Long]].decoder(av) match {
                               case Right(value) => regs.setLong(offset, value)
                               case Left(err)    => errors.addOne(err.message)
                             }
                           case DynamoDBCodec.objectType =>
-                            field.codec.asInstanceOf[DynamoDBCodec[AnyRef]].decoder(av) match {
+                            field.getCodec.asInstanceOf[DynamoDBCodec[AnyRef]].decoder(av) match {
                               case Right(value) => regs.setObject(offset, value)
                               case Left(err)    => errors.addOne(err.message)
                             }
@@ -1194,17 +1194,22 @@ private final case class FieldInfo(
   isOptional: Boolean,
   isCollection: Boolean
 ) {
-  var valueType: Int          = 0    // codec.valueType
-  var nonTransient: Boolean   = true // TODO: Avi - override in the field processing loop
-  var codec: DynamoDBCodec[?] = null // defer codec assignment until after derivation phase
+  var nonTransient: Boolean                 = true // TODO: Avi - override in the field processing loop
+  private[this] var valueType: Int          = 0
+  private[this] var codec: DynamoDBCodec[?] = null // defer codec assignment until after derivation phase
 
   def setName(name: String): Unit =
     this.name = name
 
   def setCodec(codec: DynamoDBCodec[?]): Unit = {
     this.codec = codec
-    this.valueType = codec.valueType // TODO: Avi - is this still required
+    valueType = codec.valueType // TODO: Avi - is this still required
   }
+
+  def getCodec: DynamoDBCodec[?] = codec
+
+  def getValueType: Int = valueType
+
 }
 
 private case class DiscriminatorFieldInfo(name: String, value: String)
