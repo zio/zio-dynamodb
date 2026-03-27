@@ -4,7 +4,7 @@ import zio.blocks.chunk.ChunkBuilder
 import zio.blocks.docs.Doc
 import zio.blocks.schema._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
-import zio.blocks.schema.binding.*
+import zio.blocks.schema.binding._
 import zio.blocks.schema.derive.{ BindingInstance, Deriver, InstanceOverride }
 import zio.blocks.typeid.{ Owner, TypeId }
 import zio.dynamodb.AttributeValue
@@ -247,7 +247,6 @@ class DynamoDBCodecDeriver private (
             aliasMap.put(name, fieldInfo)
             fieldInfo.setName(name)
             offset = RegisterOffset.add(registerOffset(fieldReflect), offset)
-            // RegisterOffset.add(codec.valueOffset, offset)
             idx += 1
           }
         }
@@ -389,9 +388,8 @@ class DynamoDBCodecDeriver private (
             while (idx < len) {
               val field        = fields(idx)
               val fieldReflect = field.value
-//              val codec        = D.instance(field.value.metadata).force // Stackoverflow (1)
               val optRequired  = isOptional(fieldReflect)
-              val fieldInfo    = new FieldInfo(field.name, offset, /*codec, */ optRequired, isCollection(field.value))
+              val fieldInfo    = new FieldInfo(field.name, offset, optRequired, isCollection(field.value))
               fieldInfos(idx) = fieldInfo
               var name: String = null
               // TODO: Avi - have a separate cache for tuple as it needs less info
@@ -1163,7 +1161,7 @@ class DynamoDBCodecDeriver private (
       caseReflect.isRecord || caseReflect.asVariant.map(_.cases).forall(hasOnlyRecordAndVariantCases)
     }
 
-  // copied out of zio-blocks as scope is private inside refelect
+  // copied out of zio-blocks as scope is private inside Reflect
   private def unwrapToPrimitiveTypeOption[F[_, _], A](reflect: Reflect[F, A]): Option[PrimitiveType[A]] =
     if (reflect.isWrapper) {
       reflect.asWrapperUnknown.get.wrapper.underlyingPrimitiveType.asInstanceOf[Option[PrimitiveType[A]]]
@@ -1193,20 +1191,19 @@ class DynamoDBCodecDeriver private (
 private final case class FieldInfo(
   var name: String, // TODO: Avi - use DynamicOptic.Node.Field
   offset: RegisterOffset,
-//  codec: DynamoDBCodec[?],
   isOptional: Boolean,
   isCollection: Boolean
 ) {
   var valueType: Int          = 0    // codec.valueType
   var nonTransient: Boolean   = true // TODO: Avi - override in the field processing loop
-  var codec: DynamoDBCodec[?] = null
+  var codec: DynamoDBCodec[?] = null // defer codec assignment until after derivation phase
 
   def setName(name: String): Unit =
     this.name = name
 
   def setCodec(codec: DynamoDBCodec[?]): Unit = {
     this.codec = codec
-    this.valueType = codec.valueType
+    this.valueType = codec.valueType // TODO: Avi - is this still required
   }
 }
 
