@@ -129,7 +129,6 @@ object DynamoDBCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
                       Map(
                         AttributeValue.String("::") -> AttributeValue.Map(
                           Map(
-                            AttributeValue.String("val") -> AttributeValue.Null,
                             AttributeValue.String("nxt") -> AttributeValue.Map(
                               Map(
                                 AttributeValue.String("End") -> AttributeValue.Map(
@@ -146,7 +145,7 @@ object DynamoDBCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
               )
             )
           )(schema2)
-        } @@ TestAspect.ignore, // TODO: Avi - ignore until recursive cache in codec is implemented
+        },
         test("Person with simple enum") {
           roundTripWithSchema2Codec(
             expectedValue = Person(

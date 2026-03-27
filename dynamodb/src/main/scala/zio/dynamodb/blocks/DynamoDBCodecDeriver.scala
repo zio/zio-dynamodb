@@ -5,7 +5,7 @@ import zio.blocks.docs.Doc
 import zio.blocks.schema._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
-import zio.blocks.schema.derive.{ BindingInstance, Deriver }
+import zio.blocks.schema.derive.{ BindingInstance, Deriver, InstanceOverride }
 import zio.blocks.typeid.{ Owner, TypeId }
 import zio.dynamodb.AttributeValue
 import zio.dynamodb.DynamoDBError.ItemError
@@ -35,10 +35,6 @@ object DynamoDBCodecDeriver
 
   val dynamicValueCodec: DynamoDBCodec[DynamicValue] =
     new DynamoDBCodec[DynamicValue](valueType = DynamoDBCodec.objectType) {
-//      private[this] val falseValue       = new DynamicValue.Primitive(new PrimitiveValue.Boolean(false))
-//      private[this] val trueValue        = new DynamicValue.Primitive(new PrimitiveValue.Boolean(true))
-//      private[this] val emptyArrayValue  = new DynamicValue.Sequence(Chunk.empty)
-//      private[this] val emptyObjectValue = new DynamicValue.Map(Chunk.empty)
 
       override def encoder: Encoder[DynamicValue] =
         (dv: DynamicValue) =>
@@ -223,8 +219,8 @@ class DynamoDBCodecDeriver private (
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DynamoDBCodec[A]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       val recordBinding = binding.asInstanceOf[Binding.Record[A]]
-      var offset        = 0L
       if (typeId.isTuple) Lazy {
+        var offset                       = 0L
         var fieldInfos: Array[FieldInfo] = null // TODO: investigate recursive cache
         val len                          = fields.length
         val aliasMap                     = new java.util.HashMap[String, FieldInfo](len)
@@ -236,7 +232,8 @@ class DynamoDBCodecDeriver private (
             val fieldReflect = field.value
             val codec        = D.instance(fieldReflect.metadata).force
             val optRequired  = isOptional(fieldReflect)
-            val fieldInfo    = new FieldInfo(field.name, offset, codec, optRequired, isCollection(fieldReflect))
+            val fieldInfo    = new FieldInfo(field.name, offset, /*codec, */ optRequired, isCollection(fieldReflect))
+            fieldInfo.setCodec(codec)
             fieldInfos(idx) = fieldInfo
             var name: String = null
             // TODO: Avi - have a separate cache for tuple as it needs less info
@@ -249,8 +246,7 @@ class DynamoDBCodecDeriver private (
             if (name eq null) name = fieldNameMapper(field.name)
             aliasMap.put(name, fieldInfo)
             fieldInfo.setName(name)
-
-            offset = RegisterOffset.add(codec.valueOffset, offset)
+            offset = RegisterOffset.add(registerOffset(fieldReflect), offset)
             idx += 1
           }
         }
@@ -267,8 +263,8 @@ class DynamoDBCodecDeriver private (
             while (idx < len) {
               val field  = fieldInfos(idx)
               val offset = field.offset
-              val codec  = field.codec
-              field.valueType match {
+              val codec  = field.getCodec
+              field.getValueType match {
                 case DynamoDBCodec.intType    =>
                   val v  = regs.getInt(offset)
                   // TODO: Avi - investigate direct encoding optimisations for primitives
@@ -298,19 +294,19 @@ class DynamoDBCodecDeriver private (
             val errors: ArrayBuffer[String] = new ArrayBuffer[String]()
 
             def setValue(field: FieldInfo, value: AttributeValue): Unit =
-              field.valueType match {
+              field.getValueType match {
                 case DynamoDBCodec.intType    =>
-                  field.codec.asInstanceOf[DynamoDBCodec[Int]].decoder(value) match {
+                  field.getCodec.asInstanceOf[DynamoDBCodec[Int]].decoder(value) match {
                     case Right(v)  => regs.setInt(field.offset, v)
                     case Left(err) => errors.addOne(err.message)
                   }
                 case DynamoDBCodec.longType   =>
-                  field.codec.asInstanceOf[DynamoDBCodec[Long]].decoder(value) match {
+                  field.getCodec.asInstanceOf[DynamoDBCodec[Long]].decoder(value) match {
                     case Right(v)  => regs.setLong(field.offset, v)
                     case Left(err) => errors.addOne(err.message)
                   }
                 case DynamoDBCodec.objectType =>
-                  field.codec.asInstanceOf[DynamoDBCodec[AnyRef]].decoder(value) match {
+                  field.getCodec.asInstanceOf[DynamoDBCodec[AnyRef]].decoder(value) match {
                     case Right(v)  => regs.setObject(field.offset, v)
                     case Left(err) => errors.addOne(err.message)
                   }
@@ -378,18 +374,22 @@ class DynamoDBCodecDeriver private (
       }
       else
         Lazy { // Vanilla Record
-          var fieldInfos: Array[FieldInfo] = null // TODO: investigate recursive cache
+          var offset                       = 0L
+          val isRecursive                  = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
+          var fieldInfos: Array[FieldInfo] =
+            if (isRecursive) recursiveRecordCache.get.get(typeId)
+            else null
+          val deriveCodecs                 = fieldInfos eq null
           val len                          = fields.length
           val aliasMap                     = new java.util.HashMap[String, FieldInfo](len)
-          if (fieldInfos eq null) {
+          if (deriveCodecs) {
             fieldInfos = new Array[FieldInfo](len)
             var idx = 0
             while (idx < len) {
               val field        = fields(idx)
               val fieldReflect = field.value
-              val codec        = D.instance(fieldReflect.metadata).force
               val optRequired  = isOptional(fieldReflect)
-              val fieldInfo    = new FieldInfo(field.name, offset, codec, optRequired, isCollection(fieldReflect))
+              val fieldInfo    = new FieldInfo(field.name, offset, optRequired, isCollection(field.value))
               fieldInfos(idx) = fieldInfo
               var name: String = null
               // TODO: Avi - have a separate cache for tuple as it needs less info
@@ -403,10 +403,22 @@ class DynamoDBCodecDeriver private (
               aliasMap.put(name, fieldInfo)
               fieldInfo.setName(name)
 
-              offset = RegisterOffset.add(codec.valueOffset, offset)
+              offset = RegisterOffset.add(registerOffset(fieldReflect), offset)
               idx += 1
             }
+
+            if (isRecursive) recursiveRecordCache.get.put(typeId, fieldInfos)
+            discriminatorFields.set(null :: discriminatorFields.get)
           }
+          var idx                          = 0
+          while (idx < len) {
+            val field = fields(idx)
+            if (deriveCodecs) {
+              fieldInfos(idx).setCodec(D.instance(field.value.metadata).force)
+            }
+            idx += 1
+          }
+          if (deriveCodecs) discriminatorFields.set(discriminatorFields.get.tail)
 
           new DynamoDBCodec[A] {
             private[this] val constructor         = recordBinding.constructor
@@ -433,10 +445,10 @@ class DynamoDBCodecDeriver private (
                 val field  = fields(idx)
                 val name   = field.name
                 val offset = field.offset
-                val codec  = field.codec
+                val codec  = field.getCodec
                 val isOpt  = field.isOptional
 
-                field.valueType match {
+                field.getValueType match {
                   case DynamoDBCodec.intType    =>
                     val value = regs.getInt(offset)
                     val av    = codec.asInstanceOf[DynamoDBCodec[Int]].encoder(value)
@@ -493,19 +505,19 @@ class DynamoDBCodecDeriver private (
                       if (av eq null) // TODO: Avi - should we fail fast on this?
                         errors.addOne(s"Missing attribute value for field: $name")
                       else
-                        field.valueType match {
+                        field.getValueType match {
                           case DynamoDBCodec.intType    =>
-                            field.codec.asInstanceOf[DynamoDBCodec[Int]].decoder(av) match {
+                            field.getCodec.asInstanceOf[DynamoDBCodec[Int]].decoder(av) match {
                               case Right(value) => regs.setInt(offset, value)
                               case Left(err)    => errors.addOne(err.message)
                             }
                           case DynamoDBCodec.longType   =>
-                            field.codec.asInstanceOf[DynamoDBCodec[Long]].decoder(av) match {
+                            field.getCodec.asInstanceOf[DynamoDBCodec[Long]].decoder(av) match {
                               case Right(value) => regs.setLong(offset, value)
                               case Left(err)    => errors.addOne(err.message)
                             }
                           case DynamoDBCodec.objectType =>
-                            field.codec.asInstanceOf[DynamoDBCodec[AnyRef]].decoder(av) match {
+                            field.getCodec.asInstanceOf[DynamoDBCodec[AnyRef]].decoder(av) match {
                               case Right(value) => regs.setObject(offset, value)
                               case Left(err)    => errors.addOne(err.message)
                             }
@@ -766,7 +778,8 @@ class DynamoDBCodecDeriver private (
                       val caseVariant = caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]]
                       new CaseNodeInfo(discriminator(caseReflect), getInfos(caseVariant.cases, span :: spans))
                     } else {
-                      val caseLeafInfo = new CaseLeafInfo(D.instance(caseReflect.metadata).force, span :: spans)
+                      val caseLeafInfo =
+                        new CaseLeafInfo(D.instance(caseReflect.metadata).force, span :: spans) // Stackoverflow (2)
                       var name: String = null
                       case_.modifiers.foreach {
                         case m: Modifier.rename => if (name eq null) name = m.name
@@ -784,7 +797,7 @@ class DynamoDBCodecDeriver private (
                 }
 
                 new DynamoDBCodec[A]() {
-                  private[this] val root    = new CaseNodeInfo(discr, getInfos(cases, Nil))
+                  private[this] val root    = new CaseNodeInfo(discr, getInfos(cases, Nil)) // Stackoverflow (3)
                   private[this] val caseMap = map
 
                   override def encoder: Encoder[A] =
@@ -1061,6 +1074,11 @@ class DynamoDBCodecDeriver private (
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
   }.asInstanceOf[Lazy[DynamoDBCodec[A]]]
 
+  override def instanceOverrides: IndexedSeq[InstanceOverride] = {
+    recursiveRecordCache.remove()
+    super.instanceOverrides
+  }
+
   private[this] val stringCodec: DynamoDBCodec[String] =
     new DynamoDBCodec[String](valueType = DynamoDBCodec.objectType) {
       override def encoder: Encoder[String] =
@@ -1098,7 +1116,6 @@ class DynamoDBCodecDeriver private (
   private[this] val recursiveRecordCache = new ThreadLocal[java.util.HashMap[TypeId[?], Array[FieldInfo]]] {
     override def initialValue: java.util.HashMap[TypeId[?], Array[FieldInfo]] = new java.util.HashMap
   }
-  println(s"XXXXXXX recursiveRecordCache: $recursiveRecordCache") // TODO: Avi
 
   private[this] val discriminatorFields = new ThreadLocal[List[DiscriminatorFieldInfo]] {
     override def initialValue: List[DiscriminatorFieldInfo] = Nil
@@ -1143,21 +1160,55 @@ class DynamoDBCodecDeriver private (
       caseReflect.isRecord || caseReflect.asVariant.map(_.cases).forall(hasOnlyRecordAndVariantCases)
     }
 
+  // copied out of zio-blocks as scope is private inside Reflect
+  private def unwrapToPrimitiveTypeOption[F[_, _], A](reflect: Reflect[F, A]): Option[PrimitiveType[A]] =
+    if (reflect.isWrapper) {
+      reflect.asWrapperUnknown.get.wrapper.underlyingPrimitiveType.asInstanceOf[Option[PrimitiveType[A]]]
+    } else reflect.asPrimitive.map(_.primitiveType)
+
+  private def registerOffset[F[_, _], A](reflect: Reflect[F, A]): RegisterOffset =
+    unwrapToPrimitiveTypeOption(reflect) match {
+      case Some(primitiveType) =>
+        primitiveType match {
+          case _: PrimitiveType.Unit.type => 0L
+          case _: PrimitiveType.Boolean   => RegisterOffset.incrementBooleansAndBytes(0L)
+          case _: PrimitiveType.Byte      => RegisterOffset.incrementBooleansAndBytes(0L)
+          case _: PrimitiveType.Char      => RegisterOffset.incrementCharsAndShorts(0L)
+          case _: PrimitiveType.Short     => RegisterOffset.incrementCharsAndShorts(0L)
+          case _: PrimitiveType.Float     => RegisterOffset.incrementFloatsAndInts(0L)
+          case _: PrimitiveType.Int       => RegisterOffset.incrementFloatsAndInts(0L)
+          case _: PrimitiveType.Double    => RegisterOffset.incrementDoublesAndLongs(0L)
+          case _: PrimitiveType.Long      => RegisterOffset.incrementDoublesAndLongs(0L)
+          case _                          => RegisterOffset.incrementObjects(0L)
+        }
+      case _                   => RegisterOffset.incrementObjects(0L)
+    }
+
 } // end class DynamoDBCodecDeriver
 
 // TODO: Avi - change to non case class
 private final case class FieldInfo(
   var name: String, // TODO: Avi - use DynamicOptic.Node.Field
   offset: RegisterOffset,
-  codec: DynamoDBCodec[?],
   isOptional: Boolean,
   isCollection: Boolean
 ) {
-  val valueType: Int        = codec.valueType
-  var nonTransient: Boolean = true // TODO: Avi - override in the field processing loop
+  var nonTransient: Boolean                 = true // TODO: Avi - override in the field processing loop
+  private[this] var valueType: Int          = 0
+  private[this] var codec: DynamoDBCodec[?] = null // defer codec assignment until after derivation phase
 
   def setName(name: String): Unit =
     this.name = name
+
+  def setCodec(codec: DynamoDBCodec[?]): Unit = {
+    this.codec = codec
+    valueType = codec.valueType // TODO: Avi - is this still required
+  }
+
+  def getCodec: DynamoDBCodec[?] = codec
+
+  def getValueType: Int = valueType
+
 }
 
 private case class DiscriminatorFieldInfo(name: String, value: String)
