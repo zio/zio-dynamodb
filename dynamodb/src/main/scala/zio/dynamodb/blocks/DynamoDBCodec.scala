@@ -1,6 +1,5 @@
 package zio.dynamodb.blocks
 
-import zio.blocks.schema.binding.RegisterOffset
 import zio.dynamodb.{ Decoder, Encoder }
 
 abstract class DynamoDBCodec[A](val valueType: Int = DynamoDBCodec.objectType) {
