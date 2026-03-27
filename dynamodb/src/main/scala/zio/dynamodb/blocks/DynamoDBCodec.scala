@@ -5,12 +5,12 @@ import zio.dynamodb.{ Decoder, Encoder }
 
 abstract class DynamoDBCodec[A](val valueType: Int = DynamoDBCodec.objectType) {
 
-  val valueOffset: RegisterOffset.RegisterOffset = valueType match {
-    case DynamoDBCodec.objectType => RegisterOffset(objects = 1)
-    case DynamoDBCodec.intType    => RegisterOffset(ints = 1)
-    case DynamoDBCodec.longType   => RegisterOffset(longs = 1)
-    case _                        => RegisterOffset.Zero
-  }
+//  val valueOffset: RegisterOffset.RegisterOffset = valueType match {
+//    case DynamoDBCodec.objectType => RegisterOffset(objects = 1)
+//    case DynamoDBCodec.intType    => RegisterOffset(ints = 1)
+//    case DynamoDBCodec.longType   => RegisterOffset(longs = 1)
+//    case _                        => RegisterOffset.Zero
+//  }
 
   def encoder: Encoder[A]
   def decoder: Decoder[A]
