@@ -94,7 +94,7 @@ object Scala2Allows2Spec extends ZIOSpecDefault {
 //        Person.setString.contains(1)
         Person.setPersonId.addSet(Set(PersonId(1)))
         Person.listInt.remove(1)
-        Person.listInt.contains(1)
+        Person.listInt.contains(1) // Should use IsNominalType
         Person.listInt.appendList(List(1, 2))
 
         Person.listAddress.remove(1)
@@ -280,10 +280,12 @@ object Scala2Allows2Spec extends ZIOSpecDefault {
       /** Attribute must be a scalar ie N | S | B */
       def inSet(
         values: Set[To]
-      )(implicit ev: Allows[To, N `|` S `|` B]): ConditionExpression[From] =
+      )(implicit ev: Allows[To, N `|` S `|` B]): ConditionExpression[From] = {
+        val _ = ev // to silence unused warnings - we just need the evidence for the compiler
         ConditionExpression.Operand
           .ProjectionExpressionOperand(self)
           .in(values.map(ToAttributeValue[To].toAttributeValue))
+      }
 
       // TODO: prepend - only valid for a L attribute
 
@@ -307,8 +309,10 @@ object Scala2Allows2Spec extends ZIOSpecDefault {
        */
       def remove(
         index: Int // we need extra constraint to exclude Sets etc: evSeq: To <:< Seq[_]
-      )(implicit ev: Allows[To, L]): UpdateExpression.Action.RemoveAction[From] =
+      )(implicit ev: Allows[To, L]): UpdateExpression.Action.RemoveAction[From] = {
+        val _ = ev // to silence unused warnings - we just need the evidence for the compiler
         UpdateExpression.Action.RemoveAction(ProjectionExpression.ListElement(self, index))
+      }
 
       def set(
         a: To
