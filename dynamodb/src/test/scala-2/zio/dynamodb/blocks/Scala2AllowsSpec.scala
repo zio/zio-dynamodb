@@ -7,7 +7,7 @@ import zio.test.{ assertTrue, ZIOSpecDefault }
 
 import java.time.Instant
 
-object Scala2Allows2Spec extends ZIOSpecDefault {
+object Scala2AllowsSpec extends ZIOSpecDefault {
   // TODO: Manually wrapped types
 
   object PersonId extends Newtype[Int] {

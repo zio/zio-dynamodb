@@ -98,7 +98,7 @@ object BuildHelper {
       organization             := "dev.zio",
       homepage                 := Some(url("https://github.com/zio/zio-dynamodb")),
       crossScalaVersions       := Seq(Scala213, Scala3),
-      ThisBuild / scalaVersion := Scala213,
+      ThisBuild / scalaVersion := Scala3,
       scalacOptions            := stdOptions ++ extraOptions(scalaVersion.value),
       libraryDependencies ++= {
         if (scalaVersion.value == Scala3) Seq()

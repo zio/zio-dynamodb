@@ -2,20 +2,16 @@ package zio.dynamodb.blocks
 
 import zio.blocks.schema.{ CompanionOptics, Optic, Optional, Schema }
 import zio.dynamodb.proofs.{ Addable, ListRemoveable }
-import zio.dynamodb.{
-  blocks,
-  AttributeValue,
-  ConditionExpression,
-  ProjectionExpression,
-  ToAttributeValue,
-  UpdateExpression
-}
+import zio.dynamodb.*
+import zio.dynamodb.UpdateExpression.SetOperand.{ ListAppend, ListPrepend, PathOperand }
 import zio.prelude.Newtype
 import zio.test.{ assertTrue, ZIOSpecDefault }
 
 import java.time.Instant
 
 object Scala3AllowsSpec extends ZIOSpecDefault {
+  // TODO: Manually wrapped types
+
   opaque type OpaqueId = Int
   object OpaqueId {
     def apply(value: Int): OpaqueId = value
@@ -47,6 +43,7 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
     id: PersonId,
     name: String,
     age: Int,
+    count: Int,
     tupleMixed: (String, Int, Address),
     opaqueInt: OpaqueId,
     ageNewtype: Age,
@@ -57,13 +54,16 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
     map: Map[String, Int] = Map.empty,
     mapOfAddress: Map[String, Address] = Map.empty,
     listInt: List[Int] = Nil,
-    listAddress: List[Address] = Nil
+    listAddress: List[Address] = Nil,
+    binary: List[Byte] = Nil,
+    binarySet: Set[List[Byte]] = Set.empty
   )
   object Person extends CompanionOptics[Person] {
     implicit val schema: Schema[Person]                        = Schema.derived
     val id: Optic[Person, PersonId]                            = $(_.id)
     val name: Optic[Person, String]                            = $(_.name)
     val age: Optic[Person, Int]                                = $(_.age)
+    val count: Optic[Person, Int]                              = $(_.count)
     val tupleMixed: Optic[Person, (String, Int, Address)]      = $(_.tupleMixed)
     val opaqueInt: Optic[Person, OpaqueId]                     = $(_.opaqueInt)
     val ageNewtype: Optic[Person, Age]                         = $(_.ageNewtype)
@@ -75,27 +75,53 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
     val mapOfAddress: Optic[Person, Map[String, Address]]      = $(_.mapOfAddress)
     def mapOfAddressAt(key: String): Optional[Person, Address] = $(_.mapOfAddress.atKey(key))
     val listInt: Optic[Person, List[Int]]                      = $(_.listInt)
+    def listIntAt(index: Int): Optional[Person, Int]           = $(_.listInt.at(index))
     val listAddress: Optic[Person, List[Address]]              = $(_.listAddress)
+    val binary: Optic[Person, List[Byte]]                      = $(_.binary)
+    val binarySet: Optic[Person, Set[List[Byte]]]              = $(_.binarySet)
   }
 
-  import ExtensionMethods._
+  import ExtensionMethods.*
 
   override def spec =
     suite("Allows syntax experiments")(
       test("using extension methods") {
         Person.id.add(PersonId(1))
+        Person.id.between(PersonId(1), PersonId(3))
+        Person.id.inSet(Set(PersonId(1), PersonId(2)))
         Person.age.add(1)
+        Person.age.between(18, 21)
+        Person.age.set(21)
+        Person.age.set(Person.count)
         Person.opaqueInt.add(OpaqueId(1))
+        Person.opaqueInt.between(18, 21)
         Person.ageNewtype.add(1.0)
         Person.setInt.addSet(Set(1))
+        Person.setInt.deleteFromSet(Set(1))
+        Person.listInt.prependList(List(1, 2))
+        Person.listIntAt(1).set(21)
+//        Person.setInt.between(1, 10)
 //        Person.setInt.remove(1)
         Person.setString.addSet(Set("hello"))
+        Person.setString.deleteFromSet(Set("hello"))
+//        Person.setString.contains(1)
         Person.setPersonId.addSet(Set(PersonId(1)))
         Person.listInt.remove(1)
+        Person.listInt.contains(1)
+        Person.listInt.appendList(List(1, 2))
+
         Person.listAddress.remove(1)
         Person.setInt.addSet(Set(1))
+//        Person.setInt.appendList(List(1, 2))
         Person.setPersonId.contains(PersonId(1))
+
         Person.mapOfAddressAt("42").remove
+        Person.name.contains("1")
+        Person.name.between("A", "Z")
+        Person.name.inSet(Set("Alice", "Bob"))
+        Person.binary.between(List(Byte.MinValue), List(Byte.MaxValue))
+
+//        Person.setInstant.deleteFromSet(Set.empty)
 
         assertTrue(true)
       },
@@ -115,112 +141,4 @@ object Scala3AllowsSpec extends ZIOSpecDefault {
       }
     )
 
-  object ExtensionMethods {
-
-    import zio.blocks.schema.comptime.Allows
-    import Allows._
-
-    // scalars
-    type N    = Primitive.Int | Primitive.Long | Primitive.Float | Primitive.Double | Primitive.Short
-    type S    = Primitive.String
-    type BOOL = Primitive.Boolean
-    // I think we can ignore NULL for incomming Scala types
-
-    // sets - approximate a Set using Sequence for now
-    type NS = Sequence[N | Wrapped[N]]
-    type SS = Sequence[S | Wrapped[S]]
-    type BS = Sequence[Sequence[Primitive.Byte] | Wrapped[Sequence[Primitive.Byte]]]
-
-    // recursive containers
-    type L = Sequence[All | Record[All]] // need to explicitly add Record here for List[Address ]
-    type M = Map[Primitive.String, All]
-
-    // single recursive root
-    type All =
-      N | S | BOOL | NS | SS | BS | Record[Self] | Sequence[Self] | Map[Self, Self]
-
-    implicit class OpticToDdbExpr[From, To: ToAttributeValue](optic: Optic[From, To]) {
-      private def self: ProjectionExpression[From, To] = OpticToPE.pe(optic)
-
-      /*
-  ADD update behaviour
-  | Attribute Type    | Allowed? | Behaviour         |
-  | ----------------- | -------- | ----------------- |
-  | `N` (Number)      | ✅        | Numeric increment |
-  | `NS` (Number Set) | ✅        | Set union         |
-  | `SS` (String Set) | ✅        | Set union         |
-  | `BS` (Binary Set) | ✅        | Set union         |
-  | `S` (String)      | ❌        | Not allowed       |
-  | `L` (List)        | ❌        | Not allowed       |
-  | `M` (Map)         | ❌        | Not allowed       |
-  | `BOOL`            | ❌        | Not allowed       |
-  | `NULL`            | ❌        | Not allowed       |
-       */
-
-      def add[A](a: A)(implicit
-        ev: Allows[A, N | Wrapped[N]],
-        ev2: Allows[To, N | Wrapped[N]],
-        to: ToAttributeValue[A]
-      ): UpdateExpression.Action.AddAction[From] =
-        UpdateExpression.Action.AddAction(
-          self,
-          to.toAttributeValue(a)
-        )
-
-      def addSet[A](
-        set: Set[A]
-      )(implicit
-        ev: Allows[To, NS | SS | BS],
-        evSet: Set[A] <:< To
-      ): UpdateExpression.Action.AddAction[From] =
-        UpdateExpression.Action.AddAction(
-          self,
-          ToAttributeValue[To].toAttributeValue(evSet(set))
-        )
-
-      // we need additional proof Containable to align collection element type with A
-      def contains[A](
-        a: A
-      )(implicit
-        ev: Allows[To, NS | SS | BS | L | S], // big improvement on readability
-        ev2: Containable[To, A],
-        to: ToAttributeValue[A]
-      ): ConditionExpression[From] =
-        ConditionExpression.Contains(self, to.toAttributeValue(a))
-
-      /**
-       * Removes this PathExpression from an item
-       */
-      def remove: UpdateExpression.Action.RemoveAction[From] =
-        UpdateExpression.Action.RemoveAction[From](self)
-
-      /*
-  Remove at index UpdateExpression behaviour
-  | Attribute Type | Allowed? |
-  | -------------- | -------- |
-  | `L` (List)     | ✅       |
-  | `SS`           | ❌       |
-  | `NS`           | ❌        |
-  | `BS`           | ❌        |
-  | `N`            | ❌        |
-  | `S`            | ❌        |
-  | `M`            | ❌        |
-       */
-      def remove(
-        index: Int // we need extra constraint to exclude Sets etc: evSeq: To <:< Seq[_]
-      )(implicit ev: Allows[To, L], evSeq: To <:< Seq[_]): UpdateExpression.Action.RemoveAction[From] =
-        UpdateExpression.Action.RemoveAction(ProjectionExpression.ListElement(self, index))
-
-    }
-
-    sealed trait Containable[X, -A]
-
-    object Containable {
-      implicit def set[A]: Containable[Set[A], A] = new Containable[Set[A], A] {}
-
-      implicit def list[A]: Containable[List[A], A] = new Containable[List[A], A] {}
-
-      implicit def string: Containable[String, String] = new Containable[String, String] {}
-    }
-  }
 }
