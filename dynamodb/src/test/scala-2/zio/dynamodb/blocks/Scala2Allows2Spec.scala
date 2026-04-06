@@ -231,12 +231,14 @@ object Scala2Allows2Spec extends ZIOSpecDefault {
           )
       }
 
-      def contains[A: IsNominalType](a: A)(implicit
+      def contains[A](a: A)(implicit
+        ev0: IsNominalType[A],
         ev: Allows[To, NS `|` SS `|` BS `|` L],
         ev2: Allows[To, Sequence[IsType[A]]],
         to: ToAttributeValue[A]
       ): ConditionExpression[From] = {
-        val (_, _) = (ev, ev2) // to silence unused warnings - we just need the evidence for the compiler
+
+        val (_, _, _) = (ev0, ev, ev2) // to silence unused warnings - we just need the evidence for the compiler
         ConditionExpression.Contains(self, to.toAttributeValue(a))
       }
 
