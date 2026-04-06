@@ -53,9 +53,9 @@ ADD update behaviour
      */
 
     def add[A](a: A)(implicit
-                     ev: Allows[A, N || Wrapped[N]],
-                     ev2: Allows[To, N || Wrapped[N]],
-                     to: ToAttributeValue[A]
+      ev: Allows[A, N || Wrapped[N]],
+      ev2: Allows[To, N || Wrapped[N]],
+      to: ToAttributeValue[A]
     ): UpdateExpression.Action.AddAction[From] = {
       val (_, _) = (ev, ev2) // to silence unused warnings - we just need the evidence for the compiler
       UpdateExpression.Action.AddAction(
@@ -111,10 +111,10 @@ ADD update behaviour
     }
 
     def contains[A](a: A)(implicit
-                          ev0: IsNominalType[A],
-                          ev: Allows[To, NS || SS || BS || L],
-                          ev2: Allows[To, Sequence[IsType[A]]],
-                          to: ToAttributeValue[A]
+      ev0: IsNominalType[A],
+      ev: Allows[To, NS || SS || BS || L],
+      ev2: Allows[To, Sequence[IsType[A]]],
+      to: ToAttributeValue[A]
     ): ConditionExpression[From] = {
 
       val (_, _, _) = (ev0, ev, ev2) // to silence unused warnings - we just need the evidence for the compiler
