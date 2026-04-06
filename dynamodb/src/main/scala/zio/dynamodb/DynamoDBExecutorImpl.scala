@@ -92,7 +92,7 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
     extends DynamoDBExecutor {
   import DynamoDBExecutorImpl._
 
-  private val defaultRetryPolicy = Schedule.recurs(3) && Schedule.exponential(50.milliseconds)
+  private val defaultRetryPolicy = Schedule.recurs(3) && Schedule.exponential(50.milliseconds).jittered(0, 10)
 
   def executeMap[A, B](map: Map[A, B]): ZIO[Any, Throwable, B] =
     execute(map.query).map(map.mapper)
