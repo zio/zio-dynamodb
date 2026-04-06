@@ -17,19 +17,19 @@ class AllowExamplesSpec extends ZIOSpecDefault {
 object AllowExamples {
   object Json1 {
 
-    import zio.dynamodb.blocks.compat.Or
+    import zio.dynamodb.blocks.compat.||
     import zio.blocks.schema.comptime.Allows
     import Allows._
 
     // Only JSON-representable scalars (no UUID, Char, java.time.*)
     type JsonPrimitive =
-      Primitive.Boolean Or Primitive.Int Or Primitive.Long Or Primitive.Double Or Primitive.String Or Primitive.BigDecimal Or Primitive.BigInt Or Primitive.Unit
+      Primitive.Boolean || Primitive.Int || Primitive.Long || Primitive.Double || Primitive.String || Primitive.BigDecimal || Primitive.BigInt || Primitive.Unit
 
-    def toJson[A](doc: A)(implicit ev: Allows[A, Record[JsonPrimitive Or Self]]): String = ???
+    def toJson[A](doc: A)(implicit ev: Allows[A, Record[JsonPrimitive || Self]]): String = ???
 
     // Only numeric types
     type Numeric =
-      Primitive.Int Or Primitive.Long Or Primitive.Double Or Primitive.Float Or Primitive.BigInt Or Primitive.BigDecimal
+      Primitive.Int || Primitive.Long || Primitive.Double || Primitive.Float || Primitive.BigInt || Primitive.BigDecimal
 
     def aggregate[A](data: A)(implicit ev: Allows[A, Record[Numeric]]): Double = ???
 
@@ -45,17 +45,17 @@ object AllowExamples {
 
   }
   object Csv1 {
-    import zio.dynamodb.blocks.compat.Or
+    import zio.dynamodb.blocks.compat.||
     import zio.blocks.schema.Schema
     import zio.blocks.schema.comptime.Allows
     import Allows._
 
     // Flat record: only primitives and optional primitives allowed
-    def writeCsv[A: Schema](rows: Seq[A])(implicit ev: Allows[A, Record[Primitive Or Optional[Primitive]]]): Unit = ???
+    def writeCsv[A: Schema](rows: Seq[A])(implicit ev: Allows[A, Record[Primitive || Optional[Primitive]]]): Unit = ???
 
     // RDBMS INSERT: primitives, optional primitives, or string-keyed maps (JSONB)
     def insert[A: Schema](value: A)(implicit
-      ev: Allows[A, Record[Primitive Or Optional[Primitive] Or Allows.Map[Primitive, Primitive]]]
+      ev: Allows[A, Record[Primitive || Optional[Primitive] || Allows.Map[Primitive, Primitive]]]
     ): String = ???
 
     final case class Person(age: Int)

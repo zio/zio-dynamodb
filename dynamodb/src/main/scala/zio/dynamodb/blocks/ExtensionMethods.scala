@@ -5,34 +5,34 @@ import zio.dynamodb.{ AttributeValue, ConditionExpression, ProjectionExpression,
 import zio.dynamodb.UpdateExpression.SetOperand.{ ListAppend, ListPrepend, PathOperand }
 
 object ExtensionMethods {
-  import zio.dynamodb.blocks.compat.Or
+  import zio.dynamodb.blocks.compat.||
   import zio.blocks.schema.comptime.Allows
   import Allows._
   import zio.blocks.typeid.IsNominalType
 
   // scalars
   type N    =
-    Primitive.Int Or Primitive.Long Or Primitive.Float Or Primitive.Double Or Primitive.Short Or Wrapped[Self]
-  type S    = Primitive.String Or Wrapped[Self]
+    Primitive.Int || Primitive.Long || Primitive.Float || Primitive.Double || Primitive.Short || Wrapped[Self]
+  type S    = Primitive.String || Wrapped[Self]
   type BOOL = Primitive.Boolean
-  type B    = Sequence[Primitive.Byte] Or Wrapped[Self]
+  type B    = Sequence[Primitive.Byte] || Wrapped[Self]
   // I think we can ignore NULL for incoming Scala types
 
-  type NS = Sequence.Set[N Or Wrapped[N]]
-  type SS = Sequence.Set[S Or Wrapped[S]]
+  type NS = Sequence.Set[N || Wrapped[N]]
+  type SS = Sequence.Set[S || Wrapped[S]]
   type BS = Sequence.Set[B]
 
   // list excludes Sets - note we need to explicitly add Record here for List[Address]
-  type L = Sequence.List[All Or Record[All]] Or Sequence.Vector[All Or Record[All]] Or Sequence.Array[
-    All Or Record[All]
-  ] Or
+  type L = Sequence.List[All || Record[All]] || Sequence.Vector[All || Record[All]] || Sequence.Array[
+    All || Record[All]
+  ] ||
     Sequence.Chunk[All | Record[All]]
 
   type M = Map[Primitive.String, All]
 
   // single recursive root
   type All =
-    N Or S Or BOOL Or B Or NS Or SS Or BS Or Record[Self] Or Sequence[Self] Or Map[Self, Self]
+    N || S || BOOL || B || NS || SS || BS || Record[Self] || Sequence[Self] || Map[Self, Self]
 
   implicit class OpticToDdbExpr[From, To: ToAttributeValue](optic: Optic[From, To]) {
     private def self: ProjectionExpression[From, To] = OpticToPE.pe(optic)
@@ -53,9 +53,9 @@ ADD update behaviour
      */
 
     def add[A](a: A)(implicit
-      ev: Allows[A, N Or Wrapped[N]],
-      ev2: Allows[To, N Or Wrapped[N]],
-      to: ToAttributeValue[A]
+                     ev: Allows[A, N || Wrapped[N]],
+                     ev2: Allows[To, N || Wrapped[N]],
+                     to: ToAttributeValue[A]
     ): UpdateExpression.Action.AddAction[From] = {
       val (_, _) = (ev, ev2) // to silence unused warnings - we just need the evidence for the compiler
       UpdateExpression.Action.AddAction(
@@ -86,7 +86,7 @@ ADD update behaviour
     def addSet[A](
       set: Set[A]
     )(implicit
-      ev: Allows[To, NS Or SS Or BS],
+      ev: Allows[To, NS || SS || BS],
       evSet: Set[A] <:< To
     ): UpdateExpression.Action.AddAction[From] = {
       val _ = ev // to silence unused warnings - we just need the evidence for the compiler
@@ -100,7 +100,7 @@ ADD update behaviour
     def between(
       minValue: To,
       maxValue: To
-    )(implicit ex: Allows[To, N Or S Or B]): ConditionExpression[From] = {
+    )(implicit ex: Allows[To, N || S || B]): ConditionExpression[From] = {
       val _ = ex // to silence unused warnings - we just need the evidence for the compiler
       ConditionExpression.Operand
         .ProjectionExpressionOperand(self)
@@ -111,10 +111,10 @@ ADD update behaviour
     }
 
     def contains[A](a: A)(implicit
-      ev0: IsNominalType[A],
-      ev: Allows[To, NS Or SS Or BS Or L],
-      ev2: Allows[To, Sequence[IsType[A]]],
-      to: ToAttributeValue[A]
+                          ev0: IsNominalType[A],
+                          ev: Allows[To, NS || SS || BS || L],
+                          ev2: Allows[To, Sequence[IsType[A]]],
+                          to: ToAttributeValue[A]
     ): ConditionExpression[From] = {
 
       val (_, _, _) = (ev0, ev, ev2) // to silence unused warnings - we just need the evidence for the compiler
@@ -131,7 +131,7 @@ ADD update behaviour
     def deleteFromSet(
       set: To
     )(implicit
-      ev: Allows[To, NS Or SS Or BS],
+      ev: Allows[To, NS || SS || BS],
       to: ToAttributeValue[To]
     ): UpdateExpression.Action.DeleteAction[From] = {
       val _ = ev // to silence unused warnings - we just need the evidence for the compiler
@@ -161,7 +161,7 @@ ADD update behaviour
     /** Attribute must be a scalar ie N | S | B */
     def inSet(
       values: Set[To]
-    )(implicit ev: Allows[To, N Or S Or B]): ConditionExpression[From] = {
+    )(implicit ev: Allows[To, N || S || B]): ConditionExpression[From] = {
       val _ = ev // to silence unused warnings - we just need the evidence for the compiler
       ConditionExpression.Operand
         .ProjectionExpressionOperand(self)
