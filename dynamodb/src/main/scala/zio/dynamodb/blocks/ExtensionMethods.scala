@@ -4,6 +4,8 @@ import zio.blocks.schema.Optic
 import zio.dynamodb.{ AttributeValue, ConditionExpression, ProjectionExpression, ToAttributeValue, UpdateExpression }
 import zio.dynamodb.UpdateExpression.SetOperand.{ ListAppend, ListPrepend, PathOperand }
 
+import scala.annotation.unused
+
 object ExtensionMethods {
   import zio.dynamodb.blocks.compat.||
   import zio.blocks.schema.comptime.Allows
@@ -53,16 +55,14 @@ ADD update behaviour
      */
 
     def add[A](a: A)(implicit
-      ev: Allows[A, N || Wrapped[N]],
-      ev2: Allows[To, N || Wrapped[N]],
-      to: ToAttributeValue[A]
-    ): UpdateExpression.Action.AddAction[From] = {
-      val (_, _) = (ev, ev2) // to silence unused warnings - we just need the evidence for the compiler
+      @unused ev: Allows[A, N || Wrapped[N]],
+      @unused ev2: Allows[To, N || Wrapped[N]],
+      @unused to: ToAttributeValue[A]
+    ): UpdateExpression.Action.AddAction[From] =
       UpdateExpression.Action.AddAction(
         self,
         to.toAttributeValue(a)
       )
-    }
 
     /** Only applies to a List */
     def appendList[A](
@@ -86,15 +86,13 @@ ADD update behaviour
     def addSet[A](
       set: Set[A]
     )(implicit
-      ev: Allows[To, NS || SS || BS],
+      @unused ev: Allows[To, NS || SS || BS],
       evSet: Set[A] <:< To
-    ): UpdateExpression.Action.AddAction[From] = {
-      val _ = ev // to silence unused warnings - we just need the evidence for the compiler
+    ): UpdateExpression.Action.AddAction[From] =
       UpdateExpression.Action.AddAction(
         self,
         ToAttributeValue[To].toAttributeValue(evSet(set))
       )
-    }
 
     /** valid for N | S | B */
     def between(
@@ -111,22 +109,18 @@ ADD update behaviour
     }
 
     def contains[A](a: A)(implicit
-      ev0: IsNominalType[A],
-      ev: Allows[To, NS || SS || BS || L],
-      ev2: Allows[To, Sequence[IsType[A]]],
+      @unused ev: IsNominalType[A],
+      @unused ev1: Allows[To, NS || SS || BS || L],
+      @unused ev2: Allows[To, Sequence[IsType[A]]],
       to: ToAttributeValue[A]
-    ): ConditionExpression[From] = {
+    ): ConditionExpression[From] =
 
-      val (_, _, _) = (ev0, ev, ev2) // to silence unused warnings - we just need the evidence for the compiler
       ConditionExpression.Contains(self, to.toAttributeValue(a))
-    }
 
     def contains(a: String)(implicit
-      ev: Allows[To, S]
-    ): ConditionExpression[From] = {
-      val _ = ev // to silence unused warnings - we just need the evidence for the compiler
+      @unused ev: Allows[To, S]
+    ): ConditionExpression[From] =
       ConditionExpression.Contains(self, AttributeValue.String(a))
-    }
 
     def deleteFromSet(
       set: To
@@ -144,11 +138,10 @@ ADD update behaviour
     def prependList[A](
       xs: To
     )(implicit
-      ev: Allows[To, L],
-      ev2: To <:< Iterable[A],
+      @unused ev: Allows[To, L],
+      @unused ev2: To <:< Iterable[A],
       to: ToAttributeValue[A]
-    ): UpdateExpression.Action.SetAction[From, To] = {
-      val (_, _) = (ev, ev2) // to silence unused warnings - we just need the evidence for the compiler
+    ): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
         self,
         ListPrepend(
@@ -156,17 +149,14 @@ ADD update behaviour
           AttributeValue.List(xs.toList.map(to.toAttributeValue))
         )
       )
-    }
 
     /** Attribute must be a scalar ie N | S | B */
     def inSet(
       values: Set[To]
-    )(implicit ev: Allows[To, N || S || B]): ConditionExpression[From] = {
-      val _ = ev // to silence unused warnings - we just need the evidence for the compiler
+    )(implicit @unused ev: Allows[To, N || S || B]): ConditionExpression[From] =
       ConditionExpression.Operand
         .ProjectionExpressionOperand(self)
         .in(values.map(ToAttributeValue[To].toAttributeValue))
-    }
 
     // TODO: prepend - only valid for a L attribute
 
@@ -190,10 +180,8 @@ Remove at index UpdateExpression behaviour
      */
     def remove(
       index: Int // we need extra constraint to exclude Sets etc: evSeq: To <:< Seq[_]
-    )(implicit ev: Allows[To, L]): UpdateExpression.Action.RemoveAction[From] = {
-      val _ = ev // to silence unused warnings - we just need the evidence for the compiler
+    )(implicit @unused ev: Allows[To, L]): UpdateExpression.Action.RemoveAction[From] =
       UpdateExpression.Action.RemoveAction(ProjectionExpression.ListElement(self, index))
-    }
 
     def set(
       a: To
