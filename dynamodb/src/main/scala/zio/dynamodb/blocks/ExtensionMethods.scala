@@ -68,12 +68,11 @@ ADD update behaviour
     def appendList[A](
       xs: To
     )(implicit
-      ev: Allows[To, L],
+      @unused ev: Allows[To, L],
       //        ev2: Allows[To, Sequence[IsType[A]]],
-      ev3: To <:< Iterable[A],
+      @unused ev3: To <:< Iterable[A],
       to: ToAttributeValue[A]
-    ): UpdateExpression.Action.SetAction[From, To] = {
-      val (_, _) = (ev, ev3) // to silence unused warnings - we just need the evidence for the compiler
+    ): UpdateExpression.Action.SetAction[From, To] =
       UpdateExpression.Action.SetAction(
         self,
         ListAppend(
@@ -81,7 +80,6 @@ ADD update behaviour
           AttributeValue.List(xs.toList.map(to.toAttributeValue))
         )
       )
-    }
 
     def addSet[A](
       set: Set[A]
@@ -98,15 +96,13 @@ ADD update behaviour
     def between(
       minValue: To,
       maxValue: To
-    )(implicit ex: Allows[To, N || S || B]): ConditionExpression[From] = {
-      val _ = ex // to silence unused warnings - we just need the evidence for the compiler
+    )(implicit @unused ex: Allows[To, N || S || B]): ConditionExpression[From] =
       ConditionExpression.Operand
         .ProjectionExpressionOperand(self)
         .between(
           ToAttributeValue[To].toAttributeValue(minValue),
           ToAttributeValue[To].toAttributeValue(maxValue)
         )
-    }
 
     def contains[A](a: A)(implicit
       @unused ev: IsNominalType[A],
@@ -125,15 +121,13 @@ ADD update behaviour
     def deleteFromSet(
       set: To
     )(implicit
-      ev: Allows[To, NS || SS || BS],
+      @unused ev: Allows[To, NS || SS || BS],
       to: ToAttributeValue[To]
-    ): UpdateExpression.Action.DeleteAction[From] = {
-      val _ = ev // to silence unused warnings - we just need the evidence for the compiler
+    ): UpdateExpression.Action.DeleteAction[From] =
       UpdateExpression.Action.DeleteAction(
         self,
         to.toAttributeValue(set)
       )
-    }
 
     def prependList[A](
       xs: To
