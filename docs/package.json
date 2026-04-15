@@ -1,12 +1,5 @@
 {
   "name": "@zio.dev/zio-dynamodb",
   "description": "ZIO DynamoDB Documentation",
-  "license": "Apache-2.0",
-  "overrides": {
-    "webpackbar": "^7.0.0"
-  },
-  "resolutions": {
-    "cytoscape": "3.33.2",
-    "webpackbar": "^7.0.0"
-  }
+  "license": "Apache-2.0"
 }
