@@ -116,7 +116,7 @@ jobs:
     - name: Setup NodeJs
       uses: actions/setup-node@v3
       with:
-        node-version: 16.x
+        node-version: 24.14.1
         registry-url: https://registry.npmjs.org
     - name: Publish Docs to NPM Registry
       run: sbt  docs/publishToNpm
