@@ -1,17 +1,21 @@
 import sbt.CrossVersion
+import zio.sbt.WebsitePlugin.autoImport._
+
+addCommandAlias("lint", "; scalafmtSbtCheck; scalafmtCheckAll")
+addCommandAlias("fmt", "; scalafmtSbt; scalafmtAll")
 
 val zioVersion = "2.1.24"
 
-ThisBuild / version               := "3.0.0-SNAPSHOT"
-ThisBuild / organization          := "dev.zio"
-ThisBuild / scalaVersion          := "2.13.18"
-ThisBuild / sonatypeProfileName   := "dev.zio"
-ThisBuild / homepage              := Some(url("https://github.com/zio/zio-dynamodb"))
-ThisBuild / licenses              := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"))
-ThisBuild / developers            := List(
+ThisBuild / version             := "3.0.0-SNAPSHOT"
+ThisBuild / organization        := "dev.zio"
+ThisBuild / scalaVersion        := "2.13.18"
+ThisBuild / sonatypeProfileName := "dev.zio"
+ThisBuild / homepage            := Some(url("https://github.com/zio/zio-dynamodb"))
+ThisBuild / licenses            := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"))
+ThisBuild / developers          := List(
   Developer("jdegoes", "John De Goes", "john@degoes.net", url("http://degoes.net"))
 )
-ThisBuild / scmInfo               := Some(
+ThisBuild / scmInfo             := Some(
   ScmInfo(
     url("https://github.com/zio/zio-dynamodb"),
     "scm:git:git@github.com:zio/zio-dynamodb.git"
@@ -42,12 +46,32 @@ lazy val core = (project in file("core"))
       "dev.zio" %% "zio-test"     % zioVersion % Test,
       "dev.zio" %% "zio-test-sbt" % zioVersion % Test
     ),
-    testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
+    testFrameworks     := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
 
-lazy val root = (project in file("."))
-  .aggregate(core)
+lazy val docs = project
+  .in(file("zio-dynamodb-docs"))
   .settings(
-    name           := "zio-dynamodb",
-    publish / skip := true
+    name                                       := "zio-dynamodb-docs",
+    moduleName                                 := "zio-dynamodb-docs",
+    // The 2.x branch's content lives at top-level docs/, not the project's own
+    // basedir (zio-dynamodb-docs/src/main/mdoc) — mirrored explicitly here rather
+    // than relying on mdoc's implicit default, which doesn't match that layout.
+    mdocIn                                     := (ThisBuild / baseDirectory).value / "docs",
+    projectName                                := "ZIO DynamoDB",
+    mainModuleName                             := (core / moduleName).value,
+    projectStage                               := ProjectStage.Experimental,
+    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(core),
+    publish / skip                             := true
+  )
+  .dependsOn(core)
+  .enablePlugins(WebsitePlugin)
+
+lazy val root = (project in file("."))
+  .aggregate(core, docs)
+  .enablePlugins(zio.sbt.ZioSbtCiPlugin)
+  .settings(
+    name              := "zio-dynamodb",
+    publish / skip    := true,
+    ciEnabledBranches := Seq("series/3.x")
   )
