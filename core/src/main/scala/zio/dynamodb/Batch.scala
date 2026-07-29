@@ -120,7 +120,7 @@ object Batch {
    *  set, the batch runs once with no retries.
    *
    *  @param interpreter the effect interpreter to run the query through
-   *  @param q           the batch query — build with [[DynamoDBQuery/.batchGetItem]]
+   *  @param q           the batch query — build with [[DynamoDBQuery.batchGetItem]]
    *  @return [[Batch.GetResult.Complete]] if all keys were retrieved,
    *          [[Batch.GetResult.Incomplete]] if unprocessed keys remain after policy
    *          exhaustion, or [[Batch.GetResult.Failed]] if an effect-level error persisted
