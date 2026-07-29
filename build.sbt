@@ -71,6 +71,36 @@ lazy val aws = (project in file("aws"))
     testFrameworks     := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
 
+lazy val schemaDynamodb = (project in file("schema-dynamodb"))
+  .dependsOn(core)
+  .settings(
+    name               := "zio-dynamodb-blocks-schema",
+    crossScalaVersions := Seq(scala213Version, scala3Version),
+    Compile / unmanagedSourceDirectories ++= {
+      val base = (Compile / sourceDirectory).value
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((3, _)) => Seq(base / "scala-3")
+        case Some((2, _)) => Seq(base / "scala-2")
+        case _            => Seq.empty
+      }
+    },
+    Test / unmanagedSourceDirectories ++= {
+      val base = (Test / sourceDirectory).value
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((3, _)) => Seq(base / "scala-3")
+        case Some((2, _)) => Seq(base / "scala-2")
+        case _            => Seq.empty
+      }
+    },
+    libraryDependencies ++= Seq(
+      "dev.zio" %% "zio-blocks-chunk"  % zioBlocksVersion,
+      "dev.zio" %% "zio-blocks-schema" % zioBlocksVersion,
+      "dev.zio" %% "zio-test"          % zioVersion % Test,
+      "dev.zio" %% "zio-test-sbt"      % zioVersion % Test
+    ),
+    testFrameworks     := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
+  )
+
 lazy val docs = project
   .in(file("zio-dynamodb-docs"))
   .settings(
@@ -83,14 +113,14 @@ lazy val docs = project
     projectName                                := "ZIO DynamoDB",
     mainModuleName                             := (core / moduleName).value,
     projectStage                               := ProjectStage.Experimental,
-    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(core, aws),
+    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(core, aws, schemaDynamodb),
     publish / skip                             := true
   )
-  .dependsOn(core, aws)
+  .dependsOn(core, aws, schemaDynamodb)
   .enablePlugins(WebsitePlugin)
 
 lazy val root = (project in file("."))
-  .aggregate(core, aws, docs)
+  .aggregate(core, aws, schemaDynamodb, docs)
   .enablePlugins(zio.sbt.ZioSbtCiPlugin)
   .settings(
     name              := "zio-dynamodb",
