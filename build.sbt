@@ -7,10 +7,12 @@ addCommandAlias("fmt", "; scalafmtSbt; scalafmtAll; headerCreateAll")
 val zioVersion       = "2.1.24"
 val zioBlocksVersion = "0.0.47+16-7ff60266-SNAPSHOT"
 val awsSdkVersion    = "2.26.31"
+val scala213Version  = "2.13.18"
+val scala3Version    = "3.3.8"
 
 ThisBuild / version             := "3.0.0-SNAPSHOT"
 ThisBuild / organization        := "dev.zio"
-ThisBuild / scalaVersion        := "2.13.18"
+ThisBuild / scalaVersion        := scala213Version
 ThisBuild / sonatypeProfileName := "dev.zio"
 ThisBuild / homepage            := Some(url("https://github.com/zio/zio-dynamodb"))
 ThisBuild / licenses            := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"))
@@ -31,7 +33,7 @@ ThisBuild / resolvers += "Sonatype Central Snapshots" at "https://central.sonaty
 lazy val core = (project in file("core"))
   .settings(
     name               := "zio-dynamodb-core",
-    crossScalaVersions := Seq("2.13.18", "3.3.7"),
+    crossScalaVersions := Seq(scala213Version, scala3Version),
     Compile / unmanagedSourceDirectories ++= {
       val base = (Compile / sourceDirectory).value
       CrossVersion.partialVersion(scalaVersion.value) match {
@@ -60,7 +62,7 @@ lazy val aws = (project in file("aws"))
   .dependsOn(core)
   .settings(
     name               := "zio-dynamodb-aws",
-    crossScalaVersions := Seq("2.13.18", "3.3.7"),
+    crossScalaVersions := Seq(scala213Version, scala3Version),
     libraryDependencies ++= Seq(
       "software.amazon.awssdk" % "dynamodb"     % awsSdkVersion,
       "dev.zio"               %% "zio-test"     % zioVersion % Test,
