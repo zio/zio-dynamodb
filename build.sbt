@@ -1,8 +1,8 @@
 import sbt.CrossVersion
 import zio.sbt.WebsitePlugin.autoImport._
 
-addCommandAlias("lint", "; scalafmtSbtCheck; scalafmtCheckAll")
-addCommandAlias("fmt", "; scalafmtSbt; scalafmtAll")
+addCommandAlias("lint", "; scalafmtSbtCheck; scalafmtCheckAll; headerCheckAll")
+addCommandAlias("fmt", "; scalafmtSbt; scalafmtAll; headerCreateAll")
 
 val zioVersion       = "2.1.24"
 val zioBlocksVersion = "0.0.47+16-7ff60266-SNAPSHOT"
@@ -22,6 +22,7 @@ ThisBuild / scmInfo             := Some(
     "scm:git:git@github.com:zio/zio-dynamodb.git"
   )
 )
+ThisBuild / headerLicense       := Some(HeaderLicense.ALv2("2021-2026", "John A. De Goes and the ZIO Contributors"))
 // zio-blocks-schema (used by core for zio.blocks.chunk.Chunk) is not yet on Maven Central,
 // only published as a snapshot — see https://github.com/zio/zio-blocks.
 ThisBuild / resolvers += "Sonatype Central Snapshots" at "https://central.sonatype.com/repository/maven-snapshots"
