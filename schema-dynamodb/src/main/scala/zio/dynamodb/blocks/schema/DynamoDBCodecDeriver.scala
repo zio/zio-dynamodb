@@ -1521,7 +1521,7 @@ class DynamoDBCodecDeriver private (
                 if (!av.isInstanceOf[AttributeValue.Map])
                   Left(
                     ItemError.DecodingError(
-                      s"Expected AttributeValue.Map, found ${if (av == null) "NULL!!!!!!" else av.showType}"
+                      s"Expected AttributeValue.Map, found ${if (av == null) "null" else av.showType}"
                     )
                   )
                 else {
