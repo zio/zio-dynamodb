@@ -4,7 +4,8 @@ import zio.sbt.WebsitePlugin.autoImport._
 addCommandAlias("lint", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("fmt", "; scalafmtSbt; scalafmtAll")
 
-val zioVersion = "2.1.24"
+val zioVersion       = "2.1.24"
+val zioBlocksVersion = "0.0.47+16-7ff60266-SNAPSHOT"
 
 ThisBuild / version             := "3.0.0-SNAPSHOT"
 ThisBuild / organization        := "dev.zio"
@@ -21,6 +22,9 @@ ThisBuild / scmInfo             := Some(
     "scm:git:git@github.com:zio/zio-dynamodb.git"
   )
 )
+// zio-blocks-schema (used by core for zio.blocks.chunk.Chunk) is not yet on Maven Central,
+// only published as a snapshot — see https://github.com/zio/zio-blocks.
+ThisBuild / resolvers += "Sonatype Central Snapshots" at "https://central.sonatype.com/repository/maven-snapshots"
 
 lazy val core = (project in file("core"))
   .settings(
@@ -43,8 +47,9 @@ lazy val core = (project in file("core"))
       }
     },
     libraryDependencies ++= Seq(
-      "dev.zio" %% "zio-test"     % zioVersion % Test,
-      "dev.zio" %% "zio-test-sbt" % zioVersion % Test
+      "dev.zio" %% "zio-blocks-chunk" % zioBlocksVersion,
+      "dev.zio" %% "zio-test"         % zioVersion % Test,
+      "dev.zio" %% "zio-test-sbt"     % zioVersion % Test
     ),
     testFrameworks     := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )

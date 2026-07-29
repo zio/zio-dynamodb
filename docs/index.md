@@ -10,10 +10,10 @@ Simple, type-safe, and efficient access to DynamoDB
 
 ## Introduction
 
-This is the `series/3.x` line of ZIO DynamoDB — a from-scratch rewrite built on
-`zio-blocks-schema` rather than `zio-schema`. It is currently at an early, hello-world
-stage: the codebase and this documentation site are both placeholders while the real
-module-by-module import from the rewrite happens.
+`series/3.x` is a major overhaul of ZIO DynamoDB 2.x: a highly modular library with a
+zero-dependency core, plus a high level API built on [ZIO Blocks](https://zio.dev/zio-blocks).
+It's under active, module-by-module development — modules are being migrated in one at a
+time, so not everything from 2.x is available here yet.
 
 For the current, production-ready release, see the [`series/2.x`
 documentation](https://zio.dev/zio-dynamodb/) instead.
@@ -24,6 +24,6 @@ To use ZIO DynamoDB 3.x, add the following to your `build.sbt` (not yet publishe
 
 ```scala
 libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb" % "@VERSION@"
+  "dev.zio" %% "zio-dynamodb" % "@SNAPSHOT_VERSION@"
 )
 ```
