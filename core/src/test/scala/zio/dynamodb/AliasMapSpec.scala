@@ -67,6 +67,13 @@ object AliasMapSpec extends ZIOSpecDefault {
         val pe     = $("`name`")
         val (_, s) = AliasMap.empty.getOrInsert(pe)
         assertTrue(!s.contains("`"))
+      },
+      test("backtick-quoted and bare child segments resolve to the same alias") {
+        val pe1       = $("a.name")
+        val pe2       = $("a.`name`")
+        val (am1, s1) = AliasMap.empty.getOrInsert(pe1)
+        val (am2, s2) = am1.getOrInsert(pe2)
+        assertTrue(s1 == s2, am2.map.size == 2)
       }
     ),
     suite("++")(
