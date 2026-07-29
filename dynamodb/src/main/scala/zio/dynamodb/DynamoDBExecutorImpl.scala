@@ -124,10 +124,10 @@ private[dynamodb] final case class DynamoDBExecutorImpl private[dynamodb] (dynam
   override def execute[A](query: DynamoDBQuery[_, A]): ZIO[Any, DynamoDBError, A] = {
 
     val result = query match {
-      case constructor: Constructor[_, A] => executeConstructor(constructor)
-      case zip @ Zip(_, _, _, _)          => executeZip(zip)
-      case map @ Map(_, _)                => executeMap(map)
-      case Absolve(query)                 =>
+      case constructor: (Constructor[_, A] @unchecked) => executeConstructor(constructor)
+      case zip @ Zip(_, _, _, _)                       => executeZip(zip)
+      case map @ Map(_, _)                             => executeMap(map)
+      case Absolve(query)                              =>
         for {
           errorOrA <- execute(query)
           a        <- errorOrA match {
@@ -443,7 +443,7 @@ case object DynamoDBExecutorImpl {
     (Chunk[Constructor[Any, Any]], Chunk[Any] => A)
   ] =
     query match {
-      case constructor: Constructor[_, A] =>
+      case constructor: (Constructor[_, A] @unchecked) =>
         constructor match {
           case s: PutItem                  => Right((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
           case s: DeleteItem               => Right((Chunk(s), chunk => chunk(0).asInstanceOf[A]))
@@ -496,7 +496,7 @@ case object DynamoDBExecutorImpl {
               )
             )
         }
-      case Zip(left, right, zippable, _)  =>
+      case Zip(left, right, zippable, _)               =>
         for {
           l <- buildTransaction(left)
           r <- buildTransaction(right)
@@ -512,11 +512,11 @@ case object DynamoDBExecutorImpl {
             zippable.zip(leftValue, rightValue)
           }
         )
-      case Map(query, mapper)             =>
+      case Map(query, mapper)                          =>
         buildTransaction(query).map {
           case (constructors, construct) => (constructors, chunk => mapper.asInstanceOf[Any => A](construct(chunk)))
         }
-      case Absolve(query)                 =>
+      case Absolve(query)                              =>
         Left(
           DynamoDBError.TransactionError.InvalidTransactionActions(
             NonEmptyChunk(query.asInstanceOf[DynamoDBQuery[Any, Any]])
