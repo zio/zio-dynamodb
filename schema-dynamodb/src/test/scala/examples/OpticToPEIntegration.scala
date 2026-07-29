@@ -16,11 +16,12 @@
 
 package examples
 
-import zio.blocks.schema.{ CompanionOptics, Lens, Optic, Schema, SchemaExpr }
+import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.ProjectionExpression
 import zio.dynamodb.blocks.OpticToPE
 
-object SchemaExprIntegration {
+// Demonstrates converting a ZB Optic into this project's ProjectionExpression.
+object OpticToPEIntegration {
   sealed trait Gender
   object Gender {
     case object Male   extends Gender
@@ -35,14 +36,6 @@ object SchemaExprIntegration {
     val gender: Lens[Person, Gender]    = $(_.gender)
   }
 
-  implicit class SchemaExprOps[S, A](val left: Optic[S, A]) extends AnyVal {
-    def ===[B](value: B) /*(implicit ev: A <:< B)*/: ProjectionExpression[S, A]  = ???
-    def ====[B](value: B) /*(implicit ev: A <:< B)*/: ProjectionExpression[S, A] = ???
-  }
-
-  val x: Lens[Person, String]                    = Person.id
-  val expr2: SchemaExpr[Person, Boolean]         = Person.id === "1"
-  val y: ProjectionExpression[Person, String]    =
+  val personIdProjection: ProjectionExpression[Person, String] =
     OpticToPE.pe(Person.id).fold(msg => throw new IllegalArgumentException(msg), identity)
-  val expr: ProjectionExpression[Person, String] = Person.id ==== "1"
 }
