@@ -6,6 +6,7 @@ addCommandAlias("fmt", "; scalafmtSbt; scalafmtAll; headerCreateAll")
 
 val zioVersion       = "2.1.24"
 val zioBlocksVersion = "0.0.47+16-7ff60266-SNAPSHOT"
+val awsSdkVersion    = "2.26.31"
 
 ThisBuild / version             := "3.0.0-SNAPSHOT"
 ThisBuild / organization        := "dev.zio"
@@ -55,6 +56,19 @@ lazy val core = (project in file("core"))
     testFrameworks     := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
 
+lazy val aws = (project in file("aws"))
+  .dependsOn(core)
+  .settings(
+    name               := "zio-dynamodb-aws",
+    crossScalaVersions := Seq("2.13.18", "3.3.7"),
+    libraryDependencies ++= Seq(
+      "software.amazon.awssdk" % "dynamodb"     % awsSdkVersion,
+      "dev.zio"               %% "zio-test"     % zioVersion % Test,
+      "dev.zio"               %% "zio-test-sbt" % zioVersion % Test
+    ),
+    testFrameworks     := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
+  )
+
 lazy val docs = project
   .in(file("zio-dynamodb-docs"))
   .settings(
@@ -67,14 +81,14 @@ lazy val docs = project
     projectName                                := "ZIO DynamoDB",
     mainModuleName                             := (core / moduleName).value,
     projectStage                               := ProjectStage.Experimental,
-    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(core),
+    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(core, aws),
     publish / skip                             := true
   )
-  .dependsOn(core)
+  .dependsOn(core, aws)
   .enablePlugins(WebsitePlugin)
 
 lazy val root = (project in file("."))
-  .aggregate(core, docs)
+  .aggregate(core, aws, docs)
   .enablePlugins(zio.sbt.ZioSbtCiPlugin)
   .settings(
     name              := "zio-dynamodb",
