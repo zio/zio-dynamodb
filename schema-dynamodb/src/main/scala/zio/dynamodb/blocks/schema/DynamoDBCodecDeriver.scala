@@ -1075,12 +1075,14 @@ class DynamoDBCodecDeriver private (
                               caseInfo.codec.decoder(av)
                             else
                               Left(ItemError.DecodingError(s"Discriminator case for $discriminatorValue not found"))
-                          case _                                               =>
+                          case Some(other)                                     =>
                             Left(
                               ItemError.DecodingError(
-                                s"Not implemented, discriminatorValue: $maybeDiscriminatorValue"
+                                s"Expected discriminator field '$fieldName' to be an AttributeValue.String but found ${other.showType}"
                               )
                             )
+                          case None                                            =>
+                            Left(ItemError.DecodingError(s"Missing discriminator field '$fieldName'"))
                         }
 
                       case av =>
