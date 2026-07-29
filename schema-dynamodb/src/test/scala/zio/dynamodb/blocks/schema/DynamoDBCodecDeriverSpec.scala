@@ -1268,6 +1268,14 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
       test("decode error for non-BinarySet value") {
         val codec = codecFor[Set[Chunk[Byte]]]
         assertTrue(codec.decoder(AttributeValue.String("not a set")).isLeft)
+      },
+      test("encoding fails loudly rather than silently dropping elements under ReadBothWriteOld") {
+        // withSchema1ByteSequenceCompatibility(ReadBothWriteOld) makes the element codec encode
+        // byte-sequences as AttributeValue.List, not Binary — DynamoDB's BinarySet can't represent
+        // that, so this must fail rather than silently produce an incomplete/empty BinarySet.
+        val codec = compatCodecForOld[Set[Chunk[Byte]]]
+        val input = Set(Chunk[Byte](1, 2, 3), Chunk[Byte](4, 5, 6))
+        assertTrue(scala.util.Try(codec.encoder(input)).isFailure)
       }
     )
   )

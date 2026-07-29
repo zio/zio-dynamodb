@@ -1324,7 +1324,18 @@ class DynamoDBCodecDeriver private (
                 codec.encoder(it.next()) match {
                   case AttributeValue.Binary(bytes) =>
                     buf.addOne(scala.collection.immutable.ArraySeq.unsafeWrapArray(bytes))
-                  case _                            =>
+                  case other                        =>
+                    // DynamoDB's BinarySet (BS) can only hold raw binary values — there's no
+                    // "BinarySet of List[Number]" wire representation. withSchema1ByteSequenceCompatibility
+                    // (ReadBothWriteOld) makes the element codec encode to AttributeValue.List instead of
+                    // Binary; silently dropping those elements here would corrupt the set rather than
+                    // surface the incompatibility, so fail loudly instead.
+                    throw new IllegalStateException(
+                      s"Cannot encode a Set of byte-sequences to BinarySet: element codec produced " +
+                        s"${other.showType} instead of Binary. This combination isn't supported — " +
+                        s"check withSchema1ByteSequenceCompatibility(ReadBothWriteOld), which changes " +
+                        s"individual byte-sequences to encode as AttributeValue.List, not Binary."
+                    )
                 }
               AttributeValue.BinarySet(buf)
             }
