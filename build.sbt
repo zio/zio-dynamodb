@@ -8,6 +8,7 @@ val zioVersion        = "2.1.24"
 val zioPreludeVersion = "1.0.0-RC47"
 val zioBlocksVersion  = "0.0.47+16-7ff60266-SNAPSHOT"
 val awsSdkVersion     = "2.26.31"
+val catsEffectVersion = "3.5.4"
 val scala213Version   = "2.13.18"
 val scala3Version     = "3.3.8"
 
@@ -141,6 +142,21 @@ lazy val futureInterpreter = (project in file("future"))
     testFrameworks     := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
 
+lazy val ceInterpreter = (project in file("ce"))
+  .dependsOn(aws, schemaDdbExpr % Test)
+  .settings(
+    name               := "zio-dynamodb-ce",
+    crossScalaVersions := Seq(scala213Version, scala3Version),
+    libraryDependencies ++= Seq(
+      "org.typelevel"         %% "cats-effect"       % catsEffectVersion,
+      "org.typelevel"         %% "munit-cats-effect" % "2.0.0"       % Test,
+      "org.testcontainers"     % "testcontainers"    % "1.21.3"      % Test,
+      "software.amazon.awssdk" % "netty-nio-client"  % awsSdkVersion % Test,
+      "org.slf4j"              % "slf4j-nop"         % "2.0.16"      % Test
+    ),
+    testFrameworks     := Seq(new TestFramework("munit.Framework"))
+  )
+
 lazy val docs = project
   .in(file("zio-dynamodb-docs"))
   .settings(
@@ -159,15 +175,16 @@ lazy val docs = project
       schemaDynamodb,
       zioInterpreter,
       schemaDdbExpr,
-      futureInterpreter
+      futureInterpreter,
+      ceInterpreter
     ),
     publish / skip                             := true
   )
-  .dependsOn(core, aws, schemaDynamodb, zioInterpreter, schemaDdbExpr, futureInterpreter)
+  .dependsOn(core, aws, schemaDynamodb, zioInterpreter, schemaDdbExpr, futureInterpreter, ceInterpreter)
   .enablePlugins(WebsitePlugin)
 
 lazy val root = (project in file("."))
-  .aggregate(core, aws, schemaDynamodb, zioInterpreter, schemaDdbExpr, futureInterpreter, docs)
+  .aggregate(core, aws, schemaDynamodb, zioInterpreter, schemaDdbExpr, futureInterpreter, ceInterpreter, docs)
   .enablePlugins(zio.sbt.ZioSbtCiPlugin)
   .settings(
     name              := "zio-dynamodb",
