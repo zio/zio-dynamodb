@@ -177,7 +177,7 @@ class CEDynamoDBSpec extends CatsEffectSuite {
     } yield assertEquals(desc.tableStatus, DynamoDBQuery.TableStatus.Active)
   }
 
-  test("zipped gets execute independently") {
+  test("zipped getItem calls execute independently") {
     val client = clientFixture()
     val interp = CEInterpreter.fromAsyncClient(client)
     tableResource(client).use { table =>
