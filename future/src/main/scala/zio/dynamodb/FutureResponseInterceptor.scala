@@ -34,7 +34,7 @@ object FutureResponseInterceptor {
    *  metadata in call order.  `results` returns a snapshot of all entries collected
    *  so far.
    *
-   *  Unlike [[ZioResponseInterceptor]] and [[CEResponseInterceptor]], there is no
+   *  Unlike [[ZioResponseInterceptor]] and `CEResponseInterceptor`, there is no
    *  fiber-local scoping — all concurrent callers that hold the same interceptor
    *  instance append to the same list.  Create a fresh interceptor per logical
    *  request to isolate metadata collection.
