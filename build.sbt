@@ -4,11 +4,12 @@ import zio.sbt.WebsitePlugin.autoImport._
 addCommandAlias("lint", "; scalafmtSbtCheck; scalafmtCheckAll; headerCheckAll")
 addCommandAlias("fmt", "; scalafmtSbt; scalafmtAll; headerCreateAll")
 
-val zioVersion       = "2.1.24"
-val zioBlocksVersion = "0.0.47+16-7ff60266-SNAPSHOT"
-val awsSdkVersion    = "2.26.31"
-val scala213Version  = "2.13.18"
-val scala3Version    = "3.3.8"
+val zioVersion        = "2.1.24"
+val zioPreludeVersion = "1.0.0-RC47"
+val zioBlocksVersion  = "0.0.47+16-7ff60266-SNAPSHOT"
+val awsSdkVersion     = "2.26.31"
+val scala213Version   = "2.13.18"
+val scala3Version     = "3.3.8"
 
 ThisBuild / version             := "3.0.0-SNAPSHOT"
 ThisBuild / organization        := "dev.zio"
@@ -115,6 +116,19 @@ lazy val zioInterpreter = (project in file("zio"))
     testFrameworks     := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
 
+lazy val schemaDdbExpr = (project in file("schema-ddbexpr"))
+  .dependsOn(schemaDynamodb)
+  .settings(
+    name               := "zio-dynamodb-schema-ddbexpr",
+    crossScalaVersions := Seq(scala213Version, scala3Version),
+    libraryDependencies ++= Seq(
+      "dev.zio" %% "zio-test"     % zioVersion        % Test,
+      "dev.zio" %% "zio-test-sbt" % zioVersion        % Test,
+      "dev.zio" %% "zio-prelude"  % zioPreludeVersion % Test
+    ),
+    testFrameworks     := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
+  )
+
 lazy val docs = project
   .in(file("zio-dynamodb-docs"))
   .settings(
@@ -127,14 +141,14 @@ lazy val docs = project
     projectName                                := "ZIO DynamoDB",
     mainModuleName                             := (core / moduleName).value,
     projectStage                               := ProjectStage.Experimental,
-    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(core, aws, schemaDynamodb, zioInterpreter),
+    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(core, aws, schemaDynamodb, zioInterpreter, schemaDdbExpr),
     publish / skip                             := true
   )
-  .dependsOn(core, aws, schemaDynamodb, zioInterpreter)
+  .dependsOn(core, aws, schemaDynamodb, zioInterpreter, schemaDdbExpr)
   .enablePlugins(WebsitePlugin)
 
 lazy val root = (project in file("."))
-  .aggregate(core, aws, schemaDynamodb, zioInterpreter, docs)
+  .aggregate(core, aws, schemaDynamodb, zioInterpreter, schemaDdbExpr, docs)
   .enablePlugins(zio.sbt.ZioSbtCiPlugin)
   .settings(
     name              := "zio-dynamodb",
