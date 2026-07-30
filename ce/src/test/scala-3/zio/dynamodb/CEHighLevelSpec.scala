@@ -54,7 +54,7 @@ import zio.dynamodb.ExecuteSyntax._
  *   - `DynamoDBCodecDeriverConfigure` field rename
  *   - put / get / update / deleteFrom / scan / query (imported from DdbExprApi._)
  *   - Condition expressions: attributeNotExists, between, in, &&, ! (Not)
- *   - Update expressions: .set, .add, combined (++)
+ *   - Update expressions: .set, .add, combined (+)
  *   - ExecuteSyntax: `.execute` dispatches via the ambient implicit Interpreter[IO]
  */
 class CEHighLevelSpec extends CatsEffectSuite:
@@ -295,7 +295,7 @@ class CEHighLevelSpec extends CatsEffectSuite:
     }
   }
 
-  test("update: combined action via ++ (set title and add views in one call)") {
+  test("update: combined action via + (set title and add views in one call)") {
     singleKeyTable { table =>
       for
         _      <- put(table, Article("a1", "Original", 0)).execute
