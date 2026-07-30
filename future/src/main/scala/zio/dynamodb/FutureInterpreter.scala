@@ -28,7 +28,8 @@ import java.util.concurrent.{ Executors, ScheduledExecutorService, TimeUnit }
 
 /**
  * DynamoDB interpreter backed by [[scala.concurrent.Future]].
- *  Requires no effect-system dependency beyond the Scala standard library.
+ *  Internally converts the AWS SDK async client's `java.util.concurrent.CompletableFuture`
+ *  results to Scala Futures. Requires no effect-system dependency beyond the Scala standard library.
  *
  *  Construct via [[FutureInterpreter.fromAsyncClient]].
  *
