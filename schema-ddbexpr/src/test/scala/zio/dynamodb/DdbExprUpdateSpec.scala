@@ -16,7 +16,7 @@
 
 package zio.dynamodb
 
-import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
+import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema }
 import zio.dynamodb.blocks.ddbexpr.{ DdbExprApi, DdbKeyExpr }
 // Import OpticUpdateOps from DdbExpr selectively to avoid dual-derivedCodec ambiguity
 // (both DdbExpr._ and DdbKeyExpr._ expose derivedCodec with the same signature).
@@ -165,6 +165,26 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
       }
       // Range expressions (sortKey > / between / beginsWith) on update are now a compile-time error:
       // DdbExprApi.update takes DdbKeyExpr.PrimaryKey, which Extended does not satisfy.
+    ),
+    suite("optic paths DDB cannot represent")(
+      test("set on a non-String map key returns Action.Failure instead of throwing") {
+        case class Registry(counts: Map[Int, Int])
+        object Registry extends CompanionOptics[Registry] {
+          implicit val schema: Schema[Registry]          = Schema.derived
+          def countAt(key: Int): Optional[Registry, Int] = $(_.counts.atKey(key))
+        }
+        val action = Registry.countAt(1).set(42)
+        assertTrue(action.isInstanceOf[UpdateExpression.Action.Failure[_]])
+      },
+      test("remove on a non-String map key returns Action.Failure instead of throwing") {
+        case class Registry(counts: Map[Int, Int])
+        object Registry extends CompanionOptics[Registry] {
+          implicit val schema: Schema[Registry]          = Schema.derived
+          def countAt(key: Int): Optional[Registry, Int] = $(_.counts.atKey(key))
+        }
+        val action = Registry.countAt(1).remove
+        assertTrue(action.isInstanceOf[UpdateExpression.Action.Failure[_]])
+      }
     ),
     suite("Action.Failure")(
       test("Action.Failure raises DecodingError on updateItem run") {

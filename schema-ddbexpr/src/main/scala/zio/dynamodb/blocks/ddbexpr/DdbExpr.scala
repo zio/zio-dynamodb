@@ -25,7 +25,8 @@ import zio.dynamodb.blocks.OpticToPE
 import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
 import zio.dynamodb.compat.||
 import zio.dynamodb.{ AttributeValue, ProjectionExpression }
-import zio.dynamodb.UpdateExpression.Action.{ AddAction, DeleteAction, RemoveAction, SetAction }
+import zio.dynamodb.UpdateExpression.RenderableAction
+import zio.dynamodb.UpdateExpression.Action.{ AddAction, DeleteAction, Failure, RemoveAction, SetAction }
 import zio.dynamodb.UpdateExpression.SetOperand
 
 import scala.annotation.unused
@@ -184,88 +185,95 @@ object DdbExpr {
   // Import: `import DdbExpr._` (same import as condition expression ops).
   implicit class OpticUpdateOps[From, A](private val optic: Optic[From, A]) {
 
-    private def pe: ProjectionExpression[From, A] =
-      OpticToPE.pe(optic).fold(msg => throw new IllegalStateException(s"internal: $msg"), identity)
+    // OpticToPE.pe can fail for optic shapes DDB paths can't represent (eg a Map
+    // key that isn't a String) — deferred as Action.Failure rather than thrown,
+    // so it is collectable/reported the same way as ConditionExpression failures.
+    private def pe: Either[String, ProjectionExpression[From, A]] =
+      OpticToPE.pe(optic)
 
     // SET path = value   (valid for any attribute type)
-    def set(value: A)(implicit codec: DynamoDBCodec[A]): SetAction[From, A] =
-      SetAction(pe, SetOperand.ValueOperand(codec.encoder(value)))
+    def set(value: A)(implicit codec: DynamoDBCodec[A]): RenderableAction[From] =
+      pe.fold(Failure(_), p => SetAction(p, SetOperand.ValueOperand(codec.encoder(value))))
 
     // SET path = other_path   (copy one attribute to another)
-    def set(other: Optic[From, A]): SetAction[From, A] = {
-      val otherPE = OpticToPE.pe(other).fold(msg => throw new IllegalStateException(s"internal: $msg"), identity)
-      SetAction(pe, SetOperand.PathOperand(otherPE))
-    }
+    def set(other: Optic[From, A]): RenderableAction[From] =
+      (pe, OpticToPE.pe(other)) match {
+        case (Right(p), Right(otherPE)) => SetAction(p, SetOperand.PathOperand(otherPE))
+        case (Left(msg), _)             => Failure(msg)
+        case (_, Left(msg))             => Failure(msg)
+      }
 
     // SET path = if_not_exists(path, value)   (set only when attribute is absent)
-    def setIfNotExists(value: A)(implicit codec: DynamoDBCodec[A]): SetAction[From, A] = {
-      val p = pe
-      SetAction(p, SetOperand.IfNotExists(p, codec.encoder(value)))
-    }
+    def setIfNotExists(value: A)(implicit codec: DynamoDBCodec[A]): RenderableAction[From] =
+      pe.fold(Failure(_), p => SetAction(p, SetOperand.IfNotExists(p, codec.encoder(value))))
 
     // REMOVE path   (valid for any attribute type)
-    def remove: RemoveAction[From] = RemoveAction(pe)
+    def remove: RenderableAction[From] = pe.fold(Failure(_), RemoveAction(_))
 
     // REMOVE path[index]   (list fields only)
-    def remove(index: Int)(implicit @unused ev: Allows[A, DdbGrammar.L]): RemoveAction[From] =
-      RemoveAction(ProjectionExpression.ListElement(pe, index))
+    def remove(index: Int)(implicit @unused ev: Allows[A, DdbGrammar.L]): RenderableAction[From] =
+      pe.fold(Failure(_), p => RemoveAction(ProjectionExpression.ListElement(p, index)))
 
     // SET path = path + delta   (atomic in-place increment; numeric fields only)
     def increment(delta: A)(implicit
       codec: DynamoDBCodec[A],
       @unused ev: Allows[A, DdbGrammar.N || Wrapped[DdbGrammar.N]]
-    ): SetAction[From, A] = {
-      val p = pe
-      SetAction(p, SetOperand.PathOperand(p) + SetOperand.ValueOperand[A](codec.encoder(delta)))
-    }
+    ): RenderableAction[From] =
+      pe.fold(
+        Failure(_),
+        p => SetAction(p, SetOperand.PathOperand(p) + SetOperand.ValueOperand[A](codec.encoder(delta)))
+      )
 
     // SET path = path - delta   (atomic in-place decrement; numeric fields only)
     def decrement(delta: A)(implicit
       codec: DynamoDBCodec[A],
       @unused ev: Allows[A, DdbGrammar.N || Wrapped[DdbGrammar.N]]
-    ): SetAction[From, A] = {
-      val p = pe
-      SetAction(p, SetOperand.PathOperand(p) - SetOperand.ValueOperand[A](codec.encoder(delta)))
-    }
+    ): RenderableAction[From] =
+      pe.fold(
+        Failure(_),
+        p => SetAction(p, SetOperand.PathOperand(p) - SetOperand.ValueOperand[A](codec.encoder(delta)))
+      )
 
     // ADD path value   (numeric fields only; for set union see addSet)
     def add(value: A)(implicit
       codec: DynamoDBCodec[A],
       @unused ev: Allows[A, DdbGrammar.N || Wrapped[DdbGrammar.N]]
-    ): AddAction[From] =
-      AddAction(pe, codec.encoder(value))
+    ): RenderableAction[From] =
+      pe.fold(Failure(_), p => AddAction(p, codec.encoder(value)))
 
     // ADD path set   (set attributes: NS, SS, or BS — union of sets)
     def addSet(value: A)(implicit
       codec: DynamoDBCodec[A],
       @unused ev: Allows[A, DdbGrammar.NS || DdbGrammar.SS || DdbGrammar.BS]
-    ): AddAction[From] =
-      AddAction(pe, codec.encoder(value))
+    ): RenderableAction[From] =
+      pe.fold(Failure(_), p => AddAction(p, codec.encoder(value)))
 
     // DELETE path set   (set attributes: NS, SS, or BS — remove elements from a set)
     def deleteFromSet(value: A)(implicit
       codec: DynamoDBCodec[A],
       @unused ev: Allows[A, DdbGrammar.NS || DdbGrammar.SS || DdbGrammar.BS]
-    ): DeleteAction[From] =
-      DeleteAction(pe, codec.encoder(value))
+    ): RenderableAction[From] =
+      pe.fold(Failure(_), p => DeleteAction(p, codec.encoder(value)))
 
     // SET path = list_append(path, [...items])   (list fields only)
     def appendList[B](items: Seq[B])(implicit
       elemCodec: DynamoDBCodec[B],
       @unused ev: Allows[A, DdbGrammar.L]
-    ): SetAction[From, A] = {
-      val p = pe
-      SetAction(p, SetOperand.ListAppend(p, AttributeValue.List(items.map(elemCodec.encoder).toList)))
-    }
+    ): RenderableAction[From] =
+      pe.fold(
+        Failure(_),
+        p => SetAction(p, SetOperand.ListAppend(p, AttributeValue.List(items.map(elemCodec.encoder).toList)))
+      )
 
     // SET path = list_append([...items], path)   (list fields only)
     def prependList[B](items: Seq[B])(implicit
       elemCodec: DynamoDBCodec[B],
       @unused ev: Allows[A, DdbGrammar.L]
-    ): SetAction[From, A] = {
-      val p = pe
-      SetAction(p, SetOperand.ListPrepend(p, AttributeValue.List(items.map(elemCodec.encoder).toList)))
-    }
+    ): RenderableAction[From] =
+      pe.fold(
+        Failure(_),
+        p => SetAction(p, SetOperand.ListPrepend(p, AttributeValue.List(items.map(elemCodec.encoder).toList)))
+      )
   }
 
   // ── Codec derivation ────────────────────────────────────────────────────────
