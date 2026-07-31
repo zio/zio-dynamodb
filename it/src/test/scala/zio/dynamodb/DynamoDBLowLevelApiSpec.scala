@@ -1007,30 +1007,28 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
           for {
             _      <- interpreter.run(DynamoDBQuery.putItem(table, item))
             result <- interpreter.run(DynamoDBQuery.getItem(table, PrimaryKey("id" -> "types-all")))
-          } yield {
-            val r = result.get
-            assertTrue(
-              result.isDefined &&
-                r.getOption[Boolean]("bool").contains(true) &&
-                r.getOption[Int]("num").contains(42) &&
-                r.getOption[Set[Int]]("numSet").contains(Set(1, 2, 3)) &&
-                r.getOption[String]("str").contains("hello") &&
-                r.getOption[Set[String]]("strSet").contains(Set("x", "y", "z")) &&
-                r.map
-                  .get("list")
-                  .collect { case AttributeValue.List(v) =>
-                    v.collect { case AttributeValue.Number(n) => n.intValue }.toList
-                  }
-                  .contains(List(1, 2, 3)) &&
-                r.getOption[Map[String, Boolean]]("map").contains(Map("a" -> true, "b" -> false)) &&
-                r.map
-                  .get("bin")
-                  .collect { case AttributeValue.Binary(b) =>
-                    b.toList
-                  }
-                  .contains(Chunk.fromArray("abc".getBytes).toList)
-            )
-          }
+          } yield assertTrue(
+            result.exists { r =>
+              r.getOption[Boolean]("bool").contains(true) &&
+              r.getOption[Int]("num").contains(42) &&
+              r.getOption[Set[Int]]("numSet").contains(Set(1, 2, 3)) &&
+              r.getOption[String]("str").contains("hello") &&
+              r.getOption[Set[String]]("strSet").contains(Set("x", "y", "z")) &&
+              r.map
+                .get("list")
+                .collect { case AttributeValue.List(v) =>
+                  v.collect { case AttributeValue.Number(n) => n.intValue }.toList
+                }
+                .contains(List(1, 2, 3)) &&
+              r.getOption[Map[String, Boolean]]("map").contains(Map("a" -> true, "b" -> false)) &&
+              r.map
+                .get("bin")
+                .collect { case AttributeValue.Binary(b) =>
+                  b.toList
+                }
+                .contains(Chunk.fromArray("abc".getBytes).toList)
+            }
+          )
         }
       },
       test("binary set values are preserved after a put/get round-trip") {
