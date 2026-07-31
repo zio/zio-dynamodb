@@ -893,9 +893,12 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
                        )
                      )
             page1 <- interpreter.run(DynamoDBQuery.scanSome(table, limit = 1))
-            _ = assertTrue(page1.items.length == 1 && page1.lastEvaluatedKey.isDefined)
             page2 <- interpreter.run(DynamoDBQuery.scanSome(table, limit = 10).startKey(page1.lastEvaluatedKey))
-          } yield assertTrue(page1.items.length + page2.items.length == 3)
+          } yield assertTrue(
+            page1.items.length == 1 &&
+              page1.lastEvaluatedKey.isDefined &&
+              page1.items.length + page2.items.length == 3
+          )
         }
       },
       test("scanSome: lastEvaluatedKey is None on the final page") {
@@ -918,14 +921,17 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
                          .querySome(table, limit = 1)
                          .whereKey($("id").partitionKey === "alice")
                      )
-            _ = assertTrue(page1.items.length == 1 && page1.lastEvaluatedKey.isDefined)
             page2 <- interpreter.run(
                        DynamoDBQuery
                          .querySome(table, limit = 10)
                          .whereKey($("id").partitionKey === "alice")
                          .startKey(page1.lastEvaluatedKey)
                      )
-          } yield assertTrue(page1.items.length + page2.items.length == 3)
+          } yield assertTrue(
+            page1.items.length == 1 &&
+              page1.lastEvaluatedKey.isDefined &&
+              page1.items.length + page2.items.length == 3
+          )
         }
       },
       test("querySome: pages are non-overlapping") {
