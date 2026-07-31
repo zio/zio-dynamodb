@@ -88,6 +88,14 @@ object DdbExprSpec extends ZIOSpecDefault {
         val expr: DdbExpr[Score, Boolean] = Score.score < 42
         interpret(expr).map(render).fold(_ => assertNever("interpreter failed"), s => assert(s)(containsString("<")))
       },
+      test("field <= literal renders with <=") {
+        val expr: DdbExpr[Score, Boolean] = Score.score <= 42
+        interpret(expr).map(render).fold(_ => assertNever("interpreter failed"), s => assert(s)(containsString("<=")))
+      },
+      test("field != literal renders with <>") {
+        val expr: DdbExpr[Score, Boolean] = Score.score != 42
+        interpret(expr).map(render).fold(_ => assertNever("interpreter failed"), s => assert(s)(containsString("<>")))
+      },
       test("! of === renders with NOT") {
         val expr: DdbExpr[Score, Boolean] = !(Score.id === "alice")
         interpret(expr)
