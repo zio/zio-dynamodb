@@ -3,6 +3,7 @@ import zio.sbt.WebsitePlugin.autoImport._
 
 addCommandAlias("lint", "; scalafmtSbtCheck; scalafmtCheckAll; headerCheckAll")
 addCommandAlias("fmt", "; scalafmtSbt; scalafmtAll; headerCreateAll")
+addCommandAlias("cov", "; coverage; test; coverageAggregate")
 
 val zioVersion        = "2.1.24"
 val zioPreludeVersion = "1.0.0-RC47"
@@ -162,6 +163,7 @@ lazy val it = (project in file("it"))
   .settings(
     name                     := "zio-dynamodb-it",
     publish / skip           := true,
+    coverageEnabled          := false,
     crossScalaVersions       := Seq(scala213Version, scala3Version),
     libraryDependencies ++= Seq(
       "dev.zio"               %% "zio-test"         % zioVersion,
@@ -178,10 +180,11 @@ lazy val benchmarks = (project in file("benchmarks"))
   .dependsOn(aws, schemaDynamodb, ceInterpreter, schemaDdbExpr)
   .enablePlugins(JmhPlugin)
   .settings(
-    name           := "zio-dynamodb-benchmarks",
-    scalaVersion   := scala213Version,
-    publish / skip := true,
-    fork           := true,
+    name            := "zio-dynamodb-benchmarks",
+    scalaVersion    := scala213Version,
+    publish / skip  := true,
+    fork            := true,
+    coverageEnabled := false,
     libraryDependencies ++= Seq(
       "dev.zio"       %% "zio-dynamodb"  % "1.0.0-RC24",
       "org.systemfw"  %% "dynosaur-core" % "0.7.1",
