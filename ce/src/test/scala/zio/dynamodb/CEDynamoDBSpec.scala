@@ -193,4 +193,49 @@ class CEDynamoDBSpec extends CatsEffectSuite {
       }
     }
   }
+
+  // -- CEResponseInterceptor.accumulating -------------------------------------
+
+  private def getItemMeta(table: String) =
+    DynamoDBResponseMetadata.GetItem(tableName = table, consumed = None, correlation = CorrelationContext(None))
+
+  private def putItemMeta(table: String) =
+    DynamoDBResponseMetadata.PutItem(
+      tableName = table,
+      consumed = None,
+      collectionMetrics = None,
+      correlation = CorrelationContext(None)
+    )
+
+  test("CEResponseInterceptor.accumulating collects metadata entries in call order") {
+    for {
+      acc   <- CEResponseInterceptor.accumulating
+      _     <- acc.interceptor.onResponse(getItemMeta("t"))
+      _     <- acc.interceptor.onResponse(putItemMeta("t"))
+      chunk <- acc.results
+    } yield {
+      assertEquals(chunk.length, 2)
+      assert(chunk(0).isInstanceOf[DynamoDBResponseMetadata.GetItem])
+      assert(chunk(1).isInstanceOf[DynamoDBResponseMetadata.PutItem])
+    }
+  }
+
+  test("CEResponseInterceptor.accumulating: results is non-destructive") {
+    for {
+      acc    <- CEResponseInterceptor.accumulating
+      _      <- acc.interceptor.onResponse(getItemMeta("t"))
+      first  <- acc.results
+      second <- acc.results
+    } yield {
+      assertEquals(first.length, 1)
+      assertEquals(second.length, 1)
+    }
+  }
+
+  test("CEResponseInterceptor.accumulating: fresh accumulator per call starts empty") {
+    for {
+      acc   <- CEResponseInterceptor.accumulating
+      chunk <- acc.results
+    } yield assert(chunk.isEmpty)
+  }
 }
