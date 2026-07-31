@@ -227,6 +227,7 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
     sequenceSuite,
     nativeSetSuite,
     mapSuite,
+    nonNativeMapSuite,
     dynamicValueSuite,
     jsonAVSuite,
     byteSequenceCompatSuite,
@@ -1347,6 +1348,51 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
     test("decode error for non-Map attribute value for Map[String, Int]") {
       val codec = codecFor[Map[String, Int]]
       assertTrue(codec.decoder(AttributeValue.String("nope")).isLeft)
+    }
+  )
+
+  // ---- non-native map codec (non-String keys, encoded as List of [k, v]) --
+  //
+  // isNativeMap requires the key type to be a primitive String; any other key
+  // type (Int here) falls back to a Sequence-of-tuple2 encoding instead of a
+  // native AttributeValue.Map.
+
+  private val nonNativeMapSuite = suite("map codec (non-String key, Sequence-of-tuple2 encoding)")(
+    test("Map[Int, String] encodes as AttributeValue.List of 2-element [key, value] lists") {
+      val codec = codecFor[Map[Int, String]]
+      codec.encoder(Map(1 -> "a")) match {
+        case AttributeValue.List(entries) =>
+          entries.toList match {
+            case AttributeValue.List(kv) :: Nil =>
+              assertTrue(kv.toList == List(AttributeValue.Number(BigDecimal(1)), AttributeValue.String("a")))
+            case _                              => assertTrue(false)
+          }
+        case _                            => assertTrue(false)
+      }
+    },
+    test("Map[Int, String] round-trips") {
+      assertTrue(roundTrip(Map(1 -> "a", 2 -> "b")) == Right(Map(1 -> "a", 2 -> "b")))
+    },
+    test("empty Map[Int, String] round-trips") {
+      assertTrue(roundTrip(Map.empty[Int, String]) == Right(Map.empty[Int, String]))
+    },
+    test("decode error for non-List attribute value") {
+      val codec = codecFor[Map[Int, String]]
+      assertTrue(codec.decoder(AttributeValue.String("nope")).isLeft)
+    },
+    test("decode error for a malformed entry (not a 2-element list)") {
+      val codec     = codecFor[Map[Int, String]]
+      val malformed = AttributeValue.List(
+        List(AttributeValue.List(List(AttributeValue.Number(BigDecimal(1)))))
+      )
+      assertTrue(codec.decoder(malformed).isLeft)
+    },
+    test("decode error when the key can't be decoded") {
+      val codec     = codecFor[Map[Int, String]]
+      val malformed = AttributeValue.List(
+        List(AttributeValue.List(List(AttributeValue.String("not-a-number"), AttributeValue.String("a"))))
+      )
+      assertTrue(codec.decoder(malformed).isLeft)
     }
   )
 
