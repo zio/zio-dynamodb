@@ -581,7 +581,7 @@ class DynamoDBCodecDeriver private (
                     val isNotFinalPair = count > 1
                     avRest match {
                       case l: AttributeValue.List if isNotFinalPair =>
-                        setRegisterValueForLastElement(l.value.asInstanceOf[Chunk[AttributeValue]], count - 1)
+                        setRegisterValueForLastElement(Chunk.fromIterable(l.value), count - 1)
                       case avFirst                                  =>
                         val field = fieldInfos(count - 1) // skip to first element in list
                         setValue(field, avFirst)
@@ -590,7 +590,7 @@ class DynamoDBCodecDeriver private (
                 }
               }
 
-              setRegisterValueForLastElement(av.value.asInstanceOf[Chunk[AttributeValue]], len - 1)
+              setRegisterValueForLastElement(Chunk.fromIterable(av.value), len - 1)
 
               if (error == null) {
                 val a = constructor.construct(regs, RegisterOffset.Zero)
