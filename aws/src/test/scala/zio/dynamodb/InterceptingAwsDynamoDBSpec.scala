@@ -34,6 +34,7 @@ import software.amazon.awssdk.services.dynamodb.model.{
   DescribeTableResponse => AwsDescribeTableResponse,
   GetItemRequest,
   GetItemResponse,
+  ItemCollectionMetrics => AwsItemCollectionMetrics,
   PutItemRequest,
   PutItemResponse,
   QueryRequest,
@@ -193,6 +194,25 @@ object InterceptingAwsDynamoDBSpec extends ZIOSpecDefault {
       sut.putItem(req).unsafeRun()
       val m                       = captured().head.asInstanceOf[DynamoDBResponseMetadata.PutItem]
       assertTrue(m.correlation.primaryKey.isEmpty)
+    },
+    test("collectionMetrics is populated when the response has itemCollectionMetrics") {
+      val (interceptor, captured) = mkInterceptor()
+      val metrics                 = AwsItemCollectionMetrics
+        .builder()
+        .itemCollectionKey(awsKey)
+        .sizeEstimateRangeGB(List(java.lang.Double.valueOf(1.0), java.lang.Double.valueOf(2.0)).asJava)
+        .build()
+      val resp                    = PutItemResponse.builder().itemCollectionMetrics(metrics).build()
+      val item                    = Map("id" -> awsStr("alice")).asJava
+      val req                     = PutItemRequest.builder().tableName("t").item(item).build()
+      val stub                    = fullStub(onPut = _ => resp)
+      val sut                     = new InterceptingAwsDynamoDB[DummyIO](stub, interceptor, dummyOps)
+      sut.putItem(req).unsafeRun()
+      val m                       = captured().head.asInstanceOf[DynamoDBResponseMetadata.PutItem]
+      assertTrue(
+        m.collectionMetrics.exists(_.itemCollectionKey.contains(AttrMap("id" -> "alice"))),
+        m.collectionMetrics.exists(_.sizeEstimateRangeGB == ((1.0, 2.0)))
+      )
     }
   )
 
