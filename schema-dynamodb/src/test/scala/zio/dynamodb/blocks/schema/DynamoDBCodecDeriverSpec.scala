@@ -111,6 +111,20 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
   case class WithDefaultField(name: String, rank: Int = 99)
   object WithDefaultField { implicit val schema: Schema[WithDefaultField] = Schema.derived }
 
+  // covers every primitive register type's default-value handling
+  // (FieldInfo.defaultEqualsValue / setMissingValueOrDefault), not just Int/String
+  case class WithPrimitiveDefaults(
+    id: String,
+    longVal: Long = 100L,
+    boolVal: Boolean = true,
+    byteVal: Byte = 1,
+    charVal: Char = 'x',
+    shortVal: Short = 10,
+    floatVal: Float = 1.5f,
+    doubleVal: Double = 2.5
+  )
+  object WithPrimitiveDefaults { implicit val schema: Schema[WithPrimitiveDefaults] = Schema.derived }
+
   case class WithMaybe(id: String, value: Maybe[String])
   object WithMaybe { implicit val schema: Schema[WithMaybe] = Schema.derived }
 
@@ -222,6 +236,7 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
     encodeTransientSuite,
     transientDefaultValueSuite,
     defaultValueDecodeSuite,
+    primitiveDefaultsSuite,
     emptyCollectionSuite,
     maybeSuite,
     sequenceSuite,
@@ -1103,6 +1118,44 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
         assertTrue(codec.decoder(stored) == Right(WithDefaultField("Alice", rank = 1)))
       }
     )
+
+  // ---- default-value handling across every primitive register type --------
+  //
+  // The suites above only exercise Int/String defaults. FieldInfo dispatches
+  // on register type for both defaultEqualsValue (encode-side omission check)
+  // and setMissingValueOrDefault (decode-side fallback) with a case per
+  // primitive type, so cover Long/Boolean/Byte/Char/Short/Float/Double too.
+
+  private val primitiveDefaultsSuite = suite("default-value handling for every primitive type")(
+    test("all primitive-default fields are omitted when equal to their defaults") {
+      val deriver = DynamoDBCodecDeriver.withTransientDefaultValue(transientDefaultValue = true)
+      val codec   = WithPrimitiveDefaults.schema.deriving(deriver).derive
+      codec.encoder(WithPrimitiveDefaults("a")) match {
+        case m: AttributeValue.Map =>
+          val keys = m.value.keys.map(_.value).toSet
+          assertTrue(keys == Set("id"))
+        case _                     => assertTrue(false)
+      }
+    },
+    test("all primitive-default fields are written when not at their defaults") {
+      val deriver = DynamoDBCodecDeriver.withTransientDefaultValue(transientDefaultValue = true)
+      val codec   = WithPrimitiveDefaults.schema.deriving(deriver).derive
+      val value   = WithPrimitiveDefaults("a", 200L, false, 2, 'y', 20, 9.5f, 8.5)
+      codec.encoder(value) match {
+        case m: AttributeValue.Map =>
+          val keys = m.value.keys.map(_.value).toSet
+          assertTrue(
+            keys == Set("id", "longVal", "boolVal", "byteVal", "charVal", "shortVal", "floatVal", "doubleVal")
+          )
+        case _                     => assertTrue(false)
+      }
+    },
+    test("decoding an item missing every primitive-default field uses each schema default") {
+      val codec  = codecFor[WithPrimitiveDefaults]
+      val stored = AttributeValue.Map(Map(AttributeValue.String("id") -> AttributeValue.String("a")))
+      assertTrue(codec.decoder(stored) == Right(WithPrimitiveDefaults("a")))
+    }
+  )
 
   // ---- emptyCollectionConstructor ----------------------------------------
 
