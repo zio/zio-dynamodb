@@ -157,6 +157,23 @@ lazy val ceInterpreter = (project in file("ce"))
     testFrameworks     := Seq(new TestFramework("munit.Framework"))
   )
 
+lazy val it = (project in file("it"))
+  .dependsOn(zioInterpreter, ceInterpreter, futureInterpreter, schemaDynamodb, schemaDdbExpr)
+  .settings(
+    name                     := "zio-dynamodb-it",
+    publish / skip           := true,
+    crossScalaVersions       := Seq(scala213Version, scala3Version),
+    libraryDependencies ++= Seq(
+      "dev.zio"               %% "zio-test"         % zioVersion,
+      "dev.zio"               %% "zio-test-sbt"     % zioVersion,
+      "org.testcontainers"     % "testcontainers"   % "1.21.3",
+      "software.amazon.awssdk" % "netty-nio-client" % awsSdkVersion,
+      "org.slf4j"              % "slf4j-nop"        % "2.0.16"
+    ),
+    testFrameworks           := Seq(new TestFramework("zio.test.sbt.ZTestFramework")),
+    Test / parallelExecution := false
+  )
+
 lazy val docs = project
   .in(file("zio-dynamodb-docs"))
   .settings(
@@ -184,7 +201,7 @@ lazy val docs = project
   .enablePlugins(WebsitePlugin)
 
 lazy val root = (project in file("."))
-  .aggregate(core, aws, schemaDynamodb, zioInterpreter, schemaDdbExpr, futureInterpreter, ceInterpreter, docs)
+  .aggregate(core, aws, schemaDynamodb, zioInterpreter, schemaDdbExpr, futureInterpreter, ceInterpreter, it, docs)
   .enablePlugins(zio.sbt.ZioSbtCiPlugin)
   .settings(
     name              := "zio-dynamodb",
