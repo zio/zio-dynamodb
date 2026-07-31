@@ -35,8 +35,14 @@ ThisBuild / resolvers += "Sonatype Central Snapshots" at "https://central.sonaty
 
 lazy val core = (project in file("core"))
   .settings(
-    name               := "zio-dynamodb-core",
-    crossScalaVersions := Seq(scala213Version, scala3Version),
+    name                  := "zio-dynamodb-core",
+    crossScalaVersions    := Seq(scala213Version, scala3Version),
+    // GeneratedAttrMapApplies/GeneratedFromAttributeValueAs are mechanically
+    // generated 22-arity overload sets (see CLAUDE.md) — each overload is
+    // structurally identical to ones already exercised, so per-arity coverage
+    // adds no risk-reduction, only inflated line counts. Excluded from coverage
+    // measurement rather than tested arity-by-arity.
+    coverageExcludedFiles := ".*GeneratedAttrMapApplies.*;.*GeneratedFromAttributeValueAs.*",
     Compile / unmanagedSourceDirectories ++= {
       val base = (Compile / sourceDirectory).value
       CrossVersion.partialVersion(scalaVersion.value) match {
@@ -58,7 +64,7 @@ lazy val core = (project in file("core"))
       "dev.zio" %% "zio-test"         % zioVersion % Test,
       "dev.zio" %% "zio-test-sbt"     % zioVersion % Test
     ),
-    testFrameworks     := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
+    testFrameworks        := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
 
 lazy val aws = (project in file("aws"))
