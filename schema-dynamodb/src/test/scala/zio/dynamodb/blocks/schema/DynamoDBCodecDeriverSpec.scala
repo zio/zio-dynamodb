@@ -19,7 +19,7 @@ package zio.dynamodb.blocks.schema
 import zio.blocks.chunk.Chunk
 import zio.blocks.maybe.Maybe
 import zio.blocks.schema.{ DynamicValue, Modifier, NameMapper, PrimitiveValue, Schema }
-import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.{ DiscriminatorKind, Json }
 import zio.dynamodb.AttributeValue
 import zio.test._
 
@@ -110,6 +110,20 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
 
   case class WithDefaultField(name: String, rank: Int = 99)
   object WithDefaultField { implicit val schema: Schema[WithDefaultField] = Schema.derived }
+
+  // covers every primitive register type's default-value handling
+  // (FieldInfo.defaultEqualsValue / setMissingValueOrDefault), not just Int/String
+  case class WithPrimitiveDefaults(
+    id: String,
+    longVal: Long = 100L,
+    boolVal: Boolean = true,
+    byteVal: Byte = 1,
+    charVal: Char = 'x',
+    shortVal: Short = 10,
+    floatVal: Float = 1.5f,
+    doubleVal: Double = 2.5
+  )
+  object WithPrimitiveDefaults { implicit val schema: Schema[WithPrimitiveDefaults] = Schema.derived }
 
   case class WithMaybe(id: String, value: Maybe[String])
   object WithMaybe { implicit val schema: Schema[WithMaybe] = Schema.derived }
@@ -214,6 +228,7 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
     optionSuite,
     enumSuite,
     adtSuite,
+    adtNoneDiscriminatorSuite,
     adtDiscriminatorFieldSuite,
     adtCaseNamingSuite,
     adtDiscriminatorAndCaseNamingSuite,
@@ -221,11 +236,13 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
     encodeTransientSuite,
     transientDefaultValueSuite,
     defaultValueDecodeSuite,
+    primitiveDefaultsSuite,
     emptyCollectionSuite,
     maybeSuite,
     sequenceSuite,
     nativeSetSuite,
     mapSuite,
+    nonNativeMapSuite,
     dynamicValueSuite,
     jsonAVSuite,
     byteSequenceCompatSuite,
@@ -779,6 +796,45 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
     }
   )
 
+  // ---- ADT with DiscriminatorKind.None (decode by trying each case) -------
+  //
+  // No discriminator key/field is written; decoding tries each case's codec
+  // in turn and takes the first one that succeeds. Scala 3 union types are a
+  // more common use of this mode (see DynamoDBCodecDeriverVersionSpecificSpec),
+  // but the underlying derivation is generic over any variant, so a plain
+  // sealed trait exercises the same code path cross-version.
+
+  private val noneDiscriminatorDeriver = DynamoDBCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None)
+
+  private def noneDiscriminatorCodecFor[A](implicit s: Schema[A]): DynamoDBCodec[A] =
+    s.deriving(noneDiscriminatorDeriver).derive
+
+  private val adtNoneDiscriminatorSuite = suite("ADT (DiscriminatorKind.None) codec")(
+    test("round-trips Circle without writing a discriminator") {
+      val codec        = noneDiscriminatorCodecFor[Shape]
+      val value: Shape = Shape.Circle(5)
+      assertTrue(codec.decoder(codec.encoder(value)) == Right(value))
+    },
+    test("round-trips Rect without writing a discriminator") {
+      val codec        = noneDiscriminatorCodecFor[Shape]
+      val value: Shape = Shape.Rect(10, 20)
+      assertTrue(codec.decoder(codec.encoder(value)) == Right(value))
+    },
+    test("encoded Circle carries no case-name key, unlike DiscriminatorKind.Key") {
+      val codec = noneDiscriminatorCodecFor[Shape]
+      codec.encoder(Shape.Circle(5)) match {
+        case m: AttributeValue.Map =>
+          val keys = m.value.keys.map(_.value).toList
+          assertTrue(!keys.contains("Circle"))
+        case _                     => assertTrue(false)
+      }
+    },
+    test("decode error when no case codec matches") {
+      val codec = noneDiscriminatorCodecFor[Shape]
+      assertTrue(codec.decoder(AttributeValue.String("nope")).isLeft)
+    }
+  )
+
   // ---- @Modifier.discriminator -------------------------------------------
 
   private val adtDiscriminatorFieldSuite =
@@ -1063,6 +1119,44 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
       }
     )
 
+  // ---- default-value handling across every primitive register type --------
+  //
+  // The suites above only exercise Int/String defaults. FieldInfo dispatches
+  // on register type for both defaultEqualsValue (encode-side omission check)
+  // and setMissingValueOrDefault (decode-side fallback) with a case per
+  // primitive type, so cover Long/Boolean/Byte/Char/Short/Float/Double too.
+
+  private val primitiveDefaultsSuite = suite("default-value handling for every primitive type")(
+    test("all primitive-default fields are omitted when equal to their defaults") {
+      val deriver = DynamoDBCodecDeriver.withTransientDefaultValue(transientDefaultValue = true)
+      val codec   = WithPrimitiveDefaults.schema.deriving(deriver).derive
+      codec.encoder(WithPrimitiveDefaults("a")) match {
+        case m: AttributeValue.Map =>
+          val keys = m.value.keys.map(_.value).toSet
+          assertTrue(keys == Set("id"))
+        case _                     => assertTrue(false)
+      }
+    },
+    test("all primitive-default fields are written when not at their defaults") {
+      val deriver = DynamoDBCodecDeriver.withTransientDefaultValue(transientDefaultValue = true)
+      val codec   = WithPrimitiveDefaults.schema.deriving(deriver).derive
+      val value   = WithPrimitiveDefaults("a", 200L, false, 2, 'y', 20, 9.5f, 8.5)
+      codec.encoder(value) match {
+        case m: AttributeValue.Map =>
+          val keys = m.value.keys.map(_.value).toSet
+          assertTrue(
+            keys == Set("id", "longVal", "boolVal", "byteVal", "charVal", "shortVal", "floatVal", "doubleVal")
+          )
+        case _                     => assertTrue(false)
+      }
+    },
+    test("decoding an item missing every primitive-default field uses each schema default") {
+      val codec  = codecFor[WithPrimitiveDefaults]
+      val stored = AttributeValue.Map(Map(AttributeValue.String("id") -> AttributeValue.String("a")))
+      assertTrue(codec.decoder(stored) == Right(WithPrimitiveDefaults("a")))
+    }
+  )
+
   // ---- emptyCollectionConstructor ----------------------------------------
 
   private val collectionsCodec = codecFor[WithCollections]
@@ -1307,6 +1401,51 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
     test("decode error for non-Map attribute value for Map[String, Int]") {
       val codec = codecFor[Map[String, Int]]
       assertTrue(codec.decoder(AttributeValue.String("nope")).isLeft)
+    }
+  )
+
+  // ---- non-native map codec (non-String keys, encoded as List of [k, v]) --
+  //
+  // isNativeMap requires the key type to be a primitive String; any other key
+  // type (Int here) falls back to a Sequence-of-tuple2 encoding instead of a
+  // native AttributeValue.Map.
+
+  private val nonNativeMapSuite = suite("map codec (non-String key, Sequence-of-tuple2 encoding)")(
+    test("Map[Int, String] encodes as AttributeValue.List of 2-element [key, value] lists") {
+      val codec = codecFor[Map[Int, String]]
+      codec.encoder(Map(1 -> "a")) match {
+        case AttributeValue.List(entries) =>
+          entries.toList match {
+            case AttributeValue.List(kv) :: Nil =>
+              assertTrue(kv.toList == List(AttributeValue.Number(BigDecimal(1)), AttributeValue.String("a")))
+            case _                              => assertTrue(false)
+          }
+        case _                            => assertTrue(false)
+      }
+    },
+    test("Map[Int, String] round-trips") {
+      assertTrue(roundTrip(Map(1 -> "a", 2 -> "b")) == Right(Map(1 -> "a", 2 -> "b")))
+    },
+    test("empty Map[Int, String] round-trips") {
+      assertTrue(roundTrip(Map.empty[Int, String]) == Right(Map.empty[Int, String]))
+    },
+    test("decode error for non-List attribute value") {
+      val codec = codecFor[Map[Int, String]]
+      assertTrue(codec.decoder(AttributeValue.String("nope")).isLeft)
+    },
+    test("decode error for a malformed entry (not a 2-element list)") {
+      val codec     = codecFor[Map[Int, String]]
+      val malformed = AttributeValue.List(
+        List(AttributeValue.List(List(AttributeValue.Number(BigDecimal(1)))))
+      )
+      assertTrue(codec.decoder(malformed).isLeft)
+    },
+    test("decode error when the key can't be decoded") {
+      val codec     = codecFor[Map[Int, String]]
+      val malformed = AttributeValue.List(
+        List(AttributeValue.List(List(AttributeValue.String("not-a-number"), AttributeValue.String("a"))))
+      )
+      assertTrue(codec.decoder(malformed).isLeft)
     }
   )
 
@@ -1904,9 +2043,11 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
   // put a project-local given/implicit Schema there; unlike case classes in
   // this suite, we define explicit Schema.derived instances for each tuple
   // arity used below.
-  private implicit val tuple2Schema: Schema[(String, Int)]                  = Schema.derived
-  private implicit val tuple3Schema: Schema[(String, Int, Boolean)]         = Schema.derived
-  private implicit val tuple4Schema: Schema[(String, Int, Boolean, String)] = Schema.derived
+  private implicit val tuple2Schema: Schema[(String, Int)]                                                   = Schema.derived
+  private implicit val tuple3Schema: Schema[(String, Int, Boolean)]                                          = Schema.derived
+  private implicit val tuple4Schema: Schema[(String, Int, Boolean, String)]                                  = Schema.derived
+  private implicit val tuplePrimitivesSchema: Schema[(Int, Long, Boolean, Byte, Char, Short, Float, Double)] =
+    Schema.derived
 
   private val tupleCompatOldDeriver    =
     DynamoDBCodecDeriver.withSchema1TupleCompatibility(Schema1Compat.ReadBothWriteOld)
@@ -2000,6 +2141,11 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
     test("non-List attribute value yields a decode error") {
       val codec = codecFor[(String, Int)]
       assertTrue(codec.decoder(AttributeValue.String("not-a-list")).isLeft)
+    },
+    test("round-trips a tuple covering every primitive register type (Int/Long/Boolean/Byte/Char/Short/Float/Double)") {
+      val codec = codecFor[(Int, Long, Boolean, Byte, Char, Short, Float, Double)]
+      val value = (1, 2L, true, 3.toByte, 'c', 4.toShort, 5.5f, 6.6)
+      assertTrue(codec.decoder(codec.encoder(value)) == Right(value))
     }
   )
 
