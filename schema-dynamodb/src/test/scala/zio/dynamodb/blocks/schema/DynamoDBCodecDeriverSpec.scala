@@ -1900,9 +1900,10 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
   // right-folded pair format List(List(a, b), c) (old), and whether decoding
   // falls back to the legacy shape when flat-list decoding fails.
 
-  // Scala tuples have no companion object to host a given/implicit Schema, and
-  // ZB doesn't derive one automatically — unlike named case classes, an explicit
-  // Schema.derived is required per arity used below.
+  // Scala tuples' companion objects live in the standard library, so we can't
+  // put a project-local given/implicit Schema there; unlike case classes in
+  // this suite, we define explicit Schema.derived instances for each tuple
+  // arity used below.
   private implicit val tuple2Schema: Schema[(String, Int)]                  = Schema.derived
   private implicit val tuple3Schema: Schema[(String, Int, Boolean)]         = Schema.derived
   private implicit val tuple4Schema: Schema[(String, Int, Boolean, String)] = Schema.derived
