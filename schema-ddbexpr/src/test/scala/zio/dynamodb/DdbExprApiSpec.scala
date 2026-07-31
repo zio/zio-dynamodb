@@ -80,6 +80,16 @@ object DdbExprApiSpec extends ZIOSpecDefault {
         }
       }
     ),
+    suite("put — encode-failure path")(
+      test("put on a non-record schema (encodes to a non-Map AttributeValue) fails, not silently drops the write") {
+        implicit val intSchema: Schema[Int] = Schema.int
+        val q                               = DdbExprApi.put[Int]("tasks", 5)
+        q match {
+          case DynamoDBQuery.Fail(_) => assertTrue(true)
+          case other                 => assertNever(s"expected Fail, got $other")
+        }
+      }
+    ),
     suite("get — via DummyIOInterpreter")(
       test("returns ValueNotFound when item is absent") {
         val q      = DdbExprApi.get[Task]("tasks")(Task.id.partitionKey === "t1")
