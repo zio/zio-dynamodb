@@ -138,14 +138,11 @@ object InterceptorSpec extends DynamoDBLocalSpec {
             _    <- plainInterp.run(DynamoDBQuery.putItem(table, Item("id" -> "alice")))
             _    <- itInterp.run(DynamoDBQuery.getItem(table, pk))
             meta <- readMeta
-          } yield {
-            val m = meta(0).asInstanceOf[DynamoDBResponseMetadata.GetItem]
-            assertTrue(
-              meta.length == 1 &&
-                m.tableName == table &&
-                m.correlation.primaryKey.contains(pk)
-            )
-          }
+          } yield assertTrue(meta.toList match {
+            case (m: DynamoDBResponseMetadata.GetItem) :: Nil =>
+              m.tableName == table && m.correlation.primaryKey.contains(pk)
+            case _                                            => false
+          })
         }
       },
       test("putItem fires interceptor with PutItem metadata; correlation.primaryKey is None") {
@@ -155,14 +152,11 @@ object InterceptorSpec extends DynamoDBLocalSpec {
             (itInterp, readMeta) = pair
             _    <- itInterp.run(DynamoDBQuery.putItem(table, Item("id" -> "bob")))
             meta <- readMeta
-          } yield {
-            val m = meta(0).asInstanceOf[DynamoDBResponseMetadata.PutItem]
-            assertTrue(
-              meta.length == 1 &&
-                m.tableName == table &&
-                m.correlation.primaryKey.isEmpty
-            )
-          }
+          } yield assertTrue(meta.toList match {
+            case (m: DynamoDBResponseMetadata.PutItem) :: Nil =>
+              m.tableName == table && m.correlation.primaryKey.isEmpty
+            case _                                            => false
+          })
         }
       },
       test("updateItem fires interceptor with UpdateItem metadata and PK in correlation") {
@@ -174,14 +168,11 @@ object InterceptorSpec extends DynamoDBLocalSpec {
             _    <- plainInterp.run(DynamoDBQuery.putItem(table, Item("id" -> "charlie", "score" -> 0)))
             _    <- itInterp.run(DynamoDBQuery.updateItem(table, pk)($("score").set(1)))
             meta <- readMeta
-          } yield {
-            val m = meta(0).asInstanceOf[DynamoDBResponseMetadata.UpdateItem]
-            assertTrue(
-              meta.length == 1 &&
-                m.tableName == table &&
-                m.correlation.primaryKey.contains(pk)
-            )
-          }
+          } yield assertTrue(meta.toList match {
+            case (m: DynamoDBResponseMetadata.UpdateItem) :: Nil =>
+              m.tableName == table && m.correlation.primaryKey.contains(pk)
+            case _                                               => false
+          })
         }
       },
       test("deleteItem fires interceptor with DeleteItem metadata and PK in correlation") {
@@ -193,14 +184,11 @@ object InterceptorSpec extends DynamoDBLocalSpec {
             _    <- plainInterp.run(DynamoDBQuery.putItem(table, Item("id" -> "dave")))
             _    <- itInterp.run(DynamoDBQuery.deleteItem(table, pk))
             meta <- readMeta
-          } yield {
-            val m = meta(0).asInstanceOf[DynamoDBResponseMetadata.DeleteItem]
-            assertTrue(
-              meta.length == 1 &&
-                m.tableName == table &&
-                m.correlation.primaryKey.contains(pk)
-            )
-          }
+          } yield assertTrue(meta.toList match {
+            case (m: DynamoDBResponseMetadata.DeleteItem) :: Nil =>
+              m.tableName == table && m.correlation.primaryKey.contains(pk)
+            case _                                               => false
+          })
         }
       },
       test("scanSome fires interceptor with Scan metadata") {
@@ -212,10 +200,10 @@ object InterceptorSpec extends DynamoDBLocalSpec {
             _    <- plainInterp.run(DynamoDBQuery.putItem(table, Item("id" -> "s2")))
             _    <- itInterp.run(DynamoDBQuery.scanSome(table, limit = 10))
             meta <- readMeta
-          } yield {
-            val m = meta(0).asInstanceOf[DynamoDBResponseMetadata.Scan]
-            assertTrue(meta.length == 1 && m.tableName == table)
-          }
+          } yield assertTrue(meta.toList match {
+            case (m: DynamoDBResponseMetadata.Scan) :: Nil => m.tableName == table
+            case _                                         => false
+          })
         }
       },
       test("querySome fires interceptor with Query metadata") {
@@ -230,10 +218,10 @@ object InterceptorSpec extends DynamoDBLocalSpec {
                         .whereKey($("id").partitionKey === "alice")
                     )
             meta <- readMeta
-          } yield {
-            val m = meta(0).asInstanceOf[DynamoDBResponseMetadata.Query]
-            assertTrue(meta.length == 1 && m.tableName == table)
-          }
+          } yield assertTrue(meta.toList match {
+            case (m: DynamoDBResponseMetadata.Query) :: Nil => m.tableName == table
+            case _                                          => false
+          })
         }
       },
       test("batchGetItem fires interceptor with BatchGetItem metadata") {
