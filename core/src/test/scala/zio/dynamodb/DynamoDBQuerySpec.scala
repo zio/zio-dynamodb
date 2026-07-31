@@ -43,7 +43,9 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     startKeySuite,
     selectSuite,
     gsiSuite,
-    lsiSuite
+    lsiSuite,
+    returnValuesOnConditionCheckFailureSuite,
+    withRetryPolicySuite
   )
 
   private val batchingSuite = suite("batchWrite3")(
@@ -568,6 +570,197 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     test("lsi is a no-op for non-CreateTable queries") {
       val q = GetItem(table1, key1)
       assertTrue(q.lsi("score-index", KeySchema("id", "score")) eq q)
+    }
+  )
+
+  private val allOldRVOCCF: ReturnValuesOnConditionCheckFailure = ReturnValuesOnConditionCheckFailure.AllOld
+  private val noRetry: RetryPolicy                              = RetryPolicy.NoRetry
+
+  private val returnValuesOnConditionCheckFailureSuite = suite("returnValuesOnConditionCheckFailure")(
+    test("sets PutItem") {
+      assert(PutItem(table1, item1).returnValuesOnConditionCheckFailure(allOldRVOCCF))(
+        isSubtype[PutItem](
+          hasField(
+            "returnValuesOnConditionCheckFailure",
+            _.returnValuesOnConditionCheckFailure,
+            equalTo(Some(allOldRVOCCF): Option[ReturnValuesOnConditionCheckFailure])
+          )
+        )
+      )
+    },
+    test("sets UpdateItem") {
+      val expr = UpdateExpression(ProjectionExpression.$("v").set(2))
+      assert(UpdateItem(table1, pk, expr).returnValuesOnConditionCheckFailure(allOldRVOCCF))(
+        isSubtype[UpdateItem](
+          hasField(
+            "returnValuesOnConditionCheckFailure",
+            _.returnValuesOnConditionCheckFailure,
+            equalTo(Some(allOldRVOCCF): Option[ReturnValuesOnConditionCheckFailure])
+          )
+        )
+      )
+    },
+    test("sets DeleteItem") {
+      assert(DeleteItem(table1, pk).returnValuesOnConditionCheckFailure(allOldRVOCCF))(
+        isSubtype[DeleteItem](
+          hasField(
+            "returnValuesOnConditionCheckFailure",
+            _.returnValuesOnConditionCheckFailure,
+            equalTo(Some(allOldRVOCCF): Option[ReturnValuesOnConditionCheckFailure])
+          )
+        )
+      )
+    },
+    test("sets ConditionCheck") {
+      val cc = DynamoDBQuery.ConditionCheck(table1, pk, ProjectionExpression.$("id") === "a")
+      assert(cc.returnValuesOnConditionCheckFailure(allOldRVOCCF))(
+        isSubtype[DynamoDBQuery.ConditionCheck](
+          hasField(
+            "returnValuesOnConditionCheckFailure",
+            _.returnValuesOnConditionCheckFailure,
+            equalTo(Some(allOldRVOCCF): Option[ReturnValuesOnConditionCheckFailure])
+          )
+        )
+      )
+    },
+    test("propagates through ZipPar to both branches") {
+      val q = (PutItem(table1, item1) zipPar DeleteItem(table2, pk)).returnValuesOnConditionCheckFailure(allOldRVOCCF)
+      q match {
+        case DynamoDBQuery.ZipPar(l, r, _) =>
+          assert(l)(
+            isSubtype[PutItem](
+              hasField(
+                "returnValuesOnConditionCheckFailure",
+                _.returnValuesOnConditionCheckFailure,
+                equalTo(Some(allOldRVOCCF): Option[ReturnValuesOnConditionCheckFailure])
+              )
+            )
+          ) &&
+          assert(r)(
+            isSubtype[DeleteItem](
+              hasField(
+                "returnValuesOnConditionCheckFailure",
+                _.returnValuesOnConditionCheckFailure,
+                equalTo(Some(allOldRVOCCF): Option[ReturnValuesOnConditionCheckFailure])
+              )
+            )
+          )
+        case _                             => assertTrue(false)
+      }
+    },
+    test("propagates through Map") {
+      val q = PutItem(table1, item1).map(identity).returnValuesOnConditionCheckFailure(allOldRVOCCF)
+      q match {
+        case DynamoDBQuery.Map(inner, _) =>
+          assert(inner)(
+            isSubtype[PutItem](
+              hasField(
+                "returnValuesOnConditionCheckFailure",
+                _.returnValuesOnConditionCheckFailure,
+                equalTo(Some(allOldRVOCCF): Option[ReturnValuesOnConditionCheckFailure])
+              )
+            )
+          )
+        case _                           => assertTrue(false)
+      }
+    },
+    test("propagates through Absolve") {
+      val inner   = PutItem(table1, item1)
+      val absolve = DynamoDBQuery.Absolve(inner.map(r => Right(r): Either[DynamoDBError.ItemError, Option[Item]]))
+      val q       = absolve.returnValuesOnConditionCheckFailure(allOldRVOCCF)
+      q match {
+        case DynamoDBQuery.Absolve(DynamoDBQuery.Map(query, _)) =>
+          assert(query)(
+            isSubtype[PutItem](
+              hasField(
+                "returnValuesOnConditionCheckFailure",
+                _.returnValuesOnConditionCheckFailure,
+                equalTo(Some(allOldRVOCCF): Option[ReturnValuesOnConditionCheckFailure])
+              )
+            )
+          )
+        case _                                                  => assertTrue(false)
+      }
+    },
+    test("is a no-op for constructors without the field") {
+      val q = GetItem(table1, key1)
+      assertTrue(q.returnValuesOnConditionCheckFailure(allOldRVOCCF) eq q)
+    }
+  )
+
+  private val withRetryPolicySuite = suite("withRetryPolicy")(
+    test("sets BatchWriteItem") {
+      val q = DynamoDBQuery.batchWriteItem(List(item1))(i => PutItem(table1, i))
+      assert(q.withRetryPolicy(RetryPolicy.NoRetry))(
+        isSubtype[BatchWriteItem](hasField("retryPolicy", _.retryPolicy, equalTo(Some(noRetry): Option[RetryPolicy])))
+      )
+    },
+    test("sets BatchGetItem") {
+      val q = DynamoDBQuery.batchGetItem(List("a"))(id => GetItem(table1, PrimaryKey("id" -> id)))
+      assert(q.withRetryPolicy(RetryPolicy.NoRetry))(
+        isSubtype[DynamoDBQuery.BatchGetItem](
+          hasField("retryPolicy", _.retryPolicy, equalTo(Some(noRetry): Option[RetryPolicy]))
+        )
+      )
+    },
+    test("sets PutItem") {
+      assert(PutItem(table1, item1).withRetryPolicy(RetryPolicy.NoRetry))(
+        isSubtype[PutItem](hasField("retryPolicy", _.retryPolicy, equalTo(Some(noRetry): Option[RetryPolicy])))
+      )
+    },
+    test("sets DeleteItem") {
+      assert(DeleteItem(table1, pk).withRetryPolicy(RetryPolicy.NoRetry))(
+        isSubtype[DeleteItem](hasField("retryPolicy", _.retryPolicy, equalTo(Some(noRetry): Option[RetryPolicy])))
+      )
+    },
+    test("sets GetItem") {
+      assert(GetItem(table1, pk).withRetryPolicy(RetryPolicy.NoRetry))(
+        isSubtype[GetItem](hasField("retryPolicy", _.retryPolicy, equalTo(Some(noRetry): Option[RetryPolicy])))
+      )
+    },
+    test("propagates through ZipPar to both branches") {
+      val q = (GetItem(table1, pk) zipPar GetItem(table2, pk)).withRetryPolicy(RetryPolicy.NoRetry)
+      q match {
+        case DynamoDBQuery.ZipPar(l, r, _) =>
+          assert(l)(
+            isSubtype[GetItem](hasField("retryPolicy", _.retryPolicy, equalTo(Some(noRetry): Option[RetryPolicy])))
+          ) &&
+          assert(r)(
+            isSubtype[GetItem](hasField("retryPolicy", _.retryPolicy, equalTo(Some(noRetry): Option[RetryPolicy])))
+          )
+        case _                             => assertTrue(false)
+      }
+    },
+    test("propagates through Map") {
+      val q = GetItem(table1, pk).map(identity).withRetryPolicy(RetryPolicy.NoRetry)
+      q match {
+        case DynamoDBQuery.Map(inner, _) =>
+          assert(inner)(
+            isSubtype[GetItem](hasField("retryPolicy", _.retryPolicy, equalTo(Some(noRetry): Option[RetryPolicy])))
+          )
+        case _                           => assertTrue(false)
+      }
+    },
+    test("propagates through Absolve") {
+      val inner   = GetItem(table1, pk)
+      val absolve = DynamoDBQuery.Absolve(inner.map(r => Right(r): Either[DynamoDBError.ItemError, Option[Item]]))
+      val q       = absolve.withRetryPolicy(RetryPolicy.NoRetry)
+      q match {
+        case DynamoDBQuery.Absolve(DynamoDBQuery.Map(query, _)) =>
+          assert(query)(
+            isSubtype[GetItem](hasField("retryPolicy", _.retryPolicy, equalTo(Some(noRetry): Option[RetryPolicy])))
+          )
+        case _                                                  => assertTrue(false)
+      }
+    },
+    test("is a no-op for constructors without a retryPolicy field") {
+      val q = DynamoDBQuery.createTable(
+        table1,
+        KeySchema("id"),
+        NonEmptySet(AttributeDefinition.attrDefnString("id")),
+        BillingMode.PayPerRequest
+      )
+      assertTrue(q.withRetryPolicy(RetryPolicy.NoRetry) eq q)
     }
   )
 }
