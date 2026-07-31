@@ -19,7 +19,7 @@ package zio.dynamodb.blocks.schema
 import zio.blocks.chunk.Chunk
 import zio.blocks.maybe.Maybe
 import zio.blocks.schema.{ DynamicValue, Modifier, NameMapper, PrimitiveValue, Schema }
-import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.{ DiscriminatorKind, Json }
 import zio.dynamodb.AttributeValue
 import zio.test._
 
@@ -214,6 +214,7 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
     optionSuite,
     enumSuite,
     adtSuite,
+    adtNoneDiscriminatorSuite,
     adtDiscriminatorFieldSuite,
     adtCaseNamingSuite,
     adtDiscriminatorAndCaseNamingSuite,
@@ -776,6 +777,45 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
     test("decode error for empty Map") {
       val codec = codecFor[Shape]
       assertTrue(codec.decoder(AttributeValue.Map(Map.empty)).isLeft)
+    }
+  )
+
+  // ---- ADT with DiscriminatorKind.None (decode by trying each case) -------
+  //
+  // No discriminator key/field is written; decoding tries each case's codec
+  // in turn and takes the first one that succeeds. Scala 3 union types are a
+  // more common use of this mode (see DynamoDBCodecDeriverVersionSpecificSpec),
+  // but the underlying derivation is generic over any variant, so a plain
+  // sealed trait exercises the same code path cross-version.
+
+  private val noneDiscriminatorDeriver = DynamoDBCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None)
+
+  private def noneDiscriminatorCodecFor[A](implicit s: Schema[A]): DynamoDBCodec[A] =
+    s.deriving(noneDiscriminatorDeriver).derive
+
+  private val adtNoneDiscriminatorSuite = suite("ADT (DiscriminatorKind.None) codec")(
+    test("round-trips Circle without writing a discriminator") {
+      val codec        = noneDiscriminatorCodecFor[Shape]
+      val value: Shape = Shape.Circle(5)
+      assertTrue(codec.decoder(codec.encoder(value)) == Right(value))
+    },
+    test("round-trips Rect without writing a discriminator") {
+      val codec        = noneDiscriminatorCodecFor[Shape]
+      val value: Shape = Shape.Rect(10, 20)
+      assertTrue(codec.decoder(codec.encoder(value)) == Right(value))
+    },
+    test("encoded Circle carries no case-name key, unlike DiscriminatorKind.Key") {
+      val codec = noneDiscriminatorCodecFor[Shape]
+      codec.encoder(Shape.Circle(5)) match {
+        case m: AttributeValue.Map =>
+          val keys = m.value.keys.map(_.value).toList
+          assertTrue(!keys.contains("Circle"))
+        case _                     => assertTrue(false)
+      }
+    },
+    test("decode error when no case codec matches") {
+      val codec = noneDiscriminatorCodecFor[Shape]
+      assertTrue(codec.decoder(AttributeValue.String("nope")).isLeft)
     }
   )
 
