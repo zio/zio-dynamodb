@@ -1904,9 +1904,11 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
   // put a project-local given/implicit Schema there; unlike case classes in
   // this suite, we define explicit Schema.derived instances for each tuple
   // arity used below.
-  private implicit val tuple2Schema: Schema[(String, Int)]                  = Schema.derived
-  private implicit val tuple3Schema: Schema[(String, Int, Boolean)]         = Schema.derived
-  private implicit val tuple4Schema: Schema[(String, Int, Boolean, String)] = Schema.derived
+  private implicit val tuple2Schema: Schema[(String, Int)]                                                   = Schema.derived
+  private implicit val tuple3Schema: Schema[(String, Int, Boolean)]                                          = Schema.derived
+  private implicit val tuple4Schema: Schema[(String, Int, Boolean, String)]                                  = Schema.derived
+  private implicit val tuplePrimitivesSchema: Schema[(Int, Long, Boolean, Byte, Char, Short, Float, Double)] =
+    Schema.derived
 
   private val tupleCompatOldDeriver    =
     DynamoDBCodecDeriver.withSchema1TupleCompatibility(Schema1Compat.ReadBothWriteOld)
@@ -2000,6 +2002,11 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
     test("non-List attribute value yields a decode error") {
       val codec = codecFor[(String, Int)]
       assertTrue(codec.decoder(AttributeValue.String("not-a-list")).isLeft)
+    },
+    test("round-trips a tuple covering every primitive register type (Int/Long/Boolean/Byte/Char/Short/Float/Double)") {
+      val codec = codecFor[(Int, Long, Boolean, Byte, Char, Short, Float, Double)]
+      val value = (1, 2L, true, 3.toByte, 'c', 4.toShort, 5.5f, 6.6)
+      assertTrue(codec.decoder(codec.encoder(value)) == Right(value))
     }
   )
 
