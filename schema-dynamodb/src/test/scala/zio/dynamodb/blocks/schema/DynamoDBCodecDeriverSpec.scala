@@ -229,6 +229,7 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
     dynamicValueSuite,
     jsonAVSuite,
     byteSequenceCompatSuite,
+    tupleCompatSuite,
     yearCompatSuite,
     rejectExtraFieldsSuite,
     fieldNamingSuite
@@ -1889,6 +1890,117 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
         assertTrue(codec.decoder(av).isLeft)
       }
     )
+  )
+
+  // ---- schema1 tuple compatibility -----------------------------------------
+  //
+  // typeId.isTuple derives a dedicated positional codec (List(a, b, c, ...))
+  // instead of the vanilla record path. schema1TupleCompat controls whether
+  // encoding uses that flat list (new) or the legacy schema1 nested
+  // right-folded pair format List(List(a, b), c) (old), and whether decoding
+  // falls back to the legacy shape when flat-list decoding fails.
+
+  // Scala tuples' companion objects live in the standard library, so we can't
+  // put a project-local given/implicit Schema there; unlike case classes in
+  // this suite, we define explicit Schema.derived instances for each tuple
+  // arity used below.
+  private implicit val tuple2Schema: Schema[(String, Int)]                  = Schema.derived
+  private implicit val tuple3Schema: Schema[(String, Int, Boolean)]         = Schema.derived
+  private implicit val tuple4Schema: Schema[(String, Int, Boolean, String)] = Schema.derived
+
+  private val tupleCompatOldDeriver    =
+    DynamoDBCodecDeriver.withSchema1TupleCompatibility(Schema1Compat.ReadBothWriteOld)
+  private val tupleCompatNewDeriver    =
+    DynamoDBCodecDeriver.withSchema1TupleCompatibility(Schema1Compat.ReadBothWriteNew)
+  private val tupleCompatStrictDeriver =
+    DynamoDBCodecDeriver.withSchema1TupleCompatibility(Schema1Compat.ReadNewWriteNew)
+
+  private def tupleCodecForOld[A](implicit s: Schema[A]): DynamoDBCodec[A] =
+    s.deriving(tupleCompatOldDeriver).derive
+  private def tupleCodecForNew[A](implicit s: Schema[A]): DynamoDBCodec[A] =
+    s.deriving(tupleCompatNewDeriver).derive
+  private def tupleCodecStrict[A](implicit s: Schema[A]): DynamoDBCodec[A] =
+    s.deriving(tupleCompatStrictDeriver).derive
+
+  private val tupleCompatSuite = suite("Schema1Compat tuple")(
+    test("default (ReadBothWriteNew) encodes a Tuple2 as a flat positional list") {
+      val codec = codecFor[(String, Int)]
+      assertTrue(
+        codec.encoder(("a", 1)) == AttributeValue.List(
+          List(AttributeValue.String("a"), AttributeValue.Number(BigDecimal(1)))
+        )
+      )
+    },
+    test("default (ReadBothWriteNew) round-trips a Tuple3 through the flat list") {
+      val codec = codecFor[(String, Int, Boolean)]
+      val value = ("x", 42, true)
+      assertTrue(codec.decoder(codec.encoder(value)) == Right(value))
+    },
+    test("default (ReadBothWriteNew) also decodes the legacy nested-pair format") {
+      val codec  = codecFor[(String, Int, Boolean)]
+      val legacy = AttributeValue.List(
+        List(
+          AttributeValue.List(List(AttributeValue.String("x"), AttributeValue.Number(BigDecimal(42)))),
+          AttributeValue.Bool(true)
+        )
+      )
+      assertTrue(codec.decoder(legacy) == Right(("x", 42, true)))
+    },
+    test("ReadNewWriteNew (strict) rejects the legacy nested-pair format") {
+      val codec  = tupleCodecStrict[(String, Int, Boolean)]
+      val legacy = AttributeValue.List(
+        List(
+          AttributeValue.List(List(AttributeValue.String("x"), AttributeValue.Number(BigDecimal(42)))),
+          AttributeValue.Bool(true)
+        )
+      )
+      assertTrue(codec.decoder(legacy).isLeft)
+    },
+    test("ReadBothWriteOld encodes a Tuple3 as nested right-folded pairs") {
+      val codec = tupleCodecForOld[(String, Int, Boolean)]
+      assertTrue(
+        codec.encoder(("x", 42, true)) == AttributeValue.List(
+          List(
+            AttributeValue.List(List(AttributeValue.String("x"), AttributeValue.Number(BigDecimal(42)))),
+            AttributeValue.Bool(true)
+          )
+        )
+      )
+    },
+    test("ReadBothWriteOld round-trips a Tuple4 through its own legacy encoding") {
+      val codec = tupleCodecForOld[(String, Int, Boolean, String)]
+      val value = ("a", 1, true, "d")
+      assertTrue(codec.decoder(codec.encoder(value)) == Right(value))
+    },
+    test("ReadBothWriteNew encodes a Tuple3 as a flat positional list") {
+      val codec = tupleCodecForNew[(String, Int, Boolean)]
+      assertTrue(
+        codec.encoder(("x", 42, true)) == AttributeValue.List(
+          List(AttributeValue.String("x"), AttributeValue.Number(BigDecimal(42)), AttributeValue.Bool(true))
+        )
+      )
+    },
+    test("ReadBothWriteNew still decodes legacy nested-pair data written by an old encoder") {
+      val codec  = tupleCodecForNew[(String, Int, Boolean)]
+      val legacy = tupleCodecForOld[(String, Int, Boolean)].encoder(("x", 42, true))
+      assertTrue(codec.decoder(legacy) == Right(("x", 42, true)))
+    },
+    test("malformed legacy nested pair (wrong inner list size) yields a decode error") {
+      val codec     = tupleCodecForOld[(String, Int, Boolean)]
+      val malformed = AttributeValue.List(
+        List(
+          AttributeValue.List(
+            List(AttributeValue.String("x"), AttributeValue.Number(BigDecimal(1)), AttributeValue.Number(BigDecimal(2)))
+          ),
+          AttributeValue.Bool(true)
+        )
+      )
+      assertTrue(codec.decoder(malformed).isLeft)
+    },
+    test("non-List attribute value yields a decode error") {
+      val codec = codecFor[(String, Int)]
+      assertTrue(codec.decoder(AttributeValue.String("not-a-list")).isLeft)
+    }
   )
 
   // ---- @Modifier.fieldNaming -----------------------------------------------

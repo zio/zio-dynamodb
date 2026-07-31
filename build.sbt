@@ -3,6 +3,7 @@ import zio.sbt.WebsitePlugin.autoImport._
 
 addCommandAlias("lint", "; scalafmtSbtCheck; scalafmtCheckAll; headerCheckAll")
 addCommandAlias("fmt", "; scalafmtSbt; scalafmtAll; headerCreateAll")
+addCommandAlias("cov", "; coverage; test; coverageAggregate")
 
 val zioVersion        = "2.1.24"
 val zioPreludeVersion = "1.0.0-RC47"
@@ -34,8 +35,14 @@ ThisBuild / resolvers += "Sonatype Central Snapshots" at "https://central.sonaty
 
 lazy val core = (project in file("core"))
   .settings(
-    name               := "zio-dynamodb-core",
-    crossScalaVersions := Seq(scala213Version, scala3Version),
+    name                  := "zio-dynamodb-core",
+    crossScalaVersions    := Seq(scala213Version, scala3Version),
+    // GeneratedAttrMapApplies/GeneratedFromAttributeValueAs are mechanically
+    // generated 22-arity overload sets (see CLAUDE.md) — each overload is
+    // structurally identical to ones already exercised, so per-arity coverage
+    // adds no risk-reduction, only inflated line counts. Excluded from coverage
+    // measurement rather than tested arity-by-arity.
+    coverageExcludedFiles := ".*GeneratedAttrMapApplies.*;.*GeneratedFromAttributeValueAs.*",
     Compile / unmanagedSourceDirectories ++= {
       val base = (Compile / sourceDirectory).value
       CrossVersion.partialVersion(scalaVersion.value) match {
@@ -57,7 +64,7 @@ lazy val core = (project in file("core"))
       "dev.zio" %% "zio-test"         % zioVersion % Test,
       "dev.zio" %% "zio-test-sbt"     % zioVersion % Test
     ),
-    testFrameworks     := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
+    testFrameworks        := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
 
 lazy val aws = (project in file("aws"))
@@ -162,6 +169,7 @@ lazy val it = (project in file("it"))
   .settings(
     name                     := "zio-dynamodb-it",
     publish / skip           := true,
+    coverageEnabled          := false,
     crossScalaVersions       := Seq(scala213Version, scala3Version),
     libraryDependencies ++= Seq(
       "dev.zio"               %% "zio-test"         % zioVersion,
@@ -178,10 +186,11 @@ lazy val benchmarks = (project in file("benchmarks"))
   .dependsOn(aws, schemaDynamodb, ceInterpreter, schemaDdbExpr)
   .enablePlugins(JmhPlugin)
   .settings(
-    name           := "zio-dynamodb-benchmarks",
-    scalaVersion   := scala213Version,
-    publish / skip := true,
-    fork           := true,
+    name            := "zio-dynamodb-benchmarks",
+    scalaVersion    := scala213Version,
+    publish / skip  := true,
+    fork            := true,
+    coverageEnabled := false,
     libraryDependencies ++= Seq(
       "dev.zio"       %% "zio-dynamodb"  % "1.0.0-RC24",
       "org.systemfw"  %% "dynosaur-core" % "0.7.1",
