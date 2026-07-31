@@ -174,6 +174,22 @@ lazy val it = (project in file("it"))
     Test / parallelExecution := false
   )
 
+lazy val benchmarks = (project in file("benchmarks"))
+  .dependsOn(aws, schemaDynamodb, ceInterpreter, schemaDdbExpr)
+  .enablePlugins(JmhPlugin)
+  .settings(
+    name           := "zio-dynamodb-benchmarks",
+    scalaVersion   := scala213Version,
+    publish / skip := true,
+    fork           := true,
+    libraryDependencies ++= Seq(
+      "dev.zio"       %% "zio-dynamodb"  % "1.0.0-RC24",
+      "org.systemfw"  %% "dynosaur-core" % "0.7.1",
+      "org.scanamo"   %% "scanamo"       % "7.0.0",
+      "org.typelevel" %% "cats-effect"   % catsEffectVersion
+    )
+  )
+
 lazy val docs = project
   .in(file("zio-dynamodb-docs"))
   .settings(
