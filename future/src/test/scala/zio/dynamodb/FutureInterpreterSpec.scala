@@ -465,6 +465,32 @@ object FutureInterpreterSpec extends ZIOSpecDefault {
     }
   )
 
+  // -- effect primitives (sleep/attempt/raiseError) — used internally by the
+  // retry machinery; not exercised by any query since this module has no
+  // dedicated retry spec (unlike zio's RetrySpec.scala).
+  private val effectPrimitivesSuite = suite("effect primitives")(
+    test("sleep completes after the given duration without blocking") {
+      val interp = new FutureInterpreter(fullStub())
+      await(interp.sleep(scala.concurrent.duration.Duration.Zero))
+      assertTrue(true)
+    },
+    test("attempt wraps a successful Future in Right") {
+      val interp = new FutureInterpreter(fullStub())
+      assertTrue(await(interp.attempt(Future.successful(42))) == Right(42))
+    },
+    test("attempt wraps a failed Future in Left") {
+      val interp = new FutureInterpreter(fullStub())
+      val boom   = new RuntimeException("boom")
+      assertTrue(await(interp.attempt(Future.failed(boom))) == Left(boom))
+    },
+    test("raiseError produces a failed Future with the given throwable") {
+      val interp = new FutureInterpreter(fullStub())
+      val boom   = new RuntimeException("boom")
+      val result = scala.util.Try(await(interp.raiseError(boom)))
+      assertTrue(result.failed.get eq boom)
+    }
+  )
+
   // -- FutureResponseInterceptor.accumulating --------------------------------
 
   private val accumulatorSuite = suite("FutureResponseInterceptor.accumulating")(
@@ -520,6 +546,7 @@ object FutureInterpreterSpec extends ZIOSpecDefault {
     batchWriteItemSuite,
     ddlSuite,
     accumulatorSuite,
-    errorTypeSuite
+    errorTypeSuite,
+    effectPrimitivesSuite
   )
 }

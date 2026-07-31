@@ -194,6 +194,35 @@ class CEDynamoDBSpec extends CatsEffectSuite {
     }
   }
 
+  // -- effect primitives (sleep/attempt/raiseError) — used internally by the
+  // retry machinery; not exercised by any query since this module has no
+  // dedicated retry spec (unlike zio's RetrySpec.scala).
+  test("sleep completes after the given duration without blocking") {
+    val client = clientFixture()
+    val interp = CEInterpreter.fromAsyncClient(client)
+    interp.sleep(scala.concurrent.duration.Duration.Zero)
+  }
+
+  test("attempt wraps a successful IO in Right") {
+    val client = clientFixture()
+    val interp = CEInterpreter.fromAsyncClient(client)
+    interp.attempt(IO.pure(42)).map(r => assertEquals(r, Right(42)))
+  }
+
+  test("attempt wraps a failed IO in Left") {
+    val client = clientFixture()
+    val interp = CEInterpreter.fromAsyncClient(client)
+    val boom   = new RuntimeException("boom")
+    interp.attempt(IO.raiseError(boom)).map(r => assertEquals(r, Left(boom)))
+  }
+
+  test("raiseError produces a failed IO with the given throwable") {
+    val client = clientFixture()
+    val interp = CEInterpreter.fromAsyncClient(client)
+    val boom   = new RuntimeException("boom")
+    interp.raiseError[Int](boom).attempt.map(r => assertEquals(r, Left(boom)))
+  }
+
   // -- CEResponseInterceptor.accumulating -------------------------------------
 
   private def getItemMeta(table: String) =
