@@ -259,12 +259,17 @@ object DdbExprSpec extends ZIOSpecDefault {
       },
       test("containsElement encodes element via DynamoDBCodec") {
         val expr = Score.tags.containsElement("bob")
-        interpret(expr) match {
-          case Right(ConditionExpression.Contains(_, av)) =>
-            assertTrue(av == AttributeValue.String("bob"))
-          case Right(other)                               => assertNever(s"expected Contains CE, got: $other")
-          case Left(err)                                  => assertNever(s"interpreter failed: $err")
-        }
+        assert(interpret(expr))(
+          isRight(
+            isSubtype[ConditionExpression.Contains[_]](
+              hasField[ConditionExpression.Contains[_], AttributeValue](
+                "value",
+                _.value,
+                equalTo(AttributeValue.String("bob"))
+              )
+            )
+          )
+        )
       }
     ),
     suite("sealed-trait literal encoding via === (Builtin + schema-aware codec)")(
@@ -274,14 +279,23 @@ object DdbExprSpec extends ZIOSpecDefault {
       // through the standard === path — no special workaround needed.
       test("all-no-field sealed trait: === produces AttributeValue.String") {
         val expr: DdbExpr[Task, Boolean] = Task.priority === Priority.High
-        interpret(expr) match {
-          case Right(ConditionExpression.Equals(_, ConditionExpression.Operand.ValueOperand(av))) =>
-            assertTrue(av == AttributeValue.String("High"))
-          case Right(other)                                                                       =>
-            assertNever(s"expected Equals CE, got: $other")
-          case Left(err)                                                                          =>
-            assertNever(s"interpreter failed: $err")
-        }
+        assert(interpret(expr))(
+          isRight(
+            isSubtype[ConditionExpression.Equals[_]](
+              hasField(
+                "right",
+                _.right,
+                isSubtype[ConditionExpression.Operand.ValueOperand[_]](
+                  hasField[ConditionExpression.Operand.ValueOperand[_], AttributeValue](
+                    "value",
+                    _.value,
+                    equalTo(AttributeValue.String("High"))
+                  )
+                )
+              )
+            )
+          )
+        )
       },
       test("all-no-field sealed trait: DynamoDBCodec encodes as AttributeValue.String") {
         val codec = implicitly[zio.dynamodb.blocks.schema.DynamoDBCodec[Priority]]
@@ -290,33 +304,55 @@ object DdbExprSpec extends ZIOSpecDefault {
       },
       test("mixed sealed trait: === produces Key-discriminator Map for no-field case") {
         val expr: DdbExpr[Task, Boolean] = Task.status === Status.Active
-        interpret(expr) match {
-          case Right(ConditionExpression.Equals(_, ConditionExpression.Operand.ValueOperand(av))) =>
-            assert(av)(
-              isSubtype[AttributeValue.Map](
-                hasField("value", (m: AttributeValue.Map) => m.value.contains(AttributeValue.String("Active")), isTrue)
+        assert(interpret(expr))(
+          isRight(
+            isSubtype[ConditionExpression.Equals[_]](
+              hasField(
+                "right",
+                _.right,
+                isSubtype[ConditionExpression.Operand.ValueOperand[_]](
+                  hasField(
+                    "value",
+                    _.value,
+                    isSubtype[AttributeValue.Map](
+                      hasField(
+                        "value",
+                        (m: AttributeValue.Map) => m.value.contains(AttributeValue.String("Active")),
+                        isTrue
+                      )
+                    )
+                  )
+                )
               )
             )
-          case Right(other)                                                                       =>
-            assertNever(s"expected Equals CE, got: $other")
-          case Left(err)                                                                          =>
-            assertNever(s"interpreter failed: $err")
-        }
+          )
+        )
       },
       test("mixed sealed trait: === produces Key-discriminator Map for record case") {
         val expr: DdbExpr[Task, Boolean] = Task.status === Status.Failed("oops")
-        interpret(expr) match {
-          case Right(ConditionExpression.Equals(_, ConditionExpression.Operand.ValueOperand(av))) =>
-            assert(av)(
-              isSubtype[AttributeValue.Map](
-                hasField("value", (m: AttributeValue.Map) => m.value.contains(AttributeValue.String("Failed")), isTrue)
+        assert(interpret(expr))(
+          isRight(
+            isSubtype[ConditionExpression.Equals[_]](
+              hasField(
+                "right",
+                _.right,
+                isSubtype[ConditionExpression.Operand.ValueOperand[_]](
+                  hasField(
+                    "value",
+                    _.value,
+                    isSubtype[AttributeValue.Map](
+                      hasField(
+                        "value",
+                        (m: AttributeValue.Map) => m.value.contains(AttributeValue.String("Failed")),
+                        isTrue
+                      )
+                    )
+                  )
+                )
               )
             )
-          case Right(other)                                                                       =>
-            assertNever(s"expected Equals CE, got: $other")
-          case Left(err)                                                                          =>
-            assertNever(s"interpreter failed: $err")
-        }
+          )
+        )
       }
     )
   )
