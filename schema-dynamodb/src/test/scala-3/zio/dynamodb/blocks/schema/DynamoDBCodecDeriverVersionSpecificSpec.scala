@@ -21,6 +21,7 @@ import zio.blocks.schema.json.DiscriminatorKind
 import zio.dynamodb.AttributeValue
 import zio.dynamodb.blocks.schema.DynamoDBCodecDeriver
 import zio.test._
+import zio.test.Assertion.{ contains, equalTo, hasField, hasKey, isSome, isSubtype }
 
 object DynamoDBCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
 
@@ -219,11 +220,11 @@ object DynamoDBCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
     suite("data-carrying Scala 3 enum with Key discriminator")(
       test("Circle encodes as singleton Map with case name as key") {
         val codec = codecFor[Shape]
-        codec.encoder(Shape.Circle(5)) match {
-          case m: AttributeValue.Map =>
-            assertTrue(m.value.keys.map(_.value).toList == List("Circle"))
-          case _                     => assertTrue(false)
-        }
+        assert(codec.encoder(Shape.Circle(5)))(
+          isSubtype[AttributeValue.Map](
+            hasField("value", _.value.keys.map(_.value).toList, equalTo(List("Circle")))
+          )
+        )
       },
       test("round-trips Circle") {
         assertTrue(roundTrip[Shape](Shape.Circle(5)) == Right(Shape.Circle(5)))
@@ -246,20 +247,27 @@ object DynamoDBCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
     suite("data-carrying Scala 3 enum with @Modifier.discriminator (Field encoding)")(
       test("Circle encodes as flat Map with 'kind' discriminator field") {
         val codec = codecFor[TaggedShape]
-        codec.encoder(TaggedShape.Circle(7)) match {
-          case m: AttributeValue.Map =>
-            val keys = m.value.keys.map(_.value).toSet
-            assertTrue(keys.contains("kind") && keys.contains("radius") && !keys.contains("Circle"))
-          case _                     => assertTrue(false)
-        }
+        assert(codec.encoder(TaggedShape.Circle(7)))(
+          isSubtype[AttributeValue.Map](
+            hasField(
+              "value",
+              _.value.keys.map(_.value).toSet,
+              contains("kind") && contains("radius") && !contains("Circle")
+            )
+          )
+        )
       },
       test("'kind' discriminator field value is the case name") {
         val codec = codecFor[TaggedShape]
-        codec.encoder(TaggedShape.Circle(7)) match {
-          case m: AttributeValue.Map =>
-            assertTrue(m.value.get(AttributeValue.String("kind")).contains(AttributeValue.String("Circle")))
-          case _                     => assertTrue(false)
-        }
+        assert(codec.encoder(TaggedShape.Circle(7)))(
+          isSubtype[AttributeValue.Map](
+            hasField(
+              "value",
+              _.value.get(AttributeValue.String("kind")),
+              isSome(equalTo(AttributeValue.String("Circle")))
+            )
+          )
+        )
       },
       test("round-trips Circle") {
         assertTrue(roundTrip[TaggedShape](TaggedShape.Circle(7)) == Right(TaggedShape.Circle(7)))
@@ -280,11 +288,11 @@ object DynamoDBCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
     suite("data-carrying Scala 3 enum with @Modifier.caseNaming snake_case")(
       test("CircleShape encodes under 'circle_shape' key") {
         val codec = codecFor[SnakeShape]
-        codec.encoder(SnakeShape.CircleShape(9)) match {
-          case m: AttributeValue.Map =>
-            assertTrue(m.value.keys.map(_.value).toSet == Set("circle_shape"))
-          case _                     => assertTrue(false)
-        }
+        assert(codec.encoder(SnakeShape.CircleShape(9)))(
+          isSubtype[AttributeValue.Map](
+            hasField("value", _.value.keys.map(_.value).toSet, equalTo(Set("circle_shape")))
+          )
+        )
       },
       test("round-trips CircleShape") {
         assertTrue(roundTrip[SnakeShape](SnakeShape.CircleShape(9)) == Right(SnakeShape.CircleShape(9)))
@@ -311,22 +319,22 @@ object DynamoDBCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
     suite("Scala 3 enum with @Modifier.rename on a case")(
       test("renamed case uses the given wire name as Map key") {
         val codec = codecFor[Event]
-        codec.encoder(Event.Click(1, 2)) match {
-          case m: AttributeValue.Map =>
-            assertTrue(m.value.keys.map(_.value).toSet == Set("mouse_click"))
-          case _                     => assertTrue(false)
-        }
+        assert(codec.encoder(Event.Click(1, 2)))(
+          isSubtype[AttributeValue.Map](
+            hasField("value", _.value.keys.map(_.value).toSet, equalTo(Set("mouse_click")))
+          )
+        )
       },
       test("renamed case round-trips") {
         assertTrue(roundTrip[Event](Event.Click(1, 2)) == Right(Event.Click(1, 2)))
       },
       test("un-renamed case uses its original name as Map key") {
         val codec = codecFor[Event]
-        codec.encoder(Event.KeyPress(65)) match {
-          case m: AttributeValue.Map =>
-            assertTrue(m.value.keys.map(_.value).toSet == Set("KeyPress"))
-          case _                     => assertTrue(false)
-        }
+        assert(codec.encoder(Event.KeyPress(65)))(
+          isSubtype[AttributeValue.Map](
+            hasField("value", _.value.keys.map(_.value).toSet, equalTo(Set("KeyPress")))
+          )
+        )
       },
       test("un-renamed case round-trips") {
         assertTrue(roundTrip[Event](Event.KeyPress(65)) == Right(Event.KeyPress(65)))
@@ -443,11 +451,11 @@ object DynamoDBCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
         type Value = Int | Boolean | String | (Int, Boolean) | List[Int] | Unit
         implicit val schema: Schema[Value] = Schema.derived
         val codec                          = codecFor[Value]
-        codec.encoder((1, true)) match {
-          case m: AttributeValue.Map =>
-            assertTrue(m.value.keys.map(_.value).toSet == Set("scala.Tuple2"))
-          case _                     => assertTrue(false)
-        }
+        assert(codec.encoder((1, true)))(
+          isSubtype[AttributeValue.Map](
+            hasField("value", _.value.keys.map(_.value).toSet, equalTo(Set("scala.Tuple2")))
+          )
+        )
       },
       test("Tuple2 member round-trips") {
         type Value = Int | Boolean | String | (Int, Boolean) | List[Int] | Unit
@@ -521,14 +529,15 @@ object DynamoDBCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
         type T2 = Int *: String *: EmptyTuple
         implicit val schema: Schema[T2] = Schema.derived
         val codec                       = codecFor[T2]
-        codec.encoder(1 *: "hi" *: EmptyTuple) match {
-          case AttributeValue.List(items) =>
-            assertTrue(
-              items.toList ==
-                List(AttributeValue.Number(BigDecimal(1)), AttributeValue.String("hi"))
+        assert(codec.encoder(1 *: "hi" *: EmptyTuple))(
+          isSubtype[AttributeValue.List](
+            hasField(
+              "value",
+              _.value.toList,
+              equalTo(List(AttributeValue.Number(BigDecimal(1)), AttributeValue.String("hi")))
             )
-          case _                          => assertTrue(false)
-        }
+          )
+        )
       },
       test("2-element tuple round-trips") {
         type T2 = Int *: String *: EmptyTuple
@@ -582,17 +591,21 @@ object DynamoDBCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
       test("IArray[Int] encodes as AttributeValue.List") {
         implicit val s: Schema[IArray[Int]] = Schema.derived
         val codec                           = codecFor[IArray[Int]]
-        codec.encoder(IArray(1, 2, 3)) match {
-          case AttributeValue.List(items) =>
-            assertTrue(
-              items.toList == List(
-                AttributeValue.Number(BigDecimal(1)),
-                AttributeValue.Number(BigDecimal(2)),
-                AttributeValue.Number(BigDecimal(3))
+        assert(codec.encoder(IArray(1, 2, 3)))(
+          isSubtype[AttributeValue.List](
+            hasField(
+              "value",
+              _.value.toList,
+              equalTo(
+                List(
+                  AttributeValue.Number(BigDecimal(1)),
+                  AttributeValue.Number(BigDecimal(2)),
+                  AttributeValue.Number(BigDecimal(3))
+                )
               )
             )
-          case _                          => assertTrue(false)
-        }
+          )
+        )
       },
       test("IArray[Int] round-trips by element comparison") {
         implicit val s: Schema[IArray[Int]] = Schema.derived
@@ -627,28 +640,34 @@ object DynamoDBCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
     suite("recursive parameterised enum with @Modifier.rename on case and fields")(
       test("Cons encodes under renamed case key 'cons'") {
         val codec = codecFor[Chain[Int]]
-        codec.encoder(Chain.Cons(1, Chain.Nil)) match {
-          case m: AttributeValue.Map =>
-            assertTrue(m.value.keys.map(_.value).toSet == Set("cons"))
-          case _                     => assertTrue(false)
-        }
+        assert(codec.encoder(Chain.Cons(1, Chain.Nil)))(
+          isSubtype[AttributeValue.Map](
+            hasField("value", _.value.keys.map(_.value).toSet, equalTo(Set("cons")))
+          )
+        )
       },
       test("Cons inner Map uses renamed field keys 'hd' and 'tl'") {
         val codec = codecFor[Chain[Int]]
-        codec.encoder(Chain.Cons(1, Chain.Nil)) match {
-          case AttributeValue.Map(outer) =>
-            outer.get(AttributeValue.String("cons")) match {
-              case Some(AttributeValue.Map(inner)) =>
-                assertTrue(
-                  inner.contains(AttributeValue.String("hd")) &&
-                    inner.contains(AttributeValue.String("tl")) &&
-                    !inner.contains(AttributeValue.String("head")) &&
-                    !inner.contains(AttributeValue.String("tail"))
+        assert(codec.encoder(Chain.Cons(1, Chain.Nil)))(
+          isSubtype[AttributeValue.Map](
+            hasField(
+              "value",
+              _.value.get(AttributeValue.String("cons")),
+              isSome(
+                isSubtype[AttributeValue.Map](
+                  hasField(
+                    "value",
+                    _.value,
+                    hasKey(AttributeValue.String("hd")) &&
+                      hasKey(AttributeValue.String("tl")) &&
+                      !hasKey(AttributeValue.String("head")) &&
+                      !hasKey(AttributeValue.String("tail"))
+                  )
                 )
-              case _                               => assertTrue(false)
-            }
-          case _                         => assertTrue(false)
-        }
+              )
+            )
+          )
+        )
       },
       test("Chain.Nil round-trips") {
         assertTrue(roundTrip[Chain[Int]](Chain.Nil) == Right(Chain.Nil))
@@ -673,12 +692,15 @@ object DynamoDBCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
       test("Cons encodes using only its record fields — no wrapper key") {
         val codec =
           chainDoubleSchema.deriving(DynamoDBCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None)).derive
-        codec.encoder(Chain.Cons(1.0, Chain.Nil)) match {
-          case m: AttributeValue.Map =>
-            val keys = m.value.keys.map(_.value).toSet
-            assertTrue(keys == Set("hd", "tl") && !keys.contains("cons"))
-          case _                     => assertTrue(false)
-        }
+        assert(codec.encoder(Chain.Cons(1.0, Chain.Nil)))(
+          isSubtype[AttributeValue.Map](
+            hasField(
+              "value",
+              _.value.keys.map(_.value).toSet,
+              equalTo(Set("hd", "tl")) && !contains("cons")
+            )
+          )
+        )
       },
       test("Chain.Nil encodes as empty AttributeValue.Map") {
         val codec =
@@ -746,41 +768,50 @@ object DynamoDBCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
         // Direction.North stored as "North" (enumValuesAsStrings=true), but
         // dynamicValueCodec lacks schema context so produces {"North": {}}.
         val dv = summon[Schema[Direction]].toDynamicValue(Direction.North)
-        dvCodec.encoder(dv) match {
-          case m: AttributeValue.Map =>
-            assertTrue(
-              m.value.get(AttributeValue.String("North")).contains(AttributeValue.Map.empty)
+        assert(dvCodec.encoder(dv))(
+          isSubtype[AttributeValue.Map](
+            hasField(
+              "value",
+              _.value.get(AttributeValue.String("North")),
+              isSome(equalTo(AttributeValue.Map.empty))
             )
-          case _                     => assertTrue(false)
-        }
+          )
+        )
       },
       test("data-carrying enum case encodes as Key-discriminator Map with inner fields") {
         // Shape.Circle(5) stored as {"Circle": {"radius": 5}} — matches here.
         val dv = summon[Schema[Shape]].toDynamicValue(Shape.Circle(5))
-        dvCodec.encoder(dv) match {
-          case outer: AttributeValue.Map =>
-            outer.value.get(AttributeValue.String("Circle")) match {
-              case Some(inner: AttributeValue.Map) =>
-                assertTrue(inner.value.contains(AttributeValue.String("radius")))
-              case _                               => assertTrue(false)
-            }
-          case _                         => assertTrue(false)
-        }
+        assert(dvCodec.encoder(dv))(
+          isSubtype[AttributeValue.Map](
+            hasField(
+              "value",
+              _.value.get(AttributeValue.String("Circle")),
+              isSome(
+                isSubtype[AttributeValue.Map](hasField("value", _.value, hasKey(AttributeValue.String("radius"))))
+              )
+            )
+          )
+        )
       },
       test("multi-field data-carrying enum case encodes all fields in inner Map") {
         val dv = summon[Schema[Shape]].toDynamicValue(Shape.Rect(10, 20))
-        dvCodec.encoder(dv) match {
-          case outer: AttributeValue.Map =>
-            outer.value.get(AttributeValue.String("Rect")) match {
-              case Some(inner: AttributeValue.Map) =>
-                assertTrue(
-                  inner.value.contains(AttributeValue.String("width")) &&
-                    inner.value.contains(AttributeValue.String("height"))
+        assert(dvCodec.encoder(dv))(
+          isSubtype[AttributeValue.Map](
+            hasField(
+              "value",
+              _.value.get(AttributeValue.String("Rect")),
+              isSome(
+                isSubtype[AttributeValue.Map](
+                  hasField(
+                    "value",
+                    _.value,
+                    hasKey(AttributeValue.String("width")) && hasKey(AttributeValue.String("height"))
+                  )
                 )
-              case _                               => assertTrue(false)
-            }
-          case _                         => assertTrue(false)
-        }
+              )
+            )
+          )
+        )
       }
     )
 
@@ -806,14 +837,20 @@ object DynamoDBCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
       },
       test("record with opaque type fields encodes each field as its underlying primitive type") {
         val codec = codecFor[LineItem]
-        codec.encoder(LineItem(InvoiceId("INV-001"), Quantity(3))) match {
-          case AttributeValue.Map(m) =>
-            assertTrue(
-              m.get(AttributeValue.String("invoiceId")).contains(AttributeValue.String("INV-001")) &&
-                m.get(AttributeValue.String("qty")).contains(AttributeValue.Number(BigDecimal(3)))
-            )
-          case _                     => assertTrue(false)
-        }
+        assert(codec.encoder(LineItem(InvoiceId("INV-001"), Quantity(3))))(
+          isSubtype[AttributeValue.Map](
+            hasField[AttributeValue.Map, Option[AttributeValue]](
+              "value",
+              _.value.get(AttributeValue.String("invoiceId")),
+              isSome(equalTo(AttributeValue.String("INV-001")))
+            ) &&
+              hasField[AttributeValue.Map, Option[AttributeValue]](
+                "value",
+                _.value.get(AttributeValue.String("qty")),
+                isSome(equalTo(AttributeValue.Number(BigDecimal(3))))
+              )
+          )
+        )
       },
       test("record with opaque type fields round-trips") {
         val item = LineItem(InvoiceId("INV-001"), Quantity(3))
