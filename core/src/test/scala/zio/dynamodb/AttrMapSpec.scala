@@ -18,6 +18,7 @@ package zio.dynamodb
 
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.test._
+import zio.test.Assertion.{ equalTo, hasField, isSome, isSubtype }
 
 object AttrMapSpec extends ZIOSpecDefault {
 
@@ -37,11 +38,15 @@ object AttrMapSpec extends ZIOSpecDefault {
   private val toAttributeValueSuite = suite("toAttributeValue")(
     test("converts AttrMap to AttributeValue.Map") {
       val m = Item("id" -> "1")
-      m.toAttributeValue match {
-        case AttributeValue.Map(map) =>
-          assertTrue(map.get(AttributeValue.String("id")).contains(AttributeValue.String("1")))
-        case _                       => assertTrue(false)
-      }
+      assert(m.toAttributeValue)(
+        isSubtype[AttributeValue.Map](
+          hasField(
+            "value",
+            _.value.get(AttributeValue.String("id")),
+            isSome(equalTo(AttributeValue.String("1"): AttributeValue))
+          )
+        )
+      )
     }
   )
 

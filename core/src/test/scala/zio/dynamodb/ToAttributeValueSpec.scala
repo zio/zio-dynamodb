@@ -18,6 +18,7 @@ package zio.dynamodb
 
 import zio.blocks.chunk.Chunk
 import zio.test._
+import zio.test.Assertion.{ equalTo, hasField, isSome, isSubtype }
 
 object ToAttributeValueSpec extends ZIOSpecDefault {
 
@@ -93,48 +94,64 @@ object ToAttributeValueSpec extends ZIOSpecDefault {
     ),
     suite("collection types")(
       test("List[String] becomes AttributeValue.List") {
-        val result = to(List("a", "b"))
-        result match {
-          case AttributeValue.List(xs) =>
-            assertTrue(xs.toList == List(AttributeValue.String("a"), AttributeValue.String("b")))
-          case _                       => assertTrue(false)
-        }
+        assert(to(List("a", "b")))(
+          isSubtype[AttributeValue.List](
+            hasField(
+              "value",
+              _.value.toList,
+              equalTo(List[AttributeValue](AttributeValue.String("a"), AttributeValue.String("b")))
+            )
+          )
+        )
       },
       test("Iterable[Int] becomes AttributeValue.List") {
-        val result = to(Iterable(1, 2))
-        result match {
-          case AttributeValue.List(xs) =>
-            assertTrue(xs.toList == List(AttributeValue.Number(BigDecimal(1)), AttributeValue.Number(BigDecimal(2))))
-          case _                       => assertTrue(false)
-        }
+        assert(to(Iterable(1, 2)))(
+          isSubtype[AttributeValue.List](
+            hasField(
+              "value",
+              _.value.toList,
+              equalTo(List[AttributeValue](AttributeValue.Number(BigDecimal(1)), AttributeValue.Number(BigDecimal(2))))
+            )
+          )
+        )
       }
     ),
     suite("AttrMap")(
       test("AttrMap becomes AttributeValue.Map with AttributeValue.String keys") {
-        val m      = Item("id" -> "1", "n" -> 42)
-        val result = to(m)
-        result match {
-          case AttributeValue.Map(map) =>
-            assertTrue(
-              map.get(AttributeValue.String("id")).contains(AttributeValue.String("1")) &&
-                map.get(AttributeValue.String("n")).contains(AttributeValue.Number(BigDecimal(42)))
-            )
-          case _                       => assertTrue(false)
-        }
+        val m = Item("id" -> "1", "n" -> 42)
+        assert(to(m))(
+          isSubtype[AttributeValue.Map](
+            hasField(
+              "value",
+              (m: AttributeValue.Map) => m.value.get(AttributeValue.String("id")),
+              isSome(equalTo(AttributeValue.String("1"): AttributeValue))
+            ) &&
+              hasField(
+                "value",
+                (m: AttributeValue.Map) => m.value.get(AttributeValue.String("n")),
+                isSome(equalTo(AttributeValue.Number(BigDecimal(42)): AttributeValue))
+              )
+          )
+        )
       }
     ),
     suite("Map[String, A]")(
       test("Map[String, Int] becomes AttributeValue.Map") {
-        val m      = Map("a" -> 1, "b" -> 2)
-        val result = to(m)
-        result match {
-          case AttributeValue.Map(map) =>
-            assertTrue(
-              map.get(AttributeValue.String("a")).contains(AttributeValue.Number(BigDecimal(1))) &&
-                map.get(AttributeValue.String("b")).contains(AttributeValue.Number(BigDecimal(2)))
-            )
-          case _                       => assertTrue(false)
-        }
+        val m = Map("a" -> 1, "b" -> 2)
+        assert(to(m))(
+          isSubtype[AttributeValue.Map](
+            hasField(
+              "value",
+              (m: AttributeValue.Map) => m.value.get(AttributeValue.String("a")),
+              isSome(equalTo(AttributeValue.Number(BigDecimal(1)): AttributeValue))
+            ) &&
+              hasField(
+                "value",
+                (m: AttributeValue.Map) => m.value.get(AttributeValue.String("b")),
+                isSome(equalTo(AttributeValue.Number(BigDecimal(2)): AttributeValue))
+              )
+          )
+        )
       }
     ),
     suite("AttributeValue identity")(
