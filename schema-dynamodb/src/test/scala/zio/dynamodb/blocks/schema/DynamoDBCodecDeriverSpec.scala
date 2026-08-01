@@ -22,7 +22,7 @@ import zio.blocks.schema.{ DynamicValue, Modifier, NameMapper, PrimitiveValue, S
 import zio.blocks.schema.json.{ DiscriminatorKind, Json }
 import zio.dynamodb.AttributeValue
 import zio.test._
-import zio.test.Assertion.{ anything, equalTo, hasField, hasSize, isSubtype }
+import zio.test.Assertion.{ anything, equalTo, hasField, hasSize, isSome, isSubtype }
 
 import java.time._
 import java.util.{ Currency, UUID }
@@ -608,14 +608,15 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
     test("Array[Byte] field encodes as AttributeValue.Binary inside the Map") {
       val codec = codecFor[BinaryPayload]
       val bytes = Array[Byte](1, 2, 3)
-      codec.encoder(BinaryPayload("e1", bytes)) match {
-        case m: AttributeValue.Map =>
-          m.value.get(AttributeValue.String("payload")) match {
-            case Some(AttributeValue.Binary(data)) => assertTrue(data.toList == List[Byte](1, 2, 3))
-            case other                             => assertTrue(false)
-          }
-        case _                     => assertTrue(false)
-      }
+      assert(codec.encoder(BinaryPayload("e1", bytes)))(
+        isSubtype[AttributeValue.Map](
+          hasField(
+            "value",
+            _.value.get(AttributeValue.String("payload")),
+            isSome(isSubtype[AttributeValue.Binary](hasField("value", _.value.toList, equalTo(List[Byte](1, 2, 3)))))
+          )
+        )
+      )
     },
     test("case class with Array[Byte] field round-trips") {
       val codec  = codecFor[BinaryPayload]
