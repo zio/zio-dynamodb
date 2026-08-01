@@ -121,15 +121,15 @@ object ToAttributeValueSpec extends ZIOSpecDefault {
         val m = Item("id" -> "1", "n" -> 42)
         assert(to(m))(
           isSubtype[AttributeValue.Map](
-            hasField(
+            hasField[AttributeValue.Map, Option[AttributeValue]](
               "value",
-              (m: AttributeValue.Map) => m.value.get(AttributeValue.String("id")),
-              isSome(equalTo(AttributeValue.String("1"): AttributeValue))
+              _.value.get(AttributeValue.String("id")),
+              isSome(equalTo(AttributeValue.String("1")))
             ) &&
-              hasField(
+              hasField[AttributeValue.Map, Option[AttributeValue]](
                 "value",
-                (m: AttributeValue.Map) => m.value.get(AttributeValue.String("n")),
-                isSome(equalTo(AttributeValue.Number(BigDecimal(42)): AttributeValue))
+                _.value.get(AttributeValue.String("n")),
+                isSome(equalTo(AttributeValue.Number(BigDecimal(42))))
               )
           )
         )
@@ -140,15 +140,15 @@ object ToAttributeValueSpec extends ZIOSpecDefault {
         val m = Map("a" -> 1, "b" -> 2)
         assert(to(m))(
           isSubtype[AttributeValue.Map](
-            hasField(
+            hasField[AttributeValue.Map, Option[AttributeValue]](
               "value",
-              (m: AttributeValue.Map) => m.value.get(AttributeValue.String("a")),
-              isSome(equalTo(AttributeValue.Number(BigDecimal(1)): AttributeValue))
+              _.value.get(AttributeValue.String("a")),
+              isSome(equalTo(AttributeValue.Number(BigDecimal(1))))
             ) &&
-              hasField(
+              hasField[AttributeValue.Map, Option[AttributeValue]](
                 "value",
-                (m: AttributeValue.Map) => m.value.get(AttributeValue.String("b")),
-                isSome(equalTo(AttributeValue.Number(BigDecimal(2)): AttributeValue))
+                _.value.get(AttributeValue.String("b")),
+                isSome(equalTo(AttributeValue.Number(BigDecimal(2))))
               )
           )
         )

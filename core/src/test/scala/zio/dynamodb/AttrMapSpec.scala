@@ -40,10 +40,10 @@ object AttrMapSpec extends ZIOSpecDefault {
       val m = Item("id" -> "1")
       assert(m.toAttributeValue)(
         isSubtype[AttributeValue.Map](
-          hasField(
+          hasField[AttributeValue.Map, Option[AttributeValue]](
             "value",
             _.value.get(AttributeValue.String("id")),
-            isSome(equalTo(AttributeValue.String("1"): AttributeValue))
+            isSome(equalTo(AttributeValue.String("1")))
           )
         )
       )
