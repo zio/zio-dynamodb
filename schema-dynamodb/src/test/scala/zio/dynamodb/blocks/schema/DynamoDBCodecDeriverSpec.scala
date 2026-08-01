@@ -22,6 +22,7 @@ import zio.blocks.schema.{ DynamicValue, Modifier, NameMapper, PrimitiveValue, S
 import zio.blocks.schema.json.{ DiscriminatorKind, Json }
 import zio.dynamodb.AttributeValue
 import zio.test._
+import zio.test.Assertion.{ anything, isSubtype }
 
 import java.time._
 import java.util.{ Currency, UUID }
@@ -2076,10 +2077,7 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
     suite("ReadBothWriteNew — encodes Binary, decodes both")(
       test("Chunk[Byte] encodes as AttributeValue.Binary") {
         val codec = compatCodecForNew[Chunk[Byte]]
-        codec.encoder(Chunk[Byte](1, 2, 3)) match {
-          case _: AttributeValue.Binary => assertTrue(true)
-          case _                        => assertTrue(false)
-        }
+        assert(codec.encoder(Chunk[Byte](1, 2, 3)))(isSubtype[AttributeValue.Binary](anything))
       },
       test("Chunk[Byte] decodes from AttributeValue.Binary") {
         val codec = compatCodecForNew[Chunk[Byte]]
@@ -2104,10 +2102,7 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
     suite("ReadNewWriteNew — encodes Binary, decodes Binary only (default)")(
       test("Chunk[Byte] encodes as AttributeValue.Binary") {
         val codec = codecFor[Chunk[Byte]]
-        codec.encoder(Chunk[Byte](1, 2)) match {
-          case _: AttributeValue.Binary => assertTrue(true)
-          case _                        => assertTrue(false)
-        }
+        assert(codec.encoder(Chunk[Byte](1, 2)))(isSubtype[AttributeValue.Binary](anything))
       },
       test("Chunk[Byte] rejects legacy AttributeValue.List") {
         val codec = codecFor[Chunk[Byte]]
