@@ -22,7 +22,7 @@ import zio.blocks.schema.{ DynamicValue, Modifier, NameMapper, PrimitiveValue, S
 import zio.blocks.schema.json.{ DiscriminatorKind, Json }
 import zio.dynamodb.AttributeValue
 import zio.test._
-import zio.test.Assertion.{ anything, isSubtype }
+import zio.test.Assertion.{ anything, equalTo, hasField, hasSize, isSubtype }
 
 import java.time._
 import java.util.{ Currency, UUID }
@@ -1476,10 +1476,7 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
       },
       test("Sequence → AttributeValue.List") {
         val seq = new DynamicValue.Sequence(Chunk(DynamicValue.string("a"), DynamicValue.int(1)))
-        dvCodec.encoder(seq) match {
-          case AttributeValue.List(items) => assertTrue(items.size == 2)
-          case _                          => assertTrue(false)
-        }
+        assert(dvCodec.encoder(seq))(isSubtype[AttributeValue.List](hasField("value", _.value, hasSize(equalTo(2)))))
       },
       test("Record → AttributeValue.Map") {
         val rec = new DynamicValue.Record(Chunk("x" -> DynamicValue.int(1)))
@@ -2068,10 +2065,9 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
       },
       test("Array[Byte] encodes as AttributeValue.List of Number") {
         val codec = Schema.derived[Array[Byte]].deriving(readBothWriteOldDeriver).derive
-        codec.encoder(Array[Byte](4, 5)) match {
-          case AttributeValue.List(items) => assertTrue(items.size == 2)
-          case _                          => assertTrue(false)
-        }
+        assert(codec.encoder(Array[Byte](4, 5)))(
+          isSubtype[AttributeValue.List](hasField("value", _.value, hasSize(equalTo(2))))
+        )
       }
     ),
     suite("ReadBothWriteNew — encodes Binary, decodes both")(
