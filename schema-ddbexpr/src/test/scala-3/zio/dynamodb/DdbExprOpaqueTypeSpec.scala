@@ -55,21 +55,35 @@ object DdbExprOpaqueTypeSpec extends ZIOSpecDefault {
     suite("filter expressions via === (schema-aware encoding)")(
       test("opaque String field === encodes as AttributeValue.String") {
         val expr: DdbExpr[Invoice, Boolean] = Invoice.id === InvoiceId("INV-001")
-        interpret(expr) match {
-          case Right(ConditionExpression.Equals(_, ConditionExpression.Operand.ValueOperand(av))) =>
-            assertTrue(av == AttributeValue.String("INV-001"))
-          case Right(other) => assertNever(s"expected Equals CE, got: $other")
-          case Left(err)    => assertNever(s"interpreter failed: $err")
-        }
+        assert(interpret(expr))(
+          isRight(
+            isSubtype[ConditionExpression.Equals[_]](
+              hasField(
+                "right",
+                _.right,
+                isSubtype[ConditionExpression.Operand.ValueOperand[_]](
+                  hasField("value", _.value, equalTo(AttributeValue.String("INV-001")))
+                )
+              )
+            )
+          )
+        )
       },
       test("opaque Int field === encodes as AttributeValue.Number") {
         val expr: DdbExpr[Invoice, Boolean] = Invoice.amount === Amount(42)
-        interpret(expr) match {
-          case Right(ConditionExpression.Equals(_, ConditionExpression.Operand.ValueOperand(av))) =>
-            assertTrue(av == AttributeValue.Number(BigDecimal(42)))
-          case Right(other) => assertNever(s"expected Equals CE, got: $other")
-          case Left(err)    => assertNever(s"interpreter failed: $err")
-        }
+        assert(interpret(expr))(
+          isRight(
+            isSubtype[ConditionExpression.Equals[_]](
+              hasField(
+                "right",
+                _.right,
+                isSubtype[ConditionExpression.Operand.ValueOperand[_]](
+                  hasField("value", _.value, equalTo(AttributeValue.Number(BigDecimal(42))))
+                )
+              )
+            )
+          )
+        )
       },
       test("opaque Int field > literal renders via Builtin path") {
         val expr: DdbExpr[Invoice, Boolean] = Invoice.amount > Amount(0)

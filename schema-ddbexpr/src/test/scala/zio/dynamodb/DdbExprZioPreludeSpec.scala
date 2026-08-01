@@ -78,21 +78,43 @@ object DdbExprZioPreludeSpec extends ZIOSpecDefault {
     suite("filter expressions via === (schema-aware encoding)")(
       test("Newtype String field === encodes as AttributeValue.String") {
         val expr: DdbExpr[Product, Boolean] = Product.userId === UserId("u-1")
-        interpret(expr) match {
-          case Right(ConditionExpression.Equals(_, ConditionExpression.Operand.ValueOperand(av))) =>
-            assertTrue(av == AttributeValue.String("u-1"))
-          case Right(other)                                                                       => assertNever(s"expected Equals CE, got: $other")
-          case Left(err)                                                                          => assertNever(s"interpreter failed: $err")
-        }
+        assert(interpret(expr))(
+          isRight(
+            isSubtype[ConditionExpression.Equals[_]](
+              hasField(
+                "right",
+                _.right,
+                isSubtype[ConditionExpression.Operand.ValueOperand[_]](
+                  hasField[ConditionExpression.Operand.ValueOperand[_], AttributeValue](
+                    "value",
+                    _.value,
+                    equalTo(AttributeValue.String("u-1"))
+                  )
+                )
+              )
+            )
+          )
+        )
       },
       test("Subtype Int field === encodes as AttributeValue.Number") {
         val expr: DdbExpr[Product, Boolean] = Product.weight === Weight(42)
-        interpret(expr) match {
-          case Right(ConditionExpression.Equals(_, ConditionExpression.Operand.ValueOperand(av))) =>
-            assertTrue(av == AttributeValue.Number(BigDecimal(42)))
-          case Right(other)                                                                       => assertNever(s"expected Equals CE, got: $other")
-          case Left(err)                                                                          => assertNever(s"interpreter failed: $err")
-        }
+        assert(interpret(expr))(
+          isRight(
+            isSubtype[ConditionExpression.Equals[_]](
+              hasField(
+                "right",
+                _.right,
+                isSubtype[ConditionExpression.Operand.ValueOperand[_]](
+                  hasField[ConditionExpression.Operand.ValueOperand[_], AttributeValue](
+                    "value",
+                    _.value,
+                    equalTo(AttributeValue.Number(BigDecimal(42)))
+                  )
+                )
+              )
+            )
+          )
+        )
       },
       test("Subtype Int field > literal renders via Builtin path") {
         val expr: DdbExpr[Product, Boolean] = Product.weight > Weight(0)
@@ -165,12 +187,20 @@ object DdbExprZioPreludeSpec extends ZIOSpecDefault {
     suite("codec encoding — explicit Newtype/Subtype Schema")(
       test("Product encodes with primitive (not nested Map) field values") {
         val codec = Product.schema.deriving(DynamoDBCodecDeriver).derive
-        codec.encoder(Product(UserId("u-1"), Weight(42))) match {
-          case AttributeValue.Map(fields) =>
-            assertTrue(fields.get(AttributeValue.String("userId")).contains(AttributeValue.String("u-1"))) &&
-            assertTrue(fields.get(AttributeValue.String("weight")).contains(AttributeValue.Number(BigDecimal(42))))
-          case other                      => assertNever(s"expected Map, got: $other")
-        }
+        assert(codec.encoder(Product(UserId("u-1"), Weight(42))))(
+          isSubtype[AttributeValue.Map](
+            hasField[AttributeValue.Map, Option[AttributeValue]](
+              "value",
+              _.value.get(AttributeValue.String("userId")),
+              isSome(equalTo(AttributeValue.String("u-1")))
+            ) &&
+              hasField[AttributeValue.Map, Option[AttributeValue]](
+                "value",
+                _.value.get(AttributeValue.String("weight")),
+                isSome(equalTo(AttributeValue.Number(BigDecimal(42))))
+              )
+          )
+        )
       },
       test("Product round-trips through encode/decode") {
         val codec   = Product.schema.deriving(DynamoDBCodecDeriver).derive
