@@ -22,6 +22,7 @@ object AttributeValueSpec extends ZIOSpecDefault {
 
   def spec = suite("AttributeValue")(
     showTypeSuite,
+    binarySuite,
     listSuite,
     numberSetSuite,
     stringSetSuite,
@@ -58,6 +59,30 @@ object AttributeValueSpec extends ZIOSpecDefault {
     },
     test("StringSet") {
       assertTrue(AttributeValue.StringSet(Set("a")).showType == "AttributeValue.StringSet")
+    }
+  )
+
+  private val binarySuite = suite("AttributeValue.Binary")(
+    test("equal Binary values with the same bytes are equal") {
+      assertTrue(AttributeValue.Binary(Array[Byte](1, 2, 3)) == AttributeValue.Binary(Array[Byte](1, 2, 3)))
+    },
+    test("Binary is not equal to a non-Binary value") {
+      assertTrue(AttributeValue.Binary(Array[Byte](1, 2, 3)) != AttributeValue.String("nope"))
+    },
+    test("hashCode is consistent with equals") {
+      assertTrue(
+        AttributeValue.Binary(Array[Byte](1, 2, 3)).hashCode == AttributeValue.Binary(Array[Byte](1, 2, 3)).hashCode
+      )
+    },
+    test("toListOfNumbers produces the schema1 List-of-Number representation") {
+      val list = AttributeValue.Binary.toListOfNumbers(Array[Byte](1, 2, 3))
+      assertTrue(
+        list.value.toList == List(
+          AttributeValue.Number(BigDecimal(1)),
+          AttributeValue.Number(BigDecimal(2)),
+          AttributeValue.Number(BigDecimal(3))
+        )
+      )
     }
   )
 

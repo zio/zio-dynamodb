@@ -22,6 +22,7 @@ import zio.blocks.schema.{ DynamicValue, Modifier, NameMapper, PrimitiveValue, S
 import zio.blocks.schema.json.{ DiscriminatorKind, Json }
 import zio.dynamodb.AttributeValue
 import zio.test._
+import zio.test.Assertion.{ anything, equalTo, hasField, hasSize, isSubtype }
 
 import java.time._
 import java.util.{ Currency, UUID }
@@ -1475,10 +1476,7 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
       },
       test("Sequence → AttributeValue.List") {
         val seq = new DynamicValue.Sequence(Chunk(DynamicValue.string("a"), DynamicValue.int(1)))
-        dvCodec.encoder(seq) match {
-          case AttributeValue.List(items) => assertTrue(items.size == 2)
-          case _                          => assertTrue(false)
-        }
+        assert(dvCodec.encoder(seq))(isSubtype[AttributeValue.List](hasField("value", _.value, hasSize(equalTo(2)))))
       },
       test("Record → AttributeValue.Map") {
         val rec = new DynamicValue.Record(Chunk("x" -> DynamicValue.int(1)))
@@ -1567,6 +1565,72 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
             AttributeValue.String("Z")
         )
       },
+      test("YearMonth primitive → AttributeValue.String") {
+        val t = java.time.YearMonth.of(2024, 3)
+        assertTrue(
+          dvCodec.encoder(DynamicValue.Primitive(PrimitiveValue.YearMonth(t))) == AttributeValue.String(t.toString)
+        )
+      },
+      test("MonthDay primitive → AttributeValue.String") {
+        val t = java.time.MonthDay.of(3, 15)
+        assertTrue(
+          dvCodec.encoder(DynamicValue.Primitive(PrimitiveValue.MonthDay(t))) == AttributeValue.String(t.toString)
+        )
+      },
+      test("Duration primitive → AttributeValue.String") {
+        val t = java.time.Duration.ofMinutes(90)
+        assertTrue(
+          dvCodec.encoder(DynamicValue.Primitive(PrimitiveValue.Duration(t))) == AttributeValue.String(t.toString)
+        )
+      },
+      test("Period primitive → AttributeValue.String") {
+        val t = java.time.Period.of(1, 2, 3)
+        assertTrue(
+          dvCodec.encoder(DynamicValue.Primitive(PrimitiveValue.Period(t))) == AttributeValue.String(t.toString)
+        )
+      },
+      test("LocalDate primitive → AttributeValue.String") {
+        val t = java.time.LocalDate.of(2024, 1, 15)
+        assertTrue(
+          dvCodec.encoder(DynamicValue.Primitive(PrimitiveValue.LocalDate(t))) == AttributeValue.String(t.toString)
+        )
+      },
+      test("LocalTime primitive → AttributeValue.String") {
+        val t = java.time.LocalTime.of(10, 30)
+        assertTrue(
+          dvCodec.encoder(DynamicValue.Primitive(PrimitiveValue.LocalTime(t))) == AttributeValue.String(t.toString)
+        )
+      },
+      test("LocalDateTime primitive → AttributeValue.String") {
+        val t = java.time.LocalDateTime.of(2024, 1, 15, 10, 30)
+        assertTrue(
+          dvCodec.encoder(DynamicValue.Primitive(PrimitiveValue.LocalDateTime(t))) == AttributeValue.String(
+            t.toString
+          )
+        )
+      },
+      test("OffsetTime primitive → AttributeValue.String") {
+        val t = java.time.OffsetTime.of(10, 30, 0, 0, java.time.ZoneOffset.UTC)
+        assertTrue(
+          dvCodec.encoder(DynamicValue.Primitive(PrimitiveValue.OffsetTime(t))) == AttributeValue.String(t.toString)
+        )
+      },
+      test("OffsetDateTime primitive → AttributeValue.String") {
+        val t = java.time.OffsetDateTime.of(2024, 1, 15, 10, 30, 0, 0, java.time.ZoneOffset.UTC)
+        assertTrue(
+          dvCodec.encoder(DynamicValue.Primitive(PrimitiveValue.OffsetDateTime(t))) == AttributeValue.String(
+            t.toString
+          )
+        )
+      },
+      test("ZonedDateTime primitive → AttributeValue.String") {
+        val t = java.time.ZonedDateTime.of(2024, 1, 15, 10, 30, 0, 0, java.time.ZoneId.of("Europe/London"))
+        assertTrue(
+          dvCodec.encoder(DynamicValue.Primitive(PrimitiveValue.ZonedDateTime(t))) == AttributeValue.String(
+            t.toString
+          )
+        )
+      },
       test("Variant no-field case → Key-discriminator Map with empty inner") {
         dvCodec.encoder(DynamicValue.Variant("Square", new DynamicValue.Record(Chunk.empty))) match {
           case m: AttributeValue.Map =>
@@ -1586,6 +1650,16 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
             }
           case _                         => assertTrue(false)
         }
+      },
+      test("Variant with a non-Record inner value encodes case name directly, without a Map wrapper") {
+        dvCodec.encoder(DynamicValue.Variant("X", DynamicValue.Primitive(PrimitiveValue.Int(5)))) match {
+          case AttributeValue.String(s) => assertTrue(s == "X")
+          case _                        => assertTrue(false)
+        }
+      },
+      test("DynamicValue.Map is not supported and throws") {
+        val badDv = new DynamicValue.Map(Chunk.empty)
+        assertTrue(scala.util.Try(dvCodec.encoder(badDv)).isFailure)
       }
     ),
     suite("decoder")(
@@ -1637,6 +1711,16 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
       },
       test("unsupported AttributeValue type returns Left") {
         assertTrue(dvCodec.decoder(AttributeValue.BinarySet(Iterable.empty)).isLeft)
+      },
+      test("decode error in a nested List element propagates") {
+        val av = AttributeValue.List(List(AttributeValue.String("ok"), AttributeValue.BinarySet(Iterable.empty)))
+        assertTrue(dvCodec.decoder(av).isLeft)
+      },
+      test("decode error in a nested Map value propagates") {
+        val av = AttributeValue.Map(
+          Map(AttributeValue.String("k") -> AttributeValue.BinarySet(Iterable.empty))
+        )
+        assertTrue(dvCodec.decoder(av).isLeft)
       }
     ),
     // Null vs Unit conventions — see dynamicValueCodec scaladoc for the full rationale.
@@ -1981,19 +2065,15 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
       },
       test("Array[Byte] encodes as AttributeValue.List of Number") {
         val codec = Schema.derived[Array[Byte]].deriving(readBothWriteOldDeriver).derive
-        codec.encoder(Array[Byte](4, 5)) match {
-          case AttributeValue.List(items) => assertTrue(items.size == 2)
-          case _                          => assertTrue(false)
-        }
+        assert(codec.encoder(Array[Byte](4, 5)))(
+          isSubtype[AttributeValue.List](hasField("value", _.value, hasSize(equalTo(2))))
+        )
       }
     ),
     suite("ReadBothWriteNew — encodes Binary, decodes both")(
       test("Chunk[Byte] encodes as AttributeValue.Binary") {
         val codec = compatCodecForNew[Chunk[Byte]]
-        codec.encoder(Chunk[Byte](1, 2, 3)) match {
-          case _: AttributeValue.Binary => assertTrue(true)
-          case _                        => assertTrue(false)
-        }
+        assert(codec.encoder(Chunk[Byte](1, 2, 3)))(isSubtype[AttributeValue.Binary](anything))
       },
       test("Chunk[Byte] decodes from AttributeValue.Binary") {
         val codec = compatCodecForNew[Chunk[Byte]]
@@ -2018,10 +2098,7 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
     suite("ReadNewWriteNew — encodes Binary, decodes Binary only (default)")(
       test("Chunk[Byte] encodes as AttributeValue.Binary") {
         val codec = codecFor[Chunk[Byte]]
-        codec.encoder(Chunk[Byte](1, 2)) match {
-          case _: AttributeValue.Binary => assertTrue(true)
-          case _                        => assertTrue(false)
-        }
+        assert(codec.encoder(Chunk[Byte](1, 2)))(isSubtype[AttributeValue.Binary](anything))
       },
       test("Chunk[Byte] rejects legacy AttributeValue.List") {
         val codec = codecFor[Chunk[Byte]]
