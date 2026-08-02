@@ -26,12 +26,12 @@ import zio.test.Assertion._
 // Defined at file scope to avoid macro circular init with CompanionOptics.
 opaque type InvoiceId = String
 object InvoiceId:
-  given Schema[InvoiceId] = Schema.string
+  given Schema[InvoiceId]         = Schema.string
   def apply(s: String): InvoiceId = s
 
 opaque type Amount = Int
 object Amount:
-  given Schema[Amount] = Schema.int
+  given Schema[Amount]      = Schema.int
   def apply(n: Int): Amount = n
 
 case class Invoice(id: InvoiceId, amount: Amount) derives Schema
@@ -41,7 +41,7 @@ object Invoice extends CompanionOptics[Invoice]:
 
 object DdbExprOpaqueTypeSpec extends ZIOSpecDefault {
 
-  private def render(ce: ConditionExpression[_]): String = ce.render.execute._2
+  private def render(ce: ConditionExpression[_]): String  = ce.render.execute._2
   private def renderKey(kce: KeyConditionExpr[_]): String = kce.render.execute._2
 
   private def interpret[S](expr: DdbExpr[S, Boolean]): Either[String, ConditionExpression[S]] =
@@ -51,47 +51,66 @@ object DdbExprOpaqueTypeSpec extends ZIOSpecDefault {
     DdbKeyExprInterpreter.toKeyConditionExpr(expr)
 
   def spec = suite("DdbExpr — Scala 3 opaque type fields")(
-
     suite("filter expressions via === (schema-aware encoding)")(
       test("opaque String field === encodes as AttributeValue.String") {
         val expr: DdbExpr[Invoice, Boolean] = Invoice.id === InvoiceId("INV-001")
-        interpret(expr) match {
-          case Right(ConditionExpression.Equals(_, ConditionExpression.Operand.ValueOperand(av))) =>
-            assertTrue(av == AttributeValue.String("INV-001"))
-          case Right(other) => assertNever(s"expected Equals CE, got: $other")
-          case Left(err)    => assertNever(s"interpreter failed: $err")
-        }
+        assert(interpret(expr))(
+          isRight(
+            isSubtype[ConditionExpression.Equals[_]](
+              hasField(
+                "right",
+                _.right,
+                isSubtype[ConditionExpression.Operand.ValueOperand[_]](
+                  hasField("value", _.value, equalTo(AttributeValue.String("INV-001")))
+                )
+              )
+            )
+          )
+        )
       },
       test("opaque Int field === encodes as AttributeValue.Number") {
         val expr: DdbExpr[Invoice, Boolean] = Invoice.amount === Amount(42)
-        interpret(expr) match {
-          case Right(ConditionExpression.Equals(_, ConditionExpression.Operand.ValueOperand(av))) =>
-            assertTrue(av == AttributeValue.Number(BigDecimal(42)))
-          case Right(other) => assertNever(s"expected Equals CE, got: $other")
-          case Left(err)    => assertNever(s"interpreter failed: $err")
-        }
+        assert(interpret(expr))(
+          isRight(
+            isSubtype[ConditionExpression.Equals[_]](
+              hasField(
+                "right",
+                _.right,
+                isSubtype[ConditionExpression.Operand.ValueOperand[_]](
+                  hasField("value", _.value, equalTo(AttributeValue.Number(BigDecimal(42))))
+                )
+              )
+            )
+          )
+        )
       },
       test("opaque Int field > literal renders via Builtin path") {
         val expr: DdbExpr[Invoice, Boolean] = Invoice.amount > Amount(0)
-        interpret(expr).map(render).fold(
-          _ => assertNever("interpreter failed"),
-          s => assert(s)(containsString(">"))
-        )
+        interpret(expr)
+          .map(render)
+          .fold(
+            _ => assertNever("interpreter failed"),
+            s => assert(s)(containsString(">"))
+          )
       },
       test("opaque String === && opaque Int > compose with &&") {
         val lhs: DdbExpr[Invoice, Boolean] = Invoice.id === InvoiceId("INV-001")
-        val expr = lhs && (Invoice.amount > Amount(0))
-        interpret(expr).map(render).fold(
-          _ => assertNever("interpreter failed"),
-          s => assert(s)(containsString("AND"))
-        )
+        val expr                           = lhs && (Invoice.amount > Amount(0))
+        interpret(expr)
+          .map(render)
+          .fold(
+            _ => assertNever("interpreter failed"),
+            s => assert(s)(containsString("AND"))
+          )
       },
       test("! of === renders NOT") {
         val expr: DdbExpr[Invoice, Boolean] = !(Invoice.id === InvoiceId("INV-001"))
-        interpret(expr).map(render).fold(
-          _ => assertNever("interpreter failed"),
-          s => assert(s)(startsWithString("NOT"))
-        )
+        interpret(expr)
+          .map(render)
+          .fold(
+            _ => assertNever("interpreter failed"),
+            s => assert(s)(startsWithString("NOT"))
+          )
       }
     ),
 
@@ -104,10 +123,12 @@ object DdbExprOpaqueTypeSpec extends ZIOSpecDefault {
       },
       test("opaque String partitionKey renders field alias = value alias") {
         val expr = Invoice.id.partitionKey === InvoiceId("INV-001")
-        interpretKey(expr).map(renderKey).fold(
-          _ => assertNever("interpreter failed"),
-          s => assert(s)(containsString("=") && containsString(":v"))
-        )
+        interpretKey(expr)
+          .map(renderKey)
+          .fold(
+            _ => assertNever("interpreter failed"),
+            s => assert(s)(containsString("=") && containsString(":v"))
+          )
       },
       test("opaque String partitionKey + opaque Int sortKey equality produces CompositePrimaryKeyExpr") {
         val expr = Invoice.id.partitionKey === InvoiceId("INV-001") && Invoice.amount.sortKey === Amount(10)
@@ -123,10 +144,12 @@ object DdbExprOpaqueTypeSpec extends ZIOSpecDefault {
       },
       test("opaque String partitionKey + opaque Int sortKey range renders >") {
         val expr = Invoice.id.partitionKey === InvoiceId("INV-001") && Invoice.amount.sortKey > Amount(0)
-        interpretKey(expr).map(renderKey).fold(
-          _ => assertNever("interpreter failed"),
-          s => assert(s)(containsString(">") && containsString("AND"))
-        )
+        interpretKey(expr)
+          .map(renderKey)
+          .fold(
+            _ => assertNever("interpreter failed"),
+            s => assert(s)(containsString(">") && containsString("AND"))
+          )
       }
     )
   )

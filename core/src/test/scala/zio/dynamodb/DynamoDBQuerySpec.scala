@@ -224,20 +224,28 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     },
     test("capacity propagates through ZipPar to both branches") {
       val q = (GetItem(table1, pk) zipPar GetItem(table2, pk)).capacity(total)
-      q match {
-        case DynamoDBQuery.ZipPar(l, r, _) =>
-          assert(l)(isSubtype[GetItem](hasField("capacity", _.capacity, equalTo(total)))) &&
-          assert(r)(isSubtype[GetItem](hasField("capacity", _.capacity, equalTo(total))))
-        case _                             => assertTrue(false)
-      }
+      assert(q)(
+        isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
+          hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
+            "left",
+            _.left,
+            isSubtype[GetItem](hasField("capacity", _.capacity, equalTo(total)))
+          ) &&
+            hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
+              "right",
+              _.right,
+              isSubtype[GetItem](hasField("capacity", _.capacity, equalTo(total)))
+            )
+        )
+      )
     },
     test("capacity propagates through Map") {
       val q = GetItem(table1, pk).map(identity).capacity(total)
-      q match {
-        case DynamoDBQuery.Map(inner, _) =>
-          assert(inner)(isSubtype[GetItem](hasField("capacity", _.capacity, equalTo(total))))
-        case _                           => assertTrue(false)
-      }
+      assert(q)(
+        isSubtype[DynamoDBQuery.Map[_, _]](
+          hasField("query", _.query, isSubtype[GetItem](hasField("capacity", _.capacity, equalTo(total))))
+        )
+      )
     },
     test("capacity is a no-op for constructors without a capacity field") {
       val q = DynamoDBQuery.createTable(
@@ -285,12 +293,20 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     },
     test("consistency propagates through ZipPar to both branches") {
       val q = (GetItem(table1, pk) zipPar GetItem(table2, pk)).consistency(strong)
-      q match {
-        case DynamoDBQuery.ZipPar(l, r, _) =>
-          assert(l)(isSubtype[GetItem](hasField("consistency", _.consistency, equalTo(strong)))) &&
-          assert(r)(isSubtype[GetItem](hasField("consistency", _.consistency, equalTo(strong))))
-        case _                             => assertTrue(false)
-      }
+      assert(q)(
+        isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
+          hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
+            "left",
+            _.left,
+            isSubtype[GetItem](hasField("consistency", _.consistency, equalTo(strong)))
+          ) &&
+            hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
+              "right",
+              _.right,
+              isSubtype[GetItem](hasField("consistency", _.consistency, equalTo(strong)))
+            )
+        )
+      )
     },
     test("consistency is a no-op for constructors without a consistency field") {
       val q = PutItem(table1, item1)
@@ -321,12 +337,20 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     },
     test("returns propagates through ZipPar") {
       val q = (PutItem(table1, item1) zipPar DeleteItem(table2, pk)).returns(allOld)
-      q match {
-        case DynamoDBQuery.ZipPar(l, r, _) =>
-          assert(l)(isSubtype[PutItem](hasField("returnValues", _.returnValues, equalTo(allOld)))) &&
-          assert(r)(isSubtype[DeleteItem](hasField("returnValues", _.returnValues, equalTo(allOld))))
-        case _                             => assertTrue(false)
-      }
+      assert(q)(
+        isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
+          hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
+            "left",
+            _.left,
+            isSubtype[PutItem](hasField("returnValues", _.returnValues, equalTo(allOld)))
+          ) &&
+            hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
+              "right",
+              _.right,
+              isSubtype[DeleteItem](hasField("returnValues", _.returnValues, equalTo(allOld)))
+            )
+        )
+      )
     },
     test("returns is a no-op for constructors without a returnValues field") {
       val q = GetItem(table1, pk)
@@ -365,12 +389,20 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     },
     test("metrics propagates through ZipPar") {
       val q = (PutItem(table1, item1) zipPar DeleteItem(table2, pk)).metrics(sizeMetrics)
-      q match {
-        case DynamoDBQuery.ZipPar(l, r, _) =>
-          assert(l)(isSubtype[PutItem](hasField("itemMetrics", _.itemMetrics, equalTo(sizeMetrics)))) &&
-          assert(r)(isSubtype[DeleteItem](hasField("itemMetrics", _.itemMetrics, equalTo(sizeMetrics))))
-        case _                             => assertTrue(false)
-      }
+      assert(q)(
+        isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
+          hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
+            "left",
+            _.left,
+            isSubtype[PutItem](hasField("itemMetrics", _.itemMetrics, equalTo(sizeMetrics)))
+          ) &&
+            hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
+              "right",
+              _.right,
+              isSubtype[DeleteItem](hasField("itemMetrics", _.itemMetrics, equalTo(sizeMetrics)))
+            )
+        )
+      )
     },
     test("metrics is a no-op for constructors without an itemMetrics field") {
       val q = GetItem(table1, pk)
@@ -414,26 +446,32 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     },
     test("startKey propagates through ZipPar to both branches") {
       val q = (DynamoDBQuery.scanSome(table1, 10) zipPar DynamoDBQuery.scanSome(table2, 10)).startKey(someKey)
-      q match {
-        case DynamoDBQuery.ZipPar(l, r, _) =>
-          assert(l)(
+      assert(q)(
+        isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
+          hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
+            "left",
+            _.left,
             isSubtype[DynamoDBQuery.ScanSome](hasField("exclusiveStartKey", _.exclusiveStartKey, equalTo(someKey)))
           ) &&
-          assert(r)(
-            isSubtype[DynamoDBQuery.ScanSome](hasField("exclusiveStartKey", _.exclusiveStartKey, equalTo(someKey)))
-          )
-        case _                             => assertTrue(false)
-      }
+            hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
+              "right",
+              _.right,
+              isSubtype[DynamoDBQuery.ScanSome](hasField("exclusiveStartKey", _.exclusiveStartKey, equalTo(someKey)))
+            )
+        )
+      )
     },
     test("startKey propagates through Map") {
       val q = DynamoDBQuery.scanSome(table1, 10).map(identity).startKey(someKey)
-      q match {
-        case DynamoDBQuery.Map(inner, _) =>
-          assert(inner)(
+      assert(q)(
+        isSubtype[DynamoDBQuery.Map[_, _]](
+          hasField(
+            "query",
+            _.query,
             isSubtype[DynamoDBQuery.ScanSome](hasField("exclusiveStartKey", _.exclusiveStartKey, equalTo(someKey)))
           )
-        case _                           => assertTrue(false)
-      }
+        )
+      )
     },
     test("startKey is a no-op for constructors without an exclusiveStartKey field") {
       val q = GetItem(table1, pk)
@@ -475,26 +513,34 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     },
     test("select propagates through ZipPar to both branches") {
       val q = (DynamoDBQuery.scanSome(table1, 10) zipPar DynamoDBQuery.scanSome(table2, 10)).selectCount
-      q match {
-        case DynamoDBQuery.ZipPar(l, r, _) =>
-          assert(l)(
+      assert(q)(
+        isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
+          hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
+            "left",
+            _.left,
             isSubtype[DynamoDBQuery.ScanSome](hasField("select", _.select, equalTo(Some(Select.Count): Option[Select])))
           ) &&
-          assert(r)(
-            isSubtype[DynamoDBQuery.ScanSome](hasField("select", _.select, equalTo(Some(Select.Count): Option[Select])))
-          )
-        case _                             => assertTrue(false)
-      }
+            hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
+              "right",
+              _.right,
+              isSubtype[DynamoDBQuery.ScanSome](
+                hasField("select", _.select, equalTo(Some(Select.Count): Option[Select]))
+              )
+            )
+        )
+      )
     },
     test("select propagates through Map") {
       val q = DynamoDBQuery.scanSome(table1, 10).map(identity).selectCount
-      q match {
-        case DynamoDBQuery.Map(inner, _) =>
-          assert(inner)(
+      assert(q)(
+        isSubtype[DynamoDBQuery.Map[_, _]](
+          hasField(
+            "query",
+            _.query,
             isSubtype[DynamoDBQuery.ScanSome](hasField("select", _.select, equalTo(Some(Select.Count): Option[Select])))
           )
-        case _                           => assertTrue(false)
-      }
+        )
+      )
     },
     test("select is a no-op for non-scan/query constructors") {
       val q = GetItem(table1, key1)
@@ -625,9 +671,11 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     },
     test("propagates through ZipPar to both branches") {
       val q = (PutItem(table1, item1) zipPar DeleteItem(table2, pk)).returnValuesOnConditionCheckFailure(allOldRVOCCF)
-      q match {
-        case DynamoDBQuery.ZipPar(l, r, _) =>
-          assert(l)(
+      assert(q)(
+        isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
+          hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
+            "left",
+            _.left,
             isSubtype[PutItem](
               hasField(
                 "returnValuesOnConditionCheckFailure",
@@ -636,23 +684,27 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
               )
             )
           ) &&
-          assert(r)(
-            isSubtype[DeleteItem](
-              hasField(
-                "returnValuesOnConditionCheckFailure",
-                _.returnValuesOnConditionCheckFailure,
-                equalTo(Some(allOldRVOCCF): Option[ReturnValuesOnConditionCheckFailure])
+            hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
+              "right",
+              _.right,
+              isSubtype[DeleteItem](
+                hasField(
+                  "returnValuesOnConditionCheckFailure",
+                  _.returnValuesOnConditionCheckFailure,
+                  equalTo(Some(allOldRVOCCF): Option[ReturnValuesOnConditionCheckFailure])
+                )
               )
             )
-          )
-        case _                             => assertTrue(false)
-      }
+        )
+      )
     },
     test("propagates through Map") {
       val q = PutItem(table1, item1).map(identity).returnValuesOnConditionCheckFailure(allOldRVOCCF)
-      q match {
-        case DynamoDBQuery.Map(inner, _) =>
-          assert(inner)(
+      assert(q)(
+        isSubtype[DynamoDBQuery.Map[_, _]](
+          hasField(
+            "query",
+            _.query,
             isSubtype[PutItem](
               hasField(
                 "returnValuesOnConditionCheckFailure",
@@ -661,26 +713,34 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
               )
             )
           )
-        case _                           => assertTrue(false)
-      }
+        )
+      )
     },
     test("propagates through Absolve") {
       val inner   = PutItem(table1, item1)
       val absolve = DynamoDBQuery.Absolve(inner.map(r => Right(r): Either[DynamoDBError.ItemError, Option[Item]]))
       val q       = absolve.returnValuesOnConditionCheckFailure(allOldRVOCCF)
-      q match {
-        case DynamoDBQuery.Absolve(DynamoDBQuery.Map(query, _)) =>
-          assert(query)(
-            isSubtype[PutItem](
+      assert(q)(
+        isSubtype[DynamoDBQuery.Absolve[_, _]](
+          hasField(
+            "query",
+            _.query,
+            isSubtype[DynamoDBQuery.Map[_, _]](
               hasField(
-                "returnValuesOnConditionCheckFailure",
-                _.returnValuesOnConditionCheckFailure,
-                equalTo(Some(allOldRVOCCF): Option[ReturnValuesOnConditionCheckFailure])
+                "query",
+                _.query,
+                isSubtype[PutItem](
+                  hasField(
+                    "returnValuesOnConditionCheckFailure",
+                    _.returnValuesOnConditionCheckFailure,
+                    equalTo(Some(allOldRVOCCF): Option[ReturnValuesOnConditionCheckFailure])
+                  )
+                )
               )
             )
           )
-        case _                                                  => assertTrue(false)
-      }
+        )
+      )
     },
     test("is a no-op for constructors without the field") {
       val q = GetItem(table1, key1)
@@ -720,38 +780,54 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     },
     test("propagates through ZipPar to both branches") {
       val q = (GetItem(table1, pk) zipPar GetItem(table2, pk)).withRetryPolicy(RetryPolicy.NoRetry)
-      q match {
-        case DynamoDBQuery.ZipPar(l, r, _) =>
-          assert(l)(
+      assert(q)(
+        isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
+          hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
+            "left",
+            _.left,
             isSubtype[GetItem](hasField("retryPolicy", _.retryPolicy, equalTo(Some(noRetry): Option[RetryPolicy])))
           ) &&
-          assert(r)(
-            isSubtype[GetItem](hasField("retryPolicy", _.retryPolicy, equalTo(Some(noRetry): Option[RetryPolicy])))
-          )
-        case _                             => assertTrue(false)
-      }
+            hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
+              "right",
+              _.right,
+              isSubtype[GetItem](hasField("retryPolicy", _.retryPolicy, equalTo(Some(noRetry): Option[RetryPolicy])))
+            )
+        )
+      )
     },
     test("propagates through Map") {
       val q = GetItem(table1, pk).map(identity).withRetryPolicy(RetryPolicy.NoRetry)
-      q match {
-        case DynamoDBQuery.Map(inner, _) =>
-          assert(inner)(
+      assert(q)(
+        isSubtype[DynamoDBQuery.Map[_, _]](
+          hasField(
+            "query",
+            _.query,
             isSubtype[GetItem](hasField("retryPolicy", _.retryPolicy, equalTo(Some(noRetry): Option[RetryPolicy])))
           )
-        case _                           => assertTrue(false)
-      }
+        )
+      )
     },
     test("propagates through Absolve") {
       val inner   = GetItem(table1, pk)
       val absolve = DynamoDBQuery.Absolve(inner.map(r => Right(r): Either[DynamoDBError.ItemError, Option[Item]]))
       val q       = absolve.withRetryPolicy(RetryPolicy.NoRetry)
-      q match {
-        case DynamoDBQuery.Absolve(DynamoDBQuery.Map(query, _)) =>
-          assert(query)(
-            isSubtype[GetItem](hasField("retryPolicy", _.retryPolicy, equalTo(Some(noRetry): Option[RetryPolicy])))
+      assert(q)(
+        isSubtype[DynamoDBQuery.Absolve[_, _]](
+          hasField(
+            "query",
+            _.query,
+            isSubtype[DynamoDBQuery.Map[_, _]](
+              hasField(
+                "query",
+                _.query,
+                isSubtype[GetItem](
+                  hasField("retryPolicy", _.retryPolicy, equalTo(Some(noRetry): Option[RetryPolicy]))
+                )
+              )
+            )
           )
-        case _                                                  => assertTrue(false)
-      }
+        )
+      )
     },
     test("is a no-op for constructors without a retryPolicy field") {
       val q = DynamoDBQuery.createTable(

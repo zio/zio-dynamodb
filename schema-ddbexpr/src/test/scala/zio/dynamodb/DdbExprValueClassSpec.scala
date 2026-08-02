@@ -66,21 +66,43 @@ object DdbExprValueClassSpec extends ZIOSpecDefault {
     suite("filter expressions via === (schema-aware encoding)")(
       test("value class String field === encodes as AttributeValue.String") {
         val expr: DdbExpr[Product, Boolean] = Product.userId === UserId("U-1")
-        interpret(expr) match {
-          case Right(ConditionExpression.Equals(_, ConditionExpression.Operand.ValueOperand(av))) =>
-            assertTrue(av == AttributeValue.String("U-1"))
-          case Right(other)                                                                       => assertNever(s"expected Equals CE, got: $other")
-          case Left(err)                                                                          => assertNever(s"interpreter failed: $err")
-        }
+        assert(interpret(expr))(
+          isRight(
+            isSubtype[ConditionExpression.Equals[_]](
+              hasField(
+                "right",
+                _.right,
+                isSubtype[ConditionExpression.Operand.ValueOperand[_]](
+                  hasField[ConditionExpression.Operand.ValueOperand[_], AttributeValue](
+                    "value",
+                    _.value,
+                    equalTo(AttributeValue.String("U-1"))
+                  )
+                )
+              )
+            )
+          )
+        )
       },
       test("value class Int field === encodes as AttributeValue.Number") {
         val expr: DdbExpr[Product, Boolean] = Product.weight === Weight(42)
-        interpret(expr) match {
-          case Right(ConditionExpression.Equals(_, ConditionExpression.Operand.ValueOperand(av))) =>
-            assertTrue(av == AttributeValue.Number(BigDecimal(42)))
-          case Right(other)                                                                       => assertNever(s"expected Equals CE, got: $other")
-          case Left(err)                                                                          => assertNever(s"interpreter failed: $err")
-        }
+        assert(interpret(expr))(
+          isRight(
+            isSubtype[ConditionExpression.Equals[_]](
+              hasField(
+                "right",
+                _.right,
+                isSubtype[ConditionExpression.Operand.ValueOperand[_]](
+                  hasField[ConditionExpression.Operand.ValueOperand[_], AttributeValue](
+                    "value",
+                    _.value,
+                    equalTo(AttributeValue.Number(BigDecimal(42)))
+                  )
+                )
+              )
+            )
+          )
+        )
       },
       test("value class Int field > literal renders via Builtin path") {
         val expr: DdbExpr[Product, Boolean] = Product.weight > Weight(0)

@@ -18,6 +18,7 @@ package zio.dynamodb.blocks
 
 import zio.blocks.schema.{ CompanionOptics, DynamicOptic, Lens, Schema }
 import zio.test._
+import zio.test.Assertion.{ equalTo, hasField, isRight }
 
 object OpticToPESpec extends ZIOSpecDefault {
 
@@ -32,10 +33,7 @@ object OpticToPESpec extends ZIOSpecDefault {
     suite("pe(DynamicOptic)")(
       test("a path of Field nodes converts to nested MapElements") {
         val dyn = DynamicOptic(IndexedSeq(DynamicOptic.Node.Field("a"), DynamicOptic.Node.Field("b")))
-        OpticToPE.pe(dyn) match {
-          case Right(pe) => assertTrue(pe.toString == "a.b")
-          case Left(_)   => assertTrue(false)
-        }
+        assert(OpticToPE.pe(dyn))(isRight(hasField("toString", _.toString, equalTo("a.b"))))
       },
       test("a non-Field node produces a Left") {
         val dyn = DynamicOptic(IndexedSeq(DynamicOptic.Node.AtIndex(0)))

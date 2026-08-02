@@ -22,6 +22,7 @@ import zio.dynamodb.AttributeValue
 import zio.dynamodb.blocks.DynamoDBCodecDeriverConfigure
 import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
 import zio.test._
+import zio.test.Assertion.{ equalTo, hasField, isFalse, isSome, isSubtype, isTrue }
 
 object DerivationConfigureSpec extends ZIOSpecDefault {
 
@@ -74,27 +75,37 @@ object DerivationConfigureSpec extends ZIOSpecDefault {
     suite("global deriver settings — fieldNameMapper")(
       test("renamed field appears under new key in encoded item") {
         val codec = deriveCodec[Person]
-        codec.encoder(alice) match {
-          case m: AttributeValue.Map =>
-            val map = m.value
-            assertTrue(
-              map.get(AttributeValue.String("fullName")).contains(AttributeValue.String("Alice")) &&
-                !map.contains(AttributeValue.String("name"))
-            )
-          case _                     => assertTrue(false)
-        }
+        assert(codec.encoder(alice))(
+          isSubtype[AttributeValue.Map](
+            hasField[AttributeValue.Map, Option[AttributeValue]](
+              "value",
+              _.value.get(AttributeValue.String("fullName")),
+              isSome(equalTo(AttributeValue.String("Alice")))
+            ) &&
+              hasField[AttributeValue.Map, Boolean](
+                "value",
+                _.value.contains(AttributeValue.String("name")),
+                isFalse
+              )
+          )
+        )
       },
       test("unrenamed fields are unaffected") {
         val codec = deriveCodec[Person]
-        codec.encoder(alice) match {
-          case m: AttributeValue.Map =>
-            val map = m.value
-            assertTrue(
-              map.get(AttributeValue.String("id")).contains(AttributeValue.String("1")) &&
-                map.get(AttributeValue.String("age")).contains(AttributeValue.Number(BigDecimal.valueOf(30L)))
-            )
-          case _                     => assertTrue(false)
-        }
+        assert(codec.encoder(alice))(
+          isSubtype[AttributeValue.Map](
+            hasField[AttributeValue.Map, Option[AttributeValue]](
+              "value",
+              _.value.get(AttributeValue.String("id")),
+              isSome(equalTo(AttributeValue.String("1")))
+            ) &&
+              hasField[AttributeValue.Map, Option[AttributeValue]](
+                "value",
+                _.value.get(AttributeValue.String("age")),
+                isSome(equalTo(AttributeValue.Number(BigDecimal.valueOf(30L))))
+              )
+          )
+        )
       },
       test("decode reads from renamed key") {
         val codec = deriveCodec[Person]
@@ -126,24 +137,32 @@ object DerivationConfigureSpec extends ZIOSpecDefault {
     suite("per-field modifier override — withModifier")(
       test("renamed field appears under new key in encoded item") {
         val codec = deriveCodec[Contact]
-        codec.encoder(bob) match {
-          case m: AttributeValue.Map =>
-            val map = m.value
-            assertTrue(
-              map.get(AttributeValue.String("fullName")).contains(AttributeValue.String("Bob")) &&
-                !map.contains(AttributeValue.String("name"))
-            )
-          case _                     => assertTrue(false)
-        }
+        assert(codec.encoder(bob))(
+          isSubtype[AttributeValue.Map](
+            hasField[AttributeValue.Map, Option[AttributeValue]](
+              "value",
+              _.value.get(AttributeValue.String("fullName")),
+              isSome(equalTo(AttributeValue.String("Bob")))
+            ) &&
+              hasField[AttributeValue.Map, Boolean](
+                "value",
+                _.value.contains(AttributeValue.String("name")),
+                isFalse
+              )
+          )
+        )
       },
       test("unrenamed fields are unaffected") {
         val codec = deriveCodec[Contact]
-        codec.encoder(bob) match {
-          case m: AttributeValue.Map =>
-            val map = m.value
-            assertTrue(map.get(AttributeValue.String("id")).contains(AttributeValue.String("2")))
-          case _                     => assertTrue(false)
-        }
+        assert(codec.encoder(bob))(
+          isSubtype[AttributeValue.Map](
+            hasField[AttributeValue.Map, Option[AttributeValue]](
+              "value",
+              _.value.get(AttributeValue.String("id")),
+              isSome(equalTo(AttributeValue.String("2")))
+            )
+          )
+        )
       },
       test("decode reads from renamed key") {
         val codec = deriveCodec[Contact]
@@ -163,14 +182,20 @@ object DerivationConfigureSpec extends ZIOSpecDefault {
     suite("variant-level deriver settings — caseNameMapper")(
       test("discriminator key uses mapped case name") {
         val codec = deriveCodec[Shape]
-        codec.encoder(Circle(1.0)) match {
-          case AttributeValue.Map(m) =>
-            assertTrue(
-              m.contains(AttributeValue.String("circle")) &&
-                !m.contains(AttributeValue.String("Circle"))
-            )
-          case _                     => assertTrue(false)
-        }
+        assert(codec.encoder(Circle(1.0)))(
+          isSubtype[AttributeValue.Map](
+            hasField[AttributeValue.Map, Boolean](
+              "value",
+              _.value.contains(AttributeValue.String("circle")),
+              isTrue
+            ) &&
+              hasField[AttributeValue.Map, Boolean](
+                "value",
+                _.value.contains(AttributeValue.String("Circle")),
+                isFalse
+              )
+          )
+        )
       },
       test("decode reads from mapped case name") {
         val codec = deriveCodec[Shape]

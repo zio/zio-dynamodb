@@ -102,19 +102,13 @@ object CoverageGapSpec extends ZIOSpecDefault {
       val left  = ValueOperand[Any](AttributeValue.Number(1))
       val right = ValueOperand[Any](AttributeValue.Number(2))
       val plus  = left + right
-      plus match {
-        case Plus(_, _) => assertCompletes
-        case _          => assertTrue(false)
-      }
+      assert(plus)(isSubtype[Plus[Any]](anything))
     },
     test("SetOperand.- builds Minus") {
       val left  = ValueOperand[Any](AttributeValue.Number(10))
       val right = ValueOperand[Any](AttributeValue.Number(3))
       val minus = left - right
-      minus match {
-        case Minus(_, _) => assertCompletes
-        case _           => assertTrue(false)
-      }
+      assert(minus)(isSubtype[Minus[Any]](anything))
     }
   )
 
