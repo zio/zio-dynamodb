@@ -106,7 +106,7 @@ jobs:
     name: Update README
     runs-on: ubuntu-latest
     continue-on-error: false
-    if: ${{ (github.event_name == 'release') && (github.event.action == 'published') }}
+    if: ${{ ((github.event_name == 'release') && (github.event.action == 'published')) || ((github.event_name == 'push') && (github.ref == 'refs/heads/series/3.x')) }}
     steps:
     - name: Git Checkout
       uses: actions/checkout@v7

@@ -1,5 +1,6 @@
 import sbt.CrossVersion
 import zio.sbt.WebsitePlugin.autoImport._
+import zio.sbt.githubactions.Condition
 
 addCommandAlias("lint", "; scalafmtSbtCheck; scalafmtCheckAll; headerCheckAll")
 addCommandAlias("fmt", "; scalafmtSbt; scalafmtAll; headerCreateAll")
@@ -224,6 +225,13 @@ lazy val docs = project
   )
   .dependsOn(core, aws, schemaDynamodb, zioInterpreter, schemaDdbExpr, futureInterpreter, ceInterpreter)
   .enablePlugins(WebsitePlugin)
+
+ThisBuild / ciUpdateReadmeCondition := Some(
+  (Condition.Expression("github.event_name == 'release'") &&
+    Condition.Expression("github.event.action == 'published'")) ||
+    (Condition.Expression("github.event_name == 'push'") &&
+      Condition.Expression("github.ref == 'refs/heads/series/3.x'"))
+)
 
 lazy val root = (project in file("."))
   .aggregate(core, aws, schemaDynamodb, zioInterpreter, schemaDdbExpr, futureInterpreter, ceInterpreter, it, docs)
