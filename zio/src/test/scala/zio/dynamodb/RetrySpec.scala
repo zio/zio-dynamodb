@@ -20,7 +20,7 @@ import zio._
 import zio.blocks.chunk.Chunk
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.test._
-import zio.test.Assertion.{ anything, isSubtype }
+import zio.test.Assertion.{ anything, equalTo, hasField, isSubtype }
 import zio.test.TestClock
 
 import scala.concurrent.duration.{ FiniteDuration, MILLISECONDS }
@@ -657,6 +657,50 @@ object RetrySpec extends ZIOSpecDefault {
           _      <- TestClock.adjust(100.millis)
           result <- fiber.join
         } yield assert(result)(isSubtype[Batch.GetResult.Complete](anything))
+      },
+
+      test("items fetched in an earlier attempt are not lost after retrying the residual keys") {
+        import scala.collection.immutable.{ Map => ScalaMap }
+        val itemA           = Item("id" -> "a")
+        val itemB           = Item("id" -> "b")
+        val unprocessedKeys = ScalaMap(
+          "t" -> DynamoDBQuery.BatchGetItem.TableGet(
+            keysSet = Set(PrimaryKey("id" -> "b")),
+            projectionExpressionSet = Set.empty
+          )
+        )
+        for {
+          interp <- makeInterp(
+                      batchGetResponses = List(
+                        DynamoDBQuery.BatchGetItem.Response(
+                          responses = MapOfSet.empty[String, Item] + ("t" -> itemA),
+                          unprocessedKeys = unprocessedKeys
+                        ),
+                        DynamoDBQuery.BatchGetItem.Response(
+                          responses = MapOfSet.empty[String, Item] + ("t" -> itemB)
+                        )
+                      )
+                    )
+          fiber  <- interp
+                      .run(
+                        DynamoDBQuery
+                          .batchGetItem(List("a", "b"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id)))
+                          .withRetryPolicy(
+                            RetryPolicy.ExponentialBackoff(
+                              maxRetries = 2,
+                              initialDelay = FiniteDuration(100, MILLISECONDS),
+                              jitter = false
+                            )
+                          )
+                      )
+                      .fork
+          _      <- TestClock.adjust(100.millis)
+          result <- fiber.join
+        } yield assert(result)(
+          isSubtype[Batch.GetResult.Complete](
+            hasField("responses", _.response.responses.getOrElse("t", Set.empty), equalTo(Set(itemA, itemB)))
+          )
+        )
       }
     )
   )

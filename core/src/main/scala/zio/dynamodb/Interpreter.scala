@@ -271,28 +271,37 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   // response-level retry (resubmitting unprocessedKeys/unprocessedItems) for batch queries,
   // so `run` alone is sufficient — no separate entry point needed for batch vs. everything
   // else. `policy` governs both loops; NoRetry collapses this to a single attempt.
+  // `accumulatedResponses` carries item data recovered in earlier attempts forward — each
+  // retry only re-requests the residual unprocessedKeys, so its response alone would
+  // otherwise "forget" items already fetched in prior attempts.
   private def runBatchGetItemRetrying(
     q: DynamoDBQuery.BatchGetItem,
     policy: RetryPolicy,
-    attempt: Int
+    attempt: Int,
+    accumulatedResponses: MapOfSet[String, Item] = MapOfSet.empty
   ): F[Batch.GetResult] =
     flatMap(withRetryTracked(policy)(runBatchGetItem(q))) {
-      case Left((cause, effectRetries))                        =>
+      case Left((cause, effectRetries)) =>
         pure(Batch.GetResult.Failed(cause, responseRetries = attempt, effectRetries = effectRetries))
-      case Right(response) if response.unprocessedKeys.isEmpty =>
-        pure(Batch.GetResult.Complete(response))
-      case Right(response)                                     =>
-        policy.nextDelay(attempt) match {
-          case None    => pure(Batch.GetResult.Incomplete(response))
-          case Some(d) =>
-            flatMap(sleep(d)) { _ =>
-              runBatchGetItemRetrying(
-                DynamoDBQuery.BatchGetItem(requestItems = response.unprocessedKeys),
-                policy,
-                attempt + 1
-              )
-            }
-        }
+      case Right(response)              =>
+        val merged = accumulatedResponses ++ response.responses
+        if (response.unprocessedKeys.isEmpty)
+          pure(Batch.GetResult.Complete(response.copy(responses = merged)))
+        else
+          policy.nextDelay(attempt) match {
+            case None    => pure(Batch.GetResult.Incomplete(response.copy(responses = merged)))
+            case Some(d) =>
+              flatMap(sleep(d)) { _ =>
+                // q.copy (not a fresh BatchGetItem) preserves capacity/orderedGetItems/
+                // retryPolicy from the original query across the retry.
+                runBatchGetItemRetrying(
+                  q.copy(requestItems = response.unprocessedKeys),
+                  policy,
+                  attempt + 1,
+                  merged
+                )
+              }
+          }
     }
 
   private def runBatchWriteItemRetrying(
@@ -311,8 +320,10 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
               case None    => pure(Batch.WriteResult.Incomplete(response))
               case Some(d) =>
                 flatMap(sleep(d)) { _ =>
+                  // q.copy (not a fresh BatchWriteItem) preserves capacity/itemMetrics/
+                  // retryPolicy from the original query across the retry.
                   runBatchWriteItemRetrying(
-                    DynamoDBQuery.BatchWriteItem(requestItems = remaining),
+                    q.copy(requestItems = remaining),
                     policy,
                     attempt + 1
                   )
