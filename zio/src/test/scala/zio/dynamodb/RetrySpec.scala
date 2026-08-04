@@ -28,7 +28,7 @@ import scala.concurrent.duration.{ FiniteDuration, MILLISECONDS }
 object RetrySpec extends ZIOSpecDefault {
 
   // Minimal AwsInterpreter[Task] backed by a per-test Ref so individual
-  // tests can control what runWriteItem / runGetItem return.
+  // tests can control what runBatchWriteItem / runBatchGetItem return.
   private def makeInterp(
     batchWriteResponses: List[DynamoDBQuery.BatchWriteItem.Response] = Nil,
     batchGetResponses: List[DynamoDBQuery.BatchGetItem.Response] = Nil,
@@ -217,13 +217,13 @@ object RetrySpec extends ZIOSpecDefault {
       }
     ),
 
-    suite("Batch.runWriteItem — response-level retry")(
+    suite("BatchWriteItem — response-level retry (via interp.run)")(
       test("returns Complete when no unprocessed items") {
         for {
           interp <- makeInterp(
                       batchWriteResponses = List(DynamoDBQuery.BatchWriteItem.Response(None))
                     )
-          result <- Batch.runWriteItem(interp)(
+          result <- interp.run(
                       DynamoDBQuery.batchWriteItem(List(Item("id" -> "a")))(i => DynamoDBQuery.putItem("t", i))
                     )
         } yield assert(result)(isSubtype[Batch.WriteResult.Complete](anything))
@@ -242,8 +242,8 @@ object RetrySpec extends ZIOSpecDefault {
                         DynamoDBQuery.BatchWriteItem.Response(None)
                       )
                     )
-          fiber  <- Batch
-                      .runWriteItem(interp)(
+          fiber  <- interp
+                      .run(
                         DynamoDBQuery
                           .batchWriteItem(List(item))(i => DynamoDBQuery.putItem("t", i))
                           .withRetryPolicy(
@@ -273,8 +273,8 @@ object RetrySpec extends ZIOSpecDefault {
                         DynamoDBQuery.BatchWriteItem.Response(unprocessed)
                       )
                     )
-          fiber  <- Batch
-                      .runWriteItem(interp)(
+          fiber  <- interp
+                      .run(
                         DynamoDBQuery
                           .batchWriteItem(List(item))(i => DynamoDBQuery.putItem("t", i))
                           .withRetryPolicy(
@@ -300,8 +300,8 @@ object RetrySpec extends ZIOSpecDefault {
                           ZIO.fail(new OutOfMemoryError("heap space"))
                       )
                     )
-          result <- Batch
-                      .runWriteItem(interp)(
+          result <- interp
+                      .run(
                         DynamoDBQuery
                           .batchWriteItem(List(Item("id" -> "a")))(i => DynamoDBQuery.putItem("t", i))
                           .withRetryPolicy(
@@ -326,7 +326,7 @@ object RetrySpec extends ZIOSpecDefault {
                           ZIO.fail(new RuntimeException("ValidationException: invalid attribute"))
                       )
                     )
-          result <- Batch.runWriteItem(interp)(
+          result <- interp.run(
                       DynamoDBQuery
                         .batchWriteItem(List(Item("id" -> "a")))(i => DynamoDBQuery.putItem("t", i))
                         .withRetryPolicy(
@@ -359,8 +359,8 @@ object RetrySpec extends ZIOSpecDefault {
                           ZIO.fail(new RuntimeException("ProvisionedThroughputExceededException"))
                       )
                     )
-          fiber  <- Batch
-                      .runWriteItem(interp)(
+          fiber  <- interp
+                      .run(
                         DynamoDBQuery
                           .batchWriteItem(List(Item("id" -> "a")))(i => DynamoDBQuery.putItem("t", i))
                           .withRetryPolicy(
@@ -555,13 +555,13 @@ object RetrySpec extends ZIOSpecDefault {
       }
     ),
 
-    suite("Batch.runGetItem — response-level retry")(
+    suite("BatchGetItem — response-level retry (via interp.run)")(
       test("returns Complete when no unprocessed keys") {
         for {
           interp <- makeInterp(
                       batchGetResponses = List(DynamoDBQuery.BatchGetItem.Response())
                     )
-          result <- Batch.runGetItem(interp)(
+          result <- interp.run(
                       DynamoDBQuery.batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id)))
                     )
         } yield assert(result)(isSubtype[Batch.GetResult.Complete](anything))
@@ -576,8 +576,8 @@ object RetrySpec extends ZIOSpecDefault {
                           ZIO.fail(new OutOfMemoryError("heap space"))
                       )
                     )
-          result <- Batch
-                      .runGetItem(interp)(
+          result <- interp
+                      .run(
                         DynamoDBQuery
                           .batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id)))
                           .withRetryPolicy(
@@ -602,7 +602,7 @@ object RetrySpec extends ZIOSpecDefault {
                           ZIO.fail(new RuntimeException("ValidationException: invalid key"))
                       )
                     )
-          result <- Batch.runGetItem(interp)(
+          result <- interp.run(
                       DynamoDBQuery
                         .batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id)))
                         .withRetryPolicy(
@@ -641,8 +641,8 @@ object RetrySpec extends ZIOSpecDefault {
                         DynamoDBQuery.BatchGetItem.Response()
                       )
                     )
-          fiber  <- Batch
-                      .runGetItem(interp)(
+          fiber  <- interp
+                      .run(
                         DynamoDBQuery
                           .batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id)))
                           .withRetryPolicy(

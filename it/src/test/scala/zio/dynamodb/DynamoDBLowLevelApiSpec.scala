@@ -33,6 +33,15 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
         ZIO.fromFuture(_ => ceInterp.run(q).unsafeToFuture()(ceRuntime))
     }
 
+  // Unwraps a Batch.GetResult produced by interp.run(batchGetItemQuery) back to the raw
+  // response `toGetItemResponses` expects. Tests below only exercise the happy path
+  // (policy-less batches complete in one round trip), so Incomplete/Failed are unexpected.
+  private def completeResponse(r: Batch.GetResult): DynamoDBQuery.BatchGetItem.Response =
+    r match {
+      case Batch.GetResult.Complete(response) => response
+      case other                              => throw new RuntimeException(s"expected GetResult.Complete, got $other")
+    }
+
   private implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
 
   private val zioEnvLayer: URLayer[DynamoDbAsyncClient, DynamoDBEnv] =
@@ -319,9 +328,9 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
           val batch =
             DynamoDBQuery.batchGetItem(List("a", "b", "c"))(id => DynamoDBQuery.getItem(table, PrimaryKey("id" -> id)))
           for {
-            _        <- interpreter.run(DynamoDBQuery.batchWriteItem(items)(item => DynamoDBQuery.putItem(table, item)))
-            response <- interpreter.run(batch)
-            results = batch.toGetItemResponses(response)
+            _      <- interpreter.run(DynamoDBQuery.batchWriteItem(items)(item => DynamoDBQuery.putItem(table, item)))
+            result <- interpreter.run(batch)
+            results = batch.toGetItemResponses(completeResponse(result))
           } yield assertTrue(
             results.length == 3 &&
               results.forall(_.isDefined)
@@ -334,8 +343,8 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             DynamoDBQuery.getItem(table, PrimaryKey("id" -> id))
           )
           for {
-            response <- interpreter.run(batch)
-            results = batch.toGetItemResponses(response)
+            result <- interpreter.run(batch)
+            results = batch.toGetItemResponses(completeResponse(result))
           } yield assertTrue(results.length == 2 && results.forall(_.isEmpty))
         }
       },
@@ -345,9 +354,9 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             DynamoDBQuery.getItem(table, PrimaryKey("id" -> id))
           )
           for {
-            _        <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "present", "v" -> 42)))
-            response <- interpreter.run(batch)
-            results = batch.toGetItemResponses(response)
+            _      <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "present", "v" -> 42)))
+            result <- interpreter.run(batch)
+            results = batch.toGetItemResponses(completeResponse(result))
           } yield assertTrue(
             results.length == 2 &&
               results(0).isDefined &&
@@ -697,9 +706,9 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             .batchGetItem(List("cap-g1", "cap-g2"))(id => DynamoDBQuery.getItem(table, PrimaryKey("id" -> id)))
             .capacity(ReturnConsumedCapacity.Total)
           for {
-            _        <- interpreter.run(DynamoDBQuery.batchWriteItem(items)(i => DynamoDBQuery.putItem(table, i)))
-            response <- interpreter.run(batch.asInstanceOf[DynamoDBQuery.BatchGetItem])
-            results = batch.asInstanceOf[DynamoDBQuery.BatchGetItem].toGetItemResponses(response)
+            _      <- interpreter.run(DynamoDBQuery.batchWriteItem(items)(i => DynamoDBQuery.putItem(table, i)))
+            result <- interpreter.run(batch.asInstanceOf[DynamoDBQuery.BatchGetItem])
+            results = batch.asInstanceOf[DynamoDBQuery.BatchGetItem].toGetItemResponses(completeResponse(result))
           } yield assertTrue(results.length == 2 && results.forall(_.isDefined))
         }
       }

@@ -40,7 +40,7 @@ object BatchSpec extends DynamoDBLocalSpec {
     }
 
   def spec = suite("Batch IT")(
-    suite("runWriteItem")(
+    suite("BatchWriteItem")(
       test("returns Complete when all items processed") {
         for {
           client <- ZIO.service[DynamoDbAsyncClient]
@@ -51,8 +51,8 @@ object BatchSpec extends DynamoDBLocalSpec {
                         Item("id" -> "b", "v" -> 2),
                         Item("id" -> "c", "v" -> 3)
                       )
-                      Batch
-                        .runWriteItem(interp)(
+                      interp
+                        .run(
                           DynamoDBQuery.batchWriteItem(items)(i => DynamoDBQuery.putItem(table, i))
                         )
                         .map(r => assert(r)(isSubtype[Batch.WriteResult.Complete](anything)))
@@ -67,7 +67,7 @@ object BatchSpec extends DynamoDBLocalSpec {
           result <- withTable(interp) { (table, interp) =>
                       val items = List(Item("id" -> "x", "v" -> 10), Item("id" -> "y", "v" -> 20))
                       for {
-                        _  <- Batch.runWriteItem(interp)(
+                        _  <- interp.run(
                                 DynamoDBQuery.batchWriteItem(items)(i => DynamoDBQuery.putItem(table, i))
                               )
                         rx <- interp.run(DynamoDBQuery.getItem(table, PrimaryKey("id" -> "x")))
@@ -88,10 +88,10 @@ object BatchSpec extends DynamoDBLocalSpec {
                       val items = List(Item("id" -> "d1"), Item("id" -> "d2"))
                       val keys  = List(PrimaryKey("id" -> "d1"), PrimaryKey("id" -> "d2"))
                       for {
-                        _   <- Batch.runWriteItem(interp)(
+                        _   <- interp.run(
                                  DynamoDBQuery.batchWriteItem(items)(i => DynamoDBQuery.putItem(table, i))
                                )
-                        _   <- Batch.runWriteItem(interp)(
+                        _   <- interp.run(
                                  DynamoDBQuery.batchWriteItem(keys)(k => DynamoDBQuery.deleteItem(table, k))
                                )
                         rd1 <- interp.run(DynamoDBQuery.getItem(table, PrimaryKey("id" -> "d1")))
@@ -102,7 +102,7 @@ object BatchSpec extends DynamoDBLocalSpec {
       }
     ),
 
-    suite("runGetItem")(
+    suite("BatchGetItem")(
       test("returns Complete when all items exist") {
         for {
           client <- ZIO.service[DynamoDbAsyncClient]
@@ -111,11 +111,11 @@ object BatchSpec extends DynamoDBLocalSpec {
                       val ids   = List("p", "q", "r")
                       val items = ids.map(id => Item("id" -> id))
                       for {
-                        _      <- Batch.runWriteItem(interp)(
+                        _      <- interp.run(
                                     DynamoDBQuery.batchWriteItem(items)(i => DynamoDBQuery.putItem(table, i))
                                   )
                         result <-
-                          Batch.runGetItem(interp)(
+                          interp.run(
                             DynamoDBQuery.batchGetItem(ids)(id => DynamoDBQuery.GetItem(table, PrimaryKey("id" -> id)))
                           )
                       } yield assert(result)(isSubtype[Batch.GetResult.Complete](anything))
@@ -131,11 +131,11 @@ object BatchSpec extends DynamoDBLocalSpec {
                       val ids   = List("m", "n")
                       val items = ids.map(id => Item("id" -> id, "score" -> 42))
                       for {
-                        _      <- Batch.runWriteItem(interp)(
+                        _      <- interp.run(
                                     DynamoDBQuery.batchWriteItem(items)(i => DynamoDBQuery.putItem(table, i))
                                   )
                         result <-
-                          Batch.runGetItem(interp)(
+                          interp.run(
                             DynamoDBQuery.batchGetItem(ids)(id => DynamoDBQuery.GetItem(table, PrimaryKey("id" -> id)))
                           )
                         found = result match {
@@ -153,8 +153,8 @@ object BatchSpec extends DynamoDBLocalSpec {
           interp = ZioInterpreter.fromAsyncClient(client)
           result <- withTable(interp) { (table, interp) =>
                       val ids = List("ghost-1", "ghost-2")
-                      Batch
-                        .runGetItem(interp)(
+                      interp
+                        .run(
                           DynamoDBQuery.batchGetItem(ids)(id => DynamoDBQuery.GetItem(table, PrimaryKey("id" -> id)))
                         )
                         .map(r => assert(r)(isSubtype[Batch.GetResult.Complete](anything)))
