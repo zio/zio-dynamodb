@@ -115,10 +115,8 @@ object DdbExprInterpreter {
         }
     }
 
-  // Inlined from DdbSchemaExprApi.dynamicToConditionExpression (schema-expr module).
-  // schema-ddbexpr does not depend on schema-expr, so the DynamicSchemaExpr fold
-  // is reproduced here. Both DynamicSchemaExpr (from zio-blocks-schema) and
-  // DynamoDBCodecDeriver.dynamicValueCodec (from schema-dynamodb) are available.
+  // Folds a DynamicSchemaExpr (from zio-blocks-schema) into a ConditionExpression directly;
+  // DynamoDBCodecDeriver.dynamicValueCodec (from schema-dynamodb) is available for encoding.
   private def fromDynamicSchemaExpr[A](dse: DynamicSchemaExpr): ConditionExpression[A] = {
 
     def toRelational(

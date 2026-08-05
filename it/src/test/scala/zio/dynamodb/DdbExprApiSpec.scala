@@ -32,16 +32,10 @@ import zio.test.TestAspect
 /**
  * Integration tests for [[DdbExprApi]].
  *
- *  Focuses on the correctness guarantee that distinguishes [[DdbExprApi]] from
- *  [[zio.dynamodb.blocks.DdbSchemaExprApi]]: sealed-trait literal values in
+ *  Focuses on the correctness guarantee that sealed-trait literal values in
  *  filter/condition expressions are encoded via [[zio.dynamodb.blocks.schema.DynamoDBCodec]]
- *  directly, not through a [[zio.blocks.schema.DynamicValue]] round-trip that loses
+ *  directly, not through a [[zio.blocks.schema.DynamicValue]] round-trip that would lose
  *  the `enumValuesAsStrings` encoding rule.
- *
- *  The cross-API proof test (suite 3) demonstrates this concretely: the same item
- *  with `priority = "High"` (as stored) is found by a [[DdbExprApi]] filter but
- *  missed by a [[zio.dynamodb.blocks.DdbSchemaExprApi]] filter, which generates
- *  `priority = {"High": {}}` for the same Scala expression.
  */
 object DdbExprApiSpec extends DynamoDBLocalSpec {
 
@@ -67,24 +61,6 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
 
   private val envLayer: URLayer[DynamoDbAsyncClient, DynamoDBEnv] =
     ZLayer(ZIO.serviceWith[DynamoDbAsyncClient](client => DynamoDBEnv(client, ZioInterpreter.fromAsyncClient(client))))
-
-  // ── Cross-API helper ──────────────────────────────────────────────────────────
-
-  // Commented out: schema-expr (DdbSchemaExprApi) was removed from the sbt build graph
-  // (deprecated in favor of DdbExprApi). Source kept for reference; not compiled.
-  // Builds a DdbSchemaExprApi scan query in an isolated scope so that its
-  // implicit (SchemaExpr → ConditionExpression) doesn't conflict with the
-  // DdbExprApi implicit (DdbExpr → ConditionExpression) at the call site.
-  // private def schemaExprScan(
-  //   table: String
-  // ): DynamoDBQuery[Task, Page[Either[DynamoDBError.ItemError, Task]]] = {
-  //   import zio.dynamodb.blocks.DdbSchemaExprApi
-  //   import zio.dynamodb.blocks.DdbSchemaExprApi._
-  //   // Task.priority === Priority.High uses ZB's Optic.=== → SchemaExpr[Task, Boolean],
-  //   // which DdbSchemaExprApi implicitly converts to ConditionExpression via DynamicValue.
-  //   // For an all-no-field sealed trait this produces priority = {"High": {}} (wrong).
-  //   DdbSchemaExprApi.scan[Task](table, 10).filter(Task.priority === Priority.High)
-  // }
 
   // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -244,25 +220,6 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
         }
       }
     )
-
-  // Commented out: depends on schemaExprScan (DdbSchemaExprApi), removed from the sbt
-  // build graph. Source kept for reference; not compiled.
-  // private val crossApiTests: Spec[DynamoDBEnv, Throwable] =
-  //   suite("cross-API encoding mismatch proof")(
-  //     test("DdbExprApi === filter finds item that DdbSchemaExprApi === filter misses") {
-  //       withSingleIdKeyTable { (table, interpreter) =>
-  //         for {
-  //           _          <- interpreter.run(DdbExprApi.put(table, Task("t1", Priority.High)))
-  //           ddbPage    <- interpreter.run(
-  //                           DdbExprApi.scan[Task](table, 10)
-  //                             .filter(Task.priority === Priority.High)
-  //                         )
-  //           schemaPage <- interpreter.run(schemaExprScan(table))
-  //         } yield assertTrue(ddbPage.items.count(_.isRight) == 1) &&
-  //                 assertTrue(schemaPage.items.isEmpty)
-  //       }
-  //     }
-  //   )
 
   private val queryTests: Spec[DynamoDBEnv, Throwable] =
     suite("query with DdbKeyExpr key condition")(
@@ -567,7 +524,6 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
       compoundKeyTests,
       conditionExprTests,
       enumFilterTests,
-      // crossApiTests, // depends on schemaExprScan (DdbSchemaExprApi), commented out above
       queryTests,
       scanTests,
       updateTests,
