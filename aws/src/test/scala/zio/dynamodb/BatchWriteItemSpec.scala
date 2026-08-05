@@ -222,6 +222,22 @@ object BatchWriteItemSpec extends ZIOSpecDefault {
       assert(result)(
         isSubtype[Batch.WriteResult.Failed](hasField("cause", _.cause, isSubtype[java.io.IOException](anything)))
       )
+    },
+    test("fatal error (OutOfMemoryError) propagates as a failed effect, not WriteResult.Failed") {
+      val boom                      = new OutOfMemoryError("heap space")
+      val interp                    = new DummyIOInterpreter(failingClient(boom))
+      val query                     = DynamoDBQuery.batchWriteItem(List(Item("id" -> "a")))(item => DynamoDBQuery.putItem("t", item))
+      // NonFatal (used internally by withRetryTracked) excludes VirtualMachineError, so this
+      // must escape as a thrown exception rather than being captured as a value — a plain
+      // try/catch (not scala.util.Try, which also filters on NonFatal) is required to observe it.
+      val caught: Option[Throwable] =
+        try {
+          interp.run(query).unsafeRun()
+          None
+        } catch {
+          case t: Throwable => Some(t)
+        }
+      assertTrue(caught.contains(boom))
     }
   )
 
