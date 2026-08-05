@@ -49,7 +49,7 @@ import software.amazon.awssdk.services.dynamodb.model.{
   WriteRequest
 }
 import zio.test._
-import zio.test.Assertion.{ anything, isSubtype }
+import zio.test.Assertion.{ anything, equalTo, hasField, isSubtype }
 
 import java.util.{ List => JList, Map => JMap }
 import scala.collection.JavaConverters._
@@ -121,10 +121,17 @@ object BatchWriteItemSpec extends ZIOSpecDefault {
       def transactWriteItems(req: TransactWriteItemsRequest): DummyIO[TransactWriteItemsResponse] = DummyIO.succeed(???)
     }
 
+  // Unwraps the Batch.WriteResult.Complete/Incomplete response — these tests exercise
+  // RealAwsInterpreter.runBatchWriteItem end-to-end (codec + response propagation), not the
+  // response-level retry loop, so both outcomes carry a response we can inspect.
   private def evalBatch(resp: BatchWriteItemResponse): scala.util.Try[DynamoDBQuery.BatchWriteItem.Response] = {
     val interp = new DummyIOInterpreter(stubClient(resp))
     val query  = DynamoDBQuery.batchWriteItem(List(Item("id" -> "a")))(item => DynamoDBQuery.putItem("t", item))
-    scala.util.Try(interp.run(query).unsafeRun())
+    scala.util.Try(interp.run(query).unsafeRun()).map {
+      case Batch.WriteResult.Complete(response)   => response
+      case Batch.WriteResult.Incomplete(response) => response
+      case other                                  => throw new RuntimeException(s"expected a response, got $other")
+    }
   }
 
   // -- Codec tests -----------------------------------------------------------
@@ -191,21 +198,46 @@ object BatchWriteItemSpec extends ZIOSpecDefault {
     }
   )
 
+  // Batch queries capture effect-level failures as a Batch.WriteResult.Failed value rather
+  // than raising a failed effect (see Batch — errors are an inherently partial, multi-item
+  // outcome, unlike single-item CRUD ops). interp.run(batchQuery) itself never fails here;
+  // only a fatal (non-NonFatal) error would propagate as a failed effect.
   private val errorPropagationSuite = suite("error propagation")(
-    test("non-retryable exception from client propagates as effect-level failure") {
+    test("non-retryable exception from client is captured as WriteResult.Failed, not a failed effect") {
       val boom   = new RuntimeException("ValidationException: invalid attribute")
       val interp = new DummyIOInterpreter(failingClient(boom))
       val query  = DynamoDBQuery.batchWriteItem(List(Item("id" -> "a")))(item => DynamoDBQuery.putItem("t", item))
-      val result = scala.util.Try(interp.run(query).unsafeRun())
-      assertTrue(result.isFailure && (result.failed.get eq boom))
+      val result = interp.run(query).unsafeRun()
+      assert(result)(
+        isSubtype[Batch.WriteResult.Failed](
+          hasField[Batch.WriteResult.Failed, Throwable]("cause", _.cause, equalTo(boom))
+        )
+      )
     },
-    test("IO error (not a DynamoDB throttle) propagates unchanged") {
+    test("IO error (not a DynamoDB throttle) is captured as WriteResult.Failed, not a failed effect") {
       val boom   = new java.io.IOException("connection reset")
       val interp = new DummyIOInterpreter(failingClient(boom))
       val query  = DynamoDBQuery.batchWriteItem(List(Item("id" -> "a")))(item => DynamoDBQuery.putItem("t", item))
-      val result = scala.util.Try(interp.run(query).unsafeRun())
-      assertTrue(result.isFailure) &&
-      assert(result.failed.get)(isSubtype[java.io.IOException](anything))
+      val result = interp.run(query).unsafeRun()
+      assert(result)(
+        isSubtype[Batch.WriteResult.Failed](hasField("cause", _.cause, isSubtype[java.io.IOException](anything)))
+      )
+    },
+    test("fatal error (OutOfMemoryError) propagates as a failed effect, not WriteResult.Failed") {
+      val boom                      = new OutOfMemoryError("heap space")
+      val interp                    = new DummyIOInterpreter(failingClient(boom))
+      val query                     = DynamoDBQuery.batchWriteItem(List(Item("id" -> "a")))(item => DynamoDBQuery.putItem("t", item))
+      // NonFatal (used internally by withRetryTracked) excludes VirtualMachineError, so this
+      // must escape as a thrown exception rather than being captured as a value — a plain
+      // try/catch (not scala.util.Try, which also filters on NonFatal) is required to observe it.
+      val caught: Option[Throwable] =
+        try {
+          interp.run(query).unsafeRun()
+          None
+        } catch {
+          case t: Throwable => Some(t)
+        }
+      assertTrue(caught.contains(boom))
     }
   )
 

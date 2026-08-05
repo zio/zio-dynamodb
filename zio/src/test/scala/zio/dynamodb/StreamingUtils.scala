@@ -26,13 +26,14 @@ object StreamingUtils {
   /**
    * Reads items from DynamoDB for a stream of primary keys using batched reads.
    *
-   *  Keys are grouped into batches of up to 100 and submitted via [[Batch.runGetItem]].
-   *  The stream never fails: incomplete and failed batches are logged (ZIO logger) and
-   *  skipped, and pagination continues with the next batch.
+   *  Keys are grouped into batches of up to 100 and run via `interp.run`, which honors the
+   *  AWS batch retry contract internally (see [[Batch]]). The stream never fails: incomplete
+   *  and failed batches are logged (ZIO logger) and skipped, and pagination continues with
+   *  the next batch.
    *
    *  @param interp     the effect interpreter to run each batch through
    *  @param tableName  DynamoDB table to query
-   *  @param policy     retry policy passed to [[Batch.runGetItem]]; defaults to [[RetryPolicy.NoRetry]]
+   *  @param policy     retry policy attached to the batch query; defaults to [[RetryPolicy.NoRetry]]
    *  @param keys       source stream of primary keys to fetch
    */
   def batchGetItems(
@@ -46,7 +47,7 @@ object StreamingUtils {
         val query = DynamoDBQuery
           .batchGetItem(chunk)(pk => DynamoDBQuery.GetItem(tableName, pk))
           .withRetryPolicy(policy)
-        Batch.runGetItem(interp)(query).flatMap {
+        interp.run(query).flatMap {
           case Batch.GetResult.Complete(response) =>
             ZIO.succeed(response.responses.iterator.flatMap(_._2).toList)
 

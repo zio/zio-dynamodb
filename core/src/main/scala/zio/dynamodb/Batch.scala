@@ -17,26 +17,27 @@
 package zio.dynamodb
 
 /**
- * Batch execution with built-in retry.
+ * Result types for batch execution with built-in retry.
  *
- *  Each method executes exactly one batch (≤ 25 items for write, ≤ 100
- *  for get) and retries the unprocessed residual according to `policy`.
- *  Splitting a larger collection into correctly-sized batches and
- *  constructing the query are the caller's responsibility — use
- *  [[DynamoDBQuery.batchWriteItem]] and [[DynamoDBQuery.batchGetItem]]
- *  to build the query before passing it here.
+ *  Batch queries run through the same [[AwsInterpreter.run]] entry point as every other
+ *  [[DynamoDBQuery]] — build one with [[DynamoDBQuery.batchWriteItem]] or
+ *  [[DynamoDBQuery.batchGetItem]], attach a [[RetryPolicy]] with `.withRetryPolicy(policy)`
+ *  if desired, and call `interpreter.run(query)`. The interpreter honors the AWS batch retry
+ *  contract internally — resubmitting unprocessed keys/items — so the caller never has to
+ *  implement that loop themselves.
  *
- *  `policy` governs two independent retry loops:
- *  - Effect-level: transient failures (throttling, network) are retried
- *    via [[AwsInterpreter.withRetry]] on each individual attempt.
- *  - Response-level: unprocessed items are re-submitted until either all
- *    items are processed or the policy is exhausted.
+ *  `policy` (read from the query's own `retryPolicy` field) governs two independent retry
+ *  loops, both driven inside [[Interpreter.runAny]]:
+ *  - Effect-level: transient failures (throttling, network) are retried on each individual
+ *    attempt.
+ *  - Response-level: unprocessed items are re-submitted until either all items are
+ *    processed or the policy is exhausted. If no policy is attached, the batch runs once
+ *    with no retries ([[RetryPolicy.NoRetry]]).
  *
- *  Non-fatal effect errors (e.g. throttling, SDK validation failures) are
- *  captured in [[Batch.WriteResult.Failed]] / [[Batch.GetResult.Failed]]
- *  rather than raising a failed effect.  Fatal errors (e.g.
- *  `OutOfMemoryError`, which the effect runtime treats as a defect) bypass
- *  this wrapping and propagate as a failed `F` — the caller must not attempt
+ *  Non-fatal effect errors (e.g. throttling, SDK validation failures) are captured in
+ *  [[Batch.WriteResult.Failed]] / [[Batch.GetResult.Failed]] rather than raising a failed
+ *  effect. Fatal errors (e.g. `OutOfMemoryError`, which the effect runtime treats as a
+ *  defect) bypass this wrapping and propagate as a failed `F` — the caller must not attempt
  *  to recover from them as ordinary batch failures.
  */
 object Batch {
@@ -81,119 +82,4 @@ object Batch {
      */
     final case class Failed(cause: Throwable, responseRetries: Int, effectRetries: Int) extends GetResult
   }
-
-  /**
-   * Executes a single [[DynamoDBQuery.BatchWriteItem]] with retry.
-   *
-   *  The retry policy is read from `q.retryPolicy`. Attach one with
-   *  `q.withRetryPolicy(policy)` before calling this method. If no policy is
-   *  set, the batch runs once with no retries.
-   *
-   *  @param interpreter the effect interpreter to run the query through
-   *  @param q           the batch query — build with [[DynamoDBQuery.batchWriteItem]]
-   *  @return [[Batch.WriteResult.Complete]] if all items were processed,
-   *          [[Batch.WriteResult.Incomplete]] if unprocessed items remain after policy
-   *          exhaustion, or [[Batch.WriteResult.Failed]] if an effect-level error persisted
-   *          through all retries (exception captured in `cause`)
-   */
-  def runWriteItem[F[_]](
-    interpreter: AwsInterpreter[F]
-  )(q: DynamoDBQuery[Any, DynamoDBQuery.BatchWriteItem.Response]): F[Batch.WriteResult] =
-    q match {
-      case bw: DynamoDBQuery.BatchWriteItem =>
-        retryWrite(interpreter, bw.retryPolicy.getOrElse(RetryPolicy.NoRetry), attempt = 0, bw)
-      case other                            =>
-        interpreter.pure(
-          WriteResult.Failed(
-            new IllegalArgumentException(s"Expected BatchWriteItem, got ${other.getClass.getSimpleName}"),
-            0,
-            0
-          )
-        )
-    }
-
-  /**
-   * Executes a single [[DynamoDBQuery.BatchGetItem]] with retry.
-   *
-   *  The retry policy is read from `q.retryPolicy`. Attach one with
-   *  `q.withRetryPolicy(policy)` before calling this method. If no policy is
-   *  set, the batch runs once with no retries.
-   *
-   *  @param interpreter the effect interpreter to run the query through
-   *  @param q           the batch query — build with [[DynamoDBQuery.batchGetItem]]
-   *  @return [[Batch.GetResult.Complete]] if all keys were retrieved,
-   *          [[Batch.GetResult.Incomplete]] if unprocessed keys remain after policy
-   *          exhaustion, or [[Batch.GetResult.Failed]] if an effect-level error persisted
-   *          through all retries (exception captured in `cause`)
-   */
-  def runGetItem[F[_]](
-    interpreter: AwsInterpreter[F]
-  )(q: DynamoDBQuery[Any, DynamoDBQuery.BatchGetItem.Response]): F[Batch.GetResult] =
-    q match {
-      case bg: DynamoDBQuery.BatchGetItem =>
-        retryGet(interpreter, bg.retryPolicy.getOrElse(RetryPolicy.NoRetry), attempt = 0, bg)
-      case other                          =>
-        interpreter.pure(
-          GetResult.Failed(
-            new IllegalArgumentException(s"Expected BatchGetItem, got ${other.getClass.getSimpleName}"),
-            0,
-            0
-          )
-        )
-    }
-
-  private def retryWrite[F[_]](
-    interp: AwsInterpreter[F],
-    policy: RetryPolicy,
-    attempt: Int,
-    q: DynamoDBQuery.BatchWriteItem
-  ): F[Batch.WriteResult] =
-    interp.flatMap(interp.withRetryTracked(policy)(interp.run(q.copy(retryPolicy = None)))) {
-      case Left((cause, effectRetries)) =>
-        interp.pure(WriteResult.Failed(cause, responseRetries = attempt, effectRetries = effectRetries))
-      case Right(response)              =>
-        response.unprocessedItems match {
-          case None            => interp.pure(WriteResult.Complete(response))
-          case Some(remaining) =>
-            policy.nextDelay(attempt) match {
-              case None    => interp.pure(WriteResult.Incomplete(response))
-              case Some(d) =>
-                interp.flatMap(interp.sleep(d)) { _ =>
-                  retryWrite(
-                    interp,
-                    policy,
-                    attempt + 1,
-                    DynamoDBQuery.BatchWriteItem(requestItems = remaining)
-                  )
-                }
-            }
-        }
-    }
-
-  private def retryGet[F[_]](
-    interp: AwsInterpreter[F],
-    policy: RetryPolicy,
-    attempt: Int,
-    q: DynamoDBQuery.BatchGetItem
-  ): F[Batch.GetResult] =
-    interp.flatMap(interp.withRetryTracked(policy)(interp.run(q.copy(retryPolicy = None)))) {
-      case Left((cause, effectRetries)) =>
-        interp.pure(GetResult.Failed(cause, responseRetries = attempt, effectRetries = effectRetries))
-      case Right(response)              =>
-        if (response.unprocessedKeys.isEmpty)
-          interp.pure(GetResult.Complete(response))
-        else
-          policy.nextDelay(attempt) match {
-            case None    => interp.pure(GetResult.Incomplete(response))
-            case Some(d) =>
-              interp.flatMap(interp.sleep(d)) { _ =>
-                retryGet(
-                  interp,
-                  policy,
-                  attempt + 1,
-                  DynamoDBQuery.BatchGetItem(requestItems = response.unprocessedKeys)
-                )
-              }
-          }
-    }
 }

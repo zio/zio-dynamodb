@@ -482,3 +482,6 @@ shell.nix
 .envrc
 .direnv
 /.vscode/
+
+# scratch design docs / working notes, not for the repo
+/docs2/

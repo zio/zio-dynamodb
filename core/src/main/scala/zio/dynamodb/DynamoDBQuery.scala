@@ -581,7 +581,7 @@ object DynamoDBQuery {
     private[dynamodb] val orderedGetItems: Chunk[GetItem] =
       Chunk.empty, // track order of added GetItems for later unpacking
     retryPolicy: Option[RetryPolicy] = None
-  ) extends Constructor[Any, BatchGetItem.Response] { self =>
+  ) extends Constructor[Any, Batch.GetResult] { self =>
 
     def +(getItem: GetItem): BatchGetItem = {
       val tableName                                                     = getItem.tableName
@@ -646,7 +646,7 @@ object DynamoDBQuery {
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     addList: Chunk[BatchWriteItem.Write] = Chunk.empty,
     retryPolicy: Option[RetryPolicy] = None
-  ) extends Constructor[Any, BatchWriteItem.Response] { self =>
+  ) extends Constructor[Any, Batch.WriteResult] { self =>
     def +[A](writeItem: Write[Any, A]): BatchWriteItem =
       writeItem match {
         case putItem @ PutItem(_, _, _, _, _, _, _, _)       =>

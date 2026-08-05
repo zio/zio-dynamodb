@@ -17,7 +17,6 @@
 package zio.dynamodb
 
 import zio.blocks.chunk.Chunk
-import zio.dynamodb.DynamoDBQuery.BatchWriteItem
 import zio.dynamodb.ProjectionExpression.{ $, Unknown }
 
 object Client {
@@ -26,12 +25,12 @@ object Client {
   val putItem: DynamoDBQuery[Any, Option[Item]] = DynamoDBQuery.putItem("my-table", item)
   val putItemResult: DummyIO[Option[Item]]      = DummyIOInterpreter.run(putItem)
 
-  val people: List[Person]                                    = List(Person("123", "test"))
-  val batchWriteItems: DynamoDBQuery.BatchWriteItem           =
+  val people: List[Person]                              = List(Person("123", "test"))
+  val batchWriteItems: DynamoDBQuery.BatchWriteItem     =
     DynamoDBQuery.batchWriteItem(people)(person =>
       DynamoDBQuery.putItem("my-table", Item("id" -> person.id, "name" -> person.name))
     )
-  val batchWriteItemsResult: DummyIO[BatchWriteItem.Response] = DummyIOInterpreter.run(batchWriteItems)
+  val batchWriteItemsResult: DummyIO[Batch.WriteResult] = DummyIOInterpreter.run(batchWriteItems)
 
   val batchGetItem: DynamoDBQuery.BatchGetItem =
     DynamoDBQuery.batchGetItem(people) { person =>

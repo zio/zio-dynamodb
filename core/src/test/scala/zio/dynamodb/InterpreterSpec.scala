@@ -18,7 +18,7 @@ package zio.dynamodb
 
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.test._
-import zio.test.Assertion.{ anything, isSubtype }
+import zio.test.Assertion.{ anything, hasField, isNone, isSubtype, isTrue }
 
 object InterpreterSpec extends ZIOSpecDefault {
 
@@ -140,15 +140,21 @@ object InterpreterSpec extends ZIOSpecDefault {
         val page = eval(DynamoDBQuery.scanSome("t", limit = 10))
         assertTrue(page.items.isEmpty && page.lastEvaluatedKey.isEmpty)
       },
-      test("BatchGetItem returns empty response") {
+      test("BatchGetItem returns a Complete result with an empty response") {
         val q = DynamoDBQuery.BatchGetItem()
         val r = eval(q)
-        assertTrue(r.responses.iterator.isEmpty)
+        assert(r)(
+          isSubtype[Batch.GetResult.Complete](
+            hasField("responses empty", _.response.responses.iterator.isEmpty, isTrue)
+          )
+        )
       },
-      test("BatchWriteItem returns empty response") {
+      test("BatchWriteItem returns a Complete result with an empty response") {
         val q = DynamoDBQuery.BatchWriteItem()
         val r = eval(q)
-        assertTrue(r.unprocessedItems.isEmpty)
+        assert(r)(
+          isSubtype[Batch.WriteResult.Complete](hasField("unprocessedItems", _.response.unprocessedItems, isNone))
+        )
       }
     ),
 
