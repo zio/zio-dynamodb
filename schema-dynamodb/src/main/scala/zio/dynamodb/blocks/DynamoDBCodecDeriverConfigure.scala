@@ -28,7 +28,8 @@ trait DynamoDBCodecDeriverConfigure[+A] {
 
 object DynamoDBCodecDeriverConfigure {
   // Singleton so default[A] always returns the same reference — required for
-  // identity-based cache keys in DdbSchemaExprApi.  Covariance (+A) makes widening safe.
+  // identity-based cache keys (e.g. DdbExprApi's codec cache). Covariance (+A) makes
+  // widening safe.
   private val _identity: DynamoDBCodecDeriverConfigure[Nothing] = d => d
 
   def identity[A]: DynamoDBCodecDeriverConfigure[A]         = _identity

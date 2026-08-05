@@ -27,8 +27,8 @@ import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
  * High-level CRUD API backed by [[DdbExpr]] condition expressions and [[DdbKeyExpr]]
  *  key condition expressions.
  *
- *  Unlike the deprecated [[zio.dynamodb.blocks.DdbSchemaExprApi]], all ZB [[zio.blocks.schema.Optic]]
- *  operators (===, >, <, >=, <=) encode sealed-trait literals correctly. Since zio-blocks v0.0.47
+ *  All ZB [[zio.blocks.schema.Optic]] operators (===, >, <, >=, <=) encode sealed-trait
+ *  literals correctly. Since zio-blocks v0.0.47
  *  [[zio.blocks.schema.DynamicSchemaExpr.Literal]] carries a [[zio.blocks.schema.Schema]], the
  *  interpreter derives a [[zio.dynamodb.blocks.schema.DynamoDBCodec]] at evaluation time —
  *  `enumValuesAsStrings` and other encoding rules are preserved automatically.
@@ -67,9 +67,9 @@ object DdbExprApi {
 
   private case class CodecEntry[A](codec: DynamoDBCodec[A], projections: Chunk[ProjectionExpression[_, _]])
 
-  // Keyed by (Schema, DynamoDBCodecDeriverConfigure) reference identity — same
-  // rationale as DdbSchemaExprApi: avoids cross-classloader collisions and ensures
-  // types with custom configures get their own entry.
+  // Keyed by (Schema, DynamoDBCodecDeriverConfigure) reference identity — avoids
+  // cross-classloader collisions and ensures types with custom configures get their
+  // own entry.
   private final class CodecCacheKey(private val r0: AnyRef, private val r1: AnyRef) {
     override val hashCode: Int           = System.identityHashCode(r0) * 31 + System.identityHashCode(r1)
     override def equals(o: Any): Boolean = o match {
