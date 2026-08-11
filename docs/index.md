@@ -54,13 +54,10 @@ object Example extends IOApp.Simple {
 ```
 `Movie.id`, `Movie.genre`, and every operator on them (`===`, `partitionKey`, `.filter`) are
 plain Scala values checked against `Movie`'s schema at compile time — a typo in a field name,
-or comparing `genre` against the wrong type, is a compile error, not a runtime surprise. And
-that's genuinely `cats.effect.IO` throughout, not a `Future`/ZIO shim wearing a CE-shaped hat —
-`CEInterpreter` implements the library's effect primitives directly against `IO`. The `dev.zio`
-naming reflects where the project is hosted, not a hidden ZIO runtime dependency: `core` has no
-effect-system dependency at all, and the schema layer (`zio.blocks.schema`) is metaprogramming,
-not an effect system — same category as Circe or shapeless, unrelated to which effect type you
-run queries in.
+or comparing `genre` against the wrong type, is a compile error, not a runtime surprise. As a
+direct consequence of the zero-dependency core and the modular design, using the CE interpreter
+doesn't pull ZIO — or any other effect ecosystem — onto your classpath; the same holds for the
+other bundled interpreters, each pulling in only its own effect library.
 
 ## Why the rewrite
 
