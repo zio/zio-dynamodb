@@ -16,9 +16,8 @@
 
 package zio.dynamodb.blocks.ddbexpr
 
-import zio.blocks.schema.{ Optic, Schema }
-import zio.dynamodb.blocks.DynamoDBCodecDeriverConfigure
-import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
+import zio.blocks.schema.Optic
+import zio.dynamodb.blocks.schema.DynamoDBCodec
 
 /**
  * Typed key condition expression ADT for DynamoDB query/get/delete/update operations.
@@ -58,9 +57,48 @@ import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
  */
 sealed trait DdbKeyExpr[S]
 
-object DdbKeyExpr {
+/**
+ * Implicit syntax for [[DdbKeyExpr]], extracted from `object DdbKeyExpr` into a mixin-able
+ *  trait so the [[dsl]] facade can combine it with [[DdbExprSyntax]]/[[DdbExprApiSyntax]]
+ *  under a single import. `object DdbKeyExpr extends DdbKeyExprSyntax` below is unaffected —
+ *  every member here remains reachable as `DdbKeyExpr.XXX` exactly as before.
+ *
+ *  The ADT nodes and builder classes (`PartitionKeyEquals`, `PartitionKeyBuilder`, etc.) stay
+ *  declared directly in `object DdbKeyExpr`, not here — see the equivalent note on
+ *  [[DdbExprSyntax]] for why (path-dependent outer references on case classes nested in a
+ *  trait mixed into more than one object).
+ */
+trait DdbKeyExprSyntax extends DerivedCodecSyntax {
+
+  // ── Lens extension methods ─────────────────────────────────────────────────
+
+  // Following the ZB query-dsl-extending guide pattern: extension methods on
+  // Optic return builders that provide operator syntax. Naming matches the LL API's
+  // ProjectionExpression.partitionKey/.sortKey:
+  //   Task.id.partitionKey === "alice"                                   (partition key only)
+  //   Task.id.partitionKey === "alice" && Task.score.sortKey === 42      (composite)
+  //   Task.id.partitionKey === "alice" && Task.score.sortKey > 10        (extended)
+  // The apply() method on PartitionKeyBuilder also preserves:
+  //   Task.id.partitionKey("alice")     (call-style, backward compatible)
+  // Not `extends AnyVal`: value classes may only be top-level or object members, not
+  // trait members, and this trait is mixed into more than one object (DdbKeyExpr, dsl).
+  implicit class LensKeyOps[S, A](private val optic: Optic[S, A]) {
+    def partitionKey: DdbKeyExpr.PartitionKeyBuilder[S, A] = new DdbKeyExpr.PartitionKeyBuilder(optic)
+    def sortKey: DdbKeyExpr.SortKeyBuilder[S, A]           = new DdbKeyExpr.SortKeyBuilder(optic)
+  }
+
+  // String-specific sort key ops — resolved via implicit class when B =:= String.
+  implicit class SortKeyBuilderStrOps[S](private val b: DdbKeyExpr.SortKeyBuilder[S, String]) {
+    def beginsWith(prefix: String): DdbKeyExpr.SortKeyExtended[S] =
+      DdbKeyExpr.SortKeyExtended.BeginsWith(b.optic, prefix)
+  }
+}
+
+object DdbKeyExpr extends DdbKeyExprSyntax {
 
   // ── ADT nodes ──────────────────────────────────────────────────────────────
+  // Declared directly in this singleton object (not in DdbKeyExprSyntax above) so they stay
+  // path-independent — see the note on DdbKeyExprSyntax for why.
 
   /**
    * Sealed sub-trait for primary-key expressions (partition-key-only or
@@ -108,21 +146,6 @@ object DdbKeyExpr {
       PartitionKeyEquals(optic, value, codec)
   }
 
-  // ── Lens extension methods ─────────────────────────────────────────────────
-
-  // Following the ZB query-dsl-extending guide pattern: extension methods on
-  // Optic return builders that provide operator syntax. Naming matches the LL API's
-  // ProjectionExpression.partitionKey/.sortKey:
-  //   Task.id.partitionKey === "alice"                                   (partition key only)
-  //   Task.id.partitionKey === "alice" && Task.score.sortKey === 42      (composite)
-  //   Task.id.partitionKey === "alice" && Task.score.sortKey > 10        (extended)
-  // The apply() method on PartitionKeyBuilder also preserves:
-  //   Task.id.partitionKey("alice")     (call-style, backward compatible)
-  implicit class LensKeyOps[S, A](private val optic: Optic[S, A]) extends AnyVal {
-    def partitionKey: PartitionKeyBuilder[S, A] = new PartitionKeyBuilder(optic)
-    def sortKey: SortKeyBuilder[S, A]           = new SortKeyBuilder(optic)
-  }
-
   // ── Standalone factories ───────────────────────────────────────────────────
 
   def partitionKey[S, A](optic: Optic[S, A]): PartitionKeyBuilder[S, A] = new PartitionKeyBuilder(optic)
@@ -140,19 +163,4 @@ object DdbKeyExpr {
     def between(lo: B, hi: B)(implicit codec: DynamoDBCodec[B]): SortKeyExtended[S] =
       SortKeyExtended.Between(optic, lo, hi, codec)
   }
-
-  // String-specific sort key ops — resolved via implicit class when B =:= String.
-  implicit class SortKeyBuilderStrOps[S](private val b: SortKeyBuilder[S, String]) extends AnyVal {
-    def beginsWith(prefix: String): SortKeyExtended[S] = SortKeyExtended.BeginsWith(b.optic, prefix)
-  }
-
-  // Same derivedCodec pattern as DdbExpr: resolves DynamoDBCodec[A] for any A
-  // with Schema[A] in scope, so partitionKey/sortKey operators work without explicit codec imports.
-  // Note: importing both DdbExpr._ and DdbKeyExpr._ simultaneously would introduce
-  // two derivedCodec implicits and cause ambiguity; import only one at a time.
-  implicit def derivedCodec[A](implicit
-    schema: Schema[A],
-    cfg: DynamoDBCodecDeriverConfigure[A]
-  ): DynamoDBCodec[A] =
-    schema.deriving(cfg.configure(DynamoDBCodecDeriver)).derive
 }

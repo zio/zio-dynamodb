@@ -23,6 +23,19 @@ import zio.dynamodb._
 import zio.dynamodb.blocks.DynamoDBCodecDeriverConfigure
 import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
 
+private[ddbexpr] final case class CodecEntry[A](codec: DynamoDBCodec[A], projections: Chunk[ProjectionExpression[_, _]])
+
+// Keyed by (Schema, DynamoDBCodecDeriverConfigure) reference identity — avoids
+// cross-classloader collisions and ensures types with custom configures get their
+// own entry.
+private[ddbexpr] final class CodecCacheKey(private val r0: AnyRef, private val r1: AnyRef) {
+  override val hashCode: Int           = System.identityHashCode(r0) * 31 + System.identityHashCode(r1)
+  override def equals(o: Any): Boolean = o match {
+    case k: CodecCacheKey => (r0 eq k.r0) && (r1 eq k.r1)
+    case _                => false
+  }
+}
+
 /**
  * High-level CRUD API backed by [[DdbExpr]] condition expressions and [[DdbKeyExpr]]
  *  key condition expressions.
@@ -55,28 +68,29 @@ import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
  *  }}}
  *
  *  Importing [[DdbExprApi]]`._ ` brings the implicit conversions
- *  [[ddbKeyExprToKeyConditionExpr]], [[ddbExprToConditionExpression]], and
- *  [[schemaExprToConditionExpression]] into scope, enabling `.whereKey(DdbKeyExpr)`,
+ *  [[DdbExprApiSyntax.ddbKeyExprToKeyConditionExpr]], [[DdbExprApiSyntax.ddbExprToConditionExpression]], and
+ *  [[DdbExprApiSyntax.schemaExprToConditionExpression]] into scope, enabling `.whereKey(DdbKeyExpr)`,
  *  `.filter(DdbExpr)`, and `.filter(SchemaExpr)` on any [[DynamoDBQuery]].
  *  Interpretation failures are deferred to query execution via the `Failure` nodes in
  *  [[KeyConditionExpr]] and [[ConditionExpression]].
  */
-object DdbExprApi {
+// Body extracted to a trait (rather than living directly in `object DdbExprApi`) so the
+// `dsl` facade can mix this in alongside DdbKeyExprSyntax/DdbExprSyntax under a single
+// import. `object DdbExprApi extends DdbExprApiSyntax` below is unaffected — every member
+// here remains reachable as `DdbExprApi.XXX` exactly as before. Unlike DdbExpr/DdbKeyExpr,
+// nothing here is a pattern-matched ADT node, so the whole body can move safely — the only
+// consequence is that `dsl` gets its own separate codec cache instance from `DdbExprApi`'s
+// (harmless: it's pure memoization, not shared mutable state that needs single-instance
+// correctness — worst case a type gets derived twice instead of once if code mixes both
+// `DdbExprApi.xxx` and `dsl.xxx` calls for it).
+trait DdbExprApiSyntax {
 
   // ── Codec cache ───────────────────────────────────────────────────────────────
+  // CodecEntry/CodecCacheKey are declared at package level below (not nested here) so
+  // they stay path-independent — a class pattern-matched from inside a trait mixed into
+  // more than one object (DdbExprApi, dsl) would otherwise pick up an unreliable outer
+  // reference. See the equivalent note on DdbExprSyntax/DdbKeyExprSyntax.
 
-  private case class CodecEntry[A](codec: DynamoDBCodec[A], projections: Chunk[ProjectionExpression[_, _]])
-
-  // Keyed by (Schema, DynamoDBCodecDeriverConfigure) reference identity — avoids
-  // cross-classloader collisions and ensures types with custom configures get their
-  // own entry.
-  private final class CodecCacheKey(private val r0: AnyRef, private val r1: AnyRef) {
-    override val hashCode: Int           = System.identityHashCode(r0) * 31 + System.identityHashCode(r1)
-    override def equals(o: Any): Boolean = o match {
-      case k: CodecCacheKey => (r0 eq k.r0) && (r1 eq k.r1)
-      case _                => false
-    }
-  }
   private val codecCache = new ConcurrentHashMap[CodecCacheKey, CodecEntry[_]]()
 
   private def cachedEntry[A](implicit schema: Schema[A], cfg: DynamoDBCodecDeriverConfigure[A]): CodecEntry[A] = {
@@ -225,3 +239,5 @@ object DdbExprApi {
   implicit def schemaExprToConditionExpression[S](se: SchemaExpr[S, Boolean]): ConditionExpression[S] =
     ddbExprToConditionExpression(DdbExpr.Builtin(se))
 }
+
+object DdbExprApi extends DdbExprApiSyntax

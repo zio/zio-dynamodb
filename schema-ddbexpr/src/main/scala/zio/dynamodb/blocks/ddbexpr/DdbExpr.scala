@@ -20,9 +20,8 @@ import zio.blocks.schema.{ Optic, Schema, SchemaExpr }
 import zio.blocks.schema.comptime.Allows
 import Allows.Wrapped
 import zio.dynamodb.blocks.DdbGrammar
-import zio.dynamodb.blocks.DynamoDBCodecDeriverConfigure
 import zio.dynamodb.blocks.OpticToPE
-import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
+import zio.dynamodb.blocks.schema.DynamoDBCodec
 import zio.dynamodb.compat.||
 import zio.dynamodb.{ AttributeValue, ProjectionExpression }
 import zio.dynamodb.UpdateExpression.RenderableAction
@@ -37,13 +36,14 @@ import scala.language.implicitConversions
  *
  *  Scalar comparisons and sealed-trait equality use ZB [[zio.blocks.schema.Optic]]
  *  operators directly ([[zio.blocks.schema.Optic.===]], `>`, `<`, etc.), which produce
- *  [[SchemaExpr]][S, Boolean]. The [[schemaExprToDdbExpr]] implicit lifts them into
- *  [[Builtin]]. Since zio-blocks v0.0.47 [[zio.blocks.schema.DynamicSchemaExpr.Literal]]
- *  carries a [[Schema]], the interpreter derives a [[zio.dynamodb.blocks.schema.DynamoDBCodec]]
- *  at evaluation time and encodes sealed-trait values correctly — no special workaround needed.
+ *  [[SchemaExpr]][S, Boolean]. The [[DdbExprSyntax.schemaExprToDdbExpr]] implicit lifts them
+ *  into [[DdbExpr.Builtin]]. Since zio-blocks v0.0.47
+ *  [[zio.blocks.schema.DynamicSchemaExpr.Literal]] carries a [[Schema]], the interpreter
+ *  derives a [[zio.dynamodb.blocks.schema.DynamoDBCodec]] at evaluation time and encodes
+ *  sealed-trait values correctly — no special workaround needed.
  *
- *  DDB-specific functions ([[OpticDdbExprOps.attributeExists]],
- *  [[OpticDdbExprOps.between]], etc.) are extension methods on
+ *  DDB-specific functions ([[DdbExprSyntax.OpticDdbExprOps.attributeExists]],
+ *  [[DdbExprSyntax.OpticDdbExprOps.between]], etc.) are extension methods on
  *  [[Optic]] and produce [[DdbExpr]] nodes directly.
  *
  *  Usage:
@@ -71,86 +71,63 @@ import scala.language.implicitConversions
  */
 sealed trait DdbExpr[S, A]
 
-object DdbExpr {
-
-  // ── ADT nodes ──────────────────────────────────────────────────────────────
-
-  // Wraps a ZB SchemaExpr for scalar comparisons and sealed-trait equality (===, >, <, >=, <=, !=).
-  // The interpreter delegates to fromDynamicSchemaExpr for these nodes; since v0.0.47
-  // the embedded Literal carries Schema[_] so the codec is derived there for correct encoding.
-  final case class Builtin[S](se: SchemaExpr[S, Boolean]) extends DdbExpr[S, Boolean]
-
-  // DDB condition functions — carry the Optic directly.
-  final case class AttributeExists[S, A](optic: Optic[S, A])    extends DdbExpr[S, Boolean]
-  final case class AttributeNotExists[S, A](optic: Optic[S, A]) extends DdbExpr[S, Boolean]
-
-  final case class Between[S, A](
-    optic: Optic[S, A],
-    lo: A,
-    hi: A,
-    codec: DynamoDBCodec[A]
-  ) extends DdbExpr[S, Boolean]
-
-  final case class In[S, A](
-    optic: Optic[S, A],
-    values: Seq[A],
-    codec: DynamoDBCodec[A]
-  ) extends DdbExpr[S, Boolean]
-
-  final case class Contains[S](optic: Optic[S, String], value: String)    extends DdbExpr[S, Boolean]
-  final case class BeginsWith[S](optic: Optic[S, String], prefix: String) extends DdbExpr[S, Boolean]
-
-  // Checks whether a set attribute (NS/SS/BS) contains element B.
-  // A is the set field type; B is the element type.
-  final case class ContainsElement[S, A, B](
-    optic: Optic[S, A],
-    element: B,
-    elemCodec: DynamoDBCodec[B]
-  ) extends DdbExpr[S, Boolean]
-
-  // Logical
-  final case class And[S](left: DdbExpr[S, Boolean], right: DdbExpr[S, Boolean]) extends DdbExpr[S, Boolean]
-  final case class Or[S](left: DdbExpr[S, Boolean], right: DdbExpr[S, Boolean])  extends DdbExpr[S, Boolean]
-  final case class Not[S](inner: DdbExpr[S, Boolean])                            extends DdbExpr[S, Boolean]
+/**
+ * Implicit syntax for [[DdbExpr]], extracted from `object DdbExpr` into a mixin-able trait so
+ *  the [[dsl]] facade can combine it with [[DdbKeyExprSyntax]]/[[DdbExprApiSyntax]] under a
+ *  single import. `object DdbExpr extends DdbExprSyntax` below is unaffected — every member
+ *  here remains reachable as `DdbExpr.XXX` exactly as before.
+ *
+ *  The [[DdbExpr]] ADT nodes themselves (`Builtin`, `AttributeExists`, `And`, etc.) stay
+ *  declared directly in `object DdbExpr`, not here: a case class nested in a `trait` picks up
+ *  a path-dependent outer reference (only resolvable when there is a single fixed instance),
+ *  which breaks once two objects — `DdbExpr` and `dsl` — both mix in this trait and could each
+ *  construct one. Nesting them in the singleton `object` instead avoids that entirely, at the
+ *  cost of this trait's methods spelling out `DdbExpr.AttributeExists(...)` instead of the
+ *  unqualified `AttributeExists(...)` they could use when everything lived in one object.
+ */
+trait DdbExprSyntax extends DerivedCodecSyntax {
 
   // ── Optic extension methods ─────────────────────────────────────────────────
 
   // DDB-specific ops for any Optic[S, A]. ZB's Optic already provides ===, >,
   // <, >= etc. as direct methods returning SchemaExpr; we add DDB functions here.
-  implicit class OpticDdbExprOps[S, A](private val optic: Optic[S, A]) extends AnyVal {
-    def attributeExists: DdbExpr[S, Boolean]                                         = AttributeExists(optic)
-    def attributeNotExists: DdbExpr[S, Boolean]                                      = AttributeNotExists(optic)
+  // Not `extends AnyVal`: value classes may only be top-level or object members, not
+  // trait members, and this trait is mixed into more than one object (DdbExpr, dsl).
+  implicit class OpticDdbExprOps[S, A](private val optic: Optic[S, A]) {
+    def attributeExists: DdbExpr[S, Boolean]                                         = DdbExpr.AttributeExists(optic)
+    def attributeNotExists: DdbExpr[S, Boolean]                                      =
+      DdbExpr.AttributeNotExists(optic)
     def between(lo: A, hi: A)(implicit
       codec: DynamoDBCodec[A],
       @unused ev: Allows[A, DdbGrammar.N || DdbGrammar.S || DdbGrammar.B]
     ): DdbExpr[S, Boolean]                                                           =
-      Between(optic, lo, hi, codec)
+      DdbExpr.Between(optic, lo, hi, codec)
     def in(head: A, rest: A*)(implicit codec: DynamoDBCodec[A]): DdbExpr[S, Boolean] =
-      In(optic, head +: rest, codec)
+      DdbExpr.In(optic, head +: rest, codec)
     def inSet(values: Set[A])(implicit
       codec: DynamoDBCodec[A],
       @unused ev: Allows[A, DdbGrammar.N || DdbGrammar.S || DdbGrammar.B]
     ): DdbExpr[S, Boolean]                                                           =
-      In(optic, values.toSeq, codec)
+      DdbExpr.In(optic, values.toSeq, codec)
     def containsElement[B](element: B)(implicit
       elemCodec: DynamoDBCodec[B],
       @unused ev: Allows[A, DdbGrammar.NS || DdbGrammar.SS || DdbGrammar.BS]
     ): DdbExpr[S, Boolean]                                                           =
-      ContainsElement(optic, element, elemCodec)
+      DdbExpr.ContainsElement(optic, element, elemCodec)
   }
 
   // String-specific DDB functions.
-  implicit class OpticStringDdbExprOps[S](private val optic: Optic[S, String]) extends AnyVal {
-    def contains(value: String): DdbExpr[S, Boolean]    = Contains(optic, value)
-    def beginsWith(prefix: String): DdbExpr[S, Boolean] = BeginsWith(optic, prefix)
+  implicit class OpticStringDdbExprOps[S](private val optic: Optic[S, String]) {
+    def contains(value: String): DdbExpr[S, Boolean]    = DdbExpr.Contains(optic, value)
+    def beginsWith(prefix: String): DdbExpr[S, Boolean] = DdbExpr.BeginsWith(optic, prefix)
   }
 
   // ── Logical combinators ─────────────────────────────────────────────────────
 
-  implicit class DdbExprBoolSyntax[S](val self: DdbExpr[S, Boolean]) extends AnyVal {
-    def &&(rhs: DdbExpr[S, Boolean]): DdbExpr[S, Boolean] = And(self, rhs)
-    def ||(rhs: DdbExpr[S, Boolean]): DdbExpr[S, Boolean] = Or(self, rhs)
-    def unary_! : DdbExpr[S, Boolean]                     = Not(self)
+  implicit class DdbExprBoolSyntax[S](val self: DdbExpr[S, Boolean]) {
+    def &&(rhs: DdbExpr[S, Boolean]): DdbExpr[S, Boolean] = DdbExpr.And(self, rhs)
+    def ||(rhs: DdbExpr[S, Boolean]): DdbExpr[S, Boolean] = DdbExpr.Or(self, rhs)
+    def unary_! : DdbExpr[S, Boolean]                     = DdbExpr.Not(self)
   }
 
   // Bridge: SchemaExpr → DdbExpr for !, &&, ||.
@@ -158,10 +135,10 @@ object DdbExpr {
   // &&/||: Since ZB v0.0.47+ removes &&/|| as direct methods on SchemaExpr (moving them
   // to the BooleanOps companion implicit class), Scala 2 no longer suppresses this bridge
   // for DdbExpr RHS. SchemaExpr && DdbExpr now resolves here instead of failing.
-  implicit class SchemaExprBoolBridge[S](val self: SchemaExpr[S, Boolean]) extends AnyVal {
-    def unary_! : DdbExpr[S, Boolean]                     = Not(Builtin(self))
-    def &&(rhs: DdbExpr[S, Boolean]): DdbExpr[S, Boolean] = And(Builtin(self), rhs)
-    def ||(rhs: DdbExpr[S, Boolean]): DdbExpr[S, Boolean] = Or(Builtin(self), rhs)
+  implicit class SchemaExprBoolBridge[S](val self: SchemaExpr[S, Boolean]) {
+    def unary_! : DdbExpr[S, Boolean]                     = DdbExpr.Not(DdbExpr.Builtin(self))
+    def &&(rhs: DdbExpr[S, Boolean]): DdbExpr[S, Boolean] = DdbExpr.And(DdbExpr.Builtin(self), rhs)
+    def ||(rhs: DdbExpr[S, Boolean]): DdbExpr[S, Boolean] = DdbExpr.Or(DdbExpr.Builtin(self), rhs)
   }
 
   // ── Implicit lift ───────────────────────────────────────────────────────────
@@ -170,7 +147,7 @@ object DdbExpr {
   // Enables: val expr: DdbExpr[S, Boolean] = Task.score > 0
   // and passes SchemaExpr where DdbExpr is expected (e.g. as DdbExprBoolSyntax.&& RHS).
   implicit def schemaExprToDdbExpr[S](se: SchemaExpr[S, Boolean]): DdbExpr[S, Boolean] =
-    Builtin(se)
+    DdbExpr.Builtin(se)
 
   // ── Update expression builder ───────────────────────────────────────────────
 
@@ -275,16 +252,49 @@ object DdbExpr {
         p => SetAction(p, SetOperand.ListPrepend(p, AttributeValue.List(items.map(elemCodec.encoder).toList)))
       )
   }
+}
 
-  // ── Codec derivation ────────────────────────────────────────────────────────
+object DdbExpr extends DdbExprSyntax {
 
-  // Resolves DynamoDBCodec[A] for any A with Schema[A] in scope, so the extension
-  // methods above (between, in, containsElement, etc.) work without explicit codec imports.
-  // Note: importing both DdbExpr._ and DdbKeyExpr._ simultaneously would introduce
-  // two derivedCodec implicits and cause ambiguity; import only one at a time.
-  implicit def derivedCodec[A](implicit
-    schema: Schema[A],
-    cfg: DynamoDBCodecDeriverConfigure[A]
-  ): DynamoDBCodec[A] =
-    schema.deriving(cfg.configure(DynamoDBCodecDeriver)).derive
+  // ── ADT nodes ──────────────────────────────────────────────────────────────
+  // Declared directly in this singleton object (not in DdbExprSyntax above) so they stay
+  // path-independent — see the note on DdbExprSyntax for why.
+
+  // Wraps a ZB SchemaExpr for scalar comparisons and sealed-trait equality (===, >, <, >=, <=, !=).
+  // The interpreter delegates to fromDynamicSchemaExpr for these nodes; since v0.0.47
+  // the embedded Literal carries Schema[_] so the codec is derived there for correct encoding.
+  final case class Builtin[S](se: SchemaExpr[S, Boolean]) extends DdbExpr[S, Boolean]
+
+  // DDB condition functions — carry the Optic directly.
+  final case class AttributeExists[S, A](optic: Optic[S, A])    extends DdbExpr[S, Boolean]
+  final case class AttributeNotExists[S, A](optic: Optic[S, A]) extends DdbExpr[S, Boolean]
+
+  final case class Between[S, A](
+    optic: Optic[S, A],
+    lo: A,
+    hi: A,
+    codec: DynamoDBCodec[A]
+  ) extends DdbExpr[S, Boolean]
+
+  final case class In[S, A](
+    optic: Optic[S, A],
+    values: Seq[A],
+    codec: DynamoDBCodec[A]
+  ) extends DdbExpr[S, Boolean]
+
+  final case class Contains[S](optic: Optic[S, String], value: String)    extends DdbExpr[S, Boolean]
+  final case class BeginsWith[S](optic: Optic[S, String], prefix: String) extends DdbExpr[S, Boolean]
+
+  // Checks whether a set attribute (NS/SS/BS) contains element B.
+  // A is the set field type; B is the element type.
+  final case class ContainsElement[S, A, B](
+    optic: Optic[S, A],
+    element: B,
+    elemCodec: DynamoDBCodec[B]
+  ) extends DdbExpr[S, Boolean]
+
+  // Logical
+  final case class And[S](left: DdbExpr[S, Boolean], right: DdbExpr[S, Boolean]) extends DdbExpr[S, Boolean]
+  final case class Or[S](left: DdbExpr[S, Boolean], right: DdbExpr[S, Boolean])  extends DdbExpr[S, Boolean]
+  final case class Not[S](inner: DdbExpr[S, Boolean])                            extends DdbExpr[S, Boolean]
 }
