@@ -90,6 +90,10 @@ Some specific pain points from 2.x drove the redesign:
   interpreters exist today for [ZIO](https://zio.dev), [Cats
   Effect](https://typelevel.org/cats-effect/), and `scala.concurrent.Future`, with more
   planned.
+- **Built-in observability, not bolted on.** A `ResponseInterceptor` fires after every
+  operation with typed metadata — consumed RCU/WCU per table and index, item-collection
+  size, request correlation — identical across every interpreter, so watching capacity and
+  cost doesn't mean hand-parsing raw AWS responses.
 - **Zero-dependency core.** `core` has no AWS SDK dependency at all — just the query
   representation and interpreter traversal logic, shared by every interpreter and every API
   layer.
