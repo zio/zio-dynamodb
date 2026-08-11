@@ -47,7 +47,7 @@ object Example extends IOApp.Simple {
   def run: IO[Unit] =
     for {
       _     <- put("movies", Movie("m1", Genre.Drama)).execute
-      movie <- get[Movie]("movies")(Movie.id.partitionKey === "m1").execute
+      movie <- get("movies")(Movie.id.partitionKey === "m1").execute
       page  <- scan[Movie]("movies", 20).filter(Movie.genre === Genre.Drama).execute
     } yield ()
 }
