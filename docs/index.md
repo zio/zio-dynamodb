@@ -61,8 +61,13 @@ other bundled interpreters, each pulling in only its own effect library.
 
 ## Why the rewrite
 
-Three specific pain points from 2.x drove the redesign:
-
+Some specific pain points from 2.x drove the redesign:
+- **2.x was ZIO-native, with other effect systems bolted on.** Cats Effect and `Future`
+  support existed only as interop modules wrapping the ZIO-native core — so even if you
+  never touched ZIO directly, using the CE or `Future` module still pulled the full ZIO
+  runtime onto your classpath. 3.x is effect-agnostic by construction, not by wrapper: the
+  same query runs unchanged under ZIO, Cats Effect, or `Future` today, with more planned,
+  and non ZIO users genuinely don't pull ZIO onto their classpath (see the example above).
 - **ZIO Schema 1.x was awkward to use for field access.** Declaring accessors relied on
   positional tuple-destructuring (`val (id, name) = ProjectionExpression.accessors[Person]`)
   — easy to get the order wrong, and every new field meant widening a tuple. 3.x builds on
