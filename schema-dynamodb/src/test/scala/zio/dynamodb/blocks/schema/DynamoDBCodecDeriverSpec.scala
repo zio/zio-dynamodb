@@ -644,6 +644,18 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
             hasField("payload", (_: BinaryPayload).payload.toList, equalTo(record.payload.toList))
         )
       )
+    },
+    test("decoder is safe to reuse across multiple decode calls") {
+      // Regression: idx/regs/error used to be allocated outside the returned decoder
+      // function, so a decoder captured once and invoked repeatedly (a natural thing to
+      // do to avoid re-fetching `codec.decoder` per call) silently returned the first
+      // call's result on every subsequent call.
+      val codec  = codecFor[Person]
+      val decode = codec.decoder
+      val r1     = decode(codec.encoder(Person("Alice", 30)))
+      val r2     = decode(codec.encoder(Person("Bob", 25)))
+      val r3     = decode(codec.encoder(Person("Alice", 30)))
+      assertTrue(r1 == Right(Person("Alice", 30)), r2 == Right(Person("Bob", 25)), r3 == Right(Person("Alice", 30)))
     }
   )
 
@@ -2267,6 +2279,17 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
       val codec = codecFor[(Int, Long, Boolean, Byte, Char, Short, Float, Double)]
       val value = (1, 2L, true, 3.toByte, 'c', 4.toShort, 5.5f, 6.6)
       assertTrue(codec.decoder(codec.encoder(value)) == Right(value))
+    },
+    test("decoder is safe to reuse across multiple decode calls") {
+      // Regression: the tuple decoder's regs/error were allocated outside the returned
+      // decoder function, mirroring the same bug as the vanilla record decoder — a
+      // captured decoder reused across calls would silently return stale results.
+      val codec  = tupleCodecForNew[(String, Int)]
+      val decode = codec.decoder
+      val r1     = decode(codec.encoder(("a", 1)))
+      val r2     = decode(codec.encoder(("b", 2)))
+      val r3     = decode(codec.encoder(("a", 1)))
+      assertTrue(r1 == Right(("a", 1)), r2 == Right(("b", 2)), r3 == Right(("a", 1)))
     }
   )
 
