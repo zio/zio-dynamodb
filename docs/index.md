@@ -20,7 +20,11 @@ documentation](https://zio.dev/zio-dynamodb/) instead.
 ## See it in action
 
 ```scala
+import cats.effect.{ IO, IOApp }
+import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
+import zio.dynamodb.{ CEInterpreter, Interpreter }
+import zio.dynamodb.ExecuteSyntax._
 import zio.dynamodb.blocks.ddbexpr.dsl._
 
 sealed trait Genre
@@ -37,16 +41,26 @@ object Movie extends CompanionOptics[Movie] {
   val genre: Lens[Movie, Genre]      = $(_.genre)
 }
 
-// interpreter: AwsInterpreter[zio.Task], table: String
-for {
-  _        <- interpreter.run(put("movies", Movie("m1", Genre.Drama)))
-  movie    <- interpreter.run(get[Movie]("movies")(Movie.id.partitionKey === "m1"))
-  page     <- interpreter.run(scan[Movie]("movies", 20).filter(Movie.genre === Genre.Drama))
-} yield (movie, page)
+object Example extends IOApp.Simple {
+  implicit val interpreter: Interpreter[IO] = CEInterpreter.fromAsyncClient(DynamoDbAsyncClient.builder().build())
+
+  def run: IO[Unit] =
+    for {
+      _     <- put("movies", Movie("m1", Genre.Drama)).execute
+      movie <- get[Movie]("movies")(Movie.id.partitionKey === "m1").execute
+      page  <- scan[Movie]("movies", 20).filter(Movie.genre === Genre.Drama).execute
+    } yield ()
+}
 ```
 `Movie.id`, `Movie.genre`, and every operator on them (`===`, `partitionKey`, `.filter`) are
 plain Scala values checked against `Movie`'s schema at compile time — a typo in a field name,
-or comparing `genre` against the wrong type, is a compile error, not a runtime surprise.
+or comparing `genre` against the wrong type, is a compile error, not a runtime surprise. And
+that's genuinely `cats.effect.IO` throughout, not a `Future`/ZIO shim wearing a CE-shaped hat —
+`CEInterpreter` implements the library's effect primitives directly against `IO`. The `dev.zio`
+naming reflects where the project is hosted, not a hidden ZIO runtime dependency: `core` has no
+effect-system dependency at all, and the schema layer (`zio.blocks.schema`) is metaprogramming,
+not an effect system — same category as Circe or shapeless, unrelated to which effect type you
+run queries in.
 
 ## Why the rewrite
 
@@ -103,7 +117,7 @@ effect-system interpreters (a Kyo interpreter is designed but not yet built).
 resolvers += "Sonatype Central Snapshots" at "https://central.sonatype.com/repository/maven-snapshots"
 
 libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb-zio" % "3.0.0-SNAPSHOT" // or -ce / -future for other interpreters
+  "dev.zio" %% "zio-dynamodb-ce" % "3.0.0-SNAPSHOT" // or -zio / -future for other interpreters
 )
 ```
 
