@@ -29,9 +29,6 @@ ThisBuild / scmInfo             := Some(
   )
 )
 ThisBuild / headerLicense       := Some(HeaderLicense.ALv2("2021-2026", "John A. De Goes and the ZIO Contributors"))
-// zio-blocks-schema (used by core for zio.blocks.chunk.Chunk) is not yet on Maven Central,
-// only published as a snapshot — see https://github.com/zio/zio-blocks.
-ThisBuild / resolvers += "Sonatype Central Snapshots" at "https://central.sonatype.com/repository/maven-snapshots"
 
 lazy val core = (project in file("core"))
   .settings(
