@@ -13,22 +13,21 @@ val catsEffectVersion = "3.7.0"
 val scala213Version   = "2.13.18"
 val scala3Version     = "3.3.8"
 
-ThisBuild / version             := "3.0.0-SNAPSHOT"
-ThisBuild / organization        := "dev.zio"
-ThisBuild / scalaVersion        := scala213Version
-ThisBuild / sonatypeProfileName := "dev.zio"
-ThisBuild / homepage            := Some(url("https://github.com/zio/zio-dynamodb"))
-ThisBuild / licenses            := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"))
-ThisBuild / developers          := List(
+ThisBuild / version       := "3.0.0-SNAPSHOT"
+ThisBuild / organization  := "dev.zio"
+ThisBuild / scalaVersion  := scala213Version
+ThisBuild / homepage      := Some(url("https://github.com/zio/zio-dynamodb"))
+ThisBuild / licenses      := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"))
+ThisBuild / developers    := List(
   Developer("jdegoes", "John De Goes", "john@degoes.net", url("http://degoes.net"))
 )
-ThisBuild / scmInfo             := Some(
+ThisBuild / scmInfo       := Some(
   ScmInfo(
     url("https://github.com/zio/zio-dynamodb"),
     "scm:git:git@github.com:zio/zio-dynamodb.git"
   )
 )
-ThisBuild / headerLicense       := Some(HeaderLicense.ALv2("2021-2026", "John A. De Goes and the ZIO Contributors"))
+ThisBuild / headerLicense := Some(HeaderLicense.ALv2("2021-2026", "John A. De Goes and the ZIO Contributors"))
 
 lazy val core = (project in file("core"))
   .settings(
@@ -226,7 +225,12 @@ lazy val root = (project in file("."))
   .aggregate(core, aws, schemaDynamodb, zioInterpreter, schemaDdbExpr, futureInterpreter, ceInterpreter, it, docs)
   .enablePlugins(zio.sbt.ZioSbtCiPlugin)
   .settings(
-    name              := "zio-dynamodb",
-    publish / skip    := true,
-    ciEnabledBranches := Seq("series/3.x")
+    name           := "zio-dynamodb",
+    publish / skip := true
   )
+
+// ciGenerateGithubWorkflow reads these at ThisBuild scope, not project scope — setting
+// them inside root's .settings(...) silently has no effect on the generated workflow.
+ThisBuild / ciEnabledBranches  := Seq("series/3.x")
+ThisBuild / ciPublishSnapshots := false // superseded by CiWorkflow.release's series/3.x-aware condition
+ThisBuild / ciReleaseJobs      := Seq(CiWorkflow.release.value)
