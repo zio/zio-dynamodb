@@ -509,7 +509,7 @@ class DynamoDBCodecDeriver private (
             else AttributeValue.List(scala.collection.immutable.ArraySeq.unsafeWrapArray(arr))
           }
 
-          override def decoder: Decoder[A] = {
+          override def decoder: Decoder[A] = { (av: AttributeValue) =>
             val regs                 = Registers(usedRegisters)
             var error: DecodingError = null
 
@@ -599,29 +599,28 @@ class DynamoDBCodecDeriver private (
 
             }
 
-            (av: AttributeValue) =>
-              av match {
-                case avList: AttributeValue.List =>
-                  val it  = avList.value.iterator
-                  var idx = 0
-                  while (it.hasNext && idx < len) {
-                    val field = fieldInfos(idx)
-                    val value = it.next()
+            av match {
+              case avList: AttributeValue.List =>
+                val it  = avList.value.iterator
+                var idx = 0
+                while (it.hasNext && idx < len) {
+                  val field = fieldInfos(idx)
+                  val value = it.next()
 
-                    setValue(field, value)
-                    idx += 1
-                  } // end while
-                  if (error == null) {
-                    val a = constructor.construct(regs, RegisterOffset.Zero)
-                    Right(a)
-                  } else if (schema1TupleCompat != Schema1Compat.ReadNewWriteNew) {
-                    error = null
-                    decodeLegacy(avList)
-                  } else
-                    Left(error)
-                case av: AttributeValue          =>
-                  Left(DecodingError(s"Expected List attribute value but got: ${av.showType}"))
-              }
+                  setValue(field, value)
+                  idx += 1
+                } // end while
+                if (error == null) {
+                  val a = constructor.construct(regs, RegisterOffset.Zero)
+                  Right(a)
+                } else if (schema1TupleCompat != Schema1Compat.ReadNewWriteNew) {
+                  error = null
+                  decodeLegacy(avList)
+                } else
+                  Left(error)
+              case av: AttributeValue          =>
+                Left(DecodingError(s"Expected List attribute value but got: ${av.showType}"))
+            }
           }
         }
       }
@@ -789,15 +788,16 @@ class DynamoDBCodecDeriver private (
             }
 
             override def decoder: Decoder[A] = {
-              val len                  = fields.length
-              var idx                  = 0
-              val regs                 = Registers(usedRegisters)
-              var error: DecodingError = null
+              val len = fields.length
 
-              def accumulate(e: DecodingError): Unit =
-                error = if (error == null) e else error ++ e
+              (av: AttributeValue) => {
+                var idx                  = 0
+                val regs                 = Registers(usedRegisters)
+                var error: DecodingError = null
 
-              (av: AttributeValue) =>
+                def accumulate(e: DecodingError): Unit =
+                  error = if (error == null) e else error ++ e
+
                 av match {
                   case avMap: AttributeValue.Map =>
                     if (knownFields ne null) {
@@ -881,6 +881,7 @@ class DynamoDBCodecDeriver private (
                   case av: AttributeValue =>
                     Left(DecodingError(s"Expected Map attribute value but got: ${av.showType}"))
                 }
+              }
             }
           } // end if else not tuple
         }
