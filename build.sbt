@@ -9,7 +9,7 @@ val zioVersion        = "2.1.24"
 val zioPreludeVersion = "1.0.0-RC47"
 val zioBlocksVersion  = "0.0.47+16-7ff60266-SNAPSHOT"
 val awsSdkVersion     = "2.26.31"
-val catsEffectVersion = "3.5.4"
+val catsEffectVersion = "3.7.0"
 val scala213Version   = "2.13.18"
 val scala3Version     = "3.3.8"
 
