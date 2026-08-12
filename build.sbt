@@ -7,7 +7,7 @@ addCommandAlias("cov", "; coverage; test; coverageAggregate")
 
 val zioVersion        = "2.1.24"
 val zioPreludeVersion = "1.0.0-RC47"
-val zioBlocksVersion  = "0.0.47+16-7ff60266-SNAPSHOT"
+val zioBlocksVersion  = "0.0.51"
 val awsSdkVersion     = "2.26.31"
 val catsEffectVersion = "3.7.0"
 val scala213Version   = "2.13.18"
@@ -29,9 +29,6 @@ ThisBuild / scmInfo             := Some(
   )
 )
 ThisBuild / headerLicense       := Some(HeaderLicense.ALv2("2021-2026", "John A. De Goes and the ZIO Contributors"))
-// zio-blocks-schema (used by core for zio.blocks.chunk.Chunk) is not yet on Maven Central,
-// only published as a snapshot — see https://github.com/zio/zio-blocks.
-ThisBuild / resolvers += "Sonatype Central Snapshots" at "https://central.sonatype.com/repository/maven-snapshots"
 
 lazy val core = (project in file("core"))
   .settings(
