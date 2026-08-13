@@ -17,11 +17,11 @@
 package zio.dynamodb
 
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
-import zio._
+import zio.*
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
-import zio.dynamodb.ExecuteSyntax._
-import zio.dynamodb.blocks.ddbexpr.dsl._
-import zio.test._
+import zio.dynamodb.ExecuteSyntax.*
+import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.test.*
 
 /**
  * Mirrors docs/index.md's "See it in action" (ZIO) snippet exactly, as a compile-time check
@@ -36,18 +36,16 @@ import zio.test._
  *  classpath.
  */
 object DocsZioExampleObject extends ZIOAppDefault {
-  sealed trait Genre
-  object Genre {
-    case object Drama  extends Genre
-    case object Comedy extends Genre
-    implicit val schema: Schema[Genre] = Schema.derived
+
+  enum Genre derives Schema {
+    case Drama, Comedy
   }
 
-  final case class Movie(id: String, genre: Genre)
+  case class Movie(id: String, genre: Genre) derives Schema
+
   object Movie extends CompanionOptics[Movie] {
-    implicit val schema: Schema[Movie] = Schema.derived
-    val id: Lens[Movie, String]        = $(_.id)
-    val genre: Lens[Movie, Genre]      = $(_.genre)
+    val id: Lens[Movie, String]   = $(_.id)
+    val genre: Lens[Movie, Genre] = $(_.genre)
   }
 
   // ZLayer.scoped ties the client's lifetime to the layer's scope — closed automatically
@@ -61,10 +59,11 @@ object DocsZioExampleObject extends ZIOAppDefault {
     }
 
   // .execute takes the interpreter as a plain implicit, not via ZIO's R environment — so
-  // the layer's service gets pulled out with ZIO.serviceWithZIO and bound as `implicit`
+  // the layer's service gets pulled out with ZIO.serviceWithZIO and bound as a `given`
   // for the body, rather than the query itself living in the ZIO environment.
   val program: ZIO[Interpreter[Task], Throwable, Unit] =
-    ZIO.serviceWithZIO[Interpreter[Task]] { implicit interpreter =>
+    ZIO.serviceWithZIO[Interpreter[Task]] { interpreter =>
+      given Interpreter[Task] = interpreter
       for {
         _     <- put("movies", Movie("m1", Genre.Drama)).execute
         movie <- get("movies")(Movie.id.partitionKey === "m1").execute

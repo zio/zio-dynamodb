@@ -24,30 +24,28 @@ import cats.effect.{ IO, IOApp, Resource }
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.{ CEInterpreter, Interpreter }
-import zio.dynamodb.ExecuteSyntax._
-import zio.dynamodb.blocks.ddbexpr.dsl._
-
-sealed trait Genre
-object Genre {
-  case object Drama  extends Genre
-  case object Comedy extends Genre
-  implicit val schema: Schema[Genre] = Schema.derived
-}
-
-final case class Movie(id: String, genre: Genre)
-object Movie extends CompanionOptics[Movie] {
-  implicit val schema: Schema[Movie] = Schema.derived
-  val id: Lens[Movie, String]        = $(_.id)
-  val genre: Lens[Movie, Genre]      = $(_.genre)
-}
+import zio.dynamodb.ExecuteSyntax.*
+import zio.dynamodb.blocks.ddbexpr.dsl.*
 
 object Example extends IOApp.Simple {
+
+  enum Genre derives Schema {
+    case Drama, Comedy
+  }
+
+  case class Movie(id: String, genre: Genre) derives Schema
+
+  object Movie extends CompanionOptics[Movie] {
+    val id: Lens[Movie, String]   = $(_.id)
+    val genre: Lens[Movie, Genre] = $(_.genre)
+  }
+
   val client: Resource[IO, DynamoDbAsyncClient] =
     Resource.make(IO(DynamoDbAsyncClient.builder().build()))(c => IO(c.close()))
 
   def run: IO[Unit] =
     client.use { c =>
-      implicit val interpreter: Interpreter[IO] = CEInterpreter.fromAsyncClient(c)
+      given Interpreter[IO] = CEInterpreter.fromAsyncClient(c)
       for {
         _     <- put("movies", Movie("m1", Genre.Drama)).execute
         movie <- get("movies")(Movie.id.partitionKey === "m1").execute
@@ -65,17 +63,29 @@ other bundled interpreters, each pulling in only its own effect library.
 
 The same program under ZIO — `Resource` becomes `ZLayer.scoped`, and since `.execute` takes
 the interpreter as a plain implicit rather than through ZIO's environment, the layer's built
-service is pulled out with `ZIO.serviceWithZIO` and bound as `implicit` for the query body:
+service is pulled out with `ZIO.serviceWithZIO` and bound as a `given` for the query body:
 
 ```scala
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
-import zio._
+import zio.*
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.{ Interpreter, ZioInterpreter }
-import zio.dynamodb.ExecuteSyntax._
-import zio.dynamodb.blocks.ddbexpr.dsl._
+import zio.dynamodb.ExecuteSyntax.*
+import zio.dynamodb.blocks.ddbexpr.dsl.*
 
 object ZioExample extends ZIOAppDefault {
+
+  enum Genre derives Schema {
+    case Drama, Comedy
+  }
+
+  case class Movie(id: String, genre: Genre) derives Schema
+
+  object Movie extends CompanionOptics[Movie] {
+    val id: Lens[Movie, String]   = $(_.id)
+    val genre: Lens[Movie, Genre] = $(_.genre)
+  }
+
   val interpreterLayer: ZLayer[Any, Throwable, Interpreter[Task]] =
     ZLayer.scoped {
       ZIO
@@ -84,7 +94,8 @@ object ZioExample extends ZIOAppDefault {
     }
 
   val program: ZIO[Interpreter[Task], Throwable, Unit] =
-    ZIO.serviceWithZIO[Interpreter[Task]] { implicit interpreter =>
+    ZIO.serviceWithZIO[Interpreter[Task]] { interpreter =>
+      given Interpreter[Task] = interpreter
       for {
         _     <- put("movies", Movie("m1", Genre.Drama)).execute
         movie <- get("movies")(Movie.id.partitionKey === "m1").execute
@@ -95,7 +106,7 @@ object ZioExample extends ZIOAppDefault {
   def run: Task[Unit] = program.provide(interpreterLayer)
 }
 ```
-Same `Movie`/`Genre` model, same three calls, same compile-time guarantees — only the
+Same `Movie`/`Genre` shape, same three calls, same compile-time guarantees — only the
 resource-lifecycle and dependency-wiring idiom changes to match ZIO's own conventions. The
 release action passed to `ZIO.acquireRelease` must be a `URIO` (cannot fail), unlike
 `Resource`'s CE-effect release above — `.orDie` converts a failed close into a defect rather
