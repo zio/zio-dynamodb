@@ -16,7 +16,7 @@
 
 package zio.dynamodb
 
-import cats.effect.{ IO, IOApp }
+import cats.effect.{ IO, IOApp, Resource }
 import munit.FunSuite
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
@@ -46,14 +46,18 @@ object DocsExampleObject extends IOApp.Simple {
     val genre: Lens[Movie, Genre]      = $(_.genre)
   }
 
-  implicit val interpreter: Interpreter[IO] = CEInterpreter.fromAsyncClient(DynamoDbAsyncClient.builder().build())
+  val client: Resource[IO, DynamoDbAsyncClient] =
+    Resource.make(IO(DynamoDbAsyncClient.builder().build()))(c => IO(c.close()))
 
   def run: IO[Unit] =
-    for {
-      _     <- put("movies", Movie("m1", Genre.Drama)).execute
-      movie <- get("movies")(Movie.id.partitionKey === "m1").execute
-      page  <- scan[Movie]("movies", 20).filter(Movie.genre === Genre.Drama).execute
-    } yield ()
+    client.use { c =>
+      implicit val interpreter: Interpreter[IO] = CEInterpreter.fromAsyncClient(c)
+      for {
+        _     <- put("movies", Movie("m1", Genre.Drama)).execute
+        movie <- get("movies")(Movie.id.partitionKey === "m1").execute
+        page  <- scan[Movie]("movies", 20).filter(Movie.genre === Genre.Drama).execute
+      } yield ()
+    }
 }
 
 class DocsExampleSpec extends FunSuite {

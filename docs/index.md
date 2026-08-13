@@ -20,7 +20,7 @@ documentation](https://zio.dev/zio-dynamodb/) instead.
 ## See it in action
 
 ```scala
-import cats.effect.{ IO, IOApp }
+import cats.effect.{ IO, IOApp, Resource }
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.{ CEInterpreter, Interpreter }
@@ -42,14 +42,18 @@ object Movie extends CompanionOptics[Movie] {
 }
 
 object Example extends IOApp.Simple {
-  implicit val interpreter: Interpreter[IO] = CEInterpreter.fromAsyncClient(DynamoDbAsyncClient.builder().build())
+  val client: Resource[IO, DynamoDbAsyncClient] =
+    Resource.make(IO(DynamoDbAsyncClient.builder().build()))(c => IO(c.close()))
 
   def run: IO[Unit] =
-    for {
-      _     <- put("movies", Movie("m1", Genre.Drama)).execute
-      movie <- get("movies")(Movie.id.partitionKey === "m1").execute
-      page  <- scan[Movie]("movies", 20).filter(Movie.genre === Genre.Drama).execute
-    } yield ()
+    client.use { c =>
+      implicit val interpreter: Interpreter[IO] = CEInterpreter.fromAsyncClient(c)
+      for {
+        _     <- put("movies", Movie("m1", Genre.Drama)).execute
+        movie <- get("movies")(Movie.id.partitionKey === "m1").execute
+        page  <- scan[Movie]("movies", 20).filter(Movie.genre === Genre.Drama).execute
+      } yield ()
+    }
 }
 ```
 `Movie.id`, `Movie.genre`, and every operator on them (`===`, `partitionKey`, `.filter`) are
@@ -58,6 +62,44 @@ or comparing `genre` against the wrong type, is a compile error, not a runtime s
 direct consequence of the zero-dependency core and the modular design, using the CE interpreter
 doesn't pull ZIO — or any other effect ecosystem — onto your classpath; the same holds for the
 other bundled interpreters, each pulling in only its own effect library.
+
+The same program under ZIO — `Resource` becomes `ZLayer.scoped`, and since `.execute` takes
+the interpreter as a plain implicit rather than through ZIO's environment, the layer's built
+service is pulled out with `ZIO.serviceWithZIO` and bound as `implicit` for the query body:
+
+```scala
+import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
+import zio._
+import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
+import zio.dynamodb.{ Interpreter, ZioInterpreter }
+import zio.dynamodb.ExecuteSyntax._
+import zio.dynamodb.blocks.ddbexpr.dsl._
+
+object ZioExample extends ZIOAppDefault {
+  val interpreterLayer: ZLayer[Any, Throwable, Interpreter[Task]] =
+    ZLayer.scoped {
+      ZIO
+        .acquireRelease(ZIO.attempt(DynamoDbAsyncClient.builder().build()))(c => ZIO.attempt(c.close()).orDie)
+        .map(client => ZioInterpreter.fromAsyncClient(client): Interpreter[Task])
+    }
+
+  val program: ZIO[Interpreter[Task], Throwable, Unit] =
+    ZIO.serviceWithZIO[Interpreter[Task]] { implicit interpreter =>
+      for {
+        _     <- put("movies", Movie("m1", Genre.Drama)).execute
+        movie <- get("movies")(Movie.id.partitionKey === "m1").execute
+        page  <- scan[Movie]("movies", 20).filter(Movie.genre === Genre.Drama).execute
+      } yield ()
+    }
+
+  def run: Task[Unit] = program.provide(interpreterLayer)
+}
+```
+Same `Movie`/`Genre` model, same three calls, same compile-time guarantees — only the
+resource-lifecycle and dependency-wiring idiom changes to match ZIO's own conventions. The
+release action passed to `ZIO.acquireRelease` must be a `URIO` (cannot fail), unlike
+`Resource`'s CE-effect release above — `.orDie` converts a failed close into a defect rather
+than a checked error, since ZIO's scope finalizers aren't allowed to fail.
 
 ## Why the rewrite
 
