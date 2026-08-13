@@ -63,6 +63,44 @@ direct consequence of the zero-dependency core and the modular design, using the
 doesn't pull ZIO — or any other effect ecosystem — onto your classpath; the same holds for the
 other bundled interpreters, each pulling in only its own effect library.
 
+The same program under ZIO — `Resource` becomes `ZLayer.scoped`, and since `.execute` takes
+the interpreter as a plain implicit rather than through ZIO's environment, the layer's built
+service is pulled out with `ZIO.serviceWithZIO` and bound as `implicit` for the query body:
+
+```scala
+import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
+import zio._
+import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
+import zio.dynamodb.{ Interpreter, ZioInterpreter }
+import zio.dynamodb.ExecuteSyntax._
+import zio.dynamodb.blocks.ddbexpr.dsl._
+
+object ZioExample extends ZIOAppDefault {
+  val interpreterLayer: ZLayer[Any, Throwable, Interpreter[Task]] =
+    ZLayer.scoped {
+      ZIO
+        .acquireRelease(ZIO.attempt(DynamoDbAsyncClient.builder().build()))(c => ZIO.attempt(c.close()).orDie)
+        .map(client => ZioInterpreter.fromAsyncClient(client): Interpreter[Task])
+    }
+
+  val program: ZIO[Interpreter[Task], Throwable, Unit] =
+    ZIO.serviceWithZIO[Interpreter[Task]] { implicit interpreter =>
+      for {
+        _     <- put("movies", Movie("m1", Genre.Drama)).execute
+        movie <- get("movies")(Movie.id.partitionKey === "m1").execute
+        page  <- scan[Movie]("movies", 20).filter(Movie.genre === Genre.Drama).execute
+      } yield ()
+    }
+
+  def run: Task[Unit] = program.provide(interpreterLayer)
+}
+```
+Same `Movie`/`Genre` model, same three calls, same compile-time guarantees — only the
+resource-lifecycle and dependency-wiring idiom changes to match ZIO's own conventions. The
+release action passed to `ZIO.acquireRelease` must be a `URIO` (cannot fail), unlike
+`Resource`'s CE-effect release above — `.orDie` converts a failed close into a defect rather
+than a checked error, since ZIO's scope finalizers aren't allowed to fail.
+
 ## Why the rewrite
 
 Some specific pain points from 2.x drove the redesign:
