@@ -20,8 +20,8 @@ import cats.effect.{ IO, IOApp, Resource }
 import munit.FunSuite
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
-import zio.dynamodb.ExecuteSyntax._
-import zio.dynamodb.blocks.ddbexpr.dsl._
+import zio.dynamodb.ExecuteSyntax.*
+import zio.dynamodb.blocks.ddbexpr.dsl.*
 
 /**
  * Mirrors docs/index.md's "See it in action" (Cats Effect) snippet exactly, as a
@@ -32,18 +32,16 @@ import zio.dynamodb.blocks.ddbexpr.dsl._
  *  real elsewhere (CEDynamoDBSpec, CEHighLevelSpec).
  */
 object DocsExampleObject extends IOApp.Simple {
-  sealed trait Genre
-  object Genre {
-    case object Drama  extends Genre
-    case object Comedy extends Genre
-    implicit val schema: Schema[Genre] = Schema.derived
+
+  enum Genre derives Schema {
+    case Drama, Comedy
   }
 
-  final case class Movie(id: String, genre: Genre)
+  case class Movie(id: String, genre: Genre) derives Schema
+
   object Movie extends CompanionOptics[Movie] {
-    implicit val schema: Schema[Movie] = Schema.derived
-    val id: Lens[Movie, String]        = $(_.id)
-    val genre: Lens[Movie, Genre]      = $(_.genre)
+    val id: Lens[Movie, String]   = $(_.id)
+    val genre: Lens[Movie, Genre] = $(_.genre)
   }
 
   val client: Resource[IO, DynamoDbAsyncClient] =
@@ -51,7 +49,7 @@ object DocsExampleObject extends IOApp.Simple {
 
   def run: IO[Unit] =
     client.use { c =>
-      implicit val interpreter: Interpreter[IO] = CEInterpreter.fromAsyncClient(c)
+      given Interpreter[IO] = CEInterpreter.fromAsyncClient(c)
       for {
         _     <- put("movies", Movie("m1", Genre.Drama)).execute
         movie <- get("movies")(Movie.id.partitionKey === "m1").execute
