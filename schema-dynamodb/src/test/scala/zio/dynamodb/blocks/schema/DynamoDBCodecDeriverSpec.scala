@@ -241,6 +241,7 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
     transientSuite,
     optionSuite,
     enumSuite,
+    enumValuesAsStringsSuite,
     adtSuite,
     adtNoneDiscriminatorSuite,
     adtDiscriminatorFieldSuite,
@@ -262,6 +263,7 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
     byteSequenceCompatSuite,
     tupleCompatSuite,
     yearCompatSuite,
+    byteCompatSuite,
     rejectExtraFieldsSuite,
     fieldNamingSuite
   )
@@ -792,6 +794,61 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
       val codec = codecFor[Color]
       val cases = List(Color.Red, Color.Green, Color.Blue)
       assertTrue(cases.forall(c => codec.decoder(codec.encoder(c)) == Right(c)))
+    }
+  )
+
+  // ---- enumValuesAsStrings — default vs. 2.x's unannotated default --------
+  //
+  // enumValuesAsStrings = true is 3.x's default: an all-case-object sealed trait
+  // (no fields on any case) encodes as bare AttributeValue.String("CaseName").
+  // The legacy zio-schema (2.x) codec only did this when the type carried an
+  // explicit @simpleEnum(true) annotation — 2.x's own unannotated default was
+  // Map-wrapped, {"CaseName": {}}, same shape as a data-carrying case with an
+  // empty field list. So a 2.x sealed trait of case objects ported to 3.x's
+  // *default* deriver changes wire format silently unless
+  // withEnumValuesAsStrings(false) is applied to restore the 2.x shape.
+  //
+  // Unlike the three Schema1Compat axes (byte-sequence/tuple/Year), there is no
+  // "read both" fallback here: decoding is strict per mode (Map-wrapped input is
+  // rejected under the default, bare-String input is rejected under `false`), so
+  // getting the mode wrong is a hard decode failure, not silently-degraded data.
+
+  private val enumValuesAsStringsFalseDeriver = DynamoDBCodecDeriver.withEnumValuesAsStrings(false)
+
+  private def enumValuesAsStringsFalseCodecFor[A](implicit s: Schema[A]): DynamoDBCodec[A] =
+    s.deriving(enumValuesAsStringsFalseDeriver).derive
+
+  private val enumValuesAsStringsSuite = suite("enumValuesAsStrings")(
+    test("default (true) encodes a case-object case as bare String — diverges from 2.x's unannotated default") {
+      // Characterization test: pins down the current default so an accidental
+      // future change here is caught. 2.x's unannotated default would have
+      // produced {"Red": {}} for this same type (see withEnumValuesAsStrings(false) below).
+      assertTrue(codecFor[Color].encoder(Color.Red) == AttributeValue.String("Red"))
+    },
+    test("withEnumValuesAsStrings(false) restores 2.x's Map-wrapped shape") {
+      val codec = enumValuesAsStringsFalseCodecFor[Color]
+      assert(codec.encoder(Color.Red))(
+        isSubtype[AttributeValue.Map](
+          hasField[AttributeValue.Map, Option[AttributeValue]](
+            "value",
+            _.value.get(AttributeValue.String("Red")),
+            isSome(equalTo(AttributeValue.Map.empty))
+          )
+        )
+      )
+    },
+    test("withEnumValuesAsStrings(false) round-trips all cases") {
+      val codec = enumValuesAsStringsFalseCodecFor[Color]
+      val cases = List(Color.Red, Color.Green, Color.Blue)
+      assertTrue(cases.forall(c => codec.decoder(codec.encoder(c)) == Right(c)))
+    },
+    test("withEnumValuesAsStrings(false) rejects the default mode's bare-String encoding — no fallback") {
+      val codec = enumValuesAsStringsFalseCodecFor[Color]
+      assertTrue(codec.decoder(AttributeValue.String("Red")).isLeft)
+    },
+    test("default (true) rejects withEnumValuesAsStrings(false)'s Map-wrapped encoding — no fallback") {
+      val mapWrapped = AttributeValue.Map(Map(AttributeValue.String("Red") -> AttributeValue.Map.empty))
+      assertTrue(codecFor[Color].decoder(mapWrapped).isLeft)
     }
   )
 
@@ -2511,6 +2568,78 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
         val codec = yearCodecFor(Schema1Compat.ReadBothWriteNew)
         val year  = Year.of(2023)
         assertTrue(codec.decoder(codec.encoder(year)) == Right(year))
+      }
+    )
+  )
+
+  // ---- Schema1Compat standalone Byte compatibility -------------------------
+  //
+  // Distinct from schema1ByteSequenceCompat, which only governs Byte *sequences*
+  // (Chunk[Byte]/Array[Byte]/...). A lone Byte field has its own legacy format:
+  // 2.x (zio-schema 1.x's StandardType.ByteType) always encoded it as a
+  // single-byte AttributeValue.Binary, never as a Number.
+
+  private def byteCodecFor(mode: Schema1Compat): DynamoDBCodec[Byte] =
+    implicitly[Schema[Byte]]
+      .deriving(DynamoDBCodecDeriver.withSchema1ByteCompatibility(mode))
+      .derive
+
+  private val byteCompatSuite = suite("Schema1Compat standalone Byte")(
+    suite("ReadNewWriteNew — encodes Number, decodes Number only (default)")(
+      test("Byte encodes as Number") {
+        assertTrue(codecFor[Byte].encoder(42.toByte) == AttributeValue.Number(BigDecimal(42)))
+      },
+      test("Byte decodes from Number") {
+        assertTrue(codecFor[Byte].decoder(AttributeValue.Number(BigDecimal(42))) == Right(42.toByte))
+      },
+      test("Byte rejects legacy single-byte Binary — this is the gap withSchema1ByteCompatibility fixes") {
+        assertTrue(codecFor[Byte].decoder(AttributeValue.Binary(Array[Byte](42))).isLeft)
+      }
+    ),
+    suite("ReadBothWriteOld — encodes legacy single-byte Binary, decodes both")(
+      test("Byte encodes as a single-byte Binary") {
+        val codec = byteCodecFor(Schema1Compat.ReadBothWriteOld)
+        assert(codec.encoder(42.toByte))(
+          isSubtype[AttributeValue.Binary](hasField("value", _.value.toList, equalTo(List(42.toByte))))
+        )
+      },
+      test("Byte decodes from legacy single-byte Binary") {
+        val codec = byteCodecFor(Schema1Compat.ReadBothWriteOld)
+        assertTrue(codec.decoder(AttributeValue.Binary(Array[Byte](42))) == Right(42.toByte))
+      },
+      test("Byte decodes from Number (new-format fallback)") {
+        val codec = byteCodecFor(Schema1Compat.ReadBothWriteOld)
+        assertTrue(codec.decoder(AttributeValue.Number(BigDecimal(42))) == Right(42.toByte))
+      },
+      test("multi-byte Binary yields a decode error, not a silent truncation") {
+        val codec = byteCodecFor(Schema1Compat.ReadBothWriteOld)
+        assertTrue(codec.decoder(AttributeValue.Binary(Array[Byte](1, 2))).isLeft)
+      },
+      test("Byte round-trips through legacy Binary") {
+        val codec = byteCodecFor(Schema1Compat.ReadBothWriteOld)
+        assertTrue(codec.decoder(codec.encoder(7.toByte)) == Right(7.toByte))
+      },
+      test("negative Byte round-trips through legacy Binary") {
+        val codec = byteCodecFor(Schema1Compat.ReadBothWriteOld)
+        assertTrue(codec.decoder(codec.encoder((-1).toByte)) == Right((-1).toByte))
+      }
+    ),
+    suite("ReadBothWriteNew — encodes Number, decodes both")(
+      test("Byte encodes as Number") {
+        val codec = byteCodecFor(Schema1Compat.ReadBothWriteNew)
+        assertTrue(codec.encoder(42.toByte) == AttributeValue.Number(BigDecimal(42)))
+      },
+      test("Byte decodes from Number") {
+        val codec = byteCodecFor(Schema1Compat.ReadBothWriteNew)
+        assertTrue(codec.decoder(AttributeValue.Number(BigDecimal(42))) == Right(42.toByte))
+      },
+      test("Byte decodes from legacy single-byte Binary") {
+        val codec = byteCodecFor(Schema1Compat.ReadBothWriteNew)
+        assertTrue(codec.decoder(AttributeValue.Binary(Array[Byte](42))) == Right(42.toByte))
+      },
+      test("Byte round-trips through Number") {
+        val codec = byteCodecFor(Schema1Compat.ReadBothWriteNew)
+        assertTrue(codec.decoder(codec.encoder(42.toByte)) == Right(42.toByte))
       }
     )
   )
