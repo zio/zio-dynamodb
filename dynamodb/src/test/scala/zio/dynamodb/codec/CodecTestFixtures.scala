@@ -27,6 +27,49 @@ trait CodecTestFixtures {
       )
   )
 
+  // One field per ContainerField tier (Optional/Chunk/Sequence/Map/Set/Scalar) — used to
+  // exercise genericRecordDecoder's missing-field handling for every tier directly, without
+  // needing a >22-field case class to force the GenericRecord fallback.
+  val genericRecordAllContainerFieldsSchema: Schema[ListMap[String, _]] = Schema.record(
+    TypeId.Structural,
+    Schema.Field(
+      "scalarField",
+      Schema.Primitive(StandardType.StringType),
+      get0 = (p: ListMap[String, _]) => p("scalarField").asInstanceOf[String],
+      set0 = (p: ListMap[String, _], v: String) => p.updated("scalarField", v)
+    ),
+    Schema.Field(
+      "optionalField",
+      Schema.Optional(Schema.Primitive(StandardType.StringType)),
+      get0 = (p: ListMap[String, _]) => p("optionalField").asInstanceOf[Option[String]],
+      set0 = (p: ListMap[String, _], v: Option[String]) => p.updated("optionalField", v)
+    ),
+    Schema.Field(
+      "chunkField",
+      Schema.chunk(Schema.Primitive(StandardType.StringType)),
+      get0 = (p: ListMap[String, _]) => p("chunkField").asInstanceOf[zio.Chunk[String]],
+      set0 = (p: ListMap[String, _], v: zio.Chunk[String]) => p.updated("chunkField", v)
+    ),
+    Schema.Field(
+      "listField",
+      Schema.list(Schema.Primitive(StandardType.StringType)),
+      get0 = (p: ListMap[String, _]) => p("listField").asInstanceOf[List[String]],
+      set0 = (p: ListMap[String, _], v: List[String]) => p.updated("listField", v)
+    ),
+    Schema.Field(
+      "mapField",
+      Schema.map(Schema.Primitive(StandardType.StringType), Schema.Primitive(StandardType.IntType)),
+      get0 = (p: ListMap[String, _]) => p("mapField").asInstanceOf[Map[String, Int]],
+      set0 = (p: ListMap[String, _], v: Map[String, Int]) => p.updated("mapField", v)
+    ),
+    Schema.Field(
+      "setField",
+      Schema.set(Schema.Primitive(StandardType.StringType)),
+      get0 = (p: ListMap[String, _]) => p("setField").asInstanceOf[Set[String]],
+      set0 = (p: ListMap[String, _], v: Set[String]) => p.updated("setField", v)
+    )
+  )
+
   val enumSchema: Schema[Any] = Schema.enumeration[Any, CaseSet.Aux[Any]](
     TypeId.Structural,
     caseOf[String, Any]("string")(_.asInstanceOf[String])(_.asInstanceOf[Any])(_.isInstanceOf[String]) ++ caseOf[
