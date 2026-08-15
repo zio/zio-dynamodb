@@ -46,6 +46,7 @@ object DynamoDBCodecDeriver
     extends DynamoDBCodecDeriver(
       schema1TupleCompat = Schema1Compat.ReadBothWriteNew,
       schema1ByteSequenceCompat = Schema1Compat.ReadNewWriteNew,
+      schema1ByteCompat = Schema1Compat.ReadNewWriteNew,
       schema1YearCompat = Schema1Compat.ReadNewWriteNew,
       discriminatorKind = DiscriminatorKind.Key,
       enumValuesAsStrings = true,
@@ -267,6 +268,7 @@ object DynamoDBCodecDeriver
 class DynamoDBCodecDeriver private (
   schema1TupleCompat: Schema1Compat,
   schema1ByteSequenceCompat: Schema1Compat,
+  schema1ByteCompat: Schema1Compat,
   schema1YearCompat: Schema1Compat,
   discriminatorKind: DiscriminatorKind,
   enumValuesAsStrings: Boolean,
@@ -285,6 +287,8 @@ class DynamoDBCodecDeriver private (
     copy(schema1TupleCompat = v)
   def withSchema1ByteSequenceCompatibility(v: Schema1Compat): DynamoDBCodecDeriver            =
     copy(schema1ByteSequenceCompat = v)
+  def withSchema1ByteCompatibility(v: Schema1Compat): DynamoDBCodecDeriver                    =
+    copy(schema1ByteCompat = v)
   def withSchema1YearCompatibility(v: Schema1Compat): DynamoDBCodecDeriver                    =
     copy(schema1YearCompat = v)
   def withEnumValuesAsStrings(enumValuesAsStrings: Boolean): DynamoDBCodecDeriver             =
@@ -308,6 +312,7 @@ class DynamoDBCodecDeriver private (
   def copy(
     schema1TupleCompat: Schema1Compat = schema1TupleCompat,
     schema1ByteSequenceCompat: Schema1Compat = schema1ByteSequenceCompat,
+    schema1ByteCompat: Schema1Compat = schema1ByteCompat,
     schema1YearCompat: Schema1Compat = schema1YearCompat,
     discriminatorKind: DiscriminatorKind = discriminatorKind,
     enumValuesAsStrings: Boolean = enumValuesAsStrings,
@@ -324,6 +329,7 @@ class DynamoDBCodecDeriver private (
     new DynamoDBCodecDeriver(
       schema1TupleCompat,
       schema1ByteSequenceCompat,
+      schema1ByteCompat,
       schema1YearCompat,
       discriminatorKind,
       enumValuesAsStrings,
@@ -1735,13 +1741,38 @@ class DynamoDBCodecDeriver private (
     }
 
   private[this] val byteCodec: DynamoDBCodec[Byte] =
-    new DynamoDBCodec[Byte](valueType = DynamoDBCodec.byteType) {
-      override def encoder: Encoder[Byte] = b => AttributeValue.Number(BigDecimal.valueOf(b.toLong))
-      override def decoder: Decoder[Byte] = {
-        case AttributeValue.Number(bd) => Right(bd.byteValue)
-        case av                        =>
-          Left(DecodingError(s"Error getting byte value. Expected AttributeValue.Number but found ${av.showType}"))
-      }
+    schema1ByteCompat match {
+      case Schema1Compat.ReadNewWriteNew =>
+        // Default: encode as Number, decode Number only.
+        new DynamoDBCodec[Byte](valueType = DynamoDBCodec.byteType) {
+          override def encoder: Encoder[Byte] = b => AttributeValue.Number(BigDecimal.valueOf(b.toLong))
+          override def decoder: Decoder[Byte] = {
+            case AttributeValue.Number(bd) => Right(bd.byteValue)
+            case av                        =>
+              Left(DecodingError(s"Error getting byte value. Expected AttributeValue.Number but found ${av.showType}"))
+          }
+        }
+      case _                             =>
+        // ReadBothWriteOld / ReadBothWriteNew — legacy stores a standalone Byte as a
+        // single-byte AttributeValue.Binary (zio-schema 1.x's StandardType.ByteType mapping).
+        val writeLegacy = schema1ByteCompat == Schema1Compat.ReadBothWriteOld
+        new DynamoDBCodec[Byte](valueType = DynamoDBCodec.byteType) {
+          override def encoder: Encoder[Byte] =
+            if (writeLegacy) b => AttributeValue.Binary(Array(b))
+            else b => AttributeValue.Number(BigDecimal.valueOf(b.toLong))
+          override def decoder: Decoder[Byte] = {
+            case AttributeValue.Number(bd)    => Right(bd.byteValue)
+            case AttributeValue.Binary(bytes) =>
+              if (bytes.length == 1) Right(bytes(0))
+              else Left(DecodingError(s"Expected a single-byte Binary for Byte but found ${bytes.length} bytes"))
+            case av                           =>
+              Left(
+                DecodingError(
+                  s"Error getting byte value. Expected AttributeValue.Number or Binary but found ${av.showType}"
+                )
+              )
+          }
+        }
     }
 
   private[this] val shortCodec: DynamoDBCodec[Short] =
