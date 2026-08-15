@@ -824,14 +824,14 @@ private[dynamodb] object Codec {
     private def tupleDecoder[A, B](decL: Decoder[A], decR: Decoder[B]): Decoder[(A, B)] =
       (av: AttributeValue) =>
         av match {
-          case AttributeValue.List(list: Seq[AttributeValue]) if list.size == 2 =>
+          case AttributeValue.List(list: (Seq[AttributeValue] @unchecked)) if list.size == 2 =>
             val avA = list(0)
             val avB = list(1)
             for {
               a <- decL(avA)
               b <- decR(avB)
             } yield (a, b)
-          case av                                                               =>
+          case av                                                                            =>
             Left(DecodingError(s"Expected an AttributeValue.List of two elements but found type ${av.showType}"))
         }
 
