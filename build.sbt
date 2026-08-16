@@ -207,7 +207,13 @@ lazy val examples = (project in file("examples"))
     name               := "zio-dynamodb-examples",
     publish / skip     := true,
     coverageEnabled    := false,
-    crossScalaVersions := Seq(scala3Version, scala213Version)
+    crossScalaVersions := Seq(scala3Version, scala213Version),
+    libraryDependencies ++= Seq(
+      "dev.zio" %% "zio-streams"  % zioVersion,
+      "dev.zio" %% "zio-test"     % zioVersion % Test,
+      "dev.zio" %% "zio-test-sbt" % zioVersion % Test
+    ),
+    testFrameworks     := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
 
 lazy val docs = project
