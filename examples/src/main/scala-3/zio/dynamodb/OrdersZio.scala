@@ -17,16 +17,19 @@
 package zio.dynamodb
 
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
-import zio.{ Task, ZIOAppDefault }
+import zio.{ Task, ZIO, ZIOAppDefault, ZLayer }
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.ExecuteSyntax.*
 import zio.dynamodb.blocks.ddbexpr.dsl.*
 
 /**
  * Scala 3 / ZIO showcase example — the ZIO counterpart of `OrdersCE.scala` (the Cats Effect
- *  version) in this same module. Not run against a real client (no Docker/Testcontainers
- *  dependency); a class/method body is type-checked whether or not it's ever
- *  instantiated/called, so this fails `examples/compile` if the example stops compiling.
+ * version) in this same module. Not run against a real client (no Docker/Testcontainers
+ * dependency); a class/method body is type-checked whether or not it's ever
+ * instantiated/called, so this fails `examples/compile` if the example stops compiling.
+ *
+ * The client is scope-managed via `ZLayer.scoped`/`ZIO.acquireRelease` rather than built
+ * and never closed — the release action runs `c.close()` when the layer's scope ends.
  */
 object OrdersZio extends ZIOAppDefault {
 
@@ -43,22 +46,32 @@ object OrdersZio extends ZIOAppDefault {
     val status: Lens[Order, Status]     = $(_.status)
   }
 
-  given Interpreter[Task] = ZioInterpreter.fromAsyncClient(DynamoDbAsyncClient.builder().build())
+  val interpreterLayer: ZLayer[Any, Throwable, Interpreter[Task]] =
+    ZLayer.scoped {
+      ZIO
+        .acquireRelease(ZIO.attempt(DynamoDbAsyncClient.builder().build()))(c => ZIO.attempt(c.close()).orDie)
+        .map(client => ZioInterpreter.fromAsyncClient(client): Interpreter[Task])
+    }
 
-  def run: Task[Unit] =
-    for {
-      _ <- put("orders", Order("cust-42", "ord-1", 129.99, Status.Pending)).execute
+  val program: ZIO[Interpreter[Task], Throwable, Unit] =
+    ZIO.serviceWithZIO[Interpreter[Task]] { interpreter =>
+      given Interpreter[Task] = interpreter
+      for {
+        _ <- put("orders", Order("cust-42", "ord-1", 129.99, Status.Pending)).execute
 
-      // partition key + sort-key range, plus a filter — both type-checked against
-      // Order's schema, not hand-written expression strings
-      recent <- query[Order]("orders", limit = 20)
-                  .whereKey(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey > "ord-0")
-                  .filter(Order.total > 50.0)
-                  .execute
+        // partition key + sort-key range, plus a filter — both type-checked against
+        // Order's schema, not hand-written expression strings
+        recent <- query[Order]("orders", limit = 20)
+                    .whereKey(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey > "ord-0")
+                    .filter(Order.total > 50.0)
+                    .execute
 
-      // typed update — the compiler checks the field and the value being set together
-      _ <- update("orders")(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1")(
-             Order.status.set(Status.Shipped)
-           ).execute
-    } yield ()
+        // typed update — the compiler checks the field and the value being set together
+        _ <- update("orders")(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1")(
+               Order.status.set(Status.Shipped)
+             ).execute
+      } yield ()
+    }
+
+  def run: Task[Unit] = program.provide(interpreterLayer)
 }

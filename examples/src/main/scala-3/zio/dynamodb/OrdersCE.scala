@@ -16,7 +16,7 @@
 
 package zio.dynamodb
 
-import cats.effect.{ IO, IOApp }
+import cats.effect.{ IO, IOApp, Resource }
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.ExecuteSyntax.*
@@ -24,10 +24,13 @@ import zio.dynamodb.blocks.ddbexpr.dsl.*
 
 /**
  * Scala 3 / Cats Effect showcase example, introducing the high-level API. Not run against a
- *  real client (no Docker/Testcontainers dependency); a class/method body is type-checked
- *  whether or not it's ever instantiated/called, so this fails `examples/compile` if the
- *  example stops compiling. The underlying CEInterpreter + dsl facade + .execute mechanics
- *  are already exercised for real elsewhere (CEDynamoDBSpec, CEHighLevelSpec).
+ * real client (no Docker/Testcontainers dependency); a class/method body is type-checked
+ * whether or not it's ever instantiated/called, so this fails `examples/compile` if the
+ * example stops compiling. The underlying CEInterpreter + dsl facade + .execute mechanics
+ * are already exercised for real elsewhere (CEDynamoDBSpec, CEHighLevelSpec).
+ *
+ * The client is `Resource`-managed rather than built and never closed — the resource's
+ * release action runs `c.close()` once `use` completes, on both success and failure.
  */
 object OrdersCE extends IOApp.Simple {
 
@@ -44,22 +47,26 @@ object OrdersCE extends IOApp.Simple {
     val status: Lens[Order, Status]     = $(_.status)
   }
 
-  given Interpreter[IO] = CEInterpreter.fromAsyncClient(DynamoDbAsyncClient.builder().build())
+  val client: Resource[IO, DynamoDbAsyncClient] =
+    Resource.make(IO(DynamoDbAsyncClient.builder().build()))(c => IO(c.close()))
 
   def run: IO[Unit] =
-    for {
-      _ <- put("orders", Order("cust-42", "ord-1", 129.99, Status.Pending)).execute
+    client.use { c =>
+      given Interpreter[IO] = CEInterpreter.fromAsyncClient(c)
+      for {
+        _ <- put("orders", Order("cust-42", "ord-1", 129.99, Status.Pending)).execute
 
-      // partition key + sort-key range, plus a filter — both type-checked against
-      // Order's schema, not hand-written expression strings
-      recent <- query[Order]("orders", limit = 20)
-                  .whereKey(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey > "ord-0")
-                  .filter(Order.total > 50.0)
-                  .execute
+        // partition key + sort-key range, plus a filter — both type-checked against
+        // Order's schema, not hand-written expression strings
+        recent <- query[Order]("orders", limit = 20)
+                    .whereKey(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey > "ord-0")
+                    .filter(Order.total > 50.0)
+                    .execute
 
-      // typed update — the compiler checks the field and the value being set together
-      _ <- update("orders")(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1")(
-             Order.status.set(Status.Shipped)
-           ).execute
-    } yield ()
+        // typed update — the compiler checks the field and the value being set together
+        _ <- update("orders")(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1")(
+               Order.status.set(Status.Shipped)
+             ).execute
+      } yield ()
+    }
 }
