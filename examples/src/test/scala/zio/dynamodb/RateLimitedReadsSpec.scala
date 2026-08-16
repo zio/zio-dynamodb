@@ -65,6 +65,21 @@ object RateLimitedReadsSpec extends ZIOSpecDefault {
         end         <- Clock.nanoTime
       } yield assertTrue(end == start)
     },
+    test("rejects non-positive, NaN, or infinite rates") {
+      // A zero rate would divide by zero on the deficit calculation, turning ordinary
+      // consumption into an effectively unbounded (or, once a pending reservation is
+      // added on top, overflowing) sleep; negative/NaN/infinite rates break the token
+      // bucket's arithmetic in their own ways. Reject all of them up front.
+      def rejects(rate: Double) =
+        ZIO.attempt(RateLimitedReads.rcuRateLimiter(rate)).exit.map(_.isFailure)
+
+      for {
+        zero     <- rejects(0.0)
+        negative <- rejects(-1.0)
+        nan      <- rejects(Double.NaN)
+        infinite <- rejects(Double.PositiveInfinity)
+      } yield assertTrue(zero, negative, nan, infinite)
+    },
     test(
       "concurrent over-budget responses stack their reservations instead of overwriting " +
         "each other's pending deadline"

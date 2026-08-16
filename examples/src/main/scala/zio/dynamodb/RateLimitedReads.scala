@@ -48,7 +48,11 @@ import zio.stream.ZStream
  */
 object RateLimitedReads extends ZIOAppDefault {
 
-  def rcuRateLimiter(rcusPerSecond: Double): UIO[ResponseInterceptor[Task]] =
+  def rcuRateLimiter(rcusPerSecond: Double): UIO[ResponseInterceptor[Task]] = {
+    require(
+      rcusPerSecond > 0.0 && rcusPerSecond.isFinite,
+      s"rcusPerSecond must be positive and finite, got $rcusPerSecond"
+    )
     for {
       now <- Clock.nanoTime
       ref <- Ref.make((rcusPerSecond, now))
@@ -74,6 +78,7 @@ object RateLimitedReads extends ZIOAppDefault {
           _          <- ZIO.sleep(Duration.fromNanos(sleepNanos)).when(sleepNanos > 0L)
         } yield ()
     }
+  }
 
   private def readCapacityUnitsOf(meta: DynamoDBResponseMetadata): Double = {
     def rcu(consumed: Option[ConsumedCapacity]): Double     = consumed.flatMap(_.readCapacityUnits).getOrElse(0.0)
