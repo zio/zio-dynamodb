@@ -1,23 +1,40 @@
 # mdoc Code Block Scanner & Fixer Guide
 
 Ported from zio-blocks' `.claude/scripts/` (originally written for zio-http's docs; the
-decision tree and modifier semantics are generic mdoc knowledge, so this applies as-is to
-zio-dynamodb's `docs/` tree, which uses the same `zio-sbt-website`/mdoc pipeline).
+decision tree and modifier semantics below are generic mdoc knowledge). **One premise did
+NOT carry over and is corrected below** — verify it empirically again if this guide is ever
+ported to a third project, since it depends on that project's specific mdoc/plugin setup.
 
 ## Overview
 
 `find-unmodified-mdoc-blocks.sh` identifies Scala code blocks in documentation that lack mdoc
 modifiers.
 
-## Why This Matters
+## Why This Matters — corrected for zio-dynamodb's actual mdoc behavior
 
-Code blocks without mdoc modifiers are treated as **runnable code by default** during mdoc
-compilation (`sbt docs/compileDocs` / `sbt docs/buildWebsite`). This means:
+The zio-blocks/zio-http version of this guide claimed a bare ` ```scala ` fence (no modifier)
+is compiled *and executed* by mdoc by default. **That is not true for zio-dynamodb's own
+`docs/compileDocs`/`docs/mdoc` setup** — verified empirically (2026-08-16, `series/3.x`): a
+bare ` ```scala ` fence in `docs/index.md` passed through byte-identical, in 0.14s (i.e. never
+even attempted), while the same block with the fence changed to ` ```scala mdoc ` took 3.5s
+and genuinely type-checked (0 errors). **In this project, a fence needs the literal `mdoc`
+token to be processed at all — a bare `scala` fence is inert.**
 
-- ✅ **They will be compiled** against the actual project code
-- ✅ **They will be executed** and output will be captured
-- ❌ **If they fail to compile**, the entire docs build fails
-- ❌ **If they have side effects**, those will execute during doc generation
+This flips the actual risk from what the original guide describes:
+
+- ❌ **NOT the risk here**: an unmodified block breaking the docs build if it fails to compile
+  or has side effects — it can't, because mdoc never touches it.
+- ✅ **The actual risk**: a *real, meant-to-compile* example (a full worked program, not
+  pseudocode) sitting in an unmodified fence is **silently unverified** — it can drift out of
+  sync with the real API (a renamed method, a changed signature) and nothing will ever catch
+  it, since mdoc skips it entirely on every future doc build too.
+
+So for zio-dynamodb, the fix for a real (not illustrative) example isn't "leave it alone
+since it's not breaking anything" — it's "give it the `mdoc` token (bare `mdoc` or
+`mdoc:compile-only`) specifically *to start verifying it*," the opposite instinct from a
+project where bare fences are checked by default. The decision tree below (which modifier,
+once you've decided a block should be checked) is still accurate and portable; it's *whether
+an unmodified block is currently being checked at all* that differs per project.
 
 This is powerful for code examples that should actually run, but problematic for:
 - Illustrative code that can't compile standalone

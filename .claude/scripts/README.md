@@ -16,12 +16,14 @@ Two scripts plus a decision guide for managing mdoc modifiers in Scala code bloc
 
 ### Problem They Solve
 
-Code blocks without mdoc modifiers are compiled and executed by mdoc during
-`sbt docs/compileDocs` / `sbt docs/buildWebsite`. This causes:
-
-- ✅ **Good for**: Real examples that demonstrate working code
-- ❌ **Bad for**: Illustrative pseudocode, code with side effects (e.g. real DynamoDB calls),
-  incomplete examples
+**Correction vs. the original zio-blocks/zio-http version of this doc**: in zio-dynamodb's
+actual `docs/compileDocs`/`docs/mdoc` setup, a bare ` ```scala ` fence is **not** compiled or
+executed by default — verified empirically, see `MDOC_SCANNER_GUIDE.md`. Only a fence carrying
+the literal `mdoc` token gets processed at all. So the risk these scripts help with here is
+inverted from the original: it's not "an unmodified real example might break the build," it's
+"an unmodified real example is silently unverified and can drift from the real API with
+nothing to catch it." Illustrative/pseudocode blocks are fine left unmodified either way —
+they were never going to compile cleanly regardless.
 
 These scripts help identify and fix blocks that need modifiers.
 
