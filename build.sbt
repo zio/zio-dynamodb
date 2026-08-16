@@ -201,6 +201,15 @@ lazy val benchmarks = (project in file("benchmarks"))
     )
   )
 
+lazy val examples = (project in file("examples"))
+  .dependsOn(zioInterpreter, ceInterpreter, futureInterpreter, schemaDynamodb, schemaDdbExpr)
+  .settings(
+    name               := "zio-dynamodb-examples",
+    publish / skip     := true,
+    coverageEnabled    := false,
+    crossScalaVersions := Seq(scala3Version, scala213Version)
+  )
+
 lazy val docs = project
   .in(file("zio-dynamodb-docs"))
   .settings(
@@ -228,7 +237,18 @@ lazy val docs = project
   .enablePlugins(WebsitePlugin)
 
 lazy val root = (project in file("."))
-  .aggregate(core, aws, schemaDynamodb, zioInterpreter, schemaDdbExpr, futureInterpreter, ceInterpreter, it, docs)
+  .aggregate(
+    core,
+    aws,
+    schemaDynamodb,
+    zioInterpreter,
+    schemaDdbExpr,
+    futureInterpreter,
+    ceInterpreter,
+    it,
+    examples,
+    docs
+  )
   .enablePlugins(zio.sbt.ZioSbtCiPlugin)
   .settings(
     name              := "zio-dynamodb",
