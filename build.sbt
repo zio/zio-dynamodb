@@ -201,6 +201,21 @@ lazy val benchmarks = (project in file("benchmarks"))
     )
   )
 
+lazy val examples = (project in file("examples"))
+  .dependsOn(zioInterpreter, ceInterpreter, futureInterpreter, schemaDynamodb, schemaDdbExpr)
+  .settings(
+    name               := "zio-dynamodb-examples",
+    publish / skip     := true,
+    coverageEnabled    := false,
+    crossScalaVersions := Seq(scala3Version, scala213Version),
+    libraryDependencies ++= Seq(
+      "dev.zio" %% "zio-streams"  % zioVersion,
+      "dev.zio" %% "zio-test"     % zioVersion % Test,
+      "dev.zio" %% "zio-test-sbt" % zioVersion % Test
+    ),
+    testFrameworks     := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
+  )
+
 lazy val docs = project
   .in(file("zio-dynamodb-docs"))
   .settings(
@@ -228,7 +243,18 @@ lazy val docs = project
   .enablePlugins(WebsitePlugin)
 
 lazy val root = (project in file("."))
-  .aggregate(core, aws, schemaDynamodb, zioInterpreter, schemaDdbExpr, futureInterpreter, ceInterpreter, it, docs)
+  .aggregate(
+    core,
+    aws,
+    schemaDynamodb,
+    zioInterpreter,
+    schemaDdbExpr,
+    futureInterpreter,
+    ceInterpreter,
+    it,
+    examples,
+    docs
+  )
   .enablePlugins(zio.sbt.ZioSbtCiPlugin)
   .settings(
     name              := "zio-dynamodb",
