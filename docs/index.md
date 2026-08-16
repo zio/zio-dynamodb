@@ -19,7 +19,7 @@ documentation](https://zio.dev/zio-dynamodb/) instead.
 
 ## See it in action
 
-```scala
+```scala mdoc:compile-only
 import cats.effect.{ IO, IOApp, Resource }
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
@@ -65,7 +65,7 @@ The same program under ZIO — `Resource` becomes `ZLayer.scoped`, and since `.e
 the interpreter as a plain implicit rather than through ZIO's environment, the layer's built
 service is pulled out with `ZIO.serviceWithZIO` and bound as a `given` for the query body:
 
-```scala
+```scala mdoc:compile-only
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import zio.*
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
