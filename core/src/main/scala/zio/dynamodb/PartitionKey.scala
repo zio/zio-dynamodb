@@ -20,7 +20,7 @@ import zio.dynamodb.KeyConditionExpr.PartitionKeyEquals
 import zio.dynamodb.ProjectionExpression.Unknown
 
 private[dynamodb] final case class PartitionKey[-From, +To](keyName: String)
-private[dynamodb] object PartitionKey {
+object PartitionKey {
   implicit class PartitionKeyUnknownToOps[-From](val pk: PartitionKey[From, Unknown])         {
     def ===[To: ToAttributeValue](
       value: To
