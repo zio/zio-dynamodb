@@ -1,8 +1,9 @@
 package zio.dynamodb.codec
 
 import zio.dynamodb.{ AttributeValue, Codec, DynamoDBQuery }
+import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import zio.schema.{ DeriveSchema, Schema, StandardType }
-import zio.test.Assertion.{ equalTo, isRight }
+import zio.test.Assertion.{ equalTo, isLeft, isRight }
 import zio.test._
 import zio.{ Chunk, ZIO }
 
@@ -25,7 +26,8 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
       enumerationSuite,
       transformSuite,
       anySchemaSuite,
-      bigSchemaSuite
+      bigSchemaSuite,
+      genericRecordMissingFieldSuite
     )
 
   private val eitherSuite = suite("either suite")(
@@ -397,6 +399,84 @@ object CodecRoundTripSpec extends ZIOSpecDefault with CodecTestFixtures {
       )
     }
   )
+
+  // Follow-up to PR #712 (github.com/zio/zio-dynamodb/pull/712): genericRecordDecoder now
+  // mirrors decodeFields's full ContainerField match for a missing field, instead of only
+  // special-casing Optional. One fixture with one field per ContainerField tier
+  // (genericRecordAllContainerFieldsSchema, from CodecTestFixtures) exercises
+  // genericRecordDecoder directly; the Big/BigList pair separately proves the fix also
+  // applies to the more mainstream, easy-to-miss trigger: any ordinary case class with more
+  // than 22 fields, where zio-schema's own derivation macro silently falls back to
+  // Schema.GenericRecord (CaseClassN stops at 22).
+  private val genericRecordMissingFieldSuite = {
+    val scalarField   = toAvString("scalarField")   -> toAvString("hello")
+    val optionalField = toAvString("optionalField") -> toAvString("present")
+    val chunkField    = toAvString("chunkField")    -> AttributeValue.List(Chunk(toAvString("a")))
+    val listField     = toAvString("listField")     -> AttributeValue.List(Chunk(toAvString("b")))
+    val mapField      = toAvString("mapField")      -> AttributeValue.Map(Map(toAvString("k") -> toAvNum(1)))
+    val setField      = toAvString("setField")      -> AttributeValue.StringSet(Set("x"))
+
+    val allFields = Map(scalarField, optionalField, chunkField, listField, mapField, setField)
+
+    def itemExcluding(key: String): AttributeValue.Map =
+      AttributeValue.Map(allFields - toAvString(key))
+
+    val expectedAllPresent: ListMap[String, _] = ListMap(
+      "scalarField"   -> "hello",
+      "optionalField" -> Some("present"),
+      "chunkField"    -> Chunk("a"),
+      "listField"     -> List("b"),
+      "mapField"      -> Map("k" -> 1),
+      "setField"      -> Set("x")
+    )
+
+    def decode(item: AttributeValue.Map) = Codec.decoder(genericRecordAllContainerFieldsSchema)(item)
+
+    suite("genericRecordDecoder missing-field handling (PR #712 follow-up)")(
+      test("all fields present decodes normally") {
+        assertTrue(decode(AttributeValue.Map(allFields)) == Right(expectedAllPresent))
+      },
+      test("missing scalarField (Scalar) fails with a decode error, not a silent bad value") {
+        assert(decode(itemExcluding("scalarField")))(
+          isLeft(equalTo(DecodingError("field 'scalarField' not found in AttributeValue map")))
+        )
+      },
+      test("missing optionalField (Optional) decodes to None") {
+        assertTrue(decode(itemExcluding("optionalField")) == Right(expectedAllPresent.updated("optionalField", None)))
+      },
+      test("missing chunkField (Chunk) decodes to Chunk.empty, not an error") {
+        assertTrue(decode(itemExcluding("chunkField")) == Right(expectedAllPresent.updated("chunkField", Chunk.empty)))
+      },
+      test("missing listField (Sequence) decodes to Nil, not an error") {
+        assertTrue(decode(itemExcluding("listField")) == Right(expectedAllPresent.updated("listField", Nil)))
+      },
+      test("missing mapField (Map) decodes to Map.empty, not an error") {
+        assertTrue(decode(itemExcluding("mapField")) == Right(expectedAllPresent.updated("mapField", Map.empty)))
+      },
+      test("missing setField (Set) decodes to Set.empty, not an error") {
+        assertTrue(decode(itemExcluding("setField")) == Right(expectedAllPresent.updated("setField", Set.empty)))
+      },
+      test(
+        "missing List-typed fields on a >22-field case class (arity-triggered GenericRecord fallback) decode to Nil"
+      ) {
+        // format: off
+        val big = Big(
+          "id", "f0", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10",
+          "f11", "f12", "f13", "f14", "f15", "f16", "f17", None, None,
+          None, None, None, None, None, None, None, None, None, None, None
+        )
+        val expected = BigList(
+          "id", "f0", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10",
+          "f11", "f12", "f13", "f14", "f15", "f16", "f17", Nil, Nil,
+          Nil, Nil, Nil, Nil, Nil, Nil, Nil, Nil, Nil, Nil, Nil
+        )
+        // format: on
+        val item     = DynamoDBQuery.toItem(big)
+        val decoded  = DynamoDBQuery.fromItem[BigList](item)
+        assert(decoded)(isRight(equalTo(expected)))
+      }
+    )
+  }
 
   private def assertEncodesThenDecodesWithGen[A](schema: Schema[A], genA: Gen[Sized, A]) =
     check(genA) { a =>

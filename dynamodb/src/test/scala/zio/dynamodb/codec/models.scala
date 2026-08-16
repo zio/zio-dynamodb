@@ -215,3 +215,18 @@ object Big {
 
   val id: ProjectionExpression[Big, String] = ProjectionExpression.$$("id")
 }
+
+// Same 32-field shape as Big (arity > 22, so DeriveSchema.gen falls back to a
+// Schema.GenericRecord under the hood) but with the trailing fields typed as List[String]
+// instead of Option[String], to exercise genericRecordDecoder's missing-Sequence-field path.
+// format: off
+case class BigList(
+  id: String, f0: String, f1: String, f2: String, f3: String, f4: String, f5: String, f6: String, f7: String, f8: String, f9: String,
+  f10: String, f11: String, f12: String, f13: String, f14: String, f15: String, f16: String, f17: String, f18: List[String], f19: List[String],
+  f20: List[String], f21: List[String], f22: List[String], f23: List[String], f24: List[String], f25: List[String], f26: List[String], f27: List[String],
+  f28: List[String], f29: List[String], f30: List[String],
+)
+// format: on
+object BigList {
+  implicit val schema: Schema[BigList] = DeriveSchema.gen[BigList]
+}
