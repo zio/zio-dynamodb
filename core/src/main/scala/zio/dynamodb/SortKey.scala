@@ -21,7 +21,7 @@ import zio.dynamodb.ProjectionExpression.Unknown
 
 private[dynamodb] final case class SortKey[-From, +To](keyName: String)
 
-private[dynamodb] object SortKey {
+object SortKey {
   // all comparison ops apply to: Strings, Numbers, Binary values
 
   implicit class SortKeyUnknownToOps[-From](val sk: SortKey[From, Unknown]) {
