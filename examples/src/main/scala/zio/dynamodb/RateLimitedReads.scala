@@ -94,13 +94,17 @@ object RateLimitedReads extends ZIOAppDefault {
   }
 
   def run: Task[Unit] =
-    for {
-      interceptor <- rcuRateLimiter(rcusPerSecond = 5.0)
-      interp = ZioInterpreter.fromAsyncClient(DynamoDbAsyncClient.builder().build(), interceptor)
-      keys = ZStream.fromIterable((1 to 200).map(i => PrimaryKey("orderId" -> s"ord-$i")))
-      // batchGetItems groups keys into batches of 100 and issues one BatchGetItem per
-      // group via interp.run — since interp carries the rate limiter, each batch's
-      // onResponse delay gates when the stream can pull the next group.
-      _           <- ZIOStreamingUtils.batchGetItems(interp, "orders")(keys).runDrain
-    } yield ()
+    ZIO.scoped {
+      for {
+        interceptor <- rcuRateLimiter(rcusPerSecond = 5.0)
+        client      <-
+          ZIO.acquireRelease(ZIO.attempt(DynamoDbAsyncClient.builder().build()))(c => ZIO.attempt(c.close()).orDie)
+        interp = ZioInterpreter.fromAsyncClient(client, interceptor)
+        keys = ZStream.fromIterable((1 to 200).map(i => PrimaryKey("orderId" -> s"ord-$i")))
+        // batchGetItems groups keys into batches of 100 and issues one BatchGetItem per
+        // group via interp.run — since interp carries the rate limiter, each batch's
+        // onResponse delay gates when the stream can pull the next group.
+        _           <- ZIOStreamingUtils.batchGetItems(interp, "orders")(keys).runDrain
+      } yield ()
+    }
 }
