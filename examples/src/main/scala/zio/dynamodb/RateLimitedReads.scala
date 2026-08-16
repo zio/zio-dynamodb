@@ -58,14 +58,18 @@ object RateLimitedReads extends ZIOAppDefault {
           now        <- Clock.nanoTime
           consumed = readCapacityUnitsOf(meta)
           sleepNanos <- ref.modify { case (tokens, lastNanos) =>
-                          val elapsedSec = math.max(0.0, (now - lastNanos) / 1e9)
-                          val refilled   = math.min(tokens + elapsedSec * rcusPerSecond, rcusPerSecond)
-                          val remaining  = refilled - consumed
+                          val elapsedSec   = math.max(0.0, (now - lastNanos) / 1e9)
+                          val refilled     = math.min(tokens + elapsedSec * rcusPerSecond, rcusPerSecond)
+                          val remaining    = refilled - consumed
+                          // How much of a concurrently-racing response's reservation is still
+                          // pending beyond `now` — never let a new reservation move the shared
+                          // deadline backward and silently cancel part of it.
+                          val pendingNanos = math.max(0L, lastNanos - now)
                           if (remaining < 0.0) {
-                            val waitNanos = ((-remaining / rcusPerSecond) * 1e9).toLong
+                            val waitNanos = pendingNanos + ((-remaining / rcusPerSecond) * 1e9).toLong
                             (waitNanos, (0.0, now + waitNanos))
                           } else
-                            (0L, (remaining, now))
+                            (pendingNanos, (remaining, math.max(now, lastNanos)))
                         }
           _          <- ZIO.sleep(Duration.fromNanos(sleepNanos)).when(sleepNanos > 0L)
         } yield ()
