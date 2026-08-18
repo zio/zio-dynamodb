@@ -3,7 +3,7 @@ id: low-level
 title: "CRUD — Low-Level API"
 ---
 
-The low-level (LL) API is shaped directly after the AWS SDK: table names are plain strings,
+The Low-Level API is shaped directly after the AWS SDK: table names are plain strings,
 items are `Item`/`PrimaryKey` maps (`AttrMap` under the hood), and fields are referenced by
 name via `$("fieldName")` rather than a schema-derived `Lens`. No `Schema` instance is
 required — this is the API to reach for when your data doesn't have (or doesn't need) a
@@ -56,7 +56,9 @@ def example(implicit interp: Interpreter[zio.Task]) =
     .execute
 ```
 
-A condition expression makes `putItem` conditional (fails the request, doesn't throw client-side, if the condition isn't met on the server) — replacing an item only if it's still in the state you expect, for example:
+A condition expression makes `putItem` conditional (fails the request, doesn't throw
+client-side, if the condition isn't met on the server) — replacing an item only if it's still
+in the state you expect, for example:
 
 ```scala mdoc:compile-only
 import zio.dynamodb._
@@ -88,7 +90,7 @@ def example(implicit interp: Interpreter[zio.Task]) =
 
 Update actions compose with `+`/`%` (see `UpdateExpression.Action`) — `.set`, `.add`,
 `.appendList`, `.deleteFromSet`, and `.remove` are all available on any `ProjectionExpression`,
-LL or HL, since both build the same `Action` values under the hood.
+Low-Level or High-Level, since both build the same `Action` values under the hood.
 
 ## Delete
 
@@ -173,7 +175,7 @@ sub-operation (code, optional message, and the conflicting item if
 
 ## Table management
 
-`createTable`/`deleteTable`/`describeTable` round out the LL API for table lifecycle —
+`createTable`/`deleteTable`/`describeTable` round out the Low-Level API for table lifecycle —
 uncommon in application code (most tables are managed via infrastructure-as-code), but useful
 for tests and local development. `deleteTable("orders")`/`describeTable("orders")` take just
 a table name; `createTable` additionally takes a `KeySchema`, a set of `AttributeDefinition`s,

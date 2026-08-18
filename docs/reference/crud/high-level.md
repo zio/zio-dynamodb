@@ -3,13 +3,13 @@ id: high-level
 title: "CRUD — High-Level API"
 ---
 
-The high-level (HL) API is schema-derived: your own `case class`/`enum` models (with
+The High-Level API is schema-derived: your own `case class`/`enum` models (with
 `derives Schema`), `CompanionOptics`-generated `Lens`es instead of string field names, and
 condition/key expressions checked against your model at compile time — a typo in a field
 name, or comparing a field against the wrong type, is a compiler error, not a runtime
 surprise. It compiles down to the exact same `DynamoDBQuery` ADT as the
-[Low-Level API](low-level.md); nothing about using the HL API changes what goes over the
-wire.
+[Low-Level API](low-level.md); nothing about using the High-Level API changes what goes over
+the wire.
 
 `DdbExprApi`/`dsl` are two names for the same operations — `dsl` is a facade meant for a
 single `import zio.dynamodb.blocks.ddbexpr.dsl.*`, `DdbExprApi` is the underlying object if
@@ -134,15 +134,17 @@ fields (`Order.status === Status.Pending` above) — the interpreter derives the
 
 ## Transactions
 
-There's no HL way to build a transaction. `transactGetItems`/`transactWriteItems` require
-`DynamoDBQuery[Any, _]`-shaped sub-operations (see
-[Low-Level: Transactions](low-level.md#transactions)), but `get`/`put`/`update`/`deleteFrom`
-above produce `DynamoDBQuery[Order, _]` — pinned to your model type, not `Any`. Since
+There's no High-Level transaction API yet — that's a gap in what's been built so far, not a
+permanent design decision. Today, `get`/`put`/`update`/`deleteFrom` can't be passed directly to
+`transactWriteItems`/`transactGetItems`: those require `DynamoDBQuery[Any, _]`-shaped
+sub-operations (see [Low-Level: Transactions](low-level.md#transactions)), but the High-Level
+functions above produce `DynamoDBQuery[Order, _]` — pinned to your model type, not `Any`. Since
 `DynamoDBQuery`'s input parameter is contravariant, an `Order`-shaped query isn't a subtype of
-an `Any`-shaped one, so it can't be passed to `transactWriteItems` directly.
+an `Any`-shaped one, so it won't compile.
 
-Build transaction sub-operations with the LL constructors instead, even in code that otherwise
-uses the HL API throughout:
+Until a High-Level transaction API exists, build transaction sub-operations with the
+Low-Level constructors instead, even in code that otherwise uses the High-Level API
+throughout:
 
 ```scala mdoc:compile-only
 import zio.dynamodb._

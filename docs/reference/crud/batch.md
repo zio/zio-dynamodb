@@ -4,9 +4,9 @@ title: "Batch Operations"
 ---
 
 Batch ops get their own page rather than a couple of rows in the [matrix](index.md) because
-they don't fit the LL/HL split cleanly, and because their error-handling shape is genuinely
-different from the rest of the library — both are worth explaining once, up front, instead of
-as a surprise mid-example.
+they don't fit the Low-Level/High-Level split cleanly, and because their error-handling shape
+is genuinely different from the rest of the library — both are worth explaining once, up
+front, instead of as a surprise mid-example.
 
 ## Why batch is more complex
 
@@ -113,14 +113,14 @@ expect — reading `interp.run(query)` doesn't tell you whether a batch result n
 top before you know if it actually succeeded. Worth calling out explicitly once, here, rather
 than a surprise the first time it comes up.
 
-## Why no HL batch API
+## Why no High-Level batch API
 
-There's no schema-derived `batch`/`batchGet` in `DdbExprApi`/`dsl` — batch stays LL-only. Once
-a batch call can come back `Incomplete`, the caller has to decide what to do about the leftover
-keys/items, and that decision is genuinely use-case specific: retry immediately, retry with
-backoff, drop and log, surface to the user, feed into a dead-letter queue. Baking one of those
-choices into an HL wrapper would mean picking a policy on the library's behalf for a case
-where "it depends" is the honest answer.
+There's no schema-derived `batch`/`batchGet` in `DdbExprApi`/`dsl` — batch stays Low-Level
+only. Once a batch call can come back `Incomplete`, the caller has to decide what to do about
+the leftover keys/items, and that decision is genuinely use-case specific: retry immediately,
+retry with backoff, drop and log, surface to the user, feed into a dead-letter queue. Baking
+one of those choices into a High-Level wrapper would mean picking a policy on the library's
+behalf for a case where "it depends" is the honest answer.
 
 The building blocks — `batchGetItem`/`batchWriteItem`, `RetryPolicy`, `Batch.GetResult`/
 `Batch.WriteResult` — are all there to build whatever policy fits. See
