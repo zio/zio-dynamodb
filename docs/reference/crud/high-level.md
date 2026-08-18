@@ -11,16 +11,14 @@ surprise. It compiles down to the exact same `DynamoDBQuery` ADT as the
 [Low-Level API](low-level.md); nothing about using the High-Level API changes what goes over
 the wire.
 
-`DdbExprApi`/`dsl` are two names for the same operations — `dsl` is a facade meant for a
-single `import zio.dynamodb.blocks.ddbexpr.dsl.*`, `DdbExprApi` is the underlying object if
-you'd rather import it explicitly. The examples below use the `dsl` import, matching the
+The examples below use the `dsl` import (see comment below), matching the
 [landing page's examples](../../index.md#see-it-in-action).
 
 ```scala mdoc:silent
 import zio.dynamodb._
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
-import zio.dynamodb.ExecuteSyntax.*
-import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.dynamodb.ExecuteSyntax.*             // adds `.execute` to any DynamoDBQuery
+import zio.dynamodb.blocks.ddbexpr.dsl.*        // get/put/update/... — same ops as DdbExprApi, one import
 
 enum Status derives Schema {
   case Pending, Shipped
@@ -94,6 +92,10 @@ def example(implicit interp: Interpreter[zio.Task]) =
 
 ## Query
 
+`query`/`scan` return the same `Page[A]` type as their Low-Level counterparts, just
+parameterized by your model instead of `Item` — see
+[Low-Level: Query](low-level.md#query) for the field-by-field breakdown of `Page`.
+
 ```scala mdoc:compile-only
 import zio.dynamodb._
 import zio.dynamodb.ExecuteSyntax.*
@@ -135,16 +137,8 @@ fields (`Order.status === Status.Pending` above) — the interpreter derives the
 ## Transactions
 
 There's no High-Level transaction API yet — that's a gap in what's been built so far, not a
-permanent design decision. Today, `get`/`put`/`update`/`deleteFrom` can't be passed directly to
-`transactWriteItems`/`transactGetItems`: those require `DynamoDBQuery[Any, _]`-shaped
-sub-operations (see [Low-Level: Transactions](low-level.md#transactions)), but the High-Level
-functions above produce `DynamoDBQuery[Order, _]` — pinned to your model type, not `Any`. Since
-`DynamoDBQuery`'s input parameter is contravariant, an `Order`-shaped query isn't a subtype of
-an `Any`-shaped one, so it won't compile.
-
-Until a High-Level transaction API exists, build transaction sub-operations with the
-Low-Level constructors instead, even in code that otherwise uses the High-Level API
-throughout:
+design restriction. Build transaction sub-operations with the Low-Level constructors instead,
+even in code that otherwise uses the High-Level API throughout:
 
 ```scala mdoc:compile-only
 import zio.dynamodb._

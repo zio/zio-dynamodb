@@ -105,7 +105,20 @@ def example(implicit interp: Interpreter[zio.Task]) =
 ## Query
 
 `querySome` requires a partition key condition (via `.whereKey`) and returns one `Page[Item]`
-at a time — `lastEvaluatedKey` on the result tells you whether to page again.
+at a time, not the full result set:
+
+```scala
+final case class Page[A](items: Chunk[A], lastEvaluatedKey: LastEvaluatedKey, count: Int, scannedCount: Int)
+```
+
+- `items` — this page's results.
+- `lastEvaluatedKey` — pagination cursor; `None` means this was the last page. To continue,
+  pass it back as `exclusiveStartKey` on the next `querySome`/`scanSome` call.
+- `count` — items matched after any filter expression.
+- `scannedCount` — items DynamoDB evaluated before applying the filter; `scannedCount > count`
+  signals a filter-heavy query reading more than it returns.
+
+`scanSome` returns the same `Page[Item]` shape.
 
 ```scala mdoc:compile-only
 import zio.dynamodb._
