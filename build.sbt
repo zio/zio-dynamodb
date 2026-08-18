@@ -1,4 +1,6 @@
 import BuildHelper.*
+import zio.sbt.ZioSbtCiPlugin.{ CacheDependencies, Checkout, SetupJava, SetupSBT }
+import zio.sbt.githubactions.{ DependencyBot, Job, Step, Strategy }
 
 inThisBuild(
   List(
@@ -24,12 +26,80 @@ inThisBuild(
     pgpSecretRing := file("/tmp/secret.asc"),
     scmInfo := Some(
       ScmInfo(url("https://github.com/zio/zio-dynamodb"), "scm:git:git@github.com:zio/zio-dynamodb.git")
+    ),
+    ciEnabledBranches := Seq("series/2.x"),
+    ciDefaultJavaVersion := "17",
+    ciTargetJavaVersions := Seq("17", "21", "25"),
+    ciJvmOptions := Seq("-XX:+UseG1GC", "-Xmx6g", "-Xms6g", "-Xss16m"),
+    // This repository's Scala Steward runs as the plain `scala-steward` account, not as the
+    // `zio-scala-steward[bot]` GitHub App the plugin defaults to.
+    ciDependencyUpdateBots := Seq(
+      DependencyBot.Dependabot,
+      DependencyBot.Renovate,
+      DependencyBot.Custom("scala-steward")
+    ),
+    // The plugin marks the build job `continue-on-error`. Documentation compilation used to be a
+    // hard gate here (the old `mdoc` job), and `docs/buildWebsite` is what replaces it, so keep it one.
+    ciBuildJobs := ciBuildJobs.value.map(job =>
+      Job(
+        id = job.id,
+        name = job.name,
+        runsOn = job.runsOn,
+        continueOnError = false,
+        strategy = job.strategy,
+        steps = job.steps,
+        need = job.need,
+        services = job.services,
+        condition = job.condition
+      )
+    ),
+    // The default test job derives its matrix from `ciTargetScalaVersions` and only runs `test`.
+    // This build also needs `it:test` against a DynamoDB Local container, so the job is built by hand.
+    ciTestJobs := Seq(
+      Job(
+        id = "test",
+        name = "Test",
+        strategy = Some(
+          Strategy(
+            matrix = Map("java" -> ciTargetJavaVersions.value.toList, "scala" -> List("2.13", "3.3")),
+            failFast = false
+          )
+        ),
+        steps = Seq(
+          Checkout.value,
+          SetupJava("${{ matrix.java }}"),
+          SetupSBT,
+          CacheDependencies,
+          Step.SingleStep(
+            name = "Test",
+            run = Some("sbt \"++${{ matrix.scala }}; test\""),
+            env = dynamoDbLocalEnv
+          ),
+          Step.SingleStep(
+            name = "Run DynamoDBLocal",
+            run = Some("docker compose -f docker/docker-compose.yml up -d")
+          ),
+          Step.SingleStep(
+            name = "Integration Test",
+            run = Some("sbt \"++${{ matrix.scala }}; it:test\""),
+            env = dynamoDbLocalEnv
+          )
+        )
+      )
     )
   )
 )
 
+// DynamoDB Local accepts any credentials, but the AWS SDK refuses to build a client without them.
+lazy val dynamoDbLocalEnv = Map(
+  "AWS_ACCESS_KEY_ID"     -> "dummykey",
+  "AWS_SECRET_ACCESS_KEY" -> "dummykey",
+  "AWS_REGION"            -> "us-east-1"
+)
+
 addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
+addCommandAlias("lint", "; scalafmtSbtCheck; scalafmtCheckAll")
 
 val zioVersion             = "2.1.26"
 val zioAwsVersion          = "7.46.17.9"
