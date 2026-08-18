@@ -44,15 +44,11 @@ silently under the hood — 3.x dropped that: see
 | Delete table | [`deleteTable`](low-level.md#table-management) | — Low-Level only | [`DeleteTable`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_DeleteTable.html) |
 | Describe table | [`describeTable`](low-level.md#table-management) | — Low-Level only | [`DescribeTable`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_DescribeTable.html) |
 
-There's no High-Level wrapper for batch ops, transact ops, or table management, for three
-different reasons:
+There's no High-Level wrapper for batch ops or transact ops, for two different reasons:
 
 - **Batch is deliberately Low-Level only.** See
   [Batch Operations](batch.md#why-no-high-level-batch-api) for why batch's partial-success
   shape is best left to the caller to decide on.
-- **Table management is deliberately Low-Level only.** See [Limitations](../limitations.md)
-  for the general FP-modeling-only shape of the High-Level API — table DDL doesn't map onto a
-  "your model type" the way item operations do.
 - **Transactions simply haven't been built yet** for the High-Level API — see
   [High-Level: Transactions](high-level.md#transactions) for the current Low-Level-only
   workaround.
