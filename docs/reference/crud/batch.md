@@ -124,6 +124,6 @@ behalf for a case where "it depends" is the honest answer.
 
 The building blocks — `batchGetItem`/`batchWriteItem`, `RetryPolicy`, `Batch.GetResult`/
 `Batch.WriteResult` — are all there to build whatever policy fits. See
-[`StreamingUtils.batchGetItems`](../examples.md) in the `examples` module for a worked
+[`ZIOStreamingUtils.batchGetItems`](../examples.md) in the `examples` module for a worked
 example: batching a stream of keys, running each batch with a retry policy, and turning
 `Incomplete`/`Failed` into log output rather than a fatal error.

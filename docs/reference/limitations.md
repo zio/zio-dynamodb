@@ -23,20 +23,62 @@ In practice, that means:
 - Mutation happens by producing new immutable values (or a `DynamoDBCodec`-driven
   `UpdateExpression.Action`), never by calling a method that mutates an object in place.
 
-## Working with OOP-style models
+## Inheritance hierarchies: codecs support them, optic sugar doesn't
 
-If your domain model is a mutable class, a JavaBean-style type with getters/setters, an ORM
-entity, or anything else that doesn't reduce to a case class/enum shape, you have two options:
+A sealed-trait hierarchy where a field is declared *abstractly* on a shared trait and
+implemented by each concrete case — the classic OO shape — already round-trips fine through
+`Schema`/`DynamoDBCodecDeriver`. The codec derivation doesn't care where a field is declared;
+it reflects over each concrete case's actual constructor parameters:
 
-1. **Write a case class adapter** — a plain `case class` DTO that mirrors just the fields you
-   need to persist, `derives Schema`, and convert to/from your real domain type at the
-   boundary. This is usually the least-friction option and keeps the HL API's compile-time
-   field/type checking.
-2. **Use the [Low-Level API](crud/low-level.md) directly** — `Item`/`PrimaryKey` maps and
+```scala mdoc:compile-only
+import zio.blocks.schema.Schema
+import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
+
+sealed trait Invoice { def id: Int }
+sealed trait Billed extends Invoice { def amount: Double }
+
+case class BilledMonthly(id: Int, amount: Double, month: Int) extends Billed
+case class Prebilled(id: Int, count: Int)                     extends Invoice
+
+object Invoice {
+  implicit val schema: Schema[Invoice] = Schema.derived
+}
+
+val codec: DynamoDBCodec[Invoice] = Schema[Invoice].deriving(DynamoDBCodecDeriver).derive
+val item                          = codec.toItem(BilledMonthly(1, 42.0, 3))
+val back                          = codec.fromItem(item)
+```
+
+What's *not* supported is `CompanionOptics` sugar (`.partitionKey`, `===`, `.set`, ...) for a
+field declared on the abstract/intermediate trait rather than the concrete case — that's a
+deliberate, permanent choice, not a pending gap: the Low-Level API already covers every case
+uniformly, with no zio-blocks-side dependency needed to make it work.
+
+Three workarounds solve the same underlying problem — a model that doesn't fit the
+High-Level API's optic sugar cleanly — ordered by how much work each takes:
+
+1. **Use the Low-Level-API-plus-explicit-codec pattern** (least work) — for a model like the
+   one above, where `Schema`/`DynamoDBCodecDeriver` already handle the shape and only the
+   optic sugar is missing. Build the codec via `Schema[A].deriving(DynamoDBCodecDeriver)
+   .derive`, call `.toItem`/`.fromItem` directly, and write filter/condition expressions
+   through the Low-Level API's dot-path syntax, naming the concrete case explicitly:
+   ```scala
+   $("BilledMonthly.amount") === 42.0
+   ```
+   See `OopModelWithAbstractFieldsSpec`
+   (`schema-ddbexpr/src/test/scala/zio/dynamodb/OopModelWithAbstractFieldsSpec.scala`) for the
+   full worked example, including matching across every case of a shared abstract field with
+   an explicit `||`.
+2. **Write a case class adapter** — for a model that can't derive a `Schema` at all, a plain
+   `case class` DTO that mirrors just the fields you need to persist, `derives Schema`, and
+   converts to/from your real domain type at the boundary. More work than option 1 (an extra
+   type to maintain), but keeps the High-Level API's compile-time field/type checking for
+   everything else.
+3. **Use the [Low-Level API](crud/low-level.md) directly** — `Item`/`PrimaryKey` maps and
    `$("fieldName")` string-keyed access require no `Schema` at all. You write the
    encode/decode logic yourself (`ToAttributeValue`/`FromAttributeValue` instances, or manual
-   `Item` construction), in exchange for no restriction on what your in-memory model looks
-   like.
+   `Item` construction). The most work, but no restriction whatsoever on what your in-memory
+   model looks like.
 
 ## What already stays Low-Level only
 

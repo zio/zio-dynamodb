@@ -31,52 +31,53 @@ import zio.test._
 // API already covers every case uniformly with no ZB-side dependency at all. This spec
 // proves that LL-API-plus-explicit-codec pattern. No Scala-3-only syntax either, hence
 // plain (cross-compiled) source, not scala-3/.
-//
-// Named Oop* to avoid colliding with the unrelated `Invoice`/`InvoiceId`/`Amount`
-// file-scope types already defined in DdbExprOpaqueTypeSpec.scala (same package).
-sealed trait OopInvoice { def id: Int }
-object OopInvoice       {
-  implicit val schema: Schema[OopInvoice] = Schema.derived
-}
-
-sealed trait OopBilled extends OopInvoice { def amount: Double }
-
-case class OopBilledMonthly(id: Int, amount: Double, month: Int) extends OopBilled
-object OopBilledMonthly {
-  implicit val schema: Schema[OopBilledMonthly] = Schema.derived
-}
-
-case class OopBilledYearly(id: Int, amount: Double, year: Int) extends OopBilled
-object OopBilledYearly {
-  implicit val schema: Schema[OopBilledYearly] = Schema.derived
-}
-
-case class OopPrebilled(id: Int, count: Int) extends OopInvoice
-object OopPrebilled {
-  implicit val schema: Schema[OopPrebilled] = Schema.derived
-}
-
 object OopModelWithAbstractFieldsSpec extends ZIOSpecDefault {
+
+  // Nested inside the spec object, so no need for an Oop* prefix to avoid colliding with
+  // the unrelated `Invoice`/`InvoiceId`/`Amount` file-scope types in DdbExprOpaqueTypeSpec.scala
+  // (same package) — those are reached as bare names there, these only as
+  // OopModelWithAbstractFieldsSpec.Invoice etc.
+  sealed trait Invoice { def id: Int }
+  object Invoice       {
+    implicit val schema: Schema[Invoice] = Schema.derived
+  }
+
+  sealed trait Billed extends Invoice { def amount: Double }
+
+  case class BilledMonthly(id: Int, amount: Double, month: Int) extends Billed
+  object BilledMonthly {
+    implicit val schema: Schema[BilledMonthly] = Schema.derived
+  }
+
+  case class BilledYearly(id: Int, amount: Double, year: Int) extends Billed
+  object BilledYearly {
+    implicit val schema: Schema[BilledYearly] = Schema.derived
+  }
+
+  case class Prebilled(id: Int, count: Int) extends Invoice
+  object Prebilled {
+    implicit val schema: Schema[Prebilled] = Schema.derived
+  }
 
   def spec = suite("OO model with abstract fields — low-level API (works today, no ZB dependency)")(
     test("A -> Item -> A round-trips via the derived codec") {
-      val codec: DynamoDBCodec[OopInvoice] = Schema[OopInvoice].deriving(DynamoDBCodecDeriver).derive
-      val original: OopInvoice             = OopBilledMonthly(1, 42.0, 3)
+      val codec: DynamoDBCodec[Invoice] = Schema[Invoice].deriving(DynamoDBCodecDeriver).derive
+      val original: Invoice             = BilledMonthly(1, 42.0, 3)
 
       val item = codec.toItem(original)
       val back = codec.fromItem(item)
       assertTrue(back == Right(original))
     },
     test("a filter for one concrete case names the case wrapper explicitly — LL API path, not an optic") {
-      val codec: DynamoDBCodec[OopInvoice] = Schema[OopInvoice].deriving(DynamoDBCodecDeriver).derive
-      val item                             = codec.toItem(OopBilledMonthly(1, 42.0, 3))
+      val codec: DynamoDBCodec[Invoice] = Schema[Invoice].deriving(DynamoDBCodecDeriver).derive
+      val item                          = codec.toItem(BilledMonthly(1, 42.0, 3))
 
-      // The user writes the real wire-level path themselves — "OopBilledMonthly.amount" —
+      // The user writes the real wire-level path themselves — "BilledMonthly.amount" —
       // instead of an optic silently resolving (possibly to the wrong case). $ parses
       // dot-notation directly (ProjectionExpressionParser); === is plain LL API syntax,
-      // no OopInvoice type ascription needed — ConditionExpression is contravariant in
-      // From, so the resulting ConditionExpression[Any] already works as [OopInvoice].
-      val condition: ConditionExpression[OopInvoice] = $("OopBilledMonthly.amount") === 42.0
+      // no Invoice type ascription needed — ConditionExpression is contravariant in
+      // From, so the resulting ConditionExpression[Any] already works as [Invoice].
+      val condition: ConditionExpression[Invoice] = $("BilledMonthly.amount") === 42.0
 
       // Render aliases path segments/values (#n0, :v0, ...) rather than emitting literal
       // names, so assert on the structure the interpreter actually builds, not a
@@ -84,13 +85,13 @@ object OopModelWithAbstractFieldsSpec extends ZIOSpecDefault {
       val rendered = condition.render.execute._2
       assertTrue(
         rendered.matches("""\(#n\d+\.#n\d+\) = \(:v\d+\)"""),
-        item.map.get("OopBilledMonthly").isDefined
+        item.map.get("BilledMonthly").isDefined
       )
     },
     test("matching amount across every Billed case needs an explicit, user-written Or") {
-      val monthly                                    = $("OopBilledMonthly.amount") === 42.0
-      val yearly                                     = $("OopBilledYearly.amount") === 42.0
-      val condition: ConditionExpression[OopInvoice] = monthly || yearly
+      val monthly                                 = $("BilledMonthly.amount") === 42.0
+      val yearly                                  = $("BilledYearly.amount") === 42.0
+      val condition: ConditionExpression[Invoice] = monthly || yearly
 
       val rendered = condition.render.execute._2
       assertTrue(

@@ -36,7 +36,7 @@ import zio.stream.ZStream
  * Because [[ResponseInterceptor.onResponse]]'s effect is sequenced before the caller
  * receives its result (see [[InterceptingAwsDynamoDB]]), a sleep here genuinely delays
  * when the next operation in a sequential pipeline can be issued — which is exactly what
- * makes it effective paired with [[StreamingUtils.batchGetItems]] below: each batch's
+ * makes it effective paired with [[ZIOStreamingUtils.batchGetItems]] below: each batch's
  * `onResponse` delay blocks the stream from pulling the next batch. It does *not* gate a
  * burst of concurrent/parallel calls (`zipPar`, `foreachParDiscard`): each one's AWS
  * request has already gone out by the time its own `onResponse` runs, so a shared bucket
@@ -97,6 +97,6 @@ object RateLimitedReads extends ZIOAppDefault {
       // batchGetItems groups keys into batches of 100 and issues one BatchGetItem per
       // group via interp.run — since interp carries the rate limiter, each batch's
       // onResponse delay gates when the stream can pull the next group.
-      _           <- StreamingUtils.batchGetItems(interp, "orders")(keys).runDrain
+      _           <- ZIOStreamingUtils.batchGetItems(interp, "orders")(keys).runDrain
     } yield ()
 }
