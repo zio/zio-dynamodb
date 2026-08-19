@@ -33,10 +33,6 @@ import zio.test._
 // plain (cross-compiled) source, not scala-3/.
 object OopModelWithAbstractFieldsSpec extends ZIOSpecDefault {
 
-  // Nested inside the spec object, so no need for an Oop* prefix to avoid colliding with
-  // the unrelated `Invoice`/`InvoiceId`/`Amount` file-scope types in DdbExprOpaqueTypeSpec.scala
-  // (same package) — those are reached as bare names there, these only as
-  // OopModelWithAbstractFieldsSpec.Invoice etc.
   sealed trait Invoice { def id: Int }
   object Invoice       {
     implicit val schema: Schema[Invoice] = Schema.derived
