@@ -31,11 +31,13 @@ inThisBuild(
     ciDefaultJavaVersion := "17",
     ciTargetJavaVersions := Seq("17", "21", "25"),
     ciJvmOptions := Seq("-XX:+UseG1GC", "-Xmx6g", "-Xms6g", "-Xss16m"),
-    // This repository's Scala Steward runs as the plain `scala-steward` account, not as the
-    // `zio-scala-steward[bot]` GitHub App the plugin defaults to.
+    // This repository's Scala Steward currently runs as the plain `scala-steward` account rather
+    // than as the `zio-scala-steward[bot]` GitHub App the plugin defaults to. Both are listed so
+    // that moving the repository onto the app does not silently stop matching its PRs.
     ciDependencyUpdateBots := Seq(
       DependencyBot.Dependabot,
       DependencyBot.Renovate,
+      DependencyBot.ScalaSteward("zio-scala-steward"),
       DependencyBot.Custom("scala-steward")
     ),
     // The plugin marks the build job `continue-on-error`. Documentation compilation used to be a
