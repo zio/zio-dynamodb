@@ -9,7 +9,8 @@ condition/key expressions checked against your model at compile time — a typo 
 name, or comparing a field against the wrong type, is a compiler error, not a runtime
 surprise. It compiles down to the exact same `DynamoDBQuery` ADT as the
 [Low-Level API](low-level.md); nothing about using the High-Level API changes what goes over
-the wire.
+the wire. Only `case class`/`enum`-shaped models are supported — see
+[Limitations](../limitations.md) if your model doesn't fit that shape.
 
 The examples below use the `dsl` import (see comment below), matching the
 [landing page's examples](../../index.md#see-it-in-action).
