@@ -20,6 +20,11 @@ import zio.dynamodb.KeyConditionExpr.PartitionKeyEquals
 import zio.dynamodb.ProjectionExpression.Unknown
 
 private[dynamodb] final case class PartitionKey[-From, +To](keyName: String)
+
+/**
+ * Adds `===` to a `ProjectionExpression` marked as a partition key (via `.partitionKey`),
+ * building a [[KeyConditionExpr.PartitionKeyEquals]] for use in `querySome`'s `.whereKey`.
+ */
 object PartitionKey {
   implicit class PartitionKeyUnknownToOps[-From](val pk: PartitionKey[From, Unknown])         {
     def ===[To: ToAttributeValue](

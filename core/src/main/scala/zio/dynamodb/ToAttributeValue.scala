@@ -20,10 +20,19 @@ import zio.blocks.chunk.Chunk
 
 import scala.collection.immutable.{ Map, Set }
 
+/**
+ * Converts a Scala value into the wire-level [[AttributeValue]] the Low-Level API's
+ * `Item(...)` constructor and comparison operators (`$("field") === value`) encode with.
+ * Instances for every primitive, `Option`, `Iterable`, `Map[String, _]`, and native
+ * DynamoDB set type are provided implicitly by the companion object; write a custom
+ * instance to support an application-specific type directly (rather than converting to a
+ * supported type first).
+ */
 trait ToAttributeValue[A] {
   def toAttributeValue(a: A): AttributeValue
 }
 
+/** Built-in [[ToAttributeValue]] instances for primitives, collections, and `Option`. */
 object ToAttributeValue extends ToAttributeValueLowPriorityImplicits0 {
   import Predef.{ String => ScalaString }
 

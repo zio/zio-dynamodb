@@ -31,6 +31,19 @@ object DummyIO {
   def succeed[A](a: => A): DummyIO[A] = DummyIO(() => a)
 }
 
+/**
+ * A description of a DynamoDB request (or a composition of several) that stays independent
+ * of any effect type until it's run. `In` (contravariant) is a phantom type used to prove, at
+ * compile time via [[proofs.CanWhere]]/[[proofs.CanFilter]], that a `.where`/`.filter`
+ * condition attaches to a query it's actually type-compatible with; `Out` (covariant) is the
+ * value the query produces once run.
+ *
+ * Sealed subtypes are either leaf `Constructor`s (`GetItem`, `PutItem`, `QuerySome`, ...,
+ * each shaped directly after one AWS SDK operation) or combinators (`Map`, `ZipPar`, ...)
+ * built by chaining methods on an existing query. Nothing about a `DynamoDBQuery` value runs
+ * anything — an interpreter (`ZioInterpreter`/`CEInterpreter`/`FutureInterpreter`, all
+ * extending [[AwsInterpreter]]) walks the ADT and issues the real AWS SDK calls.
+ */
 sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   final def map[B](f: Out => B): DynamoDBQuery[In, B] = DynamoDBQuery.Map(self, f)
@@ -396,6 +409,13 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
 }
 
+/**
+ * Factory methods for every Low-Level constructor (`getItem`, `putItem`, `updateItem`,
+ * `deleteItem`, `querySome`, `scanSome`, `batchGetItem`, `batchWriteItem`,
+ * `transactGetItems`, `transactWriteItems`, `createTable`, `deleteTable`, `describeTable`)
+ * and the ADT case classes each one builds. See the "CRUD Operations" page on the project
+ * docs site for the full Low-Level/High-Level/AWS-SDK operation matrix.
+ */
 object DynamoDBQuery {
   import scala.collection.immutable.{ Map => ScalaMap, Set => ScalaSet }
 

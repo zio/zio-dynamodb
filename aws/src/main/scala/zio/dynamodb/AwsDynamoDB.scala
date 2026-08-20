@@ -89,9 +89,16 @@ import java.util.{ HashMap => JHashMap, Map => JMap }
 import scala.collection.JavaConverters._
 
 // -- Thin I/O interface --------------------------------------------------
-// One method per AWS operation; the only thing that varies between concrete
-// implementations is the return type F[_].
 
+/**
+ * A thin wrapper over the AWS SDK's own request/response types — one method per DynamoDB
+ * operation, with the raw SDK request in and the raw SDK response out. The only thing that
+ * varies between concrete implementations is the return type `F[_]`; `ZioInterpreter`,
+ * `CEInterpreter`, and `FutureInterpreter` each supply one built directly from
+ * `DynamoDbAsyncClient`. [[InterceptingAwsDynamoDB]] wraps an instance of this trait to add
+ * `ResponseInterceptor` metadata reporting without touching the per-operation methods
+ * themselves.
+ */
 trait AwsDynamoDB[F[_]] {
   def getItem(req: GetItemRequest): F[GetItemResponse]
   def putItem(req: PutItemRequest): F[PutItemResponse]
@@ -809,9 +816,14 @@ private[dynamodb] object AwsCodecs {
 }
 
 // -- Shared AWS interpreter ----------------------------------------------
-// Fills in the per-operation methods from AwsInterpreter using AwsCodecs + AwsDynamoDB.
-// Concrete interpreters only supply an AwsDynamoDB[F] client and the effect primitives.
 
+/**
+ * Fills in `AwsInterpreter`'s per-operation `runXxx` methods using [[AwsCodecs]] to
+ * translate the ADT to/from AWS SDK request/response types and `client` to make the actual
+ * call. Concrete interpreters (`ZioInterpreter`, `CEInterpreter`, `FutureInterpreter`) extend
+ * this and only need to supply an [[AwsDynamoDB]]`[F]` client plus their effect type's
+ * `pure`/`flatMap`/`product`/... primitives — everything AWS-request-shaped is shared here.
+ */
 abstract class RealAwsInterpreter[F[_]](client: AwsDynamoDB[F]) extends AwsInterpreter[F] {
 
   protected def runGetItem(q: DynamoDBQuery.GetItem): F[Option[Item]] =

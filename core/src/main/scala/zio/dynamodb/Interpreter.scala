@@ -23,6 +23,7 @@ import zio.dynamodb.DynamoDBError.{ ItemError, ScanError, TransactionError }
 
 // -- Base trait ----------------------------------------------------------
 
+/** The single entry point for running a [[DynamoDBQuery]]: `interpreter.run(query)`. */
 trait Interpreter[F[_]] {
   def run[Out](query: DynamoDBQuery[_, Out]): F[Out]
 }
@@ -35,6 +36,15 @@ trait Interpreter[F[_]] {
 // ADT traversal (runAny) is shared here — written once for all interpreters.
 // Lives in core with no AWS SDK dependency; DummyIOInterpreter compiles without it.
 
+/**
+ * Base class implementing [[Interpreter]]'s query traversal once for every backend.
+ * Subclasses (`ZioInterpreter`, `CEInterpreter`, `FutureInterpreter`, each backed by the
+ * `aws` module's `AwsDynamoDB`) supply two things: the effect primitives above
+ * (`pure`/`map`/`flatMap`/`product`/`fail`/`absolve`/`sleep`/`attempt`/`raiseError`, one set
+ * per effect type `F[_]`) and the per-operation `runXxx` methods that issue the actual AWS
+ * SDK calls. Everything else — walking the query, applying [[RetryPolicy]] via
+ * [[withRetry]], validating conditions — is written once here and shared by every backend.
+ */
 abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
 
   // Effect primitives — supplied by each concrete interpreter.

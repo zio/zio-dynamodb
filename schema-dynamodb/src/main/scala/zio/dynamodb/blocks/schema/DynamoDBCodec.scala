@@ -20,6 +20,13 @@ import zio.blocks.chunk.Chunk
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.{ Decoder, Encoder, FromAttributeValue, Item, ToAttributeValue }
 
+/**
+ * Encodes/decodes between `A` and [[zio.dynamodb.AttributeValue]] — produced by
+ * `Schema[A].deriving(DynamoDBCodecDeriver).derive` for a model with a zio-blocks `Schema`,
+ * or written by hand for a type that can't derive one. `toItem`/`fromItem` are the bridge to
+ * the Low-Level API's `Item`-shaped operations; the High-Level API (`DdbExprApi`/`dsl`)
+ * derives and caches one of these per model type automatically.
+ */
 abstract class DynamoDBCodec[A](val valueType: Int = DynamoDBCodec.objectType) {
 
   def encoder: Encoder[A]
@@ -50,6 +57,8 @@ abstract class DynamoDBCodec[A](val valueType: Int = DynamoDBCodec.objectType) {
     decoder(ToAttributeValue[Item].toAttributeValue(item))
 
 }
+
+/** `valueType` tag constants used internally to dispatch on a field's primitive register type without boxing. */
 object DynamoDBCodec {
   val objectType  = 0
   val intType     = 1

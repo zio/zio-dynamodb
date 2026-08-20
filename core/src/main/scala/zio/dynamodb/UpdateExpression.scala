@@ -56,11 +56,21 @@ delete-action ::=
 -------------------------------------------------------------
  */
 
+/**
+ * A DynamoDB update expression, wrapping one composed [[UpdateExpression.Action]] —
+ * `updateItem`'s second argument. Built by combining `ProjectionExpression`/`Lens`-attached
+ * operators (`.set`, `.add`, `.appendList`, `.deleteFromSet`, `.remove`, ...) with `+`; never
+ * constructed directly.
+ */
 final case class UpdateExpression[-A](action: Action[A]) extends Renderable { self =>
   def render: AliasMapRender[String] =
     action.render
 }
 
+/**
+ * Every [[UpdateExpression.Action]] case (`SetAction`, `AddAction`, `RemoveAction`,
+ * `DeleteAction`, `Actions`) and their operands.
+ */
 object UpdateExpression {
 
   def collectFailures(action: Action[_]): List[String] =

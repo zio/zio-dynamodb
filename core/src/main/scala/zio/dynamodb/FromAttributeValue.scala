@@ -19,10 +19,18 @@ package zio.dynamodb
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import Utils.ListUtils
 
+/**
+ * The decode-side counterpart to [[ToAttributeValue]] — converts a wire-level
+ * [[AttributeValue]] back into a Scala value, used by the Low-Level API's item-reading
+ * accessors. Instances for every primitive, `Option`, `Iterable`, `Map[String, _]`, and
+ * native DynamoDB set type are provided implicitly; write a custom instance for an
+ * application-specific type rather than decoding to a supported type and converting after.
+ */
 trait FromAttributeValue[+A] {
   def fromAttributeValue(av: AttributeValue): Either[DecodingError, A]
 }
 
+/** Built-in [[FromAttributeValue]] instances for primitives, collections, and `Option`. */
 object FromAttributeValue {
 
   def apply[A](implicit from: FromAttributeValue[A]): FromAttributeValue[A] = from

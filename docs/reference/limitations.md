@@ -3,14 +3,13 @@ id: limitations
 title: "Limitations"
 ---
 
-## The High-Level API only models algebraic data types
+## The High-Level API only models case classes and enums
 
 The [High-Level API](crud/high-level.md) is built entirely on zio-blocks `Schema` derivation:
 `derives Schema` on your model, `CompanionOptics`-generated `Lens`es for field access,
 `DynamoDBCodecDeriver` for encode/decode. All three are built around zio-blocks' `Record`
-(product types — case classes) and `Variant` (sum types — `enum`/sealed traits) reflection
-shapes specifically — the two canonical FP algebraic-data-type shapes, not an open-ended "any
-Scala type" story.
+(case classes) and `Variant` (`enum`/sealed traits) reflection shapes specifically — not an
+open-ended "any Scala type" story.
 
 In practice, that means:
 

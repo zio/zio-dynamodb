@@ -19,11 +19,29 @@ package zio.dynamodb
 import zio.blocks.chunk.Chunk
 import scala.util.control.NoStackTrace
 
+/**
+ * Root of every typed error this library can raise in an interpreter's effect channel.
+ * Extends `Throwable` (so it composes with each interpreter's own effect type — `Task`, CE's
+ * `IO`, `Future`) but mixes in `NoStackTrace`, since these are expected, structured failures
+ * rather than exceptional JVM conditions — a stack trace would be noise, not signal.
+ *
+ * Sealed subtrees: [[DynamoDBError.ItemError]] (single-item decode/lookup failures),
+ * [[DynamoDBError.ScanError]] (scan/query validation), and
+ * [[DynamoDBError.TransactionError]] (`transactWriteItems`/`transactGetItems` failures,
+ * including [[DynamoDBError.TransactionError.TransactionCancelled]]'s per-item
+ * [[DynamoDBError.CancellationReason]]s). Batch operations deliberately don't raise
+ * `DynamoDBError` for partial failure — see `Batch.GetResult`/`Batch.WriteResult`'s
+ * errors-as-values design instead.
+ */
 sealed trait DynamoDBError extends Throwable with NoStackTrace with Product with Serializable {
   def message: String
   override def getMessage: String = message
 }
 
+/**
+ * The three [[DynamoDBError]] subtrees ([[DynamoDBError.ItemError]],
+ * [[DynamoDBError.ScanError]], [[DynamoDBError.TransactionError]]) and their cases.
+ */
 object DynamoDBError {
 
   sealed trait ItemError extends DynamoDBError
