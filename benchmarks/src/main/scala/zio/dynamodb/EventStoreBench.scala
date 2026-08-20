@@ -79,8 +79,8 @@ class EventStoreBench extends BaseBenchmark {
   private var interpreter: CEInterpreter = _
 
   private object EventRecordOps extends CompanionOptics[EventStoreRecord] {
-    val id = $(_.id)(EventStoreRecord.schema)
-    val sk = $(_.sk)(EventStoreRecord.schema)
+    val id = $(_.id)
+    val sk = $(_.sk)
   }
 
   @Setup def setup(): Unit = {

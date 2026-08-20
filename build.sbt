@@ -189,7 +189,6 @@ lazy val benchmarks = (project in file("benchmarks"))
   .enablePlugins(JmhPlugin)
   .settings(
     name            := "zio-dynamodb-benchmarks",
-    scalaVersion    := scala213Version,
     publish / skip  := true,
     fork            := true,
     coverageEnabled := false,
