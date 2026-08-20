@@ -49,9 +49,9 @@ val item                          = codec.toItem(BilledMonthly(1, 42.0, 3))
 val back                          = codec.fromItem(item)
 ```
 
-At the moment, due to a limitation with the `CompanionOptics` macro, abstract fields can't be
-used with optics — so `.partitionKey`/`===`/`.set`/... aren't available for a field declared on
-the abstract/intermediate trait rather than the concrete case.
+Due to a limitation with the `CompanionOptics` macro, abstract fields can't be used with
+optics — so `.partitionKey`/`===`/`.set`/... aren't available for a field declared on the
+abstract/intermediate trait rather than the concrete case.
 
 Three workarounds solve the same underlying problem — a model with a field `CompanionOptics`
 can't reach — ordered by how much work each takes:
