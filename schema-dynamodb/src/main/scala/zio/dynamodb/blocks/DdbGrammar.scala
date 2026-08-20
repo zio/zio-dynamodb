@@ -34,10 +34,10 @@ object DdbGrammar {
   type BS = Sequence.Set[B]
 
   // list excludes Sets - note we need to explicitly add Record here for List[Address]
-  type L = Sequence.List[All || Record[All]] || Sequence.Vector[All || Record[All]] || Sequence.Array[
-    All || Record[All]
-  ] ||
-    Sequence.Chunk[All | Record[All]]
+  type L = Sequence.List[All || Record[All]] || Sequence.Vector[All || Record[All]] ||
+    Sequence.Array[
+      All || Record[All]
+    ] || Sequence.Chunk[All | Record[All]]
 
   type M = Map[Primitive.String, All]
 
