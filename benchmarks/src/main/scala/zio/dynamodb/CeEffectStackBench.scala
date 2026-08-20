@@ -99,8 +99,8 @@ class CeEffectStackBench extends BaseBenchmark {
 
   // Optic for DdbExprApi.get — provides Person.id lens via CompanionOptics macro.
   private object PersonOps extends CompanionOptics[Person] {
-    val id   = $(_.id)(Person.blocksSchema)
-    val name = $(_.name)(Person.blocksSchema)
+    val id   = $(_.id)
+    val name = $(_.name)
   }
 
   // ── Scanamo sync wrapped in IO.delay ────────────────────────────────────
