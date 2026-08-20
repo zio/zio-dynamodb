@@ -23,7 +23,7 @@ In practice, that means:
 - Mutation happens by producing new immutable values (or a `DynamoDBCodec`-driven
   `UpdateExpression.Action`), never by calling a method that mutates an object in place.
 
-## Inheritance hierarchies: codecs support them, optic sugar doesn't
+## Inheritance hierarchies: codecs support them, `CompanionOptics` doesn't
 
 A sealed-trait hierarchy where a field is declared *abstractly* on a shared trait and
 implemented by each concrete case — the classic OO shape — already round-trips fine through
@@ -49,19 +49,26 @@ val item                          = codec.toItem(BilledMonthly(1, 42.0, 3))
 val back                          = codec.fromItem(item)
 ```
 
-What's *not* supported is `CompanionOptics` sugar (`.partitionKey`, `===`, `.set`, ...) for a
-field declared on the abstract/intermediate trait rather than the concrete case — that's a
-deliberate, permanent choice, not a pending gap: the Low-Level API already covers every case
-uniformly, with no zio-blocks-side dependency needed to make it work.
+What's *not* supported is `.partitionKey`/`===`/`.set`/... on a field declared on the
+abstract/intermediate trait rather than the concrete case — because `CompanionOptics` can't
+generate a `Lens` for it in the first place. The macro only knows how to build a `Lens` from a
+concrete case class's own constructor parameters; a sealed trait/`enum` reflects as a
+`Variant`, not a `Record`, so a field declared on the trait itself has no constructor
+parameter for the macro to find. Every High-Level operator (`.partitionKey`, `===`, `.set`, the
+rest of `schema-ddbexpr`) is built on top of the `Lens` `CompanionOptics` produces — if there's
+no `Lens`, there's nothing to attach an operator to. This is a deliberate, permanent choice,
+not a pending gap: the Low-Level API already covers every case uniformly, with no
+zio-blocks-side dependency needed to make it work.
 
-Three workarounds solve the same underlying problem — a model that doesn't fit the
-High-Level API's optic sugar cleanly — ordered by how much work each takes:
+Three workarounds solve the same underlying problem — a model with a field `CompanionOptics`
+can't reach — ordered by how much work each takes:
 
 1. **Use the Low-Level-API-plus-explicit-codec pattern** (least work) — for a model like the
-   one above, where `Schema`/`DynamoDBCodecDeriver` already handle the shape and only the
-   optic sugar is missing. Build the codec via `Schema[A].deriving(DynamoDBCodecDeriver)
-   .derive`, call `.toItem`/`.fromItem` directly, and write filter/condition expressions
-   through the Low-Level API's dot-path syntax, naming the concrete case explicitly:
+   one above, where `Schema`/`DynamoDBCodecDeriver` already handle the shape and only
+   `CompanionOptics` can't reach the field. Build the codec via
+   `Schema[A].deriving(DynamoDBCodecDeriver).derive`, call `.toItem`/`.fromItem` directly, and
+   write filter/condition expressions through the Low-Level API's dot-path syntax, naming the
+   concrete case explicitly:
    ```scala
    $("BilledMonthly.amount") === 42.0
    ```
