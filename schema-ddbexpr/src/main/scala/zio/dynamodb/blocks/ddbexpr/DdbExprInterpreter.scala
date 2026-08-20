@@ -29,10 +29,11 @@ import zio.dynamodb.{ AttributeValue, ConditionExpression, ProjectionExpression 
  *  [[zio.dynamodb.blocks.schema.DynamoDBCodec]] and encode literals directly.
  *
  *  [[DdbExpr.Builtin]] wraps a [[zio.blocks.schema.SchemaExpr]] for scalar
- *  comparisons (===, >, <, etc.). Since zio-blocks v0.0.47 [[zio.blocks.schema.DynamicSchemaExpr.Literal]]
- *  carries a [[Schema]], [[fromDynamicSchemaExpr]] derives a [[zio.dynamodb.blocks.schema.DynamoDBCodec]]
- *  from it and encodes via the codec — so sealed-trait `enumValuesAsStrings` rules are
- *  preserved without any special workaround at the call site.
+ *  comparisons (===, >, <, etc.). Since zio-blocks v0.0.47
+ *  [[zio.blocks.schema.DynamicSchemaExpr.Literal]] carries a [[zio.blocks.schema.Schema]],
+ *  [[fromDynamicSchemaExpr]] derives a [[zio.dynamodb.blocks.schema.DynamoDBCodec]] from it
+ *  and encodes via the codec — so sealed-trait `enumValuesAsStrings` rules are preserved
+ *  without any special workaround at the call site.
  */
 object DdbExprInterpreter {
 
