@@ -44,7 +44,7 @@ import scala.reflect.ClassTag
  */
 object DynamoDBCodecDeriver
     extends DynamoDBCodecDeriver(
-      schema1TupleCompat = Schema1Compat.ReadBothWriteNew,
+      schema1TupleCompat = Schema1Compat.ReadNewWriteNew,
       schema1ByteSequenceCompat = Schema1Compat.ReadNewWriteNew,
       schema1ByteCompat = Schema1Compat.ReadNewWriteNew,
       schema1YearCompat = Schema1Compat.ReadNewWriteNew,
