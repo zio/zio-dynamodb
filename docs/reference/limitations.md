@@ -49,16 +49,9 @@ val item                          = codec.toItem(BilledMonthly(1, 42.0, 3))
 val back                          = codec.fromItem(item)
 ```
 
-What's *not* supported is `.partitionKey`/`===`/`.set`/... on a field declared on the
-abstract/intermediate trait rather than the concrete case — because `CompanionOptics` can't
-generate a `Lens` for it in the first place. The macro only knows how to build a `Lens` from a
-concrete case class's own constructor parameters; a sealed trait/`enum` reflects as a
-`Variant`, not a `Record`, so a field declared on the trait itself has no constructor
-parameter for the macro to find. Every High-Level operator (`.partitionKey`, `===`, `.set`, the
-rest of `schema-ddbexpr`) is built on top of the `Lens` `CompanionOptics` produces — if there's
-no `Lens`, there's nothing to attach an operator to. This is a deliberate, permanent choice,
-not a pending gap: the Low-Level API already covers every case uniformly, with no
-zio-blocks-side dependency needed to make it work.
+At the moment, due to a limitation with the `CompanionOptics` macro, abstract fields can't be
+used with optics — so `.partitionKey`/`===`/`.set`/... aren't available for a field declared on
+the abstract/intermediate trait rather than the concrete case.
 
 Three workarounds solve the same underlying problem — a model with a field `CompanionOptics`
 can't reach — ordered by how much work each takes:
