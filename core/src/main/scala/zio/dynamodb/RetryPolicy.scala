@@ -19,10 +19,21 @@ package zio.dynamodb
 import java.util.concurrent.ThreadLocalRandom
 import scala.concurrent.duration.FiniteDuration
 
+/**
+ * Governs retry timing for a query, attached via `.withRetryPolicy(policy)`. `nextDelay`
+ * is consulted once per failed attempt — `None` means stop retrying and raise the error;
+ * `Some(d)` means wait `d` then try again. Driven internally by `AwsInterpreter.withRetry`
+ * for effect-level failures, and by the batch-specific retry loop in `Batch` for
+ * response-level unprocessed items/keys.
+ */
 sealed trait RetryPolicy {
   def nextDelay(attempt: Int): Option[FiniteDuration]
 }
 
+/**
+ * [[RetryPolicy.NoRetry]] (the default), [[RetryPolicy.ExponentialBackoff]], and the default
+ * [[RetryPolicy.isRetryable]] predicate.
+ */
 object RetryPolicy {
 
   case object NoRetry extends RetryPolicy {

@@ -27,7 +27,7 @@ package zio.dynamodb
  *  implement that loop themselves.
  *
  *  `policy` (read from the query's own `retryPolicy` field) governs two independent retry
- *  loops, both driven inside [[Interpreter.runAny]]:
+ *  loops, both driven inside the interpreter's internal request-dispatch loop:
  *  - Effect-level: transient failures (throttling, network) are retried on each individual
  *    attempt.
  *  - Response-level: unprocessed items are re-submitted until either all items are

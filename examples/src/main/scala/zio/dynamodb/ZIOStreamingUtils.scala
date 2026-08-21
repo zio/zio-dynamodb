@@ -19,7 +19,7 @@ package zio.dynamodb
 import zio._
 import zio.stream.ZStream
 
-object StreamingUtils {
+object ZIOStreamingUtils {
 
   private val BatchSize = 100
 

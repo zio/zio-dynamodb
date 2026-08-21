@@ -36,7 +36,7 @@ import zio.stream.ZStream
  * Because [[ResponseInterceptor.onResponse]]'s effect is sequenced before the caller
  * receives its result (see [[InterceptingAwsDynamoDB]]), a sleep here genuinely delays
  * when the next operation in a sequential pipeline can be issued — which is exactly what
- * makes it effective paired with [[StreamingUtils.batchGetItems]] below: each batch's
+ * makes it effective paired with [[ZIOStreamingUtils.batchGetItems]] below: each batch's
  * `onResponse` delay blocks the stream from pulling the next batch. It does *not* gate a
  * burst of concurrent/parallel calls (`zipPar`, `foreachParDiscard`): each one's AWS
  * request has already gone out by the time its own `onResponse` runs, so a shared bucket
@@ -48,7 +48,11 @@ import zio.stream.ZStream
  */
 object RateLimitedReads extends ZIOAppDefault {
 
-  def rcuRateLimiter(rcusPerSecond: Double): UIO[ResponseInterceptor[Task]] =
+  def rcuRateLimiter(rcusPerSecond: Double): UIO[ResponseInterceptor[Task]] = {
+    require(
+      rcusPerSecond > 0.0 && rcusPerSecond.isFinite,
+      s"rcusPerSecond must be positive and finite, got $rcusPerSecond"
+    )
     for {
       now <- Clock.nanoTime
       ref <- Ref.make((rcusPerSecond, now))
@@ -58,18 +62,23 @@ object RateLimitedReads extends ZIOAppDefault {
           now        <- Clock.nanoTime
           consumed = readCapacityUnitsOf(meta)
           sleepNanos <- ref.modify { case (tokens, lastNanos) =>
-                          val elapsedSec = math.max(0.0, (now - lastNanos) / 1e9)
-                          val refilled   = math.min(tokens + elapsedSec * rcusPerSecond, rcusPerSecond)
-                          val remaining  = refilled - consumed
+                          val elapsedSec   = math.max(0.0, (now - lastNanos) / 1e9)
+                          val refilled     = math.min(tokens + elapsedSec * rcusPerSecond, rcusPerSecond)
+                          val remaining    = refilled - consumed
+                          // How much of a concurrently-racing response's reservation is still
+                          // pending beyond `now` — never let a new reservation move the shared
+                          // deadline backward and silently cancel part of it.
+                          val pendingNanos = math.max(0L, lastNanos - now)
                           if (remaining < 0.0) {
-                            val waitNanos = ((-remaining / rcusPerSecond) * 1e9).toLong
+                            val waitNanos = pendingNanos + ((-remaining / rcusPerSecond) * 1e9).toLong
                             (waitNanos, (0.0, now + waitNanos))
                           } else
-                            (0L, (remaining, now))
+                            (pendingNanos, (remaining, math.max(now, lastNanos)))
                         }
           _          <- ZIO.sleep(Duration.fromNanos(sleepNanos)).when(sleepNanos > 0L)
         } yield ()
     }
+  }
 
   private def readCapacityUnitsOf(meta: DynamoDBResponseMetadata): Double = {
     def rcu(consumed: Option[ConsumedCapacity]): Double     = consumed.flatMap(_.readCapacityUnits).getOrElse(0.0)
@@ -90,13 +99,17 @@ object RateLimitedReads extends ZIOAppDefault {
   }
 
   def run: Task[Unit] =
-    for {
-      interceptor <- rcuRateLimiter(rcusPerSecond = 5.0)
-      interp = ZioInterpreter.fromAsyncClient(DynamoDbAsyncClient.builder().build(), interceptor)
-      keys = ZStream.fromIterable((1 to 200).map(i => PrimaryKey("orderId" -> s"ord-$i")))
-      // batchGetItems groups keys into batches of 100 and issues one BatchGetItem per
-      // group via interp.run — since interp carries the rate limiter, each batch's
-      // onResponse delay gates when the stream can pull the next group.
-      _           <- StreamingUtils.batchGetItems(interp, "orders")(keys).runDrain
-    } yield ()
+    ZIO.scoped {
+      for {
+        interceptor <- rcuRateLimiter(rcusPerSecond = 5.0)
+        client      <-
+          ZIO.acquireRelease(ZIO.attempt(DynamoDbAsyncClient.builder().build()))(c => ZIO.attempt(c.close()).orDie)
+        interp = ZioInterpreter.fromAsyncClient(client, interceptor)
+        keys = ZStream.fromIterable((1 to 200).map(i => PrimaryKey("orderId" -> s"ord-$i")))
+        // batchGetItems groups keys into batches of 100 and issues one BatchGetItem per
+        // group via interp.run — since interp carries the rate limiter, each batch's
+        // onResponse delay gates when the stream can pull the next group.
+        _           <- ZIOStreamingUtils.batchGetItems(interp, "orders")(keys).runDrain
+      } yield ()
+    }
 }

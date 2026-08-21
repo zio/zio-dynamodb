@@ -53,6 +53,15 @@ function ::=
     | size (path)
  */
 
+/**
+ * A DynamoDB condition expression — attached via `.where(...)` to `PutItem`/`UpdateItem`/
+ * `DeleteItem` (gated at compile time by [[proofs.CanWhere]]) to make the request fail
+ * server-side, rather than throwing client-side, unless the condition holds against the
+ * item's current server state. Built with `$("field") === value`-style operators on the
+ * Low-Level API (see `ProjectionExpression`'s `ProjectionExpressionSyntax`), or the
+ * equivalent `Order.field === value` optic syntax on the High-Level API. Combine with `&&`/
+ * `||`/`unary_!`; render to the DynamoDB expression string plus its alias map via `.render`.
+ */
 sealed trait ConditionExpression[-From] extends Renderable { self =>
   import ConditionExpression._
 
@@ -120,6 +129,10 @@ sealed trait ConditionExpression[-From] extends Renderable { self =>
 
 }
 
+/**
+ * Every [[ConditionExpression]] case (`Equals`, `Between`, `In`, `AttributeExists`, `And`,
+ * ...) and their `Operand`s.
+ */
 // BNF  https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
 object ConditionExpression {
   private[dynamodb] sealed trait Operand[-From, +To] { self =>

@@ -29,7 +29,7 @@ object CEResponseInterceptor {
   )
 
   /**
-   * Creates a [[ResponseInterceptor]] backed by an [[IOLocal]] that accumulates
+   * Creates a [[ResponseInterceptor]] backed by an [[cats.effect.IOLocal]] that accumulates
    *  metadata in call order. `results` reads the accumulated chunk without
    *  consuming it.
    */

@@ -30,7 +30,7 @@ object FutureResponseInterceptor {
   )
 
   /**
-   * Creates a [[ResponseInterceptor]] backed by an [[AtomicReference]] that accumulates
+   * Creates a [[ResponseInterceptor]] backed by an [[java.util.concurrent.atomic.AtomicReference]] that accumulates
    *  metadata in call order.  `results` returns a snapshot of all entries collected
    *  so far.
    *

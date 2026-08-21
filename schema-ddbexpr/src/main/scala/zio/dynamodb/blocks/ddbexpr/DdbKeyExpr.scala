@@ -23,8 +23,8 @@ import zio.dynamodb.blocks.schema.DynamoDBCodec
  * Typed key condition expression ADT for DynamoDB query/get/delete/update operations.
  *
  *  Mirrors the three-case [[zio.dynamodb.KeyConditionExpr]] hierarchy but uses
- *  [[zio.blocks.schema.Optic]] for field references and carries [[DynamoDBCodec]][A]
- *  at every literal site — the same codec-carrying principle as [[DdbExpr.Lit]].
+ *  [[zio.blocks.schema.Optic]] for field references and carries [[zio.dynamodb.blocks.schema.DynamoDBCodec]][A]
+ *  at every literal site — the same codec-carrying principle as [[DdbExpr.Between]].
  *
  *  The ADT has two levels:
  *   - [[DdbKeyExpr.PrimaryKey]] — sealed sub-trait covering [[DdbKeyExpr.PartitionKeyEquals]] and
@@ -36,7 +36,7 @@ import zio.dynamodb.blocks.schema.DynamoDBCodec
  *
  *  Construction (import `DdbKeyExpr._` for codec derivation and extension methods).
  *  `.partitionKey`/`.sortKey` match the naming used by the LL API's
- *  [[zio.dynamodb.ProjectionExpression.partitionKey]]/[[zio.dynamodb.ProjectionExpression.sortKey]]:
+ *  `ProjectionExpression.partitionKey`/`ProjectionExpression.sortKey`:
  *  {{{
  *    import DdbKeyExpr._
  *

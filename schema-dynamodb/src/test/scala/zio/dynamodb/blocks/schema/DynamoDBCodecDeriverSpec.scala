@@ -2254,7 +2254,7 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
     s.deriving(tupleCompatStrictDeriver).derive
 
   private val tupleCompatSuite = suite("Schema1Compat tuple")(
-    test("default (ReadBothWriteNew) encodes a Tuple2 as a flat positional list") {
+    test("default (ReadNewWriteNew) encodes a Tuple2 as a flat positional list") {
       val codec = codecFor[(String, Int)]
       assertTrue(
         codec.encoder(("a", 1)) == AttributeValue.List(
@@ -2262,12 +2262,12 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
         )
       )
     },
-    test("default (ReadBothWriteNew) round-trips a Tuple3 through the flat list") {
+    test("default (ReadNewWriteNew) round-trips a Tuple3 through the flat list") {
       val codec = codecFor[(String, Int, Boolean)]
       val value = ("x", 42, true)
       assertTrue(codec.decoder(codec.encoder(value)) == Right(value))
     },
-    test("default (ReadBothWriteNew) also decodes the legacy nested-pair format") {
+    test("default (ReadNewWriteNew) rejects the legacy nested-pair format") {
       val codec  = codecFor[(String, Int, Boolean)]
       val legacy = AttributeValue.List(
         List(
@@ -2275,7 +2275,7 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
           AttributeValue.Bool(true)
         )
       )
-      assertTrue(codec.decoder(legacy) == Right(("x", 42, true)))
+      assertTrue(codec.decoder(legacy).isLeft)
     },
     test("ReadNewWriteNew (strict) rejects the legacy nested-pair format") {
       val codec  = tupleCodecStrict[(String, Int, Boolean)]

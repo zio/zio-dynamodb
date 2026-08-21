@@ -21,6 +21,18 @@ import zio.dynamodb.UpdateExpression.SetOperand.{ IfNotExists, ListAppend, ListP
 
 import scala.annotation.tailrec
 
+/**
+ * A path into a DynamoDB item attribute — the Low-Level API's counterpart to a
+ * `CompanionOptics`-generated `Lens`. Built by chaining `.apply(key: String)`/
+ * `.apply(index: Int)` off [[ProjectionExpression.Root]] (or more conveniently via the
+ * companion object's `$` constructor, e.g. `$("orders").apply(0).apply("total")`), and
+ * rendered as a dotted/bracketed path (`orders[0].total`) by `toString`.
+ *
+ * `From`/`To` are phantom type parameters carrying no runtime value — they exist purely to
+ * let comparison/update operators (defined on the `ProjectionExpressionSyntax` implicit
+ * class in the companion object) type-check against the item shape the expression is meant
+ * to apply to.
+ */
 sealed trait ProjectionExpression[-From, +To] { self =>
 
   def unsafeTo[To2](implicit ev: To <:< ProjectionExpression.Unknown): ProjectionExpression[From, To2] = {
@@ -61,6 +73,12 @@ sealed trait ProjectionExpression[-From, +To] { self =>
   }
 }
 
+/**
+ * Constructors ([[ProjectionExpression.Root]], the `$` string-path builder) and the
+ * `ProjectionExpressionSyntax` implicit class, which adds comparison operators (`===`, `<`,
+ * `between`, `contains`, ...) building [[ConditionExpression]]s, and mutation operators
+ * (`.set`, `.add`, `.appendList`, `.deleteFromSet`, ...) building [[UpdateExpression.Action]]s.
+ */
 object ProjectionExpression {
 
   type Unknown

@@ -36,6 +36,15 @@ private[ddbexpr] final class CodecCacheKey(private val r0: AnyRef, private val r
   }
 }
 
+// Body extracted to a trait (rather than living directly in `object DdbExprApi`) so the
+// `dsl` facade can mix this in alongside DdbKeyExprSyntax/DdbExprSyntax under a single
+// import. `object DdbExprApi extends DdbExprApiSyntax` below is unaffected — every member
+// here remains reachable as `DdbExprApi.XXX` exactly as before. Unlike DdbExpr/DdbKeyExpr,
+// nothing here is a pattern-matched ADT node, so the whole body can move safely — the only
+// consequence is that `dsl` gets its own separate codec cache instance from `DdbExprApi`'s
+// (harmless: it's pure memoization, not shared mutable state that needs single-instance
+// correctness — worst case a type gets derived twice instead of once if code mixes both
+// `DdbExprApi.xxx` and `dsl.xxx` calls for it).
 /**
  * High-level CRUD API backed by [[DdbExpr]] condition expressions and [[DdbKeyExpr]]
  *  key condition expressions.
@@ -74,15 +83,6 @@ private[ddbexpr] final class CodecCacheKey(private val r0: AnyRef, private val r
  *  Interpretation failures are deferred to query execution via the `Failure` nodes in
  *  [[KeyConditionExpr]] and [[ConditionExpression]].
  */
-// Body extracted to a trait (rather than living directly in `object DdbExprApi`) so the
-// `dsl` facade can mix this in alongside DdbKeyExprSyntax/DdbExprSyntax under a single
-// import. `object DdbExprApi extends DdbExprApiSyntax` below is unaffected — every member
-// here remains reachable as `DdbExprApi.XXX` exactly as before. Unlike DdbExpr/DdbKeyExpr,
-// nothing here is a pattern-matched ADT node, so the whole body can move safely — the only
-// consequence is that `dsl` gets its own separate codec cache instance from `DdbExprApi`'s
-// (harmless: it's pure memoization, not shared mutable state that needs single-instance
-// correctness — worst case a type gets derived twice instead of once if code mixes both
-// `DdbExprApi.xxx` and `dsl.xxx` calls for it).
 trait DdbExprApiSyntax {
 
   // ── Codec cache ───────────────────────────────────────────────────────────────
@@ -240,4 +240,8 @@ trait DdbExprApiSyntax {
     ddbExprToConditionExpression(DdbExpr.Builtin(se))
 }
 
+/**
+ * The [[DdbExprApiSyntax]] singleton — `import DdbExprApi._` for explicit-object-style
+ * access; see the `dsl` facade for the single-import alternative.
+ */
 object DdbExprApi extends DdbExprApiSyntax

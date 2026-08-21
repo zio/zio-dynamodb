@@ -19,6 +19,18 @@ package zio.dynamodb
 import scala.collection.immutable.{ Map => SMap, Set }
 import scala.util.Try
 
+/**
+ * The library's internal representation of a single DynamoDB attribute value — the wire
+ * format both API levels ultimately encode to and decode from before/after talking to the
+ * AWS SDK. An `Item`/`AttrMap` is a `Map[String, AttributeValue]`.
+ *
+ * Every concrete case (`Binary`, `Bool`, `List`, `Map`, `Number`, `NumberSet`, `Null`,
+ * `String`, `StringSet`, `BinarySet`) is `private[dynamodb]` — application code never
+ * constructs one directly. Values reach this type via [[ToAttributeValue]] on encode and
+ * leave it via [[FromAttributeValue]] on decode; the Low-Level API's `Item(...)`/`$(...)`
+ * constructors and the codec derived by `DynamoDBCodecDeriver` are the two paths that
+ * actually build these values internally.
+ */
 sealed trait AttributeValue { self =>
   private[dynamodb] final val showType: String =
     self match {
@@ -34,7 +46,9 @@ sealed trait AttributeValue { self =>
       case _: AttributeValue.StringSet => "AttributeValue.StringSet"
     }
 }
-object AttributeValue       {
+
+/** Holds every [[AttributeValue]] case; see the trait doc for why they're not constructed directly. */
+object AttributeValue {
   import Predef.{ String => ScalaString }
   import scala.collection.immutable.{ Map => ScalaMap }
 
