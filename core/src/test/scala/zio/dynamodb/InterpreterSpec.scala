@@ -132,12 +132,12 @@ object InterpreterSpec extends ZIOSpecDefault {
         val q = DynamoDBQuery.deleteItem("t", PrimaryKey("id" -> "1"))
         assertTrue(eval(q).isEmpty)
       },
-      test("QuerySomeItem returns empty page") {
-        val page = eval(DynamoDBQuery.QuerySome("t", limit = 10))
+      test("Query returns empty page") {
+        val page = eval(DynamoDBQuery.Query("t", limit = 10))
         assertTrue(page.items.isEmpty && page.lastEvaluatedKey.isEmpty)
       },
-      test("ScanSome returns empty page") {
-        val page = eval(DynamoDBQuery.scanSome("t", limit = 10))
+      test("Scan returns empty page") {
+        val page = eval(DynamoDBQuery.scan("t", limit = 10))
         assertTrue(page.items.isEmpty && page.lastEvaluatedKey.isEmpty)
       },
       test("BatchGetItem returns a Complete result with an empty response") {

@@ -106,8 +106,8 @@ trait AwsDynamoDB[F[_]] {
   def deleteItem(req: DeleteItemRequest): F[DeleteItemResponse]
   def batchGetItem(req: BatchGetItemRequest): F[BatchGetItemResponse]
   def batchWriteItem(req: BatchWriteItemRequest): F[BatchWriteItemResponse]
-  def querySome(req: QueryRequest): F[QueryResponse]
-  def scanSome(req: ScanRequest): F[ScanResponse]
+  def query(req: QueryRequest): F[QueryResponse]
+  def scan(req: ScanRequest): F[ScanResponse]
   def createTable(req: CreateTableRequest): F[CreateTableResponse]
   def deleteTable(req: DeleteTableRequest): F[DeleteTableResponse]
   def describeTable(req: DescribeTableRequest): F[AwsDescribeTableResponse]
@@ -304,7 +304,7 @@ private[dynamodb] object AwsCodecs {
     if (r.hasAttributes && !r.attributes.isEmpty) Some(fromAwsItem(r.attributes)) else None
 
   // Query
-  def toQuerySomeRequest(q: DynamoDBQuery.QuerySome): QueryRequest = {
+  def toQueryRequest(q: DynamoDBQuery.Query): QueryRequest = {
     val b                                               = QueryRequest
       .builder()
       .tableName(q.tableName)
@@ -335,7 +335,7 @@ private[dynamodb] object AwsCodecs {
     b.build()
   }
 
-  // Scan — shared request shape for ScanSome
+  // Scan — shared request shape for Scan
   private def baseScanRequest(
     tableName: String,
     indexName: Option[String],
@@ -353,7 +353,7 @@ private[dynamodb] object AwsCodecs {
     b
   }
 
-  def toScanSomeRequest(q: DynamoDBQuery.ScanSome): ScanRequest = {
+  def toScanRequest(q: DynamoDBQuery.Scan): ScanRequest = {
     val b = baseScanRequest(q.tableName, q.indexName, q.consistency, Some(q.limit), q.exclusiveStartKey)
     q.filterExpression.foreach { fe =>
       val (exprStr, names, values) = renderExpression(fe)
@@ -838,11 +838,11 @@ abstract class RealAwsInterpreter[F[_]](client: AwsDynamoDB[F]) extends AwsInter
   protected def runDeleteItem(q: DynamoDBQuery.DeleteItem): F[Option[Item]] =
     map(client.deleteItem(AwsCodecs.toDeleteItemRequest(q)))(AwsCodecs.fromDeleteItemResponse)
 
-  protected def runQuerySomeItem(q: DynamoDBQuery.QuerySome): F[Page[Item]] =
-    map(client.querySome(AwsCodecs.toQuerySomeRequest(q)))(AwsCodecs.fromQueryResponse)
+  protected def runQuery(q: DynamoDBQuery.Query): F[Page[Item]] =
+    map(client.query(AwsCodecs.toQueryRequest(q)))(AwsCodecs.fromQueryResponse)
 
-  protected def runScanSome(q: DynamoDBQuery.ScanSome): F[Page[Item]] =
-    map(client.scanSome(AwsCodecs.toScanSomeRequest(q)))(AwsCodecs.fromScanResponse)
+  protected def runScan(q: DynamoDBQuery.Scan): F[Page[Item]] =
+    map(client.scan(AwsCodecs.toScanRequest(q)))(AwsCodecs.fromScanResponse)
 
   protected def runCreateTable(q: DynamoDBQuery.CreateTable): F[Unit] =
     map(client.createTable(AwsCodecs.toCreateTableRequest(q)))(_ => ())
@@ -884,7 +884,7 @@ abstract class RealAwsInterpreter[F[_]](client: AwsDynamoDB[F]) extends AwsInter
 //         ZIO.fromCompletableFuture(sdkClient.putItem(req))
 //       def updateItem(req: UpdateItemRequest): Task[UpdateItemResponse] =
 //         ZIO.fromCompletableFuture(sdkClient.updateItem(req))
-//       def querySome(req: QueryRequest): Task[QueryResponse] =
+//       def query(req: QueryRequest): Task[QueryResponse] =
 //         ZIO.fromCompletableFuture(sdkClient.query(req))
 //       def queryAll(req: QueryRequest): Task[QueryResponse] =
 //         ZIO.fromCompletableFuture(sdkClient.query(req))
@@ -912,7 +912,7 @@ abstract class RealAwsInterpreter[F[_]](client: AwsDynamoDB[F]) extends AwsInter
 //         IO.fromCompletableFuture(IO(sdkClient.putItem(req)))
 //       def updateItem(req: UpdateItemRequest): IO[UpdateItemResponse] =
 //         IO.fromCompletableFuture(IO(sdkClient.updateItem(req)))
-//       def querySome(req: QueryRequest): IO[QueryResponse] =
+//       def query(req: QueryRequest): IO[QueryResponse] =
 //         IO.fromCompletableFuture(IO(sdkClient.query(req)))
 //       def queryAll(req: QueryRequest): IO[QueryResponse] =
 //         IO.fromCompletableFuture(IO(sdkClient.query(req)))

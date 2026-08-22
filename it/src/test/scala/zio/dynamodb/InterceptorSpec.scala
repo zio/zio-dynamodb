@@ -191,14 +191,14 @@ object InterceptorSpec extends DynamoDBLocalSpec {
           })
         }
       },
-      test("scanSome fires interceptor with Scan metadata") {
+      test("scan fires interceptor with Scan metadata") {
         withInterceptingTable { (table, plainInterp, asyncClient) =>
           for {
             pair <- factory(asyncClient)
             (itInterp, readMeta) = pair
             _    <- plainInterp.run(DynamoDBQuery.putItem(table, Item("id" -> "s1")))
             _    <- plainInterp.run(DynamoDBQuery.putItem(table, Item("id" -> "s2")))
-            _    <- itInterp.run(DynamoDBQuery.scanSome(table, limit = 10))
+            _    <- itInterp.run(DynamoDBQuery.scan(table, limit = 10))
             meta <- readMeta
           } yield assertTrue(meta.toList match {
             case (m: DynamoDBResponseMetadata.Scan) :: Nil => m.tableName == table
@@ -206,7 +206,7 @@ object InterceptorSpec extends DynamoDBLocalSpec {
           })
         }
       },
-      test("querySome fires interceptor with Query metadata") {
+      test("query fires interceptor with Query metadata") {
         withInterceptingYearTable { (table, plainInterp, asyncClient) =>
           for {
             pair <- factory(asyncClient)
@@ -214,7 +214,7 @@ object InterceptorSpec extends DynamoDBLocalSpec {
             _    <- plainInterp.run(DynamoDBQuery.putItem(table, Item("id" -> "alice", "year" -> "2024")))
             _    <- itInterp.run(
                       DynamoDBQuery
-                        .querySome(table, limit = 10)
+                        .query(table, limit = 10)
                         .whereKey($("id").partitionKey === "alice")
                     )
             meta <- readMeta

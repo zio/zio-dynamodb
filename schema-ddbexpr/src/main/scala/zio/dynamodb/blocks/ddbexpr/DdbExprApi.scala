@@ -192,7 +192,7 @@ trait DdbExprApiSyntax {
   ): DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = {
     val entry = cachedEntry[From]
     DynamoDBQuery
-      .querySome(tableName, limit)
+      .query(tableName, limit)
       .map(page =>
         Page(
           items = page.items.map(item => fromItem[From](item)(entry.codec)),
@@ -209,7 +209,7 @@ trait DdbExprApiSyntax {
   ): DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = {
     val entry = cachedEntry[From]
     DynamoDBQuery
-      .scanSome(tableName, limit)
+      .scan(tableName, limit)
       .map(page =>
         Page(
           items = page.items.map(item => fromItem[From](item)(entry.codec)),

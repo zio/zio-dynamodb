@@ -102,13 +102,13 @@ object DynamoDBResponseMetadata {
     correlation: CorrelationContext
   ) extends DynamoDBResponseMetadata
 
-  /** Metadata for a Query (querySome) operation. */
+  /** Metadata for a Query (query) operation. */
   final case class Query(
     tableName: String,
     consumed: Option[ConsumedCapacity]
   ) extends DynamoDBResponseMetadata
 
-  /** Metadata for a Scan (scanSome) operation. */
+  /** Metadata for a Scan (scan) operation. */
   final case class Scan(
     tableName: String,
     consumed: Option[ConsumedCapacity]

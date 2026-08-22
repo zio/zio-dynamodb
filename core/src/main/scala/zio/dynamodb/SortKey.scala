@@ -24,7 +24,7 @@ private[dynamodb] final case class SortKey[-From, +To](keyName: String)
 /**
  * Adds comparison operators (`===`, `<`, `>`, `between`, `beginsWith`, ...) to a
  * `ProjectionExpression` marked as a sort key (via `.sortKey`), each building a
- * [[KeyConditionExpr]] case for use in `querySome`'s `.whereKey`. Applies to `String`,
+ * [[KeyConditionExpr]] case for use in `query`'s `.whereKey`. Applies to `String`,
  * `Number`, and `Binary`-encoded values — DynamoDB's own restriction on sort-key comparisons.
  */
 object SortKey {

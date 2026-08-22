@@ -160,28 +160,28 @@ object MiscSpec extends ZIOSpecDefault {
 
   private val dynamoDBQuerySuite = suite("DynamoDBQuery")(
     test("whereKey on ZipPar propagates to both branches") {
-      val q1      = DynamoDBQuery.QuerySome("t1", 10)
-      val q2      = DynamoDBQuery.QuerySome("t2", 10)
+      val q1      = DynamoDBQuery.Query("t1", 10)
+      val q2      = DynamoDBQuery.Query("t2", 10)
       val pk      = ProjectionExpression.$("id").partitionKey
       val zipped  = q1 zipPar q2
       val withKey = zipped.whereKey(pk === "val")
       assertTrue(withKey != null)
     },
     test("whereKey on Map propagates to inner query") {
-      val q       = DynamoDBQuery.QuerySome("t", 10)
+      val q       = DynamoDBQuery.Query("t", 10)
       val pk      = ProjectionExpression.$("id").partitionKey
       val mapped  = q.map(identity)
       val withKey = mapped.whereKey(pk === "val")
       assertTrue(withKey != null)
     },
     test("whereKey on Absolve propagates to inner query") {
-      val q       = DynamoDBQuery.QuerySome("t", 10)
+      val q       = DynamoDBQuery.Query("t", 10)
       val pk      = ProjectionExpression.$("id").partitionKey
       val absolve = DynamoDBQuery.Absolve(q.map(p => Right(p): Either[DynamoDBError.ItemError, Page[Item]]))
       val withKey = absolve.whereKey(pk === "val")
       assertTrue(withKey != null)
     },
-    test("whereKey on non-QuerySome fails with QueryBuilderError") {
+    test("whereKey on non-Query fails with QueryBuilderError") {
       val q      = DynamoDBQuery.GetItem("t", PrimaryKey("id" -> "1"))
       val pk     = ProjectionExpression.$("id").partitionKey
       val result = q.whereKey(pk === "val")
@@ -223,8 +223,8 @@ object MiscSpec extends ZIOSpecDefault {
         )
       )
     },
-    test("where on scanSome fails with a message suggesting '.filter' (issue #748)") {
-      val q                              = DynamoDBQuery.scanSome("t", 10)
+    test("where on scan fails with a message suggesting '.filter' (issue #748)") {
+      val q                              = DynamoDBQuery.scan("t", 10)
       val cond: ConditionExpression[Any] = ProjectionExpression.$("id") === "1"
       val result                         = q.where(cond)
       assert(result)(
@@ -240,8 +240,8 @@ object MiscSpec extends ZIOSpecDefault {
       )
     },
     test("filter on ZipPar propagates filter to both branches") {
-      val q1                          = DynamoDBQuery.QuerySome("t1", 10)
-      val q2                          = DynamoDBQuery.QuerySome("t2", 10)
+      val q1                          = DynamoDBQuery.Query("t1", 10)
+      val q2                          = DynamoDBQuery.Query("t2", 10)
       val filt: FilterExpression[Any] = ProjectionExpression.$("name") === "alice"
       val zipped                      = q1 zipPar q2
       val withFilter                  = zipped.filter(filt)
@@ -333,8 +333,8 @@ object MiscSpec extends ZIOSpecDefault {
       val q    = DynamoDBQuery.updateItem("t", key, expr)
       assertTrue(q != null)
     },
-    test("DynamoDBQuery.scanSome with all parameters") {
-      val q = DynamoDBQuery.scanSome(
+    test("DynamoDBQuery.scan with all parameters") {
+      val q = DynamoDBQuery.scan(
         "t",
         10,
         indexName = Some("idx"),
@@ -343,9 +343,9 @@ object MiscSpec extends ZIOSpecDefault {
       )
       assertTrue(q != null)
     },
-    test("DynamoDBQuery.querySome with all parameters") {
+    test("DynamoDBQuery.query with all parameters") {
       val q = DynamoDBQuery
-        .querySome("t", 10, indexName = Some("idx"), consistency = ConsistencyMode.Strong, ascending = false)
+        .query("t", 10, indexName = Some("idx"), consistency = ConsistencyMode.Strong, ascending = false)
       assertTrue(q != null)
     },
     test("where on Map propagates condition") {
@@ -363,21 +363,21 @@ object MiscSpec extends ZIOSpecDefault {
       assertTrue(result != null)
     },
     test("filter on Map propagates") {
-      val q                           = DynamoDBQuery.QuerySome("t", 10)
+      val q                           = DynamoDBQuery.Query("t", 10)
       val filt: FilterExpression[Any] = ProjectionExpression.$("name") === "alice"
       val mapped                      = q.map(identity)
       val result                      = mapped.filter(filt)
       assertTrue(result != null)
     },
     test("filter on Absolve propagates") {
-      val q                           = DynamoDBQuery.QuerySome("t", 10)
+      val q                           = DynamoDBQuery.Query("t", 10)
       val filt: FilterExpression[Any] = ProjectionExpression.$("name") === "alice"
       val absolve                     = DynamoDBQuery.Absolve(q.map(r => Right(r): Either[DynamoDBError.ItemError, Page[Item]]))
       val result                      = absolve.filter(filt)
       assertTrue(result != null)
     },
-    test("filter on ScanSome sets filterExpression") {
-      val q                           = DynamoDBQuery.scanSome("t", 10)
+    test("filter on Scan sets filterExpression") {
+      val q                           = DynamoDBQuery.scan("t", 10)
       val filt: FilterExpression[Any] = ProjectionExpression.$("name") === "alice"
       val result                      = q.filter(filt)
       assertTrue(result != null)

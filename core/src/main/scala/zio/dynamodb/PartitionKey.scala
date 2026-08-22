@@ -23,7 +23,7 @@ private[dynamodb] final case class PartitionKey[-From, +To](keyName: String)
 
 /**
  * Adds `===` to a `ProjectionExpression` marked as a partition key (via `.partitionKey`),
- * building a [[KeyConditionExpr.PartitionKeyEquals]] for use in `querySome`'s `.whereKey`.
+ * building a [[KeyConditionExpr.PartitionKeyEquals]] for use in `query`'s `.whereKey`.
  */
 object PartitionKey {
   implicit class PartitionKeyUnknownToOps[-From](val pk: PartitionKey[From, Unknown])         {

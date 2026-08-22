@@ -72,26 +72,26 @@ object AwsCodecsCapacitySpec extends ZIOSpecDefault {
       }
     ),
 
-    suite("toScanSomeRequest")(
+    suite("toScanRequest")(
       test("Total → TOTAL") {
-        val q   = DynamoDBQuery.scanSome(table, 10).capacity(LibCapacity.Total)
-        val req = AwsCodecs.toScanSomeRequest(q.asInstanceOf[DynamoDBQuery.ScanSome])
+        val q   = DynamoDBQuery.scan(table, 10).capacity(LibCapacity.Total)
+        val req = AwsCodecs.toScanRequest(q.asInstanceOf[DynamoDBQuery.Scan])
         assertTrue(req.returnConsumedCapacity() == AwsCapacity.TOTAL)
       },
       test("None → NONE") {
-        val req = AwsCodecs.toScanSomeRequest(DynamoDBQuery.scanSome(table, 10).asInstanceOf[DynamoDBQuery.ScanSome])
+        val req = AwsCodecs.toScanRequest(DynamoDBQuery.scan(table, 10).asInstanceOf[DynamoDBQuery.Scan])
         assertTrue(req.returnConsumedCapacity() == AwsCapacity.NONE)
       }
     ),
 
-    suite("toQuerySomeRequest")(
+    suite("toQueryRequest")(
       test("Total → TOTAL") {
-        val q   = DynamoDBQuery.querySome(table, 10).capacity(LibCapacity.Total)
-        val req = AwsCodecs.toQuerySomeRequest(q.asInstanceOf[DynamoDBQuery.QuerySome])
+        val q   = DynamoDBQuery.query(table, 10).capacity(LibCapacity.Total)
+        val req = AwsCodecs.toQueryRequest(q.asInstanceOf[DynamoDBQuery.Query])
         assertTrue(req.returnConsumedCapacity() == AwsCapacity.TOTAL)
       },
       test("None → NONE") {
-        val req = AwsCodecs.toQuerySomeRequest(DynamoDBQuery.querySome(table, 10).asInstanceOf[DynamoDBQuery.QuerySome])
+        val req = AwsCodecs.toQueryRequest(DynamoDBQuery.query(table, 10).asInstanceOf[DynamoDBQuery.Query])
         assertTrue(req.returnConsumedCapacity() == AwsCapacity.NONE)
       }
     ),

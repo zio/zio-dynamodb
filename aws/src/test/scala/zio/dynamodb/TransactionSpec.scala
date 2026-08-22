@@ -69,9 +69,9 @@ object TransactionSpec extends ZIOSpecDefault {
         DummyIO.succeed(???)
       def batchWriteItem(req: software.amazon.awssdk.services.dynamodb.model.BatchWriteItemRequest) =
         DummyIO.succeed(???)
-      def querySome(req: software.amazon.awssdk.services.dynamodb.model.QueryRequest)               =
+      def query(req: software.amazon.awssdk.services.dynamodb.model.QueryRequest)                   =
         DummyIO.succeed(???)
-      def scanSome(req: software.amazon.awssdk.services.dynamodb.model.ScanRequest)                 =
+      def scan(req: software.amazon.awssdk.services.dynamodb.model.ScanRequest)                     =
         DummyIO.succeed(???)
       def createTable(req: software.amazon.awssdk.services.dynamodb.model.CreateTableRequest)       =
         DummyIO.succeed(???)

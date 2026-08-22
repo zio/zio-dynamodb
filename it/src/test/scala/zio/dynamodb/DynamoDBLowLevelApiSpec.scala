@@ -110,13 +110,13 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
           } yield assertTrue(result.isEmpty)
         }
       },
-      test("scanSome returns all inserted items") {
+      test("scan returns all inserted items") {
         withSingleIdKeyTable { (table, interpreter) =>
           for {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "a")))
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "b")))
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "c")))
-            page <- interpreter.run(DynamoDBQuery.scanSome(table, limit = 10))
+            page <- interpreter.run(DynamoDBQuery.scan(table, limit = 10))
           } yield assertTrue(page.items.length == 3)
         }
       },
@@ -244,13 +244,13 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
           } yield assertTrue(deleted.isEmpty && intact.isDefined)
         }
       },
-      test("scanSome returns all items across different partition and sort keys") {
+      test("scan returns all items across different partition and sort keys") {
         withIdAndYearKeyTable { (table, interpreter) =>
           for {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "a", "year" -> "2022")))
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "a", "year" -> "2023")))
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "b", "year" -> "2022")))
-            page <- interpreter.run(DynamoDBQuery.scanSome(table, limit = 10))
+            page <- interpreter.run(DynamoDBQuery.scan(table, limit = 10))
           } yield assertTrue(page.items.length == 3)
         }
       }
@@ -527,14 +527,14 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
           }
         }
       ),
-      suite("filter on scanSome")(
+      suite("filter on scan")(
         test("scan returns only items matching the filter") {
           withSingleIdKeyTable { (table, interpreter) =>
             for {
               _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "s1", "score" -> 1)))
               _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "s5", "score" -> 5)))
               _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "s10", "score" -> 10)))
-              page <- interpreter.run(DynamoDBQuery.scanSome(table, limit = 10).filter($("score") > 5))
+              page <- interpreter.run(DynamoDBQuery.scan(table, limit = 10).filter($("score") > 5))
             } yield assertTrue(page.items.length == 1)
           }
         },
@@ -543,7 +543,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             for {
               _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "t1", "score" -> 1)))
               _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "t5", "score" -> 5)))
-              page <- interpreter.run(DynamoDBQuery.scanSome(table, limit = 10).filter($("score") > 100))
+              page <- interpreter.run(DynamoDBQuery.scan(table, limit = 10).filter($("score") > 100))
             } yield assertTrue(page.items.isEmpty)
           }
         }
@@ -551,11 +551,11 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
     )
 
   // ---------------------------------------------------------------------------
-  // querySome tests using whereKey and PE syntax
+  // query tests using whereKey and PE syntax
   // ---------------------------------------------------------------------------
 
-  private val querySomeTests: Spec[DynamoDBEnv, Throwable] =
-    suite("querySome with whereKey")(
+  private val queryTests: Spec[DynamoDBEnv, Throwable] =
+    suite("query with whereKey")(
       test("partition key only returns all items for that partition key") {
         withIdAndYearKeyTable { (table, interpreter) =>
           for {
@@ -565,7 +565,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "bob", "year" -> "2024")))
             page <- interpreter.run(
                       DynamoDBQuery
-                        .querySome(table, limit = 10)
+                        .query(table, limit = 10)
                         .whereKey($("id").partitionKey === "alice")
                     )
           } yield assertTrue(page.items.length == 3)
@@ -579,7 +579,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "alice", "year" -> "2024")))
             page <- interpreter.run(
                       DynamoDBQuery
-                        .querySome(table, limit = 10)
+                        .query(table, limit = 10)
                         .whereKey($("id").partitionKey === "alice" && $("year").sortKey === "2023")
                     )
           } yield assertTrue(
@@ -597,7 +597,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "alice", "year" -> "2024")))
             page <- interpreter.run(
                       DynamoDBQuery
-                        .querySome(table, limit = 10)
+                        .query(table, limit = 10)
                         .whereKey($("id").partitionKey === "alice" && $("year").sortKey > "2022")
                     )
           } yield assertTrue(page.items.length == 2)
@@ -611,13 +611,13 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "alice", "year" -> "2023-Q1")))
             page <- interpreter.run(
                       DynamoDBQuery
-                        .querySome(table, limit = 10)
+                        .query(table, limit = 10)
                         .whereKey($("id").partitionKey === "alice" && $("year").sortKey.beginsWith("2022"))
                     )
           } yield assertTrue(page.items.length == 2)
         }
       },
-      test("querySome with whereKey and filter expression") {
+      test("query with whereKey and filter expression") {
         withIdAndYearKeyTable { (table, interpreter) =>
           for {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "alice", "year" -> "2022", "score" -> 5)))
@@ -625,7 +625,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "alice", "year" -> "2024", "score" -> 100)))
             page <- interpreter.run(
                       DynamoDBQuery
-                        .querySome(table, limit = 10)
+                        .query(table, limit = 10)
                         .whereKey($("id").partitionKey === "alice")
                         .filter($("score") > 10)
                     )
@@ -640,7 +640,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "alice", "year" -> "2023")))
             page <- interpreter.run(
                       DynamoDBQuery
-                        .querySome(table, limit = 10)
+                        .query(table, limit = 10)
                         .whereKey($("id").partitionKey === "alice")
                         .sortOrder(ascending = false)
                     )
@@ -686,14 +686,14 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
           } yield assertTrue(result.isDefined)
         }
       },
-      test("scanSome with capacity(Total) returns items") {
+      test("scan with capacity(Total) returns items") {
         withSingleIdKeyTable { (table, interpreter) =>
           for {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "cap-s1")))
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "cap-s2")))
             page <- interpreter.run(
                       DynamoDBQuery
-                        .scanSome(table, limit = 10)
+                        .scan(table, limit = 10)
                         .capacity(ReturnConsumedCapacity.Total)
                     )
           } yield assertTrue(page.items.length == 2)
@@ -728,13 +728,13 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
           } yield assertTrue(result.contains(Item("id" -> "con-a", "v" -> 1)))
         }
       },
-      test("scanSome with consistency(Strong) returns items") {
+      test("scan with consistency(Strong) returns items") {
         withSingleIdKeyTable { (table, interpreter) =>
           for {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "con-s1")))
             page <- interpreter.run(
                       DynamoDBQuery
-                        .scanSome(table, limit = 10)
+                        .scan(table, limit = 10)
                         .consistency(ConsistencyMode.Strong)
                     )
           } yield assertTrue(page.items.nonEmpty)
@@ -778,7 +778,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "a")))
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "b")))
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "c")))
-            page <- interpreter.run(DynamoDBQuery.scanSome(table, limit = 10))
+            page <- interpreter.run(DynamoDBQuery.scan(table, limit = 10))
           } yield assertTrue(page.count == page.items.size && page.count == 3)
         }
       },
@@ -787,7 +787,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
           for {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "x")))
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "y")))
-            page <- interpreter.run(DynamoDBQuery.scanSome(table, limit = 10))
+            page <- interpreter.run(DynamoDBQuery.scan(table, limit = 10))
           } yield assertTrue(page.scannedCount == page.count)
         }
       },
@@ -798,7 +798,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "s2", "v" -> 2)))
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "s3", "v" -> 3)))
             page <- interpreter.run(
-                      DynamoDBQuery.scanSome(table, limit = 10).filter($("v") > 1)
+                      DynamoDBQuery.scan(table, limit = 10).filter($("v") > 1)
                     )
           } yield assertTrue(page.scannedCount == 3 && page.count == 2)
         }
@@ -809,11 +809,11 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "c1")))
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "c2")))
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "c3")))
-            page <- interpreter.run(DynamoDBQuery.scanSome(table, limit = 10).selectCount)
+            page <- interpreter.run(DynamoDBQuery.scan(table, limit = 10).selectCount)
           } yield assertTrue(page.items.isEmpty && page.count == 3)
         }
       },
-      test("querySome selectCount: count reflects matching items for a partition key") {
+      test("query selectCount: count reflects matching items for a partition key") {
         withIdAndYearKeyTable { (table, interpreter) =>
           for {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "alice", "year" -> "2021")))
@@ -821,7 +821,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "bob", "year" -> "2021")))
             page <- interpreter.run(
                       DynamoDBQuery
-                        .querySome(table, limit = 10)
+                        .query(table, limit = 10)
                         .whereKey($("id").partitionKey === "alice")
                         .selectCount
                     )
@@ -832,7 +832,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
 
   private val gsiTests: Spec[DynamoDBEnv, Throwable] =
     suite("gsi builder")(
-      test("querySome on a GSI returns only items matching the GSI partition key") {
+      test("query on a GSI returns only items matching the GSI partition key") {
         withGsiTable { (table, interpreter) =>
           for {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "a", "category" -> "fruit")))
@@ -840,19 +840,19 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "c", "category" -> "fruit")))
             page <- interpreter.run(
                       DynamoDBQuery
-                        .querySome(table, limit = 10, indexName = Some("category-index"))
+                        .query(table, limit = 10, indexName = Some("category-index"))
                         .whereKey($("category").partitionKey === "fruit")
                     )
           } yield assertTrue(page.items.length == 2)
         }
       },
-      test("querySome on a GSI returns no items when partition key has no matches") {
+      test("query on a GSI returns no items when partition key has no matches") {
         withGsiTable { (table, interpreter) =>
           for {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "a", "category" -> "fruit")))
             page <- interpreter.run(
                       DynamoDBQuery
-                        .querySome(table, limit = 10, indexName = Some("category-index"))
+                        .query(table, limit = 10, indexName = Some("category-index"))
                         .whereKey($("category").partitionKey === "mineral")
                     )
           } yield assertTrue(page.items.isEmpty)
@@ -862,7 +862,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
 
   private val lsiTests: Spec[DynamoDBEnv, Throwable] =
     suite("lsi builder")(
-      test("querySome on an LSI returns items ordered by the LSI sort key") {
+      test("query on an LSI returns items ordered by the LSI sort key") {
         withLsiTable { (table, interpreter) =>
           for {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "alice", "year" -> "2024", "score" -> "b")))
@@ -870,20 +870,20 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "alice", "year" -> "2022", "score" -> "c")))
             page <- interpreter.run(
                       DynamoDBQuery
-                        .querySome(table, limit = 10, indexName = Some("score-index"))
+                        .query(table, limit = 10, indexName = Some("score-index"))
                         .whereKey($("id").partitionKey === "alice")
                     )
           } yield assertTrue(page.items.length == 3)
         }
       },
-      test("querySome on an LSI with sort key condition returns matching items only") {
+      test("query on an LSI with sort key condition returns matching items only") {
         withLsiTable { (table, interpreter) =>
           for {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "bob", "year" -> "2024", "score" -> "z")))
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "bob", "year" -> "2023", "score" -> "a")))
             page <- interpreter.run(
                       DynamoDBQuery
-                        .querySome(table, limit = 10, indexName = Some("score-index"))
+                        .query(table, limit = 10, indexName = Some("score-index"))
                         .whereKey($("id").partitionKey === "bob" && $("score").sortKey === "z")
                     )
           } yield assertTrue(page.items.length == 1)
@@ -893,7 +893,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
 
   private val startKeyTests: Spec[DynamoDBEnv, Throwable] =
     suite("startKey paging")(
-      test("scanSome: second page starts after the last key of the first page") {
+      test("scan: second page starts after the last key of the first page") {
         withSingleIdKeyTable { (table, interpreter) =>
           for {
             _     <- interpreter.run(
@@ -901,8 +901,8 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
                          DynamoDBQuery.putItem(table, Item("id" -> id))
                        )
                      )
-            page1 <- interpreter.run(DynamoDBQuery.scanSome(table, limit = 1))
-            page2 <- interpreter.run(DynamoDBQuery.scanSome(table, limit = 10).startKey(page1.lastEvaluatedKey))
+            page1 <- interpreter.run(DynamoDBQuery.scan(table, limit = 1))
+            page2 <- interpreter.run(DynamoDBQuery.scan(table, limit = 10).startKey(page1.lastEvaluatedKey))
           } yield assertTrue(
             page1.items.length == 1 &&
               page1.lastEvaluatedKey.isDefined &&
@@ -910,16 +910,16 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
           )
         }
       },
-      test("scanSome: lastEvaluatedKey is None on the final page") {
+      test("scan: lastEvaluatedKey is None on the final page") {
         withSingleIdKeyTable { (table, interpreter) =>
           for {
             _     <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "only")))
-            page1 <- interpreter.run(DynamoDBQuery.scanSome(table, limit = 1))
-            page2 <- interpreter.run(DynamoDBQuery.scanSome(table, limit = 10).startKey(page1.lastEvaluatedKey))
+            page1 <- interpreter.run(DynamoDBQuery.scan(table, limit = 1))
+            page2 <- interpreter.run(DynamoDBQuery.scan(table, limit = 10).startKey(page1.lastEvaluatedKey))
           } yield assertTrue(page2.items.isEmpty && page2.lastEvaluatedKey.isEmpty)
         }
       },
-      test("querySome: second page starts after the last key of the first page") {
+      test("query: second page starts after the last key of the first page") {
         withIdAndYearKeyTable { (table, interpreter) =>
           for {
             _     <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "alice", "year" -> "2021")))
@@ -927,12 +927,12 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _     <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "alice", "year" -> "2023")))
             page1 <- interpreter.run(
                        DynamoDBQuery
-                         .querySome(table, limit = 1)
+                         .query(table, limit = 1)
                          .whereKey($("id").partitionKey === "alice")
                      )
             page2 <- interpreter.run(
                        DynamoDBQuery
-                         .querySome(table, limit = 10)
+                         .query(table, limit = 10)
                          .whereKey($("id").partitionKey === "alice")
                          .startKey(page1.lastEvaluatedKey)
                      )
@@ -943,7 +943,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
           )
         }
       },
-      test("querySome: pages are non-overlapping") {
+      test("query: pages are non-overlapping") {
         withIdAndYearKeyTable { (table, interpreter) =>
           for {
             _     <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "bob", "year" -> "2021")))
@@ -951,12 +951,12 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _     <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "bob", "year" -> "2023")))
             page1 <- interpreter.run(
                        DynamoDBQuery
-                         .querySome(table, limit = 2)
+                         .query(table, limit = 2)
                          .whereKey($("id").partitionKey === "bob")
                      )
             page2 <- interpreter.run(
                        DynamoDBQuery
-                         .querySome(table, limit = 2)
+                         .query(table, limit = 2)
                          .whereKey($("id").partitionKey === "bob")
                          .startKey(page1.lastEvaluatedKey)
                      )
@@ -983,8 +983,8 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _    <- interpreter.run(
                       DynamoDBQuery.batchWriteItem(ids)(id => DynamoDBQuery.putItem(table, Item("id" -> id)))
                     )
-            seg0 <- interpreter.run(DynamoDBQuery.scanSome(table, limit = 100).segment(0, 2))
-            seg1 <- interpreter.run(DynamoDBQuery.scanSome(table, limit = 100).segment(1, 2))
+            seg0 <- interpreter.run(DynamoDBQuery.scan(table, limit = 100).segment(0, 2))
+            seg1 <- interpreter.run(DynamoDBQuery.scan(table, limit = 100).segment(1, 2))
             allIds = (seg0.items ++ seg1.items).flatMap(_.getOption[String]("id")).toSet
           } yield assertTrue(
             allIds == ids.toSet &&
@@ -1312,7 +1312,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
   // ---------------------------------------------------------------------------
 
   private val sortKeyRangeTests: Spec[DynamoDBEnv, Throwable] =
-    suite("querySome sort key range operators")(
+    suite("query sort key range operators")(
       test("sort key < returns items with sk strictly less than the bound") {
         withIdAndYearKeyTable { (table, interpreter) =>
           for {
@@ -1321,7 +1321,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "skr-a", "year" -> "2023")))
             page <- interpreter.run(
                       DynamoDBQuery
-                        .querySome(table, limit = 10)
+                        .query(table, limit = 10)
                         .whereKey($("id").partitionKey === "skr-a" && $("year").sortKey < "2022")
                     )
           } yield assertTrue(page.items.length == 1)
@@ -1335,7 +1335,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "skr-b", "year" -> "2023")))
             page <- interpreter.run(
                       DynamoDBQuery
-                        .querySome(table, limit = 10)
+                        .query(table, limit = 10)
                         .whereKey($("id").partitionKey === "skr-b" && $("year").sortKey >= "2022")
                     )
           } yield assertTrue(page.items.length == 2)
@@ -1349,7 +1349,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "skr-c", "year" -> "2023")))
             page <- interpreter.run(
                       DynamoDBQuery
-                        .querySome(table, limit = 10)
+                        .query(table, limit = 10)
                         .whereKey($("id").partitionKey === "skr-c" && $("year").sortKey <= "2022")
                     )
           } yield assertTrue(page.items.length == 2)
@@ -1364,7 +1364,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "skr-d", "year" -> "2024")))
             page <- interpreter.run(
                       DynamoDBQuery
-                        .querySome(table, limit = 10)
+                        .query(table, limit = 10)
                         .whereKey($("id").partitionKey === "skr-d" && $("year").sortKey.between("2022", "2023"))
                     )
           } yield assertTrue(page.items.length == 2)
@@ -1438,7 +1438,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
 
   private val reservedKeywordTests: Spec[DynamoDBEnv, Throwable] =
     suite("reserved keyword attribute names")(
-      test("scanSome.filter with AttributeNotExists on a DynamoDB reserved word succeeds") {
+      test("scan.filter with AttributeNotExists on a DynamoDB reserved word succeeds") {
         withSingleIdKeyTable { (table, interpreter) =>
           for {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "rk-1")))
@@ -1446,13 +1446,13 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "rk-3", "ttl" -> 9999)))
             page <- interpreter.run(
                       DynamoDBQuery
-                        .scanSome(table, limit = 10)
+                        .scan(table, limit = 10)
                         .filter(ConditionExpression.AttributeNotExists($("ttl")))
                     )
           } yield assertTrue(page.items.length == 2)
         }
       },
-      test("querySome.filter with AttributeNotExists on a DynamoDB reserved word succeeds") {
+      test("query.filter with AttributeNotExists on a DynamoDB reserved word succeeds") {
         withIdAndYearKeyTable { (table, interpreter) =>
           for {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "rk-q", "year" -> "2022")))
@@ -1461,7 +1461,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
                     )
             page <- interpreter.run(
                       DynamoDBQuery
-                        .querySome(table, limit = 10)
+                        .query(table, limit = 10)
                         .whereKey($("id").partitionKey === "rk-q")
                         .filter(ConditionExpression.AttributeNotExists($("ttl")))
                     )
@@ -1562,7 +1562,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
       batchGetItemTests,
       updateItemTests,
       conditionAndFilterTests,
-      querySomeTests,
+      queryTests,
       capacityTests,
       consistencyTests,
       returnsTests,
@@ -1588,7 +1588,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
       batchGetItemTests,
       updateItemTests,
       conditionAndFilterTests,
-      querySomeTests,
+      queryTests,
       capacityTests,
       consistencyTests,
       returnsTests,
@@ -1614,7 +1614,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
       batchGetItemTests,
       updateItemTests,
       conditionAndFilterTests,
-      querySomeTests,
+      queryTests,
       capacityTests,
       consistencyTests,
       returnsTests,

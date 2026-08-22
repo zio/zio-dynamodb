@@ -153,14 +153,14 @@ class CEDynamoDBSpec extends CatsEffectSuite {
     }
   }
 
-  test("scanSome returns items up to the limit") {
+  test("scan returns items up to the limit") {
     val client = clientFixture()
     val interp = CEInterpreter.fromAsyncClient(client)
     tableResource(client).use { table =>
       for {
         _    <- interp.run(DynamoDBQuery.putItem(table, Item("id" -> "a")))
         _    <- interp.run(DynamoDBQuery.putItem(table, Item("id" -> "b")))
-        page <- interp.run(DynamoDBQuery.scanSome(table, limit = 10))
+        page <- interp.run(DynamoDBQuery.scan(table, limit = 10))
       } yield assertEquals(page.items.length, 2)
     }
   }

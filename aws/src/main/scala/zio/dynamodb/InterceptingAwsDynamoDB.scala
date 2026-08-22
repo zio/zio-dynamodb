@@ -130,9 +130,9 @@ private[dynamodb] final class InterceptingAwsDynamoDB[F[_]](
     }
   }
 
-  def querySome(req: QueryRequest): F[QueryResponse] = {
+  def query(req: QueryRequest): F[QueryResponse] = {
     val enriched = req.toBuilder.returnConsumedCapacity(ReturnConsumedCapacity.TOTAL).build()
-    ops.flatMap(inner.querySome(enriched)) { resp =>
+    ops.flatMap(inner.query(enriched)) { resp =>
       val meta = DynamoDBResponseMetadata.Query(
         tableName = req.tableName,
         consumed = Option(resp.consumedCapacity).map(AwsCodecs.fromAwsConsumedCapacity)
@@ -141,9 +141,9 @@ private[dynamodb] final class InterceptingAwsDynamoDB[F[_]](
     }
   }
 
-  def scanSome(req: ScanRequest): F[ScanResponse] = {
+  def scan(req: ScanRequest): F[ScanResponse] = {
     val enriched = req.toBuilder.returnConsumedCapacity(ReturnConsumedCapacity.TOTAL).build()
-    ops.flatMap(inner.scanSome(enriched)) { resp =>
+    ops.flatMap(inner.scan(enriched)) { resp =>
       val meta = DynamoDBResponseMetadata.Scan(
         tableName = req.tableName,
         consumed = Option(resp.consumedCapacity).map(AwsCodecs.fromAwsConsumedCapacity)

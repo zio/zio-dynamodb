@@ -96,8 +96,8 @@ object AwsRequestFlowSpec extends ZIOSpecDefault {
       def getItem(req: GetItemRequest): DummyIO[GetItemResponse]                                  = DummyIO.succeed(onGetItem(req))
       def putItem(req: PutItemRequest): DummyIO[PutItemResponse]                                  = DummyIO.succeed(onPutItem(req))
       def deleteItem(req: DeleteItemRequest): DummyIO[DeleteItemResponse]                         = DummyIO.succeed(onDeleteItem(req))
-      def querySome(req: QueryRequest): DummyIO[QueryResponse]                                    = DummyIO.succeed(onQuery(req))
-      def scanSome(req: ScanRequest): DummyIO[ScanResponse]                                       = DummyIO.succeed(onScan(req))
+      def query(req: QueryRequest): DummyIO[QueryResponse]                                        = DummyIO.succeed(onQuery(req))
+      def scan(req: ScanRequest): DummyIO[ScanResponse]                                           = DummyIO.succeed(onScan(req))
       def batchWriteItem(req: BatchWriteItemRequest): DummyIO[BatchWriteItemResponse]             =
         DummyIO.succeed(onBatchWrite(req))
       def createTable(req: CreateTableRequest): DummyIO[CreateTableResponse]                      = DummyIO.succeed(onCreateTable(req))
@@ -195,16 +195,16 @@ object AwsRequestFlowSpec extends ZIOSpecDefault {
       interp.run(DynamoDBQuery.getItem(table, pk).consistency(ConsistencyMode.Weak)).unsafeRun()
       assertTrue(captured.consistentRead() == false)
     },
-    test("querySome consistency(Strong) produces consistentRead true") {
+    test("query consistency(Strong) produces consistentRead true") {
       var captured: QueryRequest = null
       val interp                 = new DummyIOInterpreter(stub(onQuery = req => { captured = req; QueryResponse.builder().build() }))
-      interp.run(DynamoDBQuery.querySome(table, 10).consistency(ConsistencyMode.Strong)).unsafeRun()
+      interp.run(DynamoDBQuery.query(table, 10).consistency(ConsistencyMode.Strong)).unsafeRun()
       assertTrue(captured.consistentRead() == true)
     },
-    test("scanSome consistency(Strong) produces consistentRead true") {
+    test("scan consistency(Strong) produces consistentRead true") {
       var captured: ScanRequest = null
       val interp                = new DummyIOInterpreter(stub(onScan = req => { captured = req; ScanResponse.builder().build() }))
-      interp.run(DynamoDBQuery.scanSome(table, 10).consistency(ConsistencyMode.Strong)).unsafeRun()
+      interp.run(DynamoDBQuery.scan(table, 10).consistency(ConsistencyMode.Strong)).unsafeRun()
       assertTrue(captured.consistentRead() == true)
     }
   )
@@ -288,28 +288,28 @@ object AwsRequestFlowSpec extends ZIOSpecDefault {
     Map("id" -> AwsAttrValue.builder().s("a").build()).asJava
 
   private val startKeyRequestSuite = suite("startKey flows through interpreter to AWS request")(
-    test("scanSome startKey(Some(pk)) sets exclusiveStartKey in the ScanRequest") {
+    test("scan startKey(Some(pk)) sets exclusiveStartKey in the ScanRequest") {
       var captured: ScanRequest = null
       val interp                = new DummyIOInterpreter(stub(onScan = req => { captured = req; ScanResponse.builder().build() }))
-      interp.run(DynamoDBQuery.scanSome(table, 10).startKey(Some(pk))).unsafeRun()
+      interp.run(DynamoDBQuery.scan(table, 10).startKey(Some(pk))).unsafeRun()
       assertTrue(captured.hasExclusiveStartKey() && captured.exclusiveStartKey() == awsKey)
     },
-    test("scanSome with no startKey does not set exclusiveStartKey in the ScanRequest") {
+    test("scan with no startKey does not set exclusiveStartKey in the ScanRequest") {
       var captured: ScanRequest = null
       val interp                = new DummyIOInterpreter(stub(onScan = req => { captured = req; ScanResponse.builder().build() }))
-      interp.run(DynamoDBQuery.scanSome(table, 10)).unsafeRun()
+      interp.run(DynamoDBQuery.scan(table, 10)).unsafeRun()
       assertTrue(!captured.hasExclusiveStartKey())
     },
-    test("querySome startKey(Some(pk)) sets exclusiveStartKey in the QueryRequest") {
+    test("query startKey(Some(pk)) sets exclusiveStartKey in the QueryRequest") {
       var captured: QueryRequest = null
       val interp                 = new DummyIOInterpreter(stub(onQuery = req => { captured = req; QueryResponse.builder().build() }))
-      interp.run(DynamoDBQuery.querySome(table, 10).startKey(Some(pk))).unsafeRun()
+      interp.run(DynamoDBQuery.query(table, 10).startKey(Some(pk))).unsafeRun()
       assertTrue(captured.hasExclusiveStartKey() && captured.exclusiveStartKey() == awsKey)
     },
-    test("querySome with no startKey does not set exclusiveStartKey in the QueryRequest") {
+    test("query with no startKey does not set exclusiveStartKey in the QueryRequest") {
       var captured: QueryRequest = null
       val interp                 = new DummyIOInterpreter(stub(onQuery = req => { captured = req; QueryResponse.builder().build() }))
-      interp.run(DynamoDBQuery.querySome(table, 10)).unsafeRun()
+      interp.run(DynamoDBQuery.query(table, 10)).unsafeRun()
       assertTrue(!captured.hasExclusiveStartKey())
     }
   )
@@ -412,40 +412,40 @@ object AwsRequestFlowSpec extends ZIOSpecDefault {
   // ---------------------------------------------------------------------------
 
   private val selectRequestSuite = suite("select flows through interpreter to AWS request")(
-    test("scanSome.selectCount sets Select.COUNT in the ScanRequest") {
+    test("scan.selectCount sets Select.COUNT in the ScanRequest") {
       var captured: ScanRequest = null
       val interp                = new DummyIOInterpreter(stub(onScan = req => { captured = req; ScanResponse.builder().build() }))
-      interp.run(DynamoDBQuery.scanSome(table, 10).selectCount).unsafeRun()
+      interp.run(DynamoDBQuery.scan(table, 10).selectCount).unsafeRun()
       assertTrue(captured.select() == AwsSelect.COUNT)
     },
-    test("scanSome.selectAllAttributes sets Select.ALL_ATTRIBUTES in the ScanRequest") {
+    test("scan.selectAllAttributes sets Select.ALL_ATTRIBUTES in the ScanRequest") {
       var captured: ScanRequest = null
       val interp                = new DummyIOInterpreter(stub(onScan = req => { captured = req; ScanResponse.builder().build() }))
-      interp.run(DynamoDBQuery.scanSome(table, 10).selectAllAttributes).unsafeRun()
+      interp.run(DynamoDBQuery.scan(table, 10).selectAllAttributes).unsafeRun()
       assertTrue(captured.select() == AwsSelect.ALL_ATTRIBUTES)
     },
-    test("scanSome with no select does not set Select in the ScanRequest") {
+    test("scan with no select does not set Select in the ScanRequest") {
       var captured: ScanRequest = null
       val interp                = new DummyIOInterpreter(stub(onScan = req => { captured = req; ScanResponse.builder().build() }))
-      interp.run(DynamoDBQuery.scanSome(table, 10)).unsafeRun()
+      interp.run(DynamoDBQuery.scan(table, 10)).unsafeRun()
       assertTrue(captured.select() == null)
     },
-    test("querySome.selectCount sets Select.COUNT in the QueryRequest") {
+    test("query.selectCount sets Select.COUNT in the QueryRequest") {
       var captured: QueryRequest = null
       val interp                 = new DummyIOInterpreter(stub(onQuery = req => { captured = req; QueryResponse.builder().build() }))
-      interp.run(DynamoDBQuery.querySome(table, 10).selectCount).unsafeRun()
+      interp.run(DynamoDBQuery.query(table, 10).selectCount).unsafeRun()
       assertTrue(captured.select() == AwsSelect.COUNT)
     },
-    test("querySome.selectAllProjectedAttributes sets Select.ALL_PROJECTED_ATTRIBUTES in the QueryRequest") {
+    test("query.selectAllProjectedAttributes sets Select.ALL_PROJECTED_ATTRIBUTES in the QueryRequest") {
       var captured: QueryRequest = null
       val interp                 = new DummyIOInterpreter(stub(onQuery = req => { captured = req; QueryResponse.builder().build() }))
-      interp.run(DynamoDBQuery.querySome(table, 10).selectAllProjectedAttributes).unsafeRun()
+      interp.run(DynamoDBQuery.query(table, 10).selectAllProjectedAttributes).unsafeRun()
       assertTrue(captured.select() == AwsSelect.ALL_PROJECTED_ATTRIBUTES)
     },
-    test("querySome with no select does not set Select in the QueryRequest") {
+    test("query with no select does not set Select in the QueryRequest") {
       var captured: QueryRequest = null
       val interp                 = new DummyIOInterpreter(stub(onQuery = req => { captured = req; QueryResponse.builder().build() }))
-      interp.run(DynamoDBQuery.querySome(table, 10)).unsafeRun()
+      interp.run(DynamoDBQuery.query(table, 10)).unsafeRun()
       assertTrue(captured.select() == null)
     }
   )

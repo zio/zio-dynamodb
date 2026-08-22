@@ -102,8 +102,8 @@ object InterceptingAwsDynamoDBSpec extends ZIOSpecDefault {
     def putItem(req: PutItemRequest): DummyIO[PutItemResponse]                                  = DummyIO.succeed(onPut(req))
     def updateItem(req: UpdateItemRequest): DummyIO[UpdateItemResponse]                         = DummyIO.succeed(onUpdate(req))
     def deleteItem(req: DeleteItemRequest): DummyIO[DeleteItemResponse]                         = DummyIO.succeed(onDelete(req))
-    def querySome(req: QueryRequest): DummyIO[QueryResponse]                                    = DummyIO.succeed(onQuery(req))
-    def scanSome(req: ScanRequest): DummyIO[ScanResponse]                                       = DummyIO.succeed(onScan(req))
+    def query(req: QueryRequest): DummyIO[QueryResponse]                                        = DummyIO.succeed(onQuery(req))
+    def scan(req: ScanRequest): DummyIO[ScanResponse]                                           = DummyIO.succeed(onScan(req))
     def batchGetItem(req: BatchGetItemRequest): DummyIO[BatchGetItemResponse]                   = DummyIO.succeed(onBatchGet(req))
     def batchWriteItem(req: BatchWriteItemRequest): DummyIO[BatchWriteItemResponse]             = DummyIO.succeed(onBatchWrite(req))
     def createTable(req: CreateTableRequest): DummyIO[CreateTableResponse]                      = DummyIO.succeed(onCreate(req))
@@ -290,16 +290,16 @@ object InterceptingAwsDynamoDBSpec extends ZIOSpecDefault {
     }
   )
 
-  // -- querySome -------------------------------------------------------------
+  // -- query -------------------------------------------------------------
 
-  private val queryItemSuite = suite("querySome")(
+  private val queryItemSuite = suite("query")(
     test("fires interceptor with Query metadata and correct tableName") {
       val (interceptor, captured) = mkInterceptor()
       val resp                    = QueryResponse.builder().consumedCapacity(awsCap).build()
       val req                     = QueryRequest.builder().tableName("t").build()
       val stub                    = fullStub(onQuery = _ => resp)
       val sut                     = new InterceptingAwsDynamoDB[DummyIO](stub, interceptor, dummyOps)
-      sut.querySome(req).unsafeRun()
+      sut.query(req).unsafeRun()
       val metas                   = captured()
       assertTrue(
         metas.length == 1 &&
@@ -311,16 +311,16 @@ object InterceptingAwsDynamoDBSpec extends ZIOSpecDefault {
     }
   )
 
-  // -- scanSome --------------------------------------------------------------
+  // -- scan --------------------------------------------------------------
 
-  private val scanItemSuite = suite("scanSome")(
+  private val scanItemSuite = suite("scan")(
     test("fires interceptor with Scan metadata and correct tableName") {
       val (interceptor, captured) = mkInterceptor()
       val resp                    = ScanResponse.builder().consumedCapacity(awsCap).build()
       val req                     = ScanRequest.builder().tableName("t").build()
       val stub                    = fullStub(onScan = _ => resp)
       val sut                     = new InterceptingAwsDynamoDB[DummyIO](stub, interceptor, dummyOps)
-      sut.scanSome(req).unsafeRun()
+      sut.scan(req).unsafeRun()
       val metas                   = captured()
       assertTrue(
         metas.length == 1 &&
@@ -486,7 +486,7 @@ object InterceptingAwsDynamoDBSpec extends ZIOSpecDefault {
       val req                     = QueryRequest.builder().tableName("t").build()
       val stub                    = fullStub(onQuery = _ => resp)
       val sut                     = new InterceptingAwsDynamoDB[DummyIO](stub, interceptor, dummyOps)
-      sut.querySome(req).unsafeRun()
+      sut.query(req).unsafeRun()
       val m                       = captured().head.asInstanceOf[DynamoDBResponseMetadata.Query]
       assertTrue(
         m.consumed.exists(_.globalSecondaryIndexes.contains("my-gsi")) &&

@@ -33,8 +33,8 @@ object ZioInterpreterSpec extends ZIOSpecDefault {
     def updateItem(req: UpdateItemRequest): Task[UpdateItemResponse]                         = notImplemented
     def deleteItem(req: DeleteItemRequest): Task[DeleteItemResponse]                         = notImplemented
     def batchGetItem(req: BatchGetItemRequest): Task[BatchGetItemResponse]                   = notImplemented
-    def querySome(req: QueryRequest): Task[QueryResponse]                                    = notImplemented
-    def scanSome(req: ScanRequest): Task[ScanResponse]                                       = notImplemented
+    def query(req: QueryRequest): Task[QueryResponse]                                        = notImplemented
+    def scan(req: ScanRequest): Task[ScanResponse]                                           = notImplemented
     def createTable(req: CreateTableRequest): Task[CreateTableResponse]                      = notImplemented
     def deleteTable(req: DeleteTableRequest): Task[DeleteTableResponse]                      = notImplemented
     def batchWriteItem(req: BatchWriteItemRequest): Task[BatchWriteItemResponse]             = notImplemented

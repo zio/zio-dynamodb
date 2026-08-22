@@ -51,7 +51,7 @@ abstract class DynamoDBCodec[A](val valueType: Int = DynamoDBCodec.objectType) {
 
   /**
    * The other direction of [[toItem]]: decodes an [[Item]] (as returned by
-   *  `DynamoDBQuery.getItem`/`scanSome`/`querySome`) back into `A`.
+   *  `DynamoDBQuery.getItem`/`scan`/`query`) back into `A`.
    */
   def fromItem(item: Item): Either[ItemError.DecodingError, A] =
     decoder(ToAttributeValue[Item].toAttributeValue(item))

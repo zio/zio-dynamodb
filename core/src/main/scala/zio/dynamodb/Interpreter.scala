@@ -116,8 +116,8 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   protected def runPutItem(q: DynamoDBQuery.PutItem): F[Option[Item]]
   protected def runUpdateItem(q: DynamoDBQuery.UpdateItem): F[Option[Item]]
   protected def runDeleteItem(q: DynamoDBQuery.DeleteItem): F[Option[Item]]
-  protected def runQuerySomeItem(q: DynamoDBQuery.QuerySome): F[Page[Item]]
-  protected def runScanSome(q: DynamoDBQuery.ScanSome): F[Page[Item]]
+  protected def runQuery(q: DynamoDBQuery.Query): F[Page[Item]]
+  protected def runScan(q: DynamoDBQuery.Scan): F[Page[Item]]
   protected def runCreateTable(q: DynamoDBQuery.CreateTable): F[Unit]
   protected def runDeleteTable(q: DynamoDBQuery.DeleteTable): F[Unit]
   protected def runDescribeTable(q: DynamoDBQuery.DescribeTable): F[DynamoDBQuery.DescribeTableResponse]
@@ -151,7 +151,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
     accumulateErrors(UpdateExpression.collectFailures(action))
 
   // Returns Some(error) if segment fields are invalid, None if valid.
-  private def validateScanSegment(q: DynamoDBQuery.ScanSome): Option[ScanError.ScanValidationError] =
+  private def validateScanSegment(q: DynamoDBQuery.Scan): Option[ScanError.ScanValidationError] =
     if (q.totalSegments < 1)
       Some(
         ScanError.ScanValidationError(
@@ -230,17 +230,17 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
         validateCE(q.conditionExpression).fold(
           q.retryPolicy.fold(runDeleteItem(q))(p => withRetry(p)(runDeleteItem(q))).asInstanceOf[F[Any]]
         )(fail)
-      case q: DynamoDBQuery.QuerySome          =>
+      case q: DynamoDBQuery.Query              =>
         validateKCE(q.keyConditionExpr)
           .orElse(validateCE(q.filterExpression))
           .fold(
-            runQuerySomeItem(q).asInstanceOf[F[Any]]
+            runQuery(q).asInstanceOf[F[Any]]
           )(fail)
-      case q: DynamoDBQuery.ScanSome           =>
+      case q: DynamoDBQuery.Scan               =>
         validateCE(q.filterExpression)
           .orElse(validateScanSegment(q))
           .fold(
-            runScanSome(q).asInstanceOf[F[Any]]
+            runScan(q).asInstanceOf[F[Any]]
           )(err => fail(err))
       case q: DynamoDBQuery.CreateTable        => runCreateTable(q).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.DeleteTable        => runDeleteTable(q).asInstanceOf[F[Any]]
@@ -384,9 +384,9 @@ object DummyIOInterpreter extends AwsInterpreter[DummyIO] {
   protected def runPutItem(q: DynamoDBQuery.PutItem): DummyIO[Option[Item]]                                        = DummyIO.succeed(None)
   protected def runUpdateItem(q: DynamoDBQuery.UpdateItem): DummyIO[Option[Item]]                                  = DummyIO.succeed(None)
   protected def runDeleteItem(q: DynamoDBQuery.DeleteItem): DummyIO[Option[Item]]                                  = DummyIO.succeed(None)
-  protected def runQuerySomeItem(q: DynamoDBQuery.QuerySome): DummyIO[Page[Item]]                                  =
+  protected def runQuery(q: DynamoDBQuery.Query): DummyIO[Page[Item]]                                              =
     DummyIO.succeed(Page(Chunk.empty, None, 0, 0))
-  protected def runScanSome(q: DynamoDBQuery.ScanSome): DummyIO[Page[Item]]                                        =
+  protected def runScan(q: DynamoDBQuery.Scan): DummyIO[Page[Item]]                                                =
     DummyIO.succeed(Page(Chunk.empty, None, 0, 0))
   protected def runCreateTable(q: DynamoDBQuery.CreateTable): DummyIO[Unit]                                        =
     DummyIO.succeed(())

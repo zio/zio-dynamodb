@@ -38,7 +38,7 @@ object DummyIO {
  * condition attaches to a query it's actually type-compatible with; `Out` (covariant) is the
  * value the query produces once run.
  *
- * Sealed subtypes are either leaf `Constructor`s (`GetItem`, `PutItem`, `QuerySome`, ...,
+ * Sealed subtypes are either leaf `Constructor`s (`GetItem`, `PutItem`, `Query`, ...,
  * each shaped directly after one AWS SDK operation) or combinators (`Map`, `ZipPar`, ...)
  * built by chaining methods on an existing query. Nothing about a `DynamoDBQuery` value runs
  * anything — an interpreter (`ZioInterpreter`/`CEInterpreter`/`FutureInterpreter`, all
@@ -111,13 +111,13 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case DynamoDBQuery.Map(query, mapper)            => DynamoDBQuery.Map(query.whereKey(keyConditionExpression), mapper)
       case DynamoDBQuery.Absolve(query)                => DynamoDBQuery.Absolve(query.whereKey(keyConditionExpression))
 
-      case s: DynamoDBQuery.QuerySome =>
+      case s: DynamoDBQuery.Query =>
         s.copy(keyConditionExpr = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                          =>
+      case _                      =>
         DynamoDBQuery.fail(
           DynamoDBError.QueryBuilderError.UnsupportedModifier(
             s"'.whereKey' has no effect on ${self.getClass.getSimpleName}; key condition expressions are " +
-              s"only supported on querySome"
+              s"only supported on query"
           )
         )
     }
@@ -187,15 +187,15 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case ab @ DynamoDBQuery.Absolve(query)      =>
         DynamoDBQuery.Absolve(query.filter(filterExpression.asInstanceOf[FilterExpression[ab.Old]]))
 
-      case s: DynamoDBQuery.ScanSome  =>
+      case s: DynamoDBQuery.Scan  =>
         s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case s: DynamoDBQuery.QuerySome =>
+      case s: DynamoDBQuery.Query =>
         s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                          =>
+      case _                      =>
         DynamoDBQuery.fail(
           DynamoDBError.QueryBuilderError.UnsupportedModifier(
             s"'.filter' has no effect on ${self.getClass.getSimpleName}; filter expressions are only " +
-              s"supported on scanSome/querySome — did you mean '.where'?"
+              s"supported on scan/query — did you mean '.where'?"
           )
         )
     }
@@ -206,9 +206,9 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case ZipPar(left, right, zippable)    => ZipPar(left.indexName(indexName), right.indexName(indexName), zippable)
       case DynamoDBQuery.Map(query, mapper) => DynamoDBQuery.Map(query.indexName(indexName), mapper)
       case DynamoDBQuery.Absolve(query)     => DynamoDBQuery.Absolve(query.indexName(indexName))
-      case q: DynamoDBQuery.ScanSome        =>
+      case q: DynamoDBQuery.Scan            =>
         q.copy(indexName = Some(indexName)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case q: DynamoDBQuery.QuerySome       =>
+      case q: DynamoDBQuery.Query           =>
         q.copy(indexName = Some(indexName)).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                                => self
     }
@@ -229,9 +229,9 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         u.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
       case d: DynamoDBQuery.DeleteItem          =>
         d.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
-      case s: DynamoDBQuery.ScanSome            =>
+      case s: DynamoDBQuery.Scan                =>
         s.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
-      case q: DynamoDBQuery.QuerySome           =>
+      case q: DynamoDBQuery.Query               =>
         q.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
       case bg: DynamoDBQuery.BatchGetItem       =>
         bg.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
@@ -254,9 +254,9 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         DynamoDBQuery.Absolve(query.consistency(consistency))
       case g: DynamoDBQuery.GetItem         =>
         g.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[In, Out]]
-      case s: DynamoDBQuery.ScanSome        =>
+      case s: DynamoDBQuery.Scan            =>
         s.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[In, Out]]
-      case q: DynamoDBQuery.QuerySome       =>
+      case q: DynamoDBQuery.Query           =>
         q.copy(consistency = consistency).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                                => self
     }
@@ -303,16 +303,16 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         DynamoDBQuery.ZipPar(left.startKey(exclusiveStartKey), right.startKey(exclusiveStartKey), zippable)
       case DynamoDBQuery.Map(query, mapper)            => DynamoDBQuery.Map(query.startKey(exclusiveStartKey), mapper)
       case DynamoDBQuery.Absolve(query)                => DynamoDBQuery.Absolve(query.startKey(exclusiveStartKey))
-      case s: DynamoDBQuery.ScanSome                   =>
+      case s: DynamoDBQuery.Scan                       =>
         s.copy(exclusiveStartKey = exclusiveStartKey).asInstanceOf[DynamoDBQuery[In, Out]]
-      case s: DynamoDBQuery.QuerySome                  =>
+      case s: DynamoDBQuery.Query                      =>
         s.copy(exclusiveStartKey = exclusiveStartKey).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                                           => self
     }
 
   def sortOrder(ascending: Boolean): DynamoDBQuery[In, Out] =
     self match {
-      case q: DynamoDBQuery.QuerySome       => q.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[In, Out]]
+      case q: DynamoDBQuery.Query           => q.copy(ascending = ascending).asInstanceOf[DynamoDBQuery[In, Out]]
       case DynamoDBQuery.Map(query, mapper) => DynamoDBQuery.Map(query.sortOrder(ascending), mapper)
       case DynamoDBQuery.Absolve(query)     => DynamoDBQuery.Absolve(query.sortOrder(ascending))
       case _                                => self
@@ -322,7 +322,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     self match {
       case DynamoDBQuery.Map(query, mapper) => DynamoDBQuery.Map(query.segment(index, total), mapper)
       case DynamoDBQuery.Absolve(query)     => DynamoDBQuery.Absolve(query.segment(index, total))
-      case s: DynamoDBQuery.ScanSome        =>
+      case s: DynamoDBQuery.Scan            =>
         s.copy(segment = index, totalSegments = total).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                                => self
     }
@@ -420,8 +420,8 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         DynamoDBQuery.ZipPar(left.select(select), right.select(select), zippable)
       case DynamoDBQuery.Map(query, mapper)            => DynamoDBQuery.Map(query.select(select), mapper)
       case DynamoDBQuery.Absolve(query)                => DynamoDBQuery.Absolve(query.select(select))
-      case s: DynamoDBQuery.ScanSome                   => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case s: DynamoDBQuery.QuerySome                  => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case s: DynamoDBQuery.Scan                       => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case s: DynamoDBQuery.Query                      => s.copy(select = Some(select)).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                                           => self
     }
 
@@ -429,7 +429,7 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
 /**
  * Factory methods for every Low-Level constructor (`getItem`, `putItem`, `updateItem`,
- * `deleteItem`, `querySome`, `scanSome`, `batchGetItem`, `batchWriteItem`,
+ * `deleteItem`, `query`, `scan`, `batchGetItem`, `batchWriteItem`,
  * `transactGetItems`, `transactWriteItems`, `createTable`, `deleteTable`, `describeTable`)
  * and the ADT case classes each one builds. See the "CRUD Operations" page on the project
  * docs site for the full Low-Level/High-Level/AWS-SDK operation matrix.
@@ -544,7 +544,7 @@ object DynamoDBQuery {
     clientRequestToken: Option[String] = None
   ) extends Constructor[Any, Unit]
 
-  private[dynamodb] final case class ScanSome(
+  private[dynamodb] final case class Scan(
     tableName: String,
     limit: Int,
     indexName: Option[String] = None,
@@ -559,7 +559,7 @@ object DynamoDBQuery {
     totalSegments: Int = 1
   ) extends Constructor[Any, Page[Item]]
 
-  private[dynamodb] final case class QuerySome(
+  private[dynamodb] final case class Query(
     tableName: String,
     limit: Int,
     indexName: Option[String] = None,
@@ -792,7 +792,7 @@ object DynamoDBQuery {
   def describeTable(tableName: String): DynamoDBQuery[Any, DescribeTableResponse] =
     DescribeTable(tableName)
 
-  def querySome(
+  def query(
     tableName: String,
     limit: Int,
     indexName: Option[String] = None,
@@ -800,9 +800,9 @@ object DynamoDBQuery {
     exclusiveStartKey: LastEvaluatedKey = None,
     ascending: Boolean = true
   ): DynamoDBQuery[Any, Page[Item]] =
-    QuerySome(tableName, limit, indexName, consistency, exclusiveStartKey, ascending = ascending)
+    Query(tableName, limit, indexName, consistency, exclusiveStartKey, ascending = ascending)
 
-  def scanSome(
+  def scan(
     tableName: String,
     limit: Int,
     indexName: Option[String] = None,
@@ -813,7 +813,7 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None
   ): DynamoDBQuery[Any, Page[Item]] =
-    ScanSome(
+    Scan(
       tableName,
       limit,
       indexName,
