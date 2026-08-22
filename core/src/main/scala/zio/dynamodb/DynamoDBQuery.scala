@@ -84,7 +84,13 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         u.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case d: DynamoDBQuery.DeleteItem            =>
         d.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                      => self
+      case _                                      =>
+        DynamoDBQuery.fail(
+          DynamoDBError.QueryBuilderError.UnsupportedModifier(
+            s"'.where' has no effect on ${self.getClass.getSimpleName}; condition expressions are only " +
+              s"supported on putItem/updateItem/deleteItem — did you mean '.filter'?"
+          )
+        )
     }
   }
 
@@ -107,7 +113,13 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
       case s: DynamoDBQuery.QuerySome =>
         s.copy(keyConditionExpr = Some(keyConditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                          => self
+      case _                          =>
+        DynamoDBQuery.fail(
+          DynamoDBError.QueryBuilderError.UnsupportedModifier(
+            s"'.whereKey' has no effect on ${self.getClass.getSimpleName}; key condition expressions are " +
+              s"only supported on querySome"
+          )
+        )
     }
 
   final def returnValuesOnConditionCheckFailure(
@@ -179,7 +191,13 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
       case s: DynamoDBQuery.QuerySome =>
         s.copy(filterExpression = Some(filterExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                          => self
+      case _                          =>
+        DynamoDBQuery.fail(
+          DynamoDBError.QueryBuilderError.UnsupportedModifier(
+            s"'.filter' has no effect on ${self.getClass.getSimpleName}; filter expressions are only " +
+              s"supported on scanSome/querySome — did you mean '.where'?"
+          )
+        )
     }
   }
 
