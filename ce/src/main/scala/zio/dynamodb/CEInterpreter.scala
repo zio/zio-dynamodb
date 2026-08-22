@@ -74,9 +74,9 @@ object CEInterpreter {
         IO.fromCompletableFuture(IO(sdkClient.deleteItem(req)))
       def batchGetItem(req: BatchGetItemRequest): IO[BatchGetItemResponse]                   =
         IO.fromCompletableFuture(IO(sdkClient.batchGetItem(req)))
-      def querySome(req: QueryRequest): IO[QueryResponse]                                    =
+      def query(req: QueryRequest): IO[QueryResponse]                                        =
         IO.fromCompletableFuture(IO(sdkClient.query(req)))
-      def scanSome(req: ScanRequest): IO[ScanResponse]                                       =
+      def scan(req: ScanRequest): IO[ScanResponse]                                           =
         IO.fromCompletableFuture(IO(sdkClient.scan(req)))
       def createTable(req: CreateTableRequest): IO[CreateTableResponse]                      =
         IO.fromCompletableFuture(IO(sdkClient.createTable(req)))

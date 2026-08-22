@@ -119,7 +119,7 @@ object OopModelLowLevelApiSpec extends DynamoDBLocalSpec {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, codec.toItem(OopBilledMonthly(1, 42.0, 3))))
             _    <- interpreter.run(DynamoDBQuery.putItem(table, codec.toItem(OopBilledYearly(2, 42.0, 2024))))
             _    <- interpreter.run(DynamoDBQuery.putItem(table, codec.toItem(OopPrebilled(3, 5))))
-            page <- interpreter.run(DynamoDBQuery.scanSome(table, limit = 10).filter($("amount") === 42.0))
+            page <- interpreter.run(DynamoDBQuery.scan(table, limit = 10).filter($("amount") === 42.0))
             decoded = page.items.map(codec.fromItem).toSet
           } yield assertTrue(
             page.items.length == 2,
@@ -135,7 +135,7 @@ object OopModelLowLevelApiSpec extends DynamoDBLocalSpec {
           for {
             _    <- interpreter.run(DynamoDBQuery.putItem(table, codec.toItem(OopBilledMonthly(1, 42.0, 3))))
             _    <- interpreter.run(DynamoDBQuery.putItem(table, codec.toItem(OopPrebilled(3, 5))))
-            page <- interpreter.run(DynamoDBQuery.scanSome(table, limit = 10).filter($("amount") === 42.0))
+            page <- interpreter.run(DynamoDBQuery.scan(table, limit = 10).filter($("amount") === 42.0))
             decoded = page.items.map(codec.fromItem)
           } yield assertTrue(
             page.items.length == 1,

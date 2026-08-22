@@ -25,8 +25,8 @@ package zio.dynamodb
  * APIs.
  *
  * Applied via `.selectAllAttributes`, `.selectAllProjectedAttributes`,
- * `.selectSpecificAttributes`, or `.selectCount` on a `querySome` /
- * `scanSome` query.
+ * `.selectSpecificAttributes`, or `.selectCount` on a `query` /
+ * `scan` query.
  *
  * Constraint: if a projection expression is also present on the query, the
  * only valid value is `SpecificAttributes` — AWS rejects any other

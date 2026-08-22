@@ -50,9 +50,9 @@ object ZIOStreamingUtilsSpec extends ZIOSpecDefault {
         protected def runPutItem(q: DynamoDBQuery.PutItem): Task[Option[Item]]                          = ZIO.succeed(None)
         protected def runUpdateItem(q: DynamoDBQuery.UpdateItem): Task[Option[Item]]                    = ZIO.succeed(None)
         protected def runDeleteItem(q: DynamoDBQuery.DeleteItem): Task[Option[Item]]                    = ZIO.succeed(None)
-        protected def runQuerySomeItem(q: DynamoDBQuery.QuerySome): Task[Page[Item]]                    =
+        protected def runQuery(q: DynamoDBQuery.Query): Task[Page[Item]]                                =
           ZIO.succeed(Page(Chunk.empty, None, 0, 0))
-        protected def runScanSome(q: DynamoDBQuery.ScanSome): Task[Page[Item]]                          =
+        protected def runScan(q: DynamoDBQuery.Scan): Task[Page[Item]]                                  =
           ZIO.succeed(Page(Chunk.empty, None, 0, 0))
         protected def runCreateTable(q: DynamoDBQuery.CreateTable): Task[Unit]                          = ZIO.succeed(())
         protected def runDeleteTable(q: DynamoDBQuery.DeleteTable): Task[Unit]                          = ZIO.succeed(())

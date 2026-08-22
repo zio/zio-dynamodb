@@ -34,8 +34,8 @@ silently under the hood — 3.x dropped that: see
 | Put an item | [`putItem`](low-level.md#put) | [`put`](high-level.md#put) | [`PutItem`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_PutItem.html) |
 | Update an item | [`updateItem`](low-level.md#update) | [`update`](high-level.md#update) | [`UpdateItem`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html) |
 | Delete an item | [`deleteItem`](low-level.md#delete) | [`deleteFrom`](high-level.md#delete) | [`DeleteItem`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_DeleteItem.html) |
-| Query (by key condition) | [`querySome`](low-level.md#query) | [`query`](high-level.md#query) | [`Query`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html) |
-| Scan (whole table/index) | [`scanSome`](low-level.md#scan) | [`scan`](high-level.md#scan) | [`Scan`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Scan.html) |
+| Query (by key condition) | [`query`](low-level.md#query) | [`query`](high-level.md#query) | [`Query`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html) |
+| Scan (whole table/index) | [`scan`](low-level.md#scan) | [`scan`](high-level.md#scan) | [`Scan`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Scan.html) |
 | Batch get (up to 100 keys) | [`batchGetItem`](batch.md#batchgetitem) | [— Low-Level only](batch.md#why-no-high-level-batch-api) | [`BatchGetItem`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html) |
 | Batch write (up to 25 puts/deletes) | [`batchWriteItem`](batch.md#batchwriteitem) | [— Low-Level only](batch.md#why-no-high-level-batch-api) | [`BatchWriteItem`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html) |
 | Transactional get (up to 100 items) | [`transactGetItems`](low-level.md#transactions) | [— not yet](high-level.md#transactions) | [`TransactGetItems`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactGetItems.html) |

@@ -19,7 +19,7 @@ package zio.dynamodb
 import zio.blocks.chunk.Chunk
 
 /**
- * Result of a single `scanSome` or `querySome` operation.
+ * Result of a single `scan` or `query` operation.
  *
  * @param items            Items returned by this page (empty when `Select.Count` is used).
  * @param lastEvaluatedKey Pagination cursor; `None` on the final page.

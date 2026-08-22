@@ -105,8 +105,8 @@ object FutureInterpreterSpec extends ZIOSpecDefault {
     def putItem(req: PutItemRequest): Future[PutItemResponse]                                  = Future.successful(onPut(req))
     def updateItem(req: UpdateItemRequest): Future[UpdateItemResponse]                         = Future.successful(onUpdate(req))
     def deleteItem(req: DeleteItemRequest): Future[DeleteItemResponse]                         = Future.successful(onDelete(req))
-    def querySome(req: QueryRequest): Future[QueryResponse]                                    = Future.successful(onQuery(req))
-    def scanSome(req: ScanRequest): Future[ScanResponse]                                       = Future.successful(onScan(req))
+    def query(req: QueryRequest): Future[QueryResponse]                                        = Future.successful(onQuery(req))
+    def scan(req: ScanRequest): Future[ScanResponse]                                           = Future.successful(onScan(req))
     def batchGetItem(req: BatchGetItemRequest): Future[BatchGetItemResponse]                   = Future.successful(onBatchGet(req))
     def batchWriteItem(req: BatchWriteItemRequest): Future[BatchWriteItemResponse]             =
       Future.successful(onBatchWrite(req))
@@ -287,16 +287,16 @@ object FutureInterpreterSpec extends ZIOSpecDefault {
     }
   )
 
-  // -- querySome -------------------------------------------------------------
+  // -- query -------------------------------------------------------------
 
-  private val queryItemSuite = suite("querySome")(
+  private val queryItemSuite = suite("query")(
     test("fires interceptor with Query metadata and correct tableName") {
       val (interceptor, captured) = mkInterceptor()
       val resp                    = QueryResponse.builder().consumedCapacity(awsCap).build()
       val req                     = QueryRequest.builder().tableName("t").build()
       val stub                    = fullStub(onQuery = _ => resp)
       val sut                     = new InterceptingAwsDynamoDB[Future](stub, interceptor, futureOps)
-      await(sut.querySome(req))
+      await(sut.query(req))
       val metas                   = captured()
       assertTrue(
         metas.length == 1 &&
@@ -308,16 +308,16 @@ object FutureInterpreterSpec extends ZIOSpecDefault {
     }
   )
 
-  // -- scanSome --------------------------------------------------------------
+  // -- scan --------------------------------------------------------------
 
-  private val scanItemSuite = suite("scanSome")(
+  private val scanItemSuite = suite("scan")(
     test("fires interceptor with Scan metadata and correct tableName") {
       val (interceptor, captured) = mkInterceptor()
       val resp                    = ScanResponse.builder().consumedCapacity(awsCap).build()
       val req                     = ScanRequest.builder().tableName("t").build()
       val stub                    = fullStub(onScan = _ => resp)
       val sut                     = new InterceptingAwsDynamoDB[Future](stub, interceptor, futureOps)
-      await(sut.scanSome(req))
+      await(sut.scan(req))
       val metas                   = captured()
       assertTrue(
         metas.length == 1 &&

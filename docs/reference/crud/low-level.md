@@ -104,7 +104,7 @@ def example(implicit interp: Interpreter[zio.Task]) =
 
 ## Query
 
-`querySome` requires a partition key condition (via `.whereKey`) and returns one `Page[Item]`
+`query` requires a partition key condition (via `.whereKey`) and returns one `Page[Item]`
 at a time, not the full result set:
 
 ```scala
@@ -113,12 +113,12 @@ final case class Page[A](items: Chunk[A], lastEvaluatedKey: LastEvaluatedKey, co
 
 - `items` — this page's results.
 - `lastEvaluatedKey` — pagination cursor; `None` means this was the last page. To continue,
-  pass it back as `exclusiveStartKey` on the next `querySome`/`scanSome` call.
+  pass it back as `exclusiveStartKey` on the next `query`/`scan` call.
 - `count` — items matched after any filter expression.
 - `scannedCount` — items DynamoDB evaluated before applying the filter; `scannedCount > count`
   signals a filter-heavy query reading more than it returns.
 
-`scanSome` returns the same `Page[Item]` shape.
+`scan` returns the same `Page[Item]` shape.
 
 ```scala mdoc:compile-only
 import zio.dynamodb._
@@ -127,7 +127,7 @@ import zio.dynamodb.ProjectionExpression.$
 
 def example(implicit interp: Interpreter[zio.Task]) =
   DynamoDBQuery
-    .querySome("orders", limit = 20)
+    .query("orders", limit = 20)
     .whereKey($("customerId").partitionKey === "cust-42" && $("orderId").sortKey > "ord-0")
     .filter($("total") > 50.0)
     .execute
@@ -135,7 +135,7 @@ def example(implicit interp: Interpreter[zio.Task]) =
 
 ## Scan
 
-`scanSome` reads the whole table (or index) a page at a time — no key condition required,
+`scan` reads the whole table (or index) a page at a time — no key condition required,
 but correspondingly no way to target a specific partition efficiently. Prefer `query` when
 you know the partition key.
 
@@ -146,7 +146,7 @@ import zio.dynamodb.ProjectionExpression.$
 
 def example(implicit interp: Interpreter[zio.Task]) =
   DynamoDBQuery
-    .scanSome("orders", limit = 20)
+    .scan("orders", limit = 20)
     .filter($("status") === "Pending")
     .execute
 ```

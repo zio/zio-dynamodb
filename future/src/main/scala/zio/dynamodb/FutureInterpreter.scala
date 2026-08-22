@@ -104,8 +104,8 @@ object FutureInterpreter {
       def batchGetItem(req: BatchGetItemRequest): Future[BatchGetItemResponse]                   = sdkClient.batchGetItem(req).asScala
       def batchWriteItem(req: BatchWriteItemRequest): Future[BatchWriteItemResponse]             =
         sdkClient.batchWriteItem(req).asScala
-      def querySome(req: QueryRequest): Future[QueryResponse]                                    = sdkClient.query(req).asScala
-      def scanSome(req: ScanRequest): Future[ScanResponse]                                       = sdkClient.scan(req).asScala
+      def query(req: QueryRequest): Future[QueryResponse]                                        = sdkClient.query(req).asScala
+      def scan(req: ScanRequest): Future[ScanResponse]                                           = sdkClient.scan(req).asScala
       def createTable(req: CreateTableRequest): Future[CreateTableResponse]                      = sdkClient.createTable(req).asScala
       def deleteTable(req: DeleteTableRequest): Future[DeleteTableResponse]                      = sdkClient.deleteTable(req).asScala
       def describeTable(req: DescribeTableRequest): Future[DescribeTableResponse]                = sdkClient.describeTable(req).asScala

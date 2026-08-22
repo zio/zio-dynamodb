@@ -86,8 +86,8 @@ class CeEffectStackBench extends BaseBenchmark {
     def deleteItem(req: DeleteItemRequest): IO[DeleteItemResponse]                         = unsupported
     def batchGetItem(req: BatchGetItemRequest): IO[BatchGetItemResponse]                   = unsupported
     def batchWriteItem(req: BatchWriteItemRequest): IO[BatchWriteItemResponse]             = unsupported
-    def querySome(req: QueryRequest): IO[QueryResponse]                                    = unsupported
-    def scanSome(req: ScanRequest): IO[ScanResponse]                                       = unsupported
+    def query(req: QueryRequest): IO[QueryResponse]                                        = unsupported
+    def scan(req: ScanRequest): IO[ScanResponse]                                           = unsupported
     def createTable(req: CreateTableRequest): IO[CreateTableResponse]                      = unsupported
     def deleteTable(req: DeleteTableRequest): IO[DeleteTableResponse]                      = unsupported
     def describeTable(req: DescribeTableRequest): IO[DescribeTableResponse]                = unsupported

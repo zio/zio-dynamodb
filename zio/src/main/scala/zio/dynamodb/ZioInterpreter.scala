@@ -69,9 +69,9 @@ object ZioInterpreter {
         ZIO.fromCompletableFuture(sdkClient.deleteItem(req))
       def batchGetItem(req: BatchGetItemRequest): Task[BatchGetItemResponse]                   =
         ZIO.fromCompletableFuture(sdkClient.batchGetItem(req))
-      def querySome(req: QueryRequest): Task[QueryResponse]                                    =
+      def query(req: QueryRequest): Task[QueryResponse]                                        =
         ZIO.fromCompletableFuture(sdkClient.query(req))
-      def scanSome(req: ScanRequest): Task[ScanResponse]                                       =
+      def scan(req: ScanRequest): Task[ScanResponse]                                           =
         ZIO.fromCompletableFuture(sdkClient.scan(req))
       def createTable(req: CreateTableRequest): Task[CreateTableResponse]                      =
         ZIO.fromCompletableFuture(sdkClient.createTable(req))

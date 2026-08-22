@@ -43,8 +43,8 @@ object ScanSegmentSpec extends ZIOSpecDefault {
       def batchGetItem(req: software.amazon.awssdk.services.dynamodb.model.BatchGetItemRequest)     = DummyIO.succeed(???)
       def batchWriteItem(req: software.amazon.awssdk.services.dynamodb.model.BatchWriteItemRequest) =
         DummyIO.succeed(???)
-      def querySome(req: software.amazon.awssdk.services.dynamodb.model.QueryRequest)               = DummyIO.succeed(???)
-      def scanSome(req: ScanRequest): DummyIO[ScanResponse]                                         = DummyIO.succeed(onScan(req))
+      def query(req: software.amazon.awssdk.services.dynamodb.model.QueryRequest)                   = DummyIO.succeed(???)
+      def scan(req: ScanRequest): DummyIO[ScanResponse]                                             = DummyIO.succeed(onScan(req))
       def createTable(req: software.amazon.awssdk.services.dynamodb.model.CreateTableRequest)       = DummyIO.succeed(???)
       def deleteTable(req: software.amazon.awssdk.services.dynamodb.model.DeleteTableRequest)       = DummyIO.succeed(???)
       def describeTable(req: software.amazon.awssdk.services.dynamodb.model.DescribeTableRequest)   = DummyIO.succeed(???)
@@ -63,31 +63,31 @@ object ScanSegmentSpec extends ZIOSpecDefault {
   // ---------------------------------------------------------------------------
 
   private val builderSuite = suite(".segment() builder")(
-    test("sets segment and totalSegments on ScanSome") {
-      val q: DynamoDBQuery[Any, Page[Item]] = DynamoDBQuery.scanSome(table, limit = 100).segment(2, 8)
+    test("sets segment and totalSegments on Scan") {
+      val q: DynamoDBQuery[Any, Page[Item]] = DynamoDBQuery.scan(table, limit = 100).segment(2, 8)
       val seg: Int                          = 2
       val tot: Int                          = 8
-      assert(q)(isSubtype[DynamoDBQuery.ScanSome](hasField("segment", _.segment, equalTo(seg)))) &&
-      assert(q)(isSubtype[DynamoDBQuery.ScanSome](hasField("totalSegments", _.totalSegments, equalTo(tot))))
+      assert(q)(isSubtype[DynamoDBQuery.Scan](hasField("segment", _.segment, equalTo(seg)))) &&
+      assert(q)(isSubtype[DynamoDBQuery.Scan](hasField("totalSegments", _.totalSegments, equalTo(tot))))
     },
-    test("default ScanSome has segment=0, totalSegments=1") {
-      val q: DynamoDBQuery[Any, Page[Item]] = DynamoDBQuery.scanSome(table, limit = 100)
+    test("default Scan has segment=0, totalSegments=1") {
+      val q: DynamoDBQuery[Any, Page[Item]] = DynamoDBQuery.scan(table, limit = 100)
       val seg: Int                          = 0
       val tot: Int                          = 1
-      assert(q)(isSubtype[DynamoDBQuery.ScanSome](hasField("segment", _.segment, equalTo(seg)))) &&
-      assert(q)(isSubtype[DynamoDBQuery.ScanSome](hasField("totalSegments", _.totalSegments, equalTo(tot))))
+      assert(q)(isSubtype[DynamoDBQuery.Scan](hasField("segment", _.segment, equalTo(seg)))) &&
+      assert(q)(isSubtype[DynamoDBQuery.Scan](hasField("totalSegments", _.totalSegments, equalTo(tot))))
     },
-    test("no-op on non-ScanSome queries") {
+    test("no-op on non-Scan queries") {
       val base = DynamoDBQuery.getItem(table, PrimaryKey("id" -> "x"))
       assertTrue(base.segment(1, 4).eq(base))
     },
     test("propagates through Map") {
-      val q        = DynamoDBQuery.scanSome(table, limit = 100).map(_.items).segment(1, 4)
+      val q        = DynamoDBQuery.scan(table, limit = 100).map(_.items).segment(1, 4)
       val seg: Int = 1
       val tot: Int = 4
       val inner    = q.asInstanceOf[DynamoDBQuery.Map[_, _]].query
-      assert(inner)(isSubtype[DynamoDBQuery.ScanSome](hasField("segment", _.segment, equalTo(seg)))) &&
-      assert(inner)(isSubtype[DynamoDBQuery.ScanSome](hasField("totalSegments", _.totalSegments, equalTo(tot))))
+      assert(inner)(isSubtype[DynamoDBQuery.Scan](hasField("segment", _.segment, equalTo(seg)))) &&
+      assert(inner)(isSubtype[DynamoDBQuery.Scan](hasField("totalSegments", _.totalSegments, equalTo(tot))))
     }
   )
 
@@ -95,11 +95,11 @@ object ScanSegmentSpec extends ZIOSpecDefault {
   // Codec: segment fields appear in the AWS ScanRequest
   // ---------------------------------------------------------------------------
 
-  private val codecSuite = suite("toScanSomeRequest codec")(
+  private val codecSuite = suite("toScanRequest codec")(
     test("segment(1, 4) sets segment=1 and totalSegments=4 on the SDK request") {
       var captured: ScanRequest = null
       run(
-        DynamoDBQuery.scanSome(table, limit = 50).segment(1, 4),
+        DynamoDBQuery.scan(table, limit = 50).segment(1, 4),
         req => { captured = req; ScanResponse.builder().build() }
       )
       assertTrue(
@@ -110,7 +110,7 @@ object ScanSegmentSpec extends ZIOSpecDefault {
     test("segment(0, 6) sets segment=0 and totalSegments=6") {
       var captured: ScanRequest = null
       run(
-        DynamoDBQuery.scanSome(table, limit = 50).segment(0, 6),
+        DynamoDBQuery.scan(table, limit = 50).segment(0, 6),
         req => { captured = req; ScanResponse.builder().build() }
       )
       assertTrue(
@@ -121,7 +121,7 @@ object ScanSegmentSpec extends ZIOSpecDefault {
     test("default (totalSegments=1) does not set segment or totalSegments on the SDK request") {
       var captured: ScanRequest = null
       run(
-        DynamoDBQuery.scanSome(table, limit = 50),
+        DynamoDBQuery.scan(table, limit = 50),
         req => { captured = req; ScanResponse.builder().build() }
       )
       assertTrue(
@@ -137,29 +137,29 @@ object ScanSegmentSpec extends ZIOSpecDefault {
 
   private val validationSuite = suite("interpreter validates segment parameters")(
     test("totalSegments=0 fails with ScanValidationError") {
-      val result = run(DynamoDBQuery.scanSome(table, limit = 50).segment(0, 0))
+      val result = run(DynamoDBQuery.scan(table, limit = 50).segment(0, 0))
       assert(result.failed.get)(isSubtype[ScanError.ScanValidationError](anything)) &&
       assertTrue(result.failed.get.getMessage.contains("totalSegments"))
     },
     test("segment >= totalSegments fails with ScanValidationError") {
-      val result = run(DynamoDBQuery.scanSome(table, limit = 50).segment(4, 4))
+      val result = run(DynamoDBQuery.scan(table, limit = 50).segment(4, 4))
       assert(result.failed.get)(isSubtype[ScanError.ScanValidationError](anything)) &&
       assertTrue(result.failed.get.getMessage.contains("segment=4"))
     },
     test("negative segment fails with ScanValidationError") {
-      val result = run(DynamoDBQuery.scanSome(table, limit = 50).segment(-1, 4))
+      val result = run(DynamoDBQuery.scan(table, limit = 50).segment(-1, 4))
       assert(result.failed.get)(isSubtype[ScanError.ScanValidationError](anything))
     },
     test("segment=0, totalSegments=1 (default) succeeds") {
-      val result = run(DynamoDBQuery.scanSome(table, limit = 50))
+      val result = run(DynamoDBQuery.scan(table, limit = 50))
       assertTrue(result.isSuccess)
     },
     test("segment=0, totalSegments=2 (minimum parallel) succeeds") {
-      val result = run(DynamoDBQuery.scanSome(table, limit = 50).segment(0, 2))
+      val result = run(DynamoDBQuery.scan(table, limit = 50).segment(0, 2))
       assertTrue(result.isSuccess)
     },
     test("last valid segment index succeeds") {
-      val result = run(DynamoDBQuery.scanSome(table, limit = 50).segment(3, 4))
+      val result = run(DynamoDBQuery.scan(table, limit = 50).segment(3, 4))
       assertTrue(result.isSuccess)
     }
   )

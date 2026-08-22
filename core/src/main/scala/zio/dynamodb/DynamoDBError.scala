@@ -56,7 +56,7 @@ object DynamoDBError {
 
   /**
    * Raised when a `DynamoDBQuery` builder modifier is applied to a query variant that doesn't
-   *  support it — e.g. `.where` (condition expressions) on a `scanSome`/`querySome`, or
+   *  support it — e.g. `.where` (condition expressions) on a `scan`/`query`, or
    *  `.filter` (filter expressions) on a `putItem`/`updateItem`/`deleteItem`. The query still
    *  builds successfully (this is only raised once the resulting query is executed) — the
    *  modifier call itself just becomes a [[DynamoDBQuery.Fail]] carrying this error, rather

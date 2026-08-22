@@ -46,26 +46,26 @@ object AwsCodecsMetadataSpec extends ZIOSpecDefault {
       }
     ),
 
-    suite("toQuerySomeRequest — consistency")(
+    suite("toQueryRequest — consistency")(
       test("Strong → consistentRead true") {
-        val q   = DynamoDBQuery.querySome(table, 10).consistency(ConsistencyMode.Strong)
-        val req = AwsCodecs.toQuerySomeRequest(q.asInstanceOf[DynamoDBQuery.QuerySome])
+        val q   = DynamoDBQuery.query(table, 10).consistency(ConsistencyMode.Strong)
+        val req = AwsCodecs.toQueryRequest(q.asInstanceOf[DynamoDBQuery.Query])
         assertTrue(req.consistentRead() == true)
       },
       test("Weak (default) → consistentRead false") {
-        val req = AwsCodecs.toQuerySomeRequest(DynamoDBQuery.querySome(table, 10).asInstanceOf[DynamoDBQuery.QuerySome])
+        val req = AwsCodecs.toQueryRequest(DynamoDBQuery.query(table, 10).asInstanceOf[DynamoDBQuery.Query])
         assertTrue(req.consistentRead() == false)
       }
     ),
 
-    suite("toScanSomeRequest — consistency")(
+    suite("toScanRequest — consistency")(
       test("Strong → consistentRead true") {
-        val q   = DynamoDBQuery.scanSome(table, 10).consistency(ConsistencyMode.Strong)
-        val req = AwsCodecs.toScanSomeRequest(q.asInstanceOf[DynamoDBQuery.ScanSome])
+        val q   = DynamoDBQuery.scan(table, 10).consistency(ConsistencyMode.Strong)
+        val req = AwsCodecs.toScanRequest(q.asInstanceOf[DynamoDBQuery.Scan])
         assertTrue(req.consistentRead() == true)
       },
       test("Weak (default) → consistentRead false") {
-        val req = AwsCodecs.toScanSomeRequest(DynamoDBQuery.scanSome(table, 10).asInstanceOf[DynamoDBQuery.ScanSome])
+        val req = AwsCodecs.toScanRequest(DynamoDBQuery.scan(table, 10).asInstanceOf[DynamoDBQuery.Scan])
         assertTrue(req.consistentRead() == false)
       }
     ),

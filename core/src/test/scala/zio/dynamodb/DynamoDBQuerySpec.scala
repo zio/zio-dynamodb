@@ -169,14 +169,14 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     test("DeleteItem defaults to None") {
       assertTrue(DeleteItem(table1, pk).capacity == noCapacity)
     },
-    test("ScanSome defaults to None") {
-      assert(DynamoDBQuery.scanSome(table1, 10))(
-        isSubtype[DynamoDBQuery.ScanSome](hasField("capacity", _.capacity, equalTo(noCapacity)))
+    test("Scan defaults to None") {
+      assert(DynamoDBQuery.scan(table1, 10))(
+        isSubtype[DynamoDBQuery.Scan](hasField("capacity", _.capacity, equalTo(noCapacity)))
       )
     },
-    test("QuerySome defaults to None") {
-      assert(DynamoDBQuery.querySome(table1, 10))(
-        isSubtype[DynamoDBQuery.QuerySome](hasField("capacity", _.capacity, equalTo(noCapacity)))
+    test("Query defaults to None") {
+      assert(DynamoDBQuery.query(table1, 10))(
+        isSubtype[DynamoDBQuery.Query](hasField("capacity", _.capacity, equalTo(noCapacity)))
       )
     },
     test("BatchGetItem defaults to None") {
@@ -202,14 +202,14 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
         isSubtype[DeleteItem](hasField("capacity", _.capacity, equalTo(total)))
       )
     },
-    test("capacity sets ScanSome") {
-      assert(DynamoDBQuery.scanSome(table1, 10).capacity(total))(
-        isSubtype[DynamoDBQuery.ScanSome](hasField("capacity", _.capacity, equalTo(total)))
+    test("capacity sets Scan") {
+      assert(DynamoDBQuery.scan(table1, 10).capacity(total))(
+        isSubtype[DynamoDBQuery.Scan](hasField("capacity", _.capacity, equalTo(total)))
       )
     },
-    test("capacity sets QuerySome") {
-      assert(DynamoDBQuery.querySome(table1, 10).capacity(total))(
-        isSubtype[DynamoDBQuery.QuerySome](hasField("capacity", _.capacity, equalTo(total)))
+    test("capacity sets Query") {
+      assert(DynamoDBQuery.query(table1, 10).capacity(total))(
+        isSubtype[DynamoDBQuery.Query](hasField("capacity", _.capacity, equalTo(total)))
       )
     },
     test("capacity sets BatchGetItem") {
@@ -262,16 +262,16 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     test("GetItem defaults to Weak") {
       assertTrue(GetItem(table1, pk).consistency == ConsistencyMode.Weak)
     },
-    test("ScanSome defaults to Weak") {
-      assert(DynamoDBQuery.scanSome(table1, 10))(
-        isSubtype[DynamoDBQuery.ScanSome](
+    test("Scan defaults to Weak") {
+      assert(DynamoDBQuery.scan(table1, 10))(
+        isSubtype[DynamoDBQuery.Scan](
           hasField("consistency", _.consistency, equalTo(ConsistencyMode.Weak: ConsistencyMode))
         )
       )
     },
-    test("QuerySome defaults to Weak") {
-      assert(DynamoDBQuery.querySome(table1, 10))(
-        isSubtype[DynamoDBQuery.QuerySome](
+    test("Query defaults to Weak") {
+      assert(DynamoDBQuery.query(table1, 10))(
+        isSubtype[DynamoDBQuery.Query](
           hasField("consistency", _.consistency, equalTo(ConsistencyMode.Weak: ConsistencyMode))
         )
       )
@@ -281,14 +281,14 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
         isSubtype[GetItem](hasField("consistency", _.consistency, equalTo(strong)))
       )
     },
-    test("consistency sets ScanSome") {
-      assert(DynamoDBQuery.scanSome(table1, 10).consistency(strong))(
-        isSubtype[DynamoDBQuery.ScanSome](hasField("consistency", _.consistency, equalTo(strong)))
+    test("consistency sets Scan") {
+      assert(DynamoDBQuery.scan(table1, 10).consistency(strong))(
+        isSubtype[DynamoDBQuery.Scan](hasField("consistency", _.consistency, equalTo(strong)))
       )
     },
-    test("consistency sets QuerySome") {
-      assert(DynamoDBQuery.querySome(table1, 10).consistency(strong))(
-        isSubtype[DynamoDBQuery.QuerySome](hasField("consistency", _.consistency, equalTo(strong)))
+    test("consistency sets Query") {
+      assert(DynamoDBQuery.query(table1, 10).consistency(strong))(
+        isSubtype[DynamoDBQuery.Query](hasField("consistency", _.consistency, equalTo(strong)))
       )
     },
     test("consistency propagates through ZipPar to both branches") {
@@ -413,62 +413,62 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
   private val someKey: Option[PrimaryKey] = Some(PrimaryKey("id" -> "a"))
 
   private val startKeySuite = suite("startKey")(
-    test("ScanSome defaults to None") {
-      assert(DynamoDBQuery.scanSome(table1, 10))(
-        isSubtype[DynamoDBQuery.ScanSome](
+    test("Scan defaults to None") {
+      assert(DynamoDBQuery.scan(table1, 10))(
+        isSubtype[DynamoDBQuery.Scan](
           hasField("exclusiveStartKey", _.exclusiveStartKey, equalTo(None: Option[PrimaryKey]))
         )
       )
     },
-    test("QuerySome defaults to None") {
-      assert(DynamoDBQuery.querySome(table1, 10))(
-        isSubtype[DynamoDBQuery.QuerySome](
+    test("Query defaults to None") {
+      assert(DynamoDBQuery.query(table1, 10))(
+        isSubtype[DynamoDBQuery.Query](
           hasField("exclusiveStartKey", _.exclusiveStartKey, equalTo(None: Option[PrimaryKey]))
         )
       )
     },
-    test("startKey sets ScanSome") {
-      assert(DynamoDBQuery.scanSome(table1, 10).startKey(someKey))(
-        isSubtype[DynamoDBQuery.ScanSome](hasField("exclusiveStartKey", _.exclusiveStartKey, equalTo(someKey)))
+    test("startKey sets Scan") {
+      assert(DynamoDBQuery.scan(table1, 10).startKey(someKey))(
+        isSubtype[DynamoDBQuery.Scan](hasField("exclusiveStartKey", _.exclusiveStartKey, equalTo(someKey)))
       )
     },
-    test("startKey sets QuerySome") {
-      assert(DynamoDBQuery.querySome(table1, 10).startKey(someKey))(
-        isSubtype[DynamoDBQuery.QuerySome](hasField("exclusiveStartKey", _.exclusiveStartKey, equalTo(someKey)))
+    test("startKey sets Query") {
+      assert(DynamoDBQuery.query(table1, 10).startKey(someKey))(
+        isSubtype[DynamoDBQuery.Query](hasField("exclusiveStartKey", _.exclusiveStartKey, equalTo(someKey)))
       )
     },
-    test("startKey(None) resets exclusiveStartKey on ScanSome") {
-      assert(DynamoDBQuery.scanSome(table1, 10).startKey(someKey).startKey(None))(
-        isSubtype[DynamoDBQuery.ScanSome](
+    test("startKey(None) resets exclusiveStartKey on Scan") {
+      assert(DynamoDBQuery.scan(table1, 10).startKey(someKey).startKey(None))(
+        isSubtype[DynamoDBQuery.Scan](
           hasField("exclusiveStartKey", _.exclusiveStartKey, equalTo(None: Option[PrimaryKey]))
         )
       )
     },
     test("startKey propagates through ZipPar to both branches") {
-      val q = (DynamoDBQuery.scanSome(table1, 10) zipPar DynamoDBQuery.scanSome(table2, 10)).startKey(someKey)
+      val q = (DynamoDBQuery.scan(table1, 10) zipPar DynamoDBQuery.scan(table2, 10)).startKey(someKey)
       assert(q)(
         isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
           hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
             "left",
             _.left,
-            isSubtype[DynamoDBQuery.ScanSome](hasField("exclusiveStartKey", _.exclusiveStartKey, equalTo(someKey)))
+            isSubtype[DynamoDBQuery.Scan](hasField("exclusiveStartKey", _.exclusiveStartKey, equalTo(someKey)))
           ) &&
             hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
               "right",
               _.right,
-              isSubtype[DynamoDBQuery.ScanSome](hasField("exclusiveStartKey", _.exclusiveStartKey, equalTo(someKey)))
+              isSubtype[DynamoDBQuery.Scan](hasField("exclusiveStartKey", _.exclusiveStartKey, equalTo(someKey)))
             )
         )
       )
     },
     test("startKey propagates through Map") {
-      val q = DynamoDBQuery.scanSome(table1, 10).map(identity).startKey(someKey)
+      val q = DynamoDBQuery.scan(table1, 10).map(identity).startKey(someKey)
       assert(q)(
         isSubtype[DynamoDBQuery.Map[_, _]](
           hasField(
             "query",
             _.query,
-            isSubtype[DynamoDBQuery.ScanSome](hasField("exclusiveStartKey", _.exclusiveStartKey, equalTo(someKey)))
+            isSubtype[DynamoDBQuery.Scan](hasField("exclusiveStartKey", _.exclusiveStartKey, equalTo(someKey)))
           )
         )
       )
@@ -480,50 +480,50 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
   )
 
   private val selectSuite = suite("select")(
-    test("selectCount sets Select.Count on ScanSome") {
-      assert(DynamoDBQuery.scanSome(table1, 10).selectCount)(
-        isSubtype[DynamoDBQuery.ScanSome](hasField("select", _.select, equalTo(Some(Select.Count): Option[Select])))
+    test("selectCount sets Select.Count on Scan") {
+      assert(DynamoDBQuery.scan(table1, 10).selectCount)(
+        isSubtype[DynamoDBQuery.Scan](hasField("select", _.select, equalTo(Some(Select.Count): Option[Select])))
       )
     },
-    test("selectCount sets Select.Count on QuerySome") {
-      assert(DynamoDBQuery.querySome(table1, 10).selectCount)(
-        isSubtype[DynamoDBQuery.QuerySome](hasField("select", _.select, equalTo(Some(Select.Count): Option[Select])))
+    test("selectCount sets Select.Count on Query") {
+      assert(DynamoDBQuery.query(table1, 10).selectCount)(
+        isSubtype[DynamoDBQuery.Query](hasField("select", _.select, equalTo(Some(Select.Count): Option[Select])))
       )
     },
-    test("selectAllAttributes sets Select.AllAttributes on ScanSome") {
-      assert(DynamoDBQuery.scanSome(table1, 10).selectAllAttributes)(
-        isSubtype[DynamoDBQuery.ScanSome](
+    test("selectAllAttributes sets Select.AllAttributes on Scan") {
+      assert(DynamoDBQuery.scan(table1, 10).selectAllAttributes)(
+        isSubtype[DynamoDBQuery.Scan](
           hasField("select", _.select, equalTo(Some(Select.AllAttributes): Option[Select]))
         )
       )
     },
-    test("selectAllProjectedAttributes sets Select.AllProjectedAttributes on QuerySome") {
-      assert(DynamoDBQuery.querySome(table1, 10).selectAllProjectedAttributes)(
-        isSubtype[DynamoDBQuery.QuerySome](
+    test("selectAllProjectedAttributes sets Select.AllProjectedAttributes on Query") {
+      assert(DynamoDBQuery.query(table1, 10).selectAllProjectedAttributes)(
+        isSubtype[DynamoDBQuery.Query](
           hasField("select", _.select, equalTo(Some(Select.AllProjectedAttributes): Option[Select]))
         )
       )
     },
-    test("selectSpecificAttributes sets Select.SpecificAttributes on ScanSome") {
-      assert(DynamoDBQuery.scanSome(table1, 10).selectSpecificAttributes)(
-        isSubtype[DynamoDBQuery.ScanSome](
+    test("selectSpecificAttributes sets Select.SpecificAttributes on Scan") {
+      assert(DynamoDBQuery.scan(table1, 10).selectSpecificAttributes)(
+        isSubtype[DynamoDBQuery.Scan](
           hasField("select", _.select, equalTo(Some(Select.SpecificAttributes): Option[Select]))
         )
       )
     },
     test("select propagates through ZipPar to both branches") {
-      val q = (DynamoDBQuery.scanSome(table1, 10) zipPar DynamoDBQuery.scanSome(table2, 10)).selectCount
+      val q = (DynamoDBQuery.scan(table1, 10) zipPar DynamoDBQuery.scan(table2, 10)).selectCount
       assert(q)(
         isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
           hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
             "left",
             _.left,
-            isSubtype[DynamoDBQuery.ScanSome](hasField("select", _.select, equalTo(Some(Select.Count): Option[Select])))
+            isSubtype[DynamoDBQuery.Scan](hasField("select", _.select, equalTo(Some(Select.Count): Option[Select])))
           ) &&
             hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
               "right",
               _.right,
-              isSubtype[DynamoDBQuery.ScanSome](
+              isSubtype[DynamoDBQuery.Scan](
                 hasField("select", _.select, equalTo(Some(Select.Count): Option[Select]))
               )
             )
@@ -531,13 +531,13 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
       )
     },
     test("select propagates through Map") {
-      val q = DynamoDBQuery.scanSome(table1, 10).map(identity).selectCount
+      val q = DynamoDBQuery.scan(table1, 10).map(identity).selectCount
       assert(q)(
         isSubtype[DynamoDBQuery.Map[_, _]](
           hasField(
             "query",
             _.query,
-            isSubtype[DynamoDBQuery.ScanSome](hasField("select", _.select, equalTo(Some(Select.Count): Option[Select])))
+            isSubtype[DynamoDBQuery.Scan](hasField("select", _.select, equalTo(Some(Select.Count): Option[Select])))
           )
         )
       )
