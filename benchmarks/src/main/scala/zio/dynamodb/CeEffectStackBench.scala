@@ -172,4 +172,14 @@ class CeEffectStackBench extends BaseBenchmark {
   @Benchmark def blocksPutPrebuilt: Option[Person] =
     interpreter.run(prebuiltPutQuery).unsafeRunSync()
 
+  // ── Construction-only (no run) — isolates DdbExprApi.get/put allocation ────
+
+  /** Construction only: DdbExprApi.get, never interpreted/run. Isolates query-building cost. */
+  @Benchmark def blocksGetConstructOnly: DynamoDBQuery[Person, Either[ItemError, Person]] =
+    DdbExprApi.get[Person](TABLE)(PersonOps.id.partitionKey === personId)
+
+  /** Construction only: DdbExprApi.put, never interpreted/run. Isolates query-building cost. */
+  @Benchmark def blocksPutConstructOnly: DynamoDBQuery[Person, Option[Person]] =
+    DdbExprApi.put(TABLE, person)
+
 }
