@@ -26,12 +26,13 @@ import scala.util.control.NoStackTrace
  * rather than exceptional JVM conditions — a stack trace would be noise, not signal.
  *
  * Sealed subtrees: [[DynamoDBError.ItemError]] (single-item decode/lookup failures),
- * [[DynamoDBError.ScanError]] (scan/query validation), and
+ * [[DynamoDBError.ScanError]] (scan/query validation),
  * [[DynamoDBError.TransactionError]] (`transactWriteItems`/`transactGetItems` failures,
  * including [[DynamoDBError.TransactionError.TransactionCancelled]]'s per-item
- * [[DynamoDBError.CancellationReason]]s). Batch operations deliberately don't raise
- * `DynamoDBError` for partial failure — see `Batch.GetResult`/`Batch.WriteResult`'s
- * errors-as-values design instead.
+ * [[DynamoDBError.CancellationReason]]s), and [[DynamoDBError.QueryBuilderError]] (a builder
+ * modifier applied to a `DynamoDBQuery` variant that doesn't support it, e.g. `.where` on a
+ * scan). Batch operations deliberately don't raise `DynamoDBError` for partial failure — see
+ * `Batch.GetResult`/`Batch.WriteResult`'s errors-as-values design instead.
  */
 sealed trait DynamoDBError extends Throwable with NoStackTrace with Product with Serializable {
   def message: String
@@ -39,8 +40,9 @@ sealed trait DynamoDBError extends Throwable with NoStackTrace with Product with
 }
 
 /**
- * The three [[DynamoDBError]] subtrees ([[DynamoDBError.ItemError]],
- * [[DynamoDBError.ScanError]], [[DynamoDBError.TransactionError]]) and their cases.
+ * The four [[DynamoDBError]] subtrees ([[DynamoDBError.ItemError]],
+ * [[DynamoDBError.ScanError]], [[DynamoDBError.TransactionError]],
+ * [[DynamoDBError.QueryBuilderError]]) and their cases.
  */
 object DynamoDBError {
 
@@ -50,6 +52,20 @@ object DynamoDBError {
 
   object ScanError {
     final case class ScanValidationError(message: String) extends ScanError
+  }
+
+  /**
+   * Raised when a `DynamoDBQuery` builder modifier is applied to a query variant that doesn't
+   *  support it — e.g. `.where` (condition expressions) on a `scanSome`/`querySome`, or
+   *  `.filter` (filter expressions) on a `putItem`/`updateItem`/`deleteItem`. The query still
+   *  builds successfully (this is only raised once the resulting query is executed) — the
+   *  modifier call itself just becomes a [[DynamoDBQuery.Fail]] carrying this error, rather
+   *  than silently returning the original query unchanged.
+   */
+  sealed trait QueryBuilderError extends DynamoDBError
+
+  object QueryBuilderError {
+    final case class UnsupportedModifier(message: String) extends QueryBuilderError
   }
 
   sealed trait TransactionError extends DynamoDBError

@@ -17,7 +17,7 @@
 package zio.dynamodb
 
 import zio.test._
-import zio.test.Assertion.{ anything, isSubtype }
+import zio.test.Assertion.{ anything, containsString, hasField, isSubtype }
 
 object MiscSpec extends ZIOSpecDefault {
 
@@ -181,11 +181,15 @@ object MiscSpec extends ZIOSpecDefault {
       val withKey = absolve.whereKey(pk === "val")
       assertTrue(withKey != null)
     },
-    test("whereKey on non-QuerySome returns self unchanged") {
+    test("whereKey on non-QuerySome fails with QueryBuilderError") {
       val q      = DynamoDBQuery.GetItem("t", PrimaryKey("id" -> "1"))
       val pk     = ProjectionExpression.$("id").partitionKey
       val result = q.whereKey(pk === "val")
-      assertTrue(result == q)
+      assert(result)(
+        isSubtype[DynamoDBQuery.Fail](
+          hasField("error", _.error(), isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](anything))
+        )
+      )
     },
     test("where on ZipPar propagates condition to both branches") {
       val q1                             = DynamoDBQuery.putItem("t1", Item("id" -> "1"))
@@ -209,11 +213,31 @@ object MiscSpec extends ZIOSpecDefault {
       val result                         = q.where(cond)
       assertTrue(result != null)
     },
-    test("where on non-matching query returns self") {
+    test("where on non-matching query fails with QueryBuilderError") {
       val q                              = DynamoDBQuery.GetItem("t", PrimaryKey("id" -> "1"))
       val cond: ConditionExpression[Any] = ProjectionExpression.$("id") === "1"
       val result                         = q.where(cond)
-      assertTrue(result == q)
+      assert(result)(
+        isSubtype[DynamoDBQuery.Fail](
+          hasField("error", _.error(), isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](anything))
+        )
+      )
+    },
+    test("where on scanSome fails with a message suggesting '.filter' (issue #748)") {
+      val q                              = DynamoDBQuery.scanSome("t", 10)
+      val cond: ConditionExpression[Any] = ProjectionExpression.$("id") === "1"
+      val result                         = q.where(cond)
+      assert(result)(
+        isSubtype[DynamoDBQuery.Fail](
+          hasField(
+            "error",
+            _.error(),
+            isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](
+              hasField("message", _.message, containsString("'.filter'"))
+            )
+          )
+        )
+      )
     },
     test("filter on ZipPar propagates filter to both branches") {
       val q1                          = DynamoDBQuery.QuerySome("t1", 10)
@@ -223,11 +247,31 @@ object MiscSpec extends ZIOSpecDefault {
       val withFilter                  = zipped.filter(filt)
       assertTrue(withFilter != null)
     },
-    test("filter on non-matching query returns self") {
+    test("filter on non-matching query fails with QueryBuilderError") {
       val q                           = DynamoDBQuery.GetItem("t", PrimaryKey("id" -> "1"))
       val filt: FilterExpression[Any] = ProjectionExpression.$("name") === "alice"
       val result                      = q.filter(filt)
-      assertTrue(result == q)
+      assert(result)(
+        isSubtype[DynamoDBQuery.Fail](
+          hasField("error", _.error(), isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](anything))
+        )
+      )
+    },
+    test("filter on putItem fails with a message suggesting '.where'") {
+      val q                           = DynamoDBQuery.putItem("t", Item("id" -> "1"))
+      val filt: FilterExpression[Any] = ProjectionExpression.$("name") === "alice"
+      val result                      = q.filter(filt)
+      assert(result)(
+        isSubtype[DynamoDBQuery.Fail](
+          hasField(
+            "error",
+            _.error(),
+            isSubtype[DynamoDBError.QueryBuilderError.UnsupportedModifier](
+              hasField("message", _.message, containsString("'.where'"))
+            )
+          )
+        )
+      )
     },
     test("DescribeTableResponse toString includes tableArn") {
       val r = DynamoDBQuery.DescribeTableResponse("arn:aws:test", DynamoDBQuery.TableStatus.Active, 100L, 5L)
