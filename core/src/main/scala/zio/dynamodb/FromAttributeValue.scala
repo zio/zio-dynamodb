@@ -162,7 +162,7 @@ object FromAttributeValue {
             val e = it.next()
             jm.put(e.getKey.asInstanceOf[AttributeValue.String].value, e.getValue.asInstanceOf[AttributeValue])
           }
-        case m                   =>
+        case m                    =>
           m.foreach { case (k, v) => jm.put(k.value, v) }
       }
       Right(AttrMap.fromJavaMap(jm))

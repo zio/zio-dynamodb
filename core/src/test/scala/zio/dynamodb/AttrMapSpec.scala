@@ -293,7 +293,7 @@ object AttrMapSpec extends ZIOSpecDefault {
       assertTrue(map.get(AttributeValue.String("y")).contains(AttributeValue.Null))
     },
     test("getNullable returns value for existing key") {
-      val map = JMapView.hash
+      val map  = JMapView.hash
         .builder[AttributeValue.String, AttributeValue]
         .addOne(AttributeValue.String("k"), AttributeValue.String("v"))
         .result
@@ -301,7 +301,7 @@ object AttrMapSpec extends ZIOSpecDefault {
       assertTrue(jmap.getNullable(AttributeValue.String("k")) == AttributeValue.String("v"))
     },
     test("getNullable returns null for missing key") {
-      val map = JMapView.hash.builder[AttributeValue.String, AttributeValue].result
+      val map  = JMapView.hash.builder[AttributeValue.String, AttributeValue].result
       val jmap = map.asInstanceOf[JMapView[AttributeValue.String, AttributeValue]]
       assertTrue(jmap.getNullable(AttributeValue.String("missing")) == null)
     },

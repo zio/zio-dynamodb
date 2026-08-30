@@ -34,7 +34,7 @@ final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFrom
         while (it.hasNext) {
           val e = it.next(); f(e.getKey.asInstanceOf[String], e.getValue.asInstanceOf[AttributeValue])
         }
-      case m                   =>
+      case m                    =>
         m.foreach { case (k, v) => f(k, v) }
     }
 
