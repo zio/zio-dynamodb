@@ -28,6 +28,7 @@ import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.blocks.ddbexpr.{ DdbExprApi, DdbKeyExpr }
 import zio.dynamodb.blocks.ddbexpr.DdbExprApi._
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
+import zio.dynamodb.blocks.ddbexpr.DdbExpr.OpticUpdateOps // .set on an optic — derivedCodec already in scope via DdbKeyExpr._
 import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
 
 import org.openjdk.jmh.annotations.{ Benchmark, Setup, Warmup }
@@ -60,6 +61,7 @@ class CeEffectStackBench extends BaseBenchmark {
   private val BIG_TABLE = "products"
   private val personId  = 12345678901L
   private val person    = Person(personId, "John", 30, Some("123 Main St"))
+  private val newName   = "Johnny"
 
   private val bigRecord = BigRecord.sample
   private val bigId     = bigRecord.id
@@ -78,6 +80,10 @@ class CeEffectStackBench extends BaseBenchmark {
 
   private val cannedPutResponse: PutItemResponse =
     PutItemResponse.builder().build()
+
+  // update returns ALL_NEW — the same 4-field Person item both libraries can decode.
+  private val cannedUpdateResponse: UpdateItemResponse =
+    UpdateItemResponse.builder().attributes(awsItem).build()
 
   // BigRecord canned GET responses — each library reads back a payload in its own
   // native wire shape, produced by that library's own encoder.
@@ -104,7 +110,7 @@ class CeEffectStackBench extends BaseBenchmark {
     def getItem(req: GetItemRequest): IO[GetItemResponse]                                  =
       IO.pure(if (req.tableName == BIG_TABLE) cannedGetResponseBigBlocks else cannedGetResponse)
     def putItem(req: PutItemRequest): IO[PutItemResponse]                                  = IO.pure(cannedPutResponse)
-    def updateItem(req: UpdateItemRequest): IO[UpdateItemResponse]                         = unsupported
+    def updateItem(req: UpdateItemRequest): IO[UpdateItemResponse]                         = IO.pure(cannedUpdateResponse)
     def deleteItem(req: DeleteItemRequest): IO[DeleteItemResponse]                         = unsupported
     def batchGetItem(req: BatchGetItemRequest): IO[BatchGetItemResponse]                   = unsupported
     def batchWriteItem(req: BatchWriteItemRequest): IO[BatchWriteItemResponse]             = unsupported
@@ -123,6 +129,7 @@ class CeEffectStackBench extends BaseBenchmark {
   private object PersonOps extends CompanionOptics[Person] {
     val id   = $(_.id)
     val name = $(_.name)
+    val age  = $(_.age)
   }
 
   private object BigRecordOps extends CompanionOptics[BigRecord] {
@@ -140,6 +147,7 @@ class CeEffectStackBench extends BaseBenchmark {
           if (args(0).asInstanceOf[GetItemRequest].tableName == BIG_TABLE) cannedGetResponseBigScanamo
           else cannedGetResponse
         case "putItem"     => cannedPutResponse
+        case "updateItem"  => cannedUpdateResponse
         case "serviceName" => "dynamodb"
         case "close"       => null
         case name          => throw new UnsupportedOperationException(s"Stub: $name not implemented")
@@ -163,12 +171,15 @@ class CeEffectStackBench extends BaseBenchmark {
 
   private var prebuiltGetQuery: DynamoDBQuery[Person, Either[ItemError, Person]]          = _
   private var prebuiltPutQuery: DynamoDBQuery[Person, Option[Person]]                     = _
+  private var prebuiltUpdateQuery: DynamoDBQuery[Person, Option[Person]]                  = _
   private var prebuiltBigGetQuery: DynamoDBQuery[BigRecord, Either[ItemError, BigRecord]] = _
   private var prebuiltBigPutQuery: DynamoDBQuery[BigRecord, Option[BigRecord]]            = _
 
   @Setup def setup(): Unit = {
     prebuiltGetQuery = DdbExprApi.get[Person](TABLE)(PersonOps.id.partitionKey === personId)
     prebuiltPutQuery = DdbExprApi.put(TABLE, person)
+    prebuiltUpdateQuery =
+      DdbExprApi.update[Person](TABLE)(PersonOps.id.partitionKey === personId)(PersonOps.name.set(newName))
     prebuiltBigGetQuery = DdbExprApi.get[BigRecord](BIG_TABLE)(BigRecordOps.id.partitionKey === bigId)
     prebuiltBigPutQuery = DdbExprApi.put(BIG_TABLE, bigRecord)
   }
@@ -214,6 +225,30 @@ class CeEffectStackBench extends BaseBenchmark {
   /** Construction only: DdbExprApi.put, never interpreted/run. Isolates query-building cost. */
   @Benchmark def blocksPutConstructOnly: DynamoDBQuery[Person, Option[Person]] =
     DdbExprApi.put(TABLE, person)
+
+  // ── update — the only op that renders a full UpdateExpression per call ──────
+  // (expression string + ExpressionAttributeNames/Values alias maps). get renders
+  // nothing, put sends the whole item; update's rendering cost is otherwise unmeasured.
+
+  @Benchmark def blocksUpdate: Option[Person] =
+    interpreter
+      .run(DdbExprApi.update[Person](TABLE)(PersonOps.id.partitionKey === personId)(PersonOps.name.set(newName)))
+      .unsafeRunSync()
+
+  @Benchmark def scanamoUpdate: Either[ScanamoError, Person] =
+    IO.delay(scanamo.exec(scanamoTable.update("id" === personId, set("name" -> newName)))).unsafeRunSync()
+
+  @Benchmark def blocksUpdatePrebuilt: Option[Person] =
+    interpreter.run(prebuiltUpdateQuery).unsafeRunSync()
+
+  @Benchmark def blocksUpdateConstructOnly: DynamoDBQuery[Person, Option[Person]] =
+    DdbExprApi.update[Person](TABLE)(PersonOps.id.partitionKey === personId)(PersonOps.name.set(newName))
+
+  /** Construction only, with a condition — isolates the extra `.where` ConditionExpression cost. */
+  @Benchmark def blocksUpdateConditionalConstructOnly: DynamoDBQuery[Person, Option[Person]] =
+    DdbExprApi
+      .update[Person](TABLE)(PersonOps.id.partitionKey === personId)(PersonOps.name.set(newName))
+      .where(PersonOps.age > 0)
 
   // ── BigRecord (~26 fields, nested + sum types) — realistic-payload variants ─
 
