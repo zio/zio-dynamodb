@@ -81,9 +81,17 @@ class CeEffectStackBench extends BaseBenchmark {
   private val cannedPutResponse: PutItemResponse =
     PutItemResponse.builder().build()
 
-  // update returns ALL_NEW — the same 4-field Person item both libraries can decode.
+  // update returns ALL_NEW — the Person after the SET action (`name` = newName), so the
+  // fixture is a response DynamoDB could actually produce for the update under test.
+  private val awsItemAfterUpdate: java.util.Map[String, AttributeValue] = Map(
+    "id"      -> AttributeValue.builder().n(personId.toString).build(),
+    "name"    -> AttributeValue.builder().s(newName).build(),
+    "age"     -> AttributeValue.builder().n("30").build(),
+    "address" -> AttributeValue.builder().s("123 Main St").build()
+  ).asJava
+
   private val cannedUpdateResponse: UpdateItemResponse =
-    UpdateItemResponse.builder().attributes(awsItem).build()
+    UpdateItemResponse.builder().attributes(awsItemAfterUpdate).build()
 
   // BigRecord canned GET responses — each library reads back a payload in its own
   // native wire shape, produced by that library's own encoder.
