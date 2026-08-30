@@ -29,12 +29,12 @@ final case class AttrMap(map: Map[String, AttributeValue]) extends GeneratedFrom
 
   private[dynamodb] def foreachEntry(f: (String, AttributeValue) => Unit): Unit =
     map match {
-      case jmv: JMapView[_, _] =>
-        val it = jmv.underlying.entrySet().iterator()
+      case jmap: JMapView[_, _] =>
+        val it = jmap.underlying.entrySet().iterator()
         while (it.hasNext) {
           val e = it.next(); f(e.getKey.asInstanceOf[String], e.getValue.asInstanceOf[AttributeValue])
         }
-      case m                   =>
+      case m                    =>
         m.foreach { case (k, v) => f(k, v) }
     }
 

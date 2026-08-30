@@ -19,6 +19,8 @@ package zio.dynamodb
 import zio.dynamodb.DynamoDBError.ItemError.DecodingError
 import Utils.ListUtils
 
+import java.util.{ HashMap => JHashMap }
+
 /**
  * The decode-side counterpart to [[ToAttributeValue]] — converts a wire-level
  * [[AttributeValue]] back into a Scala value, used by the Low-Level API's item-reading
@@ -149,7 +151,21 @@ object FromAttributeValue {
 
   implicit val attrMapFromAttributeValue: FromAttributeValue[AttrMap] = {
     case AttributeValue.Map(map) =>
-      Right(new AttrMap(map.toMap.map { case (k, v) => k.value -> v }))
+      // Unwrap the AttributeValue.String keys to plain String in a single pass into a
+      // JHashMap, then wrap it (no copy) via AttrMap.fromJavaMap — rather than building
+      // two throwaway immutable maps (`.toMap` then `.map`).
+      val jm = new JHashMap[String, AttributeValue](map.size * 2)
+      map match {
+        case jmap: JMapView[_, _] =>
+          val it = jmap.underlying.entrySet().iterator()
+          while (it.hasNext) {
+            val e = it.next()
+            jm.put(e.getKey.asInstanceOf[AttributeValue.String].value, e.getValue.asInstanceOf[AttributeValue])
+          }
+        case m                    =>
+          m.foreach { case (k, v) => jm.put(k.value, v) }
+      }
+      Right(AttrMap.fromJavaMap(jm))
     case av                      => Left(DecodingError(s"Error getting AttrMap value. Expected AttributeValue.Map but found ${av.showType}"))
   }
 

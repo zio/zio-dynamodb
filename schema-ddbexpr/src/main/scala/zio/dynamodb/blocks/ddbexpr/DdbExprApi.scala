@@ -93,20 +93,20 @@ trait DdbExprApiSyntax {
 
   private val codecCache = new ConcurrentHashMap[CodecCacheKey, CodecEntry[_]]()
 
-  private def cachedEntry[A](implicit schema: Schema[A], cfg: DynamoDBCodecDeriverConfigure[A]): CodecEntry[A] = {
-    val key      = new CodecCacheKey(schema, cfg)
-    val existing = codecCache.get(key)
-    if (existing != null) existing.asInstanceOf[CodecEntry[A]]
-    else {
-      val codec       = schema.deriving(cfg.configure(DynamoDBCodecDeriver)).derive
-      val projections = codec.recordFieldNames.map(name =>
-        ProjectionExpression.MapElement(ProjectionExpression.Root, name): ProjectionExpression[_, _]
+  private def cachedEntry[A](implicit schema: Schema[A], cfg: DynamoDBCodecDeriverConfigure[A]): CodecEntry[A] =
+    // computeIfAbsent so a cold key derives exactly once rather than every racing thread
+    // running the full derivation before putIfAbsent picks a winner.
+    codecCache
+      .computeIfAbsent(
+        new CodecCacheKey(schema, cfg),
+        _ => {
+          val codec       = schema.deriving(cfg.configure(DynamoDBCodecDeriver)).derive
+          val projections = codec.recordFieldNames
+            .map(name => ProjectionExpression.MapElement(ProjectionExpression.Root, name): ProjectionExpression[_, _])
+          CodecEntry(codec, projections)
+        }
       )
-      val entry       = CodecEntry(codec, projections)
-      codecCache.putIfAbsent(key, entry)
-      codecCache.get(key).asInstanceOf[CodecEntry[A]]
-    }
-  }
+      .asInstanceOf[CodecEntry[A]]
 
   // ── Item helpers ──────────────────────────────────────────────────────────────
 
