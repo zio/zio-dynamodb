@@ -190,4 +190,110 @@ object BenchmarkDomain {
   val zioSchemaDecoder: Decoder[Person] = Codec.decoder[Person](zioSchema)
 
   val zioBlocksCodec: DynamoDBCodec[Person] = Schema.derived.deriving(DynamoDBCodecDeriver).derive
+
+  // ── Large, nested, sum-typed record ──────────────────────────────────────
+  // ~26 top-level fields, 5 distinct nested case-class types, 3 sum types
+  // (a pure enumeration, a mixed data/object union, and a data-carrying union),
+  // Options, List, Vector and Map. Used by CeEffectStackBench to compare get/put
+  // on a realistic payload rather than the flat 4-field Person.
+
+  sealed trait Priority
+  object Priority {
+    case object Low      extends Priority
+    case object Medium   extends Priority
+    case object High     extends Priority
+    case object Critical extends Priority
+    implicit val schema: Schema[Priority] = Schema.derived
+  }
+
+  sealed trait Fulfilment
+  object Fulfilment {
+    final case class Warehouse(code: String)                 extends Fulfilment
+    final case class DropShip(vendor: String, leadDays: Int) extends Fulfilment
+    case object Pickup                                       extends Fulfilment
+    implicit val schema: Schema[Fulfilment] = Schema.derived
+  }
+
+  sealed trait Contact
+  object Contact {
+    final case class Email(address: String)                  extends Contact
+    final case class Phone(number: String, ext: Option[Int]) extends Contact
+    implicit val schema: Schema[Contact] = Schema.derived
+  }
+
+  final case class Address(street: String, city: String, state: String, zip: String, country: String)
+  object Address { implicit val schema: Schema[Address] = Schema.derived }
+
+  final case class GeoPoint(lat: Double, lng: Double)
+  object GeoPoint { implicit val schema: Schema[GeoPoint] = Schema.derived }
+
+  final case class AuditInfo(createdBy: String, createdAt: Long, updatedBy: String, updatedAt: Long, version: Int)
+  object AuditInfo { implicit val schema: Schema[AuditInfo] = Schema.derived }
+
+  final case class Money(currency: String, amountMinor: Long)
+  object Money { implicit val schema: Schema[Money] = Schema.derived }
+
+  final case class Dimensions(widthMm: Int, heightMm: Int, depthMm: Int, weightG: Long)
+  object Dimensions { implicit val schema: Schema[Dimensions] = Schema.derived }
+
+  final case class BigRecord(
+    id: Long,
+    sku: String,
+    name: String,
+    description: String,
+    category: String,
+    subCategory: String,
+    brand: String,
+    priority: Priority,
+    fulfilment: Fulfilment,
+    primaryContact: Contact,
+    secondaryContact: Option[Contact],
+    billingAddress: Address,
+    shippingAddress: Option[Address],
+    location: GeoPoint,
+    audit: AuditInfo,
+    price: Money,
+    cost: Money,
+    dimensions: Dimensions,
+    tags: List[String],
+    ratings: Vector[Int],
+    attributes: Map[String, String],
+    quantityOnHand: Int,
+    reorderPoint: Int,
+    discontinued: Boolean,
+    averageRating: Double,
+    notes: Option[String]
+  )
+  object BigRecord {
+    implicit val blocksSchema: Schema[BigRecord] = Schema.derived
+
+    val sample: BigRecord = BigRecord(
+      id = 999000111222L,
+      sku = "SKU-ABC-12345",
+      name = "Widget Assembly, Deluxe",
+      description = "A deluxe widget assembly with reinforced housing and extended warranty.",
+      category = "Hardware",
+      subCategory = "Assemblies",
+      brand = "Acme",
+      priority = Priority.High,
+      fulfilment = Fulfilment.DropShip("vendor-42", leadDays = 5),
+      primaryContact = Contact.Email("sales@example.com"),
+      secondaryContact = Some(Contact.Phone("+1-555-0100", ext = Some(220))),
+      billingAddress = Address("1 Market St", "San Francisco", "CA", "94105", "US"),
+      shippingAddress = Some(Address("500 Terry A Francois Blvd", "San Francisco", "CA", "94158", "US")),
+      location = GeoPoint(37.7749, -122.4194),
+      audit = AuditInfo("import-job", 1_724_000_000_000L, "ops-user", 1_724_900_000_000L, version = 7),
+      price = Money("USD", amountMinor = 129_99L),
+      cost = Money("USD", amountMinor = 74_50L),
+      dimensions = Dimensions(widthMm = 320, heightMm = 180, depthMm = 95, weightG = 2_400L),
+      tags = List("featured", "clearance", "bulk-eligible"),
+      ratings = Vector(5, 4, 5, 3, 5, 4),
+      attributes = Map("colour" -> "graphite", "material" -> "aluminium", "finish" -> "matte"),
+      quantityOnHand = 1_284,
+      reorderPoint = 200,
+      discontinued = false,
+      averageRating = 4.33,
+      notes = Some("Palletised; 24 units per pallet.")
+    )
+  }
 }
