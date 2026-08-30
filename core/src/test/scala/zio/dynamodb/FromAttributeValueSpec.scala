@@ -200,6 +200,21 @@ object FromAttributeValueSpec extends ZIOSpecDefault {
         val result = from[AttrMap](AttributeValue.Map(map))
         assertTrue(result.map(_.map.get("id")).contains(Some(AttributeValue.String("1"))))
       },
+      test("decodes a JMapView-backed AttributeValue.Map (the shape the codec encoder produces)") {
+        val backing = JMapView.hash
+          .builder[AttributeValue.String, AttributeValue]
+          .addOne(AttributeValue.String("id"), AttributeValue.String("1"))
+          .addOne(AttributeValue.String("age"), AttributeValue.Number(BigDecimal(30)))
+          .result
+        val result  = from[AttrMap](AttributeValue.Map(backing))
+        assertTrue(
+          result.map(_.map.get("id")).contains(Some(AttributeValue.String("1"))),
+          result.map(_.map.get("age")).contains(Some(AttributeValue.Number(BigDecimal(30)))),
+          result.map(_.map.size).contains(2),
+          // the fast path wraps the unwrapped keys straight into a JMapView, no immutable Map copy
+          result.exists(_.map.isInstanceOf[JMapView[_, _]])
+        )
+      },
       test("error on wrong type") {
         assertTrue(from[AttrMap](AttributeValue.String("x")).isLeft)
       }

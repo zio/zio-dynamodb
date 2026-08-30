@@ -34,14 +34,10 @@ trait DerivedCodecSyntax {
   implicit def derivedCodec[A](implicit
     schema: Schema[A],
     cfg: DynamoDBCodecDeriverConfigure[A]
-  ): DynamoDBCodec[A] = {
-    val key      = new CodecCacheKey(schema, cfg)
-    val existing = codecCache.get(key)
-    if (existing != null) existing.asInstanceOf[DynamoDBCodec[A]]
-    else {
-      val codec = schema.deriving(cfg.configure(DynamoDBCodecDeriver)).derive
-      codecCache.putIfAbsent(key, codec)
-      codecCache.get(key).asInstanceOf[DynamoDBCodec[A]]
-    }
-  }
+  ): DynamoDBCodec[A] =
+    // computeIfAbsent so a cold key derives exactly once rather than every racing thread
+    // running the full derivation before putIfAbsent picks a winner.
+    codecCache
+      .computeIfAbsent(new CodecCacheKey(schema, cfg), _ => schema.deriving(cfg.configure(DynamoDBCodecDeriver)).derive)
+      .asInstanceOf[DynamoDBCodec[A]]
 }
