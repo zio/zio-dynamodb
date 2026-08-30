@@ -28,6 +28,7 @@ import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.blocks.ddbexpr.{ DdbExprApi, DdbKeyExpr }
 import zio.dynamodb.blocks.ddbexpr.DdbExprApi._
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
+import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
 
 import org.openjdk.jmh.annotations.{ Benchmark, Setup, Warmup }
 import java.lang.reflect.{ InvocationHandler, Method, Proxy }
@@ -55,9 +56,13 @@ import scala.collection.JavaConverters._
 @Warmup(iterations = 10, time = 1, timeUnit = java.util.concurrent.TimeUnit.SECONDS)
 class CeEffectStackBench extends BaseBenchmark {
 
-  private val TABLE    = "users"
-  private val personId = 12345678901L
-  private val person   = Person(personId, "John", 30, Some("123 Main St"))
+  private val TABLE     = "users"
+  private val BIG_TABLE = "products"
+  private val personId  = 12345678901L
+  private val person    = Person(personId, "John", 30, Some("123 Main St"))
+
+  private val bigRecord = BigRecord.sample
+  private val bigId     = bigRecord.id
 
   // ── Canned AWS responses ────────────────────────────────────────────────
 
@@ -74,13 +79,30 @@ class CeEffectStackBench extends BaseBenchmark {
   private val cannedPutResponse: PutItemResponse =
     PutItemResponse.builder().build()
 
+  // BigRecord canned GET responses — each library reads back a payload in its own
+  // native wire shape, produced by that library's own encoder.
+  private val zioBlocksBigCodec: DynamoDBCodec[BigRecord] =
+    BigRecord.blocksSchema.deriving(DynamoDBCodecDeriver).derive
+
+  private val bigItemBlocks: Item =
+    FromAttributeValue.attrMapFromAttributeValue
+      .fromAttributeValue(zioBlocksBigCodec.encoder(bigRecord))
+      .fold(e => sys.error(s"blocks BigRecord encode failed: $e"), identity)
+
+  private val cannedGetResponseBigBlocks: GetItemResponse =
+    GetItemResponse.builder().item(AwsCodecs.toAwsItem(bigItemBlocks)).build()
+
+  private val cannedGetResponseBigScanamo: GetItemResponse =
+    GetItemResponse.builder().item(ScanamoCodec.bigRecord.write(bigRecord).toAttributeValue.m()).build()
+
   // ── blocks-dynamodb CE interpreter ─────────────────────────────────────
 
   // Stub AwsDynamoDB[IO]: returns canned responses as already-completed IO.pure
   // values — zero async dispatch, isolates effect-stack overhead.
   private val stubDynamo: AwsDynamoDB[IO] = new AwsDynamoDB[IO] {
     private def unsupported                                                                = IO.raiseError[Nothing](new UnsupportedOperationException("stub"))
-    def getItem(req: GetItemRequest): IO[GetItemResponse]                                  = IO.pure(cannedGetResponse)
+    def getItem(req: GetItemRequest): IO[GetItemResponse]                                  =
+      IO.pure(if (req.tableName == BIG_TABLE) cannedGetResponseBigBlocks else cannedGetResponse)
     def putItem(req: PutItemRequest): IO[PutItemResponse]                                  = IO.pure(cannedPutResponse)
     def updateItem(req: UpdateItemRequest): IO[UpdateItemResponse]                         = unsupported
     def deleteItem(req: DeleteItemRequest): IO[DeleteItemResponse]                         = unsupported
@@ -103,6 +125,10 @@ class CeEffectStackBench extends BaseBenchmark {
     val name = $(_.name)
   }
 
+  private object BigRecordOps extends CompanionOptics[BigRecord] {
+    val id = $(_.id)
+  }
+
   // ── Scanamo sync wrapped in IO.delay ────────────────────────────────────
 
   // Stub DynamoDbClient (sync) via Java Proxy — only getItem / putItem need to
@@ -110,7 +136,9 @@ class CeEffectStackBench extends BaseBenchmark {
   private val stubSyncHandler: InvocationHandler = new InvocationHandler {
     def invoke(proxy: Any, method: Method, args: Array[AnyRef]): AnyRef =
       method.getName match {
-        case "getItem"     => cannedGetResponse
+        case "getItem"     =>
+          if (args(0).asInstanceOf[GetItemRequest].tableName == BIG_TABLE) cannedGetResponseBigScanamo
+          else cannedGetResponse
         case "putItem"     => cannedPutResponse
         case "serviceName" => "dynamodb"
         case "close"       => null
@@ -128,16 +156,21 @@ class CeEffectStackBench extends BaseBenchmark {
 
   private val scanamo = Scanamo(stubSyncClient)
 
-  private val scanamoTable = Table[Person](TABLE)(ScanamoCodec.person)
+  private val scanamoTable    = Table[Person](TABLE)(ScanamoCodec.person)
+  private val bigScanamoTable = Table[BigRecord](BIG_TABLE)(ScanamoCodec.bigRecord)
 
   // ── Step 2: pre-built queries (set in @Setup) ───────────────────────────
 
-  private var prebuiltGetQuery: DynamoDBQuery[Person, Either[ItemError, Person]] = _
-  private var prebuiltPutQuery: DynamoDBQuery[Person, Option[Person]]            = _
+  private var prebuiltGetQuery: DynamoDBQuery[Person, Either[ItemError, Person]]          = _
+  private var prebuiltPutQuery: DynamoDBQuery[Person, Option[Person]]                     = _
+  private var prebuiltBigGetQuery: DynamoDBQuery[BigRecord, Either[ItemError, BigRecord]] = _
+  private var prebuiltBigPutQuery: DynamoDBQuery[BigRecord, Option[BigRecord]]            = _
 
   @Setup def setup(): Unit = {
     prebuiltGetQuery = DdbExprApi.get[Person](TABLE)(PersonOps.id.partitionKey === personId)
     prebuiltPutQuery = DdbExprApi.put(TABLE, person)
+    prebuiltBigGetQuery = DdbExprApi.get[BigRecord](BIG_TABLE)(BigRecordOps.id.partitionKey === bigId)
+    prebuiltBigPutQuery = DdbExprApi.put(BIG_TABLE, bigRecord)
   }
 
   // ── Benchmarks ──────────────────────────────────────────────────────────
@@ -181,5 +214,35 @@ class CeEffectStackBench extends BaseBenchmark {
   /** Construction only: DdbExprApi.put, never interpreted/run. Isolates query-building cost. */
   @Benchmark def blocksPutConstructOnly: DynamoDBQuery[Person, Option[Person]] =
     DdbExprApi.put(TABLE, person)
+
+  // ── BigRecord (~26 fields, nested + sum types) — realistic-payload variants ─
+
+  @Benchmark def blocksGetBig: Either[ItemError, BigRecord] =
+    interpreter
+      .run(DdbExprApi.get[BigRecord](BIG_TABLE)(BigRecordOps.id.partitionKey === bigId))
+      .unsafeRunSync()
+
+  @Benchmark def blocksPutBig: Option[BigRecord] =
+    interpreter
+      .run(DdbExprApi.put(BIG_TABLE, bigRecord))
+      .unsafeRunSync()
+
+  @Benchmark def scanamoGetBig: Option[Either[DynamoReadError, BigRecord]] =
+    IO.delay(scanamo.exec(bigScanamoTable.get("id" === bigId))).unsafeRunSync()
+
+  @Benchmark def scanamoPutBig: Unit =
+    IO.delay(scanamo.exec(bigScanamoTable.put(bigRecord))).unsafeRunSync()
+
+  @Benchmark def blocksGetBigPrebuilt: Either[ItemError, BigRecord] =
+    interpreter.run(prebuiltBigGetQuery).unsafeRunSync()
+
+  @Benchmark def blocksPutBigPrebuilt: Option[BigRecord] =
+    interpreter.run(prebuiltBigPutQuery).unsafeRunSync()
+
+  @Benchmark def blocksGetBigConstructOnly: DynamoDBQuery[BigRecord, Either[ItemError, BigRecord]] =
+    DdbExprApi.get[BigRecord](BIG_TABLE)(BigRecordOps.id.partitionKey === bigId)
+
+  @Benchmark def blocksPutBigConstructOnly: DynamoDBQuery[BigRecord, Option[BigRecord]] =
+    DdbExprApi.put(BIG_TABLE, bigRecord)
 
 }

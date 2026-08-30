@@ -25,4 +25,16 @@ object ScanamoCodec {
   implicit val trafficLight: DynamoFormat[TrafficLight]   = deriveDynamoFormat
   implicit val tuple: DynamoFormat[(Int, Long, String)]   = deriveDynamoFormat
   implicit val person: DynamoFormat[Person]               = deriveDynamoFormat
+
+  // BigRecord and its nested/sum members — leaves first so the implicit vals are
+  // initialised before deriveDynamoFormat[BigRecord] references them.
+  implicit val priority: DynamoFormat[Priority]     = deriveDynamoFormat
+  implicit val fulfilment: DynamoFormat[Fulfilment] = deriveDynamoFormat
+  implicit val contact: DynamoFormat[Contact]       = deriveDynamoFormat
+  implicit val address: DynamoFormat[Address]       = deriveDynamoFormat
+  implicit val geoPoint: DynamoFormat[GeoPoint]     = deriveDynamoFormat
+  implicit val auditInfo: DynamoFormat[AuditInfo]   = deriveDynamoFormat
+  implicit val money: DynamoFormat[Money]           = deriveDynamoFormat
+  implicit val dimensions: DynamoFormat[Dimensions] = deriveDynamoFormat
+  implicit val bigRecord: DynamoFormat[BigRecord]   = deriveDynamoFormat
 }
