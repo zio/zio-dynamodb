@@ -113,7 +113,7 @@ expect — reading `interp.run(query)` doesn't tell you whether a batch result n
 top before you know if it actually succeeded. Worth calling out explicitly once, here, rather
 than a surprise the first time it comes up.
 
-## Why no High-Level batch API
+## Why no High-Level batch or transaction API
 
 There's no schema-derived `batch`/`batchGet` in `DdbExprApi`/`dsl` — batch stays Low-Level
 only. Once a batch call can come back `Incomplete`, the caller has to decide what to do about
@@ -127,3 +127,15 @@ The building blocks — `batchGetItem`/`batchWriteItem`, `RetryPolicy`, `Batch.G
 [`ZIOStreamingUtils.batchGetItems`](../examples.md) in the `examples` module for a worked
 example: batching a stream of keys, running each batch with a retry policy, and turning
 `Incomplete`/`Failed` into log output rather than a fatal error.
+
+The same reasoning covers **transactions**. `transactWriteItems` is all-or-nothing (no
+partial-failure shape to model) and `transactGetItems` returns a positional
+`Chunk[Option[Item]]` spanning tables — a schema-typed wrapper would have to pick a result
+shape (grouped? tuple? per-position?) for a call whose point is heterogeneity. Build both
+from the Low-Level constructors.
+
+To type the raw `Item`s that come back — from a `Batch.GetResult` or a `transactGetItems`
+chunk — call `Table#decode` / `Table#encode` on the same `Table` value you use for
+High-Level `get`/`put`. That reuses the table's configured, cached codec, so the
+hand-rolled path stays consistent with the rest of your High-Level code instead of
+re-deriving a codec by hand.

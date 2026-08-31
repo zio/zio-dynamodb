@@ -165,9 +165,13 @@ fields (`Order.status === Status.Pending` above) — the interpreter derives the
 
 ## Transactions
 
-There's no High-Level transaction API yet — that's a gap in what's been built so far, not a
-design restriction. Build transaction sub-operations with the Low-Level constructors instead,
-even in code that otherwise uses the High-Level API throughout:
+Transactions (`transactGetItems` / `transactWriteItems`) are Low-Level only, the same
+deliberate choice as [batch](batch.md#why-no-high-level-batch-or-transaction-api):
+`transactWriteItems` is all-or-nothing and `transactGetItems` returns a positional
+`Chunk[Option[Item]]` spanning tables, so a schema-typed wrapper would have to pick a
+result shape and failure policy for a call whose point is heterogeneity. Build the
+sub-operations with the Low-Level constructors, even in code that otherwise uses the
+High-Level API throughout:
 
 ```scala mdoc:compile-only
 import zio.dynamodb._
@@ -182,4 +186,22 @@ def example(implicit interp: Interpreter[zio.Task]) =
       )
     )
     .execute
+```
+
+For the read side, decode each returned `Item` with the same `Table` you pass to `get` —
+`orders.decode(item)` — so the typed result uses the same codec configuration as the rest
+of your High-Level code:
+
+```scala mdoc:compile-only
+import zio.dynamodb._
+import zio.dynamodb.ExecuteSyntax.*
+import zio.dynamodb.blocks.ddbexpr.dsl.*
+
+def readExample(implicit interp: Interpreter[zio.Task]) =
+  DynamoDBQuery
+    .transactGetItems(
+      DynamoDBQuery.GetItem("orders", PrimaryKey("customerId" -> "cust-42", "orderId" -> "ord-1"))
+    )
+    .execute
+    .map(_.collect { case Some(item) => orders.decode(item) })
 ```

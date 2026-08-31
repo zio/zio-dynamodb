@@ -45,7 +45,7 @@ using `TestClock`, not just compiled.
 `batchGetItems` — grouping a `ZStream` of primary keys into `BatchGetItem` batches of up to
 100, running each through `interp.run` with a `RetryPolicy`, and turning
 `Incomplete`/`Failed` batch outcomes into log output instead of a fatal stream error. See
-[Batch Operations](crud/batch.md#why-no-high-level-batch-api) for why this lives here rather
+[Batch Operations](crud/batch.md#why-no-high-level-batch-or-transaction-api) for why this lives here rather
 than as a library-provided API. Backed by a real `ZIOSpecDefault` test
 (`ZIOStreamingUtilsSpec`) against a stub interpreter.
 
