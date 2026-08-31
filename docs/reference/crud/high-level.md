@@ -33,9 +33,37 @@ object Order extends CompanionOptics[Order] {
   val total: Lens[Order, Double]      = $(_.total)
   val status: Lens[Order, Status]     = $(_.status)
 }
+
+val orders = Table[Order]("orders")
 ```
 
-The rest of this page assumes `Order`/`Status` as defined above, matching the
+Each operation takes a `Table[A]` rather than a table-name `String`: build one
+`Table[Order]("orders")` and pass it to `get`/`put`/`query`/… . `Schema[Order]` is the only
+implicit needed (it comes from `derives Schema`); the row codec is derived once and held on
+the value. Passing the `Table` is also what lets the element type be inferred for
+`query`/`scan`, which name it nowhere else.
+
+### Configuring the codec
+
+Attach deriver configuration to the `Table` with `.deriving` — no implicit
+`DynamoDBCodecDeriverConfigure` in scope, the config is on the value:
+
+```scala mdoc:compile-only
+import zio.dynamodb.blocks.ddbexpr.dsl.*
+import zio.blocks.schema.NameMapper
+
+val ordersSnake =
+  Table[Order]("orders").deriving(
+    _.withFieldNameMapper(NameMapper.SnakeCase).withEnumValuesAsStrings(false)
+  )
+```
+
+Order deriver-wide flags (`withFieldNameMapper`, `withEnumValuesAsStrings`,
+`withSchema1TupleCompatibility`, …) before any per-field `withModifier` / `withInstance`
+in the lambda. `.deriving` replaces rather than composes — express the whole config in one
+call.
+
+The rest of this page assumes `Order`/`Status`/`orders` as defined above, matching the
 `examples` module's [`OrdersCE`/`OrdersZio`](../examples.md).
 
 ## Get
@@ -46,7 +74,7 @@ import zio.dynamodb.ExecuteSyntax.*
 import zio.dynamodb.blocks.ddbexpr.dsl.*
 
 def example(implicit interp: Interpreter[zio.Task]) =
-  get[Order]("orders")(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1").execute
+  get(orders)(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1").execute
 ```
 
 `get` returns `Either[DynamoDBError.ItemError, Order]`, not `Option[Order]` — a missing item
@@ -61,7 +89,7 @@ import zio.dynamodb.ExecuteSyntax.*
 import zio.dynamodb.blocks.ddbexpr.dsl.*
 
 def example(implicit interp: Interpreter[zio.Task]) =
-  put("orders", Order("cust-42", "ord-1", 129.99, Status.Pending)).execute
+  put(orders, Order("cust-42", "ord-1", 129.99, Status.Pending)).execute
 ```
 
 ## Update
@@ -72,7 +100,7 @@ import zio.dynamodb.ExecuteSyntax.*
 import zio.dynamodb.blocks.ddbexpr.dsl.*
 
 def example(implicit interp: Interpreter[zio.Task]) =
-  update("orders")(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1")(
+  update(orders)(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1")(
     Order.status.set(Status.Shipped)
   ).execute
 ```
@@ -88,7 +116,7 @@ import zio.dynamodb.ExecuteSyntax.*
 import zio.dynamodb.blocks.ddbexpr.dsl.*
 
 def example(implicit interp: Interpreter[zio.Task]) =
-  deleteFrom[Order]("orders")(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1").execute
+  deleteFrom(orders)(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1").execute
 ```
 
 ## Query
@@ -103,7 +131,7 @@ import zio.dynamodb.ExecuteSyntax.*
 import zio.dynamodb.blocks.ddbexpr.dsl.*
 
 def example(implicit interp: Interpreter[zio.Task]) =
-  query[Order]("orders", limit = 20)
+  query(orders, limit = 20)
     .whereKey(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey > "ord-0")
     .filter(Order.total > 50.0)
     .execute
@@ -121,7 +149,7 @@ import zio.dynamodb.ExecuteSyntax.*
 import zio.dynamodb.blocks.ddbexpr.dsl.*
 
 def example(implicit interp: Interpreter[zio.Task]) =
-  scan[Order]("orders", limit = 20).filter(Order.status === Status.Pending).execute
+  scan(orders, limit = 20).filter(Order.status === Status.Pending).execute
 ```
 
 ## Condition & key expressions

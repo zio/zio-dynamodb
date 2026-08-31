@@ -24,6 +24,15 @@ Client lifecycle is handled two different ways deliberately, one per effect syst
 `OrdersCE` uses `cats.effect.Resource`, `OrdersZio` uses `ZLayer.scoped`/
 `ZIO.acquireRelease` — both close the underlying `DynamoDbAsyncClient` on completion.
 
+## `OrdersConfigured`
+
+The same `Order`/`Status` model, focused on **codec configuration** in the High-Level API,
+done entirely on the `Table` value via `.deriving` — the model carries no `@Modifier`
+annotations and nothing is resolved from implicit scope. Chains `withFieldNameMapper` /
+`withCaseNameMapper` (deriver-wide) and `withModifier(typeId, field, Modifier.rename(...))`
+(per-field) on the base `DynamoDBCodecDeriver`. Shows the precedence: the per-field
+`withModifier` rename wins over the table-wide field-name mapper.
+
 ## `RateLimitedReads`
 
 A token-bucket rate limiter built entirely from the public API — see

@@ -46,6 +46,8 @@ object DdbExprApiSpec extends ZIOSpecDefault {
     val priority: Lens[Task, Priority] = $(_.priority)
   }
 
+  private val tasks = DdbExprApi.Table[Task]("tasks")
+
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
   // Executes a DynamoDBQuery synchronously through DummyIOInterpreter.
@@ -83,18 +85,18 @@ object DdbExprApiSpec extends ZIOSpecDefault {
     suite("put — encode-failure path")(
       test("put on a non-record schema (encodes to a non-Map AttributeValue) fails, not silently drops the write") {
         implicit val intSchema: Schema[Int] = Schema.int
-        val q                               = DdbExprApi.put[Int]("tasks", 5)
+        val q                               = DdbExprApi.put(DdbExprApi.Table[Int]("tasks"), 5)
         assert(q)(isSubtype[DynamoDBQuery.Fail](anything))
       }
     ),
     suite("get — via DummyIOInterpreter")(
       test("returns ValueNotFound when item is absent") {
-        val q      = DdbExprApi.get[Task]("tasks")(Task.id.partitionKey === "t1")
+        val q      = DdbExprApi.get(tasks)(Task.id.partitionKey === "t1")
         val result = run(q)
         assert(result)(isLeft(isSubtype[ItemError.ValueNotFound](anything)))
       },
       test("ValueNotFound message contains the primary key value") {
-        val q      = DdbExprApi.get[Task]("tasks")(Task.id.partitionKey === "alice")
+        val q      = DdbExprApi.get(tasks)(Task.id.partitionKey === "alice")
         val result = run(q)
         assert(result)(isLeft(hasField("message", (_: ItemError).message, containsString("alice"))))
       }
@@ -118,14 +120,14 @@ object DdbExprApiSpec extends ZIOSpecDefault {
     suite("query / scan chaining")(
       test("query builds successfully with .whereKey and .filter (===)") {
         val q = DdbExprApi
-          .query[Task]("tasks", 20)
+          .query(tasks, 20)
           .whereKey(Task.id.partitionKey === "alice" && Task.score.sortKey > 10)
           .filter(Task.priority === Priority.High)
         assertTrue(q != null)
       },
       test("scan builds successfully with .filter via SchemaExpr") {
         val q = DdbExprApi
-          .scan[Task]("tasks", 20)
+          .scan(tasks, 20)
           .filter(Task.score > 0)
         assertTrue(q != null)
       }
@@ -134,38 +136,38 @@ object DdbExprApiSpec extends ZIOSpecDefault {
       suite("put.where")(
         test("put.where with DdbExpr (===) runs without error") {
           val q = DdbExprApi
-            .put("tasks", Task("t1", 42, Priority.High))
+            .put(tasks, Task("t1", 42, Priority.High))
             .where(Task.priority === Priority.High)
           assertTrue(run(q).isEmpty)
         },
         test("put.where with SchemaExpr (Builtin path) runs without error") {
           val q = DdbExprApi
-            .put("tasks", Task("t1", 42, Priority.High))
+            .put(tasks, Task("t1", 42, Priority.High))
             .where(Task.score > 0)
           assertTrue(run(q).isEmpty)
         },
         test("put.where with combined && expression runs without error") {
           val q = DdbExprApi
-            .put("tasks", Task("t1", 42, Priority.High))
+            .put(tasks, Task("t1", 42, Priority.High))
             .where((Task.priority === Priority.High) && (Task.score > 0))
           assertTrue(run(q).isEmpty)
         },
         test("put.where with attributeExists runs without error") {
           val q = DdbExprApi
-            .put("tasks", Task("t1", 42, Priority.High))
+            .put(tasks, Task("t1", 42, Priority.High))
             .where(Task.id.attributeExists)
           assertTrue(run(q).isEmpty)
         },
         test("put.where with Failure CE raises DecodingError on run") {
           val q      = DdbExprApi
-            .put("tasks", Task("t1", 42, Priority.High))
+            .put(tasks, Task("t1", 42, Priority.High))
             .where(ConditionExpression.Failure[Task]("version check failed"))
           val thrown = scala.util.Try(run(q)).failed.toOption
           assertTrue(thrown.exists(_.isInstanceOf[DynamoDBError.ItemError.DecodingError]))
         },
         test("put.where Failure message is preserved in thrown error") {
           val q      = DdbExprApi
-            .put("tasks", Task("t1", 42, Priority.High))
+            .put(tasks, Task("t1", 42, Priority.High))
             .where(ConditionExpression.Failure[Task]("specific message"))
           val thrown = scala.util.Try(run(q)).failed.toOption
           assertTrue(thrown.exists(_.getMessage.contains("specific message")))
@@ -179,19 +181,19 @@ object DdbExprApiSpec extends ZIOSpecDefault {
       suite("deleteFrom.where")(
         test("deleteFrom.where with DdbExpr (===) runs without error") {
           val q = DdbExprApi
-            .deleteFrom[Task]("tasks")(Task.id.partitionKey === "t1")
+            .deleteFrom(tasks)(Task.id.partitionKey === "t1")
             .where(Task.priority === Priority.High)
           assertTrue(run(q).isEmpty)
         },
         test("deleteFrom.where with SchemaExpr runs without error") {
           val q = DdbExprApi
-            .deleteFrom[Task]("tasks")(Task.id.partitionKey === "t1")
+            .deleteFrom(tasks)(Task.id.partitionKey === "t1")
             .where(Task.score > 0)
           assertTrue(run(q).isEmpty)
         },
         test("deleteFrom.where Failure CE raises DecodingError on run") {
           val q      = DdbExprApi
-            .deleteFrom[Task]("tasks")(Task.id.partitionKey === "t1")
+            .deleteFrom(tasks)(Task.id.partitionKey === "t1")
             .where(ConditionExpression.Failure[Task]("precondition failed"))
           val thrown = scala.util.Try(run(q)).failed.toOption
           assertTrue(thrown.exists(_.isInstanceOf[DynamoDBError.ItemError.DecodingError]))

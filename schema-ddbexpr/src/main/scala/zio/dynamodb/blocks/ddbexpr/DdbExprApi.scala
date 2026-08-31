@@ -16,18 +16,16 @@
 
 package zio.dynamodb.blocks.ddbexpr
 
-import java.util.concurrent.ConcurrentHashMap
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.{ Schema, SchemaExpr }
+import zio.blocks.schema.SchemaExpr
 import zio.dynamodb._
-import zio.dynamodb.blocks.DynamoDBCodecDeriverConfigure
-import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
+import zio.dynamodb.blocks.schema.DynamoDBCodec
 
 private[ddbexpr] final case class CodecEntry[A](codec: DynamoDBCodec[A], projections: Chunk[ProjectionExpression[_, _]])
 
 // Keyed by (Schema, DynamoDBCodecDeriverConfigure) reference identity — avoids
 // cross-classloader collisions and ensures types with custom configures get their
-// own entry.
+// own entry. Used by DerivedCodecSyntax's expression-building codec cache.
 private[ddbexpr] final class CodecCacheKey(private val r0: AnyRef, private val r1: AnyRef) {
   override val hashCode: Int           = System.identityHashCode(r0) * 31 + System.identityHashCode(r1)
   override def equals(o: Any): Boolean = o match {
@@ -36,18 +34,16 @@ private[ddbexpr] final class CodecCacheKey(private val r0: AnyRef, private val r
   }
 }
 
-// Body extracted to a trait (rather than living directly in `object DdbExprApi`) so the
-// `dsl` facade can mix this in alongside DdbKeyExprSyntax/DdbExprSyntax under a single
-// import. `object DdbExprApi extends DdbExprApiSyntax` below is unaffected — every member
-// here remains reachable as `DdbExprApi.XXX` exactly as before. Unlike DdbExpr/DdbKeyExpr,
-// nothing here is a pattern-matched ADT node, so the whole body can move safely — the only
-// consequence is that `dsl` gets its own separate codec cache instance from `DdbExprApi`'s
-// (harmless: it's pure memoization, not shared mutable state that needs single-instance
-// correctness — worst case a type gets derived twice instead of once if code mixes both
-// `DdbExprApi.xxx` and `dsl.xxx` calls for it).
 /**
  * High-level CRUD API backed by [[DdbExpr]] condition expressions and [[DdbKeyExpr]]
  *  key condition expressions.
+ *
+ *  Each operation takes a [[Table]] rather than a bare table name: build one
+ *  `Table[A]("name")` per table — only `Schema[A]` is needed implicitly (from `derives
+ *  Schema`); attach any deriver configuration with `Table`'s `.deriving(...)`. Its codec is
+ *  derived once and held on the value. Passing the `Table` rather than a `String` is also
+ *  what lets `A` be inferred for `query` / `scan`, which otherwise mention it nowhere in
+ *  their arguments.
  *
  *  All ZB [[zio.blocks.schema.Optic]] operators (===, >, <, >=, <=) encode sealed-trait
  *  literals correctly. Since zio-blocks v0.0.47
@@ -61,17 +57,19 @@ private[ddbexpr] final class CodecCacheKey(private val r0: AnyRef, private val r
  *    import DdbKeyExpr._
  *    import DdbExpr.{ DdbExprBoolSyntax, OpticDdbExprOps, OpticStringDdbExprOps, SchemaExprBoolBridge }
  *
+ *    val tasks = Table[Task]("tasks")
+ *
  *    // CRUD
- *    DdbExprApi.put("tasks", task)
- *    DdbExprApi.get[Task]("tasks")(Task.id.partitionKey === "t1")
- *    DdbExprApi.deleteFrom[Task]("tasks")(Task.id.partitionKey === "t1")
+ *    DdbExprApi.put(tasks, task)
+ *    DdbExprApi.get(tasks)(Task.id.partitionKey === "t1")
+ *    DdbExprApi.deleteFrom(tasks)(Task.id.partitionKey === "t1")
  *
  *    // scalars and sealed traits — ZB Optic operators, lifted to Builtin
- *    DdbExprApi.scan[Task]("tasks", 20).filter(Task.score > 0)
- *    DdbExprApi.scan[Task]("tasks", 20).filter(Task.priority === Priority.High)
+ *    DdbExprApi.scan(tasks, 20).filter(Task.score > 0)
+ *    DdbExprApi.scan(tasks, 20).filter(Task.priority === Priority.High)
  *
  *    // DDB functions + combinators
- *    DdbExprApi.query[Task]("tasks", 20)
+ *    DdbExprApi.query(tasks, 20)
  *      .whereKey(Task.id.partitionKey === "alice" && Task.score.sortKey > 10)
  *      .filter(Task.name.beginsWith("A") && Task.score.between(1, 100))
  *  }}}
@@ -85,28 +83,13 @@ private[ddbexpr] final class CodecCacheKey(private val r0: AnyRef, private val r
  */
 trait DdbExprApiSyntax {
 
-  // ── Codec cache ───────────────────────────────────────────────────────────────
-  // CodecEntry/CodecCacheKey are declared at package level below (not nested here) so
-  // they stay path-independent — a class pattern-matched from inside a trait mixed into
-  // more than one object (DdbExprApi, dsl) would otherwise pick up an unreliable outer
-  // reference. See the equivalent note on DdbExprSyntax/DdbKeyExprSyntax.
-
-  private val codecCache = new ConcurrentHashMap[CodecCacheKey, CodecEntry[_]]()
-
-  private def cachedEntry[A](implicit schema: Schema[A], cfg: DynamoDBCodecDeriverConfigure[A]): CodecEntry[A] =
-    // computeIfAbsent so a cold key derives exactly once rather than every racing thread
-    // running the full derivation before putIfAbsent picks a winner.
-    codecCache
-      .computeIfAbsent(
-        new CodecCacheKey(schema, cfg),
-        _ => {
-          val codec       = schema.deriving(cfg.configure(DynamoDBCodecDeriver)).derive
-          val projections = codec.recordFieldNames
-            .map(name => ProjectionExpression.MapElement(ProjectionExpression.Root, name): ProjectionExpression[_, _])
-          CodecEntry(codec, projections)
-        }
-      )
-      .asInstanceOf[CodecEntry[A]]
+  // Re-export of the package-level `Table` so `DdbExprApi.Table` / `dsl.Table` (and an
+  // unqualified `Table` under `import DdbExprApi._` / `import dsl._`) all resolve to the
+  // single canonical type — it stays package-level rather than nested here because this
+  // trait is mixed into more than one object (DdbExprApi, dsl), and a nested class would
+  // give each a distinct path-dependent `Table`.
+  final type Table[From] = zio.dynamodb.blocks.ddbexpr.Table[From]
+  final val Table: zio.dynamodb.blocks.ddbexpr.Table.type = zio.dynamodb.blocks.ddbexpr.Table
 
   // ── Item helpers ──────────────────────────────────────────────────────────────
 
@@ -120,30 +103,26 @@ trait DdbExprApiSyntax {
 
   // ── CRUD operations ───────────────────────────────────────────────────────────
 
-  def put[A](tableName: String, a: A)(implicit
-    schema: Schema[A],
-    cfg: DynamoDBCodecDeriverConfigure[A]
-  ): DynamoDBQuery[A, Option[A]] = {
-    val codec = cachedEntry[A].codec
+  def put[A](table: Table[A], a: A): DynamoDBQuery[A, Option[A]] = {
+    val codec = table.entry.codec
     toItem(a)(codec) match {
       case Right(encodedItem) =>
         DynamoDBQuery
-          .putItem(tableName, encodedItem)
+          .putItem(table.name, encodedItem)
           .map(_.flatMap(prevItem => fromItem[A](prevItem)(codec).toOption))
       case Left(err)          =>
         DynamoDBQuery.fail(err)
     }
   }
 
-  def get[From](tableName: String)(keyExpr: DdbKeyExpr.PrimaryKey[From])(implicit
-    schema: Schema[From],
-    cfg: DynamoDBCodecDeriverConfigure[From]
-  ): DynamoDBQuery[From, Either[DynamoDBError.ItemError, From]] = {
-    val entry = cachedEntry[From]
+  def get[From](
+    table: Table[From]
+  )(keyExpr: DdbKeyExpr.PrimaryKey[From]): DynamoDBQuery[From, Either[DynamoDBError.ItemError, From]] = {
+    val entry = table.entry
     DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr) match {
       case Right(pkExpr) =>
         val pkAttrMap = pkExpr.asAttrMap
-        DynamoDBQuery.getItem(tableName, pkAttrMap, entry.projections: _*).map {
+        DynamoDBQuery.getItem(table.name, pkAttrMap, entry.projections: _*).map {
           case Some(item) => fromItem[From](item)(entry.codec)
           case None       => Left(DynamoDBError.ItemError.ValueNotFound(s"value with key $pkAttrMap not found"))
         }
@@ -152,32 +131,28 @@ trait DdbExprApiSyntax {
     }
   }
 
-  def update[From](tableName: String)(keyExpr: DdbKeyExpr.PrimaryKey[From])(
+  def update[From](table: Table[From])(keyExpr: DdbKeyExpr.PrimaryKey[From])(
     action: UpdateExpression.Action[From]
-  )(implicit
-    schema: Schema[From],
-    cfg: DynamoDBCodecDeriverConfigure[From]
   ): DynamoDBQuery[From, Option[From]] = {
-    val codec = cachedEntry[From].codec
+    val codec = table.entry.codec
     DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr) match {
       case Right(pkExpr) =>
         DynamoDBQuery
-          .updateItem(tableName, pkExpr.asAttrMap)(action)
+          .updateItem(table.name, pkExpr.asAttrMap)(action)
           .map(_.flatMap(item => fromItem[From](item)(codec).toOption))
       case Left(msg)     =>
         DynamoDBQuery.fail(DynamoDBError.ItemError.DecodingError.failure(msg))
     }
   }
 
-  def deleteFrom[From](tableName: String)(keyExpr: DdbKeyExpr.PrimaryKey[From])(implicit
-    schema: Schema[From],
-    cfg: DynamoDBCodecDeriverConfigure[From]
-  ): DynamoDBQuery[From, Option[From]] = {
-    val codec = cachedEntry[From].codec
+  def deleteFrom[From](
+    table: Table[From]
+  )(keyExpr: DdbKeyExpr.PrimaryKey[From]): DynamoDBQuery[From, Option[From]] = {
+    val codec = table.entry.codec
     DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr) match {
       case Right(pkExpr) =>
         DynamoDBQuery
-          .deleteItem(tableName, pkExpr.asAttrMap)
+          .deleteItem(table.name, pkExpr.asAttrMap)
           .map(_.flatMap(item => fromItem[From](item)(codec).toOption))
       case Left(msg)     =>
         DynamoDBQuery.fail(DynamoDBError.ItemError.DecodingError.failure(msg))
@@ -186,13 +161,10 @@ trait DdbExprApiSyntax {
 
   // query and scan return a base query; callers chain .whereKey(DdbKeyExpr) and
   // .filter(DdbExpr) via the implicit conversions below.
-  def query[From](tableName: String, limit: Int)(implicit
-    schema: Schema[From],
-    cfg: DynamoDBCodecDeriverConfigure[From]
-  ): DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = {
-    val entry = cachedEntry[From]
+  def query[From](table: Table[From], limit: Int): DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = {
+    val entry = table.entry
     DynamoDBQuery
-      .query(tableName, limit)
+      .query(table.name, limit)
       .map(page =>
         Page(
           items = page.items.map(item => fromItem[From](item)(entry.codec)),
@@ -203,13 +175,10 @@ trait DdbExprApiSyntax {
       )
   }
 
-  def scan[From](tableName: String, limit: Int)(implicit
-    schema: Schema[From],
-    cfg: DynamoDBCodecDeriverConfigure[From]
-  ): DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = {
-    val entry = cachedEntry[From]
+  def scan[From](table: Table[From], limit: Int): DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = {
+    val entry = table.entry
     DynamoDBQuery
-      .scan(tableName, limit)
+      .scan(table.name, limit)
       .map(page =>
         Page(
           items = page.items.map(item => fromItem[From](item)(entry.codec)),

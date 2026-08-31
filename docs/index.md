@@ -40,6 +40,8 @@ object Example extends IOApp.Simple {
     val genre: Lens[Movie, Genre] = $(_.genre)
   }
 
+  val movies = Table[Movie]("movies")
+
   val client: Resource[IO, DynamoDbAsyncClient] =
     Resource.make(IO(DynamoDbAsyncClient.builder().build()))(c => IO(c.close()))
 
@@ -47,9 +49,9 @@ object Example extends IOApp.Simple {
     client.use { c =>
       given Interpreter[IO] = CEInterpreter.fromAsyncClient(c)
       for {
-        _     <- put("movies", Movie("m1", Genre.Drama)).execute
-        movie <- get("movies")(Movie.id.partitionKey === "m1").execute
-        page  <- scan[Movie]("movies", 20).filter(Movie.genre === Genre.Drama).execute
+        _     <- put(movies, Movie("m1", Genre.Drama)).execute
+        movie <- get(movies)(Movie.id.partitionKey === "m1").execute
+        page  <- scan(movies, 20).filter(Movie.genre === Genre.Drama).execute
       } yield ()
     }
 }
@@ -86,6 +88,8 @@ object ZioExample extends ZIOAppDefault {
     val genre: Lens[Movie, Genre] = $(_.genre)
   }
 
+  val movies = Table[Movie]("movies")
+
   val interpreterLayer: ZLayer[Any, Throwable, Interpreter[Task]] =
     ZLayer.scoped {
       ZIO
@@ -97,9 +101,9 @@ object ZioExample extends ZIOAppDefault {
     ZIO.serviceWithZIO[Interpreter[Task]] { interpreter =>
       given Interpreter[Task] = interpreter
       for {
-        _     <- put("movies", Movie("m1", Genre.Drama)).execute
-        movie <- get("movies")(Movie.id.partitionKey === "m1").execute
-        page  <- scan[Movie]("movies", 20).filter(Movie.genre === Genre.Drama).execute
+        _     <- put(movies, Movie("m1", Genre.Drama)).execute
+        movie <- get(movies)(Movie.id.partitionKey === "m1").execute
+        page  <- scan(movies, 20).filter(Movie.genre === Genre.Drama).execute
       } yield ()
     }
 
