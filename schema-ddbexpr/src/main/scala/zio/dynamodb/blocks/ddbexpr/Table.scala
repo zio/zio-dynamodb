@@ -18,7 +18,7 @@ package zio.dynamodb.blocks.ddbexpr
 
 import zio.blocks.schema.Schema
 import zio.blocks.schema.derive.Deriver
-import zio.dynamodb.ProjectionExpression
+import zio.dynamodb.{ DynamoDBError, FromAttributeValue, Item, ProjectionExpression }
 import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
 
 /**
@@ -36,6 +36,11 @@ import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
  *     _.withEnumValuesAsStrings(false).withFieldNameMapper(NameMapper.SnakeCase)
  *   )
  * }}}
+ *
+ * [[decode]] / [[encode]] expose the same configured codec for the Low-Level `Item`-shaped
+ * operations the High-Level API does not wrap — `batchGetItem`, `transactGetItems`,
+ * `transactWriteItems`, hand-rolled streaming, and so on — so that path stays consistent
+ * with what `get` / `put` on this table do.
  *
  * Construct a `Table` once and reuse it: the [[DynamoDBCodec]] and the projection list for
  * its fields are derived lazily on first use and held on the instance, so a `Table` rebuilt
@@ -63,6 +68,22 @@ final class Table[From] private (
    */
   def deriving(configure: DynamoDBCodecDeriver => Deriver[DynamoDBCodec]): Table[From] =
     new Table(name, schema, configure)
+
+  /**
+   * Decodes an [[Item]] — as returned by the Low-Level API (`DynamoDBQuery.getItem`,
+   * `batchGetItem`, `transactGetItems`, …) — into `From` using this table's configured,
+   * cached codec.
+   */
+  def decode(item: Item): Either[DynamoDBError.ItemError, From] =
+    entry.codec.fromItem(item)
+
+  /**
+   * Encodes `a` into an [[Item]] for the Low-Level API's `Item`-shaped operations, using
+   * this table's configured, cached codec. `Left` when `From`'s codec does not produce a
+   * top-level map (a `Table[From]` whose `From` is not record-shaped).
+   */
+  def encode(a: From): Either[DynamoDBError, Item] =
+    FromAttributeValue.attrMapFromAttributeValue.fromAttributeValue(entry.codec.encoder(a))
 
   override def toString: String = s"Table($name)"
 }

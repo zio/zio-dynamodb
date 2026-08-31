@@ -91,103 +91,81 @@ trait DdbExprApiSyntax {
   final type Table[From] = zio.dynamodb.blocks.ddbexpr.Table[From]
   final val Table: zio.dynamodb.blocks.ddbexpr.Table.type = zio.dynamodb.blocks.ddbexpr.Table
 
-  // ── Item helpers ──────────────────────────────────────────────────────────────
-
-  private[ddbexpr] def fromItem[A](item: Item)(codec: DynamoDBCodec[A]): Either[DynamoDBError.ItemError, A] = {
-    val av = ToAttributeValue.attrMapToAttributeValue.toAttributeValue(item)
-    codec.decoder(av)
-  }
-
-  private def toItem[A](a: A)(codec: DynamoDBCodec[A]): Either[DynamoDBError, Item] =
-    FromAttributeValue.attrMapFromAttributeValue.fromAttributeValue(codec.encoder(a))
-
   // ── CRUD operations ───────────────────────────────────────────────────────────
 
-  def put[A](table: Table[A], a: A): DynamoDBQuery[A, Option[A]] = {
-    val codec = table.entry.codec
-    toItem(a)(codec) match {
+  def put[A](table: Table[A], a: A): DynamoDBQuery[A, Option[A]] =
+    table.encode(a) match {
       case Right(encodedItem) =>
         DynamoDBQuery
           .putItem(table.name, encodedItem)
-          .map(_.flatMap(prevItem => fromItem[A](prevItem)(codec).toOption))
+          .map(_.flatMap(prevItem => table.decode(prevItem).toOption))
       case Left(err)          =>
         DynamoDBQuery.fail(err)
     }
-  }
 
   def get[From](
     table: Table[From]
-  )(keyExpr: DdbKeyExpr.PrimaryKey[From]): DynamoDBQuery[From, Either[DynamoDBError.ItemError, From]] = {
-    val entry = table.entry
+  )(keyExpr: DdbKeyExpr.PrimaryKey[From]): DynamoDBQuery[From, Either[DynamoDBError.ItemError, From]] =
     DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr) match {
       case Right(pkExpr) =>
         val pkAttrMap = pkExpr.asAttrMap
-        DynamoDBQuery.getItem(table.name, pkAttrMap, entry.projections: _*).map {
-          case Some(item) => fromItem[From](item)(entry.codec)
+        DynamoDBQuery.getItem(table.name, pkAttrMap, table.entry.projections: _*).map {
+          case Some(item) => table.decode(item)
           case None       => Left(DynamoDBError.ItemError.ValueNotFound(s"value with key $pkAttrMap not found"))
         }
       case Left(msg)     =>
         DynamoDBQuery.fail(DynamoDBError.ItemError.DecodingError.failure(msg))
     }
-  }
 
   def update[From](table: Table[From])(keyExpr: DdbKeyExpr.PrimaryKey[From])(
     action: UpdateExpression.Action[From]
-  ): DynamoDBQuery[From, Option[From]] = {
-    val codec = table.entry.codec
+  ): DynamoDBQuery[From, Option[From]] =
     DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr) match {
       case Right(pkExpr) =>
         DynamoDBQuery
           .updateItem(table.name, pkExpr.asAttrMap)(action)
-          .map(_.flatMap(item => fromItem[From](item)(codec).toOption))
+          .map(_.flatMap(item => table.decode(item).toOption))
       case Left(msg)     =>
         DynamoDBQuery.fail(DynamoDBError.ItemError.DecodingError.failure(msg))
     }
-  }
 
   def deleteFrom[From](
     table: Table[From]
-  )(keyExpr: DdbKeyExpr.PrimaryKey[From]): DynamoDBQuery[From, Option[From]] = {
-    val codec = table.entry.codec
+  )(keyExpr: DdbKeyExpr.PrimaryKey[From]): DynamoDBQuery[From, Option[From]] =
     DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr) match {
       case Right(pkExpr) =>
         DynamoDBQuery
           .deleteItem(table.name, pkExpr.asAttrMap)
-          .map(_.flatMap(item => fromItem[From](item)(codec).toOption))
+          .map(_.flatMap(item => table.decode(item).toOption))
       case Left(msg)     =>
         DynamoDBQuery.fail(DynamoDBError.ItemError.DecodingError.failure(msg))
     }
-  }
 
   // query and scan return a base query; callers chain .whereKey(DdbKeyExpr) and
   // .filter(DdbExpr) via the implicit conversions below.
-  def query[From](table: Table[From], limit: Int): DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = {
-    val entry = table.entry
+  def query[From](table: Table[From], limit: Int): DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] =
     DynamoDBQuery
       .query(table.name, limit)
       .map(page =>
         Page(
-          items = page.items.map(item => fromItem[From](item)(entry.codec)),
+          items = page.items.map(item => table.decode(item)),
           lastEvaluatedKey = page.lastEvaluatedKey,
           count = page.count,
           scannedCount = page.scannedCount
         )
       )
-  }
 
-  def scan[From](table: Table[From], limit: Int): DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = {
-    val entry = table.entry
+  def scan[From](table: Table[From], limit: Int): DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] =
     DynamoDBQuery
       .scan(table.name, limit)
       .map(page =>
         Page(
-          items = page.items.map(item => fromItem[From](item)(entry.codec)),
+          items = page.items.map(item => table.decode(item)),
           lastEvaluatedKey = page.lastEvaluatedKey,
           count = page.count,
           scannedCount = page.scannedCount
         )
       )
-  }
 
   // ── Implicit conversions ──────────────────────────────────────────────────────
 
