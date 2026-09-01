@@ -23,13 +23,13 @@ import zio.dynamodb.blocks.schema.DynamoDBCodec
 
 private[ddbexpr] final case class CodecEntry[A](codec: DynamoDBCodec[A], projections: Chunk[ProjectionExpression[_, _]])
 
-// Keyed by (Schema, DynamoDBCodecDeriverConfigure) reference identity — avoids
-// cross-classloader collisions and ensures types with custom configures get their
-// own entry. Used by DerivedCodecSyntax's expression-building codec cache.
+// Keyed by Schema (reference identity — Schema instances are per-type singletons) and
+// DynamoDBCodecDeriverConfigure (value equality — it is now a case class). Used by
+// DerivedCodecSyntax's expression-building codec cache.
 private[ddbexpr] final class CodecCacheKey(private val r0: AnyRef, private val r1: AnyRef) {
-  override val hashCode: Int           = System.identityHashCode(r0) * 31 + System.identityHashCode(r1)
+  override val hashCode: Int           = System.identityHashCode(r0) * 31 + r1.hashCode
   override def equals(o: Any): Boolean = o match {
-    case k: CodecCacheKey => (r0 eq k.r0) && (r1 eq k.r1)
+    case k: CodecCacheKey => (r0 eq k.r0) && (r1 == k.r1)
     case _                => false
   }
 }

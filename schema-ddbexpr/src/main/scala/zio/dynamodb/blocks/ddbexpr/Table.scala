@@ -17,19 +17,18 @@
 package zio.dynamodb.blocks.ddbexpr
 
 import zio.blocks.schema.Schema
-import zio.blocks.schema.derive.Deriver
 import zio.dynamodb.{ DynamoDBError, FromAttributeValue, Item, ProjectionExpression }
-import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
+import zio.dynamodb.blocks.DynamoDBCodecDeriverConfigure
 
 /**
  * A typed handle for a DynamoDB table: its name, the [[Schema]] for `From`, and the
- * configuration used to derive `From`'s [[DynamoDBCodec]]. Construct one
+ * [[DynamoDBCodecDeriverConfigure]] used to derive `From`'s codec. Construct one
  * (`Table[Order]("orders")`) and pass it to the CRUD operations in [[DdbExprApiSyntax]]
  * (`DdbExprApi` / `dsl`) in place of a bare `tableName: String` — this is what lets `From`
  * be inferred at the call site (`query(orders, 20)` rather than `query[Order]("orders", 20)`).
  *
  * `Schema[From]` is the only implicit `apply` needs — it comes from `derives Schema` on the
- * model. Deriver configuration is attached to the value, not resolved from implicit scope:
+ * model. Codec-derivation config is attached to the value, not resolved from implicit scope:
  *
  * {{{
  *   val orders = Table[Order]("orders").deriving(
@@ -42,32 +41,33 @@ import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
  * `transactWriteItems`, hand-rolled streaming, and so on — so that path stays consistent
  * with what `get` / `put` on this table do.
  *
- * Construct a `Table` once and reuse it: the [[DynamoDBCodec]] and the projection list for
- * its fields are derived lazily on first use and held on the instance, so a `Table` rebuilt
- * per request re-derives its codec each time.
+ * Construct a `Table` once and reuse it: the derived codec and the projection list for its
+ * fields are computed lazily on first use and held on the instance, so a `Table` rebuilt per
+ * request re-derives its codec each time.
  */
 final class Table[From] private (
   val name: String,
   private[ddbexpr] val schema: Schema[From],
-  private val configureDeriver: DynamoDBCodecDeriver => Deriver[DynamoDBCodec]
+  private[ddbexpr] val config: DynamoDBCodecDeriverConfigure[From]
 ) {
 
   private[ddbexpr] lazy val entry: CodecEntry[From] = {
-    val codec       = schema.deriving(configureDeriver(DynamoDBCodecDeriver)).derive
+    val codec       = schema.deriving(config.toDeriver).derive
     val projections = codec.recordFieldNames
       .map(field => ProjectionExpression.MapElement(ProjectionExpression.Root, field): ProjectionExpression[_, _])
     CodecEntry(codec, projections)
   }
 
   /**
-   * Returns a copy of this table whose row [[DynamoDBCodec]] is derived with `configure`
-   * applied to the base [[DynamoDBCodecDeriver]]. Replaces any configuration previously
-   * attached. Put deriver-wide flags (`withEnumValuesAsStrings`, `withFieldNameMapper`,
-   * `withSchema1TupleCompatibility`, …) before any per-field `withModifier` / `withInstance`
-   * calls within `configure`.
+   * Returns a copy of this table whose codec derives with `configure` applied to the
+   * default [[DynamoDBCodecDeriverConfigure]]. Replaces any configuration previously
+   * attached. The config is a value with readable fields (`fieldNameMapper`,
+   * `discriminatorKind`, per-field `rename`, …), not an opaque `Deriver` transform.
    */
-  def deriving(configure: DynamoDBCodecDeriver => Deriver[DynamoDBCodec]): Table[From] =
-    new Table(name, schema, configure)
+  def deriving(
+    configure: DynamoDBCodecDeriverConfigure[From] => DynamoDBCodecDeriverConfigure[From]
+  ): Table[From] =
+    new Table(name, schema, configure(config))
 
   /**
    * Decodes an [[Item]] — as returned by the Low-Level API (`DynamoDBQuery.getItem`,
@@ -91,9 +91,9 @@ final class Table[From] private (
 object Table {
 
   def apply[From](name: String)(implicit schema: Schema[From]): Table[From] =
-    new Table(name, schema, (d: DynamoDBCodecDeriver) => d)
+    new Table(name, schema, DynamoDBCodecDeriverConfigure[From]())
 
   /** For when there is no `Schema[From]` in implicit scope. */
   def of[From](name: String, schema: Schema[From]): Table[From] =
-    new Table(name, schema, (d: DynamoDBCodecDeriver) => d)
+    new Table(name, schema, DynamoDBCodecDeriverConfigure[From]())
 }

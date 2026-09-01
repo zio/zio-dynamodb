@@ -27,13 +27,12 @@ import zio.dynamodb.blocks.ddbexpr.dsl.*
  * `Table` value — the model carries no `@Modifier` annotations, nothing is resolved from
  * implicit scope.
  *
- * `Table[Order]("orders").deriving(configure)` takes the base `DynamoDBCodecDeriver` and
- * you chain builders on it:
+ * `Table[Order]("orders").deriving(configure)` hands you a `DynamoDBCodecDeriverConfigure`
+ * value and you set fields on it:
  *
- *   - `withFieldNameMapper` / `withCaseNameMapper` — deriver-wide flags (return
- *     `DynamoDBCodecDeriver`, so they compose)
- *   - `withModifier(typeId, field, Modifier.rename(...))` — per-field, returns the base
- *     `Deriver[DynamoDBCodec]`, so it goes last
+ *   - `withFieldNameMapper` / `withCaseNameMapper` — deriver-wide policy
+ *   - `withModifier(typeId, field, Modifier.rename(...))` — per-field wire name (same call
+ *     as on `Deriver`; the value-level equivalent of `@Modifier.rename` on the model)
  *
  * With the config below an `Order` is stored as:
  * {{{
@@ -63,11 +62,11 @@ object OrdersConfigured extends ZIOAppDefault {
   }
 
   // All configuration is a value on the Table — no annotations on Order, no implicit
-  // DynamoDBCodecDeriverConfigure. Deriver-wide flags first, then the per-field withModifier.
+  // DynamoDBCodecDeriverConfigure. Deriver-wide flags then the per-field withModifier.
   val orders: Table[Order] =
-    Table[Order]("orders").deriving { deriver =>
+    Table[Order]("orders").deriving { cfg =>
       val orderType = summon[Schema[Order]].reflect.typeId
-      deriver
+      cfg
         .withFieldNameMapper(NameMapper.SnakeCase)
         .withCaseNameMapper(NameMapper.SnakeCase)
         .withModifier(orderType, "customerId", Modifier.rename("cust"))
