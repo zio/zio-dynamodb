@@ -59,6 +59,8 @@ object DslSpec extends ZIOSpecDefault {
 
   private def run[A](q: DynamoDBQuery[_, A]): A = DummyIOInterpreter.run(q).unsafeRun()
 
+  private val tasks = Table[Task]("tasks")
+
   // Mirrors the docs/index.md "See it in action" snippet exactly (model names included) as a
   // compile-time check of that precise shape — a method's body is type-checked whether or not
   // it's ever called, so this fails the build if the doc's code stops compiling, without
@@ -78,17 +80,19 @@ object DslSpec extends ZIOSpecDefault {
     val genre: Lens[Movie, Genre]      = $(_.genre)
   }
 
-  private def docsIndexExample(interpreter: AwsInterpreter[zio.Task], table: String) =
+  private val movies = Table[Movie]("movies")
+
+  private def docsIndexExample(interpreter: AwsInterpreter[zio.Task]) =
     for {
-      _     <- interpreter.run(put("movies", Movie("m1", Genre.Drama)))
-      movie <- interpreter.run(get[Movie]("movies")(Movie.id.partitionKey === "m1"))
-      page  <- interpreter.run(scan[Movie]("movies", 20).filter(Movie.genre === Genre.Drama))
+      _     <- interpreter.run(put(movies, Movie("m1", Genre.Drama)))
+      movie <- interpreter.run(get(movies)(Movie.id.partitionKey === "m1"))
+      page  <- interpreter.run(scan(movies, 20).filter(Movie.genre === Genre.Drama))
     } yield (movie, page)
 
   def spec = suite("dsl facade")(
     test("put/get CRUD, callable unqualified via dsl") {
-      val putQuery = put("tasks", Task("t1", 42, Priority.High))
-      val getQuery = get[Task]("tasks")(Task.id.partitionKey === "t1")
+      val putQuery = put(tasks, Task("t1", 42, Priority.High))
+      val getQuery = get(tasks)(Task.id.partitionKey === "t1")
       assertTrue(run(putQuery).isEmpty && run(getQuery).isLeft)
     },
     test("partitionKey === plus sortKey > builds an Extended key expression (DdbKeyExpr syntax)") {
@@ -103,7 +107,7 @@ object DslSpec extends ZIOSpecDefault {
       assert(cond)(isSubtype[DdbExpr.And[_]](anything))
     },
     test(".filter with a combined condition runs through scan") {
-      val scanQuery = scan[Task]("tasks", 20).filter(Task.score > 0 && Task.priority === Priority.High)
+      val scanQuery = scan(tasks, 20).filter(Task.score > 0 && Task.priority === Priority.High)
       assertTrue(run(scanQuery).items.isEmpty)
     },
     test("update syntax (OpticUpdateOps) renders a SET action") {

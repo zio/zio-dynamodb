@@ -19,7 +19,7 @@ package zio.dynamodb.blocks.ddbexpr
 import java.util.concurrent.ConcurrentHashMap
 import zio.blocks.schema.Schema
 import zio.dynamodb.blocks.DynamoDBCodecDeriverConfigure
-import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
+import zio.dynamodb.blocks.schema.DynamoDBCodec
 
 // Shared by DdbExprSyntax and DdbKeyExprSyntax so both can resolve DynamoDBCodec[A]
 // implicitly without each declaring their own copy of derivedCodec. Trait linearization
@@ -28,7 +28,7 @@ import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
 trait DerivedCodecSyntax {
 
   // Memoises derived codecs by (Schema, config) identity so building an expression doesn't
-  // re-run a full DynamoDBCodecDeriver derivation on every `===` / `>` / etc.
+  // re-run a full DynamoDBCodec derivation on every `===` / `>` / etc.
   private val codecCache = new ConcurrentHashMap[CodecCacheKey, DynamoDBCodec[_]]()
 
   implicit def derivedCodec[A](implicit
@@ -38,6 +38,6 @@ trait DerivedCodecSyntax {
     // computeIfAbsent so a cold key derives exactly once rather than every racing thread
     // running the full derivation before putIfAbsent picks a winner.
     codecCache
-      .computeIfAbsent(new CodecCacheKey(schema, cfg), _ => schema.deriving(cfg.configure(DynamoDBCodecDeriver)).derive)
+      .computeIfAbsent(new CodecCacheKey(schema, cfg), _ => schema.deriving(cfg.toDeriver).derive)
       .asInstanceOf[DynamoDBCodec[A]]
 }

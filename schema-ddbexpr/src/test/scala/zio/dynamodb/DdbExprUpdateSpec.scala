@@ -39,6 +39,8 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
     val labels: Lens[Record, Set[String]] = $(_.labels)
   }
 
+  private val records = DdbExprApi.Table[Record]("records")
+
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
   private def render(action: UpdateExpression.Action[_]): String = action.render.execute._2
@@ -155,12 +157,12 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
     suite("DdbExprApi.update")(
       test("update with set action runs without error") {
         val q = DdbExprApi
-          .update[Record]("records")(Record.id.partitionKey === "r1")(Record.score.set(99))
+          .update(records)(Record.id.partitionKey === "r1")(Record.score.set(99))
         assertTrue(run(q).isEmpty)
       },
       test("update with composed set + add runs without error") {
         val q = DdbExprApi
-          .update[Record]("records")(Record.id.partitionKey === "r1")(Record.score.set(99) + Record.count.add(1))
+          .update(records)(Record.id.partitionKey === "r1")(Record.score.set(99) + Record.count.add(1))
         assertTrue(run(q).isEmpty)
       }
       // Range expressions (sortKey > / between / beginsWith) on update are now a compile-time error:

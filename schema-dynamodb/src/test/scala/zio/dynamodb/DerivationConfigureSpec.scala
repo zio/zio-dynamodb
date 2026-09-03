@@ -20,14 +20,14 @@ import zio.blocks.schema.{ Modifier, Schema }
 import zio.blocks.schema.NameMapper
 import zio.dynamodb.AttributeValue
 import zio.dynamodb.blocks.DynamoDBCodecDeriverConfigure
-import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
+import zio.dynamodb.blocks.schema.DynamoDBCodec
 import zio.test._
 import zio.test.Assertion.{ equalTo, hasField, isFalse, isSome, isSubtype, isTrue }
 
 object DerivationConfigureSpec extends ZIOSpecDefault {
 
   private def deriveCodec[A: Schema](implicit cfg: DynamoDBCodecDeriverConfigure[A]): DynamoDBCodec[A] =
-    Schema[A].deriving(cfg.configure(DynamoDBCodecDeriver)).derive
+    Schema[A].deriving(cfg.toDeriver).derive
 
   // ── global deriver settings via fieldNameMapper ────────────────────────────
 
@@ -35,11 +35,10 @@ object DerivationConfigureSpec extends ZIOSpecDefault {
   private object Person {
     implicit val schema: Schema[Person]                     = Schema.derived
     implicit val cfg: DynamoDBCodecDeriverConfigure[Person] =
-      (d: DynamoDBCodecDeriver) =>
-        d.withFieldNameMapper(NameMapper.Custom {
-          case "name" => "fullName"
-          case other  => other
-        })
+      DynamoDBCodecDeriverConfigure[Person]().withFieldNameMapper(NameMapper.Custom {
+        case "name" => "fullName"
+        case other  => other
+      })
   }
 
   private val alice = Person("1", "Alice", 30)
@@ -50,7 +49,7 @@ object DerivationConfigureSpec extends ZIOSpecDefault {
   private object Contact {
     implicit val schema: Schema[Contact]                     = Schema.derived
     implicit val cfg: DynamoDBCodecDeriverConfigure[Contact] =
-      d => d.withModifier(schema.reflect.typeId, "name", Modifier.rename("fullName"))
+      DynamoDBCodecDeriverConfigure[Contact]().withModifier(schema.reflect.typeId, "name", Modifier.rename("fullName"))
   }
 
   private val bob = Contact("2", "Bob")
@@ -63,12 +62,11 @@ object DerivationConfigureSpec extends ZIOSpecDefault {
   private object Shape {
     implicit val schema: Schema[Shape]                     = Schema.derived
     implicit val cfg: DynamoDBCodecDeriverConfigure[Shape] =
-      d =>
-        d.withCaseNameMapper(NameMapper.Custom {
-          case "Circle"    => "circle"
-          case "Rectangle" => "rectangle"
-          case other       => other
-        })
+      DynamoDBCodecDeriverConfigure[Shape]().withCaseNameMapper(NameMapper.Custom {
+        case "Circle"    => "circle"
+        case "Rectangle" => "rectangle"
+        case other       => other
+      })
   }
 
   def spec = suite("DynamoDBCodecDeriverConfigure")(
