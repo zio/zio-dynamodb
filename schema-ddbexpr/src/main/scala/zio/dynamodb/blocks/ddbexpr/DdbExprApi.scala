@@ -105,22 +105,24 @@ trait DdbExprApiSyntax {
 
   def get[From](
     table: Table[From]
-  )(keyExpr: DdbKeyExpr.PrimaryKey[From]): DynamoDBQuery[From, Either[DynamoDBError.ItemError, From]] =
-    DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr) match {
+  )(keyExpr: DdbKeyExpr.PrimaryKey[From]): DynamoDBQuery[From, Either[DynamoDBError.ItemError, From]] = {
+    val entry = table.entry
+    DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr, table.config, entry.codec.recordFieldNameMap) match {
       case Right(pkExpr) =>
         val pkAttrMap = pkExpr.asAttrMap
-        DynamoDBQuery.getItem(table.name, pkAttrMap, table.entry.projections: _*).map {
+        DynamoDBQuery.getItem(table.name, pkAttrMap, entry.projections: _*).map {
           case Some(item) => table.decode(item)
           case None       => Left(DynamoDBError.ItemError.ValueNotFound(s"value with key $pkAttrMap not found"))
         }
       case Left(msg)     =>
         DynamoDBQuery.fail(DynamoDBError.ItemError.DecodingError.failure(msg))
     }
+  }
 
   def update[From](table: Table[From])(keyExpr: DdbKeyExpr.PrimaryKey[From])(
     action: UpdateExpression.Action[From]
   ): DynamoDBQuery[From, Option[From]] =
-    DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr) match {
+    DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr, table.config, table.entry.codec.recordFieldNameMap) match {
       case Right(pkExpr) =>
         DynamoDBQuery
           .updateItem(table.name, pkExpr.asAttrMap)(action)
@@ -132,7 +134,7 @@ trait DdbExprApiSyntax {
   def deleteFrom[From](
     table: Table[From]
   )(keyExpr: DdbKeyExpr.PrimaryKey[From]): DynamoDBQuery[From, Option[From]] =
-    DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr) match {
+    DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr, table.config, table.entry.codec.recordFieldNameMap) match {
       case Right(pkExpr) =>
         DynamoDBQuery
           .deleteItem(table.name, pkExpr.asAttrMap)
