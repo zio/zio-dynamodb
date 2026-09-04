@@ -85,7 +85,7 @@ object DdbExprApiSpec extends ZIOSpecDefault {
     suite("put — encode-failure path")(
       test("put on a non-record schema (encodes to a non-Map AttributeValue) fails, not silently drops the write") {
         implicit val intSchema: Schema[Int] = Schema.int
-        val q                               = DdbExprApi.put(DdbExprApi.Table[Int]("tasks"), 5)
+        val q                               = DdbExprApi.put(DdbExprApi.Table[Int]("tasks"), 5).toQuery
         assert(q)(isSubtype[DynamoDBQuery.Fail](anything))
       }
     ),

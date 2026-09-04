@@ -22,7 +22,7 @@ import org.scanamo._
 import org.scanamo.syntax._
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient
 import software.amazon.awssdk.services.dynamodb.model._
-import zio.blocks.schema.CompanionOptics
+import zio.blocks.schema.{ CompanionOptics, NameMapper }
 import zio.dynamodb.BenchmarkDomain._
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.blocks.ddbexpr.{ DdbExprApi, DdbKeyExpr }
@@ -141,7 +141,10 @@ class CeEffectStackBench extends BaseBenchmark {
   }
 
   private object BigRecordOps extends CompanionOptics[BigRecord] {
-    val id = $(_.id)
+    val id           = $(_.id)
+    val name         = $(_.name)
+    val auditVersion = $(_.audit.version)     // 2-segment Lens through a plain nested record
+    val priceMinor   = $(_.price.amountMinor) // 2-segment; remaps under SnakeCase (amount_minor)
   }
 
   // ── Scanamo sync wrapped in IO.delay ────────────────────────────────────
@@ -177,6 +180,11 @@ class CeEffectStackBench extends BaseBenchmark {
 
   private val personDdbTable = DdbExprApi.Table[Person](TABLE)
   private val bigDdbTable     = DdbExprApi.Table[BigRecord](BIG_TABLE)
+
+  // Same table, snake_case field-name mapper - makes the config-aware OpticToPE walk do
+  // real remapping (amountMinor -> amount_minor) rather than identity.
+  private val bigDdbTableSnake =
+    DdbExprApi.Table[BigRecord](BIG_TABLE).deriving(_.withFieldNameMapper(NameMapper.SnakeCase))
 
   // ── Step 2: pre-built queries (set in @Setup) ───────────────────────────
 
@@ -290,5 +298,27 @@ class CeEffectStackBench extends BaseBenchmark {
 
   @Benchmark def blocksPutBigConstructOnly: DynamoDBQuery[BigRecord, Option[BigRecord]] =
     DdbExprApi.put(bigDdbTable, bigRecord)
+
+  // -- BigRecord nested-field expressions - exercises the config-aware OpticToPE
+  //    tree-walk (Field -> Record -> Field) that the Table-config threading introduced.
+  //    blocksUpdateConditionalConstructOnly above is the single-segment (Person.age) control.
+
+  /** Construction only: update + a 2-segment nested-field `.where`, default (identity)
+   *  config. Isolates the nested config-aware projection resolution cost. */
+  @Benchmark def blocksUpdateBigNestedConditionalConstructOnly: DynamoDBQuery[BigRecord, Option[BigRecord]] =
+    DdbExprApi
+      .update(bigDdbTable)(BigRecordOps.id.partitionKey === bigId)(BigRecordOps.name.set("Widget"))
+      .where(BigRecordOps.auditVersion > 0)
+
+  /** As above but with a snake_case field-name mapper, so the nested path is actually
+   *  remapped (price.amountMinor -> price.amount_minor) rather than resolved to itself. */
+  @Benchmark def blocksUpdateBigNestedConditionalSnakeConstructOnly: DynamoDBQuery[BigRecord, Option[BigRecord]] =
+    DdbExprApi
+      .update(bigDdbTableSnake)(BigRecordOps.id.partitionKey === bigId)(BigRecordOps.name.set("Widget"))
+      .where(BigRecordOps.priceMinor > 0L)
+
+  /** Construction only: scan + a 2-segment nested-field `.filter`, default config. */
+  @Benchmark def blocksScanBigNestedFilterConstructOnly: DynamoDBQuery[BigRecord, Page[Either[ItemError, BigRecord]]] =
+    DdbExprApi.scan(bigDdbTable, 20).filter(BigRecordOps.auditVersion > 0)
 
 }

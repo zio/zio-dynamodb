@@ -58,6 +58,12 @@ final class Table[From] private (
     CodecEntry(codec, projections)
   }
 
+  // Per-table expression-resolution context: threads this table's config + reflect +
+  // field-name map into `.where` / `.filter` / key-condition interpretation, and memoises
+  // the resolved projections and literal codecs so construction allocates no cache keys.
+  private[ddbexpr] lazy val exprCtx: ExprCtx =
+    new ExprCtx(config, schema.reflect, entry.codec.recordFieldNameMap)
+
   /**
    * Returns a copy of this table whose codec derives with `configure` applied to the
    * default [[DynamoDBCodecDeriverConfigure]]. Replaces any configuration previously

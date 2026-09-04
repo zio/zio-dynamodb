@@ -18,6 +18,7 @@ package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema }
 import zio.dynamodb.blocks.ddbexpr.{ DdbExprApi, DdbKeyExpr }
+import zio.dynamodb.blocks.ddbexpr.DdbExprApi.writeBuilderToQuery
 // Import OpticUpdateOps from DdbExpr selectively to avoid dual-derivedCodec ambiguity
 // (both DdbExpr._ and DdbKeyExpr._ expose derivedCodec with the same signature).
 import zio.dynamodb.blocks.ddbexpr.DdbExpr.OpticUpdateOps
