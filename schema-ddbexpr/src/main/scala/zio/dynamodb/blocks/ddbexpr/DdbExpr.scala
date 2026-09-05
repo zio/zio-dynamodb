@@ -94,26 +94,26 @@ trait DdbExprSyntax extends DerivedCodecSyntax {
   // Not `extends AnyVal`: value classes may only be top-level or object members, not
   // trait members, and this trait is mixed into more than one object (DdbExpr, dsl).
   implicit class OpticDdbExprOps[S, A](private val optic: Optic[S, A]) {
-    def attributeExists: DdbExpr[S, Boolean]                                         = DdbExpr.AttributeExists(optic)
-    def attributeNotExists: DdbExpr[S, Boolean]                                      =
+    def attributeExists: DdbExpr[S, Boolean]                                   = DdbExpr.AttributeExists(optic)
+    def attributeNotExists: DdbExpr[S, Boolean]                                =
       DdbExpr.AttributeNotExists(optic)
     def between(lo: A, hi: A)(implicit
-      codec: DynamoDBCodec[A],
+      schema: Schema[A],
       @unused ev: Allows[A, DdbGrammar.N || DdbGrammar.S || DdbGrammar.B]
-    ): DdbExpr[S, Boolean]                                                           =
-      DdbExpr.Between(optic, lo, hi, codec)
-    def in(head: A, rest: A*)(implicit codec: DynamoDBCodec[A]): DdbExpr[S, Boolean] =
-      DdbExpr.In(optic, head +: rest, codec)
+    ): DdbExpr[S, Boolean]                                                     =
+      DdbExpr.Between(optic, lo, hi, schema)
+    def in(head: A, rest: A*)(implicit schema: Schema[A]): DdbExpr[S, Boolean] =
+      DdbExpr.In(optic, head +: rest, schema)
     def inSet(values: Set[A])(implicit
-      codec: DynamoDBCodec[A],
+      schema: Schema[A],
       @unused ev: Allows[A, DdbGrammar.N || DdbGrammar.S || DdbGrammar.B]
-    ): DdbExpr[S, Boolean]                                                           =
-      DdbExpr.In(optic, values.toSeq, codec)
+    ): DdbExpr[S, Boolean]                                                     =
+      DdbExpr.In(optic, values.toSeq, schema)
     def containsElement[B](element: B)(implicit
-      elemCodec: DynamoDBCodec[B],
+      elemSchema: Schema[B],
       @unused ev: Allows[A, DdbGrammar.NS || DdbGrammar.SS || DdbGrammar.BS]
-    ): DdbExpr[S, Boolean]                                                           =
-      DdbExpr.ContainsElement(optic, element, elemCodec)
+    ): DdbExpr[S, Boolean]                                                     =
+      DdbExpr.ContainsElement(optic, element, elemSchema)
   }
 
   // String-specific DDB functions.
@@ -273,13 +273,13 @@ object DdbExpr extends DdbExprSyntax {
     optic: Optic[S, A],
     lo: A,
     hi: A,
-    codec: DynamoDBCodec[A]
+    schema: Schema[A]
   ) extends DdbExpr[S, Boolean]
 
   final case class In[S, A](
     optic: Optic[S, A],
     values: Seq[A],
-    codec: DynamoDBCodec[A]
+    schema: Schema[A]
   ) extends DdbExpr[S, Boolean]
 
   final case class Contains[S](optic: Optic[S, String], value: String)    extends DdbExpr[S, Boolean]
@@ -290,7 +290,7 @@ object DdbExpr extends DdbExprSyntax {
   final case class ContainsElement[S, A, B](
     optic: Optic[S, A],
     element: B,
-    elemCodec: DynamoDBCodec[B]
+    elemSchema: Schema[B]
   ) extends DdbExpr[S, Boolean]
 
   // Logical

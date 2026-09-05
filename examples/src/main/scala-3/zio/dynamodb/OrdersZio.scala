@@ -46,6 +46,10 @@ object OrdersZio extends ZIOAppDefault {
     val status: Lens[Order, Status]     = $(_.status)
   }
 
+  // One Table handle per table — carries the name + Schema + codec config, and lets the
+  // CRUD ops below infer their element type.
+  val orders = Table[Order]("orders")
+
   val interpreterLayer: ZLayer[Any, Throwable, Interpreter[Task]] =
     ZLayer.scoped {
       ZIO
@@ -57,17 +61,17 @@ object OrdersZio extends ZIOAppDefault {
     ZIO.serviceWithZIO[Interpreter[Task]] { interpreter =>
       given Interpreter[Task] = interpreter
       for {
-        _ <- put("orders", Order("cust-42", "ord-1", 129.99, Status.Pending)).execute
+        _ <- put(orders, Order("cust-42", "ord-1", 129.99, Status.Pending)).execute
 
         // partition key + sort-key range, plus a filter — both type-checked against
         // Order's schema, not hand-written expression strings
-        recent <- query[Order]("orders", limit = 20)
+        recent <- query(orders, limit = 20)
                     .whereKey(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey > "ord-0")
                     .filter(Order.total > 50.0)
                     .execute
 
         // typed update — the compiler checks the field and the value being set together
-        _ <- update("orders")(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1")(
+        _ <- update(orders)(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1")(
                Order.status.set(Status.Shipped)
              ).execute
       } yield ()

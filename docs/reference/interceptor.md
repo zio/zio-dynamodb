@@ -95,7 +95,7 @@ is shared by any fiber holding a reference to it.
 `examples/src/main/scala/zio/dynamodb/RateLimitedReads.scala` builds a token-bucket rate
 limiter weighted by *RCUs actually consumed* per response (not raw call count — a 1-RCU call
 and a 40-RCU call shouldn't be throttled identically), and pairs it with
-[`ZIOStreamingUtils.batchGetItems`](crud/batch.md#why-no-high-level-batch-api): each
+[`ZIOStreamingUtils.batchGetItems`](crud/batch.md#why-no-high-level-batch-or-transaction-api): each
 batch's `onResponse` delay gates when the stream pulls the next batch, so a sequential
 `BatchGetItem` pipeline self-throttles against a target RCU budget with no external rate
 limiter needed.

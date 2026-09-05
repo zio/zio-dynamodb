@@ -24,6 +24,15 @@ Client lifecycle is handled two different ways deliberately, one per effect syst
 `OrdersCE` uses `cats.effect.Resource`, `OrdersZio` uses `ZLayer.scoped`/
 `ZIO.acquireRelease` — both close the underlying `DynamoDbAsyncClient` on completion.
 
+## `OrdersConfigured`
+
+The same `Order`/`Status` model, focused on **codec configuration** in the High-Level API,
+done entirely on the `Table` value via `.deriving` — the model carries no `@Modifier`
+annotations and nothing is resolved from implicit scope. Chains `withFieldNameMapper` /
+`withCaseNameMapper` (deriver-wide) and `withModifier(typeId, field, Modifier.rename(...))`
+(per-field) on the `DynamoDBCodecDeriverConfigure` value passed into `.deriving`. Shows the
+precedence: the per-field `withModifier` rename wins over the table-wide field-name mapper.
+
 ## `RateLimitedReads`
 
 A token-bucket rate limiter built entirely from the public API — see
@@ -36,7 +45,7 @@ using `TestClock`, not just compiled.
 `batchGetItems` — grouping a `ZStream` of primary keys into `BatchGetItem` batches of up to
 100, running each through `interp.run` with a `RetryPolicy`, and turning
 `Incomplete`/`Failed` batch outcomes into log output instead of a fatal stream error. See
-[Batch Operations](crud/batch.md#why-no-high-level-batch-api) for why this lives here rather
+[Batch Operations](crud/batch.md#why-no-high-level-batch-or-transaction-api) for why this lives here rather
 than as a library-provided API. Backed by a real `ZIOSpecDefault` test
 (`ZIOStreamingUtilsSpec`) against a stub interpreter.
 

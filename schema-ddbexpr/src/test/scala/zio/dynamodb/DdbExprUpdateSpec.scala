@@ -18,6 +18,7 @@ package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema }
 import zio.dynamodb.blocks.ddbexpr.{ DdbExprApi, DdbKeyExpr }
+import zio.dynamodb.blocks.ddbexpr.DdbExprApi.writeBuilderToQuery
 // Import OpticUpdateOps from DdbExpr selectively to avoid dual-derivedCodec ambiguity
 // (both DdbExpr._ and DdbKeyExpr._ expose derivedCodec with the same signature).
 import zio.dynamodb.blocks.ddbexpr.DdbExpr.OpticUpdateOps
@@ -38,6 +39,8 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
     val tags: Lens[Record, List[String]]  = $(_.tags)
     val labels: Lens[Record, Set[String]] = $(_.labels)
   }
+
+  private val records = DdbExprApi.Table[Record]("records")
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -155,12 +158,12 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
     suite("DdbExprApi.update")(
       test("update with set action runs without error") {
         val q = DdbExprApi
-          .update[Record]("records")(Record.id.partitionKey === "r1")(Record.score.set(99))
+          .update(records)(Record.id.partitionKey === "r1")(Record.score.set(99))
         assertTrue(run(q).isEmpty)
       },
       test("update with composed set + add runs without error") {
         val q = DdbExprApi
-          .update[Record]("records")(Record.id.partitionKey === "r1")(Record.score.set(99) + Record.count.add(1))
+          .update(records)(Record.id.partitionKey === "r1")(Record.score.set(99) + Record.count.add(1))
         assertTrue(run(q).isEmpty)
       }
       // Range expressions (sortKey > / between / beginsWith) on update are now a compile-time error:

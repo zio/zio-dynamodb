@@ -44,6 +44,8 @@ object DocsExampleObject extends IOApp.Simple {
     val genre: Lens[Movie, Genre] = $(_.genre)
   }
 
+  val movies = Table[Movie]("movies")
+
   val client: Resource[IO, DynamoDbAsyncClient] =
     Resource.make(IO(DynamoDbAsyncClient.builder().build()))(c => IO(c.close()))
 
@@ -51,9 +53,9 @@ object DocsExampleObject extends IOApp.Simple {
     client.use { c =>
       given Interpreter[IO] = CEInterpreter.fromAsyncClient(c)
       for {
-        _     <- put("movies", Movie("m1", Genre.Drama)).execute
-        movie <- get("movies")(Movie.id.partitionKey === "m1").execute
-        page  <- scan[Movie]("movies", 20).filter(Movie.genre === Genre.Drama).execute
+        _     <- put(movies, Movie("m1", Genre.Drama)).execute
+        movie <- get(movies)(Movie.id.partitionKey === "m1").execute
+        page  <- scan(movies, 20).filter(Movie.genre === Genre.Drama).execute
       } yield ()
     }
 }

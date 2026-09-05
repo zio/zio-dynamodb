@@ -16,15 +16,15 @@
 
 package zio.dynamodb.blocks.ddbexpr
 
-import zio.blocks.schema.Optic
-import zio.dynamodb.blocks.schema.DynamoDBCodec
+import zio.blocks.schema.{ Optic, Schema }
 
 /**
  * Typed key condition expression ADT for DynamoDB query/get/delete/update operations.
  *
  *  Mirrors the three-case [[zio.dynamodb.KeyConditionExpr]] hierarchy but uses
- *  [[zio.blocks.schema.Optic]] for field references and carries [[zio.dynamodb.blocks.schema.DynamoDBCodec]][A]
- *  at every literal site — the same codec-carrying principle as [[DdbExpr.Between]].
+ *  [[zio.blocks.schema.Optic]] for field references and carries a [[zio.blocks.schema.Schema]][A]
+ *  at every literal site — the codec is derived at interpretation time with the calling
+ *  table's configuration.
  *
  *  The ADT has two levels:
  *   - [[DdbKeyExpr.PrimaryKey]] — sealed sub-trait covering [[DdbKeyExpr.PartitionKeyEquals]] and
@@ -34,7 +34,7 @@ import zio.dynamodb.blocks.schema.DynamoDBCodec
  *   - [[DdbKeyExpr]] (full ADT) — also includes [[DdbKeyExpr.Extended]] (range/function
  *     sort key); accepted by `query` and the implicit `.whereKey` conversion.
  *
- *  Construction (import `DdbKeyExpr._` for codec derivation and extension methods).
+ *  Construction (import `DdbKeyExpr._` for the extension methods).
  *  `.partitionKey`/`.sortKey` match the naming used by the LL API's
  *  `ProjectionExpression.partitionKey`/`ProjectionExpression.sortKey`:
  *  {{{
@@ -111,8 +111,7 @@ object DdbKeyExpr extends DdbKeyExprSyntax {
    */
   sealed trait PrimaryKey[S] extends DdbKeyExpr[S]
 
-  final case class PartitionKeyEquals[S, A](optic: Optic[S, A], value: A, codec: DynamoDBCodec[A])
-      extends PrimaryKey[S] {
+  final case class PartitionKeyEquals[S, A](optic: Optic[S, A], value: A, schema: Schema[A]) extends PrimaryKey[S] {
     def &&[B](sortKey: SortKeyEquals[S, B]): Composite[S, A, B] = Composite(this, sortKey)
     def &&(sortKey: SortKeyExtended[S]): Extended[S, A]         = Extended(this, sortKey)
   }
@@ -122,16 +121,16 @@ object DdbKeyExpr extends DdbKeyExprSyntax {
 
   // ── Sort key intermediates ─────────────────────────────────────────────────
 
-  final case class SortKeyEquals[S, B](optic: Optic[S, B], value: B, codec: DynamoDBCodec[B])
+  final case class SortKeyEquals[S, B](optic: Optic[S, B], value: B, schema: Schema[B])
 
   sealed trait SortKeyExtended[S]
   object SortKeyExtended {
-    final case class Gt[S, B](optic: Optic[S, B], value: B, codec: DynamoDBCodec[B])          extends SortKeyExtended[S]
-    final case class Gte[S, B](optic: Optic[S, B], value: B, codec: DynamoDBCodec[B])         extends SortKeyExtended[S]
-    final case class Lt[S, B](optic: Optic[S, B], value: B, codec: DynamoDBCodec[B])          extends SortKeyExtended[S]
-    final case class Lte[S, B](optic: Optic[S, B], value: B, codec: DynamoDBCodec[B])         extends SortKeyExtended[S]
-    final case class Between[S, B](optic: Optic[S, B], lo: B, hi: B, codec: DynamoDBCodec[B]) extends SortKeyExtended[S]
-    final case class BeginsWith[S](optic: Optic[S, String], prefix: String)                   extends SortKeyExtended[S]
+    final case class Gt[S, B](optic: Optic[S, B], value: B, schema: Schema[B])          extends SortKeyExtended[S]
+    final case class Gte[S, B](optic: Optic[S, B], value: B, schema: Schema[B])         extends SortKeyExtended[S]
+    final case class Lt[S, B](optic: Optic[S, B], value: B, schema: Schema[B])          extends SortKeyExtended[S]
+    final case class Lte[S, B](optic: Optic[S, B], value: B, schema: Schema[B])         extends SortKeyExtended[S]
+    final case class Between[S, B](optic: Optic[S, B], lo: B, hi: B, schema: Schema[B]) extends SortKeyExtended[S]
+    final case class BeginsWith[S](optic: Optic[S, String], prefix: String)             extends SortKeyExtended[S]
   }
 
   // ── Partition key builder ─────────────────────────────────────────────────
@@ -140,10 +139,10 @@ object DdbKeyExpr extends DdbKeyExprSyntax {
   // === for the operator-style  Task.id.partitionKey === "alice"  and apply() so the
   // previous call-style  Task.id.partitionKey("alice")  continues to compile unchanged.
   final class PartitionKeyBuilder[S, A](val optic: Optic[S, A]) {
-    def ===(value: A)(implicit codec: DynamoDBCodec[A]): PartitionKeyEquals[S, A]   =
-      PartitionKeyEquals(optic, value, codec)
-    def apply(value: A)(implicit codec: DynamoDBCodec[A]): PartitionKeyEquals[S, A] =
-      PartitionKeyEquals(optic, value, codec)
+    def ===(value: A)(implicit schema: Schema[A]): PartitionKeyEquals[S, A]   =
+      PartitionKeyEquals(optic, value, schema)
+    def apply(value: A)(implicit schema: Schema[A]): PartitionKeyEquals[S, A] =
+      PartitionKeyEquals(optic, value, schema)
   }
 
   // ── Standalone factories ───────────────────────────────────────────────────
@@ -155,12 +154,12 @@ object DdbKeyExpr extends DdbKeyExprSyntax {
   // ── Sort key builder ──────────────────────────────────────────────────────
 
   final class SortKeyBuilder[S, B](val optic: Optic[S, B]) {
-    def ===(value: B)(implicit codec: DynamoDBCodec[B]): SortKeyEquals[S, B]        = SortKeyEquals(optic, value, codec)
-    def >(value: B)(implicit codec: DynamoDBCodec[B]): SortKeyExtended[S]           = SortKeyExtended.Gt(optic, value, codec)
-    def >=(value: B)(implicit codec: DynamoDBCodec[B]): SortKeyExtended[S]          = SortKeyExtended.Gte(optic, value, codec)
-    def <(value: B)(implicit codec: DynamoDBCodec[B]): SortKeyExtended[S]           = SortKeyExtended.Lt(optic, value, codec)
-    def <=(value: B)(implicit codec: DynamoDBCodec[B]): SortKeyExtended[S]          = SortKeyExtended.Lte(optic, value, codec)
-    def between(lo: B, hi: B)(implicit codec: DynamoDBCodec[B]): SortKeyExtended[S] =
-      SortKeyExtended.Between(optic, lo, hi, codec)
+    def ===(value: B)(implicit schema: Schema[B]): SortKeyEquals[S, B]        = SortKeyEquals(optic, value, schema)
+    def >(value: B)(implicit schema: Schema[B]): SortKeyExtended[S]           = SortKeyExtended.Gt(optic, value, schema)
+    def >=(value: B)(implicit schema: Schema[B]): SortKeyExtended[S]          = SortKeyExtended.Gte(optic, value, schema)
+    def <(value: B)(implicit schema: Schema[B]): SortKeyExtended[S]           = SortKeyExtended.Lt(optic, value, schema)
+    def <=(value: B)(implicit schema: Schema[B]): SortKeyExtended[S]          = SortKeyExtended.Lte(optic, value, schema)
+    def between(lo: B, hi: B)(implicit schema: Schema[B]): SortKeyExtended[S] =
+      SortKeyExtended.Between(optic, lo, hi, schema)
   }
 }

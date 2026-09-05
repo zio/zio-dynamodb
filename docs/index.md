@@ -40,6 +40,8 @@ object Example extends IOApp.Simple {
     val genre: Lens[Movie, Genre] = $(_.genre)
   }
 
+  val movies = Table[Movie]("movies")
+
   val client: Resource[IO, DynamoDbAsyncClient] =
     Resource.make(IO(DynamoDbAsyncClient.builder().build()))(c => IO(c.close()))
 
@@ -47,9 +49,9 @@ object Example extends IOApp.Simple {
     client.use { c =>
       given Interpreter[IO] = CEInterpreter.fromAsyncClient(c)
       for {
-        _     <- put("movies", Movie("m1", Genre.Drama)).execute
-        movie <- get("movies")(Movie.id.partitionKey === "m1").execute
-        page  <- scan[Movie]("movies", 20).filter(Movie.genre === Genre.Drama).execute
+        _     <- put(movies, Movie("m1", Genre.Drama)).execute
+        movie <- get(movies)(Movie.id.partitionKey === "m1").execute
+        page  <- scan(movies, 20).filter(Movie.genre === Genre.Drama).execute
       } yield ()
     }
 }
@@ -86,6 +88,8 @@ object ZioExample extends ZIOAppDefault {
     val genre: Lens[Movie, Genre] = $(_.genre)
   }
 
+  val movies = Table[Movie]("movies")
+
   val interpreterLayer: ZLayer[Any, Throwable, Interpreter[Task]] =
     ZLayer.scoped {
       ZIO
@@ -97,9 +101,9 @@ object ZioExample extends ZIOAppDefault {
     ZIO.serviceWithZIO[Interpreter[Task]] { interpreter =>
       given Interpreter[Task] = interpreter
       for {
-        _     <- put("movies", Movie("m1", Genre.Drama)).execute
-        movie <- get("movies")(Movie.id.partitionKey === "m1").execute
-        page  <- scan[Movie]("movies", 20).filter(Movie.genre === Genre.Drama).execute
+        _     <- put(movies, Movie("m1", Genre.Drama)).execute
+        movie <- get(movies)(Movie.id.partitionKey === "m1").execute
+        page  <- scan(movies, 20).filter(Movie.genre === Genre.Drama).execute
       } yield ()
     }
 
@@ -167,8 +171,13 @@ Some specific pain points from 2.x drove the redesign:
 - Interpreters for ZIO, Cats Effect, and `Future`.
 - Retry policies with response-level batch retry built into query execution.
 
-Still ahead: schema-aware batch/transact operations in the high-level API, and additional
-effect-system interpreters (a Kyo interpreter is designed but not yet built).
+Batch and transaction operations are Low-Level only, on purpose — see
+[Batch Operations](reference/crud/batch.md#why-no-high-level-batch-or-transaction-api).
+`Table#decode` / `Table#encode` bridge the raw `Item`s back to your models using the
+same codec configuration the High-Level API uses.
+
+Still ahead: additional effect-system interpreters (a Kyo interpreter is designed but not
+yet built).
 
 ## Try it
 

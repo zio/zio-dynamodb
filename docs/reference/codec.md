@@ -91,19 +91,21 @@ object Shape {
 
 ## Configuring the deriver the High-Level API uses
 
-`put`/`get`/`update`/... don't take a `DynamoDBCodecDeriver` argument directly — they derive
-one implicitly via `DynamoDBCodecDeriverConfigure[A]`, which defaults to the unconfigured
-deriver. Supply your own instance in scope to change the configuration for a specific model
-type used through the High-Level API:
+`get`/`put`/`update`/... take a [`Table[A]`](crud/high-level.md), and the codec-derivation
+config is attached to that value with `.deriving`. The config is a
+`DynamoDBCodecDeriverConfigure[A]` — a value with readable fields (`fieldNameMapper`,
+`discriminatorKind`, `enumValuesAsStrings`, per-field `rename`, …), not an opaque deriver
+transform:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.Schema
-import zio.dynamodb.blocks.DynamoDBCodecDeriverConfigure
+import zio.blocks.schema.{ NameMapper, Schema }
+import zio.dynamodb.blocks.ddbexpr.dsl.*
 
 case class Order(customerId: String, orderId: String) derives Schema
 
-implicit val orderCodecConfig: DynamoDBCodecDeriverConfigure[Order] =
-  _.withEnumValuesAsStrings(false)
+val orders = Table[Order]("orders").deriving(
+  _.withEnumValuesAsStrings(false).withFieldNameMapper(NameMapper.SnakeCase)
+)
 ```
 
 ## `Schema1Compat`: migrating from 2.x

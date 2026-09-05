@@ -19,6 +19,16 @@ package zio.dynamodb.blocks
 import zio.blocks.schema.{ DynamicOptic, DynamicValue, Lens, Optic, Optional, PrimitiveValue }
 import zio.dynamodb.ProjectionExpression
 
+/**
+ * Resolves an optic (or its raw `DynamicOptic`) to a [[ProjectionExpression]] using only
+ *  the optic's own Scala field names — no schema, no `DynamoDBCodecDeriverConfigure`. Used
+ *  by the low-level `.filter` / `.whereKey` implicit-conversion path (`ExprCtx.default`,
+ *  where there is no `Table` / configured schema to resolve against).
+ *
+ *  Config-aware resolution (honouring a `Table`'s field-name mapper, per-field `rename`,
+ *  discriminator kind, ...) is [[ProjectionResolver]] — a deriver-produced
+ *  [[zio.dynamodb.blocks.schema.Resolver]] tree, not a hand-walked `Reflect` + config.
+ */
 object OpticToPE {
 
   def pe(dynamicOptic: DynamicOptic): Either[String, ProjectionExpression[_, _]] = {
@@ -59,7 +69,7 @@ object OpticToPE {
     if (error != null) Left(error) else Right(prevPe.asInstanceOf[ProjectionExpression[S, A]])
   }
 
-  private[this] final def pruneOptionalNodes(nodes: IndexedSeq[DynamicOptic.Node]): IndexedSeq[DynamicOptic.Node] = {
+  private[blocks] final def pruneOptionalNodes(nodes: IndexedSeq[DynamicOptic.Node]): IndexedSeq[DynamicOptic.Node] = {
     val builder = Vector.newBuilder[DynamicOptic.Node]
     var i       = 0
     while (i < nodes.length)
@@ -76,19 +86,6 @@ object OpticToPE {
     builder.result()
   }
 
-  /*
-  object Node {
-    case class Field(name: String) extends Node
-    case class Case(name: String) extends Node
-    case class AtIndex(index: Int) extends Node
-    case class AtMapKey[K](key: K) extends Node
-    case class AtIndices(index: Seq[Int]) extends Node
-    case class AtMapKeys[K](keys: Seq[K]) extends Node
-    case object Elements extends Node
-    case object MapKeys extends Node
-    case object MapValues extends Node
-  }
-   */
   def pe[S, A](optional: Optional[S, A]): Either[String, ProjectionExpression[S, A]] = {
     var prevPe: ProjectionExpression[_, _] = ProjectionExpression.Root
     val nodesPruned                        = pruneOptionalNodes(optional.toDynamic.nodes)
@@ -105,11 +102,6 @@ object OpticToPE {
         case DynamicOptic.Node.AtMapKey(key)                                                =>
           error = s"found map key '$key' — only String keys are supported in DDB"
         case DynamicOptic.Node.Case(name)                                                   =>
-          // Key (tagged) encoding (the default): the case name is a map key in DDB.
-          // e.g. Shape.Circle encodes as { "Circle": { "radius": 1.5 } }, so
-          // Case("Circle") must become MapElement(prev, "Circle") in the path.
-          // Only correct for DiscriminatorKind.Key; Field/None encoding users must not
-          // use optics through variant cases.
           prevPe = ProjectionExpression.MapElement(prevPe, name)
         case node                                                                           =>
           error = s"unexpected node: $node"
@@ -118,5 +110,4 @@ object OpticToPE {
     }
     if (error != null) Left(error) else Right(prevPe.asInstanceOf[ProjectionExpression[S, A]])
   }
-
 }
