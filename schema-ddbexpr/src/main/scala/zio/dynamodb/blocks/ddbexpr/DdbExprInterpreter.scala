@@ -19,6 +19,7 @@ package zio.dynamodb.blocks.ddbexpr
 import zio.blocks.schema.{ DynamicSchemaExpr, DynamicValue, Reflect, Schema }
 import zio.blocks.schema.binding.Binding
 import zio.dynamodb.blocks.DynamoDBCodecDeriverConfigure
+import zio.dynamodb.blocks.ProjectionResolver
 import zio.dynamodb.blocks.schema.DynamoDBCodecDeriver
 import zio.dynamodb.{ AttributeValue, ConditionExpression, ProjectionExpression }
 
@@ -52,8 +53,11 @@ object DdbExprInterpreter {
     expr: DdbExpr[S, Boolean],
     config: DynamoDBCodecDeriverConfigure[S],
     rootReflect: Reflect[Binding, S]
-  ): Either[String, ConditionExpression[S]] =
-    interp[S](expr, new ExprCtx(config, rootReflect, Map.empty))
+  ): Either[String, ConditionExpression[S]] = {
+    val root     = new Schema(rootReflect).deriving(config.toResolverDeriver).derive
+    val resolver = new ProjectionResolver(root)
+    interp[S](expr, new ExprCtx(config, resolver))
+  }
 
   private def interp[S](expr: DdbExpr[S, Boolean], ctx: ExprCtx): Either[String, ConditionExpression[S]] =
     expr match {

@@ -16,18 +16,17 @@
 
 package zio.dynamodb.blocks.ddbexpr
 
-import zio.blocks.schema.Optic
-import zio.dynamodb.blocks.OpticToPE
+import zio.blocks.schema.{ DynamicOptic, Optic }
 import zio.dynamodb.{ AttributeValue, KeyConditionExpr, PartitionKey, ProjectionExpression, SortKey }
 
 /**
  * Interprets a [[DdbKeyExpr]][S] into a [[KeyConditionExpr]][S].
  *
- *  Field references are resolved via [[OpticToPE]], then mapped to their DynamoDB
- *  attribute name through the calling table's `recordFieldNameMap` (so a configured
- *  field-name mapper / `@Modifier.rename` is honoured). Literal values are encoded with
- *  the calling table's configured codec. Both come off the table's [[ExprCtx]], which
- *  memoises them; the no-config overloads use the shared [[ExprCtx.default]] (raw optic
+ *  Field references and literal values are both resolved through the calling table's
+ *  [[ExprCtx]] — the same `ProjectionResolver` / literal-codec cache `.where` / `.filter`
+ *  use, so a key condition and a filter condition agree on a configured field-name mapper
+ *  / `@Modifier.rename` by construction. The no-config overloads use the shared
+ *  [[ExprCtx.default]] (raw optic
  *  names, default deriver) for the low-level `.whereKey` conversion path.
  *
  *  Only single-segment optics (top-level fields) are valid as partition or sort keys; a
@@ -88,12 +87,26 @@ object DdbKeyExprInterpreter {
 
   // -- Helpers -------------------------------------------------------------
 
-  // Only top-level field optics are valid as DynamoDB key fields; map the raw Scala name
-  // to the wire name the calling table's codec configuration produced.
-  private def fieldName[S, A](optic: Optic[S, A], ctx: ExprCtx): Either[String, String] =
-    OpticToPE.pe(optic) match {
+  // Only top-level field optics are valid as DynamoDB key fields, so `nodes` is always a
+  // single Field segment on any valid key. Reads the wire name straight off the table's
+  // Resolver, bypassing ProjectionResolver's general cache: a ConcurrentHashMap lookup costs
+  // more than a direct small-immutable-Map lookup on this simplest, hottest path, and there
+  // is no MapElement chain here worth memoising. Same source of truth as the general path
+  // (the Resolver tree), just a shorter route to it - not a second naming computation.
+  private def fieldName[S, A](optic: Optic[S, A], ctx: ExprCtx): Either[String, String] = {
+    val nodes = optic.toDynamic.nodes
+    if (nodes.length == 1 && (ctx.resolver ne null))
+      nodes.head match {
+        case DynamicOptic.Node.Field(scalaName) => ctx.resolver.resolveTopLevelField(scalaName)
+        case _                                  => fallback(optic, ctx)
+      }
+    else fallback(optic, ctx)
+  }
+
+  private def fallback[S, A](optic: Optic[S, A], ctx: ExprCtx): Either[String, String] =
+    ctx.peOf(optic) match {
       case Right(ProjectionExpression.MapElement(ProjectionExpression.Root, key)) =>
-        Right(ctx.recordFieldNameMap.getOrElse(key, key))
+        Right(key)
       case Right(pe)                                                              =>
         Left(s"key field must be a single top-level field, got path: $pe")
       case Left(error)                                                            =>

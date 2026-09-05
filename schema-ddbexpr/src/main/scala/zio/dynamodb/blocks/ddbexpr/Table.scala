@@ -19,6 +19,7 @@ package zio.dynamodb.blocks.ddbexpr
 import zio.blocks.schema.Schema
 import zio.dynamodb.{ DynamoDBError, FromAttributeValue, Item, ProjectionExpression }
 import zio.dynamodb.blocks.DynamoDBCodecDeriverConfigure
+import zio.dynamodb.blocks.ProjectionResolver
 
 /**
  * A typed handle for a DynamoDB table: its name, the [[Schema]] for `From`, and the
@@ -58,11 +59,11 @@ final class Table[From] private (
     CodecEntry(codec, projections)
   }
 
-  // Per-table expression-resolution context: threads this table's config + reflect +
-  // field-name map into `.where` / `.filter` / key-condition interpretation, and memoises
-  // the resolved projections and literal codecs so construction allocates no cache keys.
+  // Per-table expression-resolution context: threads this table's config and a
+  // deriver-produced ProjectionResolver into `.where` / `.filter` / key-condition
+  // interpretation, and memoises literal codecs, so construction allocates no cache keys.
   private[ddbexpr] lazy val exprCtx: ExprCtx =
-    new ExprCtx(config, schema.reflect, entry.codec.recordFieldNameMap)
+    new ExprCtx(config, new ProjectionResolver(schema.deriving(config.toResolverDeriver).derive))
 
   /**
    * Returns a copy of this table whose codec derives with `configure` applied to the

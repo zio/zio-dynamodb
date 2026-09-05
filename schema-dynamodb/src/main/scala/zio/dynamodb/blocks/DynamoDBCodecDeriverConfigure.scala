@@ -20,7 +20,7 @@ import zio.blocks.schema.{ Modifier, NameMapper }
 import zio.blocks.schema.derive.Deriver
 import zio.blocks.schema.json.DiscriminatorKind
 import zio.blocks.typeid.TypeId
-import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver, Schema1Compat }
+import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver, Resolver, ResolverDeriver, Schema1Compat }
 
 /**
  * Codec-derivation policy for a type `A`, held as a value with readable fields rather than
@@ -124,6 +124,30 @@ final case class DynamoDBCodecDeriverConfigure[A](
     }
     instanceOverrides.foldLeft(withTermMods) { case (d, (typeId, instance)) =>
       d.withInstance(instance)(typeId)
+    }
+  }
+
+  /**
+   * Fold the naming-relevant subset of this policy into a `Deriver[Resolver]` for
+   * `Schema#deriving` - see [[zio.dynamodb.blocks.schema.ResolverDeriver]]. None of the
+   * encode/decode-behaviour settings (`enumValuesAsStrings`, `rejectExtraFields`, ...)
+   * are threaded - they don't affect where an attribute lives. A type with a codec
+   * `withInstance` override resolves as an opaque `Resolver.Leaf`: a hand-written codec's
+   * wire shape can't be inferred from `Reflect`.
+   */
+  def toResolverDeriver: Deriver[Resolver] = {
+    val scalar       = ResolverDeriver
+      .withFieldNameMapper(fieldNameMapper)
+      .withCaseNameMapper(caseNameMapper)
+      .withDiscriminatorKind(discriminatorKind)
+    val withTypeMods = typeModifiers.foldLeft(scalar: Deriver[Resolver]) { case (d, (typeId, modifier)) =>
+      d.withModifier(typeId, modifier)
+    }
+    val withTermMods = termModifiers.foldLeft(withTypeMods) { case (d, (typeId, field, modifier)) =>
+      d.withModifier(typeId, field, modifier)
+    }
+    instanceOverrides.foldLeft(withTermMods) { case (d, (typeId, _)) =>
+      d.withInstance[Any](Resolver.Leaf[Any]())(typeId)
     }
   }
 }
