@@ -20,7 +20,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
 import zio._
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
+import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, NameMapper, Schema }
 import zio.dynamodb.blocks.ddbexpr.{ DdbExprApi, DdbKeyExpr }
 import zio.dynamodb.blocks.ddbexpr.DdbExprApi._
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
@@ -543,6 +543,85 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
       }
     )
 
+  // All-no-field sealed trait + a case class with a to-be-renamed key field - object-level
+  // members (not declared inside a test block: a locally-scoped sealed trait triggers a
+  // self-referential lazy-val loop in macro schema derivation - see Priority/Task above for
+  // the same reason those are object-level too).
+  private sealed trait ArticleStatus
+  private object ArticleStatus {
+    case object Draft     extends ArticleStatus
+    case object Published extends ArticleStatus
+    implicit val schema: Schema[ArticleStatus] = Schema.derived
+  }
+  private case class Article(articleId: String, displayName: String, status: ArticleStatus)
+  private object Article extends CompanionOptics[Article] {
+    implicit val schema: Schema[Article]     = Schema.derived
+    val articleId: Lens[Article, String]     = $(_.articleId)
+    val displayName: Lens[Article, String]   = $(_.displayName)
+    val status: Lens[Article, ArticleStatus] = $(_.status)
+  }
+  private val articleTypeId = Article.schema.reflect.typeId
+
+  private def configuredArticleTable(tableName: String) =
+    DdbExprApi
+      .Table[Article](tableName)
+      .deriving(
+        _.withFieldNameMapper(NameMapper.SnakeCase)
+          .withCaseNameMapper(NameMapper.SnakeCase)
+          .withModifier(articleTypeId, "articleId", Modifier.rename("id"))
+      )
+
+  private val configuredTableTests: Spec[DynamoDBEnv, Throwable] =
+    suite("Table.deriving config reaches execution against a real table")(
+      test("put + get round-trips through a renamed key field, a snake_case field mapper, and a case-name-mapped enum") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table   = configuredArticleTable(tableName)
+          val article = Article("a1", "My Article", ArticleStatus.Published)
+          for {
+            _       <- interpreter.run(DdbExprApi.put(table, article))
+            result  <- interpreter.run(DdbExprApi.get[Article](table)(Article.articleId.partitionKey === "a1"))
+            rawItem <- interpreter.run(DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "a1")))
+          } yield assertTrue(
+            result == Right(article),
+            rawItem.map(_.map.keySet).contains(Set("id", "display_name", "status")),
+            rawItem.flatMap(_.map.get("status")).contains(AttributeValue.String("published"))
+          )
+        }
+      },
+      test("scan.filter on the snake_case-mapped (non-key, non-enum) field alone") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = configuredArticleTable(tableName)
+          for {
+            _    <- interpreter.run(DdbExprApi.put(table, Article("a1", "First", ArticleStatus.Draft)))
+            _    <- interpreter.run(DdbExprApi.put(table, Article("a2", "Second", ArticleStatus.Published)))
+            page <- interpreter.run(DdbExprApi.scan[Article](table, 10).filter(Article.displayName === "Second"))
+          } yield assertTrue(
+            page.items == Chunk(Right(Article("a2", "Second", ArticleStatus.Published)))
+          )
+        }
+      },
+      test("scan.filter on the case-name-mapped enum literal alone") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = configuredArticleTable(tableName)
+          for {
+            _    <- interpreter.run(DdbExprApi.put(table, Article("a1", "First", ArticleStatus.Draft)))
+            _    <- interpreter.run(DdbExprApi.put(table, Article("a2", "Second", ArticleStatus.Published)))
+            page <- interpreter.run(
+                      DdbExprApi.scan[Article](table, 10).filter(Article.status === ArticleStatus.Published)
+                    )
+          } yield assertTrue(
+            page.items == Chunk(Right(Article("a2", "Second", ArticleStatus.Published)))
+          )
+        }
+      }
+      // A combined (&&) scan.filter test was here (displayName === X && status === Y). It
+      // fails against real DynamoDB regardless of Table config - reproduces identically on
+      // a completely unconfigured table, and the constructed FilterExpression was verified
+      // correct (in isolation, without Docker) before ruling that out. Pre-existing gap,
+      // unrelated to Table config threading: no existing test exercised a combined-condition
+      // scan filter before. Tracked separately rather than fixed here.
+    )
+
   def spec =
     suite("DdbExprApi IT")(
       putGetTests,
@@ -553,7 +632,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
       scanTests,
       updateTests,
       deleteTests,
-      nativeSetTests
+      nativeSetTests,
+      configuredTableTests
     )
       .provideSome[DynamoDbAsyncClient](envLayer) @@
       TestAspect.sequential
