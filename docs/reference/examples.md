@@ -30,8 +30,8 @@ The same `Order`/`Status` model, focused on **codec configuration** in the High-
 done entirely on the `Table` value via `.deriving` — the model carries no `@Modifier`
 annotations and nothing is resolved from implicit scope. Chains `withFieldNameMapper` /
 `withCaseNameMapper` (deriver-wide) and `withModifier(typeId, field, Modifier.rename(...))`
-(per-field) on the base `DynamoDBCodecDeriver`. Shows the precedence: the per-field
-`withModifier` rename wins over the table-wide field-name mapper.
+(per-field) on the `DynamoDBCodecDeriverConfigure` value passed into `.deriving`. Shows the
+precedence: the per-field `withModifier` rename wins over the table-wide field-name mapper.
 
 ## `RateLimitedReads`
 
