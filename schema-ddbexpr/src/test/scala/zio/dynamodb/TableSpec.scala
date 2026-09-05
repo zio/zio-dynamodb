@@ -54,6 +54,11 @@ object TableSpec extends ZIOSpecDefault {
         val plain = Table[Person]("people")
         val snake = Table[Person]("people").deriving(_.withFieldNameMapper(NameMapper.SnakeCase))
         assertTrue(plain.encode(ada).toOption.map(_.map.keySet) != snake.encode(ada).toOption.map(_.map.keySet))
+      },
+      test("a second .deriving call replaces the previous config rather than composing with it") {
+        val snake          = Table[Person]("people").deriving(_.withFieldNameMapper(NameMapper.SnakeCase))
+        val snakeThenPlain = snake.deriving(_.withEnumValuesAsStrings(false))
+        assert(snakeThenPlain.encode(ada).map(_.map.keySet))(isRight(equalTo(Set("firstName", "lastName", "age"))))
       }
     ),
     suite(".deriving reaches key-condition attribute names")(

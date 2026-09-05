@@ -74,7 +74,7 @@ final class Table[From] private (
   def deriving(
     configure: DynamoDBCodecDeriverConfigure[From] => DynamoDBCodecDeriverConfigure[From]
   ): Table[From] =
-    new Table(name, schema, configure(config))
+    new Table(name, schema, configure(DynamoDBCodecDeriverConfigure[From]()))
 
   /**
    * Decodes an [[Item]] — as returned by the Low-Level API (`DynamoDBQuery.getItem`,
