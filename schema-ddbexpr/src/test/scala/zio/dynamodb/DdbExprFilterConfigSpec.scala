@@ -24,7 +24,7 @@ import zio.test._
 import zio.test.Assertion._
 
 /**
- * Slice 2b parity: `.filter` / `.where` interpretation threads the calling table's
+ * `.filter` / `.where` interpretation threads the calling table's
  * `DynamoDBCodecDeriverConfigure` through to both the attribute names it references and
  * the literals it encodes — so a filtered / conditioned field lands on the same wire name
  * and the same encoding as the item body a `put` writes.

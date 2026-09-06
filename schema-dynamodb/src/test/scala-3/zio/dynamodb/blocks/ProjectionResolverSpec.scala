@@ -33,10 +33,13 @@ import zio.dynamodb.blocks.schema.{ DynamoDBCodec, Resolver }
 import zio.test._
 
 /**
- * Resolver refactor (`series/3.x_projection_resolver`) — same models and expectations as
- * `OpticToPEConfigSpec` (Slice 2a, superseded), now resolving through a deriver-produced
- * `Resolver` + `ProjectionResolver` instead of `OpticToPE`'s hand-walked schema + config.
- * Kept as a direct parity check while both mechanisms coexist during the migration.
+ * `ProjectionResolver` resolves an optic path to the same DynamoDB attribute path the
+ * configured codec deriver produces for the corresponding field. Each test derives the
+ * body codec for a model and asserts the resolver agrees with it across field-name
+ * mappers, per-field renames, nested `@Modifier.fieldNaming`, variant discriminator kinds,
+ * and sequence / map element types — the resolution running off a deriver-produced
+ * `Resolver` tree rather than a hand-walked schema plus config. A path through a
+ * `withInstance`-overridden type resolves to a `Left`, not a guessed name.
  */
 object ProjectionResolverSpec extends ZIOSpecDefault {
 

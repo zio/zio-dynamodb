@@ -84,7 +84,7 @@ object RateLimitedReadsSpec extends ZIOSpecDefault {
       "concurrent over-budget responses stack their reservations instead of overwriting " +
         "each other's pending deadline"
     ) {
-      // Regression test for a Copilot-flagged race: each response's `now` is a private
+      // Regression test for a race: each response's `now` is a private
       // snapshot taken before its Ref.modify runs, so a second racing response computing
       // its wait without accounting for a first response's already-pending future
       // reservation would silently shorten (or erase) that reservation — letting both
