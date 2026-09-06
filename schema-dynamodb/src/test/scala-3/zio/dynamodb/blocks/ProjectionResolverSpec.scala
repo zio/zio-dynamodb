@@ -37,9 +37,10 @@ import zio.test._
  * configured codec deriver produces for the corresponding field. Each test derives the
  * body codec for a model and asserts the resolver agrees with it across field-name
  * mappers, per-field renames, nested `@Modifier.fieldNaming`, variant discriminator kinds,
- * and sequence / map element types — the resolution running off a deriver-produced
- * `Resolver` tree rather than a hand-walked schema plus config. A path through a
- * `withInstance`-overridden type resolves to a `Left`, not a guessed name.
+ * sequence / map element types, and opaque-type / newtype wrapper fields — the resolution
+ * running off a deriver-produced `Resolver` tree rather than a hand-walked schema plus
+ * config. A path through a `withInstance`-overridden type resolves to a `Left`, not a
+ * guessed name.
  */
 object ProjectionResolverSpec extends ZIOSpecDefault {
 
@@ -114,6 +115,7 @@ object ProjectionResolverSpec extends ZIOSpecDefault {
     ),
     variantParitySuite,
     sequenceMapSuite,
+    wrapperPassThroughSuite,
     instanceOverrideSuite
   )
 
@@ -194,6 +196,57 @@ object ProjectionResolverSpec extends ZIOSpecDefault {
         )
       )
       assertTrue(new ProjectionResolver(root).resolve(dyn).map(_.toString) == Right("tags.k.long_name"))
+    }
+  )
+
+  // -- Opaque-type fields ---------------------------------------------------------------
+  // A field whose type is a Scala 3 `opaque type` (the DdbExprOpaqueTypeSpec / zio-prelude
+  // Newtype shape). Its optic path is an ordinary `Field` - the resolver has to resolve the
+  // *containing record's* wire name for it like any other field, and keep walking when the
+  // opaque type wraps a nested record. A key optic is always a single top-level Field, so the
+  // first test also stands in for the key-condition name-resolution path.
+
+  opaque type ProductSku = String
+  object ProductSku:
+    given Schema[ProductSku] = Schema.string
+
+  @Modifier.fieldNaming("snake_case")
+  final case class Packaging(boxType: String) derives Schema
+
+  opaque type Boxed = Packaging
+  object Boxed:
+    given Schema[Boxed] = summon[Schema[Packaging]]
+
+  final case class Widget(productSku: ProductSku, packaging: Boxed) derives Schema
+
+  private def wrapperPassThroughSuite = suite("opaque-type fields")(
+    test("opaque top-level field: the containing record's field-name mapper still applies") {
+      val cfg  = DynamoDBCodecDeriverConfigure[Widget]().withFieldNameMapper(NameMapper.SnakeCase)
+      val root = summon[Schema[Widget]].deriving(cfg.toResolverDeriver).derive
+      val dyn  = DynamicOptic(IndexedSeq(DynamicOptic.Node.Field("productSku")))
+      assertTrue(
+        new ProjectionResolver(root).resolve(dyn).map(_.toString) == Right("product_sku"),
+        new ProjectionResolver(root).resolve(dyn).map(_.toString) == Right(bodyName[Widget]("productSku", cfg))
+      )
+    },
+    test("opaque top-level field: withModifier rename wins, parity with the body codec") {
+      val cfg  = DynamoDBCodecDeriverConfigure[Widget]()
+        .withModifier(summon[Schema[Widget]].reflect.typeId, "productSku", Modifier.rename("sku"))
+      val root = summon[Schema[Widget]].deriving(cfg.toResolverDeriver).derive
+      val dyn  = DynamicOptic(IndexedSeq(DynamicOptic.Node.Field("productSku")))
+      assertTrue(
+        new ProjectionResolver(root).resolve(dyn).map(_.toString) == Right("sku"),
+        new ProjectionResolver(root).resolve(dyn).map(_.toString) == Right(bodyName[Widget]("productSku", cfg))
+      )
+    },
+    test("path continues through an opaque-over-record field - per-segment config still applies") {
+      val cfg  = DynamoDBCodecDeriverConfigure[Widget]().withFieldNameMapper(NameMapper.SnakeCase)
+      val root = summon[Schema[Widget]].deriving(cfg.toResolverDeriver).derive
+      val dyn  = DynamicOptic(
+        IndexedSeq(DynamicOptic.Node.Field("packaging"), DynamicOptic.Node.Field("boxType"))
+      )
+      // `packaging` -> itself (single word); Packaging's own @fieldNaming -> `box_type`.
+      assertTrue(new ProjectionResolver(root).resolve(dyn).map(_.toString) == Right("packaging.box_type"))
     }
   )
 
