@@ -19,6 +19,7 @@ package zio.dynamodb
 import zio.test._
 import zio.test.Assertion.{ anything, containsString, hasField, isSubtype }
 
+// TODO: Rename this - split ou to multiple files if that helps with naming
 object MiscSpec extends ZIOSpecDefault {
 
   def spec = suite("Miscellaneous")(

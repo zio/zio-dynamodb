@@ -19,6 +19,7 @@ package zio.dynamodb
 import zio.blocks.chunk.Chunk
 import zio.dynamodb.ProjectionExpression.{ $, Unknown }
 
+// TODO: move this to examples module as rename to QueryExamples - include both HL and LL examples
 object Client {
   final case class Person(id: String, name: String)
   val item: AttrMap                             = Item("id" -> "123", "name" -> "test")
