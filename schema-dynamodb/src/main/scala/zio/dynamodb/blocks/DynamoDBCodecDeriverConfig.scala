@@ -38,6 +38,7 @@ import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver, Resolve
  * `A` is phantom — present only so `given DynamoDBCodecDeriverConfig[Foo]` resolves per
  * type.
  */
+// TODO: consider moving to DynamoDBCodecDeriver companion object
 final case class DynamoDBCodecDeriverConfig[A](
   fieldNameMapper: NameMapper = NameMapper.Identity,
   caseNameMapper: NameMapper = NameMapper.Identity,
