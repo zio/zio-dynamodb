@@ -35,6 +35,13 @@ abstract class DynamoDBCodec[A](val valueType: Int = DynamoDBCodec.objectType) {
   val recordFieldNames: Chunk[String] = Chunk.empty
 
   /**
+   * Scala field name -> DynamoDB attribute name, for a record-shaped codec. Lets callers
+   * resolve an optic's raw field name to the wire name this codec's configuration produced
+   * (field-name mapper, `@Modifier.rename`, …). Empty for non-record codecs.
+   */
+  val recordFieldNameMap: Map[String, String] = Map.empty
+
+  /**
    * Encodes `a` directly to an [[Item]] — the bridge between this codec and the LL API's
    *  `DynamoDBQuery.putItem`/`getItem`/etc., which speak `Item`, not `AttributeValue`
    *  directly. Only meaningful for a record-shaped codec (`A` encoding to a top-level

@@ -16,8 +16,9 @@
 
 package zio.dynamodb
 
-import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
+import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, NameMapper, Schema }
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprInterpreter, DdbKeyExpr, DdbKeyExprInterpreter }
+import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.ddbexpr.DdbExpr._
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
 import zio.test._
@@ -49,6 +50,34 @@ object DdbExprOpaqueTypeSpec extends ZIOSpecDefault {
 
   private def interpretKey[S](expr: DdbKeyExpr[S]): Either[String, KeyConditionExpr[S]] =
     DdbKeyExprInterpreter.toKeyConditionExpr(expr)
+
+  // Interpret a filter through the config-aware overload (the one a configured Table uses),
+  // then read back the attribute name and literal the expression references.
+  private def interpretConfigured(
+    expr: DdbExpr[Invoice, Boolean],
+    cfg: DynamoDBCodecDeriverConfig[Invoice]
+  ): ConditionExpression[Invoice] =
+    DdbExprInterpreter
+      .toConditionExpression(expr, cfg, summon[Schema[Invoice]].reflect)
+      .fold(m => throw new AssertionError(s"interpretation failed: $m"), identity)
+
+  private def leafName(ce: ConditionExpression[?]): Option[String] = {
+    def pe(p: ProjectionExpression[?, ?]): Option[String] = p match {
+      case ProjectionExpression.MapElement(_, n) => Some(n)
+      case _                                     => None
+    }
+    ce match {
+      case ConditionExpression.Equals(ConditionExpression.Operand.ProjectionExpressionOperand(p), _)      => pe(p)
+      case ConditionExpression.GreaterThan(ConditionExpression.Operand.ProjectionExpressionOperand(p), _) => pe(p)
+      case _                                                                                              => None
+    }
+  }
+
+  private def literalOf(ce: ConditionExpression[?]): Option[AttributeValue] = ce match {
+    case ConditionExpression.Equals(_, ConditionExpression.Operand.ValueOperand(v))      => Some(v)
+    case ConditionExpression.GreaterThan(_, ConditionExpression.Operand.ValueOperand(v)) => Some(v)
+    case _                                                                               => None
+  }
 
   def spec = suite("DdbExpr — Scala 3 opaque type fields")(
     suite("filter expressions via === (schema-aware encoding)")(
@@ -111,6 +140,34 @@ object DdbExprOpaqueTypeSpec extends ZIOSpecDefault {
             _ => assertNever("interpreter failed"),
             s => assert(s)(startsWithString("NOT"))
           )
+      }
+    ),
+
+    suite("configured deriver - attribute name + literal encoding thread through an opaque field")(
+      test("opaque String field: withModifier rename reaches the filter's attribute name") {
+        val cfg = DynamoDBCodecDeriverConfig[Invoice]()
+          .withModifier(summon[Schema[Invoice]].reflect.typeId, "id", Modifier.rename("invoice_id"))
+        val ce  = interpretConfigured(Invoice.id === InvoiceId("INV-001"), cfg)
+        assertTrue(
+          leafName(ce).contains("invoice_id"),
+          literalOf(ce).contains(AttributeValue.String("INV-001"))
+        )
+      },
+      test("opaque Int field: withFieldNameMapper reaches the attribute name; literal still encodes as Number") {
+        val cfg = DynamoDBCodecDeriverConfig[Invoice]().withFieldNameMapper(NameMapper.SnakeCase)
+        val ce  = interpretConfigured(Invoice.amount > Amount(0), cfg)
+        assertTrue(
+          leafName(ce).contains("amount"),
+          literalOf(ce).contains(AttributeValue.Number(BigDecimal(0)))
+        )
+      },
+      test("default config: opaque field keeps its raw name and primitive encoding") {
+        val cfg = DynamoDBCodecDeriverConfig[Invoice]()
+        val ce  = interpretConfigured(Invoice.id === InvoiceId("INV-001"), cfg)
+        assertTrue(
+          leafName(ce).contains("id"),
+          literalOf(ce).contains(AttributeValue.String("INV-001"))
+        )
       }
     ),
 

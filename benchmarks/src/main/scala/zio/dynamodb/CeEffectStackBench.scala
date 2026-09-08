@@ -22,7 +22,7 @@ import org.scanamo._
 import org.scanamo.syntax._
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient
 import software.amazon.awssdk.services.dynamodb.model._
-import zio.blocks.schema.CompanionOptics
+import zio.blocks.schema.{ CompanionOptics, NameMapper }
 import zio.dynamodb.BenchmarkDomain._
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.blocks.ddbexpr.{ DdbExprApi, DdbKeyExpr }
@@ -141,7 +141,10 @@ class CeEffectStackBench extends BaseBenchmark {
   }
 
   private object BigRecordOps extends CompanionOptics[BigRecord] {
-    val id = $(_.id)
+    val id           = $(_.id)
+    val name         = $(_.name)
+    val auditVersion = $(_.audit.version)     // 2-segment Lens through a plain nested record
+    val priceMinor   = $(_.price.amountMinor) // 2-segment; remaps under SnakeCase (amount_minor)
   }
 
   // ── Scanamo sync wrapped in IO.delay ────────────────────────────────────
@@ -172,8 +175,16 @@ class CeEffectStackBench extends BaseBenchmark {
 
   private val scanamo = Scanamo(stubSyncClient)
 
-  private val scanamoTable    = Table[Person](TABLE)(ScanamoCodec.person)
-  private val bigScanamoTable = Table[BigRecord](BIG_TABLE)(ScanamoCodec.bigRecord)
+  private val scanamoTable    = org.scanamo.Table[Person](TABLE)(ScanamoCodec.person)
+  private val bigScanamoTable = org.scanamo.Table[BigRecord](BIG_TABLE)(ScanamoCodec.bigRecord)
+
+  private val personDdbTable = DdbExprApi.Table[Person](TABLE)
+  private val bigDdbTable     = DdbExprApi.Table[BigRecord](BIG_TABLE)
+
+  // Same table, snake_case field-name mapper - makes the config-aware OpticToPE walk do
+  // real remapping (amountMinor -> amount_minor) rather than identity.
+  private val bigDdbTableSnake =
+    DdbExprApi.Table[BigRecord](BIG_TABLE).deriving(_.withFieldNameMapper(NameMapper.SnakeCase))
 
   // ── Step 2: pre-built queries (set in @Setup) ───────────────────────────
 
@@ -184,12 +195,12 @@ class CeEffectStackBench extends BaseBenchmark {
   private var prebuiltBigPutQuery: DynamoDBQuery[BigRecord, Option[BigRecord]]            = _
 
   @Setup def setup(): Unit = {
-    prebuiltGetQuery = DdbExprApi.get[Person](TABLE)(PersonOps.id.partitionKey === personId)
-    prebuiltPutQuery = DdbExprApi.put(TABLE, person)
+    prebuiltGetQuery = DdbExprApi.get(personDdbTable)(PersonOps.id.partitionKey === personId)
+    prebuiltPutQuery = DdbExprApi.put(personDdbTable, person)
     prebuiltUpdateQuery =
-      DdbExprApi.update[Person](TABLE)(PersonOps.id.partitionKey === personId)(PersonOps.name.set(newName))
-    prebuiltBigGetQuery = DdbExprApi.get[BigRecord](BIG_TABLE)(BigRecordOps.id.partitionKey === bigId)
-    prebuiltBigPutQuery = DdbExprApi.put(BIG_TABLE, bigRecord)
+      DdbExprApi.update(personDdbTable)(PersonOps.id.partitionKey === personId)(PersonOps.name.set(newName))
+    prebuiltBigGetQuery = DdbExprApi.get(bigDdbTable)(BigRecordOps.id.partitionKey === bigId)
+    prebuiltBigPutQuery = DdbExprApi.put(bigDdbTable, bigRecord)
   }
 
   // ── Benchmarks ──────────────────────────────────────────────────────────
@@ -197,13 +208,13 @@ class CeEffectStackBench extends BaseBenchmark {
   /** blocks-dynamodb: typed HL get via CE interpreter with canned response. */
   @Benchmark def blocksGet: Either[ItemError, Person] =
     interpreter
-      .run(DdbExprApi.get[Person](TABLE)(PersonOps.id.partitionKey === personId))
+      .run(DdbExprApi.get(personDdbTable)(PersonOps.id.partitionKey === personId))
       .unsafeRunSync()
 
   /** blocks-dynamodb: typed HL put via CE interpreter with canned response. */
   @Benchmark def blocksPut: Option[Person] =
     interpreter
-      .run(DdbExprApi.put(TABLE, person))
+      .run(DdbExprApi.put(personDdbTable, person))
       .unsafeRunSync()
 
   /** Scanamo: typed get wrapped in IO.delay. */
@@ -228,11 +239,11 @@ class CeEffectStackBench extends BaseBenchmark {
 
   /** Construction only: DdbExprApi.get, never interpreted/run. Isolates query-building cost. */
   @Benchmark def blocksGetConstructOnly: DynamoDBQuery[Person, Either[ItemError, Person]] =
-    DdbExprApi.get[Person](TABLE)(PersonOps.id.partitionKey === personId)
+    DdbExprApi.get(personDdbTable)(PersonOps.id.partitionKey === personId)
 
   /** Construction only: DdbExprApi.put, never interpreted/run. Isolates query-building cost. */
   @Benchmark def blocksPutConstructOnly: DynamoDBQuery[Person, Option[Person]] =
-    DdbExprApi.put(TABLE, person)
+    DdbExprApi.put(personDdbTable, person)
 
   // ── update — the only op that renders a full UpdateExpression per call ──────
   // (expression string + ExpressionAttributeNames/Values alias maps). get renders
@@ -240,7 +251,7 @@ class CeEffectStackBench extends BaseBenchmark {
 
   @Benchmark def blocksUpdate: Option[Person] =
     interpreter
-      .run(DdbExprApi.update[Person](TABLE)(PersonOps.id.partitionKey === personId)(PersonOps.name.set(newName)))
+      .run(DdbExprApi.update(personDdbTable)(PersonOps.id.partitionKey === personId)(PersonOps.name.set(newName)))
       .unsafeRunSync()
 
   @Benchmark def scanamoUpdate: Either[ScanamoError, Person] =
@@ -250,24 +261,24 @@ class CeEffectStackBench extends BaseBenchmark {
     interpreter.run(prebuiltUpdateQuery).unsafeRunSync()
 
   @Benchmark def blocksUpdateConstructOnly: DynamoDBQuery[Person, Option[Person]] =
-    DdbExprApi.update[Person](TABLE)(PersonOps.id.partitionKey === personId)(PersonOps.name.set(newName))
+    DdbExprApi.update(personDdbTable)(PersonOps.id.partitionKey === personId)(PersonOps.name.set(newName))
 
   /** Construction only, with a condition — isolates the extra `.where` ConditionExpression cost. */
   @Benchmark def blocksUpdateConditionalConstructOnly: DynamoDBQuery[Person, Option[Person]] =
     DdbExprApi
-      .update[Person](TABLE)(PersonOps.id.partitionKey === personId)(PersonOps.name.set(newName))
+      .update(personDdbTable)(PersonOps.id.partitionKey === personId)(PersonOps.name.set(newName))
       .where(PersonOps.age > 0)
 
   // ── BigRecord (~26 fields, nested + sum types) — realistic-payload variants ─
 
   @Benchmark def blocksGetBig: Either[ItemError, BigRecord] =
     interpreter
-      .run(DdbExprApi.get[BigRecord](BIG_TABLE)(BigRecordOps.id.partitionKey === bigId))
+      .run(DdbExprApi.get(bigDdbTable)(BigRecordOps.id.partitionKey === bigId))
       .unsafeRunSync()
 
   @Benchmark def blocksPutBig: Option[BigRecord] =
     interpreter
-      .run(DdbExprApi.put(BIG_TABLE, bigRecord))
+      .run(DdbExprApi.put(bigDdbTable, bigRecord))
       .unsafeRunSync()
 
   @Benchmark def scanamoGetBig: Option[Either[DynamoReadError, BigRecord]] =
@@ -283,9 +294,31 @@ class CeEffectStackBench extends BaseBenchmark {
     interpreter.run(prebuiltBigPutQuery).unsafeRunSync()
 
   @Benchmark def blocksGetBigConstructOnly: DynamoDBQuery[BigRecord, Either[ItemError, BigRecord]] =
-    DdbExprApi.get[BigRecord](BIG_TABLE)(BigRecordOps.id.partitionKey === bigId)
+    DdbExprApi.get(bigDdbTable)(BigRecordOps.id.partitionKey === bigId)
 
   @Benchmark def blocksPutBigConstructOnly: DynamoDBQuery[BigRecord, Option[BigRecord]] =
-    DdbExprApi.put(BIG_TABLE, bigRecord)
+    DdbExprApi.put(bigDdbTable, bigRecord)
+
+  // -- BigRecord nested-field expressions - exercises the config-aware OpticToPE
+  //    tree-walk (Field -> Record -> Field) that the Table-config threading introduced.
+  //    blocksUpdateConditionalConstructOnly above is the single-segment (Person.age) control.
+
+  /** Construction only: update + a 2-segment nested-field `.where`, default (identity)
+   *  config. Isolates the nested config-aware projection resolution cost. */
+  @Benchmark def blocksUpdateBigNestedConditionalConstructOnly: DynamoDBQuery[BigRecord, Option[BigRecord]] =
+    DdbExprApi
+      .update(bigDdbTable)(BigRecordOps.id.partitionKey === bigId)(BigRecordOps.name.set("Widget"))
+      .where(BigRecordOps.auditVersion > 0)
+
+  /** As above but with a snake_case field-name mapper, so the nested path is actually
+   *  remapped (price.amountMinor -> price.amount_minor) rather than resolved to itself. */
+  @Benchmark def blocksUpdateBigNestedConditionalSnakeConstructOnly: DynamoDBQuery[BigRecord, Option[BigRecord]] =
+    DdbExprApi
+      .update(bigDdbTableSnake)(BigRecordOps.id.partitionKey === bigId)(BigRecordOps.name.set("Widget"))
+      .where(BigRecordOps.priceMinor > 0L)
+
+  /** Construction only: scan + a 2-segment nested-field `.filter`, default config. */
+  @Benchmark def blocksScanBigNestedFilterConstructOnly: DynamoDBQuery[BigRecord, Page[Either[ItemError, BigRecord]]] =
+    DdbExprApi.scan(bigDdbTable, 20).filter(BigRecordOps.auditVersion > 0)
 
 }

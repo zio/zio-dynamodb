@@ -29,7 +29,6 @@ import java.net.URI
 import java.util.UUID
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{ CompanionOptics, Modifier, Schema }
-import zio.dynamodb.blocks.DynamoDBCodecDeriverConfigure
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprApi, DdbKeyExpr }
 import zio.dynamodb.blocks.ddbexpr.DdbExprApi._
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
@@ -51,7 +50,7 @@ import zio.dynamodb.ExecuteSyntax._
  *   - Scala 3 `enum` as a field type
  *   - Opaque types encoding as their underlying primitive
  *   - `@Modifier.fieldNaming` per-type snake_case mapping
- *   - `DynamoDBCodecDeriverConfigure` field rename
+ *   - deriver config attached to a `Table` via `.deriving` (per-field rename)
  *   - put / get / update / deleteFrom / scan / query (imported from DdbExprApi._)
  *   - Condition expressions: attributeNotExists, between, in, &&, ! (Not)
  *   - Update expressions: .set, .add, combined (+)
@@ -162,22 +161,18 @@ class CEHighLevelSpec extends CatsEffectSuite:
     val ts      = $(_.ts)
     val message = $(_.message)
 
-  // DynamoDBCodecDeriverConfigure: explicit schema + per-field rename
-  // (does not use `derives Schema` to avoid a duplicate given)
-  case class Member(id: String, name: String, age: Int)
+  // Per-field rename applied through `.deriving` at the call site below — the config is not
+  // attached to the model or its companion.
+  case class Member(id: String, name: String, age: Int) derives Schema
 
   object Member extends CompanionOptics[Member]:
-    given schema: Schema[Member]                     = Schema.derived
-    given cfg: DynamoDBCodecDeriverConfigure[Member] =
-      d =>
-        d.withModifier(schema.reflect.typeId, "name", Modifier.rename("fullName"))
-          .withModifier(schema.reflect.typeId, "age", Modifier.rename("yearsOld"))
-    val id                                           = $(_.id)
+    val id = $(_.id)
 
   // ---- CRUD tests -----------------------------------------------------------
 
   test("DdbExprApi.put and get round-trip a `derives Schema` record") {
-    singleKeyTable { table =>
+    singleKeyTable { tableName =>
+      val table   = Table[Article](tableName)
       val article = Article("a1", "Hello world", 0)
       for
         _      <- put(table, article).execute
@@ -187,14 +182,16 @@ class CEHighLevelSpec extends CatsEffectSuite:
   }
 
   test("DdbExprApi.get returns Left(ValueNotFound) when item is absent") {
-    singleKeyTable { table =>
+    singleKeyTable { tableName =>
+      val table = Table[Article](tableName)
       for result <- get[Article](table)(Article.id.partitionKey === "missing").execute
       yield assert(result.isLeft)
     }
   }
 
   test("DdbExprApi.deleteFrom removes the item") {
-    singleKeyTable { table =>
+    singleKeyTable { tableName =>
+      val table = Table[Article](tableName)
       for
         _      <- put(table, Article("a1", "To delete", 0)).execute
         _      <- deleteFrom[Article](table)(Article.id.partitionKey === "a1").execute
@@ -206,7 +203,8 @@ class CEHighLevelSpec extends CatsEffectSuite:
   // ---- condition expression tests -------------------------------------------
 
   test("put condition: attributeNotExists prevents overwrite on second write") {
-    singleKeyTable { table =>
+    singleKeyTable { tableName =>
+      val table = Table[Article](tableName)
       for
         _       <- put(table, Article("a1", "First", 0)).where(Article.id.attributeNotExists).execute
         blocked <- put(table, Article("a1", "Second", 0)).where(Article.id.attributeNotExists).execute.attempt
@@ -219,7 +217,8 @@ class CEHighLevelSpec extends CatsEffectSuite:
   }
 
   test("put condition: between passes when existing value is in range") {
-    singleKeyTable { table =>
+    singleKeyTable { tableName =>
+      val table = Table[Article](tableName)
       for
         _      <- put(table, Article("a1", "Original", 50)).execute
         _      <- put(table, Article("a1", "Updated", 0)).where(Article.views.between(0, 100)).execute
@@ -229,7 +228,8 @@ class CEHighLevelSpec extends CatsEffectSuite:
   }
 
   test("put condition: in(..) passes when value is one of the allowed values") {
-    singleKeyTable { table =>
+    singleKeyTable { tableName =>
+      val table = Table[Article](tableName)
       for
         _      <- put(table, Article("a1", "Draft", 0)).execute
         _      <- put(table, Article("a1", "Published", 0)).where(Article.title.in("Draft", "Review")).execute
@@ -239,7 +239,8 @@ class CEHighLevelSpec extends CatsEffectSuite:
   }
 
   test("put condition: && (DdbExpr And) — both predicates must hold") {
-    singleKeyTable { table =>
+    singleKeyTable { tableName =>
+      val table                               = Table[Article](tableName)
       val bothHold: DdbExpr[Article, Boolean] = Article.views > 10 && Article.title === "Hello"
       for
         _       <- put(table, Article("a1", "Hello", 42)).execute
@@ -256,7 +257,8 @@ class CEHighLevelSpec extends CatsEffectSuite:
   }
 
   test("put condition: ! (Not) — negated predicate") {
-    singleKeyTable { table =>
+    singleKeyTable { tableName =>
+      val table                                        = Table[Article](tableName)
       val notNineNinetyNine: DdbExpr[Article, Boolean] = !(Article.views === 999)
       val notZero: DdbExpr[Article, Boolean]           = !(Article.views === 0)
       for
@@ -276,7 +278,8 @@ class CEHighLevelSpec extends CatsEffectSuite:
   // ---- update expression tests ----------------------------------------------
 
   test("update: .set changes a field value") {
-    singleKeyTable { table =>
+    singleKeyTable { tableName =>
+      val table = Table[Article](tableName)
       for
         _      <- put(table, Article("a1", "Original title", 0)).execute
         _      <- update(table)(Article.id.partitionKey === "a1")(Article.title.set("New title")).execute
@@ -286,7 +289,8 @@ class CEHighLevelSpec extends CatsEffectSuite:
   }
 
   test("update: .add increments a numeric field") {
-    singleKeyTable { table =>
+    singleKeyTable { tableName =>
+      val table = Table[Article](tableName)
       for
         _      <- put(table, Article("a1", "Counting", 10)).execute
         _      <- update(table)(Article.id.partitionKey === "a1")(Article.views.add(5)).execute
@@ -296,7 +300,8 @@ class CEHighLevelSpec extends CatsEffectSuite:
   }
 
   test("update: combined action via + (set title and add views in one call)") {
-    singleKeyTable { table =>
+    singleKeyTable { tableName =>
+      val table = Table[Article](tableName)
       for
         _      <- put(table, Article("a1", "Original", 0)).execute
         _      <- update(table)(Article.id.partitionKey === "a1")(
@@ -310,8 +315,9 @@ class CEHighLevelSpec extends CatsEffectSuite:
   // ---- Scala 3 enum tests ---------------------------------------------------
 
   test("Scala 3 enum field round-trips through DdbExprApi") {
-    singleKeyTable { table =>
-      val task = Task("t1", "Write Scala 3 specs", Priority.High, List("ci", "scala3"))
+    singleKeyTable { tableName =>
+      val table = Table[Task](tableName)
+      val task  = Task("t1", "Write Scala 3 specs", Priority.High, List("ci", "scala3"))
       for
         _      <- put(table, task).execute
         result <- get[Task](table)(Task.id.partitionKey === "t1").execute
@@ -320,7 +326,8 @@ class CEHighLevelSpec extends CatsEffectSuite:
   }
 
   test("Scala 3 enum field: updating a non-enum field preserves the enum value in the stored record") {
-    singleKeyTable { table =>
+    singleKeyTable { tableName =>
+      val table = Table[Task](tableName)
       for
         _      <- put(table, Task("t1", "Original", Priority.High, List("a"))).execute
         _      <- update(table)(Task.id.partitionKey === "t1")(Task.name.set("Renamed")).execute
@@ -332,12 +339,13 @@ class CEHighLevelSpec extends CatsEffectSuite:
   // ---- opaque type tests ----------------------------------------------------
 
   test("opaque type fields encode as their underlying primitives (not Map wrappers)") {
-    singleKeyTable { table =>
+    singleKeyTable { tableName =>
+      val table  = Table[Player](tableName)
       val player = Player("p1", Handle("alice99"), Points(999))
       for
         _      <- put(table, player).execute
         result <- get[Player](table)(Player.id.partitionKey === "p1").execute
-        raw    <- DynamoDBQuery.getItem(table, PrimaryKey("id" -> "p1")).execute
+        raw    <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "p1")).execute
       yield {
         assertEquals(result, Right(player))
         // Handle encodes as AttributeValue.String, not {"value": "alice99"}
@@ -351,11 +359,12 @@ class CEHighLevelSpec extends CatsEffectSuite:
   // ---- modifier tests -------------------------------------------------------
 
   test("@Modifier.fieldNaming snake_case: DynamoDB stores snake_case attribute keys") {
-    singleKeyTable { table =>
+    singleKeyTable { tableName =>
+      val table   = Table[UserProfile](tableName)
       val profile = UserProfile("u1", "John", "Doe")
       for
         _      <- put(table, profile).execute
-        raw    <- DynamoDBQuery.getItem(table, PrimaryKey("id" -> "u1")).execute
+        raw    <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "u1")).execute
         result <- get[UserProfile](table)(UserProfile.id.partitionKey === "u1").execute
       yield {
         assertEquals(result, Right(profile))
@@ -366,12 +375,17 @@ class CEHighLevelSpec extends CatsEffectSuite:
     }
   }
 
-  test("DynamoDBCodecDeriverConfigure per-field rename reflected in DynamoDB item and round-trips") {
-    singleKeyTable { table =>
-      val member = Member("m1", "Alice", 30)
+  test("Table.deriving per-field rename reflected in DynamoDB item and round-trips") {
+    singleKeyTable { tableName =>
+      val memberType = summon[Schema[Member]].reflect.typeId
+      val table      = Table[Member](tableName).deriving(
+        _.withModifier(memberType, "name", Modifier.rename("fullName"))
+          .withModifier(memberType, "age", Modifier.rename("yearsOld"))
+      )
+      val member     = Member("m1", "Alice", 30)
       for
         _      <- put(table, member).execute
-        raw    <- DynamoDBQuery.getItem(table, PrimaryKey("id" -> "m1")).execute
+        raw    <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "m1")).execute
         result <- get[Member](table)(Member.id.partitionKey === "m1").execute
       yield {
         assertEquals(result, Right(member))
@@ -386,7 +400,8 @@ class CEHighLevelSpec extends CatsEffectSuite:
   // ---- scan tests -----------------------------------------------------------
 
   test("DdbExprApi.scan returns all items in the table") {
-    singleKeyTable { table =>
+    singleKeyTable { tableName =>
+      val table = Table[Article](tableName)
       for
         _    <- put(table, Article("a1", "First", 10)).execute
         _    <- put(table, Article("a2", "Second", 20)).execute
@@ -398,7 +413,8 @@ class CEHighLevelSpec extends CatsEffectSuite:
   }
 
   test("DdbExprApi.scan with between filter returns only matching items") {
-    singleKeyTable { table =>
+    singleKeyTable { tableName =>
+      val table = Table[Article](tableName)
       for
         _    <- put(table, Article("a1", "Low", 5)).execute
         _    <- put(table, Article("a2", "Mid", 15)).execute
@@ -410,7 +426,8 @@ class CEHighLevelSpec extends CatsEffectSuite:
   }
 
   test("DdbExprApi.scan pagination: limit caps results and startKey enables next page") {
-    singleKeyTable { table =>
+    singleKeyTable { tableName =>
+      val table = Table[Article](tableName)
       for
         _     <- put(table, Article("a1", "A", 1)).execute
         _     <- put(table, Article("a2", "B", 2)).execute
@@ -428,7 +445,8 @@ class CEHighLevelSpec extends CatsEffectSuite:
   // ---- query tests ----------------------------------------------------------
 
   test("DdbExprApi.query with partitionKey === returns only items for that partition key") {
-    compoundKeyTable { table =>
+    compoundKeyTable { tableName =>
+      val table = Table[LogEntry](tableName)
       for
         _    <- put(table, LogEntry("user1", "2024-01-01", "login")).execute
         _    <- put(table, LogEntry("user1", "2024-01-02", "update")).execute
@@ -440,7 +458,8 @@ class CEHighLevelSpec extends CatsEffectSuite:
   }
 
   test("DdbExprApi.query with partitionKey === and sortKey > filters to sort-key range") {
-    compoundKeyTable { table =>
+    compoundKeyTable { tableName =>
+      val table = Table[LogEntry](tableName)
       for
         _    <- put(table, LogEntry("user1", "2024-01-01", "login")).execute
         _    <- put(table, LogEntry("user1", "2024-01-02", "update")).execute
@@ -457,7 +476,8 @@ class CEHighLevelSpec extends CatsEffectSuite:
   }
 
   test("DdbExprApi.query with sortOrder(ascending = false) returns items in descending order") {
-    compoundKeyTable { table =>
+    compoundKeyTable { tableName =>
+      val table = Table[LogEntry](tableName)
       for
         _    <- put(table, LogEntry("user1", "2024-01-01", "login")).execute
         _    <- put(table, LogEntry("user1", "2024-01-02", "update")).execute

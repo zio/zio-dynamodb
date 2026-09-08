@@ -82,7 +82,7 @@ can't reach — ordered by how much work each takes:
 ## What already stays Low-Level only
 
 Batch operations, table management, and (for now) transactions have no High-Level wrapper —
-see [Batch Operations](crud/batch.md#why-no-high-level-batch-api) and
+see [Batch Operations](crud/batch.md#why-no-high-level-batch-or-transaction-api) and
 [High-Level: Transactions](crud/high-level.md#transactions) for the specific reasons behind
 each; they aren't all the same reason, and none of them is *this* page's FP-modeling
 restriction.

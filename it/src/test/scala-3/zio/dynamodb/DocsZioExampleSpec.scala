@@ -48,6 +48,8 @@ object DocsZioExampleObject extends ZIOAppDefault {
     val genre: Lens[Movie, Genre] = $(_.genre)
   }
 
+  val movies = Table[Movie]("movies")
+
   // ZLayer.scoped ties the client's lifetime to the layer's scope — closed automatically
   // when `program.provide(interpreterLayer)` finishes, no matter how it finishes. The
   // release action must be a URIO (cannot fail), unlike Resource's CE-effect release.
@@ -65,9 +67,9 @@ object DocsZioExampleObject extends ZIOAppDefault {
     ZIO.serviceWithZIO[Interpreter[Task]] { interpreter =>
       given Interpreter[Task] = interpreter
       for {
-        _     <- put("movies", Movie("m1", Genre.Drama)).execute
-        movie <- get("movies")(Movie.id.partitionKey === "m1").execute
-        page  <- scan[Movie]("movies", 20).filter(Movie.genre === Genre.Drama).execute
+        _     <- put(movies, Movie("m1", Genre.Drama)).execute
+        movie <- get(movies)(Movie.id.partitionKey === "m1").execute
+        page  <- scan(movies, 20).filter(Movie.genre === Genre.Drama).execute
       } yield ()
     }
 

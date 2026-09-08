@@ -20,7 +20,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
 import zio._
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
+import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, NameMapper, Schema }
 import zio.dynamodb.blocks.ddbexpr.{ DdbExprApi, DdbKeyExpr }
 import zio.dynamodb.blocks.ddbexpr.DdbExprApi._
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
@@ -69,7 +69,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
   private val putGetTests: Spec[DynamoDBEnv, Throwable] =
     suite("put + get round-trip with all-no-field sealed trait")(
       test("DdbExprApi.get returns Right(Task) with Priority.High decoded correctly") {
-        withSingleIdKeyTable { (table, interpreter) =>
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Task](tableName)
           for {
             _      <- interpreter.run(DdbExprApi.put(table, Task("t1", Priority.High)))
             result <- interpreter.run(DdbExprApi.get[Task](table)(Task.id.partitionKey === "t1"))
@@ -77,7 +78,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
         }
       },
       test("DdbExprApi.get returns Left(ValueNotFound) for absent item") {
-        withSingleIdKeyTable { (table, interpreter) =>
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Task](tableName)
           for {
             result <- interpreter.run(DdbExprApi.get[Task](table)(Task.id.partitionKey === "ghost"))
           } yield assert(result)(isLeft(isSubtype[DynamoDBError.ItemError.ValueNotFound](anything)))
@@ -95,7 +97,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           val year: Lens[Event, String]      = $(_.year)
         }
 
-        withIdAndYearKeyTable { (table, interpreter) =>
+        withIdAndYearKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Event](tableName)
           val event = Event("alice", "2024", "birthday")
           for {
             _      <- interpreter.run(DdbExprApi.put(table, event))
@@ -113,7 +116,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           val year: Lens[Event, String]      = $(_.year)
         }
 
-        withIdAndYearKeyTable { (table, interpreter) =>
+        withIdAndYearKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Event](tableName)
           for {
             result <- interpreter.run(
                         DdbExprApi.get[Event](table)(Event.id.partitionKey === "alice" && Event.year.sortKey === "2024")
@@ -132,7 +136,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           val id: Lens[Score, String]        = $(_.id)
         }
 
-        withSingleIdKeyTable { (table, interpreter) =>
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Score](tableName)
           for {
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)).where(Score.id.attributeNotExists))
             result <- interpreter.run(DdbExprApi.get[Score](table)(Score.id.partitionKey === "alice"))
@@ -146,7 +151,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           val id: Lens[Score, String]        = $(_.id)
         }
 
-        withSingleIdKeyTable { (table, interpreter) =>
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Score](tableName)
           for {
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
             result <-
@@ -162,7 +168,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           val score: Lens[Score, Int]        = $(_.score)
         }
 
-        withSingleIdKeyTable { (table, interpreter) =>
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Score](tableName)
           for {
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 99)).where(Score.score.between(0, 50)))
@@ -178,7 +185,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           val score: Lens[Score, Int]        = $(_.score)
         }
 
-        withSingleIdKeyTable { (table, interpreter) =>
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Score](tableName)
           for {
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
             result <-
@@ -194,7 +202,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           val score: Lens[Score, Int]        = $(_.score)
         }
 
-        withSingleIdKeyTable { (table, interpreter) =>
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Score](tableName)
           for {
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 99)).where(Score.score.in(10, 42, 77)))
@@ -207,7 +216,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
   private val enumFilterTests: Spec[DynamoDBEnv, Throwable] =
     suite("DdbExpr filter — enum literal encoding correctness")(
       test("scan.filter finds item where priority === Priority.High") {
-        withSingleIdKeyTable { (table, interpreter) =>
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Task](tableName)
           for {
             _    <- interpreter.run(DdbExprApi.put(table, Task("t1", Priority.High)))
             _    <- interpreter.run(DdbExprApi.put(table, Task("t2", Priority.Low)))
@@ -224,7 +234,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
   private val queryTests: Spec[DynamoDBEnv, Throwable] =
     suite("query with DdbKeyExpr key condition")(
       test("query.whereKey(partitionKey) returns items for that partition key") {
-        withSingleIdKeyTable { (table, interpreter) =>
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Task](tableName)
           for {
             _    <- interpreter.run(DdbExprApi.put(table, Task("t1", Priority.High)))
             _    <- interpreter.run(DdbExprApi.put(table, Task("t2", Priority.Low)))
@@ -244,7 +255,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           val year: Lens[Event, String]      = $(_.year)
         }
 
-        withIdAndYearKeyTable { (table, interpreter) =>
+        withIdAndYearKeyTable { (tableName, interpreter) =>
+          val table  = DdbExprApi.Table[Event](tableName)
           val events = List(
             Event("alice", "2021", "a"),
             Event("alice", "2022", "b"),
@@ -269,7 +281,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           val year: Lens[Event, String]      = $(_.year)
         }
 
-        withIdAndYearKeyTable { (table, interpreter) =>
+        withIdAndYearKeyTable { (tableName, interpreter) =>
+          val table  = DdbExprApi.Table[Event](tableName)
           val events = List(Event("alice", "2021", "a"), Event("alice", "2022", "b"), Event("alice", "2023", "c"))
           for {
             _    <- ZIO.foreach(events)(e => interpreter.run(DdbExprApi.put(table, e)))
@@ -290,7 +303,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           val id: Lens[Score, String]        = $(_.id)
         }
 
-        withSingleIdKeyTable { (table, interpreter) =>
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Score](tableName)
           val items = List(Score("a", 10), Score("b", 20), Score("c", 30))
           for {
             _    <- ZIO.foreach(items)(s => interpreter.run(DdbExprApi.put(table, s)))
@@ -307,7 +321,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           val score: Lens[Score, Int]        = $(_.score)
         }
 
-        withSingleIdKeyTable { (table, interpreter) =>
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Score](tableName)
           val items = List(Score("a", 5), Score("b", 15), Score("c", 25))
           for {
             _    <- ZIO.foreach(items)(s => interpreter.run(DdbExprApi.put(table, s)))
@@ -328,7 +343,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           val score: Lens[Score, Int]        = $(_.score)
         }
 
-        withSingleIdKeyTable { (table, interpreter) =>
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Score](tableName)
           for {
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
             _      <-
@@ -346,7 +362,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           val title: Lens[Event, String]     = $(_.title)
         }
 
-        withIdAndYearKeyTable { (table, interpreter) =>
+        withIdAndYearKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Event](tableName)
           for {
             _      <- interpreter.run(DdbExprApi.put(table, Event("alice", "2024", "birthday")))
             _      <- interpreter.run(
@@ -368,7 +385,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           val score: Lens[Score, Int]        = $(_.score)
         }
 
-        withSingleIdKeyTable { (table, interpreter) =>
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Score](tableName)
           for {
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
             _      <- interpreter.run(
@@ -388,7 +406,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           val score: Lens[Score, Int]        = $(_.score)
         }
 
-        withSingleIdKeyTable { (table, interpreter) =>
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Score](tableName)
           for {
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
             result <- interpreter
@@ -412,7 +431,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           val id: Lens[Score, String]        = $(_.id)
         }
 
-        withSingleIdKeyTable { (table, interpreter) =>
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Score](tableName)
           for {
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
             _      <- interpreter.run(DdbExprApi.deleteFrom[Score](table)(Score.id.partitionKey === "alice"))
@@ -428,7 +448,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           val year: Lens[Event, String]      = $(_.year)
         }
 
-        withIdAndYearKeyTable { (table, interpreter) =>
+        withIdAndYearKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Event](tableName)
           for {
             _      <- interpreter.run(DdbExprApi.put(table, Event("alice", "2024", "birthday")))
             _      <-
@@ -449,7 +470,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           val score: Lens[Score, Int]        = $(_.score)
         }
 
-        withSingleIdKeyTable { (table, interpreter) =>
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Score](tableName)
           for {
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
             _      <- interpreter.run(
@@ -469,7 +491,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           val score: Lens[Score, Int]        = $(_.score)
         }
 
-        withSingleIdKeyTable { (table, interpreter) =>
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Score](tableName)
           for {
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
             result <- interpreter
@@ -493,8 +516,9 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           val id: Lens[Tagged, String]        = $(_.id)
         }
 
-        withSingleIdKeyTable { (table, interpreter) =>
-          val item = Tagged("t1", Set("alpha", "beta", "gamma"))
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Tagged](tableName)
+          val item  = Tagged("t1", Set("alpha", "beta", "gamma"))
           for {
             _      <- interpreter.run(DdbExprApi.put(table, item))
             result <- interpreter.run(DdbExprApi.get[Tagged](table)(Tagged.id.partitionKey === "t1"))
@@ -508,14 +532,94 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           val id: Lens[Scores, String]        = $(_.id)
         }
 
-        withSingleIdKeyTable { (table, interpreter) =>
-          val item = Scores("s1", Set(10, 20, 30))
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Scores](tableName)
+          val item  = Scores("s1", Set(10, 20, 30))
           for {
             _      <- interpreter.run(DdbExprApi.put(table, item))
             result <- interpreter.run(DdbExprApi.get[Scores](table)(Scores.id.partitionKey === "s1"))
           } yield assertTrue(result == Right(item))
         }
       }
+    )
+
+  // All-no-field sealed trait + a case class with a to-be-renamed key field - object-level
+  // members (not declared inside a test block: a locally-scoped sealed trait triggers a
+  // self-referential lazy-val loop in macro schema derivation - see Priority/Task above for
+  // the same reason those are object-level too).
+  private sealed trait ArticleStatus
+  private object ArticleStatus {
+    case object Draft     extends ArticleStatus
+    case object Published extends ArticleStatus
+    implicit val schema: Schema[ArticleStatus] = Schema.derived
+  }
+  private case class Article(articleId: String, displayName: String, status: ArticleStatus)
+  private object Article extends CompanionOptics[Article] {
+    implicit val schema: Schema[Article]     = Schema.derived
+    val articleId: Lens[Article, String]     = $(_.articleId)
+    val displayName: Lens[Article, String]   = $(_.displayName)
+    val status: Lens[Article, ArticleStatus] = $(_.status)
+  }
+  private val articleTypeId = Article.schema.reflect.typeId
+
+  private def configuredArticleTable(tableName: String) =
+    DdbExprApi
+      .Table[Article](tableName)
+      .deriving(
+        _.withFieldNameMapper(NameMapper.SnakeCase)
+          .withCaseNameMapper(NameMapper.SnakeCase)
+          .withModifier(articleTypeId, "articleId", Modifier.rename("id"))
+      )
+
+  private val configuredTableTests: Spec[DynamoDBEnv, Throwable] =
+    suite("Table.deriving config reaches execution against a real table")(
+      test("put + get round-trips through a renamed key field, a snake_case field mapper, and a case-name-mapped enum") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table   = configuredArticleTable(tableName)
+          val article = Article("a1", "My Article", ArticleStatus.Published)
+          for {
+            _       <- interpreter.run(DdbExprApi.put(table, article))
+            result  <- interpreter.run(DdbExprApi.get[Article](table)(Article.articleId.partitionKey === "a1"))
+            rawItem <- interpreter.run(DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "a1")))
+          } yield assertTrue(
+            result == Right(article),
+            rawItem.map(_.map.keySet).contains(Set("id", "display_name", "status")),
+            rawItem.flatMap(_.map.get("status")).contains(AttributeValue.String("published"))
+          )
+        }
+      },
+      test("scan.filter on the snake_case-mapped (non-key, non-enum) field alone") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = configuredArticleTable(tableName)
+          for {
+            _    <- interpreter.run(DdbExprApi.put(table, Article("a1", "First", ArticleStatus.Draft)))
+            _    <- interpreter.run(DdbExprApi.put(table, Article("a2", "Second", ArticleStatus.Published)))
+            page <- interpreter.run(DdbExprApi.scan[Article](table, 10).filter(Article.displayName === "Second"))
+          } yield assertTrue(
+            page.items == Chunk(Right(Article("a2", "Second", ArticleStatus.Published)))
+          )
+        }
+      },
+      test("scan.filter on the case-name-mapped enum literal alone") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = configuredArticleTable(tableName)
+          for {
+            _    <- interpreter.run(DdbExprApi.put(table, Article("a1", "First", ArticleStatus.Draft)))
+            _    <- interpreter.run(DdbExprApi.put(table, Article("a2", "Second", ArticleStatus.Published)))
+            page <- interpreter.run(
+                      DdbExprApi.scan[Article](table, 10).filter(Article.status === ArticleStatus.Published)
+                    )
+          } yield assertTrue(
+            page.items == Chunk(Right(Article("a2", "Second", ArticleStatus.Published)))
+          )
+        }
+      }
+      // A combined (&&) scan.filter test was here (displayName === X && status === Y). It
+      // fails against real DynamoDB regardless of Table config - reproduces identically on
+      // a completely unconfigured table, and the constructed FilterExpression was verified
+      // correct (in isolation, without Docker) before ruling that out. Pre-existing gap,
+      // unrelated to Table config threading: no existing test exercised a combined-condition
+      // scan filter before. Tracked separately rather than fixed here.
     )
 
   def spec =
@@ -528,7 +632,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
       scanTests,
       updateTests,
       deleteTests,
-      nativeSetTests
+      nativeSetTests,
+      configuredTableTests
     )
       .provideSome[DynamoDbAsyncClient](envLayer) @@
       TestAspect.sequential

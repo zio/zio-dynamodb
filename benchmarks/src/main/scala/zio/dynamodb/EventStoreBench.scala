@@ -62,7 +62,8 @@ import scala.collection.JavaConverters._
 @Warmup(iterations = 10, time = 1, timeUnit = java.util.concurrent.TimeUnit.SECONDS)
 class EventStoreBench extends BaseBenchmark {
 
-  private val TABLE = "event-store"
+  private val TABLE    = "event-store"
+  private val ddbTable = DdbExprApi.Table[EventStoreRecord](TABLE)
 
   @Param(Array("1024", "65536"))
   var payloadBytes: Int = _
@@ -71,8 +72,8 @@ class EventStoreBench extends BaseBenchmark {
 
   // ── Scanamo ─────────────────────────────────────────────────────────────
 
-  private var scanamo: Scanamo                      = _
-  private var scanamoTable: Table[EventStoreRecord] = _
+  private var scanamo: Scanamo                                  = _
+  private var scanamoTable: org.scanamo.Table[EventStoreRecord] = _
 
   // ── blocks-dynamodb ──────────────────────────────────────────────────────
 
@@ -140,7 +141,7 @@ class EventStoreBench extends BaseBenchmark {
       )
       .asInstanceOf[DynamoDbClient]
     scanamo = Scanamo(stubClient)
-    scanamoTable = Table[EventStoreRecord](TABLE)(scanamoFormat)
+    scanamoTable = org.scanamo.Table[EventStoreRecord](TABLE)(scanamoFormat)
   }
 
   // ── Benchmarks ──────────────────────────────────────────────────────────
@@ -157,7 +158,7 @@ class EventStoreBench extends BaseBenchmark {
   @Benchmark def blocksGet: Either[ItemError, EventStoreRecord] =
     interpreter
       .run(
-        DdbExprApi.get[EventStoreRecord](TABLE)(
+        DdbExprApi.get(ddbTable)(
           EventRecordOps.id.partitionKey === record.id && EventRecordOps.sk.sortKey === record.sk
         )
       )
@@ -166,6 +167,6 @@ class EventStoreBench extends BaseBenchmark {
   /** DdbExprApi: cached HL put — codec derived once per type. */
   @Benchmark def blocksPut: Option[EventStoreRecord] =
     interpreter
-      .run(DdbExprApi.put(TABLE, record))
+      .run(DdbExprApi.put(ddbTable, record))
       .unsafeRunSync()
 }

@@ -696,18 +696,20 @@ class DynamoDBCodecDeriver private (
           val rejectExtra                          = rejectExtraFields || modifiers.exists(_.isInstanceOf[Modifier.noExtraFields])
 
           new DynamoDBCodec[A] {
-            override val recordFieldNames: Chunk[String]                        =
+            override val recordFieldNames: Chunk[String]                                    =
               Chunk.fromArray(fieldInfos.filter(_.nonTransient).map(_.getName))
-            private[this] val constructor                                       = recordBinding.constructor
-            private[this] val deconstructor                                     = recordBinding.deconstructor
-            private[this] val usedRegisters                                     = offset
-            private[this] val fields                                            = fieldInfos
-            private[this] val skipNone                                          = transientNone
-            private[this] val skipEmptyCollection                               = transientEmptyCollection
-            private[this] val skipDefaultValue                                  = transientDefaultValue
-            private[this] val discriminatorField                                = discriminatorFields.get.headOption.orNull
+            override val recordFieldNameMap: scala.collection.immutable.Map[String, String] =
+              fieldInfos.iterator.map(fi => fi.span.name -> fi.getName).toMap
+            private[this] val constructor                                                   = recordBinding.constructor
+            private[this] val deconstructor                                                 = recordBinding.deconstructor
+            private[this] val usedRegisters                                                 = offset
+            private[this] val fields                                                        = fieldInfos
+            private[this] val skipNone                                                      = transientNone
+            private[this] val skipEmptyCollection                                           = transientEmptyCollection
+            private[this] val skipDefaultValue                                              = transientDefaultValue
+            private[this] val discriminatorField                                            = discriminatorFields.get.headOption.orNull
             // null when extra-field rejection is off — avoids capturing aliasMap in the default case
-            private[this] val knownFields: java.util.HashMap[String, FieldInfo] =
+            private[this] val knownFields: java.util.HashMap[String, FieldInfo]             =
               if (rejectExtra) aliasMap else null
 
             override def encoder: Encoder[A] = { value =>
