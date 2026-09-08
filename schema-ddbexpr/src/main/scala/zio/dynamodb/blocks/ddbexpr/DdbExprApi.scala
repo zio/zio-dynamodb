@@ -26,7 +26,7 @@ import scala.language.implicitConversions
 private[ddbexpr] final case class CodecEntry[A](codec: DynamoDBCodec[A], projections: Chunk[ProjectionExpression[_, _]])
 
 // Keyed by Schema (reference identity - Schema instances are per-type singletons) and
-// DynamoDBCodecDeriverConfigure (value equality - it is now a case class). Used by
+// DynamoDBCodecDeriverConfig (value equality - it is now a case class). Used by
 // DerivedCodecSyntax's expression-building codec cache.
 private[ddbexpr] final class CodecCacheKey(private val r0: AnyRef, private val r1: AnyRef) {
   override val hashCode: Int           = System.identityHashCode(r0) * 31 + r1.hashCode

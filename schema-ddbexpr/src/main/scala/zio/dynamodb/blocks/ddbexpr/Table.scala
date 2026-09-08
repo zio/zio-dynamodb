@@ -18,12 +18,12 @@ package zio.dynamodb.blocks.ddbexpr
 
 import zio.blocks.schema.Schema
 import zio.dynamodb.{ DynamoDBError, FromAttributeValue, Item, ProjectionExpression }
-import zio.dynamodb.blocks.DynamoDBCodecDeriverConfigure
+import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.ProjectionResolver
 
 /**
  * A typed handle for a DynamoDB table: its name, the [[Schema]] for `From`, and the
- * [[DynamoDBCodecDeriverConfigure]] used to derive `From`'s codec. Construct one
+ * [[DynamoDBCodecDeriverConfig]] used to derive `From`'s codec. Construct one
  * (`Table[Order]("orders")`) and pass it to the CRUD operations in [[DdbExprApiSyntax]]
  * (`DdbExprApi` / `dsl`) in place of a bare `tableName: String` — this is what lets `From`
  * be inferred at the call site (`query(orders, 20)` rather than `query[Order]("orders", 20)`).
@@ -49,7 +49,7 @@ import zio.dynamodb.blocks.ProjectionResolver
 final class Table[From] private (
   val name: String,
   private[ddbexpr] val schema: Schema[From],
-  private[ddbexpr] val config: DynamoDBCodecDeriverConfigure[From]
+  private[ddbexpr] val config: DynamoDBCodecDeriverConfig[From]
 ) {
 
   private[ddbexpr] lazy val entry: CodecEntry[From] = {
@@ -67,14 +67,14 @@ final class Table[From] private (
 
   /**
    * Returns a copy of this table whose codec derives with `configure` applied to the
-   * default [[DynamoDBCodecDeriverConfigure]]. Replaces any configuration previously
+   * default [[DynamoDBCodecDeriverConfig]]. Replaces any configuration previously
    * attached. The config is a value with readable fields (`fieldNameMapper`,
    * `discriminatorKind`, per-field `rename`, …), not an opaque `Deriver` transform.
    */
   def deriving(
-    configure: DynamoDBCodecDeriverConfigure[From] => DynamoDBCodecDeriverConfigure[From]
+    configure: DynamoDBCodecDeriverConfig[From] => DynamoDBCodecDeriverConfig[From]
   ): Table[From] =
-    new Table(name, schema, configure(DynamoDBCodecDeriverConfigure[From]()))
+    new Table(name, schema, configure(DynamoDBCodecDeriverConfig[From]()))
 
   /**
    * Decodes an [[Item]] — as returned by the Low-Level API (`DynamoDBQuery.getItem`,
@@ -98,9 +98,9 @@ final class Table[From] private (
 object Table {
 
   def apply[From](name: String)(implicit schema: Schema[From]): Table[From] =
-    new Table(name, schema, DynamoDBCodecDeriverConfigure[From]())
+    new Table(name, schema, DynamoDBCodecDeriverConfig[From]())
 
   /** For when there is no `Schema[From]` in implicit scope. */
   def of[From](name: String, schema: Schema[From]): Table[From] =
-    new Table(name, schema, DynamoDBCodecDeriverConfigure[From]())
+    new Table(name, schema, DynamoDBCodecDeriverConfig[From]())
 }

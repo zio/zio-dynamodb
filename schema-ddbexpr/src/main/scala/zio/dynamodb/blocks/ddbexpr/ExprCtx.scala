@@ -19,7 +19,7 @@ package zio.dynamodb.blocks.ddbexpr
 import java.util.concurrent.ConcurrentHashMap
 import zio.blocks.schema.{ DynamicOptic, Optic, Schema }
 import zio.dynamodb.{ AttributeValue, ProjectionExpression }
-import zio.dynamodb.blocks.DynamoDBCodecDeriverConfigure
+import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.{ OpticToPE, ProjectionResolver }
 import zio.dynamodb.blocks.schema.DynamoDBCodec
 
@@ -36,7 +36,7 @@ import zio.dynamodb.blocks.schema.DynamoDBCodec
  *  derivation at all. That path shares the one [[ExprCtx.default]] instance.
  */
 private[ddbexpr] final class ExprCtx(
-  private[ddbexpr] val config: DynamoDBCodecDeriverConfigure[_],
+  private[ddbexpr] val config: DynamoDBCodecDeriverConfig[_],
   private[ddbexpr] val resolver: ProjectionResolver[_]
 ) {
 
@@ -66,5 +66,5 @@ private[ddbexpr] final class ExprCtx(
 }
 
 private[ddbexpr] object ExprCtx {
-  val default: ExprCtx = new ExprCtx(DynamoDBCodecDeriverConfigure.default[Any], null)
+  val default: ExprCtx = new ExprCtx(DynamoDBCodecDeriverConfig.default[Any], null)
 }

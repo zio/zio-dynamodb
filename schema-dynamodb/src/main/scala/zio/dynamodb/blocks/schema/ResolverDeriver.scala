@@ -33,7 +33,7 @@ import zio.blocks.typeid.TypeId
  * unmodified schema.
  *
  * Only the three naming-relevant settings are threaded (`fieldNameMapper`, `caseNameMapper`,
- * `discriminatorKind`) — none of `DynamoDBCodecDeriverConfigure`'s encode/decode-behaviour
+ * `discriminatorKind`) — none of `DynamoDBCodecDeriverConfig`'s encode/decode-behaviour
  * settings (`enumValuesAsStrings`, `rejectExtraFields`, ...) affect where an attribute
  * lives, so this deriver has no use for them.
  */

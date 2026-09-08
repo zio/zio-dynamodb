@@ -18,7 +18,7 @@ package zio.dynamodb.blocks.ddbexpr
 
 import java.util.concurrent.ConcurrentHashMap
 import zio.blocks.schema.Schema
-import zio.dynamodb.blocks.DynamoDBCodecDeriverConfigure
+import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.schema.DynamoDBCodec
 
 // Shared by DdbExprSyntax and DdbKeyExprSyntax so both can resolve DynamoDBCodec[A]
@@ -33,7 +33,7 @@ trait DerivedCodecSyntax {
 
   implicit def derivedCodec[A](implicit
     schema: Schema[A],
-    cfg: DynamoDBCodecDeriverConfigure[A]
+    cfg: DynamoDBCodecDeriverConfig[A]
   ): DynamoDBCodec[A] =
     // computeIfAbsent so a cold key derives exactly once rather than every racing thread
     // running the full derivation before putIfAbsent picks a winner.

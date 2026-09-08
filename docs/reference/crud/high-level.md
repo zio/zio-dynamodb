@@ -46,7 +46,7 @@ the value. Passing the `Table` is also what lets the element type be inferred fo
 ### Configuring the codec
 
 Attach deriver configuration to the `Table` with `.deriving` — no implicit
-`DynamoDBCodecDeriverConfigure` in scope, the config is on the value:
+`DynamoDBCodecDeriverConfig` in scope, the config is on the value:
 
 ```scala mdoc:compile-only
 import zio.dynamodb.blocks.ddbexpr.dsl.*

@@ -93,7 +93,7 @@ object Shape {
 
 `get`/`put`/`update`/... take a [`Table[A]`](crud/high-level.md), and the codec-derivation
 config is attached to that value with `.deriving`. The config is a
-`DynamoDBCodecDeriverConfigure[A]` — a value with readable fields (`fieldNameMapper`,
+`DynamoDBCodecDeriverConfig[A]` — a value with readable fields (`fieldNameMapper`,
 `discriminatorKind`, `enumValuesAsStrings`, per-field `rename`, …), not an opaque deriver
 transform:
 

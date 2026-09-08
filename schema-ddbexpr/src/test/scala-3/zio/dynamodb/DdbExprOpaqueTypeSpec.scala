@@ -18,7 +18,7 @@ package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, NameMapper, Schema }
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprInterpreter, DdbKeyExpr, DdbKeyExprInterpreter }
-import zio.dynamodb.blocks.DynamoDBCodecDeriverConfigure
+import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.ddbexpr.DdbExpr._
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
 import zio.test._
@@ -55,7 +55,7 @@ object DdbExprOpaqueTypeSpec extends ZIOSpecDefault {
   // then read back the attribute name and literal the expression references.
   private def interpretConfigured(
     expr: DdbExpr[Invoice, Boolean],
-    cfg: DynamoDBCodecDeriverConfigure[Invoice]
+    cfg: DynamoDBCodecDeriverConfig[Invoice]
   ): ConditionExpression[Invoice] =
     DdbExprInterpreter
       .toConditionExpression(expr, cfg, summon[Schema[Invoice]].reflect)
@@ -145,7 +145,7 @@ object DdbExprOpaqueTypeSpec extends ZIOSpecDefault {
 
     suite("configured deriver - attribute name + literal encoding thread through an opaque field")(
       test("opaque String field: withModifier rename reaches the filter's attribute name") {
-        val cfg = DynamoDBCodecDeriverConfigure[Invoice]()
+        val cfg = DynamoDBCodecDeriverConfig[Invoice]()
           .withModifier(summon[Schema[Invoice]].reflect.typeId, "id", Modifier.rename("invoice_id"))
         val ce  = interpretConfigured(Invoice.id === InvoiceId("INV-001"), cfg)
         assertTrue(
@@ -154,7 +154,7 @@ object DdbExprOpaqueTypeSpec extends ZIOSpecDefault {
         )
       },
       test("opaque Int field: withFieldNameMapper reaches the attribute name; literal still encodes as Number") {
-        val cfg = DynamoDBCodecDeriverConfigure[Invoice]().withFieldNameMapper(NameMapper.SnakeCase)
+        val cfg = DynamoDBCodecDeriverConfig[Invoice]().withFieldNameMapper(NameMapper.SnakeCase)
         val ce  = interpretConfigured(Invoice.amount > Amount(0), cfg)
         assertTrue(
           leafName(ce).contains("amount"),
@@ -162,7 +162,7 @@ object DdbExprOpaqueTypeSpec extends ZIOSpecDefault {
         )
       },
       test("default config: opaque field keeps its raw name and primitive encoding") {
-        val cfg = DynamoDBCodecDeriverConfigure[Invoice]()
+        val cfg = DynamoDBCodecDeriverConfig[Invoice]()
         val ce  = interpretConfigured(Invoice.id === InvoiceId("INV-001"), cfg)
         assertTrue(
           leafName(ce).contains("id"),

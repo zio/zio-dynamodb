@@ -35,10 +35,10 @@ import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver, Resolve
  * replayed by [[toDeriver]]. `@Modifier` annotations on the datatype do the same thing and
  * both are honoured (the deriver merges them).
  *
- * `A` is phantom — present only so `given DynamoDBCodecDeriverConfigure[Foo]` resolves per
+ * `A` is phantom — present only so `given DynamoDBCodecDeriverConfig[Foo]` resolves per
  * type.
  */
-final case class DynamoDBCodecDeriverConfigure[A](
+final case class DynamoDBCodecDeriverConfig[A](
   fieldNameMapper: NameMapper = NameMapper.Identity,
   caseNameMapper: NameMapper = NameMapper.Identity,
   discriminatorKind: DiscriminatorKind = DiscriminatorKind.Key,
@@ -63,37 +63,37 @@ final case class DynamoDBCodecDeriverConfigure[A](
   // instance is a shared singleton, so its hash is computed once for the whole process.
   override lazy val hashCode: Int = scala.runtime.ScalaRunTime._hashCode(this)
 
-  def withFieldNameMapper(m: NameMapper): DynamoDBCodecDeriverConfigure[A]          = copy(fieldNameMapper = m)
-  def withCaseNameMapper(m: NameMapper): DynamoDBCodecDeriverConfigure[A]           = copy(caseNameMapper = m)
-  def withDiscriminatorKind(k: DiscriminatorKind): DynamoDBCodecDeriverConfigure[A] = copy(discriminatorKind = k)
-  def withEnumValuesAsStrings(b: Boolean): DynamoDBCodecDeriverConfigure[A]         = copy(enumValuesAsStrings = b)
-  def withRejectExtraFields(b: Boolean): DynamoDBCodecDeriverConfigure[A]           = copy(rejectExtraFields = b)
-  def withTransientNone(b: Boolean): DynamoDBCodecDeriverConfigure[A]               = copy(transientNone = b)
-  def withRequireOptionFields(b: Boolean): DynamoDBCodecDeriverConfigure[A]         = copy(requireOptionFields = b)
-  def withTransientEmptyCollection(b: Boolean): DynamoDBCodecDeriverConfigure[A]    = copy(transientEmptyCollection = b)
-  def withRequiredCollectionFields(b: Boolean): DynamoDBCodecDeriverConfigure[A]    = copy(requireCollectionFields = b)
-  def withTransientDefaultValue(b: Boolean): DynamoDBCodecDeriverConfigure[A]       = copy(transientDefaultValue = b)
-  def withRequireDefaultValueFields(b: Boolean): DynamoDBCodecDeriverConfigure[A]   = copy(requireDefaultValueFields = b)
+  def withFieldNameMapper(m: NameMapper): DynamoDBCodecDeriverConfig[A]          = copy(fieldNameMapper = m)
+  def withCaseNameMapper(m: NameMapper): DynamoDBCodecDeriverConfig[A]           = copy(caseNameMapper = m)
+  def withDiscriminatorKind(k: DiscriminatorKind): DynamoDBCodecDeriverConfig[A] = copy(discriminatorKind = k)
+  def withEnumValuesAsStrings(b: Boolean): DynamoDBCodecDeriverConfig[A]         = copy(enumValuesAsStrings = b)
+  def withRejectExtraFields(b: Boolean): DynamoDBCodecDeriverConfig[A]           = copy(rejectExtraFields = b)
+  def withTransientNone(b: Boolean): DynamoDBCodecDeriverConfig[A]               = copy(transientNone = b)
+  def withRequireOptionFields(b: Boolean): DynamoDBCodecDeriverConfig[A]         = copy(requireOptionFields = b)
+  def withTransientEmptyCollection(b: Boolean): DynamoDBCodecDeriverConfig[A]    = copy(transientEmptyCollection = b)
+  def withRequiredCollectionFields(b: Boolean): DynamoDBCodecDeriverConfig[A]    = copy(requireCollectionFields = b)
+  def withTransientDefaultValue(b: Boolean): DynamoDBCodecDeriverConfig[A]       = copy(transientDefaultValue = b)
+  def withRequireDefaultValueFields(b: Boolean): DynamoDBCodecDeriverConfig[A]   = copy(requireDefaultValueFields = b)
 
-  def withSchema1TupleCompatibility(v: Schema1Compat): DynamoDBCodecDeriverConfigure[A]        =
+  def withSchema1TupleCompatibility(v: Schema1Compat): DynamoDBCodecDeriverConfig[A]        =
     copy(schema1TupleCompat = v)
-  def withSchema1ByteSequenceCompatibility(v: Schema1Compat): DynamoDBCodecDeriverConfigure[A] =
+  def withSchema1ByteSequenceCompatibility(v: Schema1Compat): DynamoDBCodecDeriverConfig[A] =
     copy(schema1ByteSequenceCompat = v)
-  def withSchema1ByteCompatibility(v: Schema1Compat): DynamoDBCodecDeriverConfigure[A]         =
+  def withSchema1ByteCompatibility(v: Schema1Compat): DynamoDBCodecDeriverConfig[A]         =
     copy(schema1ByteCompat = v)
-  def withSchema1YearCompatibility(v: Schema1Compat): DynamoDBCodecDeriverConfigure[A]         =
+  def withSchema1YearCompatibility(v: Schema1Compat): DynamoDBCodecDeriverConfig[A]         =
     copy(schema1YearCompat = v)
 
   /** Records a per-field modifier — same name and signature as `Deriver.withModifier`. */
-  def withModifier[T](typeId: TypeId[T], field: String, modifier: Modifier.Term): DynamoDBCodecDeriverConfigure[A] =
+  def withModifier[T](typeId: TypeId[T], field: String, modifier: Modifier.Term): DynamoDBCodecDeriverConfig[A] =
     copy(termModifiers = termModifiers :+ ((typeId.asInstanceOf[TypeId[Any]], field, modifier)))
 
   /** Records a per-type modifier — same name and signature as `Deriver.withModifier`. */
-  def withModifier[T](typeId: TypeId[T], modifier: Modifier.Reflect): DynamoDBCodecDeriverConfigure[A] =
+  def withModifier[T](typeId: TypeId[T], modifier: Modifier.Reflect): DynamoDBCodecDeriverConfig[A] =
     copy(typeModifiers = typeModifiers :+ ((typeId.asInstanceOf[TypeId[Any]], modifier)))
 
   /** Records a codec-instance override — same as `Deriver.withInstance`. */
-  def withInstance[T](instance: DynamoDBCodec[T])(implicit typeId: TypeId[T]): DynamoDBCodecDeriverConfigure[A] =
+  def withInstance[T](instance: DynamoDBCodec[T])(implicit typeId: TypeId[T]): DynamoDBCodecDeriverConfig[A] =
     copy(instanceOverrides =
       instanceOverrides :+ ((typeId.asInstanceOf[TypeId[Any]], instance.asInstanceOf[DynamoDBCodec[Any]]))
     )
@@ -153,10 +153,10 @@ final case class DynamoDBCodecDeriverConfigure[A](
   }
 }
 
-object DynamoDBCodecDeriverConfigure {
+object DynamoDBCodecDeriverConfig {
 
-  private val Default: DynamoDBCodecDeriverConfigure[Any] = DynamoDBCodecDeriverConfigure[Any]()
+  private val Default: DynamoDBCodecDeriverConfig[Any] = DynamoDBCodecDeriverConfig[Any]()
 
-  implicit def default[A]: DynamoDBCodecDeriverConfigure[A] =
-    Default.asInstanceOf[DynamoDBCodecDeriverConfigure[A]]
+  implicit def default[A]: DynamoDBCodecDeriverConfig[A] =
+    Default.asInstanceOf[DynamoDBCodecDeriverConfig[A]]
 }

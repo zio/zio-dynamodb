@@ -27,7 +27,7 @@ import zio.dynamodb.blocks.ddbexpr.dsl.*
  * `Table` value — the model carries no `@Modifier` annotations, nothing is resolved from
  * implicit scope.
  *
- * `Table[Order]("orders").deriving(configure)` hands you a `DynamoDBCodecDeriverConfigure`
+ * `Table[Order]("orders").deriving(configure)` hands you a `DynamoDBCodecDeriverConfig`
  * value and you set fields on it:
  *
  *   - `withFieldNameMapper` / `withCaseNameMapper` — deriver-wide policy
@@ -62,7 +62,7 @@ object OrdersConfigured extends ZIOAppDefault {
   }
 
   // All configuration is a value on the Table — no annotations on Order, no implicit
-  // DynamoDBCodecDeriverConfigure. Deriver-wide flags then the per-field withModifier.
+  // DynamoDBCodecDeriverConfig. Deriver-wide flags then the per-field withModifier.
   val orders: Table[Order] =
     Table[Order]("orders").deriving { cfg =>
       val orderType = summon[Schema[Order]].reflect.typeId

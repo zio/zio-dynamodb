@@ -30,7 +30,7 @@ import zio.dynamodb.blocks.schema.Resolver
  * One instance per [[zio.dynamodb.blocks.ddbexpr.Table]]. Its `root: Resolver[A]` is a tree
  * mirroring `Schema[A]`, produced once at `Table` construction by
  * [[zio.dynamodb.blocks.schema.ResolverDeriver]] from that table's
- * `(Schema, DynamoDBCodecDeriverConfigure)` pair, with every wire name already decided: the
+ * `(Schema, DynamoDBCodecDeriverConfig)` pair, with every wire name already decided: the
  * field-name mapper, per-field `@Modifier.rename`, and discriminator kind are all applied at
  * derivation time, not on lookup.
  *
