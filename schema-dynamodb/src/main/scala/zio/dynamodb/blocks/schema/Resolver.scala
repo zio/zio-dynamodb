@@ -32,9 +32,9 @@ import scala.collection.immutable.{ Map => ScalaMap }
  * house style `AttributeValue.Map` uses to coexist with `scala.collection.Map` (see the
  * `ScalaMap` alias below).
  */
-sealed trait Resolver[A]
+private[blocks] sealed trait Resolver[A]
 
-object Resolver {
+private[blocks] object Resolver {
 
   /**
    * Primitives, `DynamicValue`, and any type given an instance override (`withInstance`) —

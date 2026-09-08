@@ -37,7 +37,7 @@ import zio.blocks.typeid.TypeId
  * settings (`enumValuesAsStrings`, `rejectExtraFields`, ...) affect where an attribute
  * lives, so this deriver has no use for them.
  */
-case class ResolverDeriver(
+private[blocks] case class ResolverDeriver(
   fieldNameMapper: NameMapper,
   caseNameMapper: NameMapper,
   discriminatorKind: DiscriminatorKind
@@ -167,7 +167,7 @@ case class ResolverDeriver(
     Lazy(Resolver.Wrapper(D.instance(wrapped.metadata)))
 }
 
-object ResolverDeriver
+private[blocks] object ResolverDeriver
     extends ResolverDeriver(
       fieldNameMapper = NameMapper.Identity,
       caseNameMapper = NameMapper.Identity,

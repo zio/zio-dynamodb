@@ -128,14 +128,15 @@ final case class DynamoDBCodecDeriverConfigure[A](
   }
 
   /**
-   * Fold the naming-relevant subset of this policy into a `Deriver[Resolver]` for
+   * Internal to the High-Level expression path (unlike the public [[toDeriver]]): folds the
+   * naming-relevant subset of this policy into a `Deriver[Resolver]` for
    * `Schema#deriving` - see [[zio.dynamodb.blocks.schema.ResolverDeriver]]. None of the
    * encode/decode-behaviour settings (`enumValuesAsStrings`, `rejectExtraFields`, ...)
    * are threaded - they don't affect where an attribute lives. A type with a codec
    * `withInstance` override resolves as an opaque `Resolver.Leaf`: a hand-written codec's
    * wire shape can't be inferred from `Reflect`.
    */
-  def toResolverDeriver: Deriver[Resolver] = {
+  private[blocks] def toResolverDeriver: Deriver[Resolver] = {
     val scalar       = ResolverDeriver
       .withFieldNameMapper(fieldNameMapper)
       .withCaseNameMapper(caseNameMapper)

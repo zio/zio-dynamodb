@@ -87,12 +87,13 @@ object DdbKeyExprInterpreter {
 
   // -- Helpers -------------------------------------------------------------
 
-  // Only top-level field optics are valid as DynamoDB key fields, so `nodes` is always a
-  // single Field segment on any valid key. Reads the wire name straight off the table's
-  // Resolver, bypassing ProjectionResolver's general cache: a ConcurrentHashMap lookup costs
-  // more than a direct small-immutable-Map lookup on this simplest, hottest path, and there
-  // is no MapElement chain here worth memoising. Same source of truth as the general path
-  // (the Resolver tree), just a shorter route to it - not a second naming computation.
+  // Resolves a partition / sort key optic to its DynamoDB attribute name through the table's
+  // ProjectionResolver, so a key condition honours the same field-name mapper / @Modifier.rename
+  // as the item body and `.where` / `.filter`. A valid key optic is always a single top-level
+  // field, so the common case takes ProjectionResolver.resolveTopLevelField (a plain Map.get);
+  // anything else - a multi-segment path, or the no-config ExprCtx.default whose resolver is
+  // null - drops to `fallback`, which resolves the full path and then rejects it unless it
+  // came out as a single top-level attribute.
   private def fieldName[S, A](optic: Optic[S, A], ctx: ExprCtx): Either[String, String] = {
     val nodes = optic.toDynamic.nodes
     if (nodes.length == 1 && (ctx.resolver ne null))

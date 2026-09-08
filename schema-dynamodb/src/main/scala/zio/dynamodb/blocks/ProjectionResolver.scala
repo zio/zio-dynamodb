@@ -23,19 +23,55 @@ import zio.dynamodb.ProjectionExpression
 import zio.dynamodb.blocks.schema.Resolver
 
 /**
- * Per-`Table` cache over a [[Resolver]][A] root, resolving an optic's [[DynamicOptic]] path
- * to a [[ProjectionExpression]]. The naming decision is already baked into `root` at
- * derivation time, so a lookup is a handful of `Map.get`s, not a schema-plus-config
- * re-derivation.
+ * Resolves an optic path — a [[DynamicOptic]] of `Field` / `Case` / `AtIndex` / `AtMapKey`
+ * nodes — to the DynamoDB attribute path that a `.where` / `.filter` / key-condition
+ * expression must reference that field by on the wire.
  *
- * Keyed by `DynamicOptic` alone (not `(reflect, optic, config)` the way `OpticToPE`'s cache
- * was) - `root` already bakes in one specific `(schema, config)` pair, one per `Table`, so
- * the key doesn't need to distinguish them.
+ * One instance per [[zio.dynamodb.blocks.ddbexpr.Table]]. Its `root: Resolver[A]` is a tree
+ * mirroring `Schema[A]`, produced once at `Table` construction by
+ * [[zio.dynamodb.blocks.schema.ResolverDeriver]] from that table's
+ * `(Schema, DynamoDBCodecDeriverConfigure)` pair, with every wire name already decided: the
+ * field-name mapper, per-field `@Modifier.rename`, and discriminator kind are all applied at
+ * derivation time, not on lookup.
+ *
+ * A lookup therefore walks `root` alongside the optic's nodes, appends one
+ * [[ProjectionExpression]] segment per node, and reads the pre-baked wire name off the
+ * matching `Resolver` node — no schema or config is re-examined per call. A path that cannot
+ * be a DynamoDB attribute path (e.g. a non-`String` map key) resolves to a `Left` with a
+ * message rather than a best-effort guess.
+ *
+ * This is the config-aware counterpart of [[OpticToPE]], which only ever sees an optic's raw
+ * Scala field names; routing through `root` is what keeps a filtered or key field on the
+ * same wire name as the item body a `put` writes.
+ *
+ * Lifecycle, in order:
+ *
+ *   1. At `Table` construction, `.derive` builds `root` but forces only its top node — the
+ *      top-level record's own field → wire-name map. Every nested type's `Resolver` is
+ *      captured as an unforced thunk.
+ *   2. The first [[resolve]] that descends into a nested type forces that subtree's thunk
+ *      (running its naming computation once) and memoises it; [[resolve]] also caches the
+ *      finished [[ProjectionExpression]] chain, keyed by the optic.
+ *   3. [[resolveTopLevelField]] — the shape every key optic has — skips both the walk and
+ *      the cache: one `root.fields` lookup against the map from step 1.
+ *
+ * So steady state (a fixed set of keyed / filtered fields) does no derivation and no
+ * attribute-path rebuilding.
+ *
+ * Two entry points: [[resolve]] for any optic path, [[resolveTopLevelField]] for the
+ * single-top-level-`Field` key shape.
  */
-final class ProjectionResolver[A](root: Resolver[A]) {
+private[blocks] final class ProjectionResolver[A](root: Resolver[A]) {
 
+  // Keyed by DynamicOptic alone: `root` already fixes one (schema, config) pair per Table,
+  // so the key needn't carry them the way OpticToPE's old (reflect, optic, config) key did.
   private[this] val cache = new ConcurrentHashMap[DynamicOptic, Either[String, ProjectionExpression[_, _]]]()
 
+  /**
+   * Resolves any optic path to its [[ProjectionExpression]]. Memoised:
+   * [[ProjectionResolver.walk]] rebuilds a fresh `MapElement` / `ListElement` chain on every
+   * call, so a deep or repeatedly-used path is worth caching.
+   */
   def resolve(dyn: DynamicOptic): Either[String, ProjectionExpression[_, _]] = {
     val hit = cache.get(dyn)
     if (hit ne null) hit
@@ -46,12 +82,16 @@ final class ProjectionResolver[A](root: Resolver[A]) {
     }
   }
 
-  // Fast path for a single top-level field - the only shape a DynamoDB key optic can be.
-  // Reads the same `root.fields` map general resolution does (so it can't disagree with it -
-  // same source, not a second naming computation), skipping both the ConcurrentHashMap cache
-  // and the general walk: a hash-map lookup costs more than a direct small-immutable-Map
-  // lookup, and on the single-segment key path there is nothing to memoise (no chain of
-  // MapElements to avoid rebuilding).
+  /**
+   * Resolves a single top-level field's wire name directly — the shape every DynamoDB key
+   * optic has. Reads the very same `root.fields` entry that [[ProjectionResolver.walk]] reads
+   * for a `Field` node, so it cannot disagree with [[resolve]]: a shorter route to the same
+   * answer, not a second naming rule.
+   */
+  // No ConcurrentHashMap and no walk here: `root.fields` is a small immutable Map (direct
+  // key comparison, JIT-inlined) which beats a CHM.get, and a one-segment path has no
+  // MapElement chain to memoise. Hit by every get / query / update / delete, so it earns
+  // its own method.
   def resolveTopLevelField(scalaName: String): Either[String, String] =
     root match {
       case r: Resolver.Record[_] @unchecked =>
@@ -63,7 +103,7 @@ final class ProjectionResolver[A](root: Resolver[A]) {
     }
 }
 
-object ProjectionResolver {
+private[blocks] object ProjectionResolver {
 
   // Wrapper is transparent to path resolution - an optic sees straight through an opaque /
   // newtype wrapper, so a path never carries a node for it.
