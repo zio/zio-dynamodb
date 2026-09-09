@@ -24,7 +24,7 @@ import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, NameMapper, Schema }
 import zio.dynamodb.blocks.ddbexpr.{ DdbExprApi, DdbKeyExpr }
 import zio.dynamodb.blocks.ddbexpr.DdbExprApi._
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
-import zio.dynamodb.blocks.ddbexpr.DdbExpr.{ DdbExprBoolSyntax, OpticDdbExprOps, OpticUpdateOps }
+import zio.dynamodb.blocks.ddbexpr.DdbExpr.{ DdbExprBoolSyntax, OpticDdbExprOps, OpticUpdateOps, SchemaExprBoolBridge }
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect
@@ -613,13 +613,32 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
             page.items == Chunk(Right(Article("a2", "Second", ArticleStatus.Published)))
           )
         }
+      },
+      test("scan.filter on a combined (&&) config-mapped condition") {
+        // Regression test for a bug where `SchemaExpr && SchemaExpr` used to silently resolve
+        // to a no-config ConditionExpression (via DdbExprApiSyntax's own
+        // schemaExprToConditionExpression, competing with SchemaExprBoolBridge to adapt the
+        // receiver) instead of staying a SchemaExpr/DdbExpr, baking in unconfigured
+        // names/literals before .filter ever saw the expression. Fixed by moving that
+        // conversion (and its siblings) out of DdbExprApiSyntax into the separately-imported
+        // LowLevelDdbExprSyntax - DdbExprApi._ alone can no longer reach that path at all, with
+        // or without SchemaExprBoolBridge also imported - see DdbExprFilterConfigSpec in
+        // schema-ddbexpr for a fast (non-IT) proof.
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = configuredArticleTable(tableName)
+          for {
+            _    <- interpreter.run(DdbExprApi.put(table, Article("a1", "First", ArticleStatus.Draft)))
+            _    <- interpreter.run(DdbExprApi.put(table, Article("a2", "Second", ArticleStatus.Published)))
+            page <- interpreter.run(
+                      DdbExprApi
+                        .scan[Article](table, 10)
+                        .filter(Article.displayName === "Second" && Article.status === ArticleStatus.Published)
+                    )
+          } yield assertTrue(
+            page.items == Chunk(Right(Article("a2", "Second", ArticleStatus.Published)))
+          )
+        }
       }
-      // A combined (&&) scan.filter test was here (displayName === X && status === Y). It
-      // fails against real DynamoDB regardless of Table config - reproduces identically on
-      // a completely unconfigured table, and the constructed FilterExpression was verified
-      // correct (in isolation, without Docker) before ruling that out. Pre-existing gap,
-      // unrelated to Table config threading: no existing test exercised a combined-condition
-      // scan filter before. Tracked separately rather than fixed here.
     )
 
   def spec =

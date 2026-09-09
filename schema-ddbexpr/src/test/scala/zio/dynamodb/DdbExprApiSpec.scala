@@ -18,8 +18,9 @@ package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.DynamoDBError.ItemError
-import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprApi, DdbKeyExpr }
+import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprApi, DdbExprLowLevel, DdbKeyExpr }
 import zio.dynamodb.blocks.ddbexpr.DdbExprApi._
+import zio.dynamodb.blocks.ddbexpr.DdbExprLowLevel._
 // derivedCodec from DdbKeyExpr._; bring DdbExpr extension methods separately
 // to avoid the two-derivedCodec ambiguity with DdbExpr.derivedCodec.
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._

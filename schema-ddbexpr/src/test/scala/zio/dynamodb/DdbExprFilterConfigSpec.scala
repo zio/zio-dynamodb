@@ -16,7 +16,7 @@
 
 package zio.dynamodb
 
-import zio.blocks.schema.{ CompanionOptics, Lens, NameMapper, Schema }
+import zio.blocks.schema.{ CompanionOptics, Lens, NameMapper, Schema, SchemaExpr }
 import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprInterpreter }
 import zio.dynamodb.blocks.ddbexpr.dsl._
@@ -98,6 +98,92 @@ object DdbExprFilterConfigSpec extends ZIOSpecDefault {
     Order.schema.deriving(cfg.toDeriver).derive.recordFieldNameMap(scalaField)
 
   def spec = suite("DdbExprFilterConfigSpec")(
+    // Root cause of the `&&`/`||` config-loss bug that motivated this suite: `SchemaExpr` gets
+    // `&&`/`||` from ZB's own `SchemaExpr.BooleanOps` (native to SchemaExpr's companion,
+    // always in scope, no import needed) returning `SchemaExpr` again - safe, since the
+    // combined expression stays a `SchemaExpr` all the way to `.filter`/`.where`, which
+    // resolves it against the table's config. The bug was that `DdbExprApi._` used to
+    // ALSO put `schemaExprToConditionExpression` (a plain implicit *conversion*, not an
+    // extension method) into scope - competing to adapt the same `SchemaExpr` receiver, and
+    // winning when `DdbExpr.SchemaExprBoolBridge` wasn't separately imported, converting
+    // straight to a no-config `ConditionExpression` before `.filter` ever saw it. Fixed by
+    // moving that conversion (and its siblings) out of `DdbExprApiSyntax` into the
+    // separately-imported `LowLevelDdbExprSyntax` (`DdbExprLowLevel`) - so `DdbExprApi._` /
+    // `dsl._` alone can no longer reach that path at all, whether or not
+    // `SchemaExprBoolBridge` is also imported.
+    test("import DdbExprApi._ alone: 3-term && chain no longer reaches ConditionExpression, honours config") {
+      import zio.dynamodb.blocks.ddbexpr.DdbExprApi._
+      import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
+      import zio.dynamodb.blocks.ddbexpr.DdbExpr.{ DdbExprBoolSyntax, OpticDdbExprOps, OpticUpdateOps }
+      val cfg      = DynamoDBCodecDeriverConfig[Order]().withFieldNameMapper(NameMapper.SnakeCase)
+      val combined = Order.customerId === "c1" && Order.orderRef === "r1" && Order.status === Status.Shipped
+      // No competing schemaExprToConditionExpression in scope any more - the only remaining
+      // ways to adapt a bare SchemaExpr receiver here (SchemaExprBoolBridge / schemaExprToDdbExpr,
+      // both reachable via DdbExpr's own implicit scope without an explicit import) resolve to
+      // DdbExpr, never to a bare, unconfigured ConditionExpression.
+      assertTrue(combined.isInstanceOf[DdbExpr[_, _]])
+      val ce       = interp(combined, cfg)
+      assertTrue(
+        attrPaths(ce).contains(List("customer_id")),
+        attrPaths(ce).contains(List("order_ref")),
+        attrPaths(ce).contains(List("status"))
+      )
+    },
+    test("import DdbExprApi._ alone: 3-term || chain no longer reaches ConditionExpression, honours config") {
+      import zio.dynamodb.blocks.ddbexpr.DdbExprApi._
+      import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
+      import zio.dynamodb.blocks.ddbexpr.DdbExpr.{ DdbExprBoolSyntax, OpticDdbExprOps, OpticUpdateOps }
+      val cfg      = DynamoDBCodecDeriverConfig[Order]().withFieldNameMapper(NameMapper.SnakeCase)
+      val combined = Order.customerId === "c1" || Order.orderRef === "r1" || Order.status === Status.Shipped
+      assertTrue(combined.isInstanceOf[DdbExpr[_, _]])
+      val ce       = interp(combined, cfg)
+      assertTrue(
+        attrPaths(ce).contains(List("customer_id")),
+        attrPaths(ce).contains(List("order_ref")),
+        attrPaths(ce).contains(List("status"))
+      )
+    },
+    test("also importing SchemaExprBoolBridge: 3-term && chain stays DdbExpr and honours config") {
+      import zio.dynamodb.blocks.ddbexpr.DdbExprApi._
+      import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
+      import zio.dynamodb.blocks.ddbexpr.DdbExpr.{
+        DdbExprBoolSyntax,
+        OpticDdbExprOps,
+        OpticUpdateOps,
+        SchemaExprBoolBridge
+      }
+      val cfg      = DynamoDBCodecDeriverConfig[Order]().withFieldNameMapper(NameMapper.SnakeCase)
+      val combined = Order.customerId === "c1" && Order.orderRef === "r1" && Order.status === Status.Shipped
+      // With SchemaExprBoolBridge also imported, the very first pairwise combination picks it
+      // (over ZB's own BooleanOps) - the result stays a properly-configured DdbExpr instead,
+      // equally safe, just a different node type.
+      assertTrue(combined.isInstanceOf[DdbExpr[_, _]])
+      val ce       = interp(combined, cfg)
+      assertTrue(
+        attrPaths(ce).contains(List("customer_id")),
+        attrPaths(ce).contains(List("order_ref")),
+        attrPaths(ce).contains(List("status"))
+      )
+    },
+    test("also importing SchemaExprBoolBridge: 3-term || chain stays DdbExpr and honours config") {
+      import zio.dynamodb.blocks.ddbexpr.DdbExprApi._
+      import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
+      import zio.dynamodb.blocks.ddbexpr.DdbExpr.{
+        DdbExprBoolSyntax,
+        OpticDdbExprOps,
+        OpticUpdateOps,
+        SchemaExprBoolBridge
+      }
+      val cfg      = DynamoDBCodecDeriverConfig[Order]().withFieldNameMapper(NameMapper.SnakeCase)
+      val combined = Order.customerId === "c1" || Order.orderRef === "r1" || Order.status === Status.Shipped
+      assertTrue(combined.isInstanceOf[DdbExpr[_, _]])
+      val ce       = interp(combined, cfg)
+      assertTrue(
+        attrPaths(ce).contains(List("customer_id")),
+        attrPaths(ce).contains(List("order_ref")),
+        attrPaths(ce).contains(List("status"))
+      )
+    },
     test("default config: filtered field keeps its raw Scala name") {
       val cfg = DynamoDBCodecDeriverConfig[Order]()
       val ce  = interp(DdbExpr.Builtin(Order.customerId === "c1"), cfg)
