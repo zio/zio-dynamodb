@@ -41,12 +41,5 @@ package zio.dynamodb.blocks.ddbexpr
  *  This is purely a convenience for the common case — `DdbExprApi`, `DdbKeyExpr`, and
  *  `DdbExpr` remain independently importable exactly as before for callers who want only
  *  one piece (e.g. a test exercising `DdbKeyExpr` in isolation).
- *
- *  Deliberately excludes [[LowLevelDdbExprSyntax]] (`DdbExprLowLevel`) - the escape hatch for
- *  running a `DdbKeyExpr` / `DdbExpr` / `SchemaExpr` condition against a bare, `Table`-free
- *  [[DynamoDBQuery]]. That trait's `SchemaExpr => ConditionExpression` conversion competes
- *  with `SchemaExpr`'s own `&&` / `||`, so keeping it out of this facade means a plain
- *  `import dsl._` can never lose a `Table`'s configuration through that path; import
- *  `DdbExprLowLevel._` explicitly on top of `dsl._` if a bare query genuinely needs it.
  */
 object dsl extends DdbExprApiSyntax with DdbKeyExprSyntax with DdbExprSyntax

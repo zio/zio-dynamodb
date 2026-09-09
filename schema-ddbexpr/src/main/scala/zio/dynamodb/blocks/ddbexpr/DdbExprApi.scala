@@ -171,13 +171,10 @@ final class WriteBuilder[From] private[ddbexpr] (
  *      .filter(Task.name.beginsWith("A") && Task.score.between(1, 100))
  *  }}}
  *
- *  `.whereKey` / `.filter` / `.where` on the builders above accept `DdbKeyExpr` / `DdbExpr` /
- *  `SchemaExpr` directly - no implicit conversion involved, and each threads the table's own
- *  configuration. A genuinely bare [[DynamoDBQuery]] (no [[Table]] behind it) needs its own,
- *  separately-imported escape hatch instead - see [[LowLevelDdbExprSyntax]] / `DdbExprLowLevel`
- *  for why that is deliberately not bundled here. Interpretation failures on the builders above
- *  are deferred to query execution via the `Failure` nodes in [[KeyConditionExpr]] and
- *  [[ConditionExpression]].
+ *  `.whereKey` / `.filter` / `.where` on the builders take `DdbKeyExpr` / `DdbExpr` /
+ *  `SchemaExpr` through overloads on the builder, each interpreting the argument against the
+ *  calling table's configuration. Interpretation failures surface at query execution via the
+ *  `Failure` nodes in [[KeyConditionExpr]] and [[ConditionExpression]].
  */
 trait DdbExprApiSyntax {
 
@@ -282,55 +279,6 @@ trait DdbExprApiSyntax {
   implicit def writeBuilderToQuery[From](b: WriteBuilder[From]): DynamoDBQuery[From, Option[From]] = b.toQuery
 
 }
-
-/**
- * Implicit conversions enabling `.whereKey(DdbKeyExpr)` / `.filter(DdbExpr)` /
- * `.filter(SchemaExpr)` / `.where(...)` on a genuinely bare [[DynamoDBQuery]] - one built
- * directly via `core`'s own constructors (`DynamoDBQuery.scan`, `.query`, ...), not through
- * a [[Table]] / [[ScanBuilder]] / [[QueryBuilder]] / [[WriteBuilder]]. None of these carry
- * table configuration - the builders `DdbExprApi.scan` / `.query` / `.put` / `.update` /
- * `.deleteFrom` return do, via each builder's own `SchemaExpr` / `DdbExpr` /
- * `ConditionExpression` overloads, which do not need (and are unaffected by) this trait.
- *
- * Deliberately NOT mixed into [[DdbExprApiSyntax]] / `dsl` - unlike those, this trait puts a
- * plain implicit conversion of `SchemaExpr` into scope (`schemaExprToConditionExpression`),
- * not merely an extension method. A plain conversion is eligible wherever Scala looks for a
- * way to adapt a `SchemaExpr` receiver to expose a member it doesn't have - including `&&` /
- * `||`, which ZB's own `SchemaExpr` already provides via `SchemaExpr.BooleanOps`. Mixing this
- * trait into the same scope as `DdbExprApiSyntax`/`dsl` would make `SchemaExpr && SchemaExpr`
- * a second, silently-different way to combine two conditions - converting straight to a
- * no-config `ConditionExpression` and losing whatever `Table` configuration the fields
- * involved would otherwise resolve through - instead of just extending `SchemaExpr`'s own
- * `&&`. Keeping it in its own, separately-imported trait means a caller only takes on that
- * risk by explicitly asking for the low-level escape hatch, not merely by importing
- * `DdbExprApi._` / `dsl._` for the (unrelated) `Table`-based builders.
- */
-trait LowLevelDdbExprSyntax {
-
-  // Enables .whereKey(ddbKeyExpr) on any low-level DynamoDBQuery.
-  // Interpretation failures are deferred to execution via KeyConditionExpr.Failure.
-  implicit def ddbKeyExprToKeyConditionExpr[S](expr: DdbKeyExpr[S]): KeyConditionExpr[S] =
-    DdbKeyExprInterpreter.toKeyConditionExpr(expr).fold(KeyConditionExpr.Failure(_), identity)
-
-  // Enables .filter(ddbExpr) and .where(ddbExpr) on any low-level DynamoDBQuery.
-  // FilterExpression[-From] is a type alias for ConditionExpression[-From].
-  // Interpretation failures are deferred to execution via ConditionExpression.Failure.
-  implicit def ddbExprToConditionExpression[S](expr: DdbExpr[S, Boolean]): ConditionExpression[S] =
-    DdbExprInterpreter.toConditionExpression(expr).fold(ConditionExpression.Failure(_), identity)
-
-  // Enables .filter(Task.score > 0) or .filter(Task.priority === Priority.High) where
-  // the argument is a ZB SchemaExpr. Goes through the Builtin path; the interpreter
-  // derives a DynamoDBCodec from the embedded Schema[_] in each Literal node.
-  implicit def schemaExprToConditionExpression[S](se: SchemaExpr[S, Boolean]): ConditionExpression[S] =
-    ddbExprToConditionExpression(DdbExpr.Builtin(se))
-}
-
-/**
- * `import DdbExprLowLevel._` - the escape hatch for a genuinely bare [[DynamoDBQuery]] with no
- * [[Table]] behind it. See [[LowLevelDdbExprSyntax]] for why this needs its own import
- * separate from [[DdbExprApi]] / `dsl`.
- */
-object DdbExprLowLevel extends LowLevelDdbExprSyntax
 
 /**
  * The [[DdbExprApiSyntax]] singleton - `import DdbExprApi._` for explicit-object-style

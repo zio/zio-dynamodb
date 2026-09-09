@@ -615,15 +615,10 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
         }
       },
       test("scan.filter on a combined (&&) config-mapped condition") {
-        // Regression test for a bug where `SchemaExpr && SchemaExpr` used to silently resolve
-        // to a no-config ConditionExpression (via DdbExprApiSyntax's own
-        // schemaExprToConditionExpression, competing with SchemaExprBoolBridge to adapt the
-        // receiver) instead of staying a SchemaExpr/DdbExpr, baking in unconfigured
-        // names/literals before .filter ever saw the expression. Fixed by moving that
-        // conversion (and its siblings) out of DdbExprApiSyntax into the separately-imported
-        // LowLevelDdbExprSyntax - DdbExprApi._ alone can no longer reach that path at all, with
-        // or without SchemaExprBoolBridge also imported - see DdbExprFilterConfigSpec in
-        // schema-ddbexpr for a fast (non-IT) proof.
+        // A combined (&&) filter against a configured table: the two conditions combine
+        // via SchemaExpr's own && and `.filter` resolves both field names and the enum
+        // literal against the table config. DdbExprFilterConfigSpec (schema-ddbexpr) covers
+        // the import-shape variations without Docker.
         withSingleIdKeyTable { (tableName, interpreter) =>
           val table = configuredArticleTable(tableName)
           for {

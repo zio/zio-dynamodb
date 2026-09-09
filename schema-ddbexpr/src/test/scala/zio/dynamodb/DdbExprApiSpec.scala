@@ -18,9 +18,8 @@ package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.DynamoDBError.ItemError
-import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprApi, DdbExprLowLevel, DdbKeyExpr }
+import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprApi, DdbKeyExpr }
 import zio.dynamodb.blocks.ddbexpr.DdbExprApi._
-import zio.dynamodb.blocks.ddbexpr.DdbExprLowLevel._
 // derivedCodec from DdbKeyExpr._; bring DdbExpr extension methods separately
 // to avoid the two-derivedCodec ambiguity with DdbExpr.derivedCodec.
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
@@ -103,20 +102,6 @@ object DdbExprApiSpec extends ZIOSpecDefault {
       }
       // Range expressions (sk > / between / beginsWith) on get are now a compile-time error:
       // DdbExprApi.get takes DdbKeyExpr.PrimaryKey, which Extended does not satisfy.
-    ),
-    suite("implicit conversions")(
-      test("DdbKeyExpr converts to PartitionKeyEquals (not Failure)") {
-        val kce = ddbKeyExprToKeyConditionExpr[Task](Task.id.partitionKey === "alice")
-        assert(kce)(isSubtype[KeyConditionExpr.PartitionKeyEquals[Task]](anything))
-      },
-      test("DdbKeyExpr composite converts to CompositePrimaryKeyExpr") {
-        val kce = ddbKeyExprToKeyConditionExpr[Task](Task.id.partitionKey === "alice" && Task.score.sortKey === 42)
-        assert(kce)(isSubtype[KeyConditionExpr.CompositePrimaryKeyExpr[Task]](anything))
-      },
-      test("DdbExpr converts to non-Failure ConditionExpression") {
-        val ce = ddbExprToConditionExpression[Task](Task.id === "alice")
-        assert(ce)(not(isSubtype[ConditionExpression.Failure[Task]](anything)))
-      }
     ),
     suite("query / scan chaining")(
       test("query builds successfully with .whereKey and .filter (===)") {
