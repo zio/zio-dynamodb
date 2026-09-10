@@ -36,7 +36,7 @@ import zio.dynamodb.{ AttributeValue, ConditionExpression, ProjectionExpression 
  *  for the low-level implicit-conversion path. The `ExprCtx` memoises resolved projections
  *  and literal codecs, so construction allocates neither cache keys nor a context object.
  */
-object DdbExprInterpreter {
+private[dynamodb] object DdbExprInterpreter {
 
   def toConditionExpression[S](expr: DdbExpr[S, Boolean]): Either[String, ConditionExpression[S]] =
     interp[S](expr, ExprCtx.default)
