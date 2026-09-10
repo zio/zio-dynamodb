@@ -218,14 +218,14 @@ trait DdbExprApiSyntax {
   }
 
   def update[From](table: Table[From])(keyExpr: DdbKeyExpr.PrimaryKey[From])(
-    action: UpdateExpression.Action[From]
+    action: DdbUpdateExpr[From]
   ): WriteBuilder[From] =
     new WriteBuilder(
       table,
       DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr, table.exprCtx) match {
         case Right(pkExpr) =>
           DynamoDBQuery
-            .updateItem(table.name, pkExpr.asAttrMap)(action)
+            .updateItem(table.name, pkExpr.asAttrMap)(DdbUpdateExprInterpreter.toAction(action, table.exprCtx))
             .map(_.flatMap(item => table.decode(item).toOption))
         case Left(msg)     =>
           DynamoDBQuery.fail(DynamoDBError.ItemError.DecodingError.failure(msg))

@@ -17,7 +17,7 @@
 package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema }
-import zio.dynamodb.blocks.ddbexpr.{ DdbExprApi, DdbKeyExpr }
+import zio.dynamodb.blocks.ddbexpr.{ DdbExprApi, DdbKeyExpr, DdbUpdateExpr, DdbUpdateExprInterpreter }
 import zio.dynamodb.blocks.ddbexpr.DdbExprApi.writeBuilderToQuery
 // Import OpticUpdateOps from DdbExpr selectively to avoid dual-derivedCodec ambiguity
 // (both DdbExpr._ and DdbKeyExpr._ expose derivedCodec with the same signature).
@@ -44,7 +44,7 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
-  private def render(action: UpdateExpression.Action[_]): String = action.render.execute._2
+  private def render(u: DdbUpdateExpr[_]): String = DdbUpdateExprInterpreter.toAction(u).render.execute._2
 
   private def run[A](q: DynamoDBQuery[_, A]): A = DummyIOInterpreter.run(q).unsafeRun()
 
@@ -170,22 +170,22 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
       // DdbExprApi.update takes DdbKeyExpr.PrimaryKey, which Extended does not satisfy.
     ),
     suite("optic paths DDB cannot represent")(
-      test("set on a non-String map key returns Action.Failure instead of throwing") {
+      test("set on a non-String map key interprets to Action.Failure instead of throwing") {
         case class Registry(counts: Map[Int, Int])
         object Registry extends CompanionOptics[Registry] {
           implicit val schema: Schema[Registry]          = Schema.derived
           def countAt(key: Int): Optional[Registry, Int] = $(_.counts.atKey(key))
         }
-        val action = Registry.countAt(1).set(42)
+        val action = DdbUpdateExprInterpreter.toAction(Registry.countAt(1).set(42))
         assertTrue(action.isInstanceOf[UpdateExpression.Action.Failure[_]])
       },
-      test("remove on a non-String map key returns Action.Failure instead of throwing") {
+      test("remove on a non-String map key interprets to Action.Failure instead of throwing") {
         case class Registry(counts: Map[Int, Int])
         object Registry extends CompanionOptics[Registry] {
           implicit val schema: Schema[Registry]          = Schema.derived
           def countAt(key: Int): Optional[Registry, Int] = $(_.counts.atKey(key))
         }
-        val action = Registry.countAt(1).remove
+        val action = DdbUpdateExprInterpreter.toAction(Registry.countAt(1).remove)
         assertTrue(action.isInstanceOf[UpdateExpression.Action.Failure[_]])
       }
     ),

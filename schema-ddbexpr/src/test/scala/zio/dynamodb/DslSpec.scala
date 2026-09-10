@@ -22,7 +22,7 @@ import zio.dynamodb.blocks.ddbexpr.dsl._
 // isSubtype[...] assertions below — real call sites never need this, only tests that
 // inspect the internal expression shape do. put/get/scan/=== etc. all come from `dsl._`
 // alone, unqualified, since dsl extends DdbExprApiSyntax/DdbKeyExprSyntax/DdbExprSyntax directly.
-import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbKeyExpr }
+import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbKeyExpr, DdbUpdateExprInterpreter }
 import zio.test._
 import zio.test.Assertion._
 
@@ -111,7 +111,7 @@ object DslSpec extends ZIOSpecDefault {
       assertTrue(run(scanQuery).items.isEmpty)
     },
     test("update syntax (OpticUpdateOps) renders a SET action") {
-      val action = Task.score.set(99)
+      val action = DdbUpdateExprInterpreter.toAction(Task.score.set(99))
       assertTrue(action.render.execute._2.startsWith("set"))
     }
   )

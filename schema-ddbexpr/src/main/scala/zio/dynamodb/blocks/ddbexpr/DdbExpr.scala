@@ -20,13 +20,7 @@ import zio.blocks.schema.{ Optic, Schema, SchemaExpr }
 import zio.blocks.schema.comptime.Allows
 import Allows.Wrapped
 import zio.dynamodb.blocks.DdbGrammar
-import zio.dynamodb.blocks.OpticToPE
-import zio.dynamodb.blocks.schema.DynamoDBCodec
 import zio.dynamodb.compat.||
-import zio.dynamodb.{ AttributeValue, ProjectionExpression }
-import zio.dynamodb.UpdateExpression.RenderableAction
-import zio.dynamodb.UpdateExpression.Action.{ AddAction, DeleteAction, Failure, RemoveAction, SetAction }
-import zio.dynamodb.UpdateExpression.SetOperand
 
 import scala.annotation.unused
 import scala.language.implicitConversions
@@ -151,106 +145,86 @@ trait DdbExprSyntax extends DerivedCodecSyntax {
 
   // ── Update expression builder ───────────────────────────────────────────────
 
-  // Extension methods on Optic[From, A] that produce UpdateExpression.Action nodes.
-  // Literals are encoded via DynamoDBCodec[A] — same codec-carrying principle as
-  // the condition expression ops above, so sealed-trait encoding rules are respected.
+  // Extension methods on Optic[From, A] that produce DdbUpdateExpr nodes — the deferred,
+  // Schema-carrying counterpart of the condition ops above. Operand values are NOT encoded
+  // here: each node holds a Schema[A], and DdbUpdateExprInterpreter (via DdbExprApi.update)
+  // encodes them — and resolves attribute paths — against the originating Table's deriver
+  // configuration, so `update` writes the same names/encodings as `put` does for the body.
   //
   // Allows[A, ...] constraints mirror schema-expr's LensUpdateExprSyntax — they are
-  // orthogonal to codec encoding and prevent operations from being applied to
-  // fields of incompatible DynamoDB types at compile time.
+  // orthogonal to encoding and prevent operations from being applied to fields of
+  // incompatible DynamoDB types at compile time.
   //
   // Import: `import DdbExpr._` (same import as condition expression ops).
   implicit class OpticUpdateOps[From, A](private val optic: Optic[From, A]) {
 
-    // OpticToPE.pe can fail for optic shapes DDB paths can't represent (eg a Map
-    // key that isn't a String) — deferred as Action.Failure rather than thrown,
-    // so it is collectable/reported the same way as ConditionExpression failures.
-    private def pe: Either[String, ProjectionExpression[From, A]] =
-      OpticToPE.pe(optic)
-
     // SET path = value   (valid for any attribute type)
-    def set(value: A)(implicit codec: DynamoDBCodec[A]): RenderableAction[From] =
-      pe.fold(Failure(_), p => SetAction(p, SetOperand.ValueOperand(codec.encoder(value))))
+    def set(value: A)(implicit schema: Schema[A]): DdbUpdateExpr[From] =
+      DdbUpdateExpr.SetValue(optic, value, schema)
 
     // SET path = other_path   (copy one attribute to another)
-    def set(other: Optic[From, A]): RenderableAction[From] =
-      (pe, OpticToPE.pe(other)) match {
-        case (Right(p), Right(otherPE)) => SetAction(p, SetOperand.PathOperand(otherPE))
-        case (Left(msg), _)             => Failure(msg)
-        case (_, Left(msg))             => Failure(msg)
-      }
+    def set(other: Optic[From, A]): DdbUpdateExpr[From] =
+      DdbUpdateExpr.SetPath(optic, other)
 
     // SET path = if_not_exists(path, value)   (set only when attribute is absent)
-    def setIfNotExists(value: A)(implicit codec: DynamoDBCodec[A]): RenderableAction[From] =
-      pe.fold(Failure(_), p => SetAction(p, SetOperand.IfNotExists(p, codec.encoder(value))))
+    def setIfNotExists(value: A)(implicit schema: Schema[A]): DdbUpdateExpr[From] =
+      DdbUpdateExpr.SetIfNotExists(optic, value, schema)
 
     // REMOVE path   (valid for any attribute type)
-    def remove: RenderableAction[From] = pe.fold(Failure(_), RemoveAction(_))
+    def remove: DdbUpdateExpr[From] = DdbUpdateExpr.Remove(optic)
 
     // REMOVE path[index]   (list fields only)
-    def remove(index: Int)(implicit @unused ev: Allows[A, DdbGrammar.L]): RenderableAction[From] =
-      pe.fold(Failure(_), p => RemoveAction(ProjectionExpression.ListElement(p, index)))
+    def remove(index: Int)(implicit @unused ev: Allows[A, DdbGrammar.L]): DdbUpdateExpr[From] =
+      DdbUpdateExpr.RemoveAt(optic, index)
 
     // SET path = path + delta   (atomic in-place increment; numeric fields only)
     def increment(delta: A)(implicit
-      codec: DynamoDBCodec[A],
+      schema: Schema[A],
       @unused ev: Allows[A, DdbGrammar.N || Wrapped[DdbGrammar.N]]
-    ): RenderableAction[From] =
-      pe.fold(
-        Failure(_),
-        p => SetAction(p, SetOperand.PathOperand(p) + SetOperand.ValueOperand[A](codec.encoder(delta)))
-      )
+    ): DdbUpdateExpr[From] =
+      DdbUpdateExpr.Increment(optic, delta, schema)
 
     // SET path = path - delta   (atomic in-place decrement; numeric fields only)
     def decrement(delta: A)(implicit
-      codec: DynamoDBCodec[A],
+      schema: Schema[A],
       @unused ev: Allows[A, DdbGrammar.N || Wrapped[DdbGrammar.N]]
-    ): RenderableAction[From] =
-      pe.fold(
-        Failure(_),
-        p => SetAction(p, SetOperand.PathOperand(p) - SetOperand.ValueOperand[A](codec.encoder(delta)))
-      )
+    ): DdbUpdateExpr[From] =
+      DdbUpdateExpr.Decrement(optic, delta, schema)
 
     // ADD path value   (numeric fields only; for set union see addSet)
     def add(value: A)(implicit
-      codec: DynamoDBCodec[A],
+      schema: Schema[A],
       @unused ev: Allows[A, DdbGrammar.N || Wrapped[DdbGrammar.N]]
-    ): RenderableAction[From] =
-      pe.fold(Failure(_), p => AddAction(p, codec.encoder(value)))
+    ): DdbUpdateExpr[From] =
+      DdbUpdateExpr.Add(optic, value, schema)
 
     // ADD path set   (set attributes: NS, SS, or BS — union of sets)
     def addSet(value: A)(implicit
-      codec: DynamoDBCodec[A],
+      schema: Schema[A],
       @unused ev: Allows[A, DdbGrammar.NS || DdbGrammar.SS || DdbGrammar.BS]
-    ): RenderableAction[From] =
-      pe.fold(Failure(_), p => AddAction(p, codec.encoder(value)))
+    ): DdbUpdateExpr[From] =
+      DdbUpdateExpr.AddToSet(optic, value, schema)
 
     // DELETE path set   (set attributes: NS, SS, or BS — remove elements from a set)
     def deleteFromSet(value: A)(implicit
-      codec: DynamoDBCodec[A],
+      schema: Schema[A],
       @unused ev: Allows[A, DdbGrammar.NS || DdbGrammar.SS || DdbGrammar.BS]
-    ): RenderableAction[From] =
-      pe.fold(Failure(_), p => DeleteAction(p, codec.encoder(value)))
+    ): DdbUpdateExpr[From] =
+      DdbUpdateExpr.DeleteFromSet(optic, value, schema)
 
     // SET path = list_append(path, [...items])   (list fields only)
     def appendList[B](items: Seq[B])(implicit
-      elemCodec: DynamoDBCodec[B],
+      elemSchema: Schema[B],
       @unused ev: Allows[A, DdbGrammar.L]
-    ): RenderableAction[From] =
-      pe.fold(
-        Failure(_),
-        p => SetAction(p, SetOperand.ListAppend(p, AttributeValue.List(items.map(elemCodec.encoder).toList)))
-      )
+    ): DdbUpdateExpr[From] =
+      DdbUpdateExpr.AppendList(optic, items, elemSchema)
 
     // SET path = list_append([...items], path)   (list fields only)
     def prependList[B](items: Seq[B])(implicit
-      elemCodec: DynamoDBCodec[B],
+      elemSchema: Schema[B],
       @unused ev: Allows[A, DdbGrammar.L]
-    ): RenderableAction[From] =
-      pe.fold(
-        Failure(_),
-        p => SetAction(p, SetOperand.ListPrepend(p, AttributeValue.List(items.map(elemCodec.encoder).toList)))
-      )
+    ): DdbUpdateExpr[From] =
+      DdbUpdateExpr.PrependList(optic, items, elemSchema)
   }
 }
 
