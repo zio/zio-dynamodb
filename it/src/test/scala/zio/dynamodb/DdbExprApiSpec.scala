@@ -24,7 +24,7 @@ import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, NameMapper, Schema }
 import zio.dynamodb.blocks.ddbexpr.{ DdbExprApi, DdbKeyExpr }
 import zio.dynamodb.blocks.ddbexpr.DdbExprApi._
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
-import zio.dynamodb.blocks.ddbexpr.DdbExpr.{ DdbExprBoolSyntax, OpticDdbExprOps, OpticUpdateOps }
+import zio.dynamodb.blocks.ddbexpr.DdbExpr.{ DdbExprBoolSyntax, OpticDdbExprOps, OpticUpdateOps, SchemaExprBoolBridge }
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect
@@ -613,13 +613,27 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
             page.items == Chunk(Right(Article("a2", "Second", ArticleStatus.Published)))
           )
         }
+      },
+      test("scan.filter on a combined (&&) config-mapped condition") {
+        // A combined (&&) filter against a configured table: the two conditions combine
+        // via SchemaExpr's own && and `.filter` resolves both field names and the enum
+        // literal against the table config. DdbExprFilterConfigSpec (schema-ddbexpr) covers
+        // the import-shape variations without Docker.
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = configuredArticleTable(tableName)
+          for {
+            _    <- interpreter.run(DdbExprApi.put(table, Article("a1", "First", ArticleStatus.Draft)))
+            _    <- interpreter.run(DdbExprApi.put(table, Article("a2", "Second", ArticleStatus.Published)))
+            page <- interpreter.run(
+                      DdbExprApi
+                        .scan[Article](table, 10)
+                        .filter(Article.displayName === "Second" && Article.status === ArticleStatus.Published)
+                    )
+          } yield assertTrue(
+            page.items == Chunk(Right(Article("a2", "Second", ArticleStatus.Published)))
+          )
+        }
       }
-      // A combined (&&) scan.filter test was here (displayName === X && status === Y). It
-      // fails against real DynamoDB regardless of Table config - reproduces identically on
-      // a completely unconfigured table, and the constructed FilterExpression was verified
-      // correct (in isolation, without Docker) before ruling that out. Pre-existing gap,
-      // unrelated to Table config threading: no existing test exercised a combined-condition
-      // scan filter before. Tracked separately rather than fixed here.
     )
 
   def spec =

@@ -171,13 +171,10 @@ final class WriteBuilder[From] private[ddbexpr] (
  *      .filter(Task.name.beginsWith("A") && Task.score.between(1, 100))
  *  }}}
  *
- *  Importing [[DdbExprApi]]`._ ` brings the implicit conversions
- *  [[DdbExprApiSyntax.ddbKeyExprToKeyConditionExpr]], [[DdbExprApiSyntax.ddbExprToConditionExpression]], and
- *  [[DdbExprApiSyntax.schemaExprToConditionExpression]] into scope, enabling `.whereKey(DdbKeyExpr)`,
- *  `.filter(DdbExpr)`, and `.filter(SchemaExpr)` on any low-level [[DynamoDBQuery]] (these
- *  do not carry table configuration - the builders returned by `query` / `scan` do).
- *  Interpretation failures are deferred to query execution via the `Failure` nodes in
- *  [[KeyConditionExpr]] and [[ConditionExpression]].
+ *  `.whereKey` / `.filter` / `.where` on the builders take `DdbKeyExpr` / `DdbExpr` /
+ *  `SchemaExpr` through overloads on the builder, each interpreting the argument against the
+ *  calling table's configuration. Interpretation failures surface at query execution via the
+ *  `Failure` nodes in [[KeyConditionExpr]] and [[ConditionExpression]].
  */
 trait DdbExprApiSyntax {
 
@@ -281,24 +278,6 @@ trait DdbExprApiSyntax {
 
   implicit def writeBuilderToQuery[From](b: WriteBuilder[From]): DynamoDBQuery[From, Option[From]] = b.toQuery
 
-  // -- Implicit conversions (low-level path - no table configuration) ----------
-
-  // Enables .whereKey(ddbKeyExpr) on any low-level DynamoDBQuery.
-  // Interpretation failures are deferred to execution via KeyConditionExpr.Failure.
-  implicit def ddbKeyExprToKeyConditionExpr[S](expr: DdbKeyExpr[S]): KeyConditionExpr[S] =
-    DdbKeyExprInterpreter.toKeyConditionExpr(expr).fold(KeyConditionExpr.Failure(_), identity)
-
-  // Enables .filter(ddbExpr) and .where(ddbExpr) on any low-level DynamoDBQuery.
-  // FilterExpression[-From] is a type alias for ConditionExpression[-From].
-  // Interpretation failures are deferred to execution via ConditionExpression.Failure.
-  implicit def ddbExprToConditionExpression[S](expr: DdbExpr[S, Boolean]): ConditionExpression[S] =
-    DdbExprInterpreter.toConditionExpression(expr).fold(ConditionExpression.Failure(_), identity)
-
-  // Enables .filter(Task.score > 0) or .filter(Task.priority === Priority.High) where
-  // the argument is a ZB SchemaExpr. Goes through the Builtin path; the interpreter
-  // derives a DynamoDBCodec from the embedded Schema[_] in each Literal node.
-  implicit def schemaExprToConditionExpression[S](se: SchemaExpr[S, Boolean]): ConditionExpression[S] =
-    ddbExprToConditionExpression(DdbExpr.Builtin(se))
 }
 
 /**
