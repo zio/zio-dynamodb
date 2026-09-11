@@ -165,9 +165,26 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
         val q = DdbExprApi
           .update(records)(Record.id.partitionKey === "r1")(Record.score.set(99) + Record.count.add(1))
         assertTrue(run(q).isEmpty)
-      }
+      },
       // Range expressions (sortKey > / between / beginsWith) on update are now a compile-time error:
       // DdbExprApi.update takes DdbKeyExpr.PrimaryKey, which Extended does not satisfy.
+      test("updateAction accepts a raw core Action built with the low-level ProjectionExpression $ syntax") {
+        // The escape hatch for an already-built core UpdateExpression.Action[From] — e.g. from
+        // $("field").set(value), for a field with no Optic (dynamic name, or not part of
+        // From's Schema). Key resolution still goes through DdbKeyExpr / Table.exprCtx; only
+        // the action itself bypasses schema-based encoding, which it never used.
+        val rawAction: UpdateExpression.Action[Record] = zio.dynamodb.ProjectionExpression.$("score").set(99)
+
+        // The raw action renders correctly entirely on its own — no DdbUpdateExprInterpreter
+        // involved, proving it really does bypass schema-based interpretation. (Paths/values
+        // render as #name/:value aliases, not literal text — see the other tests in this file.)
+        assert(rawAction.render.execute._2)(startsWithString("set") && containsString("=") && containsString(":v"))
+
+        // And DdbExprApi.updateAction wires it through key resolution into a runnable query
+        // rather than silently dropping it.
+        val q = DdbExprApi.updateAction(records)(Record.id.partitionKey === "r1")(rawAction)
+        assertTrue(run(q).isEmpty)
+      }
     ),
     suite("optic paths DDB cannot represent")(
       test("set on a non-String map key interprets to Action.Failure instead of throwing") {
