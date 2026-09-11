@@ -119,8 +119,6 @@ private[dynamodb] object DdbUpdateExprInterpreter {
           Action.Failure(_),
           p => SetAction(p, SetOperand.ListPrepend(p, AttributeValue.List(encodeAll(items, es, ctx))))
         )
-      case DdbUpdateExpr.Failure(message)                 =>
-        Action.Failure(message)
       case _: DdbUpdateExpr.Combine[From]                 =>
         Action.Failure("internal: unflattened Combine") // unreachable — flatten strips Combine nodes
     }

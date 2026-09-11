@@ -204,6 +204,33 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
         }
         val action = DdbUpdateExprInterpreter.toAction(Registry.countAt(1).remove)
         assertTrue(action.isInstanceOf[UpdateExpression.Action.Failure[_]])
+      },
+      test("a non-String map key optic survives build, fails at interpretation, and raises on execution") {
+        case class Registry(id: String, counts: Map[Int, Int])
+        object Registry extends CompanionOptics[Registry] {
+          implicit val schema: Schema[Registry]          = Schema.derived
+          val id                                         = $(_.id)
+          def countAt(key: Int): Optional[Registry, Int] = $(_.counts.atKey(key))
+        }
+        val registries = DdbExprApi.Table[Registry]("registries")
+
+        // Stage 1 — build: OpticUpdateOps.set stores the raw, unresolved Optic. No failure yet,
+        // since DdbUpdateExpr carries no failure node of its own.
+        val action = Registry.countAt(1).set(42)
+
+        // Stage 2 — interpret: DdbExprApi.update resolves the path via the table's ExprCtx,
+        // converting the resolution failure into a core Action.Failure.
+        // Stage 3 — execute: running the query surfaces that Action.Failure as a thrown
+        // DecodingError, exactly like an unrepresentable ConditionExpression path does.
+        val q      = DdbExprApi.update(registries)(Registry.id.partitionKey === "r1")(action)
+        val thrown = scala.util.Try(run(q)).failed.toOption
+        assert(thrown)(
+          isSome(
+            isSubtype[DynamoDBError.ItemError.DecodingError](
+              hasField("message", _.getMessage, containsString("only String keys are supported in DDB"))
+            )
+          )
+        )
       }
     ),
     suite("Action.Failure")(

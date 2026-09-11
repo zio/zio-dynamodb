@@ -29,9 +29,9 @@ import zio.blocks.schema.{ Optic, Schema }
  *  `DdbExprApi.update` time, exactly as `.where` / `.filter` do for conditions. Building an
  *  action never touches implicit codec resolution.
  *
- *  Path-resolution failures for optic shapes DynamoDB paths can't represent are carried as
- *  [[DdbUpdateExpr.Failure]] and surface at query execution, alongside
- *  `ConditionExpression.Failure`.
+ *  Path-resolution failures for optic shapes DynamoDB paths can't represent are converted to
+ *  core `UpdateExpression.Action.Failure` by [[DdbUpdateExprInterpreter]] and surface at query
+ *  execution, alongside `ConditionExpression.Failure`.
  */
 sealed trait DdbUpdateExpr[From] { self =>
   def +(that: DdbUpdateExpr[From]): DdbUpdateExpr[From] = DdbUpdateExpr.Combine(self, that)
@@ -81,7 +81,4 @@ object DdbUpdateExpr {
 
   /** Two actions combined (`a + b`). */
   final case class Combine[From](left: DdbUpdateExpr[From], right: DdbUpdateExpr[From]) extends DdbUpdateExpr[From]
-
-  /** Deferred path-resolution failure — surfaced at query execution. */
-  final case class Failure[From](message: String) extends DdbUpdateExpr[From]
 }
