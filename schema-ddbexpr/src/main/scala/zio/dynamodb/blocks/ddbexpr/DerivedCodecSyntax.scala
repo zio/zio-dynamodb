@@ -21,10 +21,10 @@ import zio.blocks.schema.Schema
 import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.schema.DynamoDBCodec
 
-// Shared by DdbExprSyntax and DdbKeyExprSyntax so both can resolve DynamoDBCodec[A]
-// implicitly without each declaring their own copy of derivedCodec. Trait linearization
-// dedupes a trait mixed in via multiple paths, so a facade extending both no longer hits
-// an ambiguous-implicit error the way importing DdbExpr._ and DdbKeyExpr._ together used to.
+// Shared by DdbExprSyntax and DdbKeyExprSyntax so both resolve DynamoDBCodec[A] implicitly
+// from the same derivedCodec rather than each declaring their own copy. Trait linearization
+// dedupes a trait mixed in via multiple paths, so a facade extending both resolves it without
+// an ambiguous-implicit error.
 trait DerivedCodecSyntax {
 
   // Memoises derived codecs by (Schema, config) identity so building an expression doesn't

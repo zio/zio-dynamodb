@@ -27,16 +27,14 @@ import zio.test._
 import zio.test.Assertion._
 
 /**
- * Every other spec in this module imports `DdbExprApi._`, `DdbKeyExpr._`, and a selective
- *  subset of `DdbExpr` members separately, with a comment explaining why: `DdbExpr` and
- *  `DdbKeyExpr` each used to declare their own `derivedCodec`, so a plain `DdbExpr._` wildcard
- *  alongside `DdbKeyExpr._` was an ambiguous-implicit error. This spec exercises the single
- *  `import zio.dynamodb.blocks.ddbexpr.dsl._` facade across CRUD, key expressions, condition
- *  combinators (`&&`), and update syntax in one file — the exact combination that used to
- *  require three-to-four import lines and the workaround comment — to prove the facade
- *  actually replaces all of it, not just the trivial single-predicate case. Note `put`/`get`/
- *  `scan` etc. are callable unqualified (no `DdbExprApi.` prefix needed) since `dsl` mixes
- *  their defining trait in directly.
+ * Exercises the single `import zio.dynamodb.blocks.ddbexpr.dsl._` facade across CRUD, key
+ *  expressions, condition combinators (`&&`), and update syntax in one file, proving it covers
+ *  every piece a real call site needs — not just the trivial single-predicate case. Other specs
+ *  in this module import `DdbExprApi._`, `DdbKeyExpr._`, and a selective subset of `DdbExpr`
+ *  members separately (see [[DerivedCodecSyntax]] for why a plain `DdbExpr._` wildcard needs
+ *  care alongside `DdbKeyExpr._`); `dsl._` avoids that entirely. Note `put`/`get`/`scan` etc.
+ *  are callable unqualified (no `DdbExprApi.` prefix needed) since `dsl` mixes their defining
+ *  trait in directly.
  */
 object DslSpec extends ZIOSpecDefault {
 
