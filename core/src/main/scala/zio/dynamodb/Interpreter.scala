@@ -211,6 +211,22 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
       )
   }
 
+  // A High-Level write value (DdbExprApi.put/update/deleteFrom/conditionCheck) is a
+  // Map(leaf, decoder) or Absolve(leaf) around the real PutItem/UpdateItem/DeleteItem/
+  // ConditionCheck constructor — the same wrapping `.where`/`.returnValuesOnConditionCheckFailure`
+  // already see through above. Recurses to the leaf so transactWriteItems accepts HL values
+  // exactly like it accepts Low-Level ones; a Fail node (HL key-expr resolution failed) short-
+  // circuits here, before any AWS request is built, rather than reaching toAwsTransactWriteItem
+  // as an unrecognized node.
+  @scala.annotation.tailrec
+  private def unwrapWriteItem(q: DynamoDBQuery[Any, Any]): Either[DynamoDBError, DynamoDBQuery[Any, Any]] =
+    q match {
+      case DynamoDBQuery.Map(inner, _)  => unwrapWriteItem(inner.asInstanceOf[DynamoDBQuery[Any, Any]])
+      case DynamoDBQuery.Absolve(inner) => unwrapWriteItem(inner.asInstanceOf[DynamoDBQuery[Any, Any]])
+      case f: DynamoDBQuery.Fail        => Left(f.error())
+      case other                        => Right(other)
+    }
+
   // Works on Any to sidestep Scala 2 GADT limitations; safe by construction.
   private def runAny(query: DynamoDBQuery[_, _]): F[Any] =
     query match {
@@ -254,10 +270,17 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
           runTransactGetItems(q).asInstanceOf[F[Any]]
         )(err => fail(err))
       case q: DynamoDBQuery.TransactWriteItems =>
-        validateTransactionSize(q.writeItems.length)
-          .orElse(validateTransactWriteItems(q.writeItems))
-          .orElse(validateTransactWriteItemsCEs(q.writeItems))
-          .fold(runTransactWriteItems(q).asInstanceOf[F[Any]])(err => fail(err))
+        q.writeItems.foldLeft[Either[DynamoDBError, Chunk[DynamoDBQuery[Any, Any]]]](Right(Chunk.empty)) { (acc, item) =>
+          acc.flatMap(leaves => unwrapWriteItem(item).map(leaves :+ _))
+        } match {
+          case Left(err)     => fail(err)
+          case Right(leaves) =>
+            val unwrapped = q.copy(writeItems = leaves)
+            validateTransactionSize(unwrapped.writeItems.length)
+              .orElse(validateTransactWriteItems(unwrapped.writeItems))
+              .orElse(validateTransactWriteItemsCEs(unwrapped.writeItems))
+              .fold(runTransactWriteItems(unwrapped).asInstanceOf[F[Any]])(err => fail(err))
+        }
       case _: DynamoDBQuery.ConditionCheck     =>
         // ConditionCheck is only valid inside TransactWriteItems, never as a standalone query.
         fail(

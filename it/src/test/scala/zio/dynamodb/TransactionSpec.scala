@@ -18,8 +18,13 @@ package zio.dynamodb
 
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import zio._
+import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.DynamoDBError.TransactionError
 import zio.dynamodb.ProjectionExpression.$
+import zio.dynamodb.blocks.ddbexpr.DdbExprApi
+import zio.dynamodb.blocks.ddbexpr.DdbExprApi.writeBuilderToQuery
+import zio.dynamodb.blocks.ddbexpr.DdbExpr.{ schemaExprToDdbExpr, OpticUpdateOps }
+import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
 import zio.test._
 import zio.test.Assertion.{ anything, equalTo, hasField, isLeft, isNone, isSome, isSubtype }
 
@@ -27,6 +32,85 @@ object TransactionSpec extends DynamoDBLocalSpec {
 
   private val zioEnvLayer: URLayer[DynamoDbAsyncClient, DynamoDBEnv] =
     ZLayer(ZIO.serviceWith[DynamoDbAsyncClient](client => DynamoDBEnv(client, ZioInterpreter.fromAsyncClient(client))))
+
+  // Model for transactWriteItemsHlTests below — an experimental widening of the Low-Level
+  // transactWriteItems(items: DynamoDBQuery[_, _]*) to accept High-Level put/update/deleteFrom/
+  // conditionCheck values (DynamoDBQuery[Account, _]) alongside Low-Level constructors.
+  private case class Account(id: String, balance: Int, status: String)
+  private object Account extends CompanionOptics[Account] {
+    implicit val schema: Schema[Account] = Schema.derived
+    val id: Lens[Account, String]        = $(_.id)
+    val balance: Lens[Account, Int]      = $(_.balance)
+    val status: Lens[Account, String]    = $(_.status)
+  }
+
+  // ---------------------------------------------------------------------------
+  // transactWriteItems accepting High-Level values (experimental widening)
+  // ---------------------------------------------------------------------------
+
+  private val transactWriteItemsHlTests: Spec[DynamoDBEnv, Throwable] =
+    suite("transactWriteItems with High-Level values (experimental)")(
+      test("HL put + HL update, mixed with a LL deleteItem, all commit atomically") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Account](tableName)
+          for {
+            _       <- interpreter.run(DdbExprApi.put(table, Account("keep", 0, "open")))
+            _       <- interpreter.run(DynamoDBQuery.putItem(tableName, Item("id" -> "drop")))
+            _       <- interpreter.run(
+                         DynamoDBQuery.transactWriteItems(
+                           DdbExprApi.put(table, Account("new", 100, "open")),
+                           DdbExprApi.update(table)(Account.id.partitionKey === "keep")(Account.balance.set(42)),
+                           DynamoDBQuery.deleteItem(tableName, PrimaryKey("id" -> "drop"))
+                         )
+                       )
+            written <- interpreter.run(DdbExprApi.get(table)(Account.id.partitionKey === "new"))
+            updated <- interpreter.run(DdbExprApi.get(table)(Account.id.partitionKey === "keep"))
+            deleted <- interpreter.run(DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "drop")))
+          } yield assertTrue(
+            written == Right(Account("new", 100, "open")),
+            updated == Right(Account("keep", 42, "open")),
+            deleted.isEmpty
+          )
+        }
+      },
+      test("HL conditionCheck guards the transaction: condition true — the HL put proceeds") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Account](tableName)
+          for {
+            _      <- interpreter.run(DdbExprApi.put(table, Account("guard", 0, "open")))
+            _      <- interpreter.run(
+                        DynamoDBQuery.transactWriteItems(
+                          DdbExprApi.conditionCheck(table)(Account.id.partitionKey === "guard")(
+                            Account.status === "open"
+                          ),
+                          DdbExprApi.put(table, Account("gated", 1, "open"))
+                        )
+                      )
+            result <- interpreter.run(DdbExprApi.get(table)(Account.id.partitionKey === "gated"))
+          } yield assertTrue(result == Right(Account("gated", 1, "open")))
+        }
+      },
+      test("HL conditionCheck guards the transaction: condition false — whole transaction cancelled") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Account](tableName)
+          for {
+            _          <- interpreter.run(DdbExprApi.put(table, Account("guard", 0, "closed")))
+            result     <- interpreter
+                            .run(
+                              DynamoDBQuery.transactWriteItems(
+                                DdbExprApi.conditionCheck(table)(Account.id.partitionKey === "guard")(
+                                  Account.status === "open"
+                                ),
+                                DdbExprApi.put(table, Account("should-not-write", 1, "open"))
+                              )
+                            )
+                            .either
+            notWritten <- interpreter.run(DdbExprApi.get(table)(Account.id.partitionKey === "should-not-write"))
+          } yield assert(result)(isLeft(isSubtype[TransactionError.TransactionCancelled](anything))) &&
+            assert(notWritten)(isLeft(isSubtype[DynamoDBError.ItemError.ValueNotFound](anything)))
+        }
+      }
+    )
 
   // ---------------------------------------------------------------------------
   // transactGetItems happy paths
@@ -230,7 +314,12 @@ object TransactionSpec extends DynamoDBLocalSpec {
     )
 
   def spec = suite("TransactionSpec")(
-    suite("ZIO interpreter")(transactGetTests, transactWriteTests, transactWriteErrorTests)
+    suite("ZIO interpreter")(
+      transactGetTests,
+      transactWriteTests,
+      transactWriteItemsHlTests,
+      transactWriteErrorTests
+    )
       .provideSome[DynamoDbAsyncClient](zioEnvLayer)
   )
 }
