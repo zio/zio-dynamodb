@@ -29,10 +29,10 @@ import zio.test.Assertion._
  * `DynamoDBCodecDeriverConfig`, so a `set` / `add` / … writes the same attribute name and
  * the same operand encoding as the item body a `put` writes.
  *
- * The `Variant` (sealed-trait) operand cases are the point: before this, `Task.score.set(x)`
- * encoded eagerly via an ambient `implicit DynamoDBCodec[A]` (default config if no `given`
- * was in scope), so a sealed-trait operand under a non-default `enumValuesAsStrings` /
- * `caseNameMapper` silently disagreed with the body.
+ * The `Variant` (sealed-trait) operand cases are the point: a sealed-trait operand in
+ * `Task.score.set(x)` must encode consistently with the body under a non-default
+ * `enumValuesAsStrings` / `caseNameMapper`, not via an ambient, possibly differently
+ * configured `implicit DynamoDBCodec[A]`.
  */
 object DdbExprUpdateConfigSpec extends ZIOSpecDefault {
 

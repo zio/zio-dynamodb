@@ -648,10 +648,10 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
       )
     },
     test("decoder is safe to reuse across multiple decode calls") {
-      // Regression: idx/regs/error used to be allocated outside the returned decoder
-      // function, so a decoder captured once and invoked repeatedly (a natural thing to
-      // do to avoid re-fetching `codec.decoder` per call) silently returned the first
-      // call's result on every subsequent call.
+      // Decoder-local state (idx/regs/error) must live inside the returned decoder function,
+      // not be shared across calls — a decoder captured once and invoked repeatedly (a natural
+      // thing to do, to avoid re-fetching `codec.decoder` per call) must not leak state
+      // between calls.
       val codec  = codecFor[Person]
       val decode = codec.decoder
       val r1     = decode(codec.encoder(Person("Alice", 30)))

@@ -126,9 +126,8 @@ trait DdbExprSyntax extends DerivedCodecSyntax {
 
   // Bridge: SchemaExpr → DdbExpr for !, &&, ||.
   // !SchemaExpr: SchemaExpr has no unary_! of its own, so this class provides it.
-  // &&/||: Since ZB v0.0.47+ removes &&/|| as direct methods on SchemaExpr (moving them
-  // to the BooleanOps companion implicit class), Scala 2 no longer suppresses this bridge
-  // for DdbExpr RHS. SchemaExpr && DdbExpr now resolves here instead of failing.
+  // &&/||: ZB v0.0.47+ moved &&/|| off SchemaExpr onto the BooleanOps companion implicit
+  // class, so under Scala 2, SchemaExpr && DdbExpr needs this explicit bridge to resolve.
   implicit class SchemaExprBoolBridge[S](val self: SchemaExpr[S, Boolean]) {
     def unary_! : DdbExpr[S, Boolean]                     = DdbExpr.Not(DdbExpr.Builtin(self))
     def &&(rhs: DdbExpr[S, Boolean]): DdbExpr[S, Boolean] = DdbExpr.And(DdbExpr.Builtin(self), rhs)

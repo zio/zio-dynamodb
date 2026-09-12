@@ -35,8 +35,7 @@ package zio.dynamodb.blocks.ddbexpr
  *  `DdbExprSyntax` and `DdbKeyExprSyntax` each independently need a `DynamoDBCodec[A]` for any
  *  `A` with a `Schema[A]` in scope; both get it from the same inherited
  *  `DerivedCodecSyntax.derivedCodec` rather than each declaring their own copy, so mixing them
- *  together here doesn't hit the ambiguous-implicit error that importing `DdbExpr._` and
- *  `DdbKeyExpr._` together used to.
+ *  together here resolves without an ambiguous-implicit error.
  *
  *  This is purely a convenience for the common case — `DdbExprApi`, `DdbKeyExpr`, and
  *  `DdbExpr` remain independently importable exactly as before for callers who want only
