@@ -633,6 +633,28 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
             page.items == Chunk(Right(Article("a2", "Second", ArticleStatus.Published)))
           )
         }
+      },
+      test("update writes a case-name-mapped enum field consistently with what put wrote") {
+        // The raw-item assertion is the decisive one: `Article.status.set(...)` must encode
+        // the enum through the table's caseNameMapper, so `status` is stored as "published"
+        // (not "Published"). Before update actions threaded the table config, the operand was
+        // encoded at default config and this desynced from the body a `put` writes.
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = configuredArticleTable(tableName)
+          for {
+            _       <- interpreter.run(DdbExprApi.put(table, Article("a1", "My Article", ArticleStatus.Draft)))
+            _       <- interpreter.run(
+                         DdbExprApi.update[Article](table)(Article.articleId.partitionKey === "a1")(
+                           Article.status.set(ArticleStatus.Published)
+                         )
+                       )
+            result  <- interpreter.run(DdbExprApi.get[Article](table)(Article.articleId.partitionKey === "a1"))
+            rawItem <- interpreter.run(DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "a1")))
+          } yield assertTrue(
+            result == Right(Article("a1", "My Article", ArticleStatus.Published)),
+            rawItem.flatMap(_.map.get("status")).contains(AttributeValue.String("published"))
+          )
+        }
       }
     )
 

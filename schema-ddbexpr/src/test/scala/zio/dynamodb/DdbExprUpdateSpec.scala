@@ -17,7 +17,7 @@
 package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema }
-import zio.dynamodb.blocks.ddbexpr.{ DdbExprApi, DdbKeyExpr }
+import zio.dynamodb.blocks.ddbexpr.{ DdbExprApi, DdbKeyExpr, DdbUpdateExpr, DdbUpdateExprInterpreter }
 import zio.dynamodb.blocks.ddbexpr.DdbExprApi.writeBuilderToQuery
 // Import OpticUpdateOps from DdbExpr selectively to avoid dual-derivedCodec ambiguity
 // (both DdbExpr._ and DdbKeyExpr._ expose derivedCodec with the same signature).
@@ -44,7 +44,7 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
-  private def render(action: UpdateExpression.Action[_]): String = action.render.execute._2
+  private def render(u: DdbUpdateExpr[_]): String = DdbUpdateExprInterpreter.toAction(u).render.execute._2
 
   private def run[A](q: DynamoDBQuery[_, A]): A = DummyIOInterpreter.run(q).unsafeRun()
 
@@ -165,28 +165,72 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
         val q = DdbExprApi
           .update(records)(Record.id.partitionKey === "r1")(Record.score.set(99) + Record.count.add(1))
         assertTrue(run(q).isEmpty)
-      }
+      },
       // Range expressions (sortKey > / between / beginsWith) on update are now a compile-time error:
       // DdbExprApi.update takes DdbKeyExpr.PrimaryKey, which Extended does not satisfy.
+      test("updateAction accepts a raw core Action built with the low-level ProjectionExpression $ syntax") {
+        // The escape hatch for an already-built core UpdateExpression.Action[From] — e.g. from
+        // $("field").set(value), for a field with no Optic (dynamic name, or not part of
+        // From's Schema). Key resolution still goes through DdbKeyExpr / Table.exprCtx; only
+        // the action itself bypasses schema-based encoding, which it never used.
+        val rawAction: UpdateExpression.Action[Record] = zio.dynamodb.ProjectionExpression.$("score").set(99)
+
+        // The raw action renders correctly entirely on its own — no DdbUpdateExprInterpreter
+        // involved, proving it really does bypass schema-based interpretation. (Paths/values
+        // render as #name/:value aliases, not literal text — see the other tests in this file.)
+        assert(rawAction.render.execute._2)(startsWithString("set") && containsString("=") && containsString(":v"))
+
+        // And DdbExprApi.updateAction wires it through key resolution into a runnable query
+        // rather than silently dropping it.
+        val q = DdbExprApi.updateAction(records)(Record.id.partitionKey === "r1")(rawAction)
+        assertTrue(run(q).isEmpty)
+      }
     ),
     suite("optic paths DDB cannot represent")(
-      test("set on a non-String map key returns Action.Failure instead of throwing") {
+      test("set on a non-String map key interprets to Action.Failure instead of throwing") {
         case class Registry(counts: Map[Int, Int])
         object Registry extends CompanionOptics[Registry] {
           implicit val schema: Schema[Registry]          = Schema.derived
           def countAt(key: Int): Optional[Registry, Int] = $(_.counts.atKey(key))
         }
-        val action = Registry.countAt(1).set(42)
+        val action = DdbUpdateExprInterpreter.toAction(Registry.countAt(1).set(42))
         assertTrue(action.isInstanceOf[UpdateExpression.Action.Failure[_]])
       },
-      test("remove on a non-String map key returns Action.Failure instead of throwing") {
+      test("remove on a non-String map key interprets to Action.Failure instead of throwing") {
         case class Registry(counts: Map[Int, Int])
         object Registry extends CompanionOptics[Registry] {
           implicit val schema: Schema[Registry]          = Schema.derived
           def countAt(key: Int): Optional[Registry, Int] = $(_.counts.atKey(key))
         }
-        val action = Registry.countAt(1).remove
+        val action = DdbUpdateExprInterpreter.toAction(Registry.countAt(1).remove)
         assertTrue(action.isInstanceOf[UpdateExpression.Action.Failure[_]])
+      },
+      test("a non-String map key optic survives build, fails at interpretation, and raises on execution") {
+        case class Registry(id: String, counts: Map[Int, Int])
+        object Registry extends CompanionOptics[Registry] {
+          implicit val schema: Schema[Registry]          = Schema.derived
+          val id                                         = $(_.id)
+          def countAt(key: Int): Optional[Registry, Int] = $(_.counts.atKey(key))
+        }
+        val registries = DdbExprApi.Table[Registry]("registries")
+
+        // Stage 1 — build: OpticUpdateOps.set stores the raw, unresolved Optic. No failure yet,
+        // since DdbUpdateExpr carries no failure node of its own.
+        val action = Registry.countAt(1).set(42)
+
+        // Stage 2 — interpret: DdbExprApi.update resolves the path via the table's ExprCtx,
+        // converting the resolution failure into a core Action.Failure.
+        // Stage 3 — execute: running the query surfaces that Action.Failure as a thrown
+        // DecodingError, exactly like an unrepresentable ConditionExpression path does.
+        val q      = DdbExprApi.update(registries)(Registry.id.partitionKey === "r1")(action)
+        val thrown = scala.util.Try(run(q)).failed.toOption
+        assert(thrown)(
+          isSome(
+            isSubtype[DynamoDBError.ItemError.DecodingError](
+              hasField("message", _.getMessage, containsString("only String keys are supported in DDB"))
+            )
+          )
+        )
       }
     ),
     suite("Action.Failure")(

@@ -143,6 +143,7 @@ class CeEffectStackBench extends BaseBenchmark {
   private object BigRecordOps extends CompanionOptics[BigRecord] {
     val id           = $(_.id)
     val name         = $(_.name)
+    val priority     = $(_.priority)          // sealed-trait (enum) field — case name remaps under caseNameMapper
     val auditVersion = $(_.audit.version)     // 2-segment Lens through a plain nested record
     val priceMinor   = $(_.price.amountMinor) // 2-segment; remaps under SnakeCase (amount_minor)
   }
@@ -179,12 +180,18 @@ class CeEffectStackBench extends BaseBenchmark {
   private val bigScanamoTable = org.scanamo.Table[BigRecord](BIG_TABLE)(ScanamoCodec.bigRecord)
 
   private val personDdbTable = DdbExprApi.Table[Person](TABLE)
-  private val bigDdbTable     = DdbExprApi.Table[BigRecord](BIG_TABLE)
+  private val bigDdbTable    = DdbExprApi.Table[BigRecord](BIG_TABLE)
 
   // Same table, snake_case field-name mapper - makes the config-aware OpticToPE walk do
   // real remapping (amountMinor -> amount_minor) rather than identity.
   private val bigDdbTableSnake =
     DdbExprApi.Table[BigRecord](BIG_TABLE).deriving(_.withFieldNameMapper(NameMapper.SnakeCase))
+
+  // Same table, snake_case case-name mapper - makes an update SET of a sealed-trait field
+  // derive its operand codec through a non-identity config (Priority.High -> "high"),
+  // exercising DdbUpdateExprInterpreter's ctx.encode -> ExprCtx.codecOf cache path.
+  private val bigDdbTablePriorityCase =
+    DdbExprApi.Table[BigRecord](BIG_TABLE).deriving(_.withCaseNameMapper(NameMapper.SnakeCase))
 
   // ── Step 2: pre-built queries (set in @Setup) ───────────────────────────
 
@@ -269,6 +276,23 @@ class CeEffectStackBench extends BaseBenchmark {
       .update(personDdbTable)(PersonOps.id.partitionKey === personId)(PersonOps.name.set(newName))
       .where(PersonOps.age > 0)
 
+  /**
+   * Construction only: update SET of a sealed-trait (enum) field, identity config —
+   *  Priority.High encodes to "High". Control for the caseNameMapper variant below, and
+   *  (against blocksUpdateConstructOnly) the enum-operand vs primitive-operand delta.
+   */
+  @Benchmark def blocksUpdateEnumSetConstructOnly: DynamoDBQuery[BigRecord, Option[BigRecord]] =
+    DdbExprApi.update(bigDdbTable)(BigRecordOps.id.partitionKey === bigId)(BigRecordOps.priority.set(Priority.High))
+
+  /**
+   * As above with a caseNameMapper — Priority.High encodes to "high", so the operand is
+   *  derived through a config-specific codec (DdbUpdateExprInterpreter ctx.encode ->
+   *  ExprCtx.codecOf). A/B against blocksUpdateEnumSetConstructOnly isolates that cost.
+   */
+  @Benchmark def blocksUpdateEnumSetMappedConstructOnly: DynamoDBQuery[BigRecord, Option[BigRecord]] =
+    DdbExprApi
+      .update(bigDdbTablePriorityCase)(BigRecordOps.id.partitionKey === bigId)(BigRecordOps.priority.set(Priority.High))
+
   // ── BigRecord (~26 fields, nested + sum types) — realistic-payload variants ─
 
   @Benchmark def blocksGetBig: Either[ItemError, BigRecord] =
@@ -303,15 +327,19 @@ class CeEffectStackBench extends BaseBenchmark {
   //    tree-walk (Field -> Record -> Field) that the Table-config threading introduced.
   //    blocksUpdateConditionalConstructOnly above is the single-segment (Person.age) control.
 
-  /** Construction only: update + a 2-segment nested-field `.where`, default (identity)
-   *  config. Isolates the nested config-aware projection resolution cost. */
+  /**
+   * Construction only: update + a 2-segment nested-field `.where`, default (identity)
+   *  config. Isolates the nested config-aware projection resolution cost.
+   */
   @Benchmark def blocksUpdateBigNestedConditionalConstructOnly: DynamoDBQuery[BigRecord, Option[BigRecord]] =
     DdbExprApi
       .update(bigDdbTable)(BigRecordOps.id.partitionKey === bigId)(BigRecordOps.name.set("Widget"))
       .where(BigRecordOps.auditVersion > 0)
 
-  /** As above but with a snake_case field-name mapper, so the nested path is actually
-   *  remapped (price.amountMinor -> price.amount_minor) rather than resolved to itself. */
+  /**
+   * As above but with a snake_case field-name mapper, so the nested path is actually
+   *  remapped (price.amountMinor -> price.amount_minor) rather than resolved to itself.
+   */
   @Benchmark def blocksUpdateBigNestedConditionalSnakeConstructOnly: DynamoDBQuery[BigRecord, Option[BigRecord]] =
     DdbExprApi
       .update(bigDdbTableSnake)(BigRecordOps.id.partitionKey === bigId)(BigRecordOps.name.set("Widget"))

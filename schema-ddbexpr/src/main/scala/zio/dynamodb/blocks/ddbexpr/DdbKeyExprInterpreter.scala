@@ -32,7 +32,7 @@ import zio.dynamodb.{ AttributeValue, KeyConditionExpr, PartitionKey, Projection
  *  Only single-segment optics (top-level fields) are valid as partition or sort keys; a
  *  multi-segment path returns a Left with a descriptive message.
  */
-object DdbKeyExprInterpreter {
+private[dynamodb] object DdbKeyExprInterpreter {
 
   // -- PrimaryKey -------------------------------------------------------------
 

@@ -17,7 +17,7 @@
 package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema }
-import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprInterpreter }
+import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprInterpreter, DdbUpdateExpr, DdbUpdateExprInterpreter }
 import zio.dynamodb.blocks.ddbexpr.DdbExpr.{ OpticDdbExprOps, OpticUpdateOps }
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
 import zio.test._
@@ -43,8 +43,8 @@ private object Drawing2 extends CompanionOptics[Drawing2] {
 
 object DdbExprOptionalSpec extends ZIOSpecDefault {
 
-  private def renderCE(ce: ConditionExpression[_]): String             = ce.render.execute._2
-  private def renderAction(action: UpdateExpression.Action[_]): String = action.render.execute._2
+  private def renderCE(ce: ConditionExpression[_]): String = ce.render.execute._2
+  private def renderAction(u: DdbUpdateExpr[_]): String    = DdbUpdateExprInterpreter.toAction(u).render.execute._2
 
   private def interpret[S](expr: DdbExpr[S, Boolean]): Either[String, ConditionExpression[S]] =
     DdbExprInterpreter.toConditionExpression(expr)
