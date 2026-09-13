@@ -124,9 +124,11 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
         for {
           env  <- ZIO.service[DynamoDBEnv]
           tableName = s"lifecycle-${java.util.UUID.randomUUID()}"
-          attrs = NonEmptySet(AttributeDefinition.attrDefnString("id"))
-          _    <-
-            env.interpreter.run(DynamoDBQuery.createTable(tableName, KeySchema("id"), attrs, BillingMode.PayPerRequest))
+          _    <- env.interpreter.run(
+                    DynamoDBQuery.createTable(tableName, KeySchema("id"), AttributeDefinition.attrDefnString("id"))(
+                      BillingMode.PayPerRequest
+                    )
+                  )
           desc <- env.interpreter.run(DynamoDBQuery.describeTable(tableName))
           _    <- env.interpreter.run(DynamoDBQuery.deleteTable(tableName))
         } yield assertTrue(desc.tableStatus == DynamoDBQuery.TableStatus.Active)

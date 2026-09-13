@@ -251,9 +251,8 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
       val q = DynamoDBQuery.createTable(
         table1,
         KeySchema("id"),
-        NonEmptySet(AttributeDefinition.attrDefnString("id")),
-        BillingMode.PayPerRequest
-      )
+        AttributeDefinition.attrDefnString("id")
+      )(BillingMode.PayPerRequest)
       assertTrue(q.capacity(total) eq q)
     }
   )
@@ -552,17 +551,16 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     DynamoDBQuery.createTable(
       table1,
       KeySchema("id"),
-      NonEmptySet(AttributeDefinition.attrDefnString("id")),
-      BillingMode.PayPerRequest
-    )
+      AttributeDefinition.attrDefnString("id")
+    )(BillingMode.PayPerRequest)
 
   private val createTableComposite: DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.createTable(
       table1,
       KeySchema("id", "year"),
-      NonEmptySet(AttributeDefinition.attrDefnString("id"), AttributeDefinition.attrDefnString("year")),
-      BillingMode.PayPerRequest
-    )
+      AttributeDefinition.attrDefnString("id"),
+      AttributeDefinition.attrDefnString("year")
+    )(BillingMode.PayPerRequest)
 
   private val gsiSuite = suite("gsi")(
     test("gsi with throughput adds GlobalSecondaryIndex to CreateTable") {
@@ -833,9 +831,8 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
       val q = DynamoDBQuery.createTable(
         table1,
         KeySchema("id"),
-        NonEmptySet(AttributeDefinition.attrDefnString("id")),
-        BillingMode.PayPerRequest
-      )
+        AttributeDefinition.attrDefnString("id")
+      )(BillingMode.PayPerRequest)
       assertTrue(q.withRetryPolicy(RetryPolicy.NoRetry) eq q)
     }
   )

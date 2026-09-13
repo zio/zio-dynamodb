@@ -169,9 +169,12 @@ class CEDynamoDBSpec extends CatsEffectSuite {
     val client    = clientFixture()
     val interp    = CEInterpreter.fromAsyncClient(client)
     val tableName = s"lifecycle-${UUID.randomUUID()}"
-    val attrs     = NonEmptySet(AttributeDefinition.attrDefnString("id"))
     for {
-      _    <- interp.run(DynamoDBQuery.createTable(tableName, KeySchema("id"), attrs, BillingMode.PayPerRequest))
+      _    <- interp.run(
+                DynamoDBQuery.createTable(tableName, KeySchema("id"), AttributeDefinition.attrDefnString("id"))(
+                  BillingMode.PayPerRequest
+                )
+              )
       desc <- interp.run(DynamoDBQuery.describeTable(tableName))
       _    <- interp.run(DynamoDBQuery.deleteTable(tableName))
     } yield assertEquals(desc.tableStatus, DynamoDBQuery.TableStatus.Active)
