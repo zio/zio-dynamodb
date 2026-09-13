@@ -171,10 +171,11 @@ Some specific pain points from 2.x drove the redesign:
 - Interpreters for ZIO, Cats Effect, and `Future`.
 - Retry policies with response-level batch retry built into query execution.
 
-Batch and transaction operations are Low-Level only, on purpose — see
-[Batch Operations](reference/crud/batch.md#why-no-high-level-batch-or-transaction-api).
-`Table#decode` / `Table#encode` bridge the raw `Item`s back to your models using the
-same codec configuration the High-Level API uses.
+Batch operations and `transactGetItems` are Low-Level only — see
+[Batch Operations](reference/crud/batch.md) and
+[Transactions](reference/crud/transactions.md). `transactWriteItems` accepts High-Level
+values directly. `Table#decode` / `Table#encode` bridge the raw `Item`s back to your models
+using the same codec configuration the High-Level API uses.
 
 Still ahead: additional effect-system interpreters (a Kyo interpreter is designed but not
 yet built).

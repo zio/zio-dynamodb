@@ -165,43 +165,7 @@ fields (`Order.status === Status.Pending` above) — the interpreter derives the
 
 ## Transactions
 
-Transactions (`transactGetItems` / `transactWriteItems`) are Low-Level only, the same
-deliberate choice as [batch](batch.md#why-no-high-level-batch-or-transaction-api):
-`transactWriteItems` is all-or-nothing and `transactGetItems` returns a positional
-`Chunk[Option[Item]]` spanning tables, so a schema-typed wrapper would have to pick a
-result shape and failure policy for a call whose point is heterogeneity. Build the
-sub-operations with the Low-Level constructors, even in code that otherwise uses the
-High-Level API throughout:
-
-```scala mdoc:compile-only
-import zio.dynamodb._
-import zio.dynamodb.ExecuteSyntax.*
-
-def example(implicit interp: Interpreter[zio.Task]) =
-  DynamoDBQuery
-    .transactWriteItems(
-      DynamoDBQuery.putItem("orders", Item("customerId" -> "cust-42", "orderId" -> "ord-2", "total" -> 42.0)),
-      DynamoDBQuery.updateItem("orders", PrimaryKey("customerId" -> "cust-42", "orderId" -> "ord-1"))(
-        ProjectionExpression.$("status").set("Shipped")
-      )
-    )
-    .execute
-```
-
-For the read side, decode each returned `Item` with the same `Table` you pass to `get` —
-`orders.decode(item)` — so the typed result uses the same codec configuration as the rest
-of your High-Level code:
-
-```scala mdoc:compile-only
-import zio.dynamodb._
-import zio.dynamodb.ExecuteSyntax.*
-import zio.dynamodb.blocks.ddbexpr.dsl.*
-
-def readExample(implicit interp: Interpreter[zio.Task]) =
-  DynamoDBQuery
-    .transactGetItems(
-      DynamoDBQuery.GetItem("orders", PrimaryKey("customerId" -> "cust-42", "orderId" -> "ord-1"))
-    )
-    .execute
-    .map(_.collect { case Some(item) => orders.decode(item) })
-```
+`transactWriteItems` accepts High-Level `put`/`update`/`deleteFrom`/`conditionCheck` values
+directly, mixed freely with Low-Level constructors and across different tables/models in one
+call. `transactGetItems` stays Low-Level only. See [Transactions](transactions.md) for the
+full API and examples.
