@@ -23,17 +23,17 @@ def crossPublishName = moduleName := {
   }
 }
 
-ThisBuild / version             := "3.0.0-SNAPSHOT"
-ThisBuild / organization        := "dev.zio"
+ThisBuild / version       := "3.0.0-SNAPSHOT"
+ThisBuild / organization  := "dev.zio"
 // Scala 3 (LTS) is the primary/default version (matching zio-blocks' pattern of defaulting
 // to Scala 3, but tracking the LTS line rather than zio-blocks' bleeding-edge 3.8.x — this
 // library targets production infra, not compiler-internals-dependent macro features); 2.13
 // is the secondary cross-build target. Modules that can't target 3.x (benchmarks, JMH-only)
 // pin their own scalaVersion explicitly rather than relying on this default.
-ThisBuild / scalaVersion        := scala3Version
-ThisBuild / homepage            := Some(url("https://github.com/zio/zio-dynamodb"))
-ThisBuild / licenses            := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"))
-ThisBuild / developers          := List(
+ThisBuild / scalaVersion  := scala3Version
+ThisBuild / homepage      := Some(url("https://github.com/zio/zio-dynamodb"))
+ThisBuild / licenses      := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"))
+ThisBuild / developers    := List(
   Developer("jdegoes", "John De Goes", "john@degoes.net", url("http://degoes.net"))
 )
 ThisBuild / scmInfo       := Some(
