@@ -23,27 +23,26 @@ def crossPublishName = moduleName := {
   }
 }
 
-ThisBuild / version             := "3.0.0-SNAPSHOT"
-ThisBuild / organization        := "dev.zio"
+ThisBuild / version       := "3.0.0-SNAPSHOT"
+ThisBuild / organization  := "dev.zio"
 // Scala 3 (LTS) is the primary/default version (matching zio-blocks' pattern of defaulting
 // to Scala 3, but tracking the LTS line rather than zio-blocks' bleeding-edge 3.8.x — this
 // library targets production infra, not compiler-internals-dependent macro features); 2.13
 // is the secondary cross-build target. Modules that can't target 3.x (benchmarks, JMH-only)
 // pin their own scalaVersion explicitly rather than relying on this default.
-ThisBuild / scalaVersion        := scala3Version
-ThisBuild / sonatypeProfileName := "dev.zio"
-ThisBuild / homepage            := Some(url("https://github.com/zio/zio-dynamodb"))
-ThisBuild / licenses            := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"))
-ThisBuild / developers          := List(
+ThisBuild / scalaVersion  := scala3Version
+ThisBuild / homepage      := Some(url("https://github.com/zio/zio-dynamodb"))
+ThisBuild / licenses      := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"))
+ThisBuild / developers    := List(
   Developer("jdegoes", "John De Goes", "john@degoes.net", url("http://degoes.net"))
 )
-ThisBuild / scmInfo             := Some(
+ThisBuild / scmInfo       := Some(
   ScmInfo(
     url("https://github.com/zio/zio-dynamodb"),
     "scm:git:git@github.com:zio/zio-dynamodb.git"
   )
 )
-ThisBuild / headerLicense       := Some(HeaderLicense.ALv2("2021-2026", "John A. De Goes and the ZIO Contributors"))
+ThisBuild / headerLicense := Some(HeaderLicense.ALv2("2021-2026", "John A. De Goes and the ZIO Contributors"))
 
 lazy val core = (project in file("core"))
   .settings(
@@ -273,7 +272,12 @@ lazy val root = (project in file("."))
   )
   .enablePlugins(zio.sbt.ZioSbtCiPlugin)
   .settings(
-    name              := "zio-dynamodb",
-    publish / skip    := true,
-    ciEnabledBranches := Seq("series/3.x")
+    name           := "zio-dynamodb",
+    publish / skip := true
   )
+
+// ciGenerateGithubWorkflow reads these at ThisBuild scope, not project scope — setting
+// them inside root's .settings(...) silently has no effect on the generated workflow.
+ThisBuild / ciEnabledBranches  := Seq("series/3.x")
+ThisBuild / ciPublishSnapshots := false // superseded by CiWorkflow.release's series/3.x-aware condition
+ThisBuild / ciReleaseJobs      := Seq(CiWorkflow.release.value)
