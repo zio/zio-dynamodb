@@ -768,7 +768,9 @@ object DynamoDBQuery {
   def createTable(
     tableName: String,
     keySchema: KeySchema,
-    attributeDefinitions: NonEmptySet[AttributeDefinition],
+    attributeDefinition: AttributeDefinition,
+    attributeDefinitions: AttributeDefinition*
+  )(
     billingMode: BillingMode,
     globalSecondaryIndexes: Set[GlobalSecondaryIndex] = Set.empty,
     localSecondaryIndexes: Set[LocalSecondaryIndex] = Set.empty,
@@ -778,7 +780,7 @@ object DynamoDBQuery {
     CreateTable(
       tableName,
       keySchema,
-      attributeDefinitions,
+      NonEmptySet(attributeDefinition, attributeDefinitions: _*), // do not expose NonEmptySet publicly
       billingMode,
       globalSecondaryIndexes,
       localSecondaryIndexes,

@@ -103,8 +103,11 @@ object InterpreterSpec extends ZIOSpecDefault {
 
     suite("DummyIO table management stubs")(
       test("CreateTable returns Unit") {
-        val attrs = NonEmptySet(AttributeDefinition.attrDefnString("id"))
-        eval(DynamoDBQuery.createTable("t", KeySchema("id"), attrs, BillingMode.PayPerRequest))
+        eval(
+          DynamoDBQuery.createTable("t", KeySchema("id"), AttributeDefinition.attrDefnString("id"))(
+            BillingMode.PayPerRequest
+          )
+        )
         assertTrue(true)
       },
       test("DeleteTable returns Unit") {

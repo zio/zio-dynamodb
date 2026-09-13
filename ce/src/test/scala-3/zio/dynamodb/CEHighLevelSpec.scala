@@ -87,23 +87,27 @@ class CEHighLevelSpec extends CatsEffectSuite:
 
   override def munitFixtures = List(clientFixture)
 
-  private def tableResource(keySchema: KeySchema, attrDefs: NonEmptySet[AttributeDefinition])(using
+  private def tableResource(keySchema: KeySchema, attrDef: AttributeDefinition, attrDefs: AttributeDefinition*)(using
     Interpreter[IO]
   ): Resource[IO, String] =
     val tableName = s"test-${UUID.randomUUID()}"
     Resource.make(
-      DynamoDBQuery.createTable(tableName, keySchema, attrDefs, BillingMode.PayPerRequest).execute.as(tableName)
+      DynamoDBQuery
+        .createTable(tableName, keySchema, attrDef, attrDefs*)(BillingMode.PayPerRequest)
+        .execute
+        .as(tableName)
     )(name => DynamoDBQuery.deleteTable(name).execute.handleError(_ => ()))
 
   private def singleKeyTable[A](f: Interpreter[IO] ?=> String => IO[A]): IO[A] =
     given Interpreter[IO] = CEInterpreter.fromAsyncClient(clientFixture())
-    tableResource(KeySchema("id"), NonEmptySet(AttributeDefinition.attrDefnString("id"))).use(f)
+    tableResource(KeySchema("id"), AttributeDefinition.attrDefnString("id")).use(f)
 
   private def compoundKeyTable[A](f: Interpreter[IO] ?=> String => IO[A]): IO[A] =
     given Interpreter[IO] = CEInterpreter.fromAsyncClient(clientFixture())
     tableResource(
       KeySchema("id", "ts"),
-      NonEmptySet(AttributeDefinition.attrDefnString("id"), AttributeDefinition.attrDefnString("ts"))
+      AttributeDefinition.attrDefnString("id"),
+      AttributeDefinition.attrDefnString("ts")
     ).use(f)
 
   // ---- models ---------------------------------------------------------------

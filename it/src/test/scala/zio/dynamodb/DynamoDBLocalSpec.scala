@@ -77,26 +77,25 @@ abstract class DynamoDBLocalSpec extends ZIOSpec[DynamoDbAsyncClient] {
     DynamoDBQuery.createTable(
       tableName,
       KeySchema("id"),
-      NonEmptySet(AttributeDefinition.attrDefnString("id")),
-      BillingMode.PayPerRequest
-    )
+      AttributeDefinition.attrDefnString("id")
+    )(BillingMode.PayPerRequest)
 
   protected def idAndYearKeyTable(tableName: String): DynamoDBQuery[Any, Unit] =
     DynamoDBQuery.createTable(
       tableName,
       KeySchema("id", "year"),
-      NonEmptySet(AttributeDefinition.attrDefnString("id"), AttributeDefinition.attrDefnString("year")),
-      BillingMode.PayPerRequest
-    )
+      AttributeDefinition.attrDefnString("id"),
+      AttributeDefinition.attrDefnString("year")
+    )(BillingMode.PayPerRequest)
 
   protected def idTableWithCategoryGsi(tableName: String): DynamoDBQuery[Any, Unit] =
     DynamoDBQuery
       .createTable(
         tableName,
         KeySchema("id"),
-        NonEmptySet(AttributeDefinition.attrDefnString("id"), AttributeDefinition.attrDefnString("category")),
-        BillingMode.PayPerRequest
-      )
+        AttributeDefinition.attrDefnString("id"),
+        AttributeDefinition.attrDefnString("category")
+      )(BillingMode.PayPerRequest)
       .gsi("category-index", KeySchema("category"), ProjectionType.All)
 
   protected def idYearTableWithScoreLsi(tableName: String): DynamoDBQuery[Any, Unit] =
@@ -104,13 +103,10 @@ abstract class DynamoDBLocalSpec extends ZIOSpec[DynamoDbAsyncClient] {
       .createTable(
         tableName,
         KeySchema("id", "year"),
-        NonEmptySet(
-          AttributeDefinition.attrDefnString("id"),
-          AttributeDefinition.attrDefnString("year"),
-          AttributeDefinition.attrDefnString("score")
-        ),
-        BillingMode.PayPerRequest
-      )
+        AttributeDefinition.attrDefnString("id"),
+        AttributeDefinition.attrDefnString("year"),
+        AttributeDefinition.attrDefnString("score")
+      )(BillingMode.PayPerRequest)
       .lsi("score-index", KeySchema("id", "score"))
 
   // -- Scoped table lifecycle -----------------------------------------------

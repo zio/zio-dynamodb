@@ -75,9 +75,8 @@ object OopModelLowLevelApiSpec extends DynamoDBLocalSpec {
     DynamoDBQuery.createTable(
       tableName,
       KeySchema("id"),
-      NonEmptySet(AttributeDefinition.attrDefnNumber("id")),
-      BillingMode.PayPerRequest
-    )
+      AttributeDefinition.attrDefnNumber("id")
+    )(BillingMode.PayPerRequest)
 
   private def withOopInvoiceTable(
     f: (String, Interpreter[Task]) => ZIO[Any, Throwable, TestResult]

@@ -318,18 +318,9 @@ object AwsRequestFlowSpec extends ZIOSpecDefault {
   // Suite 7: GSI / LSI flow through interpreter to AWS CreateTableRequest
   // ---------------------------------------------------------------------------
 
-  private val createTableAttrs =
-    NonEmptySet(
-      AttributeDefinition.attrDefnString("id"),
-      AttributeDefinition.attrDefnString("score")
-    )
-
-  private val createTableCompositeAttrs =
-    NonEmptySet(
-      AttributeDefinition.attrDefnString("id"),
-      AttributeDefinition.attrDefnString("year"),
-      AttributeDefinition.attrDefnString("score")
-    )
+  private val createTableAttr1 = AttributeDefinition.attrDefnString("id")
+  private val createTableAttr2 = AttributeDefinition.attrDefnString("score")
+  private val createTableAttr3 = AttributeDefinition.attrDefnString("year")
 
   private val indexRequestSuite = suite("gsi/lsi flows through interpreter to CreateTableRequest")(
     test("gsi with throughput sets globalSecondaryIndexes in the request") {
@@ -340,7 +331,7 @@ object AwsRequestFlowSpec extends ZIOSpecDefault {
       interp
         .run(
           DynamoDBQuery
-            .createTable(table, KeySchema("id"), createTableAttrs, BillingMode.PayPerRequest)
+            .createTable(table, KeySchema("id"), createTableAttr1, createTableAttr2)(BillingMode.PayPerRequest)
             .gsi("score-index", KeySchema("score"), ProjectionType.All, 5L, 5L)
         )
         .unsafeRun()
@@ -360,7 +351,7 @@ object AwsRequestFlowSpec extends ZIOSpecDefault {
       interp
         .run(
           DynamoDBQuery
-            .createTable(table, KeySchema("id"), createTableAttrs, BillingMode.PayPerRequest)
+            .createTable(table, KeySchema("id"), createTableAttr1, createTableAttr2)(BillingMode.PayPerRequest)
             .gsi("score-index", KeySchema("score"), ProjectionType.KeysOnly)
         )
         .unsafeRun()
@@ -378,7 +369,9 @@ object AwsRequestFlowSpec extends ZIOSpecDefault {
       interp
         .run(
           DynamoDBQuery
-            .createTable(table, KeySchema("id", "year"), createTableCompositeAttrs, BillingMode.PayPerRequest)
+            .createTable(table, KeySchema("id", "year"), createTableAttr1, createTableAttr3, createTableAttr2)(
+              BillingMode.PayPerRequest
+            )
             .lsi("score-index", KeySchema("id", "score"), ProjectionType.All)
         )
         .unsafeRun()
@@ -398,9 +391,8 @@ object AwsRequestFlowSpec extends ZIOSpecDefault {
           DynamoDBQuery.createTable(
             table,
             KeySchema("id"),
-            NonEmptySet(AttributeDefinition.attrDefnString("id")),
-            BillingMode.PayPerRequest
-          )
+            AttributeDefinition.attrDefnString("id")
+          )(BillingMode.PayPerRequest)
         )
         .unsafeRun()
       assertTrue(!captured.hasGlobalSecondaryIndexes() && !captured.hasLocalSecondaryIndexes())
