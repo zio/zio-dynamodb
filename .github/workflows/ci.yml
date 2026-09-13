@@ -190,6 +190,9 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
     continue-on-error: false
     needs:
     - ci

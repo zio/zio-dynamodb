@@ -40,12 +40,15 @@ object CiWorkflow {
   // Takes the plugin's own default release job and swaps in the series/3.x-aware
   // condition plus a retry-wrapped release step, keeping every other generated
   // detail (checkout/setup/cache steps, job id/name/need) exactly as the plugin
-  // would otherwise produce them.
+  // would otherwise produce them. The dedicated concurrency group (matching
+  // zio-blocks) keeps a same-ref race from cancelling `sbt ci-release` mid-publish,
+  // which would otherwise leave a partially staged repository to drop by hand.
   lazy val release: Def.Initialize[Job] = Def.setting {
     val default = releaseJobs.value.head
     default.copy(
       condition = releaseOrSnapshotCondition,
-      steps = default.steps.dropRight(1) :+ releaseRetryStep
+      steps = default.steps.dropRight(1) :+ releaseRetryStep,
+      concurrency = Some(Concurrency(group = "release-${{ github.ref }}", cancelInProgress = CancelInProgress.Never))
     )
   }
 }
