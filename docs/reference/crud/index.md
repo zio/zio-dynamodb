@@ -36,22 +36,17 @@ silently under the hood — 3.x dropped that: see
 | Delete an item | [`deleteItem`](low-level.md#delete) | [`deleteFrom`](high-level.md#delete) | [`DeleteItem`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_DeleteItem.html) |
 | Query (by key condition) | [`query`](low-level.md#query) | [`query`](high-level.md#query) | [`Query`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html) |
 | Scan (whole table/index) | [`scan`](low-level.md#scan) | [`scan`](high-level.md#scan) | [`Scan`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Scan.html) |
-| Batch get (up to 100 keys) | [`batchGetItem`](batch.md#batchgetitem) | [— Low-Level only](batch.md#why-no-high-level-batch-or-transaction-api) | [`BatchGetItem`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html) |
-| Batch write (up to 25 puts/deletes) | [`batchWriteItem`](batch.md#batchwriteitem) | [— Low-Level only](batch.md#why-no-high-level-batch-or-transaction-api) | [`BatchWriteItem`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html) |
-| Transactional get (up to 100 items) | [`transactGetItems`](low-level.md#transactions) | [— not yet](high-level.md#transactions) | [`TransactGetItems`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactGetItems.html) |
-| Transactional write (up to 100 items) | [`transactWriteItems`](low-level.md#transactions) | [— not yet](high-level.md#transactions) | [`TransactWriteItems`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactWriteItems.html) |
+| Batch get (up to 100 keys) | [`batchGetItem`](batch.md#batchgetitem) | — Low-Level only | [`BatchGetItem`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html) |
+| Batch write (up to 25 puts/deletes) | [`batchWriteItem`](batch.md#batchwriteitem) | — Low-Level only | [`BatchWriteItem`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html) |
+| Transactional get (up to 100 items) | [`transactGetItems`](transactions.md#transactgetitems) | — Low-Level only | [`TransactGetItems`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactGetItems.html) |
+| Transactional write (up to 100 items) | [`transactWriteItems`](transactions.md#transactwriteitems) | [`transactWriteItems`](transactions.md#transactwriteitems) | [`TransactWriteItems`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactWriteItems.html) |
 | Create table | [`createTable`](low-level.md#table-management) | — Low-Level only | [`CreateTable`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_CreateTable.html) |
 | Delete table | [`deleteTable`](low-level.md#table-management) | — Low-Level only | [`DeleteTable`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_DeleteTable.html) |
 | Describe table | [`describeTable`](low-level.md#table-management) | — Low-Level only | [`DescribeTable`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_DescribeTable.html) |
 
-There's no High-Level wrapper for batch ops or transact ops, for two different reasons:
-
-- **Batch is deliberately Low-Level only.** See
-  [Batch Operations](batch.md#why-no-high-level-batch-or-transaction-api) for why batch's partial-success
-  shape is best left to the caller to decide on.
-- **Transactions simply haven't been built yet** for the High-Level API — see
-  [High-Level: Transactions](high-level.md#transactions) for the current Low-Level-only
-  workaround.
+Batch and `transactGetItems` are Low-Level only — see [Batch Operations](batch.md) and
+[Transactions](transactions.md). `transactWriteItems` accepts High-Level values directly,
+mixed with Low-Level constructors.
 
 ## Observability
 

@@ -828,7 +828,12 @@ object DynamoDBQuery {
   def transactGetItems(items: GetItem*): DynamoDBQuery[Any, Chunk[Option[Item]]] =
     TransactGetItems(Chunk.fromIterable(items))
 
-  def transactWriteItems(items: DynamoDBQuery[Any, _]*): DynamoDBQuery[Any, Unit] =
+  // Wildcard on In too (not fixed to Any) so a High-Level put/update/deleteFrom/conditionCheck
+  // value (DynamoDBQuery[SomeModel, _]) is accepted alongside Low-Level constructors. In is a
+  // phantom type in this ADT — nothing at runtime reads it — so widening the declared bound
+  // doesn't admit anything unsound; runAny unwraps each item to its real Write/ConditionCheck
+  // leaf regardless of what In each one carries.
+  def transactWriteItems(items: DynamoDBQuery[_, _]*): DynamoDBQuery[Any, Unit] =
     TransactWriteItems(Chunk.fromIterable(items.map(_.asInstanceOf[DynamoDBQuery[Any, Any]])))
 
   def conditionCheck(

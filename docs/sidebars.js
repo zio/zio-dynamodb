@@ -14,7 +14,8 @@ const sidebars = {
           items: [
             "reference/crud/low-level",
             "reference/crud/high-level",
-            "reference/crud/batch"
+            "reference/crud/batch",
+            "reference/crud/transactions"
           ]
         },
         "reference/codec",

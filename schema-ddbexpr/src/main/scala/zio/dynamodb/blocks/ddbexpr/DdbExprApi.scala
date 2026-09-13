@@ -267,6 +267,27 @@ trait DdbExprApiSyntax {
       }
     )
 
+  /**
+   * A condition-only transact-write action with no mutation of its own — guards the whole
+   *  transaction on `table`'s state at `keyExpr` without writing anything itself. Interprets
+   *  `condition` with `table`'s deriver configuration, exactly like `.where` on [[WriteBuilder]].
+   *  A bare `SchemaExpr[From, Boolean]` (e.g. `Account.status === "open"`) works here too, via
+   *  [[DdbExprSyntax.schemaExprToDdbExpr]] — no second overload needed (and a second overload,
+   *  curried the same way, is ambiguous under Scala 2.13 for a call site holding the condition
+   *  in a typed `val`). Returned directly as a [[DynamoDBQuery]] (not a builder) since there's
+   *  nothing further to attach; `.returnValuesOnConditionCheckFailure` is already a general
+   *  `DynamoDBQuery` method.
+   */
+  def conditionCheck[From](table: Table[From])(keyExpr: DdbKeyExpr.PrimaryKey[From])(
+    condition: DdbExpr[From, Boolean]
+  ): DynamoDBQuery[From, Unit] =
+    DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr, table.exprCtx) match {
+      case Right(pkExpr) =>
+        DynamoDBQuery.conditionCheck(table.name, pkExpr.asAttrMap)(BuilderSupport.condition(condition, table))
+      case Left(msg)     =>
+        DynamoDBQuery.fail(DynamoDBError.ItemError.DecodingError.failure(msg))
+    }
+
   def query[From](table: Table[From], limit: Int): QueryBuilder[From] =
     new QueryBuilder(table, mapPage(DynamoDBQuery.query(table.name, limit), table))
 
