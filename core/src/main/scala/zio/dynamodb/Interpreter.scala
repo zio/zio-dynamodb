@@ -176,13 +176,20 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
       )
     else None
 
-  // Returns Some(accumulated DecodingError) if any write item contains a Failure CE.
-  private def validateTransactWriteItemsCEs(
+  // Returns Some(accumulated DecodingError) if any write item contains a Failure CE, or (for
+  // an UpdateItem) a Failure node in its update action — the same two checks a standalone
+  // updateItem gets from validateAction/validateCE in the UpdateItem case below. Without the
+  // action check, a transactional update whose action is Action.Failure (e.g. an HL `update`
+  // value built from an unrepresentable optic path) would reach toAwsTransactWriteItem and
+  // render as an empty or partially filtered update instead of failing before any AWS call.
+  private def validateTransactWriteItemsFailures(
     items: Chunk[DynamoDBQuery[Any, Any]]
   ): Option[DynamoDBError] = {
     val errors: List[String] = items.toList.flatMap {
       case p: DynamoDBQuery.PutItem        => ConditionExpression.collectFailures(p.conditionExpression)
-      case u: DynamoDBQuery.UpdateItem     => ConditionExpression.collectFailures(u.conditionExpression)
+      case u: DynamoDBQuery.UpdateItem     =>
+        UpdateExpression.collectFailures(u.updateExpression.action) ++
+          ConditionExpression.collectFailures(u.conditionExpression)
       case d: DynamoDBQuery.DeleteItem     => ConditionExpression.collectFailures(d.conditionExpression)
       case c: DynamoDBQuery.ConditionCheck => ConditionExpression.collectFailures(c.conditionExpression)
       case _                               => Nil
@@ -278,7 +285,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
             val unwrapped = q.copy(writeItems = leaves)
             validateTransactionSize(unwrapped.writeItems.length)
               .orElse(validateTransactWriteItems(unwrapped.writeItems))
-              .orElse(validateTransactWriteItemsCEs(unwrapped.writeItems))
+              .orElse(validateTransactWriteItemsFailures(unwrapped.writeItems))
               .fold(runTransactWriteItems(unwrapped).asInstanceOf[F[Any]])(err => fail(err))
         }
       case _: DynamoDBQuery.ConditionCheck     =>
