@@ -93,7 +93,7 @@ class CEHighLevelSpec extends CatsEffectSuite:
     val tableName = s"test-${UUID.randomUUID()}"
     Resource.make(
       DynamoDBQuery
-        .createTable(tableName, keySchema, attrDef, attrDefs: _*)(BillingMode.PayPerRequest)
+        .createTable(tableName, keySchema, attrDef, attrDefs*)(BillingMode.PayPerRequest)
         .execute
         .as(tableName)
     )(name => DynamoDBQuery.deleteTable(name).execute.handleError(_ => ()))
