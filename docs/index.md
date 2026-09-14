@@ -186,7 +186,8 @@ yet built).
 resolvers += "Sonatype Central Snapshots" at "https://central.sonatype.com/repository/maven-snapshots"
 
 libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-dynamodb-ce" % "3.0.0-SNAPSHOT" // or -zio / -future for other interpreters
+  "dev.zio" %% "zio-dynamodb-ce"             % "3.0.0-SNAPSHOT", // brings core + the Low-Level API; swap for -zio / -future
+  "dev.zio" %% "zio-dynamodb-schema-ddbexpr" % "3.0.0-SNAPSHOT"  // the High-Level API (Table, DdbExprApi, dsl)
 )
 ```
 
