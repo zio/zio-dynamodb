@@ -132,7 +132,7 @@ object Schema1Compat {
 }
 ```
 
-The intended migration path for a live table, using any of the four knobs:
+A possible migration path for a live table, using any of the four knobs:
 
 1. **`ReadBothWriteOld`** — deploy the new library while still writing the old format; safe
    to run alongside instances still on the old library.
@@ -141,7 +141,7 @@ The intended migration path for a live table, using any of the four knobs:
 3. **`ReadNewWriteNew`** (the default) — once all data has been rewritten or aged out; no
    fallback overhead at decode time.
 
-Two more defaults changed without a compat knob, since both are additive rather than
+Two more defaults changed without a compatibility knob, since both are additive rather than
 migratory — old and new data don't coexist in the same table field:
 
 - **`enumValuesAsStrings` defaults to `true`.** A 2.x sealed trait of case objects with no

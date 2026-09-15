@@ -37,11 +37,39 @@ object Order extends CompanionOptics[Order] {
 val orders = Table[Order]("orders")
 ```
 
+The same models on Scala 2, without `enum`/`derives`:
+
+```scala
+import zio.dynamodb._
+import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
+import zio.dynamodb.ExecuteSyntax._
+import zio.dynamodb.blocks.ddbexpr.dsl._
+
+sealed trait Status
+object Status {
+  case object Pending extends Status
+  case object Shipped extends Status
+  implicit val schema: Schema[Status] = Schema.derived
+}
+
+case class Order(customerId: String, orderId: String, total: Double, status: Status)
+
+object Order extends CompanionOptics[Order] {
+  implicit val schema: Schema[Order]  = Schema.derived
+  val customerId: Lens[Order, String] = $(_.customerId)
+  val orderId: Lens[Order, String]    = $(_.orderId)
+  val total: Lens[Order, Double]      = $(_.total)
+  val status: Lens[Order, Status]     = $(_.status)
+}
+
+val orders = Table[Order]("orders")
+```
+
 Each operation takes a `Table[A]` rather than a table-name `String`: build one
 `Table[Order]("orders")` and pass it to `get`/`put`/`query`/… . `Schema[Order]` is the only
-implicit needed (it comes from `derives Schema`); the row codec is derived once and held on
-the value. Passing the `Table` is also what lets the element type be inferred for
-`query`/`scan`, which name it nowhere else.
+implicit needed — a `derives Schema` clause on Scala 3, an implicit `Schema.derived` val on
+Scala 2 — and the row codec is derived once and held on the value. Passing the `Table` is also
+what lets the element type be inferred for `query`/`scan`, which name it nowhere else.
 
 ### Configuring the codec
 

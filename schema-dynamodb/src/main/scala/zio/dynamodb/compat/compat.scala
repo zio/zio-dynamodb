@@ -20,5 +20,12 @@ import zio.blocks.schema.comptime.Allows
 import zio.blocks.schema.comptime.Allows._
 
 package object compat {
+
+  /**
+   * Backtick-free, cross-Scala-version spelling of zio-blocks' `Allows` union-grammar node.
+   * Scala 3 accepts its own native `|` syntax there directly; Scala 2 has no such syntax and
+   * needs the backtick-quoted type zio-blocks provides instead. `||` lets a single grammar
+   * definition (see [[zio.dynamodb.blocks.DdbGrammar]]) use one spelling on both versions.
+   */
   type ||[A <: Allows.Structural, B <: Allows.Structural] = A `|` B
 }
