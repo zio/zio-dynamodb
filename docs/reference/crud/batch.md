@@ -23,7 +23,10 @@ import zio.dynamodb._
 import zio.dynamodb.ExecuteSyntax.*
 import scala.concurrent.duration.DurationInt
 
-val personIds = List("alice", "bob", "carol")
+case class Person(id: String, name: String)
+
+val people    = List(Person("alice", "Alice"), Person("bob", "Bob"), Person("carol", "Carol"))
+val personIds = people.map(_.id)
 
 def getExample(implicit interp: Interpreter[zio.Task]) =
   DynamoDBQuery
