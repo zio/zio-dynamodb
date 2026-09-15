@@ -3,29 +3,18 @@ id: batch
 title: "Batch Operations"
 ---
 
-Batch ops get their own page rather than a couple of rows in the [matrix](index.md) because
-they don't fit the Low-Level/High-Level split cleanly, and because their error-handling shape
-is genuinely different from the rest of the library — both are worth explaining once, up
-front, instead of as a surprise mid-example.
+AWS reference: [`BatchGetItem`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html),
+[`BatchWriteItem`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html).
 
-## Why batch is more complex
+## Retry behavior
 
-The AWS batch APIs (`BatchGetItem`, `BatchWriteItem`) already have a larger surface area than
-their single-item counterparts — up to 100 keys or 25 writes per call, per-table grouping, and
-a response shape that separates out **unprocessed** items DynamoDB didn't get to (throttling,
-internal capacity limits) from items it actually handled. On top of that, this library adds:
-
-- **Built-in retry.** `DynamoDBQuery.batchGetItem`/`batchWriteItem` accept a `RetryPolicy` and
-  the interpreter honors the AWS batch retry contract internally — resubmitting unprocessed
-  keys/items on your behalf until either everything is processed or the policy is exhausted.
-  Single-item ops don't do this; a batch, by AWS's own design, routinely needs more than one
-  round trip to finish.
-- **Two independent retry loops.** Effect-level (transient failures — throttling, network — on
-  each individual attempt) and response-level (re-submitting unprocessed items) are both driven
-  inside the interpreter, both governed by the same attached `RetryPolicy`.
-
-None of this is optional complexity added for its own sake — it's what "make a batch call that
-actually finishes" requires once you take AWS's partial-failure contract seriously.
+AWS's batch APIs cap out at 100 keys (`BatchGetItem`) / 25 writes (`BatchWriteItem`) per call
+and can return **unprocessed** items — ones DynamoDB didn't get to (throttling, internal
+capacity limits) — separately from ones it handled. `DynamoDBQuery.batchGetItem`/
+`batchWriteItem` accept a `RetryPolicy`; the interpreter resubmits unprocessed keys/items on
+your behalf until either everything is processed or the policy is exhausted, via two
+independent retry loops governed by the same attached `RetryPolicy`: effect-level (throttling,
+network errors on a given attempt) and response-level (re-submitting unprocessed items).
 
 ## Building a batch
 
@@ -34,17 +23,22 @@ import zio.dynamodb._
 import zio.dynamodb.ExecuteSyntax.*
 import scala.concurrent.duration.DurationInt
 
-val people = List("alice", "bob", "carol")
+case class Person(id: String, name: String)
+
+val people    = List(Person("alice", "Alice"), Person("bob", "Bob"), Person("carol", "Carol"))
+val personIds = people.map(_.id)
 
 def getExample(implicit interp: Interpreter[zio.Task]) =
   DynamoDBQuery
-    .batchGetItem(people)(id => DynamoDBQuery.GetItem("customers", PrimaryKey("customerId" -> id)))
+    .batchGetItem(personIds)(id => DynamoDBQuery.GetItem("customers", PrimaryKey("customerId" -> id)))
     .withRetryPolicy(RetryPolicy.ExponentialBackoff(maxRetries = 5, initialDelay = 50.millis))
     .execute
 
 def writeExample(implicit interp: Interpreter[zio.Task]) =
   DynamoDBQuery
-    .batchWriteItem(people)(id => DynamoDBQuery.putItem("customers", Item("customerId" -> id, "active" -> true)))
+    .batchWriteItem(people)(person =>
+      DynamoDBQuery.putItem("customers", Item("customerId" -> person.id, "active" -> true))
+    )
     .withRetryPolicy(RetryPolicy.NoRetry)
     .execute
 ```
@@ -57,7 +51,8 @@ unprocessed.
 ## batchGetItem
 
 Running a `BatchGetItem` query produces a `Batch.GetResult`, not a plain `Chunk`/`List` of
-items:
+items — `Incomplete`/`Failed` are successful effect outcomes carrying AWS's partial-failure
+detail as data, not raised errors, so you pattern-match on it rather than parse an exception:
 
 ```scala
 sealed trait GetResult
@@ -93,25 +88,6 @@ object WriteResult {
 
 Same three cases, same meaning — `Incomplete` carries `response.unprocessedItems` (a table →
 pending-put/delete map) in place of `unprocessedKeys`.
-
-## Why errors-as-values, not a failed effect
-
-Every other operation in this library reports failure through the normal effect error channel
-— a failed `Task`/`IO`. Batch is the one deliberate exception: `Incomplete` and `Failed` are
-both *successful* effect outcomes carrying a result value, not a raised error.
-
-This is a conscious trade-off, not an oversight. AWS's batch APIs return unprocessed
-keys/items as first-class response data, with enough detail (which keys, which table) to act
-on programmatically — retry them differently, log them, drop them, escalate. Collapsing that
-into a single "the batch failed" exception would throw away information AWS is handing you for
-free. `Batch.GetResult`/`Batch.WriteResult` keep that information intact and make the
-incomplete/partial-success case something you pattern-match on rather than something you have
-to `catch` and re-parse out of an exception.
-
-The cost is that this genuinely differs from what the rest of the library trains you to
-expect — reading `interp.run(query)` doesn't tell you whether a batch result needs a `match` on
-top before you know if it actually succeeded. Worth calling out explicitly once, here, rather
-than a surprise the first time it comes up.
 
 ## Batch and the High-Level API
 
