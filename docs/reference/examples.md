@@ -4,14 +4,11 @@ title: "Examples"
 ---
 
 The `examples` sbt module (`examples/src/main/scala/zio/dynamodb/`) holds runnable-shaped
-showcase code — longer, more realistic than the snippets on the other reference pages, and
-compiled on every build so they can't silently drift out of date. It depends on all three
-interpreters (`zioInterpreter`, `ceInterpreter`, `futureInterpreter`) plus `schemaDynamodb`/
-`schemaDdbExpr`, so it's a good place to see cross-module usage in one file.
+showcase code — longer, more realistic than the snippets on the other reference pages.
 
 ```sh
 sbt examples/compile   # exercises every example, including the Docker-free showcases below
-sbt examples/test      # runs the ones with real ZIO Test specs (ZIOStreamingUtils, RateLimitedReads)
+sbt examples/test      # runs the ones with real ZIO Test specs (ZIOStreamingUtils)
 ```
 
 ## `OrdersCE` / `OrdersZio`
@@ -33,12 +30,20 @@ annotations and nothing is resolved from implicit scope. Chains `withFieldNameMa
 (per-field) on the `DynamoDBCodecDeriverConfig` value passed into `.deriving`. Shows the
 precedence: the per-field `withModifier` rename wins over the table-wide field-name mapper.
 
-## `RateLimitedReads`
+## `CapacityWarnings`
 
-A token-bucket rate limiter built entirely from the public API — see
-[Interceptor / Observability](interceptor.md#worked-example-rate-limiting-on-consumed-capacity)
-for the full walkthrough. Backed by a real `ZIOSpecDefault` test (`RateLimitedReadsSpec`)
-using `TestClock`, not just compiled.
+A stateless [`ResponseInterceptor`](interceptor.md) that logs a warning whenever a single
+call's total consumed capacity crosses a threshold — sums `readCapacityUnits`/
+`writeCapacityUnits` across `ConsumedCapacity` (single-item ops) or `Chunk[ConsumedCapacity]`
+(batch/transact ops). See [Interceptor / Observability](interceptor.md#worked-examples) for
+the full walkthrough.
+
+## `CapacityAccumulator`
+
+A stateful `ResponseInterceptor` that sums consumed capacity across every request in a
+session via one `Ref`, reusing `CapacityWarnings.capacityUnitsOf` — contrast with
+`CapacityWarnings`, which holds no state and decides per call. See
+[Interceptor / Observability](interceptor.md#worked-examples) for the full walkthrough.
 
 ## `ZIOStreamingUtils`
 
