@@ -193,7 +193,8 @@ fields (`Order.status === Status.Pending` above) — the interpreter derives the
 
 ## Transactions
 
-`transactWriteItems` accepts High-Level `put`/`update`/`deleteFrom`/`conditionCheck` values
-directly, mixed freely with Low-Level constructors and across different tables/models in one
-call. `transactGetItems` stays Low-Level only. See [Transactions](transactions.md) for the
-full API and examples.
+`transactGetItems`/`transactWriteItems` are Low-Level only, the same deliberate choice as
+[batch](batch.md#batch-and-the-high-level-api). Build the sub-operations with the Low-Level
+constructors, even in code that otherwise uses the High-Level API throughout, and decode
+results back with `Table#decode` as usual. See [Transactions](transactions.md) for the full
+API and examples.

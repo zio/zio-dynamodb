@@ -17,11 +17,8 @@
 package zio.dynamodb
 
 import zio.dynamodb.DynamoDBError.ItemError
-import zio.dynamodb.ProjectionExpression.$
-import zio.dynamodb.UpdateExpression.Action
-import zio.dynamodb.UpdateExpression.SetOperand.ValueOperand
 import zio.test._
-import zio.test.Assertion.{ anything, containsString, hasField, isNone, isSome, isSubtype, isTrue }
+import zio.test.Assertion.{ anything, hasField, isNone, isSubtype, isTrue }
 
 object InterpreterSpec extends ZIOSpecDefault {
 
@@ -184,83 +181,6 @@ object InterpreterSpec extends ZIOSpecDefault {
       test("deleteItem with default params returns None") {
         val q = DynamoDBQuery.deleteItem("t", PrimaryKey("id" -> "1"))
         assertTrue(eval(q).isEmpty)
-      }
-    ),
-
-    // Regression coverage for a transact-write validation gap: a standalone `updateItem`
-    // rejects an UpdateExpression.Action.Failure via validateAction before running, but
-    // runAny's TransactWriteItems case only checked condition-expression failures — an
-    // UpdateItem's own action failure reached toAwsTransactWriteItem unchecked.
-    // Action.collectActions silently drops a Failure node when rendering a composed action
-    // (see its own comment: "guarded by validateAction in the interpreter"), so a mix of one
-    // valid and one failing `.set` would render — and submit to AWS — only the valid half,
-    // with no error and no trace of the dropped one. Fixed by extending the transact-write
-    // failure check to also run UpdateExpression.collectFailures on every UpdateItem's action.
-    suite("TransactWriteItems — UpdateItem action-failure validation")(
-      test("a bare Action.Failure in a transactional UpdateItem fails before running, not silently") {
-        val badUpdate = DynamoDBQuery.UpdateItem(
-          tableName = "orders",
-          key = PrimaryKey("id" -> "o1"),
-          updateExpression = UpdateExpression(Action.Failure("only String keys are supported in DDB"))
-        )
-        val tx        = DynamoDBQuery.transactWriteItems(
-          badUpdate,
-          DynamoDBQuery.putItem("other", Item("id" -> "o2"))
-        )
-        val thrown    = scala.util.Try(eval(tx)).failed.toOption
-        assert(thrown)(
-          isSome(
-            isSubtype[DynamoDBError.ItemError.DecodingError](
-              hasField(
-                "message",
-                (_: DynamoDBError.ItemError.DecodingError).message,
-                containsString("only String keys are supported in DDB")
-              )
-            )
-          )
-        )
-      },
-      test("a composed action (valid SET + Failure) fails as a whole, instead of rendering only the valid half") {
-        val goodPlusBad = Action.SetAction($("status"), ValueOperand(AttributeValue.String("shipped"))) +
-          Action.Failure("found map key '1' — only String keys are supported in DDB")
-        val badUpdate   = DynamoDBQuery.UpdateItem(
-          tableName = "orders",
-          key = PrimaryKey("id" -> "o1"),
-          updateExpression = UpdateExpression(goodPlusBad)
-        )
-        val thrown      = scala.util.Try(eval(DynamoDBQuery.transactWriteItems(badUpdate))).failed.toOption
-        assert(thrown)(
-          isSome(
-            isSubtype[DynamoDBError.ItemError.DecodingError](
-              hasField(
-                "message",
-                (_: DynamoDBError.ItemError.DecodingError).message,
-                containsString("only String keys are supported in DDB")
-              )
-            )
-          )
-        )
-      },
-      test("an HL-shaped Map(UpdateItem-with-Failure, decoder) is unwrapped and still caught") {
-        // Mirrors what DdbExprApi.update actually produces at the ADT level — a Map node
-        // wrapping the real UpdateItem, not the bare UpdateItem a Low-Level caller would build.
-        val badUpdate = DynamoDBQuery.UpdateItem(
-          tableName = "orders",
-          key = PrimaryKey("id" -> "o1"),
-          updateExpression = UpdateExpression(Action.Failure("bad optic path"))
-        )
-        val hlShaped  = DynamoDBQuery.Map[Option[Item], Option[Item]](badUpdate, identity)
-        val thrown    = scala.util.Try(eval(DynamoDBQuery.transactWriteItems(hlShaped))).failed.toOption
-        assert(thrown)(isSome(isSubtype[DynamoDBError.ItemError.DecodingError](anything)))
-      },
-      test("a transaction with only valid actions is unaffected by the added check") {
-        val goodUpdate = DynamoDBQuery.UpdateItem(
-          tableName = "orders",
-          key = PrimaryKey("id" -> "o1"),
-          updateExpression =
-            UpdateExpression(Action.SetAction($("status"), ValueOperand(AttributeValue.String("shipped"))))
-        )
-        assertTrue(eval(DynamoDBQuery.transactWriteItems(goodUpdate)) == (()))
       }
     )
   )

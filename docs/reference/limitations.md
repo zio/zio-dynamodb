@@ -81,7 +81,7 @@ can't reach — ordered by how much work each takes:
 
 ## What already stays Low-Level only
 
-Batch operations, table management, and `transactGetItems` have no High-Level wrapper — see
-[Batch Operations](crud/batch.md) and [Transactions](crud/transactions.md). None of that is
-*this* page's FP-modeling restriction. `transactWriteItems` is the exception — it accepts
-High-Level values directly.
+Batch operations, table management, and transactions have no High-Level wrapper — see
+[Batch Operations](crud/batch.md#batch-and-the-high-level-api) and
+[Transactions](crud/transactions.md) for the specific reasons behind each; none of them is
+*this* page's FP-modeling restriction.

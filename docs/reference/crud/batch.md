@@ -91,7 +91,16 @@ pending-put/delete map) in place of `unprocessedKeys`.
 
 ## Batch and the High-Level API
 
-There's no schema-derived `batch`/`batchGet` in `DdbExprApi`/`dsl` — batch is Low-Level only.
+Neither batch nor [transactions](transactions.md) have a schema-derived wrapper — both are
+Low-Level only, for two reasons. First, batch's partial-success outcome and a transaction's
+all-or-nothing, cross-table result shape each need a use-case-specific policy (retry now,
+retry with backoff, drop and log, escalate) that the library can't pick on your behalf.
+Second, going through a `Schema` adds a distinct failure channel of its own — a field or key
+path that can't be represented as a `ProjectionExpression` — that neither result shape has a
+slot for. Call `Table#encode`/`Table#decode` yourself around the Low-Level constructors to
+get that channel's errors up front, on your own terms, rather than have it interleave with
+retry/cancellation semantics that already exist.
+
 `batchGetItem`/`batchWriteItem`, `RetryPolicy`, and `Batch.GetResult`/`Batch.WriteResult` are
 the building blocks for whatever you need on top. See
 [`ZIOStreamingUtils.batchGetItems`](../examples.md) in the `examples` module for a worked
