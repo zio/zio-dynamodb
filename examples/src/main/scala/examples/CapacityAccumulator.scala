@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-package zio.dynamodb
+package examples
 
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import zio._
+import zio.dynamodb.{ DynamoDBQuery, DynamoDBResponseMetadata, PrimaryKey, ResponseInterceptor, ZioInterpreter }
 
 /**
  * A stateful [[ResponseInterceptor]] that accumulates total consumed capacity across every

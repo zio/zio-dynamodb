@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-package zio.dynamodb
+package examples
 
 import zio._
 import zio.stream.ZStream
+import zio.dynamodb.{ AwsInterpreter, Batch, DynamoDBQuery, Item, PrimaryKey, RetryPolicy }
 
 object ZIOStreamingUtils {
 

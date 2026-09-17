@@ -14,25 +14,25 @@
  * limitations under the License.
  */
 
-package zio.dynamodb
+package examples
 
-import cats.effect.{ IO, IOApp, Resource }
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
+import zio.{ Task, ZIO, ZIOAppDefault, ZLayer }
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
+import zio.dynamodb.{ Interpreter, ZioInterpreter }
 import zio.dynamodb.ExecuteSyntax.*
 import zio.dynamodb.blocks.ddbexpr.dsl.*
 
 /**
- * Scala 3 / Cats Effect showcase example, introducing the high-level API. Not run against a
- * real client (no Docker/Testcontainers dependency); a class/method body is type-checked
- * whether or not it's ever instantiated/called, so this fails `examples/compile` if the
- * example stops compiling. The underlying CEInterpreter + dsl facade + .execute mechanics
- * are already exercised for real elsewhere (CEDynamoDBSpec, CEHighLevelSpec).
+ * Scala 3 / ZIO showcase example — the ZIO counterpart of `OrdersCE.scala` (the Cats Effect
+ * version) in this same module. Not run against a real client (no Docker/Testcontainers
+ * dependency); a class/method body is type-checked whether or not it's ever
+ * instantiated/called, so this fails `examples/compile` if the example stops compiling.
  *
- * The client is `Resource`-managed rather than built and never closed — the resource's
- * release action runs `c.close()` once `use` completes, on both success and failure.
+ * The client is scope-managed via `ZLayer.scoped`/`ZIO.acquireRelease` rather than built
+ * and never closed — the release action runs `c.close()` when the layer's scope ends.
  */
-object OrdersCE extends IOApp.Simple {
+object OrdersZio extends ZIOAppDefault {
 
   enum Status derives Schema {
     case Pending, Shipped
@@ -51,12 +51,16 @@ object OrdersCE extends IOApp.Simple {
   // CRUD ops below infer their element type.
   val orders = Table[Order]("orders")
 
-  val client: Resource[IO, DynamoDbAsyncClient] =
-    Resource.make(IO(DynamoDbAsyncClient.builder().build()))(c => IO(c.close()))
+  val interpreterLayer: ZLayer[Any, Throwable, Interpreter[Task]] =
+    ZLayer.scoped {
+      ZIO
+        .acquireRelease(ZIO.attempt(DynamoDbAsyncClient.builder().build()))(c => ZIO.attempt(c.close()).orDie)
+        .map(client => ZioInterpreter.fromAsyncClient(client): Interpreter[Task])
+    }
 
-  def run: IO[Unit] =
-    client.use { c =>
-      given Interpreter[IO] = CEInterpreter.fromAsyncClient(c)
+  val program: ZIO[Interpreter[Task], Throwable, Unit] =
+    ZIO.serviceWithZIO[Interpreter[Task]] { interpreter =>
+      given Interpreter[Task] = interpreter
       for {
         _ <- put(orders, Order("cust-42", "ord-1", 129.99, Status.Pending)).execute
 
@@ -73,4 +77,6 @@ object OrdersCE extends IOApp.Simple {
              ).execute
       } yield ()
     }
+
+  def run: Task[Unit] = program.provide(interpreterLayer)
 }

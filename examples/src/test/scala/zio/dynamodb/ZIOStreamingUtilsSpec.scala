@@ -16,6 +16,7 @@
 
 package zio.dynamodb
 
+import examples.ZIOStreamingUtils
 import zio._
 import zio.stream.ZStream
 import zio.blocks.chunk.Chunk
