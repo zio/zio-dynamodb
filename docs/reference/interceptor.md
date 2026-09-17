@@ -94,11 +94,11 @@ is shared by any fiber holding a reference to it.
 
 The two broad interceptor shapes:
 
-- **Stateless, per-call** — `examples/src/main/scala/zio/dynamodb/CapacityWarnings.scala`
+- **Stateless, per-call** — `examples/src/main/scala/examples/CapacityWarnings.scala`
   logs a warning whenever a single call's total consumed capacity crosses a threshold, built
   entirely from `DynamoDBResponseMetadata`/`ConsumedCapacity`. See
   [Examples](examples.md#capacitywarnings).
 - **Stateful, accumulated across calls** —
-  `examples/src/main/scala/zio/dynamodb/CapacityAccumulator.scala` sums consumed capacity
+  `examples/src/main/scala/examples/CapacityAccumulator.scala` sums consumed capacity
   across every request in a session via one `Ref`. See
   [Examples](examples.md#capacityaccumulator).

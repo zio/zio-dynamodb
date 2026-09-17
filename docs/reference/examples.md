@@ -3,8 +3,10 @@ id: examples
 title: "Examples"
 ---
 
-The `examples` sbt module (`examples/src/main/scala/zio/dynamodb/`) holds runnable-shaped
-showcase code — longer, more realistic than the snippets on the other reference pages.
+The `examples` sbt module (`examples/src/main/scala/examples/`) holds runnable-shaped showcase
+code — longer, more realistic than the snippets on the other reference pages. Deliberately
+`package examples`, not `zio.dynamodb`, so it only ever sees the same public API a real
+external consumer does.
 
 ```sh
 sbt examples/compile   # exercises every example, including the Docker-free showcases below

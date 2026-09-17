@@ -14,11 +14,19 @@
  * limitations under the License.
  */
 
-package zio.dynamodb
+package examples
 
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import zio._
 import zio.blocks.chunk.Chunk
+import zio.dynamodb.{
+  ConsumedCapacity,
+  DynamoDBQuery,
+  DynamoDBResponseMetadata,
+  PrimaryKey,
+  ResponseInterceptor,
+  ZioInterpreter
+}
 
 /**
  * A stateless [[ResponseInterceptor]] that logs a warning whenever a single call's consumed

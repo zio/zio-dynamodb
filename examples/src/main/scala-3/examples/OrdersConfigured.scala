@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-package zio.dynamodb
+package examples
 
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import zio.{ Task, ZIO, ZIOAppDefault, ZLayer }
 import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, NameMapper, Schema }
+import zio.dynamodb.{ Interpreter, ZioInterpreter }
 import zio.dynamodb.ExecuteSyntax.*
 import zio.dynamodb.blocks.ddbexpr.dsl.*
 
