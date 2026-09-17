@@ -35,7 +35,8 @@ of your High-Level code.
 
 ## transactWriteItems
 
-Writes/deletes/condition-checks up to 100 items atomically, from Low-Level constructors:
+Writes/updates/deletes/condition-checks up to 100 items atomically, from Low-Level
+constructors:
 
 ```scala mdoc:compile-only
 import zio.dynamodb._
@@ -46,6 +47,9 @@ def example(implicit interp: Interpreter[zio.Task]) =
   DynamoDBQuery
     .transactWriteItems(
       DynamoDBQuery.putItem("orders", Item("customerId" -> "cust-42", "orderId" -> "ord-2", "total" -> 42.0)),
+      DynamoDBQuery.updateItem("orders", PrimaryKey("customerId" -> "cust-42", "orderId" -> "ord-1"))(
+        $("status").set("Shipped")
+      ),
       DynamoDBQuery.deleteItem("customers", PrimaryKey("customerId" -> "cust-41")),
       DynamoDBQuery.conditionCheck("orders", PrimaryKey("customerId" -> "cust-42", "orderId" -> "ord-1"))(
         $("status") === "open"

@@ -172,7 +172,7 @@ Some specific pain points from 2.x drove the redesign:
 - Retry policies with response-level batch retry built into query execution.
 
 Batch and transaction operations are Low-Level only, on purpose — see
-[Batch Operations](reference/crud/batch.md#batch-and-the-high-level-api) and
+[Batch Operations](reference/crud/batch.md) and
 [Transactions](reference/crud/transactions.md). `Table#decode` / `Table#encode` bridge the
 raw `Item`s back to your models using the same codec configuration the High-Level API uses.
 
