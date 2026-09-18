@@ -105,32 +105,40 @@ private[blocks] case class ResolverDeriver(
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Resolver[A]] = Lazy {
-    // @Modifier.caseNaming / @Modifier.discriminator override the deriver-level settings
-    // for this type - same precedence DynamoDBCodecDeriver applies.
-    var resolvedCaseNameMapper: NameMapper           = null
-    var resolvedDiscriminatorKind: DiscriminatorKind = null
-    modifiers.foreach {
-      case m: Modifier.caseNaming    =>
-        if (resolvedCaseNameMapper eq null) resolvedCaseNameMapper = NameMapper.fromString(m.strategy)
-      case m: Modifier.discriminator =>
-        if (resolvedDiscriminatorKind eq null) resolvedDiscriminatorKind = DiscriminatorKind.Field(m.name)
-      case _                         =>
-    }
-    if (resolvedCaseNameMapper eq null) resolvedCaseNameMapper = caseNameMapper
-    if (resolvedDiscriminatorKind eq null) resolvedDiscriminatorKind = discriminatorKind
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Resolver[A]] =
+    // Option[X] has no case discriminator on the wire — DynamoDBCodecDeriver already encodes
+    // it transparently (see its own typeId.isOption branch). Derived here as a Resolver.Wrapper
+    // rather than a dedicated Resolver.Optional node; see that case's scaladoc for why the
+    // same transparent shape is correct for Option despite deriveVariant (not deriveWrapper)
+    // being the one deriving it.
+    if (typeId.isOption) Lazy(Resolver.Wrapper(D.instance(cases(1).value.asRecord.get.fields(0).value.metadata)))
+    else
+      Lazy {
+        // @Modifier.caseNaming / @Modifier.discriminator override the deriver-level settings
+        // for this type - same precedence DynamoDBCodecDeriver applies.
+        var resolvedCaseNameMapper: NameMapper           = null
+        var resolvedDiscriminatorKind: DiscriminatorKind = null
+        modifiers.foreach {
+          case m: Modifier.caseNaming    =>
+            if (resolvedCaseNameMapper eq null) resolvedCaseNameMapper = NameMapper.fromString(m.strategy)
+          case m: Modifier.discriminator =>
+            if (resolvedDiscriminatorKind eq null) resolvedDiscriminatorKind = DiscriminatorKind.Field(m.name)
+          case _                         =>
+        }
+        if (resolvedCaseNameMapper eq null) resolvedCaseNameMapper = caseNameMapper
+        if (resolvedDiscriminatorKind eq null) resolvedDiscriminatorKind = discriminatorKind
 
-    val entries = cases.map { case_ =>
-      var name: String = null
-      case_.modifiers.foreach {
-        case m: Modifier.rename => if (name eq null) name = m.name
-        case _                  =>
+        val entries = cases.map { case_ =>
+          var name: String = null
+          case_.modifiers.foreach {
+            case m: Modifier.rename => if (name eq null) name = m.name
+            case _                  =>
+          }
+          if (name eq null) name = resolvedCaseNameMapper(case_.name)
+          case_.name -> (name, D.instance(case_.value.metadata))
+        }
+        Resolver.Variant(resolvedDiscriminatorKind, entries.toMap)
       }
-      if (name eq null) name = resolvedCaseNameMapper(case_.name)
-      case_.name -> (name, D.instance(case_.value.metadata))
-    }
-    Resolver.Variant(resolvedDiscriminatorKind, entries.toMap)
-  }
 
   def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
