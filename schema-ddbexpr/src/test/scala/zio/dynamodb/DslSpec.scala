@@ -22,6 +22,7 @@ import zio.dynamodb.blocks.ddbexpr.dsl._
 // isSubtype[...] assertions below — real call sites never need this, only tests that
 // inspect the internal expression shape do. put/get/scan/=== etc. all come from `dsl._`
 // alone, unqualified, since dsl extends DdbExprApiSyntax/DdbKeyExprSyntax/DdbExprSyntax directly.
+import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbKeyExpr, DdbUpdateExprInterpreter }
 import zio.test._
 import zio.test.Assertion._
@@ -30,11 +31,10 @@ import zio.test.Assertion._
  * Exercises the single `import zio.dynamodb.blocks.ddbexpr.dsl._` facade across CRUD, key
  *  expressions, condition combinators (`&&`), and update syntax in one file, proving it covers
  *  every piece a real call site needs — not just the trivial single-predicate case. Other specs
- *  in this module import `DdbExprApi._`, `DdbKeyExpr._`, and a selective subset of `DdbExpr`
- *  members separately (see [[DerivedCodecSyntax]] for why a plain `DdbExpr._` wildcard needs
- *  care alongside `DdbKeyExpr._`); `dsl._` avoids that entirely. Note `put`/`get`/`scan` etc.
- *  are callable unqualified (no `DdbExprApi.` prefix needed) since `dsl` mixes their defining
- *  trait in directly.
+ *  in this module import `DdbExprApi._`, `DdbKeyExpr._`, and `DdbExpr._` separately; `dsl._`
+ *  is purely a convenience over the same three. Note `put`/`get`/`scan` etc. are callable
+ *  unqualified (no `DdbExprApi.` prefix needed) since `dsl` mixes their defining trait in
+ *  directly.
  */
 object DslSpec extends ZIOSpecDefault {
 
@@ -109,7 +109,8 @@ object DslSpec extends ZIOSpecDefault {
       assertTrue(run(scanQuery).items.isEmpty)
     },
     test("update syntax (OpticUpdateOps) renders a SET action") {
-      val action = DdbUpdateExprInterpreter.toAction(Task.score.set(99))
+      val action =
+        DdbUpdateExprInterpreter.toAction(Task.score.set(99), DynamoDBCodecDeriverConfig[Task](), Task.schema.reflect)
       assertTrue(action.render.execute._2.startsWith("set"))
     }
   )

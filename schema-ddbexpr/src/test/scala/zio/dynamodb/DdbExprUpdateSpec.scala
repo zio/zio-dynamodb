@@ -17,11 +17,10 @@
 package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema }
-import zio.dynamodb.blocks.ddbexpr.{ DdbExprApi, DdbKeyExpr, DdbUpdateExpr, DdbUpdateExprInterpreter }
+import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
+import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprApi, DdbKeyExpr, DdbUpdateExpr, DdbUpdateExprInterpreter }
 import zio.dynamodb.blocks.ddbexpr.DdbExprApi.writeBuilderToQuery
-// Import OpticUpdateOps from DdbExpr selectively to avoid dual-derivedCodec ambiguity
-// (both DdbExpr._ and DdbKeyExpr._ expose derivedCodec with the same signature).
-import zio.dynamodb.blocks.ddbexpr.DdbExpr.OpticUpdateOps
+import zio.dynamodb.blocks.ddbexpr.DdbExpr._
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
 import zio.test._
 import zio.test.Assertion._
@@ -44,7 +43,8 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
-  private def render(u: DdbUpdateExpr[_]): String = DdbUpdateExprInterpreter.toAction(u).render.execute._2
+  private def render[From](u: DdbUpdateExpr[From])(implicit schema: Schema[From]): String =
+    DdbUpdateExprInterpreter.toAction(u, DynamoDBCodecDeriverConfig[From](), schema.reflect).render.execute._2
 
   private def run[A](q: DynamoDBQuery[_, A]): A = DummyIOInterpreter.run(q).unsafeRun()
 
@@ -193,7 +193,11 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
           implicit val schema: Schema[Registry]          = Schema.derived
           def countAt(key: Int): Optional[Registry, Int] = $(_.counts.atKey(key))
         }
-        val action = DdbUpdateExprInterpreter.toAction(Registry.countAt(1).set(42))
+        val action = DdbUpdateExprInterpreter.toAction(
+          Registry.countAt(1).set(42),
+          DynamoDBCodecDeriverConfig[Registry](),
+          Registry.schema.reflect
+        )
         assertTrue(action.isInstanceOf[UpdateExpression.Action.Failure[_]])
       },
       test("remove on a non-String map key interprets to Action.Failure instead of throwing") {
@@ -202,7 +206,11 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
           implicit val schema: Schema[Registry]          = Schema.derived
           def countAt(key: Int): Optional[Registry, Int] = $(_.counts.atKey(key))
         }
-        val action = DdbUpdateExprInterpreter.toAction(Registry.countAt(1).remove)
+        val action = DdbUpdateExprInterpreter.toAction(
+          Registry.countAt(1).remove,
+          DynamoDBCodecDeriverConfig[Registry](),
+          Registry.schema.reflect
+        )
         assertTrue(action.isInstanceOf[UpdateExpression.Action.Failure[_]])
       },
       test("a non-String map key optic survives build, fails at interpretation, and raises on execution") {

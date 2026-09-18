@@ -17,6 +17,7 @@
 package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
+import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprInterpreter, DdbKeyExpr, DdbKeyExprInterpreter }
 import zio.dynamodb.blocks.ddbexpr.DdbExpr._
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
@@ -66,11 +67,13 @@ object DdbExprZioPreludeSpec extends ZIOSpecDefault {
   private def render(ce: ConditionExpression[_]): String  = ce.render.execute._2
   private def renderKey(kce: KeyConditionExpr[_]): String = kce.render.execute._2
 
-  private def interpret[S](expr: DdbExpr[S, Boolean]): Either[String, ConditionExpression[S]] =
-    DdbExprInterpreter.toConditionExpression(expr)
+  private def interpret[S](expr: DdbExpr[S, Boolean])(implicit
+    schema: Schema[S]
+  ): Either[String, ConditionExpression[S]] =
+    DdbExprInterpreter.toConditionExpression(expr, DynamoDBCodecDeriverConfig[S](), schema.reflect)
 
-  private def interpretKey[S](expr: DdbKeyExpr[S]): Either[String, KeyConditionExpr[S]] =
-    DdbKeyExprInterpreter.toKeyConditionExpr(expr)
+  private def interpretKey[S](expr: DdbKeyExpr[S])(implicit schema: Schema[S]): Either[String, KeyConditionExpr[S]] =
+    DdbKeyExprInterpreter.toKeyConditionExpr(expr, DynamoDBCodecDeriverConfig[S](), schema.reflect)
 
   // ── Spec ──────────────────────────────────────────────────────────────────────
 

@@ -16,7 +16,10 @@
 
 package zio.dynamodb.blocks.ddbexpr
 
-import zio.blocks.schema.{ DynamicOptic, Optic }
+import zio.blocks.schema.{ DynamicOptic, Optic, Reflect, Schema }
+import zio.blocks.schema.binding.Binding
+import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
+import zio.dynamodb.blocks.ProjectionResolver
 import zio.dynamodb.{ AttributeValue, KeyConditionExpr, PartitionKey, ProjectionExpression, SortKey }
 
 /**
@@ -25,9 +28,7 @@ import zio.dynamodb.{ AttributeValue, KeyConditionExpr, PartitionKey, Projection
  *  Field references and literal values are both resolved through the calling table's
  *  [[ExprCtx]] — the same `ProjectionResolver` / literal-codec cache `.where` / `.filter`
  *  use, so a key condition and a filter condition agree on a configured field-name mapper
- *  / `@Modifier.rename` by construction. The no-config overloads use the shared
- *  [[ExprCtx.default]] (raw optic
- *  names, default deriver) for the low-level `.whereKey` conversion path.
+ *  / `@Modifier.rename` by construction.
  *
  *  Only single-segment optics (top-level fields) are valid as partition or sort keys; a
  *  multi-segment path returns a Left with a descriptive message.
@@ -35,9 +36,6 @@ import zio.dynamodb.{ AttributeValue, KeyConditionExpr, PartitionKey, Projection
 private[dynamodb] object DdbKeyExprInterpreter {
 
   // -- PrimaryKey -------------------------------------------------------------
-
-  def toPrimaryKeyExpr[S](expr: DdbKeyExpr.PrimaryKey[S]): Either[String, KeyConditionExpr.PrimaryKeyExpr[S]] =
-    toPrimaryKeyExpr(expr, ExprCtx.default)
 
   def toPrimaryKeyExpr[S](
     expr: DdbKeyExpr.PrimaryKey[S],
@@ -65,9 +63,6 @@ private[dynamodb] object DdbKeyExprInterpreter {
 
   // -- Full DdbKeyExpr (adds Extended) --------------------------------------
 
-  def toKeyConditionExpr[S](expr: DdbKeyExpr[S]): Either[String, KeyConditionExpr[S]] =
-    toKeyConditionExpr(expr, ExprCtx.default)
-
   def toKeyConditionExpr[S](expr: DdbKeyExpr[S], ctx: ExprCtx): Either[String, KeyConditionExpr[S]] =
     expr match {
       case pk: DdbKeyExpr.PrimaryKey[S]       =>
@@ -85,18 +80,32 @@ private[dynamodb] object DdbKeyExprInterpreter {
         )
     }
 
+  /**
+   * Overload for callers that hold a config + reflect rather than a `Table`'s `ExprCtx`
+   *  (tests, and any direct non-`Table` use). Allocates a one-off `ExprCtx`; the hot
+   *  `whereKey` path goes through `toKeyConditionExpr(expr, table.exprCtx)`.
+   */
+  def toKeyConditionExpr[S](
+    expr: DdbKeyExpr[S],
+    config: DynamoDBCodecDeriverConfig[S],
+    rootReflect: Reflect[Binding, S]
+  ): Either[String, KeyConditionExpr[S]] = {
+    val root     = new Schema(rootReflect).deriving(config.toResolverDeriver).derive
+    val resolver = new ProjectionResolver(root)
+    toKeyConditionExpr(expr, new ExprCtx(config, resolver))
+  }
+
   // -- Helpers -------------------------------------------------------------
 
   // Resolves a partition / sort key optic to its DynamoDB attribute name through the table's
   // ProjectionResolver, so a key condition honours the same field-name mapper / @Modifier.rename
   // as the item body and `.where` / `.filter`. A valid key optic is always a single top-level
   // field, so the common case takes ProjectionResolver.resolveTopLevelField (a plain Map.get);
-  // anything else - a multi-segment path, or the no-config ExprCtx.default whose resolver is
-  // null - drops to `fallback`, which resolves the full path and then rejects it unless it
-  // came out as a single top-level attribute.
+  // anything else - a multi-segment path - drops to `fallback`, which resolves the full path
+  // and then rejects it unless it came out as a single top-level attribute.
   private def fieldName[S, A](optic: Optic[S, A], ctx: ExprCtx): Either[String, String] = {
     val nodes = optic.toDynamic.nodes
-    if (nodes.length == 1 && (ctx.resolver ne null))
+    if (nodes.length == 1)
       nodes.head match {
         case DynamicOptic.Node.Field(scalaName) => ctx.resolver.resolveTopLevelField(scalaName)
         case _                                  => fallback(optic, ctx)

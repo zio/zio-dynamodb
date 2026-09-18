@@ -21,9 +21,7 @@ import zio.dynamodb.ProjectionExpression
 
 /**
  * Resolves an optic (or its raw `DynamicOptic`) to a [[ProjectionExpression]] using only
- *  the optic's own Scala field names — no schema, no `DynamoDBCodecDeriverConfig`. Used
- *  by the low-level `.filter` / `.whereKey` implicit-conversion path (`ExprCtx.default`,
- *  where there is no `Table` / configured schema to resolve against).
+ *  the optic's own Scala field names — no schema, no `DynamoDBCodecDeriverConfig`.
  *
  *  Config-aware resolution (honouring a `Table`'s field-name mapper, per-field `rename`,
  *  discriminator kind, ...) is [[ProjectionResolver]] — a deriver-produced

@@ -60,8 +60,8 @@ final case class DynamoDBCodecDeriverConfig[A](
   instanceOverrides: Vector[(TypeId[Any], DynamoDBCodec[Any])] = Vector.empty
 ) {
 
-  // Cached — this value keys DerivedCodecSyntax's per-`===`/`>` codec cache; the default
-  // instance is a shared singleton, so its hash is computed once for the whole process.
+  // Cached — this value keys ExprCtx's per-literal codec cache; the default instance is a
+  // shared singleton, so its hash is computed once for the whole process.
   override lazy val hashCode: Int = scala.runtime.ScalaRunTime._hashCode(this)
 
   def withFieldNameMapper(m: NameMapper): DynamoDBCodecDeriverConfig[A]          = copy(fieldNameMapper = m)

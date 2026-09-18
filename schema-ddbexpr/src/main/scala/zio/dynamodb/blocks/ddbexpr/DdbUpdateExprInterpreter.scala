@@ -29,19 +29,15 @@ import zio.dynamodb.UpdateExpression.SetOperand
  * Interprets a [[DdbUpdateExpr]][From] into `core`'s [[UpdateExpression.Action]][From] — the
  *  update-action counterpart of [[DdbExprInterpreter]].
  *
- *  Attribute paths are resolved and operand literals encoded through an [[ExprCtx]]:
- *  per-[[Table]] on the configured path (so `update` writes the same attribute names and
- *  literal encodings as `put` does for the item body), or the shared [[ExprCtx.default]]
- *  (raw optic names, default deriver) for direct non-`Table` use in tests.
+ *  Attribute paths are resolved and operand literals encoded through an [[ExprCtx]],
+ *  per-[[Table]] on the configured path, so `update` writes the same attribute names and
+ *  literal encodings as `put` does for the item body.
  *
  *  Path-resolution failures become [[UpdateExpression.Action.Failure]] nodes, surfaced at
  *  query execution by the interpreter's `validateAction` pass — the same treatment
  *  `ConditionExpression.Failure` gets.
  */
 private[dynamodb] object DdbUpdateExprInterpreter {
-
-  def toAction[From](expr: DdbUpdateExpr[From]): Action[From] =
-    interp(expr, ExprCtx.default)
 
   def toAction[From](expr: DdbUpdateExpr[From], ctx: ExprCtx): Action[From] =
     interp(expr, ctx)

@@ -68,7 +68,7 @@ sealed trait DdbKeyExpr[S]
  *  [[DdbExprSyntax]] for why (path-dependent outer references on case classes nested in a
  *  trait mixed into more than one object).
  */
-trait DdbKeyExprSyntax extends DerivedCodecSyntax {
+trait DdbKeyExprSyntax {
 
   // ── Lens extension methods ─────────────────────────────────────────────────
 
