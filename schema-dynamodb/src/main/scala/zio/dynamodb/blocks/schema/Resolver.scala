@@ -69,9 +69,18 @@ private[blocks] object Resolver {
   final case class Map[A](value: Lazy[Resolver[_]]) extends Resolver[A]
 
   /**
-   * An opaque / newtype wrapper. Transparent to path resolution — an optic sees straight
-   *  through it, so walking a path derefs a `Wrapper` node without consuming a path
-   *  segment, exactly like unwrapping `Reflect.Wrapper` did in `OpticToPE.deref`.
+   * A zero-segment passthrough to `inner`: `ProjectionResolver.deref` unwraps a `Wrapper`
+   * node without consuming a path segment, so walking a path sees straight through it to
+   * whatever resolver `inner` holds. Two unrelated producers derive this same shape:
+   *
+   *   - `deriveWrapper`, for a genuine opaque / newtype wrapper (an opaque type, a value
+   *     class, a zio-prelude `Newtype`/`Subtype`) — the type really is just `inner`
+   *     underneath, exactly like unwrapping `Reflect.Wrapper` did in `OpticToPE.deref`.
+   *   - `deriveVariant`'s `Option[A]` case — `Option` has two real cases (`None`/`Some`)
+   *     and is derived via `deriveVariant`, not `deriveWrapper`, but its `Case(Some)` +
+   *     `Field(value)` optic segments are stripped before resolution
+   *     (`OpticToPE.pruneOptionalNodes`), so its resolver must be equally transparent or
+   *     the walk has a node left with nothing to match it against.
    */
   final case class Wrapper[A](inner: Lazy[Resolver[_]]) extends Resolver[A]
 }
