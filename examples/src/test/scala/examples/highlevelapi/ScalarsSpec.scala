@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package examples.hlapi
+package examples.highlevelapi
 
 import zio.dynamodb.{ DummyIOInterpreter, Interpreter }
 import zio.dynamodb.ExecuteSyntax._

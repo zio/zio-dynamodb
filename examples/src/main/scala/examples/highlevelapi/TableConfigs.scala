@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package examples.hlapi
+package examples.highlevelapi
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, NameMapper, Schema }
 import zio.blocks.schema.json.DiscriminatorKind

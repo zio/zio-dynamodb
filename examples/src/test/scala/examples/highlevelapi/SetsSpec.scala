@@ -14,26 +14,26 @@
  * limitations under the License.
  */
 
-package examples.hlapi
+package examples.highlevelapi
 
 import zio.dynamodb.{ DummyIOInterpreter, Interpreter }
 import zio.dynamodb.ExecuteSyntax._
 import zio.test._
 
-/** Runs each of `TableConfigs`'s six CRUD queries — no network call, no Docker. */
-object TableConfigsSpec extends ZIOSpecDefault {
+/** Runs each of `Sets`'s six CRUD queries — no network call, no Docker. */
+object SetsSpec extends ZIOSpecDefault {
 
   implicit val interpreter: Interpreter[zio.dynamodb.DummyIO] = DummyIOInterpreter
 
-  def spec = suite("TableConfigs — CRUD queries execute")(
+  def spec = suite("Sets — CRUD queries execute")(
     test("all six CRUD queries execute") {
       val ran = for {
-        _ <- TableConfigs.putQuery.execute
-        _ <- TableConfigs.getQuery.execute
-        _ <- TableConfigs.updateQuery.execute
-        _ <- TableConfigs.deleteQuery.execute
-        _ <- TableConfigs.queryQuery.execute
-        _ <- TableConfigs.scanQuery.execute
+        _ <- Sets.putQuery.execute
+        _ <- Sets.getQuery.execute
+        _ <- Sets.updateQuery.execute
+        _ <- Sets.deleteQuery.execute
+        _ <- Sets.queryQuery.execute
+        _ <- Sets.scanQuery.execute
       } yield assertCompletes
       ran.unsafeRun()
     }

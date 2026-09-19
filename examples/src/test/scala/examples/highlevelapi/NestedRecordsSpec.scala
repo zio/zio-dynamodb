@@ -14,20 +14,28 @@
  * limitations under the License.
  */
 
-package examples.hlapi
+package examples.highlevelapi
 
 import zio.dynamodb.{ DummyIOInterpreter, Interpreter }
 import zio.dynamodb.ExecuteSyntax._
 import zio.test._
 
-/** Runs `UpdateActions.updateQuery` — no network call, no Docker. */
-object UpdateActionsSpec extends ZIOSpecDefault {
+/** Runs each of `NestedRecords`'s six CRUD queries — no network call, no Docker. */
+object NestedRecordsSpec extends ZIOSpecDefault {
 
   implicit val interpreter: Interpreter[zio.dynamodb.DummyIO] = DummyIOInterpreter
 
-  def spec = suite("UpdateActions — update query executes")(
-    test("the combined update executes") {
-      UpdateActions.updateQuery.execute.map(_ => assertCompletes).unsafeRun()
+  def spec = suite("NestedRecords — CRUD queries execute")(
+    test("all six CRUD queries execute") {
+      val ran = for {
+        _ <- NestedRecords.putQuery.execute
+        _ <- NestedRecords.getQuery.execute
+        _ <- NestedRecords.updateQuery.execute
+        _ <- NestedRecords.deleteQuery.execute
+        _ <- NestedRecords.queryQuery.execute
+        _ <- NestedRecords.scanQuery.execute
+      } yield assertCompletes
+      ran.unsafeRun()
     }
   )
 }

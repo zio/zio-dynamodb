@@ -14,27 +14,28 @@
  * limitations under the License.
  */
 
-package examples.hlapi
+package examples.highlevelapi
 
 import zio.dynamodb.{ DummyIOInterpreter, Interpreter }
 import zio.dynamodb.ExecuteSyntax._
 import zio.test._
-import zio.test.Assertion._
 
-/**
- * `CompileTimeRejections.buildsFineFailsOnRun` builds without complaint (nothing type-gates a
- * `Map`'s key type), but running it exercises the actual failure the rest of that file only
- * describes in a comment: DynamoDB requires string map keys, so the query fails once it runs.
- */
-object CompileTimeRejectionsSpec extends ZIOSpecDefault {
+/** Runs each of `Maps`'s six CRUD queries — no network call, no Docker. */
+object MapsSpec extends ZIOSpecDefault {
 
   implicit val interpreter: Interpreter[zio.dynamodb.DummyIO] = DummyIOInterpreter
 
-  def spec = suite("CompileTimeRejections — live failure")(
-    test("a non-String map key builds fine but fails once the query runs") {
-      val outcome = scala.util.Try(CompileTimeRejections.buildsFineFailsOnRun.execute.unsafeRun())
-      assertTrue(outcome.isFailure) &&
-      assert(outcome.failed.get.getMessage)(containsString("only String keys are supported in DDB"))
+  def spec = suite("Maps — CRUD queries execute")(
+    test("all six CRUD queries execute") {
+      val ran = for {
+        _ <- Maps.putQuery.execute
+        _ <- Maps.getQuery.execute
+        _ <- Maps.updateQuery.execute
+        _ <- Maps.deleteQuery.execute
+        _ <- Maps.queryQuery.execute
+        _ <- Maps.scanQuery.execute
+      } yield assertCompletes
+      ran.unsafeRun()
     }
   )
 }
