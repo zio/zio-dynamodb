@@ -23,7 +23,7 @@ import zio.dynamodb.blocks.ddbexpr.dsl._
 /**
  * Shapes the query DSL rejects at compile time. `CompileTimeRejectionsSpec` verifies each one
  * for real via `zio.test.typeCheck`: `inSet`/`remove(index)`/`.contains` used on the wrong
- * field shape, and `between`/`in`/`inSet` on a plain `AnyVal` value class (they do work on an
+ * field shape, and `between`/`inSet` on a plain `AnyVal` value class (they do work on an
  * opaque type or a zio-prelude `Subtype`/`Newtype` — see `WrappedScalars.scala`). The last one
  * below is different: it compiles, but fails when the query actually runs.
  */

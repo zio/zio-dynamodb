@@ -153,16 +153,17 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
           Widget.qty.contains("1")
         """).map(result => assertTrue(result.isLeft, result.swap.exists(_.toLowerCase.contains("member"))))
       },
-      test("between/in/inSet don't work on a plain AnyVal value class") {
-        // Sku/Widget come from WrappedScalars.scala (already-compiled, top-level) rather than
-        // being defined fresh in this snippet: a case class extending AnyVal can't be a local
-        // class under Scala 2, and typeCheck compiles its snippet in a local scope.
-        //
+      // Sku/Widget come from WrappedScalars.scala (already-compiled, top-level) rather than
+      // being defined fresh in these snippets: a case class extending AnyVal can't be a local
+      // class under Scala 2, and typeCheck compiles its snippet in a local scope.
+      test("between doesn't work on a plain AnyVal value class") {
         // The two Scala versions reject this for different reasons: Scala 3 resolves the
         // `between` extension method and then rejects it via the Allows shape check; Scala 2
         // never resolves the extension method at all ("value between is not a member of
         // Lens[...]"). Either way it fails to compile.
         typeCheck("""
+          import zio.dynamodb.blocks.ddbexpr.dsl._
+
           examples.highlevelapi.WrappedScalars.Widget.sku.between(
             examples.highlevelapi.WrappedScalars.Sku("a"),
             examples.highlevelapi.WrappedScalars.Sku("z")
@@ -174,6 +175,33 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
           }
           assertTrue(result.isLeft, messageIndicatesRejection)
         }
+      },
+      test("inSet doesn't work on a plain AnyVal value class") {
+        typeCheck("""
+          import zio.dynamodb.blocks.ddbexpr.dsl._
+
+          examples.highlevelapi.WrappedScalars.Widget.sku.inSet(
+            Set(examples.highlevelapi.WrappedScalars.Sku("a"), examples.highlevelapi.WrappedScalars.Sku("z"))
+          )
+        """).map { result =>
+          val messageIndicatesRejection = result.swap.exists { msg =>
+            val lower = msg.toLowerCase
+            lower.contains("allows") || lower.contains("not a member")
+          }
+          assertTrue(result.isLeft, messageIndicatesRejection)
+        }
+      },
+      test("but in works fine on a plain AnyVal value class (it has no Allows constraint)") {
+        // DdbExprSyntax.in takes only an implicit Schema, no Allows evidence — unlike
+        // between/inSet, it isn't shape-gated at all, so it works on any type with a Schema.
+        typeCheck("""
+          import zio.dynamodb.blocks.ddbexpr.dsl._
+
+          examples.highlevelapi.WrappedScalars.Widget.sku.in(
+            examples.highlevelapi.WrappedScalars.Sku("a"),
+            examples.highlevelapi.WrappedScalars.Sku("z")
+          )
+        """).map(result => assertTrue(result.isRight))
       }
     ),
     suite("PrimaryKey vs Extended")(
