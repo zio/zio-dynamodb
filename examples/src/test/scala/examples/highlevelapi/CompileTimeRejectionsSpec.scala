@@ -80,7 +80,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
           Catalog.names.containsElement("x")
         """).map(result => assertTrue(result.isLeft, result.swap.exists(_.toLowerCase.contains("allows"))))
       },
-      // The remaining six all reuse Scalars.Widget.id (already-compiled, top-level, a plain
+      // The remaining seven all reuse Scalars.Widget.id (already-compiled, top-level, a plain
       // String field) as the "wrong shape" target, with an argument of the same String type
       // so only the Allows check fails — not an incidental argument-type mismatch.
       test("increment only works on a numeric field") {
