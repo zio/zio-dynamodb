@@ -18,6 +18,7 @@ package examples.hlapi
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
+import zio.dynamodb.{ DynamoDBError, DynamoDBQuery, Page }
 import zio.dynamodb.blocks.ddbexpr.DdbExpr
 import zio.dynamodb.blocks.ddbexpr.dsl._
 
@@ -64,4 +65,24 @@ object Scalars {
   // B — relational + range (byte sequences compare lexicographically on the wire)
   val bEq: DdbExpr[Widget, Boolean]      = Widget.blob === Chunk[Byte](1, 2, 3)
   val bBetween: DdbExpr[Widget, Boolean] = Widget.blob.between(Chunk[Byte](0), Chunk[Byte](-1))
+
+  // Wired into the six CRUD operations — see ScalarsSpec for these actually run. Each
+  // builder converts to a DynamoDBQuery implicitly, so no `.toQuery` call is needed.
+  val putQuery: DynamoDBQuery[Widget, Option[Widget]] =
+    put(widgets, Widget("w-1", 10, 9.99, active = true, Chunk[Byte](1, 2, 3)))
+
+  val getQuery: DynamoDBQuery[Widget, Either[DynamoDBError.ItemError, Widget]] =
+    get(widgets)(Widget.id.partitionKey === "w-1")
+
+  val updateQuery: DynamoDBQuery[Widget, Option[Widget]] =
+    update(widgets)(Widget.id.partitionKey === "w-1")(Widget.qty.set(5))
+
+  val deleteQuery: DynamoDBQuery[Widget, Option[Widget]] =
+    deleteFrom(widgets)(Widget.id.partitionKey === "w-1")
+
+  val queryQuery: DynamoDBQuery[Widget, Page[Either[DynamoDBError.ItemError, Widget]]] =
+    query(widgets, limit = 20).whereKey(Widget.id.partitionKey === "w-1").filter(nGte)
+
+  val scanQuery: DynamoDBQuery[Widget, Page[Either[DynamoDBError.ItemError, Widget]]] =
+    scan(widgets, limit = 20).filter(sBetween && nLte)
 }

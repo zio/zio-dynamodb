@@ -42,25 +42,25 @@ object CrudBuilders {
   val tasks: Table[Task] = Table[Task]("tasks")
 
   val putQuery: DynamoDBQuery[Task, Option[Task]] =
-    put(tasks, Task("t1", "write docs", done = false, priority = 1)).toQuery
+    put(tasks, Task("t1", "write docs", done = false, priority = 1))
 
   val putWithCondition: DynamoDBQuery[Task, Option[Task]] =
-    put(tasks, Task("t1", "write docs", done = false, priority = 1)).where(Task.id.attributeNotExists).toQuery
+    put(tasks, Task("t1", "write docs", done = false, priority = 1)).where(Task.id.attributeNotExists)
 
   val getQuery: DynamoDBQuery[Task, Either[DynamoDBError.ItemError, Task]] =
     get(tasks)(Task.id.partitionKey === "t1")
 
   val deleteQuery: DynamoDBQuery[Task, Option[Task]] =
-    deleteFrom(tasks)(Task.id.partitionKey === "t1").toQuery
+    deleteFrom(tasks)(Task.id.partitionKey === "t1")
 
   val deleteWithCondition: DynamoDBQuery[Task, Option[Task]] =
-    deleteFrom(tasks)(Task.id.partitionKey === "t1").where(Task.done === true).toQuery
+    deleteFrom(tasks)(Task.id.partitionKey === "t1").where(Task.done === true)
 
   val updateQuery: DynamoDBQuery[Task, Option[Task]] =
-    update(tasks)(Task.id.partitionKey === "t1")(Task.done.set(true)).toQuery
+    update(tasks)(Task.id.partitionKey === "t1")(Task.done.set(true))
 
   val updateWithCondition: DynamoDBQuery[Task, Option[Task]] =
-    update(tasks)(Task.id.partitionKey === "t1")(Task.priority.increment(1)).where(Task.done === false).toQuery
+    update(tasks)(Task.id.partitionKey === "t1")(Task.priority.increment(1)).where(Task.done === false)
 
   // Escape hatch: a raw core Action built with the low-level ProjectionExpression `$` syntax.
   val rawAction: UpdateExpression.Action[Task] = ProjectionExpression.$("priority").set(5)
@@ -68,13 +68,14 @@ object CrudBuilders {
   val updateActionQuery: DynamoDBQuery[Task, Option[Task]] =
     updateAction(tasks)(Task.id.partitionKey === "t1")(rawAction)
 
+  // sortOrder is a method on DynamoDBQuery itself, not on the builder, so the builder converts
+  // to a DynamoDBQuery implicitly at that point in the chain.
   val queryQuery: DynamoDBQuery[Task, Page[Either[DynamoDBError.ItemError, Task]]] =
     query(tasks, limit = 20)
       .whereKey(Task.id.partitionKey === "t1")
       .filter(Task.priority > 0)
-      .toQuery
       .sortOrder(ascending = false)
 
   val scanQuery: DynamoDBQuery[Task, Page[Either[DynamoDBError.ItemError, Task]]] =
-    scan(tasks, limit = 20).filter(Task.done === false).toQuery
+    scan(tasks, limit = 20).filter(Task.done === false)
 }

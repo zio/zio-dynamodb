@@ -17,6 +17,7 @@
 package examples.hlapi
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
+import zio.dynamodb.{ DynamoDBError, DynamoDBQuery, Page }
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr
 import zio.dynamodb.blocks.ddbexpr.dsl._
 
@@ -67,4 +68,25 @@ object KeyConditions {
     Event.streamId.partitionKey === "s1" && Event.seq.sortKey.between(1L, 100L)
   val extendedBeginsWith: DdbKeyExpr.Extended[Event, String] =
     Event.streamId.partitionKey === "s1" && Event.payload.sortKey.beginsWith("order-")
+
+  // Wired into the six CRUD operations — see KeyConditionsSpec for these actually run. get/
+  // update/deleteFrom need a PrimaryKey, so they use the Composite key; query alone can take
+  // the Extended range key.
+  val putQuery: DynamoDBQuery[Event, Option[Event]] =
+    put(events, Event("s1", 1L, "order-1"))
+
+  val getQuery: DynamoDBQuery[Event, Either[DynamoDBError.ItemError, Event]] =
+    get(events)(composite)
+
+  val updateQuery: DynamoDBQuery[Event, Option[Event]] =
+    update(events)(composite)(Event.payload.set("order-2"))
+
+  val deleteQuery: DynamoDBQuery[Event, Option[Event]] =
+    deleteFrom(events)(composite)
+
+  val queryQuery: DynamoDBQuery[Event, Page[Either[DynamoDBError.ItemError, Event]]] =
+    query(events, limit = 20).whereKey(extendedBetween)
+
+  val scanQuery: DynamoDBQuery[Event, Page[Either[DynamoDBError.ItemError, Event]]] =
+    scan(events, limit = 20).filter(Event.payload.attributeExists)
 }

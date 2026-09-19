@@ -17,6 +17,7 @@
 package examples.hlapi
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
+import zio.dynamodb.{ DynamoDBError, DynamoDBQuery, Page }
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbUpdateExpr }
 import zio.dynamodb.blocks.ddbexpr.dsl._
 
@@ -61,4 +62,23 @@ object NestedRecords {
   val inBothHemispheres: DdbExpr[Order, Boolean] = Order.shippingLat > 0.0 && Order.shippingLng < 0.0
   val setLat: DdbUpdateExpr[Order]               = Order.shippingLat.set(51.5)
   val setBoth: DdbUpdateExpr[Order]              = Order.shippingLat.set(51.5) + Order.shippingLng.set(-0.1)
+
+  // Wired into the six CRUD operations — see NestedRecordsSpec for these actually run.
+  val putQuery: DynamoDBQuery[Order, Option[Order]] =
+    put(orders, Order("o-1", Address("Main St", GeoPoint(51.5, -0.1))))
+
+  val getQuery: DynamoDBQuery[Order, Either[DynamoDBError.ItemError, Order]] =
+    get(orders)(Order.id.partitionKey === "o-1")
+
+  val updateQuery: DynamoDBQuery[Order, Option[Order]] =
+    update(orders)(Order.id.partitionKey === "o-1")(setLat)
+
+  val deleteQuery: DynamoDBQuery[Order, Option[Order]] =
+    deleteFrom(orders)(Order.id.partitionKey === "o-1")
+
+  val queryQuery: DynamoDBQuery[Order, Page[Either[DynamoDBError.ItemError, Order]]] =
+    query(orders, limit = 20).whereKey(Order.id.partitionKey === "o-1").filter(latGt)
+
+  val scanQuery: DynamoDBQuery[Order, Page[Either[DynamoDBError.ItemError, Order]]] =
+    scan(orders, limit = 20).filter(inBothHemispheres)
 }

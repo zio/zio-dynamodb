@@ -18,6 +18,7 @@ package examples.hlapi
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema }
 import zio.blocks.schema.json.DiscriminatorKind
+import zio.dynamodb.{ DynamoDBError, DynamoDBQuery, Page }
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbUpdateExpr }
 import zio.dynamodb.blocks.ddbexpr.dsl._
 
@@ -78,4 +79,23 @@ object Variants {
   // configured this way — it fails when the query runs, not at compile time.
   val itemsNoDiscriminator: Table[Item] =
     Table[Item]("items").deriving(_.withDiscriminatorKind(DiscriminatorKind.None))
+
+  // Wired into the six CRUD operations — see VariantsSpec for these actually run.
+  val putQuery: DynamoDBQuery[Item, Option[Item]] =
+    put(items, Item("i-1", Status.Pending, Shape.Circle(1.0)))
+
+  val getQuery: DynamoDBQuery[Item, Either[DynamoDBError.ItemError, Item]] =
+    get(items)(Item.id.partitionKey === "i-1")
+
+  val updateQuery: DynamoDBQuery[Item, Option[Item]] =
+    update(items)(Item.id.partitionKey === "i-1")(setStatus)
+
+  val deleteQuery: DynamoDBQuery[Item, Option[Item]] =
+    deleteFrom(items)(Item.id.partitionKey === "i-1")
+
+  val queryQuery: DynamoDBQuery[Item, Page[Either[DynamoDBError.ItemError, Item]]] =
+    query(items, limit = 20).whereKey(Item.id.partitionKey === "i-1").filter(statusEq)
+
+  val scanQuery: DynamoDBQuery[Item, Page[Either[DynamoDBError.ItemError, Item]]] =
+    scan(items, limit = 20).filter(isCircle)
 }

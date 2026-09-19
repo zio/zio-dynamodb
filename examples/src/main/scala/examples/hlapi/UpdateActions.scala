@@ -17,6 +17,7 @@
 package examples.hlapi
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
+import zio.dynamodb.DynamoDBQuery
 import zio.dynamodb.blocks.ddbexpr.DdbUpdateExpr
 import zio.dynamodb.blocks.ddbexpr.dsl._
 
@@ -66,4 +67,10 @@ object UpdateActions {
   // Combine several into one UpdateItem call
   val combined: DdbUpdateExpr[Item] =
     Item.qty.increment(1) + Item.name.set("updated") + Item.tags.addSet(Set("done"))
+
+  // Wired into a real update — see UpdateActionsSpec for this actually run. Only `update` is
+  // wired here (not the full six CRUD ops): this file is about update-action shapes, and
+  // put/get/delete/query/scan don't exercise anything specific to them.
+  val updateQuery: DynamoDBQuery[Item, Option[Item]] =
+    update(items)(Item.id.partitionKey === "i-1")(combined)
 }

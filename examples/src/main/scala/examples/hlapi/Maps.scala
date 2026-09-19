@@ -17,6 +17,7 @@
 package examples.hlapi
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema }
+import zio.dynamodb.{ DynamoDBError, DynamoDBQuery, Page }
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbUpdateExpr }
 import zio.dynamodb.blocks.ddbexpr.dsl._
 
@@ -54,27 +55,49 @@ object Maps {
     val notes: Lens[Directory, Map[String, Note]]            = $(_.notes)
     val deep: Lens[Directory, Map[String, Map[String, Int]]] = $(_.deep)
 
-    def attrAt(k: String): Optional[Directory, String]           = $(_.attrs.atKey(k))
-    def countAt(k: String): Optional[Directory, Int]             = $(_.counts.atKey(k))
-    def notePriorityAt(k: String): Optional[Directory, Int]      = $(_.notes.atKey(k).priority)
-    def deepAt(k1: String, k2: String): Optional[Directory, Int] = $(_.deep.atKey(k1).atKey(k2))
+    def attrAtKey(k: String): Optional[Directory, String]           = $(_.attrs.atKey(k))
+    def countAtKey(k: String): Optional[Directory, Int]             = $(_.counts.atKey(k))
+    def notePriorityAtKey(k: String): Optional[Directory, Int]      = $(_.notes.atKey(k).priority)
+    def deepAtKey(k1: String, k2: String): Optional[Directory, Int] = $(_.deep.atKey(k1).atKey(k2))
   }
 
   val directories: Table[Directory] = Table[Directory]("directories")
 
   // Map[String, String] — scalar value
-  val attrExists: DdbExpr[Directory, Boolean] = Directory.attrAt("color").attributeExists
-  val setAttr: DdbUpdateExpr[Directory]       = Directory.attrAt("color").set("blue")
+  val attrExists: DdbExpr[Directory, Boolean] = Directory.attrAtKey("color").attributeExists
+  val setAttr: DdbUpdateExpr[Directory]       = Directory.attrAtKey("color").set("blue")
 
   // Map[String, Int] — scalar value, numeric update
-  val countGt: DdbExpr[Directory, Boolean]     = Directory.countAt("views") > 0
-  val incrementCount: DdbUpdateExpr[Directory] = Directory.countAt("views").increment(1)
+  val countGt: DdbExpr[Directory, Boolean]     = Directory.countAtKey("views") > 0
+  val incrementCount: DdbUpdateExpr[Directory] = Directory.countAtKey("views").increment(1)
 
   // Map[String, Note] — record value, project into a field of it
-  val notePriorityGt: DdbExpr[Directory, Boolean] = Directory.notePriorityAt("alice") > 0
-  val setNotePriority: DdbUpdateExpr[Directory]   = Directory.notePriorityAt("alice").set(5)
+  val notePriorityGt: DdbExpr[Directory, Boolean] = Directory.notePriorityAtKey("alice") > 0
+  val setNotePriority: DdbUpdateExpr[Directory]   = Directory.notePriorityAtKey("alice").set(5)
 
   // Map[String, Map[String, Int]] — two-level nested map
-  val deepExists: DdbExpr[Directory, Boolean] = Directory.deepAt("2024", "q1").attributeExists
-  val setDeep: DdbUpdateExpr[Directory]       = Directory.deepAt("2024", "q1").set(100)
+  val deepExists: DdbExpr[Directory, Boolean] = Directory.deepAtKey("2024", "q1").attributeExists
+  val setDeep: DdbUpdateExpr[Directory]       = Directory.deepAtKey("2024", "q1").set(100)
+
+  // Wired into the six CRUD operations — see MapsSpec for these actually run.
+  val putQuery: DynamoDBQuery[Directory, Option[Directory]] =
+    put(
+      directories,
+      Directory("d-1", Map("color" -> "blue"), Map("views" -> 1), Map("alice" -> Note("hi", 1)), Map.empty)
+    )
+
+  val getQuery: DynamoDBQuery[Directory, Either[DynamoDBError.ItemError, Directory]] =
+    get(directories)(Directory.id.partitionKey === "d-1")
+
+  val updateQuery: DynamoDBQuery[Directory, Option[Directory]] =
+    update(directories)(Directory.id.partitionKey === "d-1")(Directory.countAtKey("views").increment(1))
+
+  val deleteQuery: DynamoDBQuery[Directory, Option[Directory]] =
+    deleteFrom(directories)(Directory.id.partitionKey === "d-1")
+
+  val queryQuery: DynamoDBQuery[Directory, Page[Either[DynamoDBError.ItemError, Directory]]] =
+    query(directories, limit = 20).whereKey(Directory.id.partitionKey === "d-1").filter(attrExists)
+
+  val scanQuery: DynamoDBQuery[Directory, Page[Either[DynamoDBError.ItemError, Directory]]] =
+    scan(directories, limit = 20).filter(countGt)
 }

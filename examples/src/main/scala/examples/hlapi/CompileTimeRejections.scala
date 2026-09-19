@@ -62,12 +62,12 @@ object CompileTimeRejections {
   object Registry extends CompanionOptics[Registry] {
     implicit val schema: Schema[Registry] = Schema.derived
 
-    val name: Lens[Registry, String]               = $(_.name)
-    def countAt(key: Int): Optional[Registry, Int] = $(_.counts.atKey(key))
+    val name: Lens[Registry, String]                  = $(_.name)
+    def countAtKey(key: Int): Optional[Registry, Int] = $(_.counts.atKey(key))
   }
 
   val registries: Table[Registry] = Table[Registry]("registries")
 
   val buildsFineFailsOnRun: DynamoDBQuery[Registry, Option[Registry]] =
-    update(registries)(Registry.name.partitionKey === "r1")(Registry.countAt(1).set(99)).toQuery
+    update(registries)(Registry.name.partitionKey === "r1")(Registry.countAtKey(1).set(99))
 }

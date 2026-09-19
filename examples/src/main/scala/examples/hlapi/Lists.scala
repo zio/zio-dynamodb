@@ -17,6 +17,7 @@
 package examples.hlapi
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema }
+import zio.dynamodb.{ DynamoDBError, DynamoDBQuery, Page }
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbUpdateExpr }
 import zio.dynamodb.blocks.ddbexpr.dsl._
 
@@ -86,4 +87,23 @@ object Lists {
 
   // List[Shape] (sealed-trait elements) — index into the list, then narrow to a case
   val circleAt0Exists: DdbExpr[Catalog, Boolean] = Catalog.circleRadiusAt(0).attributeExists
+
+  // Wired into the six CRUD operations — see ListsSpec for these actually run.
+  val putQuery: DynamoDBQuery[Catalog, Option[Catalog]] =
+    put(catalogs, Catalog("c-1", List("x"), Vector(1), List(LineItem("sku-1", 1)), List(Shape.Circle(1.0))))
+
+  val getQuery: DynamoDBQuery[Catalog, Either[DynamoDBError.ItemError, Catalog]] =
+    get(catalogs)(Catalog.id.partitionKey === "c-1")
+
+  val updateQuery: DynamoDBQuery[Catalog, Option[Catalog]] =
+    update(catalogs)(Catalog.id.partitionKey === "c-1")(Catalog.names.appendList(Seq("y")))
+
+  val deleteQuery: DynamoDBQuery[Catalog, Option[Catalog]] =
+    deleteFrom(catalogs)(Catalog.id.partitionKey === "c-1")
+
+  val queryQuery: DynamoDBQuery[Catalog, Page[Either[DynamoDBError.ItemError, Catalog]]] =
+    query(catalogs, limit = 20).whereKey(Catalog.id.partitionKey === "c-1").filter(nameExists)
+
+  val scanQuery: DynamoDBQuery[Catalog, Page[Either[DynamoDBError.ItemError, Catalog]]] =
+    scan(catalogs, limit = 20).filter(itemQtyGt)
 }

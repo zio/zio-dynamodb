@@ -17,6 +17,7 @@
 package examples.hlapi
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
+import zio.dynamodb.{ DynamoDBError, DynamoDBQuery, Page }
 import zio.dynamodb.blocks.ddbexpr.DdbExpr
 import zio.dynamodb.blocks.ddbexpr.dsl._
 import zio.dynamodb.blocks.schema.{ DynamoDBCodec, DynamoDBCodecDeriver }
@@ -61,4 +62,23 @@ object WrappedScalars {
   val weightGt: DdbExpr[Widget, Boolean]      = Widget.weight > Weight(0)
   val weightBetween: DdbExpr[Widget, Boolean] = Widget.weight.between(Weight(0), Weight(100))
   val weightIn: DdbExpr[Widget, Boolean]      = Widget.weight.in(Weight(1), Weight(2), Weight(3))
+
+  // Wired into the six CRUD operations — see WrappedScalarsSpec for these actually run.
+  val putQuery: DynamoDBQuery[Widget, Option[Widget]] =
+    put(widgets, Widget(Sku("SKU-1"), Weight(10)))
+
+  val getQuery: DynamoDBQuery[Widget, Either[DynamoDBError.ItemError, Widget]] =
+    get(widgets)(Widget.sku.partitionKey === Sku("SKU-1"))
+
+  val updateQuery: DynamoDBQuery[Widget, Option[Widget]] =
+    update(widgets)(Widget.sku.partitionKey === Sku("SKU-1"))(Widget.weight.set(Weight(20)))
+
+  val deleteQuery: DynamoDBQuery[Widget, Option[Widget]] =
+    deleteFrom(widgets)(Widget.sku.partitionKey === Sku("SKU-1"))
+
+  val queryQuery: DynamoDBQuery[Widget, Page[Either[DynamoDBError.ItemError, Widget]]] =
+    query(widgets, limit = 20).whereKey(Widget.sku.partitionKey === Sku("SKU-1")).filter(weightGt)
+
+  val scanQuery: DynamoDBQuery[Widget, Page[Either[DynamoDBError.ItemError, Widget]]] =
+    scan(widgets, limit = 20).filter(skuEq)
 }

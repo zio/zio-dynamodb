@@ -18,6 +18,7 @@ package examples.hlapi
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, NameMapper, Schema }
 import zio.blocks.schema.json.DiscriminatorKind
+import zio.dynamodb.{ DynamoDBError, DynamoDBQuery, Page }
 import zio.dynamodb.blocks.ddbexpr.dsl._
 
 /**
@@ -90,4 +91,26 @@ object TableConfigs {
 
   val itemsFieldDiscriminated: Table[Item] =
     Table[Item]("items").deriving(_.withDiscriminatorKind(DiscriminatorKind.Field("type")))
+
+  // Wired into the six CRUD operations, against renamedFieldTable (the withModifier config)
+  // — see TableConfigsSpec for these actually run.
+  val putQuery: DynamoDBQuery[Person, Option[Person]] =
+    put(renamedFieldTable, Person("Ada", "Lovelace"))
+
+  val getQuery: DynamoDBQuery[Person, Either[DynamoDBError.ItemError, Person]] =
+    get(renamedFieldTable)(Person.firstName.partitionKey === "Ada")
+
+  val updateQuery: DynamoDBQuery[Person, Option[Person]] =
+    update(renamedFieldTable)(Person.firstName.partitionKey === "Ada")(Person.lastName.set("King"))
+
+  val deleteQuery: DynamoDBQuery[Person, Option[Person]] =
+    deleteFrom(renamedFieldTable)(Person.firstName.partitionKey === "Ada")
+
+  val queryQuery: DynamoDBQuery[Person, Page[Either[DynamoDBError.ItemError, Person]]] =
+    query(renamedFieldTable, limit = 20)
+      .whereKey(Person.firstName.partitionKey === "Ada")
+      .filter(Person.lastName.attributeExists)
+
+  val scanQuery: DynamoDBQuery[Person, Page[Either[DynamoDBError.ItemError, Person]]] =
+    scan(renamedFieldTable, limit = 20).filter(Person.firstName.attributeExists)
 }

@@ -18,6 +18,7 @@ package examples.hlapi
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
+import zio.dynamodb.{ DynamoDBError, DynamoDBQuery, Page }
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbUpdateExpr }
 import zio.dynamodb.blocks.ddbexpr.dsl._
 
@@ -56,4 +57,23 @@ object Sets {
   val hasChecksum: DdbExpr[Inventory, Boolean]  = Inventory.checksums.containsElement(Chunk[Byte](1, 2, 3))
   val addChecksums: DdbUpdateExpr[Inventory]    = Inventory.checksums.addSet(Set(Chunk[Byte](1, 2, 3)))
   val removeChecksums: DdbUpdateExpr[Inventory] = Inventory.checksums.deleteFromSet(Set(Chunk[Byte](1, 2, 3)))
+
+  // Wired into the six CRUD operations — see SetsSpec for these actually run.
+  val putQuery: DynamoDBQuery[Inventory, Option[Inventory]] =
+    put(inventories, Inventory("i-1", Set("urgent"), Set(1, 2), Set(Chunk[Byte](1))))
+
+  val getQuery: DynamoDBQuery[Inventory, Either[DynamoDBError.ItemError, Inventory]] =
+    get(inventories)(Inventory.id.partitionKey === "i-1")
+
+  val updateQuery: DynamoDBQuery[Inventory, Option[Inventory]] =
+    update(inventories)(Inventory.id.partitionKey === "i-1")(Inventory.tags.addSet(Set("reviewed")))
+
+  val deleteQuery: DynamoDBQuery[Inventory, Option[Inventory]] =
+    deleteFrom(inventories)(Inventory.id.partitionKey === "i-1")
+
+  val queryQuery: DynamoDBQuery[Inventory, Page[Either[DynamoDBError.ItemError, Inventory]]] =
+    query(inventories, limit = 20).whereKey(Inventory.id.partitionKey === "i-1").filter(hasTag)
+
+  val scanQuery: DynamoDBQuery[Inventory, Page[Either[DynamoDBError.ItemError, Inventory]]] =
+    scan(inventories, limit = 20).filter(hasBin)
 }
