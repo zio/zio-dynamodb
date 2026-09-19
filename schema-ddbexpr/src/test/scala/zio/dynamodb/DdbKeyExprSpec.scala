@@ -17,6 +17,7 @@
 package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
+import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.ddbexpr.{ DdbKeyExpr, DdbKeyExprInterpreter }
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
 import zio.test._
@@ -38,8 +39,8 @@ object DdbKeyExprSpec extends ZIOSpecDefault {
 
   private def render(kce: KeyConditionExpr[_]): String = kce.render.execute._2
 
-  private def interpret[S](expr: DdbKeyExpr[S]): Either[String, KeyConditionExpr[S]] =
-    DdbKeyExprInterpreter.toKeyConditionExpr(expr)
+  private def interpret[S](expr: DdbKeyExpr[S])(implicit schema: Schema[S]): Either[String, KeyConditionExpr[S]] =
+    DdbKeyExprInterpreter.toKeyConditionExpr(expr, DynamoDBCodecDeriverConfig[S](), schema.reflect)
 
   // ── Spec ─────────────────────────────────────────────────────────────────────
 

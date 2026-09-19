@@ -17,6 +17,7 @@
 package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Optional, Schema }
+import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprInterpreter, DdbUpdateExpr, DdbUpdateExprInterpreter }
 import zio.dynamodb.blocks.ddbexpr.DdbExpr.{ OpticDdbExprOps, OpticUpdateOps }
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
@@ -44,10 +45,18 @@ private object Drawing2 extends CompanionOptics[Drawing2] {
 object DdbExprOptionalSpec extends ZIOSpecDefault {
 
   private def renderCE(ce: ConditionExpression[_]): String = ce.render.execute._2
-  private def renderAction(u: DdbUpdateExpr[_]): String    = DdbUpdateExprInterpreter.toAction(u).render.execute._2
 
-  private def interpret[S](expr: DdbExpr[S, Boolean]): Either[String, ConditionExpression[S]] =
-    DdbExprInterpreter.toConditionExpression(expr)
+  private def renderAction[From](u: DdbUpdateExpr[From])(implicit schema: Schema[From]): String =
+    DdbUpdateExprInterpreter
+      .toAction(u, DynamoDBCodecDeriverConfig[From](), schema.reflect)
+      .render
+      .execute
+      ._2
+
+  private def interpret[S](expr: DdbExpr[S, Boolean])(implicit
+    schema: Schema[S]
+  ): Either[String, ConditionExpression[S]] =
+    DdbExprInterpreter.toConditionExpression(expr, DynamoDBCodecDeriverConfig[S](), schema.reflect)
 
   def spec = suite("DdbExpr — Optional optic paths")(
     suite("Optional via when[Case].field")(
@@ -137,7 +146,7 @@ object DdbExprOptionalSpec extends ZIOSpecDefault {
       )
     },
 
-    suite("Option[A] transparency — Case(Some)+Field(value) pruned") {
+    suite("Option[A] via when[Some].value") {
       case class Profile(name: String, tags: Option[List[String]], meta: Option[Map[String, Int]])
       object Profile extends CompanionOptics[Profile] {
         implicit val schema: Schema[Profile]            = Schema.derived
@@ -147,7 +156,7 @@ object DdbExprOptionalSpec extends ZIOSpecDefault {
       }
 
       suite("Option[A] paths")(
-        test("attributeExists on Option[List] element renders attribute_exists") {
+        test("attributeExists on an Option[List] element renders attribute_exists") {
           val expr = Profile.tagAt(0).attributeExists
           interpret(expr)
             .map(renderCE)
@@ -156,11 +165,11 @@ object DdbExprOptionalSpec extends ZIOSpecDefault {
               s => assert(s)(startsWithString("attribute_exists"))
             )
         },
-        test("remove on Option[List] element renders REMOVE with index syntax") {
+        test("remove on an Option[List] element renders REMOVE with list index syntax") {
           val rendered = renderAction(Profile.tagAt(3).remove)
           assert(rendered)(startsWithString("remove") && containsString("[3]"))
         },
-        test("set on Option[Map] key renders SET") {
+        test("set on an Option[Map] key renders SET") {
           val rendered = renderAction(Profile.metaAt("views").set(42))
           assert(rendered)(startsWithString("set") && containsString("="))
         }

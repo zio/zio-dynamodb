@@ -20,7 +20,7 @@ import java.util.concurrent.ConcurrentHashMap
 import zio.blocks.schema.{ DynamicOptic, Optic, Schema }
 import zio.dynamodb.{ AttributeValue, ProjectionExpression }
 import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
-import zio.dynamodb.blocks.{ OpticToPE, ProjectionResolver }
+import zio.dynamodb.blocks.ProjectionResolver
 import zio.dynamodb.blocks.schema.DynamoDBCodec
 
 /**
@@ -30,10 +30,6 @@ import zio.dynamodb.blocks.schema.DynamoDBCodec
  *  construction. Attribute-name resolution itself is delegated to [[ProjectionResolver]] - a
  *  deriver-produced [[zio.dynamodb.blocks.schema.Resolver]] tree, not a schema-plus-config
  *  re-derivation on every call.
- *
- *  `resolver == null` marks the config-free path the low-level implicit conversions use
- *  (`.filter` / `.whereKey` on a bare [[zio.dynamodb.DynamoDBQuery]]): raw optic names, no
- *  derivation at all. That path shares the one [[ExprCtx.default]] instance.
  */
 private[ddbexpr] final class ExprCtx(
   private[ddbexpr] val config: DynamoDBCodecDeriverConfig[_],
@@ -45,10 +41,10 @@ private[ddbexpr] final class ExprCtx(
   private[this] val codecCache = new ConcurrentHashMap[CodecCacheKey, DynamoDBCodec[_]]()
 
   private[ddbexpr] def peOf(optic: Optic[_, _]): Either[String, ProjectionExpression[_, _]] =
-    if (resolver eq null) OpticToPE.pe(optic) else resolver.resolve(optic.toDynamic)
+    resolver.resolve(optic.toDynamic)
 
   private[ddbexpr] def peOf(dyn: DynamicOptic): Either[String, ProjectionExpression[_, _]] =
-    if (resolver eq null) OpticToPE.pe(dyn) else resolver.resolve(dyn)
+    resolver.resolve(dyn)
 
   private[ddbexpr] def codecOf[A](schema: Schema[A]): DynamoDBCodec[A] = {
     val key = new CodecCacheKey(schema, config)
@@ -63,8 +59,4 @@ private[ddbexpr] final class ExprCtx(
 
   private[ddbexpr] def encode[A](value: A, schema: Schema[A]): AttributeValue =
     codecOf(schema).encoder(value)
-}
-
-private[ddbexpr] object ExprCtx {
-  val default: ExprCtx = new ExprCtx(DynamoDBCodecDeriverConfig.default[Any], null)
 }

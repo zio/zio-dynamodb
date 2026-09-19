@@ -20,10 +20,8 @@ import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprApi, DdbKeyExpr }
 import zio.dynamodb.blocks.ddbexpr.DdbExprApi._
-// derivedCodec from DdbKeyExpr._; bring DdbExpr extension methods separately
-// to avoid the two-derivedCodec ambiguity with DdbExpr.derivedCodec.
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
-import zio.dynamodb.blocks.ddbexpr.DdbExpr.{ DdbExprBoolSyntax, OpticDdbExprOps, OpticStringDdbExprOps }
+import zio.dynamodb.blocks.ddbexpr.DdbExpr._
 import zio.test._
 import zio.test.Assertion._
 
@@ -59,7 +57,7 @@ object DdbExprApiSpec extends ZIOSpecDefault {
   def spec = suite("DdbExprApi")(
     suite("item encoding round-trip")(
       test("codec decodes a well-formed item") {
-        val codec = implicitly[zio.dynamodb.blocks.schema.DynamoDBCodec[Task]]
+        val codec = Task.schema.deriving(zio.dynamodb.blocks.schema.DynamoDBCodecDeriver).derive
         val task  = Task("t1", 42, Priority.High)
         val av    = AttributeValue.Map(
           Map(
@@ -71,7 +69,7 @@ object DdbExprApiSpec extends ZIOSpecDefault {
         assertTrue(codec.decoder(av) == Right(task))
       },
       test("sealed-trait with all-no-field cases encodes as AttributeValue.String") {
-        val codec = implicitly[zio.dynamodb.blocks.schema.DynamoDBCodec[Task]]
+        val codec = Task.schema.deriving(zio.dynamodb.blocks.schema.DynamoDBCodecDeriver).derive
         val task  = Task("t1", 42, Priority.High)
         val av    = codec.encoder(task)
         av match {

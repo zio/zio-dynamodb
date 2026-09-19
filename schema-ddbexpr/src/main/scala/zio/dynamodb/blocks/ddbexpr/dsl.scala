@@ -32,11 +32,6 @@ package zio.dynamodb.blocks.ddbexpr
  *    DdbExprApi.scan[Task]("tasks", 20).filter(Task.score > 0 && Task.priority === Priority.High)
  *  }}}
  *
- *  `DdbExprSyntax` and `DdbKeyExprSyntax` each independently need a `DynamoDBCodec[A]` for any
- *  `A` with a `Schema[A]` in scope; both get it from the same inherited
- *  `DerivedCodecSyntax.derivedCodec` rather than each declaring their own copy, so mixing them
- *  together here resolves without an ambiguous-implicit error.
- *
  *  This is purely a convenience for the common case — `DdbExprApi`, `DdbKeyExpr`, and
  *  `DdbExpr` remain independently importable exactly as before for callers who want only
  *  one piece (e.g. a test exercising `DdbKeyExpr` in isolation).

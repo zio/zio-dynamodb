@@ -17,6 +17,7 @@
 package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Schema }
+import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprInterpreter }
 import zio.dynamodb.blocks.ddbexpr.DdbExpr._
 import zio.test._
@@ -64,8 +65,10 @@ object DdbExprSpec extends ZIOSpecDefault {
 
   private def render(ce: ConditionExpression[_]): String = ce.render.execute._2
 
-  private def interpret[S](expr: DdbExpr[S, Boolean]): Either[String, ConditionExpression[S]] =
-    DdbExprInterpreter.toConditionExpression(expr)
+  private def interpret[S](expr: DdbExpr[S, Boolean])(implicit
+    schema: Schema[S]
+  ): Either[String, ConditionExpression[S]] =
+    DdbExprInterpreter.toConditionExpression(expr, DynamoDBCodecDeriverConfig[S](), schema.reflect)
 
   // ── Spec ─────────────────────────────────────────────────────────────────────
 
@@ -298,7 +301,7 @@ object DdbExprSpec extends ZIOSpecDefault {
         )
       },
       test("all-no-field sealed trait: DynamoDBCodec encodes as AttributeValue.String") {
-        val codec = implicitly[zio.dynamodb.blocks.schema.DynamoDBCodec[Priority]]
+        val codec = Priority.schema.deriving(zio.dynamodb.blocks.schema.DynamoDBCodecDeriver).derive
         assertTrue(codec.encoder(Priority.High) == AttributeValue.String("High")) &&
         assertTrue(codec.encoder(Priority.Low) == AttributeValue.String("Low"))
       },

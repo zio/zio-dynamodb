@@ -79,7 +79,7 @@ sealed trait DdbExpr[S, A]
  *  cost of this trait's methods spelling out `DdbExpr.AttributeExists(...)` instead of the
  *  unqualified `AttributeExists(...)` they could use when everything lived in one object.
  */
-trait DdbExprSyntax extends DerivedCodecSyntax {
+trait DdbExprSyntax {
 
   // ── Optic extension methods ─────────────────────────────────────────────────
 

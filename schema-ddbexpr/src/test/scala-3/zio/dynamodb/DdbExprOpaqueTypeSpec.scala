@@ -45,11 +45,13 @@ object DdbExprOpaqueTypeSpec extends ZIOSpecDefault {
   private def render(ce: ConditionExpression[_]): String  = ce.render.execute._2
   private def renderKey(kce: KeyConditionExpr[_]): String = kce.render.execute._2
 
-  private def interpret[S](expr: DdbExpr[S, Boolean]): Either[String, ConditionExpression[S]] =
-    DdbExprInterpreter.toConditionExpression(expr)
+  private def interpret[S](expr: DdbExpr[S, Boolean])(using
+    schema: Schema[S]
+  ): Either[String, ConditionExpression[S]] =
+    DdbExprInterpreter.toConditionExpression(expr, DynamoDBCodecDeriverConfig[S](), schema.reflect)
 
-  private def interpretKey[S](expr: DdbKeyExpr[S]): Either[String, KeyConditionExpr[S]] =
-    DdbKeyExprInterpreter.toKeyConditionExpr(expr)
+  private def interpretKey[S](expr: DdbKeyExpr[S])(using schema: Schema[S]): Either[String, KeyConditionExpr[S]] =
+    DdbKeyExprInterpreter.toKeyConditionExpr(expr, DynamoDBCodecDeriverConfig[S](), schema.reflect)
 
   // Interpret a filter through the config-aware overload (the one a configured Table uses),
   // then read back the attribute name and literal the expression references.

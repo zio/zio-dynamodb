@@ -31,15 +31,11 @@ import zio.dynamodb.{ AttributeValue, ConditionExpression, ProjectionExpression 
  *  [[Schema]] for the literal; the codec is derived at evaluation time.
  *
  *  Field paths and literals are resolved through an [[ExprCtx]] - per-[[Table]] on the
- *  configured path (so `.filter` / `.where` see the same attribute names and encoding rules
- *  as the item body), or the shared [[ExprCtx.default]] (raw optic names, default deriver)
- *  for the low-level implicit-conversion path. The `ExprCtx` memoises resolved projections
- *  and literal codecs, so construction allocates neither cache keys nor a context object.
+ *  configured path, so `.filter` / `.where` see the same attribute names and encoding
+ *  rules as the item body. The `ExprCtx` memoises resolved projections and literal
+ *  codecs, so construction allocates neither cache keys nor a context object.
  */
 private[dynamodb] object DdbExprInterpreter {
-
-  def toConditionExpression[S](expr: DdbExpr[S, Boolean]): Either[String, ConditionExpression[S]] =
-    interp[S](expr, ExprCtx.default)
 
   def toConditionExpression[S](expr: DdbExpr[S, Boolean], ctx: ExprCtx): Either[String, ConditionExpression[S]] =
     interp[S](expr, ctx)
