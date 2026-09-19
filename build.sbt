@@ -225,6 +225,7 @@ lazy val examples = (project in file("examples"))
     crossScalaVersions := Seq(scala3Version, scala213Version, scala39Version),
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio-streams"  % zioVersion,
+      "dev.zio" %% "zio-prelude"  % zioPreludeVersion, // Newtype/Subtype wrapped-scalar examples
       "dev.zio" %% "zio-test"     % zioVersion % Test,
       "dev.zio" %% "zio-test-sbt" % zioVersion % Test
     ),
