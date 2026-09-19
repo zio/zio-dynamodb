@@ -21,10 +21,11 @@ import zio.dynamodb.DynamoDBQuery
 import zio.dynamodb.blocks.ddbexpr.dsl._
 
 /**
- * Shapes the query DSL rejects at compile time, kept as commented-out snippets with the
- * compiler's error alongside each. Scala 3 gives a detailed "Allows Error"; Scala 2.13
- * rejects the same code with a plainer "could not find implicit value" message. The last
- * example here is different: it compiles, but fails when the query actually runs.
+ * Shapes the query DSL rejects at compile time. `CompileTimeRejectionsSpec` verifies each one
+ * for real via `zio.test.typeCheck`: `inSet`/`remove(index)`/`.contains` used on the wrong
+ * field shape, and `between`/`inSet` on a plain `AnyVal` value class (they do work on an
+ * opaque type or a zio-prelude `Subtype`/`Newtype` — see `WrappedScalars.scala`). The last one
+ * below is different: it compiles, but fails when the query actually runs.
  */
 object CompileTimeRejections {
 
@@ -33,30 +34,11 @@ object CompileTimeRejections {
   object Widget extends CompanionOptics[Widget] {
     implicit val schema: Schema[Widget] = Schema.derived
 
-    // 1. inSet only works on a scalar field, not a list.
-    // val badInSet = $(_.tags).inSet(Set(List("a")))
-    //   Allows Error: Shape violation at List — Found: SealedTrait(List), Required: N || S || B
-
-    // 2. remove(index) only works on a list field.
-    // val badRemoveAt = $(_.qty).remove(0)
-    //   Allows Error: Shape violation at Int — Found: Primitive(scala.Int), Required: L
-
-    // 3. .contains only works on a String field.
-    // val badContains = $(_.qty).contains("1")
-    //   Not found: value contains
-
     def firstTag: Optional[Widget, String] = $(_.tags.at(0))
   }
 
-  // 4. between/in/inSet don't work on a plain AnyVal value class — they do work on an opaque
-  // type or a zio-prelude Subtype/Newtype (see WrappedScalars.scala).
-  // final case class Sku(value: String) extends AnyVal
-  // ...
-  // WidgetWithSku.sku.between(Sku("a"), Sku("z"))
-  //   Allows Error: Shape violation at Sku — Found: Record(Sku), Required: N || S || B
-
   // A non-String Map key compiles fine, but the query fails when it runs, with a
-  // DynamoDBError.ItemError.DecodingError.
+  // DynamoDBError.ItemError.DecodingError — see CompileTimeRejectionsSpec's "live failure" suite.
   final case class Registry(name: String, counts: Map[Int, Int])
 
   object Registry extends CompanionOptics[Registry] {
