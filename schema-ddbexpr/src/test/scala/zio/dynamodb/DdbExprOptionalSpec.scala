@@ -146,14 +146,7 @@ object DdbExprOptionalSpec extends ZIOSpecDefault {
       )
     },
 
-    // Case(Some)+Field(value) pruning (see OpticToPE.pruneOptionalNodes) only ever worked
-    // through the raw, config-free optic walk — ResolverDeriver (the deriver a real Table
-    // uses to build its ProjectionResolver) has no handling for Reflect.Optional at all, so
-    // walking into an Option[List]/Option[Map] element's inner structure fails the same way
-    // through a real Table as it does here. These three cases document that known gap rather
-    // than a working feature — confirmed to fail identically via Table.exprCtx, not something
-    // introduced by testing through it here.
-    suite("Option[A] transparency — Case(Some)+Field(value) pruning is NOT supported") {
+    suite("Option[A] via when[Some].value") {
       case class Profile(name: String, tags: Option[List[String]], meta: Option[Map[String, Int]])
       object Profile extends CompanionOptics[Profile] {
         implicit val schema: Schema[Profile]            = Schema.derived
@@ -163,25 +156,22 @@ object DdbExprOptionalSpec extends ZIOSpecDefault {
       }
 
       suite("Option[A] paths")(
-        test("attributeExists on Option[List] element fails to resolve") {
+        test("attributeExists on an Option[List] element renders attribute_exists") {
           val expr = Profile.tagAt(0).attributeExists
-          assert(interpret(expr))(isLeft(containsString("is not a sequence index")))
+          interpret(expr)
+            .map(renderCE)
+            .fold(
+              _ => assertNever("interpreter failed"),
+              s => assert(s)(startsWithString("attribute_exists"))
+            )
         },
-        test("remove on Option[List] element fails to resolve") {
-          val action = DdbUpdateExprInterpreter.toAction(
-            Profile.tagAt(3).remove,
-            DynamoDBCodecDeriverConfig[Profile](),
-            Profile.schema.reflect
-          )
-          assertTrue(action.isInstanceOf[UpdateExpression.Action.Failure[_]])
+        test("remove on an Option[List] element renders REMOVE with list index syntax") {
+          val rendered = renderAction(Profile.tagAt(3).remove)
+          assert(rendered)(startsWithString("remove") && containsString("[3]"))
         },
-        test("set on Option[Map] key fails to resolve") {
-          val action = DdbUpdateExprInterpreter.toAction(
-            Profile.metaAt("views").set(42),
-            DynamoDBCodecDeriverConfig[Profile](),
-            Profile.schema.reflect
-          )
-          assertTrue(action.isInstanceOf[UpdateExpression.Action.Failure[_]])
+        test("set on an Option[Map] key renders SET") {
+          val rendered = renderAction(Profile.metaAt("views").set(42))
+          assert(rendered)(startsWithString("set") && containsString("="))
         }
       )
     }
