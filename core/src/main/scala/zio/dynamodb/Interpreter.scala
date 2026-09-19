@@ -339,10 +339,8 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
 object DummyIOInterpreter extends AwsInterpreter[DummyIO] {
 
   private[dynamodb] def pure[A](a: A): DummyIO[A]                                     = DummyIO.succeed(a)
-  private[dynamodb] def map[A, B](fa: DummyIO[A])(f: A => B): DummyIO[B]              =
-    DummyIO(() => f(fa.unsafeRun()))
-  private[dynamodb] def flatMap[A, B](fa: DummyIO[A])(f: A => DummyIO[B]): DummyIO[B] =
-    DummyIO(() => f(fa.unsafeRun()).unsafeRun())
+  private[dynamodb] def map[A, B](fa: DummyIO[A])(f: A => B): DummyIO[B]              = fa.map(f)
+  private[dynamodb] def flatMap[A, B](fa: DummyIO[A])(f: A => DummyIO[B]): DummyIO[B] = fa.flatMap(f)
   protected def product[A, B](fa: DummyIO[A], fb: DummyIO[B]): DummyIO[(A, B)]        =
     DummyIO(() => (fa.unsafeRun(), fb.unsafeRun()))
   protected def productPar[A, B](fa: DummyIO[A], fb: DummyIO[B]): DummyIO[(A, B)]     =

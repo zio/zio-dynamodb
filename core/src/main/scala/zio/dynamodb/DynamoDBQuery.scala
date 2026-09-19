@@ -26,8 +26,14 @@ import zio.dynamodb.proofs.{ CanFilter, CanWhere }
 
 import scala.+:
 
-final case class DummyIO[+A](unsafeRun: () => A)
-object DummyIO {
+// `map`/`flatMap` exist so a query-composition test can sequence several `.execute` calls in
+// a for-comprehension, same shape as it would under a real effect type - not a general-purpose
+// effect type of its own.
+final case class DummyIO[+A](unsafeRun: () => A) {
+  def map[B](f: A => B): DummyIO[B]              = DummyIO(() => f(unsafeRun()))
+  def flatMap[B](f: A => DummyIO[B]): DummyIO[B] = DummyIO(() => f(unsafeRun()).unsafeRun())
+}
+object DummyIO                                   {
   def succeed[A](a: => A): DummyIO[A] = DummyIO(() => a)
 }
 
