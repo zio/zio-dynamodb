@@ -41,7 +41,8 @@ object RequestOptions {
   val strictlyConsistentGet: DynamoDBQuery[Any, Option[Item]] =
     DynamoDBQuery.getItem(table, key).consistency(ConsistencyMode.Strong)
 
-  val descendingQuery = DynamoDBQuery.query(table, limit = 20).sortOrder(ascending = false)
+  val descendingQuery =
+    DynamoDBQuery.query(table, limit = 20).whereKey($("id").partitionKey === "o1").sortOrder(ascending = false)
 
   val nextPage = DynamoDBQuery.scan(table, limit = 20).startKey(Some(key))
 }
