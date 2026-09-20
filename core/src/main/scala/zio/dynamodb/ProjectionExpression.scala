@@ -293,6 +293,12 @@ object ProjectionExpression {
 
     def attributeNotExists: ConditionExpression[From] = ConditionExpression.AttributeNotExists(self)
 
+    /**
+     * True when this attribute is stored as the given DynamoDB type
+     */
+    def attributeType(value: AttributeValueType): ConditionExpression[From] =
+      ConditionExpression.AttributeType(self, value)
+
     def remove: UpdateExpression.Action.RemoveAction[From] = UpdateExpression.Action.RemoveAction(self)
 
     /**

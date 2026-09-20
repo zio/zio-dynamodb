@@ -63,6 +63,12 @@ object ConditionExpressionSpec extends ZIOSpecDefault {
     test("attribute_type — String") {
       assertTrue(expr(AttributeType(namePE, AttributeValueType.String)) == "attribute_type(#n1, :v0)")
     },
+    test("attributeType (public ProjectionExpressionSyntax method) renders the same as the internal node") {
+      assertTrue(
+        expr(namePE.attributeType(AttributeValueType.String)) ==
+          expr(AttributeType(namePE, AttributeValueType.String))
+      )
+    },
     test("attribute_type — Number") {
       assertTrue(expr(AttributeType(agePE, AttributeValueType.Number)) == "attribute_type(#n1, :v0)")
     },

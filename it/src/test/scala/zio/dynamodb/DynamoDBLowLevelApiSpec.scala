@@ -1415,6 +1415,19 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             result <- interpreter.run(DynamoDBQuery.getItem(table, PrimaryKey("id" -> "cond-ct")))
           } yield assertTrue(result.isEmpty)
         }
+      },
+      test("attributeType condition: deleteItem succeeds when attribute is stored as the given type") {
+        withSingleIdKeyTable { (table, interpreter) =>
+          for {
+            _      <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "cond-at", "score" -> 50)))
+            _      <- interpreter.run(
+                        DynamoDBQuery
+                          .deleteItem(table, PrimaryKey("id" -> "cond-at"))
+                          .where($("score").attributeType(AttributeValueType.Number))
+                      )
+            result <- interpreter.run(DynamoDBQuery.getItem(table, PrimaryKey("id" -> "cond-at")))
+          } yield assertTrue(result.isEmpty)
+        }
       }
     )
 
