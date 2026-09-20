@@ -45,7 +45,7 @@ object Sets {
     DynamoDBQuery.putItem(table, item)
 
   val updateQuery: DynamoDBQuery[Any, Option[Item]] =
-    DynamoDBQuery.updateItem(table, key)(addTags + removeTags)
+    DynamoDBQuery.updateItem(table, key)(addTags + addRatings)
 
   val scanQuery = DynamoDBQuery.scan(table, limit = 20).filter(hasTag)
 }
