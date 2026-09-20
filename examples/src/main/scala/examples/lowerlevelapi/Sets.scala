@@ -22,7 +22,9 @@ import zio.dynamodb.UpdateExpression.RenderableAction
 
 /**
  * DynamoDB's native set types — `StringSet`, `NumberSet`, `BinarySet` — via `contains`,
- * `containsSet`, `inSet` (conditions) and `addSet`, `deleteFromSet` (update actions).
+ * `containsSet` (conditions) and `addSet`, `deleteFromSet` (update actions). `inSet` (see
+ * `Scalars.scala`) is a different thing — an `IN` condition testing a scalar attribute against
+ * a Scala `Set` of candidates — and isn't valid here against a Set-typed attribute.
  */
 object Sets {
 
@@ -30,9 +32,9 @@ object Sets {
   private val key   = PrimaryKey("id" -> "p1")
 
   // Conditions
-  val hasTag: ConditionExpression[Any]     = $("tags").contains("clearance")
-  val hasAllTags: ConditionExpression[Any] = $("tags").containsSet("clearance", Set("new", "featured"))
-  val ratingIn: ConditionExpression[Any]   = $("ratings").inSet(Set(1, 2, 3))
+  val hasTag: ConditionExpression[Any]         = $("tags").contains("clearance")
+  val hasAllTags: ConditionExpression[Any]     = $("tags").containsSet("clearance", Set("new", "featured"))
+  val ratingContains: ConditionExpression[Any] = $("ratings").contains(4)
 
   // Update actions
   val addTags: RenderableAction[Any]    = $("tags").addSet(Set("clearance", "sale"))
