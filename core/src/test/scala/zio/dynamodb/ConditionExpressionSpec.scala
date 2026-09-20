@@ -63,6 +63,12 @@ object ConditionExpressionSpec extends ZIOSpecDefault {
     test("attribute_type — String") {
       assertTrue(expr(AttributeType(namePE, AttributeValueType.String)) == "attribute_type(#n1, :v0)")
     },
+    test("attributeType (public ProjectionExpressionSyntax method) renders the same as the internal node") {
+      assertTrue(
+        expr(namePE.attributeType(AttributeValueType.String)) ==
+          expr(AttributeType(namePE, AttributeValueType.String))
+      )
+    },
     test("attribute_type — Number") {
       assertTrue(expr(AttributeType(agePE, AttributeValueType.Number)) == "attribute_type(#n1, :v0)")
     },
@@ -75,8 +81,17 @@ object ConditionExpressionSpec extends ZIOSpecDefault {
     test("begins_with — value alias precedes path alias") {
       assertTrue(expr(BeginsWith(emailPE, AttributeValue.String("test@"))) == "begins_with(#n1, :v0)")
     },
+    test("beginsWith (public ProjectionExpressionSyntax method) renders the same as the internal node") {
+      assertTrue(expr(emailPE.beginsWith("test@")) == expr(BeginsWith(emailPE, AttributeValue.String("test@"))))
+    },
     test("attribute_exists — uses exactly 1 alias") {
       assertTrue(aliasCount(AttributeExists(namePE)) == 1)
+    },
+    test("attributeExists (public ProjectionExpressionSyntax method) renders the same as the internal node") {
+      assertTrue(expr(namePE.attributeExists) == expr(AttributeExists(namePE)))
+    },
+    test("attributeNotExists (public ProjectionExpressionSyntax method) renders the same as the internal node") {
+      assertTrue(expr(namePE.attributeNotExists) == expr(AttributeNotExists(namePE)))
     },
     test("contains — uses exactly 2 aliases") {
       assertTrue(aliasCount(Contains(namePE, AttributeValue.String("foo"))) == 2)

@@ -193,6 +193,12 @@ object ProjectionExpression {
       ConditionExpression.Contains(self, to.toAttributeValue(av))
 
     /**
+     * True when this String or Binary attribute starts with `value`
+     */
+    def beginsWith[To: ToAttributeValue](value: To): ConditionExpression[From] =
+      ConditionExpression.BeginsWith(self, ToAttributeValue[To].toAttributeValue(value))
+
+    /**
      * Applies fields of type Set, List, String and creates a composite of `contains` ConditionExpression's
      * for each element (head plus tail) that are joined with an `&&` (and)
      */
@@ -281,6 +287,41 @@ object ProjectionExpression {
       ConditionExpression.GreaterThanOrEqual(
         ProjectionExpressionOperand(self),
         ConditionExpression.Operand.ProjectionExpressionOperand(that)
+      )
+
+    def attributeExists: ConditionExpression[From] = ConditionExpression.AttributeExists(self)
+
+    def attributeNotExists: ConditionExpression[From] = ConditionExpression.AttributeNotExists(self)
+
+    /**
+     * True when this attribute is stored as the given DynamoDB type
+     */
+    def attributeType(value: AttributeValueType): ConditionExpression[From] =
+      ConditionExpression.AttributeType(self, value)
+
+    def remove: UpdateExpression.Action.RemoveAction[From] = UpdateExpression.Action.RemoveAction(self)
+
+    /**
+     * Increments a numeric attribute via `SET path = path + amount` — as opposed to [[add]],
+     * which uses the `ADD` action.
+     */
+    def increment[To: ToAttributeValue](amount: To): UpdateExpression.Action.SetAction[From, To] =
+      UpdateExpression.Action.SetAction(
+        self.unsafeTo[To],
+        PathOperand(self.unsafeTo[To]) + UpdateExpression.SetOperand.ValueOperand(
+          ToAttributeValue[To].toAttributeValue(amount)
+        )
+      )
+
+    /**
+     * Decrements a numeric attribute via `SET path = path - amount`.
+     */
+    def decrement[To: ToAttributeValue](amount: To): UpdateExpression.Action.SetAction[From, To] =
+      UpdateExpression.Action.SetAction(
+        self.unsafeTo[To],
+        PathOperand(self.unsafeTo[To]) - UpdateExpression.SetOperand.ValueOperand(
+          ToAttributeValue[To].toAttributeValue(amount)
+        )
       )
   }
 

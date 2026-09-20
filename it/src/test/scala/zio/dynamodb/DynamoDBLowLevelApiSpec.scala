@@ -437,9 +437,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
           for {
             _      <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "eve", "score" -> 42, "tmp" -> "x")))
             _      <- interpreter.run(
-                        DynamoDBQuery.updateItem(table, PrimaryKey("id" -> "eve")) {
-                          UpdateExpression.Action.RemoveAction($("tmp"))
-                        }
+                        DynamoDBQuery.updateItem(table, PrimaryKey("id" -> "eve"))($("tmp").remove)
                       )
             result <- interpreter.run(DynamoDBQuery.getItem(table, PrimaryKey("id" -> "eve")))
           } yield assertTrue(result.contains(Item("id" -> "eve", "score" -> 42)))
@@ -1151,13 +1149,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
           for {
             _      <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "arith-a", "n" -> 0)))
             _      <- interpreter.run(
-                        DynamoDBQuery.updateItem(table, PrimaryKey("id" -> "arith-a")) {
-                          UpdateExpression.Action.SetAction(
-                            $("n"),
-                            UpdateExpression.SetOperand.PathOperand($("n")) +
-                              UpdateExpression.SetOperand.ValueOperand(AttributeValue.Number(5))
-                          )
-                        }
+                        DynamoDBQuery.updateItem(table, PrimaryKey("id" -> "arith-a"))($("n").increment(5))
                       )
             result <- interpreter.run(DynamoDBQuery.getItem(table, PrimaryKey("id" -> "arith-a")))
           } yield assertTrue(result.contains(Item("id" -> "arith-a", "n" -> 5)))
@@ -1168,13 +1160,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
           for {
             _      <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "arith-b", "n" -> 10)))
             _      <- interpreter.run(
-                        DynamoDBQuery.updateItem(table, PrimaryKey("id" -> "arith-b")) {
-                          UpdateExpression.Action.SetAction(
-                            $("n"),
-                            UpdateExpression.SetOperand.PathOperand($("n")) -
-                              UpdateExpression.SetOperand.ValueOperand(AttributeValue.Number(3))
-                          )
-                        }
+                        DynamoDBQuery.updateItem(table, PrimaryKey("id" -> "arith-b"))($("n").decrement(3))
                       )
             result <- interpreter.run(DynamoDBQuery.getItem(table, PrimaryKey("id" -> "arith-b")))
           } yield assertTrue(result.contains(Item("id" -> "arith-b", "n" -> 7)))
@@ -1266,9 +1252,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
           for {
             _      <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "list-c", "xs" -> List(1, 2, 3))))
             _      <- interpreter.run(
-                        DynamoDBQuery.updateItem(table, PrimaryKey("id" -> "list-c")) {
-                          UpdateExpression.Action.RemoveAction($("xs[1]"))
-                        }
+                        DynamoDBQuery.updateItem(table, PrimaryKey("id" -> "list-c"))($("xs[1]").remove)
                       )
             result <- interpreter.run(DynamoDBQuery.getItem(table, PrimaryKey("id" -> "list-c")))
           } yield {
@@ -1413,7 +1397,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _      <- interpreter.run(
                         DynamoDBQuery
                           .deleteItem(table, PrimaryKey("id" -> "cond-bw"))
-                          .where(ConditionExpression.BeginsWith($("name"), AttributeValue.String("al")))
+                          .where($("name").beginsWith("al"))
                       )
             result <- interpreter.run(DynamoDBQuery.getItem(table, PrimaryKey("id" -> "cond-bw")))
           } yield assertTrue(result.isEmpty)
@@ -1429,6 +1413,19 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
                           .where($("name").contains("hello"))
                       )
             result <- interpreter.run(DynamoDBQuery.getItem(table, PrimaryKey("id" -> "cond-ct")))
+          } yield assertTrue(result.isEmpty)
+        }
+      },
+      test("attributeType condition: deleteItem succeeds when attribute is stored as the given type") {
+        withSingleIdKeyTable { (table, interpreter) =>
+          for {
+            _      <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "cond-at", "score" -> 50)))
+            _      <- interpreter.run(
+                        DynamoDBQuery
+                          .deleteItem(table, PrimaryKey("id" -> "cond-at"))
+                          .where($("score").attributeType(AttributeValueType.Number))
+                      )
+            result <- interpreter.run(DynamoDBQuery.getItem(table, PrimaryKey("id" -> "cond-at")))
           } yield assertTrue(result.isEmpty)
         }
       }
@@ -1449,9 +1446,22 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             page <- interpreter.run(
                       DynamoDBQuery
                         .scan(table, limit = 10)
-                        .filter(ConditionExpression.AttributeNotExists($("ttl")))
+                        .filter($("ttl").attributeNotExists)
                     )
           } yield assertTrue(page.items.length == 2)
+        }
+      },
+      test("scan.filter with AttributeExists on a DynamoDB reserved word succeeds") {
+        withSingleIdKeyTable { (table, interpreter) =>
+          for {
+            _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "rk-4")))
+            _    <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "rk-5", "ttl" -> 9999)))
+            page <- interpreter.run(
+                      DynamoDBQuery
+                        .scan(table, limit = 10)
+                        .filter($("ttl").attributeExists)
+                    )
+          } yield assertTrue(page.items.length == 1)
         }
       },
       test("query.filter with AttributeNotExists on a DynamoDB reserved word succeeds") {
@@ -1465,7 +1475,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
                       DynamoDBQuery
                         .query(table, limit = 10)
                         .whereKey($("id").partitionKey === "rk-q")
-                        .filter(ConditionExpression.AttributeNotExists($("ttl")))
+                        .filter($("ttl").attributeNotExists)
                     )
           } yield assertTrue(page.items.length == 1)
         }
@@ -1477,7 +1487,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
             _      <- interpreter.run(
                         DynamoDBQuery
                           .putItem(table, Item("id" -> "rk-p", "score" -> 1))
-                          .where(ConditionExpression.AttributeNotExists($("ttl")))
+                          .where($("ttl").attributeNotExists)
                       )
             result <- interpreter.run(DynamoDBQuery.getItem(table, PrimaryKey("id" -> "rk-p")))
           } yield assertTrue(result.contains(Item("id" -> "rk-p", "score" -> 1)))
