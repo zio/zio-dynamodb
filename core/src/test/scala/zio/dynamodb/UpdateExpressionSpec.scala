@@ -67,6 +67,9 @@ object UpdateExpressionSpec extends ZIOSpecDefault {
     test("REMOVE — uses exactly 1 alias") {
       assertTrue(aliasCount(UpdateExpression(RemoveAction(namePE))) == 1)
     },
+    test("remove (public ProjectionExpressionSyntax method) renders the same as the internal node") {
+      assertTrue(expr(UpdateExpression(namePE.remove)) == expr(UpdateExpression(RemoveAction(namePE))))
+    },
     test("ADD — path alias precedes value alias") {
       val ue = UpdateExpression(AddAction(countPE, AttributeValue.Number(5)))
       assertTrue(expr(ue) == "add #n0 :v1")
@@ -116,6 +119,20 @@ object UpdateExpressionSpec extends ZIOSpecDefault {
       // IfNotExists: pe → #n0, value → :v1; path reuses #n0
       val ue      = UpdateExpression(SetAction(scorePE, IfNotExists(scorePE, AttributeValue.Number(0))))
       assertTrue(expr(ue) == "set #n0 = if_not_exists(#n0, :v1)")
+    },
+    test("increment (public ProjectionExpressionSyntax method) renders the same as the internal node") {
+      val ue         = UpdateExpression(countPE.increment(5))
+      val equivalent = UpdateExpression(
+        SetAction(countPE, Plus(PathOperand(countPE), ValueOperand(AttributeValue.Number(5))))
+      )
+      assertTrue(expr(ue) == expr(equivalent))
+    },
+    test("decrement (public ProjectionExpressionSyntax method) renders the same as the internal node") {
+      val ue         = UpdateExpression(countPE.decrement(3))
+      val equivalent = UpdateExpression(
+        SetAction(countPE, Minus(PathOperand(countPE), ValueOperand(AttributeValue.Number(3))))
+      )
+      assertTrue(expr(ue) == expr(equivalent))
     }
   )
 
