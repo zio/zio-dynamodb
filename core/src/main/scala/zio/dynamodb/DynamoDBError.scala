@@ -57,15 +57,15 @@ object DynamoDBError {
   /**
    * Raised when a `DynamoDBQuery` builder modifier is applied to a query variant that doesn't
    *  support it — e.g. `.where` (condition expressions) on a `scan`/`query`, or
-   *  `.filter` (filter expressions) on a `putItem`/`updateItem`/`deleteItem`. The query still
-   *  builds successfully (this is only raised once the resulting query is executed) — the
-   *  modifier call itself just becomes a [[DynamoDBQuery.Fail]] carrying this error, rather
-   *  than silently returning the original query unchanged.
+   *  `.filter` (filter expressions) on a `putItem`/`updateItem`/`deleteItem` — or when a
+   *  `query` is missing a required one, e.g. no `.whereKey`. The query still builds
+   *  successfully; this is only raised once it's actually executed.
    */
   sealed trait QueryBuilderError extends DynamoDBError
 
   object QueryBuilderError {
     final case class UnsupportedModifier(message: String) extends QueryBuilderError
+    final case class MissingKeyCondition(message: String) extends QueryBuilderError
   }
 
   sealed trait TransactionError extends DynamoDBError

@@ -198,7 +198,14 @@ object AwsRequestFlowSpec extends ZIOSpecDefault {
     test("query consistency(Strong) produces consistentRead true") {
       var captured: QueryRequest = null
       val interp                 = new DummyIOInterpreter(stub(onQuery = req => { captured = req; QueryResponse.builder().build() }))
-      interp.run(DynamoDBQuery.query(table, 10).consistency(ConsistencyMode.Strong)).unsafeRun()
+      interp
+        .run(
+          DynamoDBQuery
+            .query(table, 10)
+            .whereKey(ProjectionExpression.$("id").partitionKey === "a")
+            .consistency(ConsistencyMode.Strong)
+        )
+        .unsafeRun()
       assertTrue(captured.consistentRead() == true)
     },
     test("scan consistency(Strong) produces consistentRead true") {
@@ -303,13 +310,17 @@ object AwsRequestFlowSpec extends ZIOSpecDefault {
     test("query startKey(Some(pk)) sets exclusiveStartKey in the QueryRequest") {
       var captured: QueryRequest = null
       val interp                 = new DummyIOInterpreter(stub(onQuery = req => { captured = req; QueryResponse.builder().build() }))
-      interp.run(DynamoDBQuery.query(table, 10).startKey(Some(pk))).unsafeRun()
+      interp
+        .run(
+          DynamoDBQuery.query(table, 10).whereKey(ProjectionExpression.$("id").partitionKey === "a").startKey(Some(pk))
+        )
+        .unsafeRun()
       assertTrue(captured.hasExclusiveStartKey() && captured.exclusiveStartKey() == awsKey)
     },
     test("query with no startKey does not set exclusiveStartKey in the QueryRequest") {
       var captured: QueryRequest = null
       val interp                 = new DummyIOInterpreter(stub(onQuery = req => { captured = req; QueryResponse.builder().build() }))
-      interp.run(DynamoDBQuery.query(table, 10)).unsafeRun()
+      interp.run(DynamoDBQuery.query(table, 10).whereKey(ProjectionExpression.$("id").partitionKey === "a")).unsafeRun()
       assertTrue(!captured.hasExclusiveStartKey())
     }
   )
@@ -425,19 +436,28 @@ object AwsRequestFlowSpec extends ZIOSpecDefault {
     test("query.selectCount sets Select.COUNT in the QueryRequest") {
       var captured: QueryRequest = null
       val interp                 = new DummyIOInterpreter(stub(onQuery = req => { captured = req; QueryResponse.builder().build() }))
-      interp.run(DynamoDBQuery.query(table, 10).selectCount).unsafeRun()
+      interp
+        .run(DynamoDBQuery.query(table, 10).whereKey(ProjectionExpression.$("id").partitionKey === "a").selectCount)
+        .unsafeRun()
       assertTrue(captured.select() == AwsSelect.COUNT)
     },
     test("query.selectAllProjectedAttributes sets Select.ALL_PROJECTED_ATTRIBUTES in the QueryRequest") {
       var captured: QueryRequest = null
       val interp                 = new DummyIOInterpreter(stub(onQuery = req => { captured = req; QueryResponse.builder().build() }))
-      interp.run(DynamoDBQuery.query(table, 10).selectAllProjectedAttributes).unsafeRun()
+      interp
+        .run(
+          DynamoDBQuery
+            .query(table, 10)
+            .whereKey(ProjectionExpression.$("id").partitionKey === "a")
+            .selectAllProjectedAttributes
+        )
+        .unsafeRun()
       assertTrue(captured.select() == AwsSelect.ALL_PROJECTED_ATTRIBUTES)
     },
     test("query with no select does not set Select in the QueryRequest") {
       var captured: QueryRequest = null
       val interp                 = new DummyIOInterpreter(stub(onQuery = req => { captured = req; QueryResponse.builder().build() }))
-      interp.run(DynamoDBQuery.query(table, 10)).unsafeRun()
+      interp.run(DynamoDBQuery.query(table, 10).whereKey(ProjectionExpression.$("id").partitionKey === "a")).unsafeRun()
       assertTrue(captured.select() == null)
     }
   )

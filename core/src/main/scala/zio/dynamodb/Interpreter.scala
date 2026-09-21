@@ -142,9 +142,15 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
     accumulateErrors(ConditionExpression.collectFailures(ce))
 
   private def validateKCE(kce: Option[KeyConditionExpr[_]]): Option[DynamoDBError] =
-    kce.flatMap {
-      case KeyConditionExpr.Failure(msg) => Some(DynamoDBError.ItemError.DecodingError.failure(msg))
-      case _                             => None
+    kce match {
+      case None                                =>
+        Some(
+          DynamoDBError.QueryBuilderError.MissingKeyCondition(
+            "'query' requires a key condition — did you forget '.whereKey(...)'?"
+          )
+        )
+      case Some(KeyConditionExpr.Failure(msg)) => Some(DynamoDBError.ItemError.DecodingError.failure(msg))
+      case _                                   => None
     }
 
   private def validateAction(action: UpdateExpression.Action[_]): Option[DynamoDBError] =
