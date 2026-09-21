@@ -136,8 +136,14 @@ object InterpreterSpec extends ZIOSpecDefault {
         assertTrue(eval(q).isEmpty)
       },
       test("Query returns empty page") {
-        val page = eval(DynamoDBQuery.Query("t", limit = 10))
+        val page = eval(
+          DynamoDBQuery.Query("t", limit = 10).whereKey(ProjectionExpression.$("id").partitionKey === "val")
+        )
         assertTrue(page.items.isEmpty && page.lastEvaluatedKey.isEmpty)
+      },
+      test("Query with no key condition fails with MissingKeyCondition") {
+        val attempt = scala.util.Try(eval(DynamoDBQuery.Query("t", limit = 10)))
+        assert(attempt.failed.get)(isSubtype[DynamoDBError.QueryBuilderError.MissingKeyCondition](anything))
       },
       test("Scan returns empty page") {
         val page = eval(DynamoDBQuery.scan("t", limit = 10))
