@@ -64,6 +64,14 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   private[dynamodb] def raiseError[A](t: Throwable): F[A]
 
   /**
+   * The predicate `runAny` uses when a query's `RetryPolicy` doesn't specify one of its own.
+   *  `core` has no AWS SDK dependency, so this defaults to [[RetryPolicy.isRetryable]]'s
+   *  message-substring check; `RealAwsInterpreter` (in `aws`) overrides it with a check
+   *  against the SDK's own exception types instead.
+   */
+  protected def isRetryable: Throwable => Boolean = RetryPolicy.isRetryable
+
+  /**
    * Retries `fa` according to `policy` whenever `isRetryable` matches the
    *  thrown error. Exhausted retries re-raise the last error.
    *
@@ -207,10 +215,10 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   private def runAny(query: DynamoDBQuery[_, _]): F[Any] =
     query match {
       case q: DynamoDBQuery.GetItem            =>
-        q.retryPolicy.fold(runGetItem(q))(p => withRetry(p)(runGetItem(q))).asInstanceOf[F[Any]]
+        q.retryPolicy.fold(runGetItem(q))(p => withRetry(p, isRetryable)(runGetItem(q))).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.PutItem            =>
         validateCE(q.conditionExpression).fold(
-          q.retryPolicy.fold(runPutItem(q))(p => withRetry(p)(runPutItem(q))).asInstanceOf[F[Any]]
+          q.retryPolicy.fold(runPutItem(q))(p => withRetry(p, isRetryable)(runPutItem(q))).asInstanceOf[F[Any]]
         )(fail)
       case q: DynamoDBQuery.UpdateItem         =>
         validateAction(q.updateExpression.action)
@@ -220,7 +228,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
           )(fail)
       case q: DynamoDBQuery.DeleteItem         =>
         validateCE(q.conditionExpression).fold(
-          q.retryPolicy.fold(runDeleteItem(q))(p => withRetry(p)(runDeleteItem(q))).asInstanceOf[F[Any]]
+          q.retryPolicy.fold(runDeleteItem(q))(p => withRetry(p, isRetryable)(runDeleteItem(q))).asInstanceOf[F[Any]]
         )(fail)
       case q: DynamoDBQuery.Query              =>
         validateKCE(q.keyConditionExpr)
@@ -281,7 +289,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
     attempt: Int,
     accumulatedResponses: MapOfSet[String, Item] = MapOfSet.empty
   ): F[Batch.GetResult] =
-    flatMap(withRetryTracked(policy)(runBatchGetItem(q))) {
+    flatMap(withRetryTracked(policy, isRetryable)(runBatchGetItem(q))) {
       case Left((cause, effectRetries)) =>
         pure(Batch.GetResult.Failed(cause, responseRetries = attempt, effectRetries = effectRetries))
       case Right(response)              =>
@@ -310,7 +318,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
     policy: RetryPolicy,
     attempt: Int
   ): F[Batch.WriteResult] =
-    flatMap(withRetryTracked(policy)(runBatchWriteItem(q))) {
+    flatMap(withRetryTracked(policy, isRetryable)(runBatchWriteItem(q))) {
       case Left((cause, effectRetries)) =>
         pure(Batch.WriteResult.Failed(cause, responseRetries = attempt, effectRetries = effectRetries))
       case Right(response)              =>

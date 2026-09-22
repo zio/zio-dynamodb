@@ -16,6 +16,7 @@
 
 package zio.dynamodb
 
+import software.amazon.awssdk.awscore.exception.AwsServiceException
 import software.amazon.awssdk.core.SdkBytes
 import software.amazon.awssdk.services.dynamodb.model.{
   AttributeDefinition => AwsAttributeDefinition,
@@ -825,6 +826,23 @@ private[dynamodb] object AwsCodecs {
  * `pure`/`flatMap`/`product`/... primitives — everything AWS-request-shaped is shared here.
  */
 abstract class RealAwsInterpreter[F[_]](client: AwsDynamoDB[F]) extends AwsInterpreter[F] {
+
+  /**
+   * Classifies retryability from the AWS SDK's own exception types instead of
+   * [[RetryPolicy.isRetryable]]'s message-substring check.
+   * `AwsServiceException#isThrottlingException` already recognizes DynamoDB's throttling error
+   * codes (`ProvisionedThroughputExceededException`, `ThrottlingException`,
+   * `RequestLimitExceeded`, ...) from the service's own structured response rather than the
+   * exception message text; a 5xx status code covers transient server-side failures
+   * (`ServiceUnavailable` and siblings). Falls back to the default for anything that isn't an
+   * `AwsServiceException`.
+   */
+  private val retryableStatusCodes: Set[Int] = Set(500, 502, 503, 504)
+
+  override protected val isRetryable: Throwable => Boolean = {
+    case e: AwsServiceException => e.isThrottlingException || retryableStatusCodes.contains(e.statusCode())
+    case t                      => RetryPolicy.isRetryable(t)
+  }
 
   protected def runGetItem(q: DynamoDBQuery.GetItem): F[Option[Item]] =
     map(client.getItem(AwsCodecs.toGetItemRequest(q)))(AwsCodecs.fromGetItemResponse)
