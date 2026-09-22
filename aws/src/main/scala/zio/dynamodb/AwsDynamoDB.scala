@@ -839,7 +839,7 @@ abstract class RealAwsInterpreter[F[_]](client: AwsDynamoDB[F]) extends AwsInter
    */
   private val retryableStatusCodes: Set[Int] = Set(500, 502, 503, 504)
 
-  override protected val isRetryable: Throwable => Boolean = {
+  override protected def isRetryable: Throwable => Boolean = {
     case e: AwsServiceException => e.isThrottlingException || retryableStatusCodes.contains(e.statusCode())
     case t                      => RetryPolicy.isRetryable(t)
   }
