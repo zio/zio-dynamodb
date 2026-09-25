@@ -23,6 +23,7 @@ object AttributeValueSpec extends ZIOSpecDefault {
   def spec = suite("AttributeValue")(
     showTypeSuite,
     binarySuite,
+    binarySetSuite,
     listSuite,
     numberSetSuite,
     stringSetSuite,
@@ -83,6 +84,39 @@ object AttributeValueSpec extends ZIOSpecDefault {
           AttributeValue.Number(BigDecimal(3))
         )
       )
+    }
+  )
+
+  // Repro for docs2/batch_write_model_correction.md §3: BinarySet.value is a plain
+  // Iterable[Iterable[Byte]], so its case-class-derived equals delegates to whatever concrete
+  // collection each side happens to be. Local construction (ToAttributeValue.scala:54-55) goes
+  // through a generic Col1[Col2[B]] <: Iterable — typically a Set at the outer level — while
+  // the real AWS decode path (AwsDynamoDB.scala:163-168) produces `av.bs.asScala.map(...)`, a
+  // mutable.Buffer (a Seq) at the outer level. Scala's Set and Seq families never canEqual each
+  // other, regardless of content, so the same logical binary set compares unequal depending on
+  // which path constructed it.
+  private val binarySetSuite = suite("AttributeValue.BinarySet")(
+    test("root cause: a Set-shaped and a Seq-shaped BinarySet with identical content are equal") {
+      val setShaped: AttributeValue.BinarySet = AttributeValue.BinarySet(Set(List(1.toByte, 2.toByte, 3.toByte)))
+      val seqShaped: AttributeValue.BinarySet = AttributeValue.BinarySet(List(List(1.toByte, 2.toByte, 3.toByte)))
+      assertTrue(setShaped == seqShaped)
+    },
+    test("locally-constructed and AWS-decoded shapes of the same binary set are equal") {
+      import scala.collection.immutable.ArraySeq
+      import scala.collection.mutable
+
+      // Mirrors ToAttributeValue.binarySetToAttributeValue's Col1[Col2[B]] <: Iterable shape
+      // for a user constructing an item locally, e.g. Item("photos" -> Set(List[Byte](1,2,3))).
+      val locallyConstructed: AttributeValue.BinarySet =
+        AttributeValue.BinarySet(Set(List(1.toByte, 2.toByte, 3.toByte)))
+
+      // Mirrors AwsCodecs.fromAwsAttrValue's BinarySet branch exactly: av.bs.asScala.map(b =>
+      // ArraySeq.unsafeWrapArray(b.asByteArray)) — asScala on a java.util.List yields a
+      // mutable.Buffer.
+      val awsDecoded: AttributeValue.BinarySet =
+        AttributeValue.BinarySet(mutable.Buffer(ArraySeq.unsafeWrapArray(Array[Byte](1, 2, 3))))
+
+      assertTrue(locallyConstructed == awsDecoded)
     }
   )
 
