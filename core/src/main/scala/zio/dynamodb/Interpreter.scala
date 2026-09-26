@@ -162,6 +162,63 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
         }
     }
 
+  /** Like [[withRetryTracked]], but for an [[EffectfulRetryPolicy]] — see `defaultRetryPolicy`. */
+  private[dynamodb] final def withRetryTrackedF[A](
+    policy: EffectfulRetryPolicy[F],
+    isRetryable: Throwable => Boolean = RetryPolicy.isRetryable
+  )(fa: => F[A]): F[Either[(Throwable, Int), A]] =
+    flatMap(policy.newAttempt()) { attemptState =>
+      def loop(n: Int): F[Either[(Throwable, Int), A]] =
+        flatMap(attempt(fa)) {
+          case Right(a)                  => pure(Right(a))
+          case Left(t) if !NonFatal(t)   => raiseError(t)
+          case Left(t) if isRetryable(t) =>
+            flatMap(attemptState.nextDelay(n)) {
+              case None    => pure(Left((t, n)))
+              case Some(d) => flatMap(sleep(d))(_ => loop(n + 1))
+            }
+          case Left(t)                   => pure(Left((t, n)))
+        }
+      loop(0)
+    }
+
+  /**
+   * Batch ops' effect-level retry fallback chain — mirrors [[withOptionalRetry]], but batch
+   *  always goes through some form of [[withRetryTracked]] (even `RetryPolicy.NoRetry`) rather
+   *  than skipping the wrapper entirely, since batch's errors-as-values design needs the
+   *  attempt count and the `Either` shape regardless of whether retry actually happens.
+   */
+  private def withOptionalRetryTracked[A](
+    retryPolicy: Option[RetryPolicy]
+  )(fa: => F[A]): F[Either[(Throwable, Int), A]] =
+    retryPolicy match {
+      case Some(p) => withRetryTracked(p, isRetryable)(fa)
+      case None    =>
+        defaultRetryPolicy match {
+          case Some(p) => withRetryTrackedF(p, isRetryable)(fa)
+          case None    => withRetryTracked(RetryPolicy.NoRetry, isRetryable)(fa)
+        }
+    }
+
+  /**
+   * The delay-decision function for batch's response-level (unprocessed-items) resubmission
+   *  loop — resolved once per batch call from the same fallback chain as
+   *  [[withOptionalRetryTracked]], then threaded through the loop's recursion so a stateful
+   *  `defaultRetryPolicy` only calls `newAttempt()` once per batch call, not once per
+   *  resubmission.
+   */
+  private def newResponseLevelDelayFn(retryPolicy: Option[RetryPolicy]): F[Int => F[Option[FiniteDuration]]] =
+    retryPolicy match {
+      case Some(p) =>
+        val attemptState = p.newAttempt()
+        pure((n: Int) => pure(attemptState.nextDelay(n)))
+      case None    =>
+        defaultRetryPolicy match {
+          case Some(p) => map(p.newAttempt())(attemptState => (n: Int) => attemptState.nextDelay(n))
+          case None    => pure((_: Int) => pure(None))
+        }
+    }
+
   // Per-operation methods — each concrete interpreter or stub implements these.
   // In the aws submodule, RealAwsInterpreter provides default impls via AwsCodecs + AwsDynamoDB.
   protected def runGetItem(q: DynamoDBQuery.GetItem): F[Option[Item]]
@@ -290,11 +347,11 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
       case q: DynamoDBQuery.DeleteTable        => runDeleteTable(q).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.DescribeTable      => runDescribeTable(q).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.BatchGetItem       =>
-        val policy = q.retryPolicy.getOrElse(RetryPolicy.NoRetry)
-        runBatchGetItemRetrying(q, policy, policy.newAttempt(), attempt = 0).asInstanceOf[F[Any]]
+        flatMap(newResponseLevelDelayFn(q.retryPolicy))(getDelay => runBatchGetItemRetrying(q, getDelay, attempt = 0))
+          .asInstanceOf[F[Any]]
       case q: DynamoDBQuery.BatchWriteItem     =>
-        val policy = q.retryPolicy.getOrElse(RetryPolicy.NoRetry)
-        runBatchWriteItemRetrying(q, policy, policy.newAttempt(), attempt = 0).asInstanceOf[F[Any]]
+        flatMap(newResponseLevelDelayFn(q.retryPolicy))(getDelay => runBatchWriteItemRetrying(q, getDelay, attempt = 0))
+          .asInstanceOf[F[Any]]
       case q: DynamoDBQuery.TransactGetItems   =>
         validateTransactionSize(q.getItems.length).fold(
           runTransactGetItems(q).asInstanceOf[F[Any]]
@@ -322,21 +379,22 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
         absolve(runAny(a.query).asInstanceOf[F[Either[ItemError, Any]]])
     }
 
-  // Drives both the effect-level retry (transient failures, via withRetryTracked) and the
-  // response-level retry (resubmitting unprocessedKeys/unprocessedItems) for batch queries,
+  // Drives both the effect-level retry (transient failures, via withOptionalRetryTracked) and
+  // the response-level retry (resubmitting unprocessedKeys/unprocessedItems) for batch queries,
   // so `run` alone is sufficient — no separate entry point needed for batch vs. everything
-  // else. `policy` governs both loops; NoRetry collapses this to a single attempt.
+  // else. `getDelay` (resolved once per batch call, see `newResponseLevelDelayFn`) governs the
+  // response-level loop; the effect-level loop re-resolves its own retry policy fresh on each
+  // resubmission via `q.retryPolicy` (unchanged by `q.copy`, so this is stable across a call).
   // `accumulatedResponses` carries item data recovered in earlier attempts forward — each
   // retry only re-requests the residual unprocessedKeys, so its response alone would
   // otherwise "forget" items already fetched in prior attempts.
   private def runBatchGetItemRetrying(
     q: DynamoDBQuery.BatchGetItem,
-    policy: RetryPolicy,
-    attemptState: RetryPolicy.Attempt,
+    getDelay: Int => F[Option[FiniteDuration]],
     attempt: Int,
     accumulatedResponses: Map[String, Chunk[Item]] = Map.empty
   ): F[Batch.GetResult] =
-    flatMap(withRetryTracked(policy, isRetryable)(runBatchGetItem(q))) {
+    flatMap(withOptionalRetryTracked(q.retryPolicy)(runBatchGetItem(q))) {
       case Left((cause, effectRetries)) =>
         pure(Batch.GetResult.Failed(cause, responseRetries = attempt, effectRetries = effectRetries))
       case Right(response)              =>
@@ -346,7 +404,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
         if (response.unprocessedKeys.isEmpty)
           pure(Batch.GetResult.Complete(response.copy(responses = merged)))
         else
-          attemptState.nextDelay(attempt) match {
+          flatMap(getDelay(attempt)) {
             case None    => pure(Batch.GetResult.Incomplete(response.copy(responses = merged)))
             case Some(d) =>
               flatMap(sleep(d)) { _ =>
@@ -354,8 +412,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
                 // retryPolicy from the original query across the retry.
                 runBatchGetItemRetrying(
                   q.copy(requestItems = response.unprocessedKeys),
-                  policy,
-                  attemptState,
+                  getDelay,
                   attempt + 1,
                   merged
                 )
@@ -365,18 +422,17 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
 
   private def runBatchWriteItemRetrying(
     q: DynamoDBQuery.BatchWriteItem,
-    policy: RetryPolicy,
-    attemptState: RetryPolicy.Attempt,
+    getDelay: Int => F[Option[FiniteDuration]],
     attempt: Int
   ): F[Batch.WriteResult] =
-    flatMap(withRetryTracked(policy, isRetryable)(runBatchWriteItem(q))) {
+    flatMap(withOptionalRetryTracked(q.retryPolicy)(runBatchWriteItem(q))) {
       case Left((cause, effectRetries)) =>
         pure(Batch.WriteResult.Failed(cause, responseRetries = attempt, effectRetries = effectRetries))
       case Right(response)              =>
         response.unprocessedItems match {
           case None            => pure(Batch.WriteResult.Complete(response))
           case Some(remaining) =>
-            attemptState.nextDelay(attempt) match {
+            flatMap(getDelay(attempt)) {
               case None    => pure(Batch.WriteResult.Incomplete(response))
               case Some(d) =>
                 flatMap(sleep(d)) { _ =>
@@ -384,8 +440,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
                   // retryPolicy from the original query across the retry.
                   runBatchWriteItemRetrying(
                     q.copy(requestItems = remaining),
-                    policy,
-                    attemptState,
+                    getDelay,
                     attempt + 1
                   )
                 }

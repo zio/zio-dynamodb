@@ -560,6 +560,31 @@ object RetrySpec extends ZIOSpecDefault {
           result <- interp.run(query).exit
           n      <- calls.get
         } yield assertTrue(result.isFailure && n == 1) // NoRetry wins — defaultRetryPolicy never consulted
+      },
+      test("BatchGetItem without its own retryPolicy resubmits unprocessed keys via defaultRetryPolicy") {
+        import scala.collection.immutable.{ Map => ScalaMap }
+        val unprocessedKeys = ScalaMap(
+          "t" -> DynamoDBQuery.BatchGetItem.TableGet(
+            keysSet = Set(PrimaryKey("id" -> "a")),
+            projectionExpressionSet = Set.empty
+          )
+        )
+        for {
+          interp <- makeInterp(
+                      batchGetResponses = List(
+                        DynamoDBQuery.BatchGetItem.Response(unprocessedKeys = unprocessedKeys),
+                        DynamoDBQuery.BatchGetItem.Response()
+                      ),
+                      defaultRetryPolicyParam =
+                        Some(ZioRetryPolicies.fromSchedule(Schedule.exponential(50.millis) && Schedule.recurs(2)))
+                    )
+          fiber  <-
+            interp
+              .run(DynamoDBQuery.batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id))))
+              .fork
+          _      <- TestClock.adjust(50.millis)
+          result <- fiber.join
+        } yield assert(result)(isSubtype[Batch.GetResult.Complete](anything))
       }
     ),
 
