@@ -107,6 +107,18 @@ object AttributeValueSpec extends ZIOSpecDefault {
         AttributeValue.BinarySet(mutable.Buffer(ArraySeq.unsafeWrapArray(Array[Byte](1, 2, 3))))
 
       assertTrue(locallyConstructed == awsDecoded)
+    },
+    test("Chunk[Byte] inner elements (the real Set[Chunk[Byte]] shape) compare equal to the AWS-decoded shape") {
+      import scala.collection.immutable.ArraySeq
+      import scala.collection.mutable
+      import zio.blocks.chunk.{ Chunk => ZChunk }
+
+      val locallyConstructed: AttributeValue.BinarySet =
+        AttributeValue.BinarySet(Set(ZChunk[Byte](1, 2, 3)))
+      val awsDecoded: AttributeValue.BinarySet         =
+        AttributeValue.BinarySet(mutable.Buffer(ArraySeq.unsafeWrapArray(Array[Byte](1, 2, 3))))
+
+      assertTrue(locallyConstructed == awsDecoded)
     }
   )
 
