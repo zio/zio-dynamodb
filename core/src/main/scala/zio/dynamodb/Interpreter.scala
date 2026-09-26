@@ -72,6 +72,14 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   protected def isRetryable: Throwable => Boolean = RetryPolicy.isRetryable
 
   /**
+   * The fallback used when a query doesn't specify its own `.withRetryPolicy(...)` — `None`
+   *  (the default) preserves today's behavior of no retry at all. Attached via a
+   *  `fromAsyncClient` factory parameter (docs2/retry_policy_custom_delay_curve.md §7), not
+   *  subclassing, so it's off unless a caller explicitly opts in.
+   */
+  protected def defaultRetryPolicy: Option[EffectfulRetryPolicy[F]] = None
+
+  /**
    * Retries `fa` according to `policy` whenever `isRetryable` matches the
    *  thrown error. Exhausted retries re-raise the last error.
    *
@@ -81,12 +89,13 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
     policy: RetryPolicy,
     isRetryable: Throwable => Boolean = RetryPolicy.isRetryable
   )(fa: => F[A]): F[A] = {
+    val attemptState       = policy.newAttempt()
     def loop(n: Int): F[A] =
       flatMap(attempt(fa)) {
         case Right(a)                  => pure(a)
         case Left(t) if !NonFatal(t)   => raiseError(t)
         case Left(t) if isRetryable(t) =>
-          policy.nextDelay(n) match {
+          attemptState.nextDelay(n) match {
             case None    => raiseError(t)
             case Some(d) => flatMap(sleep(d))(_ => loop(n + 1))
           }
@@ -104,12 +113,13 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
     policy: RetryPolicy,
     isRetryable: Throwable => Boolean = RetryPolicy.isRetryable
   )(fa: => F[A]): F[Either[(Throwable, Int), A]] = {
+    val attemptState                                 = policy.newAttempt()
     def loop(n: Int): F[Either[(Throwable, Int), A]] =
       flatMap(attempt(fa)) {
         case Right(a)                  => pure(Right(a))
         case Left(t) if !NonFatal(t)   => raiseError(t)
         case Left(t) if isRetryable(t) =>
-          policy.nextDelay(n) match {
+          attemptState.nextDelay(n) match {
             case None    => pure(Left((t, n)))
             case Some(d) => flatMap(sleep(d))(_ => loop(n + 1))
           }
@@ -117,6 +127,40 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
       }
     loop(0)
   }
+
+  /** Like [[withRetry]], but for an [[EffectfulRetryPolicy]] — see `defaultRetryPolicy`. */
+  final def withRetryF[A](
+    policy: EffectfulRetryPolicy[F],
+    isRetryable: Throwable => Boolean = RetryPolicy.isRetryable
+  )(fa: => F[A]): F[A] =
+    flatMap(policy.newAttempt()) { attemptState =>
+      def loop(n: Int): F[A] =
+        flatMap(attempt(fa)) {
+          case Right(a)                  => pure(a)
+          case Left(t) if !NonFatal(t)   => raiseError(t)
+          case Left(t) if isRetryable(t) =>
+            flatMap(attemptState.nextDelay(n)) {
+              case None    => raiseError(t)
+              case Some(d) => flatMap(sleep(d))(_ => loop(n + 1))
+            }
+          case Left(t)                   => raiseError(t)
+        }
+      loop(0)
+    }
+
+  /**
+   * The full per-query retry fallback chain: the query's own policy if it set one, else
+   *  `defaultRetryPolicy` if the interpreter has one, else no retry at all (today's behavior).
+   */
+  private def withOptionalRetry[A](retryPolicy: Option[RetryPolicy])(fa: => F[A]): F[A] =
+    retryPolicy match {
+      case Some(p) => withRetry(p, isRetryable)(fa)
+      case None    =>
+        defaultRetryPolicy match {
+          case Some(p) => withRetryF(p, isRetryable)(fa)
+          case None    => fa
+        }
+    }
 
   // Per-operation methods — each concrete interpreter or stub implements these.
   // In the aws submodule, RealAwsInterpreter provides default impls via AwsCodecs + AwsDynamoDB.
@@ -215,10 +259,10 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   private def runAny(query: DynamoDBQuery[_, _]): F[Any] =
     query match {
       case q: DynamoDBQuery.GetItem            =>
-        q.retryPolicy.fold(runGetItem(q))(p => withRetry(p, isRetryable)(runGetItem(q))).asInstanceOf[F[Any]]
+        withOptionalRetry(q.retryPolicy)(runGetItem(q)).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.PutItem            =>
         validateCE(q.conditionExpression).fold(
-          q.retryPolicy.fold(runPutItem(q))(p => withRetry(p, isRetryable)(runPutItem(q))).asInstanceOf[F[Any]]
+          withOptionalRetry(q.retryPolicy)(runPutItem(q)).asInstanceOf[F[Any]]
         )(fail)
       case q: DynamoDBQuery.UpdateItem         =>
         validateAction(q.updateExpression.action)
@@ -228,7 +272,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
           )(fail)
       case q: DynamoDBQuery.DeleteItem         =>
         validateCE(q.conditionExpression).fold(
-          q.retryPolicy.fold(runDeleteItem(q))(p => withRetry(p, isRetryable)(runDeleteItem(q))).asInstanceOf[F[Any]]
+          withOptionalRetry(q.retryPolicy)(runDeleteItem(q)).asInstanceOf[F[Any]]
         )(fail)
       case q: DynamoDBQuery.Query              =>
         validateKCE(q.keyConditionExpr)
@@ -246,9 +290,11 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
       case q: DynamoDBQuery.DeleteTable        => runDeleteTable(q).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.DescribeTable      => runDescribeTable(q).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.BatchGetItem       =>
-        runBatchGetItemRetrying(q, q.retryPolicy.getOrElse(RetryPolicy.NoRetry), attempt = 0).asInstanceOf[F[Any]]
+        val policy = q.retryPolicy.getOrElse(RetryPolicy.NoRetry)
+        runBatchGetItemRetrying(q, policy, policy.newAttempt(), attempt = 0).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.BatchWriteItem     =>
-        runBatchWriteItemRetrying(q, q.retryPolicy.getOrElse(RetryPolicy.NoRetry), attempt = 0).asInstanceOf[F[Any]]
+        val policy = q.retryPolicy.getOrElse(RetryPolicy.NoRetry)
+        runBatchWriteItemRetrying(q, policy, policy.newAttempt(), attempt = 0).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.TransactGetItems   =>
         validateTransactionSize(q.getItems.length).fold(
           runTransactGetItems(q).asInstanceOf[F[Any]]
@@ -286,6 +332,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   private def runBatchGetItemRetrying(
     q: DynamoDBQuery.BatchGetItem,
     policy: RetryPolicy,
+    attemptState: RetryPolicy.Attempt,
     attempt: Int,
     accumulatedResponses: Map[String, Chunk[Item]] = Map.empty
   ): F[Batch.GetResult] =
@@ -299,7 +346,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
         if (response.unprocessedKeys.isEmpty)
           pure(Batch.GetResult.Complete(response.copy(responses = merged)))
         else
-          policy.nextDelay(attempt) match {
+          attemptState.nextDelay(attempt) match {
             case None    => pure(Batch.GetResult.Incomplete(response.copy(responses = merged)))
             case Some(d) =>
               flatMap(sleep(d)) { _ =>
@@ -308,6 +355,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
                 runBatchGetItemRetrying(
                   q.copy(requestItems = response.unprocessedKeys),
                   policy,
+                  attemptState,
                   attempt + 1,
                   merged
                 )
@@ -318,6 +366,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   private def runBatchWriteItemRetrying(
     q: DynamoDBQuery.BatchWriteItem,
     policy: RetryPolicy,
+    attemptState: RetryPolicy.Attempt,
     attempt: Int
   ): F[Batch.WriteResult] =
     flatMap(withRetryTracked(policy, isRetryable)(runBatchWriteItem(q))) {
@@ -327,7 +376,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
         response.unprocessedItems match {
           case None            => pure(Batch.WriteResult.Complete(response))
           case Some(remaining) =>
-            policy.nextDelay(attempt) match {
+            attemptState.nextDelay(attempt) match {
               case None    => pure(Batch.WriteResult.Incomplete(response))
               case Some(d) =>
                 flatMap(sleep(d)) { _ =>
@@ -336,6 +385,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
                   runBatchWriteItemRetrying(
                     q.copy(requestItems = remaining),
                     policy,
+                    attemptState,
                     attempt + 1
                   )
                 }

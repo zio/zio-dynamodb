@@ -23,7 +23,10 @@ import zio.dynamodb.DynamoDBError.ItemError
 
 import scala.concurrent.duration.FiniteDuration
 
-class ZioInterpreter(client: AwsDynamoDB[Task]) extends RealAwsInterpreter[Task](client) {
+class ZioInterpreter(
+  client: AwsDynamoDB[Task],
+  override protected val defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]] = None
+) extends RealAwsInterpreter[Task](client) {
   private[dynamodb] def pure[A](a: A): Task[A]                               = ZIO.succeed(a)
   private[dynamodb] def map[A, B](fa: Task[A])(f: A => B): Task[B]           = fa.map(f)
   private[dynamodb] def flatMap[A, B](fa: Task[A])(f: A => Task[B]): Task[B] = fa.flatMap(f)
@@ -45,18 +48,31 @@ object ZioInterpreter {
 
   /** Creates an interpreter backed by `sdkClient` with no interceptor. */
   def fromAsyncClient(sdkClient: DynamoDbAsyncClient): ZioInterpreter =
-    fromAsyncClientInternal(sdkClient, None)
+    fromAsyncClientInternal(sdkClient, None, None)
 
   /** Creates an interpreter that fires `interceptor` after every data operation. */
   def fromAsyncClient(
     sdkClient: DynamoDbAsyncClient,
     interceptor: ResponseInterceptor[Task]
   ): ZioInterpreter =
-    fromAsyncClientInternal(sdkClient, Some(interceptor))
+    fromAsyncClientInternal(sdkClient, Some(interceptor), None)
+
+  /**
+   * Creates an interpreter that falls back to `defaultRetryPolicy` for any query that doesn't
+   * specify its own `.withRetryPolicy(...)` — see `docs2/retry_policy_custom_delay_curve.md`
+   * §7. `None` (also the default when omitted) preserves today's behavior: no retry at all
+   * unless a query opts in explicitly.
+   */
+  def fromAsyncClient(
+    sdkClient: DynamoDbAsyncClient,
+    defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]]
+  ): ZioInterpreter =
+    fromAsyncClientInternal(sdkClient, None, defaultRetryPolicy)
 
   private def fromAsyncClientInternal(
     sdkClient: DynamoDbAsyncClient,
-    interceptor: Option[ResponseInterceptor[Task]]
+    interceptor: Option[ResponseInterceptor[Task]],
+    defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]]
   ): ZioInterpreter = {
     val base: AwsDynamoDB[Task]   = new AwsDynamoDB[Task] {
       def getItem(req: GetItemRequest): Task[GetItemResponse]                                  =
@@ -92,6 +108,6 @@ object ZioInterpreter {
     }
     val client: AwsDynamoDB[Task] =
       interceptor.fold(base)(i => new InterceptingAwsDynamoDB[Task](base, i, ops))
-    new ZioInterpreter(client)
+    new ZioInterpreter(client, defaultRetryPolicy)
   }
 }
