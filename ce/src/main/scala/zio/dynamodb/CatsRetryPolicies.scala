@@ -21,9 +21,8 @@ import cats.effect.{ IO, Ref }
 import scala.concurrent.duration.FiniteDuration
 
 /**
- * Cats-Effect-specific [[EffectfulRetryPolicy]] smart constructors — see
- * `docs2/retry_policy_custom_delay_curve.md` §7. Unlike ZIO, cats-effect has no built-in
- * `Schedule`-equivalent to wrap, so this is the direct CE-native way to get the same
+ * Cats-Effect-specific [[EffectfulRetryPolicy]] smart constructors. Unlike ZIO, cats-effect has
+ * no built-in `Schedule`-equivalent to wrap, so this is the direct CE-native way to get the same
  * state-scoping guarantee `ZioRetryPolicies.fromSchedule` gives ZIO users: state lives in a
  * `Ref[IO, S]`, created fresh once per `newAttempt()` call, so concurrent executions sharing
  * one policy instance never share state.
@@ -58,5 +57,18 @@ object CatsRetryPolicies {
               stateRef.modify(s => next(s, attempt))
           }
         }
+    }
+
+  /**
+   * AWS's own recommended decorrelated-jitter algorithm — see `RetryPolicy.awsRecommended`
+   * for the shared formula.
+   */
+  def awsRecommended(
+    maxRetries: Int = 8,
+    baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
+    maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
+  ): EffectfulRetryPolicy[IO] =
+    statefulCustom(initial = baseDelay.toMillis) { (previousDelayMs, attempt) =>
+      RetryPolicy.decorrelatedJitterStep(baseDelay.toMillis, maxDelay.toMillis, maxRetries)(previousDelayMs, attempt)
     }
 }

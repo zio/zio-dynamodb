@@ -90,6 +90,24 @@ class CERetryPolicySpec extends CatsEffectSuite {
     }
   }
 
+  test("CatsRetryPolicies.awsRecommended stops after maxRetries and stays within [base, cap]") {
+    val policy = CatsRetryPolicies.awsRecommended(
+      maxRetries = 3,
+      baseDelay = FiniteDuration(50, "milliseconds"),
+      maxDelay = FiniteDuration(5, "seconds")
+    )
+    for {
+      attempt <- policy.newAttempt()
+      d0      <- attempt.nextDelay(0)
+      d1      <- attempt.nextDelay(1)
+      d2      <- attempt.nextDelay(2)
+      d3      <- attempt.nextDelay(3)
+    } yield {
+      assertEquals(d3, None)
+      assert(List(d0, d1, d2).forall(_.exists(d => d.toMillis >= 50L && d.toMillis <= 5000L)))
+    }
+  }
+
   test("getItem falls back to defaultRetryPolicy when it has no retryPolicy of its own") {
     val decorrelatedJitter = CatsRetryPolicies.statefulCustom(initial = 100L) { (previousDelay, attempt) =>
       if (attempt >= 3) (previousDelay, None)

@@ -25,9 +25,6 @@ import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
-// docs2/retry_policy_custom_delay_curve.md §7's own finding: Future has no Ref/STM-equivalent,
-// so unlike Zio/CatsRetryPolicies there's no interesting *stateful* smart constructor to add
-// here — this only proves the defaultRetryPolicy mechanism/wiring itself works for Future too.
 object FutureRetryPolicySpec extends ZIOSpecDefault {
 
   private def await[A](f: Future[A]): A = Await.result(f, 5.seconds)
@@ -81,8 +78,8 @@ object FutureRetryPolicySpec extends ZIOSpecDefault {
       protected def runTransactWriteItems(q: DynamoDBQuery.TransactWriteItems): Future[Unit]                      = Future.unit
     }
 
-  // A minimal stateless EffectfulRetryPolicy[Future] — no smart constructor object exists for
-  // Future (nothing richer than this to offer, per the doc's own finding), so built inline.
+  // A minimal stateless EffectfulRetryPolicy[Future], simpler than FutureRetryPolicies.statefulCustom
+  // for the fixed, attempt-only delay functions these two tests need.
   private def statelessRetryPolicy(f: Int => Option[FiniteDuration]): EffectfulRetryPolicy[Future] =
     new EffectfulRetryPolicy[Future] {
       def newAttempt(): Future[EffectfulRetryPolicy.Attempt[Future]] =
@@ -117,6 +114,25 @@ object FutureRetryPolicySpec extends ZIOSpecDefault {
       val query  = DynamoDBQuery.getItem("t", PrimaryKey("id" -> "x")).withRetryPolicy(RetryPolicy.NoRetry)
       val result = scala.util.Try(await(interp.run(query)))
       assertTrue(result.isFailure && calls.get() == 1) // NoRetry wins — defaultRetryPolicy never consulted
+    },
+    test("FutureRetryPolicies.statefulCustom scopes state per newAttempt() call") {
+      val policy = FutureRetryPolicies.statefulCustom(initial = 0) { (count, _) =>
+        (count + 1, Some(FiniteDuration((count + 1).toLong, "milliseconds")))
+      }
+      val first  = await(policy.newAttempt())
+      val second = await(policy.newAttempt())
+      assertTrue(
+        await(first.nextDelay(0)).contains(1.millis) &&
+          await(first.nextDelay(0)).contains(2.millis) &&
+          await(second.nextDelay(0)).contains(1.millis) // fresh state — not 3.millis
+      )
+    },
+    test("FutureRetryPolicies.awsRecommended stops after maxRetries and stays within [base, cap] otherwise") {
+      val policy  = FutureRetryPolicies.awsRecommended(maxRetries = 3, baseDelay = 50.millis, maxDelay = 5.seconds)
+      val attempt = await(policy.newAttempt())
+      val delays  = (0 until 3).map(n => await(attempt.nextDelay(n)).get.toMillis)
+      val last    = await(attempt.nextDelay(3))
+      assertTrue(delays.forall(d => d >= 50L && d <= 5000L) && last.isEmpty)
     }
   )
 }

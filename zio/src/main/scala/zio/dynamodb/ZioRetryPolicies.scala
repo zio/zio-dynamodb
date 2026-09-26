@@ -20,19 +20,15 @@ import zio._
 
 import scala.concurrent.duration.FiniteDuration
 
-/**
- * ZIO-specific [[EffectfulRetryPolicy]] smart constructors — see
- * `docs2/retry_policy_custom_delay_curve.md` §7.
- */
+/** ZIO-specific [[EffectfulRetryPolicy]] smart constructors. */
 object ZioRetryPolicies {
 
   /**
    * Wraps a `zio.Schedule` as an [[EffectfulRetryPolicy]]. Drives `Schedule#step` directly,
    * not `Schedule#driver`/`Driver.next` — the latter bakes its own `ZIO.sleep` into `next`,
-   * which would double-sleep alongside `AwsInterpreter`'s own `sleep(d)` call (confirmed with a
-   * spike, `EffectfulRetryPolicySpike.scala`, before writing this). State lives in a `Ref`,
-   * created fresh once per `newAttempt()` call, so concurrent executions sharing one policy
-   * instance never share state.
+   * which would double-sleep alongside `AwsInterpreter`'s own `sleep(d)` call. State lives in a
+   * `Ref`, created fresh once per `newAttempt()` call, so concurrent executions sharing one
+   * policy instance never share state.
    */
   def fromSchedule[Out](schedule: Schedule[Any, Unit, Out]): EffectfulRetryPolicy[Task] =
     new EffectfulRetryPolicy[Task] {
@@ -51,6 +47,32 @@ object ZioRetryPolicies {
                   Some(FiniteDuration(java.time.Duration.between(now, intervals.start).toMillis, "milliseconds"))
                 case Schedule.Decision.Done                =>
                   None
+              }
+          }
+        }
+    }
+
+  /**
+   * AWS's own recommended decorrelated-jitter algorithm — see `RetryPolicy.awsRecommended`
+   * for the shared formula. State lives in a `Ref`, created fresh once per `newAttempt()` call.
+   */
+  def awsRecommended(
+    maxRetries: Int = 8,
+    baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
+    maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
+  ): EffectfulRetryPolicy[Task] =
+    new EffectfulRetryPolicy[Task] {
+      def newAttempt(): Task[EffectfulRetryPolicy.Attempt[Task]] =
+        Ref.make(baseDelay.toMillis).map { stateRef =>
+          new EffectfulRetryPolicy.Attempt[Task] {
+            def nextDelay(attempt: Int): Task[Option[FiniteDuration]] =
+              stateRef.modify { previousDelayMs =>
+                val (next, delay) =
+                  RetryPolicy.decorrelatedJitterStep(baseDelay.toMillis, maxDelay.toMillis, maxRetries)(
+                    previousDelayMs,
+                    attempt
+                  )
+                (delay, next)
               }
           }
         }

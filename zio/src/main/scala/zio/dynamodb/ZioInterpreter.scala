@@ -46,22 +46,27 @@ class ZioInterpreter(
 
 object ZioInterpreter {
 
-  /** Creates an interpreter backed by `sdkClient` with no interceptor. */
+  /**
+   * Creates an interpreter backed by `sdkClient` with no interceptor. Any query that doesn't
+   * specify its own `.withRetryPolicy(...)` falls back to `ZioRetryPolicies.awsRecommended()`
+   * (decorrelated jitter, AWS's own recommended algorithm) — pass `None` to the
+   * `defaultRetryPolicy` overload below to opt out entirely.
+   */
   def fromAsyncClient(sdkClient: DynamoDbAsyncClient): ZioInterpreter =
-    fromAsyncClientInternal(sdkClient, None, None)
+    fromAsyncClientInternal(sdkClient, None, Some(ZioRetryPolicies.awsRecommended()))
 
   /** Creates an interpreter that fires `interceptor` after every data operation. */
   def fromAsyncClient(
     sdkClient: DynamoDbAsyncClient,
     interceptor: ResponseInterceptor[Task]
   ): ZioInterpreter =
-    fromAsyncClientInternal(sdkClient, Some(interceptor), None)
+    fromAsyncClientInternal(sdkClient, Some(interceptor), Some(ZioRetryPolicies.awsRecommended()))
 
   /**
    * Creates an interpreter that falls back to `defaultRetryPolicy` for any query that doesn't
-   * specify its own `.withRetryPolicy(...)` — see `docs2/retry_policy_custom_delay_curve.md`
-   * §7. `None` (also the default when omitted) preserves today's behavior: no retry at all
-   * unless a query opts in explicitly.
+   * specify its own `.withRetryPolicy(...)`. Pass `None` to disable the interpreter-level
+   * fallback entirely (retry becomes purely opt-in per query); the other `fromAsyncClient`
+   * overloads default this to `Some(ZioRetryPolicies.awsRecommended())`.
    */
   def fromAsyncClient(
     sdkClient: DynamoDbAsyncClient,

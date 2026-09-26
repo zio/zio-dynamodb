@@ -25,10 +25,7 @@ import scala.concurrent.duration.FiniteDuration
  * interpreter/effect type is chosen; `EffectfulRetryPolicy` only ever exists at the interpreter
  * level, where a concrete `F` is already known, so it can model state via that effect system's
  * own primitives (e.g. a ZIO `Ref`) and wrap richer per-effect-system retry abstractions (e.g.
- * ZIO's `Schedule`) — see `docs2/retry_policy_custom_delay_curve.md` §7.
- *
- * Naming/overlap with `RetryPolicy` is unsettled (tracked in that doc, §7.4) — kept as a
- * distinct type for now rather than forcing a premature merge.
+ * ZIO's `Schedule`).
  */
 trait EffectfulRetryPolicy[F[_]] {
   def newAttempt(): F[EffectfulRetryPolicy.Attempt[F]]

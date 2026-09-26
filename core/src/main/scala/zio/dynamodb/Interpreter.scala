@@ -72,10 +72,10 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   protected def isRetryable: Throwable => Boolean = RetryPolicy.isRetryable
 
   /**
-   * The fallback used when a query doesn't specify its own `.withRetryPolicy(...)` — `None`
-   *  (the default) preserves today's behavior of no retry at all. Attached via a
-   *  `fromAsyncClient` factory parameter (docs2/retry_policy_custom_delay_curve.md §7), not
-   *  subclassing, so it's off unless a caller explicitly opts in.
+   * The fallback used when a query doesn't specify its own `.withRetryPolicy(...)`. This
+   *  trait's own default is `None` (no retry); concrete interpreters override it via a
+   *  `fromAsyncClient` factory parameter rather than subclassing, so a caller can swap or
+   *  disable it in one line without touching interpreter internals.
    */
   protected def defaultRetryPolicy: Option[EffectfulRetryPolicy[F]] = None
 

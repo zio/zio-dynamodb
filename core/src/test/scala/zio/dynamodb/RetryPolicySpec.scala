@@ -132,6 +132,55 @@ object RetryPolicySpec extends ZIOSpecDefault {
       }
     ),
 
+    suite("awsRecommended — decorrelated jitter")(
+      test("delay for attempt 0 is in [base, base * 3] before capping") {
+        val attempt =
+          RetryPolicy.awsRecommended(maxRetries = 5, baseDelay = 100.millis, maxDelay = 20.seconds).newAttempt()
+        val d       = attempt.nextDelay(0).get.toMillis
+        assertTrue(d >= 100L && d <= 300L)
+      },
+      test("returns None once maxRetries is reached") {
+        val attempt =
+          RetryPolicy.awsRecommended(maxRetries = 3, baseDelay = 50.millis, maxDelay = 5.seconds).newAttempt()
+        (0 until 3).foreach(attempt.nextDelay)
+        assertTrue(attempt.nextDelay(3).isEmpty)
+      },
+      test("delay never exceeds maxDelay across many attempts") {
+        val attempt =
+          RetryPolicy.awsRecommended(maxRetries = 20, baseDelay = 100.millis, maxDelay = 500.millis).newAttempt()
+        val delays  = (0 until 20).flatMap(attempt.nextDelay(_).map(_.toMillis))
+        assertTrue(delays.forall(_ <= 500L))
+      },
+      test("state is scoped per newAttempt() call, not shared across concurrent executions") {
+        val policy = RetryPolicy.awsRecommended(maxRetries = 5, baseDelay = 100.millis, maxDelay = 20.seconds)
+        val first  = policy.newAttempt()
+        val second = policy.newAttempt()
+        val d1     = first.nextDelay(0).get.toMillis
+        val d2     = second.nextDelay(0).get.toMillis
+        assertTrue(d1 >= 100L && d1 <= 300L && d2 >= 100L && d2 <= 300L)
+      },
+      test("each delay follows the recurrence sleep = min(cap, random_between(base, previous * 3))") {
+        val base    = 100L
+        val cap     = 20000L
+        val attempt =
+          RetryPolicy.awsRecommended(maxRetries = 50, baseDelay = base.millis, maxDelay = cap.millis).newAttempt()
+        val delays  = (0 until 50).map(n => attempt.nextDelay(n).get.toMillis)
+        assertTrue(
+          delays.head >= base && delays.head <= math.min(cap, base * 3),
+          delays.sliding(2).forall { case Seq(previous, next) =>
+            next >= base && next <= math.min(cap, previous * 3)
+          }
+        )
+      },
+      test("jitter actually varies the delay — not a deterministic function of the attempt alone") {
+        val samples =
+          (0 until 30).map(_ =>
+            RetryPolicy.awsRecommended(baseDelay = 100.millis, maxDelay = 20.seconds).newAttempt().nextDelay(0).get
+          )
+        assertTrue(samples.toSet.size > 1)
+      }
+    ),
+
     suite("isRetryable")(
       test("matches ProvisionedThroughputExceededException") {
         val t = new RuntimeException("ProvisionedThroughputExceededException")

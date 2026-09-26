@@ -118,6 +118,45 @@ object RetryPolicy {
       (attempt: Int) => f(attempt)
     }
 
+  /**
+   * One step of AWS's recommended decorrelated-jitter algorithm:
+   * `sleep = min(cap, random_between(base, previous_sleep * 3))`. Shared by every effect
+   * type's `awsRecommended` constructor (`RetryPolicy.awsRecommended`,
+   * `ZioRetryPolicies.awsRecommended`, `CatsRetryPolicies.awsRecommended`,
+   * `FutureRetryPolicies.awsRecommended`) so the formula lives in exactly one place.
+   */
+  private[dynamodb] def decorrelatedJitterStep(
+    baseMs: Long,
+    maxMs: Long,
+    maxRetries: Int
+  )(previousDelayMs: Long, attempt: Int): (Long, Option[FiniteDuration]) =
+    if (attempt >= maxRetries) (previousDelayMs, None)
+    else {
+      val next = math.min(maxMs, baseMs + ThreadLocalRandom.current().nextLong(0L, previousDelayMs * 3L - baseMs + 1L))
+      (next, Some(FiniteDuration(next, "milliseconds")))
+    }
+
+  /**
+   * AWS's own recommended decorrelated-jitter algorithm — the default every interpreter ships
+   * with via `defaultRetryPolicy`. Exposed here too so a query can opt back into the same curve
+   * explicitly via `.withRetryPolicy(RetryPolicy.awsRecommended())`, e.g. after having disabled
+   * the interpreter default for everything else.
+   */
+  def awsRecommended(
+    maxRetries: Int = 8,
+    baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
+    maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
+  ): RetryPolicy =
+    statefulCustom { () =>
+      var previousDelayMs = baseDelay.toMillis
+      (attempt: Int) => {
+        val (next, delay) =
+          decorrelatedJitterStep(baseDelay.toMillis, maxDelay.toMillis, maxRetries)(previousDelayMs, attempt)
+        previousDelayMs = next
+        delay
+      }
+    }
+
   /** Default predicate covering standard DynamoDB transient errors. */
   val isRetryable: Throwable => Boolean = { t =>
     val msg = t.getMessage

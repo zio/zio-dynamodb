@@ -528,7 +528,7 @@ object RetrySpec extends ZIOSpecDefault {
       }
     ),
 
-    suite("defaultRetryPolicy — interpreter-level fallback (docs2/retry_policy_custom_delay_curve.md §7)")(
+    suite("defaultRetryPolicy — interpreter-level fallback")(
       test("getItem without its own retryPolicy falls back to defaultRetryPolicy") {
         for {
           calls  <- Ref.make(0)
@@ -585,6 +585,28 @@ object RetrySpec extends ZIOSpecDefault {
           _      <- TestClock.adjust(50.millis)
           result <- fiber.join
         } yield assert(result)(isSubtype[Batch.GetResult.Complete](anything))
+      }
+    ),
+
+    suite("ZioRetryPolicies.awsRecommended")(
+      test("stops after maxRetries and stays within [base, cap] otherwise") {
+        for {
+          policy  <- ZIO.succeed(
+                       ZioRetryPolicies.awsRecommended(
+                         maxRetries = 3,
+                         baseDelay = FiniteDuration(50, MILLISECONDS),
+                         maxDelay = FiniteDuration(5, "seconds")
+                       )
+                     )
+          attempt <- policy.newAttempt()
+          d0      <- attempt.nextDelay(0)
+          d1      <- attempt.nextDelay(1)
+          d2      <- attempt.nextDelay(2)
+          d3      <- attempt.nextDelay(3)
+        } yield assertTrue(
+          d3.isEmpty,
+          List(d0, d1, d2).forall(_.exists(d => d.toMillis >= 50L && d.toMillis <= 5000L))
+        )
       }
     ),
 
