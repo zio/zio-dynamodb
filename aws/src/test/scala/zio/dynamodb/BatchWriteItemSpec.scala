@@ -48,6 +48,7 @@ import software.amazon.awssdk.services.dynamodb.model.{
   UpdateItemResponse,
   WriteRequest
 }
+import zio.blocks.chunk.Chunk
 import zio.test._
 import zio.test.Assertion.{ anything, equalTo, hasField, isSubtype }
 
@@ -151,7 +152,7 @@ object BatchWriteItemSpec extends ZIOSpecDefault {
       val writes = result.unprocessedItems.flatMap(_.get("t"))
       assertTrue(
         writes.contains(
-          Set[DynamoDBQuery.BatchWriteItem.Write](
+          Chunk[DynamoDBQuery.BatchWriteItem.Write](
             DynamoDBQuery.BatchWriteItem.Put(Item("id" -> "a", "v" -> "1"))
           )
         )
@@ -162,7 +163,7 @@ object BatchWriteItemSpec extends ZIOSpecDefault {
       val writes = result.unprocessedItems.flatMap(_.get("t"))
       assertTrue(
         writes.contains(
-          Set[DynamoDBQuery.BatchWriteItem.Write](
+          Chunk[DynamoDBQuery.BatchWriteItem.Write](
             DynamoDBQuery.BatchWriteItem.Delete(PrimaryKey("id" -> "a"))
           )
         )

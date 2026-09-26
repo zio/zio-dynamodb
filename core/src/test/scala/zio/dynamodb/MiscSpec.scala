@@ -16,6 +16,7 @@
 
 package zio.dynamodb
 
+import zio.blocks.chunk.Chunk
 import zio.test._
 import zio.test.Assertion.{ anything, containsString, hasField, isSubtype }
 
@@ -311,7 +312,7 @@ object MiscSpec extends ZIOSpecDefault {
       val gi      = DynamoDBQuery.GetItem("t", key)
       val batch   = DynamoDBQuery.BatchGetItem() + gi
       val resp    = DynamoDBQuery.BatchGetItem.Response(
-        MapOfSet.empty[String, Item] + (("t", item))
+        Map("t" -> Chunk(item))
       )
       val results = batch.toGetItemResponses(resp)
       assertTrue(results.headOption.flatten.isDefined)

@@ -18,6 +18,7 @@ package zio.dynamodb
 
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import zio._
+import zio.blocks.chunk.Chunk
 import zio.test._
 import zio.test.Assertion.{ anything, isSubtype }
 
@@ -139,8 +140,8 @@ object BatchSpec extends DynamoDBLocalSpec {
                             DynamoDBQuery.batchGetItem(ids)(id => DynamoDBQuery.GetItem(table, PrimaryKey("id" -> id)))
                           )
                         found = result match {
-                                  case Batch.GetResult.Complete(r) => r.responses.getOrElse(table, Set.empty)
-                                  case _                           => Set.empty
+                                  case Batch.GetResult.Complete(r) => r.responses.getOrElse(table, Chunk.empty)
+                                  case _                           => Chunk.empty
                                 }
                       } yield assertTrue(found.size == 2)
                     }

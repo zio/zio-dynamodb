@@ -659,10 +659,10 @@ object DynamoDBQuery {
     def toGetItemResponses(response: BatchGetItem.Response): Chunk[Option[Item]] = {
       val chunk: Chunk[Option[Item]] = orderedGetItems.foldLeft[Chunk[Option[Item]]](Chunk.empty) {
         case (chunk, getItem) =>
-          val responsesForTable: Set[Item] = response.responses.getOrElse(getItem.tableName, Set.empty[Item])
+          val responsesForTable: Chunk[Item] = response.responses.getOrElse(getItem.tableName, Chunk.empty[Item])
           // What if the projection expression for responsesForTable doesn't include the primaryKey?
           // Shouldn't the responseForTable have only the requested item?
-          val found: Option[Item]          = responsesForTable.find { item =>
+          val found: Option[Item]            = responsesForTable.find { item =>
             getItem.key.map.toSet.subsetOf(item.map.toSet)
           }
           found.fold(chunk :+ None)(item => chunk :+ Some(item))
@@ -679,13 +679,13 @@ object DynamoDBQuery {
     )
     final case class Response(
       // Note - if a requested item does not exist, it is not returned in the result
-      responses: MapOfSet[String, Item] = MapOfSet.empty,
+      responses: ScalaMap[String, Chunk[Item]] = ScalaMap.empty,
       unprocessedKeys: ScalaMap[String, TableGet] = ScalaMap.empty
     )
   }
 
   private[dynamodb] final case class BatchWriteItem(
-    requestItems: MapOfSet[String, BatchWriteItem.Write] = MapOfSet.empty,
+    requestItems: ScalaMap[String, Chunk[BatchWriteItem.Write]] = ScalaMap.empty,
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     addList: Chunk[BatchWriteItem.Write] = Chunk.empty,
@@ -694,19 +694,23 @@ object DynamoDBQuery {
     def +[A](writeItem: Write[Any, A]): BatchWriteItem =
       writeItem match {
         case putItem @ PutItem(_, _, _, _, _, _, _, _)       =>
+          val write = Put(putItem.item)
           BatchWriteItem(
-            self.requestItems + ((putItem.tableName, Put(putItem.item))),
+            self.requestItems
+              .updated(putItem.tableName, self.requestItems.getOrElse(putItem.tableName, Chunk.empty) :+ write),
             self.capacity,
             self.itemMetrics,
-            self.addList :+ Put(putItem.item),
+            self.addList :+ write,
             self.retryPolicy.orElse(putItem.retryPolicy) // inherit retry policy from PutItem if not set
           )
         case deleteItem @ DeleteItem(_, _, _, _, _, _, _, _) =>
+          val write = Delete(deleteItem.key)
           BatchWriteItem(
-            self.requestItems + ((deleteItem.tableName, Delete(deleteItem.key))),
+            self.requestItems
+              .updated(deleteItem.tableName, self.requestItems.getOrElse(deleteItem.tableName, Chunk.empty) :+ write),
             self.capacity,
             self.itemMetrics,
-            self.addList :+ Delete(deleteItem.key),
+            self.addList :+ write,
             self.retryPolicy.orElse(deleteItem.retryPolicy) // inherit retry policy from DeleteItem if not set
           )
       }
@@ -723,7 +727,7 @@ object DynamoDBQuery {
     final case class Put(item: Item)         extends Write
 
     final case class Response(
-      unprocessedItems: Option[MapOfSet[String, BatchWriteItem.Write]]
+      unprocessedItems: Option[ScalaMap[String, Chunk[BatchWriteItem.Write]]]
     )
 
   }
