@@ -20,7 +20,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import zio._
 import zio.blocks.chunk.Chunk
 import zio.test._
-import zio.test.Assertion.{ anything, isSubtype }
+import zio.test.Assertion.{ anything, containsString, hasField, isSubtype }
 
 import java.util.UUID
 
@@ -77,6 +77,28 @@ object BatchSpec extends DynamoDBLocalSpec {
                         rx.contains(Item("id" -> "x", "v" -> 10)) &&
                           ry.contains(Item("id" -> "y", "v" -> 20))
                       )
+                    }
+        } yield result
+      },
+
+      test("duplicate key in the same call surfaces as WriteResult.Failed, not a silent collapse") {
+        // AWS rejects a duplicate key within one BatchWriteItem call with a 400
+        // DynamoDbException; batch ops surface that as a WriteResult.Failed value, not a
+        // failed effect.
+        for {
+          client <- ZIO.service[DynamoDbAsyncClient]
+          interp = ZioInterpreter.fromAsyncClient(client)
+          result <- withTable(interp) { (table, interp) =>
+                      val items = List(Item("id" -> "dup", "v" -> 1), Item("id" -> "dup", "v" -> 2))
+                      interp
+                        .run(DynamoDBQuery.batchWriteItem(items)(i => DynamoDBQuery.putItem(table, i)))
+                        .map(result =>
+                          assert(result)(
+                            isSubtype[Batch.WriteResult.Failed](
+                              hasField("cause message", _.cause.getMessage, containsString("duplicates"))
+                            )
+                          )
+                        )
                     }
         } yield result
       },
