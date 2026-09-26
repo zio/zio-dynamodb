@@ -47,6 +47,19 @@ session via one `Ref`, reusing `CapacityWarnings.capacityUnitsOf` — contrast w
 `CapacityWarnings`, which holds no state and decides per call. See
 [Interceptor / Observability](interceptor.md#worked-examples) for the full walkthrough.
 
+## `RetryPolicyBasics`
+
+Request-level [retry policies](retries.md): a stateless linear backoff, a tuned-down
+`RetryPolicy.awsRecommended`, and opting one query out via `RetryPolicy.NoRetry` — all via
+`.withRetryPolicy(...)` on top of an interpreter's own default. See
+[Retries](retries.md#three-ways-to-shape-a-curve).
+
+## `RetryPolicyDefaults`
+
+Interpreter-level [retry policies](retries.md): disabling the shipped AWS-recommended default
+(`defaultRetryPolicy = None`) and swapping in a `zio.Schedule`-backed one via
+`ZioRetryPolicies.fromSchedule`. See [Retries](retries.md#two-attachment-points).
+
 ## `ZIOStreamingUtils`
 
 `batchGetItems` — grouping a `ZStream` of primary keys into `BatchGetItem` batches of up to

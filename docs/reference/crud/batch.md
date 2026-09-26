@@ -44,9 +44,9 @@ def writeExample(implicit interp: Interpreter[zio.Task]) =
 ```
 
 `batchGetItem`/`batchWriteItem` fold an `Iterable[A]` into one batch query, one `GetItem`/
-`Write` per element. `withRetryPolicy` is optional — omitting it is equivalent to
-`RetryPolicy.NoRetry`: the batch runs once, with whatever AWS returns as unprocessed left
-unprocessed.
+`Write` per element. `withRetryPolicy` is optional — omitting it falls back to the
+interpreter's own default retry policy (AWS-recommended out of the box; `RetryPolicy.NoRetry`
+only if that default was disabled). See [Retries](../retries.md).
 
 ## batchGetItem
 

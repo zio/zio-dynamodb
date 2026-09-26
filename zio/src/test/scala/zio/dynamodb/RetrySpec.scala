@@ -35,19 +35,21 @@ object RetrySpec extends ZIOSpecDefault {
     getItemEffect: Task[Option[Item]] = ZIO.succeed(None),
     putItemEffect: Task[Option[Item]] = ZIO.succeed(None),
     batchWriteItemEffect: Option[Task[DynamoDBQuery.BatchWriteItem.Response]] = None,
-    batchGetItemEffect: Option[Task[DynamoDBQuery.BatchGetItem.Response]] = None
+    batchGetItemEffect: Option[Task[DynamoDBQuery.BatchGetItem.Response]] = None,
+    defaultRetryPolicyParam: Option[EffectfulRetryPolicy[Task]] = None
   ): ZIO[Any, Nothing, AwsInterpreter[Task]] =
     for {
       writeRef <- Ref.make(batchWriteResponses)
       getRef   <- Ref.make(batchGetResponses)
     } yield new AwsInterpreter[Task] {
-      private[dynamodb] def pure[A](a: A): Task[A]                               = ZIO.succeed(a)
-      private[dynamodb] def map[A, B](fa: Task[A])(f: A => B): Task[B]           = fa.map(f)
-      private[dynamodb] def flatMap[A, B](fa: Task[A])(f: A => Task[B]): Task[B] = fa.flatMap(f)
-      protected def product[A, B](fa: Task[A], fb: Task[B]): Task[(A, B)]        = fa.zip(fb)
-      protected def productPar[A, B](fa: Task[A], fb: Task[B]): Task[(A, B)]     = fa.zipPar(fb)
-      protected def fail[A](e: DynamoDBError): Task[A]                           = ZIO.fail(e)
-      protected def absolve[A](fa: Task[Either[ItemError, A]]): Task[A]          =
+      override protected def defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]] = defaultRetryPolicyParam
+      private[dynamodb] def pure[A](a: A): Task[A]                                  = ZIO.succeed(a)
+      private[dynamodb] def map[A, B](fa: Task[A])(f: A => B): Task[B]              = fa.map(f)
+      private[dynamodb] def flatMap[A, B](fa: Task[A])(f: A => Task[B]): Task[B]    = fa.flatMap(f)
+      protected def product[A, B](fa: Task[A], fb: Task[B]): Task[(A, B)]           = fa.zip(fb)
+      protected def productPar[A, B](fa: Task[A], fb: Task[B]): Task[(A, B)]        = fa.zipPar(fb)
+      protected def fail[A](e: DynamoDBError): Task[A]                              = ZIO.fail(e)
+      protected def absolve[A](fa: Task[Either[ItemError, A]]): Task[A]             =
         fa.flatMap(ZIO.fromEither(_))
 
       private[dynamodb] def sleep(d: FiniteDuration): Task[Unit]                =
@@ -523,8 +525,92 @@ object RetrySpec extends ZIOSpecDefault {
           result <- interp.run(DynamoDBQuery.getItem("t", PrimaryKey("id" -> "x"))).exit
           n      <- calls.get
         } yield assertTrue(result.isFailure && n == 1)
-      },
+      }
+    ),
 
+    suite("defaultRetryPolicy — interpreter-level fallback")(
+      test("getItem without its own retryPolicy falls back to defaultRetryPolicy") {
+        for {
+          calls  <- Ref.make(0)
+          interp <- makeInterp(
+                      getItemEffect = calls.updateAndGet(_ + 1).flatMap { n =>
+                        if (n < 2) ZIO.fail(new RuntimeException("ProvisionedThroughputExceededException"))
+                        else ZIO.succeed(Some(Item("id" -> "alice")))
+                      },
+                      defaultRetryPolicyParam =
+                        Some(ZioRetryPolicies.fromSchedule(Schedule.exponential(50.millis) && Schedule.recurs(3)))
+                    )
+          fiber  <- interp.run(DynamoDBQuery.getItem("t", PrimaryKey("id" -> "alice"))).fork
+          _      <- TestClock.adjust(50.millis)
+          result <- fiber.join
+          n      <- calls.get
+        } yield assertTrue(result.contains(Item("id" -> "alice")) && n == 2)
+      },
+      test("a query's own retryPolicy takes precedence over defaultRetryPolicy") {
+        for {
+          calls  <- Ref.make(0)
+          interp <- makeInterp(
+                      getItemEffect = calls.updateAndGet(_ + 1) *>
+                        ZIO.fail(new RuntimeException("ProvisionedThroughputExceededException")),
+                      defaultRetryPolicyParam =
+                        Some(ZioRetryPolicies.fromSchedule(Schedule.exponential(50.millis) && Schedule.recurs(3)))
+                    )
+          query =
+            DynamoDBQuery.getItem("t", PrimaryKey("id" -> "x")).withRetryPolicy(RetryPolicy.NoRetry)
+          result <- interp.run(query).exit
+          n      <- calls.get
+        } yield assertTrue(result.isFailure && n == 1) // NoRetry wins — defaultRetryPolicy never consulted
+      },
+      test("BatchGetItem without its own retryPolicy resubmits unprocessed keys via defaultRetryPolicy") {
+        import scala.collection.immutable.{ Map => ScalaMap }
+        val unprocessedKeys = ScalaMap(
+          "t" -> DynamoDBQuery.BatchGetItem.TableGet(
+            keysSet = Set(PrimaryKey("id" -> "a")),
+            projectionExpressionSet = Set.empty
+          )
+        )
+        for {
+          interp <- makeInterp(
+                      batchGetResponses = List(
+                        DynamoDBQuery.BatchGetItem.Response(unprocessedKeys = unprocessedKeys),
+                        DynamoDBQuery.BatchGetItem.Response()
+                      ),
+                      defaultRetryPolicyParam =
+                        Some(ZioRetryPolicies.fromSchedule(Schedule.exponential(50.millis) && Schedule.recurs(2)))
+                    )
+          fiber  <-
+            interp
+              .run(DynamoDBQuery.batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id))))
+              .fork
+          _      <- TestClock.adjust(50.millis)
+          result <- fiber.join
+        } yield assert(result)(isSubtype[Batch.GetResult.Complete](anything))
+      }
+    ),
+
+    suite("ZioRetryPolicies.awsRecommended")(
+      test("stops after maxRetries and stays within [base, cap] otherwise") {
+        for {
+          policy  <- ZIO.succeed(
+                       ZioRetryPolicies.awsRecommended(
+                         maxRetries = 3,
+                         baseDelay = FiniteDuration(50, MILLISECONDS),
+                         maxDelay = FiniteDuration(5, "seconds")
+                       )
+                     )
+          attempt <- policy.newAttempt()
+          d0      <- attempt.nextDelay(0)
+          d1      <- attempt.nextDelay(1)
+          d2      <- attempt.nextDelay(2)
+          d3      <- attempt.nextDelay(3)
+        } yield assertTrue(
+          d3.isEmpty,
+          List(d0, d1, d2).forall(_.exists(d => d.toMillis >= 50L && d.toMillis <= 5000L))
+        )
+      }
+    ),
+
+    suite("zipPar")(
       test("zipPar propagates retryPolicy to both branches independently") {
         for {
           getCount <- Ref.make(0)

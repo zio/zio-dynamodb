@@ -23,7 +23,10 @@ import zio.dynamodb.DynamoDBError.ItemError
 
 import scala.concurrent.duration.FiniteDuration
 
-class CEInterpreter(client: AwsDynamoDB[IO]) extends RealAwsInterpreter[IO](client) {
+class CEInterpreter(
+  client: AwsDynamoDB[IO],
+  override protected val defaultRetryPolicy: Option[EffectfulRetryPolicy[IO]] = None
+) extends RealAwsInterpreter[IO](client) {
   private[dynamodb] def pure[A](a: A): IO[A]                           = IO.pure(a)
   private[dynamodb] def map[A, B](fa: IO[A])(f: A => B): IO[B]         = fa.map(f)
   private[dynamodb] def flatMap[A, B](fa: IO[A])(f: A => IO[B]): IO[B] = fa.flatMap(f)
@@ -48,20 +51,38 @@ class CEInterpreter(client: AwsDynamoDB[IO]) extends RealAwsInterpreter[IO](clie
 
 object CEInterpreter {
 
-  /** Creates an interpreter backed by `sdkClient` with no interceptor. */
+  /**
+   * Creates an interpreter backed by `sdkClient` with no interceptor. Any query that doesn't
+   * specify its own `.withRetryPolicy(...)` falls back to `CatsRetryPolicies.awsRecommended()`
+   * (decorrelated jitter, AWS's own recommended algorithm) — pass `None` to the
+   * `defaultRetryPolicy` overload below to opt out entirely.
+   */
   def fromAsyncClient(sdkClient: DynamoDbAsyncClient): CEInterpreter =
-    fromAsyncClientInternal(sdkClient, None)
+    fromAsyncClientInternal(sdkClient, None, Some(CatsRetryPolicies.awsRecommended()))
 
   /** Creates an interpreter that fires `interceptor` after every data operation. */
   def fromAsyncClient(
     sdkClient: DynamoDbAsyncClient,
     interceptor: ResponseInterceptor[IO]
   ): CEInterpreter =
-    fromAsyncClientInternal(sdkClient, Some(interceptor))
+    fromAsyncClientInternal(sdkClient, Some(interceptor), Some(CatsRetryPolicies.awsRecommended()))
+
+  /**
+   * Creates an interpreter that falls back to `defaultRetryPolicy` for any query that doesn't
+   * specify its own `.withRetryPolicy(...)`. Pass `None` to disable the interpreter-level
+   * fallback entirely (retry becomes purely opt-in per query); the other `fromAsyncClient`
+   * overloads default this to `Some(CatsRetryPolicies.awsRecommended())`.
+   */
+  def fromAsyncClient(
+    sdkClient: DynamoDbAsyncClient,
+    defaultRetryPolicy: Option[EffectfulRetryPolicy[IO]]
+  ): CEInterpreter =
+    fromAsyncClientInternal(sdkClient, None, defaultRetryPolicy)
 
   private def fromAsyncClientInternal(
     sdkClient: DynamoDbAsyncClient,
-    interceptor: Option[ResponseInterceptor[IO]]
+    interceptor: Option[ResponseInterceptor[IO]],
+    defaultRetryPolicy: Option[EffectfulRetryPolicy[IO]]
   ): CEInterpreter = {
     val base: AwsDynamoDB[IO]   = new AwsDynamoDB[IO] {
       def getItem(req: GetItemRequest): IO[GetItemResponse]                                  =
@@ -97,6 +118,6 @@ object CEInterpreter {
     }
     val client: AwsDynamoDB[IO] =
       interceptor.fold(base)(i => new InterceptingAwsDynamoDB[IO](base, i, ops))
-    new CEInterpreter(client)
+    new CEInterpreter(client, defaultRetryPolicy)
   }
 }

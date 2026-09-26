@@ -20,6 +20,7 @@ const sidebars = {
         },
         "reference/codec",
         "reference/interceptor",
+        "reference/retries",
         "reference/limitations",
         "reference/examples"
       ]
