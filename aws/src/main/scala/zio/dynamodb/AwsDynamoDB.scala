@@ -600,16 +600,15 @@ private[dynamodb] object AwsCodecs {
         None
       else
         Some(
-          r.unprocessedItems.asScala.foldLeft(MapOfSet.empty[String, DynamoDBQuery.BatchWriteItem.Write]) {
-            case (acc, (tableName, writeRequests)) =>
-              writeRequests.asScala.foldLeft(acc) { (acc2, wr) =>
-                if (wr.putRequest != null)
-                  acc2 + (tableName -> DynamoDBQuery.BatchWriteItem.Put(fromAwsItem(wr.putRequest.item)))
-                else if (wr.deleteRequest != null)
-                  acc2 + (tableName -> DynamoDBQuery.BatchWriteItem.Delete(fromAwsItem(wr.deleteRequest.key)))
-                else acc2
-              }
-          }
+          r.unprocessedItems.asScala.map { case (tableName, writeRequests) =>
+            tableName -> Chunk.fromIterable(writeRequests.asScala.flatMap { wr =>
+              if (wr.putRequest != null)
+                Some(DynamoDBQuery.BatchWriteItem.Put(fromAwsItem(wr.putRequest.item)))
+              else if (wr.deleteRequest != null)
+                Some(DynamoDBQuery.BatchWriteItem.Delete(fromAwsItem(wr.deleteRequest.key)))
+              else None
+            })
+          }.toMap
         )
     DynamoDBQuery.BatchWriteItem.Response(unprocessed)
   }
@@ -637,15 +636,13 @@ private[dynamodb] object AwsCodecs {
 
   def fromBatchGetItemResponse(r: BatchGetItemResponse): DynamoDBQuery.BatchGetItem.Response = {
     import scala.collection.immutable.{ Map => ScalaMap }
-    val responses: MapOfSet[String, Item]                                      =
+    val responses: ScalaMap[String, Chunk[Item]]                               =
       if (!r.hasResponses || r.responses.isEmpty)
-        MapOfSet.empty
+        ScalaMap.empty
       else
-        r.responses.asScala.foldLeft(MapOfSet.empty[String, Item]) { case (acc, (tableName, items)) =>
-          items.asScala.foldLeft(acc) { (acc2, item) =>
-            acc2 + (tableName -> fromAwsItem(item))
-          }
-        }
+        r.responses.asScala.map { case (tableName, items) =>
+          tableName -> Chunk.fromIterable(items.asScala.map(fromAwsItem))
+        }.toMap
     val unprocessedKeys: ScalaMap[String, DynamoDBQuery.BatchGetItem.TableGet] =
       if (!r.hasUnprocessedKeys || r.unprocessedKeys.isEmpty)
         ScalaMap.empty

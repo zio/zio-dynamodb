@@ -46,6 +46,7 @@ import software.amazon.awssdk.services.dynamodb.model.{
   UpdateItemRequest,
   UpdateItemResponse
 }
+import zio.blocks.chunk.Chunk
 import zio.test._
 import zio.test.Assertion.{ anything, equalTo, hasField, isSubtype }
 
@@ -140,16 +141,16 @@ object BatchGetItemSpec extends ZIOSpecDefault {
   private val codecSuite = suite("AwsCodecs.fromBatchGetItemResponse")(
     test("responses not set → Response with empty responses and no unprocessed keys") {
       val result = AwsCodecs.fromBatchGetItemResponse(notSetResponse)
-      assertTrue(result.responses == MapOfSet.empty[String, Item] && result.unprocessedKeys.isEmpty)
+      assertTrue(result.responses.isEmpty && result.unprocessedKeys.isEmpty)
     },
     test("responses set to empty map → Response with empty responses") {
       val result = AwsCodecs.fromBatchGetItemResponse(emptyResponse)
-      assertTrue(result.responses == MapOfSet.empty[String, Item] && result.unprocessedKeys.isEmpty)
+      assertTrue(result.responses.isEmpty && result.unprocessedKeys.isEmpty)
     },
     test("response with items → items present under correct table") {
       val result = AwsCodecs.fromBatchGetItemResponse(responseWithItems("t", sampleAwsItem))
       val items  = result.responses.get("t")
-      assertTrue(items.contains(Set[Item](Item("id" -> "a", "v" -> "1"))))
+      assertTrue(items.contains(Chunk[Item](Item("id" -> "a", "v" -> "1"))))
     },
     test("response with multiple items in same table → all items collected") {
       val item2  = Map("id" -> awsStr("b"), "v" -> awsStr("2")).asJava

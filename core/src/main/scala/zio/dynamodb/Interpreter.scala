@@ -287,13 +287,15 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
     q: DynamoDBQuery.BatchGetItem,
     policy: RetryPolicy,
     attempt: Int,
-    accumulatedResponses: MapOfSet[String, Item] = MapOfSet.empty
+    accumulatedResponses: Map[String, Chunk[Item]] = Map.empty
   ): F[Batch.GetResult] =
     flatMap(withRetryTracked(policy, isRetryable)(runBatchGetItem(q))) {
       case Left((cause, effectRetries)) =>
         pure(Batch.GetResult.Failed(cause, responseRetries = attempt, effectRetries = effectRetries))
       case Right(response)              =>
-        val merged = accumulatedResponses ++ response.responses
+        val merged = response.responses.foldLeft(accumulatedResponses) { case (acc, (tableName, items)) =>
+          acc.updated(tableName, acc.getOrElse(tableName, Chunk.empty) ++ items)
+        }
         if (response.unprocessedKeys.isEmpty)
           pure(Batch.GetResult.Complete(response.copy(responses = merged)))
         else

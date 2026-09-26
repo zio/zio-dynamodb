@@ -83,7 +83,7 @@ object ZIOStreamingUtilsSpec extends ZIOSpecDefault {
 
   private def completeResponse(tableName: String, items: Item*): DynamoDBQuery.BatchGetItem.Response =
     DynamoDBQuery.BatchGetItem.Response(
-      responses = items.foldLeft(MapOfSet.empty[String, Item])((acc, i) => acc + (tableName -> i))
+      responses = ScalaMap(tableName -> Chunk.fromIterable(items))
     )
 
   private def incompleteResponse(
@@ -92,7 +92,7 @@ object ZIOStreamingUtilsSpec extends ZIOSpecDefault {
     unprocessedPks: Set[PrimaryKey]
   ): DynamoDBQuery.BatchGetItem.Response =
     DynamoDBQuery.BatchGetItem.Response(
-      responses = processed.foldLeft(MapOfSet.empty[String, Item])((acc, i) => acc + (tableName -> i)),
+      responses = ScalaMap(tableName -> Chunk.fromIterable(processed)),
       unprocessedKeys = ScalaMap(
         tableName -> DynamoDBQuery.BatchGetItem.TableGet(
           keysSet = unprocessedPks,

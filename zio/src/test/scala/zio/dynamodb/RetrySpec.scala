@@ -232,8 +232,7 @@ object RetrySpec extends ZIOSpecDefault {
       test("returns Complete after retrying unprocessed items — TestClock controls time") {
         val item        = Item("id" -> "a")
         val unprocessed = Some(
-          MapOfSet.empty[String, DynamoDBQuery.BatchWriteItem.Write] +
-            ("t" -> DynamoDBQuery.BatchWriteItem.Put(item))
+          Map("t" -> Chunk[DynamoDBQuery.BatchWriteItem.Write](DynamoDBQuery.BatchWriteItem.Put(item)))
         )
         for {
           interp <- makeInterp(
@@ -263,8 +262,7 @@ object RetrySpec extends ZIOSpecDefault {
       test("returns Incomplete when response-level policy exhausted") {
         val item        = Item("id" -> "a")
         val unprocessed = Some(
-          MapOfSet.empty[String, DynamoDBQuery.BatchWriteItem.Write] +
-            ("t" -> DynamoDBQuery.BatchWriteItem.Put(item))
+          Map("t" -> Chunk[DynamoDBQuery.BatchWriteItem.Write](DynamoDBQuery.BatchWriteItem.Put(item)))
         )
         for {
           interp <- makeInterp(
@@ -673,11 +671,11 @@ object RetrySpec extends ZIOSpecDefault {
           interp <- makeInterp(
                       batchGetResponses = List(
                         DynamoDBQuery.BatchGetItem.Response(
-                          responses = MapOfSet.empty[String, Item] + ("t" -> itemA),
+                          responses = Map("t" -> Chunk(itemA)),
                           unprocessedKeys = unprocessedKeys
                         ),
                         DynamoDBQuery.BatchGetItem.Response(
-                          responses = MapOfSet.empty[String, Item] + ("t" -> itemB)
+                          responses = Map("t" -> Chunk(itemB))
                         )
                       )
                     )
@@ -698,7 +696,7 @@ object RetrySpec extends ZIOSpecDefault {
           result <- fiber.join
         } yield assert(result)(
           isSubtype[Batch.GetResult.Complete](
-            hasField("responses", _.response.responses.getOrElse("t", Set.empty), equalTo(Set(itemA, itemB)))
+            hasField("responses", _.response.responses.getOrElse("t", Chunk.empty), equalTo(Chunk(itemA, itemB)))
           )
         )
       }

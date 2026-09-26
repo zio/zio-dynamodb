@@ -73,7 +73,23 @@ object AttributeValue {
       AttributeValue.List(scala.collection.immutable.ArraySeq.unsafeWrapArray(avs))
     }
   }
-  private[dynamodb] final case class BinarySet(value: Iterable[Iterable[Byte]])   extends AttributeValue
+  // Not a case class: value's outer Iterable can be a Set or a Seq depending on how it was
+  // built, and those never canEqual regardless of content. Normalizing to a Set before
+  // comparing (like Binary does for Array[Byte] above) makes equality depend on the bytes only.
+  private[dynamodb] final class BinarySet(val value: Iterable[Iterable[Byte]])    extends AttributeValue {
+    private def normalized: Set[Iterable[Byte]] = value.toSet
+
+    override def equals(that: Any): Boolean = that match {
+      case b: BinarySet => normalized == b.normalized
+      case _            => false
+    }
+    override def hashCode: Int              = normalized.hashCode
+    override def toString: ScalaString      = s"BinarySet($value)"
+  }
+  private[dynamodb] object BinarySet {
+    def apply(value: Iterable[Iterable[Byte]]): BinarySet       = new BinarySet(value)
+    def unapply(b: BinarySet): Option[Iterable[Iterable[Byte]]] = Some(b.value)
+  }
   private[dynamodb] final case class Bool(value: Boolean)                         extends AttributeValue
   private[dynamodb] final case class List(value: Iterable[AttributeValue])        extends AttributeValue { self =>
     def +(av: AttributeValue): List = List(self.value ++ Iterable(av))

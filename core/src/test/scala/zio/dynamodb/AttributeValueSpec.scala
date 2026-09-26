@@ -23,6 +23,7 @@ object AttributeValueSpec extends ZIOSpecDefault {
   def spec = suite("AttributeValue")(
     showTypeSuite,
     binarySuite,
+    binarySetSuite,
     listSuite,
     numberSetSuite,
     stringSetSuite,
@@ -83,6 +84,41 @@ object AttributeValueSpec extends ZIOSpecDefault {
           AttributeValue.Number(BigDecimal(3))
         )
       )
+    }
+  )
+
+  // BinarySet.equals must not depend on the outer container: local construction
+  // (ToAttributeValue.binarySetToAttributeValue) typically produces a Set, the real AWS decode
+  // path (fromAwsAttrValue) a Seq, and Scala's Set/Seq never canEqual regardless of content.
+  private val binarySetSuite = suite("AttributeValue.BinarySet")(
+    test("root cause: a Set-shaped and a Seq-shaped BinarySet with identical content are equal") {
+      val setShaped: AttributeValue.BinarySet = AttributeValue.BinarySet(Set(List(1.toByte, 2.toByte, 3.toByte)))
+      val seqShaped: AttributeValue.BinarySet = AttributeValue.BinarySet(List(List(1.toByte, 2.toByte, 3.toByte)))
+      assertTrue(setShaped == seqShaped)
+    },
+    test("locally-constructed and AWS-decoded shapes of the same binary set are equal") {
+      import scala.collection.immutable.ArraySeq
+      import scala.collection.mutable
+
+      val locallyConstructed: AttributeValue.BinarySet =
+        AttributeValue.BinarySet(Set(List(1.toByte, 2.toByte, 3.toByte)))
+
+      val awsDecoded: AttributeValue.BinarySet =
+        AttributeValue.BinarySet(mutable.Buffer(ArraySeq.unsafeWrapArray(Array[Byte](1, 2, 3))))
+
+      assertTrue(locallyConstructed == awsDecoded)
+    },
+    test("Chunk[Byte] inner elements (the real Set[Chunk[Byte]] shape) compare equal to the AWS-decoded shape") {
+      import scala.collection.immutable.ArraySeq
+      import scala.collection.mutable
+      import zio.blocks.chunk.{ Chunk => ZChunk }
+
+      val locallyConstructed: AttributeValue.BinarySet =
+        AttributeValue.BinarySet(Set(ZChunk[Byte](1, 2, 3)))
+      val awsDecoded: AttributeValue.BinarySet         =
+        AttributeValue.BinarySet(mutable.Buffer(ArraySeq.unsafeWrapArray(Array[Byte](1, 2, 3))))
+
+      assertTrue(locallyConstructed == awsDecoded)
     }
   )
 
