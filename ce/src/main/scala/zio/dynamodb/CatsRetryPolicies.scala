@@ -1,0 +1,93 @@
+/*
+ * Copyright 2021-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package zio.dynamodb
+
+import cats.effect.{ IO, Ref }
+
+import scala.concurrent.duration.FiniteDuration
+
+/**
+ * Cats-Effect-specific [[EffectfulRetryPolicy]] smart constructors. Unlike ZIO, cats-effect has
+ * no built-in `Schedule`-equivalent to wrap, so this is the direct CE-native way to get the same
+ * state-scoping guarantee `ZioRetryPolicies.fromSchedule` gives ZIO users: state lives in a
+ * `Ref[IO, S]`, created fresh once per `newAttempt()` call, so concurrent executions sharing
+ * one policy instance never share state.
+ */
+object CatsRetryPolicies {
+
+  /**
+   * A stateful curve keyed by an arbitrary state type `S` (e.g. `Long` for decorrelated
+   * jitter's "previous delay"). `next` computes the new state and the delay for this attempt
+   * from the current state; returning `None` stops retrying.
+   *
+   * {{{
+   * // decorrelated jitter — sleep = min(cap, random_between(base, previous_sleep * 3))
+   * CatsRetryPolicies.statefulCustom(initial = 100L) { (previousDelay, attempt) =>
+   *   if (attempt >= 8) (previousDelay, None)
+   *   else {
+   *     val next = math.min(20000L, 100L + scala.util.Random.between(0L, previousDelay * 3 - 100L + 1))
+   *     (next, Some(FiniteDuration(next, "milliseconds")))
+   *   }
+   * }
+   * }}}
+   */
+  def statefulCustom[S](
+    initial: S
+  )(next: (S, Int) => (S, Option[FiniteDuration])): EffectfulRetryPolicy[IO] =
+    new EffectfulRetryPolicy[IO] {
+      def newAttempt(): IO[EffectfulRetryPolicy.Attempt[IO]] =
+        Ref.of[IO, S](initial).map { stateRef =>
+          new EffectfulRetryPolicy.Attempt[IO] {
+            def nextDelay(attempt: Int): IO[Option[FiniteDuration]] =
+              stateRef.modify(s => next(s, attempt))
+          }
+        }
+    }
+
+  /**
+   * Full-jitter exponential backoff — see `RetryPolicy.fullJitter` for the formula, and why
+   * it's what AWS SDKs actually ship as their default today. Stateless, so no `Ref` is
+   * needed; each attempt just lifts the pure computation into `IO`.
+   */
+  def fullJitter(
+    maxRetries: Int = 8,
+    baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
+    maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
+  ): EffectfulRetryPolicy[IO] =
+    new EffectfulRetryPolicy[IO] {
+      def newAttempt(): IO[EffectfulRetryPolicy.Attempt[IO]] =
+        IO.delay {
+          val pureAttempt = RetryPolicy.fullJitter(maxRetries, baseDelay, maxDelay).newAttempt()
+          new EffectfulRetryPolicy.Attempt[IO] {
+            def nextDelay(attempt: Int): IO[Option[FiniteDuration]] = IO.delay(pureAttempt.nextDelay(attempt))
+          }
+        }
+    }
+
+  /**
+   * Decorrelated-jitter backoff — see `RetryPolicy.decorrelatedJitter` for the formula and its
+   * AWS blog-post origin.
+   */
+  def decorrelatedJitter(
+    maxRetries: Int = 8,
+    baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
+    maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
+  ): EffectfulRetryPolicy[IO] =
+    statefulCustom(initial = baseDelay.toMillis) { (previousDelayMs, attempt) =>
+      RetryPolicy.decorrelatedJitterStep(baseDelay.toMillis, maxDelay.toMillis, maxRetries)(previousDelayMs, attempt)
+    }
+}

@@ -20,24 +20,36 @@ import java.util.concurrent.ThreadLocalRandom
 import scala.concurrent.duration.FiniteDuration
 
 /**
- * Governs retry timing for a query, attached via `.withRetryPolicy(policy)`. `nextDelay`
- * is consulted once per failed attempt — `None` means stop retrying and raise the error;
- * `Some(d)` means wait `d` then try again. Driven internally by `AwsInterpreter.withRetry`
- * for effect-level failures, and by the batch-specific retry loop in `Batch` for
- * response-level unprocessed items/keys.
+ * Governs retry timing for a query, attached via `.withRetryPolicy(policy)`. A policy is
+ * reusable and shareable across many query executions; `newAttempt()` creates fresh,
+ * execution-scoped state for one retry sequence, so a stateful curve (e.g. decorrelated
+ * jitter, built via [[RetryPolicy.statefulCustom]]) never leaks state across concurrent,
+ * unrelated executions sharing the same policy value.
  */
 sealed trait RetryPolicy {
-  def nextDelay(attempt: Int): Option[FiniteDuration]
+  def newAttempt(): RetryPolicy.Attempt
 }
 
 /**
- * [[RetryPolicy.NoRetry]] (the default), [[RetryPolicy.ExponentialBackoff]], and the default
- * [[RetryPolicy.isRetryable]] predicate.
+ * [[RetryPolicy.NoRetry]] (the default), [[RetryPolicy.ExponentialBackoff]],
+ * [[RetryPolicy.custom]]/[[RetryPolicy.statefulCustom]], [[RetryPolicy.fullJitter]],
+ * [[RetryPolicy.decorrelatedJitter]], and the default [[RetryPolicy.isRetryable]] predicate.
  */
 object RetryPolicy {
 
+  /**
+   * Per-execution retry state. `nextDelay` is consulted once per failed attempt of one retry
+   * sequence — `None` means stop retrying and raise the error; `Some(d)` means wait `d` then
+   * try again. Driven internally by `AwsInterpreter.withRetry` for effect-level failures, and
+   * by the batch-specific retry loop in `Batch` for response-level unprocessed items/keys.
+   */
+  trait Attempt {
+    def nextDelay(attempt: Int): Option[FiniteDuration]
+  }
+
   case object NoRetry extends RetryPolicy {
-    def nextDelay(attempt: Int): Option[FiniteDuration] = None
+    private val noRetryAttempt: Attempt = (_: Int) => None
+    def newAttempt(): Attempt           = noRetryAttempt
   }
 
   /**
@@ -56,7 +68,7 @@ object RetryPolicy {
     maxDelay: FiniteDuration = FiniteDuration(30, "seconds"),
     jitter: Boolean = true
   ) extends RetryPolicy {
-    def nextDelay(attempt: Int): Option[FiniteDuration] =
+    def newAttempt(): Attempt = { (attempt: Int) =>
       if (attempt >= maxRetries) None
       else {
         val cap = math
@@ -70,7 +82,101 @@ object RetryPolicy {
           else cap
         Some(FiniteDuration(ms, "milliseconds"))
       }
+    }
   }
+
+  private[dynamodb] final case class Custom(newState: () => Attempt) extends RetryPolicy {
+    def newAttempt(): Attempt = newState()
+  }
+
+  /** Stateless curve — most cases (linear, constant, custom caps). */
+  def custom(f: Int => Option[FiniteDuration]): RetryPolicy =
+    Custom(() => (attempt: Int) => f(attempt))
+
+  /**
+   * Stateful curve (e.g. decorrelated jitter, see [[decorrelatedJitter]] —
+   * `sleep = min(cap, random_between(base, previous_sleep * 3))`). `newAttempt` runs once per
+   * retry sequence; anything it captures (a plain `var`, no atomics needed) is genuinely
+   * scoped to that one execution, since nothing else can reach it.
+   *
+   * {{{
+   * RetryPolicy.statefulCustom { () =>
+   *   var previousDelay = 100L
+   *   (attempt: Int) =>
+   *     if (attempt >= 8) None
+   *     else {
+   *       val next = math.min(20000L, 100L + ThreadLocalRandom.current().nextLong(0, previousDelay * 3 - 100L + 1))
+   *       previousDelay = next
+   *       Some(FiniteDuration(next, "milliseconds"))
+   *     }
+   * }
+   * }}}
+   */
+  def statefulCustom(newAttempt: () => Int => Option[FiniteDuration]): RetryPolicy =
+    Custom { () =>
+      val f: Int => Option[FiniteDuration] = newAttempt()
+      (attempt: Int) => f(attempt)
+    }
+
+  /**
+   * One step of the decorrelated-jitter algorithm (see [[decorrelatedJitter]]):
+   * `sleep = min(cap, random_between(base, previous_sleep * 3))`. Shared by every effect
+   * type's `decorrelatedJitter` constructor (`RetryPolicy.decorrelatedJitter`,
+   * `ZioRetryPolicies.decorrelatedJitter`, `CatsRetryPolicies.decorrelatedJitter`,
+   * `FutureRetryPolicies.decorrelatedJitter`) so the formula lives in exactly one place.
+   *
+   * `cap` is clamped to never fall below `baseMs`, even if the caller passed a `maxMs` smaller
+   * than `baseMs` — this keeps every delay (and thus the next `nextLong` sampling range) at
+   * least `baseMs`, which is what keeps that range valid; without the clamp, a degenerate
+   * `maxDelay < baseDelay` config would eventually sample a non-positive range and throw.
+   */
+  private[dynamodb] def decorrelatedJitterStep(
+    baseMs: Long,
+    maxMs: Long,
+    maxRetries: Int
+  )(previousDelayMs: Long, attempt: Int): (Long, Option[FiniteDuration]) =
+    if (attempt >= maxRetries) (previousDelayMs, None)
+    else {
+      val cap  = math.max(baseMs, maxMs)
+      val next = math.min(cap, baseMs + ThreadLocalRandom.current().nextLong(0L, previousDelayMs * 3L - baseMs + 1L))
+      (next, Some(FiniteDuration(next, "milliseconds")))
+    }
+
+  /**
+   * Full-jitter exponential backoff: `delay = random(0, min(maxDelay, baseDelay * 2^attempt))`
+   * — a thin preset over [[ExponentialBackoff]] fixing `factor = 2.0`/`jitter = true`. This is
+   * what AWS SDKs actually implement as their current standard retry mode (see AWS's SDKs and
+   * Tools Reference Guide, "Retry behavior"), and the default every interpreter ships with via
+   * `defaultRetryPolicy`.
+   */
+  def fullJitter(
+    maxRetries: Int = 8,
+    baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
+    maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
+  ): RetryPolicy =
+    ExponentialBackoff(maxRetries, baseDelay, factor = 2.0, maxDelay, jitter = true)
+
+  /**
+   * Decorrelated-jitter backoff, one of several strategies from AWS's own "Exponential
+   * Backoff And Jitter" writeup (aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter)
+   * — not what AWS SDKs actually ship as their default today (see [[fullJitter]] for that).
+   * Exposed here for a query that wants this specific curve explicitly via
+   * `.withRetryPolicy(RetryPolicy.decorrelatedJitter())`.
+   */
+  def decorrelatedJitter(
+    maxRetries: Int = 8,
+    baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
+    maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
+  ): RetryPolicy =
+    statefulCustom { () =>
+      var previousDelayMs = baseDelay.toMillis
+      (attempt: Int) => {
+        val (next, delay) =
+          decorrelatedJitterStep(baseDelay.toMillis, maxDelay.toMillis, maxRetries)(previousDelayMs, attempt)
+        previousDelayMs = next
+        delay
+      }
+    }
 
   /** Default predicate covering standard DynamoDB transient errors. */
   val isRetryable: Throwable => Boolean = { t =>
