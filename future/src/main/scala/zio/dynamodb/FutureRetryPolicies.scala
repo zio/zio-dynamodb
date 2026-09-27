@@ -48,10 +48,31 @@ object FutureRetryPolicies {
     }
 
   /**
-   * AWS's own recommended decorrelated-jitter algorithm — see `RetryPolicy.awsRecommended`
-   * for the shared formula.
+   * Full-jitter exponential backoff — see `RetryPolicy.fullJitter` for the formula, and why
+   * it's what AWS SDKs actually ship as their default today. Stateless, so no `var` is
+   * needed either; each attempt just lifts the pure computation into `Future`.
    */
-  def awsRecommended(
+  def fullJitter(
+    maxRetries: Int = 8,
+    baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
+    maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
+  ): EffectfulRetryPolicy[Future] =
+    new EffectfulRetryPolicy[Future] {
+      def newAttempt(): Future[EffectfulRetryPolicy.Attempt[Future]] =
+        Future.successful {
+          val pureAttempt = RetryPolicy.fullJitter(maxRetries, baseDelay, maxDelay).newAttempt()
+          new EffectfulRetryPolicy.Attempt[Future] {
+            def nextDelay(attempt: Int): Future[Option[FiniteDuration]] =
+              Future.successful(pureAttempt.nextDelay(attempt))
+          }
+        }
+    }
+
+  /**
+   * Decorrelated-jitter backoff — see `RetryPolicy.decorrelatedJitter` for the formula and its
+   * AWS blog-post origin.
+   */
+  def decorrelatedJitter(
     maxRetries: Int = 8,
     baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
     maxDelay: FiniteDuration = FiniteDuration(20, "seconds")

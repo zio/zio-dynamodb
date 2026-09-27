@@ -35,8 +35,7 @@ object CatsRetryPolicies {
    * from the current state; returning `None` stops retrying.
    *
    * {{{
-   * // decorrelated jitter — AWS's own recommended algorithm,
-   * // sleep = min(cap, random_between(base, previous_sleep * 3))
+   * // decorrelated jitter — sleep = min(cap, random_between(base, previous_sleep * 3))
    * CatsRetryPolicies.statefulCustom(initial = 100L) { (previousDelay, attempt) =>
    *   if (attempt >= 8) (previousDelay, None)
    *   else {
@@ -60,10 +59,30 @@ object CatsRetryPolicies {
     }
 
   /**
-   * AWS's own recommended decorrelated-jitter algorithm — see `RetryPolicy.awsRecommended`
-   * for the shared formula.
+   * Full-jitter exponential backoff — see `RetryPolicy.fullJitter` for the formula, and why
+   * it's what AWS SDKs actually ship as their default today. Stateless, so no `Ref` is
+   * needed; each attempt just lifts the pure computation into `IO`.
    */
-  def awsRecommended(
+  def fullJitter(
+    maxRetries: Int = 8,
+    baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
+    maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
+  ): EffectfulRetryPolicy[IO] =
+    new EffectfulRetryPolicy[IO] {
+      def newAttempt(): IO[EffectfulRetryPolicy.Attempt[IO]] =
+        IO.delay {
+          val pureAttempt = RetryPolicy.fullJitter(maxRetries, baseDelay, maxDelay).newAttempt()
+          new EffectfulRetryPolicy.Attempt[IO] {
+            def nextDelay(attempt: Int): IO[Option[FiniteDuration]] = IO.delay(pureAttempt.nextDelay(attempt))
+          }
+        }
+    }
+
+  /**
+   * Decorrelated-jitter backoff — see `RetryPolicy.decorrelatedJitter` for the formula and its
+   * AWS blog-post origin.
+   */
+  def decorrelatedJitter(
     maxRetries: Int = 8,
     baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
     maxDelay: FiniteDuration = FiniteDuration(20, "seconds")

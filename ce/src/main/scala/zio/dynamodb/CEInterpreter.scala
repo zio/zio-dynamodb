@@ -53,27 +53,27 @@ object CEInterpreter {
 
   /**
    * Creates an interpreter backed by `sdkClient` with no interceptor. Any query that doesn't
-   * specify its own `.withRetryPolicy(...)` falls back to `CatsRetryPolicies.awsRecommended()`
-   * (decorrelated jitter, AWS's own recommended algorithm) — except `UpdateItem`, which never
+   * specify its own `.withRetryPolicy(...)` falls back to `CatsRetryPolicies.fullJitter()`
+   * (full-jitter exponential backoff, what AWS SDKs ship as their default) — except `UpdateItem`, which never
    * retries without an explicit policy (see `docs/reference/retries.md`). Pass `None` to the
    * `defaultRetryPolicy` overload below to opt out entirely.
    */
   def fromAsyncClient(sdkClient: DynamoDbAsyncClient): CEInterpreter =
-    fromAsyncClientInternal(sdkClient, None, Some(CatsRetryPolicies.awsRecommended()))
+    fromAsyncClientInternal(sdkClient, None, Some(CatsRetryPolicies.fullJitter()))
 
   /** Creates an interpreter that fires `interceptor` after every data operation. */
   def fromAsyncClient(
     sdkClient: DynamoDbAsyncClient,
     interceptor: ResponseInterceptor[IO]
   ): CEInterpreter =
-    fromAsyncClientInternal(sdkClient, Some(interceptor), Some(CatsRetryPolicies.awsRecommended()))
+    fromAsyncClientInternal(sdkClient, Some(interceptor), Some(CatsRetryPolicies.fullJitter()))
 
   /**
    * Creates an interpreter that falls back to `defaultRetryPolicy` for any query that doesn't
    * specify its own `.withRetryPolicy(...)`, except `UpdateItem` (see `docs/reference/retries.md`).
    * Pass `None` to disable the interpreter-level fallback entirely (retry becomes purely
    * opt-in per query); the other `fromAsyncClient` overloads default this to
-   * `Some(CatsRetryPolicies.awsRecommended())`.
+   * `Some(CatsRetryPolicies.fullJitter())`.
    */
   def fromAsyncClient(
     sdkClient: DynamoDbAsyncClient,

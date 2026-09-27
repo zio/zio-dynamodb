@@ -132,27 +132,27 @@ object RetryPolicySpec extends ZIOSpecDefault {
       }
     ),
 
-    suite("awsRecommended — decorrelated jitter")(
+    suite("decorrelatedJitter")(
       test("delay for attempt 0 is in [base, base * 3] before capping") {
         val attempt =
-          RetryPolicy.awsRecommended(maxRetries = 5, baseDelay = 100.millis, maxDelay = 20.seconds).newAttempt()
+          RetryPolicy.decorrelatedJitter(maxRetries = 5, baseDelay = 100.millis, maxDelay = 20.seconds).newAttempt()
         val d       = attempt.nextDelay(0).get.toMillis
         assertTrue(d >= 100L && d <= 300L)
       },
       test("returns None once maxRetries is reached") {
         val attempt =
-          RetryPolicy.awsRecommended(maxRetries = 3, baseDelay = 50.millis, maxDelay = 5.seconds).newAttempt()
+          RetryPolicy.decorrelatedJitter(maxRetries = 3, baseDelay = 50.millis, maxDelay = 5.seconds).newAttempt()
         (0 until 3).foreach(attempt.nextDelay)
         assertTrue(attempt.nextDelay(3).isEmpty)
       },
       test("delay never exceeds maxDelay across many attempts") {
         val attempt =
-          RetryPolicy.awsRecommended(maxRetries = 20, baseDelay = 100.millis, maxDelay = 500.millis).newAttempt()
+          RetryPolicy.decorrelatedJitter(maxRetries = 20, baseDelay = 100.millis, maxDelay = 500.millis).newAttempt()
         val delays  = (0 until 20).flatMap(attempt.nextDelay(_).map(_.toMillis))
         assertTrue(delays.forall(_ <= 500L))
       },
       test("state is scoped per newAttempt() call, not shared across concurrent executions") {
-        val policy = RetryPolicy.awsRecommended(maxRetries = 5, baseDelay = 100.millis, maxDelay = 20.seconds)
+        val policy = RetryPolicy.decorrelatedJitter(maxRetries = 5, baseDelay = 100.millis, maxDelay = 20.seconds)
         val first  = policy.newAttempt()
         val second = policy.newAttempt()
         val d1     = first.nextDelay(0).get.toMillis
@@ -163,7 +163,7 @@ object RetryPolicySpec extends ZIOSpecDefault {
         val base    = 100L
         val cap     = 20000L
         val attempt =
-          RetryPolicy.awsRecommended(maxRetries = 50, baseDelay = base.millis, maxDelay = cap.millis).newAttempt()
+          RetryPolicy.decorrelatedJitter(maxRetries = 50, baseDelay = base.millis, maxDelay = cap.millis).newAttempt()
         val delays  = (0 until 50).map(n => attempt.nextDelay(n).get.toMillis)
         assertTrue(
           delays.head >= base && delays.head <= math.min(cap, base * 3),
@@ -175,15 +175,40 @@ object RetryPolicySpec extends ZIOSpecDefault {
       test("jitter actually varies the delay — not a deterministic function of the attempt alone") {
         val samples =
           (0 until 30).map(_ =>
-            RetryPolicy.awsRecommended(baseDelay = 100.millis, maxDelay = 20.seconds).newAttempt().nextDelay(0).get
+            RetryPolicy.decorrelatedJitter(baseDelay = 100.millis, maxDelay = 20.seconds).newAttempt().nextDelay(0).get
           )
         assertTrue(samples.toSet.size > 1)
       },
       test("does not crash when maxDelay is below baseDelay — clamps the cap to baseDelay instead") {
         val attempt =
-          RetryPolicy.awsRecommended(maxRetries = 5, baseDelay = 100.millis, maxDelay = 10.millis).newAttempt()
+          RetryPolicy.decorrelatedJitter(maxRetries = 5, baseDelay = 100.millis, maxDelay = 10.millis).newAttempt()
         val delays  = (0 until 5).flatMap(attempt.nextDelay(_).map(_.toMillis))
         assertTrue(delays.forall(_ == 100L))
+      }
+    ),
+
+    suite("fullJitter")(
+      test("delay for attempt 0 is in [0, baseDelay]") {
+        val attempt = RetryPolicy.fullJitter(maxRetries = 5, baseDelay = 100.millis, maxDelay = 20.seconds).newAttempt()
+        val d       = attempt.nextDelay(0).get.toMillis
+        assertTrue(d >= 0L && d <= 100L)
+      },
+      test("delay is in [0, cap] and caps at maxDelay across many attempts") {
+        val attempt =
+          RetryPolicy.fullJitter(maxRetries = 20, baseDelay = 100.millis, maxDelay = 500.millis).newAttempt()
+        val delays  = (0 until 20).flatMap(attempt.nextDelay(_).map(_.toMillis))
+        assertTrue(delays.forall(d => d >= 0L && d <= 500L))
+      },
+      test("returns None once maxRetries is reached") {
+        val attempt = RetryPolicy.fullJitter(maxRetries = 3, baseDelay = 50.millis, maxDelay = 5.seconds).newAttempt()
+        (0 until 3).foreach(attempt.nextDelay)
+        assertTrue(attempt.nextDelay(3).isEmpty)
+      },
+      test("does not crash when maxDelay is below baseDelay") {
+        val attempt =
+          RetryPolicy.fullJitter(maxRetries = 5, baseDelay = 100.millis, maxDelay = 10.millis).newAttempt()
+        val delays  = (0 until 5).flatMap(attempt.nextDelay(_).map(_.toMillis))
+        assertTrue(delays.forall(d => d >= 0L && d <= 10L))
       }
     ),
 

@@ -32,8 +32,8 @@ sealed trait RetryPolicy {
 
 /**
  * [[RetryPolicy.NoRetry]] (the default), [[RetryPolicy.ExponentialBackoff]],
- * [[RetryPolicy.custom]]/[[RetryPolicy.statefulCustom]], and the default
- * [[RetryPolicy.isRetryable]] predicate.
+ * [[RetryPolicy.custom]]/[[RetryPolicy.statefulCustom]], [[RetryPolicy.fullJitter]],
+ * [[RetryPolicy.decorrelatedJitter]], and the default [[RetryPolicy.isRetryable]] predicate.
  */
 object RetryPolicy {
 
@@ -94,7 +94,7 @@ object RetryPolicy {
     Custom(() => (attempt: Int) => f(attempt))
 
   /**
-   * Stateful curve (e.g. decorrelated jitter — AWS's own recommended algorithm,
+   * Stateful curve (e.g. decorrelated jitter, see [[decorrelatedJitter]] —
    * `sleep = min(cap, random_between(base, previous_sleep * 3))`). `newAttempt` runs once per
    * retry sequence; anything it captures (a plain `var`, no atomics needed) is genuinely
    * scoped to that one execution, since nothing else can reach it.
@@ -119,11 +119,11 @@ object RetryPolicy {
     }
 
   /**
-   * One step of AWS's recommended decorrelated-jitter algorithm:
+   * One step of the decorrelated-jitter algorithm (see [[decorrelatedJitter]]):
    * `sleep = min(cap, random_between(base, previous_sleep * 3))`. Shared by every effect
-   * type's `awsRecommended` constructor (`RetryPolicy.awsRecommended`,
-   * `ZioRetryPolicies.awsRecommended`, `CatsRetryPolicies.awsRecommended`,
-   * `FutureRetryPolicies.awsRecommended`) so the formula lives in exactly one place.
+   * type's `decorrelatedJitter` constructor (`RetryPolicy.decorrelatedJitter`,
+   * `ZioRetryPolicies.decorrelatedJitter`, `CatsRetryPolicies.decorrelatedJitter`,
+   * `FutureRetryPolicies.decorrelatedJitter`) so the formula lives in exactly one place.
    *
    * `cap` is clamped to never fall below `baseMs`, even if the caller passed a `maxMs` smaller
    * than `baseMs` — this keeps every delay (and thus the next `nextLong` sampling range) at
@@ -143,12 +143,27 @@ object RetryPolicy {
     }
 
   /**
-   * AWS's own recommended decorrelated-jitter algorithm — the default every interpreter ships
-   * with via `defaultRetryPolicy`. Exposed here too so a query can opt back into the same curve
-   * explicitly via `.withRetryPolicy(RetryPolicy.awsRecommended())`, e.g. after having disabled
-   * the interpreter default for everything else.
+   * Full-jitter exponential backoff: `delay = random(0, min(maxDelay, baseDelay * 2^attempt))`
+   * — a thin preset over [[ExponentialBackoff]] fixing `factor = 2.0`/`jitter = true`. This is
+   * what AWS SDKs actually implement as their current standard retry mode (see AWS's SDKs and
+   * Tools Reference Guide, "Retry behavior"), and the default every interpreter ships with via
+   * `defaultRetryPolicy`.
    */
-  def awsRecommended(
+  def fullJitter(
+    maxRetries: Int = 8,
+    baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
+    maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
+  ): RetryPolicy =
+    ExponentialBackoff(maxRetries, baseDelay, factor = 2.0, maxDelay, jitter = true)
+
+  /**
+   * Decorrelated-jitter backoff, one of several strategies from AWS's own "Exponential
+   * Backoff And Jitter" writeup (aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter)
+   * — not what AWS SDKs actually ship as their default today (see [[fullJitter]] for that).
+   * Exposed here for a query that wants this specific curve explicitly via
+   * `.withRetryPolicy(RetryPolicy.decorrelatedJitter())`.
+   */
+  def decorrelatedJitter(
     maxRetries: Int = 8,
     baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
     maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
