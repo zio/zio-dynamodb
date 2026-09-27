@@ -178,6 +178,12 @@ object RetryPolicySpec extends ZIOSpecDefault {
             RetryPolicy.awsRecommended(baseDelay = 100.millis, maxDelay = 20.seconds).newAttempt().nextDelay(0).get
           )
         assertTrue(samples.toSet.size > 1)
+      },
+      test("does not crash when maxDelay is below baseDelay — clamps the cap to baseDelay instead") {
+        val attempt =
+          RetryPolicy.awsRecommended(maxRetries = 5, baseDelay = 100.millis, maxDelay = 10.millis).newAttempt()
+        val delays  = (0 until 5).flatMap(attempt.nextDelay(_).map(_.toMillis))
+        assertTrue(delays.forall(_ == 100L))
       }
     ),
 

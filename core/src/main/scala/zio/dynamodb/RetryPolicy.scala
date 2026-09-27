@@ -124,6 +124,11 @@ object RetryPolicy {
    * type's `awsRecommended` constructor (`RetryPolicy.awsRecommended`,
    * `ZioRetryPolicies.awsRecommended`, `CatsRetryPolicies.awsRecommended`,
    * `FutureRetryPolicies.awsRecommended`) so the formula lives in exactly one place.
+   *
+   * `cap` is clamped to never fall below `baseMs`, even if the caller passed a `maxMs` smaller
+   * than `baseMs` — this keeps every delay (and thus the next `nextLong` sampling range) at
+   * least `baseMs`, which is what keeps that range valid; without the clamp, a degenerate
+   * `maxDelay < baseDelay` config would eventually sample a non-positive range and throw.
    */
   private[dynamodb] def decorrelatedJitterStep(
     baseMs: Long,
@@ -132,7 +137,8 @@ object RetryPolicy {
   )(previousDelayMs: Long, attempt: Int): (Long, Option[FiniteDuration]) =
     if (attempt >= maxRetries) (previousDelayMs, None)
     else {
-      val next = math.min(maxMs, baseMs + ThreadLocalRandom.current().nextLong(0L, previousDelayMs * 3L - baseMs + 1L))
+      val cap  = math.max(baseMs, maxMs)
+      val next = math.min(cap, baseMs + ThreadLocalRandom.current().nextLong(0L, previousDelayMs * 3L - baseMs + 1L))
       (next, Some(FiniteDuration(next, "milliseconds")))
     }
 
