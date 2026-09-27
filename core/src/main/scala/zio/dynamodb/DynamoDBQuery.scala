@@ -173,6 +173,9 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
       case p: DynamoDBQuery.PutItem               => p.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
       case d: DynamoDBQuery.DeleteItem            => d.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
       case g: DynamoDBQuery.GetItem               => g.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case u: DynamoDBQuery.UpdateItem            => u.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case s: DynamoDBQuery.Scan                  => s.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case q: DynamoDBQuery.Query                 => q.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
       case _                                      => self
     }
 
@@ -515,7 +518,8 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     returnValues: ReturnValues = ReturnValues.None,
-    returnValuesOnConditionCheckFailure: Option[ReturnValuesOnConditionCheckFailure] = None
+    returnValuesOnConditionCheckFailure: Option[ReturnValuesOnConditionCheckFailure] = None,
+    retryPolicy: Option[RetryPolicy] = None
   ) extends Constructor[Any, Option[Item]]
 
   private[dynamodb] final case class DeleteItem(
@@ -562,7 +566,8 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None,                              // if ProjectExpression supplied then only valid value is SpecificAttributes
     segment: Int = 0,
-    totalSegments: Int = 1
+    totalSegments: Int = 1,
+    retryPolicy: Option[RetryPolicy] = None
   ) extends Constructor[Any, Page[Item]]
 
   private[dynamodb] final case class Query(
@@ -577,7 +582,8 @@ object DynamoDBQuery {
     projections: List[ProjectionExpression[_, _]] = List.empty, // if empty all attributes will be returned
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     select: Option[Select] = None,                              // if ProjectExpression supplied then only valid value is SpecificAttributes
-    ascending: Boolean = true
+    ascending: Boolean = true,
+    retryPolicy: Option[RetryPolicy] = None
   ) extends Constructor[Any, Page[Item]]
 
   private[dynamodb] final case class CreateTable(

@@ -162,6 +162,21 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
         }
     }
 
+  /**
+   * Like [[withOptionalRetry]], but never falls back to `defaultRetryPolicy` — only a query's
+   *  own explicit `.withRetryPolicy(...)` is honored. Used for `UpdateItem`: its `Action` DSL
+   *  includes non-idempotent updates (`.add`/`.increment`/`.appendList`/`.prependList`), where
+   *  retrying an ambiguous-outcome failure (the original write may have already landed) can
+   *  silently double-apply a delta. The interpreter has no way to tell an idempotent `.set`
+   *  from a non-idempotent one, so it can't safely opt every `UpdateItem` into retrying by
+   *  default the way it does for `GetItem`/`PutItem`/`DeleteItem`/batch.
+   */
+  private def withExplicitRetryOnly[A](retryPolicy: Option[RetryPolicy])(fa: => F[A]): F[A] =
+    retryPolicy match {
+      case Some(p) => withRetry(p, isRetryable)(fa)
+      case None    => fa
+    }
+
   /** Like [[withRetryTracked]], but for an [[EffectfulRetryPolicy]] — see `defaultRetryPolicy`. */
   private[dynamodb] final def withRetryTrackedF[A](
     policy: EffectfulRetryPolicy[F],
@@ -325,7 +340,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
         validateAction(q.updateExpression.action)
           .orElse(validateCE(q.conditionExpression))
           .fold(
-            runUpdateItem(q).asInstanceOf[F[Any]]
+            withExplicitRetryOnly(q.retryPolicy)(runUpdateItem(q)).asInstanceOf[F[Any]]
           )(fail)
       case q: DynamoDBQuery.DeleteItem         =>
         validateCE(q.conditionExpression).fold(
@@ -335,13 +350,13 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
         validateKCE(q.keyConditionExpr)
           .orElse(validateCE(q.filterExpression))
           .fold(
-            runQuery(q).asInstanceOf[F[Any]]
+            withOptionalRetry(q.retryPolicy)(runQuery(q)).asInstanceOf[F[Any]]
           )(fail)
       case q: DynamoDBQuery.Scan               =>
         validateCE(q.filterExpression)
           .orElse(validateScanSegment(q))
           .fold(
-            runScan(q).asInstanceOf[F[Any]]
+            withOptionalRetry(q.retryPolicy)(runScan(q)).asInstanceOf[F[Any]]
           )(err => fail(err))
       case q: DynamoDBQuery.CreateTable        => runCreateTable(q).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.DeleteTable        => runDeleteTable(q).asInstanceOf[F[Any]]

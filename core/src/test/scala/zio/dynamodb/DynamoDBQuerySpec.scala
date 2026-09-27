@@ -776,6 +776,26 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
         isSubtype[GetItem](hasField("retryPolicy", _.retryPolicy, equalTo(Some(noRetry): Option[RetryPolicy])))
       )
     },
+    test("sets UpdateItem") {
+      val expr = UpdateExpression(ProjectionExpression.$("v").set(2))
+      assert(UpdateItem(table1, pk, expr).withRetryPolicy(RetryPolicy.NoRetry))(
+        isSubtype[UpdateItem](hasField("retryPolicy", _.retryPolicy, equalTo(Some(noRetry): Option[RetryPolicy])))
+      )
+    },
+    test("sets Query") {
+      assert(DynamoDBQuery.Query(table1, limit = 10).withRetryPolicy(RetryPolicy.NoRetry))(
+        isSubtype[DynamoDBQuery.Query](
+          hasField("retryPolicy", _.retryPolicy, equalTo(Some(noRetry): Option[RetryPolicy]))
+        )
+      )
+    },
+    test("sets Scan") {
+      assert(DynamoDBQuery.Scan(table1, limit = 10).withRetryPolicy(RetryPolicy.NoRetry))(
+        isSubtype[DynamoDBQuery.Scan](
+          hasField("retryPolicy", _.retryPolicy, equalTo(Some(noRetry): Option[RetryPolicy]))
+        )
+      )
+    },
     test("propagates through ZipPar to both branches") {
       val q = (GetItem(table1, pk) zipPar GetItem(table2, pk)).withRetryPolicy(RetryPolicy.NoRetry)
       assert(q)(

@@ -58,7 +58,9 @@ Request-level [retry policies](retries.md): a stateless linear backoff, a tuned-
 
 Interpreter-level [retry policies](retries.md): disabling the shipped AWS-recommended default
 (`defaultRetryPolicy = None`) and swapping in a `zio.Schedule`-backed one via
-`ZioRetryPolicies.fromSchedule`. See [Retries](retries.md#two-attachment-points).
+`ZioRetryPolicies.fromSchedule` — run against both a plain `getItem` and a `batchGetItem` with
+no policy of its own, to show the same interpreter-level fallback governs batch's
+response-level retry loop too. See [Retries](retries.md#two-attachment-points).
 
 ## `ZIOStreamingUtils`
 

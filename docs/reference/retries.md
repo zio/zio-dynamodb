@@ -48,6 +48,26 @@ def example(implicit interp: Interpreter[zio.Task]) =
 effect type, so it can never hold an `F`-typed value — only a plain `RetryPolicy` fits at the
 query level.
 
+### `UpdateItem` is the one exception: explicit opt-in only
+
+Every other operation below falls back to the interpreter's `defaultRetryPolicy` when it has
+no policy of its own. `UpdateItem` never does — omitting `.withRetryPolicy(...)` on an
+`UpdateItem` means no retry at all, regardless of what the interpreter is configured with.
+
+Reason: `UpdateItem`'s `Action` DSL mixes idempotent updates (`.set(value)`) with
+non-idempotent ones (`.add`/`.increment`/`.appendList`/`.prependList` — each applies a delta).
+Retrying a request whose outcome is ambiguous (a `ServiceUnavailable`/network failure where
+the write may have already landed) would silently double-apply that delta. The framework has
+no way to tell which kind of action a given `UpdateItem` uses, so it can't safely default
+retries on the way it does for the other operations. The request-level attachment point still
+works exactly as normal — attach a policy explicitly via `query.withRetryPolicy(...)`, only
+when you know the update is actually idempotent.
+
+| Operation | Falls back to `defaultRetryPolicy`? |
+|---|---|
+| `GetItem`, `PutItem`, `DeleteItem`, `Query`, `Scan`, `BatchGetItem`, `BatchWriteItem` | Yes |
+| `UpdateItem` | No — explicit `.withRetryPolicy(...)` only |
+
 ## Three ways to shape a curve
 
 | Kind | Type | Constructors | State model |
@@ -114,4 +134,6 @@ unprocessed keys/items). See [Batch Operations](crud/batch.md#retry-behavior).
 - `examples/src/main/scala/examples/RetryPolicyBasics.scala` — request-level: stateless,
   stateful pure, and opting a single query out via `RetryPolicy.NoRetry`.
 - `examples/src/main/scala/examples/RetryPolicyDefaults.scala` — interpreter-level: disabling
-  the default, and swapping in a `zio.Schedule`-backed one.
+  the default, and swapping in a `zio.Schedule`-backed one; includes a `batchGetItem` with no
+  policy of its own, run against both interpreters to show the same fallback governs batch's
+  response-level loop too.

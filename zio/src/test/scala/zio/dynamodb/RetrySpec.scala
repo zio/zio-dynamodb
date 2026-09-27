@@ -34,6 +34,9 @@ object RetrySpec extends ZIOSpecDefault {
     batchGetResponses: List[DynamoDBQuery.BatchGetItem.Response] = Nil,
     getItemEffect: Task[Option[Item]] = ZIO.succeed(None),
     putItemEffect: Task[Option[Item]] = ZIO.succeed(None),
+    updateItemEffect: Task[Option[Item]] = ZIO.succeed(None),
+    queryEffect: Task[Page[Item]] = ZIO.succeed(Page(Chunk.empty, None, 0, 0)),
+    scanEffect: Task[Page[Item]] = ZIO.succeed(Page(Chunk.empty, None, 0, 0)),
     batchWriteItemEffect: Option[Task[DynamoDBQuery.BatchWriteItem.Response]] = None,
     batchGetItemEffect: Option[Task[DynamoDBQuery.BatchGetItem.Response]] = None,
     defaultRetryPolicyParam: Option[EffectfulRetryPolicy[Task]] = None
@@ -59,12 +62,10 @@ object RetrySpec extends ZIOSpecDefault {
 
       protected def runGetItem(q: DynamoDBQuery.GetItem): Task[Option[Item]]                          = getItemEffect
       protected def runPutItem(q: DynamoDBQuery.PutItem): Task[Option[Item]]                          = putItemEffect
-      protected def runUpdateItem(q: DynamoDBQuery.UpdateItem): Task[Option[Item]]                    = ZIO.succeed(None)
+      protected def runUpdateItem(q: DynamoDBQuery.UpdateItem): Task[Option[Item]]                    = updateItemEffect
       protected def runDeleteItem(q: DynamoDBQuery.DeleteItem): Task[Option[Item]]                    = ZIO.succeed(None)
-      protected def runQuery(q: DynamoDBQuery.Query): Task[Page[Item]]                                =
-        ZIO.succeed(Page(Chunk.empty, None, 0, 0))
-      protected def runScan(q: DynamoDBQuery.Scan): Task[Page[Item]]                                  =
-        ZIO.succeed(Page(Chunk.empty, None, 0, 0))
+      protected def runQuery(q: DynamoDBQuery.Query): Task[Page[Item]]                                = queryEffect
+      protected def runScan(q: DynamoDBQuery.Scan): Task[Page[Item]]                                  = scanEffect
       protected def runCreateTable(q: DynamoDBQuery.CreateTable): Task[Unit]                          = ZIO.succeed(())
       protected def runDeleteTable(q: DynamoDBQuery.DeleteTable): Task[Unit]                          = ZIO.succeed(())
       protected def runDescribeTable(
@@ -525,6 +526,25 @@ object RetrySpec extends ZIOSpecDefault {
           result <- interp.run(DynamoDBQuery.getItem("t", PrimaryKey("id" -> "x"))).exit
           n      <- calls.get
         } yield assertTrue(result.isFailure && n == 1)
+      },
+      test("updateItem retries when it opts in with an explicit retryPolicy") {
+        for {
+          calls  <- Ref.make(0)
+          interp <- makeInterp(
+                      updateItemEffect = calls.updateAndGet(_ + 1).flatMap { n =>
+                        if (n < 2) ZIO.fail(new RuntimeException("ProvisionedThroughputExceededException"))
+                        else ZIO.succeed(Some(Item("id" -> "alice")))
+                      }
+                    )
+          query =
+            DynamoDBQuery
+              .updateItem("t", PrimaryKey("id" -> "alice"))(ProjectionExpression.$("name").set("bob"))
+              .withRetryPolicy(RetryPolicy.ExponentialBackoff(3, FiniteDuration(50, MILLISECONDS), jitter = false))
+          fiber  <- interp.run(query).fork
+          _      <- TestClock.adjust(50.millis)
+          result <- fiber.join
+          n      <- calls.get
+        } yield assertTrue(result.contains(Item("id" -> "alice")) && n == 2)
       }
     ),
 
@@ -560,6 +580,57 @@ object RetrySpec extends ZIOSpecDefault {
           result <- interp.run(query).exit
           n      <- calls.get
         } yield assertTrue(result.isFailure && n == 1) // NoRetry wins — defaultRetryPolicy never consulted
+      },
+      test("query without its own retryPolicy falls back to defaultRetryPolicy") {
+        for {
+          calls  <- Ref.make(0)
+          interp <- makeInterp(
+                      queryEffect = calls.updateAndGet(_ + 1).flatMap { n =>
+                        if (n < 2) ZIO.fail(new RuntimeException("ProvisionedThroughputExceededException"))
+                        else ZIO.succeed(Page(Chunk(Item("id" -> "alice")), None, 0, 0))
+                      },
+                      defaultRetryPolicyParam =
+                        Some(ZioRetryPolicies.fromSchedule(Schedule.exponential(50.millis) && Schedule.recurs(3)))
+                    )
+          query = DynamoDBQuery.Query("t", limit = 10).whereKey(ProjectionExpression.$("id").partitionKey === "alice")
+          fiber  <- interp.run(query).fork
+          _      <- TestClock.adjust(50.millis)
+          result <- fiber.join
+          n      <- calls.get
+        } yield assertTrue(result.items.contains(Item("id" -> "alice")) && n == 2)
+      },
+      test("scan without its own retryPolicy falls back to defaultRetryPolicy") {
+        for {
+          calls  <- Ref.make(0)
+          interp <- makeInterp(
+                      scanEffect = calls.updateAndGet(_ + 1).flatMap { n =>
+                        if (n < 2) ZIO.fail(new RuntimeException("ProvisionedThroughputExceededException"))
+                        else ZIO.succeed(Page(Chunk(Item("id" -> "alice")), None, 0, 0))
+                      },
+                      defaultRetryPolicyParam =
+                        Some(ZioRetryPolicies.fromSchedule(Schedule.exponential(50.millis) && Schedule.recurs(3)))
+                    )
+          fiber  <- interp.run(DynamoDBQuery.scan("t", limit = 10)).fork
+          _      <- TestClock.adjust(50.millis)
+          result <- fiber.join
+          n      <- calls.get
+        } yield assertTrue(result.items.contains(Item("id" -> "alice")) && n == 2)
+      },
+      test(
+        "updateItem does NOT fall back to defaultRetryPolicy — its Action DSL can be non-idempotent (.add/.increment/.appendList)"
+      ) {
+        for {
+          calls  <- Ref.make(0)
+          interp <- makeInterp(
+                      updateItemEffect = calls.updateAndGet(_ + 1) *>
+                        ZIO.fail(new RuntimeException("ProvisionedThroughputExceededException")),
+                      defaultRetryPolicyParam =
+                        Some(ZioRetryPolicies.fromSchedule(Schedule.exponential(50.millis) && Schedule.recurs(3)))
+                    )
+          query = DynamoDBQuery.updateItem("t", PrimaryKey("id" -> "x"))(ProjectionExpression.$("count").increment(1))
+          result <- interp.run(query).exit
+          n      <- calls.get
+        } yield assertTrue(result.isFailure && n == 1) // defaultRetryPolicy never consulted for UpdateItem
       },
       test("BatchGetItem without its own retryPolicy resubmits unprocessed keys via defaultRetryPolicy") {
         import scala.collection.immutable.{ Map => ScalaMap }

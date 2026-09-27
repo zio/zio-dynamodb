@@ -54,7 +54,8 @@ object CEInterpreter {
   /**
    * Creates an interpreter backed by `sdkClient` with no interceptor. Any query that doesn't
    * specify its own `.withRetryPolicy(...)` falls back to `CatsRetryPolicies.awsRecommended()`
-   * (decorrelated jitter, AWS's own recommended algorithm) — pass `None` to the
+   * (decorrelated jitter, AWS's own recommended algorithm) — except `UpdateItem`, which never
+   * retries without an explicit policy (see `docs/reference/retries.md`). Pass `None` to the
    * `defaultRetryPolicy` overload below to opt out entirely.
    */
   def fromAsyncClient(sdkClient: DynamoDbAsyncClient): CEInterpreter =
@@ -69,9 +70,10 @@ object CEInterpreter {
 
   /**
    * Creates an interpreter that falls back to `defaultRetryPolicy` for any query that doesn't
-   * specify its own `.withRetryPolicy(...)`. Pass `None` to disable the interpreter-level
-   * fallback entirely (retry becomes purely opt-in per query); the other `fromAsyncClient`
-   * overloads default this to `Some(CatsRetryPolicies.awsRecommended())`.
+   * specify its own `.withRetryPolicy(...)`, except `UpdateItem` (see `docs/reference/retries.md`).
+   * Pass `None` to disable the interpreter-level fallback entirely (retry becomes purely
+   * opt-in per query); the other `fromAsyncClient` overloads default this to
+   * `Some(CatsRetryPolicies.awsRecommended())`.
    */
   def fromAsyncClient(
     sdkClient: DynamoDbAsyncClient,

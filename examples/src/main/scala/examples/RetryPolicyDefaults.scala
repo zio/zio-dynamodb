@@ -31,6 +31,18 @@ object RetryPolicyDefaults extends ZIOAppDefault {
   val scheduleBacked: EffectfulRetryPolicy[Task] =
     ZioRetryPolicies.fromSchedule(Schedule.exponential(50.millis) && Schedule.recurs(5))
 
+  // No .withRetryPolicy of its own — governed entirely by whichever interpreter runs it.
+  val batchQuery: DynamoDBQuery[Any, Batch.GetResult] =
+    DynamoDBQuery.batchGetItem(List("ord-1", "ord-2"))(id =>
+      DynamoDBQuery.GetItem("orders", PrimaryKey("orderId" -> id))
+    )
+
+  def logBatchResult(label: String)(result: Batch.GetResult): Task[Unit] = result match {
+    case Batch.GetResult.Complete(_)         => ZIO.logInfo(s"$label: batch completed")
+    case Batch.GetResult.Incomplete(_)       => ZIO.logWarning(s"$label: unprocessed keys left as-is")
+    case Batch.GetResult.Failed(cause, _, _) => ZIO.logError(s"$label: batch failed: $cause")
+  }
+
   def run: Task[Unit] =
     ZIO.scoped {
       for {
@@ -40,10 +52,14 @@ object RetryPolicyDefaults extends ZIOAppDefault {
         // opts every query on this interpreter out of retrying, unless a query sets its own policy
         noRetryInterp = ZioInterpreter.fromAsyncClient(client, defaultRetryPolicy = None)
         _ <- noRetryInterp.run(DynamoDBQuery.getItem("orders", PrimaryKey("orderId" -> "ord-1")))
+        // batch: any unprocessed keys AWS returns stay unprocessed — no response-level retry loop runs
+        _ <- noRetryInterp.run(batchQuery).flatMap(logBatchResult("no-retry"))
 
         // every query on this interpreter retries via the Schedule-backed policy by default
         scheduleInterp = ZioInterpreter.fromAsyncClient(client, defaultRetryPolicy = Some(scheduleBacked))
         _ <- scheduleInterp.run(DynamoDBQuery.getItem("orders", PrimaryKey("orderId" -> "ord-2")))
+        // batch: unprocessed keys are resubmitted through the Schedule-backed policy automatically
+        _ <- scheduleInterp.run(batchQuery).flatMap(logBatchResult("schedule-backed"))
       } yield ()
     }
 }
