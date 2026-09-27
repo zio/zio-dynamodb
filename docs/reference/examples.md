@@ -50,13 +50,13 @@ session via one `Ref`, reusing `CapacityWarnings.capacityUnitsOf` — contrast w
 ## `RetryPolicyBasics`
 
 Request-level [retry policies](retries.md): a stateless linear backoff, a tuned-down
-`RetryPolicy.awsRecommended`, and opting one query out via `RetryPolicy.NoRetry` — all via
+`RetryPolicy.decorrelatedJitter`, and opting one query out via `RetryPolicy.NoRetry` — all via
 `.withRetryPolicy(...)` on top of an interpreter's own default. See
 [Retries](retries.md#three-ways-to-shape-a-curve).
 
 ## `RetryPolicyDefaults`
 
-Interpreter-level [retry policies](retries.md): disabling the shipped AWS-recommended default
+Interpreter-level [retry policies](retries.md): disabling the shipped full-jitter default
 (`defaultRetryPolicy = None`) and swapping in a `zio.Schedule`-backed one via
 `ZioRetryPolicies.fromSchedule` — run against both a plain `getItem` and a `batchGetItem` with
 no policy of its own, to show the same interpreter-level fallback governs batch's

@@ -34,9 +34,9 @@ object RetryPolicyBasics extends ZIOAppDefault {
       if (attempt >= 5) None else Some(FiniteDuration(200L * (attempt + 1), "milliseconds"))
     )
 
-  // Stateful, pure: AWS's own decorrelated-jitter formula, tuned down from the shipped default.
-  val shortAwsRecommended: RetryPolicy =
-    RetryPolicy.awsRecommended(
+  // Stateful, pure: decorrelated-jitter formula, tuned down from its own defaults.
+  val shortDecorrelatedJitter: RetryPolicy =
+    RetryPolicy.decorrelatedJitter(
       maxRetries = 3,
       baseDelay = FiniteDuration(50, "milliseconds"),
       maxDelay = FiniteDuration(2, "seconds")
@@ -47,12 +47,14 @@ object RetryPolicyBasics extends ZIOAppDefault {
       for {
         client <-
           ZIO.acquireRelease(ZIO.attempt(DynamoDbAsyncClient.builder().build()))(c => ZIO.attempt(c.close()).orDie)
-        interp = ZioInterpreter.fromAsyncClient(client) // AWS-recommended default already attached
+        interp = ZioInterpreter.fromAsyncClient(client) // full-jitter default already attached
         _ <-
           interp.run(DynamoDBQuery.getItem("orders", PrimaryKey("orderId" -> "ord-1")).withRetryPolicy(linear))
         _ <-
           interp.run(
-            DynamoDBQuery.getItem("orders", PrimaryKey("orderId" -> "ord-2")).withRetryPolicy(shortAwsRecommended)
+            DynamoDBQuery
+              .getItem("orders", PrimaryKey("orderId" -> "ord-2"))
+              .withRetryPolicy(shortDecorrelatedJitter)
           )
         _ <-
           interp.run(

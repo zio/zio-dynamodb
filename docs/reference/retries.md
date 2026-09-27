@@ -7,7 +7,7 @@ Every interpreter (`ZioInterpreter`/`CEInterpreter`/`FutureInterpreter`) retries
 DynamoDB errors on its own — no configuration required — and any query can override that for
 itself via `.withRetryPolicy(...)`.
 
-## Default: on, AWS-recommended, zero config
+## Default: on, full jitter, zero config
 
 ```scala mdoc:compile-only
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
@@ -16,11 +16,13 @@ import zio.dynamodb._
 val interp: ZioInterpreter = ZioInterpreter.fromAsyncClient(DynamoDbAsyncClient.builder().build())
 ```
 
-`fromAsyncClient(sdkClient)` (and the interceptor-taking overload) attach AWS's own recommended
-decorrelated-jitter algorithm (`sleep = min(cap, random_between(base, previous * 3))`) as the
-interpreter's default: 8 retries, 100ms base delay, 20s cap. Retried errors, via
-`RetryPolicy.isRetryable`: `ProvisionedThroughputExceededException`, `RequestLimitExceeded`,
-`ServiceUnavailable`, `ThrottlingException`.
+`fromAsyncClient(sdkClient)` (and the interceptor-taking overload) attach full-jitter exponential
+backoff (`delay = random(0, min(maxDelay, baseDelay * 2^attempt))`) as the interpreter's default:
+8 retries, 100ms base delay, 20s cap. This is what AWS SDKs actually implement as their current
+standard retry mode — see AWS's
+[SDKs and Tools Reference Guide, "Retry behavior"](https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html).
+Retried errors, via `RetryPolicy.isRetryable`: `ProvisionedThroughputExceededException`,
+`RequestLimitExceeded`, `ServiceUnavailable`, `ThrottlingException`.
 
 ## Two attachment points
 
@@ -73,13 +75,18 @@ when you know the update is actually idempotent.
 | Kind | Type | Constructors | State model |
 |---|---|---|---|
 | Stateless | `RetryPolicy` | `RetryPolicy.custom(f)` | none |
-| Stateful, pure | `RetryPolicy` | `RetryPolicy.statefulCustom(...)`, `RetryPolicy.awsRecommended(...)` | a `var` scoped to one query execution |
-| Stateful, effectful | `EffectfulRetryPolicy[F]` | `<Module>RetryPolicies.statefulCustom(...)`, `.awsRecommended(...)` | the effect system's own primitive |
+| Stateful, pure | `RetryPolicy` | `RetryPolicy.statefulCustom(...)`, `RetryPolicy.decorrelatedJitter(...)` | a `var` scoped to one query execution |
+| Stateful, effectful | `EffectfulRetryPolicy[F]` | `<Module>RetryPolicies.statefulCustom(...)`, `.decorrelatedJitter(...)` | the effect system's own primitive |
 
 All three share the same guarantee: state is created fresh once per query execution
 (`newAttempt()`), never shared across concurrent executions of the same policy value. Built-in
 policies: `RetryPolicy.NoRetry`, `RetryPolicy.ExponentialBackoff(maxRetries, initialDelay,
-factor, maxDelay, jitter)`, `RetryPolicy.awsRecommended(maxRetries, baseDelay, maxDelay)`.
+factor, maxDelay, jitter)`, `RetryPolicy.fullJitter(maxRetries, baseDelay, maxDelay)` (the
+shipped default — a stateless preset over `ExponentialBackoff` fixing `factor = 2.0`/
+`jitter = true`), and `RetryPolicy.decorrelatedJitter(maxRetries, baseDelay, maxDelay)` (stateful
+— one of several strategies from AWS's own
+[Exponential Backoff And Jitter](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/)
+writeup, not what AWS SDKs actually default to).
 
 ```scala mdoc:compile-only
 import zio.dynamodb._
@@ -102,9 +109,9 @@ val custom: RetryPolicy =
 
 | Module | `F` | Constructors | State primitive |
 |---|---|---|---|
-| `zio` | `Task` | `ZioRetryPolicies.awsRecommended(...)`, `.fromSchedule(schedule)` | `Ref` |
-| `ce` | `IO` | `CatsRetryPolicies.awsRecommended(...)`, `.statefulCustom(initial)(next)` | `Ref` |
-| `future` | `Future` | `FutureRetryPolicies.awsRecommended(...)`, `.statefulCustom(initial)(next)` | a `var` (`Future` has no `Ref`/STM equivalent) |
+| `zio` | `Task` | `ZioRetryPolicies.fullJitter(...)`, `.decorrelatedJitter(...)`, `.fromSchedule(schedule)` | none for `fullJitter`; `Ref` for `decorrelatedJitter` |
+| `ce` | `IO` | `CatsRetryPolicies.fullJitter(...)`, `.decorrelatedJitter(...)`, `.statefulCustom(initial)(next)` | none for `fullJitter`; `Ref` otherwise |
+| `future` | `Future` | `FutureRetryPolicies.fullJitter(...)`, `.decorrelatedJitter(...)`, `.statefulCustom(initial)(next)` | none for `fullJitter`; a `var` otherwise (`Future` has no `Ref`/STM equivalent) |
 
 `ZioRetryPolicies.fromSchedule` is ZIO's standout option — it wraps a real `zio.Schedule` value
 directly, reusing its combinators instead of hand-writing a curve:
@@ -118,9 +125,9 @@ val scheduleBacked: EffectfulRetryPolicy[Task] =
 ```
 
 Cats Effect and `Future` have no comparable combinator library to wrap, so their effectful
-constructors buy idiom (`Ref`-modeled state) over the pure stateful path, not new capability —
-`RetryPolicy.statefulCustom`/`.awsRecommended` already cover the same curves at the request
-level.
+`decorrelatedJitter`/`statefulCustom` constructors buy idiom (`Ref`-modeled state) over the pure
+stateful path, not new capability — `RetryPolicy.statefulCustom`/`.decorrelatedJitter` already
+cover the same curves at the request level.
 
 ## Batch operations: two independent loops
 
