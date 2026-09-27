@@ -217,6 +217,36 @@ object RetrySpec extends ZIOSpecDefault {
           result <- fiber.join
           n      <- calls.get
         } yield assertTrue(result.isFailure && n == 3)
+      },
+
+      test("a reused F[A] value gets a fresh Attempt on each execution, not one shared across all of them") {
+        // Regression test: newAttempt() must be deferred into the effect, not evaluated once
+        // when withRetry(...) is called — otherwise every re-run of a captured effect value
+        // (e.g. `val effect = interp.run(query)`, run more than once) shares one Attempt,
+        // breaking stateful policies like RetryPolicy.statefulCustom/awsRecommended.
+        val onceOnlyPolicy = RetryPolicy.statefulCustom { () =>
+          var used = false
+          (_: Int) => if (used) None else { used = true; Some(FiniteDuration(1, MILLISECONDS)) }
+        }
+        for {
+          calls   <- Ref.make(0)
+          interp  <- makeInterp()
+          effect = interp
+                     .withRetry(onceOnlyPolicy, RetryPolicy.isRetryable) {
+                       calls.updateAndGet(_ + 1).flatMap { n =>
+                         if (n % 2 == 1) ZIO.fail(new RuntimeException("ProvisionedThroughputExceededException"))
+                         else ZIO.succeed(n)
+                       }
+                     }
+                     .exit
+          fiber1  <- effect.fork
+          _       <- TestClock.adjust(1.millis)
+          result1 <- fiber1.join
+          fiber2  <- effect.fork // same captured value, executed a second time
+          _       <- TestClock.adjust(1.millis)
+          result2 <- fiber2.join
+          n       <- calls.get
+        } yield assertTrue(result1.isSuccess && result2.isSuccess && n == 4)
       }
     ),
 

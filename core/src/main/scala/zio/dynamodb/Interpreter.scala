@@ -88,21 +88,25 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   final def withRetry[A](
     policy: RetryPolicy,
     isRetryable: Throwable => Boolean = RetryPolicy.isRetryable
-  )(fa: => F[A]): F[A] = {
-    val attemptState       = policy.newAttempt()
-    def loop(n: Int): F[A] =
-      flatMap(attempt(fa)) {
-        case Right(a)                  => pure(a)
-        case Left(t) if !NonFatal(t)   => raiseError(t)
-        case Left(t) if isRetryable(t) =>
-          attemptState.nextDelay(n) match {
-            case None    => raiseError(t)
-            case Some(d) => flatMap(sleep(d))(_ => loop(n + 1))
-          }
-        case Left(t)                   => raiseError(t)
-      }
-    loop(0)
-  }
+  )(fa: => F[A]): F[A] =
+    // newAttempt() is deferred into the flatMap continuation so a reused F[A] value (e.g. a
+    // caller holding `val effect = interp.run(query)` and running it more than once) gets a
+    // fresh Attempt on every execution, not one shared across all of them.
+    flatMap(pure(())) { _ =>
+      val attemptState       = policy.newAttempt()
+      def loop(n: Int): F[A] =
+        flatMap(attempt(fa)) {
+          case Right(a)                  => pure(a)
+          case Left(t) if !NonFatal(t)   => raiseError(t)
+          case Left(t) if isRetryable(t) =>
+            attemptState.nextDelay(n) match {
+              case None    => raiseError(t)
+              case Some(d) => flatMap(sleep(d))(_ => loop(n + 1))
+            }
+          case Left(t)                   => raiseError(t)
+        }
+      loop(0)
+    }
 
   /**
    * Like [[withRetry]] but returns the number of effect-level retries made alongside
@@ -112,21 +116,23 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   private[dynamodb] final def withRetryTracked[A](
     policy: RetryPolicy,
     isRetryable: Throwable => Boolean = RetryPolicy.isRetryable
-  )(fa: => F[A]): F[Either[(Throwable, Int), A]] = {
-    val attemptState                                 = policy.newAttempt()
-    def loop(n: Int): F[Either[(Throwable, Int), A]] =
-      flatMap(attempt(fa)) {
-        case Right(a)                  => pure(Right(a))
-        case Left(t) if !NonFatal(t)   => raiseError(t)
-        case Left(t) if isRetryable(t) =>
-          attemptState.nextDelay(n) match {
-            case None    => pure(Left((t, n)))
-            case Some(d) => flatMap(sleep(d))(_ => loop(n + 1))
-          }
-        case Left(t)                   => pure(Left((t, n)))
-      }
-    loop(0)
-  }
+  )(fa: => F[A]): F[Either[(Throwable, Int), A]] =
+    // See withRetry — newAttempt() deferred so a reused F[A] value gets a fresh Attempt per run.
+    flatMap(pure(())) { _ =>
+      val attemptState                                 = policy.newAttempt()
+      def loop(n: Int): F[Either[(Throwable, Int), A]] =
+        flatMap(attempt(fa)) {
+          case Right(a)                  => pure(Right(a))
+          case Left(t) if !NonFatal(t)   => raiseError(t)
+          case Left(t) if isRetryable(t) =>
+            attemptState.nextDelay(n) match {
+              case None    => pure(Left((t, n)))
+              case Some(d) => flatMap(sleep(d))(_ => loop(n + 1))
+            }
+          case Left(t)                   => pure(Left((t, n)))
+        }
+      loop(0)
+    }
 
   /** Like [[withRetry]], but for an [[EffectfulRetryPolicy]] — see `defaultRetryPolicy`. */
   final def withRetryF[A](
@@ -225,8 +231,11 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   private def newResponseLevelDelayFn(retryPolicy: Option[RetryPolicy]): F[Int => F[Option[FiniteDuration]]] =
     retryPolicy match {
       case Some(p) =>
-        val attemptState = p.newAttempt()
-        pure((n: Int) => pure(attemptState.nextDelay(n)))
+        // See withRetry — newAttempt() deferred so a reused F[...] value gets a fresh Attempt per run.
+        flatMap(pure(())) { _ =>
+          val attemptState = p.newAttempt()
+          pure((n: Int) => pure(attemptState.nextDelay(n)))
+        }
       case None    =>
         defaultRetryPolicy match {
           case Some(p) => map(p.newAttempt())(attemptState => (n: Int) => attemptState.nextDelay(n))
