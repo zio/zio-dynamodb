@@ -217,6 +217,13 @@ trait DdbExprApiSyntax {
     }
   }
 
+  /**
+   * Never retries automatically, unlike other operations — `action` may be a delta
+   * (`.add`/`.increment`/`.appendList`/`.prependList`), and retrying one after an
+   * ambiguous-outcome failure can double-apply it. Attach a policy explicitly via
+   * `.withRetryPolicy(...)` on the resulting query only when `action` is idempotent
+   * (`.set`/`.remove`/`.deleteFromSet`).
+   */
   def update[From](table: Table[From])(keyExpr: DdbKeyExpr.PrimaryKey[From])(
     action: DdbUpdateExpr[From]
   ): WriteBuilder[From] =
@@ -228,6 +235,7 @@ trait DdbExprApiSyntax {
    *  by hand. Passed to `updateItem` verbatim: unlike a [[DdbUpdateExpr]], a raw `Action` was
    *  never derived from a `Schema` optic, so there is no table configuration for it to miss —
    *  the same role `where(ce: ConditionExpression[From])` plays on [[WriteBuilder]].
+   *  Same retry caveat as [[update]] applies to `action` here.
    */
   // A separate name rather than a third `update` overload: two curried methods identical
   // except in the last parameter list resolve fine under Scala 3 but are ambiguous under
