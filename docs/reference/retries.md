@@ -16,8 +16,8 @@ import zio.dynamodb._
 val interp: ZioInterpreter = ZioInterpreter.fromAsyncClient(DynamoDbAsyncClient.builder().build())
 ```
 
-`fromAsyncClient(sdkClient)` (and the interceptor-taking overload) attach full-jitter exponential
-backoff (`delay = random(0, min(maxDelay, baseDelay * 2^attempt))`) as the interpreter's default:
+`fromAsyncClient(sdkClient)` attaches full-jitter exponential backoff
+(`delay = random(0, min(maxDelay, baseDelay * 2^attempt))`) as the interpreter's default:
 8 retries, 100ms base delay, 20s cap. This is what AWS SDKs actually implement as their current
 standard retry mode — see AWS's
 [SDKs and Tools Reference Guide, "Retry behavior"](https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html).

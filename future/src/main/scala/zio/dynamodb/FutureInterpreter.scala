@@ -38,7 +38,9 @@ import java.util.concurrent.{ Executors, ScheduledExecutorService, TimeUnit }
  */
 class FutureInterpreter(
   client: AwsDynamoDB[Future],
-  override protected val defaultRetryPolicy: Option[EffectfulRetryPolicy[Future]] = None
+  override protected val defaultRetryPolicy: Option[EffectfulRetryPolicy[Future]] = None,
+  override protected val retryInterceptor: Option[RetryInterceptor[Future]] = None,
+  override protected val batchRetryInterceptor: Option[BatchRetryInterceptor[Future]] = None
 )(implicit ec: ExecutionContext)
     extends RealAwsInterpreter[Future](client) {
 
@@ -83,40 +85,24 @@ object FutureInterpreter {
     }
 
   /**
-   * Creates an interpreter backed by `sdkClient` with no interceptor. Any query that doesn't
-   * specify its own `.withRetryPolicy(...)` falls back to `FutureRetryPolicies.fullJitter()`
-   * (full-jitter exponential backoff, what AWS SDKs ship as their default) — except `UpdateItem`, which never
-   * retries without an explicit policy (see `docs/reference/retries.md`). Pass `None` to the
-   * `defaultRetryPolicy` overload below to opt out entirely.
-   */
-  def fromAsyncClient(sdkClient: DynamoDbAsyncClient)(implicit
-    ec: ExecutionContext
-  ): FutureInterpreter =
-    fromAsyncClientInternal(sdkClient, None, Some(FutureRetryPolicies.fullJitter()))
-
-  /** Creates an interpreter that fires `interceptor` after every data operation. */
-  def fromAsyncClient(
-    sdkClient: DynamoDbAsyncClient,
-    interceptor: ResponseInterceptor[Future]
-  )(implicit ec: ExecutionContext): FutureInterpreter =
-    fromAsyncClientInternal(sdkClient, Some(interceptor), Some(FutureRetryPolicies.fullJitter()))
-
-  /**
-   * Creates an interpreter that falls back to `defaultRetryPolicy` for any query that doesn't
-   * specify its own `.withRetryPolicy(...)`, except `UpdateItem` (see `docs/reference/retries.md`).
-   * Pass `None` to disable the interpreter-level fallback entirely (retry becomes purely
-   * opt-in per query); the other `fromAsyncClient` overloads default this to
-   * `Some(FutureRetryPolicies.fullJitter())`.
+   * Creates an interpreter backed by `sdkClient`. Any query that doesn't specify its own
+   * `.withRetryPolicy(...)` falls back to `defaultRetryPolicy` — `FutureRetryPolicies.fullJitter()`
+   * by default (full-jitter exponential backoff, what AWS SDKs ship as their default) — except
+   * `UpdateItem`, which never retries without an explicit policy (see
+   * `docs/reference/retries.md`). `interceptors` bundles the three independent, optional
+   * observability hooks (`ResponseInterceptor`/`RetryInterceptor`/`BatchRetryInterceptor`); set
+   * only what you want, named: `InterceptorConfig(retry = Some(myRetryInterceptor))`.
    */
   def fromAsyncClient(
     sdkClient: DynamoDbAsyncClient,
-    defaultRetryPolicy: Option[EffectfulRetryPolicy[Future]]
+    interceptors: InterceptorConfig[Future] = InterceptorConfig(),
+    defaultRetryPolicy: Option[EffectfulRetryPolicy[Future]] = Some(FutureRetryPolicies.fullJitter())
   )(implicit ec: ExecutionContext): FutureInterpreter =
-    fromAsyncClientInternal(sdkClient, None, defaultRetryPolicy)
+    fromAsyncClientInternal(sdkClient, interceptors, defaultRetryPolicy)
 
   private def fromAsyncClientInternal(
     sdkClient: DynamoDbAsyncClient,
-    interceptor: Option[ResponseInterceptor[Future]],
+    interceptors: InterceptorConfig[Future],
     defaultRetryPolicy: Option[EffectfulRetryPolicy[Future]]
   )(implicit ec: ExecutionContext): FutureInterpreter = {
     val base: AwsDynamoDB[Future]   = new AwsDynamoDB[Future] {
@@ -142,7 +128,7 @@ object FutureInterpreter {
       def flatMap[A, B](fa: Future[A])(f: A => Future[B]): Future[B] = fa.flatMap(f)
     }
     val client: AwsDynamoDB[Future] =
-      interceptor.fold(base)(i => new InterceptingAwsDynamoDB[Future](base, i, ops))
-    new FutureInterpreter(client, defaultRetryPolicy)
+      interceptors.response.fold(base)(i => new InterceptingAwsDynamoDB[Future](base, i, ops))
+    new FutureInterpreter(client, defaultRetryPolicy, interceptors.retry, interceptors.batchRetry)
   }
 }

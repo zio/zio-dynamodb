@@ -25,7 +25,9 @@ import scala.concurrent.duration.FiniteDuration
 
 class ZioInterpreter(
   client: AwsDynamoDB[Task],
-  override protected val defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]] = None
+  override protected val defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]] = None,
+  override protected val retryInterceptor: Option[RetryInterceptor[Task]] = None,
+  override protected val batchRetryInterceptor: Option[BatchRetryInterceptor[Task]] = None
 ) extends RealAwsInterpreter[Task](client) {
   private[dynamodb] def pure[A](a: A): Task[A]                               = ZIO.succeed(a)
   private[dynamodb] def map[A, B](fa: Task[A])(f: A => B): Task[B]           = fa.map(f)
@@ -47,38 +49,24 @@ class ZioInterpreter(
 object ZioInterpreter {
 
   /**
-   * Creates an interpreter backed by `sdkClient` with no interceptor. Any query that doesn't
-   * specify its own `.withRetryPolicy(...)` falls back to `ZioRetryPolicies.fullJitter()`
-   * (full-jitter exponential backoff, what AWS SDKs ship as their default) — except `UpdateItem`, which never
-   * retries without an explicit policy (see `docs/reference/retries.md`). Pass `None` to the
-   * `defaultRetryPolicy` overload below to opt out entirely.
-   */
-  def fromAsyncClient(sdkClient: DynamoDbAsyncClient): ZioInterpreter =
-    fromAsyncClientInternal(sdkClient, None, Some(ZioRetryPolicies.fullJitter()))
-
-  /** Creates an interpreter that fires `interceptor` after every data operation. */
-  def fromAsyncClient(
-    sdkClient: DynamoDbAsyncClient,
-    interceptor: ResponseInterceptor[Task]
-  ): ZioInterpreter =
-    fromAsyncClientInternal(sdkClient, Some(interceptor), Some(ZioRetryPolicies.fullJitter()))
-
-  /**
-   * Creates an interpreter that falls back to `defaultRetryPolicy` for any query that doesn't
-   * specify its own `.withRetryPolicy(...)`, except `UpdateItem` (see `docs/reference/retries.md`).
-   * Pass `None` to disable the interpreter-level fallback entirely (retry becomes purely
-   * opt-in per query); the other `fromAsyncClient` overloads default this to
-   * `Some(ZioRetryPolicies.fullJitter())`.
+   * Creates an interpreter backed by `sdkClient`. Any query that doesn't specify its own
+   * `.withRetryPolicy(...)` falls back to `defaultRetryPolicy` — `ZioRetryPolicies.fullJitter()`
+   * by default (full-jitter exponential backoff, what AWS SDKs ship as their default) — except
+   * `UpdateItem`, which never retries without an explicit policy (see
+   * `docs/reference/retries.md`). `interceptors` bundles the three independent, optional
+   * observability hooks (`ResponseInterceptor`/`RetryInterceptor`/`BatchRetryInterceptor`); set
+   * only what you want, named: `InterceptorConfig(retry = Some(myRetryInterceptor))`.
    */
   def fromAsyncClient(
     sdkClient: DynamoDbAsyncClient,
-    defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]]
+    interceptors: InterceptorConfig[Task] = InterceptorConfig(),
+    defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]] = Some(ZioRetryPolicies.fullJitter())
   ): ZioInterpreter =
-    fromAsyncClientInternal(sdkClient, None, defaultRetryPolicy)
+    fromAsyncClientInternal(sdkClient, interceptors, defaultRetryPolicy)
 
   private def fromAsyncClientInternal(
     sdkClient: DynamoDbAsyncClient,
-    interceptor: Option[ResponseInterceptor[Task]],
+    interceptors: InterceptorConfig[Task],
     defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]]
   ): ZioInterpreter = {
     val base: AwsDynamoDB[Task]   = new AwsDynamoDB[Task] {
@@ -114,7 +102,7 @@ object ZioInterpreter {
       def flatMap[A, B](fa: Task[A])(f: A => Task[B]): Task[B] = fa.flatMap(f)
     }
     val client: AwsDynamoDB[Task] =
-      interceptor.fold(base)(i => new InterceptingAwsDynamoDB[Task](base, i, ops))
-    new ZioInterpreter(client, defaultRetryPolicy)
+      interceptors.response.fold(base)(i => new InterceptingAwsDynamoDB[Task](base, i, ops))
+    new ZioInterpreter(client, defaultRetryPolicy, interceptors.retry, interceptors.batchRetry)
   }
 }

@@ -39,20 +39,25 @@ object RetrySpec extends ZIOSpecDefault {
     scanEffect: Task[Page[Item]] = ZIO.succeed(Page(Chunk.empty, None, 0, 0)),
     batchWriteItemEffect: Option[Task[DynamoDBQuery.BatchWriteItem.Response]] = None,
     batchGetItemEffect: Option[Task[DynamoDBQuery.BatchGetItem.Response]] = None,
-    defaultRetryPolicyParam: Option[EffectfulRetryPolicy[Task]] = None
+    defaultRetryPolicyParam: Option[EffectfulRetryPolicy[Task]] = None,
+    retryInterceptorParam: Option[RetryInterceptor[Task]] = None,
+    batchRetryInterceptorParam: Option[BatchRetryInterceptor[Task]] = None
   ): ZIO[Any, Nothing, AwsInterpreter[Task]] =
     for {
       writeRef <- Ref.make(batchWriteResponses)
       getRef   <- Ref.make(batchGetResponses)
     } yield new AwsInterpreter[Task] {
-      override protected def defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]] = defaultRetryPolicyParam
-      private[dynamodb] def pure[A](a: A): Task[A]                                  = ZIO.succeed(a)
-      private[dynamodb] def map[A, B](fa: Task[A])(f: A => B): Task[B]              = fa.map(f)
-      private[dynamodb] def flatMap[A, B](fa: Task[A])(f: A => Task[B]): Task[B]    = fa.flatMap(f)
-      protected def product[A, B](fa: Task[A], fb: Task[B]): Task[(A, B)]           = fa.zip(fb)
-      protected def productPar[A, B](fa: Task[A], fb: Task[B]): Task[(A, B)]        = fa.zipPar(fb)
-      protected def fail[A](e: DynamoDBError): Task[A]                              = ZIO.fail(e)
-      protected def absolve[A](fa: Task[Either[ItemError, A]]): Task[A]             =
+      override protected def defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]]     = defaultRetryPolicyParam
+      override protected def retryInterceptor: Option[RetryInterceptor[Task]]           = retryInterceptorParam
+      override protected def batchRetryInterceptor: Option[BatchRetryInterceptor[Task]] =
+        batchRetryInterceptorParam
+      private[dynamodb] def pure[A](a: A): Task[A]                                      = ZIO.succeed(a)
+      private[dynamodb] def map[A, B](fa: Task[A])(f: A => B): Task[B]                  = fa.map(f)
+      private[dynamodb] def flatMap[A, B](fa: Task[A])(f: A => Task[B]): Task[B]        = fa.flatMap(f)
+      protected def product[A, B](fa: Task[A], fb: Task[B]): Task[(A, B)]               = fa.zip(fb)
+      protected def productPar[A, B](fa: Task[A], fb: Task[B]): Task[(A, B)]            = fa.zipPar(fb)
+      protected def fail[A](e: DynamoDBError): Task[A]                                  = ZIO.fail(e)
+      protected def absolve[A](fa: Task[Either[ItemError, A]]): Task[A]                 =
         fa.flatMap(ZIO.fromEither(_))
 
       private[dynamodb] def sleep(d: FiniteDuration): Task[Unit]                =
@@ -686,6 +691,175 @@ object RetrySpec extends ZIOSpecDefault {
           _      <- TestClock.adjust(50.millis)
           result <- fiber.join
         } yield assert(result)(isSubtype[Batch.GetResult.Complete](anything))
+      }
+    ),
+
+    suite("RetryInterceptor / BatchRetryInterceptor")(
+      test("onRetry fires once per retried attempt with correct metadata, error, and attempt number") {
+        for {
+          calls    <- Ref.make(0)
+          retryLog <- Ref.make(Chunk.empty[(DynamoDBRetryMetadata, String, Int)])
+          retryInterceptor = new RetryInterceptor[Task] {
+                               def onRetry(meta: DynamoDBRetryMetadata, error: Throwable, attempt: Int): Task[Unit] =
+                                 retryLog.update(_ :+ ((meta, error.getMessage, attempt)))
+                             }
+          interp   <- makeInterp(
+                        getItemEffect = calls.updateAndGet(_ + 1).flatMap { n =>
+                          if (n < 2) ZIO.fail(new RuntimeException("ProvisionedThroughputExceededException"))
+                          else ZIO.succeed(Some(Item("id" -> "alice")))
+                        },
+                        retryInterceptorParam = Some(retryInterceptor)
+                      )
+          query =
+            DynamoDBQuery
+              .getItem("t", PrimaryKey("id" -> "alice"))
+              .withRetryPolicy(RetryPolicy.ExponentialBackoff(3, FiniteDuration(50, MILLISECONDS), jitter = false))
+          fiber    <- interp.run(query).fork
+          _        <- TestClock.adjust(50.millis)
+          result   <- fiber.join
+          log      <- retryLog.get
+        } yield assertTrue(
+          result.contains(Item("id" -> "alice")),
+          log == Chunk(
+            (
+              DynamoDBRetryMetadata.GetItem("t", CorrelationContext(Some(PrimaryKey("id" -> "alice")))),
+              "ProvisionedThroughputExceededException",
+              0
+            )
+          )
+        )
+      },
+      test("onRetry also fires for UpdateItem when it opts in with an explicit retryPolicy") {
+        for {
+          calls    <- Ref.make(0)
+          retryLog <- Ref.make(Chunk.empty[DynamoDBRetryMetadata])
+          retryInterceptor = new RetryInterceptor[Task] {
+                               def onRetry(meta: DynamoDBRetryMetadata, error: Throwable, attempt: Int): Task[Unit] =
+                                 retryLog.update(_ :+ meta)
+                             }
+          interp   <- makeInterp(
+                        updateItemEffect = calls.updateAndGet(_ + 1).flatMap { n =>
+                          if (n < 2) ZIO.fail(new RuntimeException("ProvisionedThroughputExceededException"))
+                          else ZIO.succeed(Some(Item("id" -> "alice")))
+                        },
+                        retryInterceptorParam = Some(retryInterceptor)
+                      )
+          query =
+            DynamoDBQuery
+              .updateItem("t", PrimaryKey("id" -> "alice"))(ProjectionExpression.$("name").set("bob"))
+              .withRetryPolicy(RetryPolicy.ExponentialBackoff(3, FiniteDuration(50, MILLISECONDS), jitter = false))
+          fiber    <- interp.run(query).fork
+          _        <- TestClock.adjust(50.millis)
+          result   <- fiber.join
+          log      <- retryLog.get
+        } yield assertTrue(
+          result.contains(Item("id" -> "alice")),
+          log == Chunk(DynamoDBRetryMetadata.UpdateItem("t", CorrelationContext(Some(PrimaryKey("id" -> "alice")))))
+        )
+      },
+      test("onRetry is never called when the effect succeeds on the first attempt") {
+        for {
+          retryLog <- Ref.make(Chunk.empty[DynamoDBRetryMetadata])
+          retryInterceptor = new RetryInterceptor[Task] {
+                               def onRetry(meta: DynamoDBRetryMetadata, error: Throwable, attempt: Int): Task[Unit] =
+                                 retryLog.update(_ :+ meta)
+                             }
+          interp   <- makeInterp(
+                        getItemEffect = ZIO.succeed(Some(Item("id" -> "alice"))),
+                        retryInterceptorParam = Some(retryInterceptor)
+                      )
+          query = DynamoDBQuery.getItem("t", PrimaryKey("id" -> "alice")).withRetryPolicy(RetryPolicy.NoRetry)
+          _        <- interp.run(query)
+          log      <- retryLog.get
+        } yield assertTrue(log.isEmpty)
+      },
+      test("onBatchGetRetry fires with unprocessed keys reshaped to Map[String, Set[PrimaryKey]]") {
+        import scala.collection.immutable.{ Map => ScalaMap }
+        val unprocessedKeys = ScalaMap(
+          "t" -> DynamoDBQuery.BatchGetItem.TableGet(
+            keysSet = Set(PrimaryKey("id" -> "a")),
+            projectionExpressionSet = Set.empty
+          )
+        )
+        for {
+          batchRetryLog <- Ref.make(Chunk.empty[(Map[String, Set[PrimaryKey]], Int)])
+          batchRetryInterceptor = new BatchRetryInterceptor[Task] {
+                                    def onBatchGetRetry(
+                                      unprocessedKeys: Map[String, Set[PrimaryKey]],
+                                      attempt: Int
+                                    ): Task[Unit] =
+                                      batchRetryLog.update(_ :+ ((unprocessedKeys, attempt)))
+                                    def onBatchWriteRetry(
+                                      unprocessedPuts: Map[String, Chunk[Item]],
+                                      unprocessedDeletes: Map[String, Chunk[PrimaryKey]],
+                                      attempt: Int
+                                    ): Task[Unit] = ZIO.unit
+                                  }
+          interp        <- makeInterp(
+                             batchGetResponses = List(
+                               DynamoDBQuery.BatchGetItem.Response(unprocessedKeys = unprocessedKeys),
+                               DynamoDBQuery.BatchGetItem.Response()
+                             ),
+                             batchRetryInterceptorParam = Some(batchRetryInterceptor)
+                           )
+          query =
+            DynamoDBQuery
+              .batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id)))
+              .withRetryPolicy(RetryPolicy.ExponentialBackoff(3, FiniteDuration(50, MILLISECONDS), jitter = false))
+          fiber         <- interp.run(query).fork
+          _             <- TestClock.adjust(50.millis)
+          result        <- fiber.join
+          log           <- batchRetryLog.get
+        } yield assert(result)(isSubtype[Batch.GetResult.Complete](anything)) &&
+          assertTrue(log == Chunk((Map("t" -> Set(PrimaryKey("id" -> "a"))), 0)))
+      },
+      test("onBatchWriteRetry fires with puts/deletes split from the order-preserving Chunk[Write]") {
+        import scala.collection.immutable.{ Map => ScalaMap }
+        val putItem          = Item("id" -> "a", "name" -> "alice")
+        val deleteKey        = PrimaryKey("id" -> "b")
+        val unprocessedItems = ScalaMap(
+          "t" -> Chunk[DynamoDBQuery.BatchWriteItem.Write](
+            DynamoDBQuery.BatchWriteItem.Put(putItem),
+            DynamoDBQuery.BatchWriteItem.Delete(deleteKey)
+          )
+        )
+        for {
+          batchRetryLog <- Ref.make(Chunk.empty[(Map[String, Chunk[Item]], Map[String, Chunk[PrimaryKey]], Int)])
+          batchRetryInterceptor = new BatchRetryInterceptor[Task] {
+                                    def onBatchGetRetry(
+                                      unprocessedKeys: Map[String, Set[PrimaryKey]],
+                                      attempt: Int
+                                    ): Task[Unit] = ZIO.unit
+                                    def onBatchWriteRetry(
+                                      unprocessedPuts: Map[String, Chunk[Item]],
+                                      unprocessedDeletes: Map[String, Chunk[PrimaryKey]],
+                                      attempt: Int
+                                    ): Task[Unit] =
+                                      batchRetryLog.update(_ :+ ((unprocessedPuts, unprocessedDeletes, attempt)))
+                                  }
+          interp        <- makeInterp(
+                             batchWriteResponses = List(
+                               DynamoDBQuery.BatchWriteItem.Response(unprocessedItems = Some(unprocessedItems)),
+                               DynamoDBQuery.BatchWriteItem.Response(None)
+                             ),
+                             batchRetryInterceptorParam = Some(batchRetryInterceptor)
+                           )
+          writes: List[Either[Item, PrimaryKey]] = List(Left(putItem), Right(deleteKey))
+          query =
+            DynamoDBQuery
+              .batchWriteItem(writes) {
+                case Left(item) => DynamoDBQuery.PutItem("t", item)
+                case Right(key) => DynamoDBQuery.DeleteItem("t", key)
+              }
+              .withRetryPolicy(RetryPolicy.ExponentialBackoff(3, FiniteDuration(50, MILLISECONDS), jitter = false))
+          fiber         <- interp.run(query).fork
+          _             <- TestClock.adjust(50.millis)
+          result        <- fiber.join
+          log           <- batchRetryLog.get
+        } yield assert(result)(isSubtype[Batch.WriteResult.Complete](anything)) &&
+          assertTrue(
+            log == Chunk((Map("t" -> Chunk(putItem)), Map("t" -> Chunk(deleteKey)), 0))
+          )
       }
     ),
 
