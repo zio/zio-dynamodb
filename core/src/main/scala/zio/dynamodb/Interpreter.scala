@@ -195,11 +195,11 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   /**
    * Like [[withOptionalRetry]], but never falls back to `defaultRetryPolicy` — only a query's
    *  own explicit `.withRetryPolicy(...)` is honored. Used for `UpdateItem`: its `Action` DSL
-   *  includes non-idempotent updates (`.add`/`.increment`/`.appendList`/`.prependList`), where
-   *  retrying an ambiguous-outcome failure (the original write may have already landed) can
-   *  silently double-apply a delta. The interpreter has no way to tell an idempotent `.set`
-   *  from a non-idempotent one, so it can't safely opt every `UpdateItem` into retrying by
-   *  default the way it does for `GetItem`/`PutItem`/`DeleteItem`/batch.
+   *  includes non-idempotent updates (`.add`/`.increment`/`.decrement`/`.appendList`/
+   *  `.prependList`), where retrying an ambiguous-outcome failure (the original write may have
+   *  already landed) can silently double-apply a delta. The interpreter has no way to tell an
+   *  idempotent `.set` from a non-idempotent one, so it can't safely opt every `UpdateItem`
+   *  into retrying by default the way it does for `GetItem`/`PutItem`/`DeleteItem`/batch.
    */
   private def withExplicitRetryOnly[A](
     retryPolicy: Option[RetryPolicy],

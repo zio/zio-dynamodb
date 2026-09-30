@@ -93,8 +93,8 @@ Update actions compose with `+`/`%` (see `UpdateExpression.Action`) — `.set`, 
 Low-Level or High-Level, since both build the same `Action` values under the hood.
 
 **Retries**: `.set`/`.remove`/`.deleteFromSet` are idempotent, but `.add`/`.increment`/
-`.appendList`/`.prependList` apply a delta — retrying one after an ambiguous-outcome failure
-can double-apply it. `updateItem` never retries automatically for this reason; see
+`.decrement`/`.appendList`/`.prependList` apply a delta — retrying one after an ambiguous-outcome
+failure can double-apply it. `updateItem` never retries automatically for this reason; see
 [Retries](../retries.md#updateitem-is-the-one-exception-explicit-opt-in-only).
 
 ## Delete

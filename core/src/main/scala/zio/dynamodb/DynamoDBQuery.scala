@@ -751,7 +751,7 @@ object DynamoDBQuery {
 
   /**
    * Never retries automatically, unlike every other operation — `action` may be a delta
-   * (`.add`/`.increment`/`.appendList`/`.prependList`), and retrying one after an
+   * (`.add`/`.increment`/`.decrement`/`.appendList`/`.prependList`), and retrying one after an
    * ambiguous-outcome failure can double-apply it. Attach a policy explicitly via
    * `.withRetryPolicy(...)` only when `action` is idempotent (`.set`/`.remove`/`.deleteFromSet`).
    */

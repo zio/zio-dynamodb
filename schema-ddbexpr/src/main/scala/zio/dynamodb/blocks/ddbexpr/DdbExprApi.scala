@@ -219,7 +219,7 @@ trait DdbExprApiSyntax {
 
   /**
    * Never retries automatically, unlike other operations — `action` may be a delta
-   * (`.add`/`.increment`/`.appendList`/`.prependList`), and retrying one after an
+   * (`.add`/`.increment`/`.decrement`/`.appendList`/`.prependList`), and retrying one after an
    * ambiguous-outcome failure can double-apply it. Attach a policy explicitly via
    * `.withRetryPolicy(...)` on the resulting query only when `action` is idempotent
    * (`.set`/`.remove`/`.deleteFromSet`).

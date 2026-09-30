@@ -652,7 +652,7 @@ object RetrySpec extends ZIOSpecDefault {
         } yield assertTrue(result.items.contains(Item("id" -> "alice")) && n == 2)
       },
       test(
-        "updateItem does NOT fall back to defaultRetryPolicy — its Action DSL can be non-idempotent (.add/.increment/.appendList)"
+        "updateItem does NOT fall back to defaultRetryPolicy — its Action DSL can be non-idempotent (.add/.increment/.decrement/.appendList)"
       ) {
         for {
           calls  <- Ref.make(0)

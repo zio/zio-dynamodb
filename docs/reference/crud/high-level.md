@@ -137,8 +137,8 @@ The compiler checks the field and the value being set together — `Order.status
 wouldn't compile.
 
 **Retries**: `.set`/`.remove`/`.deleteFromSet` are idempotent, but `.add`/`.increment`/
-`.appendList`/`.prependList` apply a delta — retrying one after an ambiguous-outcome failure
-can double-apply it. `update` never retries automatically for this reason; see
+`.decrement`/`.appendList`/`.prependList` apply a delta — retrying one after an ambiguous-outcome
+failure can double-apply it. `update` never retries automatically for this reason; see
 [Retries](../retries.md#updateitem-is-the-one-exception-explicit-opt-in-only).
 
 ## Delete
