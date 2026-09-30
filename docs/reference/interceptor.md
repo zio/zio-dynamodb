@@ -48,9 +48,12 @@ val interp: ZioInterpreter =
 `InterceptorConfig()`, every field `None`) runs with none attached — no overhead, no metadata
 collection.
 
-Under the hood, attaching an interceptor also switches on `ReturnConsumedCapacity.TOTAL` (and
-`ReturnItemCollectionMetrics.SIZE` for writes) on every request automatically — you don't
-need to set those yourself for the metadata to be populated.
+Under the hood, attaching a `response` interceptor also switches on `ReturnConsumedCapacity.TOTAL`
+(and `ReturnItemCollectionMetrics.SIZE` for writes) on every request automatically — you don't
+need to set those yourself for the metadata to be populated. Attaching only `retry`/`batchRetry`
+(no `response`) doesn't enable this — those two fire from `core`'s retry loop, never through
+`InterceptingAwsDynamoDB`, so there's no response-shaped metadata involved to enrich the request
+for. See [Retries](retries.md) for what `retry`/`batchRetry` actually observe.
 
 ## What's in `DynamoDBResponseMetadata`
 
