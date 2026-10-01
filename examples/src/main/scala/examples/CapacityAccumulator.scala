@@ -18,7 +18,14 @@ package examples
 
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import zio._
-import zio.dynamodb.{ DynamoDBQuery, DynamoDBResponseMetadata, PrimaryKey, ResponseInterceptor, ZioInterpreter }
+import zio.dynamodb.{
+  DynamoDBQuery,
+  DynamoDBResponseMetadata,
+  InterceptorConfig,
+  PrimaryKey,
+  ResponseInterceptor,
+  ZioInterpreter
+}
 
 /**
  * A stateful [[ResponseInterceptor]] that accumulates total consumed capacity across every
@@ -43,7 +50,7 @@ object CapacityAccumulator extends ZIOAppDefault {
         (interceptor, totalConsumed) = pair
         client <-
           ZIO.acquireRelease(ZIO.attempt(DynamoDbAsyncClient.builder().build()))(c => ZIO.attempt(c.close()).orDie)
-        interp = ZioInterpreter.fromAsyncClient(client, interceptor)
+        interp = ZioInterpreter.fromAsyncClient(client, InterceptorConfig(response = Some(interceptor)))
         _      <- interp.run(DynamoDBQuery.getItem("orders", PrimaryKey("orderId" -> "ord-1")))
         _      <- interp.run(DynamoDBQuery.getItem("orders", PrimaryKey("orderId" -> "ord-2")))
         total  <- totalConsumed

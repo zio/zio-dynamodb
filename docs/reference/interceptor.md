@@ -21,8 +21,9 @@ produce no metadata and never invoke the interceptor.
 
 ## Attaching an interceptor
 
-Pass it when constructing the interpreter — each interpreter has a `fromAsyncClient` overload
-that takes one:
+Pass it to `fromAsyncClient` wrapped in an `InterceptorConfig` — a bundle of the three
+independent, optional interceptors (`response`/`retry`/`batchRetry`, see
+[Retries](retries.md) for the latter two). Set only the field you want, named:
 
 ```scala mdoc:compile-only
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
@@ -35,18 +36,24 @@ val logging: ResponseInterceptor[Task] = new ResponseInterceptor[Task] {
 }
 
 val interp: ZioInterpreter =
-  ZioInterpreter.fromAsyncClient(DynamoDbAsyncClient.builder().build(), logging)
+  ZioInterpreter.fromAsyncClient(
+    DynamoDbAsyncClient.builder().build(),
+    InterceptorConfig(response = Some(logging))
+  )
 ```
 
-`CEInterpreter.fromAsyncClient`/`FutureInterpreter.fromAsyncClient` take the same second
-argument, typed to their own effect (`ResponseInterceptor[cats.effect.IO]`/
-`ResponseInterceptor[scala.concurrent.Future]`). Omitting the interceptor argument entirely
-(the single-argument `fromAsyncClient` overload) runs with none attached — no overhead, no
-metadata collection.
+`CEInterpreter.fromAsyncClient`/`FutureInterpreter.fromAsyncClient` take the same
+`InterceptorConfig`, typed to their own effect (`InterceptorConfig[cats.effect.IO]`/
+`InterceptorConfig[scala.concurrent.Future]`). Omitting `interceptors` entirely (it defaults to
+`InterceptorConfig()`, every field `None`) runs with none attached — no overhead, no metadata
+collection.
 
-Under the hood, attaching an interceptor also switches on `ReturnConsumedCapacity.TOTAL` (and
-`ReturnItemCollectionMetrics.SIZE` for writes) on every request automatically — you don't
-need to set those yourself for the metadata to be populated.
+Under the hood, attaching a `response` interceptor also switches on `ReturnConsumedCapacity.TOTAL`
+(and `ReturnItemCollectionMetrics.SIZE` for writes) on every request automatically — you don't
+need to set those yourself for the metadata to be populated. Attaching only `retry`/`batchRetry`
+(no `response`) doesn't enable this — those two fire from `core`'s retry loop, never through
+`InterceptingAwsDynamoDB`, so there's no response-shaped metadata involved to enrich the request
+for. See [Retries](retries.md) for what `retry`/`batchRetry` actually observe.
 
 ## What's in `DynamoDBResponseMetadata`
 
@@ -81,7 +88,10 @@ import zio.dynamodb._
 def example =
   for {
     acc    <- ZioResponseInterceptor.accumulating
-    interp  = ZioInterpreter.fromAsyncClient(DynamoDbAsyncClient.builder().build(), acc.interceptor)
+    interp  = ZioInterpreter.fromAsyncClient(
+                DynamoDbAsyncClient.builder().build(),
+                InterceptorConfig(response = Some(acc.interceptor))
+              )
     _      <- interp.run(DynamoDBQuery.getItem("orders", PrimaryKey("orderId" -> "ord-1")))
     seen   <- acc.results
   } yield seen

@@ -80,14 +80,33 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   protected def defaultRetryPolicy: Option[EffectfulRetryPolicy[F]] = None
 
   /**
+   * Fires just before an effect-level retry sleeps and retries — see [[RetryInterceptor]]. This
+   *  trait's own default is `None`; concrete interpreters override it the same way as
+   *  `defaultRetryPolicy`, via a `fromAsyncClient` factory parameter.
+   */
+  protected def retryInterceptor: Option[RetryInterceptor[F]] = None
+
+  /**
+   * Fires just before batch's response-level (unprocessed-items) resubmission loop sleeps and
+   *  resubmits — see [[BatchRetryInterceptor]]. Independent of `retryInterceptor`: the
+   *  response-level loop resubmits from a successful response with no `Throwable` involved, a
+   *  genuinely different mechanism from the effect-level retry loop `retryInterceptor` covers,
+   *  so a caller who only wants effect-level retry visibility has nothing to no-op here.
+   */
+  protected def batchRetryInterceptor: Option[BatchRetryInterceptor[F]] = None
+
+  /**
    * Retries `fa` according to `policy` whenever `isRetryable` matches the
    *  thrown error. Exhausted retries re-raise the last error.
    *
-   *  `fa` is by-name so each retry re-evaluates the effect.
+   *  `fa` is by-name so each retry re-evaluates the effect. `onRetry` fires once per retried
+   *  attempt, right before the delay is slept; defaults to a no-op so every existing caller
+   *  (this method is public) keeps compiling unchanged.
    */
   final def withRetry[A](
     policy: RetryPolicy,
-    isRetryable: Throwable => Boolean = RetryPolicy.isRetryable
+    isRetryable: Throwable => Boolean = RetryPolicy.isRetryable,
+    onRetry: (Throwable, Int) => F[Unit] = (_, _) => pure(())
   )(fa: => F[A]): F[A] =
     // newAttempt() is deferred into the flatMap continuation so a reused F[A] value (e.g. a
     // caller holding `val effect = interp.run(query)` and running it more than once) gets a
@@ -101,7 +120,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
           case Left(t) if isRetryable(t) =>
             attemptState.nextDelay(n) match {
               case None    => raiseError(t)
-              case Some(d) => flatMap(sleep(d))(_ => loop(n + 1))
+              case Some(d) => flatMap(onRetry(t, n))(_ => flatMap(sleep(d))(_ => loop(n + 1)))
             }
           case Left(t)                   => raiseError(t)
         }
@@ -115,7 +134,8 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
    */
   private[dynamodb] final def withRetryTracked[A](
     policy: RetryPolicy,
-    isRetryable: Throwable => Boolean = RetryPolicy.isRetryable
+    isRetryable: Throwable => Boolean = RetryPolicy.isRetryable,
+    onRetry: (Throwable, Int) => F[Unit] = (_, _) => pure(())
   )(fa: => F[A]): F[Either[(Throwable, Int), A]] =
     // See withRetry — newAttempt() deferred so a reused F[A] value gets a fresh Attempt per run.
     flatMap(pure(())) { _ =>
@@ -127,7 +147,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
           case Left(t) if isRetryable(t) =>
             attemptState.nextDelay(n) match {
               case None    => pure(Left((t, n)))
-              case Some(d) => flatMap(sleep(d))(_ => loop(n + 1))
+              case Some(d) => flatMap(onRetry(t, n))(_ => flatMap(sleep(d))(_ => loop(n + 1)))
             }
           case Left(t)                   => pure(Left((t, n)))
         }
@@ -137,7 +157,8 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   /** Like [[withRetry]], but for an [[EffectfulRetryPolicy]] — see `defaultRetryPolicy`. */
   final def withRetryF[A](
     policy: EffectfulRetryPolicy[F],
-    isRetryable: Throwable => Boolean = RetryPolicy.isRetryable
+    isRetryable: Throwable => Boolean = RetryPolicy.isRetryable,
+    onRetry: (Throwable, Int) => F[Unit] = (_, _) => pure(())
   )(fa: => F[A]): F[A] =
     flatMap(policy.newAttempt()) { attemptState =>
       def loop(n: Int): F[A] =
@@ -147,7 +168,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
           case Left(t) if isRetryable(t) =>
             flatMap(attemptState.nextDelay(n)) {
               case None    => raiseError(t)
-              case Some(d) => flatMap(sleep(d))(_ => loop(n + 1))
+              case Some(d) => flatMap(onRetry(t, n))(_ => flatMap(sleep(d))(_ => loop(n + 1)))
             }
           case Left(t)                   => raiseError(t)
         }
@@ -158,12 +179,15 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
    * The full per-query retry fallback chain: the query's own policy if it set one, else
    *  `defaultRetryPolicy` if the interpreter has one, else no retry at all (today's behavior).
    */
-  private def withOptionalRetry[A](retryPolicy: Option[RetryPolicy])(fa: => F[A]): F[A] =
+  private def withOptionalRetry[A](
+    retryPolicy: Option[RetryPolicy],
+    onRetry: (Throwable, Int) => F[Unit] = (_, _) => pure(())
+  )(fa: => F[A]): F[A] =
     retryPolicy match {
-      case Some(p) => withRetry(p, isRetryable)(fa)
+      case Some(p) => withRetry(p, isRetryable, onRetry)(fa)
       case None    =>
         defaultRetryPolicy match {
-          case Some(p) => withRetryF(p, isRetryable)(fa)
+          case Some(p) => withRetryF(p, isRetryable, onRetry)(fa)
           case None    => fa
         }
     }
@@ -171,22 +195,26 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   /**
    * Like [[withOptionalRetry]], but never falls back to `defaultRetryPolicy` — only a query's
    *  own explicit `.withRetryPolicy(...)` is honored. Used for `UpdateItem`: its `Action` DSL
-   *  includes non-idempotent updates (`.add`/`.increment`/`.appendList`/`.prependList`), where
-   *  retrying an ambiguous-outcome failure (the original write may have already landed) can
-   *  silently double-apply a delta. The interpreter has no way to tell an idempotent `.set`
-   *  from a non-idempotent one, so it can't safely opt every `UpdateItem` into retrying by
-   *  default the way it does for `GetItem`/`PutItem`/`DeleteItem`/batch.
+   *  includes non-idempotent updates (`.add`/`.increment`/`.decrement`/`.appendList`/
+   *  `.prependList`), where retrying an ambiguous-outcome failure (the original write may have
+   *  already landed) can silently double-apply a delta. The interpreter has no way to tell an
+   *  idempotent `.set` from a non-idempotent one, so it can't safely opt every `UpdateItem`
+   *  into retrying by default the way it does for `GetItem`/`PutItem`/`DeleteItem`/batch.
    */
-  private def withExplicitRetryOnly[A](retryPolicy: Option[RetryPolicy])(fa: => F[A]): F[A] =
+  private def withExplicitRetryOnly[A](
+    retryPolicy: Option[RetryPolicy],
+    onRetry: (Throwable, Int) => F[Unit] = (_, _) => pure(())
+  )(fa: => F[A]): F[A] =
     retryPolicy match {
-      case Some(p) => withRetry(p, isRetryable)(fa)
+      case Some(p) => withRetry(p, isRetryable, onRetry)(fa)
       case None    => fa
     }
 
   /** Like [[withRetryTracked]], but for an [[EffectfulRetryPolicy]] — see `defaultRetryPolicy`. */
   private[dynamodb] final def withRetryTrackedF[A](
     policy: EffectfulRetryPolicy[F],
-    isRetryable: Throwable => Boolean = RetryPolicy.isRetryable
+    isRetryable: Throwable => Boolean = RetryPolicy.isRetryable,
+    onRetry: (Throwable, Int) => F[Unit] = (_, _) => pure(())
   )(fa: => F[A]): F[Either[(Throwable, Int), A]] =
     flatMap(policy.newAttempt()) { attemptState =>
       def loop(n: Int): F[Either[(Throwable, Int), A]] =
@@ -196,7 +224,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
           case Left(t) if isRetryable(t) =>
             flatMap(attemptState.nextDelay(n)) {
               case None    => pure(Left((t, n)))
-              case Some(d) => flatMap(sleep(d))(_ => loop(n + 1))
+              case Some(d) => flatMap(onRetry(t, n))(_ => flatMap(sleep(d))(_ => loop(n + 1)))
             }
           case Left(t)                   => pure(Left((t, n)))
         }
@@ -210,14 +238,15 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
    *  attempt count and the `Either` shape regardless of whether retry actually happens.
    */
   private def withOptionalRetryTracked[A](
-    retryPolicy: Option[RetryPolicy]
+    retryPolicy: Option[RetryPolicy],
+    onRetry: (Throwable, Int) => F[Unit] = (_, _) => pure(())
   )(fa: => F[A]): F[Either[(Throwable, Int), A]] =
     retryPolicy match {
-      case Some(p) => withRetryTracked(p, isRetryable)(fa)
+      case Some(p) => withRetryTracked(p, isRetryable, onRetry)(fa)
       case None    =>
         defaultRetryPolicy match {
-          case Some(p) => withRetryTrackedF(p, isRetryable)(fa)
-          case None    => withRetryTracked(RetryPolicy.NoRetry, isRetryable)(fa)
+          case Some(p) => withRetryTrackedF(p, isRetryable, onRetry)(fa)
+          case None    => withRetryTracked(RetryPolicy.NoRetry, isRetryable, onRetry)(fa)
         }
     }
 
@@ -336,36 +365,47 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
       )
   }
 
+  // Builds the onRetry closure RetryInterceptor.onRetry threads through withRetry/withRetryF —
+  // a no-op F[Unit] when no RetryInterceptor is attached, so callers never branch on it.
+  private def onRetryFor(meta: DynamoDBRetryMetadata): (Throwable, Int) => F[Unit] =
+    (t, n) => retryInterceptor.fold(pure(()))(_.onRetry(meta, t, n))
+
   // Works on Any to sidestep Scala 2 GADT limitations; safe by construction.
   private def runAny(query: DynamoDBQuery[_, _]): F[Any] =
     query match {
       case q: DynamoDBQuery.GetItem            =>
-        withOptionalRetry(q.retryPolicy)(runGetItem(q)).asInstanceOf[F[Any]]
+        val meta = DynamoDBRetryMetadata.GetItem(q.tableName, CorrelationContext(Some(q.key)))
+        withOptionalRetry(q.retryPolicy, onRetryFor(meta))(runGetItem(q)).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.PutItem            =>
+        val meta = DynamoDBRetryMetadata.PutItem(q.tableName, q.item)
         validateCE(q.conditionExpression).fold(
-          withOptionalRetry(q.retryPolicy)(runPutItem(q)).asInstanceOf[F[Any]]
+          withOptionalRetry(q.retryPolicy, onRetryFor(meta))(runPutItem(q)).asInstanceOf[F[Any]]
         )(fail)
       case q: DynamoDBQuery.UpdateItem         =>
+        val meta = DynamoDBRetryMetadata.UpdateItem(q.tableName, CorrelationContext(Some(q.key)))
         validateAction(q.updateExpression.action)
           .orElse(validateCE(q.conditionExpression))
           .fold(
-            withExplicitRetryOnly(q.retryPolicy)(runUpdateItem(q)).asInstanceOf[F[Any]]
+            withExplicitRetryOnly(q.retryPolicy, onRetryFor(meta))(runUpdateItem(q)).asInstanceOf[F[Any]]
           )(fail)
       case q: DynamoDBQuery.DeleteItem         =>
+        val meta = DynamoDBRetryMetadata.DeleteItem(q.tableName, CorrelationContext(Some(q.key)))
         validateCE(q.conditionExpression).fold(
-          withOptionalRetry(q.retryPolicy)(runDeleteItem(q)).asInstanceOf[F[Any]]
+          withOptionalRetry(q.retryPolicy, onRetryFor(meta))(runDeleteItem(q)).asInstanceOf[F[Any]]
         )(fail)
       case q: DynamoDBQuery.Query              =>
+        val meta = DynamoDBRetryMetadata.Query(q.tableName)
         validateKCE(q.keyConditionExpr)
           .orElse(validateCE(q.filterExpression))
           .fold(
-            withOptionalRetry(q.retryPolicy)(runQuery(q)).asInstanceOf[F[Any]]
+            withOptionalRetry(q.retryPolicy, onRetryFor(meta))(runQuery(q)).asInstanceOf[F[Any]]
           )(fail)
       case q: DynamoDBQuery.Scan               =>
+        val meta = DynamoDBRetryMetadata.Scan(q.tableName)
         validateCE(q.filterExpression)
           .orElse(validateScanSegment(q))
           .fold(
-            withOptionalRetry(q.retryPolicy)(runScan(q)).asInstanceOf[F[Any]]
+            withOptionalRetry(q.retryPolicy, onRetryFor(meta))(runScan(q)).asInstanceOf[F[Any]]
           )(err => fail(err))
       case q: DynamoDBQuery.CreateTable        => runCreateTable(q).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.DeleteTable        => runDeleteTable(q).asInstanceOf[F[Any]]
@@ -417,8 +457,9 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
     getDelay: Int => F[Option[FiniteDuration]],
     attempt: Int,
     accumulatedResponses: Map[String, Chunk[Item]] = Map.empty
-  ): F[Batch.GetResult] =
-    flatMap(withOptionalRetryTracked(q.retryPolicy)(runBatchGetItem(q))) {
+  ): F[Batch.GetResult] = {
+    val meta = DynamoDBRetryMetadata.BatchGetItem(q.requestItems.keySet)
+    flatMap(withOptionalRetryTracked(q.retryPolicy, onRetryFor(meta))(runBatchGetItem(q))) {
       case Left((cause, effectRetries)) =>
         pure(Batch.GetResult.Failed(cause, responseRetries = attempt, effectRetries = effectRetries))
       case Right(response)              =>
@@ -431,25 +472,33 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
           flatMap(getDelay(attempt)) {
             case None    => pure(Batch.GetResult.Incomplete(response.copy(responses = merged)))
             case Some(d) =>
-              flatMap(sleep(d)) { _ =>
-                // q.copy (not a fresh BatchGetItem) preserves capacity/orderedGetItems/
-                // retryPolicy from the original query across the retry.
-                runBatchGetItemRetrying(
-                  q.copy(requestItems = response.unprocessedKeys),
-                  getDelay,
-                  attempt + 1,
-                  merged
-                )
+              val unprocessed: Map[String, Set[PrimaryKey]] =
+                response.unprocessedKeys.map { case (tableName, tableGet) => tableName -> tableGet.keysSet }
+              val notify: F[Unit]                           =
+                batchRetryInterceptor.fold(pure(()))(_.onBatchGetRetry(unprocessed, attempt))
+              flatMap(notify) { _ =>
+                flatMap(sleep(d)) { _ =>
+                  // q.copy (not a fresh BatchGetItem) preserves capacity/orderedGetItems/
+                  // retryPolicy from the original query across the retry.
+                  runBatchGetItemRetrying(
+                    q.copy(requestItems = response.unprocessedKeys),
+                    getDelay,
+                    attempt + 1,
+                    merged
+                  )
+                }
               }
           }
     }
+  }
 
   private def runBatchWriteItemRetrying(
     q: DynamoDBQuery.BatchWriteItem,
     getDelay: Int => F[Option[FiniteDuration]],
     attempt: Int
-  ): F[Batch.WriteResult] =
-    flatMap(withOptionalRetryTracked(q.retryPolicy)(runBatchWriteItem(q))) {
+  ): F[Batch.WriteResult] = {
+    val meta = DynamoDBRetryMetadata.BatchWriteItem(q.requestItems.keySet)
+    flatMap(withOptionalRetryTracked(q.retryPolicy, onRetryFor(meta))(runBatchWriteItem(q))) {
       case Left((cause, effectRetries)) =>
         pure(Batch.WriteResult.Failed(cause, responseRetries = attempt, effectRetries = effectRetries))
       case Right(response)              =>
@@ -459,18 +508,36 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
             flatMap(getDelay(attempt)) {
               case None    => pure(Batch.WriteResult.Incomplete(response))
               case Some(d) =>
-                flatMap(sleep(d)) { _ =>
-                  // q.copy (not a fresh BatchWriteItem) preserves capacity/itemMetrics/
-                  // retryPolicy from the original query across the retry.
-                  runBatchWriteItemRetrying(
-                    q.copy(requestItems = remaining),
-                    getDelay,
-                    attempt + 1
+                // Splits each table's order-preserving Chunk[Write] into separate puts/deletes
+                // views for the interceptor — Chunk, not Set, to match onBatchWriteRetry's
+                // no-implicit-dedup contract (BatchRetryInterceptor.scala).
+                val (puts, deletes) = remaining.foldLeft(
+                  (Map.empty[String, Chunk[Item]], Map.empty[String, Chunk[PrimaryKey]])
+                ) { case ((putsAcc, deletesAcc), (tableName, writes)) =>
+                  val tablePuts    = writes.collect { case DynamoDBQuery.BatchWriteItem.Put(item) => item }
+                  val tableDeletes = writes.collect { case DynamoDBQuery.BatchWriteItem.Delete(key) => key }
+                  (
+                    if (tablePuts.isEmpty) putsAcc else putsAcc.updated(tableName, tablePuts),
+                    if (tableDeletes.isEmpty) deletesAcc else deletesAcc.updated(tableName, tableDeletes)
                   )
+                }
+                val notify: F[Unit] =
+                  batchRetryInterceptor.fold(pure(()))(_.onBatchWriteRetry(puts, deletes, attempt))
+                flatMap(notify) { _ =>
+                  flatMap(sleep(d)) { _ =>
+                    // q.copy (not a fresh BatchWriteItem) preserves capacity/itemMetrics/
+                    // retryPolicy from the original query across the retry.
+                    runBatchWriteItemRetrying(
+                      q.copy(requestItems = remaining),
+                      getDelay,
+                      attempt + 1
+                    )
+                  }
                 }
             }
         }
     }
+  }
 
   final def run[Out](query: DynamoDBQuery[_, Out]): F[Out] =
     runAny(query).asInstanceOf[F[Out]]

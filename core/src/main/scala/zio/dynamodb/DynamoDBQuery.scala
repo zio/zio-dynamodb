@@ -749,9 +749,16 @@ object DynamoDBQuery {
   ): Write[Any, Option[Item]] =
     PutItem(tableName, item, conditionExpression, capacity, itemMetrics, returnValues, retryPolicy)
 
+  /**
+   * Never retries automatically, unlike every other operation — `action` may be a delta
+   * (`.add`/`.increment`/`.decrement`/`.appendList`/`.prependList`), and retrying one after an
+   * ambiguous-outcome failure can double-apply it. Attach a policy explicitly via
+   * `.withRetryPolicy(...)` only when `action` is idempotent (`.set`/`.remove`/`.deleteFromSet`).
+   */
   def updateItem[A](tableName: String, key: PrimaryKey)(action: Action[A]): DynamoDBQuery[A, Option[Item]] =
     UpdateItem(tableName, key, UpdateExpression(action))
 
+  /** @see the other `updateItem` overload — same retry caveat applies to `updateExpression`. */
   def updateItem(
     tableName: String,
     key: PrimaryKey,

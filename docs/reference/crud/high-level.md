@@ -136,6 +136,11 @@ def example(implicit interp: Interpreter[zio.Task]) =
 The compiler checks the field and the value being set together — `Order.status.set(129.99)`
 wouldn't compile.
 
+**Retries**: `.set`/`.remove`/`.deleteFromSet` are idempotent, but `.add`/`.increment`/
+`.decrement`/`.appendList`/`.prependList` apply a delta — retrying one after an ambiguous-outcome
+failure can double-apply it. `update` never retries automatically for this reason; see
+[Retries](../retries.md#updateitem-is-the-one-exception-explicit-opt-in-only).
+
 ## Delete
 
 ```scala mdoc:compile-only

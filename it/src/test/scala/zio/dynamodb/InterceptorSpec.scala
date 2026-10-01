@@ -88,7 +88,8 @@ object InterceptorSpec extends DynamoDBLocalSpec {
 
   private val zioAccFactory: AccFactory = client =>
     ZioResponseInterceptor.accumulating.map { acc =>
-      val itInterp: Interpreter[Task] = ZioInterpreter.fromAsyncClient(client, acc.interceptor)
+      val itInterp: Interpreter[Task] =
+        ZioInterpreter.fromAsyncClient(client, InterceptorConfig(response = Some(acc.interceptor)))
       (itInterp, acc.results)
     }
 
@@ -105,7 +106,7 @@ object InterceptorSpec extends DynamoDBLocalSpec {
           }
           val readMeta: CIO[Chunk[DynamoDBResponseMetadata]] =
             ref.get.map(xs => Chunk.fromIterable(xs.reverse))
-          (CEInterpreter.fromAsyncClient(client, interceptor), readMeta)
+          (CEInterpreter.fromAsyncClient(client, InterceptorConfig(response = Some(interceptor))), readMeta)
         }
         .unsafeToFuture()(ceRuntime)
     }.map { case (ceInterp, readMetaCIO) =>
@@ -117,7 +118,8 @@ object InterceptorSpec extends DynamoDBLocalSpec {
 
   private val futureAccFactory: AccFactory = client =>
     ZIO.fromFuture(_ => FutureResponseInterceptor.accumulating).map { acc =>
-      val itInterp: Interpreter[Task]                     = futureBridge(FutureInterpreter.fromAsyncClient(client, acc.interceptor))
+      val itInterp: Interpreter[Task]                     =
+        futureBridge(FutureInterpreter.fromAsyncClient(client, InterceptorConfig(response = Some(acc.interceptor))))
       val readMeta: Task[Chunk[DynamoDBResponseMetadata]] = ZIO.succeed(acc.results())
       (itInterp, readMeta)
     }

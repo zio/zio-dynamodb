@@ -23,6 +23,7 @@ import zio.dynamodb.{
   ConsumedCapacity,
   DynamoDBQuery,
   DynamoDBResponseMetadata,
+  InterceptorConfig,
   PrimaryKey,
   ResponseInterceptor,
   ZioInterpreter
@@ -64,7 +65,7 @@ object CapacityWarnings extends ZIOAppDefault {
       for {
         client <-
           ZIO.acquireRelease(ZIO.attempt(DynamoDbAsyncClient.builder().build()))(c => ZIO.attempt(c.close()).orDie)
-        interp = ZioInterpreter.fromAsyncClient(client, capacityWarnings)
+        interp = ZioInterpreter.fromAsyncClient(client, InterceptorConfig(response = Some(capacityWarnings)))
         _      <- interp.run(DynamoDBQuery.getItem("orders", PrimaryKey("orderId" -> "ord-1")))
       } yield ()
     }

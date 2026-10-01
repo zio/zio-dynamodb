@@ -92,6 +92,11 @@ Update actions compose with `+`/`%` (see `UpdateExpression.Action`) — `.set`, 
 `.appendList`, `.deleteFromSet`, and `.remove` are all available on any `ProjectionExpression`,
 Low-Level or High-Level, since both build the same `Action` values under the hood.
 
+**Retries**: `.set`/`.remove`/`.deleteFromSet` are idempotent, but `.add`/`.increment`/
+`.decrement`/`.appendList`/`.prependList` apply a delta — retrying one after an ambiguous-outcome
+failure can double-apply it. `updateItem` never retries automatically for this reason; see
+[Retries](../retries.md#updateitem-is-the-one-exception-explicit-opt-in-only).
+
 ## Delete
 
 ```scala mdoc:compile-only

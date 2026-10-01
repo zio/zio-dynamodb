@@ -16,8 +16,8 @@ import zio.dynamodb._
 val interp: ZioInterpreter = ZioInterpreter.fromAsyncClient(DynamoDbAsyncClient.builder().build())
 ```
 
-`fromAsyncClient(sdkClient)` (and the interceptor-taking overload) attach full-jitter exponential
-backoff (`delay = random(0, min(maxDelay, baseDelay * 2^attempt))`) as the interpreter's default:
+`fromAsyncClient(sdkClient)` attaches full-jitter exponential backoff
+(`delay = random(0, min(maxDelay, baseDelay * 2^attempt))`) as the interpreter's default:
 8 retries, 100ms base delay, 20s cap. This is what AWS SDKs actually implement as their current
 standard retry mode — see AWS's
 [SDKs and Tools Reference Guide, "Retry behavior"](https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html).
@@ -57,7 +57,8 @@ no policy of its own. `UpdateItem` never does — omitting `.withRetryPolicy(...
 `UpdateItem` means no retry at all, regardless of what the interpreter is configured with.
 
 Reason: `UpdateItem`'s `Action` DSL mixes idempotent updates (`.set(value)`) with
-non-idempotent ones (`.add`/`.increment`/`.appendList`/`.prependList` — each applies a delta).
+non-idempotent ones (`.add`/`.increment`/`.decrement`/`.appendList`/`.prependList` — each
+applies a delta).
 Retrying a request whose outcome is ambiguous (a `ServiceUnavailable`/network failure where
 the write may have already landed) would silently double-apply that delta. The framework has
 no way to tell which kind of action a given `UpdateItem` uses, so it can't safely default
