@@ -54,47 +54,21 @@ object ZioRetryPolicies {
 
   /**
    * Full-jitter exponential backoff — see `RetryPolicy.fullJitter` for the formula, and why
-   * it's what AWS SDKs actually ship as their default today. Stateless, so no `Ref` is
-   * needed; each attempt just lifts the pure computation into `Task`.
+   * it's what AWS SDKs actually ship as their default today. Stateless, so no `Ref` is needed;
+   * the wrapping `Attempt` is built once here (not per `newAttempt()` call) and shared, since
+   * it carries no per-execution state of its own to isolate.
    */
   def fullJitter(
     maxRetries: Int = 8,
     baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
     maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
-  ): EffectfulRetryPolicy[Task] =
-    new EffectfulRetryPolicy[Task] {
-      def newAttempt(): Task[EffectfulRetryPolicy.Attempt[Task]] =
-        ZIO.succeed {
-          val pureAttempt = RetryPolicy.fullJitter(maxRetries, baseDelay, maxDelay).newAttempt()
-          new EffectfulRetryPolicy.Attempt[Task] {
-            def nextDelay(attempt: Int): Task[Option[FiniteDuration]] = ZIO.succeed(pureAttempt.nextDelay(attempt))
-          }
-        }
+  ): EffectfulRetryPolicy[Task] = {
+    val pureAttempt   = RetryPolicy.fullJitter(maxRetries, baseDelay, maxDelay).newAttempt()
+    val cachedAttempt = new EffectfulRetryPolicy.Attempt[Task] {
+      def nextDelay(attempt: Int): Task[Option[FiniteDuration]] = ZIO.succeed(pureAttempt.nextDelay(attempt))
     }
-
-  /**
-   * Decorrelated-jitter backoff — see `RetryPolicy.decorrelatedJitter` for the formula and its
-   * AWS blog-post origin. State lives in a `Ref`, created fresh once per `newAttempt()` call.
-   */
-  def decorrelatedJitter(
-    maxRetries: Int = 8,
-    baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
-    maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
-  ): EffectfulRetryPolicy[Task] =
     new EffectfulRetryPolicy[Task] {
-      def newAttempt(): Task[EffectfulRetryPolicy.Attempt[Task]] =
-        Ref.make(baseDelay.toMillis).map { stateRef =>
-          new EffectfulRetryPolicy.Attempt[Task] {
-            def nextDelay(attempt: Int): Task[Option[FiniteDuration]] =
-              stateRef.modify { previousDelayMs =>
-                val (next, delay) =
-                  RetryPolicy.decorrelatedJitterStep(baseDelay.toMillis, maxDelay.toMillis, maxRetries)(
-                    previousDelayMs,
-                    attempt
-                  )
-                (delay, next)
-              }
-          }
-        }
+      def newAttempt(): Task[EffectfulRetryPolicy.Attempt[Task]] = ZIO.succeed(cachedAttempt)
     }
+  }
 }

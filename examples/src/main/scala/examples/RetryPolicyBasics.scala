@@ -23,8 +23,8 @@ import zio.dynamodb._
 import scala.concurrent.duration.FiniteDuration
 
 /**
- * Request-level retry policies — see the "Retries" reference doc. Every interpreter already
- * retries on transient errors by default; `.withRetryPolicy` overrides that for one query.
+ * Request-level retry policies — see the "Retries" reference doc. `.withRetryPolicy` attaches
+ * a policy to one query, independent of whatever the interpreter is configured with.
  */
 object RetryPolicyBasics extends ZIOAppDefault {
 
@@ -34,29 +34,31 @@ object RetryPolicyBasics extends ZIOAppDefault {
       if (attempt >= 5) None else Some(FiniteDuration(200L * (attempt + 1), "milliseconds"))
     )
 
-  // Stateful, pure: decorrelated-jitter formula, tuned down from its own defaults.
-  val shortDecorrelatedJitter: RetryPolicy =
-    RetryPolicy.decorrelatedJitter(
-      maxRetries = 3,
-      baseDelay = FiniteDuration(50, "milliseconds"),
-      maxDelay = FiniteDuration(2, "seconds")
-    )
+  // Stateful, pure: a custom curve whose state (the attempt count so far) is closed over
+  // fresh per execution via statefulCustom, rather than a shared var on the policy value.
+  val statefulLinear: RetryPolicy =
+    RetryPolicy.statefulCustom { () =>
+      var previous = 0
+      (attempt: Int) =>
+        if (attempt >= 4) None
+        else { previous += 1; Some(FiniteDuration(previous.toLong * 150, "milliseconds")) }
+    }
 
   def run: Task[Unit] =
     ZIO.scoped {
       for {
         client <-
           ZIO.acquireRelease(ZIO.attempt(DynamoDbAsyncClient.builder().build()))(c => ZIO.attempt(c.close()).orDie)
-        interp = ZioInterpreter.fromAsyncClient(client) // full-jitter default already attached
-        _ <-
+        interp = ZioInterpreter.fromAsyncClient(client)
+        _      <-
           interp.run(DynamoDBQuery.getItem("orders", PrimaryKey("orderId" -> "ord-1")).withRetryPolicy(linear))
-        _ <-
+        _      <-
           interp.run(
             DynamoDBQuery
               .getItem("orders", PrimaryKey("orderId" -> "ord-2"))
-              .withRetryPolicy(shortDecorrelatedJitter)
+              .withRetryPolicy(statefulLinear)
           )
-        _ <-
+        _      <-
           interp.run(
             DynamoDBQuery.getItem("orders", PrimaryKey("orderId" -> "ord-3")).withRetryPolicy(RetryPolicy.NoRetry)
           )

@@ -228,7 +228,7 @@ object RetrySpec extends ZIOSpecDefault {
         // Regression test: newAttempt() must be deferred into the effect, not evaluated once
         // when withRetry(...) is called — otherwise every re-run of a captured effect value
         // (e.g. `val effect = interp.run(query)`, run more than once) shares one Attempt,
-        // breaking stateful policies like RetryPolicy.statefulCustom/decorrelatedJitter.
+        // breaking stateful policies built via RetryPolicy.statefulCustom.
         val onceOnlyPolicy = RetryPolicy.statefulCustom { () =>
           var used = false
           (_: Int) => if (used) None else { used = true; Some(FiniteDuration(1, MILLISECONDS)) }
@@ -860,28 +860,6 @@ object RetrySpec extends ZIOSpecDefault {
           assertTrue(
             log == Chunk((Map("t" -> Chunk(putItem)), Map("t" -> Chunk(deleteKey)), 0))
           )
-      }
-    ),
-
-    suite("ZioRetryPolicies.decorrelatedJitter")(
-      test("stops after maxRetries and stays within [base, cap] otherwise") {
-        for {
-          policy  <- ZIO.succeed(
-                       ZioRetryPolicies.decorrelatedJitter(
-                         maxRetries = 3,
-                         baseDelay = FiniteDuration(50, MILLISECONDS),
-                         maxDelay = FiniteDuration(5, "seconds")
-                       )
-                     )
-          attempt <- policy.newAttempt()
-          d0      <- attempt.nextDelay(0)
-          d1      <- attempt.nextDelay(1)
-          d2      <- attempt.nextDelay(2)
-          d3      <- attempt.nextDelay(3)
-        } yield assertTrue(
-          d3.isEmpty,
-          List(d0, d1, d2).forall(_.exists(d => d.toMillis >= 50L && d.toMillis <= 5000L))
-        )
       }
     ),
 

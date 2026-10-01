@@ -54,18 +54,20 @@ class CEInterpreter(
 object CEInterpreter {
 
   /**
-   * Creates an interpreter backed by `sdkClient`. Any query that doesn't specify its own
-   * `.withRetryPolicy(...)` falls back to `defaultRetryPolicy` — `CatsRetryPolicies.fullJitter()`
-   * by default (full-jitter exponential backoff, what AWS SDKs ship as their default) — except
-   * `UpdateItem`, which never retries without an explicit policy (see
-   * `docs/reference/retries.md`). `interceptors` bundles the three independent, optional
-   * observability hooks (`ResponseInterceptor`/`RetryInterceptor`/`BatchRetryInterceptor`); set
-   * only what you want, named: `InterceptorConfig(retry = Some(myRetryInterceptor))`.
+   * Creates an interpreter backed by `sdkClient`. `defaultRetryPolicy` is `None` by default —
+   * matching the AWS SDK client's own zero-config behavior, which already retries on its own
+   * (see `docs/reference/retries.md` for why running both layers at once is not recommended,
+   * and the pairing to use instead). Any query that doesn't specify its own
+   * `.withRetryPolicy(...)` falls back to `defaultRetryPolicy` when set, except `UpdateItem`,
+   * which never retries without an explicit policy. `interceptors` bundles the three
+   * independent, optional observability hooks (`ResponseInterceptor`/`RetryInterceptor`/
+   * `BatchRetryInterceptor`); set only what you want, named:
+   * `InterceptorConfig(retry = Some(myRetryInterceptor))`.
    */
   def fromAsyncClient(
     sdkClient: DynamoDbAsyncClient,
     interceptors: InterceptorConfig[IO] = InterceptorConfig(),
-    defaultRetryPolicy: Option[EffectfulRetryPolicy[IO]] = Some(CatsRetryPolicies.fullJitter())
+    defaultRetryPolicy: Option[EffectfulRetryPolicy[IO]] = None
   ): CEInterpreter =
     fromAsyncClientInternal(sdkClient, interceptors, defaultRetryPolicy)
 

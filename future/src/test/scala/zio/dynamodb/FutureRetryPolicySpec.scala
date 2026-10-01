@@ -127,13 +127,6 @@ object FutureRetryPolicySpec extends ZIOSpecDefault {
           await(second.nextDelay(0)).contains(1.millis) // fresh state — not 3.millis
       )
     },
-    test("FutureRetryPolicies.decorrelatedJitter stops after maxRetries and stays within [base, cap] otherwise") {
-      val policy  = FutureRetryPolicies.decorrelatedJitter(maxRetries = 3, baseDelay = 50.millis, maxDelay = 5.seconds)
-      val attempt = await(policy.newAttempt())
-      val delays  = (0 until 3).map(n => await(attempt.nextDelay(n)).get.toMillis)
-      val last    = await(attempt.nextDelay(3))
-      assertTrue(delays.forall(d => d >= 50L && d <= 5000L) && last.isEmpty)
-    },
     test("FutureRetryPolicies.fullJitter stops after maxRetries and stays within [0, cap]") {
       val policy  = FutureRetryPolicies.fullJitter(maxRetries = 3, baseDelay = 50.millis, maxDelay = 5.seconds)
       val attempt = await(policy.newAttempt())

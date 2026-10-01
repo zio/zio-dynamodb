@@ -60,34 +60,21 @@ object CatsRetryPolicies {
 
   /**
    * Full-jitter exponential backoff — see `RetryPolicy.fullJitter` for the formula, and why
-   * it's what AWS SDKs actually ship as their default today. Stateless, so no `Ref` is
-   * needed; each attempt just lifts the pure computation into `IO`.
+   * it's what AWS SDKs actually ship as their default today. Stateless, so no `Ref` is needed;
+   * the wrapping `Attempt` is built once here (not per `newAttempt()` call) and shared, since
+   * it carries no per-execution state of its own to isolate.
    */
   def fullJitter(
     maxRetries: Int = 8,
     baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
     maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
-  ): EffectfulRetryPolicy[IO] =
+  ): EffectfulRetryPolicy[IO] = {
+    val pureAttempt   = RetryPolicy.fullJitter(maxRetries, baseDelay, maxDelay).newAttempt()
+    val cachedAttempt = new EffectfulRetryPolicy.Attempt[IO] {
+      def nextDelay(attempt: Int): IO[Option[FiniteDuration]] = IO.delay(pureAttempt.nextDelay(attempt))
+    }
     new EffectfulRetryPolicy[IO] {
-      def newAttempt(): IO[EffectfulRetryPolicy.Attempt[IO]] =
-        IO.delay {
-          val pureAttempt = RetryPolicy.fullJitter(maxRetries, baseDelay, maxDelay).newAttempt()
-          new EffectfulRetryPolicy.Attempt[IO] {
-            def nextDelay(attempt: Int): IO[Option[FiniteDuration]] = IO.delay(pureAttempt.nextDelay(attempt))
-          }
-        }
+      def newAttempt(): IO[EffectfulRetryPolicy.Attempt[IO]] = IO.pure(cachedAttempt)
     }
-
-  /**
-   * Decorrelated-jitter backoff — see `RetryPolicy.decorrelatedJitter` for the formula and its
-   * AWS blog-post origin.
-   */
-  def decorrelatedJitter(
-    maxRetries: Int = 8,
-    baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
-    maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
-  ): EffectfulRetryPolicy[IO] =
-    statefulCustom(initial = baseDelay.toMillis) { (previousDelayMs, attempt) =>
-      RetryPolicy.decorrelatedJitterStep(baseDelay.toMillis, maxDelay.toMillis, maxRetries)(previousDelayMs, attempt)
-    }
+  }
 }
