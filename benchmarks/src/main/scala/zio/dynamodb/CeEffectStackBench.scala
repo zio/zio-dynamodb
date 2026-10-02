@@ -204,12 +204,20 @@ class CeEffectStackBench extends BaseBenchmark {
   private var prebuiltGetQuery: DynamoDBQuery[Person, Either[ItemError, Person]]          = _
   private var prebuiltPutQuery: DynamoDBQuery[Person, Option[Person]]                     = _
   private var prebuiltUpdateQuery: DynamoDBQuery[Person, Option[Person]]                  = _
+  // UpdateItem never falls back to defaultRetryPolicy (Interpreter.withExplicitRetryOnly) —
+  // the only way it ever retries is an explicit request-level policy, so that's what this
+  // isolates, unlike Get/Put's interpreterWithRetryPolicy counterparts below.
+  private var prebuiltUpdateQueryWithRetryPolicy: DynamoDBQuery[Person, Option[Person]]   = _
   private var prebuiltBigGetQuery: DynamoDBQuery[BigRecord, Either[ItemError, BigRecord]] = _
   private var prebuiltBigPutQuery: DynamoDBQuery[BigRecord, Option[BigRecord]]            = _
 
   @Setup def setup(): Unit = {
     prebuiltGetQuery = DdbExprApi.get(personDdbTable)(PersonOps.id.partitionKey === personId)
     prebuiltPutQuery = DdbExprApi.put(personDdbTable, person)
+    prebuiltUpdateQueryWithRetryPolicy =
+      DdbExprApi
+        .update(personDdbTable)(PersonOps.id.partitionKey === personId)(PersonOps.name.set(newName))
+        .withRetryPolicy(RetryPolicy.fullJitter())
     prebuiltUpdateQuery =
       DdbExprApi.update(personDdbTable)(PersonOps.id.partitionKey === personId)(PersonOps.name.set(newName))
     prebuiltBigGetQuery = DdbExprApi.get(bigDdbTable)(BigRecordOps.id.partitionKey === bigId)
@@ -281,9 +289,13 @@ class CeEffectStackBench extends BaseBenchmark {
   @Benchmark def blocksUpdatePrebuilt: Option[Person] =
     interpreter.run(prebuiltUpdateQuery).unsafeRunSync()
 
-  /** Same as blocksUpdatePrebuilt, but with an active defaultRetryPolicy — see interpreterWithRetryPolicy. */
+  /**
+   * Same as blocksUpdatePrebuilt, but with an explicit request-level `.withRetryPolicy(...)` —
+   * UpdateItem never falls back to defaultRetryPolicy (see prebuiltUpdateQueryWithRetryPolicy),
+   * so this is the only way to isolate the per-call cost of an active policy for this op.
+   */
   @Benchmark def blocksUpdatePrebuiltWithRetryPolicy: Option[Person] =
-    interpreterWithRetryPolicy.run(prebuiltUpdateQuery).unsafeRunSync()
+    interpreter.run(prebuiltUpdateQueryWithRetryPolicy).unsafeRunSync()
 
   @Benchmark def blocksUpdateConstructOnly: DynamoDBQuery[Person, Option[Person]] =
     DdbExprApi.update(personDdbTable)(PersonOps.id.partitionKey === personId)(PersonOps.name.set(newName))
