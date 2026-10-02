@@ -49,35 +49,21 @@ object FutureRetryPolicies {
 
   /**
    * Full-jitter exponential backoff — see `RetryPolicy.fullJitter` for the formula, and why
-   * it's what AWS SDKs actually ship as their default today. Stateless, so no `var` is
-   * needed either; each attempt just lifts the pure computation into `Future`.
+   * it's what AWS SDKs actually ship as their default today. Stateless, so no `var` is needed
+   * either; the wrapping `Attempt` is built once here (not per `newAttempt()` call) and shared,
+   * since it carries no per-execution state of its own to isolate.
    */
   def fullJitter(
     maxRetries: Int = 8,
     baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
     maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
-  ): EffectfulRetryPolicy[Future] =
+  ): EffectfulRetryPolicy[Future] = {
+    val pureAttempt   = RetryPolicy.fullJitter(maxRetries, baseDelay, maxDelay).newAttempt()
+    val cachedAttempt = new EffectfulRetryPolicy.Attempt[Future] {
+      def nextDelay(attempt: Int): Future[Option[FiniteDuration]] = Future.successful(pureAttempt.nextDelay(attempt))
+    }
     new EffectfulRetryPolicy[Future] {
-      def newAttempt(): Future[EffectfulRetryPolicy.Attempt[Future]] =
-        Future.successful {
-          val pureAttempt = RetryPolicy.fullJitter(maxRetries, baseDelay, maxDelay).newAttempt()
-          new EffectfulRetryPolicy.Attempt[Future] {
-            def nextDelay(attempt: Int): Future[Option[FiniteDuration]] =
-              Future.successful(pureAttempt.nextDelay(attempt))
-          }
-        }
+      def newAttempt(): Future[EffectfulRetryPolicy.Attempt[Future]] = Future.successful(cachedAttempt)
     }
-
-  /**
-   * Decorrelated-jitter backoff — see `RetryPolicy.decorrelatedJitter` for the formula and its
-   * AWS blog-post origin.
-   */
-  def decorrelatedJitter(
-    maxRetries: Int = 8,
-    baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
-    maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
-  ): EffectfulRetryPolicy[Future] =
-    statefulCustom(initial = baseDelay.toMillis) { (previousDelayMs, attempt) =>
-      RetryPolicy.decorrelatedJitterStep(baseDelay.toMillis, maxDelay.toMillis, maxRetries)(previousDelayMs, attempt)
-    }
+  }
 }
