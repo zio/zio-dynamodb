@@ -51,7 +51,7 @@ session via one `Ref`, reusing `CapacityWarnings.capacityUnitsOf` — contrast w
 
 Request-level [retry policies](retries.md): a stateless linear backoff, a stateful custom
 curve via `RetryPolicy.statefulCustom`, and opting one query out via `RetryPolicy.NoRetry` —
-all via `.withRetryPolicy(...)` on top of an interpreter's own default. See
+all via `.withRetryPolicy(...)`, regardless of the interpreter's configured default. See
 [Retries](retries.md#three-ways-to-shape-a-curve).
 
 ## `RetryPolicyDefaults`
