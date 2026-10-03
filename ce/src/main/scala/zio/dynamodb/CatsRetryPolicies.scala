@@ -65,7 +65,7 @@ object CatsRetryPolicies {
    * it carries no per-execution state of its own to isolate.
    */
   def fullJitter(
-    maxRetries: Int = 8,
+    maxRetries: Int = 7,
     baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
     maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
   ): EffectfulRetryPolicy[IO] = {

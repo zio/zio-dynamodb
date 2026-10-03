@@ -127,10 +127,12 @@ object RetryPolicy {
    * Full-jitter exponential backoff: `delay = random(0, min(maxDelay, baseDelay * 2^attempt))`
    * — a thin preset over [[ExponentialBackoff]] fixing `factor = 2.0`/`jitter = true`. This is
    * what AWS SDKs actually implement as their current standard retry mode (see AWS's SDKs and
-   * Tools Reference Guide, "Retry behavior").
+   * Tools Reference Guide, "Retry behavior"). `maxRetries` counts retries, not total attempts
+   * — the default of 7 matches DynamoDB clients' own 8 *total* attempts (1 initial + 7 retries),
+   * which is higher than other AWS service clients' default.
    */
   def fullJitter(
-    maxRetries: Int = 8,
+    maxRetries: Int = 7,
     baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
     maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
   ): RetryPolicy =
