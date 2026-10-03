@@ -36,6 +36,8 @@ object CERetryQuota {
    * Constructed synchronously (not `IO[RetryQuota[IO]]`) so it fits `fromAsyncClient`'s plain
    * default-parameter shape, same as `CatsRetryPolicies.fullJitter()`.
    */
-  def standard(capacity: Int = 500): RetryQuota[IO] =
+  def standard(capacity: Int = 500): RetryQuota[IO] = {
+    require(capacity >= 0, s"capacity must be >= 0, got $capacity")
     new RefBacked(Ref.unsafe[IO, Int](capacity), capacity)
+  }
 }

@@ -56,5 +56,8 @@ object FutureRetryQuota {
    * debited per retry attempt via `tryConsume`, credited back on success via `credit`, capped
    * at `capacity` so a long healthy streak can't accumulate more than the starting balance.
    */
-  def standard(capacity: Int = 500): RetryQuota[Future] = new AtomicBacked(capacity)
+  def standard(capacity: Int = 500): RetryQuota[Future] = {
+    require(capacity >= 0, s"capacity must be >= 0, got $capacity")
+    new AtomicBacked(capacity)
+  }
 }

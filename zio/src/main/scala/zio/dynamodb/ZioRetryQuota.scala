@@ -36,6 +36,8 @@ object ZioRetryQuota {
    * Constructed synchronously (not `Task[RetryQuota[Task]]`) so it fits `fromAsyncClient`'s
    * plain default-parameter shape, same as `ZioRetryPolicies.fullJitter()`.
    */
-  def standard(capacity: Int = 500): RetryQuota[Task] =
+  def standard(capacity: Int = 500): RetryQuota[Task] = {
+    require(capacity >= 0, s"capacity must be >= 0, got $capacity")
     new RefBacked(Unsafe.unsafe(implicit u => Ref.unsafe.make(capacity)), capacity)
+  }
 }

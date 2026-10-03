@@ -20,7 +20,7 @@ import zio._
 import zio.blocks.chunk.Chunk
 import zio.dynamodb.DynamoDBError.ItemError
 import zio.test._
-import zio.test.Assertion.{ anything, equalTo, hasField, isSubtype }
+import zio.test.Assertion.{ anything, equalTo, fails, hasField, isSubtype }
 import zio.test.TestClock
 
 import scala.concurrent.duration.{ FiniteDuration, MILLISECONDS }
@@ -974,6 +974,11 @@ object RetrySpec extends ZIOSpecDefault {
           first  <- quota.tryConsume(5)
           second <- quota.tryConsume(1)
         } yield assertTrue(first, !second)
+      },
+      test("standard rejects a negative capacity") {
+        for {
+          result <- ZIO.attempt(ZioRetryQuota.standard(capacity = -1)).exit
+        } yield assert(result)(fails(isSubtype[IllegalArgumentException](anything)))
       }
     ),
 
