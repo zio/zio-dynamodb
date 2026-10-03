@@ -194,3 +194,18 @@ unprocessed keys/items). See [Batch Operations](crud/batch.md#retry-behavior).
   `defaultRetryPolicy` at its off default, and opting in with a `zio.Schedule`-backed one
   instead; includes a `batchGetItem` with no policy of its own, run against both interpreters
   to show the same fallback governs batch's response-level loop too.
+
+## Which exceptions actually retry, and what the quota looks like at real volume
+
+Two test suites double as runnable documentation here — each assertion is also a concrete,
+checked claim about behavior:
+
+- `aws/src/test/scala/zio/dynamodb/RealAwsInterpreterRetryLoopSpec.scala` — exceptions that
+  retry (`ProvisionedThroughputExceededException`, `RequestLimitExceededException`, a generic
+  `ThrottlingException` error code, 500, 503) next to ones in the 400 range that don't
+  (`ResourceNotFoundException`, `ConditionalCheckFailedException`, a generic
+  `ValidationException` error code).
+- `aws/src/test/scala/zio/dynamodb/RealAwsInterpreterRetryQuotaSpec.scala` — `retryQuota`
+  at AWS's real 500-token default: a mixed-error volume comfortably under capacity (crediting
+  recovers the budget), and a sustained failure volume over capacity (the quota, not the
+  backoff curve, stops it — with the exact attempt count at which it does).
