@@ -180,6 +180,27 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     }
 
   /**
+   * Sets the retry policy governing only `BatchGetItem`/`BatchWriteItem`'s response-level
+   * (unprocessed-items) resubmission loop, independent of `.withRetryPolicy`'s effect-level
+   * retry. No-op on every other operation, since only batch operations have a response-level
+   * loop to opt into. See `docs/reference/retries.md`.
+   */
+  final def withResponseRetryPolicy(policy: RetryPolicy): DynamoDBQuery[In, Out] =
+    self match {
+      case ZipPar(left, right, zippable)    =>
+        ZipPar(left.withResponseRetryPolicy(policy), right.withResponseRetryPolicy(policy), zippable)
+      case DynamoDBQuery.Map(query, mapper) =>
+        DynamoDBQuery.Map(query.withResponseRetryPolicy(policy), mapper)
+      case DynamoDBQuery.Absolve(query)     =>
+        DynamoDBQuery.Absolve(query.withResponseRetryPolicy(policy))
+      case bw: DynamoDBQuery.BatchWriteItem =>
+        bw.copy(responseRetryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case bg: DynamoDBQuery.BatchGetItem   =>
+        bg.copy(responseRetryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case _                                => self
+    }
+
+  /**
    * Filter a Scan or a Query
    */
   def filter[B](filterExpression: FilterExpression[B])(implicit ev: CanFilter[B, Out]): DynamoDBQuery[In, Out] = {
@@ -630,7 +651,10 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     private[dynamodb] val orderedGetItems: Chunk[GetItem] =
       Chunk.empty, // track order of added GetItems for later unpacking
-    retryPolicy: Option[RetryPolicy] = None
+    retryPolicy: Option[RetryPolicy] = None,
+    // Governs only the response-level (unprocessed-keys) resubmission loop — independent of
+    // `retryPolicy`, which governs the effect-level loop. See `.withResponseRetryPolicy`.
+    responseRetryPolicy: Option[RetryPolicy] = None
   ) extends Constructor[Any, Batch.GetResult] { self =>
 
     def +(getItem: GetItem): BatchGetItem = {
@@ -650,7 +674,8 @@ object DynamoDBQuery {
         self.requestItems + newEntry,
         self.capacity,
         self.orderedGetItems :+ getItem,
-        self.retryPolicy.orElse(getItem.retryPolicy) // inherit retry policy from GetItem if not set
+        self.retryPolicy.orElse(getItem.retryPolicy), // inherit retry policy from GetItem if not set
+        self.responseRetryPolicy
       )
     }
 
@@ -695,7 +720,10 @@ object DynamoDBQuery {
     capacity: ReturnConsumedCapacity = ReturnConsumedCapacity.None,
     itemMetrics: ReturnItemCollectionMetrics = ReturnItemCollectionMetrics.None,
     addList: Chunk[BatchWriteItem.Write] = Chunk.empty,
-    retryPolicy: Option[RetryPolicy] = None
+    retryPolicy: Option[RetryPolicy] = None,
+    // Governs only the response-level (unprocessed-items) resubmission loop — independent of
+    // `retryPolicy`, which governs the effect-level loop. See `.withResponseRetryPolicy`.
+    responseRetryPolicy: Option[RetryPolicy] = None
   ) extends Constructor[Any, Batch.WriteResult] { self =>
     def +[A](writeItem: Write[Any, A]): BatchWriteItem =
       writeItem match {
@@ -707,7 +735,8 @@ object DynamoDBQuery {
             self.capacity,
             self.itemMetrics,
             self.addList :+ write,
-            self.retryPolicy.orElse(putItem.retryPolicy) // inherit retry policy from PutItem if not set
+            self.retryPolicy.orElse(putItem.retryPolicy), // inherit retry policy from PutItem if not set
+            self.responseRetryPolicy
           )
         case deleteItem @ DeleteItem(_, _, _, _, _, _, _, _) =>
           val write = Delete(deleteItem.key)
@@ -717,7 +746,8 @@ object DynamoDBQuery {
             self.capacity,
             self.itemMetrics,
             self.addList :+ write,
-            self.retryPolicy.orElse(deleteItem.retryPolicy) // inherit retry policy from DeleteItem if not set
+            self.retryPolicy.orElse(deleteItem.retryPolicy), // inherit retry policy from DeleteItem if not set
+            self.responseRetryPolicy
           )
       }
 

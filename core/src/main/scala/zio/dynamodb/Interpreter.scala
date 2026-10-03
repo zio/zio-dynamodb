@@ -310,10 +310,11 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
 
   /**
    * The delay-decision function for batch's response-level (unprocessed-items) resubmission
-   *  loop — resolved once per batch call from the same fallback chain as
-   *  [[withOptionalRetryTracked]], then threaded through the loop's recursion so a stateful
-   *  `defaultRetryPolicy` only calls `newAttempt()` once per batch call, not once per
-   *  resubmission.
+   * loop — resolved once per batch call from `responseRetryPolicy` if the caller set one
+   * (via `.withResponseRetryPolicy`), else the same fallback chain as
+   * [[withOptionalRetryTracked]] (`retryPolicy` then `defaultRetryPolicy`), then threaded
+   * through the loop's recursion so a stateful `defaultRetryPolicy` only calls `newAttempt()`
+   * once per batch call, not once per resubmission.
    */
   private def newResponseLevelDelayFn(retryPolicy: Option[RetryPolicy]): F[Int => F[Option[FiniteDuration]]] =
     retryPolicy match {
@@ -469,11 +470,13 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
       case q: DynamoDBQuery.DeleteTable        => runDeleteTable(q).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.DescribeTable      => runDescribeTable(q).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.BatchGetItem       =>
-        flatMap(newResponseLevelDelayFn(q.retryPolicy))(getDelay => runBatchGetItemRetrying(q, getDelay, attempt = 0))
-          .asInstanceOf[F[Any]]
+        flatMap(newResponseLevelDelayFn(q.responseRetryPolicy.orElse(q.retryPolicy)))(getDelay =>
+          runBatchGetItemRetrying(q, getDelay, attempt = 0)
+        ).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.BatchWriteItem     =>
-        flatMap(newResponseLevelDelayFn(q.retryPolicy))(getDelay => runBatchWriteItemRetrying(q, getDelay, attempt = 0))
-          .asInstanceOf[F[Any]]
+        flatMap(newResponseLevelDelayFn(q.responseRetryPolicy.orElse(q.retryPolicy)))(getDelay =>
+          runBatchWriteItemRetrying(q, getDelay, attempt = 0)
+        ).asInstanceOf[F[Any]]
       case q: DynamoDBQuery.TransactGetItems   =>
         validateTransactionSize(q.getItems.length).fold(
           runTransactGetItems(q).asInstanceOf[F[Any]]

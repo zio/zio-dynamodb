@@ -45,7 +45,8 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
     gsiSuite,
     lsiSuite,
     returnValuesOnConditionCheckFailureSuite,
-    withRetryPolicySuite
+    withRetryPolicySuite,
+    withResponseRetryPolicySuite
   )
 
   private val batchingSuite = suite("batchWrite3")(
@@ -854,6 +855,111 @@ object DynamoDBQuerySpec extends ZIOSpecDefault {
         AttributeDefinition.attrDefnString("id")
       )(BillingMode.PayPerRequest)
       assertTrue(q.withRetryPolicy(RetryPolicy.NoRetry) eq q)
+    }
+  )
+
+  private val withResponseRetryPolicySuite = suite("withResponseRetryPolicy")(
+    test("sets BatchWriteItem, independent of retryPolicy") {
+      val q = DynamoDBQuery.batchWriteItem(List(item1))(i => PutItem(table1, i))
+      assert(q.withResponseRetryPolicy(RetryPolicy.NoRetry))(
+        isSubtype[BatchWriteItem](
+          hasField[BatchWriteItem, Option[RetryPolicy]](
+            "responseRetryPolicy",
+            _.responseRetryPolicy,
+            equalTo(Some(noRetry): Option[RetryPolicy])
+          ) &&
+            hasField[BatchWriteItem, Option[RetryPolicy]](
+              "retryPolicy",
+              _.retryPolicy,
+              equalTo(None: Option[RetryPolicy])
+            )
+        )
+      )
+    },
+    test("sets BatchGetItem, independent of retryPolicy") {
+      val q = DynamoDBQuery.batchGetItem(List("a"))(id => GetItem(table1, PrimaryKey("id" -> id)))
+      assert(q.withResponseRetryPolicy(RetryPolicy.NoRetry))(
+        isSubtype[DynamoDBQuery.BatchGetItem](
+          hasField[DynamoDBQuery.BatchGetItem, Option[RetryPolicy]](
+            "responseRetryPolicy",
+            _.responseRetryPolicy,
+            equalTo(Some(noRetry): Option[RetryPolicy])
+          ) &&
+            hasField[DynamoDBQuery.BatchGetItem, Option[RetryPolicy]](
+              "retryPolicy",
+              _.retryPolicy,
+              equalTo(None: Option[RetryPolicy])
+            )
+        )
+      )
+    },
+    test("retryPolicy and responseRetryPolicy can both be set, independently") {
+      val q = DynamoDBQuery
+        .batchGetItem(List("a"))(id => GetItem(table1, PrimaryKey("id" -> id)))
+        .withRetryPolicy(RetryPolicy.ExponentialBackoff(3, scala.concurrent.duration.FiniteDuration(1, "second")))
+        .withResponseRetryPolicy(RetryPolicy.NoRetry)
+      assert(q)(
+        isSubtype[DynamoDBQuery.BatchGetItem](
+          hasField[DynamoDBQuery.BatchGetItem, Option[RetryPolicy]](
+            "responseRetryPolicy",
+            _.responseRetryPolicy,
+            equalTo(Some(noRetry): Option[RetryPolicy])
+          ) &&
+            hasField[DynamoDBQuery.BatchGetItem, Option[RetryPolicy]](
+              "retryPolicy",
+              _.retryPolicy,
+              equalTo(
+                Some(
+                  RetryPolicy.ExponentialBackoff(3, scala.concurrent.duration.FiniteDuration(1, "second"))
+                ): Option[RetryPolicy]
+              )
+            )
+        )
+      )
+    },
+    test("propagates through ZipPar to both branches") {
+      val left  = DynamoDBQuery.batchGetItem(List("a"))(id => GetItem(table1, PrimaryKey("id" -> id)))
+      val right = DynamoDBQuery.batchGetItem(List("b"))(id => GetItem(table2, PrimaryKey("id" -> id)))
+      val q     = (left zipPar right).withResponseRetryPolicy(RetryPolicy.NoRetry)
+      assert(q)(
+        isSubtype[DynamoDBQuery.ZipPar[_, _, _]](
+          hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
+            "left",
+            _.left,
+            isSubtype[DynamoDBQuery.BatchGetItem](
+              hasField("responseRetryPolicy", _.responseRetryPolicy, equalTo(Some(noRetry): Option[RetryPolicy]))
+            )
+          ) &&
+            hasField[DynamoDBQuery.ZipPar[_, _, _], DynamoDBQuery[_, _]](
+              "right",
+              _.right,
+              isSubtype[DynamoDBQuery.BatchGetItem](
+                hasField("responseRetryPolicy", _.responseRetryPolicy, equalTo(Some(noRetry): Option[RetryPolicy]))
+              )
+            )
+        )
+      )
+    },
+    test("propagates through Map") {
+      val q = DynamoDBQuery
+        .batchGetItem(List("a"))(id => GetItem(table1, PrimaryKey("id" -> id)))
+        .map(identity)
+        .withResponseRetryPolicy(RetryPolicy.NoRetry)
+      assert(q)(
+        isSubtype[DynamoDBQuery.Map[_, _]](
+          hasField(
+            "query",
+            _.query,
+            isSubtype[DynamoDBQuery.BatchGetItem](
+              hasField("responseRetryPolicy", _.responseRetryPolicy, equalTo(Some(noRetry): Option[RetryPolicy]))
+            )
+          )
+        )
+      )
+    },
+    test("is a no-op for constructors without a responseRetryPolicy field") {
+      val q = GetItem(table1, pk)
+      assertTrue(q.withResponseRetryPolicy(RetryPolicy.NoRetry) eq q)
     }
   )
 }

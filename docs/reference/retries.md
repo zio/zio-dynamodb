@@ -41,8 +41,9 @@ breaker independent of any one call's own curve.
 
 For `batchGetItem`/`batchWriteItem`, zio-dynamodb offers retry functionality the SDK doesn't:
 automatic resubmission of partial failures (unprocessed keys/items), which has no SDK-level
-retry counterpart at all — see [Batch operations](#batch-operations-two-independent-loops)
-below.
+retry counterpart at all. Unlike the general advice above, that particular loop is actually
+safe to use even with the SDK client's own retries left on — see
+[Batch operations](#batch-operations-two-independent-loops) below.
 
 ## Retry quota: a circuit breaker independent of the backoff curve
 
@@ -182,10 +183,54 @@ level.
 
 ## Batch operations: two independent loops
 
-`batchGetItem`/`batchWriteItem` retry twice over per call, both consulting the same resolved
-policy (request-level, else interpreter default): effect-level (a single `BatchGetItem`/
-`BatchWriteItem` call failing with a retryable error) and response-level (AWS returning
-unprocessed keys/items). See [Batch Operations](crud/batch.md#retry-behavior).
+`batchGetItem`/`batchWriteItem` retry twice over per call: effect-level (a single
+`BatchGetItem`/`BatchWriteItem` call failing with a retryable error) and response-level (AWS
+returning unprocessed keys/items). Each loop has its own attachment point:
+
+| Loop | Set via | Falls back to |
+|---|---|---|
+| Effect-level | `.withRetryPolicy(policy)` | `defaultRetryPolicy`, then none |
+| Response-level | `.withResponseRetryPolicy(policy)` | `.withRetryPolicy(policy)`, then `defaultRetryPolicy`, then none |
+
+Setting only `.withRetryPolicy(...)` (the common case) governs both loops identically, exactly
+as before `.withResponseRetryPolicy` existed. `.withResponseRetryPolicy(...)` is additive: set
+it to give the response-level loop its own curve, independent of — and taking precedence over
+— whatever `.withRetryPolicy` resolves to for that call. Effect-level retry never consults
+`responseRetryPolicy`.
+
+### Why split them: only one loop is safe to double up with the SDK's own retries
+
+[Recommended](#recommended-disable-the-sdk-clients-own-retries-then-attach-one-here) above is
+to disable the SDK client's own retries and use `defaultRetryPolicy`/`.withRetryPolicy`
+instead, since running both at once double-retries a single failing call. That problem is
+specific to the *effect-level* loop — a whole `BatchGetItem`/`BatchWriteItem` call throwing a
+retryable exception is exactly the case the SDK's own retry strategy already handles, so
+stacking zio-dynamodb's effect-level retry on top re-retries what the SDK already retried.
+
+The *response-level* loop never has that problem: it resubmits `unprocessedKeys`/
+`unprocessedItems` from a **successful** response — a case the SDK's retry strategy was never
+involved in and never will be. Neither the low-level `DynamoDbAsyncClient` nor the DynamoDB
+Enhanced Client (which zio-dynamodb doesn't use) auto-resubmits unprocessed items regardless
+of retry configuration — both require the caller to do it, per AWS's own documentation for
+each client layer. So it's safe to set `.withResponseRetryPolicy(...)` on a batch query while
+leaving the SDK client's own retries on for everything else, including that same batch call's
+effect-level failures:
+
+```scala mdoc:compile-only
+import zio.dynamodb._
+
+import scala.concurrent.duration.DurationInt
+
+def example(implicit interp: Interpreter[zio.Task]) =
+  DynamoDBQuery
+    .batchGetItem(List("alice", "bob"))(id => DynamoDBQuery.GetItem("customers", PrimaryKey("customerId" -> id)))
+    .withResponseRetryPolicy(RetryPolicy.ExponentialBackoff(maxRetries = 5, initialDelay = 50.millis))
+```
+
+No `.withRetryPolicy(...)` here — the SDK client's own retry strategy (left at its default)
+handles effect-level failures for this call, same as every other operation; only the
+response-level resubmission of unprocessed keys is zio-dynamodb's to do, since the SDK has no
+equivalent for it either way. See [Batch Operations](crud/batch.md#retry-behavior).
 
 ## Worked examples
 
