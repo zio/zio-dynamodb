@@ -3,12 +3,50 @@ id: retries
 title: "Retries"
 ---
 
-Every interpreter (`ZioInterpreter`/`CEInterpreter`/`FutureInterpreter`) retries nothing on its
-own, zero config — matching the AWS SDK, whose own standard retry mode is already on by
-default for every operation (see AWS's
+zio-dynamodb's own retry is off by default on every interpreter (`ZioInterpreter`/
+`CEInterpreter`/`FutureInterpreter`) — deliberately, since the AWS SDK client's own standard
+retry mode is already on by default for every operation (see AWS's
 [SDKs and Tools Reference Guide, "Retry behavior"](https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html)).
-Any query can attach its own policy via `.withRetryPolicy(...)`, and an interpreter can attach
-a fallback for every query that doesn't via `defaultRetryPolicy`.
+The two defaults are complementary, not redundant: leaving zio-dynamodb's retry off avoids
+stacking a second, uncoordinated retry cycle on top of the SDK's own. Any query can opt in via
+`.withRetryPolicy(...)`, and an interpreter can set a fallback for every query that doesn't via
+`defaultRetryPolicy`.
+
+## Choosing a configuration
+
+Two independent toggles govern retry behavior: the AWS SDK client's own retry strategy (on by
+default) and zio-dynamodb's own retry (off by default, attached via `.withRetryPolicy`/
+`defaultRetryPolicy`). `batchGetItem`/`batchWriteItem` add a third, independent toggle — the
+response-level resubmission loop (`.withResponseRetryPolicy`) — since that loop has no
+SDK-level equivalent to conflict with in the first place.
+
+### General operations
+
+| SDK retries | zio-dynamodb retry | Outcome | Recommendation |
+|---|---|---|---|
+| Off | On | one coordinated retry cycle, `retryQuota` as the circuit breaker | **Recommended** — full control; see [below](#recommended-disable-the-sdk-clients-own-retries-then-attach-one-here) |
+| On | Off | the SDK's own retry cycle, zero config, invisible to `RetryInterceptor` | Acceptable default — fine until you need retry observability or a custom curve |
+| On | On | two uncoordinated retry cycles stacked on the same failure, up to 8× the attempts either layer's `maxRetries` suggests | Avoid |
+| Off | Off | no retries at all | Only if something upstream of zio-dynamodb already retries |
+
+The main reason to pick `Off`/`On` over the zero-config default: `RetryInterceptor` only ever
+sees retries zio-dynamodb itself drives — there's no hook into the SDK's own internal retry
+loop, so turning the SDK's retries off is the only way to get retry observability (or a
+per-query/custom curve) at all.
+
+### Batch operations (`batchGetItem`/`batchWriteItem`)
+
+Same two toggles, plus the response-level one. Only the response-level loop is exempt from
+the SDK conflict — effect-level batch retry has exactly the same double-stacking problem as
+the general case above, batch isn't special there:
+
+| SDK retries | Effect-level (`.withRetryPolicy`) | Response-level (`.withResponseRetryPolicy`) | Outcome | Recommendation |
+|---|---|---|---|---|
+| On | Off | On | SDK handles whole-call failures; zio-dynamodb only resubmits unprocessed keys/items — no overlap with the SDK at all | **Recommended** when you don't want to touch the SDK client's own configuration; see [below](#why-split-them-only-one-loop-is-safe-to-double-up-with-the-sdks-own-retries) |
+| Off | On | On (same policy, inherited via `.withRetryPolicy` alone) | one coordinated policy for both loops, `retryQuota` as the circuit breaker | **Recommended** for full control |
+| On | On | On | effect-level stacks with the SDK's own retries (same problem as the general case); response-level is still fine | Avoid the effect-level half — set `.withResponseRetryPolicy` directly instead of relying on `.withRetryPolicy`'s fallback |
+| On | Off | Off | zero config; a partial failure surfaces as `Incomplete` for you to handle yourself | Acceptable default |
+| Off | Off | Off | no retries anywhere, including unprocessed items | Only if you handle `Incomplete` entirely yourself |
 
 ## Recommended: disable the SDK client's own retries, then attach one here
 
@@ -37,7 +75,11 @@ val interp: ZioInterpreter =
 
 Doing this gives up nothing: `retryQuota` (below) is zio-dynamodb's own parity mechanism for
 the one thing the SDK's retry layer provides that a backoff curve alone doesn't — a circuit
-breaker independent of any one call's own curve.
+breaker independent of any one call's own curve. In exchange it buys what the SDK's own retry
+can't offer at any configuration: `RetryInterceptor` observability (the SDK retries
+internally, invisible to any hook on this side), a per-query curve, and deterministic,
+`TestClock`-driven retry tests — `RetryInterceptor` is the sharpest reason to make this
+switch, since there's no way to get that visibility with the SDK's retries left on.
 
 For `batchGetItem`/`batchWriteItem`, zio-dynamodb offers retry functionality the SDK doesn't:
 automatic resubmission of partial failures (unprocessed keys/items), which has no SDK-level
@@ -87,7 +129,11 @@ val interp: ZioInterpreter =
 | Interpreter | `EffectfulRetryPolicy[F]` | `fromAsyncClient(sdkClient, defaultRetryPolicy)` | every query on that interpreter with no policy of its own |
 
 **Precedence: request always wins.** A query's own `.withRetryPolicy(...)` is used if present;
-the interpreter's `defaultRetryPolicy` (`None` unless set) only runs otherwise:
+the interpreter's `defaultRetryPolicy` (`None` unless set) only runs otherwise. This precedence
+is purely about which zio-dynamodb policy applies — it says nothing about the SDK client's own
+retries. Whichever level supplies the policy, the SDK client's own retries still need to be
+off to avoid double-retrying; there's no precedence rule that lets a request-level policy
+safely coexist with the SDK's own retry on that same call.
 
 ```scala mdoc:compile-only
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
