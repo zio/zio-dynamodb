@@ -42,11 +42,19 @@ the general case above, batch isn't special there:
 
 | SDK retries | Effect-level (`.withRetryPolicy`) | Response-level (`.withResponseRetryPolicy`) | Outcome | Recommendation |
 |---|---|---|---|---|
-| On | Off | On | SDK handles whole-call failures; zio-dynamodb only resubmits unprocessed keys/items — no overlap with the SDK at all | **Recommended** when you don't want to touch the SDK client's own configuration; see [below](#why-split-them-only-one-loop-is-safe-to-double-up-with-the-sdks-own-retries) |
+| On | Off | On | SDK handles whole-call failures invisibly, same as doing nothing; zio-dynamodb only resubmits unprocessed keys/items — no overlap with the SDK at all | **Recommended** when the SDK's own transient-failure handling is enough and you only want unprocessed-item handling added on top; see below |
 | Off | On | On (same policy, inherited via `.withRetryPolicy` alone) | one coordinated policy for both loops, `retryQuota` as the circuit breaker | **Recommended** for full control |
 | On | On | On | effect-level stacks with the SDK's own retries (same problem as the general case); response-level is still fine | Avoid the effect-level half — set `.withResponseRetryPolicy` directly instead of relying on `.withRetryPolicy`'s fallback |
 | On | Off | Off | zero config; a partial failure surfaces as `Incomplete` for you to handle yourself | Acceptable default |
 | Off | Off | Off | no retries anywhere, including unprocessed items | Only if you handle `Incomplete` entirely yourself |
+
+The `On`/`Off`/`On` row is not a complete retry story: an effect-level failure (the whole call
+throwing, after the SDK's own retries already ran) surfaces as `Failed` immediately —
+exactly as if no retry policy were set at all, since effect-level retry is off. It only adds
+automatic unprocessed-item handling on top of the SDK's existing, invisible transient-failure
+handling; it doesn't give you back any visibility or control over effect-level failures. If
+you also want that (e.g. `RetryInterceptor` observability, a custom curve), use `Off`/`On`/`On`
+instead — see [below](#why-split-them-only-one-loop-is-safe-to-double-up-with-the-sdks-own-retries).
 
 ## Recommended: disable the SDK client's own retries, then attach one here
 
