@@ -157,7 +157,7 @@ class CERetryPolicySpec extends CatsEffectSuite {
       interp = makeInterp(
                  getItemEffect = calls.updateAndGet(_ + 1) *>
                    IO.raiseError(new RuntimeException("ProvisionedThroughputExceededException")),
-                 retryQuotaParam = Some(CatsRetryQuota.standard(capacity = 0))
+                 retryQuotaParam = Some(CERetryQuota.standard(capacity = 0))
                )
       query =
         DynamoDBQuery
@@ -183,7 +183,7 @@ class CERetryPolicySpec extends CatsEffectSuite {
                  },
                  // exactly one throttling retry's cost — the second query only succeeds if the
                  // first query's successful retry credited its 5 tokens back.
-                 retryQuotaParam = Some(CatsRetryQuota.standard(capacity = 5))
+                 retryQuotaParam = Some(CERetryQuota.standard(capacity = 5))
                )
       query =
         DynamoDBQuery
@@ -208,7 +208,7 @@ class CERetryPolicySpec extends CatsEffectSuite {
       interp = makeInterp(
                  getItemEffect = calls.updateAndGet(_ + 1) *>
                    IO.raiseError(new RuntimeException("ProvisionedThroughputExceededException")),
-                 retryQuotaParam = Some(CatsRetryQuota.standard(capacity = 5))
+                 retryQuotaParam = Some(CERetryQuota.standard(capacity = 5))
                )
       query =
         DynamoDBQuery

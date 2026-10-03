@@ -65,14 +65,14 @@ object CEInterpreter {
    * `BatchRetryInterceptor`); set only what you want, named:
    * `InterceptorConfig(retry = Some(myRetryInterceptor))`. `retryQuota` is a client-scoped
    * circuit breaker gating retries independent of any one call's own backoff curve, on by
-   * default (`CatsRetryQuota.standard()`) since — unlike a retry policy — it can only ever
+   * default (`CERetryQuota.standard()`) since — unlike a retry policy — it can only ever
    * reduce retries below what one would otherwise allow, never add any; pass `None` to disable.
    */
   def fromAsyncClient(
     sdkClient: DynamoDbAsyncClient,
     interceptors: InterceptorConfig[IO] = InterceptorConfig(),
     defaultRetryPolicy: Option[EffectfulRetryPolicy[IO]] = None,
-    retryQuota: Option[RetryQuota[IO]] = Some(CatsRetryQuota.standard())
+    retryQuota: Option[RetryQuota[IO]] = Some(CERetryQuota.standard())
   ): CEInterpreter =
     fromAsyncClientInternal(sdkClient, interceptors, defaultRetryPolicy, retryQuota)
 
