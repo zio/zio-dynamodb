@@ -27,7 +27,8 @@ class CEInterpreter(
   client: AwsDynamoDB[IO],
   override protected val defaultRetryPolicy: Option[EffectfulRetryPolicy[IO]] = None,
   override protected val retryInterceptor: Option[RetryInterceptor[IO]] = None,
-  override protected val batchRetryInterceptor: Option[BatchRetryInterceptor[IO]] = None
+  override protected val batchRetryInterceptor: Option[BatchRetryInterceptor[IO]] = None,
+  override protected val retryQuota: Option[RetryQuota[IO]] = None
 ) extends RealAwsInterpreter[IO](client) {
   private[dynamodb] def pure[A](a: A): IO[A]                           = IO.pure(a)
   private[dynamodb] def map[A, B](fa: IO[A])(f: A => B): IO[B]         = fa.map(f)
@@ -62,19 +63,24 @@ object CEInterpreter {
    * which never retries without an explicit policy. `interceptors` bundles the three
    * independent, optional observability hooks (`ResponseInterceptor`/`RetryInterceptor`/
    * `BatchRetryInterceptor`); set only what you want, named:
-   * `InterceptorConfig(retry = Some(myRetryInterceptor))`.
+   * `InterceptorConfig(retry = Some(myRetryInterceptor))`. `retryQuota` is a client-scoped
+   * circuit breaker gating retries independent of any one call's own backoff curve, on by
+   * default (`CERetryQuota.standard()`) since — unlike a retry policy — it can only ever
+   * reduce retries below what one would otherwise allow, never add any; pass `None` to disable.
    */
   def fromAsyncClient(
     sdkClient: DynamoDbAsyncClient,
     interceptors: InterceptorConfig[IO] = InterceptorConfig(),
-    defaultRetryPolicy: Option[EffectfulRetryPolicy[IO]] = None
+    defaultRetryPolicy: Option[EffectfulRetryPolicy[IO]] = None,
+    retryQuota: Option[RetryQuota[IO]] = Some(CERetryQuota.standard())
   ): CEInterpreter =
-    fromAsyncClientInternal(sdkClient, interceptors, defaultRetryPolicy)
+    fromAsyncClientInternal(sdkClient, interceptors, defaultRetryPolicy, retryQuota)
 
   private def fromAsyncClientInternal(
     sdkClient: DynamoDbAsyncClient,
     interceptors: InterceptorConfig[IO],
-    defaultRetryPolicy: Option[EffectfulRetryPolicy[IO]]
+    defaultRetryPolicy: Option[EffectfulRetryPolicy[IO]],
+    retryQuota: Option[RetryQuota[IO]]
   ): CEInterpreter = {
     val base: AwsDynamoDB[IO]   = new AwsDynamoDB[IO] {
       def getItem(req: GetItemRequest): IO[GetItemResponse]                                  =
@@ -110,6 +116,6 @@ object CEInterpreter {
     }
     val client: AwsDynamoDB[IO] =
       interceptors.response.fold(base)(i => new InterceptingAwsDynamoDB[IO](base, i, ops))
-    new CEInterpreter(client, defaultRetryPolicy, interceptors.retry, interceptors.batchRetry)
+    new CEInterpreter(client, defaultRetryPolicy, interceptors.retry, interceptors.batchRetry, retryQuota)
   }
 }

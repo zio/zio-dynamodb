@@ -32,10 +32,12 @@ object FutureRetryPolicySpec extends ZIOSpecDefault {
   // Minimal AwsInterpreter[Future], mirroring zio/RetrySpec.scala's makeInterp stub.
   private def makeInterp(
     getItemEffect: () => Future[Option[Item]],
-    defaultRetryPolicyParam: Option[EffectfulRetryPolicy[Future]] = None
+    defaultRetryPolicyParam: Option[EffectfulRetryPolicy[Future]] = None,
+    retryQuotaParam: Option[RetryQuota[Future]] = None
   ): AwsInterpreter[Future] =
     new AwsInterpreter[Future] {
       override protected def defaultRetryPolicy: Option[EffectfulRetryPolicy[Future]] = defaultRetryPolicyParam
+      override protected def retryQuota: Option[RetryQuota[Future]]                   = retryQuotaParam
 
       private[dynamodb] def pure[A](a: A): Future[A]                                   = Future.successful(a)
       private[dynamodb] def map[A, B](fa: Future[A])(f: A => B): Future[B]             = fa.map(f)
@@ -133,6 +135,107 @@ object FutureRetryPolicySpec extends ZIOSpecDefault {
       val delays  = (0 until 3).map(n => await(attempt.nextDelay(n)).get.toMillis)
       val last    = await(attempt.nextDelay(3))
       assertTrue(delays.forall(d => d >= 0L && d <= 5000L) && last.isEmpty)
+    },
+    test("a quota with insufficient budget denies the retry immediately — same outcome shape as curve-exhaustion") {
+      val calls  = new AtomicInteger(0)
+      val interp = makeInterp(
+        getItemEffect = () => {
+          calls.incrementAndGet()
+          Future.failed(new RuntimeException("ProvisionedThroughputExceededException"))
+        },
+        retryQuotaParam = Some(FutureRetryQuota.standard(capacity = 0))
+      )
+      val query  =
+        DynamoDBQuery
+          .getItem("t", PrimaryKey("id" -> "alice"))
+          .withRetryPolicy(RetryPolicy.ExponentialBackoff(5, 1.millis, jitter = false))
+      val result = scala.util.Try(await(interp.run(query)))
+      assertTrue(result.isFailure && calls.get() == 1)
+    },
+    test("a quota credits back exactly what a successful retry cost — budget recovers for the next call") {
+      val calls  = new AtomicInteger(0)
+      val interp = makeInterp(
+        getItemEffect = () => {
+          val n = calls.incrementAndGet()
+          // odd calls fail, even calls succeed — each of the two queries below fails once
+          // then succeeds on its retry.
+          if (n % 2 == 1) Future.failed(new RuntimeException("ProvisionedThroughputExceededException"))
+          else Future.successful(Some(Item("id" -> "alice")))
+        },
+        // exactly one throttling retry's cost — the second query only succeeds if the first
+        // query's successful retry credited its 5 tokens back.
+        retryQuotaParam = Some(FutureRetryQuota.standard(capacity = 5))
+      )
+      val query  =
+        DynamoDBQuery
+          .getItem("t", PrimaryKey("id" -> "alice"))
+          .withRetryPolicy(RetryPolicy.ExponentialBackoff(3, 1.millis, jitter = false))
+      val r1     = scala.util.Try(await(interp.run(query)))
+      val r2     = scala.util.Try(await(interp.run(query)))
+      assertTrue(r1.isSuccess && r2.isSuccess)
+    },
+    test("a quota's budget is genuinely shared across concurrent executions, not isolated per call") {
+      // Effect always fails, so the only thing bounding total call count is the quota — no
+      // assumption about how the two concurrent calls interleave. With capacity == one
+      // retry's cost, shared across both, exactly 3 calls can ever happen (2 first attempts +
+      // 1 shared retry) regardless of scheduling order; unshared (independent per call) would
+      // allow 4 (2 first attempts + 1 retry each).
+      val calls  = new AtomicInteger(0)
+      val interp = makeInterp(
+        getItemEffect = () => {
+          calls.incrementAndGet()
+          Future.failed(new RuntimeException("ProvisionedThroughputExceededException"))
+        },
+        retryQuotaParam = Some(FutureRetryQuota.standard(capacity = 5))
+      )
+      val query  =
+        DynamoDBQuery
+          .getItem("t", PrimaryKey("id" -> "alice"))
+          .withRetryPolicy(RetryPolicy.ExponentialBackoff(5, 1.millis, jitter = false))
+      // Both Futures start running immediately on creation, before either is awaited.
+      val f1     = interp.run(query)
+      val f2     = interp.run(query)
+      val r1     = scala.util.Try(await(f1))
+      val r2     = scala.util.Try(await(f2))
+      assertTrue(r1.isFailure && r2.isFailure && calls.get() == 3)
+    },
+    test("a clean (no-retry) success credits exactly 1 token — wired through from a real query") {
+      val quota       = FutureRetryQuota.standard(capacity = 5)
+      // Drain the quota to 0 permanently: one throttling retry (cost 5), then a second,
+      // non-retryable failure — the spend is never credited back, since only success credits.
+      val drainCalls  = new AtomicInteger(0)
+      val drainInterp = makeInterp(
+        getItemEffect = () => {
+          val n = drainCalls.incrementAndGet()
+          if (n == 1) Future.failed(new RuntimeException("ProvisionedThroughputExceededException"))
+          else Future.failed(new RuntimeException("boom")) // not retryable — permanent
+        },
+        retryQuotaParam = Some(quota)
+      )
+      val drainPolicy = RetryPolicy.ExponentialBackoff(3, 1.millis, jitter = false)
+      val drainQuery  = DynamoDBQuery.getItem("t", PrimaryKey("id" -> "x")).withRetryPolicy(drainPolicy)
+      scala.util.Try(await(drainInterp.run(drainQuery))) // balance is now 0, permanently
+      // A fresh call that succeeds on the first attempt (no retry at all) should credit +1. A
+      // policy must still be attached — with none at all, `withOptionalRetry` bypasses
+      // `withRetry` (and thus crediting) entirely via its `case None => fa` shortcut.
+      val cleanInterp = makeInterp(
+        getItemEffect = () => Future.successful(Some(Item("id" -> "alice"))),
+        retryQuotaParam = Some(quota)
+      )
+      val cleanQuery  = DynamoDBQuery.getItem("t", PrimaryKey("id" -> "alice")).withRetryPolicy(drainPolicy)
+      val cleanResult = await(cleanInterp.run(cleanQuery))
+      // Exactly 1 was credited: a 1-token debit succeeds, but nothing is left for a real
+      // (5-token) retry cost afterward.
+      val smallOk     = await(quota.tryConsume(1))
+      val bigDenied   = await(quota.tryConsume(5))
+      assertTrue(cleanResult.contains(Item("id" -> "alice")), smallOk, !bigDenied)
+    },
+    test("credit never pushes the quota's balance above its original capacity") {
+      val quota = FutureRetryQuota.standard(capacity = 5)
+      await(quota.credit(1000)) // nothing was ever spent; should clamp at capacity
+      val first  = await(quota.tryConsume(5))
+      val second = await(quota.tryConsume(1))
+      assertTrue(first, !second)
     }
   )
 }

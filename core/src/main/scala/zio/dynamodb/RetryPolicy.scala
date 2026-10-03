@@ -127,10 +127,12 @@ object RetryPolicy {
    * Full-jitter exponential backoff: `delay = random(0, min(maxDelay, baseDelay * 2^attempt))`
    * — a thin preset over [[ExponentialBackoff]] fixing `factor = 2.0`/`jitter = true`. This is
    * what AWS SDKs actually implement as their current standard retry mode (see AWS's SDKs and
-   * Tools Reference Guide, "Retry behavior").
+   * Tools Reference Guide, "Retry behavior"). `maxRetries` counts retries, not total attempts
+   * — the default of 7 matches DynamoDB clients' own 8 *total* attempts (1 initial + 7 retries),
+   * which is higher than other AWS service clients' default.
    */
   def fullJitter(
-    maxRetries: Int = 8,
+    maxRetries: Int = 7,
     baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
     maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
   ): RetryPolicy =
@@ -145,5 +147,22 @@ object RetryPolicy {
         msg.contains("ServiceUnavailable") ||
         msg.contains("ThrottlingException")
     )
+  }
+
+  /**
+   * Token cost for [[RetryQuota]], consulted only for an error `isRetryable` already matched —
+   * mirrors AWS's own two-tier split (5 for throttling, 14 for other transient errors;
+   * see AWS SDKs and Tools Reference Guide, "Retry quota management"). Message-substring based,
+   * like `isRetryable`; `RealAwsInterpreter`'s override in `aws` classifies from the SDK's own
+   * `AwsServiceException#isThrottlingException` instead.
+   */
+  val retryCost: Throwable => Int = { t =>
+    val msg          = t.getMessage
+    val isThrottling = msg != null && (
+      msg.contains("ProvisionedThroughputExceededException") ||
+        msg.contains("RequestLimitExceeded") ||
+        msg.contains("ThrottlingException")
+    )
+    if (isThrottling) 5 else 14
   }
 }

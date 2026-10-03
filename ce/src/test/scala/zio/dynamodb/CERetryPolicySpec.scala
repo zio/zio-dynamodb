@@ -30,10 +30,12 @@ class CERetryPolicySpec extends CatsEffectSuite {
   // Minimal AwsInterpreter[IO], mirroring zio/RetrySpec.scala's makeInterp stub.
   private def makeInterp(
     getItemEffect: IO[Option[Item]],
-    defaultRetryPolicyParam: Option[EffectfulRetryPolicy[IO]] = None
+    defaultRetryPolicyParam: Option[EffectfulRetryPolicy[IO]] = None,
+    retryQuotaParam: Option[RetryQuota[IO]] = None
   ): AwsInterpreter[IO] =
     new AwsInterpreter[IO] {
       override protected def defaultRetryPolicy: Option[EffectfulRetryPolicy[IO]] = defaultRetryPolicyParam
+      override protected def retryQuota: Option[RetryQuota[IO]]                   = retryQuotaParam
 
       private[dynamodb] def pure[A](a: A): IO[A]                           = IO.pure(a)
       private[dynamodb] def map[A, B](fa: IO[A])(f: A => B): IO[B]         = fa.map(f)
@@ -146,6 +148,119 @@ class CERetryPolicySpec extends CatsEffectSuite {
     } yield {
       assert(result.isLeft)
       assertEquals(n, 1) // NoRetry wins — defaultRetryPolicy never consulted
+    }
+  }
+
+  test("a quota with insufficient budget denies the retry immediately — same outcome shape as curve-exhaustion") {
+    for {
+      calls  <- Ref.of[IO, Int](0)
+      interp = makeInterp(
+                 getItemEffect = calls.updateAndGet(_ + 1) *>
+                   IO.raiseError(new RuntimeException("ProvisionedThroughputExceededException")),
+                 retryQuotaParam = Some(CERetryQuota.standard(capacity = 0))
+               )
+      query =
+        DynamoDBQuery
+          .getItem("t", PrimaryKey("id" -> "alice"))
+          .withRetryPolicy(RetryPolicy.ExponentialBackoff(5, FiniteDuration(1, "milliseconds"), jitter = false))
+      result <- interp.run(query).attempt
+      n      <- calls.get
+    } yield {
+      assert(result.isLeft)
+      assertEquals(n, 1)
+    }
+  }
+
+  test("a quota credits back exactly what a successful retry cost — budget recovers for the next call") {
+    for {
+      calls <- Ref.of[IO, Int](0)
+      interp = makeInterp(
+                 getItemEffect = calls.updateAndGet(_ + 1).flatMap { n =>
+                   // odd calls fail, even calls succeed — each of the two queries below fails
+                   // once then succeeds on its retry.
+                   if (n % 2 == 1) IO.raiseError(new RuntimeException("ProvisionedThroughputExceededException"))
+                   else IO.pure(Some(Item("id" -> "alice")))
+                 },
+                 // exactly one throttling retry's cost — the second query only succeeds if the
+                 // first query's successful retry credited its 5 tokens back.
+                 retryQuotaParam = Some(CERetryQuota.standard(capacity = 5))
+               )
+      query =
+        DynamoDBQuery
+          .getItem("t", PrimaryKey("id" -> "alice"))
+          .withRetryPolicy(RetryPolicy.ExponentialBackoff(3, FiniteDuration(1, "milliseconds"), jitter = false))
+      r1    <- interp.run(query).attempt
+      r2    <- interp.run(query).attempt
+    } yield {
+      assert(r1.isRight)
+      assert(r2.isRight)
+    }
+  }
+
+  test("a quota's budget is genuinely shared across concurrent executions, not isolated per call") {
+    // Effect always fails, so the only thing bounding total call count is the quota — no
+    // assumption about how the two concurrent calls interleave. With capacity == one retry's
+    // cost, shared across both, exactly 3 calls can ever happen (2 first attempts + 1 shared
+    // retry) regardless of scheduling order; unshared (independent per call) would allow 4
+    // (2 first attempts + 1 retry each).
+    for {
+      calls   <- Ref.of[IO, Int](0)
+      interp = makeInterp(
+                 getItemEffect = calls.updateAndGet(_ + 1) *>
+                   IO.raiseError(new RuntimeException("ProvisionedThroughputExceededException")),
+                 retryQuotaParam = Some(CERetryQuota.standard(capacity = 5))
+               )
+      query =
+        DynamoDBQuery
+          .getItem("t", PrimaryKey("id" -> "alice"))
+          .withRetryPolicy(RetryPolicy.ExponentialBackoff(5, FiniteDuration(1, "milliseconds"), jitter = false))
+      results <- (interp.run(query).attempt, interp.run(query).attempt).parTupled
+      n       <- calls.get
+    } yield assert(results._1.isLeft && results._2.isLeft && n == 3)
+  }
+
+  test("a clean (no-retry) success credits exactly 1 token — wired through from a real query") {
+    val quota = CERetryQuota.standard(capacity = 5)
+    for {
+      // Drain the quota to 0 permanently: one throttling retry (cost 5), then a second,
+      // non-retryable failure — the spend is never credited back, since only success credits.
+      drainCalls  <- Ref.of[IO, Int](0)
+      drainInterp = makeInterp(
+                      getItemEffect = drainCalls.updateAndGet(_ + 1).flatMap { n =>
+                        if (n == 1) IO.raiseError(new RuntimeException("ProvisionedThroughputExceededException"))
+                        else IO.raiseError(new RuntimeException("boom")) // not retryable — permanent
+                      },
+                      retryQuotaParam = Some(quota)
+                    )
+      drainPolicy = RetryPolicy.ExponentialBackoff(3, FiniteDuration(1, "milliseconds"), jitter = false)
+      drainQuery = DynamoDBQuery.getItem("t", PrimaryKey("id" -> "x")).withRetryPolicy(drainPolicy)
+      _           <- drainInterp.run(drainQuery).attempt // balance is now 0, permanently
+      // A fresh call that succeeds on the first attempt (no retry at all) should credit +1. A
+      // policy must still be attached — with none at all, `withOptionalRetry` bypasses
+      // `withRetry` (and thus crediting) entirely via its `case None => fa` shortcut.
+      cleanInterp = makeInterp(getItemEffect = IO.pure(Some(Item("id" -> "alice"))), retryQuotaParam = Some(quota))
+      cleanQuery = DynamoDBQuery.getItem("t", PrimaryKey("id" -> "alice")).withRetryPolicy(drainPolicy)
+      cleanResult <- cleanInterp.run(cleanQuery)
+      // Exactly 1 was credited: a 1-token debit succeeds, but nothing is left for a real
+      // (5-token) retry cost afterward.
+      smallOk     <- quota.tryConsume(1)
+      bigDenied   <- quota.tryConsume(5)
+    } yield {
+      assertEquals(cleanResult, Some(Item("id" -> "alice")))
+      assert(smallOk)
+      assert(!bigDenied)
+    }
+  }
+
+  test("credit never pushes the quota's balance above its original capacity") {
+    val quota = CERetryQuota.standard(capacity = 5)
+    for {
+      _      <- quota.credit(1000) // nothing was ever spent; should clamp at capacity
+      first  <- quota.tryConsume(5)
+      second <- quota.tryConsume(1)
+    } yield {
+      assert(first)
+      assert(!second)
     }
   }
 }

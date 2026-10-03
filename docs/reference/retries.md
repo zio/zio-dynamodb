@@ -14,8 +14,9 @@ a fallback for every query that doesn't via `defaultRetryPolicy`.
 
 Running both layers at once double-retries: `withRetry`'s loop only ever sees the SDK client's
 *final* outcome after the SDK's own internal retry cycle has already run, so a still-retryable
-error triggers a second, uncoordinated retry cycle on top of the first — up to 4× more real
-attempts than either layer's own `maxRetries` suggests, and it drains the SDK's own
+error triggers a second, uncoordinated retry cycle on top of the first — up to 8× more real
+attempts than either layer's own `maxRetries` suggests (DynamoDB clients default to 8 max
+attempts per call, higher than other AWS service clients), and it drains the SDK's own
 client-scoped retry-quota circuit breaker faster than intended. Pick one layer, not both:
 
 ```scala mdoc:compile-only
@@ -34,15 +35,48 @@ val interp: ZioInterpreter =
   ZioInterpreter.fromAsyncClient(client, defaultRetryPolicy = Some(ZioRetryPolicies.fullJitter()))
 ```
 
-Doing this gives up one thing the SDK's own retry layer has and zio-dynamodb doesn't yet: a
-token-bucket circuit breaker that stops retrying once recent traffic through the whole client
-looks bad, independent of any one call's own backoff curve. Worth knowing before disabling the
-SDK's own retries under sustained throttling, until that gap is closed on this side too.
+Doing this gives up nothing: `retryQuota` (below) is zio-dynamodb's own parity mechanism for
+the one thing the SDK's retry layer provides that a backoff curve alone doesn't — a circuit
+breaker independent of any one call's own curve.
 
 For `batchGetItem`/`batchWriteItem`, zio-dynamodb offers retry functionality the SDK doesn't:
 automatic resubmission of partial failures (unprocessed keys/items), which has no SDK-level
 retry counterpart at all — see [Batch operations](#batch-operations-two-independent-loops)
 below.
+
+## Retry quota: a circuit breaker independent of the backoff curve
+
+`retryQuota` mirrors the AWS SDK's own token-bucket retry quota — a client-scoped budget that
+stops retrying once recent traffic looks bad, regardless of what any individual call's
+`RetryPolicy` would otherwise allow. On by default via `fromAsyncClient`
+(`<Module>RetryQuota.standard()`, 500 tokens, matching AWS's own default); pass
+`retryQuota = None` to disable.
+
+- Each retry attempt debits a cost: 5 tokens for a throttling error, 14 for other transient
+  errors — mirrors AWS's own split, since a sustained wide outage and a sustained narrow one
+  are different threats.
+- A call that succeeds without retrying credits 1 token back; a call that succeeds after
+  retrying credits back exactly what its own retries cost, no more.
+- Once exhausted, a new retry attempt is denied immediately — the same outcome shape as the
+  backoff curve itself running out, not a distinct error.
+- Scoped to the whole interpreter, not any one query — like AWS's own quota, there's no
+  per-query override.
+- Doesn't gate batch's response-level resubmission loop (resubmitting unprocessed keys/items):
+  that's a fresh logical request built from a successful response, not a retry of a failed
+  one, so AWS's own token bucket doesn't apply there either.
+
+```scala mdoc:compile-only
+import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
+import zio.dynamodb._
+
+// keep the retry policy, disable just the quota
+val interp: ZioInterpreter =
+  ZioInterpreter.fromAsyncClient(
+    DynamoDbAsyncClient.builder().build(),
+    defaultRetryPolicy = Some(ZioRetryPolicies.fullJitter()),
+    retryQuota = None
+  )
+```
 
 ## Two attachment points
 
@@ -161,3 +195,18 @@ unprocessed keys/items). See [Batch Operations](crud/batch.md#retry-behavior).
   `defaultRetryPolicy` at its off default, and opting in with a `zio.Schedule`-backed one
   instead; includes a `batchGetItem` with no policy of its own, run against both interpreters
   to show the same fallback governs batch's response-level loop too.
+
+## Which exceptions actually retry, and what the quota looks like at real volume
+
+Two test suites double as runnable documentation here — each assertion is also a concrete,
+checked claim about behavior:
+
+- `aws/src/test/scala/zio/dynamodb/RealAwsInterpreterRetryLoopSpec.scala` — exceptions that
+  retry (`ProvisionedThroughputExceededException`, `RequestLimitExceededException`, a generic
+  `ThrottlingException` error code, 500, 503) next to ones in the 400 range that don't
+  (`ResourceNotFoundException`, `ConditionalCheckFailedException`, a generic
+  `ValidationException` error code).
+- `aws/src/test/scala/zio/dynamodb/RealAwsInterpreterRetryQuotaSpec.scala` — `retryQuota`
+  at AWS's real 500-token default: a mixed-error volume comfortably under capacity (crediting
+  recovers the budget), and a sustained failure volume over capacity (the quota, not the
+  backoff curve, stops it — with the exact attempt count at which it does).
