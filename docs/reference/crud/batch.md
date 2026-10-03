@@ -11,10 +11,15 @@ AWS reference: [`BatchGetItem`](https://docs.aws.amazon.com/amazondynamodb/lates
 AWS's batch APIs cap out at 100 keys (`BatchGetItem`) / 25 writes (`BatchWriteItem`) per call
 and can return **unprocessed** items — ones DynamoDB didn't get to (throttling, internal
 capacity limits) — separately from ones it handled. `DynamoDBQuery.batchGetItem`/
-`batchWriteItem` accept a `RetryPolicy`; the interpreter resubmits unprocessed keys/items on
-your behalf until either everything is processed or the policy is exhausted, via two
-independent retry loops governed by the same attached `RetryPolicy`: effect-level (throttling,
-network errors on a given attempt) and response-level (re-submitting unprocessed items).
+`batchWriteItem` go through two independent retry loops, each with its own attachment point:
+effect-level (`.withRetryPolicy`, throttling/network errors on a given attempt) and
+response-level (`.withResponseRetryPolicy`, re-submitting unprocessed keys/items from a
+successful response). Setting only `.withRetryPolicy(...)` governs both loops as one combined
+policy, same as always; `.withResponseRetryPolicy(...)` is additive, letting the
+response-level loop use its own curve instead. See
+[Retries: batch operations](../retries.md#batch-operations-two-independent-loops) for why that
+split exists — in short, the response-level loop, unlike the effect-level one, is safe to use
+even with the SDK client's own retries left on.
 
 ## Building a batch
 

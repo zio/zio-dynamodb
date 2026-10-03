@@ -425,6 +425,96 @@ object RetrySpec extends ZIOSpecDefault {
           case _                                                               =>
             assertTrue(false)
         }
+      },
+
+      test("withResponseRetryPolicy alone drives response-level retry even without a retryPolicy") {
+        val item        = Item("id" -> "a")
+        val unprocessed = Some(
+          Map("t" -> Chunk[DynamoDBQuery.BatchWriteItem.Write](DynamoDBQuery.BatchWriteItem.Put(item)))
+        )
+        for {
+          interp <- makeInterp(
+                      batchWriteResponses = List(
+                        DynamoDBQuery.BatchWriteItem.Response(unprocessed),
+                        DynamoDBQuery.BatchWriteItem.Response(None)
+                      )
+                    )
+          fiber  <- interp
+                      .run(
+                        DynamoDBQuery
+                          .batchWriteItem(List(item))(i => DynamoDBQuery.putItem("t", i))
+                          .withResponseRetryPolicy(
+                            RetryPolicy.ExponentialBackoff(
+                              maxRetries = 2,
+                              initialDelay = FiniteDuration(100, MILLISECONDS),
+                              jitter = false
+                            )
+                          )
+                      )
+                      .fork
+          _      <- TestClock.adjust(100.millis)
+          result <- fiber.join
+        } yield assert(result)(isSubtype[Batch.WriteResult.Complete](anything))
+      },
+
+      test("withResponseRetryPolicy takes precedence over withRetryPolicy for the response-level loop") {
+        val item        = Item("id" -> "a")
+        val unprocessed = Some(
+          Map("t" -> Chunk[DynamoDBQuery.BatchWriteItem.Write](DynamoDBQuery.BatchWriteItem.Put(item)))
+        )
+        for {
+          interp <- makeInterp(
+                      batchWriteResponses = List(
+                        DynamoDBQuery.BatchWriteItem.Response(unprocessed),
+                        DynamoDBQuery.BatchWriteItem.Response(None)
+                      )
+                    )
+          fiber  <- interp
+                      .run(
+                        DynamoDBQuery
+                          .batchWriteItem(List(item))(i => DynamoDBQuery.putItem("t", i))
+                          .withRetryPolicy(RetryPolicy.NoRetry)
+                          .withResponseRetryPolicy(
+                            RetryPolicy.ExponentialBackoff(
+                              maxRetries = 2,
+                              initialDelay = FiniteDuration(100, MILLISECONDS),
+                              jitter = false
+                            )
+                          )
+                      )
+                      .fork
+          _      <- TestClock.adjust(100.millis)
+          result <- fiber.join
+        } yield assert(result)(isSubtype[Batch.WriteResult.Complete](anything))
+      },
+
+      test("withResponseRetryPolicy does not enable the effect-level retry loop") {
+        for {
+          calls  <- Ref.make(0)
+          interp <- makeInterp(
+                      batchWriteItemEffect = Some(
+                        calls.updateAndGet(_ + 1) *>
+                          ZIO.fail(new RuntimeException("ProvisionedThroughputExceededException"))
+                      )
+                    )
+          result <- interp.run(
+                      DynamoDBQuery
+                        .batchWriteItem(List(Item("id" -> "a")))(i => DynamoDBQuery.putItem("t", i))
+                        .withResponseRetryPolicy(
+                          RetryPolicy.ExponentialBackoff(
+                            maxRetries = 3,
+                            initialDelay = FiniteDuration(50, MILLISECONDS),
+                            jitter = false
+                          )
+                        )
+                    )
+          n      <- calls.get
+        } yield result match {
+          case Batch.WriteResult.Failed(_, responseRetries, effectRetries) =>
+            assertTrue(n == 1 && responseRetries == 0 && effectRetries == 0)
+          case _                                                           =>
+            assertTrue(false)
+        }
       }
     ),
 
@@ -1179,6 +1269,102 @@ object RetrySpec extends ZIOSpecDefault {
             hasField("responses", _.response.responses.getOrElse("t", Chunk.empty), equalTo(Chunk(itemA, itemB)))
           )
         )
+      },
+
+      test("withResponseRetryPolicy alone drives response-level retry even without a retryPolicy") {
+        import scala.collection.immutable.{ Map => ScalaMap }
+        val unprocessedKeys = ScalaMap(
+          "t" -> DynamoDBQuery.BatchGetItem.TableGet(
+            keysSet = Set(PrimaryKey("id" -> "a")),
+            projectionExpressionSet = Set.empty
+          )
+        )
+        for {
+          interp <- makeInterp(
+                      batchGetResponses = List(
+                        DynamoDBQuery.BatchGetItem.Response(unprocessedKeys = unprocessedKeys),
+                        DynamoDBQuery.BatchGetItem.Response()
+                      )
+                    )
+          fiber  <- interp
+                      .run(
+                        DynamoDBQuery
+                          .batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id)))
+                          .withResponseRetryPolicy(
+                            RetryPolicy.ExponentialBackoff(
+                              maxRetries = 2,
+                              initialDelay = FiniteDuration(100, MILLISECONDS),
+                              jitter = false
+                            )
+                          )
+                      )
+                      .fork
+          _      <- TestClock.adjust(100.millis)
+          result <- fiber.join
+        } yield assert(result)(isSubtype[Batch.GetResult.Complete](anything))
+      },
+
+      test("withResponseRetryPolicy takes precedence over withRetryPolicy for the response-level loop") {
+        import scala.collection.immutable.{ Map => ScalaMap }
+        val unprocessedKeys = ScalaMap(
+          "t" -> DynamoDBQuery.BatchGetItem.TableGet(
+            keysSet = Set(PrimaryKey("id" -> "a")),
+            projectionExpressionSet = Set.empty
+          )
+        )
+        for {
+          interp <- makeInterp(
+                      batchGetResponses = List(
+                        DynamoDBQuery.BatchGetItem.Response(unprocessedKeys = unprocessedKeys),
+                        DynamoDBQuery.BatchGetItem.Response()
+                      )
+                    )
+          fiber  <- interp
+                      .run(
+                        DynamoDBQuery
+                          .batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id)))
+                          .withRetryPolicy(RetryPolicy.NoRetry)
+                          .withResponseRetryPolicy(
+                            RetryPolicy.ExponentialBackoff(
+                              maxRetries = 2,
+                              initialDelay = FiniteDuration(100, MILLISECONDS),
+                              jitter = false
+                            )
+                          )
+                      )
+                      .fork
+          _      <- TestClock.adjust(100.millis)
+          result <- fiber.join
+        } yield assert(result)(isSubtype[Batch.GetResult.Complete](anything))
+      },
+
+      test("withResponseRetryPolicy does not enable the effect-level retry loop") {
+        for {
+          calls  <- Ref.make(0)
+          interp <- makeInterp(
+                      batchGetItemEffect = Some(
+                        calls.updateAndGet(_ + 1) *>
+                          ZIO.fail(new RuntimeException("ProvisionedThroughputExceededException"))
+                      )
+                    )
+          result <- interp.run(
+                      DynamoDBQuery
+                        .batchGetItem(List("a"))(id => DynamoDBQuery.GetItem("t", PrimaryKey("id" -> id)))
+                        .withResponseRetryPolicy(
+                          RetryPolicy.ExponentialBackoff(
+                            maxRetries = 3,
+                            initialDelay = FiniteDuration(50, MILLISECONDS),
+                            jitter = false
+                          )
+                        )
+                    )
+          n      <- calls.get
+        } yield result match {
+          case Batch.GetResult.Failed(_, responseRetries, effectRetries) =>
+            assertTrue(n == 1 && responseRetries == 0 && effectRetries == 0)
+          case _                                                         =>
+            assertTrue(false)
+        }
       }
     )
   )
