@@ -198,6 +198,44 @@ object FutureRetryPolicySpec extends ZIOSpecDefault {
       val r1     = scala.util.Try(await(f1))
       val r2     = scala.util.Try(await(f2))
       assertTrue(r1.isFailure && r2.isFailure && calls.get() == 3)
+    },
+    test("a clean (no-retry) success credits exactly 1 token — wired through from a real query") {
+      val quota       = FutureRetryQuota.standard(capacity = 5)
+      // Drain the quota to 0 permanently: one throttling retry (cost 5), then a second,
+      // non-retryable failure — the spend is never credited back, since only success credits.
+      val drainCalls  = new AtomicInteger(0)
+      val drainInterp = makeInterp(
+        getItemEffect = () => {
+          val n = drainCalls.incrementAndGet()
+          if (n == 1) Future.failed(new RuntimeException("ProvisionedThroughputExceededException"))
+          else Future.failed(new RuntimeException("boom")) // not retryable — permanent
+        },
+        retryQuotaParam = Some(quota)
+      )
+      val drainPolicy = RetryPolicy.ExponentialBackoff(3, 1.millis, jitter = false)
+      val drainQuery  = DynamoDBQuery.getItem("t", PrimaryKey("id" -> "x")).withRetryPolicy(drainPolicy)
+      scala.util.Try(await(drainInterp.run(drainQuery))) // balance is now 0, permanently
+      // A fresh call that succeeds on the first attempt (no retry at all) should credit +1. A
+      // policy must still be attached — with none at all, `withOptionalRetry` bypasses
+      // `withRetry` (and thus crediting) entirely via its `case None => fa` shortcut.
+      val cleanInterp = makeInterp(
+        getItemEffect = () => Future.successful(Some(Item("id" -> "alice"))),
+        retryQuotaParam = Some(quota)
+      )
+      val cleanQuery  = DynamoDBQuery.getItem("t", PrimaryKey("id" -> "alice")).withRetryPolicy(drainPolicy)
+      val cleanResult = await(cleanInterp.run(cleanQuery))
+      // Exactly 1 was credited: a 1-token debit succeeds, but nothing is left for a real
+      // (5-token) retry cost afterward.
+      val smallOk     = await(quota.tryConsume(1))
+      val bigDenied   = await(quota.tryConsume(5))
+      assertTrue(cleanResult.contains(Item("id" -> "alice")), smallOk, !bigDenied)
+    },
+    test("credit never pushes the quota's balance above its original capacity") {
+      val quota = FutureRetryQuota.standard(capacity = 5)
+      await(quota.credit(1000)) // nothing was ever spent; should clamp at capacity
+      val first  = await(quota.tryConsume(5))
+      val second = await(quota.tryConsume(1))
+      assertTrue(first, !second)
     }
   )
 }

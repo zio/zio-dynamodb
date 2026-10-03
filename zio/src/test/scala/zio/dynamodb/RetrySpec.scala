@@ -932,6 +932,48 @@ object RetrySpec extends ZIOSpecDefault {
           r2     <- fiber2.join
           n      <- calls.get
         } yield assertTrue(r1.isFailure, r2.isFailure, n == 3)
+      },
+      test("a clean (no-retry) success credits exactly 1 token — wired through from a real query") {
+        for {
+          quota       <- ZIO.succeed(ZioRetryQuota.standard(capacity = 5))
+          // Drain the quota to 0 permanently: one throttling retry (cost 5), then a second,
+          // non-retryable failure — the spend is never credited back, since only success
+          // credits.
+          drainCalls  <- Ref.make(0)
+          drainInterp <- makeInterp(
+                           getItemEffect = drainCalls.updateAndGet(_ + 1).flatMap { n =>
+                             if (n == 1) ZIO.fail(new RuntimeException("ProvisionedThroughputExceededException"))
+                             else ZIO.fail(new RuntimeException("boom")) // not retryable — permanent
+                           },
+                           retryQuotaParam = Some(quota)
+                         )
+          drainPolicy = RetryPolicy.ExponentialBackoff(3, FiniteDuration(50, MILLISECONDS), jitter = false)
+          drainQuery = DynamoDBQuery.getItem("t", PrimaryKey("id" -> "x")).withRetryPolicy(drainPolicy)
+          drainFiber  <- drainInterp.run(drainQuery).exit.fork
+          _           <- TestClock.adjust(50.millis)
+          _           <- drainFiber.join // balance is now 0, permanently
+          // A fresh call that succeeds on the first attempt (no retry at all) should credit +1.
+          // A policy must still be attached — with none at all, `withOptionalRetry` bypasses
+          // `withRetry` (and thus crediting) entirely via its `case None => fa` shortcut.
+          cleanInterp <- makeInterp(
+                           getItemEffect = ZIO.succeed(Some(Item("id" -> "alice"))),
+                           retryQuotaParam = Some(quota)
+                         )
+          cleanQuery = DynamoDBQuery.getItem("t", PrimaryKey("id" -> "alice")).withRetryPolicy(drainPolicy)
+          cleanResult <- cleanInterp.run(cleanQuery)
+          // Exactly 1 was credited: a 1-token debit succeeds, but nothing is left for a real
+          // (5-token) retry cost afterward.
+          smallOk     <- quota.tryConsume(1)
+          bigDenied   <- quota.tryConsume(5)
+        } yield assertTrue(cleanResult.contains(Item("id" -> "alice")), smallOk, !bigDenied)
+      },
+      test("credit never pushes the quota's balance above its original capacity") {
+        for {
+          quota  <- ZIO.succeed(ZioRetryQuota.standard(capacity = 5))
+          _      <- quota.credit(1000) // nothing was ever spent; should clamp at capacity
+          first  <- quota.tryConsume(5)
+          second <- quota.tryConsume(1)
+        } yield assertTrue(first, !second)
       }
     ),
 

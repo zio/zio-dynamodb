@@ -218,4 +218,49 @@ class CERetryPolicySpec extends CatsEffectSuite {
       n       <- calls.get
     } yield assert(results._1.isLeft && results._2.isLeft && n == 3)
   }
+
+  test("a clean (no-retry) success credits exactly 1 token — wired through from a real query") {
+    val quota = CERetryQuota.standard(capacity = 5)
+    for {
+      // Drain the quota to 0 permanently: one throttling retry (cost 5), then a second,
+      // non-retryable failure — the spend is never credited back, since only success credits.
+      drainCalls  <- Ref.of[IO, Int](0)
+      drainInterp = makeInterp(
+                      getItemEffect = drainCalls.updateAndGet(_ + 1).flatMap { n =>
+                        if (n == 1) IO.raiseError(new RuntimeException("ProvisionedThroughputExceededException"))
+                        else IO.raiseError(new RuntimeException("boom")) // not retryable — permanent
+                      },
+                      retryQuotaParam = Some(quota)
+                    )
+      drainPolicy = RetryPolicy.ExponentialBackoff(3, FiniteDuration(1, "milliseconds"), jitter = false)
+      drainQuery = DynamoDBQuery.getItem("t", PrimaryKey("id" -> "x")).withRetryPolicy(drainPolicy)
+      _           <- drainInterp.run(drainQuery).attempt // balance is now 0, permanently
+      // A fresh call that succeeds on the first attempt (no retry at all) should credit +1. A
+      // policy must still be attached — with none at all, `withOptionalRetry` bypasses
+      // `withRetry` (and thus crediting) entirely via its `case None => fa` shortcut.
+      cleanInterp = makeInterp(getItemEffect = IO.pure(Some(Item("id" -> "alice"))), retryQuotaParam = Some(quota))
+      cleanQuery = DynamoDBQuery.getItem("t", PrimaryKey("id" -> "alice")).withRetryPolicy(drainPolicy)
+      cleanResult <- cleanInterp.run(cleanQuery)
+      // Exactly 1 was credited: a 1-token debit succeeds, but nothing is left for a real
+      // (5-token) retry cost afterward.
+      smallOk     <- quota.tryConsume(1)
+      bigDenied   <- quota.tryConsume(5)
+    } yield {
+      assertEquals(cleanResult, Some(Item("id" -> "alice")))
+      assert(smallOk)
+      assert(!bigDenied)
+    }
+  }
+
+  test("credit never pushes the quota's balance above its original capacity") {
+    val quota = CERetryQuota.standard(capacity = 5)
+    for {
+      _      <- quota.credit(1000) // nothing was ever spent; should clamp at capacity
+      first  <- quota.tryConsume(5)
+      second <- quota.tryConsume(1)
+    } yield {
+      assert(first)
+      assert(!second)
+    }
+  }
 }
