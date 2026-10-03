@@ -27,7 +27,8 @@ class ZioInterpreter(
   client: AwsDynamoDB[Task],
   override protected val defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]] = None,
   override protected val retryInterceptor: Option[RetryInterceptor[Task]] = None,
-  override protected val batchRetryInterceptor: Option[BatchRetryInterceptor[Task]] = None
+  override protected val batchRetryInterceptor: Option[BatchRetryInterceptor[Task]] = None,
+  override protected val retryQuota: Option[RetryQuota[Task]] = None
 ) extends RealAwsInterpreter[Task](client) {
   private[dynamodb] def pure[A](a: A): Task[A]                               = ZIO.succeed(a)
   private[dynamodb] def map[A, B](fa: Task[A])(f: A => B): Task[B]           = fa.map(f)
@@ -57,19 +58,24 @@ object ZioInterpreter {
    * which never retries without an explicit policy. `interceptors` bundles the three
    * independent, optional observability hooks (`ResponseInterceptor`/`RetryInterceptor`/
    * `BatchRetryInterceptor`); set only what you want, named:
-   * `InterceptorConfig(retry = Some(myRetryInterceptor))`.
+   * `InterceptorConfig(retry = Some(myRetryInterceptor))`. `retryQuota` is a client-scoped
+   * circuit breaker gating retries independent of any one call's own backoff curve, on by
+   * default (`ZioRetryQuota.standard()`) since — unlike a retry policy — it can only ever
+   * reduce retries below what one would otherwise allow, never add any; pass `None` to disable.
    */
   def fromAsyncClient(
     sdkClient: DynamoDbAsyncClient,
     interceptors: InterceptorConfig[Task] = InterceptorConfig(),
-    defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]] = None
+    defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]] = None,
+    retryQuota: Option[RetryQuota[Task]] = Some(ZioRetryQuota.standard())
   ): ZioInterpreter =
-    fromAsyncClientInternal(sdkClient, interceptors, defaultRetryPolicy)
+    fromAsyncClientInternal(sdkClient, interceptors, defaultRetryPolicy, retryQuota)
 
   private def fromAsyncClientInternal(
     sdkClient: DynamoDbAsyncClient,
     interceptors: InterceptorConfig[Task],
-    defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]]
+    defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]],
+    retryQuota: Option[RetryQuota[Task]]
   ): ZioInterpreter = {
     val base: AwsDynamoDB[Task]   = new AwsDynamoDB[Task] {
       def getItem(req: GetItemRequest): Task[GetItemResponse]                                  =
@@ -105,6 +111,6 @@ object ZioInterpreter {
     }
     val client: AwsDynamoDB[Task] =
       interceptors.response.fold(base)(i => new InterceptingAwsDynamoDB[Task](base, i, ops))
-    new ZioInterpreter(client, defaultRetryPolicy, interceptors.retry, interceptors.batchRetry)
+    new ZioInterpreter(client, defaultRetryPolicy, interceptors.retry, interceptors.batchRetry, retryQuota)
   }
 }

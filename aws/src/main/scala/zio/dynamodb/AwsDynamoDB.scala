@@ -841,6 +841,16 @@ abstract class RealAwsInterpreter[F[_]](client: AwsDynamoDB[F]) extends AwsInter
     case t                      => RetryPolicy.isRetryable(t)
   }
 
+  /**
+   * [[RetryQuota]] cost, classified the same way as `isRetryable` above — the SDK's own
+   * `AwsServiceException#isThrottlingException`, not message-substrings, for anything that is
+   * an `AwsServiceException`. Falls back to [[RetryPolicy.retryCost]] for anything that isn't.
+   */
+  override protected def retryCost: Throwable => Int = {
+    case e: AwsServiceException => if (e.isThrottlingException) 5 else 14
+    case t                      => RetryPolicy.retryCost(t)
+  }
+
   protected def runGetItem(q: DynamoDBQuery.GetItem): F[Option[Item]] =
     map(client.getItem(AwsCodecs.toGetItemRequest(q)))(AwsCodecs.fromGetItemResponse)
 

@@ -41,7 +41,8 @@ object RetrySpec extends ZIOSpecDefault {
     batchGetItemEffect: Option[Task[DynamoDBQuery.BatchGetItem.Response]] = None,
     defaultRetryPolicyParam: Option[EffectfulRetryPolicy[Task]] = None,
     retryInterceptorParam: Option[RetryInterceptor[Task]] = None,
-    batchRetryInterceptorParam: Option[BatchRetryInterceptor[Task]] = None
+    batchRetryInterceptorParam: Option[BatchRetryInterceptor[Task]] = None,
+    retryQuotaParam: Option[RetryQuota[Task]] = None
   ): ZIO[Any, Nothing, AwsInterpreter[Task]] =
     for {
       writeRef <- Ref.make(batchWriteResponses)
@@ -51,6 +52,7 @@ object RetrySpec extends ZIOSpecDefault {
       override protected def retryInterceptor: Option[RetryInterceptor[Task]]           = retryInterceptorParam
       override protected def batchRetryInterceptor: Option[BatchRetryInterceptor[Task]] =
         batchRetryInterceptorParam
+      override protected def retryQuota: Option[RetryQuota[Task]]                       = retryQuotaParam
       private[dynamodb] def pure[A](a: A): Task[A]                                      = ZIO.succeed(a)
       private[dynamodb] def map[A, B](fa: Task[A])(f: A => B): Task[B]                  = fa.map(f)
       private[dynamodb] def flatMap[A, B](fa: Task[A])(f: A => Task[B]): Task[B]        = fa.flatMap(f)
@@ -860,6 +862,76 @@ object RetrySpec extends ZIOSpecDefault {
           assertTrue(
             log == Chunk((Map("t" -> Chunk(putItem)), Map("t" -> Chunk(deleteKey)), 0))
           )
+      }
+    ),
+
+    suite("RetryQuota")(
+      test("a quota with insufficient budget denies the retry immediately — same outcome shape as curve-exhaustion") {
+        for {
+          calls  <- Ref.make(0)
+          interp <- makeInterp(
+                      getItemEffect = calls.updateAndGet(_ + 1) *>
+                        ZIO.fail(new RuntimeException("ProvisionedThroughputExceededException")),
+                      retryQuotaParam = Some(ZioRetryQuota.standard(capacity = 0))
+                    )
+          query =
+            DynamoDBQuery
+              .getItem("t", PrimaryKey("id" -> "alice"))
+              .withRetryPolicy(RetryPolicy.ExponentialBackoff(5, FiniteDuration(50, MILLISECONDS), jitter = false))
+          result <- interp.run(query).exit
+          n      <- calls.get
+        } yield assertTrue(result.isFailure && n == 1)
+      },
+      test("a quota credits back exactly what a successful retry cost — budget recovers for the next call") {
+        for {
+          calls  <- Ref.make(0)
+          interp <- makeInterp(
+                      getItemEffect = calls.updateAndGet(_ + 1).flatMap { n =>
+                        // odd calls fail, even calls succeed — each of the two queries below
+                        // fails once then succeeds on its retry.
+                        if (n % 2 == 1) ZIO.fail(new RuntimeException("ProvisionedThroughputExceededException"))
+                        else ZIO.succeed(Some(Item("id" -> "alice")))
+                      },
+                      // exactly one throttling retry's cost — the second query only succeeds if
+                      // the first query's successful retry credited its 5 tokens back.
+                      retryQuotaParam = Some(ZioRetryQuota.standard(capacity = 5))
+                    )
+          query =
+            DynamoDBQuery
+              .getItem("t", PrimaryKey("id" -> "alice"))
+              .withRetryPolicy(RetryPolicy.ExponentialBackoff(3, FiniteDuration(50, MILLISECONDS), jitter = false))
+          fiber1 <- interp.run(query).fork
+          _      <- TestClock.adjust(50.millis)
+          r1     <- fiber1.join.exit
+          fiber2 <- interp.run(query).fork
+          _      <- TestClock.adjust(50.millis)
+          r2     <- fiber2.join.exit
+        } yield assertTrue(r1.isSuccess, r2.isSuccess)
+      },
+      test("a quota's budget is genuinely shared across concurrent executions, not isolated per call") {
+        // Effect always fails, so the only thing bounding total call count is the quota — no
+        // assumption about how the two concurrent calls interleave. With capacity == one
+        // retry's cost, shared across both, exactly 3 calls can ever happen (2 first attempts
+        // + 1 shared retry) regardless of scheduling order; unshared (independent per call)
+        // would allow 4 (2 first attempts + 1 retry each).
+        for {
+          calls  <- Ref.make(0)
+          interp <- makeInterp(
+                      getItemEffect = calls.updateAndGet(_ + 1) *>
+                        ZIO.fail(new RuntimeException("ProvisionedThroughputExceededException")),
+                      retryQuotaParam = Some(ZioRetryQuota.standard(capacity = 5))
+                    )
+          query =
+            DynamoDBQuery
+              .getItem("t", PrimaryKey("id" -> "alice"))
+              .withRetryPolicy(RetryPolicy.ExponentialBackoff(5, FiniteDuration(50, MILLISECONDS), jitter = false))
+          fiber1 <- interp.run(query).exit.fork
+          fiber2 <- interp.run(query).exit.fork
+          _      <- TestClock.adjust(50.millis)
+          r1     <- fiber1.join
+          r2     <- fiber2.join
+          n      <- calls.get
+        } yield assertTrue(r1.isFailure, r2.isFailure, n == 3)
       }
     ),
 

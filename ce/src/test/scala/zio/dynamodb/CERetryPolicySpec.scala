@@ -30,10 +30,12 @@ class CERetryPolicySpec extends CatsEffectSuite {
   // Minimal AwsInterpreter[IO], mirroring zio/RetrySpec.scala's makeInterp stub.
   private def makeInterp(
     getItemEffect: IO[Option[Item]],
-    defaultRetryPolicyParam: Option[EffectfulRetryPolicy[IO]] = None
+    defaultRetryPolicyParam: Option[EffectfulRetryPolicy[IO]] = None,
+    retryQuotaParam: Option[RetryQuota[IO]] = None
   ): AwsInterpreter[IO] =
     new AwsInterpreter[IO] {
       override protected def defaultRetryPolicy: Option[EffectfulRetryPolicy[IO]] = defaultRetryPolicyParam
+      override protected def retryQuota: Option[RetryQuota[IO]]                   = retryQuotaParam
 
       private[dynamodb] def pure[A](a: A): IO[A]                           = IO.pure(a)
       private[dynamodb] def map[A, B](fa: IO[A])(f: A => B): IO[B]         = fa.map(f)
@@ -147,5 +149,73 @@ class CERetryPolicySpec extends CatsEffectSuite {
       assert(result.isLeft)
       assertEquals(n, 1) // NoRetry wins — defaultRetryPolicy never consulted
     }
+  }
+
+  test("a quota with insufficient budget denies the retry immediately — same outcome shape as curve-exhaustion") {
+    for {
+      calls  <- Ref.of[IO, Int](0)
+      interp = makeInterp(
+                 getItemEffect = calls.updateAndGet(_ + 1) *>
+                   IO.raiseError(new RuntimeException("ProvisionedThroughputExceededException")),
+                 retryQuotaParam = Some(CatsRetryQuota.standard(capacity = 0))
+               )
+      query =
+        DynamoDBQuery
+          .getItem("t", PrimaryKey("id" -> "alice"))
+          .withRetryPolicy(RetryPolicy.ExponentialBackoff(5, FiniteDuration(1, "milliseconds"), jitter = false))
+      result <- interp.run(query).attempt
+      n      <- calls.get
+    } yield {
+      assert(result.isLeft)
+      assertEquals(n, 1)
+    }
+  }
+
+  test("a quota credits back exactly what a successful retry cost — budget recovers for the next call") {
+    for {
+      calls <- Ref.of[IO, Int](0)
+      interp = makeInterp(
+                 getItemEffect = calls.updateAndGet(_ + 1).flatMap { n =>
+                   // odd calls fail, even calls succeed — each of the two queries below fails
+                   // once then succeeds on its retry.
+                   if (n % 2 == 1) IO.raiseError(new RuntimeException("ProvisionedThroughputExceededException"))
+                   else IO.pure(Some(Item("id" -> "alice")))
+                 },
+                 // exactly one throttling retry's cost — the second query only succeeds if the
+                 // first query's successful retry credited its 5 tokens back.
+                 retryQuotaParam = Some(CatsRetryQuota.standard(capacity = 5))
+               )
+      query =
+        DynamoDBQuery
+          .getItem("t", PrimaryKey("id" -> "alice"))
+          .withRetryPolicy(RetryPolicy.ExponentialBackoff(3, FiniteDuration(1, "milliseconds"), jitter = false))
+      r1    <- interp.run(query).attempt
+      r2    <- interp.run(query).attempt
+    } yield {
+      assert(r1.isRight)
+      assert(r2.isRight)
+    }
+  }
+
+  test("a quota's budget is genuinely shared across concurrent executions, not isolated per call") {
+    // Effect always fails, so the only thing bounding total call count is the quota — no
+    // assumption about how the two concurrent calls interleave. With capacity == one retry's
+    // cost, shared across both, exactly 3 calls can ever happen (2 first attempts + 1 shared
+    // retry) regardless of scheduling order; unshared (independent per call) would allow 4
+    // (2 first attempts + 1 retry each).
+    for {
+      calls   <- Ref.of[IO, Int](0)
+      interp = makeInterp(
+                 getItemEffect = calls.updateAndGet(_ + 1) *>
+                   IO.raiseError(new RuntimeException("ProvisionedThroughputExceededException")),
+                 retryQuotaParam = Some(CatsRetryQuota.standard(capacity = 5))
+               )
+      query =
+        DynamoDBQuery
+          .getItem("t", PrimaryKey("id" -> "alice"))
+          .withRetryPolicy(RetryPolicy.ExponentialBackoff(5, FiniteDuration(1, "milliseconds"), jitter = false))
+      results <- (interp.run(query).attempt, interp.run(query).attempt).parTupled
+      n       <- calls.get
+    } yield assert(results._1.isLeft && results._2.isLeft && n == 3)
   }
 }

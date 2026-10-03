@@ -40,7 +40,8 @@ class FutureInterpreter(
   client: AwsDynamoDB[Future],
   override protected val defaultRetryPolicy: Option[EffectfulRetryPolicy[Future]] = None,
   override protected val retryInterceptor: Option[RetryInterceptor[Future]] = None,
-  override protected val batchRetryInterceptor: Option[BatchRetryInterceptor[Future]] = None
+  override protected val batchRetryInterceptor: Option[BatchRetryInterceptor[Future]] = None,
+  override protected val retryQuota: Option[RetryQuota[Future]] = None
 )(implicit ec: ExecutionContext)
     extends RealAwsInterpreter[Future](client) {
 
@@ -93,19 +94,24 @@ object FutureInterpreter {
    * which never retries without an explicit policy. `interceptors` bundles the three
    * independent, optional observability hooks (`ResponseInterceptor`/`RetryInterceptor`/
    * `BatchRetryInterceptor`); set only what you want, named:
-   * `InterceptorConfig(retry = Some(myRetryInterceptor))`.
+   * `InterceptorConfig(retry = Some(myRetryInterceptor))`. `retryQuota` is a client-scoped
+   * circuit breaker gating retries independent of any one call's own backoff curve, on by
+   * default (`FutureRetryQuota.standard()`) since — unlike a retry policy — it can only ever
+   * reduce retries below what one would otherwise allow, never add any; pass `None` to disable.
    */
   def fromAsyncClient(
     sdkClient: DynamoDbAsyncClient,
     interceptors: InterceptorConfig[Future] = InterceptorConfig(),
-    defaultRetryPolicy: Option[EffectfulRetryPolicy[Future]] = None
+    defaultRetryPolicy: Option[EffectfulRetryPolicy[Future]] = None,
+    retryQuota: Option[RetryQuota[Future]] = Some(FutureRetryQuota.standard())
   )(implicit ec: ExecutionContext): FutureInterpreter =
-    fromAsyncClientInternal(sdkClient, interceptors, defaultRetryPolicy)
+    fromAsyncClientInternal(sdkClient, interceptors, defaultRetryPolicy, retryQuota)
 
   private def fromAsyncClientInternal(
     sdkClient: DynamoDbAsyncClient,
     interceptors: InterceptorConfig[Future],
-    defaultRetryPolicy: Option[EffectfulRetryPolicy[Future]]
+    defaultRetryPolicy: Option[EffectfulRetryPolicy[Future]],
+    retryQuota: Option[RetryQuota[Future]]
   )(implicit ec: ExecutionContext): FutureInterpreter = {
     val base: AwsDynamoDB[Future]   = new AwsDynamoDB[Future] {
       def getItem(req: GetItemRequest): Future[GetItemResponse]                                  = sdkClient.getItem(req).asScala
@@ -131,6 +137,6 @@ object FutureInterpreter {
     }
     val client: AwsDynamoDB[Future] =
       interceptors.response.fold(base)(i => new InterceptingAwsDynamoDB[Future](base, i, ops))
-    new FutureInterpreter(client, defaultRetryPolicy, interceptors.retry, interceptors.batchRetry)
+    new FutureInterpreter(client, defaultRetryPolicy, interceptors.retry, interceptors.batchRetry, retryQuota)
   }
 }

@@ -146,4 +146,21 @@ object RetryPolicy {
         msg.contains("ThrottlingException")
     )
   }
+
+  /**
+   * Token cost for [[RetryQuota]], consulted only for an error `isRetryable` already matched —
+   * mirrors AWS's own two-tier split (5 for throttling, 14 for other transient errors;
+   * see AWS SDKs and Tools Reference Guide, "Retry quota management"). Message-substring based,
+   * like `isRetryable`; `RealAwsInterpreter`'s override in `aws` classifies from the SDK's own
+   * `AwsServiceException#isThrottlingException` instead.
+   */
+  val retryCost: Throwable => Int = { t =>
+    val msg          = t.getMessage
+    val isThrottling = msg != null && (
+      msg.contains("ProvisionedThroughputExceededException") ||
+        msg.contains("RequestLimitExceeded") ||
+        msg.contains("ThrottlingException")
+    )
+    if (isThrottling) 5 else 14
+  }
 }

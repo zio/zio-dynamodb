@@ -72,6 +72,13 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   protected def isRetryable: Throwable => Boolean = RetryPolicy.isRetryable
 
   /**
+   * [[RetryQuota]] token cost for an error `isRetryable` already matched. `core` has no AWS SDK
+   *  dependency, so this defaults to [[RetryPolicy.retryCost]]'s message-substring check;
+   *  `RealAwsInterpreter` (in `aws`) overrides it the same way `isRetryable` is overridden.
+   */
+  protected def retryCost: Throwable => Int = RetryPolicy.retryCost
+
+  /**
    * The fallback used when a query doesn't specify its own `.withRetryPolicy(...)`. This
    *  trait's own default is `None` (no retry); concrete interpreters override it via a
    *  `fromAsyncClient` factory parameter rather than subclassing, so a caller can swap or
@@ -96,35 +103,63 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   protected def batchRetryInterceptor: Option[BatchRetryInterceptor[F]] = None
 
   /**
+   * Client-scoped circuit breaker gating whether a retry should happen at all — see
+   *  [[RetryQuota]]. This trait's own default is `None`; concrete interpreters override it the
+   *  same way as `defaultRetryPolicy`, via a `fromAsyncClient` factory parameter. Not consulted
+   *  by batch's response-level resubmission loop (`newResponseLevelDelayFn` below): a
+   *  resubmission of unprocessed keys/items is a fresh logical request built from a successful
+   *  response, not a retry of a failed one, so AWS's own token bucket doesn't apply to it either.
+   */
+  protected def retryQuota: Option[RetryQuota[F]] = None
+
+  // A denied retry (quota exhausted) looks exactly like curve-exhaustion to the caller — no
+  // retry, no onRetry fired.
+  private def tryConsumeQuota(quota: Option[RetryQuota[F]], cost: Int): F[Boolean] =
+    quota.fold(pure(true))(_.tryConsume(cost))
+
+  // AWS's own rule: a clean (no-retry) success credits 1 token; a success after `attempts`
+  // retries credits back exactly what those retries cost (`spent`), no more.
+  private def creditQuota(quota: Option[RetryQuota[F]], attempts: Int, spent: Int): F[Unit] =
+    quota.fold(pure(()))(q => q.credit(if (attempts == 0) 1 else spent))
+
+  /**
    * Retries `fa` according to `policy` whenever `isRetryable` matches the
    *  thrown error. Exhausted retries re-raise the last error.
    *
    *  `fa` is by-name so each retry re-evaluates the effect. `onRetry` fires once per retried
    *  attempt, right before the delay is slept; defaults to a no-op so every existing caller
-   *  (this method is public) keeps compiling unchanged.
+   *  (this method is public) keeps compiling unchanged. `retryQuota`, if attached, is checked
+   *  before `onRetry` fires on each retry attempt and credited on eventual success.
    */
   final def withRetry[A](
     policy: RetryPolicy,
     isRetryable: Throwable => Boolean = RetryPolicy.isRetryable,
-    onRetry: (Throwable, Int) => F[Unit] = (_, _) => pure(())
+    onRetry: (Throwable, Int) => F[Unit] = (_, _) => pure(()),
+    retryCost: Throwable => Int = RetryPolicy.retryCost,
+    retryQuota: Option[RetryQuota[F]] = None
   )(fa: => F[A]): F[A] =
     // newAttempt() is deferred into the flatMap continuation so a reused F[A] value (e.g. a
     // caller holding `val effect = interp.run(query)` and running it more than once) gets a
     // fresh Attempt on every execution, not one shared across all of them.
     flatMap(pure(())) { _ =>
-      val attemptState       = policy.newAttempt()
-      def loop(n: Int): F[A] =
+      val attemptState                   = policy.newAttempt()
+      def loop(n: Int, spent: Int): F[A] =
         flatMap(attempt(fa)) {
-          case Right(a)                  => pure(a)
+          case Right(a)                  => flatMap(creditQuota(retryQuota, n, spent))(_ => pure(a))
           case Left(t) if !NonFatal(t)   => raiseError(t)
           case Left(t) if isRetryable(t) =>
             attemptState.nextDelay(n) match {
               case None    => raiseError(t)
-              case Some(d) => flatMap(onRetry(t, n))(_ => flatMap(sleep(d))(_ => loop(n + 1)))
+              case Some(d) =>
+                val cost = retryCost(t)
+                flatMap(tryConsumeQuota(retryQuota, cost)) {
+                  case false => raiseError(t)
+                  case true  => flatMap(onRetry(t, n))(_ => flatMap(sleep(d))(_ => loop(n + 1, spent + cost)))
+                }
             }
           case Left(t)                   => raiseError(t)
         }
-      loop(0)
+      loop(0, 0)
     }
 
   /**
@@ -135,44 +170,58 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   private[dynamodb] final def withRetryTracked[A](
     policy: RetryPolicy,
     isRetryable: Throwable => Boolean = RetryPolicy.isRetryable,
-    onRetry: (Throwable, Int) => F[Unit] = (_, _) => pure(())
+    onRetry: (Throwable, Int) => F[Unit] = (_, _) => pure(()),
+    retryCost: Throwable => Int = RetryPolicy.retryCost,
+    retryQuota: Option[RetryQuota[F]] = None
   )(fa: => F[A]): F[Either[(Throwable, Int), A]] =
     // See withRetry — newAttempt() deferred so a reused F[A] value gets a fresh Attempt per run.
     flatMap(pure(())) { _ =>
-      val attemptState                                 = policy.newAttempt()
-      def loop(n: Int): F[Either[(Throwable, Int), A]] =
+      val attemptState                                             = policy.newAttempt()
+      def loop(n: Int, spent: Int): F[Either[(Throwable, Int), A]] =
         flatMap(attempt(fa)) {
-          case Right(a)                  => pure(Right(a))
+          case Right(a)                  => flatMap(creditQuota(retryQuota, n, spent))(_ => pure(Right(a)))
           case Left(t) if !NonFatal(t)   => raiseError(t)
           case Left(t) if isRetryable(t) =>
             attemptState.nextDelay(n) match {
               case None    => pure(Left((t, n)))
-              case Some(d) => flatMap(onRetry(t, n))(_ => flatMap(sleep(d))(_ => loop(n + 1)))
+              case Some(d) =>
+                val cost = retryCost(t)
+                flatMap(tryConsumeQuota(retryQuota, cost)) {
+                  case false => pure(Left((t, n)))
+                  case true  => flatMap(onRetry(t, n))(_ => flatMap(sleep(d))(_ => loop(n + 1, spent + cost)))
+                }
             }
           case Left(t)                   => pure(Left((t, n)))
         }
-      loop(0)
+      loop(0, 0)
     }
 
   /** Like [[withRetry]], but for an [[EffectfulRetryPolicy]] — see `defaultRetryPolicy`. */
   final def withRetryF[A](
     policy: EffectfulRetryPolicy[F],
     isRetryable: Throwable => Boolean = RetryPolicy.isRetryable,
-    onRetry: (Throwable, Int) => F[Unit] = (_, _) => pure(())
+    onRetry: (Throwable, Int) => F[Unit] = (_, _) => pure(()),
+    retryCost: Throwable => Int = RetryPolicy.retryCost,
+    retryQuota: Option[RetryQuota[F]] = None
   )(fa: => F[A]): F[A] =
     flatMap(policy.newAttempt()) { attemptState =>
-      def loop(n: Int): F[A] =
+      def loop(n: Int, spent: Int): F[A] =
         flatMap(attempt(fa)) {
-          case Right(a)                  => pure(a)
+          case Right(a)                  => flatMap(creditQuota(retryQuota, n, spent))(_ => pure(a))
           case Left(t) if !NonFatal(t)   => raiseError(t)
           case Left(t) if isRetryable(t) =>
             flatMap(attemptState.nextDelay(n)) {
               case None    => raiseError(t)
-              case Some(d) => flatMap(onRetry(t, n))(_ => flatMap(sleep(d))(_ => loop(n + 1)))
+              case Some(d) =>
+                val cost = retryCost(t)
+                flatMap(tryConsumeQuota(retryQuota, cost)) {
+                  case false => raiseError(t)
+                  case true  => flatMap(onRetry(t, n))(_ => flatMap(sleep(d))(_ => loop(n + 1, spent + cost)))
+                }
             }
           case Left(t)                   => raiseError(t)
         }
-      loop(0)
+      loop(0, 0)
     }
 
   /**
@@ -184,10 +233,10 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
     onRetry: (Throwable, Int) => F[Unit] = (_, _) => pure(())
   )(fa: => F[A]): F[A] =
     retryPolicy match {
-      case Some(p) => withRetry(p, isRetryable, onRetry)(fa)
+      case Some(p) => withRetry(p, isRetryable, onRetry, retryCost, retryQuota)(fa)
       case None    =>
         defaultRetryPolicy match {
-          case Some(p) => withRetryF(p, isRetryable, onRetry)(fa)
+          case Some(p) => withRetryF(p, isRetryable, onRetry, retryCost, retryQuota)(fa)
           case None    => fa
         }
     }
@@ -200,13 +249,15 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
    *  already landed) can silently double-apply a delta. The interpreter has no way to tell an
    *  idempotent `.set` from a non-idempotent one, so it can't safely opt every `UpdateItem`
    *  into retrying by default the way it does for `GetItem`/`PutItem`/`DeleteItem`/batch.
+   *  `retryQuota` still applies when a query opts in explicitly — it's a client-wide circuit
+   *  breaker, not tied to any one operation's retry-fallback eligibility.
    */
   private def withExplicitRetryOnly[A](
     retryPolicy: Option[RetryPolicy],
     onRetry: (Throwable, Int) => F[Unit] = (_, _) => pure(())
   )(fa: => F[A]): F[A] =
     retryPolicy match {
-      case Some(p) => withRetry(p, isRetryable, onRetry)(fa)
+      case Some(p) => withRetry(p, isRetryable, onRetry, retryCost, retryQuota)(fa)
       case None    => fa
     }
 
@@ -214,21 +265,28 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   private[dynamodb] final def withRetryTrackedF[A](
     policy: EffectfulRetryPolicy[F],
     isRetryable: Throwable => Boolean = RetryPolicy.isRetryable,
-    onRetry: (Throwable, Int) => F[Unit] = (_, _) => pure(())
+    onRetry: (Throwable, Int) => F[Unit] = (_, _) => pure(()),
+    retryCost: Throwable => Int = RetryPolicy.retryCost,
+    retryQuota: Option[RetryQuota[F]] = None
   )(fa: => F[A]): F[Either[(Throwable, Int), A]] =
     flatMap(policy.newAttempt()) { attemptState =>
-      def loop(n: Int): F[Either[(Throwable, Int), A]] =
+      def loop(n: Int, spent: Int): F[Either[(Throwable, Int), A]] =
         flatMap(attempt(fa)) {
-          case Right(a)                  => pure(Right(a))
+          case Right(a)                  => flatMap(creditQuota(retryQuota, n, spent))(_ => pure(Right(a)))
           case Left(t) if !NonFatal(t)   => raiseError(t)
           case Left(t) if isRetryable(t) =>
             flatMap(attemptState.nextDelay(n)) {
               case None    => pure(Left((t, n)))
-              case Some(d) => flatMap(onRetry(t, n))(_ => flatMap(sleep(d))(_ => loop(n + 1)))
+              case Some(d) =>
+                val cost = retryCost(t)
+                flatMap(tryConsumeQuota(retryQuota, cost)) {
+                  case false => pure(Left((t, n)))
+                  case true  => flatMap(onRetry(t, n))(_ => flatMap(sleep(d))(_ => loop(n + 1, spent + cost)))
+                }
             }
           case Left(t)                   => pure(Left((t, n)))
         }
-      loop(0)
+      loop(0, 0)
     }
 
   /**
@@ -242,11 +300,11 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
     onRetry: (Throwable, Int) => F[Unit] = (_, _) => pure(())
   )(fa: => F[A]): F[Either[(Throwable, Int), A]] =
     retryPolicy match {
-      case Some(p) => withRetryTracked(p, isRetryable, onRetry)(fa)
+      case Some(p) => withRetryTracked(p, isRetryable, onRetry, retryCost, retryQuota)(fa)
       case None    =>
         defaultRetryPolicy match {
-          case Some(p) => withRetryTrackedF(p, isRetryable, onRetry)(fa)
-          case None    => withRetryTracked(RetryPolicy.NoRetry, isRetryable, onRetry)(fa)
+          case Some(p) => withRetryTrackedF(p, isRetryable, onRetry, retryCost, retryQuota)(fa)
+          case None    => withRetryTracked(RetryPolicy.NoRetry, isRetryable, onRetry, retryCost, retryQuota)(fa)
         }
     }
 
