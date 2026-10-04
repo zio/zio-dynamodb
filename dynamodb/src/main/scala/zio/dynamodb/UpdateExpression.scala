@@ -55,13 +55,11 @@ object UpdateExpression {
 
     def render: AliasMapRender[String] = {
       def generateActionsStatements[A <: RenderableAction[_]](chunk: Chunk[A]) =
-        chunk.foldLeft(AliasMapRender.empty.map(_ => "")) {
-          case (acc, action) =>
-            acc.zipWith(action.miniRender) {
-              case (acc, action) =>
-                if (acc.isEmpty) action
-                else acc ++ "," ++ action
-            }
+        chunk.foldLeft(AliasMapRender.empty.map(_ => "")) { case (acc, action) =>
+          acc.zipWith(action.miniRender) { case (acc, action) =>
+            if (acc.isEmpty) action
+            else acc ++ "," ++ action
+          }
         }
 
       self match {

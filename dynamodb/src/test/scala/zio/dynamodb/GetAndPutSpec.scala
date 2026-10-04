@@ -52,8 +52,8 @@ object GetAndPutSpec extends ZIOSpecDefault {
                primaryKey2 -> Item("id" -> 2, "name" -> "Tarlochan")
              )
         r <- (get("table1")(SimpleCaseClass2.id.partitionKey === 1) zip get("table1")(
-                 SimpleCaseClass2.id.partitionKey === 2
-               )).execute
+               SimpleCaseClass2.id.partitionKey === 2
+             )).execute
       } yield assertTrue(r._1 == Right(SimpleCaseClass2(1, "Avi"))) && assertTrue(
         r._2 == Right(SimpleCaseClass2(2, "Tarlochan"))
       )
@@ -77,9 +77,9 @@ object GetAndPutSpec extends ZIOSpecDefault {
     test("""batched SimpleCaseClass2(1, "Avi") and SimpleCaseClass2(2, "Tarlochan")""") {
       for {
         _      <- (put[SimpleCaseClass2]("table1", SimpleCaseClass2(1, "Avi")) zip put[SimpleCaseClass2](
-                      "table1",
-                      SimpleCaseClass2(2, "Tarlochan")
-                    )).execute
+                    "table1",
+                    SimpleCaseClass2(2, "Tarlochan")
+                  )).execute
         found1 <- get("table1")(SimpleCaseClass2.id.partitionKey === 1).execute
         found2 <- get("table1")(SimpleCaseClass2.id.partitionKey === 2).execute
       } yield assertTrue(found1 == Right(SimpleCaseClass2(1, "Avi"))) && assertTrue(
