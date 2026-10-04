@@ -10,9 +10,9 @@ object SimpleExample extends ZIOAppDefault {
   private val program: ZIO[DynamoDBExecutor with TestDynamoDBExecutor, Throwable, Unit] = for {
     _       <- TestDynamoDBExecutor.addTable("table1", partitionKey = "id")
     _       <- (putItem("table1", Item("id" -> 1, "name" -> "name1")) zip putItem(
-                   "table1",
-                   Item("id" -> 2, "name" -> "name2")
-                 )).execute
+                 "table1",
+                 Item("id" -> 2, "name" -> "name2")
+               )).execute
     tuple   <- (getItem("table1", PrimaryKey("id" -> 1)) zip getItem("table1", PrimaryKey("id" -> 2))).execute
     _       <- printLine(s"found $tuple")
     stream1 <- scanAllItem("table1").execute
