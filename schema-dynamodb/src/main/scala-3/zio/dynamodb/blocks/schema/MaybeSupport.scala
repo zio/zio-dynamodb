@@ -16,11 +16,13 @@
 
 package zio.dynamodb.blocks.schema
 
-// In Scala 3 Maybe[A] is opaque A | Null: absent = null, present = inner value directly.
+// In Scala 3 Maybe[A] is opaque A | Absent.type | Present[A]: absent is the Absent singleton,
+// present is the inner value directly (the Present wrapper is only needed for nested Maybe,
+// which this codec doesn't produce).
 private[schema] object MaybeSupport {
-  def absent: AnyRef = null
+  def absent: AnyRef = zio.blocks.maybe.Absent
 
-  def isAbsent(value: AnyRef): Boolean = value eq null
+  def isAbsent(value: AnyRef): Boolean = value eq zio.blocks.maybe.Absent
 
   def innerValue(value: AnyRef): AnyRef = value
 

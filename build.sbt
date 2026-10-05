@@ -7,11 +7,11 @@ addCommandAlias("cov", "; coverage; test; coverageAggregate")
 
 val zioVersion        = "2.1.24"
 val zioPreludeVersion = "1.0.0-RC47"
-val zioBlocksVersion  = "0.0.51"
+val zioBlocksVersion  = "0.0.55"
 val awsSdkVersion     = "2.26.31"
 val catsEffectVersion = "3.7.0"
 val scala213Version   = "2.13.18"
-val scala3Version     = "3.3.8"
+val scala3Version     = "3.3.8" // TODO: make scala3 = 3.9 ie produce only one artifact for 3.9+ and delete below
 val scala39Version    = "3.9.0" // zio-blocks' current default; published as zio-dynamodb-next-*
 
 // Scala 3.9+ publishes under its own name (zio-blocks' "-next-" convention) since Scala 3's
