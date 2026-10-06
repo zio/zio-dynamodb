@@ -131,13 +131,13 @@ class CeEffectStackBench extends BaseBenchmark {
     def transactWriteItems(req: TransactWriteItemsRequest): IO[TransactWriteItemsResponse] = unsupported
   }
 
-  private val interpreter = new CEInterpreter(stubDynamo)
+  private val interpreter = new CEInterpreter[IO](stubDynamo)
 
   // Same stub, with an active defaultRetryPolicy — isolates the per-call cost of having a
   // retry policy attached at all (withRetryF's extra indirection), independent of whether any
   // call actually retries. Every call here still succeeds on the first attempt.
   private val interpreterWithRetryPolicy =
-    new CEInterpreter(stubDynamo, defaultRetryPolicy = Some(CatsRetryPolicies.fullJitter()))
+    new CEInterpreter[IO](stubDynamo, defaultRetryPolicy = Some(CERetryPolicies.fullJitter[IO]()))
 
   // Optic for DdbExprApi.get — provides Person.id lens via CompanionOptics macro.
   private object PersonOps extends CompanionOptics[Person] {

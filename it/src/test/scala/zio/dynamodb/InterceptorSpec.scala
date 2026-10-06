@@ -37,7 +37,7 @@ object InterceptorSpec extends DynamoDBLocalSpec {
 
   // -- Effect-system bridges --------------------------------------------------
 
-  private def ceBridge(ceInterp: CEInterpreter): Interpreter[Task] =
+  private def ceBridge(ceInterp: CEInterpreter[CIO]): Interpreter[Task] =
     new Interpreter[Task] {
       def run[A](q: DynamoDBQuery[_, A]): Task[A] =
         ZIO.fromFuture(_ => ceInterp.run(q).unsafeToFuture()(ceRuntime))
@@ -106,7 +106,7 @@ object InterceptorSpec extends DynamoDBLocalSpec {
           }
           val readMeta: CIO[Chunk[DynamoDBResponseMetadata]] =
             ref.get.map(xs => Chunk.fromIterable(xs.reverse))
-          (CEInterpreter.fromAsyncClient(client, InterceptorConfig(response = Some(interceptor))), readMeta)
+          (CEInterpreter.fromAsyncClient[CIO](client, InterceptorConfig(response = Some(interceptor))), readMeta)
         }
         .unsafeToFuture()(ceRuntime)
     }.map { case (ceInterp, readMetaCIO) =>
