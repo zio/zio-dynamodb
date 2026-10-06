@@ -16,18 +16,19 @@
 
 package zio.dynamodb
 
-import cats.effect.{ IO, Ref }
+import cats.effect.{ Async, Ref }
 
 import scala.concurrent.duration.FiniteDuration
 
 /**
- * Cats-Effect-specific [[EffectfulRetryPolicy]] smart constructors. Unlike ZIO, cats-effect has
- * no built-in `Schedule`-equivalent to wrap, so this is the direct CE-native way to get the same
+ * Cats-Effect-specific [[EffectfulRetryPolicy]] smart constructors, generic over any
+ * `F[_]: Async` (not just `cats.effect.IO`). Unlike ZIO, cats-effect has no built-in
+ * `Schedule`-equivalent to wrap, so this is the direct CE-native way to get the same
  * state-scoping guarantee `ZioRetryPolicies.fromSchedule` gives ZIO users: state lives in a
- * `Ref[IO, S]`, created fresh once per `newAttempt()` call, so concurrent executions sharing
+ * `Ref[F, S]`, created fresh once per `newAttempt()` call, so concurrent executions sharing
  * one policy instance never share state.
  */
-object CatsRetryPolicies {
+object CERetryPolicies {
 
   /**
    * A stateful curve keyed by an arbitrary state type `S` (e.g. `Long` for decorrelated
@@ -36,7 +37,7 @@ object CatsRetryPolicies {
    *
    * {{{
    * // decorrelated jitter — sleep = min(cap, random_between(base, previous_sleep * 3))
-   * CatsRetryPolicies.statefulCustom(initial = 100L) { (previousDelay, attempt) =>
+   * CERetryPolicies.statefulCustom[IO](initial = 100L) { (previousDelay, attempt) =>
    *   if (attempt >= 8) (previousDelay, None)
    *   else {
    *     val next = math.min(20000L, 100L + scala.util.Random.between(0L, previousDelay * 3 - 100L + 1))
@@ -45,14 +46,14 @@ object CatsRetryPolicies {
    * }
    * }}}
    */
-  def statefulCustom[S](
+  def statefulCustom[F[_], S](
     initial: S
-  )(next: (S, Int) => (S, Option[FiniteDuration])): EffectfulRetryPolicy[IO] =
-    new EffectfulRetryPolicy[IO] {
-      def newAttempt(): IO[EffectfulRetryPolicy.Attempt[IO]] =
-        Ref.of[IO, S](initial).map { stateRef =>
-          new EffectfulRetryPolicy.Attempt[IO] {
-            def nextDelay(attempt: Int): IO[Option[FiniteDuration]] =
+  )(next: (S, Int) => (S, Option[FiniteDuration]))(implicit F: Async[F]): EffectfulRetryPolicy[F] =
+    new EffectfulRetryPolicy[F] {
+      def newAttempt(): F[EffectfulRetryPolicy.Attempt[F]] =
+        F.map(Ref.of[F, S](initial)) { stateRef =>
+          new EffectfulRetryPolicy.Attempt[F] {
+            def nextDelay(attempt: Int): F[Option[FiniteDuration]] =
               stateRef.modify(s => next(s, attempt))
           }
         }
@@ -64,17 +65,17 @@ object CatsRetryPolicies {
    * the wrapping `Attempt` is built once here (not per `newAttempt()` call) and shared, since
    * it carries no per-execution state of its own to isolate.
    */
-  def fullJitter(
+  def fullJitter[F[_]](
     maxRetries: Int = 7,
     baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
     maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
-  ): EffectfulRetryPolicy[IO] = {
+  )(implicit F: Async[F]): EffectfulRetryPolicy[F] = {
     val pureAttempt   = RetryPolicy.fullJitter(maxRetries, baseDelay, maxDelay).newAttempt()
-    val cachedAttempt = new EffectfulRetryPolicy.Attempt[IO] {
-      def nextDelay(attempt: Int): IO[Option[FiniteDuration]] = IO.delay(pureAttempt.nextDelay(attempt))
+    val cachedAttempt = new EffectfulRetryPolicy.Attempt[F] {
+      def nextDelay(attempt: Int): F[Option[FiniteDuration]] = F.delay(pureAttempt.nextDelay(attempt))
     }
-    new EffectfulRetryPolicy[IO] {
-      def newAttempt(): IO[EffectfulRetryPolicy.Attempt[IO]] = IO.pure(cachedAttempt)
+    new EffectfulRetryPolicy[F] {
+      def newAttempt(): F[EffectfulRetryPolicy.Attempt[F]] = F.pure(cachedAttempt)
     }
   }
 }

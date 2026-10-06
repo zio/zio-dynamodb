@@ -107,7 +107,7 @@ class CEDynamoDBSpec extends CatsEffectSuite {
 
   test("getItem returns None for a missing key") {
     val client = clientFixture()
-    val interp = CEInterpreter.fromAsyncClient(client)
+    val interp = CEInterpreter.fromAsyncClient[IO](client)
     tableResource(client).use { table =>
       interp.run(DynamoDBQuery.getItem(table, PrimaryKey("id" -> "missing"))).map { result =>
         assert(result.isEmpty)
@@ -117,7 +117,7 @@ class CEDynamoDBSpec extends CatsEffectSuite {
 
   test("putItem then getItem roundtrip") {
     val client = clientFixture()
-    val interp = CEInterpreter.fromAsyncClient(client)
+    val interp = CEInterpreter.fromAsyncClient[IO](client)
     tableResource(client).use { table =>
       for {
         _      <- interp.run(DynamoDBQuery.putItem(table, Item("id" -> "alice", "score" -> 42)))
@@ -131,7 +131,7 @@ class CEDynamoDBSpec extends CatsEffectSuite {
 
   test("putItem overwrites an existing item") {
     val client = clientFixture()
-    val interp = CEInterpreter.fromAsyncClient(client)
+    val interp = CEInterpreter.fromAsyncClient[IO](client)
     tableResource(client).use { table =>
       for {
         _      <- interp.run(DynamoDBQuery.putItem(table, Item("id" -> "bob", "v" -> "first")))
@@ -143,7 +143,7 @@ class CEDynamoDBSpec extends CatsEffectSuite {
 
   test("deleteItem removes an item") {
     val client = clientFixture()
-    val interp = CEInterpreter.fromAsyncClient(client)
+    val interp = CEInterpreter.fromAsyncClient[IO](client)
     tableResource(client).use { table =>
       for {
         _      <- interp.run(DynamoDBQuery.putItem(table, Item("id" -> "charlie")))
@@ -155,7 +155,7 @@ class CEDynamoDBSpec extends CatsEffectSuite {
 
   test("scan returns items up to the limit") {
     val client = clientFixture()
-    val interp = CEInterpreter.fromAsyncClient(client)
+    val interp = CEInterpreter.fromAsyncClient[IO](client)
     tableResource(client).use { table =>
       for {
         _    <- interp.run(DynamoDBQuery.putItem(table, Item("id" -> "a")))
@@ -167,7 +167,7 @@ class CEDynamoDBSpec extends CatsEffectSuite {
 
   test("createTable/describeTable/deleteTable lifecycle") {
     val client    = clientFixture()
-    val interp    = CEInterpreter.fromAsyncClient(client)
+    val interp    = CEInterpreter.fromAsyncClient[IO](client)
     val tableName = s"lifecycle-${UUID.randomUUID()}"
     for {
       _    <- interp.run(
@@ -182,7 +182,7 @@ class CEDynamoDBSpec extends CatsEffectSuite {
 
   test("zipped getItem calls execute independently") {
     val client = clientFixture()
-    val interp = CEInterpreter.fromAsyncClient(client)
+    val interp = CEInterpreter.fromAsyncClient[IO](client)
     tableResource(client).use { table =>
       val q = DynamoDBQuery.getItem(table, PrimaryKey("id" -> "x")) zipPar
         DynamoDBQuery.getItem(table, PrimaryKey("id" -> "y"))
@@ -202,26 +202,26 @@ class CEDynamoDBSpec extends CatsEffectSuite {
   // dedicated retry spec (unlike zio's RetrySpec.scala).
   test("sleep completes after the given duration without blocking") {
     val client = clientFixture()
-    val interp = CEInterpreter.fromAsyncClient(client)
+    val interp = CEInterpreter.fromAsyncClient[IO](client)
     interp.sleep(scala.concurrent.duration.Duration.Zero)
   }
 
   test("attempt wraps a successful IO in Right") {
     val client = clientFixture()
-    val interp = CEInterpreter.fromAsyncClient(client)
+    val interp = CEInterpreter.fromAsyncClient[IO](client)
     interp.attempt(IO.pure(42)).map(r => assertEquals(r, Right(42)))
   }
 
   test("attempt wraps a failed IO in Left") {
     val client = clientFixture()
-    val interp = CEInterpreter.fromAsyncClient(client)
+    val interp = CEInterpreter.fromAsyncClient[IO](client)
     val boom   = new RuntimeException("boom")
     interp.attempt(IO.raiseError(boom)).map(r => assertEquals(r, Left(boom)))
   }
 
   test("raiseError produces a failed IO with the given throwable") {
     val client = clientFixture()
-    val interp = CEInterpreter.fromAsyncClient(client)
+    val interp = CEInterpreter.fromAsyncClient[IO](client)
     val boom   = new RuntimeException("boom")
     interp.raiseError[Int](boom).attempt.map(r => assertEquals(r, Left(boom)))
   }

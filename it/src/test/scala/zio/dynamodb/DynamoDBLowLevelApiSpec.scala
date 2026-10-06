@@ -16,6 +16,7 @@
 
 package zio.dynamodb
 
+import cats.effect.IO
 import cats.effect.unsafe.implicits.{ global => ceRuntime }
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import zio._
@@ -27,7 +28,7 @@ import zio.test.TestAspect
 object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
 
   // Bridges a CE interpreter into Task so the same test suite can run it.
-  private def ceBridge(ceInterp: CEInterpreter): Interpreter[Task] =
+  private def ceBridge(ceInterp: CEInterpreter[IO]): Interpreter[Task] =
     new Interpreter[Task] {
       def run[A](q: DynamoDBQuery[_, A]): Task[A] =
         ZIO.fromFuture(_ => ceInterp.run(q).unsafeToFuture()(ceRuntime))
@@ -50,7 +51,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
   private val ceEnvLayer: URLayer[DynamoDbAsyncClient, DynamoDBEnv] =
     ZLayer(
       ZIO.serviceWith[DynamoDbAsyncClient](client =>
-        DynamoDBEnv(client, ceBridge(CEInterpreter.fromAsyncClient(client)))
+        DynamoDBEnv(client, ceBridge(CEInterpreter.fromAsyncClient[IO](client)))
       )
     )
 

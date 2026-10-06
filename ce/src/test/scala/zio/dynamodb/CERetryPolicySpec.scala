@@ -74,8 +74,8 @@ class CERetryPolicySpec extends CatsEffectSuite {
       protected def runTransactWriteItems(q: DynamoDBQuery.TransactWriteItems): IO[Unit]                          = IO.unit
     }
 
-  test("CatsRetryPolicies.statefulCustom scopes state per newAttempt() call") {
-    val policy = CatsRetryPolicies.statefulCustom(initial = 0) { (count, _) =>
+  test("CERetryPolicies.statefulCustom scopes state per newAttempt() call") {
+    val policy = CERetryPolicies.statefulCustom[IO, Int](initial = 0) { (count, _) =>
       val next = count + 1
       (next, Some(FiniteDuration(next.toLong, "milliseconds")))
     }
@@ -92,8 +92,8 @@ class CERetryPolicySpec extends CatsEffectSuite {
     }
   }
 
-  test("CatsRetryPolicies.fullJitter stops after maxRetries and stays within [0, cap]") {
-    val policy = CatsRetryPolicies.fullJitter(
+  test("CERetryPolicies.fullJitter stops after maxRetries and stays within [0, cap]") {
+    val policy = CERetryPolicies.fullJitter[IO](
       maxRetries = 3,
       baseDelay = FiniteDuration(50, "milliseconds"),
       maxDelay = FiniteDuration(5, "seconds")
@@ -111,7 +111,7 @@ class CERetryPolicySpec extends CatsEffectSuite {
   }
 
   test("getItem falls back to defaultRetryPolicy when it has no retryPolicy of its own") {
-    val decorrelatedJitter = CatsRetryPolicies.statefulCustom(initial = 100L) { (previousDelay, attempt) =>
+    val decorrelatedJitter = CERetryPolicies.statefulCustom[IO, Long](initial = 100L) { (previousDelay, attempt) =>
       if (attempt >= 3) (previousDelay, None)
       else (previousDelay, Some(FiniteDuration(1, "milliseconds"))) // short, deterministic delay for the test
     }
@@ -134,7 +134,7 @@ class CERetryPolicySpec extends CatsEffectSuite {
 
   test("a query's own retryPolicy takes precedence over defaultRetryPolicy") {
     val alwaysRetries =
-      CatsRetryPolicies.statefulCustom(initial = ())((_, _) => ((), Some(FiniteDuration(1, "milliseconds"))))
+      CERetryPolicies.statefulCustom[IO, Unit](initial = ())((_, _) => ((), Some(FiniteDuration(1, "milliseconds"))))
     for {
       calls  <- Ref.of[IO, Int](0)
       interp = makeInterp(
@@ -157,7 +157,7 @@ class CERetryPolicySpec extends CatsEffectSuite {
       interp = makeInterp(
                  getItemEffect = calls.updateAndGet(_ + 1) *>
                    IO.raiseError(new RuntimeException("ProvisionedThroughputExceededException")),
-                 retryQuotaParam = Some(CERetryQuota.standard(capacity = 0))
+                 retryQuotaParam = Some(CERetryQuota.standard[IO](capacity = 0))
                )
       query =
         DynamoDBQuery
@@ -183,7 +183,7 @@ class CERetryPolicySpec extends CatsEffectSuite {
                  },
                  // exactly one throttling retry's cost — the second query only succeeds if the
                  // first query's successful retry credited its 5 tokens back.
-                 retryQuotaParam = Some(CERetryQuota.standard(capacity = 5))
+                 retryQuotaParam = Some(CERetryQuota.standard[IO](capacity = 5))
                )
       query =
         DynamoDBQuery
@@ -208,7 +208,7 @@ class CERetryPolicySpec extends CatsEffectSuite {
       interp = makeInterp(
                  getItemEffect = calls.updateAndGet(_ + 1) *>
                    IO.raiseError(new RuntimeException("ProvisionedThroughputExceededException")),
-                 retryQuotaParam = Some(CERetryQuota.standard(capacity = 5))
+                 retryQuotaParam = Some(CERetryQuota.standard[IO](capacity = 5))
                )
       query =
         DynamoDBQuery
@@ -220,7 +220,7 @@ class CERetryPolicySpec extends CatsEffectSuite {
   }
 
   test("a clean (no-retry) success credits exactly 1 token — wired through from a real query") {
-    val quota = CERetryQuota.standard(capacity = 5)
+    val quota = CERetryQuota.standard[IO](capacity = 5)
     for {
       // Drain the quota to 0 permanently: one throttling retry (cost 5), then a second,
       // non-retryable failure — the spend is never credited back, since only success credits.
@@ -253,7 +253,7 @@ class CERetryPolicySpec extends CatsEffectSuite {
   }
 
   test("credit never pushes the quota's balance above its original capacity") {
-    val quota = CERetryQuota.standard(capacity = 5)
+    val quota = CERetryQuota.standard[IO](capacity = 5)
     for {
       _      <- quota.credit(1000) // nothing was ever spent; should clamp at capacity
       first  <- quota.tryConsume(5)

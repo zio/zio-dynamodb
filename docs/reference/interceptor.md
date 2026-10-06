@@ -43,10 +43,11 @@ val interp: ZioInterpreter =
 ```
 
 `CEInterpreter.fromAsyncClient`/`FutureInterpreter.fromAsyncClient` take the same
-`InterceptorConfig`, typed to their own effect (`InterceptorConfig[cats.effect.IO]`/
-`InterceptorConfig[scala.concurrent.Future]`). Omitting `interceptors` entirely (it defaults to
-`InterceptorConfig()`, every field `None`) runs with none attached — no overhead, no metadata
-collection.
+`InterceptorConfig`, typed to their own effect — `InterceptorConfig[F]` for whichever
+`F[_]: cats.effect.Async` you picked for `CEInterpreter.fromAsyncClient[F]`, or
+`InterceptorConfig[scala.concurrent.Future]` for `FutureInterpreter`. Omitting `interceptors`
+entirely (it defaults to `InterceptorConfig()`, every field `None`) runs with none attached —
+no overhead, no metadata collection.
 
 Under the hood, attaching a `response` interceptor also switches on `ReturnConsumedCapacity.TOTAL`
 (and `ReturnItemCollectionMetrics.SIZE` for writes) on every request automatically — you don't

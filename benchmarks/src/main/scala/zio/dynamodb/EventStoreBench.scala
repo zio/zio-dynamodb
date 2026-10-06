@@ -77,7 +77,7 @@ class EventStoreBench extends BaseBenchmark {
 
   // ── blocks-dynamodb ──────────────────────────────────────────────────────
 
-  private var interpreter: CEInterpreter = _
+  private var interpreter: CEInterpreter[IO] = _
 
   private object EventRecordOps extends CompanionOptics[EventStoreRecord] {
     val id = $(_.id)
@@ -119,7 +119,7 @@ class EventStoreBench extends BaseBenchmark {
       def transactGetItems(req: TransactGetItemsRequest): IO[TransactGetItemsResponse]       = unsupported
       def transactWriteItems(req: TransactWriteItemsRequest): IO[TransactWriteItemsResponse] = unsupported
     }
-    interpreter = new CEInterpreter(stubDynamo)
+    interpreter = new CEInterpreter[IO](stubDynamo)
 
     // ── Scanamo stub ──────────────────────────────────────────────────────
 

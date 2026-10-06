@@ -216,7 +216,7 @@ val custom: RetryPolicy =
 | Module | `F` | Constructors | State primitive |
 |---|---|---|---|
 | `zio` | `Task` | `ZioRetryPolicies.fullJitter(...)`, `.statefulCustom(...)`, `.fromSchedule(schedule)` | none for `fullJitter`; `Ref` otherwise |
-| `ce` | `IO` | `CatsRetryPolicies.fullJitter(...)`, `.statefulCustom(initial)(next)` | none for `fullJitter`; `Ref` otherwise |
+| `ce` | any `F[_]: cats.effect.Async` | `CERetryPolicies.fullJitter[F](...)`, `.statefulCustom[F, S](initial)(next)` | none for `fullJitter`; `Ref` otherwise |
 | `future` | `Future` | `FutureRetryPolicies.fullJitter(...)`, `.statefulCustom(initial)(next)` | none for `fullJitter`; a `var` otherwise (`Future` has no `Ref`/STM equivalent) |
 
 `ZioRetryPolicies.fromSchedule` is ZIO's standout option — it wraps a real `zio.Schedule` value
