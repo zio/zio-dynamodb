@@ -135,9 +135,6 @@ object AwsSdkDefaultRetryBehaviorSpec extends ZIOSpecDefault {
         // clients use a default maximum retry count of 8 for all retry strategies" — retry
         // *count*, not total attempts: 8 retries, 9 total attempts (confirmed by two
         // independent metrics within the same call, both asserted here and above).
-        // docs/reference/retries.md and docs2/retry_policy_custom_delay_curve.md previously
-        // read this sentence as "8 total attempts (1 initial + 7 retries)" — a misreading this
-        // test corrects.
         publisher.retryCount.contains(8),
         publisher.attemptCount.contains(9)
       )
