@@ -403,6 +403,27 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
       )
     else None
 
+  // Returns Some(accumulated DecodingError) if any write item contains a Failure CE, or (for
+  // an UpdateItem) a Failure node in its update action — the same two checks a standalone
+  // updateItem gets from validateAction/validateCE in the UpdateItem case below. Without the
+  // action check, a transactional update whose action is Action.Failure (e.g. an HL `update`
+  // value built from an unrepresentable optic path) would reach toAwsTransactWriteItem and
+  // render as an empty or partially filtered update instead of failing before any AWS call.
+  private def validateTransactWriteItemsFailures(
+    items: Chunk[DynamoDBQuery[Any, Any]]
+  ): Option[DynamoDBError] = {
+    val errors: List[String] = items.toList.flatMap {
+      case p: DynamoDBQuery.PutItem        => ConditionExpression.collectFailures(p.conditionExpression)
+      case u: DynamoDBQuery.UpdateItem     =>
+        UpdateExpression.collectFailures(u.updateExpression.action) ++
+          ConditionExpression.collectFailures(u.conditionExpression)
+      case d: DynamoDBQuery.DeleteItem     => ConditionExpression.collectFailures(d.conditionExpression)
+      case c: DynamoDBQuery.ConditionCheck => ConditionExpression.collectFailures(c.conditionExpression)
+      case _                               => Nil
+    }
+    accumulateErrors(errors)
+  }
+
   // Returns Some(error) if any item is not a valid transact write operation.
   private def validateTransactWriteItems(
     items: Chunk[DynamoDBQuery[Any, Any]]
@@ -428,6 +449,17 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   // a no-op F[Unit] when no RetryInterceptor is attached, so callers never branch on it.
   private def onRetryFor(meta: DynamoDBRetryMetadata): (Throwable, Int) => F[Unit] =
     (t, n) => retryInterceptor.fold(pure(()))(_.onRetry(meta, t, n))
+
+  // Unwraps a High-Level write value to its leaf (PutItem/UpdateItem/DeleteItem/ConditionCheck);
+  // a Fail short-circuits as the error.
+  @scala.annotation.tailrec
+  private def unwrapMappedWriteItem(q: DynamoDBQuery[Any, Any]): Either[DynamoDBError, DynamoDBQuery[Any, Any]] =
+    q match {
+      case DynamoDBQuery.Map(inner, _)  => unwrapMappedWriteItem(inner.asInstanceOf[DynamoDBQuery[Any, Any]])
+      case DynamoDBQuery.Absolve(inner) => unwrapMappedWriteItem(inner.asInstanceOf[DynamoDBQuery[Any, Any]])
+      case f: DynamoDBQuery.Fail        => Left(f.error())
+      case other                        => Right(other)
+    }
 
   // Works on Any to sidestep Scala 2 GADT limitations; safe by construction.
   private def runAny(query: DynamoDBQuery[_, _]): F[Any] =
@@ -482,9 +514,17 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
           runTransactGetItems(q).asInstanceOf[F[Any]]
         )(err => fail(err))
       case q: DynamoDBQuery.TransactWriteItems =>
-        validateTransactionSize(q.writeItems.length)
-          .orElse(validateTransactWriteItems(q.writeItems))
-          .fold(runTransactWriteItems(q).asInstanceOf[F[Any]])(err => fail(err))
+        q.writeItems.foldLeft[Either[DynamoDBError, Chunk[DynamoDBQuery[Any, Any]]]](Right(Chunk.empty)) { (acc, item) =>
+          acc.flatMap(leaves => unwrapMappedWriteItem(item).map(leaves :+ _))
+        } match {
+          case Left(err)     => fail(err)
+          case Right(leaves) =>
+            val unwrapped = q.copy(writeItems = leaves)
+            validateTransactionSize(unwrapped.writeItems.length)
+              .orElse(validateTransactWriteItems(unwrapped.writeItems))
+              .orElse(validateTransactWriteItemsFailures(unwrapped.writeItems))
+              .fold(runTransactWriteItems(unwrapped).asInstanceOf[F[Any]])(err => fail(err))
+        }
       case _: DynamoDBQuery.ConditionCheck     =>
         // ConditionCheck is only valid inside TransactWriteItems, never as a standalone query.
         fail(
