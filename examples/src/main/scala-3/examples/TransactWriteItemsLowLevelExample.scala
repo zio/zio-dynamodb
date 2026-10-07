@@ -45,11 +45,16 @@ object TransactWriteItemsLowLevelExample extends ZIOAppDefault {
       for {
         _ <- DynamoDBQuery.putItem("accounts", Item("id" -> "checking", "balance" -> 500, "status" -> "open")).execute
         _ <- DynamoDBQuery.putItem("accounts", Item("id" -> "savings", "balance" -> 0, "status" -> "open")).execute
+        _ <- DynamoDBQuery.putItem("accounts", Item("id" -> "escrow", "balance" -> 0, "status" -> "open")).execute
 
-        // One atomic transaction, entirely from Low-Level constructors.
+        // One atomic transaction, entirely from Low-Level constructors. DynamoDB rejects a
+        // transaction where two actions target the same item (e.g. a conditionCheck and an
+        // update on the same account) — conditionCheck guards a different item here (escrow)
+        // than the ones being written; a condition on an item you ARE writing belongs on that
+        // same action instead, via its own `conditionExpression` parameter.
         _ <- DynamoDBQuery
                .transactWriteItems(
-                 DynamoDBQuery.conditionCheck("accounts", PrimaryKey("id" -> "checking"))($("status") === "open"),
+                 DynamoDBQuery.conditionCheck("accounts", PrimaryKey("id" -> "escrow"))($("status") === "open"),
                  DynamoDBQuery.updateItem("accounts", PrimaryKey("id" -> "checking"))($("balance").set(400)),
                  DynamoDBQuery.updateItem("accounts", PrimaryKey("id" -> "savings"))($("balance").set(100)),
                  DynamoDBQuery.deleteItem("accounts", PrimaryKey("id" -> "stale"))

@@ -57,11 +57,16 @@ object TransactWriteItemsExample extends ZIOAppDefault {
       for {
         _ <- put(accounts, Account("checking", 500, "open")).execute
         _ <- put(accounts, Account("savings", 0, "open")).execute
+        _ <- put(accounts, Account("escrow", 0, "open")).execute
 
-        // One atomic transaction, entirely from High-Level values.
+        // One atomic transaction, entirely from High-Level values. DynamoDB rejects a
+        // transaction where two actions target the same item (e.g. a conditionCheck and an
+        // update on the same account) — conditionCheck guards a different item here (escrow)
+        // than the ones being written; a condition on an item you ARE writing belongs on that
+        // same action instead, via `.where(...)`.
         _ <- DynamoDBQuery
                .transactWriteItems(
-                 conditionCheck(accounts)(Account.id.partitionKey === "checking")(Account.status === "open"),
+                 conditionCheck(accounts)(Account.id.partitionKey === "escrow")(Account.status === "open"),
                  update(accounts)(Account.id.partitionKey === "checking")(Account.balance.set(400)),
                  update(accounts)(Account.id.partitionKey === "savings")(Account.balance.set(100)),
                  deleteFrom(accounts)(Account.id.partitionKey === "stale")
