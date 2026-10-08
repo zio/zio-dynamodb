@@ -18,8 +18,10 @@ package zio.dynamodb
 
 import com.sun.net.httpserver.{ HttpExchange, HttpHandler, HttpServer }
 import software.amazon.awssdk.auth.credentials.{ AwsBasicCredentials, StaticCredentialsProvider }
+import software.amazon.awssdk.awscore.retry.AwsRetryStrategy
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration
 import software.amazon.awssdk.core.metrics.CoreMetric
+import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient
 import software.amazon.awssdk.metrics.{ MetricCollection, MetricPublisher }
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
@@ -28,6 +30,7 @@ import zio._
 import zio.test._
 
 import java.net.{ InetSocketAddress, ServerSocket, URI }
+import java.time.Duration
 import java.util.concurrent.atomic.AtomicReference
 import scala.jdk.CollectionConverters._
 
@@ -75,13 +78,33 @@ object AwsSdkDefaultRetryBehaviorSpec extends ZIOSpecDefault {
       lastCollection.get().map(_.children().size())
   }
 
+  // DynamoDB clients resolve their default RetryStrategy with a maxAttempts(9) override (9
+  // total attempts, i.e. 8 retries) layered on top of whichever retry mode is active. Two
+  // defaults get in the way of measuring that ceiling deterministically inside a JVM that's
+  // also running many other tests concurrently: the base strategy's circuit breaker is a token
+  // bucket shared by every client that doesn't configure its own RetryStrategy, so unrelated
+  // concurrent SDK activity elsewhere in the process can spend its budget; and the default
+  // Netty HTTP client's connection-acquisition timeout (a couple of seconds) can trip under
+  // ordinary CPU scheduling contention from everything else running at the same time, failing
+  // the call before a single attempt is even made. Reproducing the maxAttempts(9) ceiling with
+  // the circuit breaker turned off, on a dedicated Netty client with a generous acquisition
+  // timeout, keeps the measurement attributable only to this one call.
   private def clientWith(endpoint: URI, publisher: MetricPublisher): DynamoDbAsyncClient =
     DynamoDbAsyncClient
       .builder()
       .endpointOverride(endpoint)
       .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("dummy", "dummy")))
       .region(Region.US_EAST_1)
-      .overrideConfiguration(ClientOverrideConfiguration.builder().addMetricPublisher(publisher).build())
+      .httpClient(NettyNioAsyncHttpClient.builder().connectionAcquisitionTimeout(Duration.ofSeconds(30)).build())
+      .overrideConfiguration(
+        ClientOverrideConfiguration
+          .builder()
+          .addMetricPublisher(publisher)
+          .retryStrategy(
+            AwsRetryStrategy.standardRetryStrategy().toBuilder().maxAttempts(9).circuitBreakerEnabled(false).build()
+          )
+          .build()
+      )
       .build()
 
   // A real local HTTP server that always responds 500 — an actual HTTP-level failure, as
