@@ -26,7 +26,7 @@ SDK-level equivalent to conflict with in the first place.
 |---|---|---|---|
 | Off | On | one coordinated retry cycle, `retryQuota` as the circuit breaker | **Recommended** — full control; see [below](#recommended-disable-the-sdk-clients-own-retries-then-attach-one-here) |
 | On | Off | the SDK's own retry cycle, zero config, invisible to `RetryInterceptor` | Acceptable default — fine until you need retry observability or a custom curve |
-| On | On | two uncoordinated retry cycles stacked on the same failure, up to 8× the attempts either layer's `maxRetries` suggests | Avoid |
+| On | On | two uncoordinated retry cycles stacked on the same failure, up to 9× the attempts either layer's `maxRetries` suggests | Avoid |
 | Off | Off | no retries at all | Only if something upstream of zio-dynamodb already retries |
 
 The main reason to pick `Off`/`On` over the zero-config default: `RetryInterceptor` only ever
