@@ -149,6 +149,11 @@ object RetryPolicySpec extends ZIOSpecDefault {
         (0 until 3).foreach(attempt.nextDelay)
         assertTrue(attempt.nextDelay(3).isEmpty)
       },
+      test("default maxRetries is 8 — matches DynamoDB's own default retry count") {
+        val attempt = RetryPolicy.fullJitter().newAttempt()
+        (0 until 8).foreach(attempt.nextDelay)
+        assertTrue(attempt.nextDelay(8).isEmpty)
+      },
       test("does not crash when maxDelay is below baseDelay") {
         val attempt =
           RetryPolicy.fullJitter(maxRetries = 5, baseDelay = 100.millis, maxDelay = 10.millis).newAttempt()

@@ -86,9 +86,10 @@ lazy val aws = (project in file("aws"))
     crossScalaVersions := Seq(scala3Version, scala213Version, scala39Version),
     crossPublishName,
     libraryDependencies ++= Seq(
-      "software.amazon.awssdk" % "dynamodb"     % awsSdkVersion,
-      "dev.zio"               %% "zio-test"     % zioVersion % Test,
-      "dev.zio"               %% "zio-test-sbt" % zioVersion % Test
+      "software.amazon.awssdk" % "dynamodb"         % awsSdkVersion,
+      "software.amazon.awssdk" % "netty-nio-client" % awsSdkVersion % Test,
+      "dev.zio"               %% "zio-test"         % zioVersion    % Test,
+      "dev.zio"               %% "zio-test-sbt"     % zioVersion    % Test
     ),
     testFrameworks     := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   )
