@@ -248,6 +248,9 @@ private[dynamodb] object AwsCodecs {
     b.returnConsumedCapacity(toAwsReturnConsumedCapacity(q.capacity))
     b.returnValues(toAwsReturnValue(q.returnValues))
     b.returnItemCollectionMetrics(toAwsReturnItemCollectionMetrics(q.itemMetrics))
+    q.returnValuesOnConditionCheckFailure.foreach(rv =>
+      b.returnValuesOnConditionCheckFailure(toAwsReturnValuesOnConditionCheckFailure(rv))
+    )
     b.build()
   }
 
@@ -278,6 +281,9 @@ private[dynamodb] object AwsCodecs {
     b.returnConsumedCapacity(toAwsReturnConsumedCapacity(q.capacity))
     b.returnValues(toAwsReturnValue(q.returnValues))
     b.returnItemCollectionMetrics(toAwsReturnItemCollectionMetrics(q.itemMetrics))
+    q.returnValuesOnConditionCheckFailure.foreach(rv =>
+      b.returnValuesOnConditionCheckFailure(toAwsReturnValuesOnConditionCheckFailure(rv))
+    )
     b.build()
   }
 
@@ -299,6 +305,9 @@ private[dynamodb] object AwsCodecs {
     b.returnConsumedCapacity(toAwsReturnConsumedCapacity(q.capacity))
     b.returnValues(toAwsReturnValue(q.returnValues))
     b.returnItemCollectionMetrics(toAwsReturnItemCollectionMetrics(q.itemMetrics))
+    q.returnValuesOnConditionCheckFailure.foreach(rv =>
+      b.returnValuesOnConditionCheckFailure(toAwsReturnValuesOnConditionCheckFailure(rv))
+    )
     b.build()
   }
 

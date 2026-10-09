@@ -128,6 +128,11 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
         )
     }
 
+  /**
+   * Applies to any write with a `.where` condition — standalone `putItem`/`updateItem`/
+   * `deleteItem` as well as actions inside `transactWriteItems` — and to `conditionCheck`, not
+   * only the latter. With `AllOld`, a failed condition returns the item as it was.
+   */
   final def returnValuesOnConditionCheckFailure(
     rv: ReturnValuesOnConditionCheckFailure
   ): DynamoDBQuery[In, Out] =
