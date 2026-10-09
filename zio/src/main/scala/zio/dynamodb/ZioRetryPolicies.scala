@@ -59,7 +59,7 @@ object ZioRetryPolicies {
    * it carries no per-execution state of its own to isolate.
    */
   def fullJitter(
-    maxRetries: Int = 7,
+    maxRetries: Int = 8,
     baseDelay: FiniteDuration = FiniteDuration(100, "milliseconds"),
     maxDelay: FiniteDuration = FiniteDuration(20, "seconds")
   ): EffectfulRetryPolicy[Task] = {

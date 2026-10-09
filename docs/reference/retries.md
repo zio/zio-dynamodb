@@ -60,10 +60,11 @@ instead — see [below](#why-split-them-only-one-loop-is-safe-to-double-up-with-
 
 Running both layers at once double-retries: `withRetry`'s loop only ever sees the SDK client's
 *final* outcome after the SDK's own internal retry cycle has already run, so a still-retryable
-error triggers a second, uncoordinated retry cycle on top of the first — up to 8× more real
-attempts than either layer's own `maxRetries` suggests (DynamoDB clients default to 8 max
-attempts per call, higher than other AWS service clients), and it drains the SDK's own
-client-scoped retry-quota circuit breaker faster than intended. Pick one layer, not both:
+error triggers a second, uncoordinated retry cycle on top of the first — up to 9× more real
+attempts than either layer's own `maxRetries` suggests (DynamoDB clients default to a retry
+count of 8, i.e. 9 total attempts per call, higher than other AWS service clients), and it
+drains the SDK's own client-scoped retry-quota circuit breaker faster than intended. Pick one
+layer, not both:
 
 ```scala mdoc:compile-only
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
