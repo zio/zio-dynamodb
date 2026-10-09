@@ -17,6 +17,7 @@
 package zio.dynamodb
 
 import software.amazon.awssdk.awscore.exception.AwsServiceException
+import software.amazon.awssdk.core.exception.{ NonRetryableException, SdkClientException }
 import software.amazon.awssdk.core.SdkBytes
 import software.amazon.awssdk.services.dynamodb.model.{
   AttributeDefinition => AwsAttributeDefinition,
@@ -831,14 +832,24 @@ abstract class RealAwsInterpreter[F[_]](client: AwsDynamoDB[F]) extends AwsInter
    * codes (`ProvisionedThroughputExceededException`, `ThrottlingException`,
    * `RequestLimitExceeded`, ...) from the service's own structured response rather than the
    * exception message text; a 5xx status code covers transient server-side failures
-   * (`ServiceUnavailable` and siblings). Falls back to the default for anything that isn't an
-   * `AwsServiceException`.
+   * (`ServiceUnavailable` and siblings).
+   *
+   * `SdkClientException` covers a call that never reached the service at all — a connection
+   * reset, a timeout, a DNS failure. These are always worth retrying, so they're classified here
+   * directly rather than left to fall through to the message-substring default.
+   * `NonRetryableException` is a `SdkClientException` subtype that exists specifically to mark a
+   * client-side failure as deliberately not worth retrying (e.g. a request that's invalid
+   * regardless of how many times it's sent) — checked first so it isn't swept up into the
+   * broader `SdkClientException` case below. Falls back to the message-substring default for
+   * anything that's neither an `AwsServiceException` nor an `SdkClientException`.
    */
   private val retryableStatusCodes: Set[Int] = Set(500, 502, 503, 504)
 
   override protected def isRetryable: Throwable => Boolean = {
-    case e: AwsServiceException => e.isThrottlingException || retryableStatusCodes.contains(e.statusCode())
-    case t                      => RetryPolicy.isRetryable(t)
+    case e: AwsServiceException   => e.isThrottlingException || retryableStatusCodes.contains(e.statusCode())
+    case _: NonRetryableException => false
+    case _: SdkClientException    => true
+    case t                        => RetryPolicy.isRetryable(t)
   }
 
   /**
@@ -894,59 +905,3 @@ abstract class RealAwsInterpreter[F[_]](client: AwsDynamoDB[F]) extends AwsInter
       case Left(t)                               => raiseError(t)
     }
 }
-
-// -- ZIO interpreter (outline — commented out) ---------------------------
-// Add to build.sbt: "dev.zio" %% "zio" % zioVersion
-//
-// import zio._
-// import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
-//
-// class ZioInterpreter(sdkClient: DynamoDbAsyncClient)
-//     extends RealAwsInterpreter[Task](new AwsDynamoDB[Task] {
-//       def getItem(req: GetItemRequest): Task[GetItemResponse] =
-//         ZIO.fromCompletableFuture(sdkClient.getItem(req))
-//       def putItem(req: PutItemRequest): Task[PutItemResponse] =
-//         ZIO.fromCompletableFuture(sdkClient.putItem(req))
-//       def updateItem(req: UpdateItemRequest): Task[UpdateItemResponse] =
-//         ZIO.fromCompletableFuture(sdkClient.updateItem(req))
-//       def query(req: QueryRequest): Task[QueryResponse] =
-//         ZIO.fromCompletableFuture(sdkClient.query(req))
-//       def queryAll(req: QueryRequest): Task[QueryResponse] =
-//         ZIO.fromCompletableFuture(sdkClient.query(req))
-//     }) {
-//
-//   protected def pure[A](a: A): Task[A]                               = ZIO.succeed(a)
-//   protected def map[A, B](fa: Task[A])(f: A => B): Task[B]           = fa.map(f)
-//   protected def product[A, B](fa: Task[A], fb: Task[B]): Task[(A, B)] = fa.zip(fb)
-//   protected def fail[A](e: DynamoDBError): Task[A]                   = ZIO.fail(new RuntimeException(e.toString))
-//   protected def absolve[A](fa: Task[Either[ItemError, A]]): Task[A]   =
-//     fa.flatMap(ZIO.fromEither(_).mapError(e => new RuntimeException(e.toString)))
-// }
-
-// -- Cats Effect interpreter (outline — commented out) -------------------
-// Add to build.sbt: "org.typelevel" %% "cats-effect" % catsEffectVersion
-//
-// import cats.effect.IO
-// import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
-//
-// class CatsInterpreter(sdkClient: DynamoDbAsyncClient)
-//     extends RealAwsInterpreter[IO](new AwsDynamoDB[IO] {
-//       def getItem(req: GetItemRequest): IO[GetItemResponse] =
-//         IO.fromCompletableFuture(IO(sdkClient.getItem(req)))
-//       def putItem(req: PutItemRequest): IO[PutItemResponse] =
-//         IO.fromCompletableFuture(IO(sdkClient.putItem(req)))
-//       def updateItem(req: UpdateItemRequest): IO[UpdateItemResponse] =
-//         IO.fromCompletableFuture(IO(sdkClient.updateItem(req)))
-//       def query(req: QueryRequest): IO[QueryResponse] =
-//         IO.fromCompletableFuture(IO(sdkClient.query(req)))
-//       def queryAll(req: QueryRequest): IO[QueryResponse] =
-//         IO.fromCompletableFuture(IO(sdkClient.query(req)))
-//     }) {
-//
-//   protected def pure[A](a: A): IO[A]                                 = IO.pure(a)
-//   protected def map[A, B](fa: IO[A])(f: A => B): IO[B]               = fa.map(f)
-//   protected def product[A, B](fa: IO[A], fb: IO[B]): IO[(A, B)]      = (fa, fb).tupled
-//   protected def fail[A](e: DynamoDBError): IO[A]                     = IO.raiseError(new RuntimeException(e.toString))
-//   protected def absolve[A](fa: IO[Either[ItemError, A]]): IO[A]       =
-//     fa.flatMap(IO.fromEither).adaptError(e => new RuntimeException(e.toString))
-// }

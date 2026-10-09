@@ -17,6 +17,7 @@
 package zio.dynamodb
 
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails
+import software.amazon.awssdk.core.exception.{ NonRetryableException, SdkClientException }
 import software.amazon.awssdk.services.dynamodb.model.{
   InternalServerErrorException,
   ProvisionedThroughputExceededException,
@@ -102,6 +103,24 @@ object RealAwsInterpreterRetrySpec extends ZIOSpecDefault {
       test("ResourceNotFoundException (a real, permanent 400) is not retryable") {
         val (details, status) = withErrorCode("ResourceNotFoundException", 400)
         val e                 = ResourceNotFoundException.builder().awsErrorDetails(details).statusCode(status).build()
+        assertTrue(!retryable(e))
+      }
+    ),
+    suite("SdkClientException — a call that never received a service response at all")(
+      test("a connection-level failure is retryable") {
+        val e = SdkClientException.create("Unable to execute HTTP request: Connection refused")
+        assertTrue(retryable(e))
+      },
+      test("an API-call-attempt-timeout failure is retryable") {
+        val e = SdkClientException.create(
+          "Unable to execute HTTP request: Acquire operation took longer than the configured maximum time"
+        )
+        assertTrue(retryable(e))
+      },
+      test(
+        "a NonRetryableException — a SdkClientException subtype explicitly marked not worth retrying — is not retryable"
+      ) {
+        val e = NonRetryableException.create("invalid request, retrying would not help")
         assertTrue(!retryable(e))
       }
     ),
