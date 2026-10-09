@@ -17,7 +17,7 @@
 package zio.dynamodb
 
 import software.amazon.awssdk.awscore.exception.AwsServiceException
-import software.amazon.awssdk.core.exception.SdkClientException
+import software.amazon.awssdk.core.exception.{ NonRetryableException, SdkClientException }
 import software.amazon.awssdk.core.SdkBytes
 import software.amazon.awssdk.services.dynamodb.model.{
   AttributeDefinition => AwsAttributeDefinition,
@@ -836,15 +836,20 @@ abstract class RealAwsInterpreter[F[_]](client: AwsDynamoDB[F]) extends AwsInter
    *
    * `SdkClientException` covers a call that never reached the service at all — a connection
    * reset, a timeout, a DNS failure. These are always worth retrying, so they're classified here
-   * directly rather than left to fall through to the message-substring default. Falls back to
-   * that default for anything that's neither an `AwsServiceException` nor an `SdkClientException`.
+   * directly rather than left to fall through to the message-substring default.
+   * `NonRetryableException` is a `SdkClientException` subtype that exists specifically to mark a
+   * client-side failure as deliberately not worth retrying (e.g. a request that's invalid
+   * regardless of how many times it's sent) — checked first so it isn't swept up into the
+   * broader `SdkClientException` case below. Falls back to the message-substring default for
+   * anything that's neither an `AwsServiceException` nor an `SdkClientException`.
    */
   private val retryableStatusCodes: Set[Int] = Set(500, 502, 503, 504)
 
   override protected def isRetryable: Throwable => Boolean = {
-    case e: AwsServiceException => e.isThrottlingException || retryableStatusCodes.contains(e.statusCode())
-    case _: SdkClientException  => true
-    case t                      => RetryPolicy.isRetryable(t)
+    case e: AwsServiceException   => e.isThrottlingException || retryableStatusCodes.contains(e.statusCode())
+    case _: NonRetryableException => false
+    case _: SdkClientException    => true
+    case t                        => RetryPolicy.isRetryable(t)
   }
 
   /**

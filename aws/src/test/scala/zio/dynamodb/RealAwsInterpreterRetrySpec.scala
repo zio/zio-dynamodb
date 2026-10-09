@@ -17,7 +17,7 @@
 package zio.dynamodb
 
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails
-import software.amazon.awssdk.core.exception.SdkClientException
+import software.amazon.awssdk.core.exception.{ NonRetryableException, SdkClientException }
 import software.amazon.awssdk.services.dynamodb.model.{
   InternalServerErrorException,
   ProvisionedThroughputExceededException,
@@ -116,6 +116,12 @@ object RealAwsInterpreterRetrySpec extends ZIOSpecDefault {
           "Unable to execute HTTP request: Acquire operation took longer than the configured maximum time"
         )
         assertTrue(retryable(e))
+      },
+      test(
+        "a NonRetryableException — a SdkClientException subtype explicitly marked not worth retrying — is not retryable"
+      ) {
+        val e = NonRetryableException.create("invalid request, retrying would not help")
+        assertTrue(!retryable(e))
       }
     ),
     suite("non-AwsServiceException — falls back to RetryPolicy.isRetryable")(
