@@ -19,6 +19,7 @@ package zio.dynamodb
 import cats.effect.IO
 import cats.effect.unsafe.implicits.{ global => ceRuntime }
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
+import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
 import zio._
 import zio.blocks.chunk.Chunk
 import zio.dynamodb.ProjectionExpression.$
@@ -37,6 +38,15 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
   // Unwraps a Batch.GetResult produced by interp.run(batchGetItemQuery) back to the raw
   // response `toGetItemResponses` expects. Tests below only exercise the happy path
   // (policy-less batches complete in one round trip), so Incomplete/Failed are unexpected.
+  private def failedWithExistingScore(score: String): Assertion[Throwable] =
+    Assertion.isSubtype[ConditionalCheckFailedException](
+      Assertion.hasField[ConditionalCheckFailedException, Option[String]](
+        "item.score",
+        e => if (e.hasItem) Option(e.item.get("score")).map(_.n) else None,
+        Assertion.isSome(Assertion.equalTo(score))
+      )
+    )
+
   private def completeResponse(r: Batch.GetResult): DynamoDBQuery.BatchGetItem.Response =
     r match {
       case Batch.GetResult.Complete(response) => response
@@ -525,6 +535,73 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
                         .either
               item <- interpreter.run(DynamoDBQuery.getItem(table, PrimaryKey("id" -> "dave")))
             } yield assertTrue(fail.isLeft && item.isDefined)
+          }
+        }
+      ),
+      suite("returnValuesOnConditionCheckFailure on single-item writes")(
+        test("putItem with AllOld returns the existing item on condition failure") {
+          withSingleIdKeyTable { (table, interpreter) =>
+            for {
+              _      <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "p", "score" -> 0)))
+              result <- interpreter
+                          .run(
+                            DynamoDBQuery
+                              .putItem(table, Item("id" -> "p", "score" -> 99))
+                              .where($("score") === 42)
+                              .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+                          )
+                          .either
+            } yield assert(result)(Assertion.isLeft(failedWithExistingScore("0")))
+          }
+        },
+        test("updateItem with AllOld returns the existing item on condition failure") {
+          withSingleIdKeyTable { (table, interpreter) =>
+            for {
+              _      <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "u", "score" -> 0)))
+              result <- interpreter
+                          .run(
+                            DynamoDBQuery
+                              .updateItem(table, PrimaryKey("id" -> "u"))($("score").set(99))
+                              .where($("score") === 42)
+                              .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+                          )
+                          .either
+            } yield assert(result)(Assertion.isLeft(failedWithExistingScore("0")))
+          }
+        },
+        test("deleteItem with AllOld returns the existing item on condition failure") {
+          withSingleIdKeyTable { (table, interpreter) =>
+            for {
+              _      <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "d", "score" -> 0)))
+              result <- interpreter
+                          .run(
+                            DynamoDBQuery
+                              .deleteItem(table, PrimaryKey("id" -> "d"))
+                              .where($("score") === 42)
+                              .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+                          )
+                          .either
+            } yield assert(result)(Assertion.isLeft(failedWithExistingScore("0")))
+          }
+        },
+        test("without AllOld, no item is returned") {
+          withSingleIdKeyTable { (table, interpreter) =>
+            for {
+              _      <- interpreter.run(DynamoDBQuery.putItem(table, Item("id" -> "n", "score" -> 0)))
+              result <- interpreter
+                          .run(
+                            DynamoDBQuery
+                              .putItem(table, Item("id" -> "n", "score" -> 99))
+                              .where($("score") === 42)
+                          )
+                          .either
+            } yield assert(result)(
+              Assertion.isLeft(
+                Assertion.isSubtype[ConditionalCheckFailedException](
+                  Assertion.hasField("hasItem", _.hasItem, Assertion.isFalse)
+                )
+              )
+            )
           }
         }
       ),
