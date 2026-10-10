@@ -30,6 +30,7 @@ import software.amazon.awssdk.services.dynamodb.model.{
   CancellationReason => AwsCancellationReason,
   Capacity => AwsCapacity,
   ConditionCheck => AwsConditionCheck,
+  ConditionalCheckFailedException,
   ConsumedCapacity => AwsConsumedCapacity,
   CreateTableRequest,
   CreateTableResponse,
@@ -867,6 +868,13 @@ abstract class RealAwsInterpreter[F[_]](client: AwsDynamoDB[F]) extends AwsInter
    * `AwsServiceException#isThrottlingException`, not message-substrings, for anything that is
    * an `AwsServiceException`. Falls back to [[RetryPolicy.retryCost]] for anything that isn't.
    */
+  override protected def asConditionFailed(t: Throwable): Option[DynamoDBError.ItemError.ConditionFailed] =
+    DynamoFailure.unwrap(t) match {
+      case e: ConditionalCheckFailedException =>
+        Some(DynamoDBError.ItemError.ConditionFailed(e.getMessage, DynamoFailure.itemOf(e)))
+      case u                                  => super.asConditionFailed(u)
+    }
+
   override protected def retryCost: Throwable => Int = t =>
     DynamoFailure.unwrap(t) match {
       case e: AwsServiceException => if (e.isThrottlingException) 5 else 14

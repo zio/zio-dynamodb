@@ -76,6 +76,21 @@ final class TypedErrorsZioInterpreter private[dynamodb] (
     else result.asInstanceOf[IO[DynamoFailure, Out]]
   }
 
+  // A top-level ConditionFailedAsLeft never builds the Either: its condition failure is already
+  // classified into DynamoFailure.ConditionFailed at the bridge. Anything composed on top of it
+  // (e.g. a .map expecting the Either) takes the general path, which flattens after the fact.
+  def runFlattened[Out](
+    query: DynamoDBQuery[_, Either[DynamoDBError.ItemError.ConditionFailed, Out]]
+  ): IO[DynamoFailure, Out] =
+    query match {
+      case c: DynamoDBQuery.ConditionFailedAsLeft[_, _] => run(c.query).asInstanceOf[IO[DynamoFailure, Out]]
+      case other                                        =>
+        run(other).flatMap {
+          case Right(a) => ZIO.succeed(a)
+          case Left(cf) => ZIO.fail(DynamoFailure.classify(cf))
+        }
+    }
+
   override protected def fail[A](e: DynamoDBError): Task[A] = ZIO.fail(DynamoFailure.classify(e))
 
   override protected def absolve[A](fa: Task[Either[ItemError, A]]): Task[A] =

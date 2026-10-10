@@ -19,6 +19,7 @@ package zio.dynamodb
 import software.amazon.awssdk.awscore.exception.AwsServiceException
 import software.amazon.awssdk.core.exception.{ NonRetryableException, SdkClientException }
 import software.amazon.awssdk.services.dynamodb.model.{
+  ConditionalCheckFailedException,
   ItemCollectionSizeLimitExceededException,
   ResourceNotFoundException,
   TransactionConflictException
@@ -37,6 +38,9 @@ sealed abstract class DynamoFailure(val cause: Throwable)
     with Serializable
 
 object DynamoFailure {
+
+  /** A write's condition evaluated to false; `item` is set when `AllOld` was requested. */
+  final case class ConditionFailed(item: Option[Item], error: Throwable) extends DynamoFailure(error)
 
   /** A failure the library already models as a typed error (e.g. a cancelled transaction). */
   final case class Library(error: DynamoDBError) extends DynamoFailure(error)
@@ -61,6 +65,9 @@ object DynamoFailure {
   private def errorCode(e: AwsServiceException): String =
     Option(e.awsErrorDetails).map(_.errorCode).orNull
 
+  private[dynamodb] def itemOf(e: ConditionalCheckFailedException): Option[Item] =
+    if (e.hasItem && !e.item.isEmpty) Some(AwsCodecs.fromAwsItem(e.item)) else None
+
   def unwrap(t: Throwable): Throwable =
     t match {
       case f: DynamoFailure => f.cause
@@ -70,6 +77,8 @@ object DynamoFailure {
   def classify(t: Throwable): DynamoFailure =
     t match {
       case f: DynamoFailure                                                             => f
+      case e: DynamoDBError.ItemError.ConditionFailed                                   => ConditionFailed(e.item, e)
+      case e: ConditionalCheckFailedException                                           => ConditionFailed(itemOf(e), e)
       case e: DynamoDBError                                                             => Library(e)
       case e: AwsServiceException if e.isThrottlingException                            => Throttled(e)
       case e: TransactionConflictException                                              => Conflict(e)

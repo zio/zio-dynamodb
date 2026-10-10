@@ -54,6 +54,10 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   final def map[B](f: Out => B): DynamoDBQuery[In, B] = DynamoDBQuery.Map(self, f)
 
+  /** A failed write condition becomes a `Left` value instead of a failed effect. */
+  final def conditionFailedAsLeft: DynamoDBQuery[In, Either[ItemError.ConditionFailed, Out]] =
+    DynamoDBQuery.ConditionFailedAsLeft(self)
+
   /** Runs `self` and `that` in parallel and combines their results. */
   final def zipPar[In1 <: In, B](that: DynamoDBQuery[In1, B])(implicit
     z: Zippable[Out, B]
@@ -496,6 +500,9 @@ object DynamoDBQuery {
       extends DynamoDBQuery[A, B] {
     type Old = Either[ItemError, B]
   }
+
+  private[dynamodb] final case class ConditionFailedAsLeft[A, B](query: DynamoDBQuery[A, B])
+      extends DynamoDBQuery[A, Either[ItemError.ConditionFailed, B]]
 
   def apply[A](a: => A): DynamoDBQuery[Any, A] = Succeed(() => a)
 
