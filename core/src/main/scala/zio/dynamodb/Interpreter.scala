@@ -71,6 +71,12 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
    */
   protected def isRetryable: Throwable => Boolean = RetryPolicy.isRetryable
 
+  protected def asTransactionCancelled(t: Throwable): Option[TransactionError.TransactionCancelled] =
+    t match {
+      case tc: TransactionError.TransactionCancelled => Some(tc)
+      case _                                         => None
+    }
+
   /** Recognises a failed write condition; `core` has no SDK dependency, so nothing by default. */
   protected def asConditionFailed(t: Throwable): Option[ItemError.ConditionFailed] =
     t match {
@@ -471,56 +477,56 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   // Works on Any to sidestep Scala 2 GADT limitations; safe by construction.
   private def runAny(query: DynamoDBQuery[_, _]): F[Any] =
     query match {
-      case q: DynamoDBQuery.GetItem                     =>
+      case q: DynamoDBQuery.GetItem                          =>
         val meta = DynamoDBRetryMetadata.GetItem(q.tableName, CorrelationContext(Some(q.key)))
         withOptionalRetry(q.retryPolicy, onRetryFor(meta))(runGetItem(q)).asInstanceOf[F[Any]]
-      case q: DynamoDBQuery.PutItem                     =>
+      case q: DynamoDBQuery.PutItem                          =>
         val meta = DynamoDBRetryMetadata.PutItem(q.tableName, q.item)
         validateCE(q.conditionExpression).fold(
           withOptionalRetry(q.retryPolicy, onRetryFor(meta))(runPutItem(q)).asInstanceOf[F[Any]]
         )(fail)
-      case q: DynamoDBQuery.UpdateItem                  =>
+      case q: DynamoDBQuery.UpdateItem                       =>
         val meta = DynamoDBRetryMetadata.UpdateItem(q.tableName, CorrelationContext(Some(q.key)))
         validateAction(q.updateExpression.action)
           .orElse(validateCE(q.conditionExpression))
           .fold(
             withExplicitRetryOnly(q.retryPolicy, onRetryFor(meta))(runUpdateItem(q)).asInstanceOf[F[Any]]
           )(fail)
-      case q: DynamoDBQuery.DeleteItem                  =>
+      case q: DynamoDBQuery.DeleteItem                       =>
         val meta = DynamoDBRetryMetadata.DeleteItem(q.tableName, CorrelationContext(Some(q.key)))
         validateCE(q.conditionExpression).fold(
           withOptionalRetry(q.retryPolicy, onRetryFor(meta))(runDeleteItem(q)).asInstanceOf[F[Any]]
         )(fail)
-      case q: DynamoDBQuery.Query                       =>
+      case q: DynamoDBQuery.Query                            =>
         val meta = DynamoDBRetryMetadata.Query(q.tableName)
         validateKCE(q.keyConditionExpr)
           .orElse(validateCE(q.filterExpression))
           .fold(
             withOptionalRetry(q.retryPolicy, onRetryFor(meta))(runQuery(q)).asInstanceOf[F[Any]]
           )(fail)
-      case q: DynamoDBQuery.Scan                        =>
+      case q: DynamoDBQuery.Scan                             =>
         val meta = DynamoDBRetryMetadata.Scan(q.tableName)
         validateCE(q.filterExpression)
           .orElse(validateScanSegment(q))
           .fold(
             withOptionalRetry(q.retryPolicy, onRetryFor(meta))(runScan(q)).asInstanceOf[F[Any]]
           )(err => fail(err))
-      case q: DynamoDBQuery.CreateTable                 => runCreateTable(q).asInstanceOf[F[Any]]
-      case q: DynamoDBQuery.DeleteTable                 => runDeleteTable(q).asInstanceOf[F[Any]]
-      case q: DynamoDBQuery.DescribeTable               => runDescribeTable(q).asInstanceOf[F[Any]]
-      case q: DynamoDBQuery.BatchGetItem                =>
+      case q: DynamoDBQuery.CreateTable                      => runCreateTable(q).asInstanceOf[F[Any]]
+      case q: DynamoDBQuery.DeleteTable                      => runDeleteTable(q).asInstanceOf[F[Any]]
+      case q: DynamoDBQuery.DescribeTable                    => runDescribeTable(q).asInstanceOf[F[Any]]
+      case q: DynamoDBQuery.BatchGetItem                     =>
         flatMap(newResponseLevelDelayFn(q.responseRetryPolicy.orElse(q.retryPolicy)))(getDelay =>
           runBatchGetItemRetrying(q, getDelay, attempt = 0)
         ).asInstanceOf[F[Any]]
-      case q: DynamoDBQuery.BatchWriteItem              =>
+      case q: DynamoDBQuery.BatchWriteItem                   =>
         flatMap(newResponseLevelDelayFn(q.responseRetryPolicy.orElse(q.retryPolicy)))(getDelay =>
           runBatchWriteItemRetrying(q, getDelay, attempt = 0)
         ).asInstanceOf[F[Any]]
-      case q: DynamoDBQuery.TransactGetItems            =>
+      case q: DynamoDBQuery.TransactGetItems                 =>
         validateTransactionSize(q.getItems.length).fold(
           runTransactGetItems(q).asInstanceOf[F[Any]]
         )(err => fail(err))
-      case q: DynamoDBQuery.TransactWriteItems          =>
+      case q: DynamoDBQuery.TransactWriteItems               =>
         q.writeItems.foldLeft[Either[DynamoDBError, Chunk[DynamoDBQuery[Any, Any]]]](Right(Chunk.empty)) { (acc, item) =>
           acc.flatMap(leaves => unwrapMappedWriteItem(item).map(leaves :+ _))
         } match {
@@ -532,29 +538,38 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
               .orElse(validateTransactWriteItemsFailures(unwrapped.writeItems))
               .fold(runTransactWriteItems(unwrapped).asInstanceOf[F[Any]])(err => fail(err))
         }
-      case _: DynamoDBQuery.ConditionCheck              =>
+      case _: DynamoDBQuery.ConditionCheck                   =>
         // ConditionCheck is only valid inside TransactWriteItems, never as a standalone query.
         fail(
           DynamoDBError.TransactionError.TransactionValidationError(
             "ConditionCheck cannot be executed as a standalone query; use transactWriteItems"
           )
         )
-      case z: DynamoDBQuery.ZipPar[_, _, _]             =>
+      case z: DynamoDBQuery.ZipPar[_, _, _]                  =>
         map(productPar(runAny(z.left), runAny(z.right)))(pair =>
           z.zippable.zip(pair._1.asInstanceOf[z.Left], pair._2.asInstanceOf[z.Right])
         )
-      case m: DynamoDBQuery.Map[_, _]                   =>
+      case m: DynamoDBQuery.Map[_, _]                        =>
         map(runAny(m.query))(m.mapper.asInstanceOf[Any => Any])
-      case DynamoDBQuery.Succeed(v)                     => pure(v())
-      case DynamoDBQuery.Fail(e)                        => fail(e())
-      case a: DynamoDBQuery.Absolve[_, _]               =>
+      case DynamoDBQuery.Succeed(v)                          => pure(v())
+      case DynamoDBQuery.Fail(e)                             => fail(e())
+      case a: DynamoDBQuery.Absolve[_, _]                    =>
         absolve(runAny(a.query).asInstanceOf[F[Either[ItemError, Any]]])
-      case c: DynamoDBQuery.ConditionFailedAsLeft[_, _] =>
+      case c: DynamoDBQuery.ConditionFailedAsLeft[_, _]      =>
         flatMap(attempt(runAny(c.query))) {
           case Right(a) => pure(Right(a))
           case Left(t)  =>
             asConditionFailed(t) match {
               case Some(cf) => pure(Left(cf))
+              case None     => raiseError(t)
+            }
+        }
+      case c: DynamoDBQuery.TransactionCancelledAsLeft[_, _] =>
+        flatMap(attempt(runAny(c.query))) {
+          case Right(a) => pure(Right(a))
+          case Left(t)  =>
+            asTransactionCancelled(t) match {
+              case Some(tc) => pure(Left(tc))
               case None     => raiseError(t)
             }
         }

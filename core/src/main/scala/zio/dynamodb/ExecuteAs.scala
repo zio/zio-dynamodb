@@ -25,10 +25,27 @@ trait NarrowedResult {
   type Result[A]
   def run[Out](query: DynamoDBQuery[_, Out]): Result[Out]
 
-  /** Runs a query producing `Either[ConditionFailed, Out]` with the `Left` moved into `Result`'s error channel. */
-  def runFlattened[Out](query: DynamoDBQuery[_, Either[DynamoDBError.ItemError.ConditionFailed, Out]]): Result[Out]
+  /** Runs a query producing `Either[E, Out]` (`E` an [[ExpectedError]]) with the `Left` moved into `Result`'s error channel. */
+  def runAbsolved[Out](query: DynamoDBQuery[_, Either[DynamoDBError, Out]]): Result[Out]
 
-  private[dynamodb] final val flattening: ExecuteAs.Flattening = new ExecuteAs.Flattening(this)
+  private[dynamodb] final val absolving: ExecuteAs.Absolving = new ExecuteAs.Absolving(this)
+}
+
+/**
+ * Marks a [[DynamoDBError]] that option-C-style queries return as a `Left` value, and that a
+ * [[NarrowedResult]] interpreter moves into its error channel instead. Deliberately not given for
+ * read errors (`ItemError` as a whole), so e.g. a missing item stays a value.
+ */
+sealed trait ExpectedError[E <: DynamoDBError]
+
+object ExpectedError {
+  private val instance: ExpectedError[Nothing] = new ExpectedError[Nothing] {}
+
+  implicit val conditionFailed: ExpectedError[DynamoDBError.ItemError.ConditionFailed] =
+    instance.asInstanceOf[ExpectedError[DynamoDBError.ItemError.ConditionFailed]]
+
+  implicit val transactionCancelled: ExpectedError[DynamoDBError.TransactionError.TransactionCancelled] =
+    instance.asInstanceOf[ExpectedError[DynamoDBError.TransactionError.TransactionCancelled]]
 }
 
 /**
@@ -38,25 +55,26 @@ trait NarrowedResult {
 final class ExecuteAs[Out, R](private val interpreter: AnyRef) extends AnyVal {
   def apply(query: DynamoDBQuery[_, Out]): R =
     interpreter match {
-      case f: ExecuteAs.Flattening =>
+      case f: ExecuteAs.Absolving =>
         f.interpreter
-          .runFlattened(query.asInstanceOf[DynamoDBQuery[_, Either[DynamoDBError.ItemError.ConditionFailed, Any]]])
+          .runAbsolved(query.asInstanceOf[DynamoDBQuery[_, Either[DynamoDBError, Any]]])
           .asInstanceOf[R]
-      case n: NarrowedResult       => n.run(query).asInstanceOf[R]
-      case i                       => i.asInstanceOf[Interpreter[ExecuteAs.Id]].run(query).asInstanceOf[R]
+      case n: NarrowedResult      => n.run(query).asInstanceOf[R]
+      case i                      => i.asInstanceOf[Interpreter[ExecuteAs.Id]].run(query).asInstanceOf[R]
     }
 }
 
 object ExecuteAs extends ExecuteAsNarrowed {
   private[dynamodb] type Id[A] = A
 
-  // Allocated once per interpreter; marks "flatten the Either" without a per-call allocation.
-  private[dynamodb] final class Flattening(val interpreter: NarrowedResult)
+  // Allocated once per interpreter; marks "absolve the Either" without a per-call allocation.
+  private[dynamodb] final class Absolving(val interpreter: NarrowedResult)
 
-  implicit def narrowedFlattened[A, J <: NarrowedResult](implicit
+  implicit def narrowedAbsolved[E <: DynamoDBError, A, J <: NarrowedResult](implicit
+    expected: ExpectedError[E],
     j: J
-  ): ExecuteAs[Either[DynamoDBError.ItemError.ConditionFailed, A], j.Result[A]] =
-    new ExecuteAs(j.flattening)
+  ): ExecuteAs[Either[E, A], j.Result[A]] =
+    new ExecuteAs(j.absolving)
 }
 
 trait ExecuteAsNarrowed extends ExecuteAsLowPriority {
