@@ -21,6 +21,7 @@ import zio.blocks.schema.SchemaExpr
 import zio.dynamodb._
 import zio.dynamodb.blocks.schema.DynamoDBCodec
 
+import scala.annotation.implicitNotFound
 import scala.language.implicitConversions
 
 private[ddbexpr] final case class CodecEntry[A](codec: DynamoDBCodec[A], projections: Chunk[ProjectionExpression[_, _]])
@@ -43,9 +44,25 @@ private[ddbexpr] final class CodecCacheKey(private val r0: AnyRef, private val r
 // canonical helper regardless of which facade the call site imported.
 private[ddbexpr] object BuilderSupport {
   // The builders only ever hold a put/update/delete, which is what CanWhere guards; their
-  // `Unit` result type just doesn't line up with the condition's type, so satisfy it via From.
-  def whereOnWrite[From](query: DynamoDBQuery[From, Unit], ce: ConditionExpression[From]): DynamoDBQuery[From, Unit] =
-    query.asInstanceOf[DynamoDBQuery[From, From]].where(ce).asInstanceOf[DynamoDBQuery[From, Unit]]
+  // raw `Option[Item]` result type doesn't line up with the condition's type, so satisfy it via From.
+  def whereOnWrite[From](
+    write: DynamoDBQuery[From, Option[Item]],
+    ce: ConditionExpression[From]
+  ): DynamoDBQuery[From, Option[Item]] =
+    write.asInstanceOf[DynamoDBQuery[From, From]].where(ce).asInstanceOf[DynamoDBQuery[From, Option[Item]]]
+
+  val unit: Option[Item] => Unit = _ => ()
+
+  def decode[From](table: Table[From], item: Item): Either[DynamoDBError.ItemError.DecodingError, From] =
+    table.decode(item).left.map {
+      case d: DynamoDBError.ItemError.DecodingError => d
+      case other                                    => DynamoDBError.ItemError.DecodingError.failure(other.message)
+    }
+
+  def decodeReturned[From](
+    table: Table[From]
+  ): Option[Item] => Option[Either[DynamoDBError.ItemError.DecodingError, From]] =
+    _.map(decode(table, _))
 
   def condition[From](expr: DdbExpr[From, Boolean], table: Table[From]): ConditionExpression[From] =
     DdbExprInterpreter
@@ -112,32 +129,57 @@ final class QueryBuilder[From] private[ddbexpr] (
     interpreter.run(query)
 }
 
+// Never given: the builders declare `returns` / `returnValuesOnConditionCheckFailure` requiring
+// these so that a call resolves to the builder's own (uncallable) member instead of silently going
+// through the implicit conversion to DynamoDBQuery, which would contradict the builder's type.
+@implicitNotFound("use .returning(...) - .returns here would discard the returned item")
+sealed trait UseReturningInstead
+
+@implicitNotFound("only meaningful on a conditional write - add .where(...) first")
+sealed trait AddWhereFirst
+
 /**
  * Returned by [[DdbExprApiSyntax.put]] / [[DdbExprApiSyntax.update]] / [[DdbExprApiSyntax.deleteFrom]].
  * An unconditional write has no expected failure, so it executes to `Unit`; `.where` turns it into
- * a [[ConditionalWriteBuilder]], whose type carries the condition failure. Converts implicitly to
- * the underlying [[DynamoDBQuery]] (e.g. for `transactWriteItems`).
+ * a [[ConditionalWriteBuilder]], whose type carries the condition failure, and `.returning` makes
+ * it return the item DynamoDB sends back. Converts implicitly to the underlying [[DynamoDBQuery]]
+ * (e.g. for `transactWriteItems`).
  */
-final class WriteBuilder[From] private[ddbexpr] (
+final class WriteBuilder[From, Out] private[ddbexpr] (
   private[ddbexpr] val table: Table[From],
-  private[ddbexpr] val query: DynamoDBQuery[From, Unit]
+  private[ddbexpr] val write: DynamoDBQuery[From, Option[Item]],
+  private[ddbexpr] val finish: Option[Item] => Out
 ) {
-  private def conditional(ce: ConditionExpression[From]): ConditionalWriteBuilder[From] =
-    new ConditionalWriteBuilder(table, BuilderSupport.whereOnWrite(query, ce))
+  private def conditional(ce: ConditionExpression[From]): ConditionalWriteBuilder[From, Out] =
+    new ConditionalWriteBuilder(table, BuilderSupport.whereOnWrite(write, ce), finish)
 
-  def where(expr: DdbExpr[From, Boolean]): ConditionalWriteBuilder[From]  = conditional(
-    BuilderSupport.condition(expr, table)
-  )
-  def where(se: SchemaExpr[From, Boolean]): ConditionalWriteBuilder[From] = where(DdbExpr.Builtin(se))
-  def where(ce: ConditionExpression[From]): ConditionalWriteBuilder[From] = conditional(ce)
+  def where(expr: DdbExpr[From, Boolean]): ConditionalWriteBuilder[From, Out]  =
+    conditional(BuilderSupport.condition(expr, table))
+  def where(se: SchemaExpr[From, Boolean]): ConditionalWriteBuilder[From, Out] = where(DdbExpr.Builtin(se))
+  def where(ce: ConditionExpression[From]): ConditionalWriteBuilder[From, Out] = conditional(ce)
 
-  def toQuery: DynamoDBQuery[From, Unit] = query
+  /**
+   * Returns the item DynamoDB sends back (`AllOld` for put/delete; any value for update): `None`
+   * when there was none, `Left` when it doesn't decode.
+   */
+  def returning(rv: ReturnValues): WriteBuilder[From, Option[Either[DynamoDBError.ItemError.DecodingError, From]]] =
+    new WriteBuilder(table, write.returns(rv), BuilderSupport.decodeReturned(table))
 
-  def execute[R](implicit executeAs: ExecuteAs[Unit, R]): R =
-    executeAs(query)
+  def returns(rv: ReturnValues)(implicit useReturningInstead: UseReturningInstead): Nothing =
+    sys.error(s"unreachable: $rv, $useReturningInstead")
 
-  def execute[F[_]](interpreter: Interpreter[F]): F[Unit] =
-    interpreter.run(query)
+  def returnValuesOnConditionCheckFailure(rv: ReturnValuesOnConditionCheckFailure)(implicit
+    addWhereFirst: AddWhereFirst
+  ): Nothing =
+    sys.error(s"unreachable: $rv, $addWhereFirst")
+
+  def toQuery: DynamoDBQuery[From, Out] = write.map(finish)
+
+  def execute[R](implicit executeAs: ExecuteAs[Out, R]): R =
+    executeAs(toQuery)
+
+  def execute[F[_]](interpreter: Interpreter[F]): F[Out] =
+    interpreter.run(toQuery)
 }
 
 /**
@@ -145,28 +187,39 @@ final class WriteBuilder[From] private[ddbexpr] (
  * `Left(ConditionFailed)` rather than failing the effect. `ConditionFailed.item` is the raw `Item`
  * (with `ReturnValuesOnConditionCheckFailure.AllOld`), not a decoded `From`.
  */
-final class ConditionalWriteBuilder[From] private[ddbexpr] (
+final class ConditionalWriteBuilder[From, Out] private[ddbexpr] (
   private[ddbexpr] val table: Table[From],
-  private[ddbexpr] val query: DynamoDBQuery[From, Unit]
+  private[ddbexpr] val write: DynamoDBQuery[From, Option[Item]],
+  private[ddbexpr] val finish: Option[Item] => Out
 ) {
-  private def withCondition(ce: ConditionExpression[From]): ConditionalWriteBuilder[From] =
-    new ConditionalWriteBuilder(table, BuilderSupport.whereOnWrite(query, ce))
+  private def withCondition(ce: ConditionExpression[From]): ConditionalWriteBuilder[From, Out] =
+    new ConditionalWriteBuilder(table, BuilderSupport.whereOnWrite(write, ce), finish)
 
-  def where(expr: DdbExpr[From, Boolean]): ConditionalWriteBuilder[From]  =
+  def where(expr: DdbExpr[From, Boolean]): ConditionalWriteBuilder[From, Out]  =
     withCondition(BuilderSupport.condition(expr, table))
-  def where(se: SchemaExpr[From, Boolean]): ConditionalWriteBuilder[From] = where(DdbExpr.Builtin(se))
-  def where(ce: ConditionExpression[From]): ConditionalWriteBuilder[From] = withCondition(ce)
+  def where(se: SchemaExpr[From, Boolean]): ConditionalWriteBuilder[From, Out] = where(DdbExpr.Builtin(se))
+  def where(ce: ConditionExpression[From]): ConditionalWriteBuilder[From, Out] = withCondition(ce)
 
-  def returnValuesOnConditionCheckFailure(rv: ReturnValuesOnConditionCheckFailure): ConditionalWriteBuilder[From] =
-    new ConditionalWriteBuilder(table, query.returnValuesOnConditionCheckFailure(rv))
+  def returnValuesOnConditionCheckFailure(
+    rv: ReturnValuesOnConditionCheckFailure
+  ): ConditionalWriteBuilder[From, Out] =
+    new ConditionalWriteBuilder(table, write.returnValuesOnConditionCheckFailure(rv), finish)
 
-  def toQuery: DynamoDBQuery[From, Either[DynamoDBError.ItemError.ConditionFailed, Unit]] =
-    query.conditionFailedAsLeft
+  def returning(
+    rv: ReturnValues
+  ): ConditionalWriteBuilder[From, Option[Either[DynamoDBError.ItemError.DecodingError, From]]] =
+    new ConditionalWriteBuilder(table, write.returns(rv), BuilderSupport.decodeReturned(table))
 
-  def execute[R](implicit executeAs: ExecuteAs[Either[DynamoDBError.ItemError.ConditionFailed, Unit], R]): R =
+  def returns(rv: ReturnValues)(implicit useReturningInstead: UseReturningInstead): Nothing =
+    sys.error(s"unreachable: $rv, $useReturningInstead")
+
+  def toQuery: DynamoDBQuery[From, Either[DynamoDBError.ItemError.ConditionFailed, Out]] =
+    write.map(finish).conditionFailedAsLeft
+
+  def execute[R](implicit executeAs: ExecuteAs[Either[DynamoDBError.ItemError.ConditionFailed, Out], R]): R =
     executeAs(toQuery)
 
-  def execute[F[_]](interpreter: Interpreter[F]): F[Either[DynamoDBError.ItemError.ConditionFailed, Unit]] =
+  def execute[F[_]](interpreter: Interpreter[F]): F[Either[DynamoDBError.ItemError.ConditionFailed, Out]] =
     interpreter.run(toQuery)
 }
 
@@ -234,15 +287,14 @@ trait DdbExprApiSyntax {
 
   // -- CRUD operations ----------------------------------------------------------
 
-  def put[A](table: Table[A], a: A): WriteBuilder[A] =
+  def put[A](table: Table[A], a: A): WriteBuilder[A, Unit] =
     new WriteBuilder(
       table,
       table.encode(a) match {
-        case Right(encodedItem) =>
-          DynamoDBQuery.putItem(table.name, encodedItem).map(_ => ())
-        case Left(err)          =>
-          DynamoDBQuery.fail(err)
-      }
+        case Right(encodedItem) => DynamoDBQuery.putItem(table.name, encodedItem)
+        case Left(err)          => DynamoDBQuery.fail(err)
+      },
+      BuilderSupport.unit
     )
 
   def get[From](
@@ -253,14 +305,9 @@ trait DdbExprApiSyntax {
     val entry = table.entry
     DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr, table.exprCtx) match {
       case Right(pkExpr) =>
-        DynamoDBQuery.getItem(table.name, pkExpr.asAttrMap, entry.projections: _*).map {
-          _.map(item =>
-            table.decode(item).left.map {
-              case d: DynamoDBError.ItemError.DecodingError => d
-              case other                                    => DynamoDBError.ItemError.DecodingError.failure(other.message)
-            }
-          )
-        }
+        DynamoDBQuery
+          .getItem(table.name, pkExpr.asAttrMap, entry.projections: _*)
+          .map(_.map(BuilderSupport.decode(table, _)))
       case Left(msg)     =>
         DynamoDBQuery.fail(DynamoDBError.ItemError.DecodingError.failure(msg))
     }
@@ -275,7 +322,7 @@ trait DdbExprApiSyntax {
    */
   def update[From](table: Table[From])(keyExpr: DdbKeyExpr.PrimaryKey[From])(
     action: DdbUpdateExpr[From]
-  ): WriteBuilder[From] =
+  ): WriteBuilder[From, Unit] =
     updateWith(table, keyExpr)(DdbUpdateExprInterpreter.toAction(action, table.exprCtx))
 
   /**
@@ -291,33 +338,35 @@ trait DdbExprApiSyntax {
   // Scala 2.13's overload resolution for a call site holding the argument in a typed `val`.
   def updateAction[From](table: Table[From])(keyExpr: DdbKeyExpr.PrimaryKey[From])(
     action: UpdateExpression.Action[From]
-  ): WriteBuilder[From] =
+  ): WriteBuilder[From, Unit] =
     updateWith(table, keyExpr)(action)
 
   private def updateWith[From](table: Table[From], keyExpr: DdbKeyExpr.PrimaryKey[From])(
     action: UpdateExpression.Action[From]
-  ): WriteBuilder[From] =
+  ): WriteBuilder[From, Unit] =
     new WriteBuilder(
       table,
       DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr, table.exprCtx) match {
         case Right(pkExpr) =>
-          DynamoDBQuery.updateItem(table.name, pkExpr.asAttrMap)(action).map(_ => ())
+          DynamoDBQuery.updateItem(table.name, pkExpr.asAttrMap)(action)
         case Left(msg)     =>
           DynamoDBQuery.fail(DynamoDBError.ItemError.DecodingError.failure(msg))
-      }
+      },
+      BuilderSupport.unit
     )
 
   def deleteFrom[From](
     table: Table[From]
-  )(keyExpr: DdbKeyExpr.PrimaryKey[From]): WriteBuilder[From] =
+  )(keyExpr: DdbKeyExpr.PrimaryKey[From]): WriteBuilder[From, Unit] =
     new WriteBuilder(
       table,
       DdbKeyExprInterpreter.toPrimaryKeyExpr(keyExpr, table.exprCtx) match {
         case Right(pkExpr) =>
-          DynamoDBQuery.deleteItem(table.name, pkExpr.asAttrMap).map(_ => ())
+          DynamoDBQuery.deleteItem(table.name, pkExpr.asAttrMap)
         case Left(msg)     =>
           DynamoDBQuery.fail(DynamoDBError.ItemError.DecodingError.failure(msg))
-      }
+      },
+      BuilderSupport.unit
     )
 
   /**
@@ -370,11 +419,11 @@ trait DdbExprApiSyntax {
     b: QueryBuilder[From]
   ): DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = b.toQuery
 
-  implicit def writeBuilderToQuery[From](b: WriteBuilder[From]): DynamoDBQuery[From, Unit] = b.toQuery
+  implicit def writeBuilderToQuery[From, Out](b: WriteBuilder[From, Out]): DynamoDBQuery[From, Out] = b.toQuery
 
-  implicit def conditionalWriteBuilderToQuery[From](
-    b: ConditionalWriteBuilder[From]
-  ): DynamoDBQuery[From, Either[DynamoDBError.ItemError.ConditionFailed, Unit]] = b.toQuery
+  implicit def conditionalWriteBuilderToQuery[From, Out](
+    b: ConditionalWriteBuilder[From, Out]
+  ): DynamoDBQuery[From, Either[DynamoDBError.ItemError.ConditionFailed, Out]] = b.toQuery
 
   /**
    * A transaction can always be cancelled (a failed condition, a conflicting write, ...), so the

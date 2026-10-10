@@ -743,8 +743,6 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
         }
       },
       test("compile time: .where is still rejected on reads") {
-        // Note: AllOld without a condition is NOT rejected - `writeBuilderToQuery` converts the
-        // builder to a DynamoDBQuery, which has the method.
         for {
           whereOnRead <- typeCheck(
                            "DdbExprApi.get[Score](DdbExprApi.Table[Score](\"t\"))(Score.id.partitionKey === \"a\")" +
@@ -830,6 +828,106 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
       }
     )
 
+  private type Returned = Option[Either[DynamoDBError.ItemError.DecodingError, Score]]
+
+  // .returning(...) asks DynamoDB for an item back, and the type says so: None = nothing returned,
+  // Left = it didn't decode.
+  private val returningTests: Spec[DynamoDBEnv, Throwable] =
+    suite("returning: the returned item is part of the type")(
+      test("put.returning(AllOld) over an existing item: Some(Right(old))") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table                   = DdbExprApi.Table[Score](tableName)
+          val put: zio.Task[Returned] =
+            DdbExprApi.put(table, Score("alice", 99)).returning(ReturnValues.AllOld).execute(interpreter)
+          for {
+            _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
+            result <- put
+          } yield assertTrue(result.contains(Right(Score("alice", 42))))
+        }
+      },
+      test("put.returning(AllOld) with no existing item: None") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Score](tableName)
+          for {
+            result <- DdbExprApi.put(table, Score("alice", 99)).returning(ReturnValues.AllOld).execute(interpreter)
+          } yield assertTrue(result.isEmpty)
+        }
+      },
+      test("update.returning(AllNew): Some(Right(new))") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Score](tableName)
+          for {
+            _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
+            result <- DdbExprApi
+                        .update[Score](table)(Score.id.partitionKey === "alice")(Score.score.set(99))
+                        .returning(ReturnValues.AllNew)
+                        .execute(interpreter)
+          } yield assertTrue(result.contains(Right(Score("alice", 99))))
+        }
+      },
+      test("a returned item that doesn't decode is a Left, not silently None") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Score](tableName)
+          for {
+            _      <- interpreter.run(DynamoDBQuery.putItem(tableName, Item("id" -> "alice", "score" -> "not-a-number")))
+            result <- DdbExprApi.put(table, Score("alice", 99)).returning(ReturnValues.AllOld).execute(interpreter)
+          } yield assert(result)(isSome(isLeft(isSubtype[DynamoDBError.ItemError.DecodingError](anything))))
+        }
+      },
+      test("conditional + returning: condition holds -> Right(Some(Right(old))), fails -> Left") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table                                                                                     = DdbExprApi.Table[Score](tableName)
+          def write(expected: Int): zio.Task[Either[DynamoDBError.ItemError.ConditionFailed, Returned]] =
+            DdbExprApi
+              .put(table, Score("alice", 99))
+              .where(Score.score === expected)
+              .returning(ReturnValues.AllOld)
+              .execute(interpreter)
+          for {
+            _     <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
+            holds <- write(42)
+            fails <- write(42)
+          } yield assertTrue(holds == Right(Some(Right(Score("alice", 42))))) && assert(fails)(isLeft(anything))
+        }
+      },
+      test("typed ZIO interpreter: conditional + returning is IO[DynamoFailure, Option[Either[DecodingError, A]]]") {
+        ZIO.serviceWithZIO[DynamoDBEnv] { env =>
+          implicit val typed: TypedErrorsZioInterpreter = ZioInterpreter.fromAsyncClientWithTypedErrors(env.asyncClient)
+          withSingleIdKeyTable { (tableName, interpreter) =>
+            val table                            = DdbExprApi.Table[Score](tableName)
+            val put: IO[DynamoFailure, Returned] =
+              DdbExprApi.put(table, Score("alice", 99)).where(Score.score === 42).returning(ReturnValues.AllOld).execute
+            for {
+              _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
+              result <- put
+            } yield assertTrue(result.contains(Right(Score("alice", 42))))
+          }
+        }
+      },
+      test("compile time: LL modifiers that would contradict the builder's type are rejected with guidance") {
+        for {
+          returnsOnPlain   <-
+            typeCheck("DdbExprApi.put(DdbExprApi.Table[Score](\"t\"), Score(\"a\", 1)).returns(ReturnValues.AllOld)")
+          returnsOnCond    <-
+            typeCheck(
+              "DdbExprApi.put(DdbExprApi.Table[Score](\"t\"), Score(\"a\", 1)).where(null.asInstanceOf[ConditionExpression[Score]]).returns(ReturnValues.AllOld)"
+            )
+          allOldWithoutCnd <-
+            typeCheck(
+              "DdbExprApi.put(DdbExprApi.Table[Score](\"t\"), Score(\"a\", 1)).returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)"
+            )
+          allOldWithCnd    <-
+            typeCheck(
+              "DdbExprApi.put(DdbExprApi.Table[Score](\"t\"), Score(\"a\", 1)).where(null.asInstanceOf[ConditionExpression[Score]])" +
+                ".returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)"
+            )
+        } yield assert(returnsOnPlain)(isLeft(containsString("use .returning"))) &&
+          assert(returnsOnCond)(isLeft(containsString("use .returning"))) &&
+          assert(allOldWithoutCnd)(isLeft(containsString("add .where"))) &&
+          assert(allOldWithCnd)(isRight(anything))
+      }
+    )
+
   def spec =
     suite("DdbExprApi IT")(
       putGetTests,
@@ -843,7 +941,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
       nativeSetTests,
       configuredTableTests,
       conditionalWriteTests,
-      hlTransactionTests
+      hlTransactionTests,
+      returningTests
     )
       .provideSome[DynamoDbAsyncClient](envLayer) @@
       TestAspect.sequential
