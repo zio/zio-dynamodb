@@ -68,16 +68,16 @@ object Scalars {
 
   // Wired into the six CRUD operations — see ScalarsSpec for these actually run. Each
   // builder converts to a DynamoDBQuery implicitly, so no `.toQuery` call is needed.
-  val putQuery: DynamoDBQuery[Widget, Option[Widget]] =
+  val putQuery: DynamoDBQuery[Widget, Unit] =
     put(widgets, Widget("w-1", 10, 9.99, active = true, Chunk[Byte](1, 2, 3)))
 
-  val getQuery: DynamoDBQuery[Widget, Either[DynamoDBError.ItemError, Widget]] =
+  val getQuery: DynamoDBQuery[Widget, Option[Either[DynamoDBError.ItemError.DecodingError, Widget]]] =
     get(widgets)(Widget.id.partitionKey === "w-1")
 
-  val updateQuery: DynamoDBQuery[Widget, Option[Widget]] =
+  val updateQuery: DynamoDBQuery[Widget, Unit] =
     update(widgets)(Widget.id.partitionKey === "w-1")(Widget.qty.set(5))
 
-  val deleteQuery: DynamoDBQuery[Widget, Option[Widget]] =
+  val deleteQuery: DynamoDBQuery[Widget, Unit] =
     deleteFrom(widgets)(Widget.id.partitionKey === "w-1")
 
   val queryQuery: DynamoDBQuery[Widget, Page[Either[DynamoDBError.ItemError, Widget]]] =

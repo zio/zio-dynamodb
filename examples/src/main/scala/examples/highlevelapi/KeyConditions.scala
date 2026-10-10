@@ -72,16 +72,16 @@ object KeyConditions {
   // Wired into the six CRUD operations — see KeyConditionsSpec for these actually run. get/
   // update/deleteFrom need a PrimaryKey, so they use the Composite key; query alone can take
   // the Extended range key.
-  val putQuery: DynamoDBQuery[Event, Option[Event]] =
+  val putQuery: DynamoDBQuery[Event, Unit] =
     put(events, Event("s1", 1L, "order-1"))
 
-  val getQuery: DynamoDBQuery[Event, Either[DynamoDBError.ItemError, Event]] =
+  val getQuery: DynamoDBQuery[Event, Option[Either[DynamoDBError.ItemError.DecodingError, Event]]] =
     get(events)(composite)
 
-  val updateQuery: DynamoDBQuery[Event, Option[Event]] =
+  val updateQuery: DynamoDBQuery[Event, Unit] =
     update(events)(composite)(Event.payload.set("order-2"))
 
-  val deleteQuery: DynamoDBQuery[Event, Option[Event]] =
+  val deleteQuery: DynamoDBQuery[Event, Unit] =
     deleteFrom(events)(composite)
 
   val queryQuery: DynamoDBQuery[Event, Page[Either[DynamoDBError.ItemError, Event]]] =

@@ -74,7 +74,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           for {
             _      <- interpreter.run(DdbExprApi.put(table, Task("t1", Priority.High)))
             result <- interpreter.run(DdbExprApi.get[Task](table)(Task.id.partitionKey === "t1"))
-          } yield assertTrue(result == Right(Task("t1", Priority.High)))
+          } yield assertTrue(result.contains(Right(Task("t1", Priority.High))))
         }
       },
       test("DdbExprApi.get returns Left(ValueNotFound) for absent item") {
@@ -82,7 +82,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           val table = DdbExprApi.Table[Task](tableName)
           for {
             result <- interpreter.run(DdbExprApi.get[Task](table)(Task.id.partitionKey === "ghost"))
-          } yield assert(result)(isLeft(isSubtype[DynamoDBError.ItemError.ValueNotFound](anything)))
+          } yield assert(result)(isNone)
         }
       }
     )
@@ -105,7 +105,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
             result <- interpreter.run(
                         DdbExprApi.get[Event](table)(Event.id.partitionKey === "alice" && Event.year.sortKey === "2024")
                       )
-          } yield assertTrue(result == Right(event))
+          } yield assertTrue(result.contains(Right(event)))
         }
       },
       test("get returns Left(ValueNotFound) for missing compound key item") {
@@ -122,7 +122,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
             result <- interpreter.run(
                         DdbExprApi.get[Event](table)(Event.id.partitionKey === "alice" && Event.year.sortKey === "2024")
                       )
-          } yield assert(result)(isLeft(isSubtype[DynamoDBError.ItemError.ValueNotFound](anything)))
+          } yield assert(result)(isNone)
         }
       }
     )
@@ -141,7 +141,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           for {
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)).where(Score.id.attributeNotExists))
             result <- interpreter.run(DdbExprApi.get[Score](table)(Score.id.partitionKey === "alice"))
-          } yield assertTrue(result == Right(Score("alice", 42)))
+          } yield assertTrue(result.contains(Right(Score("alice", 42))))
         }
       },
       test("put with attributeNotExists fails when item already exists") {
@@ -156,7 +156,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           for {
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
             result <-
-              interpreter.run(DdbExprApi.put(table, Score("alice", 99)).where(Score.id.attributeNotExists)).either
+              interpreter.run(DdbExprApi.put(table, Score("alice", 99)).where(Score.id.attributeNotExists))
           } yield assert(result)(isLeft(anything))
         }
       },
@@ -174,7 +174,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 99)).where(Score.score.between(0, 50)))
             result <- interpreter.run(DdbExprApi.get[Score](table)(Score.id.partitionKey === "alice"))
-          } yield assertTrue(result == Right(Score("alice", 99)))
+          } yield assertTrue(result.contains(Right(Score("alice", 99))))
         }
       },
       test("put with between condition fails when existing value is out of range") {
@@ -190,7 +190,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           for {
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
             result <-
-              interpreter.run(DdbExprApi.put(table, Score("alice", 99)).where(Score.score.between(50, 100))).either
+              interpreter.run(DdbExprApi.put(table, Score("alice", 99)).where(Score.score.between(50, 100)))
           } yield assert(result)(isLeft(anything))
         }
       },
@@ -208,7 +208,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 99)).where(Score.score.in(10, 42, 77)))
             result <- interpreter.run(DdbExprApi.get[Score](table)(Score.id.partitionKey === "alice"))
-          } yield assertTrue(result == Right(Score("alice", 99)))
+          } yield assertTrue(result.contains(Right(Score("alice", 99))))
         }
       }
     )
@@ -350,7 +350,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
             _      <-
               interpreter.run(DdbExprApi.update[Score](table)(Score.id.partitionKey === "alice")(Score.score.set(100)))
             result <- interpreter.run(DdbExprApi.get[Score](table)(Score.id.partitionKey === "alice"))
-          } yield assertTrue(result == Right(Score("alice", 100)))
+          } yield assertTrue(result.contains(Right(Score("alice", 100))))
         }
       },
       test("update on compound key table sets field") {
@@ -374,7 +374,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
             result <- interpreter.run(
                         DdbExprApi.get[Event](table)(Event.id.partitionKey === "alice" && Event.year.sortKey === "2024")
                       )
-          } yield assertTrue(result == Right(Event("alice", "2024", "anniversary")))
+          } yield assertTrue(result.contains(Right(Event("alice", "2024", "anniversary"))))
         }
       },
       test("update with condition that holds succeeds") {
@@ -395,10 +395,10 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
                           .where(Score.score.between(0, 50) && Score.id.attributeExists)
                       )
             result <- interpreter.run(DdbExprApi.get[Score](table)(Score.id.partitionKey === "alice"))
-          } yield assertTrue(result == Right(Score("alice", 99)))
+          } yield assertTrue(result.contains(Right(Score("alice", 99))))
         }
       },
-      test("update with condition that fails raises ConditionalCheckFailedException") {
+      test("update with condition that fails returns Left(ConditionFailed)") {
         final case class Score(id: String, score: Int)
         object Score extends CompanionOptics[Score] {
           implicit val schema: Schema[Score] = Schema.derived
@@ -416,8 +416,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
                             .update[Score](table)(Score.id.partitionKey === "alice")(Score.score.set(99))
                             .where(Score.score.between(50, 100))
                         )
-                        .either
-          } yield assert(result)(isLeft(isSubtype[ConditionalCheckFailedException](anything)))
+          } yield assert(result)(isLeft(isSubtype[DynamoDBError.ItemError.ConditionFailed](anything)))
         }
       }
     )
@@ -437,7 +436,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
             _      <- interpreter.run(DdbExprApi.deleteFrom[Score](table)(Score.id.partitionKey === "alice"))
             result <- interpreter.run(DdbExprApi.get[Score](table)(Score.id.partitionKey === "alice"))
-          } yield assert(result)(isLeft(isSubtype[DynamoDBError.ItemError.ValueNotFound](anything)))
+          } yield assert(result)(isNone)
         }
       },
       test("deleteFrom on compound key table removes the item") {
@@ -459,7 +458,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
             result <- interpreter.run(
                         DdbExprApi.get[Event](table)(Event.id.partitionKey === "alice" && Event.year.sortKey === "2024")
                       )
-          } yield assert(result)(isLeft(isSubtype[DynamoDBError.ItemError.ValueNotFound](anything)))
+          } yield assert(result)(isNone)
         }
       },
       test("deleteFrom with condition that holds removes the item") {
@@ -480,10 +479,10 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
                           .where(Score.score.between(0, 50) && Score.id.attributeExists)
                       )
             result <- interpreter.run(DdbExprApi.get[Score](table)(Score.id.partitionKey === "alice"))
-          } yield assert(result)(isLeft(isSubtype[DynamoDBError.ItemError.ValueNotFound](anything)))
+          } yield assert(result)(isNone)
         }
       },
-      test("deleteFrom with condition that fails raises ConditionalCheckFailedException") {
+      test("deleteFrom with condition that fails returns Left(ConditionFailed)") {
         final case class Score(id: String, score: Int)
         object Score extends CompanionOptics[Score] {
           implicit val schema: Schema[Score] = Schema.derived
@@ -501,8 +500,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
                             .deleteFrom[Score](table)(Score.id.partitionKey === "alice")
                             .where(Score.score.between(50, 100))
                         )
-                        .either
-          } yield assert(result)(isLeft(isSubtype[ConditionalCheckFailedException](anything)))
+          } yield assert(result)(isLeft(isSubtype[DynamoDBError.ItemError.ConditionFailed](anything)))
         }
       }
     )
@@ -522,7 +520,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           for {
             _      <- interpreter.run(DdbExprApi.put(table, item))
             result <- interpreter.run(DdbExprApi.get[Tagged](table)(Tagged.id.partitionKey === "t1"))
-          } yield assertTrue(result == Right(item))
+          } yield assertTrue(result.contains(Right(item)))
         }
       },
       test("Set[Int] field round-trips through DynamoDB as NumberSet") {
@@ -538,7 +536,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           for {
             _      <- interpreter.run(DdbExprApi.put(table, item))
             result <- interpreter.run(DdbExprApi.get[Scores](table)(Scores.id.partitionKey === "s1"))
-          } yield assertTrue(result == Right(item))
+          } yield assertTrue(result.contains(Right(item)))
         }
       }
     )
@@ -582,7 +580,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
             result  <- interpreter.run(DdbExprApi.get[Article](table)(Article.articleId.partitionKey === "a1"))
             rawItem <- interpreter.run(DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "a1")))
           } yield assertTrue(
-            result == Right(article),
+            result.contains(Right(article)),
             rawItem.map(_.map.keySet).contains(Set("id", "display_name", "status")),
             rawItem.flatMap(_.map.get("status")).contains(AttributeValue.String("published"))
           )
@@ -651,7 +649,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
             result  <- interpreter.run(DdbExprApi.get[Article](table)(Article.articleId.partitionKey === "a1"))
             rawItem <- interpreter.run(DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "a1")))
           } yield assertTrue(
-            result == Right(Article("a1", "My Article", ArticleStatus.Published)),
+            result.contains(Right(Article("a1", "My Article", ArticleStatus.Published))),
             rawItem.flatMap(_.map.get("status")).contains(AttributeValue.String("published"))
           )
         }
@@ -665,34 +663,29 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
     val score: Lens[Score, Int]        = $(_.score)
   }
 
-  private def failedWithExistingScore(score: String): Assertion[Either[Throwable, Option[Score]]] =
-    isLeft(
-      isSubtype[ConditionalCheckFailedException](
-        hasField[ConditionalCheckFailedException, Option[String]](
-          "item.score",
-          e => if (e.hasItem) Option(e.item.get("score")).map(_.n) else None,
-          isSome(equalTo(score))
-        )
-      )
-    )
+  private val existingScoreItem: Option[Item] = Some(Item("id" -> "alice", "score" -> 42))
 
-  private val returnValuesOnConditionCheckFailureTests: Spec[DynamoDBEnv, Throwable] =
-    suite("returnValuesOnConditionCheckFailure on WriteBuilder")(
-      test("put with AllOld returns the existing item on condition failure") {
+  private val conditionFailedWithExistingItem: Assertion[Either[DynamoDBError.ItemError.ConditionFailed, Unit]] =
+    isLeft(hasField("item", _.item, equalTo(existingScoreItem)))
+
+  // A conditional write's type carries its expected failure: `.where` returns a
+  // ConditionalWriteBuilder that executes to Either[ConditionFailed, Unit].
+  private val conditionalWriteTests: Spec[DynamoDBEnv, Throwable] =
+    suite("conditional writes: .where makes the condition failure part of the type")(
+      test("put.where with AllOld: Left value with the raw existing item") {
         withSingleIdKeyTable { (tableName, interpreter) =>
           val table = DdbExprApi.Table[Score](tableName)
           for {
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
             result <- DdbExprApi
                         .put(table, Score("alice", 99))
-                        .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
                         .where(Score.score === 0)
+                        .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
                         .execute(interpreter)
-                        .either
-          } yield assert(result)(failedWithExistingScore("42"))
+          } yield assert(result)(conditionFailedWithExistingItem)
         }
       },
-      test("update with AllOld returns the existing item on condition failure") {
+      test("update.where with AllOld: Left value with the raw existing item") {
         withSingleIdKeyTable { (tableName, interpreter) =>
           val table = DdbExprApi.Table[Score](tableName)
           for {
@@ -702,11 +695,10 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
                         .where(Score.score === 0)
                         .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
                         .execute(interpreter)
-                        .either
-          } yield assert(result)(failedWithExistingScore("42"))
+          } yield assert(result)(conditionFailedWithExistingItem)
         }
       },
-      test("deleteFrom with AllOld returns the existing item on condition failure") {
+      test("deleteFrom.where without AllOld: Left value, no item") {
         withSingleIdKeyTable { (tableName, interpreter) =>
           val table = DdbExprApi.Table[Score](tableName)
           for {
@@ -714,55 +706,30 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
             result <- DdbExprApi
                         .deleteFrom[Score](table)(Score.id.partitionKey === "alice")
                         .where(Score.score === 0)
-                        .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
                         .execute(interpreter)
-                        .either
-          } yield assert(result)(failedWithExistingScore("42"))
-        }
-      }
-    )
-
-  private val existingScoreItem: Option[Item] = Some(Item("id" -> "alice", "score" -> 42))
-
-  private val conditionFailedAsLeftTests: Spec[DynamoDBEnv, Throwable] =
-    suite("conditionFailedAsLeft on WriteBuilder")(
-      test("plain interpreter: C before .where/.returnValues... - Left value with the raw item") {
-        withSingleIdKeyTable { (tableName, interpreter) =>
-          val table = DdbExprApi.Table[Score](tableName)
-          for {
-            _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
-            result <- DdbExprApi
-                        .put(table, Score("alice", 99))
-                        .conditionFailedAsLeft
-                        .where(Score.score === 0)
-                        .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
-                        .execute(interpreter)
-          } yield assert(result)(isLeft(hasField("item", _.item, equalTo(existingScoreItem))))
+          } yield assert(result)(isLeft(hasField("item", _.item, isNone)))
         }
       },
-      test("plain interpreter: C after .where/.returnValues... - same result") {
+      test("condition holds: Right(())") {
         withSingleIdKeyTable { (tableName, interpreter) =>
           val table = DdbExprApi.Table[Score](tableName)
           for {
             _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
             result <- DdbExprApi
                         .update[Score](table)(Score.id.partitionKey === "alice")(Score.score.set(99))
-                        .where(Score.score === 0)
-                        .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
-                        .conditionFailedAsLeft
+                        .where(Score.score === 42)
                         .execute(interpreter)
-          } yield assert(result)(isLeft(hasField("item", _.item, equalTo(existingScoreItem))))
+          } yield assertTrue(result == Right(()))
         }
       },
-      test("typed ZIO interpreter: absolved into the channel as DynamoFailure.ConditionFailed") {
+      test("typed ZIO interpreter: the Left is absolved into the channel") {
         ZIO.serviceWithZIO[DynamoDBEnv] { env =>
           implicit val typed: TypedErrorsZioInterpreter = ZioInterpreter.fromAsyncClientWithTypedErrors(env.asyncClient)
           withSingleIdKeyTable { (tableName, interpreter) =>
-            val table                                    = DdbExprApi.Table[Score](tableName)
-            val delete: IO[DynamoFailure, Option[Score]] =
+            val table                           = DdbExprApi.Table[Score](tableName)
+            val delete: IO[DynamoFailure, Unit] =
               DdbExprApi
                 .deleteFrom[Score](table)(Score.id.partitionKey === "alice")
-                .conditionFailedAsLeft
                 .where(Score.score === 0)
                 .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
                 .execute
@@ -775,18 +742,91 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           }
         }
       },
-      test("compile time: .where is accepted after a C node, still rejected on a read's Either[ItemError, A]") {
+      test("compile time: .where is still rejected on reads") {
+        // Note: AllOld without a condition is NOT rejected - `writeBuilderToQuery` converts the
+        // builder to a DynamoDBQuery, which has the method.
         for {
-          afterC <- typeCheck(
-                      "DdbExprApi.put(DdbExprApi.Table[Score](\"t\"), Score(\"a\", 1)).toQuery.conditionFailedAsLeft" +
-                        ".where(null.asInstanceOf[ConditionExpression[Score]])"
-                    )
-          onRead <- typeCheck(
-                      "DdbExprApi.get[Score](DdbExprApi.Table[Score](\"t\"))(Score.id.partitionKey === \"a\")" +
-                        ".where(null.asInstanceOf[ConditionExpression[Score]])"
-                    )
-        } yield assert(afterC)(isRight(anything)) &&
-          assert(onRead)(isLeft(containsString("only supports conditions expressions on put, update and delete")))
+          whereOnRead <- typeCheck(
+                           "DdbExprApi.get[Score](DdbExprApi.Table[Score](\"t\"))(Score.id.partitionKey === \"a\")" +
+                             ".where(null.asInstanceOf[ConditionExpression[Score]])"
+                         )
+        } yield assert(whereOnRead)(
+          isLeft(containsString("only supports conditions expressions on put, update and delete"))
+        )
+      }
+    )
+
+  // HL transactWriteItems: a transaction can always be cancelled, so the cancellation is part of
+  // its type - Either[TransactionCancelled, Unit].
+  private val hlTransactionTests: Spec[DynamoDBEnv, Throwable] =
+    suite("HL transactWriteItems: cancellation is part of the type")(
+      test("cancelled (a conditional item fails): Left with the reasons") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table                                                                           = DdbExprApi.Table[Score](tableName)
+          val tx: zio.Task[Either[DynamoDBError.TransactionError.TransactionCancelled, Unit]] =
+            interpreter.run(
+              DdbExprApi.transactWriteItems(
+                DdbExprApi.put(table, Score("alice", 99)).where(Score.score === 0),
+                DdbExprApi.put(table, Score("bob", 1))
+              )
+            )
+          for {
+            _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
+            result <- tx
+            bob    <- interpreter.run(DdbExprApi.get[Score](table)(Score.id.partitionKey === "bob"))
+          } yield assert(result)(isLeft(hasField("reasons", _.reasons.size, equalTo(2)))) && assert(bob)(isNone)
+        }
+      },
+      test("committed: Right(())") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Score](tableName)
+          for {
+            _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
+            result <- interpreter.run(
+                        DdbExprApi.transactWriteItems(
+                          DdbExprApi.put(table, Score("alice", 99)).where(Score.score === 42),
+                          DdbExprApi.put(table, Score("bob", 1))
+                        )
+                      )
+            bob    <- interpreter.run(DdbExprApi.get[Score](table)(Score.id.partitionKey === "bob"))
+          } yield assertTrue(result == Right(()), bob.contains(Right(Score("bob", 1))))
+        }
+      },
+      test("typed ZIO interpreter: the cancellation is absolved into the channel") {
+        import zio.dynamodb.ExecuteSyntax._
+        ZIO.serviceWithZIO[DynamoDBEnv] { env =>
+          implicit val typed: TypedErrorsZioInterpreter = ZioInterpreter.fromAsyncClientWithTypedErrors(env.asyncClient)
+          withSingleIdKeyTable { (tableName, interpreter) =>
+            val table                       = DdbExprApi.Table[Score](tableName)
+            val tx: IO[DynamoFailure, Unit] =
+              DdbExprApi.transactWriteItems(DdbExprApi.put(table, Score("alice", 99)).where(Score.score === 0)).execute
+            for {
+              _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
+              result <- tx.either
+            } yield assert(result)(
+              isLeft(
+                isSubtype[DynamoFailure.Library](
+                  hasField("error", _.error, isSubtype[DynamoDBError.TransactionError.TransactionCancelled](anything))
+                )
+              )
+            )
+          }
+        }
+      },
+      test("withClientRequestToken reaches the transaction through the Either wrapping") {
+        val q =
+          DdbExprApi.transactWriteItems(DynamoDBQuery.putItem("t", Item("id" -> "a"))).withClientRequestToken("tok")
+        assert(q)(
+          isSubtype[DynamoDBQuery.TransactionCancelledAsLeft[_, _]](
+            hasField(
+              "query",
+              _.query,
+              isSubtype[DynamoDBQuery.TransactWriteItems](
+                hasField("token", _.clientRequestToken, isSome(equalTo("tok")))
+              )
+            )
+          )
+        )
       }
     )
 
@@ -802,8 +842,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
       deleteTests,
       nativeSetTests,
       configuredTableTests,
-      returnValuesOnConditionCheckFailureTests,
-      conditionFailedAsLeftTests
+      conditionalWriteTests,
+      hlTransactionTests
     )
       .provideSome[DynamoDbAsyncClient](envLayer) @@
       TestAspect.sequential

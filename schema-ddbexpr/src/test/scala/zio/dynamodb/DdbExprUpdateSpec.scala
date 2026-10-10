@@ -159,12 +159,14 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
       test("update with set action runs without error") {
         val q = DdbExprApi
           .update(records)(Record.id.partitionKey === "r1")(Record.score.set(99))
-        assertTrue(run(q).isEmpty)
+        val _ = run(q)
+        assertCompletes
       },
       test("update with composed set + add runs without error") {
         val q = DdbExprApi
           .update(records)(Record.id.partitionKey === "r1")(Record.score.set(99) + Record.count.add(1))
-        assertTrue(run(q).isEmpty)
+        val _ = run(q)
+        assertCompletes
       },
       // Range expressions (sortKey > / between / beginsWith) on update are now a compile-time error:
       // DdbExprApi.update takes DdbKeyExpr.PrimaryKey, which Extended does not satisfy.
@@ -183,7 +185,8 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
         // And DdbExprApi.updateAction wires it through key resolution into a runnable query
         // rather than silently dropping it.
         val q = DdbExprApi.updateAction(records)(Record.id.partitionKey === "r1")(rawAction)
-        assertTrue(run(q).isEmpty)
+        val _ = run(q)
+        assertCompletes
       }
     ),
     suite("optic paths DDB cannot represent")(

@@ -59,16 +59,16 @@ object Sets {
   val removeChecksums: DdbUpdateExpr[Inventory] = Inventory.checksums.deleteFromSet(Set(Chunk[Byte](1, 2, 3)))
 
   // Wired into the six CRUD operations — see SetsSpec for these actually run.
-  val putQuery: DynamoDBQuery[Inventory, Option[Inventory]] =
+  val putQuery: DynamoDBQuery[Inventory, Unit] =
     put(inventories, Inventory("i-1", Set("urgent"), Set(1, 2), Set(Chunk[Byte](1))))
 
-  val getQuery: DynamoDBQuery[Inventory, Either[DynamoDBError.ItemError, Inventory]] =
+  val getQuery: DynamoDBQuery[Inventory, Option[Either[DynamoDBError.ItemError.DecodingError, Inventory]]] =
     get(inventories)(Inventory.id.partitionKey === "i-1")
 
-  val updateQuery: DynamoDBQuery[Inventory, Option[Inventory]] =
+  val updateQuery: DynamoDBQuery[Inventory, Unit] =
     update(inventories)(Inventory.id.partitionKey === "i-1")(Inventory.tags.addSet(Set("reviewed")))
 
-  val deleteQuery: DynamoDBQuery[Inventory, Option[Inventory]] =
+  val deleteQuery: DynamoDBQuery[Inventory, Unit] =
     deleteFrom(inventories)(Inventory.id.partitionKey === "i-1")
 
   val queryQuery: DynamoDBQuery[Inventory, Page[Either[DynamoDBError.ItemError, Inventory]]] =

@@ -54,12 +54,12 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   final def map[B](f: Out => B): DynamoDBQuery[In, B] = DynamoDBQuery.Map(self, f)
 
-  /** A failed write condition becomes a `Left` value instead of a failed effect. */
-  final def conditionFailedAsLeft: DynamoDBQuery[In, Either[ItemError.ConditionFailed, Out]] =
+  // Internal: builders choose these from the operation's kind (e.g. a conditional write) rather
+  // than exposing them for callers to opt in to.
+  private[dynamodb] final def conditionFailedAsLeft: DynamoDBQuery[In, Either[ItemError.ConditionFailed, Out]] =
     DynamoDBQuery.ConditionFailedAsLeft(self)
 
-  /** A cancelled transaction becomes a `Left` value instead of a failed effect. */
-  final def transactionCancelledAsLeft
+  private[dynamodb] final def transactionCancelledAsLeft
     : DynamoDBQuery[In, Either[DynamoDBError.TransactionError.TransactionCancelled, Out]] =
     DynamoDBQuery.TransactionCancelledAsLeft(self)
 
@@ -195,9 +195,13 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   final def withClientRequestToken(token: String): DynamoDBQuery[In, Out] =
     self match {
-      case tw: DynamoDBQuery.TransactWriteItems =>
+      case tw: DynamoDBQuery.TransactWriteItems              =>
         tw.copy(clientRequestToken = Some(token)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                    => self
+      case c: DynamoDBQuery.TransactionCancelledAsLeft[_, _] =>
+        DynamoDBQuery
+          .TransactionCancelledAsLeft(c.query.asInstanceOf[DynamoDBQuery[Any, Any]].withClientRequestToken(token))
+          .asInstanceOf[DynamoDBQuery[In, Out]]
+      case _                                                 => self
     }
 
   final def withRetryPolicy(policy: RetryPolicy): DynamoDBQuery[In, Out] =
