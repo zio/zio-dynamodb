@@ -815,7 +815,10 @@ private[dynamodb] object AwsCodecs {
   ): DynamoDBError.TransactionError.TransactionCancelled = {
     val reasons = Chunk.fromIterable(e.cancellationReasons.asScala.map { r =>
       DynamoDBError.CancellationReason(
-        code = r.code,
+        // AWS sends the literal "None" for an action that didn't fail; some SDKs surface it as null.
+        code = Option(r.code).fold[DynamoDBError.CancellationCode](DynamoDBError.CancellationCode.NoError)(
+          DynamoDBError.CancellationCode.fromString
+        ),
         message = Option(r.message),
         item = if (r.hasItem && !r.item.isEmpty) Some(fromAwsItem(r.item)) else None
       )
