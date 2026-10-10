@@ -29,14 +29,20 @@ class ZioInterpreter(
   override protected val retryInterceptor: Option[RetryInterceptor[Task]] = None,
   override protected val batchRetryInterceptor: Option[BatchRetryInterceptor[Task]] = None,
   override protected val retryQuota: Option[RetryQuota[Task]] = None
-) extends RealAwsInterpreter[Task](client) {
-  private[dynamodb] def pure[A](a: A): Task[A]                               = ZIO.succeed(a)
-  private[dynamodb] def map[A, B](fa: Task[A])(f: A => B): Task[B]           = fa.map(f)
-  private[dynamodb] def flatMap[A, B](fa: Task[A])(f: A => Task[B]): Task[B] = fa.flatMap(f)
-  protected def product[A, B](fa: Task[A], fb: Task[B]): Task[(A, B)]        = fa.zip(fb)
-  protected def productPar[A, B](fa: Task[A], fb: Task[B]): Task[(A, B)]     = fa.zipPar(fb)
-  protected def fail[A](e: DynamoDBError): Task[A]                           = ZIO.fail(e)
-  protected def absolve[A](fa: Task[Either[ItemError, A]]): Task[A]          =
+) extends RealAwsInterpreter[Task](client)
+    with NarrowedResult {
+
+  type Result[A] = IO[DynamoFailure, A]
+
+  override def run[Out](query: DynamoDBQuery[_, Out]): IO[DynamoFailure, Out] =
+    super.run(query).mapError(DynamoFailure.classify)
+  private[dynamodb] def pure[A](a: A): Task[A]                                = ZIO.succeed(a)
+  private[dynamodb] def map[A, B](fa: Task[A])(f: A => B): Task[B]            = fa.map(f)
+  private[dynamodb] def flatMap[A, B](fa: Task[A])(f: A => Task[B]): Task[B]  = fa.flatMap(f)
+  protected def product[A, B](fa: Task[A], fb: Task[B]): Task[(A, B)]         = fa.zip(fb)
+  protected def productPar[A, B](fa: Task[A], fb: Task[B]): Task[(A, B)]      = fa.zipPar(fb)
+  protected def fail[A](e: DynamoDBError): Task[A]                            = ZIO.fail(e)
+  protected def absolve[A](fa: Task[Either[ItemError, A]]): Task[A]           =
     fa.flatMap(ZIO.fromEither(_))
 
   private[dynamodb] def sleep(d: FiniteDuration): Task[Unit]                =

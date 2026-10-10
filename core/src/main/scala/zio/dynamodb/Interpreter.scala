@@ -640,7 +640,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
     }
   }
 
-  final def run[Out](query: DynamoDBQuery[_, Out]): F[Out] =
+  def run[Out](query: DynamoDBQuery[_, Out]): F[Out] =
     runAny(query).asInstanceOf[F[Out]]
 }
 
