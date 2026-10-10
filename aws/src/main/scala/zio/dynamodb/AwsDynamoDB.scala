@@ -854,22 +854,24 @@ abstract class RealAwsInterpreter[F[_]](client: AwsDynamoDB[F]) extends AwsInter
    */
   private val retryableStatusCodes: Set[Int] = Set(500, 502, 503, 504)
 
-  override protected def isRetryable: Throwable => Boolean = {
-    case e: AwsServiceException   => e.isThrottlingException || retryableStatusCodes.contains(e.statusCode())
-    case _: NonRetryableException => false
-    case _: SdkClientException    => true
-    case t                        => RetryPolicy.isRetryable(t)
-  }
+  override protected def isRetryable: Throwable => Boolean = t =>
+    DynamoFailure.unwrap(t) match {
+      case e: AwsServiceException   => e.isThrottlingException || retryableStatusCodes.contains(e.statusCode())
+      case _: NonRetryableException => false
+      case _: SdkClientException    => true
+      case u                        => RetryPolicy.isRetryable(u)
+    }
 
   /**
    * [[RetryQuota]] cost, classified the same way as `isRetryable` above — the SDK's own
    * `AwsServiceException#isThrottlingException`, not message-substrings, for anything that is
    * an `AwsServiceException`. Falls back to [[RetryPolicy.retryCost]] for anything that isn't.
    */
-  override protected def retryCost: Throwable => Int = {
-    case e: AwsServiceException => if (e.isThrottlingException) 5 else 14
-    case t                      => RetryPolicy.retryCost(t)
-  }
+  override protected def retryCost: Throwable => Int = t =>
+    DynamoFailure.unwrap(t) match {
+      case e: AwsServiceException => if (e.isThrottlingException) 5 else 14
+      case u                      => RetryPolicy.retryCost(u)
+    }
 
   protected def runGetItem(q: DynamoDBQuery.GetItem): F[Option[Item]] =
     map(client.getItem(AwsCodecs.toGetItemRequest(q)))(AwsCodecs.fromGetItemResponse)
@@ -909,8 +911,11 @@ abstract class RealAwsInterpreter[F[_]](client: AwsDynamoDB[F]) extends AwsInter
 
   protected def runTransactWriteItems(q: DynamoDBQuery.TransactWriteItems): F[Unit] =
     flatMap(attempt(client.transactWriteItems(AwsCodecs.toTransactWriteItemsRequest(q)))) {
-      case Right(_)                              => pure(())
-      case Left(e: TransactionCanceledException) => fail(AwsCodecs.fromTransactionCanceledException(e))
-      case Left(t)                               => raiseError(t)
+      case Right(_) => pure(())
+      case Left(t)  =>
+        DynamoFailure.unwrap(t) match {
+          case e: TransactionCanceledException => fail(AwsCodecs.fromTransactionCanceledException(e))
+          case _                               => raiseError(t)
+        }
     }
 }
