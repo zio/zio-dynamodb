@@ -68,7 +68,10 @@ final class ScanBuilder[From] private[ddbexpr] (
 
   def toQuery: DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = query
 
-  def execute[F[_]](implicit interpreter: Interpreter[F]): F[Page[Either[DynamoDBError.ItemError, From]]] =
+  def execute[R](implicit executeAs: ExecuteAs[Page[Either[DynamoDBError.ItemError, From]], R]): R =
+    executeAs(query)
+
+  def execute[F[_]](interpreter: Interpreter[F]): F[Page[Either[DynamoDBError.ItemError, From]]] =
     interpreter.run(query)
 }
 
@@ -97,7 +100,10 @@ final class QueryBuilder[From] private[ddbexpr] (
 
   def toQuery: DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = query
 
-  def execute[F[_]](implicit interpreter: Interpreter[F]): F[Page[Either[DynamoDBError.ItemError, From]]] =
+  def execute[R](implicit executeAs: ExecuteAs[Page[Either[DynamoDBError.ItemError, From]], R]): R =
+    executeAs(query)
+
+  def execute[F[_]](interpreter: Interpreter[F]): F[Page[Either[DynamoDBError.ItemError, From]]] =
     interpreter.run(query)
 }
 
@@ -123,7 +129,10 @@ final class WriteBuilder[From] private[ddbexpr] (
 
   def toQuery: DynamoDBQuery[From, Option[From]] = query
 
-  def execute[F[_]](implicit interpreter: Interpreter[F]): F[Option[From]] =
+  def execute[R](implicit executeAs: ExecuteAs[Option[From], R]): R =
+    executeAs(query)
+
+  def execute[F[_]](interpreter: Interpreter[F]): F[Option[From]] =
     interpreter.run(query)
 }
 
