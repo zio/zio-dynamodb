@@ -868,6 +868,11 @@ abstract class RealAwsInterpreter[F[_]](client: AwsDynamoDB[F]) extends AwsInter
    * `AwsServiceException#isThrottlingException`, not message-substrings, for anything that is
    * an `AwsServiceException`. Falls back to [[RetryPolicy.retryCost]] for anything that isn't.
    */
+  override protected def asTransactionCancelled(
+    t: Throwable
+  ): Option[DynamoDBError.TransactionError.TransactionCancelled] =
+    super.asTransactionCancelled(DynamoFailure.unwrap(t))
+
   override protected def asConditionFailed(t: Throwable): Option[DynamoDBError.ItemError.ConditionFailed] =
     DynamoFailure.unwrap(t) match {
       case e: ConditionalCheckFailedException =>

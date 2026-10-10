@@ -76,7 +76,7 @@ object TypedErrorsZioInterpreterSpec extends DynamoDBLocalSpec {
           }
         }
       },
-      test("typed ZIO interpreter: the Left is flattened into the channel, typed IO[DynamoFailure, _]") {
+      test("typed ZIO interpreter: the Left is absolved into the channel, typed IO[DynamoFailure, _]") {
         ZIO.serviceWithZIO[DynamoDBEnv] { env =>
           implicit val i: TypedErrorsZioInterpreter = ZioInterpreter.fromAsyncClientWithTypedErrors(env.asyncClient)
           withSingleIdKeyTable { (table, plain) =>
@@ -92,7 +92,7 @@ object TypedErrorsZioInterpreterSpec extends DynamoDBLocalSpec {
           }
         }
       },
-      test("typed ZIO interpreter: success flattens to the plain value") {
+      test("typed ZIO interpreter: success absolves to the plain value") {
         ZIO.serviceWithZIO[DynamoDBEnv] { env =>
           implicit val i: TypedErrorsZioInterpreter = ZioInterpreter.fromAsyncClientWithTypedErrors(env.asyncClient)
           withSingleIdKeyTable { (table, plain) =>
@@ -125,9 +125,59 @@ object TypedErrorsZioInterpreterSpec extends DynamoDBLocalSpec {
       }
     )
 
+  private def cancelledTransaction(table: String) =
+    DynamoDBQuery.transactWriteItems(conditionalPut(table))
+
+  private val expectedErrorTests =
+    suite("ExpectedError: which Eithers are absolved")(
+      test("plain ZIO interpreter: a cancelled transaction is a Left value") {
+        withSingleIdKeyTable { (table, plain) =>
+          implicit val i: Interpreter[Task]                                               = plain
+          val tx: Task[Either[DynamoDBError.TransactionError.TransactionCancelled, Unit]] =
+            cancelledTransaction(table).transactionCancelledAsLeft.execute
+          for {
+            _      <- plain.run(DynamoDBQuery.putItem(table, Item("id" -> "a", "score" -> 0)))
+            result <- tx
+          } yield assert(result)(isLeft(hasField("reasons", _.reasons.size, equalTo(1))))
+        }
+      },
+      test("typed ZIO interpreter: a cancelled transaction is absolved into the channel") {
+        ZIO.serviceWithZIO[DynamoDBEnv] { env =>
+          implicit val i: TypedErrorsZioInterpreter = ZioInterpreter.fromAsyncClientWithTypedErrors(env.asyncClient)
+          withSingleIdKeyTable { (table, plain) =>
+            val tx: IO[DynamoFailure, Unit] = cancelledTransaction(table).transactionCancelledAsLeft.execute
+            for {
+              _      <- plain.run(DynamoDBQuery.putItem(table, Item("id" -> "a", "score" -> 0)))
+              result <- tx.either
+            } yield assert(result)(
+              isLeft(
+                isSubtype[DynamoFailure.Library](
+                  hasField("error", _.error, isSubtype[DynamoDBError.TransactionError.TransactionCancelled](anything))
+                )
+              )
+            )
+          }
+        }
+      },
+      test("typed ZIO interpreter: a read-shaped Either[ItemError, A] is NOT absolved") {
+        ZIO.serviceWithZIO[DynamoDBEnv] { env =>
+          implicit val i: TypedErrorsZioInterpreter = ZioInterpreter.fromAsyncClientWithTypedErrors(env.asyncClient)
+          withSingleIdKeyTable { (table, _) =>
+            val read: IO[DynamoFailure, Either[DynamoDBError.ItemError, Item]] =
+              DynamoDBQuery
+                .getItem(table, PrimaryKey("id" -> "missing"))
+                .map(_.toRight[DynamoDBError.ItemError](DynamoDBError.ItemError.ValueNotFound("missing")))
+                .execute
+            read.map(result => assert(result)(isLeft(isSubtype[DynamoDBError.ItemError.ValueNotFound](anything))))
+          }
+        }
+      }
+    )
+
   def spec =
     suite("TypedErrorsZioInterpreter")(
       optionCTests,
+      expectedErrorTests,
       test("success returns the value; .execute is typed IO[DynamoFailure, _]") {
         ZIO.serviceWithZIO[DynamoDBEnv] { env =>
           implicit val i: TypedErrorsZioInterpreter = ZioInterpreter.fromAsyncClientWithTypedErrors(env.asyncClient)

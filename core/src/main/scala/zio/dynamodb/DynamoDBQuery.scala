@@ -58,6 +58,11 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
   final def conditionFailedAsLeft: DynamoDBQuery[In, Either[ItemError.ConditionFailed, Out]] =
     DynamoDBQuery.ConditionFailedAsLeft(self)
 
+  /** A cancelled transaction becomes a `Left` value instead of a failed effect. */
+  final def transactionCancelledAsLeft
+    : DynamoDBQuery[In, Either[DynamoDBError.TransactionError.TransactionCancelled, Out]] =
+    DynamoDBQuery.TransactionCancelledAsLeft(self)
+
   /** Runs `self` and `that` in parallel and combines their results. */
   final def zipPar[In1 <: In, B](that: DynamoDBQuery[In1, B])(implicit
     z: Zippable[Out, B]
@@ -503,6 +508,9 @@ object DynamoDBQuery {
 
   private[dynamodb] final case class ConditionFailedAsLeft[A, B](query: DynamoDBQuery[A, B])
       extends DynamoDBQuery[A, Either[ItemError.ConditionFailed, B]]
+
+  private[dynamodb] final case class TransactionCancelledAsLeft[A, B](query: DynamoDBQuery[A, B])
+      extends DynamoDBQuery[A, Either[DynamoDBError.TransactionError.TransactionCancelled, B]]
 
   def apply[A](a: => A): DynamoDBQuery[Any, A] = Succeed(() => a)
 
