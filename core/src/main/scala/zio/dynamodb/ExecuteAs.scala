@@ -24,6 +24,11 @@ package zio.dynamodb
 trait NarrowedResult {
   type Result[A]
   def run[Out](query: DynamoDBQuery[_, Out]): Result[Out]
+
+  /** Runs a query producing `Either[ConditionFailed, Out]` with the `Left` moved into `Result`'s error channel. */
+  def runFlattened[Out](query: DynamoDBQuery[_, Either[DynamoDBError.ItemError.ConditionFailed, Out]]): Result[Out]
+
+  private[dynamodb] final val flattening: ExecuteAs.Flattening = new ExecuteAs.Flattening(this)
 }
 
 /**
@@ -33,14 +38,28 @@ trait NarrowedResult {
 final class ExecuteAs[Out, R](private val interpreter: AnyRef) extends AnyVal {
   def apply(query: DynamoDBQuery[_, Out]): R =
     interpreter match {
-      case n: NarrowedResult => n.run(query).asInstanceOf[R]
-      case i                 => i.asInstanceOf[Interpreter[ExecuteAs.Id]].run(query).asInstanceOf[R]
+      case f: ExecuteAs.Flattening =>
+        f.interpreter
+          .runFlattened(query.asInstanceOf[DynamoDBQuery[_, Either[DynamoDBError.ItemError.ConditionFailed, Any]]])
+          .asInstanceOf[R]
+      case n: NarrowedResult       => n.run(query).asInstanceOf[R]
+      case i                       => i.asInstanceOf[Interpreter[ExecuteAs.Id]].run(query).asInstanceOf[R]
     }
 }
 
-object ExecuteAs extends ExecuteAsLowPriority {
+object ExecuteAs extends ExecuteAsNarrowed {
   private[dynamodb] type Id[A] = A
 
+  // Allocated once per interpreter; marks "flatten the Either" without a per-call allocation.
+  private[dynamodb] final class Flattening(val interpreter: NarrowedResult)
+
+  implicit def narrowedFlattened[A, J <: NarrowedResult](implicit
+    j: J
+  ): ExecuteAs[Either[DynamoDBError.ItemError.ConditionFailed, A], j.Result[A]] =
+    new ExecuteAs(j.flattening)
+}
+
+trait ExecuteAsNarrowed extends ExecuteAsLowPriority {
   implicit def narrowed[Out, J <: NarrowedResult](implicit j: J): ExecuteAs[Out, j.Result[Out]] =
     new ExecuteAs(j)
 }

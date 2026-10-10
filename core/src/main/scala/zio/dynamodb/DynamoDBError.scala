@@ -106,6 +106,12 @@ object DynamoDBError {
     final case class ValueNotFound(message: String) extends ItemError
 
     /**
+     * A write's condition expression evaluated to false. `item` holds the item as it was when
+     * the write requested `ReturnValuesOnConditionCheckFailure.AllOld`.
+     */
+    final case class ConditionFailed(message: String, item: Option[Item]) extends ItemError
+
+    /**
      * Composite decoding failure: one or more [[DecodingError.Cause]] entries.
      *
      *  Backed by `Array[Cause]` so the codec deriver can convert an

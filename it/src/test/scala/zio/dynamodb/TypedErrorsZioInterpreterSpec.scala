@@ -29,8 +29,105 @@ object TypedErrorsZioInterpreterSpec extends DynamoDBLocalSpec {
   private val envLayer: URLayer[DynamoDbAsyncClient, DynamoDBEnv] =
     ZLayer(ZIO.serviceWith[DynamoDbAsyncClient](client => DynamoDBEnv(client, ZioInterpreter.fromAsyncClient(client))))
 
+  private def conditionalPut(table: String) =
+    DynamoDBQuery.putItem(table, Item("id" -> "a", "score" -> 99)).where($("score") === 42)
+
+  private val existingItem: Option[Item] = Some(Item("id" -> "a", "score" -> 0))
+
+  private def conditionFailedWithScore(score: Int): Assertion[Any] =
+    isSubtype[DynamoFailure.ConditionFailed](
+      hasField[DynamoFailure.ConditionFailed, Option[Item]](
+        "item",
+        _.item,
+        isSome(equalTo(Item("id" -> "a", "score" -> score)))
+      )
+    )
+
+  private val optionCTests =
+    suite("option C: conditionFailedAsLeft")(
+      test("plain ZIO interpreter: the Left is a value, typed Task[Either[ConditionFailed, _]]") {
+        withSingleIdKeyTable { (table, plain) =>
+          implicit val i: Interpreter[Task]                                            = plain
+          val put: Task[Either[DynamoDBError.ItemError.ConditionFailed, Option[Item]]] =
+            conditionalPut(table)
+              .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+              .conditionFailedAsLeft
+              .execute
+          for {
+            _      <- plain.run(DynamoDBQuery.putItem(table, Item("id" -> "a", "score" -> 0)))
+            result <- put
+          } yield assert(result)(isLeft(hasField("item", _.item, equalTo(existingItem))))
+        }
+      },
+      test("CE interpreter: the Left is a value, typed IO[Either[ConditionFailed, _]]") {
+        ZIO.serviceWithZIO[DynamoDBEnv] { env =>
+          implicit val ce: CEInterpreter[cats.effect.IO] =
+            CEInterpreter.fromAsyncClient[cats.effect.IO](env.asyncClient)
+          withSingleIdKeyTable { (table, plain) =>
+            val put: cats.effect.IO[Either[DynamoDBError.ItemError.ConditionFailed, Option[Item]]] =
+              conditionalPut(table)
+                .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+                .conditionFailedAsLeft
+                .execute
+            for {
+              _      <- plain.run(DynamoDBQuery.putItem(table, Item("id" -> "a", "score" -> 0)))
+              result <- ZIO.fromFuture(_ => put.unsafeToFuture()(cats.effect.unsafe.implicits.global))
+            } yield assert(result)(isLeft(hasField("item", _.item, equalTo(existingItem))))
+          }
+        }
+      },
+      test("typed ZIO interpreter: the Left is flattened into the channel, typed IO[DynamoFailure, _]") {
+        ZIO.serviceWithZIO[DynamoDBEnv] { env =>
+          implicit val i: TypedErrorsZioInterpreter = ZioInterpreter.fromAsyncClientWithTypedErrors(env.asyncClient)
+          withSingleIdKeyTable { (table, plain) =>
+            val put: IO[DynamoFailure, Option[Item]] =
+              conditionalPut(table)
+                .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+                .conditionFailedAsLeft
+                .execute
+            for {
+              _      <- plain.run(DynamoDBQuery.putItem(table, Item("id" -> "a", "score" -> 0)))
+              result <- put.either
+            } yield assert(result)(isLeft(conditionFailedWithScore(0)))
+          }
+        }
+      },
+      test("typed ZIO interpreter: success flattens to the plain value") {
+        ZIO.serviceWithZIO[DynamoDBEnv] { env =>
+          implicit val i: TypedErrorsZioInterpreter = ZioInterpreter.fromAsyncClientWithTypedErrors(env.asyncClient)
+          withSingleIdKeyTable { (table, plain) =>
+            for {
+              _      <- plain.run(DynamoDBQuery.putItem(table, Item("id" -> "a", "score" -> 42)))
+              result <- conditionalPut(table).conditionFailedAsLeft.execute
+            } yield assertTrue(result.isEmpty)
+          }
+        }
+      },
+      test("typed ZIO interpreter: a .map composed on the Either still sees a real Either") {
+        ZIO.serviceWithZIO[DynamoDBEnv] { env =>
+          implicit val i: TypedErrorsZioInterpreter = ZioInterpreter.fromAsyncClientWithTypedErrors(env.asyncClient)
+          withSingleIdKeyTable { (table, plain) =>
+            val put: IO[DynamoFailure, String] =
+              conditionalPut(table)
+                .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+                .conditionFailedAsLeft
+                .map {
+                  case Left(cf) => Left(cf)
+                  case Right(_) => Right("written")
+                }
+                .execute
+            for {
+              _      <- plain.run(DynamoDBQuery.putItem(table, Item("id" -> "a", "score" -> 0)))
+              result <- put.either
+            } yield assert(result)(isLeft(conditionFailedWithScore(0)))
+          }
+        }
+      }
+    )
+
   def spec =
     suite("TypedErrorsZioInterpreter")(
+      optionCTests,
       test("success returns the value; .execute is typed IO[DynamoFailure, _]") {
         ZIO.serviceWithZIO[DynamoDBEnv] { env =>
           implicit val i: TypedErrorsZioInterpreter = ZioInterpreter.fromAsyncClientWithTypedErrors(env.asyncClient)
@@ -43,32 +140,17 @@ object TypedErrorsZioInterpreterSpec extends DynamoDBLocalSpec {
           }
         }
       },
-      test("failed condition with AllOld → Rejected(ConditionalCheckFailedException) carrying the item") {
+      test("failed condition with AllOld → ConditionFailed carrying the item") {
         ZIO.serviceWithZIO[DynamoDBEnv] { env =>
           implicit val i: TypedErrorsZioInterpreter = ZioInterpreter.fromAsyncClientWithTypedErrors(env.asyncClient)
           withSingleIdKeyTable { (table, plain) =>
             for {
               _      <- plain.run(DynamoDBQuery.putItem(table, Item("id" -> "a", "score" -> 0)))
-              result <- DynamoDBQuery
-                          .putItem(table, Item("id" -> "a", "score" -> 99))
-                          .where($("score") === 42)
+              result <- conditionalPut(table)
                           .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
                           .execute
                           .either
-            } yield assert(result)(
-              isLeft(
-                isSubtype[DynamoFailure.Rejected](
-                  hasField[DynamoFailure.Rejected, Option[String]](
-                    "error.item.score",
-                    _.error match {
-                      case e: ConditionalCheckFailedException if e.hasItem => Option(e.item.get("score")).map(_.n)
-                      case _                                               => None
-                    },
-                    isSome(equalTo("0"))
-                  )
-                )
-              )
-            )
+            } yield assert(result)(isLeft(conditionFailedWithScore(0)))
           }
         }
       },
