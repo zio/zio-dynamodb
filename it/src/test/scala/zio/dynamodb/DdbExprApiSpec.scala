@@ -658,6 +658,70 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
       }
     )
 
+  private final case class Score(id: String, score: Int)
+  private object Score extends CompanionOptics[Score] {
+    implicit val schema: Schema[Score] = Schema.derived
+    val id: Lens[Score, String]        = $(_.id)
+    val score: Lens[Score, Int]        = $(_.score)
+  }
+
+  private def failedWithExistingScore(score: String): Assertion[Either[Throwable, Option[Score]]] =
+    isLeft(
+      isSubtype[ConditionalCheckFailedException](
+        hasField[ConditionalCheckFailedException, Option[String]](
+          "item.score",
+          e => if (e.hasItem) Option(e.item.get("score")).map(_.n) else None,
+          isSome(equalTo(score))
+        )
+      )
+    )
+
+  private val returnValuesOnConditionCheckFailureTests: Spec[DynamoDBEnv, Throwable] =
+    suite("returnValuesOnConditionCheckFailure on WriteBuilder")(
+      test("put with AllOld returns the existing item on condition failure") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Score](tableName)
+          for {
+            _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
+            result <- DdbExprApi
+                        .put(table, Score("alice", 99))
+                        .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+                        .where(Score.score === 0)
+                        .execute(interpreter)
+                        .either
+          } yield assert(result)(failedWithExistingScore("42"))
+        }
+      },
+      test("update with AllOld returns the existing item on condition failure") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Score](tableName)
+          for {
+            _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
+            result <- DdbExprApi
+                        .update[Score](table)(Score.id.partitionKey === "alice")(Score.score.set(99))
+                        .where(Score.score === 0)
+                        .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+                        .execute(interpreter)
+                        .either
+          } yield assert(result)(failedWithExistingScore("42"))
+        }
+      },
+      test("deleteFrom with AllOld returns the existing item on condition failure") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Score](tableName)
+          for {
+            _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
+            result <- DdbExprApi
+                        .deleteFrom[Score](table)(Score.id.partitionKey === "alice")
+                        .where(Score.score === 0)
+                        .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+                        .execute(interpreter)
+                        .either
+          } yield assert(result)(failedWithExistingScore("42"))
+        }
+      }
+    )
+
   def spec =
     suite("DdbExprApi IT")(
       putGetTests,
@@ -669,7 +733,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
       updateTests,
       deleteTests,
       nativeSetTests,
-      configuredTableTests
+      configuredTableTests,
+      returnValuesOnConditionCheckFailureTests
     )
       .provideSome[DynamoDbAsyncClient](envLayer) @@
       TestAspect.sequential

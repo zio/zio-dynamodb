@@ -118,6 +118,9 @@ final class WriteBuilder[From] private[ddbexpr] (
   def where(se: SchemaExpr[From, Boolean]): WriteBuilder[From] = where(DdbExpr.Builtin(se))
   def where(ce: ConditionExpression[From]): WriteBuilder[From] = attach(ce)
 
+  def returnValuesOnConditionCheckFailure(rv: ReturnValuesOnConditionCheckFailure): WriteBuilder[From] =
+    new WriteBuilder(table, query.returnValuesOnConditionCheckFailure(rv))
+
   def toQuery: DynamoDBQuery[From, Option[From]] = query
 
   def execute[F[_]](implicit interpreter: Interpreter[F]): F[Option[From]] =

@@ -152,6 +152,27 @@ def example(implicit interp: Interpreter[zio.Task]) =
   deleteFrom(orders)(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1").execute
 ```
 
+## Conditional writes
+
+`.where` makes `put`/`update`/`deleteFrom` conditional; a failed condition surfaces as the AWS
+SDK's `ConditionalCheckFailedException`. Add
+`.returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)` (in any
+order with `.where`) to get the item as it was on that exception, as a raw AWS item (`e.item`):
+
+```scala mdoc:compile-only
+import zio.dynamodb._
+import zio.dynamodb.ExecuteSyntax.*
+import zio.dynamodb.blocks.ddbexpr.dsl.*
+
+def example(implicit interp: Interpreter[zio.Task]) =
+  update(orders)(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1")(
+    Order.status.set(Status.Shipped)
+  )
+    .where(Order.status === Status.Pending)
+    .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+    .execute
+```
+
 ## Query
 
 `query`/`scan` return the same `Page[A]` type as their Low-Level counterparts, just
