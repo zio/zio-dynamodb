@@ -88,15 +88,10 @@ object DdbExprApiSpec extends ZIOSpecDefault {
       }
     ),
     suite("get — via DummyIOInterpreter")(
-      test("returns ValueNotFound when item is absent") {
+      test("returns None when item is absent") {
         val q      = DdbExprApi.get(tasks)(Task.id.partitionKey === "t1")
         val result = run(q)
-        assert(result)(isLeft(isSubtype[ItemError.ValueNotFound](anything)))
-      },
-      test("ValueNotFound message contains the primary key value") {
-        val q      = DdbExprApi.get(tasks)(Task.id.partitionKey === "alice")
-        val result = run(q)
-        assert(result)(isLeft(hasField("message", (_: ItemError).message, containsString("alice"))))
+        assert(result)(isNone)
       }
       // Range expressions (sk > / between / beginsWith) on get are now a compile-time error:
       // DdbExprApi.get takes DdbKeyExpr.PrimaryKey, which Extended does not satisfy.
@@ -122,25 +117,25 @@ object DdbExprApiSpec extends ZIOSpecDefault {
           val q = DdbExprApi
             .put(tasks, Task("t1", 42, Priority.High))
             .where(Task.priority === Priority.High)
-          assertTrue(run(q).isEmpty)
+          assertTrue(run(q) == Right(()))
         },
         test("put.where with SchemaExpr (Builtin path) runs without error") {
           val q = DdbExprApi
             .put(tasks, Task("t1", 42, Priority.High))
             .where(Task.score > 0)
-          assertTrue(run(q).isEmpty)
+          assertTrue(run(q) == Right(()))
         },
         test("put.where with combined && expression runs without error") {
           val q = DdbExprApi
             .put(tasks, Task("t1", 42, Priority.High))
             .where((Task.priority === Priority.High) && (Task.score > 0))
-          assertTrue(run(q).isEmpty)
+          assertTrue(run(q) == Right(()))
         },
         test("put.where with attributeExists runs without error") {
           val q = DdbExprApi
             .put(tasks, Task("t1", 42, Priority.High))
             .where(Task.id.attributeExists)
-          assertTrue(run(q).isEmpty)
+          assertTrue(run(q) == Right(()))
         },
         test("put.where with Failure CE raises DecodingError on run") {
           val q      = DdbExprApi
@@ -167,13 +162,13 @@ object DdbExprApiSpec extends ZIOSpecDefault {
           val q = DdbExprApi
             .deleteFrom(tasks)(Task.id.partitionKey === "t1")
             .where(Task.priority === Priority.High)
-          assertTrue(run(q).isEmpty)
+          assertTrue(run(q) == Right(()))
         },
         test("deleteFrom.where with SchemaExpr runs without error") {
           val q = DdbExprApi
             .deleteFrom(tasks)(Task.id.partitionKey === "t1")
             .where(Task.score > 0)
-          assertTrue(run(q).isEmpty)
+          assertTrue(run(q) == Right(()))
         },
         test("deleteFrom.where Failure CE raises DecodingError on run") {
           val q      = DdbExprApi

@@ -468,10 +468,14 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
   @scala.annotation.tailrec
   private def unwrapMappedWriteItem(q: DynamoDBQuery[Any, Any]): Either[DynamoDBError, DynamoDBQuery[Any, Any]] =
     q match {
-      case DynamoDBQuery.Map(inner, _)  => unwrapMappedWriteItem(inner.asInstanceOf[DynamoDBQuery[Any, Any]])
-      case DynamoDBQuery.Absolve(inner) => unwrapMappedWriteItem(inner.asInstanceOf[DynamoDBQuery[Any, Any]])
-      case f: DynamoDBQuery.Fail        => Left(f.error())
-      case other                        => Right(other)
+      case DynamoDBQuery.Map(inner, _)                  => unwrapMappedWriteItem(inner.asInstanceOf[DynamoDBQuery[Any, Any]])
+      case DynamoDBQuery.Absolve(inner)                 => unwrapMappedWriteItem(inner.asInstanceOf[DynamoDBQuery[Any, Any]])
+      // A conditional write inside a transaction reports a failed condition via
+      // TransactionCancelled, never its own Left, so its C node is dropped here.
+      case c: DynamoDBQuery.ConditionFailedAsLeft[_, _] =>
+        unwrapMappedWriteItem(c.query.asInstanceOf[DynamoDBQuery[Any, Any]])
+      case f: DynamoDBQuery.Fail                        => Left(f.error())
+      case other                                        => Right(other)
     }
 
   // Works on Any to sidestep Scala 2 GADT limitations; safe by construction.

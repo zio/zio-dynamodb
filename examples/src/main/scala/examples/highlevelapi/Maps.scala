@@ -80,19 +80,19 @@ object Maps {
   val setDeep: DdbUpdateExpr[Directory]       = Directory.deepAtKey("2024", "q1").set(100)
 
   // Wired into the six CRUD operations — see MapsSpec for these actually run.
-  val putQuery: DynamoDBQuery[Directory, Option[Directory]] =
+  val putQuery: DynamoDBQuery[Directory, Unit] =
     put(
       directories,
       Directory("d-1", Map("color" -> "blue"), Map("views" -> 1), Map("alice" -> Note("hi", 1)), Map.empty)
     )
 
-  val getQuery: DynamoDBQuery[Directory, Either[DynamoDBError.ItemError, Directory]] =
+  val getQuery: DynamoDBQuery[Directory, Option[Either[DynamoDBError.ItemError.DecodingError, Directory]]] =
     get(directories)(Directory.id.partitionKey === "d-1")
 
-  val updateQuery: DynamoDBQuery[Directory, Option[Directory]] =
+  val updateQuery: DynamoDBQuery[Directory, Unit] =
     update(directories)(Directory.id.partitionKey === "d-1")(Directory.countAtKey("views").increment(1))
 
-  val deleteQuery: DynamoDBQuery[Directory, Option[Directory]] =
+  val deleteQuery: DynamoDBQuery[Directory, Unit] =
     deleteFrom(directories)(Directory.id.partitionKey === "d-1")
 
   val queryQuery: DynamoDBQuery[Directory, Page[Either[DynamoDBError.ItemError, Directory]]] =

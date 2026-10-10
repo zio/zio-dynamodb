@@ -91,7 +91,7 @@ object DslSpec extends ZIOSpecDefault {
     test("put/get CRUD, callable unqualified via dsl") {
       val putQuery = put(tasks, Task("t1", 42, Priority.High))
       val getQuery = get(tasks)(Task.id.partitionKey === "t1")
-      assertTrue(run(putQuery).isEmpty && run(getQuery).isLeft)
+      assertTrue(run(putQuery) == () && run(getQuery).isEmpty)
     },
     test("partitionKey === plus sortKey > builds an Extended key expression (DdbKeyExpr syntax)") {
       val keyExpr = Task.id.partitionKey === "t1" && Task.score.sortKey > 10

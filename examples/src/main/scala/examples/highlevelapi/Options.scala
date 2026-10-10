@@ -87,16 +87,16 @@ object Options {
   val statusIsActive: DdbExpr[Profile, Boolean] = Profile.statusValue === Status.Active
 
   // Wired into the six CRUD operations — see OptionsSpec for these actually run.
-  val putQuery: DynamoDBQuery[Profile, Option[Profile]] =
+  val putQuery: DynamoDBQuery[Profile, Unit] =
     put(profiles, Profile("alice", Some(1), Some(List("x")), Some(Map("views" -> 1)), None, Some(Status.Active)))
 
-  val getQuery: DynamoDBQuery[Profile, Either[DynamoDBError.ItemError, Profile]] =
+  val getQuery: DynamoDBQuery[Profile, Option[Either[DynamoDBError.ItemError.DecodingError, Profile]]] =
     get(profiles)(Profile.name.partitionKey === "alice")
 
-  val updateQuery: DynamoDBQuery[Profile, Option[Profile]] =
+  val updateQuery: DynamoDBQuery[Profile, Unit] =
     update(profiles)(Profile.name.partitionKey === "alice")(setScore)
 
-  val deleteQuery: DynamoDBQuery[Profile, Option[Profile]] =
+  val deleteQuery: DynamoDBQuery[Profile, Unit] =
     deleteFrom(profiles)(Profile.name.partitionKey === "alice")
 
   val queryQuery: DynamoDBQuery[Profile, Page[Either[DynamoDBError.ItemError, Profile]]] =
