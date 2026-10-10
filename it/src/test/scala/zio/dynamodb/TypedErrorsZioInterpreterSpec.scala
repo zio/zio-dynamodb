@@ -174,9 +174,48 @@ object TypedErrorsZioInterpreterSpec extends DynamoDBLocalSpec {
       }
     )
 
+  private val llOrderingTests =
+    suite("LL builder ordering: modifiers after conditionFailedAsLeft")(
+      test("plain ZIO interpreter: .where and .returnValuesOnConditionCheckFailure after the C node") {
+        withSingleIdKeyTable { (table, plain) =>
+          implicit val i: Interpreter[Task]                                            = plain
+          val put: Task[Either[DynamoDBError.ItemError.ConditionFailed, Option[Item]]] =
+            DynamoDBQuery
+              .putItem(table, Item("id" -> "a", "score" -> 99))
+              .conditionFailedAsLeft
+              .where($("score") === 42)
+              .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+              .execute
+          for {
+            _      <- plain.run(DynamoDBQuery.putItem(table, Item("id" -> "a", "score" -> 0)))
+            result <- put
+          } yield assert(result)(isLeft(hasField("item", _.item, equalTo(existingItem))))
+        }
+      },
+      test("typed ZIO interpreter: same chain absolves into the channel") {
+        ZIO.serviceWithZIO[DynamoDBEnv] { env =>
+          implicit val i: TypedErrorsZioInterpreter = ZioInterpreter.fromAsyncClientWithTypedErrors(env.asyncClient)
+          withSingleIdKeyTable { (table, plain) =>
+            val put: IO[DynamoFailure, Option[Item]] =
+              DynamoDBQuery
+                .putItem(table, Item("id" -> "a", "score" -> 99))
+                .conditionFailedAsLeft
+                .where($("score") === 42)
+                .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+                .execute
+            for {
+              _      <- plain.run(DynamoDBQuery.putItem(table, Item("id" -> "a", "score" -> 0)))
+              result <- put.either
+            } yield assert(result)(isLeft(conditionFailedWithScore(0)))
+          }
+        }
+      }
+    )
+
   def spec =
     suite("TypedErrorsZioInterpreter")(
       optionCTests,
+      llOrderingTests,
       expectedErrorTests,
       test("success returns the value; .execute is typed IO[DynamoFailure, _]") {
         ZIO.serviceWithZIO[DynamoDBEnv] { env =>

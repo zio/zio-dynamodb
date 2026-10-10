@@ -127,6 +127,9 @@ final class WriteBuilder[From] private[ddbexpr] (
   def returnValuesOnConditionCheckFailure(rv: ReturnValuesOnConditionCheckFailure): WriteBuilder[From] =
     new WriteBuilder(table, query.returnValuesOnConditionCheckFailure(rv))
 
+  /** A failed condition becomes a `Left` value; see [[ConditionalWriteBuilder]]. */
+  def conditionFailedAsLeft: ConditionalWriteBuilder[From] = new ConditionalWriteBuilder(new WriteBuilder(table, query))
+
   def toQuery: DynamoDBQuery[From, Option[From]] = query
 
   def execute[R](implicit executeAs: ExecuteAs[Option[From], R]): R =
@@ -134,6 +137,38 @@ final class WriteBuilder[From] private[ddbexpr] (
 
   def execute[F[_]](interpreter: Interpreter[F]): F[Option[From]] =
     interpreter.run(query)
+}
+
+/**
+ * A [[WriteBuilder]] whose failed condition is returned as a `Left` instead of failing the effect.
+ * The `Either` wrapping is only applied at `toQuery`/`execute`, so `.where` and
+ * `.returnValuesOnConditionCheckFailure` chain in any order. `ConditionFailed.item` is the raw
+ * `Item`, not a decoded `From`.
+ */
+final class ConditionalWriteBuilder[From] private[ddbexpr] (private val underlying: WriteBuilder[From]) {
+
+  def where(expr: DdbExpr[From, Boolean]): ConditionalWriteBuilder[From]  =
+    new ConditionalWriteBuilder(underlying.where(expr))
+  def where(se: SchemaExpr[From, Boolean]): ConditionalWriteBuilder[From] =
+    new ConditionalWriteBuilder(underlying.where(se))
+  def where(ce: ConditionExpression[From]): ConditionalWriteBuilder[From] =
+    new ConditionalWriteBuilder(underlying.where(ce))
+
+  def returnValuesOnConditionCheckFailure(rv: ReturnValuesOnConditionCheckFailure): ConditionalWriteBuilder[From] =
+    new ConditionalWriteBuilder(underlying.returnValuesOnConditionCheckFailure(rv))
+
+  def toQuery: DynamoDBQuery[From, Either[DynamoDBError.ItemError.ConditionFailed, Option[From]]] =
+    underlying.query.conditionFailedAsLeft
+
+  def execute[R](implicit
+    executeAs: ExecuteAs[Either[DynamoDBError.ItemError.ConditionFailed, Option[From]], R]
+  ): R =
+    executeAs(toQuery)
+
+  def execute[F[_]](
+    interpreter: Interpreter[F]
+  ): F[Either[DynamoDBError.ItemError.ConditionFailed, Option[From]]] =
+    interpreter.run(toQuery)
 }
 
 /**

@@ -722,6 +722,74 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
       }
     )
 
+  private val existingScoreItem: Option[Item] = Some(Item("id" -> "alice", "score" -> 42))
+
+  private val conditionFailedAsLeftTests: Spec[DynamoDBEnv, Throwable] =
+    suite("conditionFailedAsLeft on WriteBuilder")(
+      test("plain interpreter: C before .where/.returnValues... - Left value with the raw item") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Score](tableName)
+          for {
+            _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
+            result <- DdbExprApi
+                        .put(table, Score("alice", 99))
+                        .conditionFailedAsLeft
+                        .where(Score.score === 0)
+                        .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+                        .execute(interpreter)
+          } yield assert(result)(isLeft(hasField("item", _.item, equalTo(existingScoreItem))))
+        }
+      },
+      test("plain interpreter: C after .where/.returnValues... - same result") {
+        withSingleIdKeyTable { (tableName, interpreter) =>
+          val table = DdbExprApi.Table[Score](tableName)
+          for {
+            _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
+            result <- DdbExprApi
+                        .update[Score](table)(Score.id.partitionKey === "alice")(Score.score.set(99))
+                        .where(Score.score === 0)
+                        .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+                        .conditionFailedAsLeft
+                        .execute(interpreter)
+          } yield assert(result)(isLeft(hasField("item", _.item, equalTo(existingScoreItem))))
+        }
+      },
+      test("typed ZIO interpreter: absolved into the channel as DynamoFailure.ConditionFailed") {
+        ZIO.serviceWithZIO[DynamoDBEnv] { env =>
+          implicit val typed: TypedErrorsZioInterpreter = ZioInterpreter.fromAsyncClientWithTypedErrors(env.asyncClient)
+          withSingleIdKeyTable { (tableName, interpreter) =>
+            val table                                    = DdbExprApi.Table[Score](tableName)
+            val delete: IO[DynamoFailure, Option[Score]] =
+              DdbExprApi
+                .deleteFrom[Score](table)(Score.id.partitionKey === "alice")
+                .conditionFailedAsLeft
+                .where(Score.score === 0)
+                .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+                .execute
+            for {
+              _      <- interpreter.run(DdbExprApi.put(table, Score("alice", 42)))
+              result <- delete.either
+            } yield assert(result)(
+              isLeft(isSubtype[DynamoFailure.ConditionFailed](hasField("item", _.item, equalTo(existingScoreItem))))
+            )
+          }
+        }
+      },
+      test("compile time: .where is accepted after a C node, still rejected on a read's Either[ItemError, A]") {
+        for {
+          afterC <- typeCheck(
+                      "DdbExprApi.put(DdbExprApi.Table[Score](\"t\"), Score(\"a\", 1)).toQuery.conditionFailedAsLeft" +
+                        ".where(null.asInstanceOf[ConditionExpression[Score]])"
+                    )
+          onRead <- typeCheck(
+                      "DdbExprApi.get[Score](DdbExprApi.Table[Score](\"t\"))(Score.id.partitionKey === \"a\")" +
+                        ".where(null.asInstanceOf[ConditionExpression[Score]])"
+                    )
+        } yield assert(afterC)(isRight(anything)) &&
+          assert(onRead)(isLeft(containsString("only supports conditions expressions on put, update and delete")))
+      }
+    )
+
   def spec =
     suite("DdbExprApi IT")(
       putGetTests,
@@ -734,7 +802,8 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
       deleteTests,
       nativeSetTests,
       configuredTableTests,
-      returnValuesOnConditionCheckFailureTests
+      returnValuesOnConditionCheckFailureTests,
+      conditionFailedAsLeftTests
     )
       .provideSome[DynamoDbAsyncClient](envLayer) @@
       TestAspect.sequential

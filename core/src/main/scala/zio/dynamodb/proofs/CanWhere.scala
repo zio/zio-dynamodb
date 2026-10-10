@@ -16,6 +16,8 @@
 
 package zio.dynamodb.proofs
 
+import zio.dynamodb.{ DynamoDBError, ExpectedError }
+
 import scala.annotation.implicitNotFound
 
 @implicitNotFound(
@@ -33,6 +35,16 @@ object CanWhere {
   implicit def subtypeCanWhereReturnOption[A, B](implicit ev: CanWhere[A, B]): CanWhere[A, Option[B]] = {
     val _ = ev
     new CanWhere[A, Option[B]] {}
+  }
+
+  // A write whose expected failure is returned as a Left (e.g. `.conditionFailedAsLeft`) still
+  // accepts a condition; restricted to ExpectedError so reads' Either[ItemError, A] still can't.
+  implicit def expectedErrorCanWhere[A, E <: DynamoDBError, B](implicit
+    ev: CanWhere[A, B],
+    expected: ExpectedError[E]
+  ): CanWhere[A, Either[E, B]] = {
+    val _ = (ev, expected)
+    new CanWhere[A, Either[E, B]] {}
   }
 
 }
