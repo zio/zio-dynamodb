@@ -61,6 +61,12 @@ object DynamoFailure {
   private def errorCode(e: AwsServiceException): String =
     Option(e.awsErrorDetails).map(_.errorCode).orNull
 
+  def unwrap(t: Throwable): Throwable =
+    t match {
+      case f: DynamoFailure => f.cause
+      case _                => t
+    }
+
   def classify(t: Throwable): DynamoFailure =
     t match {
       case f: DynamoFailure                                                             => f
