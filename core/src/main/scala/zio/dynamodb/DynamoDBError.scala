@@ -87,11 +87,41 @@ object DynamoDBError {
    *  on the corresponding action.
    */
   final case class CancellationReason(
-    code: String,
+    code: CancellationCode,
     message: Option[String],
     item: Option[Item]
   ) {
-    def describe: String = s"[$code]${message.fold("")(m => s" $m")}"
+    def describe: String = s"[${code.value}]${message.fold("")(m => s" $m")}"
+  }
+
+  /**
+   * DynamoDB's documented transaction cancellation reason codes, with `Other` for any code added
+   * later. `NoError` is the item-level `"None"` code: that action didn't cause the cancellation.
+   */
+  sealed abstract class CancellationCode(val value: String) extends Product with Serializable
+
+  object CancellationCode {
+    case object NoError                                extends CancellationCode("None")
+    case object ConditionalCheckFailed                 extends CancellationCode("ConditionalCheckFailed")
+    case object ItemCollectionSizeLimitExceeded        extends CancellationCode("ItemCollectionSizeLimitExceeded")
+    case object TransactionConflict                    extends CancellationCode("TransactionConflict")
+    case object ProvisionedThroughputExceeded          extends CancellationCode("ProvisionedThroughputExceeded")
+    case object ThrottlingError                        extends CancellationCode("ThrottlingError")
+    case object ValidationError                        extends CancellationCode("ValidationError")
+    final case class Other(override val value: String) extends CancellationCode(value)
+
+    private val known: Map[String, CancellationCode] =
+      List(
+        NoError,
+        ConditionalCheckFailed,
+        ItemCollectionSizeLimitExceeded,
+        TransactionConflict,
+        ProvisionedThroughputExceeded,
+        ThrottlingError,
+        ValidationError
+      ).map(c => c.value -> c).toMap
+
+    def fromString(code: String): CancellationCode = known.getOrElse(code, Other(code))
   }
 
   object ItemError {

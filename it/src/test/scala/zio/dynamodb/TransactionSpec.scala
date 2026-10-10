@@ -273,20 +273,20 @@ object TransactionSpec extends DynamoDBLocalSpec {
                   (tc: TransactionError.TransactionCancelled) => tc.reasons.length,
                   equalTo(2)
                 ) &&
-                  hasField(
+                  hasField[TransactionError.TransactionCancelled, DynamoDBError.CancellationCode](
                     "reasons(0).code",
-                    (tc: TransactionError.TransactionCancelled) => tc.reasons(0).code,
-                    equalTo("ConditionalCheckFailed")
+                    _.reasons(0).code,
+                    equalTo(DynamoDBError.CancellationCode.ConditionalCheckFailed)
                   ) &&
                   hasField(
                     "reasons(0).item",
                     (tc: TransactionError.TransactionCancelled) => tc.reasons(0).item,
                     isNone
                   ) &&
-                  hasField(
+                  hasField[TransactionError.TransactionCancelled, DynamoDBError.CancellationCode](
                     "reasons(1).code",
-                    (tc: TransactionError.TransactionCancelled) => tc.reasons(1).code,
-                    equalTo("None")
+                    _.reasons(1).code,
+                    equalTo(DynamoDBError.CancellationCode.NoError)
                   )
               )
             )
@@ -315,10 +315,10 @@ object TransactionSpec extends DynamoDBLocalSpec {
                   (tc: TransactionError.TransactionCancelled) => tc.reasons.length,
                   equalTo(1)
                 ) &&
-                  hasField(
+                  hasField[TransactionError.TransactionCancelled, DynamoDBError.CancellationCode](
                     "reasons(0).code",
-                    (tc: TransactionError.TransactionCancelled) => tc.reasons(0).code,
-                    equalTo("ConditionalCheckFailed")
+                    _.reasons(0).code,
+                    equalTo(DynamoDBError.CancellationCode.ConditionalCheckFailed)
                   ) &&
                   hasField(
                     "reasons(0).item",
