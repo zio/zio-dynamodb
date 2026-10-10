@@ -83,23 +83,39 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
   def where[B](conditionExpression: ConditionExpression[B])(implicit ev: CanWhere[B, Out]): DynamoDBQuery[In, Out] = {
     val _ = ev
     self match {
-      case zp @ ZipPar(left, right, zippable)     =>
+      case zp @ ZipPar(left, right, zippable)                =>
         ZipPar(
           left.where(conditionExpression.asInstanceOf[ConditionExpression[zp.Left]]),
           right.where(conditionExpression.asInstanceOf[ConditionExpression[zp.Right]]),
           zippable
         )
-      case map @ DynamoDBQuery.Map(query, mapper) =>
+      case map @ DynamoDBQuery.Map(query, mapper)            =>
         DynamoDBQuery.Map(query.where(conditionExpression.asInstanceOf[ConditionExpression[map.Old]]), mapper)
-      case ab @ DynamoDBQuery.Absolve(query)      =>
+      case ab @ DynamoDBQuery.Absolve(query)                 =>
         DynamoDBQuery.Absolve(query.where(conditionExpression.asInstanceOf[ConditionExpression[ab.Old]]))
-      case p: DynamoDBQuery.PutItem               =>
+      case c: DynamoDBQuery.ConditionFailedAsLeft[_, _]      =>
+        DynamoDBQuery
+          .ConditionFailedAsLeft(
+            c.query
+              .asInstanceOf[DynamoDBQuery[Any, Any]]
+              .where(conditionExpression.asInstanceOf[ConditionExpression[Any]])
+          )
+          .asInstanceOf[DynamoDBQuery[In, Out]]
+      case c: DynamoDBQuery.TransactionCancelledAsLeft[_, _] =>
+        DynamoDBQuery
+          .TransactionCancelledAsLeft(
+            c.query
+              .asInstanceOf[DynamoDBQuery[Any, Any]]
+              .where(conditionExpression.asInstanceOf[ConditionExpression[Any]])
+          )
+          .asInstanceOf[DynamoDBQuery[In, Out]]
+      case p: DynamoDBQuery.PutItem                          =>
         p.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case u: DynamoDBQuery.UpdateItem            =>
+      case u: DynamoDBQuery.UpdateItem                       =>
         u.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case d: DynamoDBQuery.DeleteItem            =>
+      case d: DynamoDBQuery.DeleteItem                       =>
         d.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                      =>
+      case _                                                 =>
         DynamoDBQuery.fail(
           DynamoDBError.QueryBuilderError.UnsupportedModifier(
             s"'.where' has no effect on ${self.getClass.getSimpleName}; condition expressions are only " +
@@ -146,25 +162,35 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
     rv: ReturnValuesOnConditionCheckFailure
   ): DynamoDBQuery[In, Out] =
     self match {
-      case ZipPar(left, right, zippable)    =>
+      case ZipPar(left, right, zippable)                     =>
         ZipPar(
           left.returnValuesOnConditionCheckFailure(rv),
           right.returnValuesOnConditionCheckFailure(rv),
           zippable
         )
-      case DynamoDBQuery.Map(query, mapper) =>
+      case DynamoDBQuery.Map(query, mapper)                  =>
         DynamoDBQuery.Map(query.returnValuesOnConditionCheckFailure(rv), mapper)
-      case DynamoDBQuery.Absolve(query)     =>
+      case DynamoDBQuery.Absolve(query)                      =>
         DynamoDBQuery.Absolve(query.returnValuesOnConditionCheckFailure(rv))
-      case p: DynamoDBQuery.PutItem         =>
+      case c: DynamoDBQuery.ConditionFailedAsLeft[_, _]      =>
+        DynamoDBQuery
+          .ConditionFailedAsLeft(c.query.asInstanceOf[DynamoDBQuery[Any, Any]].returnValuesOnConditionCheckFailure(rv))
+          .asInstanceOf[DynamoDBQuery[In, Out]]
+      case c: DynamoDBQuery.TransactionCancelledAsLeft[_, _] =>
+        DynamoDBQuery
+          .TransactionCancelledAsLeft(
+            c.query.asInstanceOf[DynamoDBQuery[Any, Any]].returnValuesOnConditionCheckFailure(rv)
+          )
+          .asInstanceOf[DynamoDBQuery[In, Out]]
+      case p: DynamoDBQuery.PutItem                          =>
         p.copy(returnValuesOnConditionCheckFailure = Some(rv)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case u: DynamoDBQuery.UpdateItem      =>
+      case u: DynamoDBQuery.UpdateItem                       =>
         u.copy(returnValuesOnConditionCheckFailure = Some(rv)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case d: DynamoDBQuery.DeleteItem      =>
+      case d: DynamoDBQuery.DeleteItem                       =>
         d.copy(returnValuesOnConditionCheckFailure = Some(rv)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case c: DynamoDBQuery.ConditionCheck  =>
+      case c: DynamoDBQuery.ConditionCheck                   =>
         c.copy(returnValuesOnConditionCheckFailure = Some(rv)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                => self
+      case _                                                 => self
     }
 
   final def withClientRequestToken(token: String): DynamoDBQuery[In, Out] =
@@ -176,21 +202,29 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   final def withRetryPolicy(policy: RetryPolicy): DynamoDBQuery[In, Out] =
     self match {
-      case zp @ ZipPar(left, right, zippable)     =>
+      case zp @ ZipPar(left, right, zippable)                =>
         ZipPar(left.withRetryPolicy(policy), right.withRetryPolicy(policy), zippable)
-      case map @ DynamoDBQuery.Map(query, mapper) =>
+      case map @ DynamoDBQuery.Map(query, mapper)            =>
         DynamoDBQuery.Map(query.withRetryPolicy(policy), mapper)
-      case ab @ DynamoDBQuery.Absolve(query)      =>
+      case ab @ DynamoDBQuery.Absolve(query)                 =>
         DynamoDBQuery.Absolve(query.withRetryPolicy(policy))
-      case bw: DynamoDBQuery.BatchWriteItem       => bw.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case bg: DynamoDBQuery.BatchGetItem         => bg.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case p: DynamoDBQuery.PutItem               => p.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case d: DynamoDBQuery.DeleteItem            => d.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case g: DynamoDBQuery.GetItem               => g.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case u: DynamoDBQuery.UpdateItem            => u.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case s: DynamoDBQuery.Scan                  => s.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case q: DynamoDBQuery.Query                 => q.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                      => self
+      case c: DynamoDBQuery.ConditionFailedAsLeft[_, _]      =>
+        DynamoDBQuery
+          .ConditionFailedAsLeft(c.query.asInstanceOf[DynamoDBQuery[Any, Any]].withRetryPolicy(policy))
+          .asInstanceOf[DynamoDBQuery[In, Out]]
+      case c: DynamoDBQuery.TransactionCancelledAsLeft[_, _] =>
+        DynamoDBQuery
+          .TransactionCancelledAsLeft(c.query.asInstanceOf[DynamoDBQuery[Any, Any]].withRetryPolicy(policy))
+          .asInstanceOf[DynamoDBQuery[In, Out]]
+      case bw: DynamoDBQuery.BatchWriteItem                  => bw.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case bg: DynamoDBQuery.BatchGetItem                    => bg.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case p: DynamoDBQuery.PutItem                          => p.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case d: DynamoDBQuery.DeleteItem                       => d.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case g: DynamoDBQuery.GetItem                          => g.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case u: DynamoDBQuery.UpdateItem                       => u.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case s: DynamoDBQuery.Scan                             => s.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case q: DynamoDBQuery.Query                            => q.copy(retryPolicy = Some(policy)).asInstanceOf[DynamoDBQuery[In, Out]]
+      case _                                                 => self
     }
 
   /**
@@ -259,33 +293,41 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   final def capacity(capacity: ReturnConsumedCapacity): DynamoDBQuery[In, Out] =
     self match {
-      case ZipPar(left, right, zippable)        =>
+      case ZipPar(left, right, zippable)                     =>
         ZipPar(left.capacity(capacity), right.capacity(capacity), zippable)
-      case DynamoDBQuery.Map(query, mapper)     =>
+      case DynamoDBQuery.Map(query, mapper)                  =>
         DynamoDBQuery.Map(query.capacity(capacity), mapper)
-      case DynamoDBQuery.Absolve(query)         =>
+      case DynamoDBQuery.Absolve(query)                      =>
         DynamoDBQuery.Absolve(query.capacity(capacity))
-      case g: DynamoDBQuery.GetItem             =>
+      case c: DynamoDBQuery.ConditionFailedAsLeft[_, _]      =>
+        DynamoDBQuery
+          .ConditionFailedAsLeft(c.query.asInstanceOf[DynamoDBQuery[Any, Any]].capacity(capacity))
+          .asInstanceOf[DynamoDBQuery[In, Out]]
+      case c: DynamoDBQuery.TransactionCancelledAsLeft[_, _] =>
+        DynamoDBQuery
+          .TransactionCancelledAsLeft(c.query.asInstanceOf[DynamoDBQuery[Any, Any]].capacity(capacity))
+          .asInstanceOf[DynamoDBQuery[In, Out]]
+      case g: DynamoDBQuery.GetItem                          =>
         g.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
-      case p: DynamoDBQuery.PutItem             =>
+      case p: DynamoDBQuery.PutItem                          =>
         p.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
-      case u: DynamoDBQuery.UpdateItem          =>
+      case u: DynamoDBQuery.UpdateItem                       =>
         u.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
-      case d: DynamoDBQuery.DeleteItem          =>
+      case d: DynamoDBQuery.DeleteItem                       =>
         d.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
-      case s: DynamoDBQuery.Scan                =>
+      case s: DynamoDBQuery.Scan                             =>
         s.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
-      case q: DynamoDBQuery.Query               =>
+      case q: DynamoDBQuery.Query                            =>
         q.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
-      case bg: DynamoDBQuery.BatchGetItem       =>
+      case bg: DynamoDBQuery.BatchGetItem                    =>
         bg.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
-      case bw: DynamoDBQuery.BatchWriteItem     =>
+      case bw: DynamoDBQuery.BatchWriteItem                  =>
         bw.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
-      case tg: DynamoDBQuery.TransactGetItems   =>
+      case tg: DynamoDBQuery.TransactGetItems                =>
         tg.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
-      case tw: DynamoDBQuery.TransactWriteItems =>
+      case tw: DynamoDBQuery.TransactWriteItems              =>
         tw.copy(capacity = capacity).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                    => self
+      case _                                                 => self
     }
 
   final def consistency(consistency: ConsistencyMode): DynamoDBQuery[In, Out] =
@@ -307,38 +349,54 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   final def returns(returnValues: ReturnValues): DynamoDBQuery[In, Out] =
     self match {
-      case ZipPar(left, right, zippable)    =>
+      case ZipPar(left, right, zippable)                     =>
         ZipPar(left.returns(returnValues), right.returns(returnValues), zippable)
-      case DynamoDBQuery.Map(query, mapper) =>
+      case DynamoDBQuery.Map(query, mapper)                  =>
         DynamoDBQuery.Map(query.returns(returnValues), mapper)
-      case DynamoDBQuery.Absolve(query)     =>
+      case DynamoDBQuery.Absolve(query)                      =>
         DynamoDBQuery.Absolve(query.returns(returnValues))
-      case p: DynamoDBQuery.PutItem         =>
+      case c: DynamoDBQuery.ConditionFailedAsLeft[_, _]      =>
+        DynamoDBQuery
+          .ConditionFailedAsLeft(c.query.asInstanceOf[DynamoDBQuery[Any, Any]].returns(returnValues))
+          .asInstanceOf[DynamoDBQuery[In, Out]]
+      case c: DynamoDBQuery.TransactionCancelledAsLeft[_, _] =>
+        DynamoDBQuery
+          .TransactionCancelledAsLeft(c.query.asInstanceOf[DynamoDBQuery[Any, Any]].returns(returnValues))
+          .asInstanceOf[DynamoDBQuery[In, Out]]
+      case p: DynamoDBQuery.PutItem                          =>
         p.copy(returnValues = returnValues).asInstanceOf[DynamoDBQuery[In, Out]]
-      case u: DynamoDBQuery.UpdateItem      =>
+      case u: DynamoDBQuery.UpdateItem                       =>
         u.copy(returnValues = returnValues).asInstanceOf[DynamoDBQuery[In, Out]]
-      case d: DynamoDBQuery.DeleteItem      =>
+      case d: DynamoDBQuery.DeleteItem                       =>
         d.copy(returnValues = returnValues).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                => self
+      case _                                                 => self
     }
 
   final def metrics(itemMetrics: ReturnItemCollectionMetrics): DynamoDBQuery[In, Out] =
     self match {
-      case ZipPar(left, right, zippable)    =>
+      case ZipPar(left, right, zippable)                     =>
         ZipPar(left.metrics(itemMetrics), right.metrics(itemMetrics), zippable)
-      case DynamoDBQuery.Map(query, mapper) =>
+      case DynamoDBQuery.Map(query, mapper)                  =>
         DynamoDBQuery.Map(query.metrics(itemMetrics), mapper)
-      case DynamoDBQuery.Absolve(query)     =>
+      case DynamoDBQuery.Absolve(query)                      =>
         DynamoDBQuery.Absolve(query.metrics(itemMetrics))
-      case p: DynamoDBQuery.PutItem         =>
+      case c: DynamoDBQuery.ConditionFailedAsLeft[_, _]      =>
+        DynamoDBQuery
+          .ConditionFailedAsLeft(c.query.asInstanceOf[DynamoDBQuery[Any, Any]].metrics(itemMetrics))
+          .asInstanceOf[DynamoDBQuery[In, Out]]
+      case c: DynamoDBQuery.TransactionCancelledAsLeft[_, _] =>
+        DynamoDBQuery
+          .TransactionCancelledAsLeft(c.query.asInstanceOf[DynamoDBQuery[Any, Any]].metrics(itemMetrics))
+          .asInstanceOf[DynamoDBQuery[In, Out]]
+      case p: DynamoDBQuery.PutItem                          =>
         p.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[In, Out]]
-      case u: DynamoDBQuery.UpdateItem      =>
+      case u: DynamoDBQuery.UpdateItem                       =>
         u.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[In, Out]]
-      case d: DynamoDBQuery.DeleteItem      =>
+      case d: DynamoDBQuery.DeleteItem                       =>
         d.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[In, Out]]
-      case bw: DynamoDBQuery.BatchWriteItem =>
+      case bw: DynamoDBQuery.BatchWriteItem                  =>
         bw.copy(itemMetrics = itemMetrics).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                => self
+      case _                                                 => self
     }
 
   def startKey(exclusiveStartKey: LastEvaluatedKey): DynamoDBQuery[In, Out] =
