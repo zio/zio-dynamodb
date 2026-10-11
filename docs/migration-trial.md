@@ -55,6 +55,11 @@ which still returns `F[Unit]` and fails with `TransactionCancelled`).
 `get`, `query` and HL `transactWriteItems` return a plain `DynamoDBQuery`, so `.execute` on them
 needs `import zio.dynamodb.ExecuteSyntax._`; the write builders have `.execute` built in.
 
+**Tagless final: drop the explicit effect type.** `.execute[F]` no longer yields `F[Out]` - it
+resolves to the explicit-interpreter overload and becomes a function `Interpreter[F] => F[Out]`,
+so `.execute[F].attempt` / `.flatMap` fail to compile with a confusing message. Write `.execute`;
+the `Interpreter[F]` in implicit scope still gives `F[Out]`.
+
 ## Watch for: compiles, then fails at runtime
 
 Seen while migrating this repo's own tests - check every hit:
