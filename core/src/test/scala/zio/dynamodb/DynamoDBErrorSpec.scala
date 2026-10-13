@@ -17,6 +17,7 @@
 package zio.dynamodb
 
 import zio.dynamodb.DynamoDBError.ItemError._
+import zio.test.Assertion._
 import zio.test._
 
 object DynamoDBErrorSpec extends ZIOSpecDefault {
@@ -59,6 +60,10 @@ object DynamoDBErrorSpec extends ZIOSpecDefault {
         val c = a ++ b
         assertTrue(c.causes.length == 2)
       }
-    )
+    ),
+    test("is a RuntimeException, so `case e: Exception` handlers catch it") {
+      val e: Throwable = ConditionFailed("The conditional request failed", None)
+      assert(e)(isSubtype[RuntimeException](anything)) && assertTrue(e.getStackTrace.isEmpty)
+    }
   )
 }
