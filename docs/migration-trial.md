@@ -83,7 +83,7 @@ if later steps do real work.
 ## Known gaps on the branch
 
 - `ConditionFailed` does not yet expose the original SDK exception as `getCause`.
-- `docs/reference/**`: only the "Conditional writes" sections are updated.
+- `docs/reference/**`: only the "Conditional writes" sections and the transactions page are updated.
 
 ## What to record
 
