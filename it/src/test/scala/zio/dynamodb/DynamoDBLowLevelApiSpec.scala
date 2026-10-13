@@ -19,7 +19,6 @@ package zio.dynamodb
 import cats.effect.IO
 import cats.effect.unsafe.implicits.{ global => ceRuntime }
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
-import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
 import zio._
 import zio.blocks.chunk.Chunk
 import zio.dynamodb.ProjectionExpression.$
@@ -38,12 +37,13 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
   // Unwraps a Batch.GetResult produced by interp.run(batchGetItemQuery) back to the raw
   // response `toGetItemResponses` expects. Tests below only exercise the happy path
   // (policy-less batches complete in one round trip), so Incomplete/Failed are unexpected.
-  private def failedWithExistingScore(score: String): Assertion[Throwable] =
-    Assertion.isSubtype[ConditionalCheckFailedException](
-      Assertion.hasField[ConditionalCheckFailedException, Option[String]](
+  // A failed condition raises ItemError.ConditionFailed; with AllOld its `item` is the existing item.
+  private def failedWithExistingScore(score: Int): Assertion[Throwable] =
+    Assertion.isSubtype[DynamoDBError.ItemError.ConditionFailed](
+      Assertion.hasField[DynamoDBError.ItemError.ConditionFailed, Option[AttributeValue]](
         "item.score",
-        e => if (e.hasItem) Option(e.item.get("score")).map(_.n) else None,
-        Assertion.isSome(Assertion.equalTo(score))
+        _.item.flatMap(_.map.get("score")),
+        Assertion.isSome(Assertion.equalTo(AttributeValue.Number(BigDecimal(score))))
       )
     )
 
@@ -548,7 +548,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
                               .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
                           )
                           .either
-            } yield assert(result)(Assertion.isLeft(failedWithExistingScore("0")))
+            } yield assert(result)(Assertion.isLeft(failedWithExistingScore(0)))
           }
         },
         test("updateItem with AllOld returns the existing item on condition failure") {
@@ -563,7 +563,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
                               .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
                           )
                           .either
-            } yield assert(result)(Assertion.isLeft(failedWithExistingScore("0")))
+            } yield assert(result)(Assertion.isLeft(failedWithExistingScore(0)))
           }
         },
         test("deleteItem with AllOld returns the existing item on condition failure") {
@@ -578,7 +578,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
                               .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
                           )
                           .either
-            } yield assert(result)(Assertion.isLeft(failedWithExistingScore("0")))
+            } yield assert(result)(Assertion.isLeft(failedWithExistingScore(0)))
           }
         },
         test("without AllOld, no item is returned") {
@@ -594,8 +594,8 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
                           .either
             } yield assert(result)(
               Assertion.isLeft(
-                Assertion.isSubtype[ConditionalCheckFailedException](
-                  Assertion.hasField("hasItem", _.hasItem, Assertion.isFalse)
+                Assertion.isSubtype[DynamoDBError.ItemError.ConditionFailed](
+                  Assertion.hasField("item", _.item, Assertion.isNone)
                 )
               )
             )

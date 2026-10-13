@@ -90,10 +90,7 @@ final class ScanBuilder[From] private[ddbexpr] (
 
   def toQuery: DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = query
 
-  def execute[R](implicit executeAs: ExecuteAs[Page[Either[DynamoDBError.ItemError, From]], R]): R =
-    executeAs(query)
-
-  def execute[F[_]](interpreter: Interpreter[F]): F[Page[Either[DynamoDBError.ItemError, From]]] =
+  def execute[F[_]](implicit interpreter: Interpreter[F]): F[Page[Either[DynamoDBError.ItemError, From]]] =
     interpreter.run(query)
 }
 
@@ -122,10 +119,7 @@ final class QueryBuilder[From] private[ddbexpr] (
 
   def toQuery: DynamoDBQuery[From, Page[Either[DynamoDBError.ItemError, From]]] = query
 
-  def execute[R](implicit executeAs: ExecuteAs[Page[Either[DynamoDBError.ItemError, From]], R]): R =
-    executeAs(query)
-
-  def execute[F[_]](interpreter: Interpreter[F]): F[Page[Either[DynamoDBError.ItemError, From]]] =
+  def execute[F[_]](implicit interpreter: Interpreter[F]): F[Page[Either[DynamoDBError.ItemError, From]]] =
     interpreter.run(query)
 }
 
@@ -135,14 +129,16 @@ final class QueryBuilder[From] private[ddbexpr] (
 @implicitNotFound("use .returning(...) - .returns here would discard the returned item")
 sealed trait UseReturningInstead
 
-@implicitNotFound("only meaningful on a conditional write - add .where(...) first")
-sealed trait AddWhereFirst
+@implicitNotFound(
+  "conditional writes already return the existing item on failure - remove this call " +
+    "(or use .withoutItemOnConditionFailure after .where to turn it off)"
+)
+sealed trait ItemOnConditionFailureIsDefault
 
 /**
  * Returned by [[DdbExprApiSyntax.put]] / [[DdbExprApiSyntax.update]] / [[DdbExprApiSyntax.deleteFrom]].
- * An unconditional write has no expected failure, so it executes to `Unit`; `.where` turns it into
- * a [[ConditionalWriteBuilder]], whose type carries the condition failure, and `.returning` makes
- * it return the item DynamoDB sends back. Converts implicitly to the underlying [[DynamoDBQuery]]
+ * Executes to `Unit` unless `.returning` asks for the item DynamoDB sends back; `.where` makes it a
+ * [[ConditionalWriteBuilder]]. Converts implicitly to the underlying [[DynamoDBQuery]]
  * (e.g. for `transactWriteItems`).
  */
 final class WriteBuilder[From, Out] private[ddbexpr] (
@@ -151,8 +147,22 @@ final class WriteBuilder[From, Out] private[ddbexpr] (
   private[ddbexpr] val finish: Option[Item] => Out
 ) {
   private def conditional(ce: ConditionExpression[From]): ConditionalWriteBuilder[From, Out] =
-    new ConditionalWriteBuilder(table, BuilderSupport.whereOnWrite(write, ce), finish)
+    new ConditionalWriteBuilder(
+      table,
+      BuilderSupport
+        .whereOnWrite(write, ce)
+        .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld),
+      finish
+    )
 
+  /**
+   * Makes the write conditional. A failed condition fails the effect with
+   * [[DynamoDBError.ItemError.ConditionFailed]], whose `item` holds the item as it was -
+   * `ReturnValuesOnConditionCheckFailure.AllOld` is sent by default (no read capacity is consumed;
+   * only the failure response is larger). Turn it off with
+   * [[ConditionalWriteBuilder.withoutItemOnConditionFailure]]. The same applies to the other
+   * `where` overloads.
+   */
   def where(expr: DdbExpr[From, Boolean]): ConditionalWriteBuilder[From, Out]  =
     conditional(BuilderSupport.condition(expr, table))
   def where(se: SchemaExpr[From, Boolean]): ConditionalWriteBuilder[From, Out] = where(DdbExpr.Builtin(se))
@@ -165,27 +175,27 @@ final class WriteBuilder[From, Out] private[ddbexpr] (
   def returning(rv: ReturnValues): WriteBuilder[From, Option[Either[DynamoDBError.ItemError.DecodingError, From]]] =
     new WriteBuilder(table, write.returns(rv), BuilderSupport.decodeReturned(table))
 
+  /** Does not compile: use [[returning]], which also changes the result type to the returned item. */
   def returns(rv: ReturnValues)(implicit useReturningInstead: UseReturningInstead): Nothing =
     sys.error(s"unreachable: $rv, $useReturningInstead")
 
+  /** Does not compile: a conditional write (`.where`) returns the existing item on failure by default. */
   def returnValuesOnConditionCheckFailure(rv: ReturnValuesOnConditionCheckFailure)(implicit
-    addWhereFirst: AddWhereFirst
+    isDefault: ItemOnConditionFailureIsDefault
   ): Nothing =
-    sys.error(s"unreachable: $rv, $addWhereFirst")
+    sys.error(s"unreachable: $rv, $isDefault")
 
   def toQuery: DynamoDBQuery[From, Out] = write.map(finish)
 
-  def execute[R](implicit executeAs: ExecuteAs[Out, R]): R =
-    executeAs(toQuery)
-
-  def execute[F[_]](interpreter: Interpreter[F]): F[Out] =
+  def execute[F[_]](implicit interpreter: Interpreter[F]): F[Out] =
     interpreter.run(toQuery)
 }
 
 /**
- * A write with a condition: a failed condition is an expected outcome, returned as
- * `Left(ConditionFailed)` rather than failing the effect. `ConditionFailed.item` is the raw `Item`
- * (with `ReturnValuesOnConditionCheckFailure.AllOld`), not a decoded `From`.
+ * A write with a condition. A failed condition fails the effect with
+ * [[DynamoDBError.ItemError.ConditionFailed]], whose `item` is the item as it was (a raw `Item`,
+ * returned by default - see [[withoutItemOnConditionFailure]]); every other failure is the
+ * underlying AWS SDK exception.
  */
 final class ConditionalWriteBuilder[From, Out] private[ddbexpr] (
   private[ddbexpr] val table: Table[From],
@@ -200,26 +210,36 @@ final class ConditionalWriteBuilder[From, Out] private[ddbexpr] (
   def where(se: SchemaExpr[From, Boolean]): ConditionalWriteBuilder[From, Out] = where(DdbExpr.Builtin(se))
   def where(ce: ConditionExpression[From]): ConditionalWriteBuilder[From, Out] = withCondition(ce)
 
-  def returnValuesOnConditionCheckFailure(
-    rv: ReturnValuesOnConditionCheckFailure
-  ): ConditionalWriteBuilder[From, Out] =
-    new ConditionalWriteBuilder(table, write.returnValuesOnConditionCheckFailure(rv), finish)
+  /**
+   * Stops a failed condition from returning the existing item (`ConditionFailed.item` is then
+   * `None`): for very large items or frequently failing conditions, where the larger failure
+   * response isn't wanted.
+   */
+  def withoutItemOnConditionFailure: ConditionalWriteBuilder[From, Out] =
+    new ConditionalWriteBuilder(
+      table,
+      write.returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.None),
+      finish
+    )
+
+  /** Does not compile: on by default here; use [[withoutItemOnConditionFailure]] to turn it off. */
+  def returnValuesOnConditionCheckFailure(rv: ReturnValuesOnConditionCheckFailure)(implicit
+    isDefault: ItemOnConditionFailureIsDefault
+  ): Nothing =
+    sys.error(s"unreachable: $rv, $isDefault")
 
   def returning(
     rv: ReturnValues
   ): ConditionalWriteBuilder[From, Option[Either[DynamoDBError.ItemError.DecodingError, From]]] =
     new ConditionalWriteBuilder(table, write.returns(rv), BuilderSupport.decodeReturned(table))
 
+  /** Does not compile: use [[returning]], which also changes the result type to the returned item. */
   def returns(rv: ReturnValues)(implicit useReturningInstead: UseReturningInstead): Nothing =
     sys.error(s"unreachable: $rv, $useReturningInstead")
 
-  def toQuery: DynamoDBQuery[From, Either[DynamoDBError.ItemError.ConditionFailed, Out]] =
-    write.map(finish).conditionFailedAsLeft
+  def toQuery: DynamoDBQuery[From, Out] = write.map(finish)
 
-  def execute[R](implicit executeAs: ExecuteAs[Either[DynamoDBError.ItemError.ConditionFailed, Out], R]): R =
-    executeAs(toQuery)
-
-  def execute[F[_]](interpreter: Interpreter[F]): F[Either[DynamoDBError.ItemError.ConditionFailed, Out]] =
+  def execute[F[_]](implicit interpreter: Interpreter[F]): F[Out] =
     interpreter.run(toQuery)
 }
 
@@ -423,16 +443,8 @@ trait DdbExprApiSyntax {
 
   implicit def conditionalWriteBuilderToQuery[From, Out](
     b: ConditionalWriteBuilder[From, Out]
-  ): DynamoDBQuery[From, Either[DynamoDBError.ItemError.ConditionFailed, Out]] = b.toQuery
-
-  /**
-   * A transaction can always be cancelled (a failed condition, a conflicting write, ...), so the
-   * cancellation is an expected outcome returned as `Left(TransactionCancelled)`.
-   */
-  def transactWriteItems(
-    items: DynamoDBQuery[_, _]*
-  ): DynamoDBQuery[Any, Either[DynamoDBError.TransactionError.TransactionCancelled, Unit]] =
-    DynamoDBQuery.transactWriteItems(items: _*).transactionCancelledAsLeft
+  ): DynamoDBQuery[From, Out] =
+    b.toQuery
 
 }
 

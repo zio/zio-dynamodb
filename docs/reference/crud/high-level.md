@@ -154,10 +154,15 @@ def example(implicit interp: Interpreter[zio.Task]) =
 
 ## Conditional writes
 
-`.where` makes `put`/`update`/`deleteFrom` conditional; a failed condition surfaces as the AWS
-SDK's `ConditionalCheckFailedException`. Add
-`.returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)` (in any
-order with `.where`) to get the item as it was on that exception, as a raw AWS item (`e.item`):
+`.where` makes `put`/`update`/`deleteFrom` conditional. A failed condition fails the effect with
+`DynamoDBError.ItemError.ConditionFailed`; every other failure (throttling, timeouts, …) is the AWS
+SDK exception itself. Handle it with a narrow handler (`catchSome` for ZIO, `recoverWith` for Cats
+Effect, `recover` for `Future`) so other failures pass through untouched - a handler covers every
+step chained before it, not just the write.
+
+`ConditionFailed.item` holds the item as it was: conditional writes send
+`ReturnValuesOnConditionCheckFailure.AllOld` **by default** (no read capacity is consumed; only the
+failure response is larger). Turn it off with `.withoutItemOnConditionFailure` after `.where`:
 
 ```scala mdoc:compile-only
 import zio.dynamodb._
@@ -168,9 +173,9 @@ def example(implicit interp: Interpreter[zio.Task]) =
   update(orders)(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1")(
     Order.status.set(Status.Shipped)
   )
-    .where(Order.status === Status.Pending)
-    .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+    .where(Order.status === Status.Pending)                    // existing item returned on failure by default
     .execute
+    .catchSome { case DynamoDBError.ItemError.ConditionFailed(_, existing) => zio.ZIO.debug(existing) }
 ```
 
 ## Query

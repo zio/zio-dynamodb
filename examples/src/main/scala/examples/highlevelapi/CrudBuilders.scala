@@ -44,7 +44,7 @@ object CrudBuilders {
   val putQuery: DynamoDBQuery[Task, Unit] =
     put(tasks, Task("t1", "write docs", done = false, priority = 1))
 
-  val putWithCondition: DynamoDBQuery[Task, Either[DynamoDBError.ItemError.ConditionFailed, Unit]] =
+  val putWithCondition: DynamoDBQuery[Task, Unit] =
     put(tasks, Task("t1", "write docs", done = false, priority = 1)).where(Task.id.attributeNotExists)
 
   val getQuery: DynamoDBQuery[Task, Option[Either[DynamoDBError.ItemError.DecodingError, Task]]] =
@@ -53,13 +53,13 @@ object CrudBuilders {
   val deleteQuery: DynamoDBQuery[Task, Unit] =
     deleteFrom(tasks)(Task.id.partitionKey === "t1")
 
-  val deleteWithCondition: DynamoDBQuery[Task, Either[DynamoDBError.ItemError.ConditionFailed, Unit]] =
+  val deleteWithCondition: DynamoDBQuery[Task, Unit] =
     deleteFrom(tasks)(Task.id.partitionKey === "t1").where(Task.done === true)
 
   val updateQuery: DynamoDBQuery[Task, Unit] =
     update(tasks)(Task.id.partitionKey === "t1")(Task.done.set(true))
 
-  val updateWithCondition: DynamoDBQuery[Task, Either[DynamoDBError.ItemError.ConditionFailed, Unit]] =
+  val updateWithCondition: DynamoDBQuery[Task, Unit] =
     update(tasks)(Task.id.partitionKey === "t1")(Task.priority.increment(1)).where(Task.done === false)
 
   // Escape hatch: a raw core Action built with the low-level ProjectionExpression `$` syntax.

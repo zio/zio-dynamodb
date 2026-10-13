@@ -1,91 +1,95 @@
 # Migration trial: prototype HL API (TEMPORARY)
 
-> **Temporary.** Exists only for the DX trial of branch `series/3.x_zio_error_channel_prototype`
-> in an external migration project. Delete this file once the trial is over (tracked in the
+> **Temporary.** Exists only for the DX trial of branch `series/3.x_simple_error_model` in an
+> external migration project. Delete this file once the trial is over (tracked in the
 > zio-dynamodb 3.x TODO list). Not part of the published docs.
 
-This branch prototypes a High-Level (HL) API change: **return types scale with the complexity of
-the operation**. Expected failures are part of the return type, decided by the kind of operation;
-infrastructure failures (throttling, timeouts, SDK errors) stay in the failed effect. The
-Low-Level (LL) API is unchanged.
+Design (`error_model_design.md` §9): **failures fail the effect** - for every operation and every
+effect type - with a typed case only for the two *expected* AWS exceptions; every other failure is
+the AWS SDK exception itself. Success types scale with the operation (`Unit` unless you ask for
+more). The earlier `Either`-based design is preserved on `series/3.x_zio_error_channel_prototype`.
 
 ## Using the branch
 
 ```sh
 git fetch origin
-git checkout series/3.x_zio_error_channel_prototype
+git checkout series/3.x_simple_error_model
 sbt 'set ThisBuild / version := "3.0.0-errmodel-SNAPSHOT"' publishLocal    # +publishLocal for 2.13 too
 ```
 
 Point the project's zio-dynamodb dependencies at `3.0.0-errmodel-SNAPSHOT`. The distinct version
 avoids clobbering the regular `3.0.0-SNAPSHOT` in the local ivy cache.
 
-## What changed (HL API, `import zio.dynamodb.blocks.ddbexpr.dsl._`)
+## What changed vs `series/3.x`
 
-| Call | Before | Now |
+| Call | `series/3.x` | This branch |
 |---|---|---|
-| `put` / `update` / `deleteFrom` | `F[Option[A]]` | `F[Unit]` |
-| `... .where(cond)` | `F[Option[A]]`; a failed condition fails `F` with the raw SDK `ConditionalCheckFailedException` | `F[Either[ConditionFailed, Unit]]` |
-| `... .where(cond).returnValuesOnConditionCheckFailure(AllOld)` | item only on the raw SDK exception | `ConditionFailed.item: Option[Item]` (raw `Item`, not decoded) |
-| `... .returning(ReturnValues.X)` (new) | `put(...).returns(X)` via implicit conversion; undecodable item silently `None` | `F[Option[Either[DecodingError, A]]]`; with `.where`: `F[Either[ConditionFailed, Option[Either[DecodingError, A]]]]` |
-| `get` | `F[Either[ItemError, A]]`, not found = `Left(ValueNotFound)` | `F[Option[Either[DecodingError, A]]]`: not found = `None` |
-| `transactWriteItems(...)` from `dsl` (new) | n/a | `F[Either[TransactionCancelled, Unit]]` |
+| HL `put` / `update` / `deleteFrom` | `F[Option[A]]` | `F[Unit]` |
+| `... .where(cond)`, condition false | fails `F` with the raw SDK `ConditionalCheckFailedException` | fails `F` with `DynamoDBError.ItemError.ConditionFailed(message, item)` |
+| existing item on a failed condition | only with `.returnValuesOnConditionCheckFailure(AllOld)`, on the raw SDK exception | **on by default** for HL `.where`: `ConditionFailed.item: Option[Item]` (raw `Item`); `.withoutItemOnConditionFailure` turns it off; inside transactions, on the failing action's `CancellationReason.item` |
+| `... .returning(ReturnValues.X)` (HL, new) | `put(...).returns(X)` via implicit conversion; undecodable item silently `None` | `F[Option[Either[DecodingError, A]]]` |
+| HL `get` | `F[Either[ItemError, A]]`, not found = `Left(ValueNotFound)` | `F[Option[Either[DecodingError, A]]]`: not found = `None` |
+| `DynamoDBQuery.transactWriteItems(...)` (the transaction entry point, taking HL writes) | fails `F` with `TransactionCancelled` | unchanged |
 | `CancellationReason.code` | `String` | sealed `CancellationCode` (`ConditionalCheckFailed`, `TransactionConflict`, `NoError`, ..., `Other(value)`) |
-| `query` / `scan` | `F[Page[Either[ItemError, A]]]` | unchanged |
+| `FutureInterpreter` failures | `java.util.concurrent.CompletionException` wrapping the SDK exception | the SDK exception itself (as CE / ZIO); `TransactionCancelled` translation now also works on `Future` |
+| `query` / `scan`, `.execute[F]` | | unchanged |
 
-Now rejected at compile time (with a message saying what to use instead):
+Rejected at compile time (with a message saying what to use instead):
 
 - `put(t, a).returns(...)` - use `.returning(...)`.
-- `put(t, a).returnValuesOnConditionCheckFailure(...)` without `.where` - add `.where(...)` first.
+- `.returnValuesOnConditionCheckFailure(...)` on HL writes - it's on by default; remove the call (or use `.withoutItemOnConditionFailure`).
 
-Unchanged: the LL API (`DynamoDBQuery.putItem/.where/...`, `DynamoDBQuery.transactWriteItems`,
-which still returns `F[Unit]` and fails with `TransactionCancelled`).
+## Recipes: narrow handlers
 
-## Migration recipes
+Handle only the expected failure; everything else passes through untouched (and is never wrapped
+or re-retried by app code):
+
+```scala
+// Cats Effect
+put(table, a).where(cond).execute
+  .flatMap(_ => onWritten)
+  .recoverWith { case _: DynamoDBError.ItemError.ConditionFailed => onConditionFailed }
+
+DynamoDBQuery.transactWriteItems(writes: _*).execute
+  .flatMap(_ => onWritten)
+  .recoverWith {
+    case tc: DynamoDBError.TransactionError.TransactionCancelled
+        if tc.reasons.exists(_.code == CancellationCode.ConditionalCheckFailed) => onConditionFailed
+  }
+// ZIO: the same with catchSome; Future: recover / recoverWith
+```
 
 | Before | After |
 |---|---|
-| `put(t, a).where(c).execute.attempt.map { case Left(e: ConditionalCheckFailedException) => ... }` | `put(t, a).where(c).execute.map { case Left(cf) => ... }` - infrastructure errors no longer reach this match |
-| `DynamoDBQuery.transactWriteItems(...)` + catch `TransactionCancelled` | `transactWriteItems(...)` from `dsl` → `Either[TransactionCancelled, Unit]` |
+| `.execute.attempt.flatMap { ... case Left(error) => writeError(...) }` | `.execute.flatMap(...).recoverWith { case _: ConditionFailed => ... }` - no `.attempt`, no catch-all, no `reRaise` |
+| `case _: ConditionalCheckFailedException =>` | `case _: DynamoDBError.ItemError.ConditionFailed =>` (see hazards) |
 | `reasons.exists(_.code == "ConditionalCheckFailed")` | `reasons.exists(_.code == CancellationCode.ConditionalCheckFailed)` |
 | `get(...)` then `case Left(_: ValueNotFound) => None` | `get(...)` is already `Option[Either[DecodingError, A]]` |
 | `put(...).execute.void` | `put(...).execute` |
 | `put(t, a).returns(ReturnValues.AllOld)` | `put(t, a).returning(ReturnValues.AllOld)` |
+| `.where(c).returnValuesOnConditionCheckFailure(AllOld)` | `.where(c)` (on by default) |
 
-`get`, `query` and HL `transactWriteItems` return a plain `DynamoDBQuery`, so `.execute` on them
-needs `import zio.dynamodb.ExecuteSyntax._`; the write builders have `.execute` built in.
+`recoverWith` covers every step chained before it, not just the write - keep it next to the write
+if later steps do real work.
 
-**Tagless final: drop the explicit effect type.** `.execute[F]` no longer yields `F[Out]` - it
-resolves to the explicit-interpreter overload and becomes a function `Interpreter[F] => F[Out]`,
-so `.execute[F].attempt` / `.flatMap` fail to compile with a confusing message. Write `.execute`;
-the `Interpreter[F]` in implicit scope still gives `F[Out]`.
-
-## Watch for: compiles, then fails at runtime
-
-Seen while migrating this repo's own tests - check every hit:
+## Watch for: compiles, then misbehaves at runtime
 
 | Old code | Why it still compiles | Fix |
 |---|---|---|
-| `....where(...).execute.attempt` then `.isLeft` | `.attempt` works on any `F`; a failed condition is now `Right(Left(cf))` | drop `.attempt` |
-| `interpreter.run(....where(...)).either` then `isLeft` | same | drop `.either` |
+| `case _: ConditionalCheckFailedException =>` on a single conditional write | the SDK class still exists; the failure is now `ConditionFailed`, so the case **never matches** and the failure propagates | match `ConditionFailed` |
 | `result == Right(a)` on a `get` | universal `==` compares `Option` to `Either` - always false | `result.contains(Right(a))` |
+| a handler like `handleErrorWith { case ex: Exception => ... }` | `ConditionFailed` / `TransactionCancelled` extend `Throwable`, not `Exception` → `MatchError` if one reaches it | `case NonFatal(ex) =>` (or handle the condition failure before it) |
 
 ## Known gaps on the branch
 
-- `docs/reference/**` not updated: the HL "Conditional writes" section still describes the old
-  behavior (raw `ConditionalCheckFailedException`).
-- LL API unchanged (parity is an open decision).
-- The typed ZIO interpreter (`ZioInterpreter.fromAsyncClientWithTypedErrors`, `IO[DynamoFailure, _]`)
-  is opt-in and irrelevant to a Cats Effect project.
+- `ConditionFailed` does not yet expose the original SDK exception as `getCause`.
+- `docs/reference/**`: only the "Conditional writes" sections are updated.
 
 ## What to record
 
-1. Did the old catch-all over expected + infrastructure failures (the `WriteError` retry bug)
-   become a compile error or an obviously separate branch?
-2. Hits of each "compiles, then fails at runtime" pattern, and whether tests caught them.
-3. Code removed (`ValueNotFound` → `None` handlers, `.void`, hand-rolled cancellation wrapping)
-   vs code added.
+1. Did the narrow-handler recipes read clearly, and remove `.attempt` / catch-all / `reRaise`?
+2. Hits of each "watch for" pattern, and whether tests caught them.
+3. Code removed (`ValueNotFound` → `None` handlers, `.void`) vs code added.
 4. Compile errors hit and whether the messages pointed to the fix.
-5. Any LL call sites that would have benefited from the same change.
 
-Design background (if available): `ice-docs/zd_3x/error_model_design.md` §6-7.
+Design background (if available): `ice-docs/zd_3x/error_model_design.md` §9.

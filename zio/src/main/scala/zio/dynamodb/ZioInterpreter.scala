@@ -21,9 +21,7 @@ import software.amazon.awssdk.services.dynamodb.model._
 import zio._
 import zio.dynamodb.DynamoDBError.ItemError
 
-import java.util.concurrent.{ CancellationException, CompletableFuture, CompletionException, ExecutionException }
 import scala.concurrent.duration.FiniteDuration
-import scala.util.control.NonFatal
 
 class ZioInterpreter(
   client: AwsDynamoDB[Task],
@@ -32,7 +30,6 @@ class ZioInterpreter(
   override protected val batchRetryInterceptor: Option[BatchRetryInterceptor[Task]] = None,
   override protected val retryQuota: Option[RetryQuota[Task]] = None
 ) extends RealAwsInterpreter[Task](client) {
-
   private[dynamodb] def pure[A](a: A): Task[A]                               = ZIO.succeed(a)
   private[dynamodb] def map[A, B](fa: Task[A])(f: A => B): Task[B]           = fa.map(f)
   private[dynamodb] def flatMap[A, B](fa: Task[A])(f: A => Task[B]): Task[B] = fa.flatMap(f)
@@ -50,102 +47,7 @@ class ZioInterpreter(
     ZIO.fail(t)
 }
 
-/**
- * A [[ZioInterpreter]] whose `run`/`.execute` fail with [[DynamoFailure]] in ZIO's typed error
- * channel. Built only via [[ZioInterpreter.fromAsyncClientWithTypedErrors]]: SDK failures are
- * classified where the SDK's future is converted to ZIO, and the library's own errors where it
- * raises them, so successful calls pay nothing extra. `classifyAtRun` re-classifies at `run` for
- * configurations with user-supplied effects (interceptors, an effectful default retry policy),
- * whose failures could otherwise be any `Throwable`.
- */
-final class TypedErrorsZioInterpreter private[dynamodb] (
-  client: AwsDynamoDB[Task],
-  defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]],
-  retryInterceptor: Option[RetryInterceptor[Task]],
-  batchRetryInterceptor: Option[BatchRetryInterceptor[Task]],
-  retryQuota: Option[RetryQuota[Task]],
-  classifyAtRun: Boolean
-) extends ZioInterpreter(client, defaultRetryPolicy, retryInterceptor, batchRetryInterceptor, retryQuota)
-    with NarrowedResult {
-
-  type Result[A] = IO[DynamoFailure, A]
-
-  override def run[Out](query: DynamoDBQuery[_, Out]): IO[DynamoFailure, Out] = {
-    val result = super.run(query)
-    if (classifyAtRun) result.mapError(DynamoFailure.classify)
-    else result.asInstanceOf[IO[DynamoFailure, Out]]
-  }
-
-  // A top-level ConditionFailedAsLeft never builds the Either: its condition failure is already
-  // classified into DynamoFailure.ConditionFailed at the bridge. Anything composed on top of it
-  // (e.g. a .map expecting the Either) takes the general path, which absolves after the fact.
-  def runAbsolved[Out](query: DynamoDBQuery[_, Either[DynamoDBError, Out]]): IO[DynamoFailure, Out] =
-    query match {
-      case c: DynamoDBQuery.ConditionFailedAsLeft[_, _]      => run(c.query).asInstanceOf[IO[DynamoFailure, Out]]
-      case c: DynamoDBQuery.TransactionCancelledAsLeft[_, _] => run(c.query).asInstanceOf[IO[DynamoFailure, Out]]
-      case other                                             =>
-        run(other).flatMap {
-          case Right(a) => ZIO.succeed(a)
-          case Left(cf) => ZIO.fail(DynamoFailure.classify(cf))
-        }
-    }
-
-  override protected def fail[A](e: DynamoDBError): Task[A] = ZIO.fail(DynamoFailure.classify(e))
-
-  override protected def absolve[A](fa: Task[Either[ItemError, A]]): Task[A] =
-    fa.flatMap {
-      case Right(a) => ZIO.succeed(a)
-      case Left(e)  => ZIO.fail(DynamoFailure.classify(e))
-    }
-
-  override private[dynamodb] def raiseError[A](t: Throwable): Task[A] = ZIO.fail(DynamoFailure.classify(t))
-}
-
 object ZioInterpreter {
-
-  private trait FutureBridge {
-    def apply[A](thunk: => CompletableFuture[A]): Task[A]
-  }
-
-  private val plainBridge: FutureBridge = new FutureBridge {
-    def apply[A](thunk: => CompletableFuture[A]): Task[A] = ZIO.fromCompletableFuture(thunk)
-  }
-
-  // Same structure as ZIO's own fromCompletableFuture (fast path when already done, else an
-  // interruptible async callback), differing only in classifying failures.
-  private val classifyingBridge: FutureBridge = new FutureBridge {
-    def apply[A](thunk: => CompletableFuture[A]): Task[A] =
-      ZIO.uninterruptibleMask { restore =>
-        ZIO.suspendSucceed {
-          try {
-            val cf = thunk
-            if (cf.isDone) unwrapDone(cf)
-            else
-              restore {
-                ZIO.asyncInterrupt[Any, Throwable, A] { cb =>
-                  cf.handle[Unit] { (v: A, t: Throwable) =>
-                    cb(if (t eq null) Exit.succeed(v) else failed(t))
-                  }
-                  Left(ZIO.succeed(cf.cancel(false)))
-                }
-              }
-          } catch { case t: Throwable => failed(t) }
-        }
-      }
-
-    private def unwrapDone[A](cf: CompletableFuture[A]): Task[A] =
-      try Exit.succeed(cf.get())
-      catch { case t: Throwable => failed(t) }
-
-    private def failed(t: Throwable): Task[Nothing] =
-      t match {
-        case e: CompletionException                             => ZIO.fail(DynamoFailure.classify(e.getCause))
-        case e: ExecutionException                              => ZIO.fail(DynamoFailure.classify(e.getCause))
-        case _: InterruptedException | _: CancellationException => ZIO.interrupt
-        case e if NonFatal(e)                                   => ZIO.fail(DynamoFailure.classify(e))
-        case e                                                  => ZIO.die(e)
-      }
-  }
 
   /**
    * Creates an interpreter backed by `sdkClient`. `defaultRetryPolicy` is `None` by default —
@@ -166,74 +68,49 @@ object ZioInterpreter {
     interceptors: InterceptorConfig[Task] = InterceptorConfig(),
     defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]] = None,
     retryQuota: Option[RetryQuota[Task]] = Some(ZioRetryQuota.standard())
-  ): ZioInterpreter = {
-    val client = buildClient(sdkClient, interceptors, plainBridge)
-    new ZioInterpreter(client, defaultRetryPolicy, interceptors.retry, interceptors.batchRetry, retryQuota)
-  }
+  ): ZioInterpreter =
+    fromAsyncClientInternal(sdkClient, interceptors, defaultRetryPolicy, retryQuota)
 
-  /**
-   * Like [[fromAsyncClient]], but `.execute` on the returned interpreter fails with
-   * [[DynamoFailure]] in ZIO's typed error channel. Existing code expecting `Task` still
-   * compiles, but the failure values change: a raw SDK exception arrives wrapped (e.g.
-   * `DynamoFailure.Rejected(e: ConditionalCheckFailedException)`).
-   */
-  def fromAsyncClientWithTypedErrors(
-    sdkClient: DynamoDbAsyncClient,
-    interceptors: InterceptorConfig[Task] = InterceptorConfig(),
-    defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]] = None,
-    retryQuota: Option[RetryQuota[Task]] = Some(ZioRetryQuota.standard())
-  ): TypedErrorsZioInterpreter = {
-    val client        = buildClient(sdkClient, interceptors, classifyingBridge)
-    val classifyAtRun =
-      interceptors.response.nonEmpty || interceptors.retry.nonEmpty || interceptors.batchRetry.nonEmpty ||
-        defaultRetryPolicy.nonEmpty
-    new TypedErrorsZioInterpreter(
-      client,
-      defaultRetryPolicy,
-      interceptors.retry,
-      interceptors.batchRetry,
-      retryQuota,
-      classifyAtRun
-    )
-  }
-
-  private def buildClient(
+  private def fromAsyncClientInternal(
     sdkClient: DynamoDbAsyncClient,
     interceptors: InterceptorConfig[Task],
-    fromFuture: FutureBridge
-  ): AwsDynamoDB[Task] = {
-    val base: AwsDynamoDB[Task] = new AwsDynamoDB[Task] {
+    defaultRetryPolicy: Option[EffectfulRetryPolicy[Task]],
+    retryQuota: Option[RetryQuota[Task]]
+  ): ZioInterpreter = {
+    val base: AwsDynamoDB[Task]   = new AwsDynamoDB[Task] {
       def getItem(req: GetItemRequest): Task[GetItemResponse]                                  =
-        fromFuture(sdkClient.getItem(req))
+        ZIO.fromCompletableFuture(sdkClient.getItem(req))
       def putItem(req: PutItemRequest): Task[PutItemResponse]                                  =
-        fromFuture(sdkClient.putItem(req))
+        ZIO.fromCompletableFuture(sdkClient.putItem(req))
       def updateItem(req: UpdateItemRequest): Task[UpdateItemResponse]                         =
-        fromFuture(sdkClient.updateItem(req))
+        ZIO.fromCompletableFuture(sdkClient.updateItem(req))
       def deleteItem(req: DeleteItemRequest): Task[DeleteItemResponse]                         =
-        fromFuture(sdkClient.deleteItem(req))
+        ZIO.fromCompletableFuture(sdkClient.deleteItem(req))
       def batchGetItem(req: BatchGetItemRequest): Task[BatchGetItemResponse]                   =
-        fromFuture(sdkClient.batchGetItem(req))
+        ZIO.fromCompletableFuture(sdkClient.batchGetItem(req))
       def query(req: QueryRequest): Task[QueryResponse]                                        =
-        fromFuture(sdkClient.query(req))
+        ZIO.fromCompletableFuture(sdkClient.query(req))
       def scan(req: ScanRequest): Task[ScanResponse]                                           =
-        fromFuture(sdkClient.scan(req))
+        ZIO.fromCompletableFuture(sdkClient.scan(req))
       def createTable(req: CreateTableRequest): Task[CreateTableResponse]                      =
-        fromFuture(sdkClient.createTable(req))
+        ZIO.fromCompletableFuture(sdkClient.createTable(req))
       def deleteTable(req: DeleteTableRequest): Task[DeleteTableResponse]                      =
-        fromFuture(sdkClient.deleteTable(req))
+        ZIO.fromCompletableFuture(sdkClient.deleteTable(req))
       def batchWriteItem(req: BatchWriteItemRequest): Task[BatchWriteItemResponse]             =
-        fromFuture(sdkClient.batchWriteItem(req))
+        ZIO.fromCompletableFuture(sdkClient.batchWriteItem(req))
       def describeTable(req: DescribeTableRequest): Task[DescribeTableResponse]                =
-        fromFuture(sdkClient.describeTable(req))
+        ZIO.fromCompletableFuture(sdkClient.describeTable(req))
       def transactGetItems(req: TransactGetItemsRequest): Task[TransactGetItemsResponse]       =
-        fromFuture(sdkClient.transactGetItems(req))
+        ZIO.fromCompletableFuture(sdkClient.transactGetItems(req))
       def transactWriteItems(req: TransactWriteItemsRequest): Task[TransactWriteItemsResponse] =
-        fromFuture(sdkClient.transactWriteItems(req))
+        ZIO.fromCompletableFuture(sdkClient.transactWriteItems(req))
     }
-    val ops                     = new EffectOps[Task] {
+    val ops                       = new EffectOps[Task] {
       def map[A, B](fa: Task[A])(f: A => B): Task[B]           = fa.map(f)
       def flatMap[A, B](fa: Task[A])(f: A => Task[B]): Task[B] = fa.flatMap(f)
     }
-    interceptors.response.fold(base)(i => new InterceptingAwsDynamoDB[Task](base, i, ops))
+    val client: AwsDynamoDB[Task] =
+      interceptors.response.fold(base)(i => new InterceptingAwsDynamoDB[Task](base, i, ops))
+    new ZioInterpreter(client, defaultRetryPolicy, interceptors.retry, interceptors.batchRetry, retryQuota)
   }
 }

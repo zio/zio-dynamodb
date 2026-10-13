@@ -75,15 +75,15 @@ def example(implicit interp: Interpreter[zio.Task]) =
     .execute
 ```
 
-A failed condition surfaces as the AWS SDK's `ConditionalCheckFailedException`.
+A failed condition fails the effect with `DynamoDBError.ItemError.ConditionFailed`; every other
+failure is the AWS SDK exception itself.
 `.returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)` — on
-`putItem`, `updateItem` or `deleteItem` — puts the item as it was on that exception
-(`e.item`), saving a follow-up `getItem` (see AWS's
+`putItem`, `updateItem` or `deleteItem` — puts the item as it was on that failure
+(`ConditionFailed.item`), saving a follow-up `getItem` (see AWS's
 [`PutItem`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_PutItem.html)
 reference):
 
 ```scala mdoc:compile-only
-import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
 import zio.dynamodb._
 import zio.dynamodb.ExecuteSyntax.*
 import zio.dynamodb.ProjectionExpression.$
@@ -94,7 +94,7 @@ def example(implicit interp: Interpreter[zio.Task]) =
     .where($("status") === "Pending")
     .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
     .execute
-    .catchSome { case e: ConditionalCheckFailedException => zio.ZIO.debug(e.item) }
+    .catchSome { case DynamoDBError.ItemError.ConditionFailed(_, existing) => zio.ZIO.debug(existing) }
 ```
 
 ## Update

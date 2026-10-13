@@ -117,39 +117,43 @@ object DdbExprApiSpec extends ZIOSpecDefault {
           val q = DdbExprApi
             .put(tasks, Task("t1", 42, Priority.High))
             .where(Task.priority === Priority.High)
-          assertTrue(run(q) == Right(()))
+          val _ = run(q)
+          assertCompletes
         },
         test("put.where with SchemaExpr (Builtin path) runs without error") {
           val q = DdbExprApi
             .put(tasks, Task("t1", 42, Priority.High))
             .where(Task.score > 0)
-          assertTrue(run(q) == Right(()))
+          val _ = run(q)
+          assertCompletes
         },
         test("put.where with combined && expression runs without error") {
           val q = DdbExprApi
             .put(tasks, Task("t1", 42, Priority.High))
             .where((Task.priority === Priority.High) && (Task.score > 0))
-          assertTrue(run(q) == Right(()))
+          val _ = run(q)
+          assertCompletes
         },
         test("put.where with attributeExists runs without error") {
           val q = DdbExprApi
             .put(tasks, Task("t1", 42, Priority.High))
             .where(Task.id.attributeExists)
-          assertTrue(run(q) == Right(()))
+          val _ = run(q)
+          assertCompletes
         },
         test("put.where with Failure CE raises DecodingError on run") {
           val q      = DdbExprApi
             .put(tasks, Task("t1", 42, Priority.High))
             .where(ConditionExpression.Failure[Task]("version check failed"))
           val thrown = scala.util.Try(run(q)).failed.toOption
-          assertTrue(thrown.exists(_.isInstanceOf[DynamoDBError.ItemError.DecodingError]))
+          assert(thrown)(isSome(isSubtype[DynamoDBError.ItemError.DecodingError](anything)))
         },
         test("put.where Failure message is preserved in thrown error") {
           val q      = DdbExprApi
             .put(tasks, Task("t1", 42, Priority.High))
             .where(ConditionExpression.Failure[Task]("specific message"))
           val thrown = scala.util.Try(run(q)).failed.toOption
-          assertTrue(thrown.exists(_.getMessage.contains("specific message")))
+          assert(thrown)(isSome(hasMessage(containsString("specific message"))))
         },
         test("multiple Failure nodes accumulate via collectFailures") {
           val ce   = ConditionExpression.Failure[Task]("err1") && ConditionExpression.Failure[Task]("err2")
@@ -162,20 +166,22 @@ object DdbExprApiSpec extends ZIOSpecDefault {
           val q = DdbExprApi
             .deleteFrom(tasks)(Task.id.partitionKey === "t1")
             .where(Task.priority === Priority.High)
-          assertTrue(run(q) == Right(()))
+          val _ = run(q)
+          assertCompletes
         },
         test("deleteFrom.where with SchemaExpr runs without error") {
           val q = DdbExprApi
             .deleteFrom(tasks)(Task.id.partitionKey === "t1")
             .where(Task.score > 0)
-          assertTrue(run(q) == Right(()))
+          val _ = run(q)
+          assertCompletes
         },
         test("deleteFrom.where Failure CE raises DecodingError on run") {
           val q      = DdbExprApi
             .deleteFrom(tasks)(Task.id.partitionKey === "t1")
             .where(ConditionExpression.Failure[Task]("precondition failed"))
           val thrown = scala.util.Try(run(q)).failed.toOption
-          assertTrue(thrown.exists(_.isInstanceOf[DynamoDBError.ItemError.DecodingError]))
+          assert(thrown)(isSome(isSubtype[DynamoDBError.ItemError.DecodingError](anything)))
         }
       )
     )

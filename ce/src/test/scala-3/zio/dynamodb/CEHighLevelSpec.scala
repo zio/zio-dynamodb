@@ -211,7 +211,7 @@ class CEHighLevelSpec extends CatsEffectSuite:
       val table = Table[Article](tableName)
       for
         _       <- put(table, Article("a1", "First", 0)).where(Article.id.attributeNotExists).execute
-        blocked <- put(table, Article("a1", "Second", 0)).where(Article.id.attributeNotExists).execute
+        blocked <- put(table, Article("a1", "Second", 0)).where(Article.id.attributeNotExists).execute.attempt
         result  <- get[Article](table)(Article.id.partitionKey === "a1").execute
       yield {
         assert(blocked.isLeft)
@@ -251,7 +251,7 @@ class CEHighLevelSpec extends CatsEffectSuite:
         // Both hold → write succeeds
         _       <- put(table, Article("a1", "Changed", 0)).where(bothHold).execute
         // First holds but second does not → write fails
-        blocked <- put(table, Article("a1", "Blocked", 0)).where(bothHold).execute
+        blocked <- put(table, Article("a1", "Blocked", 0)).where(bothHold).execute.attempt
         result  <- get[Article](table)(Article.id.partitionKey === "a1").execute
       yield {
         assert(blocked.isLeft)
@@ -270,7 +270,7 @@ class CEHighLevelSpec extends CatsEffectSuite:
         // !(views === 999) holds when views == 0, so write succeeds
         _       <- put(table, Article("a1", "Replaced", 0)).where(notNineNinetyNine).execute
         // !(views === 0) does NOT hold when views == 0, so write is rejected
-        blocked <- put(table, Article("a1", "Blocked", 0)).where(notZero).execute
+        blocked <- put(table, Article("a1", "Blocked", 0)).where(notZero).execute.attempt
         result  <- get[Article](table)(Article.id.partitionKey === "a1").execute
       yield {
         assert(blocked.isLeft)

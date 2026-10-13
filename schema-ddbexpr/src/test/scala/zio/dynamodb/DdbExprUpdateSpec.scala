@@ -201,7 +201,7 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
           DynamoDBCodecDeriverConfig[Registry](),
           Registry.schema.reflect
         )
-        assertTrue(action.isInstanceOf[UpdateExpression.Action.Failure[_]])
+        assert(action)(isSubtype[UpdateExpression.Action.Failure[_]](anything))
       },
       test("remove on a non-String map key interprets to Action.Failure instead of throwing") {
         case class Registry(counts: Map[Int, Int])
@@ -214,7 +214,7 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
           DynamoDBCodecDeriverConfig[Registry](),
           Registry.schema.reflect
         )
-        assertTrue(action.isInstanceOf[UpdateExpression.Action.Failure[_]])
+        assert(action)(isSubtype[UpdateExpression.Action.Failure[_]](anything))
       },
       test("a non-String map key optic survives build, fails at interpretation, and raises on execution") {
         case class Registry(id: String, counts: Map[Int, Int])
@@ -249,13 +249,13 @@ object DdbExprUpdateSpec extends ZIOSpecDefault {
         val action = UpdateExpression.Action.Failure[Record]("bad action")
         val q      = DynamoDBQuery.updateItem("records", PrimaryKey("id" -> "r1"))(action)
         val thrown = scala.util.Try(run(q)).failed.toOption
-        assertTrue(thrown.exists(_.isInstanceOf[DynamoDBError.ItemError.DecodingError]))
+        assert(thrown)(isSome(isSubtype[DynamoDBError.ItemError.DecodingError](anything)))
       },
       test("Action.Failure message is preserved in the thrown error") {
         val action = UpdateExpression.Action.Failure[Record]("specific action failure")
         val q      = DynamoDBQuery.updateItem("records", PrimaryKey("id" -> "r1"))(action)
         val thrown = scala.util.Try(run(q)).failed.toOption
-        assertTrue(thrown.exists(_.getMessage.contains("specific action failure")))
+        assert(thrown)(isSome(hasMessage(containsString("specific action failure"))))
       }
     )
   )

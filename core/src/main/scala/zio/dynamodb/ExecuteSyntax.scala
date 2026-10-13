@@ -18,10 +18,7 @@ package zio.dynamodb
 
 object ExecuteSyntax {
   implicit class DynamoDBQueryOps[In, Out](private val query: DynamoDBQuery[In, Out]) extends AnyVal {
-    def execute[R](implicit executeAs: ExecuteAs[Out, R]): R =
-      executeAs(query)
-
-    def execute[F[_]](interpreter: Interpreter[F]): F[Out] =
+    def execute[F[_]](implicit interpreter: Interpreter[F]): F[Out] =
       interpreter.run(query)
   }
 }

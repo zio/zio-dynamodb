@@ -810,6 +810,12 @@ private[dynamodb] object AwsCodecs {
     b.build()
   }
 
+  def fromConditionalCheckFailedException(e: ConditionalCheckFailedException): DynamoDBError.ItemError.ConditionFailed =
+    DynamoDBError.ItemError.ConditionFailed(
+      e.getMessage,
+      if (e.hasItem && !e.item.isEmpty) Some(fromAwsItem(e.item)) else None
+    )
+
   def fromTransactionCanceledException(
     e: TransactionCanceledException
   ): DynamoDBError.TransactionError.TransactionCancelled = {
@@ -858,48 +864,51 @@ abstract class RealAwsInterpreter[F[_]](client: AwsDynamoDB[F]) extends AwsInter
    */
   private val retryableStatusCodes: Set[Int] = Set(500, 502, 503, 504)
 
-  override protected def isRetryable: Throwable => Boolean = t =>
-    DynamoFailure.unwrap(t) match {
-      case e: AwsServiceException   => e.isThrottlingException || retryableStatusCodes.contains(e.statusCode())
-      case _: NonRetryableException => false
-      case _: SdkClientException    => true
-      case u                        => RetryPolicy.isRetryable(u)
-    }
+  override protected def isRetryable: Throwable => Boolean = {
+    case e: AwsServiceException   => e.isThrottlingException || retryableStatusCodes.contains(e.statusCode())
+    case _: NonRetryableException => false
+    case _: SdkClientException    => true
+    case t                        => RetryPolicy.isRetryable(t)
+  }
 
   /**
    * [[RetryQuota]] cost, classified the same way as `isRetryable` above — the SDK's own
    * `AwsServiceException#isThrottlingException`, not message-substrings, for anything that is
    * an `AwsServiceException`. Falls back to [[RetryPolicy.retryCost]] for anything that isn't.
    */
-  override protected def asTransactionCancelled(
-    t: Throwable
-  ): Option[DynamoDBError.TransactionError.TransactionCancelled] =
-    super.asTransactionCancelled(DynamoFailure.unwrap(t))
-
-  override protected def asConditionFailed(t: Throwable): Option[DynamoDBError.ItemError.ConditionFailed] =
-    DynamoFailure.unwrap(t) match {
-      case e: ConditionalCheckFailedException =>
-        Some(DynamoDBError.ItemError.ConditionFailed(e.getMessage, DynamoFailure.itemOf(e)))
-      case u                                  => super.asConditionFailed(u)
-    }
-
-  override protected def retryCost: Throwable => Int = t =>
-    DynamoFailure.unwrap(t) match {
-      case e: AwsServiceException => if (e.isThrottlingException) 5 else 14
-      case u                      => RetryPolicy.retryCost(u)
-    }
+  override protected def retryCost: Throwable => Int = {
+    case e: AwsServiceException => if (e.isThrottlingException) 5 else 14
+    case t                      => RetryPolicy.retryCost(t)
+  }
 
   protected def runGetItem(q: DynamoDBQuery.GetItem): F[Option[Item]] =
     map(client.getItem(AwsCodecs.toGetItemRequest(q)))(AwsCodecs.fromGetItemResponse)
 
   protected def runPutItem(q: DynamoDBQuery.PutItem): F[Option[Item]] =
-    map(client.putItem(AwsCodecs.toPutItemRequest(q)))(AwsCodecs.fromPutItemResponse)
+    translateConditionFailure(q.conditionExpression.isDefined)(
+      map(client.putItem(AwsCodecs.toPutItemRequest(q)))(AwsCodecs.fromPutItemResponse)
+    )
 
   protected def runUpdateItem(q: DynamoDBQuery.UpdateItem): F[Option[Item]] =
-    map(client.updateItem(AwsCodecs.toUpdateItemRequest(q)))(AwsCodecs.fromUpdateItemResponse)
+    translateConditionFailure(q.conditionExpression.isDefined)(
+      map(client.updateItem(AwsCodecs.toUpdateItemRequest(q)))(AwsCodecs.fromUpdateItemResponse)
+    )
 
   protected def runDeleteItem(q: DynamoDBQuery.DeleteItem): F[Option[Item]] =
-    map(client.deleteItem(AwsCodecs.toDeleteItemRequest(q)))(AwsCodecs.fromDeleteItemResponse)
+    translateConditionFailure(q.conditionExpression.isDefined)(
+      map(client.deleteItem(AwsCodecs.toDeleteItemRequest(q)))(AwsCodecs.fromDeleteItemResponse)
+    )
+
+  // Only a write with a condition can fail its condition, so an unconditional write skips the
+  // attempt and pays nothing extra. Every other failure is re-raised unchanged.
+  private def translateConditionFailure[A](hasCondition: Boolean)(fa: F[A]): F[A] =
+    if (!hasCondition) fa
+    else
+      flatMap(attempt(fa)) {
+        case Right(a)                                 => pure(a)
+        case Left(e: ConditionalCheckFailedException) => fail(AwsCodecs.fromConditionalCheckFailedException(e))
+        case Left(t)                                  => raiseError(t)
+      }
 
   protected def runQuery(q: DynamoDBQuery.Query): F[Page[Item]] =
     map(client.query(AwsCodecs.toQueryRequest(q)))(AwsCodecs.fromQueryResponse)
@@ -927,11 +936,8 @@ abstract class RealAwsInterpreter[F[_]](client: AwsDynamoDB[F]) extends AwsInter
 
   protected def runTransactWriteItems(q: DynamoDBQuery.TransactWriteItems): F[Unit] =
     flatMap(attempt(client.transactWriteItems(AwsCodecs.toTransactWriteItemsRequest(q)))) {
-      case Right(_) => pure(())
-      case Left(t)  =>
-        DynamoFailure.unwrap(t) match {
-          case e: TransactionCanceledException => fail(AwsCodecs.fromTransactionCanceledException(e))
-          case _                               => raiseError(t)
-        }
+      case Right(_)                              => pure(())
+      case Left(e: TransactionCanceledException) => fail(AwsCodecs.fromTransactionCanceledException(e))
+      case Left(t)                               => raiseError(t)
     }
 }
