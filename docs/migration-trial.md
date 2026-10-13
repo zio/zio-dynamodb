@@ -81,7 +81,7 @@ if later steps do real work.
 |---|---|---|
 | `case _: ConditionalCheckFailedException =>` on a single conditional write | the SDK class still exists; the failure is now `ConditionFailed`, so the case **never matches** and the failure propagates | match `ConditionFailed` |
 | `_.code == "ConditionalCheckFailed"` on a `CancellationReason` | **Scala 2.13: compiles with a warning only** ("unrelated: they will most likely never compare equal") and is always false; Scala 3 rejects it at compile time | `_.code == CancellationCode.ConditionalCheckFailed` |
-| `result == Right(a)` on a `get` | universal `==` compares `Option` to `Either` - always false | `result.contains(Right(a))` |
+| `result == Right(a)` on a `get` | **Scala 2.13: compiles with no warning at all** and is always false (universal `==` compares `Option` to `Either`); Scala 3 rejects it at compile time | `result.contains(Right(a))` |
 | a handler like `handleErrorWith { case ex: Exception => ... }` | `ConditionFailed` / `TransactionCancelled` extend `Throwable`, not `Exception` → `MatchError` if one reaches it | `case NonFatal(ex) =>` (or handle the condition failure before it) |
 
 ## Known gaps on the branch
