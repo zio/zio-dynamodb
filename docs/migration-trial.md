@@ -14,10 +14,13 @@ more). The earlier `Either`-based design is preserved on `series/3.x_zio_error_c
 ```sh
 git fetch origin
 git checkout series/3.x_simple_error_model
-sbt 'set ThisBuild / version := "3.0.0-errmodel-SNAPSHOT"' publishLocal    # +publishLocal for 2.13 too
+sbt 'set ThisBuild / version := "3.0.0-errmodel-SNAPSHOT"' +publishLocal   # both Scala 2.13 and 3
 ```
 
-Point the project's zio-dynamodb dependencies at `3.0.0-errmodel-SNAPSHOT`. The distinct version
+Use `+publishLocal` if the consuming project cross-builds (plain `publishLocal` publishes Scala 3
+only), and run its tests on every Scala version it builds for (`sbt +test`) - some hazards below
+behave differently on 2.13 and 3. Point the project's zio-dynamodb dependencies at
+`3.0.0-errmodel-SNAPSHOT`. The distinct version
 avoids clobbering the regular `3.0.0-SNAPSHOT` in the local ivy cache.
 
 ## What changed vs `series/3.x`
@@ -77,6 +80,7 @@ if later steps do real work.
 | Old code | Why it still compiles | Fix |
 |---|---|---|
 | `case _: ConditionalCheckFailedException =>` on a single conditional write | the SDK class still exists; the failure is now `ConditionFailed`, so the case **never matches** and the failure propagates | match `ConditionFailed` |
+| `_.code == "ConditionalCheckFailed"` on a `CancellationReason` | **Scala 2.13: compiles with a warning only** ("unrelated: they will most likely never compare equal") and is always false; Scala 3 rejects it at compile time | `_.code == CancellationCode.ConditionalCheckFailed` |
 | `result == Right(a)` on a `get` | universal `==` compares `Option` to `Either` - always false | `result.contains(Right(a))` |
 | a handler like `handleErrorWith { case ex: Exception => ... }` | `ConditionFailed` / `TransactionCancelled` extend `Throwable`, not `Exception` → `MatchError` if one reaches it | `case NonFatal(ex) =>` (or handle the condition failure before it) |
 
