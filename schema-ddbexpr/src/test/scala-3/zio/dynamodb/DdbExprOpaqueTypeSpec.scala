@@ -17,7 +17,7 @@
 package zio.dynamodb
 
 import zio.blocks.schema.{ CompanionOptics, Lens, Modifier, NameMapper, Schema }
-import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprInterpreter, DdbKeyExpr, DdbKeyExprInterpreter }
+import zio.dynamodb.blocks.ddbexpr.{ DdbExpr, DdbExprApi, DdbExprInterpreter, DdbKeyExpr, DdbKeyExprInterpreter }
 import zio.dynamodb.blocks.DynamoDBCodecDeriverConfig
 import zio.dynamodb.blocks.ddbexpr.DdbExpr._
 import zio.dynamodb.blocks.ddbexpr.DdbKeyExpr._
@@ -81,7 +81,72 @@ object DdbExprOpaqueTypeSpec extends ZIOSpecDefault {
     case _                                                                               => None
   }
 
+  private val hlTable: DdbExprApi.Table[Invoice] = DdbExprApi.Table[Invoice]("invoices")
+  private val hlModel: Invoice                   = Invoice(InvoiceId("INV-1"), Amount(42))
+  private val hlItem: Item                       = Item("id" -> "INV-1", "amount" -> 42)
+
   def spec = suite("DdbExpr — Scala 3 opaque type fields")(
+    suite("HL operations")(
+      test("get decodes the wrapped fields; the key is sent as the primitive") {
+        val interp = new CannedItemInterpreter(Some(hlItem))
+        val result = interp.run(DdbExprApi.get(hlTable)(Invoice.id.partitionKey === InvoiceId("INV-1"))).unsafeRun()
+        assertTrue(result.contains(Right(hlModel))) &&
+        assert(interp.requests)(
+          hasFirst(
+            isSubtype[DynamoDBQuery.GetItem](
+              hasField[DynamoDBQuery.GetItem, zio.dynamodb.PrimaryKey](
+                "key",
+                _.key,
+                equalTo(zio.dynamodb.PrimaryKey("id" -> "INV-1"))
+              )
+            )
+          )
+        )
+      },
+      test(".returning decodes the returned item, for put and update") {
+        val interp  = new CannedItemInterpreter(Some(hlItem))
+        val put     = interp.run(DdbExprApi.put(hlTable, hlModel).returning(ReturnValues.AllOld).toQuery).unsafeRun()
+        val updated = interp
+          .run(
+            DdbExprApi
+              .update(hlTable)(Invoice.id.partitionKey === InvoiceId("INV-1"))(Invoice.amount.set(Amount(42)))
+              .returning(ReturnValues.AllNew)
+              .toQuery
+          )
+          .unsafeRun()
+        assertTrue(put.contains(Right(hlModel)), updated.contains(Right(hlModel)))
+      },
+      test("conditional put executes to Unit; the item and the condition's literal are sent as primitives") {
+        val interp = new CannedItemInterpreter(None)
+        interp.run[Unit](DdbExprApi.put(hlTable, hlModel).where(Invoice.amount > Amount(0)).toQuery).unsafeRun()
+        assert(interp.requests)(
+          hasFirst(
+            isSubtype[DynamoDBQuery.PutItem](
+              hasField[DynamoDBQuery.PutItem, Item]("item", _.item, equalTo(hlItem)) &&
+                hasField[DynamoDBQuery.PutItem, Option[ConditionExpression[_]]](
+                  "conditionExpression",
+                  _.conditionExpression,
+                  isSome(
+                    isSubtype[ConditionExpression.GreaterThan[_]](
+                      hasField[ConditionExpression.GreaterThan[_], ConditionExpression.Operand[_, Any]](
+                        "right",
+                        _.right,
+                        isSubtype[ConditionExpression.Operand.ValueOperand[_]](
+                          hasField[ConditionExpression.Operand.ValueOperand[_], AttributeValue](
+                            "value",
+                            _.value,
+                            equalTo(AttributeValue.Number(BigDecimal(0)))
+                          )
+                        )
+                      )
+                    )
+                  )
+                )
+            )
+          )
+        )
+      }
+    ),
     suite("filter expressions via === (schema-aware encoding)")(
       test("opaque String field === encodes as AttributeValue.String") {
         val expr: DdbExpr[Invoice, Boolean] = Invoice.id === InvoiceId("INV-001")
