@@ -105,9 +105,8 @@ def example(implicit interp: Interpreter[zio.Task]) =
   get(orders)(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1").execute
 ```
 
-`get` returns `Either[DynamoDBError.ItemError, Order]`, not `Option[Order]` — a missing item
-decodes as `Left(ItemError.ValueNotFound(...))`, in the same value, not a separate `None`
-case to match on.
+`get` returns `Option[Either[DynamoDBError.ItemError.DecodingError, Order]]`: `None` when there is
+no item with that key, `Left` when the stored item doesn't decode as an `Order`.
 
 ## Put
 
@@ -150,6 +149,24 @@ import zio.dynamodb.blocks.ddbexpr.dsl.*
 
 def example(implicit interp: Interpreter[zio.Task]) =
   deleteFrom(orders)(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1").execute
+```
+
+## Returned items
+
+`put`, `update` and `deleteFrom` execute to `Unit`. To get back the item DynamoDB returns, add
+`.returning`: the result becomes `Option[Either[DynamoDBError.ItemError.DecodingError, Order]]`
+(`None` when nothing was returned). Put and delete accept `ReturnValues.AllOld`; update accepts
+any value (see AWS's [`ReturnValues`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html#DDB-UpdateItem-request-ReturnValues)).
+
+```scala mdoc:compile-only
+import zio.dynamodb._
+import zio.dynamodb.ExecuteSyntax.*
+import zio.dynamodb.blocks.ddbexpr.dsl.*
+
+def example(implicit interp: Interpreter[zio.Task]) =
+  update(orders)(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1")(
+    Order.status.set(Status.Shipped)
+  ).returning(ReturnValues.AllNew).execute
 ```
 
 ## Conditional writes
