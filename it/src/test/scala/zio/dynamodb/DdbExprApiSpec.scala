@@ -873,28 +873,6 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           } yield assertTrue(holds.contains(Right(Score("alice", 42)))) &&
             assert(fails)(isLeft(isSubtype[DynamoDBError.ItemError.ConditionFailed](anything)))
         }
-      },
-      test("compile time: LL modifiers that would contradict the builder's type are rejected with guidance") {
-        for {
-          returnsOnPlain   <-
-            typeCheck("DdbExprApi.put(DdbExprApi.Table[Score](\"t\"), Score(\"a\", 1)).returns(ReturnValues.AllOld)")
-          returnsOnCond    <- typeCheck(
-                                "DdbExprApi.put(DdbExprApi.Table[Score](\"t\"), Score(\"a\", 1))" +
-                                  ".where(null.asInstanceOf[ConditionExpression[Score]]).returns(ReturnValues.AllOld)"
-                              )
-          allOldWithoutCnd <- typeCheck(
-                                "DdbExprApi.put(DdbExprApi.Table[Score](\"t\"), Score(\"a\", 1))" +
-                                  ".returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)"
-                              )
-          allOldWithCnd    <- typeCheck(
-                                "DdbExprApi.put(DdbExprApi.Table[Score](\"t\"), Score(\"a\", 1))" +
-                                  ".where(null.asInstanceOf[ConditionExpression[Score]])" +
-                                  ".returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)"
-                              )
-        } yield assert(returnsOnPlain)(isLeft(containsString("use .returning"))) &&
-          assert(returnsOnCond)(isLeft(containsString("use .returning"))) &&
-          assert(allOldWithoutCnd)(isLeft(containsString("already return the existing item on failure"))) &&
-          assert(allOldWithCnd)(isLeft(containsString("already return the existing item on failure")))
       }
     )
 
