@@ -1658,12 +1658,9 @@ class DynamoDBCodecDeriver private (
     if (binding.isInstanceOf[Binding[?, ?]]) {
       val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
       D.instance(wrapped.metadata).map { codec =>
-        // valueType must match the wrapped codec's register kind (int/long/object/etc), not
-        // the objectType default — a record field of this wrapper type is stored in whichever
-        // register registerOffset()/ZB's own Binding.Record decided for the wrapped primitive
-        // (see unwrapToPrimitiveTypeOption above), and the record-level encoder/decoder use
-        // this valueType to pick regs.getInt/getLong/getObject/etc at that same offset.
-        new DynamoDBCodec[A](codec.valueType) {
+        // A record field of this wrapper type is read/written through valueType, so it must be the
+        // register kind the field occupies (see storedBoxed).
+        new DynamoDBCodec[A](if (storedBoxed(typeId)) DynamoDBCodec.objectType else codec.valueType) {
           private[this] val unwrap                               = wrapperBinding.unwrap
           private[this] val wrap                                 = wrapperBinding.wrap
           private[this] val wrappedCodec: DynamoDBCodec[Wrapped] = codec.asInstanceOf[DynamoDBCodec[Wrapped]]
@@ -2009,27 +2006,22 @@ class DynamoDBCodecDeriver private (
       caseReflect.isRecord || caseReflect.asVariant.map(_.cases).forall(hasOnlyRecordAndVariantCases)
     }
 
-  // copied out of zio-blocks as scope is private inside Reflect
-  //
-  // wrapper.underlyingPrimitiveType (ZB's Reflect.Wrapper method) infers primitiveness
-  // from the wrapper's TypeId.representation alone (PrimitiveType.fromTypeId), which is
-  // None whenever no explicit TypeId.opaque(..., representation = ...) was given for the
-  // wrapper type — e.g. zio-prelude Newtype/Subtype fields with no custom assertion, which
-  // rely on ZB's Schema.derived to auto-synthesize the wrapper without any given TypeId.
-  // registerOffset (below) uses this result to decide which register kind (int/long/object/
-  // etc.) a field occupies when sizing the Registers buffer and computing field offsets —
-  // ZB's own macro-generated Binding.Record constructor/deconstructor instead determines
-  // register kind directly from the wrapped Reflect's actual structure, independent of any
-  // TypeId hint, so a None here desyncs our register layout from ZB's real one and corrupts
-  // encode/decode (wrong values, or an out-of-bounds Registers access). Recursing into the
-  // wrapped Reflect first (structural check, matches what ZB's macro does) before falling
-  // back to the TypeId-based hint keeps the two in agreement regardless of TypeId presence.
+  // Which register a record field of this type occupies must match the Binding.Record ZB's macro
+  // generated, which decides by the field's Scala type: a primitive, or an opaque type / zio-prelude
+  // newtype / alias over one (all erased to the primitive), sits in that primitive's register; a
+  // class - including an AnyVal value class - is stored boxed, in an object register. A wrapper's
+  // TypeId kind tells the two apart; its Reflect structure alone does not.
+  private def storedBoxed(typeId: TypeId[?]): Boolean =
+    typeId.isClass || typeId.isTrait || typeId.isObject
+
   private def unwrapToPrimitiveTypeOption[F[_, _], A](reflect: Reflect[F, A]): Option[PrimitiveType[A]] =
     if (reflect.isWrapper) {
       val wrapper = reflect.asWrapperUnknown.get.wrapper
-      unwrapToPrimitiveTypeOption(wrapper.wrapped)
-        .orElse(wrapper.underlyingPrimitiveType)
-        .asInstanceOf[Option[PrimitiveType[A]]]
+      if (storedBoxed(wrapper.typeId)) None
+      else
+        unwrapToPrimitiveTypeOption(wrapper.wrapped)
+          .orElse(wrapper.underlyingPrimitiveType)
+          .asInstanceOf[Option[PrimitiveType[A]]]
     } else reflect.asPrimitive.map(_.primitiveType)
 
   private def registerOffset[F[_, _], A](reflect: Reflect[F, A]): RegisterOffset =
