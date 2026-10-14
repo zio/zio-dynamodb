@@ -155,7 +155,7 @@ class EventStoreBench extends BaseBenchmark {
     IO.delay(scanamo.exec(scanamoTable.put(record))).unsafeRunSync()
 
   /** DdbExprApi: cached HL get — same Optic ergonomics; codec derived once per type. */
-  @Benchmark def blocksGet: Either[ItemError, EventStoreRecord] =
+  @Benchmark def blocksGet: Option[Either[ItemError.DecodingError, EventStoreRecord]] =
     interpreter
       .run(
         DdbExprApi.get(ddbTable)(
@@ -165,7 +165,7 @@ class EventStoreBench extends BaseBenchmark {
       .unsafeRunSync()
 
   /** DdbExprApi: cached HL put — codec derived once per type. */
-  @Benchmark def blocksPut: Option[EventStoreRecord] =
+  @Benchmark def blocksPut: Unit =
     interpreter
       .run(DdbExprApi.put(ddbTable, record))
       .unsafeRunSync()
