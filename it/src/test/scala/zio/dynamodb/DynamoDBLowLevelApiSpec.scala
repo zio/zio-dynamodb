@@ -68,10 +68,7 @@ object DynamoDBLowLevelApiSpec extends DynamoDBLocalSpec {
   private def futureBridge(interp: FutureInterpreter): Interpreter[Task] =
     new Interpreter[Task] {
       def run[A](q: DynamoDBQuery[_, A]): Task[A] =
-        ZIO.fromFuture(_ => interp.run(q)).mapError {
-          case e: java.util.concurrent.CompletionException if e.getCause != null => e.getCause
-          case e                                                                 => e
-        }
+        ZIO.fromFuture(_ => interp.run(q))
     }
 
   private val futureEnvLayer: URLayer[DynamoDbAsyncClient, DynamoDBEnv] =

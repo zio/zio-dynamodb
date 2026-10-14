@@ -18,13 +18,12 @@ package zio.dynamodb
 
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.concurrent.duration.FiniteDuration
-import scala.jdk.FutureConverters._
 import scala.util.Success
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.dynamodb.model._
 import zio.dynamodb.DynamoDBError.ItemError
 
-import java.util.concurrent.{ Executors, ScheduledExecutorService, TimeUnit }
+import java.util.concurrent.{ CompletableFuture, CompletionException, Executors, ScheduledExecutorService, TimeUnit }
 
 /**
  * DynamoDB interpreter backed by [[scala.concurrent.Future]].
@@ -107,6 +106,23 @@ object FutureInterpreter {
   )(implicit ec: ExecutionContext): FutureInterpreter =
     fromAsyncClientInternal(sdkClient, interceptors, defaultRetryPolicy, retryQuota)
 
+  // The SDK's futures usually fail with a CompletionException around the real exception. Unwrap it
+  // so callers - and the library's own error translation and retry classification - see the SDK
+  // exception itself, as they do with the other interpreters.
+  private def toScala[A](cf: CompletableFuture[A]): Future[A] = {
+    val p = Promise[A]()
+    cf.whenComplete { (a: A, t: Throwable) =>
+      if (t eq null) p.success(a)
+      else
+        p.failure(t match {
+          case c: CompletionException if c.getCause ne null => c.getCause
+          case other                                        => other
+        })
+      ()
+    }
+    p.future
+  }
+
   private def fromAsyncClientInternal(
     sdkClient: DynamoDbAsyncClient,
     interceptors: InterceptorConfig[Future],
@@ -114,22 +130,24 @@ object FutureInterpreter {
     retryQuota: Option[RetryQuota[Future]]
   )(implicit ec: ExecutionContext): FutureInterpreter = {
     val base: AwsDynamoDB[Future]   = new AwsDynamoDB[Future] {
-      def getItem(req: GetItemRequest): Future[GetItemResponse]                                  = sdkClient.getItem(req).asScala
-      def putItem(req: PutItemRequest): Future[PutItemResponse]                                  = sdkClient.putItem(req).asScala
-      def updateItem(req: UpdateItemRequest): Future[UpdateItemResponse]                         = sdkClient.updateItem(req).asScala
-      def deleteItem(req: DeleteItemRequest): Future[DeleteItemResponse]                         = sdkClient.deleteItem(req).asScala
-      def batchGetItem(req: BatchGetItemRequest): Future[BatchGetItemResponse]                   = sdkClient.batchGetItem(req).asScala
+      def getItem(req: GetItemRequest): Future[GetItemResponse]                                  = toScala(sdkClient.getItem(req))
+      def putItem(req: PutItemRequest): Future[PutItemResponse]                                  = toScala(sdkClient.putItem(req))
+      def updateItem(req: UpdateItemRequest): Future[UpdateItemResponse]                         = toScala(sdkClient.updateItem(req))
+      def deleteItem(req: DeleteItemRequest): Future[DeleteItemResponse]                         = toScala(sdkClient.deleteItem(req))
+      def batchGetItem(req: BatchGetItemRequest): Future[BatchGetItemResponse]                   = toScala(sdkClient.batchGetItem(req))
       def batchWriteItem(req: BatchWriteItemRequest): Future[BatchWriteItemResponse]             =
-        sdkClient.batchWriteItem(req).asScala
-      def query(req: QueryRequest): Future[QueryResponse]                                        = sdkClient.query(req).asScala
-      def scan(req: ScanRequest): Future[ScanResponse]                                           = sdkClient.scan(req).asScala
-      def createTable(req: CreateTableRequest): Future[CreateTableResponse]                      = sdkClient.createTable(req).asScala
-      def deleteTable(req: DeleteTableRequest): Future[DeleteTableResponse]                      = sdkClient.deleteTable(req).asScala
-      def describeTable(req: DescribeTableRequest): Future[DescribeTableResponse]                = sdkClient.describeTable(req).asScala
+        toScala(sdkClient.batchWriteItem(req))
+      def query(req: QueryRequest): Future[QueryResponse]                                        = toScala(sdkClient.query(req))
+      def scan(req: ScanRequest): Future[ScanResponse]                                           = toScala(sdkClient.scan(req))
+      def createTable(req: CreateTableRequest): Future[CreateTableResponse]                      = toScala(sdkClient.createTable(req))
+      def deleteTable(req: DeleteTableRequest): Future[DeleteTableResponse]                      = toScala(sdkClient.deleteTable(req))
+      def describeTable(req: DescribeTableRequest): Future[DescribeTableResponse]                = toScala(
+        sdkClient.describeTable(req)
+      )
       def transactGetItems(req: TransactGetItemsRequest): Future[TransactGetItemsResponse]       =
-        sdkClient.transactGetItems(req).asScala
+        toScala(sdkClient.transactGetItems(req))
       def transactWriteItems(req: TransactWriteItemsRequest): Future[TransactWriteItemsResponse] =
-        sdkClient.transactWriteItems(req).asScala
+        toScala(sdkClient.transactWriteItems(req))
     }
     val ops                         = new EffectOps[Future] {
       def map[A, B](fa: Future[A])(f: A => B): Future[B]             = fa.map(f)
