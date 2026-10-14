@@ -103,7 +103,7 @@ addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
 addCommandAlias("lint", "; scalafmtSbtCheck; scalafmtCheckAll")
 
-val zioVersion             = "2.1.26"
+val zioVersion             = "2.1.27"
 val zioAwsVersion          = "7.46.17.14"
 val zioSchemaVersion       = "1.8.7"
 val zioPreludeVersion      = "1.0.0-RC48"
