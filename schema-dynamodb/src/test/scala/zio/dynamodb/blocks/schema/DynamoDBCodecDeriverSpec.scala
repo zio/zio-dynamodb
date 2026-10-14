@@ -56,6 +56,23 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
   case class Wrapper(value: String)
   object Wrapper { implicit val schema: Schema[Wrapper] = Schema.derived }
 
+  // Classes wrapping a primitive, with transparent schemas (encoded as the bare primitive): value
+  // classes, plus one plain case class (Count).
+  case class Qty(value: Int) extends AnyVal
+  object Qty { implicit val schema: Schema[Qty] = Schema.int.transform(Qty(_), _.value) }
+  case class Millis(value: Long) extends AnyVal
+  object Millis { implicit val schema: Schema[Millis] = Schema.long.transform(Millis(_), _.value) }
+  case class Price(value: Double) extends AnyVal
+  object Price { implicit val schema: Schema[Price] = Schema.double.transform(Price(_), _.value) }
+  case class Flag(value: Boolean) extends AnyVal
+  object Flag { implicit val schema: Schema[Flag] = Schema.boolean.transform(Flag(_), _.value) }
+  case class Sku(value: String) extends AnyVal
+  object Sku      { implicit val schema: Schema[Sku] = Schema.string.transform(Sku(_), _.value)  }
+  case class Count(value: Int)
+  object Count    { implicit val schema: Schema[Count] = Schema.int.transform(Count(_), _.value) }
+  case class LineItem(sku: Sku, qty: Qty, at: Millis, price: Price, gift: Flag, count: Count)
+  object LineItem { implicit val schema: Schema[LineItem] = Schema.derived                       }
+
   sealed trait Color
   object Color {
     case object Red   extends Color
@@ -238,6 +255,7 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
     temporalSuite,
     miscPrimitiveSuite,
     recordSuite,
+    valueClassFieldSuite,
     transientSuite,
     optionSuite,
     enumSuite,
@@ -587,6 +605,30 @@ object DynamoDBCodecDeriverSpec extends ZIOSpecDefault {
   )
 
   // ---- records (case classes) --------------------------------------------
+
+  private val valueClassFieldSuite = suite("record with fields that are classes wrapping a primitive")(
+    test("encodes each field as its bare primitive") {
+      val item = LineItem(Sku("s-1"), Qty(2), Millis(9999999999L), Price(1.5), Flag(true), Count(3))
+      assert(codecFor[LineItem].encoder(item))(
+        equalTo(
+          AttributeValue.Map(
+            Map(
+              AttributeValue.String("sku")   -> AttributeValue.String("s-1"),
+              AttributeValue.String("qty")   -> AttributeValue.Number(BigDecimal(2)),
+              AttributeValue.String("at")    -> AttributeValue.Number(BigDecimal(9999999999L)),
+              AttributeValue.String("price") -> AttributeValue.Number(BigDecimal(1.5)),
+              AttributeValue.String("gift")  -> AttributeValue.Bool(true),
+              AttributeValue.String("count") -> AttributeValue.Number(BigDecimal(3))
+            )
+          ): AttributeValue
+        )
+      )
+    },
+    test("round-trips") {
+      val item = LineItem(Sku("s-1"), Qty(2), Millis(9999999999L), Price(1.5), Flag(true), Count(3))
+      assertTrue(roundTrip(item) == Right(item))
+    }
+  )
 
   private val recordSuite = suite("record (case class) codecs")(
     test("encodes to AttributeValue.Map with field names as keys") {
