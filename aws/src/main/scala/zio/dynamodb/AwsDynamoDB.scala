@@ -812,7 +812,7 @@ private[dynamodb] object AwsCodecs {
 
   def fromConditionalCheckFailedException(e: ConditionalCheckFailedException): DynamoDBError.ItemError.ConditionFailed =
     DynamoDBError.ItemError.ConditionFailed(
-      e.getMessage,
+      Option(e.getMessage).getOrElse("The conditional request failed"),
       if (e.hasItem && !e.item.isEmpty) Some(fromAwsItem(e.item)) else None
     )
 

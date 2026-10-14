@@ -119,6 +119,13 @@ object ConditionFailedTranslationSpec extends ZIOSpecDefault {
         )
       )
     },
+    test("an SDK exception with no message still gives ConditionFailed a message") {
+      val noMessage   = ConditionalCheckFailedException.builder().build().asInstanceOf[ConditionalCheckFailedException]
+      val (client, _) = writeClient(noMessage)
+      assert(run(client, conditionalPut))(
+        isLeft(isSubtype[ConditionFailed](hasField[ConditionFailed, String]("message", _.message, isNonEmptyString)))
+      )
+    },
     test("conditional update and delete: translated too") {
       val (client, _) = writeClient(ccfeWithItem)
       assert(run(client, conditionalUpdate))(isLeft(isSubtype[ConditionFailed](anything))) &&

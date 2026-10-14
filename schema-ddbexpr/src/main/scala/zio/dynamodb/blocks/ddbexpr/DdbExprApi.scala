@@ -43,14 +43,6 @@ private[ddbexpr] final class CodecCacheKey(private val r0: AnyRef, private val r
 // on DdbExprApiSyntax, which is mixed into more than one object) so there is a single
 // canonical helper regardless of which facade the call site imported.
 private[ddbexpr] object BuilderSupport {
-  // The builders only ever hold a put/update/delete, which is what CanWhere guards; their
-  // raw `Option[Item]` result type doesn't line up with the condition's type, so satisfy it via From.
-  def whereOnWrite[From](
-    write: DynamoDBQuery[From, Option[Item]],
-    ce: ConditionExpression[From]
-  ): DynamoDBQuery[From, Option[Item]] =
-    write.asInstanceOf[DynamoDBQuery[From, From]].where(ce).asInstanceOf[DynamoDBQuery[From, Option[Item]]]
-
   val unit: Option[Item] => Unit = _ => ()
 
   def decode[From](table: Table[From], item: Item): Either[DynamoDBError.ItemError.DecodingError, From] =
@@ -149,8 +141,8 @@ final class WriteBuilder[From, Out] private[ddbexpr] (
   private def conditional(ce: ConditionExpression[From]): ConditionalWriteBuilder[From, Out] =
     new ConditionalWriteBuilder(
       table,
-      BuilderSupport
-        .whereOnWrite(write, ce)
+      write
+        .withCondition(ce)
         .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld),
       finish
     )
@@ -203,7 +195,7 @@ final class ConditionalWriteBuilder[From, Out] private[ddbexpr] (
   private[ddbexpr] val finish: Option[Item] => Out
 ) {
   private def withCondition(ce: ConditionExpression[From]): ConditionalWriteBuilder[From, Out] =
-    new ConditionalWriteBuilder(table, BuilderSupport.whereOnWrite(write, ce), finish)
+    new ConditionalWriteBuilder(table, write.withCondition(ce), finish)
 
   def where(expr: DdbExpr[From, Boolean]): ConditionalWriteBuilder[From, Out]  =
     withCondition(BuilderSupport.condition(expr, table))
