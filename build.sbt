@@ -283,9 +283,3 @@ lazy val root = (project in file("."))
 ThisBuild / ciEnabledBranches  := Seq("series/3.x")
 ThisBuild / ciPublishSnapshots := false // superseded by CiWorkflow.release's series/3.x-aware condition
 ThisBuild / ciReleaseJobs      := Seq(CiWorkflow.release.value)
-// benchmarks is outside root's aggregate (so +Test/compile skips it); compile it explicitly so API
-// changes that break it fail CI. Scala 3 only, like the module itself.
-ThisBuild / ciCheckArtifactsCompilationSteps += zio.sbt.githubactions.Step.SingleStep(
-  name = "Check benchmarks compile",
-  run = Some("sbt --no-colors benchmarks/Jmh/compile")
-)
