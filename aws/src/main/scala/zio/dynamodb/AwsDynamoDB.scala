@@ -810,10 +810,20 @@ private[dynamodb] object AwsCodecs {
     b.build()
   }
 
+  // The SDK exception (request id, status code, raw details) is kept as getCause rather than as a
+  // field, so the translated error's equality and pattern matching stay on the library's own data.
+  private def withCause[E <: DynamoDBError](error: E, cause: Throwable): E = {
+    error.initCause(cause)
+    error
+  }
+
   def fromConditionalCheckFailedException(e: ConditionalCheckFailedException): DynamoDBError.ItemError.ConditionFailed =
-    DynamoDBError.ItemError.ConditionFailed(
-      Option(e.getMessage).getOrElse("The conditional request failed"),
-      if (e.hasItem && !e.item.isEmpty) Some(fromAwsItem(e.item)) else None
+    withCause(
+      DynamoDBError.ItemError.ConditionFailed(
+        Option(e.getMessage).getOrElse("The conditional request failed"),
+        if (e.hasItem && !e.item.isEmpty) Some(fromAwsItem(e.item)) else None
+      ),
+      e
     )
 
   def fromTransactionCanceledException(
@@ -829,7 +839,7 @@ private[dynamodb] object AwsCodecs {
         item = if (r.hasItem && !r.item.isEmpty) Some(fromAwsItem(r.item)) else None
       )
     })
-    DynamoDBError.TransactionError.TransactionCancelled(reasons)
+    withCause(DynamoDBError.TransactionError.TransactionCancelled(reasons), e)
   }
 }
 

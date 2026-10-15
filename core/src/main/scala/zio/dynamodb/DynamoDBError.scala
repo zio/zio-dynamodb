@@ -75,6 +75,10 @@ object DynamoDBError {
 
     final case class TransactionValidationError(message: String) extends TransactionError
 
+    /**
+     * When raised by the library, the inherited `getCause` is the AWS SDK
+     * `TransactionCanceledException` it was translated from.
+     */
     final case class TransactionCancelled(
       reasons: Chunk[CancellationReason]
     ) extends TransactionError {
@@ -129,7 +133,9 @@ object DynamoDBError {
 
     /**
      * A write's condition expression evaluated to false. `item` holds the item as it was when
-     * the write requested `ReturnValuesOnConditionCheckFailure.AllOld`.
+     * the write requested `ReturnValuesOnConditionCheckFailure.AllOld`. When raised by the
+     * library, the inherited `getCause` is the AWS SDK `ConditionalCheckFailedException` it was
+     * translated from.
      */
     final case class ConditionFailed(message: String, item: Option[Item]) extends ItemError
 

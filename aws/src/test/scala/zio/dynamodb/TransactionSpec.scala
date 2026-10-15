@@ -517,7 +517,8 @@ object TransactionSpec extends ZIOSpecDefault {
         client
       )
       assert(result.failed.get)(isSubtype[TransactionError.TransactionCancelled](anything)) &&
-      assertTrue(result.failed.get.getMessage.contains("ConditionalCheckFailed"))
+      assertTrue(result.failed.get.getMessage.contains("ConditionalCheckFailed")) &&
+      assert(Option(result.failed.get.getCause))(isSome(isSubtype[TransactionCanceledException](equalTo(ex))))
     },
     test("non-transaction exception propagates unchanged") {
       val ex     = new RuntimeException("network error")
