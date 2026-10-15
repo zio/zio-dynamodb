@@ -26,7 +26,7 @@ import scala.util.control.NoStackTrace
  * exceptions) but mixes in `NoStackTrace`, since these are expected, structured failures
  * rather than exceptional JVM conditions — a stack trace would be noise, not signal.
  *
- * Sealed subtrees: [[DynamoDBError.ItemError]] (single-item decode/lookup failures),
+ * Sealed subtrees: [[DynamoDBError.ItemError]] (decoding and failed-condition errors),
  * [[DynamoDBError.ScanError]] (scan/query validation),
  * [[DynamoDBError.TransactionError]] (`transactWriteItems`/`transactGetItems` failures,
  * including [[DynamoDBError.TransactionError.TransactionCancelled]]'s per-item
@@ -126,15 +126,6 @@ object DynamoDBError {
   }
 
   object ItemError {
-
-    /**
-     * Signals that an expected key was absent from the DynamoDB response.
-     *  Produced by `DynamoDBQuery.get` when `getItem` returns `None`, and
-     *  available for use with `DynamoDBQuery.Absolve` to promote a missing-item
-     *  `Option` into the effect error channel. Not a decoding failure —
-     *  it indicates the item simply does not exist in the table.
-     */
-    final case class ValueNotFound(message: String) extends ItemError
 
     /**
      * A write's condition expression evaluated to false. `item` holds the item as it was when

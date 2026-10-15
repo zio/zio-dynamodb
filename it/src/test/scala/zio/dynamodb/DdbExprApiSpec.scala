@@ -77,7 +77,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           } yield assertTrue(result.contains(Right(Task("t1", Priority.High))))
         }
       },
-      test("DdbExprApi.get returns Left(ValueNotFound) for absent item") {
+      test("DdbExprApi.get returns None for absent item") {
         withSingleIdKeyTable { (tableName, interpreter) =>
           val table = DdbExprApi.Table[Task](tableName)
           for {
@@ -108,7 +108,7 @@ object DdbExprApiSpec extends DynamoDBLocalSpec {
           } yield assertTrue(result.contains(Right(event)))
         }
       },
-      test("get returns Left(ValueNotFound) for missing compound key item") {
+      test("get returns None for missing compound key item") {
         final case class Event(id: String, year: String, title: String)
         object Event extends CompanionOptics[Event] {
           implicit val schema: Schema[Event] = Schema.derived

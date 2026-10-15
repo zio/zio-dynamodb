@@ -24,11 +24,6 @@ object DynamoDBErrorSpec extends ZIOSpecDefault {
 
   def spec = suite("DynamoDBError")(
     suite("ItemError")(
-      test("ValueNotFound has message") {
-        val e = ValueNotFound("key not found")
-        assertTrue(e.message == "key not found")
-      },
-
       test("DecodingError single-message factory has message") {
         val e = DecodingError("bad type")
         assertTrue(e.message == "bad type")

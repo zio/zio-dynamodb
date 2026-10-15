@@ -452,13 +452,13 @@ object FutureInterpreterSpec extends ZIOSpecDefault {
   private val errorTypeSuite = suite("fail and absolve error types")(
     test("fail raises DynamoDBError directly, not wrapped in RuntimeException") {
       val interp = new FutureInterpreter(fullStub())
-      val error  = DynamoDBError.ItemError.ValueNotFound("missing")
+      val error  = DynamoDBError.ItemError.DecodingError("missing")
       val result = scala.util.Try(await(interp.run(DynamoDBQuery.fail(error))))
       assert(result.failed.get)(isSubtype[DynamoDBError](anything))
     },
     test("absolve on Left raises DynamoDBError directly, not wrapped in RuntimeException") {
       val interp = new FutureInterpreter(fullStub())
-      val error  = DynamoDBError.ItemError.ValueNotFound("missing")
+      val error  = DynamoDBError.ItemError.DecodingError("missing")
       val q      = DynamoDBQuery.Absolve(DynamoDBQuery(Left(error): Either[DynamoDBError.ItemError, Int]))
       val result = scala.util.Try(await(interp.run(q)))
       assert(result.failed.get)(isSubtype[DynamoDBError](anything))
