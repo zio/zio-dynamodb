@@ -100,6 +100,9 @@ reason by default, if it's the one that caused the cancellation (`.withoutItemOn
 turns it off); on a Low-Level write or a `conditionCheck` action, add
 `.returnValuesOnConditionCheckFailure(AllOld)`.
 
+A transaction returns no items, so a write with `.returning` (or Low-Level `.returns`) is rejected
+with `TransactionValidationError` before any request is sent.
+
 ## Errors
 
 A failed transaction surfaces as `DynamoDBError.TransactionError.TransactionCancelled(reasons)`

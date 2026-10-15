@@ -96,6 +96,23 @@ object DdbExprApiSpec extends ZIOSpecDefault {
       // Range expressions (sk > / between / beginsWith) on get are now a compile-time error:
       // DdbExprApi.get takes DdbKeyExpr.PrimaryKey, which Extended does not satisfy.
     ),
+    suite("transactWriteItems")(
+      test("rejects a write with .returning: a transaction returns no items") {
+        val q = DynamoDBQuery.transactWriteItems(
+          DdbExprApi.put(tasks, Task("t1", 1, Priority.Low)).returning(ReturnValues.AllOld)
+        )
+        assert(scala.util.Try(run(q)).toEither)(
+          isLeft(isSubtype[DynamoDBError.TransactionError.TransactionValidationError](anything))
+        )
+      },
+      test("accepts plain and conditional writes") {
+        val q = DynamoDBQuery.transactWriteItems(
+          DdbExprApi.put(tasks, Task("t1", 1, Priority.Low)),
+          DdbExprApi.deleteFrom(tasks)(Task.id.partitionKey === "t2").where(Task.score > 0)
+        )
+        assert(scala.util.Try(run(q)).toEither)(isRight(anything))
+      }
+    ),
     suite("query / scan chaining")(
       test("query builds successfully with .whereKey and .filter (===)") {
         val q = DdbExprApi

@@ -474,6 +474,17 @@ object TransactionSpec extends ZIOSpecDefault {
       )
       assertTrue(result.isSuccess)
     },
+    test("transactWriteItems with a ReturnValues write fails with TransactionValidationError") {
+      val result = run(
+        DynamoDBQuery.transactWriteItems(
+          DynamoDBQuery.putItem(table, item),
+          DynamoDBQuery.updateItem(table, pk)($("score").set(1)).returns(ReturnValues.AllNew)
+        ),
+        txStub()
+      )
+      assert(result.failed.get)(isSubtype[TransactionError.TransactionValidationError](anything)) &&
+      assertTrue(result.failed.get.getMessage.contains("got it on: updateItem"))
+    },
     test("ConditionCheck as standalone query fails with TransactionValidationError") {
       val result = run(DynamoDBQuery.conditionCheck(table, pk)($("score") === 42))
       assert(result.failed.get)(isSubtype[TransactionError.TransactionValidationError](anything)) &&
