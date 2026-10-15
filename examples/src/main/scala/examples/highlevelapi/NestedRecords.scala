@@ -64,16 +64,16 @@ object NestedRecords {
   val setBoth: DdbUpdateExpr[Order]              = Order.shippingLat.set(51.5) + Order.shippingLng.set(-0.1)
 
   // Wired into the six CRUD operations — see NestedRecordsSpec for these actually run.
-  val putQuery: DynamoDBQuery[Order, Option[Order]] =
+  val putQuery: DynamoDBQuery[Order, Unit] =
     put(orders, Order("o-1", Address("Main St", GeoPoint(51.5, -0.1))))
 
-  val getQuery: DynamoDBQuery[Order, Either[DynamoDBError.ItemError, Order]] =
+  val getQuery: DynamoDBQuery[Order, Option[Either[DynamoDBError.ItemError.DecodingError, Order]]] =
     get(orders)(Order.id.partitionKey === "o-1")
 
-  val updateQuery: DynamoDBQuery[Order, Option[Order]] =
+  val updateQuery: DynamoDBQuery[Order, Unit] =
     update(orders)(Order.id.partitionKey === "o-1")(setLat)
 
-  val deleteQuery: DynamoDBQuery[Order, Option[Order]] =
+  val deleteQuery: DynamoDBQuery[Order, Unit] =
     deleteFrom(orders)(Order.id.partitionKey === "o-1")
 
   val queryQuery: DynamoDBQuery[Order, Page[Either[DynamoDBError.ItemError, Order]]] =

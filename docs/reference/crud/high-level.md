@@ -105,9 +105,8 @@ def example(implicit interp: Interpreter[zio.Task]) =
   get(orders)(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1").execute
 ```
 
-`get` returns `Either[DynamoDBError.ItemError, Order]`, not `Option[Order]` — a missing item
-decodes as `Left(ItemError.ValueNotFound(...))`, in the same value, not a separate `None`
-case to match on.
+`get` returns `Option[Either[DynamoDBError.ItemError.DecodingError, Order]]`: `None` when there is
+no item with that key, `Left` when the stored item doesn't decode as an `Order`.
 
 ## Put
 
@@ -152,12 +151,35 @@ def example(implicit interp: Interpreter[zio.Task]) =
   deleteFrom(orders)(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1").execute
 ```
 
+## Returned items
+
+`put`, `update` and `deleteFrom` execute to `Unit`. To get back the item DynamoDB returns, add
+`.returning`: the result becomes `Option[Either[DynamoDBError.ItemError.DecodingError, Order]]`
+(`None` when nothing was returned). Put and delete accept `ReturnValues.AllOld`; update accepts
+any value (see AWS's [`ReturnValues`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html#DDB-UpdateItem-request-ReturnValues)).
+
+```scala mdoc:compile-only
+import zio.dynamodb._
+import zio.dynamodb.ExecuteSyntax.*
+import zio.dynamodb.blocks.ddbexpr.dsl.*
+
+def example(implicit interp: Interpreter[zio.Task]) =
+  update(orders)(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1")(
+    Order.status.set(Status.Shipped)
+  ).returning(ReturnValues.AllNew).execute
+```
+
 ## Conditional writes
 
-`.where` makes `put`/`update`/`deleteFrom` conditional; a failed condition surfaces as the AWS
-SDK's `ConditionalCheckFailedException`. Add
-`.returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)` (in any
-order with `.where`) to get the item as it was on that exception, as a raw AWS item (`e.item`):
+`.where` makes `put`/`update`/`deleteFrom` conditional. A failed condition fails the effect with
+`DynamoDBError.ItemError.ConditionFailed`; every other failure (throttling, timeouts, …) is the AWS
+SDK exception itself. Handle it with a narrow handler (`catchSome` for ZIO, `recoverWith` for Cats
+Effect, `recover` for `Future`) so other failures pass through untouched - a handler covers every
+step chained before it, not just the write.
+
+`ConditionFailed.item` holds the item as it was: conditional writes send
+`ReturnValuesOnConditionCheckFailure.AllOld` **by default** (no read capacity is consumed; only the
+failure response is larger). Turn it off with `.withoutItemOnConditionFailure` after `.where`:
 
 ```scala mdoc:compile-only
 import zio.dynamodb._
@@ -168,9 +190,9 @@ def example(implicit interp: Interpreter[zio.Task]) =
   update(orders)(Order.customerId.partitionKey === "cust-42" && Order.orderId.sortKey === "ord-1")(
     Order.status.set(Status.Shipped)
   )
-    .where(Order.status === Status.Pending)
-    .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+    .where(Order.status === Status.Pending)                    // existing item returned on failure by default
     .execute
+    .catchSome { case DynamoDBError.ItemError.ConditionFailed(_, existing) => zio.ZIO.debug(existing) }
 ```
 
 ## Query

@@ -71,6 +71,6 @@ object UpdateActions {
   // Wired into a real update — see UpdateActionsSpec for this actually run. Only `update` is
   // wired here (not the full six CRUD ops): this file is about update-action shapes, and
   // put/get/delete/query/scan don't exercise anything specific to them.
-  val updateQuery: DynamoDBQuery[Item, Option[Item]] =
+  val updateQuery: DynamoDBQuery[Item, Unit] =
     update(items)(Item.id.partitionKey === "i-1")(combined)
 }

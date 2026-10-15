@@ -201,15 +201,15 @@ class CeEffectStackBench extends BaseBenchmark {
 
   // ── Step 2: pre-built queries (set in @Setup) ───────────────────────────
 
-  private var prebuiltGetQuery: DynamoDBQuery[Person, Either[ItemError, Person]]          = _
-  private var prebuiltPutQuery: DynamoDBQuery[Person, Option[Person]]                     = _
-  private var prebuiltUpdateQuery: DynamoDBQuery[Person, Option[Person]]                  = _
+  private var prebuiltGetQuery: DynamoDBQuery[Person, Option[Either[ItemError.DecodingError, Person]]]          = _
+  private var prebuiltPutQuery: DynamoDBQuery[Person, Unit]                     = _
+  private var prebuiltUpdateQuery: DynamoDBQuery[Person, Unit]                  = _
   // UpdateItem never falls back to defaultRetryPolicy (Interpreter.withExplicitRetryOnly) —
   // the only way it ever retries is an explicit request-level policy, so that's what this
   // isolates, unlike Get/Put's interpreterWithRetryPolicy counterparts below.
-  private var prebuiltUpdateQueryWithRetryPolicy: DynamoDBQuery[Person, Option[Person]]   = _
-  private var prebuiltBigGetQuery: DynamoDBQuery[BigRecord, Either[ItemError, BigRecord]] = _
-  private var prebuiltBigPutQuery: DynamoDBQuery[BigRecord, Option[BigRecord]]            = _
+  private var prebuiltUpdateQueryWithRetryPolicy: DynamoDBQuery[Person, Unit]   = _
+  private var prebuiltBigGetQuery: DynamoDBQuery[BigRecord, Option[Either[ItemError.DecodingError, BigRecord]]] = _
+  private var prebuiltBigPutQuery: DynamoDBQuery[BigRecord, Unit]            = _
 
   @Setup def setup(): Unit = {
     prebuiltGetQuery = DdbExprApi.get(personDdbTable)(PersonOps.id.partitionKey === personId)
@@ -227,13 +227,13 @@ class CeEffectStackBench extends BaseBenchmark {
   // ── Benchmarks ──────────────────────────────────────────────────────────
 
   /** blocks-dynamodb: typed HL get via CE interpreter with canned response. */
-  @Benchmark def blocksGet: Either[ItemError, Person] =
+  @Benchmark def blocksGet: Option[Either[ItemError.DecodingError, Person]] =
     interpreter
       .run(DdbExprApi.get(personDdbTable)(PersonOps.id.partitionKey === personId))
       .unsafeRunSync()
 
   /** blocks-dynamodb: typed HL put via CE interpreter with canned response. */
-  @Benchmark def blocksPut: Option[Person] =
+  @Benchmark def blocksPut: Unit =
     interpreter
       .run(DdbExprApi.put(personDdbTable, person))
       .unsafeRunSync()
@@ -249,36 +249,36 @@ class CeEffectStackBench extends BaseBenchmark {
   // ── Step 2: pre-built ───────────────────────────────────────────────────
 
   /** Step 2: query pre-built in Setup — only IO + interpreter overhead per call. */
-  @Benchmark def blocksGetPrebuilt: Either[ItemError, Person] =
+  @Benchmark def blocksGetPrebuilt: Option[Either[ItemError.DecodingError, Person]] =
     interpreter.run(prebuiltGetQuery).unsafeRunSync()
 
   /** Same as blocksGetPrebuilt, but with an active defaultRetryPolicy — see interpreterWithRetryPolicy. */
-  @Benchmark def blocksGetPrebuiltWithRetryPolicy: Either[ItemError, Person] =
+  @Benchmark def blocksGetPrebuiltWithRetryPolicy: Option[Either[ItemError.DecodingError, Person]] =
     interpreterWithRetryPolicy.run(prebuiltGetQuery).unsafeRunSync()
 
   /** Step 2: query pre-built in Setup — only IO + interpreter overhead per call. */
-  @Benchmark def blocksPutPrebuilt: Option[Person] =
+  @Benchmark def blocksPutPrebuilt: Unit =
     interpreter.run(prebuiltPutQuery).unsafeRunSync()
 
   /** Same as blocksPutPrebuilt, but with an active defaultRetryPolicy — see interpreterWithRetryPolicy. */
-  @Benchmark def blocksPutPrebuiltWithRetryPolicy: Option[Person] =
+  @Benchmark def blocksPutPrebuiltWithRetryPolicy: Unit =
     interpreterWithRetryPolicy.run(prebuiltPutQuery).unsafeRunSync()
 
   // ── Construction-only (no run) — isolates DdbExprApi.get/put allocation ────
 
   /** Construction only: DdbExprApi.get, never interpreted/run. Isolates query-building cost. */
-  @Benchmark def blocksGetConstructOnly: DynamoDBQuery[Person, Either[ItemError, Person]] =
+  @Benchmark def blocksGetConstructOnly: DynamoDBQuery[Person, Option[Either[ItemError.DecodingError, Person]]] =
     DdbExprApi.get(personDdbTable)(PersonOps.id.partitionKey === personId)
 
   /** Construction only: DdbExprApi.put, never interpreted/run. Isolates query-building cost. */
-  @Benchmark def blocksPutConstructOnly: DynamoDBQuery[Person, Option[Person]] =
+  @Benchmark def blocksPutConstructOnly: DynamoDBQuery[Person, Unit] =
     DdbExprApi.put(personDdbTable, person)
 
   // ── update — the only op that renders a full UpdateExpression per call ──────
   // (expression string + ExpressionAttributeNames/Values alias maps). get renders
   // nothing, put sends the whole item; update's rendering cost is otherwise unmeasured.
 
-  @Benchmark def blocksUpdate: Option[Person] =
+  @Benchmark def blocksUpdate: Unit =
     interpreter
       .run(DdbExprApi.update(personDdbTable)(PersonOps.id.partitionKey === personId)(PersonOps.name.set(newName)))
       .unsafeRunSync()
@@ -286,7 +286,7 @@ class CeEffectStackBench extends BaseBenchmark {
   @Benchmark def scanamoUpdate: Either[ScanamoError, Person] =
     IO.delay(scanamo.exec(scanamoTable.update("id" === personId, set("name" -> newName)))).unsafeRunSync()
 
-  @Benchmark def blocksUpdatePrebuilt: Option[Person] =
+  @Benchmark def blocksUpdatePrebuilt: Unit =
     interpreter.run(prebuiltUpdateQuery).unsafeRunSync()
 
   /**
@@ -294,14 +294,14 @@ class CeEffectStackBench extends BaseBenchmark {
    * UpdateItem never falls back to defaultRetryPolicy (see prebuiltUpdateQueryWithRetryPolicy),
    * so this is the only way to isolate the per-call cost of an active policy for this op.
    */
-  @Benchmark def blocksUpdatePrebuiltWithRetryPolicy: Option[Person] =
+  @Benchmark def blocksUpdatePrebuiltWithRetryPolicy: Unit =
     interpreter.run(prebuiltUpdateQueryWithRetryPolicy).unsafeRunSync()
 
-  @Benchmark def blocksUpdateConstructOnly: DynamoDBQuery[Person, Option[Person]] =
+  @Benchmark def blocksUpdateConstructOnly: DynamoDBQuery[Person, Unit] =
     DdbExprApi.update(personDdbTable)(PersonOps.id.partitionKey === personId)(PersonOps.name.set(newName))
 
   /** Construction only, with a condition — isolates the extra `.where` ConditionExpression cost. */
-  @Benchmark def blocksUpdateConditionalConstructOnly: DynamoDBQuery[Person, Option[Person]] =
+  @Benchmark def blocksUpdateConditionalConstructOnly: DynamoDBQuery[Person, Unit] =
     DdbExprApi
       .update(personDdbTable)(PersonOps.id.partitionKey === personId)(PersonOps.name.set(newName))
       .where(PersonOps.age > 0)
@@ -311,7 +311,7 @@ class CeEffectStackBench extends BaseBenchmark {
    *  Priority.High encodes to "High". Control for the caseNameMapper variant below, and
    *  (against blocksUpdateConstructOnly) the enum-operand vs primitive-operand delta.
    */
-  @Benchmark def blocksUpdateEnumSetConstructOnly: DynamoDBQuery[BigRecord, Option[BigRecord]] =
+  @Benchmark def blocksUpdateEnumSetConstructOnly: DynamoDBQuery[BigRecord, Unit] =
     DdbExprApi.update(bigDdbTable)(BigRecordOps.id.partitionKey === bigId)(BigRecordOps.priority.set(Priority.High))
 
   /**
@@ -319,18 +319,18 @@ class CeEffectStackBench extends BaseBenchmark {
    *  derived through a config-specific codec (DdbUpdateExprInterpreter ctx.encode ->
    *  ExprCtx.codecOf). A/B against blocksUpdateEnumSetConstructOnly isolates that cost.
    */
-  @Benchmark def blocksUpdateEnumSetMappedConstructOnly: DynamoDBQuery[BigRecord, Option[BigRecord]] =
+  @Benchmark def blocksUpdateEnumSetMappedConstructOnly: DynamoDBQuery[BigRecord, Unit] =
     DdbExprApi
       .update(bigDdbTablePriorityCase)(BigRecordOps.id.partitionKey === bigId)(BigRecordOps.priority.set(Priority.High))
 
   // ── BigRecord (~26 fields, nested + sum types) — realistic-payload variants ─
 
-  @Benchmark def blocksGetBig: Either[ItemError, BigRecord] =
+  @Benchmark def blocksGetBig: Option[Either[ItemError.DecodingError, BigRecord]] =
     interpreter
       .run(DdbExprApi.get(bigDdbTable)(BigRecordOps.id.partitionKey === bigId))
       .unsafeRunSync()
 
-  @Benchmark def blocksPutBig: Option[BigRecord] =
+  @Benchmark def blocksPutBig: Unit =
     interpreter
       .run(DdbExprApi.put(bigDdbTable, bigRecord))
       .unsafeRunSync()
@@ -341,16 +341,16 @@ class CeEffectStackBench extends BaseBenchmark {
   @Benchmark def scanamoPutBig: Unit =
     IO.delay(scanamo.exec(bigScanamoTable.put(bigRecord))).unsafeRunSync()
 
-  @Benchmark def blocksGetBigPrebuilt: Either[ItemError, BigRecord] =
+  @Benchmark def blocksGetBigPrebuilt: Option[Either[ItemError.DecodingError, BigRecord]] =
     interpreter.run(prebuiltBigGetQuery).unsafeRunSync()
 
-  @Benchmark def blocksPutBigPrebuilt: Option[BigRecord] =
+  @Benchmark def blocksPutBigPrebuilt: Unit =
     interpreter.run(prebuiltBigPutQuery).unsafeRunSync()
 
-  @Benchmark def blocksGetBigConstructOnly: DynamoDBQuery[BigRecord, Either[ItemError, BigRecord]] =
+  @Benchmark def blocksGetBigConstructOnly: DynamoDBQuery[BigRecord, Option[Either[ItemError.DecodingError, BigRecord]]] =
     DdbExprApi.get(bigDdbTable)(BigRecordOps.id.partitionKey === bigId)
 
-  @Benchmark def blocksPutBigConstructOnly: DynamoDBQuery[BigRecord, Option[BigRecord]] =
+  @Benchmark def blocksPutBigConstructOnly: DynamoDBQuery[BigRecord, Unit] =
     DdbExprApi.put(bigDdbTable, bigRecord)
 
   // -- BigRecord nested-field expressions - exercises the config-aware OpticToPE
@@ -361,7 +361,7 @@ class CeEffectStackBench extends BaseBenchmark {
    * Construction only: update + a 2-segment nested-field `.where`, default (identity)
    *  config. Isolates the nested config-aware projection resolution cost.
    */
-  @Benchmark def blocksUpdateBigNestedConditionalConstructOnly: DynamoDBQuery[BigRecord, Option[BigRecord]] =
+  @Benchmark def blocksUpdateBigNestedConditionalConstructOnly: DynamoDBQuery[BigRecord, Unit] =
     DdbExprApi
       .update(bigDdbTable)(BigRecordOps.id.partitionKey === bigId)(BigRecordOps.name.set("Widget"))
       .where(BigRecordOps.auditVersion > 0)
@@ -370,7 +370,7 @@ class CeEffectStackBench extends BaseBenchmark {
    * As above but with a snake_case field-name mapper, so the nested path is actually
    *  remapped (price.amountMinor -> price.amount_minor) rather than resolved to itself.
    */
-  @Benchmark def blocksUpdateBigNestedConditionalSnakeConstructOnly: DynamoDBQuery[BigRecord, Option[BigRecord]] =
+  @Benchmark def blocksUpdateBigNestedConditionalSnakeConstructOnly: DynamoDBQuery[BigRecord, Unit] =
     DdbExprApi
       .update(bigDdbTableSnake)(BigRecordOps.id.partitionKey === bigId)(BigRecordOps.name.set("Widget"))
       .where(BigRecordOps.priceMinor > 0L)

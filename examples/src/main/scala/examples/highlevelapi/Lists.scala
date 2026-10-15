@@ -89,16 +89,16 @@ object Lists {
   val circleAt0Exists: DdbExpr[Catalog, Boolean] = Catalog.circleRadiusAt(0).attributeExists
 
   // Wired into the six CRUD operations — see ListsSpec for these actually run.
-  val putQuery: DynamoDBQuery[Catalog, Option[Catalog]] =
+  val putQuery: DynamoDBQuery[Catalog, Unit] =
     put(catalogs, Catalog("c-1", List("x"), Vector(1), List(LineItem("sku-1", 1)), List(Shape.Circle(1.0))))
 
-  val getQuery: DynamoDBQuery[Catalog, Either[DynamoDBError.ItemError, Catalog]] =
+  val getQuery: DynamoDBQuery[Catalog, Option[Either[DynamoDBError.ItemError.DecodingError, Catalog]]] =
     get(catalogs)(Catalog.id.partitionKey === "c-1")
 
-  val updateQuery: DynamoDBQuery[Catalog, Option[Catalog]] =
+  val updateQuery: DynamoDBQuery[Catalog, Unit] =
     update(catalogs)(Catalog.id.partitionKey === "c-1")(Catalog.names.appendList(Seq("y")))
 
-  val deleteQuery: DynamoDBQuery[Catalog, Option[Catalog]] =
+  val deleteQuery: DynamoDBQuery[Catalog, Unit] =
     deleteFrom(catalogs)(Catalog.id.partitionKey === "c-1")
 
   val queryQuery: DynamoDBQuery[Catalog, Page[Either[DynamoDBError.ItemError, Catalog]]] =

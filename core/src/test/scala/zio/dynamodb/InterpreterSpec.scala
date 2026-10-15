@@ -82,7 +82,7 @@ object InterpreterSpec extends ZIOSpecDefault {
 
     suite("Fail law")(
       test("propagates DynamoDBError directly as the thrown exception") {
-        val error   = ItemError.ValueNotFound("not found")
+        val error   = ItemError.DecodingError("not found")
         val attempt = scala.util.Try(eval(DynamoDBQuery.Fail(() => error)))
         assert(attempt.failed.get)(isSubtype[DynamoDBError](anything))
       }
@@ -94,7 +94,7 @@ object InterpreterSpec extends ZIOSpecDefault {
         assertTrue(eval(DynamoDBQuery.Absolve(q)) == 42)
       },
       test("Left propagates DynamoDBError directly as the thrown exception") {
-        val error   = ItemError.ValueNotFound("missing")
+        val error   = ItemError.DecodingError("missing")
         val q       = DynamoDBQuery(Left(error): Either[ItemError, Int])
         val attempt = scala.util.Try(eval(DynamoDBQuery.Absolve(q)))
         assert(attempt.failed.get)(isSubtype[DynamoDBError](anything))
@@ -175,7 +175,7 @@ object InterpreterSpec extends ZIOSpecDefault {
         assertTrue(eval(DynamoDBQuery.succeed(99)) == 99)
       },
       test("fail constructs a Fail query that throws a DynamoDBError on run") {
-        val error   = DynamoDBError.ItemError.ValueNotFound("oops")
+        val error   = DynamoDBError.ItemError.DecodingError("oops")
         val q       = DynamoDBQuery.fail(error)
         val attempt = scala.util.Try(eval(q))
         assert(attempt.failed.get)(isSubtype[DynamoDBError](anything))

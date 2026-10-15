@@ -47,13 +47,13 @@ object ZioInterpreterSpec extends ZIOSpecDefault {
 
   def spec = suite("ZioInterpreter error wrapping")(
     test("fail raises DynamoDBError directly, not wrapped in RuntimeException") {
-      val error = ItemError.ValueNotFound("missing")
+      val error = ItemError.DecodingError("missing")
       for {
         exit <- interp.run(DynamoDBQuery.fail(error)).exit
       } yield assert(exit)(fails(isSubtype[DynamoDBError](anything)))
     },
     test("absolve on Left raises DynamoDBError directly, not wrapped in RuntimeException") {
-      val error = ItemError.ValueNotFound("missing")
+      val error = ItemError.DecodingError("missing")
       val q     = DynamoDBQuery.Absolve(DynamoDBQuery(Left(error): Either[ItemError, Int]))
       for {
         exit <- interp.run(q).exit

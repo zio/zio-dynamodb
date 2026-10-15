@@ -95,8 +95,13 @@ def guardedExample(implicit interp: Interpreter[zio.Task]) =
 
 `.withClientRequestToken(token)` makes a retry of the exact same transaction idempotent —
 DynamoDB returns the original result instead of re-applying it.
-`.returnValuesOnConditionCheckFailure(AllOld)` on a write or `conditionCheck` action returns
-that item's prior state if it's the one that caused the cancellation.
+A High-Level conditional write (`.where`) returns that item's prior state on its cancellation
+reason by default, if it's the one that caused the cancellation (`.withoutItemOnConditionFailure`
+turns it off); on a Low-Level write or a `conditionCheck` action, add
+`.returnValuesOnConditionCheckFailure(AllOld)`.
+
+A transaction returns no items, so a write with `.returning` (or Low-Level `.returns`) is rejected
+with `TransactionValidationError` before any request is sent.
 
 ## Errors
 

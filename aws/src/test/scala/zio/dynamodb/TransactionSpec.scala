@@ -361,7 +361,7 @@ object TransactionSpec extends ZIOSpecDefault {
       val result = AwsCodecs.fromTransactionCanceledException(ex)
       assertTrue(
         result.reasons.length == 1 &&
-          result.reasons(0).code == "ConditionalCheckFailed" &&
+          result.reasons(0).code == DynamoDBError.CancellationCode.ConditionalCheckFailed &&
           result.reasons(0).message.contains("The condition was not met") &&
           result.reasons(0).item.isEmpty
       )
@@ -397,8 +397,40 @@ object TransactionSpec extends ZIOSpecDefault {
       val result = AwsCodecs.fromTransactionCanceledException(ex)
       assertTrue(
         result.reasons.length == 2 &&
-          result.reasons(0).code == "ConditionalCheckFailed" &&
-          result.reasons(1).code == "None"
+          result.reasons(0).code == DynamoDBError.CancellationCode.ConditionalCheckFailed &&
+          result.reasons(1).code == DynamoDBError.CancellationCode.NoError
+      )
+    },
+    test("every documented code decodes to its case; an unknown code to Other; a null code to NoError") {
+      val codes  = List(
+        "None",
+        "ConditionalCheckFailed",
+        "ItemCollectionSizeLimitExceeded",
+        "TransactionConflict",
+        "ProvisionedThroughputExceeded",
+        "ThrottlingError",
+        "ValidationError",
+        "SomeFutureCode",
+        null
+      )
+      val ex     = TransactionCanceledException
+        .builder()
+        .cancellationReasons(codes.map(c => AwsCancellationReason.builder().code(c).build()): _*)
+        .build()
+        .asInstanceOf[TransactionCanceledException]
+      val result = AwsCodecs.fromTransactionCanceledException(ex).reasons.map(_.code).toList
+      assertTrue(
+        result == List(
+          DynamoDBError.CancellationCode.NoError,
+          DynamoDBError.CancellationCode.ConditionalCheckFailed,
+          DynamoDBError.CancellationCode.ItemCollectionSizeLimitExceeded,
+          DynamoDBError.CancellationCode.TransactionConflict,
+          DynamoDBError.CancellationCode.ProvisionedThroughputExceeded,
+          DynamoDBError.CancellationCode.ThrottlingError,
+          DynamoDBError.CancellationCode.ValidationError,
+          DynamoDBError.CancellationCode.Other("SomeFutureCode"),
+          DynamoDBError.CancellationCode.NoError
+        )
       )
     }
   )
@@ -441,6 +473,17 @@ object TransactionSpec extends ZIOSpecDefault {
         txStub()
       )
       assertTrue(result.isSuccess)
+    },
+    test("transactWriteItems with a ReturnValues write fails with TransactionValidationError") {
+      val result = run(
+        DynamoDBQuery.transactWriteItems(
+          DynamoDBQuery.putItem(table, item),
+          DynamoDBQuery.updateItem(table, pk)($("score").set(1)).returns(ReturnValues.AllNew)
+        ),
+        txStub()
+      )
+      assert(result.failed.get)(isSubtype[TransactionError.TransactionValidationError](anything)) &&
+      assertTrue(result.failed.get.getMessage.contains("got it on: updateItem"))
     },
     test("ConditionCheck as standalone query fails with TransactionValidationError") {
       val result = run(DynamoDBQuery.conditionCheck(table, pk)($("score") === 42))

@@ -332,7 +332,7 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
         """).map(result => assertTrue(result.isLeft, result.swap.exists(_.toLowerCase.contains("conditionexpression"))))
       },
       // Even with a real ConditionExpression, .filter on a get is still rejected — this time
-      // genuinely via CanFilter, since get's Out (Either[ItemError, Widget]) isn't Page-shaped.
+      // genuinely via CanFilter, since get's Out (Option[Either[DecodingError, Widget]]) isn't Page-shaped.
       // Filtering a single-item lookup has no meaning either way.
       test("get rejects .filter even with a real ConditionExpression (Out isn't Page-shaped)") {
         typeCheck("""
@@ -343,6 +343,134 @@ object CompileTimeRejectionsSpec extends ZIOSpecDefault {
           val ce: zio.dynamodb.ConditionExpression[Widget] = ProjectionExpression.$("qty") > 0
           get(widgets)(Widget.id.partitionKey === "w-1").filter(ce)
         """).map(result => assertTrue(result.isLeft, result.swap.exists(_.toLowerCase.contains("filter"))))
+      }
+    ),
+    suite("write return types")(
+      // put/update/deleteFrom execute to Unit unless .returning asks for the item back, and a
+      // conditional write returns the existing item on failure by default. The general modifiers
+      // that would contradict that (.returns, .returnValuesOnConditionCheckFailure) are rejected
+      // with a message saying what to use instead.
+      test(".returns is rejected on a put (use .returning)") {
+        typeCheck("""
+          import examples.highlevelapi.Scalars._
+          import zio.dynamodb.{ ReturnValues, ReturnValuesOnConditionCheckFailure }
+          import zio.dynamodb.blocks.ddbexpr.dsl._
+
+          put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).returns(ReturnValues.AllOld)
+        """).map(result => assertTrue(result.isLeft, result.swap.exists(_.toLowerCase.contains("use .returning"))))
+      },
+      test(".returns is rejected on an update") {
+        typeCheck("""
+          import examples.highlevelapi.Scalars._
+          import zio.dynamodb.{ ReturnValues, ReturnValuesOnConditionCheckFailure }
+          import zio.dynamodb.blocks.ddbexpr.dsl._
+
+          update(widgets)(Widget.id.partitionKey === "w-1")(Widget.qty.set(1)).returns(ReturnValues.AllNew)
+        """).map(result => assertTrue(result.isLeft, result.swap.exists(_.toLowerCase.contains("use .returning"))))
+      },
+      test(".returns is rejected on a deleteFrom") {
+        typeCheck("""
+          import examples.highlevelapi.Scalars._
+          import zio.dynamodb.{ ReturnValues, ReturnValuesOnConditionCheckFailure }
+          import zio.dynamodb.blocks.ddbexpr.dsl._
+
+          deleteFrom(widgets)(Widget.id.partitionKey === "w-1").returns(ReturnValues.AllOld)
+        """).map(result => assertTrue(result.isLeft, result.swap.exists(_.toLowerCase.contains("use .returning"))))
+      },
+      test(".returns is rejected after .where") {
+        typeCheck("""
+          import examples.highlevelapi.Scalars._
+          import zio.dynamodb.{ ReturnValues, ReturnValuesOnConditionCheckFailure }
+          import zio.dynamodb.blocks.ddbexpr.dsl._
+
+          put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).where(nGte).returns(ReturnValues.AllOld)
+        """).map(result => assertTrue(result.isLeft, result.swap.exists(_.toLowerCase.contains("use .returning"))))
+      },
+      test(".returnValuesOnConditionCheckFailure is rejected on a put") {
+        typeCheck("""
+          import examples.highlevelapi.Scalars._
+          import zio.dynamodb.{ ReturnValues, ReturnValuesOnConditionCheckFailure }
+          import zio.dynamodb.blocks.ddbexpr.dsl._
+
+          put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).where(nGte).returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+        """).map(result =>
+          assertTrue(
+            result.isLeft,
+            result.swap.exists(_.toLowerCase.contains("already return the existing item on failure"))
+          )
+        )
+      },
+      test(".returnValuesOnConditionCheckFailure is rejected on an update") {
+        typeCheck("""
+          import examples.highlevelapi.Scalars._
+          import zio.dynamodb.{ ReturnValues, ReturnValuesOnConditionCheckFailure }
+          import zio.dynamodb.blocks.ddbexpr.dsl._
+
+          update(widgets)(Widget.id.partitionKey === "w-1")(Widget.qty.set(1)).where(nGte).returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+        """).map(result =>
+          assertTrue(
+            result.isLeft,
+            result.swap.exists(_.toLowerCase.contains("already return the existing item on failure"))
+          )
+        )
+      },
+      test(".returnValuesOnConditionCheckFailure is rejected on a deleteFrom") {
+        typeCheck("""
+          import examples.highlevelapi.Scalars._
+          import zio.dynamodb.{ ReturnValues, ReturnValuesOnConditionCheckFailure }
+          import zio.dynamodb.blocks.ddbexpr.dsl._
+
+          deleteFrom(widgets)(Widget.id.partitionKey === "w-1").where(nGte).returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+        """).map(result =>
+          assertTrue(
+            result.isLeft,
+            result.swap.exists(_.toLowerCase.contains("already return the existing item on failure"))
+          )
+        )
+      },
+      test(".returnValuesOnConditionCheckFailure is rejected without .where too") {
+        typeCheck("""
+          import examples.highlevelapi.Scalars._
+          import zio.dynamodb.{ ReturnValues, ReturnValuesOnConditionCheckFailure }
+          import zio.dynamodb.blocks.ddbexpr.dsl._
+
+          put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.AllOld)
+        """).map(result =>
+          assertTrue(
+            result.isLeft,
+            result.swap.exists(_.toLowerCase.contains("already return the existing item on failure"))
+          )
+        )
+      },
+      test(".withoutItemOnConditionFailure needs a .where first") {
+        typeCheck("""
+          import examples.highlevelapi.Scalars._
+          import zio.dynamodb.{ ReturnValues, ReturnValuesOnConditionCheckFailure }
+          import zio.dynamodb.blocks.ddbexpr.dsl._
+
+          put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).withoutItemOnConditionFailure
+        """).map(result =>
+          assertTrue(result.isLeft, result.swap.exists(_.toLowerCase.contains("withoutitemonconditionfailure")))
+        )
+      },
+      test("but .where(...).withoutItemOnConditionFailure compiles fine") {
+        typeCheck("""
+          import examples.highlevelapi.Scalars._
+          import zio.dynamodb.{ ReturnValues, ReturnValuesOnConditionCheckFailure }
+          import zio.dynamodb.blocks.ddbexpr.dsl._
+
+          put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).where(nGte).withoutItemOnConditionFailure
+        """).map(result => assertTrue(result.isRight))
+      },
+      test("but .returning compiles fine, with or without .where") {
+        typeCheck("""
+          import examples.highlevelapi.Scalars._
+          import zio.dynamodb.{ ReturnValues, ReturnValuesOnConditionCheckFailure }
+          import zio.dynamodb.blocks.ddbexpr.dsl._
+
+          put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).returning(ReturnValues.AllOld)
+          put(widgets, Widget("w-1", 1, 1.0, active = true, zio.blocks.chunk.Chunk[Byte](1))).where(nGte).returning(ReturnValues.AllOld)
+        """).map(result => assertTrue(result.isRight))
       }
     ),
     suite("value must match the optic's own type")(

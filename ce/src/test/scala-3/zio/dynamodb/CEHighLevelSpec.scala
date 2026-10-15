@@ -181,15 +181,15 @@ class CEHighLevelSpec extends CatsEffectSuite:
       for
         _      <- put(table, article).execute
         result <- get[Article](table)(Article.id.partitionKey === "a1").execute
-      yield assertEquals(result, Right(article))
+      yield assertEquals(result, Some(Right(article)))
     }
   }
 
-  test("DdbExprApi.get returns Left(ValueNotFound) when item is absent") {
+  test("DdbExprApi.get returns None when item is absent") {
     singleKeyTable { tableName =>
       val table = Table[Article](tableName)
       for result <- get[Article](table)(Article.id.partitionKey === "missing").execute
-      yield assert(result.isLeft)
+      yield assert(result.isEmpty)
     }
   }
 
@@ -200,7 +200,7 @@ class CEHighLevelSpec extends CatsEffectSuite:
         _      <- put(table, Article("a1", "To delete", 0)).execute
         _      <- deleteFrom[Article](table)(Article.id.partitionKey === "a1").execute
         result <- get[Article](table)(Article.id.partitionKey === "a1").execute
-      yield assert(result.isLeft)
+      yield assert(result.isEmpty)
     }
   }
 
@@ -215,7 +215,7 @@ class CEHighLevelSpec extends CatsEffectSuite:
         result  <- get[Article](table)(Article.id.partitionKey === "a1").execute
       yield {
         assert(blocked.isLeft)
-        assertEquals(result, Right(Article("a1", "First", 0)))
+        assertEquals(result, Some(Right(Article("a1", "First", 0))))
       }
     }
   }
@@ -227,7 +227,7 @@ class CEHighLevelSpec extends CatsEffectSuite:
         _      <- put(table, Article("a1", "Original", 50)).execute
         _      <- put(table, Article("a1", "Updated", 0)).where(Article.views.between(0, 100)).execute
         result <- get[Article](table)(Article.id.partitionKey === "a1").execute
-      yield assertEquals(result, Right(Article("a1", "Updated", 0)))
+      yield assertEquals(result, Some(Right(Article("a1", "Updated", 0))))
     }
   }
 
@@ -238,7 +238,7 @@ class CEHighLevelSpec extends CatsEffectSuite:
         _      <- put(table, Article("a1", "Draft", 0)).execute
         _      <- put(table, Article("a1", "Published", 0)).where(Article.title.in("Draft", "Review")).execute
         result <- get[Article](table)(Article.id.partitionKey === "a1").execute
-      yield assertEquals(result.map(_.title), Right("Published"))
+      yield assertEquals(result.map(_.map(_.title)), Some(Right("Published")))
     }
   }
 
@@ -255,7 +255,7 @@ class CEHighLevelSpec extends CatsEffectSuite:
         result  <- get[Article](table)(Article.id.partitionKey === "a1").execute
       yield {
         assert(blocked.isLeft)
-        assertEquals(result.map(_.title), Right("Changed"))
+        assertEquals(result.map(_.map(_.title)), Some(Right("Changed")))
       }
     }
   }
@@ -274,7 +274,7 @@ class CEHighLevelSpec extends CatsEffectSuite:
         result  <- get[Article](table)(Article.id.partitionKey === "a1").execute
       yield {
         assert(blocked.isLeft)
-        assertEquals(result.map(_.title), Right("Replaced"))
+        assertEquals(result.map(_.map(_.title)), Some(Right("Replaced")))
       }
     }
   }
@@ -288,7 +288,7 @@ class CEHighLevelSpec extends CatsEffectSuite:
         _      <- put(table, Article("a1", "Original title", 0)).execute
         _      <- update(table)(Article.id.partitionKey === "a1")(Article.title.set("New title")).execute
         result <- get[Article](table)(Article.id.partitionKey === "a1").execute
-      yield assertEquals(result.map(_.title), Right("New title"))
+      yield assertEquals(result.map(_.map(_.title)), Some(Right("New title")))
     }
   }
 
@@ -299,7 +299,7 @@ class CEHighLevelSpec extends CatsEffectSuite:
         _      <- put(table, Article("a1", "Counting", 10)).execute
         _      <- update(table)(Article.id.partitionKey === "a1")(Article.views.add(5)).execute
         result <- get[Article](table)(Article.id.partitionKey === "a1").execute
-      yield assertEquals(result.map(_.views), Right(15))
+      yield assertEquals(result.map(_.map(_.views)), Some(Right(15)))
     }
   }
 
@@ -312,7 +312,7 @@ class CEHighLevelSpec extends CatsEffectSuite:
                     Article.title.set("Updated") + Article.views.add(1)
                   ).execute
         result <- get[Article](table)(Article.id.partitionKey === "a1").execute
-      yield assertEquals(result, Right(Article("a1", "Updated", 1)))
+      yield assertEquals(result, Some(Right(Article("a1", "Updated", 1))))
     }
   }
 
@@ -325,7 +325,7 @@ class CEHighLevelSpec extends CatsEffectSuite:
       for
         _      <- put(table, task).execute
         result <- get[Task](table)(Task.id.partitionKey === "t1").execute
-      yield assertEquals(result, Right(task))
+      yield assertEquals(result, Some(Right(task)))
     }
   }
 
@@ -336,7 +336,7 @@ class CEHighLevelSpec extends CatsEffectSuite:
         _      <- put(table, Task("t1", "Original", Priority.High, List("a"))).execute
         _      <- update(table)(Task.id.partitionKey === "t1")(Task.name.set("Renamed")).execute
         result <- get[Task](table)(Task.id.partitionKey === "t1").execute
-      yield assertEquals(result, Right(Task("t1", "Renamed", Priority.High, List("a"))))
+      yield assertEquals(result, Some(Right(Task("t1", "Renamed", Priority.High, List("a")))))
     }
   }
 
@@ -351,7 +351,7 @@ class CEHighLevelSpec extends CatsEffectSuite:
         result <- get[Player](table)(Player.id.partitionKey === "p1").execute
         raw    <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "p1")).execute
       yield {
-        assertEquals(result, Right(player))
+        assertEquals(result, Some(Right(player)))
         // Handle encodes as AttributeValue.String, not {"value": "alice99"}
         assertEquals(raw.flatMap(_.get[String]("handle").toOption), Some("alice99"))
         // Points encodes as AttributeValue.Number, not {"value": 999}
@@ -371,7 +371,7 @@ class CEHighLevelSpec extends CatsEffectSuite:
         raw    <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "u1")).execute
         result <- get[UserProfile](table)(UserProfile.id.partitionKey === "u1").execute
       yield {
-        assertEquals(result, Right(profile))
+        assertEquals(result, Some(Right(profile)))
         assert(raw.exists(_.map.contains("first_name")))
         assert(raw.exists(_.map.contains("last_name")))
         assert(raw.exists(!_.map.contains("firstName")))
@@ -392,7 +392,7 @@ class CEHighLevelSpec extends CatsEffectSuite:
         raw    <- DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "m1")).execute
         result <- get[Member](table)(Member.id.partitionKey === "m1").execute
       yield {
-        assertEquals(result, Right(member))
+        assertEquals(result, Some(Right(member)))
         assert(raw.exists(_.map.contains("fullName")))
         assert(raw.exists(_.map.contains("yearsOld")))
         assert(raw.exists(!_.map.contains("name")))

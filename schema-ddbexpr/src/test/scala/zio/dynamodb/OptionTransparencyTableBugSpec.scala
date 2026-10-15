@@ -50,11 +50,13 @@ object OptionTransparencyTableBugSpec extends ZIOSpecDefault {
   def spec = suite("Option[A] transparency through a real Table (public API only)")(
     test("update on an Option[List] element resolves") {
       val q = update(profiles)(Profile.name.partitionKey === "n")(Profile.tagAt(3).remove)
-      assertTrue(run(q.toQuery).isEmpty)
+      val _ = run(q.toQuery)
+      assertCompletes
     },
     test("update on an Option[Map] key resolves") {
       val q = update(profiles)(Profile.name.partitionKey === "n")(Profile.metaAt("views").set(42))
-      assertTrue(run(q.toQuery).isEmpty)
+      val _ = run(q.toQuery)
+      assertCompletes
     },
     test("filter on an Option[List] element resolves") {
       val page = run(scan(profiles, 20).filter(Profile.tagAt(0).attributeExists).toQuery)

@@ -94,16 +94,16 @@ object TableConfigs {
 
   // Wired into the six CRUD operations, against renamedFieldTable (the withModifier config)
   // — see TableConfigsSpec for these actually run.
-  val putQuery: DynamoDBQuery[Person, Option[Person]] =
+  val putQuery: DynamoDBQuery[Person, Unit] =
     put(renamedFieldTable, Person("Ada", "Lovelace"))
 
-  val getQuery: DynamoDBQuery[Person, Either[DynamoDBError.ItemError, Person]] =
+  val getQuery: DynamoDBQuery[Person, Option[Either[DynamoDBError.ItemError.DecodingError, Person]]] =
     get(renamedFieldTable)(Person.firstName.partitionKey === "Ada")
 
-  val updateQuery: DynamoDBQuery[Person, Option[Person]] =
+  val updateQuery: DynamoDBQuery[Person, Unit] =
     update(renamedFieldTable)(Person.firstName.partitionKey === "Ada")(Person.lastName.set("King"))
 
-  val deleteQuery: DynamoDBQuery[Person, Option[Person]] =
+  val deleteQuery: DynamoDBQuery[Person, Unit] =
     deleteFrom(renamedFieldTable)(Person.firstName.partitionKey === "Ada")
 
   val queryQuery: DynamoDBQuery[Person, Page[Either[DynamoDBError.ItemError, Person]]] =

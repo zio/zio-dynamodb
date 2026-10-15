@@ -21,11 +21,12 @@ import scala.util.control.NoStackTrace
 
 /**
  * Root of every typed error this library can raise in an interpreter's effect channel.
- * Extends `Throwable` (so it composes with each interpreter's own effect type — `Task`, CE's
- * `IO`, `Future`) but mixes in `NoStackTrace`, since these are expected, structured failures
+ * Extends `RuntimeException` (so it composes with each interpreter's own effect type — `Task`, CE's
+ * `IO`, `Future` — and is caught by `case e: Exception` handlers, like the AWS SDK's own
+ * exceptions) but mixes in `NoStackTrace`, since these are expected, structured failures
  * rather than exceptional JVM conditions — a stack trace would be noise, not signal.
  *
- * Sealed subtrees: [[DynamoDBError.ItemError]] (single-item decode/lookup failures),
+ * Sealed subtrees: [[DynamoDBError.ItemError]] (decoding and failed-condition errors),
  * [[DynamoDBError.ScanError]] (scan/query validation),
  * [[DynamoDBError.TransactionError]] (`transactWriteItems`/`transactGetItems` failures,
  * including [[DynamoDBError.TransactionError.TransactionCancelled]]'s per-item
@@ -34,7 +35,7 @@ import scala.util.control.NoStackTrace
  * scan). Batch operations deliberately don't raise `DynamoDBError` for partial failure — see
  * `Batch.GetResult`/`Batch.WriteResult`'s errors-as-values design instead.
  */
-sealed trait DynamoDBError extends Throwable with NoStackTrace with Product with Serializable {
+sealed trait DynamoDBError extends RuntimeException with NoStackTrace with Product with Serializable {
   def message: String
   override def getMessage: String = message
 }
@@ -87,23 +88,50 @@ object DynamoDBError {
    *  on the corresponding action.
    */
   final case class CancellationReason(
-    code: String,
+    code: CancellationCode,
     message: Option[String],
     item: Option[Item]
   ) {
-    def describe: String = s"[$code]${message.fold("")(m => s" $m")}"
+    def describe: String = s"[${code.value}]${message.fold("")(m => s" $m")}"
+  }
+
+  /**
+   * DynamoDB's documented transaction cancellation reason codes, with `Other` for any code added
+   * later. `NoError` is the item-level `"None"` code: that action didn't cause the cancellation.
+   */
+  sealed abstract class CancellationCode(val value: String) extends Product with Serializable
+
+  object CancellationCode {
+    case object NoError                                extends CancellationCode("None")
+    case object ConditionalCheckFailed                 extends CancellationCode("ConditionalCheckFailed")
+    case object ItemCollectionSizeLimitExceeded        extends CancellationCode("ItemCollectionSizeLimitExceeded")
+    case object TransactionConflict                    extends CancellationCode("TransactionConflict")
+    case object ProvisionedThroughputExceeded          extends CancellationCode("ProvisionedThroughputExceeded")
+    case object ThrottlingError                        extends CancellationCode("ThrottlingError")
+    case object ValidationError                        extends CancellationCode("ValidationError")
+    final case class Other(override val value: String) extends CancellationCode(value)
+
+    private val known: Map[String, CancellationCode] =
+      List(
+        NoError,
+        ConditionalCheckFailed,
+        ItemCollectionSizeLimitExceeded,
+        TransactionConflict,
+        ProvisionedThroughputExceeded,
+        ThrottlingError,
+        ValidationError
+      ).map(c => c.value -> c).toMap
+
+    def fromString(code: String): CancellationCode = known.getOrElse(code, Other(code))
   }
 
   object ItemError {
 
     /**
-     * Signals that an expected key was absent from the DynamoDB response.
-     *  Produced by `DynamoDBQuery.get` when `getItem` returns `None`, and
-     *  available for use with `DynamoDBQuery.Absolve` to promote a missing-item
-     *  `Option` into the effect error channel. Not a decoding failure —
-     *  it indicates the item simply does not exist in the table.
+     * A write's condition expression evaluated to false. `item` holds the item as it was when
+     * the write requested `ReturnValuesOnConditionCheckFailure.AllOld`.
      */
-    final case class ValueNotFound(message: String) extends ItemError
+    final case class ConditionFailed(message: String, item: Option[Item]) extends ItemError
 
     /**
      * Composite decoding failure: one or more [[DecodingError.Cause]] entries.

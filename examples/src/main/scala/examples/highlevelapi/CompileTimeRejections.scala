@@ -50,6 +50,6 @@ object CompileTimeRejections {
 
   val registries: Table[Registry] = Table[Registry]("registries")
 
-  val buildsFineFailsOnRun: DynamoDBQuery[Registry, Option[Registry]] =
+  val buildsFineFailsOnRun: DynamoDBQuery[Registry, Unit] =
     update(registries)(Registry.name.partitionKey === "r1")(Registry.countAtKey(1).set(99))
 }

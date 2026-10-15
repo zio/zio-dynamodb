@@ -30,6 +30,7 @@ import software.amazon.awssdk.services.dynamodb.model.{
   CancellationReason => AwsCancellationReason,
   Capacity => AwsCapacity,
   ConditionCheck => AwsConditionCheck,
+  ConditionalCheckFailedException,
   ConsumedCapacity => AwsConsumedCapacity,
   CreateTableRequest,
   CreateTableResponse,
@@ -809,12 +810,21 @@ private[dynamodb] object AwsCodecs {
     b.build()
   }
 
+  def fromConditionalCheckFailedException(e: ConditionalCheckFailedException): DynamoDBError.ItemError.ConditionFailed =
+    DynamoDBError.ItemError.ConditionFailed(
+      Option(e.getMessage).getOrElse("The conditional request failed"),
+      if (e.hasItem && !e.item.isEmpty) Some(fromAwsItem(e.item)) else None
+    )
+
   def fromTransactionCanceledException(
     e: TransactionCanceledException
   ): DynamoDBError.TransactionError.TransactionCancelled = {
     val reasons = Chunk.fromIterable(e.cancellationReasons.asScala.map { r =>
       DynamoDBError.CancellationReason(
-        code = r.code,
+        // AWS sends the literal "None" for an action that didn't fail; some SDKs surface it as null.
+        code = Option(r.code).fold[DynamoDBError.CancellationCode](DynamoDBError.CancellationCode.NoError)(
+          DynamoDBError.CancellationCode.fromString
+        ),
         message = Option(r.message),
         item = if (r.hasItem && !r.item.isEmpty) Some(fromAwsItem(r.item)) else None
       )
@@ -875,13 +885,30 @@ abstract class RealAwsInterpreter[F[_]](client: AwsDynamoDB[F]) extends AwsInter
     map(client.getItem(AwsCodecs.toGetItemRequest(q)))(AwsCodecs.fromGetItemResponse)
 
   protected def runPutItem(q: DynamoDBQuery.PutItem): F[Option[Item]] =
-    map(client.putItem(AwsCodecs.toPutItemRequest(q)))(AwsCodecs.fromPutItemResponse)
+    translateConditionFailure(q.conditionExpression.isDefined)(
+      map(client.putItem(AwsCodecs.toPutItemRequest(q)))(AwsCodecs.fromPutItemResponse)
+    )
 
   protected def runUpdateItem(q: DynamoDBQuery.UpdateItem): F[Option[Item]] =
-    map(client.updateItem(AwsCodecs.toUpdateItemRequest(q)))(AwsCodecs.fromUpdateItemResponse)
+    translateConditionFailure(q.conditionExpression.isDefined)(
+      map(client.updateItem(AwsCodecs.toUpdateItemRequest(q)))(AwsCodecs.fromUpdateItemResponse)
+    )
 
   protected def runDeleteItem(q: DynamoDBQuery.DeleteItem): F[Option[Item]] =
-    map(client.deleteItem(AwsCodecs.toDeleteItemRequest(q)))(AwsCodecs.fromDeleteItemResponse)
+    translateConditionFailure(q.conditionExpression.isDefined)(
+      map(client.deleteItem(AwsCodecs.toDeleteItemRequest(q)))(AwsCodecs.fromDeleteItemResponse)
+    )
+
+  // Only a write with a condition can fail its condition, so an unconditional write skips the
+  // attempt and pays nothing extra. Every other failure is re-raised unchanged.
+  private def translateConditionFailure[A](hasCondition: Boolean)(fa: F[A]): F[A] =
+    if (!hasCondition) fa
+    else
+      flatMap(attempt(fa)) {
+        case Right(a)                                 => pure(a)
+        case Left(e: ConditionalCheckFailedException) => fail(AwsCodecs.fromConditionalCheckFailedException(e))
+        case Left(t)                                  => raiseError(t)
+      }
 
   protected def runQuery(q: DynamoDBQuery.Query): F[Page[Item]] =
     map(client.query(AwsCodecs.toQueryRequest(q)))(AwsCodecs.fromQueryResponse)

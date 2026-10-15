@@ -64,16 +64,16 @@ object WrappedScalars {
   val weightIn: DdbExpr[Widget, Boolean]      = Widget.weight.in(Weight(1), Weight(2), Weight(3))
 
   // Wired into the six CRUD operations — see WrappedScalarsSpec for these actually run.
-  val putQuery: DynamoDBQuery[Widget, Option[Widget]] =
+  val putQuery: DynamoDBQuery[Widget, Unit] =
     put(widgets, Widget(Sku("SKU-1"), Weight(10)))
 
-  val getQuery: DynamoDBQuery[Widget, Either[DynamoDBError.ItemError, Widget]] =
+  val getQuery: DynamoDBQuery[Widget, Option[Either[DynamoDBError.ItemError.DecodingError, Widget]]] =
     get(widgets)(Widget.sku.partitionKey === Sku("SKU-1"))
 
-  val updateQuery: DynamoDBQuery[Widget, Option[Widget]] =
+  val updateQuery: DynamoDBQuery[Widget, Unit] =
     update(widgets)(Widget.sku.partitionKey === Sku("SKU-1"))(Widget.weight.set(Weight(20)))
 
-  val deleteQuery: DynamoDBQuery[Widget, Option[Widget]] =
+  val deleteQuery: DynamoDBQuery[Widget, Unit] =
     deleteFrom(widgets)(Widget.sku.partitionKey === Sku("SKU-1"))
 
   val queryQuery: DynamoDBQuery[Widget, Page[Either[DynamoDBError.ItemError, Widget]]] =

@@ -81,16 +81,16 @@ object Variants {
     Table[Item]("items").deriving(_.withDiscriminatorKind(DiscriminatorKind.None))
 
   // Wired into the six CRUD operations — see VariantsSpec for these actually run.
-  val putQuery: DynamoDBQuery[Item, Option[Item]] =
+  val putQuery: DynamoDBQuery[Item, Unit] =
     put(items, Item("i-1", Status.Pending, Shape.Circle(1.0)))
 
-  val getQuery: DynamoDBQuery[Item, Either[DynamoDBError.ItemError, Item]] =
+  val getQuery: DynamoDBQuery[Item, Option[Either[DynamoDBError.ItemError.DecodingError, Item]]] =
     get(items)(Item.id.partitionKey === "i-1")
 
-  val updateQuery: DynamoDBQuery[Item, Option[Item]] =
+  val updateQuery: DynamoDBQuery[Item, Unit] =
     update(items)(Item.id.partitionKey === "i-1")(setStatus)
 
-  val deleteQuery: DynamoDBQuery[Item, Option[Item]] =
+  val deleteQuery: DynamoDBQuery[Item, Unit] =
     deleteFrom(items)(Item.id.partitionKey === "i-1")
 
   val queryQuery: DynamoDBQuery[Item, Page[Either[DynamoDBError.ItemError, Item]]] =

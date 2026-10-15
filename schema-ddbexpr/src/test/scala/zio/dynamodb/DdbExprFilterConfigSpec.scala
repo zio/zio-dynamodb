@@ -111,8 +111,8 @@ object DdbExprFilterConfigSpec extends ZIOSpecDefault {
       import zio.dynamodb.blocks.ddbexpr.DdbExpr.{ DdbExprBoolSyntax, OpticDdbExprOps, OpticUpdateOps }
       val cfg      = DynamoDBCodecDeriverConfig[Order]().withFieldNameMapper(NameMapper.SnakeCase)
       val combined = Order.customerId === "c1" && Order.orderRef === "r1" && Order.status === Status.Shipped
-      assertTrue(!combined.isInstanceOf[ConditionExpression[_]])
       val ce       = interp(combined, cfg)
+      assert(combined)(not(isSubtype[ConditionExpression[_]](anything))) &&
       assertTrue(
         attrPaths(ce).contains(List("customer_id")),
         attrPaths(ce).contains(List("order_ref")),
@@ -125,8 +125,8 @@ object DdbExprFilterConfigSpec extends ZIOSpecDefault {
       import zio.dynamodb.blocks.ddbexpr.DdbExpr.{ DdbExprBoolSyntax, OpticDdbExprOps, OpticUpdateOps }
       val cfg      = DynamoDBCodecDeriverConfig[Order]().withFieldNameMapper(NameMapper.SnakeCase)
       val combined = Order.customerId === "c1" || Order.orderRef === "r1" || Order.status === Status.Shipped
-      assertTrue(!combined.isInstanceOf[ConditionExpression[_]])
       val ce       = interp(combined, cfg)
+      assert(combined)(not(isSubtype[ConditionExpression[_]](anything))) &&
       assertTrue(
         attrPaths(ce).contains(List("customer_id")),
         attrPaths(ce).contains(List("order_ref")),
@@ -144,8 +144,8 @@ object DdbExprFilterConfigSpec extends ZIOSpecDefault {
       }
       val cfg      = DynamoDBCodecDeriverConfig[Order]().withFieldNameMapper(NameMapper.SnakeCase)
       val combined = Order.customerId === "c1" && Order.orderRef === "r1" && Order.status === Status.Shipped
-      assertTrue(!combined.isInstanceOf[ConditionExpression[_]])
       val ce       = interp(combined, cfg)
+      assert(combined)(not(isSubtype[ConditionExpression[_]](anything))) &&
       assertTrue(
         attrPaths(ce).contains(List("customer_id")),
         attrPaths(ce).contains(List("order_ref")),
@@ -163,8 +163,8 @@ object DdbExprFilterConfigSpec extends ZIOSpecDefault {
       }
       val cfg      = DynamoDBCodecDeriverConfig[Order]().withFieldNameMapper(NameMapper.SnakeCase)
       val combined = Order.customerId === "c1" || Order.orderRef === "r1" || Order.status === Status.Shipped
-      assertTrue(!combined.isInstanceOf[ConditionExpression[_]])
       val ce       = interp(combined, cfg)
+      assert(combined)(not(isSubtype[ConditionExpression[_]](anything))) &&
       assertTrue(
         attrPaths(ce).contains(List("customer_id")),
         attrPaths(ce).contains(List("order_ref")),

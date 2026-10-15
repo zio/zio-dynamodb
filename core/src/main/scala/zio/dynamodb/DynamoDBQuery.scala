@@ -73,24 +73,23 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
 
   def where[B](conditionExpression: ConditionExpression[B])(implicit ev: CanWhere[B, Out]): DynamoDBQuery[In, Out] = {
     val _ = ev
+    withCondition(conditionExpression)
+  }
+
+  // `where` without the CanWhere check, for builders that already know they hold a write.
+  private[dynamodb] def withCondition(conditionExpression: ConditionExpression[_]): DynamoDBQuery[In, Out] =
     self match {
-      case zp @ ZipPar(left, right, zippable)     =>
-        ZipPar(
-          left.where(conditionExpression.asInstanceOf[ConditionExpression[zp.Left]]),
-          right.where(conditionExpression.asInstanceOf[ConditionExpression[zp.Right]]),
-          zippable
-        )
-      case map @ DynamoDBQuery.Map(query, mapper) =>
-        DynamoDBQuery.Map(query.where(conditionExpression.asInstanceOf[ConditionExpression[map.Old]]), mapper)
-      case ab @ DynamoDBQuery.Absolve(query)      =>
-        DynamoDBQuery.Absolve(query.where(conditionExpression.asInstanceOf[ConditionExpression[ab.Old]]))
-      case p: DynamoDBQuery.PutItem               =>
+      case ZipPar(left, right, zippable)    =>
+        ZipPar(left.withCondition(conditionExpression), right.withCondition(conditionExpression), zippable)
+      case DynamoDBQuery.Map(query, mapper) => DynamoDBQuery.Map(query.withCondition(conditionExpression), mapper)
+      case DynamoDBQuery.Absolve(query)     => DynamoDBQuery.Absolve(query.withCondition(conditionExpression))
+      case p: DynamoDBQuery.PutItem         =>
         p.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case u: DynamoDBQuery.UpdateItem            =>
+      case u: DynamoDBQuery.UpdateItem      =>
         u.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case d: DynamoDBQuery.DeleteItem            =>
+      case d: DynamoDBQuery.DeleteItem      =>
         d.copy(conditionExpression = Some(conditionExpression)).asInstanceOf[DynamoDBQuery[In, Out]]
-      case _                                      =>
+      case _                                =>
         DynamoDBQuery.fail(
           DynamoDBError.QueryBuilderError.UnsupportedModifier(
             s"'.where' has no effect on ${self.getClass.getSimpleName}; condition expressions are only " +
@@ -98,7 +97,6 @@ sealed trait DynamoDBQuery[-In, +Out] { self =>
           )
         )
     }
-  }
 
   /**
    * Adds a KeyConditionExpr to a DynamoDBQuery. Example:

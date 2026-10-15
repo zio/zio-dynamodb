@@ -445,6 +445,26 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
       )
   }
 
+  // TransactWriteItems has no per-item ReturnValues, so a write asking for one would otherwise be
+  // sent without it and silently return nothing.
+  private def validateTransactWriteReturnValues(
+    items: Chunk[DynamoDBQuery[Any, Any]]
+  ): Option[TransactionError.TransactionValidationError] = {
+    val withReturnValues = items.collect {
+      case p: DynamoDBQuery.PutItem if p.returnValues != ReturnValues.None    => "putItem"
+      case u: DynamoDBQuery.UpdateItem if u.returnValues != ReturnValues.None => "updateItem"
+      case d: DynamoDBQuery.DeleteItem if d.returnValues != ReturnValues.None => "deleteItem"
+    }
+    if (withReturnValues.isEmpty) None
+    else
+      Some(
+        TransactionError.TransactionValidationError(
+          "transactWriteItems returns no items, so ReturnValues (.returning / .returns) is not supported " +
+            s"inside a transaction; got it on: ${withReturnValues.mkString(", ")}"
+        )
+      )
+  }
+
   // Builds the onRetry closure RetryInterceptor.onRetry threads through withRetry/withRetryF —
   // a no-op F[Unit] when no RetryInterceptor is attached, so callers never branch on it.
   private def onRetryFor(meta: DynamoDBRetryMetadata): (Throwable, Int) => F[Unit] =
@@ -522,6 +542,7 @@ abstract class AwsInterpreter[F[_]] extends Interpreter[F] {
             val unwrapped = q.copy(writeItems = leaves)
             validateTransactionSize(unwrapped.writeItems.length)
               .orElse(validateTransactWriteItems(unwrapped.writeItems))
+              .orElse(validateTransactWriteReturnValues(unwrapped.writeItems))
               .orElse(validateTransactWriteItemsFailures(unwrapped.writeItems))
               .fold(runTransactWriteItems(unwrapped).asInstanceOf[F[Any]])(err => fail(err))
         }

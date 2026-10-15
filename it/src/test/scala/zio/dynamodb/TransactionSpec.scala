@@ -67,8 +67,8 @@ object TransactionSpec extends DynamoDBLocalSpec {
             updated <- interpreter.run(DdbExprApi.get(table)(Account.id.partitionKey === "keep"))
             deleted <- interpreter.run(DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "drop")))
           } yield assertTrue(
-            written == Right(Account("new", 100, "open")),
-            updated == Right(Account("keep", 42, "open")),
+            written.contains(Right(Account("new", 100, "open"))),
+            updated.contains(Right(Account("keep", 42, "open"))),
             deleted.isEmpty
           )
         }
@@ -87,7 +87,7 @@ object TransactionSpec extends DynamoDBLocalSpec {
             removed <- interpreter.run(DdbExprApi.get(table)(Account.id.partitionKey === "remove-me"))
             added   <- interpreter.run(DynamoDBQuery.getItem(tableName, PrimaryKey("id" -> "added")))
           } yield assertTrue(
-            removed.isLeft,
+            removed.isEmpty,
             added.isDefined
           )
         }
@@ -106,7 +106,7 @@ object TransactionSpec extends DynamoDBLocalSpec {
                         )
                       )
             result <- interpreter.run(DdbExprApi.get(table)(Account.id.partitionKey === "gated"))
-          } yield assertTrue(result == Right(Account("gated", 1, "open")))
+          } yield assertTrue(result.contains(Right(Account("gated", 1, "open"))))
         }
       },
       test("HL conditionCheck guards the transaction: condition false — whole transaction cancelled") {
@@ -126,7 +126,7 @@ object TransactionSpec extends DynamoDBLocalSpec {
                             .either
             notWritten <- interpreter.run(DdbExprApi.get(table)(Account.id.partitionKey === "should-not-write"))
           } yield assert(result)(isLeft(isSubtype[TransactionError.TransactionCancelled](anything))) &&
-            assert(notWritten)(isLeft(isSubtype[DynamoDBError.ItemError.ValueNotFound](anything)))
+            assert(notWritten)(isNone)
         }
       }
     )
@@ -273,20 +273,20 @@ object TransactionSpec extends DynamoDBLocalSpec {
                   (tc: TransactionError.TransactionCancelled) => tc.reasons.length,
                   equalTo(2)
                 ) &&
-                  hasField(
+                  hasField[TransactionError.TransactionCancelled, DynamoDBError.CancellationCode](
                     "reasons(0).code",
-                    (tc: TransactionError.TransactionCancelled) => tc.reasons(0).code,
-                    equalTo("ConditionalCheckFailed")
+                    _.reasons(0).code,
+                    equalTo(DynamoDBError.CancellationCode.ConditionalCheckFailed)
                   ) &&
                   hasField(
                     "reasons(0).item",
                     (tc: TransactionError.TransactionCancelled) => tc.reasons(0).item,
                     isNone
                   ) &&
-                  hasField(
+                  hasField[TransactionError.TransactionCancelled, DynamoDBError.CancellationCode](
                     "reasons(1).code",
-                    (tc: TransactionError.TransactionCancelled) => tc.reasons(1).code,
-                    equalTo("None")
+                    _.reasons(1).code,
+                    equalTo(DynamoDBError.CancellationCode.NoError)
                   )
               )
             )
@@ -315,10 +315,10 @@ object TransactionSpec extends DynamoDBLocalSpec {
                   (tc: TransactionError.TransactionCancelled) => tc.reasons.length,
                   equalTo(1)
                 ) &&
-                  hasField(
+                  hasField[TransactionError.TransactionCancelled, DynamoDBError.CancellationCode](
                     "reasons(0).code",
-                    (tc: TransactionError.TransactionCancelled) => tc.reasons(0).code,
-                    equalTo("ConditionalCheckFailed")
+                    _.reasons(0).code,
+                    equalTo(DynamoDBError.CancellationCode.ConditionalCheckFailed)
                   ) &&
                   hasField(
                     "reasons(0).item",

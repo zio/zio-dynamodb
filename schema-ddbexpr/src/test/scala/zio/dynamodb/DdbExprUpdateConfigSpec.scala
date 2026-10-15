@@ -86,10 +86,7 @@ object DdbExprUpdateConfigSpec extends ZIOSpecDefault {
   def spec = suite("DdbExprUpdateConfigSpec")(
     test("an optic update action is a deferred DdbUpdateExpr, never a pre-encoded core Action") {
       val action = Order.customerId.set("c9")
-      assertTrue(
-        action.isInstanceOf[DdbUpdateExpr[_]],
-        !action.isInstanceOf[UpdateExpression.Action[_]]
-      )
+      assert(action)(isSubtype[DdbUpdateExpr[_]](anything) && not(isSubtype[UpdateExpression.Action[_]](anything)))
     },
     test("default config: set field keeps its raw Scala name") {
       val cfg = DynamoDBCodecDeriverConfig[Order]()

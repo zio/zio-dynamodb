@@ -41,31 +41,31 @@ object CrudBuilders {
 
   val tasks: Table[Task] = Table[Task]("tasks")
 
-  val putQuery: DynamoDBQuery[Task, Option[Task]] =
+  val putQuery: DynamoDBQuery[Task, Unit] =
     put(tasks, Task("t1", "write docs", done = false, priority = 1))
 
-  val putWithCondition: DynamoDBQuery[Task, Option[Task]] =
+  val putWithCondition: DynamoDBQuery[Task, Unit] =
     put(tasks, Task("t1", "write docs", done = false, priority = 1)).where(Task.id.attributeNotExists)
 
-  val getQuery: DynamoDBQuery[Task, Either[DynamoDBError.ItemError, Task]] =
+  val getQuery: DynamoDBQuery[Task, Option[Either[DynamoDBError.ItemError.DecodingError, Task]]] =
     get(tasks)(Task.id.partitionKey === "t1")
 
-  val deleteQuery: DynamoDBQuery[Task, Option[Task]] =
+  val deleteQuery: DynamoDBQuery[Task, Unit] =
     deleteFrom(tasks)(Task.id.partitionKey === "t1")
 
-  val deleteWithCondition: DynamoDBQuery[Task, Option[Task]] =
+  val deleteWithCondition: DynamoDBQuery[Task, Unit] =
     deleteFrom(tasks)(Task.id.partitionKey === "t1").where(Task.done === true)
 
-  val updateQuery: DynamoDBQuery[Task, Option[Task]] =
+  val updateQuery: DynamoDBQuery[Task, Unit] =
     update(tasks)(Task.id.partitionKey === "t1")(Task.done.set(true))
 
-  val updateWithCondition: DynamoDBQuery[Task, Option[Task]] =
+  val updateWithCondition: DynamoDBQuery[Task, Unit] =
     update(tasks)(Task.id.partitionKey === "t1")(Task.priority.increment(1)).where(Task.done === false)
 
   // Escape hatch: a raw core Action built with the low-level ProjectionExpression `$` syntax.
   val rawAction: UpdateExpression.Action[Task] = ProjectionExpression.$("priority").set(5)
 
-  val updateActionQuery: DynamoDBQuery[Task, Option[Task]] =
+  val updateActionQuery: DynamoDBQuery[Task, Unit] =
     updateAction(tasks)(Task.id.partitionKey === "t1")(rawAction)
 
   // sortOrder is a method on DynamoDBQuery itself, not on the builder, so the builder converts
