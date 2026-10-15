@@ -126,6 +126,12 @@ object ConditionFailedTranslationSpec extends ZIOSpecDefault {
         isLeft(isSubtype[ConditionFailed](hasField[ConditionFailed, String]("message", _.message, isNonEmptyString)))
       )
     },
+    test("the SDK exception is kept as getCause") {
+      val (client, _) = writeClient(ccfeWithItem)
+      assert(run(client, conditionalPut).swap.map(e => Option(e.getCause)))(
+        isRight(isSome(isSubtype[ConditionalCheckFailedException](equalTo(ccfeWithItem))))
+      )
+    },
     test("conditional update and delete: translated too") {
       val (client, _) = writeClient(ccfeWithItem)
       assert(run(client, conditionalUpdate))(isLeft(isSubtype[ConditionFailed](anything))) &&
