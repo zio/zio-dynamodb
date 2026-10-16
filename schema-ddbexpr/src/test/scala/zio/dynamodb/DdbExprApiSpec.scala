@@ -96,6 +96,70 @@ object DdbExprApiSpec extends ZIOSpecDefault {
       // Range expressions (sk > / between / beginsWith) on get are now a compile-time error:
       // DdbExprApi.get takes DdbKeyExpr.PrimaryKey, which Extended does not satisfy.
     ),
+    suite("write modifiers")(
+      test("capacity / metrics / withRetryPolicy compose in any order with .where / .returning") {
+        val total: ReturnConsumedCapacity                                                       = ReturnConsumedCapacity.Total
+        val size: ReturnItemCollectionMetrics                                                   = ReturnItemCollectionMetrics.Size
+        val allOld: ReturnValues                                                                = ReturnValues.AllOld
+        val noItemOnFailure: ReturnValuesOnConditionCheckFailure                                =
+          ReturnValuesOnConditionCheckFailure.None
+        val q: DynamoDBQuery[Task, Option[Either[DynamoDBError.ItemError.DecodingError, Task]]] =
+          DdbExprApi
+            .put(tasks, Task("t1", 1, Priority.Low))
+            .capacity(total)
+            .returning(allOld)
+            .metrics(size)
+            .where(Task.score > 0)
+            .withRetryPolicy(RetryPolicy.NoRetry)
+            .withoutItemOnConditionFailure
+        assert(q)(
+          isSubtype[DynamoDBQuery.Map[_, _]](
+            hasField[DynamoDBQuery.Map[_, _], DynamoDBQuery[_, _]](
+              "query",
+              _.query,
+              isSubtype[DynamoDBQuery.PutItem](
+                hasField[DynamoDBQuery.PutItem, ReturnConsumedCapacity]("capacity", _.capacity, equalTo(total)) &&
+                  hasField[DynamoDBQuery.PutItem, ReturnItemCollectionMetrics](
+                    "itemMetrics",
+                    _.itemMetrics,
+                    equalTo(size)
+                  ) &&
+                  hasField[DynamoDBQuery.PutItem, ReturnValues]("returnValues", _.returnValues, equalTo(allOld)) &&
+                  hasField[DynamoDBQuery.PutItem, Option[ConditionExpression[_]]](
+                    "conditionExpression",
+                    _.conditionExpression,
+                    isSome(anything)
+                  ) &&
+                  hasField[DynamoDBQuery.PutItem, Option[ReturnValuesOnConditionCheckFailure]](
+                    "returnValuesOnConditionCheckFailure",
+                    _.returnValuesOnConditionCheckFailure,
+                    isSome(equalTo(noItemOnFailure))
+                  ) &&
+                  hasField[DynamoDBQuery.PutItem, Option[RetryPolicy]]("retryPolicy", _.retryPolicy, isSome(anything))
+              )
+            )
+          )
+        ) && assertTrue(run(q).isEmpty)
+      }
+    ),
+    suite(".where raw ConditionExpression")(
+      test("must be for the table's model") {
+        for {
+          otherModel <- typeCheck("""
+                          val ce: ConditionExpression[String] = null
+                          DdbExprApi.put(tasks, Task("t1", 1, Priority.Low)).where(ce)
+                        """)
+          sameModel  <- typeCheck("""
+                          val ce: ConditionExpression[Task] = null
+                          DdbExprApi.put(tasks, Task("t1", 1, Priority.Low)).where(ce)
+                        """)
+        } yield assertTrue(otherModel.isLeft, sameModel.isRight)
+      },
+      test("but an untyped $ condition fits any model") {
+        val q = DdbExprApi.put(tasks, Task("t1", 1, Priority.Low)).where(ProjectionExpression.$("score") > 0)
+        assertTrue(run(q.toQuery) == (()))
+      }
+    ),
     suite("transactWriteItems")(
       test("rejects a write with .returning: a transaction returns no items") {
         val q = DynamoDBQuery.transactWriteItems(
