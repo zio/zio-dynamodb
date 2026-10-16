@@ -99,12 +99,16 @@ object DdbExprApiSpec extends ZIOSpecDefault {
     suite("write modifiers")(
       test("capacity / metrics / withRetryPolicy compose in any order with .where / .returning") {
         val total: ReturnConsumedCapacity                                                       = ReturnConsumedCapacity.Total
+        val size: ReturnItemCollectionMetrics                                                   = ReturnItemCollectionMetrics.Size
+        val allOld: ReturnValues                                                                = ReturnValues.AllOld
+        val noItemOnFailure: ReturnValuesOnConditionCheckFailure                                =
+          ReturnValuesOnConditionCheckFailure.None
         val q: DynamoDBQuery[Task, Option[Either[DynamoDBError.ItemError.DecodingError, Task]]] =
           DdbExprApi
             .put(tasks, Task("t1", 1, Priority.Low))
             .capacity(total)
-            .returning(ReturnValues.AllOld)
-            .metrics(ReturnItemCollectionMetrics.Size)
+            .returning(allOld)
+            .metrics(size)
             .where(Task.score > 0)
             .withRetryPolicy(RetryPolicy.NoRetry)
             .withoutItemOnConditionFailure
@@ -115,6 +119,22 @@ object DdbExprApiSpec extends ZIOSpecDefault {
               _.query,
               isSubtype[DynamoDBQuery.PutItem](
                 hasField[DynamoDBQuery.PutItem, ReturnConsumedCapacity]("capacity", _.capacity, equalTo(total)) &&
+                  hasField[DynamoDBQuery.PutItem, ReturnItemCollectionMetrics](
+                    "itemMetrics",
+                    _.itemMetrics,
+                    equalTo(size)
+                  ) &&
+                  hasField[DynamoDBQuery.PutItem, ReturnValues]("returnValues", _.returnValues, equalTo(allOld)) &&
+                  hasField[DynamoDBQuery.PutItem, Option[ConditionExpression[_]]](
+                    "conditionExpression",
+                    _.conditionExpression,
+                    isSome(anything)
+                  ) &&
+                  hasField[DynamoDBQuery.PutItem, Option[ReturnValuesOnConditionCheckFailure]](
+                    "returnValuesOnConditionCheckFailure",
+                    _.returnValuesOnConditionCheckFailure,
+                    isSome(equalTo(noItemOnFailure))
+                  ) &&
                   hasField[DynamoDBQuery.PutItem, Option[RetryPolicy]]("retryPolicy", _.retryPolicy, isSome(anything))
               )
             )
