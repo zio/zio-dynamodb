@@ -141,10 +141,10 @@ final class TableWriteBuilder[From, Out] private[ddbexpr] (
     ) {
 
   /** See [[WriteBuilder.where]]. */
-  def where(expr: DdbExpr[From, Boolean]): ConditionalTableWriteBuilder[From, Out]        =
+  def where(expr: DdbExpr[From, Boolean]): ConditionalTableWriteBuilder[From, Out]           =
     where(BuilderSupport.condition(expr, table))
-  def where(se: SchemaExpr[From, Boolean]): ConditionalTableWriteBuilder[From, Out]       = where(DdbExpr.Builtin(se))
-  override def where(ce: ConditionExpression[_]): ConditionalTableWriteBuilder[From, Out] =
+  def where(se: SchemaExpr[From, Boolean]): ConditionalTableWriteBuilder[From, Out]          = where(DdbExpr.Builtin(se))
+  override def where(ce: ConditionExpression[From]): ConditionalTableWriteBuilder[From, Out] =
     new ConditionalTableWriteBuilder(table, WriteBuilder.conditional(write, ce), finish)
 
   override def returning(
@@ -180,10 +180,10 @@ final class ConditionalTableWriteBuilder[From, Out] private[ddbexpr] (
       finish0
     ) {
 
-  def where(expr: DdbExpr[From, Boolean]): ConditionalTableWriteBuilder[From, Out]        =
+  def where(expr: DdbExpr[From, Boolean]): ConditionalTableWriteBuilder[From, Out]           =
     where(BuilderSupport.condition(expr, table))
-  def where(se: SchemaExpr[From, Boolean]): ConditionalTableWriteBuilder[From, Out]       = where(DdbExpr.Builtin(se))
-  override def where(ce: ConditionExpression[_]): ConditionalTableWriteBuilder[From, Out] =
+  def where(se: SchemaExpr[From, Boolean]): ConditionalTableWriteBuilder[From, Out]          = where(DdbExpr.Builtin(se))
+  override def where(ce: ConditionExpression[From]): ConditionalTableWriteBuilder[From, Out] =
     new ConditionalTableWriteBuilder(table, write.withCondition(ce), finish)
 
   override def withoutItemOnConditionFailure: ConditionalTableWriteBuilder[From, Out] =
@@ -319,7 +319,7 @@ trait DdbExprApiSyntax {
    *  with the low-level `ProjectionExpression` syntax (`$("field").set(value)`), or composed
    *  by hand. Passed to `updateItem` verbatim: unlike a [[DdbUpdateExpr]], a raw `Action` was
    *  never derived from a `Schema` optic, so there is no table configuration for it to miss —
-   *  the same role `where(ce: ConditionExpression[_])` plays on [[TableWriteBuilder]].
+   *  the same role `where(ce: ConditionExpression[From])` plays on [[TableWriteBuilder]].
    *  Same retry caveat as [[update]] applies to `action` here.
    */
   // A separate name rather than a third `update` overload: two curried methods identical

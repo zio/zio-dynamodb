@@ -122,6 +122,24 @@ object DdbExprApiSpec extends ZIOSpecDefault {
         ) && assertTrue(run(q).isEmpty)
       }
     ),
+    suite(".where raw ConditionExpression")(
+      test("must be for the table's model") {
+        for {
+          otherModel <- typeCheck("""
+                          val ce: ConditionExpression[String] = null
+                          DdbExprApi.put(tasks, Task("t1", 1, Priority.Low)).where(ce)
+                        """)
+          sameModel  <- typeCheck("""
+                          val ce: ConditionExpression[Task] = null
+                          DdbExprApi.put(tasks, Task("t1", 1, Priority.Low)).where(ce)
+                        """)
+        } yield assertTrue(otherModel.isLeft, sameModel.isRight)
+      },
+      test("but an untyped $ condition fits any model") {
+        val q = DdbExprApi.put(tasks, Task("t1", 1, Priority.Low)).where(ProjectionExpression.$("score") > 0)
+        assertTrue(run(q.toQuery) == (()))
+      }
+    ),
     suite("transactWriteItems")(
       test("rejects a write with .returning: a transaction returns no items") {
         val q = DynamoDBQuery.transactWriteItems(

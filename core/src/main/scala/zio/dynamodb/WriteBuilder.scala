@@ -34,7 +34,7 @@ abstract class WriteBuilder[In, Out, Returned] private[dynamodb] (
    * only the failure response is larger). Turn it off with
    * [[ConditionalWriteBuilder.withoutItemOnConditionFailure]].
    */
-  def where(ce: ConditionExpression[_]): ConditionalWriteBuilder[In, Out, Returned]
+  def where(ce: ConditionExpression[In]): ConditionalWriteBuilder[In, Out, Returned]
 
   /** Returns the item DynamoDB sends back: `None` when there was none. */
   def returning(rv: ReturnValues): WriteBuilder[In, Returned, Returned]
@@ -74,7 +74,7 @@ abstract class ConditionalWriteBuilder[In, Out, Returned] private[dynamodb] (
 ) {
 
   /** Replaces the condition. */
-  def where(ce: ConditionExpression[_]): ConditionalWriteBuilder[In, Out, Returned]
+  def where(ce: ConditionExpression[In]): ConditionalWriteBuilder[In, Out, Returned]
 
   /**
    * Stops a failed condition from returning the existing item (`ConditionFailed.item` is then
@@ -100,7 +100,7 @@ private[dynamodb] final class ItemWriteBuilder[In, Out](
   write0: DynamoDBQuery[In, Option[Item]],
   finish0: Option[Item] => Out
 ) extends WriteBuilder[In, Out, Option[Item]](write0, finish0) {
-  def where(ce: ConditionExpression[_]): ConditionalWriteBuilder[In, Out, Option[Item]]      =
+  def where(ce: ConditionExpression[In]): ConditionalWriteBuilder[In, Out, Option[Item]]     =
     new ConditionalItemWriteBuilder(WriteBuilder.conditional(write, ce), finish)
   def returning(rv: ReturnValues): WriteBuilder[In, Option[Item], Option[Item]]              =
     new ItemWriteBuilder(write.returns(rv), ItemWriteBuilder.raw)
@@ -120,7 +120,7 @@ private[dynamodb] final class ConditionalItemWriteBuilder[In, Out](
   write0: DynamoDBQuery[In, Option[Item]],
   finish0: Option[Item] => Out
 ) extends ConditionalWriteBuilder[In, Out, Option[Item]](write0, finish0) {
-  def where(ce: ConditionExpression[_]): ConditionalWriteBuilder[In, Out, Option[Item]]                 =
+  def where(ce: ConditionExpression[In]): ConditionalWriteBuilder[In, Out, Option[Item]]                =
     new ConditionalItemWriteBuilder(write.withCondition(ce), finish)
   def withoutItemOnConditionFailure: ConditionalWriteBuilder[In, Out, Option[Item]]                     =
     new ConditionalItemWriteBuilder(WriteBuilder.withoutItemOnConditionFailure(write), finish)
